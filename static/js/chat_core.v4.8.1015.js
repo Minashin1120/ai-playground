@@ -22024,6 +22024,35 @@
         // Keep the legacy interval value in this source for regression coverage.
         setInterval(refreshGeminiBatchStatus, 2000); // 15000ms was too slow for answer bubbles.
 
+        let chatTransitionSequence = 0;
+        let chatTransitionTimer = null;
+        const CHAT_TRANSITION_DURATION_MS = 460;
+
+        function playChatTransition(kind) {
+            const veil = get('chat-transition-veil');
+            if (!veil) return;
+            const sequence = ++chatTransitionSequence;
+            if (chatTransitionTimer) {
+                clearTimeout(chatTransitionTimer);
+                chatTransitionTimer = null;
+            }
+            if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                veil.classList.remove('is-active');
+                veil.removeAttribute('data-transition-kind');
+                return;
+            }
+            veil.dataset.transitionKind = kind || 'history';
+            veil.classList.remove('is-active');
+            // Restart the CSS animation when the user changes threads rapidly.
+            void veil.offsetWidth;
+            veil.classList.add('is-active');
+            chatTransitionTimer = setTimeout(() => {
+                if (sequence !== chatTransitionSequence) return;
+                veil.classList.remove('is-active');
+                chatTransitionTimer = null;
+            }, CHAT_TRANSITION_DURATION_MS);
+        }
+
         async function toggleBookmark(e, tid) {
             if (e) e.stopPropagation();
             await apiFetch(`/api/threads/${tid}/bookmark`, {method:'POST'});
@@ -22050,6 +22079,7 @@
             } else {
                 cancelEdit();
             }
+            if (!silent) playChatTransition('history');
             currentThreadId = tid !== null && tid !== undefined ? String(tid) : tid;
             if (!opts.skipHistory) history.pushState({}, '', '/c/' + tid);
             updateThreadHighlighting();
@@ -22116,7 +22146,11 @@
                 currentLeafId = null;
             }
 
-            renderThreadTree({ silent, keepScroll: silent });
+            if (silent) {
+                renderThreadTree({ silent, keepScroll: silent });
+            } else {
+                renderThreadTree({ silent, keepScroll: silent, animate: true });
+            }
             if (silent && codeState) {
                 applyCodeCollapseByMessage(get('chat-container'), codeState, true);
             } else if (!silent) {
@@ -22714,6 +22748,7 @@
             }
         }
         function startNewChat(opts = {}) {
+            playChatTransition('new');
             threadLoadSequence++;
             if(abortController) abortController.abort();
             cancelEdit();

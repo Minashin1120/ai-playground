@@ -7000,35 +7000,43 @@ String(currentThreadId))&&await loadMessages(currentThreadId,{preserveDraft:!0,s
 completed||[];i.length&&(showGeminiBatchCompletionBanner(i),i.some(s=>String(s.thread_id)===String(currentThreadId))&&
 await loadMessages(currentThreadId,{preserveDraft:!0,silent:!0}))}catch{}finally{geminiBatchStatusPollBusy=
 !1}}}a(refreshGeminiBatchStatus,"refreshGeminiBatchStatus"),refreshGeminiBatchStatus(),setInterval(refreshGeminiBatchStatus,
-2e3);async function toggleBookmark(e,t){e&&e.stopPropagation(),await apiFetch(`/api/threads/${t}/boo\
-kmark`,{method:"POST"}),loadThreads()}a(toggleBookmark,"toggleBookmark");async function loadMessages(e,t={}){
+2e3);let chatTransitionSequence=0,chatTransitionTimer=null;const CHAT_TRANSITION_DURATION_MS=460;function playChatTransition(e){
+const t=get("chat-transition-veil");if(!t)return;const n=++chatTransitionSequence;if(chatTransitionTimer&&
+(clearTimeout(chatTransitionTimer),chatTransitionTimer=null),window.matchMedia&&window.matchMedia("(\
+prefers-reduced-motion: reduce)").matches){t.classList.remove("is-active"),t.removeAttribute("data-t\
+ransition-kind");return}t.dataset.transitionKind=e||"history",t.classList.remove("is-active"),t.offsetWidth,
+t.classList.add("is-active"),chatTransitionTimer=setTimeout(()=>{n===chatTransitionSequence&&(t.classList.
+remove("is-active"),chatTransitionTimer=null)},CHAT_TRANSITION_DURATION_MS)}a(playChatTransition,"pl\
+ayChatTransition");async function toggleBookmark(e,t){e&&e.stopPropagation(),await apiFetch(`/api/th\
+reads/${t}/bookmark`,{method:"POST"}),loadThreads()}a(toggleBookmark,"toggleBookmark");async function loadMessages(e,t={}){
 const n=++threadLoadSequence;window.closeHistoryModal&&window.closeHistoryModal();const i=!!t.preserveDraft,
 s=!!t.silent;s||resumeChatAutoScroll({scroll:!1});const o=s?snapshotCodeCollapseByMessage(get("chat-\
 container")):null;let r="",l="",d=[];if(i){const p=get("prompt-input");r=p?p.value:"",l=p?p.style.height:
 "",d=currentImageUrls?currentImageUrls.slice():[],editingMessageId=null,setEditUi(!1)}else cancelEdit();
-currentThreadId=e!=null?String(e):e,t.skipHistory||history.pushState({},"","/c/"+e),updateThreadHighlighting(),
-syncActiveGemForThread(currentThreadId),get("welcome-screen").classList.add("hidden"),s||(get("chat-\
-container").innerHTML=buildChatLoadingSkeletonHtml());try{const p=new URL(CHAT_CONFIG.urls.handleThreadItem.
-replace("0",e),window.location.origin);p.searchParams.set("limit",String(getEffectiveThreadInitialMessageLimit()));
-const h=await apiFetch(p.toString());if(!h.ok)throw new Error(`thread request failed (${h.status})`);
-const g=await h.json();if(!g||!Array.isArray(g.messages))throw new Error("invalid thread response");
-if(n!==threadLoadSequence)return!1;setCurrentChatHeaderTitle(g&&g.title),allMessages=g.messages,threadHasOlderMessages=
-!!g.has_older_messages,oldestLoadedMessageId=g.oldest_loaded_id||(allMessages.length?allMessages[0].
-id:null);const y=(allMessages||[]).filter(w=>w.role==="user"&&w.content).map(w=>w.content);if(promptHistory=
-[...new Set(y.slice().reverse())],historyIndex=-1,tempPrompt="",currentThreadPending=g.pending_job||
-null,setTemporaryChatUiState(!!(g&&g.is_temporary)),applyTemporaryChatRuntimeMeta(g||{}),ensureTemporaryChatHeartbeat(
-!0),get("thread-custom-instruction")&&(get("thread-custom-instruction").value=g.custom_instruction||
-""),g.last_model&&selectModelById(g.last_model),get("enable-prompt-cache")&&(get("enable-prompt-cach\
-e").checked=!!g.enable_prompt_caching,updatePromptCacheUi()),g.last_gem_uuid&&loadedGems.length>0){const w=loadedGems.
-find(x=>x.uuid===g.last_gem_uuid);w&&(threadGemMap[currentThreadId]=w,applyActiveGem(w))}const b=localStorage.
-getItem(`fixed_branch_${currentThreadId}`);if(b&&allMessages.find(w=>String(w.id)===String(b))?currentLeafId=
-b:allMessages.length>0?currentLeafId=allMessages[allMessages.length-1].id:currentLeafId=null,renderThreadTree(
-{silent:s,keepScroll:s}),s&&o?applyCodeCollapseByMessage(get("chat-container"),o,!0):s||applyCodeCollapseByMessage(
-get("chat-container"),null,!0),currentThreadPending&&!s&&!isPendingJobSuppressed(currentThreadPending.
-job_id)&&resumePendingStream(currentThreadPending),i){const w=get("prompt-input");w&&(w.value=r||"",
-l?w.style.height=l:w.style.height="auto"),currentImageUrls=d,currentImageUrls&&currentImageUrls.length?
-(get("file-preview").classList.remove("hidden"),get("file-name").innerText=`${currentImageUrls.length}\
- files ready`):get("file-preview").classList.add("hidden"),schedulePromptTokenEstimate(!0)}if(i||schedulePromptTokenEstimate(
+s||playChatTransition("history"),currentThreadId=e!=null?String(e):e,t.skipHistory||history.pushState(
+{},"","/c/"+e),updateThreadHighlighting(),syncActiveGemForThread(currentThreadId),get("welcome-scree\
+n").classList.add("hidden"),s||(get("chat-container").innerHTML=buildChatLoadingSkeletonHtml());try{
+const p=new URL(CHAT_CONFIG.urls.handleThreadItem.replace("0",e),window.location.origin);p.searchParams.
+set("limit",String(getEffectiveThreadInitialMessageLimit()));const h=await apiFetch(p.toString());if(!h.
+ok)throw new Error(`thread request failed (${h.status})`);const g=await h.json();if(!g||!Array.isArray(
+g.messages))throw new Error("invalid thread response");if(n!==threadLoadSequence)return!1;setCurrentChatHeaderTitle(
+g&&g.title),allMessages=g.messages,threadHasOlderMessages=!!g.has_older_messages,oldestLoadedMessageId=
+g.oldest_loaded_id||(allMessages.length?allMessages[0].id:null);const y=(allMessages||[]).filter(w=>w.
+role==="user"&&w.content).map(w=>w.content);if(promptHistory=[...new Set(y.slice().reverse())],historyIndex=
+-1,tempPrompt="",currentThreadPending=g.pending_job||null,setTemporaryChatUiState(!!(g&&g.is_temporary)),
+applyTemporaryChatRuntimeMeta(g||{}),ensureTemporaryChatHeartbeat(!0),get("thread-custom-instruction")&&
+(get("thread-custom-instruction").value=g.custom_instruction||""),g.last_model&&selectModelById(g.last_model),
+get("enable-prompt-cache")&&(get("enable-prompt-cache").checked=!!g.enable_prompt_caching,updatePromptCacheUi()),
+g.last_gem_uuid&&loadedGems.length>0){const w=loadedGems.find(x=>x.uuid===g.last_gem_uuid);w&&(threadGemMap[currentThreadId]=
+w,applyActiveGem(w))}const b=localStorage.getItem(`fixed_branch_${currentThreadId}`);if(b&&allMessages.
+find(w=>String(w.id)===String(b))?currentLeafId=b:allMessages.length>0?currentLeafId=allMessages[allMessages.
+length-1].id:currentLeafId=null,renderThreadTree(s?{silent:s,keepScroll:s}:{silent:s,keepScroll:s,animate:!0}),
+s&&o?applyCodeCollapseByMessage(get("chat-container"),o,!0):s||applyCodeCollapseByMessage(get("chat-\
+container"),null,!0),currentThreadPending&&!s&&!isPendingJobSuppressed(currentThreadPending.job_id)&&
+resumePendingStream(currentThreadPending),i){const w=get("prompt-input");w&&(w.value=r||"",l?w.style.
+height=l:w.style.height="auto"),currentImageUrls=d,currentImageUrls&&currentImageUrls.length?(get("f\
+ile-preview").classList.remove("hidden"),get("file-name").innerText=`${currentImageUrls.length} file\
+s ready`):get("file-preview").classList.add("hidden"),schedulePromptTokenEstimate(!0)}if(i||schedulePromptTokenEstimate(
 !0),window.innerWidth<768&&get("overlay").click(),typeof window.__refreshAdminThreadEncState=="funct\
 ion")try{window.__refreshAdminThreadEncState()}catch{}return!0}catch(p){return n!==threadLoadSequence||
 (console.error("Failed to load chat thread:",p),s||showChatLoadError(e),s||showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\
@@ -7193,21 +7201,22 @@ stringify({is_temporary:t})}),i=await n.json().catch(()=>({}));if(!n.ok)throw ne
 !!(i&&i.is_temporary)),applyTemporaryChatRuntimeMeta(i||{}),ensureTemporaryChatHeartbeat(!0),!0}catch{
 return showToast("\u4E00\u6642\u30C1\u30E3\u30C3\u30C8\u8A2D\u5B9A\u306E\u66F4\u65B0\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0),!1}}a(applyTemporaryChatSetting,"applyTemporaryChatSetting");function startNewChat(e={}){
-if(threadLoadSequence++,abortController&&abortController.abort(),cancelEdit(),resetUploadState(),stopTemporaryChatHeartbeat(),
-setTemporaryChatUiState(!1),currentThreadTitle=null,tempChatExpiresAtMs=null,currentThreadId=null,allMessages=
-[],promptHistory=[],historyIndex=-1,tempPrompt="",threadHasOlderMessages=!1,oldestLoadedMessageId=null,
-loadingOlderMessages=!1,currentLeafId=null,currentParentId=null,currentThreadPending=null,updateTotalTokenBar(
-0),typeof window.__refreshAdminThreadEncState=="function")try{window.__refreshAdminThreadEncState()}catch{}
-e.skipHistory||history.pushState({},"","/"),get("chat-container").innerHTML="",get("welcome-screen").
-classList.remove("hidden"),updateCurrentChatHeaderUi(),get("thread-custom-instruction")&&(get("threa\
-d-custom-instruction").value=""),get("enable-prompt-cache")&&(get("enable-prompt-cache").checked=!1,
-updatePromptCacheUi()),e.preserveGem?activeGem&&applyActiveGem(activeGem):applyActiveGem(null),loadThreads(),
-window.innerWidth<768&&get("overlay").click()}a(startNewChat,"startNewChat");let threadModalLoadSeq=0;
-window.openThreadModal=async()=>{if(!currentThreadId)try{const i=await(await apiFetch(CHAT_CONFIG.urls.
-handleThreads,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({is_temporary:temporaryChatEnabled})})).
-json();currentThreadId=i.id!==null&&i.id!==void 0?String(i.id):i.id,setTemporaryChatUiState(!!(i&&i.
-is_temporary)),setCurrentChatHeaderTitle(i&&i.title),applyTemporaryChatRuntimeMeta(i||{}),ensureTemporaryChatHeartbeat(
-!0),history.pushState({},"","/c/"+i.id),loadThreads()}catch{showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u4F5C\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
+if(playChatTransition("new"),threadLoadSequence++,abortController&&abortController.abort(),cancelEdit(),
+resetUploadState(),stopTemporaryChatHeartbeat(),setTemporaryChatUiState(!1),currentThreadTitle=null,
+tempChatExpiresAtMs=null,currentThreadId=null,allMessages=[],promptHistory=[],historyIndex=-1,tempPrompt=
+"",threadHasOlderMessages=!1,oldestLoadedMessageId=null,loadingOlderMessages=!1,currentLeafId=null,currentParentId=
+null,currentThreadPending=null,updateTotalTokenBar(0),typeof window.__refreshAdminThreadEncState=="f\
+unction")try{window.__refreshAdminThreadEncState()}catch{}e.skipHistory||history.pushState({},"","/"),
+get("chat-container").innerHTML="",get("welcome-screen").classList.remove("hidden"),updateCurrentChatHeaderUi(),
+get("thread-custom-instruction")&&(get("thread-custom-instruction").value=""),get("enable-prompt-cac\
+he")&&(get("enable-prompt-cache").checked=!1,updatePromptCacheUi()),e.preserveGem?activeGem&&applyActiveGem(
+activeGem):applyActiveGem(null),loadThreads(),window.innerWidth<768&&get("overlay").click()}a(startNewChat,
+"startNewChat");let threadModalLoadSeq=0;window.openThreadModal=async()=>{if(!currentThreadId)try{const i=await(await apiFetch(
+CHAT_CONFIG.urls.handleThreads,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.
+stringify({is_temporary:temporaryChatEnabled})})).json();currentThreadId=i.id!==null&&i.id!==void 0?
+String(i.id):i.id,setTemporaryChatUiState(!!(i&&i.is_temporary)),setCurrentChatHeaderTitle(i&&i.title),
+applyTemporaryChatRuntimeMeta(i||{}),ensureTemporaryChatHeartbeat(!0),history.pushState({},"","/c/"+
+i.id),loadThreads()}catch{showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u4F5C\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0);return}const e=++threadModalLoadSeq,t=String(currentThreadId);modalThreadId=t,showModal(
 "thread-modal"),location.pathname!=="/chat-settings"&&history.pushState({modal:"thread"},"","/chat-s\
 ettings");try{const[n,i]=await Promise.all([apiFetch(CHAT_CONFIG.urls.handleSettingsQuery),apiFetch(

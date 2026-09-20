@@ -37,6 +37,8 @@ import java.io.IOException
 import java.net.URLEncoder
 import java.util.UUID
 
+enum class ChatTransitionKind { NONE, OPEN_THREAD, NEW_CHAT }
+
 data class ChatState(
     val starting: Boolean = true, val account: Account? = null,
     val pairing: Boolean = false, val userCode: String = "", val busy: Boolean = false,
@@ -83,6 +85,8 @@ data class ChatState(
     val connectionMessage: String = "",
     val connectionBannerVisible: Boolean = false,
     val jobId: String? = null, val retryAvailable: Boolean = false, val notice: String? = null,
+    val chatTransitionId: Long = 0L,
+    val chatTransitionKind: ChatTransitionKind = ChatTransitionKind.NONE,
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -116,6 +120,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private data class Submission(val body: JSONObject, val files: List<Attachment>)
     private var failed: Submission? = null
     private var pendingParentId: Int? = null
+    private var chatTransitionSequence = 0L
+
+    private fun nextChatTransition(kind: ChatTransitionKind): Pair<Long, ChatTransitionKind> {
+        chatTransitionSequence += 1L
+        return chatTransitionSequence to kind
+    }
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
@@ -491,21 +501,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         navigationJob?.cancel(); streamJob?.cancel(); failed = null
         heartbeatJob?.cancel()
         pendingParentId = null
+        val transition = nextChatTransition(ChatTransitionKind.NEW_CHAT)
         mutable.update { it.copy(selected = null, messages = emptyList(), allMessages = emptyList(), leafId = null,
             editingMessageId = null, jobId = null, streaming = false,
             liveContent = "", liveThought = "", status = "", busy = false, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null, customInstruction = "",
             includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null,
-            selectedGem = null, codingTarget = null, imageMask = null) }
+            selectedGem = null, codingTarget = null, imageMask = null,
+            chatTransitionId = transition.first, chatTransitionKind = transition.second) }
     }
     fun openThread(thread: ThreadItem) {
         navigationJob?.cancel(); streamJob?.cancel(); heartbeatJob?.cancel(); failed = null
         pendingParentId = null
+        val transition = nextChatTransition(ChatTransitionKind.OPEN_THREAD)
         val storedLeaf = prefs.getInt("leaf_${thread.id}", -1).takeIf { it > 0 }
         mutable.update { it.copy(selected = thread, messages = emptyList(), allMessages = emptyList(),
             leafId = storedLeaf, editingMessageId = null, streaming = false, busy = true,
             liveContent = "", liveThought = "", jobId = null, retryAvailable = false,
-            cards = emptyList(), hasOlder = false, oldestId = null) }
+            cards = emptyList(), hasOlder = false, oldestId = null,
+            chatTransitionId = transition.first, chatTransitionKind = transition.second) }
         navigationJob = viewModelScope.launch {
             try { loadMessages(thread.id); if (foreground && state.value.jobId != null) resume() }
             catch (e: Exception) { report(e) }

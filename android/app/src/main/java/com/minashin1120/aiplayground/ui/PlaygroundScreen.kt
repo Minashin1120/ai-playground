@@ -3,6 +3,13 @@ package com.minashin1120.aiplayground.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -13,6 +20,7 @@ import android.speech.RecognizerIntent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -311,7 +319,10 @@ fun PlaygroundScreen(
                             when {
                                 state.starting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                                 state.account == null -> PairingScreen(state, model, onWeb)
-                                else -> Conversation(state, model, openInApp, loader)
+                                else -> Conversation(
+                                    state, model, openInApp, loader,
+                                    animationsEnabled = !areSystemAnimationsDisabled(context),
+                                )
                             }
                         }
                     }
@@ -347,6 +358,8 @@ fun PlaygroundScreen(
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
                 }
             }
+
+            ChatTransitionOverlay(state, animationsEnabled = !areSystemAnimationsDisabled(context))
 
             if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })
             if (libraryOpen) LibraryDialog(state, model, onOpenFile = { viewingFile = it }, onDismiss = { libraryOpen = false })
@@ -427,6 +440,37 @@ private fun DialogAction(icon: androidx.compose.ui.graphics.vector.ImageVector, 
     TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp)) {
         Icon(icon, contentDescription = null)
         Text(label, modifier = Modifier.padding(start = 12.dp).weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Start)
+    }
+}
+
+@Composable
+private fun ChatTransitionOverlay(state: ChatState, animationsEnabled: Boolean) {
+    if (!animationsEnabled || state.chatTransitionId == 0L || state.chatTransitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NONE) return
+
+    val progress = remember { Animatable(-1f) }
+    val primary = MaterialTheme.colorScheme.primary
+    val peakAlpha = if (state.chatTransitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NEW_CHAT) 0.18f else 0.24f
+    LaunchedEffect(state.chatTransitionId) {
+        progress.snapTo(-1f)
+        progress.animateTo(1f, animationSpec = tween(460, easing = FastOutSlowInEasing))
+    }
+    Canvas(Modifier.fillMaxSize()) {
+        val bandWidth = size.width * 0.52f
+        val left = progress.value * (size.width + bandWidth) - bandWidth
+        drawRect(
+            brush = Brush.horizontalGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    primary.copy(alpha = peakAlpha * 0.35f),
+                    primary.copy(alpha = peakAlpha),
+                    primary.copy(alpha = peakAlpha * 0.35f),
+                    Color.Transparent,
+                ),
+                startX = left,
+                endX = left + bandWidth,
+            ),
+            size = size,
+        )
     }
 }
 
@@ -678,7 +722,13 @@ private fun ThreadSettingsDialog(
 }
 
 @Composable
-private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String) -> Unit, loader: FileBytesLoader?) {
+private fun Conversation(
+    state: ChatState,
+    model: ChatViewModel,
+    onFile: (String) -> Unit,
+    loader: FileBytesLoader?,
+    animationsEnabled: Boolean,
+) {
     val scroll = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var showScrollToBottom by remember { mutableStateOf(false) }
@@ -746,12 +796,20 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
             items(state.messages, key = { it.id }) { message ->
                 val siblings = siblingGroup(state.allMessages, message)
                 val index = siblings.indexOfFirst { it.id == message.id }
-                MessageCard(message, onFile, model::quoteMessage, loader,
-                    onEdit = { model.beginEdit(it) },
-                    onRegenerate = { model.regenerate(it) },
-                    branchIndex = if (index < 0) 0 else index,
-                    branchCount = if (numericId(message) != null) siblings.size else 0,
-                    onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) })
+                AnimatedVisibility(
+                    visible = true,
+                    enter = if (animationsEnabled) {
+                        fadeIn(animationSpec = tween(380)) +
+                            slideInVertically(animationSpec = tween(380), initialOffsetY = { it / 20 })
+                    } else EnterTransition.None,
+                ) {
+                    MessageCard(message, onFile, model::quoteMessage, loader,
+                        onEdit = { model.beginEdit(it) },
+                        onRegenerate = { model.regenerate(it) },
+                        branchIndex = if (index < 0) 0 else index,
+                        branchCount = if (numericId(message) != null) siblings.size else 0,
+                        onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) })
+                }
             }
                 if (live) item(key = "live") { LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision) }
             }

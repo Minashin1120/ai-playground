@@ -3481,6 +3481,59 @@ body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
     }
 }
 
+/* Chat session transition — a quiet, theme-colored veil over the full app. */
+#chat-transition-veil {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    pointer-events: none;
+    visibility: hidden;
+    opacity: 0;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        transparent 28%,
+        rgba(var(--theme-rgb), 0.08) 43%,
+        rgba(var(--theme-rgb), 0.28) 50%,
+        rgba(var(--theme-rgb), 0.08) 57%,
+        transparent 72%,
+        transparent 100%);
+    background-size: 240% 100%;
+    background-position: -120% 0;
+}
+#chat-transition-veil.is-active {
+    visibility: visible;
+    animation: chatTransitionVeil 0.46s var(--ease-in-out) both;
+}
+#chat-transition-veil[data-transition-kind="new"].is-active {
+    animation-name: chatTransitionNew;
+}
+@keyframes chatTransitionVeil {
+    0% { opacity: 0; background-position: -120% 0; }
+    30% { opacity: 0.22; }
+    52% { opacity: 0.72; }
+    100% { opacity: 0; background-position: 120% 0; }
+}
+@keyframes chatTransitionNew {
+    0% { opacity: 0; background-position: -120% 0; }
+    36% { opacity: 0.58; }
+    100% { opacity: 0; background-position: 120% 0; }
+}
+html.performance-lite-mode #chat-transition-veil.is-active {
+    animation: chatTransitionLite 0.28s var(--ease-out) both;
+    background: rgba(var(--theme-rgb), 0.12);
+    background-size: auto;
+}
+@keyframes chatTransitionLite {
+    0% { opacity: 0; }
+    40% { opacity: 0.42; }
+    100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    #chat-transition-veil {
+        display: none !important;
+    }
+}
+
 /* ═══════════════════════════════════════════════════════════
    V4.8.603 — Unified cockpit redesign polish
    ═══════════════════════════════════════════════════════════ */

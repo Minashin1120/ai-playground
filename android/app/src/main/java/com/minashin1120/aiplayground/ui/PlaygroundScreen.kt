@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.FileProvider
 import androidx.core.content.ContextCompat
+import com.minashin1120.aiplayground.ANDROID_17_APP_BUBBLE_API
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.AppChangelogUiState
@@ -139,7 +140,8 @@ fun PlaygroundScreen(
                 }
             }
             val openBubble: () -> Unit = {
-                if (Build.VERSION.SDK_INT >= 33 &&
+                if (Build.VERSION.SDK_INT < ANDROID_17_APP_BUBBLE_API &&
+                    Build.VERSION.SDK_INT >= 33 &&
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                     bubbleAfterNotificationPermission = true
                     notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -487,7 +489,11 @@ private fun ThreadPanel(
         }
         TextButton(onClick = onBubble, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Rounded.ChatBubble, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text("バブルで開く", modifier = Modifier.padding(start = 6.dp))
+            Text(
+                if (Build.VERSION.SDK_INT >= ANDROID_17_APP_BUBBLE_API) "バブルに追加する方法"
+                else "バブルで開く",
+                modifier = Modifier.padding(start = 6.dp),
+            )
         }
         OutlinedTextField(
             state.search, model::search, singleLine = true, placeholder = { Text("チャットを検索...", style = MaterialTheme.typography.bodySmall) },

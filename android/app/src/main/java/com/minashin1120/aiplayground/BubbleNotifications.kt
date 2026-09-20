@@ -21,12 +21,14 @@ const val CHAT_BUBBLE_CHANNEL_ID = "chat_bubble_conversation"
 const val CHAT_BUBBLE_NOTIFICATION_ID = 4101
 const val CHAT_BUBBLE_SHORTCUT_ID = "chat_bubble"
 const val EXTRA_BUBBLE_THREAD_ID = "com.minashin1120.aiplayground.extra.BUBBLE_THREAD_ID"
+const val ANDROID_17_APP_BUBBLE_API = 37
 
 private const val BUBBLE_SHORTCUT_CATEGORY = "android.shortcut.conversation"
 
 enum class ChatBubbleResult {
     POSTED,
     SETTINGS_REQUIRED,
+    ANDROID_17_USER_ACTION,
 }
 
 internal fun bubbleThreadId(value: String?): String? = value?.trim()?.takeIf { it.isNotEmpty() }
@@ -35,6 +37,12 @@ internal fun bubbleTitle(thread: ThreadItem?): String =
     thread?.title?.trim()?.takeIf { it.isNotEmpty() } ?: "新しいチャット"
 
 fun createChatBubble(context: Context, thread: ThreadItem?): ChatBubbleResult {
+    // Android 17's app bubbles are a system windowing mode. The user adds an
+    // app from the launcher; notification BubbleMetadata is a separate API.
+    if (Build.VERSION.SDK_INT >= ANDROID_17_APP_BUBBLE_API) {
+        return ChatBubbleResult.ANDROID_17_USER_ACTION
+    }
+
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
         return ChatBubbleResult.SETTINGS_REQUIRED

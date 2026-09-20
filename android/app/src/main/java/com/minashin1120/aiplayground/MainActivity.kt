@@ -73,14 +73,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openBubble() {
-        if (createChatBubble(this, model.state.value.selected) == ChatBubbleResult.SETTINGS_REQUIRED) {
-            try {
-                startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                    putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
-                })
-            } catch (_: Exception) {
-                model.notify("Androidの通知設定を開けません。設定からAI Playgroundのバブルを許可してください。")
+        when (createChatBubble(this, model.state.value.selected)) {
+            ChatBubbleResult.ANDROID_17_USER_ACTION -> {
+                model.notify("Android 17では、ホーム画面でAI Playgroundのアイコンを長押しし、「バブルに追加」を選択してください。")
             }
+            ChatBubbleResult.SETTINGS_REQUIRED -> {
+                try {
+                    startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                    })
+                } catch (_: Exception) {
+                    model.notify("Androidの通知設定を開けません。設定からAI Playgroundのバブルを許可してください。")
+                }
+            }
+            ChatBubbleResult.POSTED -> Unit
         }
     }
 

@@ -116,7 +116,7 @@ def _get_changelogs(page=1, limit=10):
 def _get_android_changelogs():
     changelog_dir = app.config.get(
         'ANDROID_CHANGELOG_FOLDER',
-        os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'android', 'ci', 'changelogs')),
+        os.path.join(app.root_path, 'android', 'ci', 'changelogs'),
     )
     entries = []
     try:

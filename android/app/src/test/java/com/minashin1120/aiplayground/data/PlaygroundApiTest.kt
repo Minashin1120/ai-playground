@@ -11,6 +11,38 @@ import java.io.ByteArrayInputStream
 import java.io.IOException
 
 class PlaygroundApiTest {
+    @Test fun markdownTextUsesSameOriginWithoutBearer() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder()
+                .addHeader("Content-Type", "text/markdown; charset=utf-8")
+                .body("# Android版\n").build())
+            val content = PlaygroundApi(server.url("/")).getText("/android/release-notes.md")
+            assertEquals("# Android版\n", content)
+            val request = server.takeRequest()
+            assertEquals("/android/release-notes.md", request.target)
+            assertEquals("text/markdown", request.headers["Accept"])
+            assertNull(request.headers["Authorization"])
+            assertNull(request.headers["Cookie"])
+        }
+    }
+
+    @Test fun markdownTextRejectsNonTextAndOversizedResponses() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder()
+                .addHeader("Content-Type", "application/json")
+                .body("{}").build())
+            assertTrue(runCatching { PlaygroundApi(server.url("/")).getText("/android/release-notes.md") }
+                .exceptionOrNull() is IOException)
+            server.enqueue(MockResponse.Builder()
+                .addHeader("Content-Type", "text/markdown")
+                .body("123456").build())
+            assertTrue(runCatching { PlaygroundApi(server.url("/")).getText("/android/release-notes.md", limit = 5) }
+                .exceptionOrNull() is IOException)
+        }
+    }
+
     @Test fun bearerDoesNotBecomeBrowserCookie() = runBlocking {
         MockWebServer().use { server ->
             server.start()

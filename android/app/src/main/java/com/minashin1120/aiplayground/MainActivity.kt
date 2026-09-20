@@ -19,6 +19,7 @@ import com.minashin1120.aiplayground.ui.PlaygroundScreen
 class MainActivity : ComponentActivity() {
     private val model: ChatViewModel by viewModels()
     private val updateModel: AppUpdateViewModel by viewModels()
+    private val changelogModel: AppChangelogViewModel by viewModels()
     private val installerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         updateModel.installerClosed()
     }
@@ -28,7 +29,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val updateState = updateModel.state.collectAsStateWithLifecycle().value
+            val changelogState = changelogModel.state.collectAsStateWithLifecycle().value
             PlaygroundScreen(model, appUpdate = updateState,
+                appChangelog = changelogState,
                 playStartupAnimation = savedInstanceState == null,
                 onDismissUpdate = updateModel::dismiss,
                 onDownloadUpdate = updateModel::startDownload,
@@ -36,6 +39,8 @@ class MainActivity : ComponentActivity() {
                 onRetryUpdate = updateModel::retryDownload,
                 onInstallUpdate = ::installUpdate,
                 onCheckForUpdate = { updateModel.check(BuildConfig.VERSION_NAME) },
+                onOpenChangelog = changelogModel::load,
+                onRetryChangelog = changelogModel::load,
                 onWeb = { path ->
                 val safePath = path.takeIf { it.startsWith('/') && !it.startsWith("//") } ?: "/"
                 val url = BuildConfig.BASE_URL.trimEnd('/') + safePath

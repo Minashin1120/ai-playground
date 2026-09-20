@@ -112,6 +112,48 @@ def _get_changelogs(page=1, limit=10):
         return all_logs, len(files)
     return [], 0
 
+
+def _get_android_changelogs():
+    changelog_dir = app.config.get(
+        'ANDROID_CHANGELOG_FOLDER',
+        os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'android', 'ci', 'changelogs')),
+    )
+    entries = []
+    try:
+        filenames = os.listdir(changelog_dir)
+    except OSError:
+        return []
+
+    for filename in filenames:
+        match = re.fullmatch(r'v(\d+)\.(\d+)\.(\d+)\.md', filename)
+        if not match:
+            continue
+        path = os.path.join(changelog_dir, filename)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, 'r', encoding='utf-8') as file:
+                content = file.read().strip()
+        except OSError:
+            continue
+        if content:
+            version = tuple(int(part) for part in match.groups())
+            entries.append((version, content))
+
+    entries.sort(key=lambda item: item[0], reverse=True)
+    return [content for _, content in entries]
+
+
+@app.route('/android/release-notes.md')
+def android_release_notes():
+    entries = _get_android_changelogs()
+    if not entries:
+        abort(404)
+    response = make_response('# AI Playground for Android\n\n' + '\n\n'.join(entries) + '\n')
+    response.headers['Content-Type'] = 'text/markdown; charset=utf-8'
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
+
 @app.route('/help')
 def help_page():
     return render_template('help.html')
@@ -310,4 +352,3 @@ def favicon():
         'icon-192.png',
         mimetype='image/png'
     )
-

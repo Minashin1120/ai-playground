@@ -1,5 +1,11 @@
 # Web版との機能・デザイン一致ロードマップ
 
+## Android 1.13.32：アプリ版更新履歴のネイティブ表示
+
+- 履歴サイドバーの更新履歴をブラウザーへ遷移せず、Android版専用のMarkdownとしてアプリ内に表示します。
+- Android版履歴は `android/ci/changelogs/` の版別ファイルを正本とし、Web版の `static/changelogs/` とは分離します。
+- GitHub Actionsで単体テスト・lint・debug／release APK・固定署名を確認します。実機での画面寸法と戻る操作は別途確認します。
+
 ## Android 1.13.26：Web相当のサーバー接続ステータス
 
 - `/api/version?heartbeat=...` をWeb版と同じ5秒間隔で監視し、切断系は2秒間隔へ短縮します。端末のネットワーク復帰・切断も即時反映します。

@@ -9,6 +9,7 @@
 | `app/build.gradle.kts` | 固定applicationId・共有署名・依存関係 | アプリ構成・署名を確認するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | ブラウザー起動・添付共有・APKインストール・Activityライフサイクル | 端末連携、ファイル表示、アプリ更新 |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateViewModel.kt` | 更新検出・ダウンロード状態・キャンセル・再試行 | アプリ更新フローを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/AppChangelogViewModel.kt` | Android版更新履歴Markdownの取得状態・再試行 | アプリ版更新履歴の取得を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/AppUpdateChecker.kt`, `AppUpdateDownloader.kt` | GitHub Release資産の確認、APK取得、SHA-256検証 | 更新元・資産名・ダウンロードを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/OfflineCacheStore.kt` | アカウント別の暗号化オフライン履歴・ファイル保存、同期設定、カテゴリ削除 | オフライン閲覧・端末保存・キャッシュ管理を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AppUpdateDialog.kt` | APK更新の確認、進捗、設定案内、再試行ダイアログ | 更新UI・文言・導線 |
@@ -27,6 +28,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | クリップボードHTML／テキストの安全な取り込み | リッチ貼り付けの入力変換を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ModelPicker.kt` | WebのSelect Model構成に合わせた検索・提供元／用途／対応能力フィルター・選択状態 | モデル選択画面を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundDialog.kt` | 共通のネイティブモーダル枠、ヘッダー、フッター、キーボード余白 | 設定・Gems・ライブラリ・Batchの画面枠を調整するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/AppChangelogDialog.kt` | Android版更新履歴のネイティブMarkdown表示、読み込み・再試行・戻る操作 | 更新履歴画面を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/GenerationOptionsPanel.kt` | モデル別生成設定のネイティブ入力パネル | 詳細設定の表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/GenerationOptions.kt` | モデル別の既存APIオプション、値検証、送信対象の限定 | 画像・動画・OCR・TTS・Thinking設定を追加するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/RealtimeModels.kt` | Realtime／Lyriaのセッション状態 | 音声・音楽ストリームの状態表示を変更するとき |
@@ -40,6 +42,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/ThreadPdf.kt` | スレッドのネイティブA4 PDF出力（WebView不使用） | PDF出力を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageCompression.kt` | Web相当の画像圧縮設定と、アップロード前の縮小・再エンコード | 画像圧縮を編集するとき |
 | `app/src/main/res/` | アイコン、HTTPS設定、バックアップ除外、添付共有範囲 | Androidリソース・保護設定 |
+| `ci/changelogs/` | Android版のバージョンごとの公開更新履歴Markdown | アプリ版の更新履歴を追加・修正するとき |
 | `app/src/test/` | HTTP認証境界・ストリーム・データ解析・Markdown・数式のテスト | 通信・表示実装を変更するとき |
 | `ci/bootstrap-keystore.sh` | Actions限定の初回鍵生成と保存 | 初回署名準備 |
 | `ci/verify-keystore.sh`, `ci/verify-apk.sh` | 固定証明書とAPK署名の一致確認 | 署名・上書き更新を検証するとき |

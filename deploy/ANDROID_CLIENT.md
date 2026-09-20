@@ -47,6 +47,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | Python・MCP・Coding結果 | Python・MCP・Coding差分のストリームイベントを構造化カードで表示。MCPの秘密設定とCoding対象の高度な編集はWeb導線 |
 | リアルタイム音声・Lyria | OpenAI／Grok Realtime、Gemini Live（`gemini-3.8-live`／`gemini-3.8-live-extended-thinking`を含む）とLyriaはBearer認証のネイティブセッション、マイク入力、SSE再生、保存に対応。Extended Thinkingは `interaction_status` を状態表示へ反映 |
 | アプリ更新検出 | 起動時または設定からGitHub Releasesの `android-vX.Y.Z` だけを確認し、現在のAndroid版より新しい安定版があればGitHubの `app-release.apk` と `.sha256` をアプリ内で取得・検証し、Android標準インストーラーへ渡す。GitHubのReleaseページは開かない |
+| アプリ版更新履歴 | `GET /android/release-notes.md` で `android/ci/changelogs/vX.Y.Z.md` を新しい順に取得し、Android内のMarkdown表示で確認する。Web版の `/changelog` とは分離する |
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 
@@ -645,7 +646,7 @@ CDNの管理画面の設定変更はこのリポジトリの設定例だけで�
 
 ### 9.4 リリース手順
 
-この環境では編集完了後、公開向け更新履歴を用意して次を実行します。長時間コマンドはバックグラウンドで1回起動して、そのプロセスの完了を確認します。
+この環境では編集完了後、`android/ci/changelogs/vX.Y.Z.md` に版別の公開向け更新履歴を用意して次を実行します。長時間コマンドはバックグラウンドで1回起動して、そのプロセスの完了を確認します。
 
 ```bash
 scripts/prepare_version.sh --notes "Androidクライアント用の端末連携と通信APIを追加しました。"

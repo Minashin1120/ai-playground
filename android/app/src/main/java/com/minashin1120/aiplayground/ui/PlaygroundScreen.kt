@@ -42,6 +42,7 @@ import androidx.core.content.FileProvider
 import androidx.core.content.ContextCompat
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
+import com.minashin1120.aiplayground.AppChangelogUiState
 import com.minashin1120.aiplayground.AppUpdateUiState
 import com.minashin1120.aiplayground.data.ThreadItem
 import com.minashin1120.aiplayground.data.LibraryFile
@@ -73,6 +74,7 @@ fun PlaygroundScreen(
     model: ChatViewModel,
     onWeb: (String) -> Unit,
     onFile: (String) -> Unit,
+    appChangelog: AppChangelogUiState = AppChangelogUiState(),
     appUpdate: AppUpdateUiState? = null,
     playStartupAnimation: Boolean = true,
     onDismissUpdate: () -> Unit = {},
@@ -81,6 +83,8 @@ fun PlaygroundScreen(
     onRetryUpdate: () -> Unit = {},
     onInstallUpdate: () -> Unit = {},
     onCheckForUpdate: () -> Unit = {},
+    onOpenChangelog: () -> Unit = {},
+    onRetryChangelog: () -> Unit = {},
 ) {
     val state by model.state.collectAsStateWithLifecycle()
     PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme(),
@@ -117,6 +121,7 @@ fun PlaygroundScreen(
             var viewingFile by remember { mutableStateOf<FileViewRequest?>(null) }
             var gemsOpen by remember { mutableStateOf(false) }
             var settingsOpen by remember { mutableStateOf(false) }
+            var changelogOpen by remember { mutableStateOf(false) }
             var advancedOpen by remember { mutableStateOf(false) }
             var realtimeOpen by remember { mutableStateOf(false) }
             var lyriaOpen by remember { mutableStateOf(false) }
@@ -205,13 +210,14 @@ fun PlaygroundScreen(
             val closeDrawer: () -> Unit = { scope.launch { drawer.close() } }
             val showThreads = state.account != null
             val hasOverlay = modelPicker || threadSettings || attachMenu || libraryOpen || viewingFile != null ||
-                gemsOpen || settingsOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || maskOpen || logout
+                gemsOpen || settingsOpen || changelogOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || maskOpen || logout
             BackHandler(enabled = hasOverlay || (!wide && drawer.currentValue == DrawerValue.Open)) {
                 when {
                     attachMenu -> attachMenu = false
                     modelPicker -> modelPicker = false
                     threadSettings -> threadSettings = false
                     settingsOpen -> settingsOpen = false
+                    changelogOpen -> changelogOpen = false
                     advancedOpen -> advancedOpen = false
                     realtimeOpen -> realtimeOpen = false
                     lyriaOpen -> lyriaOpen = false
@@ -296,7 +302,7 @@ fun PlaygroundScreen(
             if (showThreads && wide) {
                 Row(Modifier.fillMaxSize()) {
                     Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(), color = colors.surface.copy(alpha = 0.94f)) {
-                        ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onWeb = onWeb)
+                        ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onWeb = onWeb, onChangelog = { changelogOpen = true; onOpenChangelog() })
                     }
                     VerticalDivider()
                     Box(Modifier.weight(1f)) { content() }
@@ -306,7 +312,7 @@ fun PlaygroundScreen(
                     drawerContent = {
                         ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane), drawerContainerColor = colors.surface) {
                             if (showThreads) {
-                                ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onWeb = { path -> onWeb(path); closeDrawer() })
+                                ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onWeb = { path -> onWeb(path); closeDrawer() }, onChangelog = { changelogOpen = true; onOpenChangelog(); closeDrawer() })
                             }
                         }
                     }) { content() }
@@ -336,6 +342,11 @@ fun PlaygroundScreen(
             if (settingsOpen) SettingsDialog(state, model, onDismiss = { settingsOpen = false },
                 onLogout = { model.logout(); settingsOpen = false; closeDrawer() }, onWeb = onWeb,
                 appUpdate = appUpdate ?: AppUpdateUiState(), onCheckForUpdate = onCheckForUpdate)
+            if (changelogOpen) AppChangelogDialog(
+                state = appChangelog,
+                onDismiss = { changelogOpen = false },
+                onRetry = onRetryChangelog,
+            )
             if (advancedOpen) AdvancedToolsDialog(state, model, onDismiss = { advancedOpen = false }, onWebPath = onWeb,
                 onRealtime = {
                     advancedOpen = false
@@ -443,6 +454,7 @@ private fun ThreadPanel(
     onAdvanced: () -> Unit,
     onPdf: () -> Unit,
     onWeb: (String) -> Unit,
+    onChangelog: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 12.dp, vertical = 12.dp)) {
@@ -525,7 +537,7 @@ private fun ThreadPanel(
         ) {
             SidebarFooterLink("ヘルプ") { onWeb("/help"); onNavigate() }
             Text("·", color = colors.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
-            SidebarFooterLink("更新履歴") { onWeb("/changelog"); onNavigate() }
+            SidebarFooterLink("更新履歴") { onChangelog(); onNavigate() }
         }
         Button(
             onClick = onLogout,

@@ -216,7 +216,7 @@ class ReleaseScriptContractTests(unittest.TestCase):
         self.assertIn("android/app/src/main/AndroidManifest.xml", android["android_build"])
 
         docs = COMMON.classify_record_target(
-            ["android/README.md", "android/ci/release-notes.md"], "android"
+            ["android/README.md", "android/ci/changelogs/v1.13.32.md"], "android"
         )
         self.assertEqual(docs["android_build"], [])
 
@@ -241,6 +241,15 @@ class ReleaseScriptContractTests(unittest.TestCase):
             self.assertIn(f"'{path}'", workflow, path)
         for prefix in COMMON.ANDROID_BUILD_PREFIXES:
             self.assertIn(f"'{prefix}**'", workflow, prefix)
+
+    def test_android_release_uses_versioned_changelog_notes(self):
+        workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('NOTES_FILE="android/ci/changelogs/v$VERSION.md"', workflow)
+        self.assertIn('[[ -f "$NOTES_FILE" ]]', workflow)
+        self.assertIn('--notes-file "$NOTES_FILE"', workflow)
+        self.assertNotIn('--notes-file android/ci/release-notes.md', workflow)
 
     def test_restart_waits_for_resource_headroom_before_systemd(self):
         source = read("restart_services.sh")

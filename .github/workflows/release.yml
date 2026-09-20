@@ -44,10 +44,13 @@ jobs:
           git merge-base --is-ancestor HEAD origin/main
           VERSION=$(sed -n 's/^VERSION_NAME=//p' android/version.properties)
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          NOTES_FILE="android/ci/changelogs/v$VERSION.md"
+          [[ -f "$NOTES_FILE" ]]
           TAG="android-v$VERSION"
           [[ -z "$INPUT_TAG" || "$INPUT_TAG" == "$TAG" ]]
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then [[ "${GITHUB_REF#refs/tags/}" == "$TAG" ]]; fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
@@ -79,6 +82,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
+          NOTES_FILE: ${{ steps.version.outputs.notes_file }}
           SOURCE_SHA: ${{ steps.version.outputs.sha }}
         run: |
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
@@ -96,7 +100,7 @@ jobs:
             echo 'Existing release retained; assets are not overwritten.'
           else
             gh release create "$TAG" --verify-tag --title "AI Playground Android ${TAG#android-v}" \
-              --notes-file android/ci/release-notes.md \
+              --notes-file "$NOTES_FILE" \
               android/app/build/outputs/apk/release/app-release.apk \
               android/app/build/outputs/apk/release/app-release.apk.sha256 \
               android/ci/signing-fingerprint.txt

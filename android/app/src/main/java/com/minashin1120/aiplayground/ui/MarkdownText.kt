@@ -230,9 +230,8 @@ private fun inlineMarkdown(text: String, linkColor: Color): AnnotatedString = bu
 
 @Composable
 private fun InlineText(text: String, style: androidx.compose.ui.text.TextStyle = LocalTextStyle.current) {
-    val annotated = remember(text, MaterialTheme.colorScheme.primary) {
-        inlineMarkdown(text, MaterialTheme.colorScheme.primary)
-    }
+    val linkColor = MaterialTheme.colorScheme.primary
+    val annotated = remember(text, linkColor) { inlineMarkdown(text, linkColor) }
     Text(text = annotated, style = style.copy(color = LocalContentColor.current))
 }
 

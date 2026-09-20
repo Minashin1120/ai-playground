@@ -94,11 +94,12 @@ fun PlaygroundScreen(
         val colors = MaterialTheme.colorScheme
         val context = LocalContext.current
         val startupSplashEnabled = playStartupAnimation && !areSystemAnimationsDisabled(context)
-        BoxWithConstraints(
-            Modifier.fillMaxSize().background(
-                Brush.verticalGradient(listOf(colors.background, colors.surfaceContainerLow))
-            )
-        ) {
+        CompositionLocalProvider(LocalContentColor provides colors.onBackground) {
+            BoxWithConstraints(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(listOf(colors.background, colors.surfaceContainerLow))
+                )
+            ) {
             // Match the Web breakpoint while retaining Android's portrait/landscape semantics.
             val layoutClass = playgroundLayoutClass(maxWidth, maxHeight)
             val wide = layoutClass == PlaygroundLayoutClass.Tablet
@@ -319,7 +320,8 @@ fun PlaygroundScreen(
 
             if (showThreads && wide) {
                 Row(Modifier.fillMaxSize()) {
-                    Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(), color = colors.surface.copy(alpha = 0.94f)) {
+                    Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(),
+                        color = colors.surface.copy(alpha = 0.94f), contentColor = colors.onSurface) {
                         ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onBubble = openBubble, onWeb = onWeb, onChangelog = { changelogOpen = true; onOpenChangelog() })
                     }
                     VerticalDivider()
@@ -415,6 +417,7 @@ fun PlaygroundScreen(
                 )
             }
             StartupSplash(startupSplashEnabled)
+            }
         }
     }
 }
@@ -728,6 +731,7 @@ private fun Conversation(state: ChatState, model: ChatViewModel, onFile: (String
                             onClick = { model.chooseModel(info.id) },
                             shape = RoundedCornerShape(PlaygroundDimens.cardRadius),
                             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f),
+                            contentColor = MaterialTheme.colorScheme.onSurface,
                             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                             modifier = Modifier.fillMaxWidth(),
                         ) {

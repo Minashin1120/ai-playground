@@ -189,7 +189,7 @@ internal fun safeWebUrl(value: String): String? = runCatching {
 
 private val MATH_STYLE = SpanStyle(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)
 
-private fun inlineMarkdown(text: String): AnnotatedString = buildAnnotatedString {
+private fun inlineMarkdown(text: String, linkColor: Color): AnnotatedString = buildAnnotatedString {
     val token = Regex(
         """\\\((.+?)\\\)""" + """|\$\$(.+?)\$\$""" + """|\$([^\s$][^$\n]*?)\$""" +
             """|(`[^`\n]+`|\*\*[^*\n]+\*\*|(?<!\*)\*[^*\n]+\*|\[[^\]\n]+\]\([^)\n]+\))"""
@@ -217,7 +217,7 @@ private fun inlineMarkdown(text: String): AnnotatedString = buildAnnotatedString
                 val url = safeWebUrl(value.substring(split + 2, value.length - 1))
                 if (url == null) append(label) else withLink(
                     LinkAnnotation.Url(url, TextLinkStyles(style = SpanStyle(
-                        color = Color(0xFF0A8F84),
+                        color = linkColor,
                         textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
                     )))
                 ) { append(label) }
@@ -230,7 +230,9 @@ private fun inlineMarkdown(text: String): AnnotatedString = buildAnnotatedString
 
 @Composable
 private fun InlineText(text: String, style: androidx.compose.ui.text.TextStyle = LocalTextStyle.current) {
-    val annotated = remember(text) { inlineMarkdown(text) }
+    val annotated = remember(text, MaterialTheme.colorScheme.primary) {
+        inlineMarkdown(text, MaterialTheme.colorScheme.primary)
+    }
     Text(text = annotated, style = style.copy(color = LocalContentColor.current))
 }
 

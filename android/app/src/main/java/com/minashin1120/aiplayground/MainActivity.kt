@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
                 onCheckForUpdate = { updateModel.check(BuildConfig.VERSION_NAME) },
                 onOpenChangelog = changelogModel::load,
                 onRetryChangelog = changelogModel::load,
-                onOpenBubble = { createChatBubble(this, model.state.value.selected) },
+                onOpenBubble = { openBubble() },
                 onWeb = { path ->
                 val safePath = path.takeIf { it.startsWith('/') && !it.startsWith("//") } ?: "/"
                 val url = BuildConfig.BASE_URL.trimEnd('/') + safePath
@@ -70,6 +70,18 @@ class MainActivity : ComponentActivity() {
         val threadId = intent.getStringExtra(EXTRA_BUBBLE_THREAD_ID)
         intent.removeExtra(EXTRA_BUBBLE_THREAD_ID)
         model.openBubbleTarget(threadId)
+    }
+
+    private fun openBubble() {
+        if (createChatBubble(this, model.state.value.selected) == ChatBubbleResult.SETTINGS_REQUIRED) {
+            try {
+                startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                })
+            } catch (_: Exception) {
+                model.notify("Androidの通知設定を開けません。設定からAI Playgroundのバブルを許可してください。")
+            }
+        }
     }
 
     private fun installUpdate() {

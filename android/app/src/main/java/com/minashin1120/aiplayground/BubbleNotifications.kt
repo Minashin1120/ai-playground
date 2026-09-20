@@ -16,24 +16,35 @@ import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.minashin1120.aiplayground.data.ThreadItem
 
-const val CHAT_BUBBLE_CHANNEL_ID = "chat_bubble"
+const val CHAT_BUBBLE_PARENT_CHANNEL_ID = "chat_bubble"
+const val CHAT_BUBBLE_CHANNEL_ID = "chat_bubble_conversation"
 const val CHAT_BUBBLE_NOTIFICATION_ID = 4101
 const val CHAT_BUBBLE_SHORTCUT_ID = "chat_bubble"
 const val EXTRA_BUBBLE_THREAD_ID = "com.minashin1120.aiplayground.extra.BUBBLE_THREAD_ID"
 
-private const val BUBBLE_SHORTCUT_CATEGORY = "com.minashin1120.aiplayground.category.CONVERSATION"
+private const val BUBBLE_SHORTCUT_CATEGORY = "android.shortcut.conversation"
+
+enum class ChatBubbleResult {
+    POSTED,
+    SETTINGS_REQUIRED,
+}
 
 internal fun bubbleThreadId(value: String?): String? = value?.trim()?.takeIf { it.isNotEmpty() }
 
 internal fun bubbleTitle(thread: ThreadItem?): String =
     thread?.title?.trim()?.takeIf { it.isNotEmpty() } ?: "新しいチャット"
 
-fun createChatBubble(context: Context, thread: ThreadItem?) {
+fun createChatBubble(context: Context, thread: ThreadItem?): ChatBubbleResult {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-        return
+        return ChatBubbleResult.SETTINGS_REQUIRED
     }
 
+    val notificationManager = context.getSystemService(NotificationManager::class.java)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+        notificationManager.bubblePreference == NotificationManager.BUBBLE_PREFERENCE_NONE) {
+        return ChatBubbleResult.SETTINGS_REQUIRED
+    }
     createChatBubbleChannel(context)
     val threadId = bubbleThreadId(thread?.id)
     val title = bubbleTitle(thread)
@@ -63,6 +74,7 @@ fun createChatBubble(context: Context, thread: ThreadItem?) {
         }
 
         postChatNotification(context, title, pendingIntent, bubbleMetadata = true)
+        return ChatBubbleResult.POSTED
     } catch (_: RuntimeException) {
         // Some OEM notification providers reject bubble metadata even when the
         // app and OS support it. Keep the user action useful without crashing.
@@ -70,6 +82,7 @@ fun createChatBubble(context: Context, thread: ThreadItem?) {
             ShortcutManagerCompat.removeDynamicShortcuts(context, listOf(CHAT_BUBBLE_SHORTCUT_ID))
         }
         runCatching { postChatNotification(context, title, pendingIntent, bubbleMetadata = false) }
+        return ChatBubbleResult.POSTED
     }
 }
 
@@ -83,15 +96,27 @@ fun cancelChatBubble(context: Context) {
 
 private fun createChatBubbleChannel(context: Context) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-    val channel = NotificationChannel(
-        CHAT_BUBBLE_CHANNEL_ID,
+    val notificationManager = context.getSystemService(NotificationManager::class.java)
+    val parentChannel = NotificationChannel(
+        CHAT_BUBBLE_PARENT_CHANNEL_ID,
         "チャットバブル",
-        NotificationManager.IMPORTANCE_LOW,
+        NotificationManager.IMPORTANCE_DEFAULT,
     ).apply {
         description = "AI Playgroundのチャットをバブルで開きます"
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) setAllowBubbles(true)
     }
-    context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+    notificationManager.createNotificationChannel(parentChannel)
+    val conversationChannel = NotificationChannel(
+        CHAT_BUBBLE_CHANNEL_ID,
+        "現在のチャット",
+        NotificationManager.IMPORTANCE_DEFAULT,
+    ).apply {
+        description = "AI Playgroundの現在のチャットをバブルで開きます"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) setAllowBubbles(true)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            setConversationId(CHAT_BUBBLE_PARENT_CHANNEL_ID, CHAT_BUBBLE_SHORTCUT_ID)
+        }
+    }
+    notificationManager.createNotificationChannel(conversationChannel)
 }
 
 private fun bubblePendingIntentMutability(): Int =
@@ -122,6 +147,8 @@ private fun postChatNotification(
         else -> null
     }
     val person = Person.Builder().setName("AI Playground").setImportant(true).build()
+    val messagingStyle = NotificationCompat.MessagingStyle(person)
+        .addMessage(NotificationCompat.MessagingStyle.Message("タップしてチャットを開く", System.currentTimeMillis(), person))
     val notification = NotificationCompat.Builder(context, CHAT_BUBBLE_CHANNEL_ID)
         .setSmallIcon(R.drawable.ic_playground)
         .setContentTitle(title)
@@ -129,6 +156,7 @@ private fun postChatNotification(
         .setContentIntent(pendingIntent)
         .setCategory(NotificationCompat.CATEGORY_MESSAGE)
         .addPerson(person)
+        .setStyle(messagingStyle)
         .setOnlyAlertOnce(true)
         .setAutoCancel(false)
         .setOngoing(false)

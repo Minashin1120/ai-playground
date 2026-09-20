@@ -31,4 +31,17 @@ class AppChangelogDialogTest {
         assertEquals(null, sections.single().version)
         assertEquals("# 更新履歴\n\n- 変更点", sections.single().markdown)
     }
+
+    @Test
+    fun filtersSectionsByVersionOrMarkdownCaseInsensitively() {
+        val sections = listOf(
+            AppChangelogSection("1.13.33", "- Added search"),
+            AppChangelogSection("1.13.32", "- Fixed Markdown rendering"),
+        )
+
+        assertEquals(listOf("1.13.33"), filterAppChangelogSections(sections, "SEARCH").map { it.version })
+        assertEquals(listOf("1.13.32"), filterAppChangelogSections(sections, "v1.13.32").map { it.version })
+        assertEquals(sections, filterAppChangelogSections(sections, "  "))
+        assertTrue(filterAppChangelogSections(sections, "missing").isEmpty())
+    }
 }

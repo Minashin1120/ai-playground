@@ -8,7 +8,12 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import android.Manifest
 import android.content.Intent
@@ -20,6 +25,7 @@ import android.speech.RecognizerIntent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -40,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,6 +57,7 @@ import androidx.core.content.ContextCompat
 import com.minashin1120.aiplayground.ANDROID_17_APP_BUBBLE_API
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
+import com.minashin1120.aiplayground.ChatTransitionKind
 import com.minashin1120.aiplayground.AppChangelogUiState
 import com.minashin1120.aiplayground.AppUpdateUiState
 import com.minashin1120.aiplayground.data.ThreadItem
@@ -100,6 +108,7 @@ fun PlaygroundScreen(
         themeColor = state.preferences?.themeColor, liquidGlass = state.preferences?.liquidGlassEnabled == true) {
         val colors = MaterialTheme.colorScheme
         val context = LocalContext.current
+        val animationsEnabled = !areSystemAnimationsDisabled(context)
         val startupSplashEnabled = playStartupAnimation && !areSystemAnimationsDisabled(context)
         CompositionLocalProvider(LocalContentColor provides colors.onBackground) {
             BoxWithConstraints(
@@ -320,7 +329,7 @@ fun PlaygroundScreen(
                                 state.account == null -> PairingScreen(state, model, onWeb)
                                 else -> Conversation(
                                     state, model, openInApp, loader,
-                                    animationsEnabled = !areSystemAnimationsDisabled(context),
+                                    animationsEnabled = animationsEnabled,
                                 )
                             }
                         }
@@ -347,6 +356,12 @@ fun PlaygroundScreen(
                         }
                     }) { content() }
             }
+
+            ChatTransitionVeil(
+                navigationId = state.chatNavigationId,
+                kind = state.chatNavigationKind,
+                animationsEnabled = animationsEnabled,
+            )
 
             if (shouldCoverPhoneHistoryUntilClosed(state.starting && !startupSplashEnabled, showThreads, wide, allowDrawerOpen)) {
                 Box(
@@ -723,6 +738,7 @@ private fun Conversation(
             previous = current
         }
     }
+    val slideOffsetPx = with(LocalDensity.current) { 22.dp.roundToPx() }
     AnimatedContent(
         targetState = state.chatTransitionId,
         modifier = Modifier.fillMaxSize(),
@@ -730,7 +746,11 @@ private fun Conversation(
             if (!animationsEnabled || targetState == initialState) {
                 EnterTransition.None togetherWith ExitTransition.None
             } else {
-                fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(160))
+                // Symmetric dissolve with a shared vertical drift so the swap reads as one motion.
+                (fadeIn(animationSpec = tween(260, easing = FastOutSlowInEasing)) +
+                    slideInVertically(animationSpec = tween(260, easing = FastOutSlowInEasing)) { slideOffsetPx }) togetherWith
+                    (fadeOut(animationSpec = tween(260, easing = FastOutSlowInEasing)) +
+                        slideOutVertically(animationSpec = tween(260, easing = FastOutSlowInEasing)) { -slideOffsetPx / 2 })
             }
         },
         label = "chat conversation transition",
@@ -738,6 +758,69 @@ private fun Conversation(
         val showOutgoing = keepOutgoingUntilLoaded || transitionId != state.chatTransitionId
         val contentState = if (showOutgoing) outgoingState ?: state else state
         ConversationContent(contentState, model, onFile, loader)
+    }
+}
+
+/** Duration of the Web-parity chat transition veil. */
+private const val CHAT_TRANSITION_VEIL_MS = 460
+
+/**
+ * Piecewise-linear opacity keyframes matching the Web CSS `chatTransitionVeil` / `chatTransitionNew`.
+ * New-chat transitions peak earlier and higher than history transitions.
+ */
+internal fun chatTransitionVeilAlpha(progress: Float, newChat: Boolean): Float {
+    val frames = if (newChat) {
+        listOf(0f to 0f, 0.36f to 0.58f, 1f to 0f)
+    } else {
+        listOf(0f to 0f, 0.30f to 0.22f, 0.52f to 0.72f, 1f to 0f)
+    }
+    val p = progress.coerceIn(0f, 1f)
+    for (index in 0 until frames.lastIndex) {
+        val (start, startAlpha) = frames[index]
+        val (end, endAlpha) = frames[index + 1]
+        if (p <= end) return startAlpha + (endAlpha - startAlpha) * ((p - start) / (end - start))
+    }
+    return frames.last().second
+}
+
+/**
+ * A quiet theme-colored sweep over the whole screen when a history item is opened or a new chat
+ * starts, mirroring the Web `#chat-transition-veil` motion so the swap reads as one continuous move.
+ */
+@Composable
+private fun ChatTransitionVeil(
+    navigationId: Long,
+    kind: ChatTransitionKind,
+    animationsEnabled: Boolean,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    val progress = remember { Animatable(0f) }
+    var active by remember { mutableStateOf(false) }
+    LaunchedEffect(navigationId) {
+        if (navigationId <= 0L || !animationsEnabled) return@LaunchedEffect
+        active = true
+        progress.snapTo(0f)
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = CHAT_TRANSITION_VEIL_MS, easing = LinearEasing),
+        )
+        active = false
+    }
+    if (!active) return
+    val alpha = chatTransitionVeilAlpha(progress.value, kind == ChatTransitionKind.NEW_CHAT)
+    if (alpha <= 0.001f) return
+    Canvas(Modifier.fillMaxSize()) {
+        val width = size.width
+        val center = width * (-0.7f + 1.9f * progress.value)
+        val half = width * 0.8f
+        drawRect(
+            brush = Brush.horizontalGradient(
+                colors = listOf(Color.Transparent, accent.copy(alpha = 0.30f), Color.Transparent),
+                startX = center - half,
+                endX = center + half,
+            ),
+            alpha = alpha,
+        )
     }
 }
 
@@ -757,11 +840,19 @@ private fun ConversationContent(
         val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
         showScrollToBottom = info.totalItemsCount > 0 && lastVisible < info.totalItemsCount - 2
     }
+    var positioned by remember { mutableStateOf(false) }
     LaunchedEffect(state.messages.size, state.liveContent.length, state.cards.size) {
         val info = scroll.layoutInfo
         val nearBottom = (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 3
         val count = state.messages.size + (if (state.hasOlder) 1 else 0) + (if (live) 1 else 0)
-        if (nearBottom && count > 0) scroll.animateScrollToItem(count - 1)
+        if (count <= 0) return@LaunchedEffect
+        if (!positioned) {
+            // Open a freshly shown conversation at the latest message without scrolling through it.
+            positioned = true
+            scroll.scrollToItem(count - 1)
+        } else if (nearBottom) {
+            scroll.animateScrollToItem(count - 1)
+        }
     }
     Column(Modifier.fillMaxSize()) {
         if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())

@@ -87,6 +87,9 @@ data class ChatState(
     val jobId: String? = null, val retryAvailable: Boolean = false, val notice: String? = null,
     val chatTransitionId: Long = 0L,
     val chatTransitionKind: ChatTransitionKind = ChatTransitionKind.NONE,
+    /** Advances the moment a history/new-chat navigation starts, before its content loads. */
+    val chatNavigationId: Long = 0L,
+    val chatNavigationKind: ChatTransitionKind = ChatTransitionKind.NONE,
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -508,7 +511,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             cards = emptyList(), hasOlder = false, oldestId = null, customInstruction = "",
             includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null,
             selectedGem = null, codingTarget = null, imageMask = null,
-            chatTransitionId = transition.first, chatTransitionKind = transition.second) }
+            chatTransitionId = transition.first, chatTransitionKind = transition.second,
+            chatNavigationId = transition.first, chatNavigationKind = transition.second) }
     }
     fun openThread(thread: ThreadItem) {
         navigationJob?.cancel(); streamJob?.cancel(); heartbeatJob?.cancel(); failed = null
@@ -519,7 +523,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             leafId = storedLeaf, editingMessageId = null, streaming = false, busy = true,
             liveContent = "", liveThought = "", jobId = null, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null,
-            chatTransitionId = 0L, chatTransitionKind = ChatTransitionKind.NONE) }
+            chatTransitionId = 0L, chatTransitionKind = ChatTransitionKind.NONE,
+            chatNavigationId = transition.first, chatNavigationKind = transition.second) }
         navigationJob = viewModelScope.launch {
             try {
                 loadMessages(thread.id)

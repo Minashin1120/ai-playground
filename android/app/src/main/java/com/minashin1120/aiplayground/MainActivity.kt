@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleBubbleIntent(intent)
+        handleAuthIntent(intent)
         setContent {
             val updateState = updateModel.state.collectAsStateWithLifecycle().value
             val changelogState = changelogModel.state.collectAsStateWithLifecycle().value
@@ -63,6 +64,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleBubbleIntent(intent)
+        handleAuthIntent(intent)
     }
 
     private fun handleBubbleIntent(intent: Intent?) {
@@ -70,6 +72,14 @@ class MainActivity : ComponentActivity() {
         val threadId = intent.getStringExtra(EXTRA_BUBBLE_THREAD_ID)
         intent.removeExtra(EXTRA_BUBBLE_THREAD_ID)
         model.openBubbleTarget(threadId)
+    }
+
+    private fun handleAuthIntent(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme != "https" || data.host != "ai.minashin1120.com" || data.path != "/android/auth/callback") return
+        intent?.data = null
+        data.getQueryParameter("code")?.let { model.exchangeNativeCode(it); return }
+        data.getQueryParameter("error")?.let { model.notify("外部ログインに失敗しました。($it)") }
     }
 
     private fun openBubble() {

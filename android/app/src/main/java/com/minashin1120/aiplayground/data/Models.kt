@@ -343,6 +343,13 @@ class ApiException(val status: Int, val payload: JSONObject, val retryAfter: Lon
     val code: String get() = payload.optString("code").ifBlank { payload.optString("error") }
     override val message: String get() = when {
         status == 401 -> "ログインの有効期限が切れました。もう一度連携してください。"
+        code == "invalid_credentials" -> "ユーザー名またはパスワードが正しくありません。"
+        code == "username_taken" -> "そのユーザー名はすでに使われています。"
+        code == "invalid_username" -> "ユーザー名は3〜80文字で、@は使えません。"
+        code == "invalid_password" -> "パスワードは8〜256文字で入力してください。"
+        code == "invalid_2fa" -> "2段階認証コードが正しくありません。"
+        code == "setup_required" -> "初回設定を完了してください。"
+        code == "invalid_vertex_credentials" -> "Vertex AIのサービスアカウントJSONを確認してください。"
         code == "turnstile_required" -> "Webで安全性の確認が必要です。「Web設定」を開いて確認してください。"
         code == "banned" || code == "request_blocked" -> "アカウントの利用が制限されています。Webで状態を確認してください。"
         status == 429 -> "アクセスが集中しています。${retryAfter}秒以上待って再試行してください。"

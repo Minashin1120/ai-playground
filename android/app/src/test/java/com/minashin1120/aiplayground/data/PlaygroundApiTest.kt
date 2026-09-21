@@ -61,6 +61,27 @@ class PlaygroundApiTest {
         }
     }
 
+    @Test fun nativeAuthUsesCookieFreeJsonAndSetupUsesBearer() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                .body("{\"status\":\"ok\",\"access_token\":\"aip_android_test\",\"expires_in\":300}").build())
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                .body("{\"status\":\"ok\"}").build())
+            val api = PlaygroundApi(server.url("/"))
+            api.post("/api/mobile/v1/auth/login", JSONObject().put("username", "u").put("password", "p"))
+            api.put("/api/mobile/v1/setup", JSONObject().put("default_model", "gpt-5.6-sol"), "aip_android_test")
+            val login = server.takeRequest()
+            assertEquals("POST", login.method)
+            assertNull(login.headers["Authorization"])
+            assertNull(login.headers["Cookie"])
+            val setup = server.takeRequest()
+            assertEquals("PUT", setup.method)
+            assertEquals("Bearer aip_android_test", setup.headers["Authorization"])
+            assertNull(setup.headers["Cookie"])
+        }
+    }
+
     @Test fun redirectsAreNotFollowed() = runBlocking {
         MockWebServer().use { server ->
             server.start()

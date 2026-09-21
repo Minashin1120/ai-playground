@@ -42,6 +42,10 @@ enum class ChatTransitionKind { NONE, OPEN_THREAD, NEW_CHAT }
 data class ChatState(
     val starting: Boolean = true, val account: Account? = null,
     val pairing: Boolean = false, val userCode: String = "", val busy: Boolean = false,
+    val authBusy: Boolean = false, val authError: String? = null,
+    val authTwoFactorTransaction: String? = null, val setupRequired: Boolean = false,
+    val setupModels: List<ModelInfo> = emptyList(),
+    val setupDefaultModel: String = "gemini-3.6-flash",
     val threads: List<ThreadItem> = emptyList(), val nextPage: Int? = null, val search: String = "",
     val selected: ThreadItem? = null, val messages: List<ChatMessage> = emptyList(),
     val hasOlder: Boolean = false, val oldestId: String? = null,
@@ -148,8 +152,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         ) }
         session = withContext(Dispatchers.IO) { store.load() }
         if (session != null) {
-            runCatching { loadAccount() }.onFailure { error ->
-                if (error is ApiException && error.status == 401) clearSession()
+            runCatching {
+                loadAccount()
+            }.onFailure { error ->
+                if (error is ApiException && error.code == "setup_required") loadSetup()
+                else if (error is ApiException && error.status == 401) clearSession()
                 if (!restoreOfflineAccount()) report(error)
             }
         } else if (withContext(Dispatchers.IO) { store.loadForOffline() } != null) {
@@ -159,6 +166,150 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(starting = false) }
     } }
     private fun token(): String = session?.token ?: throw IOException("端末連携が必要です。")
+    private fun deviceName(): String = "${Build.MANUFACTURER} ${Build.MODEL}".trim().take(80)
+
+    private suspend fun acceptAuthResponse(reply: JSONObject) {
+        val accessToken = reply.optString("access_token")
+        require(accessToken.isNotBlank()) { "認証トークンを取得できませんでした。" }
+        session = StoredSession(accessToken, System.currentTimeMillis() + reply.optLong("expires_in", 2_592_000L) * 1000L)
+        withContext(Dispatchers.IO) { store.save(requireNotNull(session)) }
+        mutable.update { it.copy(authBusy = false, authError = null, authTwoFactorTransaction = null) }
+        if (reply.optBoolean("setup_required")) loadSetup() else loadAccount()
+    }
+
+    fun login(username: String, password: String) {
+        authenticate("/api/mobile/v1/auth/login", username, password)
+    }
+
+    fun signup(username: String, password: String) {
+        authenticate("/api/mobile/v1/auth/signup", username, password)
+    }
+
+    private fun authenticate(path: String, username: String, password: String) {
+        if (state.value.authBusy) return
+        viewModelScope.launch {
+            mutable.update { it.copy(authBusy = true, authError = null, authTwoFactorTransaction = null) }
+            try {
+                val reply = api.post(path, JSONObject()
+                    .put("username", username.trim())
+                    .put("password", password)
+                    .put("device_name", deviceName()))
+                if (reply.optString("status") == "2fa_required") {
+                    mutable.update { it.copy(
+                        authBusy = false,
+                        authTwoFactorTransaction = reply.getString("transaction_id"),
+                        authError = null,
+                    ) }
+                } else {
+                    acceptAuthResponse(reply)
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                mutable.update { it.copy(authBusy = false, authError = e.message ?: "認証に失敗しました。") }
+            }
+        }
+    }
+
+    fun verifyTotp(code: String) {
+        val transaction = state.value.authTwoFactorTransaction ?: return
+        if (state.value.authBusy) return
+        viewModelScope.launch {
+            mutable.update { it.copy(authBusy = true, authError = null) }
+            try {
+                acceptAuthResponse(api.post("/api/mobile/v1/auth/totp", JSONObject()
+                    .put("transaction_id", transaction)
+                    .put("code", code)
+                    .put("device_name", deviceName())))
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                mutable.update { it.copy(authBusy = false, authError = e.message ?: "2段階認証に失敗しました。") }
+            }
+        }
+    }
+
+    /** Exchanges the one-time code returned to the verified HTTPS App Link. */
+    fun exchangeNativeCode(code: String) {
+        if (state.value.authBusy) return
+        viewModelScope.launch {
+            mutable.update { it.copy(authBusy = true, authError = null) }
+            try {
+                val reply = api.post("/api/mobile/v1/auth/exchange", JSONObject().put("code", code))
+                if (reply.optString("status") == "2fa_required") {
+                    mutable.update { it.copy(
+                        authBusy = false,
+                        authTwoFactorTransaction = reply.getString("transaction_id"),
+                        authError = null,
+                    ) }
+                } else {
+                    acceptAuthResponse(reply)
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                mutable.update { it.copy(authBusy = false, authError = e.message ?: "外部ログインに失敗しました。") }
+            }
+        }
+    }
+
+    private suspend fun loadSetup() {
+        val reply = api.get("/api/mobile/v1/setup", token())
+        val models = parseModels(reply)
+        val defaultModel = reply.optString("default_model", "gemini-3.6-flash")
+        mutable.update { it.copy(
+            account = null,
+            setupRequired = true,
+            setupModels = models,
+            setupDefaultModel = defaultModel,
+            pairing = false,
+            userCode = "",
+            authBusy = false,
+            authError = null,
+        ) }
+    }
+
+    fun finishSetup(
+        defaultModel: String,
+        openaiKey: String,
+        geminiKey: String,
+        anthropicKey: String,
+        deepseekKey: String,
+        kimiKey: String,
+        mistralKey: String,
+        xaiKey: String,
+        googleKey: String,
+        googleProject: String,
+        vertexProject: String,
+        vertexLocation: String,
+        vertexCredentialsJson: String,
+        enableE2ee: Boolean,
+    ) {
+        if (state.value.authBusy) return
+        viewModelScope.launch {
+            mutable.update { it.copy(authBusy = true, authError = null) }
+            try {
+                val reply = api.put("/api/mobile/v1/setup", JSONObject()
+                    .put("default_model", defaultModel)
+                    .put("openai_api_key", openaiKey)
+                    .put("gemini_api_key", geminiKey)
+                    .put("anthropic_api_key", anthropicKey)
+                    .put("deepseek_api_key", deepseekKey)
+                    .put("kimi_api_key", kimiKey)
+                    .put("mistral_api_key", mistralKey)
+                    .put("xai_api_key", xaiKey)
+                    .put("google_api_key", googleKey)
+                    .put("google_cloud_project", googleProject)
+                    .put("gemini_vertex_project", vertexProject)
+                    .put("gemini_vertex_location", vertexLocation)
+                    .put("gemini_vertex_credentials_json", vertexCredentialsJson)
+                    .put("enable_e2ee", enableE2ee), token())
+                require(!reply.optBoolean("setup_required", true)) { "初回設定を完了できませんでした。" }
+                mutable.update { it.copy(authBusy = false, setupRequired = false) }
+                loadAccount()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                mutable.update { it.copy(authBusy = false, authError = e.message ?: "初回設定に失敗しました。") }
+            }
+        }
+    }
     private suspend fun loadAccount() {
         val me = api.get("/api/mobile/v1/me", token())
         val serverModels = parseModels(me)
@@ -171,7 +322,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         withContext(Dispatchers.IO) { offlineCache.saveAccount(account.id, me) }
         prefs.edit().putString("offline_cache_account_id", account.id.toString()).apply()
         markConnectionReachable()
-        mutable.update { it.copy(account = account, model = chosen, pairing = false, userCode = "", offline = false) }
+        mutable.update { it.copy(
+            account = account, model = chosen, pairing = false, userCode = "", offline = false,
+            setupRequired = false, authBusy = false, authError = null,
+        ) }
         fetchThreads(false)
         runCatching { fetchGems() }.onFailure { report(it) }
         runCatching { fetchPreferences(applyDefaults = true) }.onFailure { report(it) }

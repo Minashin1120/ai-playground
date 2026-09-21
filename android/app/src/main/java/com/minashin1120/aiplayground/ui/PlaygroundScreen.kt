@@ -48,9 +48,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.content.FileProvider
 import androidx.core.content.ContextCompat
@@ -326,7 +328,8 @@ fun PlaygroundScreen(
                         Box(Modifier.weight(1f)) {
                             when {
                                 state.starting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                                state.account == null -> PairingScreen(state, model, onWeb)
+                                state.setupRequired -> SetupScreen(state, model, onWeb)
+                                state.account == null -> AuthScreen(state, model, onWeb)
                                 else -> Conversation(
                                     state, model, openInApp, loader,
                                     animationsEnabled = animationsEnabled,
@@ -620,6 +623,184 @@ private fun SidebarFooterLink(
         modifier = Modifier.height(32.dp),
         contentPadding = PaddingValues(horizontal = 6.dp),
     ) { Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall) }
+}
+
+@Composable
+private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -> Unit) {
+    var signup by rememberSaveable { mutableStateOf(false) }
+    var username by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var confirmation by rememberSaveable { mutableStateOf("") }
+    var totp by rememberSaveable { mutableStateOf("") }
+    val colors = MaterialTheme.colorScheme
+    if (state.pairing) {
+        PairingScreen(state, model, onWeb)
+        return
+    }
+    LazyColumn(
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        item {
+            Surface(shape = RoundedCornerShape(28.dp), color = colors.primaryContainer, contentColor = colors.onPrimaryContainer) {
+                Column(Modifier.fillMaxWidth().padding(28.dp)) {
+                    Text("✦", fontSize = 48.sp, color = colors.primary)
+                    Text("ひとつの場所で、\nいろいろなAIと。", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
+                    Text("アプリ内でアカウントを作成・ログインできます。", color = colors.onPrimaryContainer)
+                }
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (state.authTwoFactorTransaction != null) {
+                    Text("2段階認証", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text("認証アプリに表示されたコードを入力してください。", color = colors.onSurfaceVariant)
+                    OutlinedTextField(
+                        value = totp, onValueChange = { totp = it }, label = { Text("認証コード") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !state.authBusy,
+                    )
+                    state.authError?.let { Text(it, color = colors.error) }
+                    Button(
+                        onClick = { model.verifyTotp(totp) },
+                        enabled = !state.authBusy && totp.trim().isNotEmpty(),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+                    ) { Text(if (state.authBusy) "確認しています…" else "ログイン") }
+                } else {
+                    Text(if (signup) "アカウントを作成" else "ログイン", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        value = username, onValueChange = { username = it }, label = { Text("ユーザー名") },
+                        singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !state.authBusy,
+                    )
+                    OutlinedTextField(
+                        value = password, onValueChange = { password = it }, label = { Text("パスワード") },
+                        singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(), enabled = !state.authBusy,
+                    )
+                    if (signup) {
+                        OutlinedTextField(
+                            value = confirmation, onValueChange = { confirmation = it }, label = { Text("パスワード（確認）") },
+                            singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(), enabled = !state.authBusy,
+                        )
+                    }
+                    state.authError?.let { Text(it, color = colors.error) }
+                    Button(
+                        onClick = {
+                            if (signup && password != confirmation) model.notify("パスワードが一致しません。")
+                            else if (signup) model.signup(username, password) else model.login(username, password)
+                        },
+                        enabled = !state.authBusy && username.isNotBlank() && password.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+                    ) { Text(if (state.authBusy) "処理しています…" else if (signup) "アカウントを作成" else "ログイン") }
+                    TextButton(onClick = { signup = !signup; confirmation = "" }) {
+                        Text(if (signup) "すでにアカウントをお持ちですか？ログイン" else "アカウントを新規作成")
+                    }
+                }
+            }
+        }
+        item {
+            HorizontalDivider()
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("既存のブラウザー連携", style = MaterialTheme.typography.titleMedium)
+                Text("旧方式です。現在も利用できますが、アプリ内ログインを推奨します。", color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                OutlinedButton(onClick = model::pair, modifier = Modifier.fillMaxWidth()) { Text("ブラウザーで連携（旧方式）") }
+                Button(onClick = { onWeb("/android/auth/google/start") }, modifier = Modifier.fillMaxWidth()) { Text("Googleでログイン") }
+                OutlinedButton(onClick = { onWeb("/android/auth/minashin/start") }, modifier = Modifier.fillMaxWidth()) { Text("Minashinでログイン") }
+                TextButton(onClick = { onWeb("/") }, modifier = Modifier.fillMaxWidth()) { Text("Web版を開く") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SetupScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -> Unit) {
+    var selectedModel by rememberSaveable(state.setupDefaultModel) { mutableStateOf(state.setupDefaultModel) }
+    var modelMenu by remember { mutableStateOf(false) }
+    var openai by rememberSaveable { mutableStateOf("") }
+    var gemini by rememberSaveable { mutableStateOf("") }
+    var anthropic by rememberSaveable { mutableStateOf("") }
+    var deepseek by rememberSaveable { mutableStateOf("") }
+    var kimi by rememberSaveable { mutableStateOf("") }
+    var mistral by rememberSaveable { mutableStateOf("") }
+    var xai by rememberSaveable { mutableStateOf("") }
+    var google by rememberSaveable { mutableStateOf("") }
+    var googleProject by rememberSaveable { mutableStateOf("") }
+    var vertexProject by rememberSaveable { mutableStateOf("") }
+    var vertexLocation by rememberSaveable { mutableStateOf("global") }
+    var vertexJson by rememberSaveable { mutableStateOf("") }
+    var e2ee by rememberSaveable { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
+    LazyColumn(
+        Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        item {
+            Text("はじめに設定しましょう", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("${state.account?.name ?: "アカウント"} の初回セットアップです。後からWebの設定でも変更できます。", color = colors.onSurfaceVariant)
+        }
+        item {
+            Text("既定のモデル", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Box {
+                OutlinedButton(onClick = { modelMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(selectedModel) }
+                DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
+                    state.setupModels.filter { it.selectable }.take(40).forEach { option ->
+                        DropdownMenuItem(text = { Text(option.name) }, onClick = { selectedModel = option.id; modelMenu = false })
+                    }
+                }
+            }
+        }
+        item { Text("APIキー（必要なプロバイダーだけ入力）", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+        item { SetupSecretField("OpenAI", openai, { openai = it }) }
+        item { SetupSecretField("Gemini", gemini, { gemini = it }) }
+        item { SetupSecretField("Anthropic", anthropic, { anthropic = it }) }
+        item { SetupSecretField("DeepSeek", deepseek, { deepseek = it }) }
+        item { SetupSecretField("Kimi", kimi, { kimi = it }) }
+        item { SetupSecretField("Mistral", mistral, { mistral = it }) }
+        item { SetupSecretField("xAI", xai, { xai = it }) }
+        item { SetupSecretField("Google API", google, { google = it }) }
+        item { SetupSecretField("Google Cloudプロジェクト", googleProject, { googleProject = it }) }
+        item { SetupSecretField("Vertex AIプロジェクト", vertexProject, { vertexProject = it }) }
+        item { SetupSecretField("Vertex AIリージョン", vertexLocation, { vertexLocation = it }) }
+        item {
+            OutlinedTextField(
+                vertexJson, { vertexJson = it }, label = { Text("Vertex AIサービスアカウントJSON（任意）") },
+                minLines = 3, maxLines = 8, modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = e2ee, onCheckedChange = { e2ee = it })
+                Column(Modifier.weight(1f)) {
+                    Text("保存データを暗号化する")
+                    Text("既存データがある場合はバックグラウンドで移行します。", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                }
+            }
+        }
+        item {
+            state.authError?.let { Text(it, color = colors.error) }
+            Button(
+                onClick = {
+                    model.finishSetup(selectedModel, openai, gemini, anthropic, deepseek, kimi, mistral, xai,
+                        google, googleProject, vertexProject, vertexLocation, vertexJson, e2ee)
+                }, enabled = !state.authBusy, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+            ) { Text(if (state.authBusy) "保存しています…" else "セットアップを完了") }
+        }
+        item {
+            OutlinedButton(onClick = { onWeb("/setup") }, modifier = Modifier.fillMaxWidth()) {
+                Text("アカウントZIPをインポートする場合はWebセットアップを開く")
+            }
+        }
+    }
+}
+
+@Composable
+private fun SetupSecretField(label: String, value: String, onValueChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value, onValueChange = onValueChange, label = { Text(label) },
+        singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable

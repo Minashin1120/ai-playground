@@ -2,7 +2,7 @@
 
 この文書は、AI Chat Playgroundの公式Androidクライアントの通信仕様、実装構成、APKの構築・配布、サーバー設定をまとめたものです。Androidプロジェクトは同じリポジトリの `android/` にあり、モジュールは `android/app/` です。GitHub Actionsで署名付きdebug/release APKを構築し、GitHub Releaseへ配布します。Google Playへの登録とAAB配布は対象外です。
 
-接続先は `https://ai.minashin1120.com`。認証プロトコルは `device_pairing_v1`、接続仕様の版は `api_version: 1` です。Webのリリース番号とAndroidのversionCodeは別々に管理します。
+接続先は `https://ai.minashin1120.com`。接続仕様の版は `api_version: 1` です。標準認証は `native_credentials_v1`（ユーザー名／パスワード、Google／Minashinのブラウザー認証コード引き渡し、TOTP）で、旧 `device_pairing_v1` は非推奨のフォールバックとして残します。Webのリリース番号とAndroidのversionCodeは別々に管理します。
 
 ## 目次
 
@@ -28,19 +28,19 @@ Androidから開くブラウザー ── HTTPS + Cookie ───────�
                                                        └─ Redis ── RQワーカー ── AI事業者
 ```
 
-AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセスしません。Webと同じアカウント、履歴、保存済みのモデルAPIキーを利用します。APIキーの初期登録・変更はWebの設定画面で行います。
+AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセスしません。Webと同じアカウント、履歴、保存済みのモデルAPIキーを利用します。新規登録・パスワードログイン・2FA・初回セットアップ（モデル、APIキー、Vertex AI、保存時暗号化）はネイティブAPIで行い、アカウントZIPのインポートや高度な管理はWebの設定画面へ案内します。
 
 | 機能 | このAPIでの扱い |
 |---|---|
-| ユーザー認証 | 既存ブラウザーログインと端末連携。パスワード、Google、Minashin SSO、Passkey、2FAの既存経路を利用 |
+| ユーザー認証 | アプリ内のユーザー名／パスワード新規登録・ログイン・TOTP、Google／MinashinのCustom Tabs＋HTTPS App Links。旧ブラウザー端末連携も非推奨フォールバックとして維持 |
 | 通常のチャット | スレッド一覧・検索・作成・取得・削除、ブックマーク、タイトル・スレッド指示、送信、ストリーム再接続、停止、メッセージの編集・再生成・分岐切替、ネイティブPDF出力。Web相当のハートビートでオフライン／不安定／メンテナンス／サーバー停止／復帰を表示 |
 | 添付 | 通常アップロード、大容量チャンクアップロード、進捗表示・キャンセル、Photo Picker・カメラ、MIME別プレビュー、画像圧縮設定、本人のファイル・サムネイル取得、容量表示、アプリ内プレビュー（画像・テキスト・PDF・音声・動画。未対応形式は外部アプリ） |
 | 一時チャット | 作成・heartbeat。自動削除タイマーをクライアント側でも考慮する |
 | ファイルライブラリ | 一覧・検索・お気に入り・名前変更・削除・チャットへの再利用、アプリ内プレビュー。所有者ディレクトリのみ対象 |
 | Gems | 一覧・作成・編集・削除・チャットへの適用・`@`候補、既定モデル適用、固定プロンプトの編集・送信 |
-| 一般設定・セッション | 既定モデル／Vision、Thinking／Web検索／URL／Maps／Python／File／SysPrompt／MCP、Thinking level／budget、Reasoning effort、Safety、テーマ色、Enter送信、ライト／Liquid Glass、プロンプトバー、STT既定、システムプロンプト、前回設定継続、リンク自動検索、一時チャット期限、フィードバック、MCP有効切替、この端末のセッション表示と失効。APIキー・パスワード・2FA登録はWeb導線 |
+| 一般設定・セッション | 既定モデル／Vision、Thinking／Web検索／URL／Maps／Python／File／SysPrompt／MCP、Thinking level／budget、Reasoning effort、Safety、テーマ色、Enter送信、ライト／Liquid Glass、プロンプトバー、STT既定、システムプロンプト、前回設定継続、リンク自動検索、一時チャット期限、フィードバック、MCP有効切替、この端末のセッション表示と失効 |
 | モデル一覧 | `/me` の `models`。提供元、用途、対応能力、廃止状態、選択可否を返す。Android内のWeb由来カタログで正式表示名・説明・価格・タグ・追加順を補完。互換用の `model_ids` も維持 |
-| APIキー・プロフィール・アカウント削除・2FA設定 | Webで操作。Androidトークンでは設定・管理APIにアクセスできない |
+| APIキー・プロフィール・アカウント削除・Passkey／2FA管理 | APIキーは初回セットアップへ対応。Passkey登録、プロフィール、アカウント削除、高度な2FA管理はWebで操作 |
 | WebのE2EE設定 | 有効なまま連携・履歴取得・添付を利用可能。現在の実装はサーバー管理鍵による保存時暗号化であり、端末だけが復号できるE2EEではない |
 | Batch管理 | ネイティブで送信、一覧、状態更新、停止、履歴削除、完了通知に対応 |
 | 画像・動画・OCR・TTS・文字起こし | `/chat_stream` と同じ保存・停止・再接続境界でネイティブ対応。GPT／Gemini／Grok画像、GPT-Imageマスク、Gemini動画（長さ・比率・解像度）、Grok動画、OCR、TTS、Thinking量、xAI詳細を表示・送信 |
@@ -113,7 +113,13 @@ HTTPS必須。JSONはUTF-8。APIレスポンスと認証ページは `Cache-Cont
 {
   "api_version": 1,
   "client_id": "official-android",
-  "auth_flow": "device_pairing_v1",
+  "auth_flow": "native_credentials_v1",
+  "legacy_auth_flow": "device_pairing_v1",
+  "legacy_auth_deprecated": true,
+  "native_signup_endpoint": "/api/mobile/v1/auth/signup",
+  "native_login_endpoint": "/api/mobile/v1/auth/login",
+  "native_totp_endpoint": "/api/mobile/v1/auth/totp",
+  "native_setup_endpoint": "/api/mobile/v1/setup",
   "device_endpoint": "/api/mobile/v1/device",
   "token_endpoint": "/api/mobile/v1/token",
   "verification_uri": "/android/connect",
@@ -378,13 +384,13 @@ dependencies {
 
 証明書やホスト名検証を無効化しません。開発機の独自CAが必要ならdebug用設定に限定し、releaseから除外します。ネットワーク設定の詳細は[Android公式資料](https://developer.android.com/privacy-and-security/security-config)を参照してください。
 
-この連携方式にはコールバック用の独自URIスキームや `assetlinks.json` は不要です。将来App Linksで自動復帰させる場合は、正式applicationIdと配布署名のSHA-256を確定してから別途設定します。
+Google／Minashinの外部認証は埋め込みWebViewを使わずCustom Tabsで行い、認証後は `https://ai.minashin1120.com/android/auth/callback` のHTTPS App Linkへ一度だけ使える認証コードを返します。アクセストークンはURLへ載せません。`/.well-known/assetlinks.json` は `ANDROID_APP_LINK_SHA256`（カンマ区切り）と `ANDROID_APP_ID` から生成されるため、配布署名のSHA-256を本番環境へ設定します。
 
 ### 6.3 実装構成
 
 ```text
-MainActivity.kt                  ブラウザー・添付の起動、画面ライフサイクル
-ChatViewModel.kt                 端末連携、履歴、送信、再接続、添付、失効
+MainActivity.kt                  ブラウザー・App Links・添付の起動、画面ライフサイクル
+ChatViewModel.kt                 ネイティブ認証・初回設定・端末連携、履歴、送信、再接続、添付、失効
 data/PlaygroundApi.kt            固定接続先、CookieなしHTTP、JSON/NDJSON、キャンセル
 data/TokenStore.kt               Keystoreによるトークン暗号化保存
 data/Models.kt                   データ変換、エラー表示、応答サイズ制限

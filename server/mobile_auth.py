@@ -6,6 +6,9 @@ MOBILE_GRANT_TTL = 600
 MOBILE_POLL_INTERVAL = 5
 MOBILE_ENDPOINT_METHODS = {
     'mobile_me': {'GET'}, 'mobile_revoke': {'POST'}, 'mobile_preferences': {'GET', 'PUT'},
+    # Native sign-in is deliberately separate from the legacy browser pairing
+    # endpoints.  The latter remains available as a deprecated fallback.
+    'mobile_setup': {'GET', 'PUT'},
     'handle_threads': {'GET', 'POST'}, 'handle_thread_item': {'GET', 'DELETE'},
     'update_thread_settings': {'GET', 'PUT'}, 'update_title': {'PUT'},
     'toggle_bookmark': {'POST'},
@@ -31,7 +34,11 @@ MOBILE_ENDPOINT_METHODS = {
     'gemini_music_start': {'POST'}, 'gemini_music_stream': {'GET'},
     'gemini_music_command': {'POST'}, 'gemini_music_cancel': {'POST'}, 'gemini_music_save': {'POST'},
 }
-MOBILE_PUBLIC_ENDPOINTS = {'mobile_device', 'mobile_token'}
+MOBILE_PUBLIC_ENDPOINTS = {
+    'mobile_device', 'mobile_token',
+    'mobile_auth_signup', 'mobile_auth_login', 'mobile_auth_totp', 'mobile_auth_exchange',
+}
+MOBILE_SETUP_ENDPOINTS = {'mobile_setup'}
 
 
 def _mobile_digest(value):
@@ -114,9 +121,9 @@ def mobile_request_guard():
         g.mobile_bearer_request = True
         if not current_user.is_authenticated or not getattr(g, 'mobile_session', None):
             return _mobile_error('invalid_token', 401)
-        if not current_user.is_setup_completed and endpoint != 'mobile_revoke':
+        if not current_user.is_setup_completed and endpoint not in MOBILE_SETUP_ENDPOINTS and endpoint != 'mobile_revoke':
             return _mobile_error('setup_required', 403)
-    elif endpoint in {'mobile_me', 'mobile_revoke'}:
+    elif endpoint in MOBILE_ENDPOINT_METHODS:
         return _mobile_error('invalid_token', 401)
 
 

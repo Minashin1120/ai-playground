@@ -377,6 +377,8 @@ def login_minashin():
 @app.route('/auth/minashin/callback')
 def minashin_callback():
     """Minashin アカウントからの OAuth コールバックを処理する。"""
+    if session.get('mobile_native_auth'):
+        return _mobile_minashin_callback_native()
     link_mode = session.pop('minashin_link_mode', False)
     redirect_target = 'index' if current_user.is_authenticated else 'login'
     try:
@@ -826,6 +828,7 @@ def setup():
             ('deepseek_api_key', request.form.get('deepseek_key')),
             ('kimi_api_key', request.form.get('kimi_key')),
             ('mistral_api_key', request.form.get('mistral_key')),
+            ('anthropic_api_key', request.form.get('anthropic_key')),
             ('xai_api_key', request.form.get('xai_key')),
             ('google_api_key', request.form.get('google_key')),
             ('google_cloud_project', request.form.get('google_project')),
@@ -871,4 +874,3 @@ def logout():
     session.pop('session_id', None)
     session.pop('pre_2fa_user_id', None)
     return redirect(url_for('index'))
-

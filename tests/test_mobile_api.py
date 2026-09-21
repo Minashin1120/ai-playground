@@ -471,6 +471,71 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(self.native.post('/api/mobile/v1/device', base_url='https://localhost', json=[]).status_code, 400)
         self.assertEqual(self.native.post('/api/mobile/v1/device', base_url='https://localhost', data='{}').status_code, 415)
 
+    def test_native_signup_setup_login_and_totp(self):
+        signup = self.native.post('/api/mobile/v1/auth/signup', base_url='https://localhost', json={
+            'username': 'native-new-user', 'password': 'correct-horse-battery', 'device_name': 'Pixel test',
+        })
+        self.assertEqual(signup.status_code, 201)
+        token = signup.json['access_token']
+        self.assertTrue(signup.json['setup_required'])
+        blocked = self.call('/api/threads', token)
+        self.assertEqual(blocked.status_code, 403)
+        self.assertEqual(blocked.json['error'], 'setup_required')
+        setup = self.call('/api/mobile/v1/setup', token)
+        self.assertEqual(setup.status_code, 200)
+        self.assertEqual(setup.json['status'], 'setup_required')
+        model = next(item['id'] for item in setup.json['models'] if item['selectable'])
+        completed = self.call('/api/mobile/v1/setup', token, 'PUT', json={
+            'default_model': model, 'anthropic_api_key': 'sk-ant-test', 'enable_e2ee': True,
+        })
+        self.assertEqual(completed.status_code, 200)
+        self.assertEqual(completed.json['status'], 'ok')
+        self.assertEqual(self.call('/api/mobile/v1/me', token).status_code, 200)
+
+        with target.app.app_context():
+            password_user = target.User(username='native-password', is_setup_completed=True)
+            password_user.set_password('correct-password')
+            totp_user = target.User(username='native-totp', is_setup_completed=True,
+                                    is_2fa_enabled=True, default_2fa_method='totp')
+            totp_user.set_password('correct-password')
+            totp_secret = target.pyotp.random_base32()
+            totp_user.totp_secret = target.encrypt_val(totp_secret)
+            target.db.session.add_all([password_user, totp_user])
+            target.db.session.commit()
+        login = self.native.post('/api/mobile/v1/auth/login', base_url='https://localhost', json={
+            'username': 'native-password', 'password': 'correct-password', 'device_name': 'Pixel test',
+        })
+        self.assertEqual(login.status_code, 200)
+        self.assertTrue(login.json['access_token'].startswith(target.MOBILE_TOKEN_PREFIX))
+        two_factor = self.native.post('/api/mobile/v1/auth/login', base_url='https://localhost', json={
+            'username': 'native-totp', 'password': 'correct-password', 'device_name': 'Pixel test',
+        })
+        self.assertEqual(two_factor.status_code, 200)
+        self.assertEqual(two_factor.json['status'], '2fa_required')
+        code = target.pyotp.TOTP(totp_secret).now()
+        verified = self.native.post('/api/mobile/v1/auth/totp', base_url='https://localhost', json={
+            'transaction_id': two_factor.json['transaction_id'], 'code': code, 'device_name': 'Pixel test',
+        })
+        self.assertEqual(verified.status_code, 200)
+        self.assertTrue(verified.json['access_token'].startswith(target.MOBILE_TOKEN_PREFIX))
+
+    def test_native_auth_code_is_one_time_and_assetlinks_is_configurable(self):
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            code = target._mobile_native_auth_code(user, 'App Link test')
+        exchanged = self.native.post('/api/mobile/v1/auth/exchange', base_url='https://localhost', json={'code': code})
+        self.assertEqual(exchanged.status_code, 200)
+        self.assertTrue(exchanged.json['access_token'].startswith(target.MOBILE_TOKEN_PREFIX))
+        self.assertEqual(self.native.post('/api/mobile/v1/auth/exchange', base_url='https://localhost', json={'code': code}).status_code, 401)
+        with mock.patch.dict(target.os.environ, {
+            'ANDROID_APP_ID': 'com.example.test',
+            'ANDROID_APP_LINK_SHA256': 'AA:BB,CC:DD',
+        }):
+            links = self.native.get('/.well-known/assetlinks.json', base_url='https://localhost')
+        self.assertEqual(links.status_code, 200)
+        self.assertEqual(links.json[0]['target']['package_name'], 'com.example.test')
+        self.assertEqual(links.json[0]['target']['sha256_cert_fingerprints'], ['AA:BB', 'CC:DD'])
+
     def test_cookie_and_bearer_cannot_mix(self):
         token = self.token()
         response = self.browser.get('/api/threads', base_url='https://localhost', headers={'Authorization': 'Bearer ' + token})

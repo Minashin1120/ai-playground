@@ -99,7 +99,14 @@ def _mobile_model_metadata(model_id):
 def mobile_config():
     return jsonify({
         'api_version': 1, 'system_version': app.config['SYSTEM_VERSION'],
-        'client_id': 'official-android', 'auth_flow': 'device_pairing_v1',
+        'client_id': 'official-android',
+        'auth_flow': 'native_credentials_v1',
+        'legacy_auth_flow': 'device_pairing_v1',
+        'legacy_auth_deprecated': True,
+        'native_signup_endpoint': '/api/mobile/v1/auth/signup',
+        'native_login_endpoint': '/api/mobile/v1/auth/login',
+        'native_totp_endpoint': '/api/mobile/v1/auth/totp',
+        'native_setup_endpoint': '/api/mobile/v1/setup',
         'device_endpoint': '/api/mobile/v1/device',
         'token_endpoint': '/api/mobile/v1/token',
         'verification_uri': '/android/connect',

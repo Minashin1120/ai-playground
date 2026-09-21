@@ -164,7 +164,14 @@
         let viewerImages = [];
         let viewerIndex = 0;
         let viewerSwipe = null;
+        let viewerPinch = null;
+        let viewerScale = 1;
         let suppressViewerCloseClick = false;
+
+        function resetViewerTransform() {
+            viewerPinch = null;
+            viewerScale = 1;
+        }
 
         function openImageViewer(startUrl, groupSelector = '.chat-image') {
             const allImgs = Array.from(document.querySelectorAll(groupSelector));
@@ -188,6 +195,7 @@
         function openViewerWithItems(items, index) {
             viewerImages = items;
             viewerIndex = (index >= 0 && index < items.length) ? index : 0;
+            resetViewerTransform();
             clearViewerAdjacent();
             updateViewerState();
             get('image-viewer').classList.add('visible');
@@ -201,6 +209,7 @@
             viewerImages = [];
             viewerIndex = 0;
             viewerSwipe = null;
+            resetViewerTransform();
         }
 
         function clearViewerAdjacent() {
@@ -237,6 +246,8 @@
             if (!img) return;
             const item = viewerImages[viewerIndex];
             const fade = !opts || opts.fade !== false;
+
+            resetViewerTransform();
 
             renderViewerChrome();
 
@@ -295,6 +306,16 @@
 
         function onViewerTouchStart(e) {
             if (!viewerImages.length) return;
+            if (e.touches.length >= 2) {
+                const first = e.touches[0];
+                const second = e.touches[1];
+                viewerPinch = {
+                    d: Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY) || 1,
+                    s: viewerScale
+                };
+                viewerSwipe = null;
+                return;
+            }
             if (e.touches.length !== 1) return;
             const t = e.touches[0];
             viewerSwipe = {
@@ -314,6 +335,20 @@
         }
 
         function onViewerTouchMove(e) {
+            if (e.touches.length >= 2) {
+                if (!viewerPinch) return;
+                const first = e.touches[0];
+                const second = e.touches[1];
+                const distance = Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY) || 1;
+                viewerScale = Math.min(6, Math.max(1, viewerPinch.s * distance / viewerPinch.d));
+                const img = get('image-viewer-img');
+                if (img) {
+                    img.style.transition = 'none';
+                    img.style.transform = `scale(${viewerScale})`;
+                }
+                return;
+            }
+            if (viewerPinch) return;
             if (!viewerSwipe) return;
             const t = e.touches[0];
             const dx = t.clientX - viewerSwipe.startX;
@@ -344,6 +379,7 @@
 
             const img = get('image-viewer-img');
             if (!img) return;
+
             const content = document.querySelector('.viewer-content');
             const stageWidth = content ? content.clientWidth : window.innerWidth;
             const effDx = viewerSwipe.resist ? dx * 0.3 : dx;
@@ -362,9 +398,14 @@
         }
 
         function onViewerTouchEnd() {
+            if (viewerPinch) {
+                viewerPinch = null;
+                return;
+            }
             if (!viewerSwipe) return;
             const swipe = viewerSwipe;
             viewerSwipe = null;
+
             if (!swipe.active) return;
 
             suppressViewerCloseClick = true;
@@ -372,6 +413,7 @@
 
             const img = get('image-viewer-img');
             if (!img) return;
+
             const content = document.querySelector('.viewer-content');
             const stageWidth = content ? content.clientWidth : window.innerWidth;
             const threshold = stageWidth * 0.22;

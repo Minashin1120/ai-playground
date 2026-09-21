@@ -30,7 +30,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -152,11 +154,19 @@ internal fun FileViewerDialog(
 private fun ImagePreview(reference: String, loader: FileBytesLoader) {
     var scale by remember(reference) { mutableFloatStateOf(1f) }
     var offset by remember(reference) { mutableStateOf(Offset.Zero) }
+    var viewport by remember(reference) { mutableStateOf(IntSize.Zero) }
     Box(
-        Modifier.fillMaxSize().pointerInput(reference) {
-            detectTransformGestures { _, pan, zoom, _ ->
-                scale = (scale * zoom).coerceIn(1f, 6f)
-                offset = if (scale == 1f) Offset.Zero else offset + pan
+        Modifier.fillMaxSize().onSizeChanged { viewport = it }.pointerInput(reference) {
+            detectTransformGestures { centroid, pan, zoom, _ ->
+                val oldScale = scale
+                val nextScale = (oldScale * zoom).coerceIn(1f, 6f)
+                val ratio = nextScale / oldScale
+                val center = Offset(viewport.width / 2f, viewport.height / 2f)
+                val focalPoint = centroid - center
+                val nextOffset = offset + pan + (focalPoint - offset) * (1f - ratio)
+                scale = nextScale
+                offset = if (nextScale == 1f) Offset.Zero
+                else clampImagePreviewOffset(nextOffset, nextScale, viewport)
             }
         },
         contentAlignment = Alignment.Center,
@@ -176,6 +186,15 @@ private fun ImagePreview(reference: String, loader: FileBytesLoader) {
             contentDescription = "画像プレビュー",
         )
     }
+}
+
+private fun clampImagePreviewOffset(offset: Offset, scale: Float, viewport: IntSize): Offset {
+    val maxX = (viewport.width * (scale - 1f) / 2f).coerceAtLeast(0f)
+    val maxY = (viewport.height * (scale - 1f) / 2f).coerceAtLeast(0f)
+    return Offset(
+        offset.x.coerceIn(-maxX, maxX),
+        offset.y.coerceIn(-maxY, maxY),
+    )
 }
 
 @Composable

@@ -3,12 +3,12 @@ package com.minashin1120.aiplayground.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import android.Manifest
 import android.content.Intent
@@ -37,11 +37,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -689,6 +687,7 @@ private fun ThreadSettingsDialog(
     )
 }
 
+@OptIn(androidx.compose.animation.ExperimentalAnimationApi::class)
 @Composable
 private fun Conversation(
     state: ChatState,
@@ -697,21 +696,60 @@ private fun Conversation(
     loader: FileBytesLoader?,
     animationsEnabled: Boolean,
 ) {
-    val scroll = rememberLazyListState()
-    val scope = rememberCoroutineScope()
-    val transitionProgress = remember { Animatable(1f) }
-    val density = LocalDensity.current
-    val newChatOffsetPx = with(density) { 22.dp.toPx() }
-    val transitionKind = state.chatTransitionKind
-    val transitionActive = animationsEnabled && state.chatTransitionId != 0L && transitionProgress.value < 1f
-    LaunchedEffect(state.chatTransitionId) {
-        if (!animationsEnabled || state.chatTransitionId == 0L || transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NONE) {
-            transitionProgress.snapTo(1f)
-        } else {
-            transitionProgress.snapTo(0f)
-            transitionProgress.animateTo(1f, animationSpec = tween(300, easing = FastOutSlowInEasing))
+    var outgoingState by remember { mutableStateOf<ChatState?>(null) }
+    var keepOutgoingUntilLoaded by remember { mutableStateOf(false) }
+    LaunchedEffect(model) {
+        var previous = model.state.value
+        var pendingOutgoing: ChatState? = null
+        model.state.collect { current ->
+            val selectedChanged = current.selected?.id != previous.selected?.id
+            val navigationStarted = current.chatTransitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NONE &&
+                current.busy &&
+                (selectedChanged || (current.messages.isEmpty() && previous.messages.isNotEmpty()))
+            if (navigationStarted) {
+                pendingOutgoing = previous
+                outgoingState = previous
+                keepOutgoingUntilLoaded = true
+            }
+            if (current.chatTransitionKind != com.minashin1120.aiplayground.ChatTransitionKind.NONE &&
+                current.chatTransitionId != previous.chatTransitionId) {
+                outgoingState = pendingOutgoing ?: previous
+                pendingOutgoing = null
+                keepOutgoingUntilLoaded = false
+            } else if (keepOutgoingUntilLoaded && !current.busy && pendingOutgoing != null) {
+                pendingOutgoing = null
+                keepOutgoingUntilLoaded = false
+            }
+            previous = current
         }
     }
+    AnimatedContent(
+        targetState = state.chatTransitionId,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            if (!animationsEnabled || targetState == initialState) {
+                EnterTransition.None togetherWith ExitTransition.None
+            } else {
+                fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(160))
+            }
+        },
+        label = "chat conversation transition",
+    ) { transitionId ->
+        val showOutgoing = keepOutgoingUntilLoaded || transitionId != state.chatTransitionId
+        val contentState = if (showOutgoing) outgoingState ?: state else state
+        ConversationContent(contentState, model, onFile, loader)
+    }
+}
+
+@Composable
+private fun ConversationContent(
+    state: ChatState,
+    model: ChatViewModel,
+    onFile: (String) -> Unit,
+    loader: FileBytesLoader?,
+) {
+    val scroll = rememberLazyListState()
+    val scope = rememberCoroutineScope()
     var showScrollToBottom by remember { mutableStateOf(false) }
     val live = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty() || state.cards.isNotEmpty()
     LaunchedEffect(scroll.firstVisibleItemIndex, scroll.layoutInfo.totalItemsCount) {
@@ -725,24 +763,7 @@ private fun Conversation(
         val count = state.messages.size + (if (state.hasOlder) 1 else 0) + (if (live) 1 else 0)
         if (nearBottom && count > 0) scroll.animateScrollToItem(count - 1)
     }
-    Column(
-        Modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                val progress = transitionProgress.value.coerceIn(0f, 1f)
-                alpha = if (transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.OPEN_THREAD) {
-                    0.72f + (0.28f * progress)
-                } else {
-                    0.86f + (0.14f * progress)
-                }
-                translationX = if (transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.OPEN_THREAD) {
-                    (1f - progress) * (newChatOffsetPx * 0.55f)
-                } else 0f
-                translationY = if (transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NEW_CHAT) {
-                    (1f - progress) * (newChatOffsetPx * 0.45f)
-                } else 0f
-            }
-    ) {
+    Column(Modifier.fillMaxSize()) {
         if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (state.selected?.isTemporary == true || (state.selected == null && state.newThreadTemporary)) {
             Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
@@ -794,7 +815,7 @@ private fun Conversation(
             items(state.messages, key = { it.id }) { message ->
                 val siblings = siblingGroup(state.allMessages, message)
                 val index = siblings.indexOfFirst { it.id == message.id }
-                AnimatedMessageCard(
+                MessageCard(
                     message = message,
                     onFile = onFile,
                     onQuote = model::quoteMessage,
@@ -804,7 +825,6 @@ private fun Conversation(
                     branchIndex = if (index < 0) 0 else index,
                     branchCount = if (numericId(message) != null) siblings.size else 0,
                     onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) },
-                    animationsEnabled = animationsEnabled && !transitionActive,
                 )
             }
                 if (live) item(key = "live") { LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision) }
@@ -825,40 +845,6 @@ private fun Conversation(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun AnimatedMessageCard(
-    message: ChatMessage,
-    onFile: (String) -> Unit,
-    onQuote: (String) -> Unit,
-    loader: FileBytesLoader?,
-    onEdit: (ChatMessage) -> Unit,
-    onRegenerate: (ChatMessage) -> Unit,
-    branchIndex: Int,
-    branchCount: Int,
-    onSwitchBranch: (Int) -> Unit,
-    animationsEnabled: Boolean,
-) {
-    AnimatedVisibility(
-        visible = true,
-        enter = if (animationsEnabled) {
-            fadeIn(animationSpec = tween(380)) +
-                slideInVertically(animationSpec = tween(380), initialOffsetY = { it / 20 })
-        } else EnterTransition.None,
-    ) {
-        MessageCard(
-            message = message,
-            onFile = onFile,
-            onQuote = onQuote,
-            loader = loader,
-            onEdit = onEdit,
-            onRegenerate = onRegenerate,
-            branchIndex = branchIndex,
-            branchCount = branchCount,
-            onSwitchBranch = onSwitchBranch,
-        )
     }
 }
 

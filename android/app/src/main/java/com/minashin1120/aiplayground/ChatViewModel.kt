@@ -524,7 +524,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 loadMessages(thread.id)
                 if (state.value.selected?.id == thread.id) {
-                    mutable.update { it.copy(chatTransitionId = transition.first, chatTransitionKind = transition.second) }
+                    mutable.update { it.copy(busy = false, chatTransitionId = transition.first, chatTransitionKind = transition.second) }
                 }
                 if (foreground && state.value.jobId != null) resume()
             }

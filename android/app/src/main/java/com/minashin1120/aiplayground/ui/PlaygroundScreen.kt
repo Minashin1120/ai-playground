@@ -38,9 +38,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -449,27 +451,27 @@ private fun ChatTransitionOverlay(state: ChatState, animationsEnabled: Boolean) 
 
     val progress = remember { Animatable(-1f) }
     val primary = MaterialTheme.colorScheme.primary
-    val peakAlpha = if (state.chatTransitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NEW_CHAT) 0.18f else 0.24f
+    val curtainAlpha = if (state.chatTransitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NEW_CHAT) 0.62f else 0.78f
     LaunchedEffect(state.chatTransitionId) {
         progress.snapTo(-1f)
-        progress.animateTo(1f, animationSpec = tween(460, easing = FastOutSlowInEasing))
+        progress.animateTo(1f, animationSpec = tween(520, easing = FastOutSlowInEasing))
     }
     Canvas(Modifier.fillMaxSize()) {
-        val bandWidth = size.width * 0.52f
-        val left = progress.value * (size.width + bandWidth) - bandWidth
+        val curtainWidth = size.width * 0.92f
+        val left = progress.value * (size.width + curtainWidth) - curtainWidth
         drawRect(
             brush = Brush.horizontalGradient(
                 colors = listOf(
-                    Color.Transparent,
-                    primary.copy(alpha = peakAlpha * 0.35f),
-                    primary.copy(alpha = peakAlpha),
-                    primary.copy(alpha = peakAlpha * 0.35f),
-                    Color.Transparent,
+                    primary.copy(alpha = curtainAlpha * 0.72f),
+                    primary.copy(alpha = curtainAlpha),
+                    primary.copy(alpha = curtainAlpha),
+                    primary.copy(alpha = curtainAlpha * 0.72f),
                 ),
                 startX = left,
-                endX = left + bandWidth,
+                endX = left + curtainWidth,
             ),
-            size = size,
+            topLeft = androidx.compose.ui.geometry.Offset(left, 0f),
+            size = androidx.compose.ui.geometry.Size(curtainWidth, size.height),
         )
     }
 }
@@ -731,6 +733,19 @@ private fun Conversation(
 ) {
     val scroll = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val transitionProgress = remember { Animatable(1f) }
+    val density = LocalDensity.current
+    val newChatOffsetPx = with(density) { 22.dp.toPx() }
+    val transitionKind = state.chatTransitionKind
+    val transitionActive = animationsEnabled && state.chatTransitionId != 0L && transitionProgress.value < 1f
+    LaunchedEffect(state.chatTransitionId) {
+        if (!animationsEnabled || state.chatTransitionId == 0L || transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NONE) {
+            transitionProgress.snapTo(1f)
+        } else {
+            transitionProgress.snapTo(0f)
+            transitionProgress.animateTo(1f, animationSpec = tween(520, easing = FastOutSlowInEasing))
+        }
+    }
     var showScrollToBottom by remember { mutableStateOf(false) }
     val live = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty() || state.cards.isNotEmpty()
     LaunchedEffect(scroll.firstVisibleItemIndex, scroll.layoutInfo.totalItemsCount) {
@@ -744,7 +759,29 @@ private fun Conversation(
         val count = state.messages.size + (if (state.hasOlder) 1 else 0) + (if (live) 1 else 0)
         if (nearBottom && count > 0) scroll.animateScrollToItem(count - 1)
     }
-    Column(Modifier.fillMaxSize()) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .graphicsLayer {
+                val progress = transitionProgress.value.coerceIn(0f, 1f)
+                alpha = if (transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.OPEN_THREAD) {
+                    0.22f + (0.78f * progress)
+                } else {
+                    0.72f + (0.28f * progress)
+                }
+                translationX = if (transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.OPEN_THREAD) {
+                    (1f - progress) * newChatOffsetPx
+                } else 0f
+                translationY = if (transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NEW_CHAT) {
+                    (1f - progress) * newChatOffsetPx
+                } else 0f
+                val scale = if (transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NEW_CHAT) {
+                    0.985f + (0.015f * progress)
+                } else 1f
+                scaleX = scale
+                scaleY = scale
+            }
+    ) {
         if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (state.selected?.isTemporary == true || (state.selected == null && state.newThreadTemporary)) {
             Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
@@ -806,7 +843,7 @@ private fun Conversation(
                     branchIndex = if (index < 0) 0 else index,
                     branchCount = if (numericId(message) != null) siblings.size else 0,
                     onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) },
-                    animationsEnabled = animationsEnabled,
+                    animationsEnabled = animationsEnabled && !transitionActive,
                 )
             }
                 if (live) item(key = "live") { LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision) }

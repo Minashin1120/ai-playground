@@ -756,8 +756,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-21-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.1018'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-21-005')
+app.config['SYSTEM_VERSION'] = 'V4.8.1019'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

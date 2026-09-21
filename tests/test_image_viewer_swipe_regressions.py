@@ -65,6 +65,16 @@ class ImageViewerSwipeRegressionTests(unittest.TestCase):
         self.assertIn("window.matchMedia('(prefers-reduced-motion: reduce)')", script)
         self.assertIn("if (reducedMotion) {\n                finishSwipeNav(dir);", script)
 
+    def test_pinch_drag_updates_viewer_position(self):
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+
+        # A two-finger gesture must carry both its starting midpoint and
+        # translation so the image can be panned while it is being zoomed.
+        self.assertIn("mx: (first.clientX + second.clientX) / 2", script)
+        self.assertIn("my: (first.clientY + second.clientY) / 2", script)
+        self.assertIn("vX = p.x + midpointX - p.mx", script)
+        self.assertIn("vY = p.y + midpointY - p.my", script)
+
     def test_close_click_suppressed_after_swipe(self):
         script = _current_asset("js", "chat_core.v4.8.*.js")
 

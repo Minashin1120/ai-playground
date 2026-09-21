@@ -6776,7 +6776,11 @@
                 const second = e.touches[1];
                 p = {
                     d: Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY) || 1,
-                    s: z
+                    s: z,
+                    mx: (first.clientX + second.clientX) / 2,
+                    my: (first.clientY + second.clientY) / 2,
+                    x: vX,
+                    y: vY
                 };
                 s = null;
                 e.preventDefault();
@@ -6815,18 +6819,27 @@
                     const second = e.touches[1];
                     p = {
                         d: Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY) || 1,
-                        s: z
+                        s: z,
+                        mx: (first.clientX + second.clientX) / 2,
+                        my: (first.clientY + second.clientY) / 2,
+                        x: vX,
+                        y: vY
                     };
                     s = null;
                 }
                 const first = e.touches[0];
                 const second = e.touches[1];
                 const distance = Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY) || 1;
+                const midpointX = (first.clientX + second.clientX) / 2;
+                const midpointY = (first.clientY + second.clientY) / 2;
                 z = Math.min(6, Math.max(1, p.s * distance / p.d));
                 if (z <= 1.0001) {
                     z = 1;
                     vX = 0;
                     vY = 0;
+                } else {
+                    vX = p.x + midpointX - p.mx;
+                    vY = p.y + midpointY - p.my;
                 }
                 const img = get('image-viewer-img');
                 if (!img) return;

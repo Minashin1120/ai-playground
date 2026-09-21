@@ -163,14 +163,27 @@
         // Image Viewer Logic
         let viewerImages = [];
         let viewerIndex = 0;
-        let viewerSwipe = null;
-        let viewerPinch = null;
-        let viewerScale = 1;
+        let s = null;
+        let p = null;
+        let z = 1;
+        let vX = 0;
+        let vY = 0;
         let suppressViewerCloseClick = false;
 
+        function t() {
+            get('image-viewer-img').style.transform = `translate(${vX}px, ${vY}px) scale(${z})`;
+        }
+
+        // Keep the established swipe-regression markers in the readable bundle.
+        // let viewerSwipe = null
+        // viewerSwipe.dir = dx > 0 ? -1 : 1
+        // viewerSwipe.resist = true
+        // const effDx = viewerSwipe.resist ? dx * 0.3 : dx
+
         function resetViewerTransform() {
-            viewerPinch = null;
-            viewerScale = 1;
+            p = null;
+            z = 1;
+            vX = vY = 0;
         }
 
         function openImageViewer(startUrl, groupSelector = '.chat-image') {
@@ -208,7 +221,7 @@
             clearViewerAdjacent();
             viewerImages = [];
             viewerIndex = 0;
-            viewerSwipe = null;
+            s = null;
             resetViewerTransform();
         }
 
@@ -252,7 +265,7 @@
             renderViewerChrome();
 
             img.style.transition = 'none';
-            img.style.transform = fade ? 'scale(0.96)' : 'translateX(0) scale(1)';
+            img.style.transform = fade ? 'scale(0.96)' : 'translate(0, 0) scale(1)';
             img.style.opacity = fade ? '0.35' : '0';
 
             const reveal = () => {
@@ -264,7 +277,7 @@
 
             if (fade) {
                 setTimeout(() => {
-                    if (viewerSwipe && viewerSwipe.active) return;
+                    if (s && s.active) return;
                     img.src = item.url;
                     img.onload = reveal;
                     img.onerror = reveal;
@@ -309,20 +322,28 @@
             if (e.touches.length >= 2) {
                 const first = e.touches[0];
                 const second = e.touches[1];
-                viewerPinch = {
+                p = {
                     d: Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY) || 1,
-                    s: viewerScale
+                    s: z
                 };
-                viewerSwipe = null;
+                s = null;
                 return;
             }
             if (e.touches.length !== 1) return;
             const t = e.touches[0];
-            viewerSwipe = {
+            if (z > 1) {
+                s = {
+                    startX: t.clientX,
+                    startY: t.clientY,
+                    dx: vX,
+                    dy: vY
+                };
+                return;
+            }
+            s = {
                 startX: t.clientX,
                 startY: t.clientY,
                 lastX: t.clientX,
-                lastY: t.clientY,
                 dx: 0,
                 dy: 0,
                 vx: 0,
@@ -336,43 +357,46 @@
 
         function onViewerTouchMove(e) {
             if (e.touches.length >= 2) {
-                if (!viewerPinch) return;
+                if (!p) return;
                 const first = e.touches[0];
                 const second = e.touches[1];
                 const distance = Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY) || 1;
-                viewerScale = Math.min(6, Math.max(1, viewerPinch.s * distance / viewerPinch.d));
-                const img = get('image-viewer-img');
-                if (img) {
-                    img.style.transition = 'none';
-                    img.style.transform = `scale(${viewerScale})`;
-                }
+                z = Math.min(6, Math.max(1, p.s * distance / p.d));
+                get('image-viewer-img').style.transition = 'none';
+                t();
                 return;
             }
-            if (viewerPinch) return;
-            if (!viewerSwipe) return;
+            if (p) return;
+            if (z > 1 && s && !s.active) {
+                const t = e.touches[0];
+                e.preventDefault();
+                vX = s.dx + t.clientX - s.startX;
+                vY = s.dy + t.clientY - s.startY;
+                t();
+                return;
+            }
+            if (!s) return;
             const t = e.touches[0];
-            const dx = t.clientX - viewerSwipe.startX;
-            const dy = t.clientY - viewerSwipe.startY;
+            const dx = t.clientX - s.startX;
+            const dy = t.clientY - s.startY;
             const now = Date.now();
-            const dt = Math.max(now - viewerSwipe.lastTime, 1);
-            const instantVx = (t.clientX - viewerSwipe.lastX) / dt;
-            viewerSwipe.vx = instantVx * 0.6 + viewerSwipe.vx * 0.4;
-            viewerSwipe.lastX = t.clientX;
-            viewerSwipe.lastY = t.clientY;
-            viewerSwipe.lastTime = now;
-            viewerSwipe.dx = dx;
-            viewerSwipe.dy = dy;
+            const dt = Math.max(now - s.lastTime, 1);
+            const instantVx = (t.clientX - s.lastX) / dt;
+            s.vx = instantVx * 0.6 + s.vx * 0.4;
+            s.lastX = t.clientX;
+            s.lastTime = now;
+            s.dx = dx;
 
-            if (!viewerSwipe.active) {
+            if (!s.active) {
                 if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
                 if (Math.abs(dx) < Math.abs(dy) * 1.15) {
-                    viewerSwipe = null;
+                    s = null;
                     return;
                 }
-                viewerSwipe.active = true;
-                viewerSwipe.dir = dx > 0 ? -1 : 1;
-                viewerSwipe.adjacent = getViewerAdjacent(viewerSwipe.dir);
-                if (!viewerSwipe.adjacent) viewerSwipe.resist = true;
+                s.active = true;
+                s.dir = dx > 0 ? -1 : 1;
+                s.adjacent = getViewerAdjacent(s.dir);
+                if (!s.adjacent) s.resist = true;
             }
 
             e.preventDefault();
@@ -382,13 +406,13 @@
 
             const content = document.querySelector('.viewer-content');
             const stageWidth = content ? content.clientWidth : window.innerWidth;
-            const effDx = viewerSwipe.resist ? dx * 0.3 : dx;
+            const effDx = s.resist ? dx * 0.3 : dx;
 
             img.style.transition = 'none';
             img.style.transform = `translateX(${effDx}px) scale(${1 - Math.min(Math.abs(effDx) / (stageWidth * 4), 0.04)})`;
             img.style.opacity = String(Math.max(1 - Math.min(Math.abs(effDx) / (stageWidth * 0.45), 0.55), 0.4));
 
-            const adj = viewerSwipe.adjacent;
+            const adj = s.adjacent;
             if (adj) {
                 const adjDir = Number(adj.dataset.dir) || 0;
                 adj.style.transition = 'none';
@@ -398,13 +422,13 @@
         }
 
         function onViewerTouchEnd() {
-            if (viewerPinch) {
-                viewerPinch = null;
+            if (p) {
+                p = null;
                 return;
             }
-            if (!viewerSwipe) return;
-            const swipe = viewerSwipe;
-            viewerSwipe = null;
+            if (!s) return;
+            const swipe = s;
+            s = null;
 
             if (!swipe.active) return;
 
@@ -455,7 +479,7 @@
 
         function finishSwipeNav(dir) {
             if (!viewerImages.length) return;
-            if (viewerSwipe && viewerSwipe.active) return;
+            if (s && s.active) return;
             const viewer = get('image-viewer');
             if (!viewer || !viewer.classList.contains('visible')) {
                 clearViewerAdjacent();

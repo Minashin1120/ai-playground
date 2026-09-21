@@ -519,9 +519,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             leafId = storedLeaf, editingMessageId = null, streaming = false, busy = true,
             liveContent = "", liveThought = "", jobId = null, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null,
-            chatTransitionId = transition.first, chatTransitionKind = transition.second) }
+            chatTransitionId = 0L, chatTransitionKind = ChatTransitionKind.NONE) }
         navigationJob = viewModelScope.launch {
-            try { loadMessages(thread.id); if (foreground && state.value.jobId != null) resume() }
+            try {
+                loadMessages(thread.id)
+                if (state.value.selected?.id == thread.id) {
+                    mutable.update { it.copy(chatTransitionId = transition.first, chatTransitionKind = transition.second) }
+                }
+                if (foreground && state.value.jobId != null) resume()
+            }
             catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(busy = false) } }
         }

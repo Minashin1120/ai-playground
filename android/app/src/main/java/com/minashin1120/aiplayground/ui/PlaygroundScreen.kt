@@ -20,7 +20,6 @@ import android.speech.RecognizerIntent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -361,8 +360,6 @@ fun PlaygroundScreen(
                 }
             }
 
-            ChatTransitionOverlay(state, animationsEnabled = !areSystemAnimationsDisabled(context))
-
             if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })
             if (libraryOpen) LibraryDialog(state, model, onOpenFile = { viewingFile = it }, onDismiss = { libraryOpen = false })
             viewingFile?.let { request ->
@@ -442,37 +439,6 @@ private fun DialogAction(icon: androidx.compose.ui.graphics.vector.ImageVector, 
     TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp)) {
         Icon(icon, contentDescription = null)
         Text(label, modifier = Modifier.padding(start = 12.dp).weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Start)
-    }
-}
-
-@Composable
-private fun ChatTransitionOverlay(state: ChatState, animationsEnabled: Boolean) {
-    if (!animationsEnabled || state.chatTransitionId == 0L || state.chatTransitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NONE) return
-
-    val progress = remember { Animatable(-1f) }
-    val primary = MaterialTheme.colorScheme.primary
-    val curtainAlpha = if (state.chatTransitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NEW_CHAT) 0.62f else 0.78f
-    LaunchedEffect(state.chatTransitionId) {
-        progress.snapTo(-1f)
-        progress.animateTo(1f, animationSpec = tween(520, easing = FastOutSlowInEasing))
-    }
-    Canvas(Modifier.fillMaxSize()) {
-        val curtainWidth = size.width * 0.92f
-        val left = progress.value * (size.width + curtainWidth) - curtainWidth
-        drawRect(
-            brush = Brush.horizontalGradient(
-                colors = listOf(
-                    primary.copy(alpha = curtainAlpha * 0.72f),
-                    primary.copy(alpha = curtainAlpha),
-                    primary.copy(alpha = curtainAlpha),
-                    primary.copy(alpha = curtainAlpha * 0.72f),
-                ),
-                startX = left,
-                endX = left + curtainWidth,
-            ),
-            topLeft = androidx.compose.ui.geometry.Offset(left, 0f),
-            size = androidx.compose.ui.geometry.Size(curtainWidth, size.height),
-        )
     }
 }
 
@@ -743,7 +709,7 @@ private fun Conversation(
             transitionProgress.snapTo(1f)
         } else {
             transitionProgress.snapTo(0f)
-            transitionProgress.animateTo(1f, animationSpec = tween(520, easing = FastOutSlowInEasing))
+            transitionProgress.animateTo(1f, animationSpec = tween(300, easing = FastOutSlowInEasing))
         }
     }
     var showScrollToBottom by remember { mutableStateOf(false) }
@@ -765,21 +731,16 @@ private fun Conversation(
             .graphicsLayer {
                 val progress = transitionProgress.value.coerceIn(0f, 1f)
                 alpha = if (transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.OPEN_THREAD) {
-                    0.22f + (0.78f * progress)
-                } else {
                     0.72f + (0.28f * progress)
+                } else {
+                    0.86f + (0.14f * progress)
                 }
                 translationX = if (transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.OPEN_THREAD) {
-                    (1f - progress) * newChatOffsetPx
+                    (1f - progress) * (newChatOffsetPx * 0.55f)
                 } else 0f
                 translationY = if (transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NEW_CHAT) {
-                    (1f - progress) * newChatOffsetPx
+                    (1f - progress) * (newChatOffsetPx * 0.45f)
                 } else 0f
-                val scale = if (transitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NEW_CHAT) {
-                    0.985f + (0.015f * progress)
-                } else 1f
-                scaleX = scale
-                scaleY = scale
             }
     ) {
         if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())

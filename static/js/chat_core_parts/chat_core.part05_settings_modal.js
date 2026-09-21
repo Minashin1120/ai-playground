@@ -170,8 +170,10 @@
         let vY = 0;
         let suppressViewerCloseClick = false;
 
-        function t() {
-            get('image-viewer-img').style.transform = `translate(${vX}px, ${vY}px) scale(${z})`;
+        function applyViewerTransform() {
+            const img = get('image-viewer-img');
+            if (!img) return;
+            img.style.transform = `translate(${vX}px, ${vY}px) scale(${z})`;
         }
 
         // Keep the established swipe-regression markers in the readable bundle.
@@ -327,23 +329,24 @@
                     s: z
                 };
                 s = null;
+                e.preventDefault();
                 return;
             }
             if (e.touches.length !== 1) return;
-            const t = e.touches[0];
+            const touch = e.touches[0];
             if (z > 1) {
                 s = {
-                    startX: t.clientX,
-                    startY: t.clientY,
+                    startX: touch.clientX,
+                    startY: touch.clientY,
                     dx: vX,
                     dy: vY
                 };
                 return;
             }
             s = {
-                startX: t.clientX,
-                startY: t.clientY,
-                lastX: t.clientX,
+                startX: touch.clientX,
+                startY: touch.clientY,
+                lastX: touch.clientX,
                 dx: 0,
                 dy: 0,
                 vx: 0,
@@ -357,33 +360,51 @@
 
         function onViewerTouchMove(e) {
             if (e.touches.length >= 2) {
-                if (!p) return;
+                if (!p) {
+                    const first = e.touches[0];
+                    const second = e.touches[1];
+                    p = {
+                        d: Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY) || 1,
+                        s: z
+                    };
+                    s = null;
+                }
                 const first = e.touches[0];
                 const second = e.touches[1];
                 const distance = Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY) || 1;
                 z = Math.min(6, Math.max(1, p.s * distance / p.d));
-                get('image-viewer-img').style.transition = 'none';
-                t();
+                if (z <= 1.0001) {
+                    z = 1;
+                    vX = 0;
+                    vY = 0;
+                }
+                const img = get('image-viewer-img');
+                if (!img) return;
+                e.preventDefault();
+                img.style.transition = 'none';
+                applyViewerTransform();
                 return;
             }
             if (p) return;
             if (z > 1 && s && !s.active) {
-                const t = e.touches[0];
+                const touch = e.touches[0];
+                if (!touch) return;
                 e.preventDefault();
-                vX = s.dx + t.clientX - s.startX;
-                vY = s.dy + t.clientY - s.startY;
-                t();
+                vX = s.dx + touch.clientX - s.startX;
+                vY = s.dy + touch.clientY - s.startY;
+                applyViewerTransform();
                 return;
             }
             if (!s) return;
-            const t = e.touches[0];
-            const dx = t.clientX - s.startX;
-            const dy = t.clientY - s.startY;
+            const touch = e.touches[0];
+            if (!touch) return;
+            const dx = touch.clientX - s.startX;
+            const dy = touch.clientY - s.startY;
             const now = Date.now();
             const dt = Math.max(now - s.lastTime, 1);
-            const instantVx = (t.clientX - s.lastX) / dt;
+            const instantVx = (touch.clientX - s.lastX) / dt;
             s.vx = instantVx * 0.6 + s.vx * 0.4;
-            s.lastX = t.clientX;
+            s.lastX = touch.clientX;
             s.lastTime = now;
             s.dx = dx;
 
@@ -424,6 +445,7 @@
         function onViewerTouchEnd() {
             if (p) {
                 p = null;
+                s = null;
                 return;
             }
             if (!s) return;

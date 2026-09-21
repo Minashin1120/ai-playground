@@ -523,7 +523,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             leafId = storedLeaf, editingMessageId = null, streaming = false, busy = true,
             liveContent = "", liveThought = "", jobId = null, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null,
-            chatTransitionId = 0L, chatTransitionKind = ChatTransitionKind.NONE,
+            // Keep the current transition id while the history loads so the AnimatedContent swap
+            // happens exactly once, when the messages arrive, instead of animating to a placeholder first.
+            chatTransitionKind = ChatTransitionKind.NONE,
             chatNavigationId = transition.first, chatNavigationKind = transition.second) }
         navigationJob = viewModelScope.launch {
             try {

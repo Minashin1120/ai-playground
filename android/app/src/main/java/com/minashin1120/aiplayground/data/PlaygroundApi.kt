@@ -168,11 +168,16 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
     suspend fun accountImportCancel(uploadId: String, token: String): JSONObject =
         delete("/api/account/import/upload/$uploadId", token)
 
-    suspend fun accountImport(uploadId: String, categories: String, token: String): JSONObject =
+    suspend fun accountImport(
+        uploadId: String,
+        categories: String,
+        token: String,
+        confirmSettings: Boolean = false,
+    ): JSONObject =
         post("/api/account/import", JSONObject()
             .put("upload_id", uploadId)
             .put("categories", categories)
-            .put("confirm_settings", true), token)
+            .put("confirm_settings", confirmSettings), token)
 
     suspend fun stream(path: String, payload: JSONObject, token: String, onEvent: (JSONObject) -> Unit) {
         val req = request(path, token).header("Accept", "application/x-ndjson")

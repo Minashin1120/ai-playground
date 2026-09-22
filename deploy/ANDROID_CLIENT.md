@@ -243,9 +243,9 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 
 セットアップ未完了（`is_setup_completed=false`）のBearerでもセキュリティ管理と取り込みAPIは利用でき、通常のチャットAPIだけが `setup_required` で拒否されます。
 
-アカウントZIPの取り込みはWebと同じチャンクAPIを再利用します。`start` → `chunk`（既定10MiB）→ `complete` → `import`（`upload_id` と `categories`）。`categories` は `settings,api_credentials,chats,gems,files,feedback,diagnostics`。`import` に `confirm_settings=true` を付けると設定確認を省略します（現在のAndroidクライアントは省略で固定）。中間ファイルはアプリ本体の自動処理だけが作成・削除します。
+アカウントZIPの取り込みはWebと同じチャンクAPIを再利用します。`start` → `chunk`（既定10MiB）→ `complete` → `import`（`upload_id` と `categories`）。`categories` は `settings,api_credentials,chats,gems,files,feedback,diagnostics`。設定が現在値と異なる場合、Androidクライアントは `settings_changes` を表示して、利用者が確認した後に `confirm_settings=true` で適用します。取り消した場合はアップロードを削除します。中間ファイルはアプリ本体の自動処理だけが作成・削除します。
 
-未実装: Play Integrityによる端末リスク信号と、判定不能・高リスク時のTurnstile自動フォールバック。外部のGoogle Cloud設定が必要なため後続対応とし、現状はIP・ユーザー単位のレート制限のみです。セットアップ取り込みの「設定変更確認」画面も未実装です。
+未実装: Play Integrityによる端末リスク信号と、判定不能・高リスク時のTurnstile自動フォールバック。外部のGoogle Cloud設定が必要なため後続対応とし、現状はIP・ユーザー単位のレート制限のみです。
 
 ## 4. チャット・ファイルAPI
 
@@ -773,7 +773,7 @@ configは200 JSON、未認証meは401 JSONが期待値です。テスト出力�
 
 Turnstileの確認にはアプリ内の「Webで安全性を確認」導線を用意します。今回の専用APIは既存の確認マーカーを使い、Androidという理由で確認を免除していません。このため、Bot対策対象アカウントでは継続利用中に再確認が必要になる場合があります。Play IntegrityとTurnstileの自動フォールバックは未実装です。
 
-今後の拡張候補は、Play Integrityのリスク信号とTurnstileフォールバック、refresh tokenのローテーション、端末間E2EEの新しい設計、Webと説明・価格まで共有するモデルカタログ、イベント連番による再開、アカウント取り込みの設定変更確認画面です。これらは実装済み機能としてクライアントへ表示しないでください。認可コード＋PKCEとHTTPS App Linksによるブラウザー認証からの復帰、パスキー、TOTP／WebAuthn 2FA、2FA・パスキー管理、アカウントZIPのチャンク取り込みは実装済みです。
+今後の拡張候補は、Play Integrityのリスク信号とTurnstileフォールバック、refresh tokenのローテーション、端末間E2EEの新しい設計、Webと説明・価格まで共有するモデルカタログ、イベント連番による再開です。これらは実装済み機能としてクライアントへ表示しないでください。認可コード＋PKCEとHTTPS App Linksによるブラウザー認証からの復帰、パスキー、TOTP／WebAuthn 2FA、2FA・パスキー管理、アカウントZIPのチャンク取り込み（設定変更確認を含む）は実装済みです。
 
 数式はWebのMathJaxではなくネイティブ近似で描画するため、複雑な組版では表現が異なる場合があります。メッセージの編集・再生成・分岐切替とネイティブPDF出力は実装済みです。画像の圧縮設定（最大サイズ・最大辺・形式・形式のみ変換）も実装済みで、GIFは対象外です。PDFは本文をA4へ再構成する簡易出力で、Webの印刷レイアウトとは体裁が異なります。
 

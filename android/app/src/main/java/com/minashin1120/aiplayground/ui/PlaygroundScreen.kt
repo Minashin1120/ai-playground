@@ -60,6 +60,7 @@ import com.minashin1120.aiplayground.ANDROID_17_APP_BUBBLE_API
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.ChatTransitionKind
+import com.minashin1120.aiplayground.ImportSettingChange
 import com.minashin1120.aiplayground.AppChangelogUiState
 import com.minashin1120.aiplayground.AppUpdateUiState
 import com.minashin1120.aiplayground.data.ThreadItem
@@ -780,6 +781,34 @@ private fun SetupScreen(state: ChatState, model: ChatViewModel, onWeb: (String) 
         if (uri != null) model.importAccountZip(uri)
     }
     val colors = MaterialTheme.colorScheme
+    if (state.setupImportSettingsChanges.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { if (!state.setupImportBusy) model.cancelSetupImportConfirmation() },
+            title = { Text("設定の変更を確認") },
+            text = {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 360.dp)) {
+                    item {
+                        Text("ZIPに含まれる設定で、現在の設定を上書きします。内容を確認してください。")
+                    }
+                    items(state.setupImportSettingsChanges) { change ->
+                        ImportSettingChangeRow(change)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = model::confirmSetupImportSettings,
+                    enabled = !state.setupImportBusy,
+                ) { Text(if (state.setupImportBusy) "適用中…" else "設定を上書きして続行") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = model::cancelSetupImportConfirmation,
+                    enabled = !state.setupImportBusy,
+                ) { Text("取り消す") }
+            },
+        )
+    }
     LazyColumn(
         Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -863,6 +892,30 @@ private fun SetupScreen(state: ChatState, model: ChatViewModel, onWeb: (String) 
             }
         }
     }
+}
+
+@Composable
+private fun ImportSettingChangeRow(change: ImportSettingChange) {
+    val label = mapOf(
+        "default_model" to "既定のモデル",
+        "theme_color" to "テーマ色",
+        "system_prompt" to "システムプロンプト",
+        "system_prompt_enabled" to "システムプロンプトの有効化",
+        "light_mode_enabled" to "ライトモード",
+        "liquid_glass_enabled" to "Liquid Glass",
+        "gemini_backend" to "Geminiバックエンド",
+        "gemini_vertex_location" to "Vertex AIリージョン",
+    )[change.field] ?: change.field
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, fontWeight = FontWeight.SemiBold)
+        Text("現在: ${shortImportValue(change.current)}", style = MaterialTheme.typography.bodySmall)
+        Text("取り込み後: ${shortImportValue(change.incoming)}", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+private fun shortImportValue(value: String): String {
+    val normalized = value.replace("\n", " ").trim()
+    return if (normalized.length > 180) normalized.take(180) + "…" else normalized
 }
 
 @Composable

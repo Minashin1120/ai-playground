@@ -43,6 +43,8 @@ enum class ChatTransitionKind { NONE, OPEN_THREAD, NEW_CHAT }
 private const val ACCOUNT_IMPORT_CATEGORIES =
     "settings,api_credentials,chats,gems,files,feedback,diagnostics"
 
+data class ImportSettingChange(val field: String, val current: String, val incoming: String)
+
 data class ChatState(
     val starting: Boolean = true, val account: Account? = null,
     val pairing: Boolean = false, val userCode: String = "", val busy: Boolean = false,
@@ -53,6 +55,8 @@ data class ChatState(
     val securityTotpSecret: String? = null, val securityTotpUri: String? = null,
     val setupImportBusy: Boolean = false, val setupImportName: String = "", val setupImportProgress: Int = 0,
     val setupImportTotalChunks: Int = 0, val setupImportError: String? = null, val setupImportDone: Boolean = false,
+    val setupImportPendingUploadId: String? = null,
+    val setupImportSettingsChanges: List<ImportSettingChange> = emptyList(),
     val setupModels: List<ModelInfo> = emptyList(),
     val setupDefaultModel: String = "gemini-3.6-flash",
     val threads: List<ThreadItem> = emptyList(), val nextPage: Int? = null, val search: String = "",
@@ -432,7 +436,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (state.value.setupImportBusy) return
         importJob = viewModelScope.launch {
             mutable.update { it.copy(
-                setupImportBusy = true, setupImportError = null, setupImportDone = false, setupImportProgress = 0) }
+                setupImportBusy = true, setupImportError = null, setupImportDone = false, setupImportProgress = 0,
+                setupImportPendingUploadId = null, setupImportSettingsChanges = emptyList()) }
             var uploadId: String? = null
             try {
                 val resolver = getApplication<Application>().contentResolver
@@ -469,7 +474,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 } ?: throw IOException("ファイルを開けません。")
                 api.accountImportComplete(id, token())
-                api.accountImport(id, ACCOUNT_IMPORT_CATEGORIES, token())
+                val result = api.accountImport(id, ACCOUNT_IMPORT_CATEGORIES, token())
+                if (result.optString("status") == "settings_confirmation") {
+                    val changes = parseImportSettingChanges(result)
+                    if (changes.isNotEmpty()) {
+                        uploadId = null
+                        mutable.update { it.copy(
+                            setupImportBusy = false,
+                            setupImportPendingUploadId = id,
+                            setupImportSettingsChanges = changes,
+                        ) }
+                        return@launch
+                    }
+                }
                 uploadId = null
                 mutable.update { it.copy(setupImportBusy = false, setupImportDone = true) }
             } catch (e: CancellationException) {
@@ -482,9 +499,74 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Applies the uploaded archive after the user confirms the settings changes. */
+    fun confirmSetupImportSettings() {
+        val uploadId = state.value.setupImportPendingUploadId ?: return
+        if (state.value.setupImportBusy) return
+        importJob = viewModelScope.launch {
+            mutable.update { it.copy(setupImportBusy = true, setupImportError = null) }
+            try {
+                api.accountImport(uploadId, ACCOUNT_IMPORT_CATEGORIES, token(), confirmSettings = true)
+                mutable.update { it.copy(
+                    setupImportBusy = false,
+                    setupImportDone = true,
+                    setupImportPendingUploadId = null,
+                    setupImportSettingsChanges = emptyList(),
+                ) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                mutable.update { it.copy(
+                    setupImportBusy = false,
+                    setupImportError = e.message ?: "インポートに失敗しました。",
+                ) }
+            }
+        }
+    }
+
+    /** Rejects the settings overwrite and removes the completed upload session. */
+    fun cancelSetupImportConfirmation() {
+        val uploadId = state.value.setupImportPendingUploadId ?: return
+        mutable.update { it.copy(
+            setupImportPendingUploadId = null,
+            setupImportSettingsChanges = emptyList(),
+            setupImportError = null,
+        ) }
+        viewModelScope.launch {
+            runCatching { api.accountImportCancel(uploadId, token()) }
+        }
+    }
+
     fun cancelSetupImport() {
+        val pendingUploadId = state.value.setupImportPendingUploadId
         importJob?.cancel()
-        mutable.update { it.copy(setupImportBusy = false, setupImportProgress = 0, setupImportError = null) }
+        mutable.update { it.copy(
+            setupImportBusy = false, setupImportProgress = 0, setupImportError = null,
+            setupImportPendingUploadId = null, setupImportSettingsChanges = emptyList(),
+        ) }
+        if (pendingUploadId != null) {
+            viewModelScope.launch { runCatching { api.accountImportCancel(pendingUploadId, token()) } }
+        }
+    }
+
+    private fun parseImportSettingChanges(reply: JSONObject): List<ImportSettingChange> {
+        val rows = reply.optJSONArray("settings_changes") ?: return emptyList()
+        fun display(value: Any?): String = when {
+            value == null || value == JSONObject.NULL -> "未設定"
+            value is JSONObject || value is JSONArray -> value.toString()
+            else -> value.toString()
+        }
+        return buildList {
+            for (index in 0 until rows.length()) {
+                val row = rows.optJSONObject(index) ?: continue
+                val field = row.optString("field").trim()
+                if (field.isBlank()) continue
+                add(ImportSettingChange(
+                    field = field,
+                    current = display(row.opt("current")),
+                    incoming = display(row.opt("incoming")),
+                ))
+            }
+        }
     }
 
     private suspend fun loadSetup() {

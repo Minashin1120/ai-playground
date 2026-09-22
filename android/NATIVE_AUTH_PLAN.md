@@ -113,7 +113,7 @@ WebとAndroidの両方を変更するため、Webのバージョン準備・公�
 | Android: ユーザー名／パスワード登録・ログイン、TOTP | 実装済み |
 | Android: パスキーログイン、WebAuthn 2FA、パスキー登録/削除、TOTP登録/無効化、2FA設定 | 実装済み |
 | Android: 初回セットアップ（モデル／APIキー／Vertex AI／E2EE） | 実装済み |
-| Android: アカウントZIP取り込み（進捗・キャンセル） | 実装済み（設定変更確認画面は未） |
+| Android: アカウントZIP取り込み（進捗・キャンセル・設定変更確認） | 実装済み |
 | Play Integrity と Turnstile 自動フォールバック | 未実装（外部のGoogle Cloud設定が必要） |
 | 実機での Credential Manager 動作確認 | 未確認（GitHub Actionsでは検証不可） |
 
@@ -122,4 +122,3 @@ WebとAndroidの両方を変更するため、Webのバージョン準備・公�
 - OAuth開始は `/api/mobile/v1/auth/oauth/start` ではなく既存の `/android/auth/google/start`・`/android/auth/minashin/start` を再利用している。
 - 取り込みは `/api/mobile/v1/setup/import/*` を新設せず、Webの `/api/account/import/*` をBearer許可リストへ追加して再利用している。
 - パスキーは `rp_id` を接続先ホスト、Android originを `android:apk-key-hash:`（`ANDROID_APP_LINK_SHA256` から導出）として検証する。
-

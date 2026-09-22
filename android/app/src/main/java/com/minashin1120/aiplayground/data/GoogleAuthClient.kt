@@ -26,7 +26,7 @@ object GoogleAuthClient {
             // explicit button flow before surfacing the error.
             runCatching {
                 manager.clearCredentialState(
-                    ClearCredentialStateRequest(ClearCredentialStateRequest.TYPE_CLEAR_CREDENTIAL_STATE)
+                    ClearCredentialStateRequest()
                 )
             }
             requestIdToken(manager, context, serverClientId)
@@ -36,7 +36,7 @@ object GoogleAuthClient {
     suspend fun clearCredentialState(context: Context) {
         runCatching {
             CredentialManager.create(context).clearCredentialState(
-                ClearCredentialStateRequest(ClearCredentialStateRequest.TYPE_CLEAR_CREDENTIAL_STATE)
+                ClearCredentialStateRequest()
             )
         }
     }

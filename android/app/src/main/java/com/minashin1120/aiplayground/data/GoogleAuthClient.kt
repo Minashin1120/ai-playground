@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import java.security.SecureRandom
 import java.util.Base64
@@ -16,10 +16,12 @@ object GoogleAuthClient {
     suspend fun getIdToken(context: Context, serverClientId: String): Result {
         require(serverClientId.isNotBlank()) { "Googleログインを設定できません。" }
         val nonce = nonce()
-        val option = GetGoogleIdOption.Builder()
-            .setFilterByAuthorizedAccounts(false)
-            .setServerClientId(serverClientId)
-            .setAutoSelectEnabled(false)
+        // This is an explicit "Sign in with Google" button. GetGoogleIdOption is
+        // intended for the bottom-sheet/returning-user flow and can return
+        // NoCredentialException before a user has authorized the app. The button
+        // option also supports accounts that need re-authentication or are being
+        // added through the Google sign-in flow.
+        val option = GetSignInWithGoogleOption.Builder(serverClientId)
             .setNonce(nonce)
             .build()
         val result = CredentialManager.create(context).getCredential(

@@ -157,7 +157,7 @@ object GoogleAuthClient {
             add("timestamp=${Instant.now()}")
             add("app=${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
             add("package=${context.packageName}")
-            add("android=${Build.VERSION.RELEASE} sdk=${Build.VERSION.SDK_INT} securityPatch=${Build.VERSION.SECURITY_PATCH}")
+            add("android=${Build.VERSION.RELEASE} sdk=${Build.VERSION.SDK_INT} targetSdk=${context.applicationInfo.targetSdkVersion} securityPatch=${Build.VERSION.SECURITY_PATCH}")
             add("device=${Build.MANUFACTURER} ${Build.MODEL}")
             add("googlePlayServices=${packageVersion()}")
             add("credentialManager=1.6.0 googleId=1.2.0")

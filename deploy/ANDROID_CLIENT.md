@@ -153,6 +153,8 @@ HTTPS必須。JSONはUTF-8。APIレスポンスと認証ページは `Cache-Cont
 
 Google Cloudの同じプロジェクトには、サーバーで使うWeb OAuthクライアントに加えて、パッケージ名 `com.minashin1120.aiplayground` と配布署名SHA-1を登録したAndroid OAuthクライアントが必要です。診断ログの `package` と `signingSha1` はこの登録値と完全一致させます。不一致の場合、IDトークン取得前にGoogle Play services側で失敗するため、サーバーAPIの再試行では解消しません。
 
+Android 17（API 37）のCredential Manager挙動に合わせ、アプリは `compileSdk` / `targetSdk` 37で構築します。診断ログの `sdk` が37以上の場合は `targetSdk=37` も確認します。Android 17 SDKに対応するため、ビルド環境はAGP 9.1.1とGradle 9.3.1を使用します。
+
 ### 3.3 端末連携の開始
 
 `POST /api/mobile/v1/device`

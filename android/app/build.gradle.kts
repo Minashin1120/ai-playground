@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 val releaseVersion = Properties().apply {
@@ -10,11 +9,11 @@ val releaseVersion = Properties().apply {
 }
 android {
     namespace = "com.minashin1120.aiplayground"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         applicationId = "com.minashin1120.aiplayground"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = releaseVersion.getProperty("VERSION_CODE").toInt()
         versionName = releaseVersion.getProperty("VERSION_NAME")
         buildConfigField("String", "BASE_URL", "\"https://ai.minashin1120.com/\"")
@@ -42,7 +41,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
     lint { abortOnError = true; checkReleaseBuilds = true }

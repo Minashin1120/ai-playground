@@ -554,7 +554,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             value == null || value == JSONObject.NULL -> "未設定"
             value is JSONObject || value is JSONArray -> value.toString()
             else -> value.toString()
-        }
+        }.let { value -> if (value.length > 2_000) value.take(2_000) + "…" else value }
         return buildList {
             for (index in 0 until rows.length()) {
                 val row = rows.optJSONObject(index) ?: continue

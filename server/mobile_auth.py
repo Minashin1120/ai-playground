@@ -9,6 +9,17 @@ MOBILE_ENDPOINT_METHODS = {
     # Native sign-in is deliberately separate from the legacy browser pairing
     # endpoints.  The latter remains available as a deprecated fallback.
     'mobile_setup': {'GET', 'PUT'},
+    # Passkey / TOTP management for the signed-in native client.
+    'mobile_security': {'GET'},
+    'mobile_security_totp_setup': {'POST'}, 'mobile_security_totp_enable': {'POST'},
+    'mobile_security_totp_disable': {'POST'},
+    'mobile_security_passkey_options': {'POST'}, 'mobile_security_passkey_verify': {'POST'},
+    'mobile_security_passkey_remove': {'POST'}, 'mobile_security_preferences': {'POST'},
+    # In-app account ZIP import during first-run setup reuses the tested Web
+    # chunked-upload routes with the native bearer token.
+    'start_account_import_upload': {'POST'}, 'account_import_upload_chunk': {'POST'},
+    'complete_account_import_upload': {'POST'}, 'cancel_account_import_upload': {'DELETE'},
+    'import_account_data': {'POST'},
     'handle_threads': {'GET', 'POST'}, 'handle_thread_item': {'GET', 'DELETE'},
     'update_thread_settings': {'GET', 'PUT'}, 'update_title': {'PUT'},
     'toggle_bookmark': {'POST'},
@@ -37,8 +48,16 @@ MOBILE_ENDPOINT_METHODS = {
 MOBILE_PUBLIC_ENDPOINTS = {
     'mobile_device', 'mobile_token',
     'mobile_auth_signup', 'mobile_auth_login', 'mobile_auth_totp', 'mobile_auth_exchange',
+    'mobile_auth_passkey_options', 'mobile_auth_passkey_verify',
+    'mobile_auth_2fa_webauthn_options', 'mobile_auth_2fa_webauthn_verify',
 }
-MOBILE_SETUP_ENDPOINTS = {'mobile_setup'}
+MOBILE_SETUP_ENDPOINTS = {
+    'mobile_setup', 'mobile_security', 'mobile_security_totp_setup', 'mobile_security_totp_enable',
+    'mobile_security_totp_disable', 'mobile_security_passkey_options', 'mobile_security_passkey_verify',
+    'mobile_security_passkey_remove', 'mobile_security_preferences',
+    'start_account_import_upload', 'account_import_upload_chunk', 'complete_account_import_upload',
+    'cancel_account_import_upload', 'import_account_data',
+}
 
 
 def _mobile_digest(value):

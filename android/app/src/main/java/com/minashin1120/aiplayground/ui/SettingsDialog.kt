@@ -6,6 +6,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.minashin1120.aiplayground.AppUpdatePhase
@@ -84,6 +86,9 @@ fun SettingsDialog(
     var richPastePrompt by remember(prefs?.richPastePromptDefault) { mutableStateOf(prefs?.richPastePromptDefault.orEmpty()) }
     var skip2faGoogle by remember(prefs?.skip2faOnGoogleLogin) { mutableStateOf(prefs?.skip2faOnGoogleLogin ?: false) }
     var default2fa by remember(prefs?.default2faMethod) { mutableStateOf(prefs?.default2faMethod ?: "totp") }
+    var passkeyOnly by remember(state.security?.passkeyOnlyLogin) { mutableStateOf(state.security?.passkeyOnlyLogin ?: false) }
+    var totpEnableCode by remember { mutableStateOf("") }
+    var totpDisableCode by remember { mutableStateOf("") }
     var compressionEnabled by remember(state.compression) { mutableStateOf(state.compression.enabled) }
     var maxSizeMB by remember(state.compression) { mutableStateOf(state.compression.maxSizeMB.toString()) }
     var maxDim by remember(state.compression) { mutableStateOf(state.compression.maxDimension.toString()) }
@@ -290,12 +295,67 @@ fun SettingsDialog(
                     TextButton(onClick = { onWeb("/settings") }) { Text("Webでセキュリティ設定を開く") }
                 }
                 if (tab == "2要素認証" && tab in visibleTabs) {
-                    Text("状態: ${if (prefs?.twoFactorEnabled == true) "有効" else "無効"} / TOTP: ${if (prefs?.hasTotp == true) "登録済" else "未登録"} / パスキー: ${if (prefs?.hasWebauthn == true) "登録済" else "未登録"}",
+                    LaunchedEffect(tab, state.account?.id) {
+                        if (state.account != null) model.loadSecurity()
+                    }
+                    val security = state.security
+                    Text("状態: ${if (security?.is2faEnabled == true) "有効" else "無効"} / TOTP: ${if (security?.hasTotp == true) "登録済" else "未登録"} / パスキー: ${if (security?.hasWebauthn == true) "登録済" else "未登録"}",
                         style = MaterialTheme.typography.bodySmall)
+                    if (state.securityBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    state.securityError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+
+                    Text("認証アプリ（TOTP）", fontWeight = FontWeight.SemiBold)
+                    if (security?.hasTotp == true) {
+                        OutlinedTextField(totpDisableCode, { totpDisableCode = it.filter { c -> c.isDigit() }.take(8) },
+                            singleLine = true, label = { Text("現在のコード") }, modifier = Modifier.fillMaxWidth())
+                        TextButton(
+                            onClick = { model.disableTotp(totpDisableCode); totpDisableCode = "" },
+                            enabled = !state.securityBusy && totpDisableCode.isNotBlank(),
+                        ) { Text("TOTPを無効化") }
+                    } else if (state.securityTotpSecret != null) {
+                        Text("認証アプリに次のキーを登録してください。", style = MaterialTheme.typography.bodySmall)
+                        SelectionContainer { Text(state.securityTotpSecret.orEmpty(), fontFamily = FontFamily.Monospace) }
+                        state.securityTotpUri?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+                        OutlinedTextField(totpEnableCode, { totpEnableCode = it.filter { c -> c.isDigit() }.take(8) },
+                            singleLine = true, label = { Text("認証コード") }, modifier = Modifier.fillMaxWidth())
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(
+                                onClick = { model.enableTotp(totpEnableCode); totpEnableCode = "" },
+                                enabled = !state.securityBusy && totpEnableCode.isNotBlank(),
+                            ) { Text("有効化") }
+                            TextButton(onClick = model::cancelTotpSetup) { Text("キャンセル") }
+                        }
+                    } else {
+                        TextButton(onClick = model::startTotpSetup, enabled = !state.securityBusy) { Text("TOTPを登録") }
+                    }
+
+                    Text("パスキー", fontWeight = FontWeight.SemiBold)
+                    if (security?.passkeys.isNullOrEmpty()) {
+                        Text("登録済みのパスキーはありません。", style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        security?.passkeys?.forEach { key ->
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(key.name, style = MaterialTheme.typography.bodySmall)
+                                TextButton(onClick = { model.removePasskey(key.id) }, enabled = !state.securityBusy) { Text("削除") }
+                            }
+                        }
+                    }
+                    TextButton(onClick = model::beginPasskeyRegistration, enabled = !state.securityBusy) { Text("パスキーを登録") }
+
                     CheckboxRow("Googleログイン時に2FAをスキップ", skip2faGoogle) { skip2faGoogle = it }
                     ChoiceRow("既定の2要素認証方式", default2fa, listOf("totp", "webauthn")) { default2fa = it }
-                    Text("TOTP・パスキーの登録と無効化はWeb設定で行います。", style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { onWeb("/settings") }) { Text("Webで2FA設定を開く") }
+                    CheckboxRow("パスキーのみでログイン", passkeyOnly) { passkeyOnly = it }
+                    Button(
+                        onClick = { model.saveSecurityPreferences(default2fa, passkeyOnly, skip2faGoogle) },
+                        enabled = !state.securityBusy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("2FA設定を保存") }
+                    Text("パスワード変更やアカウント削除はWeb設定で行います。", style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { onWeb("/settings") }) { Text("Webでセキュリティ設定を開く") }
                 }
                 if (tab == "フィードバック" && tab in visibleTabs) {
                     OutlinedTextField(feedbackTitle, { feedbackTitle = it.take(200) }, singleLine = true,

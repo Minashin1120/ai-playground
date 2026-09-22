@@ -150,6 +150,30 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
     suspend fun uploadComplete(uploadId: String, token: String): JSONObject =
         post("/upload/complete", JSONObject().put("upload_id", uploadId), token)
 
+    /** Account ZIP import reuses the Web chunked-upload routes with the bearer token. */
+    suspend fun accountImportStart(size: Long, token: String): JSONObject =
+        post("/api/account/import/upload/start", JSONObject().put("size", size), token)
+
+    suspend fun accountImportChunk(uploadId: String, index: Int, chunk: ByteArray, token: String): JSONObject {
+        val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("index", index.toString())
+            .addFormDataPart("chunk", "chunk", chunk.toRequestBody("application/octet-stream".toMediaType()))
+            .build()
+        return execute(request("/api/account/import/upload/$uploadId/chunk", token).post(multipart).build(), consume = ::jsonResponse)
+    }
+
+    suspend fun accountImportComplete(uploadId: String, token: String): JSONObject =
+        post("/api/account/import/upload/$uploadId/complete", JSONObject(), token)
+
+    suspend fun accountImportCancel(uploadId: String, token: String): JSONObject =
+        delete("/api/account/import/upload/$uploadId", token)
+
+    suspend fun accountImport(uploadId: String, categories: String, token: String): JSONObject =
+        post("/api/account/import", JSONObject()
+            .put("upload_id", uploadId)
+            .put("categories", categories)
+            .put("confirm_settings", true), token)
+
     suspend fun stream(path: String, payload: JSONObject, token: String, onEvent: (JSONObject) -> Unit) {
         val req = request(path, token).header("Accept", "application/x-ndjson")
             .post(payload.toString().toRequestBody(jsonType)).build()

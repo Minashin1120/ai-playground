@@ -75,7 +75,11 @@ import com.minashin1120.aiplayground.data.attachmentKind
 import com.minashin1120.aiplayground.data.attachmentKindIcon
 import com.minashin1120.aiplayground.data.numericId
 import com.minashin1120.aiplayground.data.siblingGroup
+import com.minashin1120.aiplayground.data.PasskeyClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import android.content.Context
+import android.content.ContextWrapper
 import java.io.File
 
 /** Phone layout keeps the history drawer closed until it has settled off-screen. */
@@ -85,6 +89,16 @@ internal fun shouldCoverPhoneHistoryUntilClosed(
     wideLayout: Boolean,
     drawerSettledClosed: Boolean,
 ): Boolean = starting || (showThreads && !wideLayout && !drawerSettledClosed)
+
+/** Credential Manager needs the hosting Activity, not an arbitrary wrapper Context. */
+private fun Context.findActivity(): Activity? {
+    var current: Context? = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return current as? Activity
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -129,6 +143,23 @@ fun PlaygroundScreen(
                 }
             }
             val scope = rememberCoroutineScope()
+            // Runs the WebAuthn ceremony the ViewModel requested (sign-in, 2FA or passkey
+            // registration) through Android Credential Manager, then hands the result back.
+            LaunchedEffect(state.credentialRequest) {
+                val request = state.credentialRequest ?: return@LaunchedEffect
+                try {
+                    val credentialJson = if (request.kind == "register") {
+                        PasskeyClient.create(context.findActivity() ?: context, request.publicKeyJson)
+                    } else {
+                        PasskeyClient.get(context.findActivity() ?: context, request.publicKeyJson)
+                    }
+                    model.submitCredential(credentialJson)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    model.cancelCredentialRequest("パスキー操作を完了できませんでした。")
+                }
+            }
             val openDrawer: () -> Unit = {
                 allowDrawerOpen = true
                 scope.launch { drawer.open() }
@@ -667,6 +698,13 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
                         enabled = !state.authBusy && totp.trim().isNotEmpty(),
                         modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
                     ) { Text(if (state.authBusy) "確認しています…" else "ログイン") }
+                    if (state.auth2faMethod == "webauthn") {
+                        OutlinedButton(
+                            onClick = { model.beginWebauthnTwoFactor() },
+                            enabled = !state.authBusy,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+                        ) { Text("パスキーで認証") }
+                    }
                 } else {
                     Text(if (signup) "アカウントを作成" else "ログイン", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     OutlinedTextField(
@@ -696,6 +734,13 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
                     ) { Text(if (state.authBusy) "処理しています…" else if (signup) "アカウントを作成" else "ログイン") }
                     TextButton(onClick = { signup = !signup; confirmation = "" }) {
                         Text(if (signup) "すでにアカウントをお持ちですか？ログイン" else "アカウントを新規作成")
+                    }
+                    if (!signup) {
+                        OutlinedButton(
+                            onClick = { model.beginPasskeyLogin(username) },
+                            enabled = !state.authBusy && username.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+                        ) { Text("パスキーでログイン") }
                     }
                 }
             }
@@ -731,6 +776,9 @@ private fun SetupScreen(state: ChatState, model: ChatViewModel, onWeb: (String) 
     var vertexLocation by rememberSaveable { mutableStateOf("global") }
     var vertexJson by rememberSaveable { mutableStateOf("") }
     var e2ee by rememberSaveable { mutableStateOf(false) }
+    val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) model.importAccountZip(uri)
+    }
     val colors = MaterialTheme.colorScheme
     LazyColumn(
         Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -788,8 +836,30 @@ private fun SetupScreen(state: ChatState, model: ChatViewModel, onWeb: (String) 
             ) { Text(if (state.authBusy) "保存しています…" else "セットアップを完了") }
         }
         item {
-            OutlinedButton(onClick = { onWeb("/setup") }, modifier = Modifier.fillMaxWidth()) {
-                Text("アカウントZIPをインポートする場合はWebセットアップを開く")
+            Text("アカウントZIPのインポート（任意）", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("Web版で書き出したZIPから、履歴・設定・APIキーなどを取り込めます。", color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+            if (state.setupImportBusy) {
+                Text(
+                    "${state.setupImportName} をアップロード中… (${state.setupImportProgress}/${state.setupImportTotalChunks})",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                val progress = if (state.setupImportTotalChunks > 0) {
+                    state.setupImportProgress.toFloat() / state.setupImportTotalChunks
+                } else 0f
+                LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                TextButton(onClick = model::cancelSetupImport) { Text("インポートをキャンセル") }
+            } else if (state.setupImportDone) {
+                Text("インポートが完了しました。", color = colors.primary, style = MaterialTheme.typography.bodySmall)
+            } else {
+                Button(onClick = {
+                    zipPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
+                }, modifier = Modifier.fillMaxWidth()) { Text("ZIPを選択してインポート") }
+            }
+            state.setupImportError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
+        }
+        item {
+            TextButton(onClick = { onWeb("/setup") }, modifier = Modifier.fillMaxWidth()) {
+                Text("Webのセットアップ画面を開く")
             }
         }
     }

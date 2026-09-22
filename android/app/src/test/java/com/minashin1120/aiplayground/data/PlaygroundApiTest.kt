@@ -250,6 +250,20 @@ class PlaygroundApiTest {
         assertFalse(storage.unlimited)
     }
 
+    @Test fun securityInfoParsesPasskeysAndFlags() {
+        val info = parseSecurityInfo(JSONObject("""{"is_2fa_enabled":true,"has_totp":false,"has_webauthn":true,"default_2fa_method":"webauthn","passkey_only_login":true,"skip_2fa_on_google_login":true,"passkeys":[{"id":"abc","name":"Pixel","created_at":"2026-09-22T00:00:00Z"}]}"""))
+        assertTrue(info.is2faEnabled)
+        assertFalse(info.hasTotp)
+        assertTrue(info.hasWebauthn)
+        assertEquals("webauthn", info.default2fa)
+        assertTrue(info.passkeyOnlyLogin)
+        assertTrue(info.skip2faOnGoogle)
+        assertEquals("Pixel", info.passkeys.single().name)
+        val empty = parseSecurityInfo(JSONObject("{}"))
+        assertEquals("totp", empty.default2fa)
+        assertTrue(empty.passkeys.isEmpty())
+    }
+
     @Test fun branchPathRebuildsFromLeafAndSiblings() {
         val messages = listOf(
             ChatMessage("1", "user", "q1", parentId = null),

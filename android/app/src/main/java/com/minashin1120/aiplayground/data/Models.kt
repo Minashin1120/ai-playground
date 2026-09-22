@@ -594,6 +594,41 @@ fun fileReferencePath(value: String): String? {
     return stripped
 }
 
+/** A pending WebAuthn ceremony that the UI must run through Credential Manager. */
+data class CredentialRequest(val kind: String, val transactionId: String, val publicKeyJson: String)
+
+data class PasskeyInfo(val id: String, val name: String, val createdAt: String?)
+
+data class SecurityInfo(
+    val is2faEnabled: Boolean,
+    val hasTotp: Boolean,
+    val hasWebauthn: Boolean,
+    val default2fa: String,
+    val passkeyOnlyLogin: Boolean,
+    val skip2faOnGoogle: Boolean,
+    val passkeys: List<PasskeyInfo>,
+)
+
+fun parseSecurityInfo(json: JSONObject): SecurityInfo {
+    val keys = json.optJSONArray("passkeys") ?: JSONArray()
+    val passkeys = buildList {
+        for (index in 0 until keys.length()) {
+            val item = keys.optJSONObject(index) ?: continue
+            val id = item.nullableString("id") ?: continue
+            add(PasskeyInfo(id, item.nullableString("name") ?: "パスキー", item.nullableString("created_at")))
+        }
+    }
+    return SecurityInfo(
+        is2faEnabled = json.optBoolean("is_2fa_enabled"),
+        hasTotp = json.optBoolean("has_totp"),
+        hasWebauthn = json.optBoolean("has_webauthn"),
+        default2fa = json.nullableString("default_2fa_method").ifBlank { "totp" },
+        passkeyOnlyLogin = json.optBoolean("passkey_only_login"),
+        skip2faOnGoogle = json.optBoolean("skip_2fa_on_google_login"),
+        passkeys = passkeys,
+    )
+}
+
 fun readBoundedUtf8(input: InputStream, limit: Int): String {
     return String(readBoundedBytes(input, limit.toLong()), Charsets.UTF_8)
 }

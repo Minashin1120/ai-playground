@@ -39,11 +39,20 @@ import java.util.UUID
 
 enum class ChatTransitionKind { NONE, OPEN_THREAD, NEW_CHAT }
 
+/** Account export categories imported by the first-run wizard. */
+private const val ACCOUNT_IMPORT_CATEGORIES =
+    "settings,api_credentials,chats,gems,files,feedback,diagnostics"
+
 data class ChatState(
     val starting: Boolean = true, val account: Account? = null,
     val pairing: Boolean = false, val userCode: String = "", val busy: Boolean = false,
     val authBusy: Boolean = false, val authError: String? = null,
     val authTwoFactorTransaction: String? = null, val setupRequired: Boolean = false,
+    val auth2faMethod: String = "totp", val credentialRequest: CredentialRequest? = null,
+    val security: SecurityInfo? = null, val securityBusy: Boolean = false, val securityError: String? = null,
+    val securityTotpSecret: String? = null, val securityTotpUri: String? = null,
+    val setupImportBusy: Boolean = false, val setupImportName: String = "", val setupImportProgress: Int = 0,
+    val setupImportTotalChunks: Int = 0, val setupImportError: String? = null, val setupImportDone: Boolean = false,
     val setupModels: List<ModelInfo> = emptyList(),
     val setupDefaultModel: String = "gemini-3.6-flash",
     val threads: List<ThreadItem> = emptyList(), val nextPage: Int? = null, val search: String = "",
@@ -124,6 +133,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var realtimeTrack: AudioTrack? = null
     private var lyriaStreamJob: Job? = null
     private var lyriaTrack: AudioTrack? = null
+    private var importJob: Job? = null
+    private var pendingPasskeyName = "Androidのパスキー"
     private data class Submission(val body: JSONObject, val files: List<Attachment>)
     private var failed: Submission? = null
     private var pendingParentId: Int? = null
@@ -173,7 +184,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         require(accessToken.isNotBlank()) { "認証トークンを取得できませんでした。" }
         session = StoredSession(accessToken, System.currentTimeMillis() + reply.optLong("expires_in", 2_592_000L) * 1000L)
         withContext(Dispatchers.IO) { store.save(requireNotNull(session)) }
-        mutable.update { it.copy(authBusy = false, authError = null, authTwoFactorTransaction = null) }
+        mutable.update { it.copy(
+            authBusy = false, authError = null, authTwoFactorTransaction = null,
+            auth2faMethod = "totp", credentialRequest = null,
+        ) }
         if (reply.optBoolean("setup_required")) loadSetup() else loadAccount()
     }
 
@@ -198,6 +212,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     mutable.update { it.copy(
                         authBusy = false,
                         authTwoFactorTransaction = reply.getString("transaction_id"),
+                        auth2faMethod = reply.optString("default_method", "totp").ifBlank { "totp" },
                         authError = null,
                     ) }
                 } else {
@@ -238,6 +253,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     mutable.update { it.copy(
                         authBusy = false,
                         authTwoFactorTransaction = reply.getString("transaction_id"),
+                        auth2faMethod = reply.optString("default_method", "totp").ifBlank { "totp" },
                         authError = null,
                     ) }
                 } else {
@@ -248,6 +264,227 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 mutable.update { it.copy(authBusy = false, authError = e.message ?: "外部ログインに失敗しました。") }
             }
         }
+    }
+
+    /** Starts a passkey sign-in and hands the WebAuthn options to the UI. */
+    fun beginPasskeyLogin(username: String) {
+        if (state.value.authBusy) return
+        viewModelScope.launch {
+            mutable.update { it.copy(authBusy = true, authError = null, credentialRequest = null) }
+            try {
+                val reply = api.post("/api/mobile/v1/auth/passkey/options", JSONObject()
+                    .put("username", username.trim())
+                    .put("device_name", deviceName()))
+                mutable.update { it.copy(
+                    authBusy = false,
+                    credentialRequest = CredentialRequest(
+                        "login", reply.getString("transaction_id"), reply.getJSONObject("public_key").toString()),
+                ) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                mutable.update { it.copy(authBusy = false, authError = e.message ?: "パスキーを開始できませんでした。") }
+            }
+        }
+    }
+
+    /** Starts a WebAuthn second-factor ceremony for the pending 2FA transaction. */
+    fun beginWebauthnTwoFactor() {
+        val transaction = state.value.authTwoFactorTransaction ?: return
+        if (state.value.authBusy) return
+        viewModelScope.launch {
+            mutable.update { it.copy(authBusy = true, authError = null, credentialRequest = null) }
+            try {
+                val reply = api.post("/api/mobile/v1/auth/2fa/webauthn/options",
+                    JSONObject().put("transaction_id", transaction))
+                mutable.update { it.copy(
+                    authBusy = false,
+                    credentialRequest = CredentialRequest(
+                        "2fa", transaction, reply.getJSONObject("public_key").toString()),
+                ) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                mutable.update { it.copy(authBusy = false, authError = e.message ?: "パスキーを開始できませんでした。") }
+            }
+        }
+    }
+
+    /** Starts passkey registration from the security settings. */
+    fun beginPasskeyRegistration() {
+        if (state.value.securityBusy) return
+        pendingPasskeyName = "Androidのパスキー ${(state.value.security?.passkeys?.size ?: 0) + 1}"
+        viewModelScope.launch {
+            mutable.update { it.copy(securityBusy = true, securityError = null, credentialRequest = null) }
+            try {
+                val reply = api.post("/api/mobile/v1/security/passkeys/options", JSONObject(), token())
+                mutable.update { it.copy(
+                    securityBusy = false,
+                    credentialRequest = CredentialRequest(
+                        "register", "", reply.getJSONObject("public_key").toString()),
+                ) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                mutable.update { it.copy(securityBusy = false, securityError = e.message ?: "パスキー登録を開始できませんでした。") }
+            }
+        }
+    }
+
+    /** Completes whichever WebAuthn ceremony the UI just ran through Credential Manager. */
+    fun submitCredential(responseJson: String) {
+        val request = state.value.credentialRequest ?: return
+        viewModelScope.launch {
+            try {
+                val credential = JSONObject(responseJson)
+                when (request.kind) {
+                    "login" -> acceptAuthResponse(api.post("/api/mobile/v1/auth/passkey/verify", JSONObject()
+                        .put("transaction_id", request.transactionId)
+                        .put("credential", credential)))
+                    "2fa" -> acceptAuthResponse(api.post("/api/mobile/v1/auth/2fa/webauthn/verify", JSONObject()
+                        .put("transaction_id", request.transactionId)
+                        .put("credential", credential)))
+                    "register" -> {
+                        val reply = api.post("/api/mobile/v1/security/passkeys/verify", JSONObject()
+                            .put("credential", credential)
+                            .put("name", pendingPasskeyName), token())
+                        mutable.update { it.copy(
+                            securityBusy = false, securityError = null, credentialRequest = null,
+                            security = parseSecurityInfo(reply),
+                        ) }
+                    }
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                mutable.update { it.copy(
+                    authBusy = false, securityBusy = false, credentialRequest = null,
+                    authError = e.message ?: "パスキー認証に失敗しました。",
+                    securityError = e.message ?: "パスキー認証に失敗しました。",
+                ) }
+            }
+        }
+    }
+
+    /** Clears a cancelled or failed Credential Manager ceremony. */
+    fun cancelCredentialRequest(message: String? = null) {
+        mutable.update { it.copy(
+            credentialRequest = null, authBusy = false, securityBusy = false,
+            authError = message ?: it.authError, securityError = message ?: it.securityError,
+        ) }
+    }
+
+    fun loadSecurity() { viewModelScope.launch {
+        try {
+            val reply = api.get("/api/mobile/v1/security", token())
+            mutable.update { it.copy(security = parseSecurityInfo(reply), securityError = null) }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { mutable.update { it.copy(securityError = e.message ?: "セキュリティ設定を取得できませんでした。") } }
+    } }
+
+    fun startTotpSetup() { viewModelScope.launch {
+        mutable.update { it.copy(securityBusy = true, securityError = null) }
+        try {
+            val reply = api.post("/api/mobile/v1/security/totp/setup", JSONObject(), token())
+            mutable.update { it.copy(
+                securityBusy = false,
+                securityTotpSecret = reply.getString("secret"),
+                securityTotpUri = reply.optString("otpauth_uri"),
+            ) }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { mutable.update { it.copy(securityBusy = false, securityError = e.message ?: "TOTPを開始できませんでした。") } }
+    } }
+
+    fun cancelTotpSetup() { mutable.update { it.copy(securityTotpSecret = null, securityTotpUri = null) } }
+
+    fun enableTotp(code: String) = securityAction {
+        api.post("/api/mobile/v1/security/totp/enable", JSONObject().put("code", code), token())
+    }
+
+    fun disableTotp(code: String) = securityAction {
+        api.post("/api/mobile/v1/security/totp/disable", JSONObject().put("code", code), token())
+    }
+
+    fun removePasskey(id: String) = securityAction {
+        api.post("/api/mobile/v1/security/passkeys/remove", JSONObject().put("id", id), token())
+    }
+
+    fun saveSecurityPreferences(default2fa: String, passkeyOnly: Boolean, skipGoogle: Boolean) = securityAction {
+        api.post("/api/mobile/v1/security/preferences", JSONObject()
+            .put("default_2fa_method", default2fa)
+            .put("passkey_only_login", passkeyOnly)
+            .put("skip_2fa_on_google_login", skipGoogle), token())
+    }
+
+    private fun securityAction(block: suspend () -> JSONObject) {
+        if (state.value.securityBusy) return
+        viewModelScope.launch {
+            mutable.update { it.copy(securityBusy = true, securityError = null) }
+            try {
+                val reply = block()
+                mutable.update { it.copy(
+                    securityBusy = false, security = parseSecurityInfo(reply),
+                    securityTotpSecret = null, securityTotpUri = null,
+                ) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { mutable.update { it.copy(securityBusy = false, securityError = e.message ?: "セキュリティ設定を保存できませんでした。") } }
+        }
+    }
+
+    /** Uploads and imports an account ZIP in a resumable, cancellable chunk session. */
+    fun importAccountZip(uri: Uri) {
+        if (state.value.setupImportBusy) return
+        importJob = viewModelScope.launch {
+            mutable.update { it.copy(
+                setupImportBusy = true, setupImportError = null, setupImportDone = false, setupImportProgress = 0) }
+            var uploadId: String? = null
+            try {
+                val resolver = getApplication<Application>().contentResolver
+                val resolved = resolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (cursor.moveToFirst()) {
+                        cursor.getString(nameIndex).orEmpty().ifBlank { "account.zip" } to cursor.getLong(sizeIndex)
+                    } else null
+                } ?: throw IOException("ファイルを開けません。")
+                val (name, size) = resolved
+                require(size > 0) { "ファイルサイズを取得できません。" }
+                mutable.update { it.copy(setupImportName = name) }
+                val start = api.accountImportStart(size, token())
+                val id = start.getString("upload_id")
+                uploadId = id
+                val chunkSize = start.getInt("chunk_size")
+                val total = start.getInt("total_chunks")
+                mutable.update { it.copy(setupImportTotalChunks = total) }
+                resolver.openInputStream(uri)?.use { input ->
+                    var received = 0L
+                    for (index in 0 until total) {
+                        val readSize = minOf(chunkSize.toLong(), size - received).toInt()
+                        val buffer = ByteArray(readSize)
+                        var offset = 0
+                        while (offset < readSize) {
+                            val count = input.read(buffer, offset, readSize - offset)
+                            if (count < 0) throw IOException("ファイルの読み込みが中断されました。")
+                            offset += count
+                        }
+                        received += readSize
+                        api.accountImportChunk(id, index, buffer, token())
+                        mutable.update { it.copy(setupImportProgress = index + 1) }
+                    }
+                } ?: throw IOException("ファイルを開けません。")
+                api.accountImportComplete(id, token())
+                api.accountImport(id, ACCOUNT_IMPORT_CATEGORIES, token())
+                uploadId = null
+                mutable.update { it.copy(setupImportBusy = false, setupImportDone = true) }
+            } catch (e: CancellationException) {
+                uploadId?.let { id -> withContext(NonCancellable) { runCatching { api.accountImportCancel(id, token()) } } }
+                throw e
+            } catch (e: Exception) {
+                uploadId?.let { id -> runCatching { api.accountImportCancel(id, token()) } }
+                mutable.update { it.copy(setupImportBusy = false, setupImportError = e.message ?: "インポートに失敗しました。") }
+            }
+        }
+    }
+
+    fun cancelSetupImport() {
+        importJob?.cancel()
+        mutable.update { it.copy(setupImportBusy = false, setupImportProgress = 0, setupImportError = null) }
     }
 
     private suspend fun loadSetup() {
@@ -1304,7 +1541,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun clearSession() {
         val caller = currentCoroutineContext().job
         listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, cacheSyncJob, batchPollJob,
-            realtimeStreamJob, realtimeCaptureJob, lyriaStreamJob).forEach { if (it !== caller) it?.cancel() }
+            realtimeStreamJob, realtimeCaptureJob, lyriaStreamJob, importJob).forEach { if (it !== caller) it?.cancel() }
         realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
         lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
         withContext(NonCancellable + Dispatchers.IO) { store.clear() }

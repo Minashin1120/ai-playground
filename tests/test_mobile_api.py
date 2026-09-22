@@ -676,3 +676,80 @@ class MobileApiTests(unittest.TestCase):
         self.assertIn(grant['user_code'], body)
         self.assertNotIn('id="user-code"', body)
         self.assertEqual(self.poll(grant).json['error'], 'authorization_pending')
+
+    def test_native_security_totp_passkey_and_import_scope(self):
+        token = self.token()
+        status = self.call('/api/mobile/v1/security', token)
+        self.assertEqual(status.status_code, 200)
+        self.assertFalse(status.json['has_totp'])
+        self.assertFalse(status.json['has_webauthn'])
+
+        # TOTP setup -> enable -> disable round trip through the bearer API.
+        setup = self.call('/api/mobile/v1/security/totp/setup', token, 'POST', json={})
+        self.assertEqual(setup.status_code, 200)
+        secret = setup.json['secret']
+        self.assertTrue(setup.json['otpauth_uri'].startswith('otpauth://totp/'))
+        enabled = self.call('/api/mobile/v1/security/totp/enable', token, 'POST',
+                            json={'code': target.pyotp.TOTP(secret).now()})
+        self.assertEqual(enabled.status_code, 200)
+        self.assertTrue(enabled.json['has_totp'])
+        self.assertTrue(enabled.json['is_2fa_enabled'])
+        disabled = self.call('/api/mobile/v1/security/totp/disable', token, 'POST',
+                             json={'code': target.pyotp.TOTP(secret).now()})
+        self.assertEqual(disabled.status_code, 200)
+        self.assertFalse(disabled.json['has_totp'])
+        self.assertFalse(disabled.json['is_2fa_enabled'])
+        self.assertEqual(self.call('/api/mobile/v1/security/totp/enable', token, 'POST',
+                                   json={'code': '000000'}).status_code, 400)
+
+        # Preference validation and the passkey-only guard.
+        self.assertEqual(self.call('/api/mobile/v1/security/preferences', token, 'POST',
+                                   json={'default_2fa_method': 'sms'}).status_code, 400)
+        self.assertEqual(self.call('/api/mobile/v1/security/preferences', token, 'POST',
+                                   json={'passkey_only_login': True}).status_code, 400)
+        saved = self.call('/api/mobile/v1/security/preferences', token, 'POST',
+                          json={'default_2fa_method': 'webauthn', 'skip_2fa_on_google_login': True})
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(saved.json['default_2fa_method'], 'webauthn')
+        self.assertTrue(saved.json['skip_2fa_on_google_login'])
+
+        # Unknown accounts must not reveal whether a passkey exists.
+        unknown = self.native.post('/api/mobile/v1/auth/passkey/options', base_url='https://localhost',
+                                   json={'username': 'no-such-user', 'device_name': 'Pixel test'})
+        self.assertEqual(unknown.status_code, 401)
+        self.assertEqual(unknown.json['error'], 'passkey_unavailable')
+
+        # Android credential origins are derived from the configured fingerprints.
+        with mock.patch.dict(target.os.environ, {'ANDROID_APP_LINK_SHA256': '00' * 32}):
+            origins = target._mobile_android_origins()
+        self.assertEqual(len(origins), 1)
+        self.assertTrue(origins[0].startswith('android:apk-key-hash:'))
+        self.assertNotIn('=', origins[0])
+
+        # The chunked account import routes are registered for the native bearer
+        # and remain unavailable to unauthenticated callers. The routes themselves
+        # are not exercised here because they write into the app's account-import
+        # directory, which automated checks must not touch.
+        self.assertIn('start_account_import_upload', target.MOBILE_ENDPOINT_METHODS)
+        self.assertIn('account_import_upload_chunk', target.MOBILE_ENDPOINT_METHODS)
+        self.assertIn('complete_account_import_upload', target.MOBILE_ENDPOINT_METHODS)
+        self.assertIn('cancel_account_import_upload', target.MOBILE_ENDPOINT_METHODS)
+        self.assertIn('import_account_data', target.MOBILE_ENDPOINT_METHODS)
+        for name in ['start_account_import_upload', 'account_import_upload_chunk',
+                     'complete_account_import_upload', 'cancel_account_import_upload', 'import_account_data']:
+            self.assertIn(name, target.MOBILE_SETUP_ENDPOINTS)
+        self.assertNotEqual(self.native.post('/api/account/import/upload/start', base_url='https://localhost',
+                                             json={'size': 10}).status_code, 200)
+
+    def test_setup_security_and_import_are_allowed_before_setup_completion(self):
+        signup = self.native.post('/api/mobile/v1/auth/signup', base_url='https://localhost', json={
+            'username': 'native-import-user', 'password': 'correct-horse-battery', 'device_name': 'Pixel test',
+        })
+        self.assertEqual(signup.status_code, 201)
+        token = signup.json['access_token']
+        self.assertEqual(self.call('/api/threads', token).status_code, 403)
+        # Security management is reachable while setup is still pending, but the
+        # regular chat API stays blocked behind setup_required.
+        security = self.call('/api/mobile/v1/security', token)
+        self.assertEqual(security.status_code, 200)
+        self.assertIn('has_totp', security.json)

@@ -28,11 +28,12 @@ Androidから開くブラウザー ── HTTPS + Cookie ───────�
                                                        └─ Redis ── RQワーカー ── AI事業者
 ```
 
-AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセスしません。Webと同じアカウント、履歴、保存済みのモデルAPIキーを利用します。新規登録・パスワードログイン・2FA・初回セットアップ（モデル、APIキー、Vertex AI、保存時暗号化）はネイティブAPIで行い、アカウントZIPのインポートや高度な管理はWebの設定画面へ案内します。
+AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセスしません。Webと同じアカウント、履歴、保存済みのモデルAPIキーを利用します。新規登録・パスワードログイン・パスキー・TOTP／WebAuthn 2FA・2FA／パスキー管理・初回セットアップ（モデル、APIキー、Vertex AI、保存時暗号化、アカウントZIPのチャンク取り込み）はネイティブAPIで行います。パスワード変更・プロフィール・アカウント削除は従来どおりWebの設定画面へ案内します。
 
 | 機能 | このAPIでの扱い |
 |---|---|
-| ユーザー認証 | アプリ内のユーザー名／パスワード新規登録・ログイン・TOTP、Google／MinashinのCustom Tabs＋HTTPS App Links。旧ブラウザー端末連携も非推奨フォールバックとして維持 |
+| ユーザー認証 | アプリ内のユーザー名／パスワード新規登録・ログイン、パスキー（Credential Manager）、TOTP／WebAuthn 2FA、Google／MinashinのCustom Tabs＋HTTPS App Links。旧ブラウザー端末連携も非推奨フォールバックとして維持 |
+| 2FA・パスキー管理 | ネイティブでTOTP登録・有効化・無効化、パスキー登録・削除、既定2FA方式、パスキーのみログイン、Googleログイン時の2FA省略を設定。パスワード変更・アカウント削除はWeb |
 | 通常のチャット | スレッド一覧・検索・作成・取得・削除、ブックマーク、タイトル・スレッド指示、送信、ストリーム再接続、停止、メッセージの編集・再生成・分岐切替、ネイティブPDF出力。Web相当のハートビートでオフライン／不安定／メンテナンス／サーバー停止／復帰を表示 |
 | 添付 | 通常アップロード、大容量チャンクアップロード、進捗表示・キャンセル、Photo Picker・カメラ、MIME別プレビュー、画像圧縮設定、本人のファイル・サムネイル取得、容量表示、アプリ内プレビュー（画像・テキスト・PDF・音声・動画。未対応形式は外部アプリ） |
 | 一時チャット | 作成・heartbeat。自動削除タイマーをクライアント側でも考慮する |
@@ -40,7 +41,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | Gems | 一覧・作成・編集・削除・チャットへの適用・`@`候補、既定モデル適用、固定プロンプトの編集・送信 |
 | 一般設定・セッション | 既定モデル／Vision、Thinking／Web検索／URL／Maps／Python／File／SysPrompt／MCP、Thinking level／budget、Reasoning effort、Safety、テーマ色、Enter送信、ライト／Liquid Glass、プロンプトバー、STT既定、システムプロンプト、前回設定継続、リンク自動検索、一時チャット期限、フィードバック、MCP有効切替、この端末のセッション表示と失効 |
 | モデル一覧 | `/me` の `models`。提供元、用途、対応能力、廃止状態、選択可否を返す。Android内のWeb由来カタログで正式表示名・説明・価格・タグ・追加順を補完。互換用の `model_ids` も維持 |
-| APIキー・プロフィール・アカウント削除・Passkey／2FA管理 | APIキーは初回セットアップへ対応。Passkey登録、プロフィール、アカウント削除、高度な2FA管理はWebで操作 |
+| APIキー・プロフィール・アカウント削除 | APIキーは初回セットアップへ対応。プロフィール編集・パスワード変更・アカウント削除はWebで操作 |
 | WebのE2EE設定 | 有効なまま連携・履歴取得・添付を利用可能。現在の実装はサーバー管理鍵による保存時暗号化であり、端末だけが復号できるE2EEではない |
 | Batch管理 | ネイティブで送信、一覧、状態更新、停止、履歴削除、完了通知に対応 |
 | 画像・動画・OCR・TTS・文字起こし | `/chat_stream` と同じ保存・停止・再接続境界でネイティブ対応。GPT／Gemini／Grok画像、GPT-Imageマスク、Gemini動画（長さ・比率・解像度）、Grok動画、OCR、TTS、Thinking量、xAI詳細を表示・送信 |
@@ -51,7 +52,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 
-Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴、スレッド設定、一時チャット、添付、ファイルライブラリ、Gems、Web相当の設定タブ、この端末のセッション、編集・再生成・分岐、ネイティブPDF、画像・動画・OCR・TTS・文字起こし、Batchの送信・管理・完了通知、ユーザー操作で現在のチャットを開くAndroidバブル、生成停止、切断後の再接続、端末連携・失効、スラッシュコマンド、OpenAI／Grok／Gemini Native Audio／Gemini Live Realtime、Lyriaに対応します。本文はMarkdown、コード、表、数式近似、添付プレビューに加え、検索・Python・MCP・Coding差分を構造化カードで表示します。ファイルライブラリとチャットの添付はアプリ内で画像・テキスト・PDF・音声・動画を確認でき、未対応形式は外部アプリで開けます。APIキー・パスワード・2FA登録・MCP OAuth秘密、管理機能は認証済みWebへの明示的な導線を使います。
+Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴、スレッド設定、一時チャット、添付、ファイルライブラリ、Gems、Web相当の設定タブ、この端末のセッション、編集・再生成・分岐、ネイティブPDF、画像・動画・OCR・TTS・文字起こし、Batchの送信・管理・完了通知、ユーザー操作で現在のチャットを開くAndroidバブル、生成停止、切断後の再接続、端末連携・失効、スラッシュコマンド、OpenAI／Grok／Gemini Native Audio／Gemini Live Realtime、Lyriaに対応します。本文はMarkdown、コード、表、数式近似、添付プレビューに加え、検索・Python・MCP・Coding差分を構造化カードで表示します。ファイルライブラリとチャットの添付はアプリ内で画像・テキスト・PDF・音声・動画を確認でき、未対応形式は外部アプリで開けます。APIキー・パスワード・MCP OAuth秘密の扱いは認証済みWebへの明示的な導線を使います。2FA・パスキーの登録と管理、アカウントZIPの取り込みはアプリ内でも行えます。
 
 暗号化の境界は「HTTPSで通信」「サーバーが保存データを暗号化・復号」「端末トークンをAndroid Keystoreの鍵で暗号化保存」です。既存Webの `enable_e2ee` はサーバー側の `encrypt_val` / `decrypt_val` とファイル暗号化に使われます。そのため、この設定を理由にAndroidを拒否する必要はありません。真の端末間E2EEに変更する場合は、端末鍵の生成・共有・回復とAI処理時の平文の扱いを別途設計する必要があります。
 
@@ -119,6 +120,18 @@ HTTPS必須。JSONはUTF-8。APIレスポンスと認証ページは `Cache-Cont
   "native_signup_endpoint": "/api/mobile/v1/auth/signup",
   "native_login_endpoint": "/api/mobile/v1/auth/login",
   "native_totp_endpoint": "/api/mobile/v1/auth/totp",
+  "native_passkey_options_endpoint": "/api/mobile/v1/auth/passkey/options",
+  "native_passkey_verify_endpoint": "/api/mobile/v1/auth/passkey/verify",
+  "native_2fa_webauthn_options_endpoint": "/api/mobile/v1/auth/2fa/webauthn/options",
+  "native_2fa_webauthn_verify_endpoint": "/api/mobile/v1/auth/2fa/webauthn/verify",
+  "security_endpoint": "/api/mobile/v1/security",
+  "account_import_endpoints": {
+    "start": "/api/account/import/upload/start",
+    "chunk": "/api/account/import/upload/<upload_id>/chunk",
+    "complete": "/api/account/import/upload/<upload_id>/complete",
+    "cancel": "/api/account/import/upload/<upload_id>",
+    "import": "/api/account/import"
+  },
   "native_setup_endpoint": "/api/mobile/v1/setup",
   "device_endpoint": "/api/mobile/v1/device",
   "token_endpoint": "/api/mobile/v1/token",
@@ -204,6 +217,35 @@ IPごとに10分で10申請まで。共有ネットワークでは複数利用�
 Webのログアウトと同様、端末の失効操作はBot確認待ち・ロック・BAN・メンテナンス中でも可能です。Android API自体を無効化している間はこの操作も停止するため、必要に応じてWebのセッション管理を使います。
 
 通常APIの401はローカルトークンを破棄して再連携します。403は再ログインだけで解消するとは限りません。権限外、BAN、Turnstile、ロック等を区別します。
+
+### 3.6 パスキー・2FA・セキュリティ管理・アカウント取り込み
+
+パスキー（WebAuthn）はAndroid Credential Managerで実施し、サーバーはWeb版と同じoptions生成・検証を再利用します。Androidの署名証明書から導出した `android:apk-key-hash:` originだけを追加で許可し、`ANDROID_APP_LINK_SHA256` が未設定ならWeb originだけを受理します。`rp_id` は接続先ホストです。
+
+| メソッド・パス | 認証 | 入力 | 主な応答 |
+|---|---|---|---|
+| POST `/api/mobile/v1/auth/passkey/options` | なし | `username`, `device_name` | `transaction_id`, `public_key`（WebAuthn request options）, `expires_in` |
+| POST `/api/mobile/v1/auth/passkey/verify` | なし | `transaction_id`, `credential` | 通常のトークン応答 |
+| POST `/api/mobile/v1/auth/2fa/webauthn/options` | なし | `transaction_id` | `public_key` |
+| POST `/api/mobile/v1/auth/2fa/webauthn/verify` | なし | `transaction_id`, `credential` | 通常のトークン応答 |
+| GET `/api/mobile/v1/security` | Bearer | なし | `is_2fa_enabled`, `has_totp`, `has_webauthn`, `default_2fa_method`, `passkey_only_login`, `skip_2fa_on_google_login`, `passkeys` |
+| POST `/api/mobile/v1/security/totp/setup` | Bearer | `{}` | `secret`, `otpauth_uri`, `expires_in` |
+| POST `/api/mobile/v1/security/totp/enable` | Bearer | `code` | 更新後のセキュリティ状態 |
+| POST `/api/mobile/v1/security/totp/disable` | Bearer | `code` | 更新後のセキュリティ状態 |
+| POST `/api/mobile/v1/security/passkeys/options` | Bearer | `{}` | `public_key`（登録options） |
+| POST `/api/mobile/v1/security/passkeys/verify` | Bearer | `credential`, `name`（任意） | 更新後のセキュリティ状態 |
+| POST `/api/mobile/v1/security/passkeys/remove` | Bearer | `id` | 更新後のセキュリティ状態 |
+| POST `/api/mobile/v1/security/preferences` | Bearer | `default_2fa_method`（`totp`／`webauthn`）, `passkey_only_login`, `skip_2fa_on_google_login` | 更新後のセキュリティ状態 |
+
+パスキー認証はユーザー検証必須（`user_verification=REQUIRED`）です。パスキーのみログインは事前にパスキー登録が必要で、未登録で要求すると400 `passkey_required` を返します。未知アカウントのパスキー開始要求は存在確認につながらないよう401 `passkey_unavailable` で統一します。
+
+認証トランザクション、OAuth state、WebAuthnチャレンジ、TOTP一時シークレットはRedisへ短時間だけ保存し、DBスキーマは変更しません（既存の `User` / `UserSession` / TOTP / WebAuthn情報を利用）。
+
+セットアップ未完了（`is_setup_completed=false`）のBearerでもセキュリティ管理と取り込みAPIは利用でき、通常のチャットAPIだけが `setup_required` で拒否されます。
+
+アカウントZIPの取り込みはWebと同じチャンクAPIを再利用します。`start` → `chunk`（既定10MiB）→ `complete` → `import`（`upload_id` と `categories`）。`categories` は `settings,api_credentials,chats,gems,files,feedback,diagnostics`。`import` に `confirm_settings=true` を付けると設定確認を省略します（現在のAndroidクライアントは省略で固定）。中間ファイルはアプリ本体の自動処理だけが作成・削除します。
+
+未実装: Play Integrityによる端末リスク信号と、判定不能・高リスク時のTurnstile自動フォールバック。外部のGoogle Cloud設定が必要なため後続対応とし、現状はIP・ユーザー単位のレート制限のみです。セットアップ取り込みの「設定変更確認」画面も未実装です。
 
 ## 4. チャット・ファイルAPI
 
@@ -671,7 +713,7 @@ scripts/publish_version.sh --message "Add Android pairing and scoped native API 
 
 `tests/test_mobile_api.py` は分離SQLiteとUnixソケットの一時Redisを使い、実際のLuaを含めて検証します。redis-serverがない環境ではこのテスト群はskipされるため、公開確認ではskipを成功と取り違えないでください。
 
-対象は、承認・拒否・期限切れ・二重引き換え防止・並列競合・ポーリング制限・Redis障害・HTTPS・停止スイッチ・Cookie/Origin混在拒否・WebのCSRF維持・失効・BAN・E2EE・Turnstile・スレッド所有者・タイトル・スレッド指示・ブックマーク・一時チャット・添付所有者・チャンクアップロードの確定と順序検証・ファイルライブラリの所有者境界・Gemの所有者境界とCRUD・一般設定の許可項目と秘密鍵の拒否・PDF出力の所有者境界・モデルメタデータと選択可否です。
+対象は、承認・拒否・期限切れ・二重引き換え防止・並列競合・ポーリング制限・Redis障害・HTTPS・停止スイッチ・Cookie/Origin混在拒否・WebのCSRF維持・失効・BAN・E2EE・Turnstile・ネイティブ登録／ログイン／TOTP・TOTPの登録／有効化／無効化・セキュリティ設定の入力検証とパスキーのみログインガード・パスキー開始時の存在秘匿・Android origin導出・セットアップ未完了時のセキュリティ／取り込み許可と通常API拒否・Android認証許可リストへの取り込みAPI登録・スレッド所有者・タイトル・スレッド指示・ブックマーク・一時チャット・添付所有者・チャンクアップロードの確定と順序検証・ファイルライブラリの所有者境界・Gemの所有者境界とCRUD・一般設定の許可項目と秘密鍵の拒否・PDF出力の所有者境界・モデルメタデータと選択可否です。取り込み本体はアプリの取り込みディレクトリへ書き込むため、自動試験では許可リスト登録と未認証拒否だけを確認します。
 
 既存の全体回帰テストはprepareの内部で実行します。実際のAI事業者への有料生成、Android UI、署名APKのインストールはサーバー単体テストでは検証しません。
 
@@ -692,6 +734,11 @@ configは200 JSON、未認証meは401 JSONが期待値です。テスト出力�
 | 試験 | 期待結果 |
 |---|---|
 | パスワード／SSO／Passkey／2FAで連携 | 元の認証を省略せず、承認画面に戻れる |
+| アプリ内パスワード登録・ログイン | Credential Managerを使わず完了し、初回セットアップへ進める |
+| パスキーログイン・パスキー登録 | Androidの指紋／画面ロックで完了し、`android:apk-key-hash:` originで検証される |
+| TOTP／WebAuthn 2FA | 既定方式に応じてコード入力またはパスキーで完了する |
+| TOTP・パスキーの登録／削除／無効化 | 設定タブから実行でき、状態表示が更新される |
+| アカウントZIP取り込み | 選択・進捗・キャンセルが動作し、完了後にセットアップを続行できる |
 | 拒否・放置・別端末コード | 拒否・期限切れを表示し、誤連携しない |
 | 回転・バックグラウンド・プロセス終了 | 二重送信しない。期限とログイン状態を整合させる |
 | Wi-Fiからモバイル回線へ切替 | 切断を検知し、job_idから復帰できる |
@@ -724,9 +771,9 @@ configは200 JSON、未認証meは401 JSONが期待値です。テスト出力�
 | 生成中に切断 | CDN/Gunicorn/Apache/端末の待機時間、回線変更、アプリのライフサイクル |
 | 再接続後に本文が重複 | 再接続前の仮表示バッファをクリアしているか、最後にDB履歴へ置き換えているか |
 
-Turnstileの確認にはアプリ内の「Webで安全性を確認」導線を用意します。今回の専用APIは既存の確認マーカーを使い、Androidという理由で確認を免除していません。このため、Bot対策対象アカウントでは継続利用中に再確認が必要になる場合があります。
+Turnstileの確認にはアプリ内の「Webで安全性を確認」導線を用意します。今回の専用APIは既存の確認マーカーを使い、Androidという理由で確認を免除していません。このため、Bot対策対象アカウントでは継続利用中に再確認が必要になる場合があります。Play IntegrityとTurnstileの自動フォールバックは未実装です。
 
-今後の拡張候補は、ブラウザー認可コード＋PKCEと検証済みApp Links、自動復帰、refresh tokenのローテーション、端末間E2EEの新しい設計、Webと説明・価格まで共有するモデルカタログ、リアルタイム音声、イベント連番による再開です。これらは実装済み機能としてクライアントへ表示しないでください。
+今後の拡張候補は、Play Integrityのリスク信号とTurnstileフォールバック、refresh tokenのローテーション、端末間E2EEの新しい設計、Webと説明・価格まで共有するモデルカタログ、イベント連番による再開、アカウント取り込みの設定変更確認画面です。これらは実装済み機能としてクライアントへ表示しないでください。認可コード＋PKCEとHTTPS App Linksによるブラウザー認証からの復帰、パスキー、TOTP／WebAuthn 2FA、2FA・パスキー管理、アカウントZIPのチャンク取り込みは実装済みです。
 
 数式はWebのMathJaxではなくネイティブ近似で描画するため、複雑な組版では表現が異なる場合があります。メッセージの編集・再生成・分岐切替とネイティブPDF出力は実装済みです。画像の圧縮設定（最大サイズ・最大辺・形式・形式のみ変換）も実装済みで、GIFは対象外です。PDFは本文をA4へ再構成する簡易出力で、Webの印刷レイアウトとは体裁が異なります。
 

@@ -149,7 +149,9 @@ HTTPS必須。JSONはUTF-8。APIレスポンスと認証ページは `Cache-Cont
 
 実際の応答には `system_version`、`me_endpoint`、`revoke_endpoint`、`allowed_endpoints` も含みます。`allowed_endpoints` の `<thread_id>`、`<path:filename>` はFlaskのパス変数表記です。
 
-`POST /api/mobile/v1/auth/google` はCookie・Origin・Bearerなしで呼び出します。本文は `{"id_token":"<Credential Managerで取得したGoogle IDトークン>","nonce":"<同じログイン要求に設定したNonce>","device_name":"Pixel"}` です。AndroidのGoogleログインボタンはCredential Managerの `GetSignInWithGoogleOption` を使うため、保存済み資格情報がない場合、再認証が必要な場合、端末にGoogleアカウントを追加する場合もGoogleの選択・認証画面へ進めます。`Account reauth failed` を受けた場合はCredential Managerの認証状態を一度消去して、同じボタン方式を新しいNonceで再試行します。サーバーは `GOOGLE_CLIENT_ID` と一致するaudience、署名、発行者、有効期限、Nonce、メール確認済みを検証してから既存のGoogle連携アカウントを解決し、Android用Bearerを発行します。2FAが有効でGoogleログイン時の省略設定が無効なら、通常の `auth/totp` またはWebAuthn 2FAトランザクションを返します。`google_server_client_id` はIDトークン取得用の公開クライアントIDであり、秘密情報ではありません。
+`POST /api/mobile/v1/auth/google` はCookie・Origin・Bearerなしで呼び出します。本文は `{"id_token":"<Credential Managerで取得したGoogle IDトークン>","nonce":"<同じログイン要求に設定したNonce>","device_name":"Pixel"}` です。AndroidのGoogleログインボタンはCredential Managerの `GetSignInWithGoogleOption` を使うため、保存済み資格情報がない場合、再認証が必要な場合、端末にGoogleアカウントを追加する場合もGoogleの選択・認証画面へ進めます。`Account reauth failed` を受けた場合はCredential Managerの認証状態を一度消去して、同じボタン方式を新しいNonceで再試行します。失敗が続く場合はログイン画面にコピー可能な診断ログを表示します。診断ログにはアプリ版、端末、Google Play services、例外種別、公開OAuthクライアントID、アプリ署名SHA-1／SHA-256を含めますが、IDトークンとNonceは含めません。サーバーは `GOOGLE_CLIENT_ID` と一致するaudience、署名、発行者、有効期限、Nonce、メール確認済みを検証してから既存のGoogle連携アカウントを解決し、Android用Bearerを発行します。2FAが有効でGoogleログイン時の省略設定が無効なら、通常の `auth/totp` またはWebAuthn 2FAトランザクションを返します。`google_server_client_id` はIDトークン取得用の公開クライアントIDであり、秘密情報ではありません。
+
+Google Cloudの同じプロジェクトには、サーバーで使うWeb OAuthクライアントに加えて、パッケージ名 `com.minashin1120.aiplayground` と配布署名SHA-1を登録したAndroid OAuthクライアントが必要です。診断ログの `package` と `signingSha1` はこの登録値と完全一致させます。不一致の場合、IDトークン取得前にGoogle Play services側で失敗するため、サーバーAPIの再試行では解消しません。
 
 ### 3.3 端末連携の開始
 

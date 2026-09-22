@@ -46,7 +46,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -170,6 +172,8 @@ fun PlaygroundScreen(
                     model.completeGoogleLogin(credential)
                 } catch (e: CancellationException) {
                     throw e
+                } catch (e: GoogleAuthClient.AuthException) {
+                    model.cancelGoogleLogin(e.message ?: "Googleログインに失敗しました。", e.diagnosticLog)
                 } catch (e: Exception) {
                     model.cancelGoogleLogin(e.message ?: "Googleログインに失敗しました。")
                 }
@@ -747,6 +751,7 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
     var password by rememberSaveable { mutableStateOf("") }
     var confirmation by rememberSaveable { mutableStateOf("") }
     var totp by rememberSaveable { mutableStateOf("") }
+    val clipboard = LocalClipboardManager.current
     val colors = MaterialTheme.colorScheme
     if (state.pairing) {
         PairingScreen(state, model, onWeb)
@@ -808,6 +813,32 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
                         )
                     }
                     state.authError?.let { Text(it, color = colors.error) }
+                    state.googleAuthDiagnostics?.let { diagnostics ->
+                        Surface(
+                            color = colors.surfaceVariant,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Googleログイン診断ログ", style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    "IDトークンやnonceは含まれていません。OAuth設定の確認に利用できます。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant,
+                                )
+                                SelectionContainer {
+                                    Text(diagnostics, style = MaterialTheme.typography.bodySmall)
+                                }
+                                OutlinedButton(
+                                    onClick = {
+                                        clipboard.setText(AnnotatedString(diagnostics))
+                                        model.notify("診断ログをコピーしました。")
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text("診断ログをコピー") }
+                            }
+                        }
+                    }
                     Button(
                         onClick = {
                             if (signup && password != confirmation) model.notify("パスワードが一致しません。")

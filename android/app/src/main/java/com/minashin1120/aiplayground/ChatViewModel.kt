@@ -52,6 +52,7 @@ data class ChatState(
     val authTwoFactorTransaction: String? = null, val setupRequired: Boolean = false,
     val auth2faMethod: String = "totp", val credentialRequest: CredentialRequest? = null,
     val googleLoginRequest: Long = 0L, val googleServerClientId: String = "",
+    val googleAuthDiagnostics: String? = null,
     val security: SecurityInfo? = null, val securityBusy: Boolean = false, val securityError: String? = null,
     val securityTotpSecret: String? = null, val securityTotpUri: String? = null,
     val setupImportBusy: Boolean = false, val setupImportName: String = "", val setupImportProgress: Int = 0,
@@ -224,6 +225,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         withContext(Dispatchers.IO) { store.save(requireNotNull(session)) }
         mutable.update { it.copy(
             authBusy = false, authError = null, authTwoFactorTransaction = null,
+            googleAuthDiagnostics = null,
             auth2faMethod = "totp", credentialRequest = null,
         ) }
         if (reply.optBoolean("setup_required")) loadSetup() else loadAccount()
@@ -253,7 +255,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun authenticate(path: String, username: String, password: String) {
         if (state.value.authBusy) return
         viewModelScope.launch {
-            mutable.update { it.copy(authBusy = true, authError = null, authTwoFactorTransaction = null) }
+            mutable.update { it.copy(
+                authBusy = true,
+                authError = null,
+                googleAuthDiagnostics = null,
+                authTwoFactorTransaction = null,
+            ) }
             try {
                 val reply = api.post(path, JSONObject()
                     .put("username", username.trim())
@@ -277,6 +284,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(
             authBusy = true,
             authError = null,
+            googleAuthDiagnostics = null,
             authTwoFactorTransaction = null,
             googleLoginRequest = it.googleLoginRequest + 1L,
         ) }
@@ -297,8 +305,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun cancelGoogleLogin(message: String = "Googleログインをキャンセルしました。") {
-        if (state.value.authBusy) mutable.update { it.copy(authBusy = false, authError = message) }
+    fun cancelGoogleLogin(
+        message: String = "Googleログインをキャンセルしました。",
+        diagnostics: String? = null,
+    ) {
+        if (state.value.authBusy) mutable.update {
+            it.copy(authBusy = false, authError = message, googleAuthDiagnostics = diagnostics)
+        }
     }
 
     fun verifyTotp(code: String) {

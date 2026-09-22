@@ -47,7 +47,7 @@ MOBILE_ENDPOINT_METHODS = {
 }
 MOBILE_PUBLIC_ENDPOINTS = {
     'mobile_device', 'mobile_token',
-    'mobile_auth_signup', 'mobile_auth_login', 'mobile_auth_totp', 'mobile_auth_exchange',
+    'mobile_auth_signup', 'mobile_auth_login', 'mobile_auth_google', 'mobile_auth_totp', 'mobile_auth_exchange',
     'mobile_auth_passkey_options', 'mobile_auth_passkey_verify',
     'mobile_auth_2fa_webauthn_options', 'mobile_auth_2fa_webauthn_verify',
 }

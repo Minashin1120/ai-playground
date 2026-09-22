@@ -14,7 +14,7 @@ Androidアプリに、アカウント登録・ログイン・2FA・Passkey管理
 - Androidに認証画面を追加
   - ユーザー名・パスワード登録
   - ユーザー名・パスワードログイン
-  - Google / Minashinログイン
+- Google（Credential Manager）/ Minashinログイン
   - Passkeyログイン
   - TOTP / WebAuthn 2FA
   - Passkey登録・削除
@@ -106,11 +106,11 @@ WebとAndroidの両方を変更するため、Webのバージョン準備・公�
 
 | 項目 | 状態 |
 |---|---|
-| サーバー: signup / login / TOTP / exchange / Google・Minashin OAuth / assetlinks | 実装済み |
+| サーバー: signup / login / TOTP / exchange / Google IDトークン・Google／Minashin OAuth / assetlinks | 実装済み |
 | サーバー: パスキー options・verify、WebAuthn 2FA options・verify | 実装済み |
 | サーバー: セキュリティ管理（TOTP setup/enable/disable、パスキー登録/削除、既定2FA方式、パスキーのみログイン、Googleログイン時の2FA省略） | 実装済み |
 | サーバー: アカウントZIPのチャンク取り込み（既存WebルートをBearer許可） | 実装済み |
-| Android: ユーザー名／パスワード登録・ログイン、TOTP | 実装済み |
+| Android: ユーザー名／パスワード登録・ログイン、Google Credential Manager、TOTP | 実装済み |
 | Android: パスキーログイン、WebAuthn 2FA、パスキー登録/削除、TOTP登録/無効化、2FA設定 | 実装済み |
 | Android: 初回セットアップ（モデル／APIキー／Vertex AI／E2EE） | 実装済み |
 | Android: アカウントZIP取り込み（進捗・キャンセル・設定変更確認） | 実装済み |
@@ -119,6 +119,6 @@ WebとAndroidの両方を変更するため、Webのバージョン準備・公�
 
 計画からの差分:
 
-- OAuth開始は `/api/mobile/v1/auth/oauth/start` ではなく既存の `/android/auth/google/start`・`/android/auth/minashin/start` を再利用している。
+- Googleの通常ログインは Credential Manager でIDトークンを取得し `/api/mobile/v1/auth/google` へ送信する。ブラウザー方式の `/android/auth/google/start`・`/android/auth/minashin/start` は互換用に残している。
 - 取り込みは `/api/mobile/v1/setup/import/*` を新設せず、Webの `/api/account/import/*` をBearer許可リストへ追加して再利用している。
 - パスキーは `rp_id` を接続先ホスト、Android originを `android:apk-key-hash:`（`ANDROID_APP_LINK_SHA256` から導出）として検証する。

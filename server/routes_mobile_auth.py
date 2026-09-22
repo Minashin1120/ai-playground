@@ -192,6 +192,48 @@ def mobile_auth_login():
     return _mobile_auth_response(user, _mobile_issue_token(user, device_name), device_name)
 
 
+@app.route('/api/mobile/v1/auth/google', methods=['POST'])
+def mobile_auth_google():
+    if not _mobile_native_rate_limit('google', 20, 300):
+        return _mobile_error('rate_limited', 429, 300)
+    body = request.get_json(silent=True) or {}
+    credential = body.get('id_token')
+    request_nonce = body.get('nonce')
+    device_name = _mobile_validate_device_name(body.get('device_name'))
+    if (not isinstance(credential, str) or not 1 <= len(credential) <= 4096 or
+            not isinstance(request_nonce, str) or not 16 <= len(request_nonce) <= 128 or
+            device_name is None):
+        return _mobile_error('invalid_google_token', 401)
+    server_client_id = os.getenv('GOOGLE_CLIENT_ID', '').strip()
+    if not server_client_id:
+        return _mobile_error('google_login_unavailable', 503)
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            credential, google_requests.Request(), server_client_id
+        )
+        if idinfo.get('email_verified') is not True:
+            return _mobile_error('google_email_not_verified', 401)
+        token_nonce = str(idinfo.get('nonce') or '')
+        if not token_nonce or not secrets.compare_digest(token_nonce, request_nonce):
+            return _mobile_error('invalid_google_token', 401)
+        google_id = str(idinfo.get('sub') or '').strip()
+        email = str(idinfo.get('email') or '').strip().lower()
+        if not google_id or not email or len(email) > 128:
+            return _mobile_error('invalid_google_identity', 401)
+        user = _resolve_or_create_google_user(google_id, email)
+    except Exception:
+        logger.exception('Native Google ID token verification failed')
+        return _mobile_error('invalid_google_token', 401)
+    if user.is_2fa_enabled and not user.skip_2fa_on_google_login:
+        return jsonify({
+            'status': '2fa_required',
+            'transaction_id': _mobile_auth_transaction(user, device_name),
+            'default_method': user.default_2fa_method or 'totp',
+            'expires_in': _MOBILE_AUTH_TX_TTL,
+        })
+    return _mobile_auth_response(user, _mobile_issue_token(user, device_name), device_name)
+
+
 @app.route('/api/mobile/v1/auth/totp', methods=['POST'])
 def mobile_auth_totp():
     if not _mobile_native_rate_limit('totp', 20, 300):

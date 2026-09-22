@@ -77,6 +77,7 @@ import com.minashin1120.aiplayground.data.attachmentKindIcon
 import com.minashin1120.aiplayground.data.numericId
 import com.minashin1120.aiplayground.data.siblingGroup
 import com.minashin1120.aiplayground.data.PasskeyClient
+import com.minashin1120.aiplayground.data.GoogleAuthClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import android.content.Context
@@ -159,6 +160,18 @@ fun PlaygroundScreen(
                     throw e
                 } catch (e: Exception) {
                     model.cancelCredentialRequest("パスキー操作を完了できませんでした。")
+                }
+            }
+            LaunchedEffect(state.googleLoginRequest) {
+                if (state.googleLoginRequest == 0L) return@LaunchedEffect
+                try {
+                    val activity = context.findActivity() ?: error("Googleログインを開始できません。")
+                    val credential = GoogleAuthClient.getIdToken(activity, state.googleServerClientId)
+                    model.completeGoogleLogin(credential)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    model.cancelGoogleLogin(e.message ?: "Googleログインに失敗しました。")
                 }
             }
             val openDrawer: () -> Unit = {
@@ -812,6 +825,11 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
                             enabled = !state.authBusy && username.isNotBlank(),
                             modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
                         ) { Text("パスキーでログイン") }
+                        Button(
+                            onClick = model::beginGoogleLogin,
+                            enabled = !state.authBusy,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
+                        ) { Text(if (state.authBusy) "Googleログインを処理しています…" else "Googleでログイン") }
                     }
                 }
             }
@@ -822,7 +840,7 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
                 Text("既存のブラウザー連携", style = MaterialTheme.typography.titleMedium)
                 Text("旧方式です。現在も利用できますが、アプリ内ログインを推奨します。", color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(onClick = model::pair, modifier = Modifier.fillMaxWidth()) { Text("ブラウザーで連携（旧方式）") }
-                Button(onClick = { onWeb("/android/auth/google/start") }, modifier = Modifier.fillMaxWidth()) { Text("Googleでログイン") }
+                OutlinedButton(onClick = { onWeb("/android/auth/google/start") }, modifier = Modifier.fillMaxWidth()) { Text("Google（ブラウザー・旧方式）") }
                 OutlinedButton(onClick = { onWeb("/android/auth/minashin/start") }, modifier = Modifier.fillMaxWidth()) { Text("Minashinでログイン") }
                 TextButton(onClick = { onWeb("/") }, modifier = Modifier.fillMaxWidth()) { Text("Web版を開く") }
             }

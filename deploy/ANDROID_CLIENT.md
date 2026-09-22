@@ -2,7 +2,7 @@
 
 この文書は、AI Chat Playgroundの公式Androidクライアントの通信仕様、実装構成、APKの構築・配布、サーバー設定をまとめたものです。Androidプロジェクトは同じリポジトリの `android/` にあり、モジュールは `android/app/` です。GitHub Actionsで署名付きdebug/release APKを構築し、GitHub Releaseへ配布します。Google Playへの登録とAAB配布は対象外です。
 
-接続先は `https://ai.minashin1120.com`。接続仕様の版は `api_version: 1` です。標準認証は `native_credentials_v1`（ユーザー名／パスワード、Google／Minashinのブラウザー認証コード引き渡し、TOTP）で、旧 `device_pairing_v1` は非推奨のフォールバックとして残します。Webのリリース番号とAndroidのversionCodeは別々に管理します。
+接続先は `https://ai.minashin1120.com`。接続仕様の版は `api_version: 1` です。標準認証は `native_credentials_v1`（ユーザー名／パスワード、Google IDトークン、TOTP）です。Minashinと旧Googleブラウザー認証コード引き渡し、旧 `device_pairing_v1` は非推奨のフォールバックとして残します。Webのリリース番号とAndroidのversionCodeは別々に管理します。
 
 ## 目次
 
@@ -32,7 +32,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 
 | 機能 | このAPIでの扱い |
 |---|---|
-| ユーザー認証 | アプリ内のユーザー名／パスワード新規登録・ログイン、パスキー（Credential Manager）、TOTP／WebAuthn 2FA、Google／MinashinのCustom Tabs＋HTTPS App Links。旧ブラウザー端末連携も非推奨フォールバックとして維持 |
+| ユーザー認証 | アプリ内のユーザー名／パスワード新規登録・ログイン、Google（Credential ManagerでIDトークン取得）・パスキー（Credential Manager）、TOTP／WebAuthn 2FA。MinashinはCustom Tabs＋HTTPS App Links。Google／Minashinの旧ブラウザー方式とブラウザー端末連携も非推奨フォールバックとして維持 |
 | 2FA・パスキー管理 | ネイティブでTOTP登録・有効化・無効化、パスキー登録・削除、既定2FA方式、パスキーのみログイン、Googleログイン時の2FA省略を設定。パスワード変更・アカウント削除はWeb |
 | 通常のチャット | スレッド一覧・検索・作成・取得・削除、ブックマーク、タイトル・スレッド指示、送信、ストリーム再接続、停止、メッセージの編集・再生成・分岐切替、ネイティブPDF出力。Web相当のハートビートでオフライン／不安定／メンテナンス／サーバー停止／復帰を表示 |
 | 添付 | 通常アップロード、大容量チャンクアップロード、進捗表示・キャンセル、Photo Picker・カメラ、MIME別プレビュー、画像圧縮設定、本人のファイル・サムネイル取得、容量表示、アプリ内プレビュー（画像・テキスト・PDF・音声・動画。未対応形式は外部アプリ） |
@@ -119,6 +119,8 @@ HTTPS必須。JSONはUTF-8。APIレスポンスと認証ページは `Cache-Cont
   "legacy_auth_deprecated": true,
   "native_signup_endpoint": "/api/mobile/v1/auth/signup",
   "native_login_endpoint": "/api/mobile/v1/auth/login",
+  "native_google_endpoint": "/api/mobile/v1/auth/google",
+  "google_server_client_id": "<公開可能なGoogle OAuth WebクライアントID>",
   "native_totp_endpoint": "/api/mobile/v1/auth/totp",
   "native_passkey_options_endpoint": "/api/mobile/v1/auth/passkey/options",
   "native_passkey_verify_endpoint": "/api/mobile/v1/auth/passkey/verify",
@@ -146,6 +148,8 @@ HTTPS必須。JSONはUTF-8。APIレスポンスと認証ページは `Cache-Cont
 ```
 
 実際の応答には `system_version`、`me_endpoint`、`revoke_endpoint`、`allowed_endpoints` も含みます。`allowed_endpoints` の `<thread_id>`、`<path:filename>` はFlaskのパス変数表記です。
+
+`POST /api/mobile/v1/auth/google` はCookie・Origin・Bearerなしで呼び出します。本文は `{"id_token":"<Credential Managerで取得したGoogle IDトークン>","nonce":"<同じログイン要求に設定したNonce>","device_name":"Pixel"}` です。サーバーは `GOOGLE_CLIENT_ID` と一致するaudience、署名、発行者、有効期限、Nonce、メール確認済みを検証してから既存のGoogle連携アカウントを解決し、Android用Bearerを発行します。2FAが有効でGoogleログイン時の省略設定が無効なら、通常の `auth/totp` またはWebAuthn 2FAトランザクションを返します。`google_server_client_id` はIDトークン取得用の公開クライアントIDであり、秘密情報ではありません。
 
 ### 3.3 端末連携の開始
 
@@ -426,7 +430,7 @@ dependencies {
 
 証明書やホスト名検証を無効化しません。開発機の独自CAが必要ならdebug用設定に限定し、releaseから除外します。ネットワーク設定の詳細は[Android公式資料](https://developer.android.com/privacy-and-security/security-config)を参照してください。
 
-Google／Minashinの外部認証は埋め込みWebViewを使わずCustom Tabsで行い、認証後は `https://ai.minashin1120.com/android/auth/callback` のHTTPS App Linkへ一度だけ使える認証コードを返します。アクセストークンはURLへ載せません。`/.well-known/assetlinks.json` は `ANDROID_APP_LINK_SHA256`（カンマ区切り）と `ANDROID_APP_ID` から生成されるため、配布署名のSHA-256を本番環境へ設定します。
+Googleログインは通常、Android Credential ManagerでGoogle IDトークンを取得してネイティブ認証APIへ送信します。Minashinログインと旧Googleブラウザー方式は、埋め込みWebViewを使わずCustom Tabsで行い、認証後は `https://ai.minashin1120.com/android/auth/callback` のHTTPS App Linkへ一度だけ使える認証コードを返します。アクセストークンはURLへ載せません。`/.well-known/assetlinks.json` は `ANDROID_APP_LINK_SHA256`（カンマ区切り）と `ANDROID_APP_ID` から生成されるため、配布署名のSHA-256を本番環境へ設定します。
 
 ### 6.3 実装構成
 
@@ -735,6 +739,7 @@ configは200 JSON、未認証meは401 JSONが期待値です。テスト出力�
 |---|---|
 | パスワード／SSO／Passkey／2FAで連携 | 元の認証を省略せず、承認画面に戻れる |
 | アプリ内パスワード登録・ログイン | Credential Managerを使わず完了し、初回セットアップへ進める |
+| アプリ内Googleログイン | ブラウザーへ遷移せずCredential Managerでアカウントを選択し、IDトークン検証後に初回セットアップまたはチャットへ進める |
 | パスキーログイン・パスキー登録 | Androidの指紋／画面ロックで完了し、`android:apk-key-hash:` originで検証される |
 | TOTP／WebAuthn 2FA | 既定方式に応じてコード入力またはパスキーで完了する |
 | TOTP・パスキーの登録／削除／無効化 | 設定タブから実行でき、状態表示が更新される |

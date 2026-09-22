@@ -51,6 +51,7 @@ data class ChatState(
     val authBusy: Boolean = false, val authError: String? = null,
     val authTwoFactorTransaction: String? = null, val setupRequired: Boolean = false,
     val auth2faMethod: String = "totp", val credentialRequest: CredentialRequest? = null,
+    val googleLoginRequest: Long = 0L, val googleServerClientId: String = "",
     val security: SecurityInfo? = null, val securityBusy: Boolean = false, val securityError: String? = null,
     val securityTotpSecret: String? = null, val securityTotpUri: String? = null,
     val setupImportBusy: Boolean = false, val setupImportName: String = "", val setupImportProgress: Int = 0,
@@ -192,6 +193,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             historyCacheMode = HistoryCacheMode.from(prefs.getString("offline_history_cache_mode", HistoryCacheMode.VIEWED.value)),
             cacheMobileDataAllowed = prefs.getBoolean("offline_cache_mobile_data", false),
         ) }
+        runCatching { api.get("/api/mobile/v1/config") }.getOrNull()?.let { config ->
+            mutable.update { it.copy(googleServerClientId = config.optString("google_server_client_id")) }
+        }
         session = withContext(Dispatchers.IO) { store.load() }
         if (session != null) {
             runCatching {
@@ -225,6 +229,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (reply.optBoolean("setup_required")) loadSetup() else loadAccount()
     }
 
+    private suspend fun processAuthResponse(reply: JSONObject) {
+        if (reply.optString("status") == "2fa_required") {
+            mutable.update { it.copy(
+                authBusy = false,
+                authTwoFactorTransaction = reply.getString("transaction_id"),
+                auth2faMethod = reply.optString("default_method", "totp").ifBlank { "totp" },
+                authError = null,
+            ) }
+        } else {
+            acceptAuthResponse(reply)
+        }
+    }
+
     fun login(username: String, password: String) {
         authenticate("/api/mobile/v1/auth/login", username, password)
     }
@@ -242,21 +259,46 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     .put("username", username.trim())
                     .put("password", password)
                     .put("device_name", deviceName()))
-                if (reply.optString("status") == "2fa_required") {
-                    mutable.update { it.copy(
-                        authBusy = false,
-                        authTwoFactorTransaction = reply.getString("transaction_id"),
-                        auth2faMethod = reply.optString("default_method", "totp").ifBlank { "totp" },
-                        authError = null,
-                    ) }
-                } else {
-                    acceptAuthResponse(reply)
-                }
+                processAuthResponse(reply)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 mutable.update { it.copy(authBusy = false, authError = e.message ?: "認証に失敗しました。") }
             }
         }
+    }
+
+    /** Starts Android Credential Manager's native Google account picker. */
+    fun beginGoogleLogin() {
+        if (state.value.authBusy) return
+        if (state.value.googleServerClientId.isBlank()) {
+            mutable.update { it.copy(authError = "Googleログインを設定できません。時間をおいて再試行してください。") }
+            return
+        }
+        mutable.update { it.copy(
+            authBusy = true,
+            authError = null,
+            authTwoFactorTransaction = null,
+            googleLoginRequest = it.googleLoginRequest + 1L,
+        ) }
+    }
+
+    fun completeGoogleLogin(credential: GoogleAuthClient.Result) {
+        if (!state.value.authBusy) return
+        viewModelScope.launch {
+            try {
+                processAuthResponse(api.post("/api/mobile/v1/auth/google", JSONObject()
+                    .put("id_token", credential.idToken)
+                    .put("nonce", credential.nonce)
+                    .put("device_name", deviceName())))
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                mutable.update { it.copy(authBusy = false, authError = e.message ?: "Googleログインに失敗しました。") }
+            }
+        }
+    }
+
+    fun cancelGoogleLogin(message: String = "Googleログインをキャンセルしました。") {
+        if (state.value.authBusy) mutable.update { it.copy(authBusy = false, authError = message) }
     }
 
     fun verifyTotp(code: String) {
@@ -283,16 +325,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(authBusy = true, authError = null) }
             try {
                 val reply = api.post("/api/mobile/v1/auth/exchange", JSONObject().put("code", code))
-                if (reply.optString("status") == "2fa_required") {
-                    mutable.update { it.copy(
-                        authBusy = false,
-                        authTwoFactorTransaction = reply.getString("transaction_id"),
-                        auth2faMethod = reply.optString("default_method", "totp").ifBlank { "totp" },
-                        authError = null,
-                    ) }
-                } else {
-                    acceptAuthResponse(reply)
-                }
+                processAuthResponse(reply)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 mutable.update { it.copy(authBusy = false, authError = e.message ?: "外部ログインに失敗しました。") }

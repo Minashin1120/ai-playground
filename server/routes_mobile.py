@@ -105,6 +105,8 @@ def mobile_config():
         'legacy_auth_deprecated': True,
         'native_signup_endpoint': '/api/mobile/v1/auth/signup',
         'native_login_endpoint': '/api/mobile/v1/auth/login',
+        'native_google_endpoint': '/api/mobile/v1/auth/google',
+        'google_server_client_id': os.getenv('GOOGLE_CLIENT_ID', ''),
         'native_totp_endpoint': '/api/mobile/v1/auth/totp',
         'native_passkey_options_endpoint': '/api/mobile/v1/auth/passkey/options',
         'native_passkey_verify_endpoint': '/api/mobile/v1/auth/passkey/verify',

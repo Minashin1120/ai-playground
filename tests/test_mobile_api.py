@@ -519,6 +519,24 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(verified.status_code, 200)
         self.assertTrue(verified.json['access_token'].startswith(target.MOBILE_TOKEN_PREFIX))
 
+    def test_native_google_login_uses_verified_id_token(self):
+        with mock.patch.dict(target.os.environ, {'GOOGLE_CLIENT_ID': 'android-server-client'}), \
+                mock.patch.object(target.id_token, 'verify_oauth2_token', return_value={
+                    'sub': 'google-sub-native', 'email': 'NativeUser@Example.com',
+                    'email_verified': True, 'nonce': 'native-google-nonce',
+                }) as verify:
+            response = self.native.post('/api/mobile/v1/auth/google', base_url='https://localhost', json={
+                'id_token': 'header.payload.signature', 'nonce': 'native-google-nonce',
+                'device_name': 'Pixel test',
+            })
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json['access_token'].startswith(target.MOBILE_TOKEN_PREFIX))
+        verify.assert_called_once()
+        self.assertEqual(verify.call_args.args[2], 'android-server-client')
+        with target.app.app_context():
+            user = target.User.query.filter_by(google_id='google-sub-native').one()
+            self.assertEqual(user.google_email, 'nativeuser@example.com')
+
     def test_native_auth_code_is_one_time_and_assetlinks_is_configurable(self):
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)

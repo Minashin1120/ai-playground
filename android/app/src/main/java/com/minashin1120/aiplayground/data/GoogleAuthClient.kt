@@ -160,7 +160,7 @@ object GoogleAuthClient {
             add("android=${Build.VERSION.RELEASE} sdk=${Build.VERSION.SDK_INT} securityPatch=${Build.VERSION.SECURITY_PATCH}")
             add("device=${Build.MANUFACTURER} ${Build.MODEL}")
             add("googlePlayServices=${packageVersion()}")
-            add("credentialManager=1.6.0 googleId=1.2.1")
+            add("credentialManager=1.6.0 googleId=1.2.0")
             add("serverClientId=$serverClientId")
             add("signingSha1=${fingerprint("SHA-1")}")
             add("signingSha256=${fingerprint("SHA-256")}")

@@ -1694,6 +1694,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
         lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
         withContext(NonCancellable + Dispatchers.IO) { store.clear() }
+        GoogleAuthClient.clearCredentialState(getApplication())
         cancelChatBubble(getApplication())
         session = null; failed = null
         mutable.value = ChatState(

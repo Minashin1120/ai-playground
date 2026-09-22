@@ -278,6 +278,28 @@ fun PlaygroundScreen(
             }
             val closeDrawer: () -> Unit = { scope.launch { drawer.close() } }
             val showThreads = state.account != null
+            LaunchedEffect(state.banned) {
+                if (state.banned) {
+                    allowDrawerOpen = false
+                    deleting = null
+                    logout = false
+                    modelPicker = false
+                    threadSettings = false
+                    attachMenu = false
+                    libraryOpen = false
+                    viewingFile = null
+                    gemsOpen = false
+                    settingsOpen = false
+                    changelogOpen = false
+                    advancedOpen = false
+                    realtimeOpen = false
+                    lyriaOpen = false
+                    richPasteOpen = false
+                    maskOpen = false
+                    maskSource = null
+                    closeDrawer()
+                }
+            }
             val hasOverlay = modelPicker || threadSettings || attachMenu || libraryOpen || viewingFile != null ||
                 gemsOpen || settingsOpen || changelogOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || maskOpen || logout
             BackHandler(enabled = hasOverlay || (!wide && drawer.currentValue == DrawerValue.Open)) {
@@ -466,7 +488,13 @@ fun PlaygroundScreen(
                 text = { Text("このAndroid端末の連携を取り消します。Webや他の端末のログインは継続します。") },
                 confirmButton = { TextButton(onClick = { model.logout(); logout = false; closeDrawer() }) { Text("ログアウト") } },
                 dismissButton = { TextButton(onClick = { logout = false }) { Text("キャンセル") } })
-            appUpdate?.let { update ->
+            if (state.banned) BannedScreen(
+                reason = state.banReason,
+                bannedAt = state.banAt,
+                onWeb = { onWeb("/banned") },
+                onLogout = model::logout,
+            )
+            if (!state.banned) appUpdate?.let { update ->
                 AppUpdateDialog(
                     update,
                     onDismiss = onDismissUpdate,
@@ -477,6 +505,48 @@ fun PlaygroundScreen(
                 )
             }
             StartupSplash(startupSplashEnabled)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BannedScreen(
+    reason: String,
+    bannedAt: String,
+    onWeb: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(color = colors.background, contentColor = colors.onBackground, modifier = Modifier.fillMaxSize()) {
+        Box(
+            Modifier.fillMaxSize().padding(24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth().widthIn(max = 520.dp),
+                colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
+                border = androidx.compose.foundation.BorderStroke(1.dp, colors.error.copy(alpha = 0.35f)),
+            ) {
+                Column(
+                    Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text("アカウントはBANされています", style = MaterialTheme.typography.headlineSmall,
+                        color = colors.error, fontWeight = FontWeight.Bold)
+                    Text("ボット検出により、このアカウントは停止中です。", color = colors.onSurfaceVariant)
+                    Text("解除できるのは管理者のみです。通常のチャットや設定操作は利用できません。",
+                        color = colors.onSurfaceVariant)
+                    if (reason.isNotBlank()) Text("理由: $reason", style = MaterialTheme.typography.bodySmall)
+                    if (bannedAt.isNotBlank()) Text("日時: $bannedAt", style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(4.dp))
+                    Button(onClick = onWeb, modifier = Modifier.fillMaxWidth()) {
+                        Text("Web版で詳細・異議申し立てを確認")
+                    }
+                    OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
+                        Text("ログアウト")
+                    }
+                }
             }
         }
     }

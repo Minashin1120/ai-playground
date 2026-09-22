@@ -101,6 +101,9 @@ data class ChatState(
     val connectionStatus: ConnectionStatus = ConnectionStatus.UNKNOWN,
     val connectionMessage: String = "",
     val connectionBannerVisible: Boolean = false,
+    val banned: Boolean = false,
+    val banReason: String = "",
+    val banAt: String = "",
     val jobId: String? = null, val retryAvailable: Boolean = false, val notice: String? = null,
     val chatTransitionId: Long = 0L,
     val chatTransitionKind: ChatTransitionKind = ChatTransitionKind.NONE,
@@ -144,6 +147,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var pendingParentId: Int? = null
     private var chatTransitionSequence = 0L
 
+    /** Stops account work at the same BAN boundary enforced by the Web server. */
+    private fun enterBannedState(error: ApiException) {
+        listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, cacheSyncJob, batchPollJob,
+            realtimeStreamJob, realtimeCaptureJob, lyriaStreamJob, importJob).forEach { it?.cancel() }
+        realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
+        lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
+        failed = null
+        mutable.update { current -> current.copy(
+            banned = true,
+            banReason = error.payload.optString("reason").ifBlank { error.payload.optString("message") },
+            banAt = error.payload.optString("banned_at"),
+            pairing = false,
+            busy = false,
+            uploading = false,
+            streaming = false,
+            realtime = RealtimeState(),
+            lyria = LyriaState(),
+            jobId = null,
+            retryAvailable = false,
+            mcpDecision = null,
+            status = "",
+        ) }
+    }
+
     private fun nextChatTransition(kind: ChatTransitionKind): Pair<Long, ChatTransitionKind> {
         chatTransitionSequence += 1L
         return chatTransitionSequence to kind
@@ -170,9 +197,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             runCatching {
                 loadAccount()
             }.onFailure { error ->
-                if (error is ApiException && error.code == "setup_required") loadSetup()
+                if (error is ApiException && error.code == "banned") enterBannedState(error)
+                else if (error is ApiException && error.code == "setup_required") loadSetup()
                 else if (error is ApiException && error.status == 401) clearSession()
-                if (!restoreOfflineAccount()) report(error)
+                if (error !is ApiException || error.code != "banned") {
+                    if (!restoreOfflineAccount()) report(error)
+                }
             }
         } else if (withContext(Dispatchers.IO) { store.loadForOffline() } != null) {
             restoreOfflineAccount()
@@ -916,7 +946,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun selectCodingTarget(target: CodingTarget?) { mutable.update { it.copy(codingTarget = target, codingMode = target != null || it.codingMode) } }
     fun setImageMask(reference: String?) { mutable.update { it.copy(imageMask = reference) } }
     fun uploadImageMask(name: String, bytes: ByteArray) {
-        if (bytes.isEmpty() || state.value.streaming || state.value.uploading) return
+        if (bytes.isEmpty() || state.value.banned || state.value.streaming || state.value.uploading) return
         viewModelScope.launch {
             try {
                 val response = api.upload(name, bytes.toRequestBody("image/png".toMediaType()), token())
@@ -1199,6 +1229,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun send() {
         val current = state.value
+        if (current.banned) return
         if (current.offline) { mutable.update { it.copy(notice = "オフライン中はメッセージを送信できません。") }; return }
         if (current.streaming || current.busy || current.uploading || (current.draft.isBlank() && current.attachments.isEmpty())) return
         if (current.model.isBlank()) { mutable.update { it.copy(notice = "モデルを選択してください。") }; return }
@@ -1618,7 +1649,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         try {
             api.post("/api/mobile/v1/revoke", JSONObject(), token())
             clearSession()
-        } catch (e: Exception) { report(e) }
+        } catch (e: Exception) {
+            // Keep the Web BAN screen's logout escape hatch even if revoke fails.
+            if (state.value.banned) clearSession() else report(e)
+        }
     } }
     private suspend fun clearSession() {
         val caller = currentCoroutineContext().job
@@ -1637,6 +1671,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     private suspend fun report(error: Throwable) {
         if (error is CancellationException) throw error
+        if (error is ApiException && error.code == "banned") {
+            enterBannedState(error)
+            return
+        }
         if (error is ApiException && error.status == 401) clearSession()
         val networkFailure = error !is ApiException && (error is java.net.ConnectException || error is java.net.UnknownHostException ||
             error is java.net.SocketTimeoutException || error is java.net.SocketException || error is IOException
@@ -1796,6 +1834,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     /** Loads same-origin attachment bytes for preview; returns null when unavailable. */
     suspend fun loadAttachmentBytes(reference: String, thumbnail: Boolean, limit: Long = 8L * 1024 * 1024): ByteArray? {
+        if (state.value.banned) return null
         val accountId = state.value.account?.id ?: return null
         val cached = withContext(Dispatchers.IO) { offlineCache.loadFile(accountId, reference, thumbnail, limit) }
         if (cached != null) return cached.bytes
@@ -1810,6 +1849,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     fun upload(uris: List<Uri>) {
+        if (state.value.banned) return
         if (state.value.offline) { mutable.update { it.copy(notice = "オフライン中はファイルをアップロードできません。") }; return }
         if (uris.isEmpty() || state.value.uploading) return
         if (uris.size + state.value.attachments.size > 30) { mutable.update { it.copy(notice = "添付は30件までです。") }; return }

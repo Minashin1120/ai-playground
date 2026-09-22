@@ -2,6 +2,8 @@ package com.minashin1120.aiplayground.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
@@ -80,6 +82,7 @@ import com.minashin1120.aiplayground.data.numericId
 import com.minashin1120.aiplayground.data.siblingGroup
 import com.minashin1120.aiplayground.data.PasskeyClient
 import com.minashin1120.aiplayground.data.GoogleAuthClient
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import android.content.Context
@@ -147,6 +150,10 @@ fun PlaygroundScreen(
                 }
             }
             val scope = rememberCoroutineScope()
+            var googleIdentityResult by remember { mutableStateOf<CompletableDeferred<ActivityResult>?>(null) }
+            val googleIdentityLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.StartIntentSenderForResult(),
+            ) { result -> googleIdentityResult?.complete(result) }
             // Runs the WebAuthn ceremony the ViewModel requested (sign-in, 2FA or passkey
             // registration) through Android Credential Manager, then hands the result back.
             LaunchedEffect(state.credentialRequest) {
@@ -168,7 +175,25 @@ fun PlaygroundScreen(
                 if (state.googleLoginRequest == 0L) return@LaunchedEffect
                 try {
                     val activity = context.findActivity() ?: error("Googleログインを開始できません。")
-                    val credential = GoogleAuthClient.getIdToken(activity, state.googleServerClientId)
+                    val credential = GoogleAuthClient.getIdToken(
+                        activity,
+                        state.googleServerClientId,
+                    ) { pendingIntent ->
+                        val result = CompletableDeferred<ActivityResult>()
+                        googleIdentityResult = result
+                        try {
+                            googleIdentityLauncher.launch(
+                                IntentSenderRequest.Builder(pendingIntent).build(),
+                            )
+                            val activityResult = result.await()
+                            if (activityResult.resultCode != Activity.RESULT_OK) {
+                                throw IllegalStateException("Googleログインがキャンセルされました。")
+                            }
+                            activityResult.data
+                        } finally {
+                            if (googleIdentityResult === result) googleIdentityResult = null
+                        }
+                    }
                     model.completeGoogleLogin(credential)
                 } catch (e: CancellationException) {
                     throw e

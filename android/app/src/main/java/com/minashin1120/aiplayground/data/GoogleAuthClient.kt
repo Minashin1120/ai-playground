@@ -1,6 +1,8 @@
 package com.minashin1120.aiplayground.data
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.credentials.ClearCredentialStateRequest
@@ -11,12 +13,18 @@ import androidx.credentials.exceptions.GetCredentialException
 import com.minashin1120.aiplayground.BuildConfig
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.gms.auth.api.identity.GetSignInIntentRequest
+import com.google.android.gms.auth.api.identity.Identity
+import com.google.android.gms.tasks.Task
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Instant
 import java.util.Base64
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.suspendCancellableCoroutine
 
-/** Gets a Google ID token through Android Credential Manager, without a browser redirect. */
+/** Gets a Google ID token through a native Google sign-in flow, without a browser redirect. */
 object GoogleAuthClient {
     data class Result(val idToken: String, val nonce: String)
 
@@ -26,8 +34,39 @@ object GoogleAuthClient {
         val diagnosticLog: String,
     ) : Exception(message, cause)
 
-    suspend fun getIdToken(context: Context, serverClientId: String): Result {
+    suspend fun getIdToken(
+        context: Context,
+        serverClientId: String,
+        launchIdentitySignIn: suspend (PendingIntent) -> Intent?,
+    ): Result {
         require(serverClientId.isNotBlank()) { "Googleログインを設定できません。" }
+        if (Build.VERSION.SDK_INT >= 37) {
+            return try {
+                val requestNonce = nonce()
+                val request = GetSignInIntentRequest.builder()
+                    .setServerClientId(serverClientId)
+                    .setNonce(requestNonce)
+                    .build()
+                val pendingIntent = Identity.getSignInClient(context)
+                    .getSignInIntent(request).awaitResult()
+                val resultIntent = launchIdentitySignIn(pendingIntent)
+                    ?: throw IllegalStateException("Googleログインがキャンセルされました。")
+                val credential = Identity.getSignInClient(context)
+                    .getSignInCredentialFromIntent(resultIntent)
+                val idToken = credential.googleIdToken
+                    ?: throw IllegalStateException("Google IDトークンを取得できませんでした。")
+                Result(idToken, requestNonce)
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                throw diagnosed(
+                    context,
+                    serverClientId,
+                    listOf("identity_sign_in" to error),
+                    error,
+                )
+            }
+        }
         val manager = CredentialManager.create(context)
         return try {
             requestIdToken(manager, context, serverClientId)
@@ -95,6 +134,18 @@ object GoogleAuthClient {
             val message = cause.message.orEmpty()
             message.contains("Account reauth failed", ignoreCase = true) || message.contains("[16]")
         }
+
+    private suspend fun <T> Task<T>.awaitResult(): T = suspendCancellableCoroutine { continuation ->
+        addOnSuccessListener { result ->
+            if (continuation.isActive) continuation.resume(result)
+        }
+        addOnFailureListener { error ->
+            if (continuation.isActive) continuation.resumeWithException(error)
+        }
+        addOnCanceledListener {
+            if (continuation.isActive) continuation.cancel()
+        }
+    }
 
     private fun diagnosed(
         context: Context,

@@ -59,6 +59,7 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:1.9.0")
     implementation("androidx.credentials:credentials:1.6.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
+    implementation("com.google.android.gms:play-services-auth:21.6.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.2.0")
     implementation("com.squareup.okhttp3:okhttp:5.3.0")
     debugImplementation("androidx.compose.ui:ui-tooling")

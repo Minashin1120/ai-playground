@@ -6,6 +6,8 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
@@ -131,9 +133,10 @@ fun PlaygroundScreen(
         themeColor = state.preferences?.themeColor, liquidGlass = state.preferences?.liquidGlassEnabled == true) {
         val colors = MaterialTheme.colorScheme
         val context = LocalContext.current
-        val animationsEnabled = !areSystemAnimationsDisabled(context)
-        val startupSplashEnabled = playStartupAnimation && !areSystemAnimationsDisabled(context)
-        CompositionLocalProvider(LocalContentColor provides colors.onBackground) {
+        val reduceMotion = rememberReduceMotion()
+        val animationsEnabled = !reduceMotion
+        val startupSplashEnabled = playStartupAnimation && !reduceMotion
+        CompositionLocalProvider(LocalContentColor provides colors.onBackground, LocalReduceMotion provides reduceMotion) {
             BoxWithConstraints(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(listOf(colors.background, colors.surfaceContainerLow))
@@ -421,15 +424,33 @@ fun PlaygroundScreen(
                                 onRetry = model::reconnect,
                             )
                         }
-                        Box(Modifier.weight(1f)) {
-                            when {
-                                state.starting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                                state.setupRequired -> SetupScreen(state, model, onWeb)
-                                state.account == null -> AuthScreen(state, model, onWeb)
-                                else -> Conversation(
-                                    state, model, openInApp, loader,
-                                    animationsEnabled = animationsEnabled,
-                                )
+                        val screen = when {
+                            state.starting -> PlaygroundScreenKind.Starting
+                            state.setupRequired -> PlaygroundScreenKind.Setup
+                            state.account == null -> PlaygroundScreenKind.Auth
+                            else -> PlaygroundScreenKind.Chat
+                        }
+                        AnimatedContent(
+                            targetState = screen,
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            transitionSpec = {
+                                if (reduceMotion) EnterTransition.None togetherWith ExitTransition.None
+                                else (fadeIn(tween(PlaygroundMotion.LONG, delayMillis = 60, easing = PlaygroundMotion.Standard)) +
+                                    scaleIn(tween(PlaygroundMotion.LONG, delayMillis = 60, easing = PlaygroundMotion.Emphasized), initialScale = 0.98f)) togetherWith
+                                    fadeOut(tween(PlaygroundMotion.SHORT, easing = PlaygroundMotion.Exit))
+                            },
+                            label = "playground screen",
+                        ) { target ->
+                            Box(Modifier.fillMaxSize()) {
+                                when (target) {
+                                    PlaygroundScreenKind.Starting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                                    PlaygroundScreenKind.Setup -> SetupScreen(state, model, onWeb)
+                                    PlaygroundScreenKind.Auth -> AuthScreen(state, model, onWeb)
+                                    PlaygroundScreenKind.Chat -> Conversation(
+                                        state, model, openInApp, loader,
+                                        animationsEnabled = animationsEnabled,
+                                    )
+                                }
                             }
                         }
                     }
@@ -462,7 +483,12 @@ fun PlaygroundScreen(
                 animationsEnabled = animationsEnabled,
             )
 
-            if (shouldCoverPhoneHistoryUntilClosed(state.starting && !startupSplashEnabled, showThreads, wide, allowDrawerOpen)) {
+            AnimatedVisibility(
+                visible = shouldCoverPhoneHistoryUntilClosed(state.starting && !startupSplashEnabled, showThreads, wide, allowDrawerOpen),
+                enter = EnterTransition.None,
+                exit = if (reduceMotion) ExitTransition.None else fadeOut(tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Standard)),
+                label = "startup cover",
+            ) {
                 Box(
                     Modifier.fillMaxSize().background(
                         Brush.verticalGradient(listOf(colors.background, colors.surfaceContainerLow))
@@ -472,9 +498,9 @@ fun PlaygroundScreen(
                 }
             }
 
-            if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false })
-            if (libraryOpen) LibraryDialog(state, model, onOpenFile = { viewingFile = it }, onDismiss = { libraryOpen = false })
-            viewingFile?.let { request ->
+            ModalHost(modelPicker) { ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false }) }
+            ModalHost(libraryOpen) { LibraryDialog(state, model, onOpenFile = { viewingFile = it }, onDismiss = { libraryOpen = false }) }
+            ModalValueHost(viewingFile) { request ->
                 FileViewerDialog(
                     request, loader,
                     download = { model.downloadAttachment(it) },
@@ -482,45 +508,70 @@ fun PlaygroundScreen(
                     onOpenExternal = onFile,
                 )
             }
-            if (gemsOpen) GemsDialog(state, model, onDismiss = { gemsOpen = false })
-            if (settingsOpen) SettingsDialog(state, model, onDismiss = { settingsOpen = false },
-                onLogout = { model.logout(); settingsOpen = false; closeDrawer() }, onWeb = onWeb,
-                appUpdate = appUpdate ?: AppUpdateUiState(), onCheckForUpdate = onCheckForUpdate)
-            if (changelogOpen) AppChangelogDialog(
-                state = appChangelog,
-                onDismiss = { changelogOpen = false },
-                onRetry = onRetryChangelog,
-            )
-            if (advancedOpen) AdvancedToolsDialog(state, model, onDismiss = { advancedOpen = false }, onWebPath = onWeb,
-                onRealtime = {
-                    advancedOpen = false
-                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
-                    else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
-                }, onLyria = { advancedOpen = false; lyriaOpen = true })
-            if (realtimeOpen) RealtimeStudioDialog(state, model, onDismiss = { realtimeOpen = false })
-            if (lyriaOpen) LyriaStudioDialog(state, model, onDismiss = { lyriaOpen = false })
-            if (richPasteOpen) RichPasteDialog(state.draft, onDismiss = { richPasteOpen = false }) { text ->
-                model.draft(if (state.draft.isBlank()) text else state.draft.trimEnd() + "\n\n" + text)
+            ModalHost(gemsOpen) { GemsDialog(state, model, onDismiss = { gemsOpen = false }) }
+            ModalHost(settingsOpen) {
+                SettingsDialog(state, model, onDismiss = { settingsOpen = false },
+                    onLogout = { model.logout(); settingsOpen = false; closeDrawer() }, onWeb = onWeb,
+                    appUpdate = appUpdate ?: AppUpdateUiState(), onCheckForUpdate = onCheckForUpdate)
             }
-            maskSource?.let { uri ->
-                if (maskOpen) ImageMaskEditor(uri, onDismiss = { maskOpen = false; maskSource = null }) { bytes ->
+            ModalHost(changelogOpen) {
+                AppChangelogDialog(
+                    state = appChangelog,
+                    onDismiss = { changelogOpen = false },
+                    onRetry = onRetryChangelog,
+                )
+            }
+            ModalHost(advancedOpen) {
+                AdvancedToolsDialog(state, model, onDismiss = { advancedOpen = false }, onWebPath = onWeb,
+                    onRealtime = {
+                        advancedOpen = false
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
+                        else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
+                    }, onLyria = { advancedOpen = false; lyriaOpen = true })
+            }
+            ModalHost(realtimeOpen) { RealtimeStudioDialog(state, model, onDismiss = { realtimeOpen = false }) }
+            ModalHost(lyriaOpen) { LyriaStudioDialog(state, model, onDismiss = { lyriaOpen = false }) }
+            ModalHost(richPasteOpen) {
+                RichPasteDialog(state.draft, onDismiss = { richPasteOpen = false }) { text ->
+                    model.draft(if (state.draft.isBlank()) text else state.draft.trimEnd() + "\n\n" + text)
+                }
+            }
+            ModalValueHost(if (maskOpen) maskSource else null) { uri ->
+                ImageMaskEditor(uri, onDismiss = { maskOpen = false; maskSource = null }) { bytes ->
                     model.uploadImageMask("mask_${System.currentTimeMillis()}.png", bytes)
                     maskOpen = false
                     maskSource = null
                 }
             }
-            if (attachMenu) AlertDialog(onDismissRequest = { attachMenu = false }, title = { Text("添付を追加") },
-                text = { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    DialogAction(Icons.Rounded.FolderOpen, "ファイルを選択") { attachMenu = false; picker.launch(arrayOf("*/*")) }
-                    DialogAction(Icons.Rounded.PhotoLibrary, "写真・動画を選択") { attachMenu = false; photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) }
-                    DialogAction(Icons.Rounded.PhotoCamera, "カメラで撮影") { attachMenu = false; launchCamera() }
-                    DialogAction(Icons.Rounded.FolderShared, "ライブラリから選択") { attachMenu = false; libraryOpen = true }
-                } },
-                confirmButton = { TextButton(onClick = { attachMenu = false }) { Text("閉じる") } })
-            if (threadSettings && state.selected != null) ThreadSettingsDialog(state, onDismiss = { threadSettings = false }) {
-                title, instruction, includeGlobal, temporary ->
-                model.saveThreadSettings(title, instruction, includeGlobal, temporary)
-                threadSettings = false
+            if (attachMenu) {
+                val attachSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+                // Slide the sheet away first, then run the chosen action so the motion is never cut.
+                val closeAttachMenu: (() -> Unit) -> Unit = { then ->
+                    scope.launch { attachSheet.hide() }.invokeOnCompletion {
+                        attachMenu = false
+                        then()
+                    }
+                }
+                ModalBottomSheet(onDismissRequest = { attachMenu = false }, sheetState = attachSheet) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text("添付を追加", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 12.dp, bottom = 8.dp))
+                        DialogAction(Icons.Rounded.FolderOpen, "ファイルを選択") { closeAttachMenu { picker.launch(arrayOf("*/*")) } }
+                        DialogAction(Icons.Rounded.PhotoLibrary, "写真・動画を選択") { closeAttachMenu { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) } }
+                        DialogAction(Icons.Rounded.PhotoCamera, "カメラで撮影") { closeAttachMenu { launchCamera() } }
+                        DialogAction(Icons.Rounded.FolderShared, "ライブラリから選択") { closeAttachMenu { libraryOpen = true } }
+                    }
+                }
+            }
+            ModalHost(threadSettings && state.selected != null) {
+                ThreadSettingsDialog(state, onDismiss = { threadSettings = false }) {
+                    title, instruction, includeGlobal, temporary ->
+                    model.saveThreadSettings(title, instruction, includeGlobal, temporary)
+                    threadSettings = false
+                }
             }
             deleting?.let { thread -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text("チャットを削除しますか？") },
                 text = { Text("「${thread.title}」の履歴と紐付く添付ファイルを削除します。この操作は取り消せません。") },
@@ -551,6 +602,9 @@ fun PlaygroundScreen(
         }
     }
 }
+
+/** Top-level screens swapped with a shared cross-fade. */
+private enum class PlaygroundScreenKind { Starting, Setup, Auth, Chat }
 
 @Composable
 private fun BannedScreen(

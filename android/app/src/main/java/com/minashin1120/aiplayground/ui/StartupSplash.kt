@@ -1,7 +1,5 @@
 package com.minashin1120.aiplayground.ui
 
-import android.content.Context
-import android.provider.Settings
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.tween
@@ -24,16 +22,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.minashin1120.aiplayground.R
-import kotlinx.coroutines.delay
-
-internal fun areSystemAnimationsDisabled(context: Context): Boolean =
-    runCatching {
-        Settings.Global.getFloat(
-            context.contentResolver,
-            Settings.Global.ANIMATOR_DURATION_SCALE,
-            1f,
-        ) == 0f
-    }.getOrDefault(false)
 
 @Composable
 internal fun StartupSplash(enabled: Boolean) {
@@ -42,11 +30,14 @@ internal fun StartupSplash(enabled: Boolean) {
     var visible by rememberSaveable { mutableStateOf(true) }
     if (!visible) return
 
+    // Fades the fully zoomed mark away so the app is revealed instead of cut in.
+    val fade = remember { Animatable(1f) }
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.systemBars)
-            .clipToBounds(),
+            .clipToBounds()
+            .graphicsLayer { alpha = fade.value },
     ) {
         val progress = remember { Animatable(0f) }
         val logoSize = (maxWidth * 0.20f).coerceAtLeast(1.dp)
@@ -55,7 +46,7 @@ internal fun StartupSplash(enabled: Boolean) {
         val scale = 1f + (maxScale - 1f) * zoomProgress
         LaunchedEffect(Unit) {
             progress.animateTo(1f, tween(durationMillis = 1_500, easing = EaseIn))
-            delay(50)
+            fade.animateTo(0f, tween(durationMillis = 180, easing = PlaygroundMotion.Exit))
             visible = false
         }
 

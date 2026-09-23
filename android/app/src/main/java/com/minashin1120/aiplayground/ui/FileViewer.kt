@@ -101,6 +101,7 @@ internal fun FileViewerDialog(
     val title = fileViewerTitle(request.reference, request.displayName)
     val kind = fileViewerKind(request)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        ModalPanelMotion(fullScreen = false, onDismissRequest = onDismiss) {
         Surface(
             Modifier.fillMaxWidth().fillMaxHeight(0.94f).padding(8.dp),
             shape = MaterialTheme.shapes.large,
@@ -146,6 +147,7 @@ internal fun FileViewerDialog(
                     TextButton(onClick = onDismiss) { Text("閉じる") }
                 }
             }
+        }
         }
     }
 }

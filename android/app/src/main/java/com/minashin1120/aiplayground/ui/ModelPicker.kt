@@ -45,6 +45,7 @@ internal fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Str
     }
     val colors = MaterialTheme.colorScheme
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        ModalPanelMotion(fullScreen = false, onDismissRequest = onDismiss) {
         Surface(Modifier.padding(12.dp).widthIn(max = 720.dp).fillMaxWidth().fillMaxHeight(0.9f),
             shape = RoundedCornerShape(20.dp), color = colors.surface,
             border = BorderStroke(1.dp, colors.outlineVariant)) {
@@ -94,6 +95,7 @@ internal fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Str
                     }
                 }
             }
+        }
         }
     }
 }

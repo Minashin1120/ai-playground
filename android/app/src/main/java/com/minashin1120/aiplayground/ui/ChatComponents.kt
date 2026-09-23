@@ -1,11 +1,6 @@
 package com.minashin1120.aiplayground.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -114,8 +109,8 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
             }
             AnimatedVisibility(
                 visible = details,
-                enter = expandVertically(animationSpec = tween(340)) + fadeIn(animationSpec = tween(260)),
-                exit = shrinkVertically(animationSpec = tween(340)) + fadeOut(animationSpec = tween(260)),
+                enter = expandFadeIn(LocalReduceMotion.current),
+                exit = shrinkFadeOut(LocalReduceMotion.current),
             ) {
                 selectedModel?.let { info ->
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -275,8 +270,8 @@ fun MessageCard(
                 TextButton(onClick = { thoughtExpanded = !thoughtExpanded }, colors = ButtonDefaults.textButtonColors(contentColor = if (user) colors.onPrimary else colors.primary)) { Text(if (thoughtExpanded) "思考を閉じる" else "思考を表示") }
                 AnimatedVisibility(
                     visible = thoughtExpanded,
-                    enter = expandVertically(animationSpec = tween(340)) + fadeIn(animationSpec = tween(260)),
-                    exit = shrinkVertically(animationSpec = tween(340)) + fadeOut(animationSpec = tween(260)),
+                    enter = expandFadeIn(LocalReduceMotion.current),
+                    exit = shrinkFadeOut(LocalReduceMotion.current),
                 ) {
                     SelectionContainer { Text(message.thought, style = MaterialTheme.typography.bodySmall, color = if (user) colors.onPrimary.copy(alpha = 0.78f) else colors.onSurfaceVariant) }
                 }

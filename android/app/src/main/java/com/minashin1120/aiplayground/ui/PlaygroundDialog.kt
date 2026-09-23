@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
-/** Web modal proportions with a fixed header/footer and an IME-aware native body. */
+/** Web modal proportions with a fixed header/footer, an IME-aware native body and animated open/close. */
 @Composable
 internal fun PlaygroundDialog(
     onDismissRequest: () -> Unit,
@@ -30,6 +30,7 @@ internal fun PlaygroundDialog(
             } else {
                 Modifier.imePadding().padding(12.dp).widthIn(max = 720.dp).fillMaxWidth().heightIn(max = 760.dp)
             }
+            ModalPanelMotion(fullScreen = phone, onDismissRequest = onDismissRequest) {
             Surface(panelModifier,
                 shape = RoundedCornerShape(if (phone) 0.dp else 20.dp),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
@@ -46,6 +47,7 @@ internal fun PlaygroundDialog(
                         confirmButton()
                     }
                 }
+            }
             }
         }
     }

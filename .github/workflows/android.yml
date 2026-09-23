@@ -145,3 +145,28 @@ jobs:
     uses: ./.github/workflows/release.yml
     with:
       source_sha: ${{ needs.build.outputs.sha }}
+
+  # Published APKs live on the GitHub Release, so artifacts from earlier runs only consume Actions storage.
+  prune-artifacts:
+    needs: [release]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+    steps:
+      - name: Delete artifacts from earlier runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ids=$(gh api --paginate "repos/$REPO/actions/artifacts?per_page=100" \
+            --jq ".artifacts[] | select(.expired | not) | select(.workflow_run.id != $RUN_ID) | .id")
+          count=0
+          for id in $ids; do
+            gh api -X DELETE "repos/$REPO/actions/artifacts/$id"
+            count=$((count + 1))
+          done
+          echo "Deleted $count artifacts from earlier runs."

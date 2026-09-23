@@ -42,6 +42,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -1293,7 +1294,16 @@ private fun Conversation(
         label = "chat conversation transition",
     ) { transitionId ->
         val showOutgoing = keepOutgoingUntilLoaded || transitionId != state.chatTransitionId
-        val contentState = if (showOutgoing) outgoingState ?: state else state
+        // The collector above reacts a frame late; until it does, keep what this pane last showed
+        // instead of flashing the loading thread's empty list and refilling it.
+        val lastShown = remember { arrayOfNulls<ChatState>(1) }
+        val loadingOther = state.busy && state.chatNavigationId != state.chatTransitionId
+        val contentState = when {
+            showOutgoing -> outgoingState ?: state
+            loadingOther -> lastShown[0] ?: state
+            else -> state
+        }
+        lastShown[0] = contentState
         ConversationContent(contentState, model, onFile, loader)
     }
 }
@@ -1460,11 +1470,11 @@ private fun ConversationContent(
                     }
                 }
             }
-            items(state.messages, key = { keys.keyOf(it) }) { message ->
-                val entering = remember { keys.consumeFresh(keys.keyOf(message)) }
+            itemsIndexed(state.messages, key = { row, message -> keys.keyAt(row, message) }) { row, message ->
+                val entering = remember { keys.consumeFresh(keys.keyAt(row, message)) }
                 val siblings = siblingGroup(state.allMessages, message)
                 val index = siblings.indexOfFirst { it.id == message.id }
-                Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce))) {
+                Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
                     StaggerIn(0, animate = entering) {
                         MessageCard(
                             message = message,
@@ -1482,7 +1492,7 @@ private fun ConversationContent(
             }
                 if (live) item(key = keys.liveKey) {
                     val entering = remember { keys.consumeFresh(keys.liveKey) }
-                    Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce))) {
+                    Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
                         StaggerIn(0, animate = entering) {
                             LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision)
                         }

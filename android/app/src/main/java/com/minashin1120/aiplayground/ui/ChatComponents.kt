@@ -461,7 +461,16 @@ internal class ConversationKeyTracker {
 
     val liveKey: String get() = "live-$liveSerial"
 
-    fun keyOf(message: ChatMessage): String = aliases[message.id] ?: message.id
+    private var resolved: Map<String, String> = emptyMap()
+    private var resolvedList: List<String> = emptyList()
+
+    /** Key the row was shown with in the list last passed to [update]. */
+    fun keyOf(message: ChatMessage): String = resolved[message.id] ?: aliasOf(message)
+
+    /** LazyColumn key for the row at [index] of the list last passed to [update]; unique within it. */
+    fun keyAt(index: Int, message: ChatMessage): String = resolvedList.getOrNull(index) ?: aliasOf(message)
+
+    private fun aliasOf(message: ChatMessage): String = aliases[message.id] ?: message.id
 
     /** Returns true only the first time a newly added key asks, so re-composition never replays the entry. */
     fun consumeFresh(key: String): Boolean = fresh.remove(key)
@@ -477,6 +486,27 @@ internal class ConversationKeyTracker {
         val shown = liveVisible && !liveConsumed
         if (shown && !lastLiveShown && previous != null) fresh += liveKey
         lastLiveShown = shown
+        resolvedList = uniqueKeys(messages)
+        resolved = HashMap<String, String>(messages.size).also { map ->
+            messages.forEachIndexed { index, message -> map.putIfAbsent(message.id, resolvedList[index]) }
+        }
+    }
+
+    /**
+     * A carried-over key may meet its original row again (a retried local message or a stale outgoing
+     * snapshot), and a duplicate LazyColumn key crashes; colliding rows fall back to their own ids.
+     */
+    private fun uniqueKeys(messages: List<ChatMessage>): List<String> {
+        // The list's own rows ("older", "welcome") and the streamed row share the same key space.
+        val used = hashSetOf(liveKey, "older", "welcome")
+        return messages.mapIndexed { index, message ->
+            var key = aliasOf(message)
+            if (key in used) key = message.id
+            var attempt = 0
+            while (key in used) key = "${message.id}#$index-${attempt++}"
+            used += key
+            key
+        }
     }
 
     private fun carryOver(previous: List<ChatMessage>, next: List<ChatMessage>) {

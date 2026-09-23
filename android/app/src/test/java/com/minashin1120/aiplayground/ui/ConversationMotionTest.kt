@@ -48,6 +48,31 @@ class ConversationMotionTest {
     }
 
     @Test
+    fun rowKeysStayUniqueWhenACarriedKeyMeetsItsOriginalRow() {
+        val keys = ConversationKeyTracker()
+        val local = ChatMessage("local-abc", "user", "こんにちは")
+        keys.update(history + local, streaming = false, liveVisible = false)
+        val stored = history + ChatMessage("12", "user", "こんにちは")
+        keys.update(stored, streaming = false, liveVisible = false)
+        assertEquals("local-abc", keys.keyAt(2, stored[2]))
+        // A stale snapshot or a retry can show the local row next to the stored one it handed its key to.
+        val mixed = history + local + stored[2]
+        keys.update(mixed, streaming = false, liveVisible = false)
+        val rowKeys = mixed.indices.map { keys.keyAt(it, mixed[it]) }
+        assertEquals(rowKeys.size, rowKeys.toSet().size)
+    }
+
+    @Test
+    fun duplicatedMessageIdsGetDistinctRowKeys() {
+        val keys = ConversationKeyTracker()
+        val duplicated = history + history[1]
+        keys.update(duplicated, streaming = false, liveVisible = false)
+        val rowKeys = duplicated.indices.map { keys.keyAt(it, duplicated[it]) }
+        assertEquals(rowKeys.size, rowKeys.toSet().size)
+        assertEquals("11", rowKeys[1])
+    }
+
+    @Test
     fun branchSwitchMessagesAreFresh() {
         val keys = ConversationKeyTracker()
         keys.update(history, streaming = false, liveVisible = false)

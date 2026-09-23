@@ -78,6 +78,7 @@ class MainActivity : ComponentActivity() {
         val data = intent?.data ?: return
         if (data.scheme != "https" || data.host != "ai.minashin1120.com" || data.path != "/android/auth/callback") return
         intent?.data = null
+        data.getQueryParameter("integrity_ticket")?.let { model.integrityTurnstileComplete(it); return }
         data.getQueryParameter("code")?.let { model.exchangeNativeCode(it); return }
         data.getQueryParameter("error")?.let { model.notify("外部ログインに失敗しました。($it)") }
     }

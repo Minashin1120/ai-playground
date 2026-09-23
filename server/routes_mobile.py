@@ -107,6 +107,8 @@ def mobile_config():
         'native_login_endpoint': '/api/mobile/v1/auth/login',
         'native_google_endpoint': '/api/mobile/v1/auth/google',
         'google_server_client_id': os.getenv('GOOGLE_CLIENT_ID', ''),
+        'play_integrity_cloud_project_number': os.getenv('PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER', ''),
+        'play_integrity_enabled': bool(os.getenv('PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER') and os.getenv('PLAY_INTEGRITY_SERVICE_ACCOUNT_FILE')),
         'native_totp_endpoint': '/api/mobile/v1/auth/totp',
         'native_passkey_options_endpoint': '/api/mobile/v1/auth/passkey/options',
         'native_passkey_verify_endpoint': '/api/mobile/v1/auth/passkey/verify',

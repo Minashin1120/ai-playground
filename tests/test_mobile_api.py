@@ -519,6 +519,94 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(verified.status_code, 200)
         self.assertTrue(verified.json['access_token'].startswith(target.MOBILE_TOKEN_PREFIX))
 
+    def test_integrity_verdict_and_turnstile_ticket_are_bound_and_one_time(self):
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.set_password('integrity-password')
+            target.db.session.commit()
+        path = '/api/mobile/v1/auth/login'
+        body = {'username': 'android-owner', 'password': 'integrity-password', 'device_name': 'Pixel'}
+        request_id = 'integrity-test-request-0001'
+        request_hash = target._mobile_integrity_hash(request_id, path, body)
+        verdict = {
+            'requestDetails': {'requestPackageName': 'com.minashin1120.aiplayground',
+                               'timestampMillis': int(time.time() * 1000), 'requestHash': request_hash},
+            'appIntegrity': {'packageName': 'com.minashin1120.aiplayground'},
+            'deviceIntegrity': {'deviceRecognitionVerdict': ['MEETS_DEVICE_INTEGRITY']},
+        }
+        with mock.patch.object(target, '_mobile_integrity_decode', return_value=verdict):
+            accepted = self.native.post(path, base_url='https://localhost', json={
+                **body, 'integrity_request_id': request_id, 'integrity_token': 'mock-integrity-token-value',
+            })
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(accepted.json['status'], 'ok')
+
+        risky = {**body, 'integrity_request_id': 'integrity-test-request-0002', 'integrity_token': 'mock-risk-token-value'}
+        with mock.patch.object(target, '_mobile_integrity_decode', return_value={
+            **verdict,
+            'requestDetails': {**verdict['requestDetails'], 'requestHash': 'wrong'},
+        }):
+            challenged = self.native.post(path, base_url='https://localhost', json=risky)
+        self.assertEqual(challenged.status_code, 428)
+        self.assertEqual(challenged.json['code'], 'turnstile_required')
+        for request_suffix, invalid_verdict in [
+            ('expired', {**verdict, 'requestDetails': {**verdict['requestDetails'],
+                                                       'timestampMillis': int(time.time() * 1000) - 180_000}}),
+            ('indeterminate', {**verdict, 'deviceIntegrity': {}}),
+        ]:
+            candidate = f'integrity-test-request-{request_suffix}-0001'
+            candidate_body = {**body, 'integrity_enabled': True}
+            invalid_verdict = {**invalid_verdict, 'requestDetails': {
+                **invalid_verdict['requestDetails'],
+                'requestHash': target._mobile_integrity_hash(candidate, path, candidate_body),
+            }}
+            with mock.patch.object(target, '_mobile_integrity_decode', return_value=invalid_verdict):
+                response = self.native.post(path, base_url='https://localhost', json={
+                    **candidate_body, 'integrity_request_id': candidate, 'integrity_token': 'mock-invalid-token',
+                })
+            self.assertEqual(response.status_code, 428)
+        turnstile_page = self.browser.get(challenged.json['turnstile_url'], base_url='https://localhost')
+        self.assertEqual(turnstile_page.status_code, 200)
+        csrf_token = turnstile_page.data.decode().split('name="csrf_token" value="', 1)[1].split('"', 1)[0]
+        with mock.patch.object(target, 'verify_turnstile', return_value=True):
+            verified = self.browser.post('/android/integrity/turnstile/verify', base_url='https://localhost', data={
+                'challenge': challenged.json['turnstile_url'].split('=')[-1],
+                'csrf_token': csrf_token,
+                'cf-turnstile-response': 'mock-turnstile-response',
+            })
+        self.assertEqual(verified.status_code, 303)
+        ticket = verified.location.split('integrity_ticket=', 1)[1]
+        cross_endpoint = self.native.post('/api/mobile/v1/auth/signup', base_url='https://localhost', json={
+            'username': 'turnstile-cross-endpoint', 'password': 'integrity-password',
+            'device_name': 'Pixel', 'integrity_enabled': True, 'integrity_turnstile_ticket': ticket,
+        })
+        self.assertEqual(cross_endpoint.status_code, 428)
+        resumed = self.native.post(path, base_url='https://localhost', json={
+            **body, 'integrity_request_id': risky['integrity_request_id'],
+            'integrity_token': risky['integrity_token'], 'integrity_turnstile_ticket': ticket,
+        })
+        self.assertEqual(resumed.status_code, 200)
+        self.assertEqual(resumed.json['status'], 'ok')
+        replay = self.native.post(path, base_url='https://localhost', json={
+            **body, 'integrity_enabled': True, 'integrity_turnstile_ticket': ticket,
+        })
+        self.assertEqual(replay.status_code, 428)
+        expired_challenge = challenged.json['turnstile_url'].split('=', 1)[1]
+        self.redis.delete('mobile:integrity:challenge:' + target._mobile_digest(expired_challenge))
+        expired_page = self.browser.get(challenged.json['turnstile_url'], base_url='https://localhost')
+        self.assertEqual(expired_page.status_code, 410)
+
+    def test_mobile_config_exposes_integrity_project_number_without_credentials(self):
+        with mock.patch.dict('os.environ', {
+            'PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER': '808778798504',
+            'PLAY_INTEGRITY_SERVICE_ACCOUNT_FILE': '/home/private/service-account.json',
+        }):
+            config = self.native.get('/api/mobile/v1/config', base_url='https://localhost')
+        self.assertEqual(config.status_code, 200)
+        self.assertEqual(config.json['play_integrity_cloud_project_number'], '808778798504')
+        self.assertNotIn('service_account', json.dumps(config.json).lower())
+        self.assertNotIn('/home/private', json.dumps(config.json))
+
     def test_native_google_login_uses_verified_id_token(self):
         with mock.patch.dict(target.os.environ, {'GOOGLE_CLIENT_ID': 'android-server-client'}), \
                 mock.patch.object(target.id_token, 'verify_oauth2_token', return_value={

@@ -126,7 +126,9 @@ def mobile_request_guard():
             return _mobile_error('authorization_not_allowed', 400)
         if request.method != 'POST' or not request.is_json:
             return _mobile_error('json_post_required', 415)
-        request.max_content_length = 4096
+        # Standard Integrity tokens and WebAuthn assertion payloads exceed the
+        # legacy 4 KiB native-auth limit. Bound them while allowing both fields.
+        request.max_content_length = 32 * 1024
         body = request.get_json(silent=True)
         if not isinstance(body, dict):
             return _mobile_error('invalid_request')

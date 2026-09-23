@@ -121,6 +121,8 @@ HTTPS必須。JSONはUTF-8。APIレスポンスと認証ページは `Cache-Cont
   "native_login_endpoint": "/api/mobile/v1/auth/login",
   "native_google_endpoint": "/api/mobile/v1/auth/google",
   "google_server_client_id": "<公開可能なGoogle OAuth WebクライアントID>",
+  "play_integrity_cloud_project_number": "<公開可能なGoogle Cloudプロジェクト番号>",
+  "play_integrity_enabled": true,
   "native_totp_endpoint": "/api/mobile/v1/auth/totp",
   "native_passkey_options_endpoint": "/api/mobile/v1/auth/passkey/options",
   "native_passkey_verify_endpoint": "/api/mobile/v1/auth/passkey/verify",
@@ -253,7 +255,9 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 
 アカウントZIPの取り込みはWebと同じチャンクAPIを再利用します。`start` → `chunk`（既定10MiB）→ `complete` → `import`（`upload_id` と `categories`）。`categories` は `settings,api_credentials,chats,gems,files,feedback,diagnostics`。設定が現在値と異なる場合、Androidクライアントは `settings_changes` を表示して、利用者が確認した後に `confirm_settings=true` で適用します。取り消した場合はアップロードを削除します。中間ファイルはアプリ本体の自動処理だけが作成・削除します。
 
-未実装: Play Integrityによる端末リスク信号と、判定不能・高リスク時のTurnstile自動フォールバック。外部のGoogle Cloud設定が必要なため後続対応とし、現状はIP・ユーザー単位のレート制限のみです。
+Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイントと要求内容のSHA-256 hashへ結び付けて送信します。サーバーはGoogleの`decodeIntegrityToken`で署名済み結果を検証し、パッケージ、2分以内の時刻、request hash、`MEETS_DEVICE_INTEGRITY`を確認します。サイドロードを継続できるよう、`PLAY_RECOGNIZED`と`LICENSED`は合格条件にしません。Play Integrity API・Play servicesの利用不能、判定不能、要求の不一致はログイン拒否にせずTurnstileへ誘導します。
+
+`GET /api/mobile/v1/config` は公開可能な `play_integrity_cloud_project_number` と有効状態だけを返します。サーバーは`.env`の`PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER`と`PLAY_INTEGRITY_SERVICE_ACCOUNT_FILE`を使ってtokenを復号し、鍵ファイルやパスは応答しません。Integrity tokenと認証情報はURLやログに含めません。Turnstile確認は短期・一回限りのchallenge/ticketを使い、完了後はHTTPS App Linkでアプリへ戻ります。認証要求には既存のIP・ユーザー単位レート制限も引き続き適用します。旧Android版はIntegrity用フィールドを送らなくても従来どおり利用できます。
 
 ## 4. チャット・ファイルAPI
 
@@ -780,9 +784,9 @@ configは200 JSON、未認証meは401 JSONが期待値です。テスト出力�
 | 生成中に切断 | CDN/Gunicorn/Apache/端末の待機時間、回線変更、アプリのライフサイクル |
 | 再接続後に本文が重複 | 再接続前の仮表示バッファをクリアしているか、最後にDB履歴へ置き換えているか |
 
-Turnstileの確認にはアプリ内の「Webで安全性を確認」導線を用意します。今回の専用APIは既存の確認マーカーを使い、Androidという理由で確認を免除していません。このため、Bot対策対象アカウントでは継続利用中に再確認が必要になる場合があります。Play IntegrityとTurnstileの自動フォールバックは未実装です。
+Turnstileの確認にはアプリ内の「Webで安全性を確認」導線に加え、認証要求でPlay Integrityの判定が高リスクまたは不能の場合にCustom Tabを開く一回限りの確認を用意しています。Play Integrityは補助的な端末信号で、認証拒否には使いません。Bot対策対象アカウントでは別途継続利用中の再確認が必要になる場合があります。
 
-今後の拡張候補は、Play Integrityのリスク信号とTurnstileフォールバック、refresh tokenのローテーション、端末間E2EEの新しい設計、Webと説明・価格まで共有するモデルカタログ、イベント連番による再開です。これらは実装済み機能としてクライアントへ表示しないでください。認可コード＋PKCEとHTTPS App Linksによるブラウザー認証からの復帰、パスキー、TOTP／WebAuthn 2FA、2FA・パスキー管理、アカウントZIPのチャンク取り込み（設定変更確認を含む）は実装済みです。
+今後の拡張候補は、refresh tokenのローテーション、端末間E2EEの新しい設計、Webと説明・価格まで共有するモデルカタログ、イベント連番による再開です。Play IntegrityとTurnstileの認証フォールバックは実装済みですが、Play services搭載端末での実機確認が必要です。認可コード＋PKCEとHTTPS App Linksによるブラウザー認証からの復帰、パスキー、TOTP／WebAuthn 2FA、2FA・パスキー管理、アカウントZIPのチャンク取り込み（設定変更確認を含む）も実装済みです。
 
 数式はWebのMathJaxではなくネイティブ近似で描画するため、複雑な組版では表現が異なる場合があります。メッセージの編集・再生成・分岐切替とネイティブPDF出力は実装済みです。画像の圧縮設定（最大サイズ・最大辺・形式・形式のみ変換）も実装済みで、GIFは対象外です。PDFは本文をA4へ再構成する簡易出力で、Webの印刷レイアウトとは体裁が異なります。
 

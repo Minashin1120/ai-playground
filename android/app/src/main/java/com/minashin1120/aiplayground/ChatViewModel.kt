@@ -52,6 +52,7 @@ data class ChatState(
     val authTwoFactorTransaction: String? = null, val setupRequired: Boolean = false,
     val auth2faMethod: String = "totp", val credentialRequest: CredentialRequest? = null,
     val googleLoginRequest: Long = 0L, val googleServerClientId: String = "",
+    val integrityProjectNumber: String = "", val authTurnstileUrl: String? = null,
     val googleAuthDiagnostics: String? = null,
     val security: SecurityInfo? = null, val securityBusy: Boolean = false, val securityError: String? = null,
     val securityTotpSecret: String? = null, val securityTotpUri: String? = null,
@@ -117,6 +118,8 @@ data class ChatState(
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val api = PlaygroundApi()
     private val store = TokenStore(application)
+    private val playIntegrity = PlayIntegrityClient(application)
+    private var integrityTurnstileTicket: String? = null
     private val offlineCache = OfflineCacheStore(application)
     private val prefs = application.getSharedPreferences("navigation", 0)
     private val connectivity = application.getSystemService(ConnectivityManager::class.java)
@@ -195,7 +198,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             cacheMobileDataAllowed = prefs.getBoolean("offline_cache_mobile_data", false),
         ) }
         runCatching { api.get("/api/mobile/v1/config") }.getOrNull()?.let { config ->
-            mutable.update { it.copy(googleServerClientId = config.optString("google_server_client_id")) }
+            mutable.update { it.copy(
+                googleServerClientId = config.optString("google_server_client_id"),
+                integrityProjectNumber = config.optString("play_integrity_cloud_project_number"),
+            ) }
         }
         session = withContext(Dispatchers.IO) { store.load() }
         if (session != null) {
@@ -217,6 +223,40 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     } }
     private fun token(): String = session?.token ?: throw IOException("端末連携が必要です。")
     private fun deviceName(): String = "${Build.MANUFACTURER} ${Build.MODEL}".trim().take(80)
+
+    private suspend fun authPost(path: String, body: JSONObject): JSONObject {
+        val request = JSONObject(body.toString())
+        request.put("integrity_enabled", true)
+        val ticket = integrityTurnstileTicket
+        if (ticket != null) {
+            request.put("integrity_turnstile_ticket", ticket)
+            integrityTurnstileTicket = null
+        } else {
+            val fields = playIntegrity.requestFields(path, state.value.integrityProjectNumber, request)
+            val keys = fields.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                request.put(key, fields.get(key))
+            }
+        }
+        return try {
+            api.post(path, request)
+        } catch (error: ApiException) {
+            if (error.code == "turnstile_required") {
+                val url = error.payload.optString("turnstile_url")
+                if (url.startsWith("/android/integrity/turnstile?")) {
+                    mutable.update { it.copy(authTurnstileUrl = url) }
+                }
+            }
+            throw error
+        }
+    }
+
+    fun integrityTurnstileComplete(ticket: String) {
+        if (ticket.length !in 20..128) return
+        integrityTurnstileTicket = ticket
+        mutable.update { it.copy(authTurnstileUrl = null, authError = "安全性を確認しました。認証をもう一度実行してください。") }
+    }
 
     private suspend fun acceptAuthResponse(reply: JSONObject) {
         val accessToken = reply.optString("access_token")
@@ -262,7 +302,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 authTwoFactorTransaction = null,
             ) }
             try {
-                val reply = api.post(path, JSONObject()
+                val reply = authPost(path, JSONObject()
                     .put("username", username.trim())
                     .put("password", password)
                     .put("device_name", deviceName()))
@@ -294,7 +334,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (!state.value.authBusy) return
         viewModelScope.launch {
             try {
-                processAuthResponse(api.post("/api/mobile/v1/auth/google", JSONObject()
+                processAuthResponse(authPost("/api/mobile/v1/auth/google", JSONObject()
                     .put("id_token", credential.idToken)
                     .put("nonce", credential.nonce)
                     .put("device_name", deviceName())))
@@ -320,7 +360,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             mutable.update { it.copy(authBusy = true, authError = null) }
             try {
-                acceptAuthResponse(api.post("/api/mobile/v1/auth/totp", JSONObject()
+                acceptAuthResponse(authPost("/api/mobile/v1/auth/totp", JSONObject()
                     .put("transaction_id", transaction)
                     .put("code", code)
                     .put("device_name", deviceName())))
@@ -337,7 +377,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             mutable.update { it.copy(authBusy = true, authError = null) }
             try {
-                val reply = api.post("/api/mobile/v1/auth/exchange", JSONObject().put("code", code))
+                val reply = authPost("/api/mobile/v1/auth/exchange", JSONObject().put("code", code))
                 processAuthResponse(reply)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
@@ -352,7 +392,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             mutable.update { it.copy(authBusy = true, authError = null, credentialRequest = null) }
             try {
-                val reply = api.post("/api/mobile/v1/auth/passkey/options", JSONObject()
+                val reply = authPost("/api/mobile/v1/auth/passkey/options", JSONObject()
                     .put("username", username.trim())
                     .put("device_name", deviceName()))
                 mutable.update { it.copy(
@@ -374,7 +414,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             mutable.update { it.copy(authBusy = true, authError = null, credentialRequest = null) }
             try {
-                val reply = api.post("/api/mobile/v1/auth/2fa/webauthn/options",
+                val reply = authPost("/api/mobile/v1/auth/2fa/webauthn/options",
                     JSONObject().put("transaction_id", transaction))
                 mutable.update { it.copy(
                     authBusy = false,
@@ -415,10 +455,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val credential = JSONObject(responseJson)
                 when (request.kind) {
-                    "login" -> acceptAuthResponse(api.post("/api/mobile/v1/auth/passkey/verify", JSONObject()
+                    "login" -> acceptAuthResponse(authPost("/api/mobile/v1/auth/passkey/verify", JSONObject()
                         .put("transaction_id", request.transactionId)
                         .put("credential", credential)))
-                    "2fa" -> acceptAuthResponse(api.post("/api/mobile/v1/auth/2fa/webauthn/verify", JSONObject()
+                    "2fa" -> acceptAuthResponse(authPost("/api/mobile/v1/auth/2fa/webauthn/verify", JSONObject()
                         .put("transaction_id", request.transactionId)
                         .put("credential", credential)))
                     "register" -> {

@@ -778,6 +778,9 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
     var totp by rememberSaveable { mutableStateOf("") }
     val clipboard = LocalClipboardManager.current
     val colors = MaterialTheme.colorScheme
+    LaunchedEffect(state.authTurnstileUrl) {
+        state.authTurnstileUrl?.let { path -> onWeb(path) }
+    }
     if (state.pairing) {
         PairingScreen(state, model, onWeb)
         return

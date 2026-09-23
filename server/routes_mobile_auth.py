@@ -22,6 +22,150 @@ _MOBILE_SETUP_SECRET_FIELDS = {
     'gemini_vertex_credentials_json': 'gemini_vertex_credentials_json',
 }
 
+_MOBILE_INTEGRITY_PACKAGE = 'com.minashin1120.aiplayground'
+_MOBILE_INTEGRITY_TTL_MS = 2 * 60 * 1000
+
+
+def _mobile_integrity_hash(request_id, endpoint, body):
+    relevant = {key: value for key, value in body.items()
+                if key not in {'integrity_token', 'integrity_request_id', 'integrity_turnstile_ticket'}}
+    canonical_body = json.dumps(relevant, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
+    body_hash = base64.urlsafe_b64encode(hashlib.sha256(canonical_body.encode('utf-8')).digest()).rstrip(b'=').decode('ascii')
+    value = f'official-android\nPOST\n{endpoint}\n{request_id}\n{body_hash}'.encode('utf-8')
+    return base64.urlsafe_b64encode(hashlib.sha256(value).digest()).rstrip(b'=').decode('ascii')
+
+
+def _mobile_integrity_turnstile_url(challenge):
+    return '/android/integrity/turnstile?challenge=' + quote(challenge)
+
+
+def _mobile_integrity_consume_challenge(key):
+    try:
+        return redis_conn.getdel(key)
+    except AttributeError:
+        return redis_conn.eval("local value=redis.call('GET',KEYS[1]); if value then redis.call('DEL',KEYS[1]); end; return value", 1, key)
+
+
+def _mobile_integrity_consume_ticket(key, endpoint):
+    script = "local value=redis.call('GET',KEYS[1]); if value == ARGV[1] then redis.call('DEL',KEYS[1]); return 1; end; return 0"
+    return bool(redis_conn.eval(script, 1, key, endpoint))
+
+
+def _mobile_integrity_decode(token):
+    key_file = os.getenv('PLAY_INTEGRITY_SERVICE_ACCOUNT_FILE', '').strip()
+    project_number = os.getenv('PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER', '').strip()
+    if not key_file or not project_number or not os.path.isfile(key_file):
+        raise RuntimeError('Play Integrity server verification is not configured')
+    credentials = service_account.Credentials.from_service_account_file(
+        key_file, scopes=['https://www.googleapis.com/auth/playintegrity']
+    )
+    credentials.refresh(google_requests.Request())
+    response = requests.post(
+        f'https://playintegrity.googleapis.com/v1/{_MOBILE_INTEGRITY_PACKAGE}:decodeIntegrityToken',
+        headers={'Authorization': 'Bearer ' + credentials.token},
+        json={'integrity_token': token}, timeout=8,
+    )
+    response.raise_for_status()
+    return response.json().get('tokenPayloadExternal') or {}
+
+
+def _mobile_integrity_gate(body, endpoint):
+    """Return a JSON gate response when an enabled native client needs Turnstile.
+
+    Requests from already shipped clients without Integrity fields remain valid.
+    """
+    ticket = body.get('integrity_turnstile_ticket')
+    if isinstance(ticket, str) and 20 <= len(ticket) <= 128:
+        key = 'mobile:integrity:turnstile:' + _mobile_digest(ticket)
+        if _mobile_integrity_consume_ticket(key, endpoint):
+            body['_integrity_turnstile_passed'] = True
+            return None
+    token = body.get('integrity_token')
+    request_id = body.get('integrity_request_id')
+    if not token and not request_id and body.get('integrity_enabled') is not True:
+        return None
+    window, threshold = (3600, 6) if endpoint.endswith('/signup') else (300, 12)
+    if endpoint.endswith('/totp') or '/2fa/' in endpoint:
+        window, threshold = 300, 8
+    attempt_key = 'mobile:integrity:attempt:' + _mobile_digest(
+        endpoint + ':' + (get_client_ip() or request.remote_addr or 'unknown')
+    )
+    attempts = redis_conn.incr(attempt_key)
+    if attempts == 1:
+        redis_conn.expire(attempt_key, window)
+    concentrated = attempts > threshold
+    risk = True
+    if isinstance(token, str) and 20 <= len(token) <= 20_000 and isinstance(request_id, str) and re.fullmatch(r'[A-Za-z0-9_-]{20,80}', request_id):
+        try:
+            request_key = 'mobile:integrity:req:' + _mobile_digest(request_id)
+            if not redis_conn.set(request_key, '1', ex=300, nx=True):
+                risk = True
+            else:
+                payload = _mobile_integrity_decode(token)
+                details = payload.get('requestDetails') or {}
+                app = payload.get('appIntegrity') or {}
+                device = payload.get('deviceIntegrity') or {}
+                expected_hash = _mobile_integrity_hash(request_id, endpoint, body)
+                package_ok = details.get('requestPackageName') == _MOBILE_INTEGRITY_PACKAGE
+                hash_ok = secrets.compare_digest(str(details.get('requestHash') or ''), expected_hash)
+                try:
+                    timestamp_ok = abs(int(details.get('timestampMillis')) - int(time.time() * 1000)) <= _MOBILE_INTEGRITY_TTL_MS
+                except (TypeError, ValueError):
+                    timestamp_ok = False
+                app_package_ok = app.get('packageName') == _MOBILE_INTEGRITY_PACKAGE
+                verdicts = set(device.get('deviceRecognitionVerdict') or [])
+                # Sideloaded builds intentionally do not require PLAY_RECOGNIZED or LICENSED.
+                risk = concentrated or not (package_ok and app_package_ok and hash_ok and timestamp_ok and 'MEETS_DEVICE_INTEGRITY' in verdicts)
+        except Exception:
+            logger.info('Play Integrity unavailable or invalid for native auth endpoint %s', endpoint)
+            risk = True
+    if not risk:
+        return None
+    challenge = secrets.token_urlsafe(32)
+    redis_conn.set('mobile:integrity:challenge:' + _mobile_digest(challenge), endpoint, ex=300, nx=True)
+    return jsonify({'code': 'turnstile_required', 'error': 'turnstile_required',
+                    'turnstile_url': _mobile_integrity_turnstile_url(challenge), 'expires_in': 300}), 428
+
+
+@app.route('/android/integrity/turnstile', methods=['GET'])
+def mobile_integrity_turnstile():
+    challenge = request.args.get('challenge', '')
+    key = 'mobile:integrity:challenge:' + _mobile_digest(challenge)
+    if not re.fullmatch(r'[A-Za-z0-9_-]{40,60}', challenge) or not redis_conn.get(key):
+        return '確認リンクの期限が切れました。アプリからやり直してください。', 410
+    site_key = html.escape(os.getenv('TURNSTILE_SITE_KEY', ''), quote=True)
+    csrf_token = html.escape(get_csrf_token(), quote=True)
+    action = '/android/integrity/turnstile/verify'
+    return Response(f'''<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>安全性の確認</title>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<h1>安全性の確認</h1><p>確認後、AI Playgroundへ戻ります。</p><form method="post" action="{action}">
+<input type="hidden" name="csrf_token" value="{csrf_token}"><input type="hidden" name="challenge" value="{html.escape(challenge, quote=True)}"><div class="cf-turnstile" data-sitekey="{site_key}"></div>
+<button type="submit">続行</button></form>''', mimetype='text/html', headers={'Cache-Control': 'no-store'})
+
+
+@app.route('/android/integrity/turnstile/verify', methods=['POST'])
+def mobile_integrity_turnstile_verify():
+    challenge = request.form.get('challenge', '')
+    challenge_key = 'mobile:integrity:challenge:' + _mobile_digest(challenge)
+    if not re.fullmatch(r'[A-Za-z0-9_-]{40,60}', challenge) or not redis_conn.get(challenge_key):
+        return '確認リンクの期限が切れました。アプリからやり直してください。', 410
+    if not verify_turnstile(request.form.get('cf-turnstile-response')):
+        return '安全性を確認できませんでした。アプリに戻って再試行してください。', 403
+    challenge_action = _mobile_integrity_consume_challenge(challenge_key)
+    if not challenge_action:
+        return '確認リンクの期限が切れました。アプリからやり直してください。', 410
+    challenge_action = challenge_action.decode('utf-8') if isinstance(challenge_action, bytes) else str(challenge_action)
+    if challenge_action not in {
+        '/api/mobile/v1/auth/signup', '/api/mobile/v1/auth/login', '/api/mobile/v1/auth/google',
+        '/api/mobile/v1/auth/totp', '/api/mobile/v1/auth/exchange',
+        '/api/mobile/v1/auth/passkey/options', '/api/mobile/v1/auth/passkey/verify',
+        '/api/mobile/v1/auth/2fa/webauthn/options', '/api/mobile/v1/auth/2fa/webauthn/verify',
+    }:
+        return '確認リンクの期限が切れました。アプリからやり直してください。', 410
+    ticket = secrets.token_urlsafe(32)
+    redis_conn.set('mobile:integrity:turnstile:' + _mobile_digest(ticket), challenge_action, ex=300, nx=True)
+    return redirect('https://ai.minashin1120.com/android/auth/callback?integrity_ticket=' + quote(ticket), code=303)
+
 
 def _mobile_auth_tx_key(transaction_id):
     return 'mobile:auth:tx:' + _mobile_digest(str(transaction_id))
@@ -141,9 +285,11 @@ def _mobile_lookup_credentials(body):
 
 @app.route('/api/mobile/v1/auth/signup', methods=['POST'])
 def mobile_auth_signup():
+    body = request.get_json(silent=True) or {}
+    gate = _mobile_integrity_gate(body, '/api/mobile/v1/auth/signup')
+    if gate: return gate
     if not _mobile_native_rate_limit('signup', 10, 3600):
         return _mobile_error('rate_limited', 429, 600)
-    body = request.get_json(silent=True) or {}
     username = str(body.get('username') or '').replace('\x00', '').strip()
     password = str(body.get('password') or '')
     device_name = _mobile_validate_device_name(body.get('device_name'))
@@ -169,9 +315,11 @@ def mobile_auth_signup():
 
 @app.route('/api/mobile/v1/auth/login', methods=['POST'])
 def mobile_auth_login():
+    body = request.get_json(silent=True) or {}
+    gate = _mobile_integrity_gate(body, '/api/mobile/v1/auth/login')
+    if gate: return gate
     if not _mobile_native_rate_limit('login', 20, 300):
         return _mobile_error('rate_limited', 429, 300)
-    body = request.get_json(silent=True) or {}
     username, password = _mobile_lookup_credentials(body)
     device_name = _mobile_validate_device_name(body.get('device_name'))
     if not username or not password or device_name is None:
@@ -194,9 +342,11 @@ def mobile_auth_login():
 
 @app.route('/api/mobile/v1/auth/google', methods=['POST'])
 def mobile_auth_google():
+    body = request.get_json(silent=True) or {}
+    gate = _mobile_integrity_gate(body, '/api/mobile/v1/auth/google')
+    if gate: return gate
     if not _mobile_native_rate_limit('google', 20, 300):
         return _mobile_error('rate_limited', 429, 300)
-    body = request.get_json(silent=True) or {}
     credential = body.get('id_token')
     request_nonce = body.get('nonce')
     device_name = _mobile_validate_device_name(body.get('device_name'))
@@ -236,9 +386,11 @@ def mobile_auth_google():
 
 @app.route('/api/mobile/v1/auth/totp', methods=['POST'])
 def mobile_auth_totp():
+    body = request.get_json(silent=True) or {}
+    gate = _mobile_integrity_gate(body, '/api/mobile/v1/auth/totp')
+    if gate: return gate
     if not _mobile_native_rate_limit('totp', 20, 300):
         return _mobile_error('rate_limited', 429, 300)
-    body = request.get_json(silent=True) or {}
     transaction_id = str(body.get('transaction_id') or '')
     code = re.sub(r'\s+', '', str(body.get('code') or ''))
     user, payload = _mobile_auth_transaction_user(transaction_id)
@@ -259,9 +411,11 @@ def mobile_auth_totp():
 
 @app.route('/api/mobile/v1/auth/exchange', methods=['POST'])
 def mobile_auth_exchange():
+    body = request.get_json(silent=True) or {}
+    gate = _mobile_integrity_gate(body, '/api/mobile/v1/auth/exchange')
+    if gate: return gate
     if not _mobile_native_rate_limit('exchange', 30, 300):
         return _mobile_error('rate_limited', 429, 300)
-    body = request.get_json(silent=True) or {}
     code = str(body.get('code') or '')
     if not re.fullmatch(r'[A-Za-z0-9_-]{43}', code):
         return _mobile_error('invalid_auth_code', 401)
@@ -476,9 +630,11 @@ def _mobile_webauthn_credentials_payload(user):
 
 @app.route('/api/mobile/v1/auth/passkey/options', methods=['POST'])
 def mobile_auth_passkey_options():
+    body = request.get_json(silent=True) or {}
+    gate = _mobile_integrity_gate(body, '/api/mobile/v1/auth/passkey/options')
+    if gate: return gate
     if not _mobile_native_rate_limit('passkey', 20, 300):
         return _mobile_error('rate_limited', 429, 300)
-    body = request.get_json(silent=True) or {}
     username = str(body.get('username') or '').replace('\x00', '').strip()
     device_name = _mobile_validate_device_name(body.get('device_name'))
     if device_name is None:
@@ -517,9 +673,11 @@ def mobile_auth_passkey_options():
 
 @app.route('/api/mobile/v1/auth/passkey/verify', methods=['POST'])
 def mobile_auth_passkey_verify():
+    body = request.get_json(silent=True) or {}
+    gate = _mobile_integrity_gate(body, '/api/mobile/v1/auth/passkey/verify')
+    if gate: return gate
     if not _mobile_native_rate_limit('passkey_verify', 30, 300):
         return _mobile_error('rate_limited', 429, 300)
-    body = request.get_json(silent=True) or {}
     payload, transaction_id = _mobile_passkey_transaction(body.get('transaction_id'))
     credential = body.get('credential')
     if not payload or not isinstance(credential, dict):
@@ -557,9 +715,11 @@ def mobile_auth_passkey_verify():
 
 @app.route('/api/mobile/v1/auth/2fa/webauthn/options', methods=['POST'])
 def mobile_auth_2fa_webauthn_options():
+    body = request.get_json(silent=True) or {}
+    gate = _mobile_integrity_gate(body, '/api/mobile/v1/auth/2fa/webauthn/options')
+    if gate: return gate
     if not _mobile_native_rate_limit('2fa_webauthn', 30, 300):
         return _mobile_error('rate_limited', 429, 300)
-    body = request.get_json(silent=True) or {}
     user, payload = _mobile_auth_transaction_user(body.get('transaction_id'))
     if not user or not payload:
         return _mobile_error('invalid_2fa', 401)
@@ -587,9 +747,11 @@ def mobile_auth_2fa_webauthn_options():
 
 @app.route('/api/mobile/v1/auth/2fa/webauthn/verify', methods=['POST'])
 def mobile_auth_2fa_webauthn_verify():
+    body = request.get_json(silent=True) or {}
+    gate = _mobile_integrity_gate(body, '/api/mobile/v1/auth/2fa/webauthn/verify')
+    if gate: return gate
     if not _mobile_native_rate_limit('2fa_webauthn_verify', 30, 300):
         return _mobile_error('rate_limited', 429, 300)
-    body = request.get_json(silent=True) or {}
     transaction_id = str(body.get('transaction_id') or '')
     credential = body.get('credential')
     user, payload = _mobile_auth_transaction_user(transaction_id)

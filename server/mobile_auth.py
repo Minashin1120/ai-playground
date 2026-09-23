@@ -58,6 +58,12 @@ MOBILE_SETUP_ENDPOINTS = {
     'start_account_import_upload', 'account_import_upload_chunk', 'complete_account_import_upload',
     'cancel_account_import_upload', 'import_account_data',
 }
+# Account archives stay on Web once setup is complete; the native bearer may
+# only import during first-run setup.
+MOBILE_FIRST_RUN_ONLY_ENDPOINTS = {
+    'start_account_import_upload', 'account_import_upload_chunk', 'complete_account_import_upload',
+    'cancel_account_import_upload', 'import_account_data',
+}
 
 
 def _mobile_digest(value):
@@ -144,6 +150,8 @@ def mobile_request_guard():
             return _mobile_error('invalid_token', 401)
         if not current_user.is_setup_completed and endpoint not in MOBILE_SETUP_ENDPOINTS and endpoint != 'mobile_revoke':
             return _mobile_error('setup_required', 403)
+        if current_user.is_setup_completed and endpoint in MOBILE_FIRST_RUN_ONLY_ENDPOINTS:
+            return _mobile_error('setup_already_completed', 403)
     elif endpoint in MOBILE_ENDPOINT_METHODS:
         return _mobile_error('invalid_token', 401)
 

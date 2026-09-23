@@ -21,6 +21,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/BubbleNotifications.kt` | ユーザー操作で作成するチャットバブル通知と会話ショートカット | Androidバブル・通知・ショートカットを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTP、NDJSON、APIモデル、Keystore保存、Credential Managerのパスキー手順（`PasskeyClient.kt`） | 認証・通信・保存 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/PlayIntegrityClient.kt` | Play Integrity Standard APIの事前準備・要求内容に結び付いた認証token取得 | Android認証の端末リスク信号 |
+| `app/src/main/java/com/minashin1120/aiplayground/data/BrowserLoginPkce.kt` | ブラウザー経由ログインのPKCE（S256）verifier・challenge生成 | Google・MinashinのApp Link復帰を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `ChatComponents.kt` | Compose画面、履歴ドロワー／タブレット2ペイン、メッセージ操作、状態カード、入力欄 | 画面構造と操作を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/StartupSplash.kt`, `app/src/main/res/drawable/ic_playground_mark.xml` | 起動時のロゴズーム・画面リビールとアクセシビリティ対応 | 起動アニメーション・ロゴ素材を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsDialog.kt` | Web設定タブ相当のネイティブ設定（検索、一般／プロンプト／表示／データ／フィードバック／MCP／圧縮／セッション、秘密項目のWeb導線） | 設定画面を編集するとき |

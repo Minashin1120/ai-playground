@@ -70,9 +70,10 @@ def _mobile_integrity_decode(token):
 
 
 def _mobile_integrity_gate(body, endpoint):
-    """Return a JSON gate response when an enabled native client needs Turnstile.
+    """Return a JSON gate response when a native client needs Turnstile.
 
-    Requests from already shipped clients without Integrity fields remain valid.
+    Omitting the Integrity fields is treated as an unverifiable device, the same
+    as Web login/signup which always require Turnstile.
     """
     ticket = body.get('integrity_turnstile_ticket')
     if isinstance(ticket, str) and 20 <= len(ticket) <= 128:
@@ -82,8 +83,6 @@ def _mobile_integrity_gate(body, endpoint):
             return None
     token = body.get('integrity_token')
     request_id = body.get('integrity_request_id')
-    if not token and not request_id and body.get('integrity_enabled') is not True:
-        return None
     window, threshold = (3600, 6) if endpoint.endswith('/signup') else (300, 12)
     if endpoint.endswith('/totp') or '/2fa/' in endpoint:
         window, threshold = 300, 8
@@ -113,9 +112,13 @@ def _mobile_integrity_gate(body, endpoint):
                 except (TypeError, ValueError):
                     timestamp_ok = False
                 app_package_ok = app.get('packageName') == _MOBILE_INTEGRITY_PACKAGE
+                # A repackaged build keeps the package name but not the signing certificate.
+                expected_certs = _mobile_android_cert_digests()
+                cert_ok = any(_mobile_sha256_bytes(value) in expected_certs
+                              for value in app.get('certificateSha256Digest') or [])
                 verdicts = set(device.get('deviceRecognitionVerdict') or [])
                 # Sideloaded builds intentionally do not require PLAY_RECOGNIZED or LICENSED.
-                risk = concentrated or not (package_ok and app_package_ok and hash_ok and timestamp_ok and 'MEETS_DEVICE_INTEGRITY' in verdicts)
+                risk = concentrated or not (package_ok and app_package_ok and cert_ok and hash_ok and timestamp_ok and 'MEETS_DEVICE_INTEGRITY' in verdicts)
         except Exception:
             logger.info('Play Integrity unavailable or invalid for native auth endpoint %s', endpoint)
             risk = True
@@ -212,14 +215,38 @@ def _mobile_consume_native_code(code):
         return raw
 
 
-def _mobile_native_auth_code(user, device_name, provider=None):
+def _mobile_native_auth_code(user, device_name, provider=None, code_challenge=None):
     code = secrets.token_urlsafe(32)
     redis_conn.set(
         _mobile_native_code_key(code),
-        json.dumps({'user_id': user.id, 'device_name': device_name, 'provider': provider}),
+        json.dumps({'user_id': user.id, 'device_name': device_name, 'provider': provider,
+                    'code_challenge': code_challenge}),
         ex=_MOBILE_NATIVE_CODE_TTL,
     )
     return code
+
+
+def _mobile_native_code_challenge(args):
+    """PKCE (S256) challenge sent by the app when it opens a browser login."""
+    challenge = str(args.get('code_challenge') or '')
+    if args.get('code_challenge_method', 'S256') != 'S256' or not re.fullmatch(r'[A-Za-z0-9_-]{43}', challenge):
+        return None
+    return challenge
+
+
+def _mobile_native_code_verified(payload, verifier):
+    """Bind the App Link code to the app that started the browser login.
+
+    Codes minted without a challenge are accepted only from clients that send no
+    verifier (Android 1.13.67), so they cannot be injected into newer clients.
+    """
+    challenge = payload.get('code_challenge')
+    if not challenge and verifier is None:
+        return True
+    if not challenge or not isinstance(verifier, str) or not re.fullmatch(r'[A-Za-z0-9._~-]{43,128}', verifier):
+        return False
+    computed = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode('ascii')).digest()).rstrip(b'=').decode('ascii')
+    return secrets.compare_digest(computed, str(challenge))
 
 
 def _mobile_native_redirect(code=None, error=None):
@@ -428,7 +455,7 @@ def mobile_auth_exchange():
     except (TypeError, ValueError, json.JSONDecodeError):
         user = None
         payload = {}
-    if not user:
+    if not user or not _mobile_native_code_verified(payload, body.get('code_verifier')):
         return _mobile_error('invalid_auth_code', 401)
     device_name = _mobile_native_device_name(payload.get('device_name'))
     provider = payload.get('provider')
@@ -453,6 +480,7 @@ def mobile_auth_callback():
 def mobile_google_start():
     session['mobile_native_google'] = True
     session['mobile_native_device_name'] = _mobile_native_device_name(request.args.get('device_name'))
+    session['mobile_native_code_challenge'] = _mobile_native_code_challenge(request.args)
     redirect_uri = url_for('mobile_google_callback', _external=True, _scheme='https')
     return oauth.google.authorize_redirect(redirect_uri)
 
@@ -460,6 +488,7 @@ def mobile_google_start():
 @app.route('/android/auth/google/callback', methods=['GET'])
 def mobile_google_callback():
     device_name = _mobile_native_device_name(session.pop('mobile_native_device_name', None))
+    code_challenge = session.pop('mobile_native_code_challenge', None)
     session.pop('mobile_native_google', None)
     try:
         token = oauth.google.authorize_access_token()
@@ -474,8 +503,8 @@ def mobile_google_callback():
         if user.is_2fa_enabled and not user.skip_2fa_on_google_login:
             # The one-time code is exchanged by the app into its TOTP transaction;
             # no account identifier or session token is placed in the URL.
-            return _mobile_native_redirect(code=_mobile_native_auth_code(user, device_name, 'google'))
-        return _mobile_native_redirect(code=_mobile_native_auth_code(user, device_name, 'google'))
+            return _mobile_native_redirect(code=_mobile_native_auth_code(user, device_name, 'google', code_challenge))
+        return _mobile_native_redirect(code=_mobile_native_auth_code(user, device_name, 'google', code_challenge))
     except Exception:
         logger.exception('Native Google login callback failed')
         return _mobile_native_redirect(error='google_login_failed')
@@ -485,12 +514,14 @@ def mobile_google_callback():
 def mobile_minashin_start():
     session['mobile_native_auth'] = True
     session['mobile_native_device_name'] = _mobile_native_device_name(request.args.get('device_name'))
+    session['mobile_native_code_challenge'] = _mobile_native_code_challenge(request.args)
     # Reuse the existing PKCE generator and central-account authorization URL.
     return login_minashin()
 
 
 def _mobile_minashin_callback_native():
     device_name = _mobile_native_device_name(session.pop('mobile_native_device_name', None))
+    code_challenge = session.pop('mobile_native_code_challenge', None)
     session.pop('mobile_native_auth', None)
     try:
         code = request.args.get('code')
@@ -527,7 +558,7 @@ def _mobile_minashin_callback_native():
         if user_data.get('email_verified') is False or str(user_data.get('email_verified')) == 'False':
             email = ''
         user = _resolve_or_create_minashin_user(sub, email, user_data)
-        return _mobile_native_redirect(code=_mobile_native_auth_code(user, device_name, 'minashin'))
+        return _mobile_native_redirect(code=_mobile_native_auth_code(user, device_name, 'minashin', code_challenge))
     except Exception:
         logger.exception('Native Minashin login callback failed')
         return _mobile_native_redirect(error='minashin_login_failed')
@@ -595,14 +626,31 @@ def _mobile_android_origins():
     configured value. When nothing is configured no Android origin is allowed
     and only the web origin can complete a passkey ceremony.
     """
-    origins = []
+    return ['android:apk-key-hash:' + base64.urlsafe_b64encode(digest).decode('ascii').rstrip('=')
+            for digest in _mobile_android_cert_digests()]
+
+
+def _mobile_sha256_bytes(value):
+    """Decode a certificate SHA-256 given as hex (colons allowed) or base64/base64url."""
+    text = str(value or '').strip()
+    digest_hex = text.replace(':', '')
+    if re.fullmatch(r'[0-9a-fA-F]{64}', digest_hex):
+        return bytes.fromhex(digest_hex)
+    try:
+        raw = base64.urlsafe_b64decode(text.replace('+', '-').replace('/', '_') + '=' * (-len(text) % 4))
+    except ValueError:
+        return None
+    return raw if len(raw) == 32 else None
+
+
+def _mobile_android_cert_digests():
+    """Official signing certificate digests configured for App Links."""
+    digests = []
     for raw in (os.getenv('ANDROID_APP_LINK_SHA256') or '').split(','):
         digest_hex = raw.strip().replace(':', '')
-        if not re.fullmatch(r'[0-9a-fA-F]{64}', digest_hex):
-            continue
-        encoded = base64.urlsafe_b64encode(bytes.fromhex(digest_hex)).decode('ascii').rstrip('=')
-        origins.append('android:apk-key-hash:' + encoded)
-    return origins
+        if re.fullmatch(r'[0-9a-fA-F]{64}', digest_hex):
+            digests.append(bytes.fromhex(digest_hex))
+    return digests
 
 
 def _mobile_expected_origins():
@@ -641,7 +689,9 @@ def mobile_auth_passkey_options():
         return _mobile_error('invalid_device_name')
     user = User.query.filter_by(username=username).first() if username else None
     creds = _load_user_webauthn_credentials(user) if user else []
-    if not user or not creds:
+    # Like Web, a passkey is a sole login factor only after passkey-only login
+    # is enabled; otherwise it remains a second factor after the password.
+    if not user or not creds or not user.passkey_only_login:
         # Do not reveal whether the account exists or has passkeys.
         return _mobile_error('passkey_unavailable', 401)
     if not rate_limit(f'rl:mobile:passkey:user:{user.id}', 10, 300):
@@ -683,7 +733,7 @@ def mobile_auth_passkey_verify():
     if not payload or not isinstance(credential, dict):
         return _mobile_error('invalid_passkey', 401)
     user = db.session.get(User, int(payload.get('user_id') or 0))
-    if not user:
+    if not user or not user.passkey_only_login:
         return _mobile_error('invalid_passkey', 401)
     if not rate_limit(f'rl:mobile:passkey:user:{user.id}', 10, 300):
         return _mobile_error('rate_limited', 429, 300)
@@ -954,6 +1004,10 @@ def mobile_security_preferences():
 def mobile_setup():
     if request.method == 'GET':
         return jsonify(_mobile_setup_payload(current_user))
+    if current_user.is_setup_completed:
+        # Like Web /setup, first-run values never overwrite a configured account
+        # (enable_e2ee here would bypass the encryption migration).
+        return _mobile_error('setup_already_completed', 409)
     body = request.get_json(silent=True) or {}
     if not isinstance(body, dict):
         return _mobile_error('invalid_request')

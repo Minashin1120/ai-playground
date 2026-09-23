@@ -104,6 +104,12 @@ class MobileApiTests(unittest.TestCase):
         return self.native.open(path, method=method, base_url='https://localhost',
                                 headers={'Authorization': 'Bearer ' + token}, **kwargs)
 
+    def pass_integrity_gate(self):
+        # The Integrity/Turnstile gate itself is covered by the integrity tests.
+        patcher = mock.patch.object(target, '_mobile_integrity_gate', return_value=None)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_pairing_token_hash_scope_and_revocation(self):
         token = self.token()
         response = self.call('/api/mobile/v1/me', token)
@@ -472,6 +478,7 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(self.native.post('/api/mobile/v1/device', base_url='https://localhost', data='{}').status_code, 415)
 
     def test_native_signup_setup_login_and_totp(self):
+        self.pass_integrity_gate()
         signup = self.native.post('/api/mobile/v1/auth/signup', base_url='https://localhost', json={
             'username': 'native-new-user', 'password': 'correct-horse-battery', 'device_name': 'Pixel test',
         })
@@ -491,6 +498,12 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(completed.status_code, 200)
         self.assertEqual(completed.json['status'], 'ok')
         self.assertEqual(self.call('/api/mobile/v1/me', token).status_code, 200)
+        # First-run values cannot be replayed onto the configured account.
+        repeated = self.call('/api/mobile/v1/setup', token, 'PUT', json={'default_model': model, 'enable_e2ee': False})
+        self.assertEqual(repeated.status_code, 409)
+        self.assertEqual(repeated.json['error'], 'setup_already_completed')
+        with target.app.app_context():
+            self.assertTrue(target.User.query.filter_by(username='native-new-user').one().enable_e2ee)
 
         with target.app.app_context():
             password_user = target.User(username='native-password', is_setup_completed=True)
@@ -526,14 +539,37 @@ class MobileApiTests(unittest.TestCase):
             target.db.session.commit()
         path = '/api/mobile/v1/auth/login'
         body = {'username': 'android-owner', 'password': 'integrity-password', 'device_name': 'Pixel'}
+        # Omitting every Integrity field must not skip the gate.
+        omitted = self.native.post(path, base_url='https://localhost', json=body)
+        self.assertEqual(omitted.status_code, 428)
+        self.assertEqual(omitted.json['code'], 'turnstile_required')
+        official_cert = bytes(range(32))
+        env = mock.patch.dict(target.os.environ, {'ANDROID_APP_LINK_SHA256': ':'.join(f'{b:02X}' for b in official_cert)})
+        env.start()
+        self.addCleanup(env.stop)
         request_id = 'integrity-test-request-0001'
         request_hash = target._mobile_integrity_hash(request_id, path, body)
         verdict = {
             'requestDetails': {'requestPackageName': 'com.minashin1120.aiplayground',
                                'timestampMillis': int(time.time() * 1000), 'requestHash': request_hash},
-            'appIntegrity': {'packageName': 'com.minashin1120.aiplayground'},
+            'appIntegrity': {'packageName': 'com.minashin1120.aiplayground',
+                             'certificateSha256Digest': [target.base64.urlsafe_b64encode(official_cert).decode().rstrip('=')]},
             'deviceIntegrity': {'deviceRecognitionVerdict': ['MEETS_DEVICE_INTEGRITY']},
         }
+        # A repackaged build keeps the package name but carries another certificate.
+        repackaged_id = 'integrity-test-request-repackaged'
+        repackaged = {
+            **verdict,
+            'requestDetails': {**verdict['requestDetails'],
+                               'requestHash': target._mobile_integrity_hash(repackaged_id, path, body)},
+            'appIntegrity': {**verdict['appIntegrity'],
+                             'certificateSha256Digest': [target.base64.urlsafe_b64encode(bytes(32)).decode()]},
+        }
+        with mock.patch.object(target, '_mobile_integrity_decode', return_value=repackaged):
+            rejected = self.native.post(path, base_url='https://localhost', json={
+                **body, 'integrity_request_id': repackaged_id, 'integrity_token': 'mock-repackaged-token',
+            })
+        self.assertEqual(rejected.status_code, 428)
         with mock.patch.object(target, '_mobile_integrity_decode', return_value=verdict):
             accepted = self.native.post(path, base_url='https://localhost', json={
                 **body, 'integrity_request_id': request_id, 'integrity_token': 'mock-integrity-token-value',
@@ -608,6 +644,7 @@ class MobileApiTests(unittest.TestCase):
         self.assertNotIn('/home/private', json.dumps(config.json))
 
     def test_native_google_login_uses_verified_id_token(self):
+        self.pass_integrity_gate()
         with mock.patch.dict(target.os.environ, {'GOOGLE_CLIENT_ID': 'android-server-client'}), \
                 mock.patch.object(target.id_token, 'verify_oauth2_token', return_value={
                     'sub': 'google-sub-native', 'email': 'NativeUser@Example.com',
@@ -626,6 +663,7 @@ class MobileApiTests(unittest.TestCase):
             self.assertEqual(user.google_email, 'nativeuser@example.com')
 
     def test_native_auth_code_is_one_time_and_assetlinks_is_configurable(self):
+        self.pass_integrity_gate()
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)
             code = target._mobile_native_auth_code(user, 'App Link test')
@@ -784,6 +822,7 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(self.poll(grant).json['error'], 'authorization_pending')
 
     def test_native_security_totp_passkey_and_import_scope(self):
+        self.pass_integrity_gate()
         token = self.token()
         status = self.call('/api/mobile/v1/security', token)
         self.assertEqual(status.status_code, 200)
@@ -848,6 +887,7 @@ class MobileApiTests(unittest.TestCase):
                                              json={'size': 10}).status_code, 200)
 
     def test_setup_security_and_import_are_allowed_before_setup_completion(self):
+        self.pass_integrity_gate()
         signup = self.native.post('/api/mobile/v1/auth/signup', base_url='https://localhost', json={
             'username': 'native-import-user', 'password': 'correct-horse-battery', 'device_name': 'Pixel test',
         })
@@ -859,3 +899,96 @@ class MobileApiTests(unittest.TestCase):
         security = self.call('/api/mobile/v1/security', token)
         self.assertEqual(security.status_code, 200)
         self.assertIn('has_totp', security.json)
+
+    def test_browser_login_code_is_bound_to_pkce_verifier(self):
+        self.pass_integrity_gate()
+        # RFC 7636 Appendix B.
+        verifier = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
+        challenge = 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM'
+
+        def code(code_challenge):
+            with target.app.app_context():
+                user = target.db.session.get(target.User, self.user_id)
+                return target._mobile_native_auth_code(user, 'App Link test', 'minashin', code_challenge)
+
+        def exchange(body):
+            return self.native.post('/api/mobile/v1/auth/exchange', base_url='https://localhost', json=body)
+
+        # An intercepted or injected code is useless without the starting app's verifier.
+        self.assertEqual(exchange({'code': code(challenge)}).status_code, 401)
+        self.assertEqual(exchange({'code': code(challenge), 'code_verifier': 'x' * 43}).status_code, 401)
+        # A code minted without a challenge cannot be injected into a PKCE client.
+        self.assertEqual(exchange({'code': code(None), 'code_verifier': verifier}).status_code, 401)
+        accepted = exchange({'code': code(challenge), 'code_verifier': verifier})
+        self.assertEqual(accepted.status_code, 200)
+        self.assertTrue(accepted.json['access_token'].startswith(target.MOBILE_TOKEN_PREFIX))
+
+        browser = target.app.test_client()
+        started = browser.get('/android/auth/minashin/start?code_challenge_method=S256&code_challenge=' + challenge,
+                              base_url='https://localhost')
+        self.assertEqual(started.status_code, 302)
+        with browser.session_transaction() as sess:
+            self.assertEqual(sess['mobile_native_code_challenge'], challenge)
+            self.assertTrue(sess['mobile_native_auth'])
+        # A later Web login in the same browser is not captured by the abandoned native start.
+        self.assertEqual(browser.get('/login/minashin', base_url='https://localhost').status_code, 302)
+        with browser.session_transaction() as sess:
+            self.assertNotIn('mobile_native_auth', sess)
+            self.assertNotIn('mobile_native_code_challenge', sess)
+        with target.app.test_request_context('/?code_challenge_method=plain&code_challenge=' + challenge):
+            self.assertIsNone(target._mobile_native_code_challenge(target.request.args))
+
+    def test_passkey_sign_in_requires_passkey_only_login(self):
+        self.pass_integrity_gate()
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            target._save_user_webauthn_credentials(user, [{'id': 'AQID', 'public_key': 'BAUG', 'sign_count': 0}])
+            user.is_2fa_enabled = True
+            target.db.session.commit()
+
+        def options():
+            return self.native.post('/api/mobile/v1/auth/passkey/options', base_url='https://localhost',
+                                    json={'username': 'android-owner', 'device_name': 'Pixel test'})
+
+        # A passkey registered as a second factor is not a password replacement.
+        second_factor_only = options()
+        self.assertEqual(second_factor_only.status_code, 401)
+        self.assertEqual(second_factor_only.json['error'], 'passkey_unavailable')
+        with target.app.app_context():
+            target.db.session.get(target.User, self.user_id).passkey_only_login = True
+            target.db.session.commit()
+        allowed = options()
+        self.assertEqual(allowed.status_code, 200)
+        self.assertTrue(allowed.json['transaction_id'])
+        with target.app.app_context():
+            target.db.session.get(target.User, self.user_id).passkey_only_login = False
+            target.db.session.commit()
+        # Turning the setting off also invalidates an options transaction already issued.
+        with mock.patch.object(target, 'verify_authentication_response',
+                               return_value=mock.Mock(new_sign_count=1)):
+            revoked = self.native.post('/api/mobile/v1/auth/passkey/verify', base_url='https://localhost', json={
+                'transaction_id': allowed.json['transaction_id'], 'credential': {'id': 'AQID'},
+            })
+        self.assertEqual(revoked.status_code, 401)
+
+    def test_account_import_is_limited_to_first_run_setup(self):
+        token = self.token()
+        # Rejected by the bearer guard before the view runs; should that regress,
+        # the view still writes into a throwaway directory, never the real one.
+        import_root = tempfile.TemporaryDirectory(prefix='mobile-import-guard-')
+        self.addCleanup(import_root.cleanup)
+        patcher = mock.patch.object(target, '_account_import_upload_root', return_value=import_root.name)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        blocked =self.call('/api/account/import/upload/start', token, 'POST', json={'size': 10})
+        self.assertEqual(blocked.status_code, 403)
+        self.assertEqual(blocked.json['error'], 'setup_already_completed')
+        self.assertEqual(self.call('/api/account/import', token, 'POST', json={'upload_id': 'x'}).status_code, 403)
+        replay = self.call('/api/mobile/v1/setup', token, 'PUT', json={'default_model': 'gemini-3.6-flash'})
+        self.assertEqual(replay.status_code, 409)
+
+    def test_pairing_review_warns_against_forwarded_codes(self):
+        grant = self.device()
+        page = self.browser.get('/android/connect?code=' + grant['user_code'], base_url='https://localhost')
+        self.assertEqual(page.status_code, 200)
+        self.assertIn('他の人から届いたリンクやコードを許可すると', page.get_data(as_text=True))

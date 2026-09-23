@@ -69,7 +69,7 @@ Android版は通常チャット、メタデータ付きモデル選択、Thinkin
 7. 承認後、一度だけ `access_token` が返る。アプリは保存後に `GET /api/mobile/v1/me` を呼んでアカウントを確認する。
 8. 以後は `Authorization: Bearer <access_token>` で許可されたAPIを呼ぶ。
 
-確認コードは人がアプリとブラウザーを照合するためのものです。`device_code` やアクセストークンをURL、ディープリンク、クリップボード、ログに載せないでください。
+確認コードは人がアプリとブラウザーを照合するためのものです。承認画面には、他人から届いたリンクやコードを許可しないよう注意を表示します。`device_code` やアクセストークンをURL、ディープリンク、クリップボード、ログに載せないでください。
 
 この方式は端末認可の考え方を参考にした独自プロトコルです。[RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html)準拠のOAuthサーバーではありません。JSON形式、固定client_id、エラーとポーリングの仕様は本書に従い、一般的なOAuth SDKへそのまま設定しないでください。
 
@@ -247,17 +247,17 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 | POST `/api/mobile/v1/security/passkeys/remove` | Bearer | `id` | 更新後のセキュリティ状態 |
 | POST `/api/mobile/v1/security/preferences` | Bearer | `default_2fa_method`（`totp`／`webauthn`）, `passkey_only_login`, `skip_2fa_on_google_login` | 更新後のセキュリティ状態 |
 
-パスキー認証はユーザー検証必須（`user_verification=REQUIRED`）です。パスキーのみログインは事前にパスキー登録が必要で、未登録で要求すると400 `passkey_required` を返します。未知アカウントのパスキー開始要求は存在確認につながらないよう401 `passkey_unavailable` で統一します。
+パスキー認証はユーザー検証必須（`user_verification=REQUIRED`）です。パスキーのみログインは事前にパスキー登録が必要で、未登録で要求すると400 `passkey_required` を返します。Webと同じく、パスキー単独でのログインは `passkey_only_login` を有効にしたアカウントだけが利用でき、無効な場合のパスキーは2FAの2要素目としてだけ使います。無効化後は発行済みの開始トランザクションも検証で拒否します。未知アカウント、パスキー未登録、パスキーのみログイン無効の開始要求は、存在確認につながらないよう401 `passkey_unavailable` で統一します。
 
 認証トランザクション、OAuth state、WebAuthnチャレンジ、TOTP一時シークレットはRedisへ短時間だけ保存し、DBスキーマは変更しません（既存の `User` / `UserSession` / TOTP / WebAuthn情報を利用）。
 
-セットアップ未完了（`is_setup_completed=false`）のBearerでもセキュリティ管理と取り込みAPIは利用でき、通常のチャットAPIだけが `setup_required` で拒否されます。
+セットアップ未完了（`is_setup_completed=false`）のBearerでもセキュリティ管理と取り込みAPIは利用でき、通常のチャットAPIだけが `setup_required` で拒否されます。セットアップ完了後は、Web `/setup` と同じく `PUT /api/mobile/v1/setup` を409 `setup_already_completed` で拒否し（E2EEの移行処理を経ない切り替えを防ぐため）、アカウントZIPの取り込みAPIもBearerでは403 `setup_already_completed` で拒否します。完了後の取り込みはWebで行います。
 
 アカウントZIPの取り込みはWebと同じチャンクAPIを再利用します。`start` → `chunk`（既定10MiB）→ `complete` → `import`（`upload_id` と `categories`）。`categories` は `settings,api_credentials,chats,gems,files,feedback,diagnostics`。設定が現在値と異なる場合、Androidクライアントは `settings_changes` を表示して、利用者が確認した後に `confirm_settings=true` で適用します。取り消した場合はアップロードを削除します。中間ファイルはアプリ本体の自動処理だけが作成・削除します。
 
-Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイントと要求内容のSHA-256 hashへ結び付けて送信します。サーバーはGoogleの`decodeIntegrityToken`で署名済み結果を検証し、パッケージ、2分以内の時刻、request hash、`MEETS_DEVICE_INTEGRITY`を確認します。サイドロードを継続できるよう、`PLAY_RECOGNIZED`と`LICENSED`は合格条件にしません。Play Integrity API・Play servicesの利用不能、判定不能、要求の不一致はログイン拒否にせずTurnstileへ誘導します。
+Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイントと要求内容のSHA-256 hashへ結び付けて送信します。サーバーはGoogleの`decodeIntegrityToken`で署名済み結果を検証し、パッケージ、署名証明書（`appIntegrity.certificateSha256Digest` が `ANDROID_APP_LINK_SHA256` のいずれかと一致すること）、2分以内の時刻、request hash、`MEETS_DEVICE_INTEGRITY`を確認します。サイドロードを継続できるよう、`PLAY_RECOGNIZED`と`LICENSED`は合格条件にしません。Play Integrity API・Play servicesの利用不能、判定不能、要求の不一致はログイン拒否にせずTurnstileへ誘導します。
 
-`GET /api/mobile/v1/config` は公開可能な `play_integrity_cloud_project_number` と有効状態だけを返します。サーバーは`.env`の`PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER`と`PLAY_INTEGRITY_SERVICE_ACCOUNT_FILE`を使ってtokenを復号し、鍵ファイルやパスは応答しません。Integrity tokenと認証情報はURLやログに含めません。Turnstile確認は短期・一回限りのchallenge/ticketを使い、完了後はHTTPS App Linkでアプリへ戻ります。認証要求には既存のIP・ユーザー単位レート制限も引き続き適用します。旧Android版はIntegrity用フィールドを送らなくても従来どおり利用できます。
+`GET /api/mobile/v1/config` は公開可能な `play_integrity_cloud_project_number` と有効状態だけを返します。サーバーは`.env`の`PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER`と`PLAY_INTEGRITY_SERVICE_ACCOUNT_FILE`を使ってtokenを復号し、鍵ファイルやパスは応答しません。Integrity tokenと認証情報はURLやログに含めません。Turnstile確認は短期・一回限りのchallenge/ticketを使い、完了後はHTTPS App Linkでアプリへ戻ります。認証要求には既存のIP・ユーザー単位レート制限も引き続き適用します。Integrity用フィールドを省略した要求も判定不能として扱い、Turnstileへ誘導します（Webのログイン・新規登録がTurnstile必須であることと合わせるため）。Integrity導入前のAndroid版（1.13.67未満）は新規ログイン・登録にアプリの更新が必要です。発行済みトークンは有効期限まで利用できます。
 
 ## 4. チャット・ファイルAPI
 
@@ -438,7 +438,7 @@ dependencies {
 
 証明書やホスト名検証を無効化しません。開発機の独自CAが必要ならdebug用設定に限定し、releaseから除外します。ネットワーク設定の詳細は[Android公式資料](https://developer.android.com/privacy-and-security/security-config)を参照してください。
 
-Googleログインは通常、Android Credential ManagerでGoogle IDトークンを取得してネイティブ認証APIへ送信します。Minashinログインと旧Googleブラウザー方式は、埋め込みWebViewを使わずCustom Tabsで行い、認証後は `https://ai.minashin1120.com/android/auth/callback` のHTTPS App Linkへ一度だけ使える認証コードを返します。アクセストークンはURLへ載せません。`/.well-known/assetlinks.json` は `ANDROID_APP_LINK_SHA256`（カンマ区切り）と `ANDROID_APP_ID` から生成されるため、配布署名のSHA-256を本番環境へ設定します。
+Googleログインは通常、Android Credential ManagerでGoogle IDトークンを取得してネイティブ認証APIへ送信します。Minashinログインと旧Googleブラウザー方式は、埋め込みWebViewを使わずCustom Tabsで行い、認証後は `https://ai.minashin1120.com/android/auth/callback` のHTTPS App Linkへ一度だけ使える認証コードを返します。アクセストークンはURLへ載せません。認証コードはPKCE（S256）でアプリに結び付けます。アプリは開始時に `code_verifier` を生成して端末内へ一時保存し、`/android/auth/google/start` または `/android/auth/minashin/start` に `code_challenge` と `code_challenge_method=S256` を付けて開きます。`POST /api/mobile/v1/auth/exchange` は `code` と `code_verifier` を受け取り、challengeと一致しなければ401 `invalid_auth_code` を返します。challengeなしで発行されたコードは `code_verifier` を送らないクライアント（1.13.67）だけが交換でき、`code_verifier` を送るクライアントへは差し込めません。アプリは自身で開始していない（または10分を過ぎた）App Linkのコードを交換しません。Web版の `/login/minashin` は、放棄されたAndroid用開始状態を破棄してからWebログインを始めます。`/.well-known/assetlinks.json` は `ANDROID_APP_LINK_SHA256`（カンマ区切り）と `ANDROID_APP_ID` から生成されるため、配布署名のSHA-256を本番環境へ設定します。
 
 ### 6.3 実装構成
 

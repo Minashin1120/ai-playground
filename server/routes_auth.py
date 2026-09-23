@@ -346,6 +346,10 @@ def _resolve_or_create_minashin_user(minashin_sub, email, user_data):
 @app.route('/login/minashin')
 def login_minashin():
     """Minashin アカウントでログイン（または設定画面からの連携）を開始する。"""
+    if request.endpoint == 'login_minashin':
+        # 途中で放棄された Android 用ログインの印が、この Web ログインの戻り先を奪わないようにする。
+        for key in ('mobile_native_auth', 'mobile_native_device_name', 'mobile_native_code_challenge'):
+            session.pop(key, None)
     if current_user.is_authenticated:
         # 設定画面からログイン済みユーザーの連携を開始する場合
         session['minashin_link_mode'] = True

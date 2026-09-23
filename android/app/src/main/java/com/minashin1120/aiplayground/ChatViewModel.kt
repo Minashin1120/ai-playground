@@ -371,13 +371,33 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Starts a browser login whose returned code only this app can redeem (PKCE). */
+    fun browserLoginPath(provider: String): String {
+        require(provider == "google" || provider == "minashin") { "Unsupported browser login" }
+        val verifier = BrowserLoginPkce.newVerifier()
+        prefs.edit().putString(PREF_BROWSER_LOGIN_VERIFIER, verifier)
+            .putLong(PREF_BROWSER_LOGIN_STARTED_AT, System.currentTimeMillis()).apply()
+        return "/android/auth/$provider/start?code_challenge_method=S256&code_challenge=" +
+            BrowserLoginPkce.challenge(verifier)
+    }
+
     /** Exchanges the one-time code returned to the verified HTTPS App Link. */
     fun exchangeNativeCode(code: String) {
         if (state.value.authBusy) return
+        val verifier = prefs.getString(PREF_BROWSER_LOGIN_VERIFIER, null)
+        val elapsed = System.currentTimeMillis() - prefs.getLong(PREF_BROWSER_LOGIN_STARTED_AT, 0L)
+        prefs.edit().remove(PREF_BROWSER_LOGIN_VERIFIER).remove(PREF_BROWSER_LOGIN_STARTED_AT).apply()
+        if (verifier == null || elapsed !in 0..BROWSER_LOGIN_TTL_MS) {
+            // A link that this app did not start may carry someone else's account.
+            notify("このアプリで開始していないログインのため、処理しませんでした。")
+            return
+        }
         viewModelScope.launch {
             mutable.update { it.copy(authBusy = true, authError = null) }
             try {
-                val reply = authPost("/api/mobile/v1/auth/exchange", JSONObject().put("code", code))
+                val reply = authPost("/api/mobile/v1/auth/exchange", JSONObject()
+                    .put("code", code)
+                    .put("code_verifier", verifier))
                 processAuthResponse(reply)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
@@ -2456,5 +2476,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         const val CHUNK_UPLOAD_THRESHOLD_BYTES = 8L * 1024 * 1024
         const val MAX_SINGLE_UPLOAD_BYTES = 64L * 1024 * 1024
+        const val PREF_BROWSER_LOGIN_VERIFIER = "browser_login_pkce_verifier"
+        const val PREF_BROWSER_LOGIN_STARTED_AT = "browser_login_started_at"
+        const val BROWSER_LOGIN_TTL_MS = 10L * 60 * 1000
     }
 }

@@ -118,6 +118,7 @@
         {% if device_name %}
           <div class="device"><div class="device-icon" aria-hidden="true">⌁</div><div><div class="device-label">申請元の端末</div><div class="device-name">{{ device_name }}</div></div></div>
           <div class="code-box"><div class="code-label">確認コード</div><div class="code">{{ user_code }}</div></div>
+          <div class="alert">ご自身のAndroidアプリに今表示されている確認コードと一致する場合だけ許可してください。他の人から届いたリンクやコードを許可すると、その人があなたのアカウントを利用できるようになります。</div>
           <div class="permission">この端末に、チャットの閲覧・送信・削除とファイルのアップロード・閲覧を30日間許可します。連携後は設定のセッション管理からいつでも取り消せます。</div>
           <input type="hidden" name="user_code" value="{{ user_code }}">
           <div class="actions"><button class="primary" type="submit" name="decision" value="approve">この端末を許可</button><button class="secondary" type="submit" name="decision" value="deny">拒否</button></div>

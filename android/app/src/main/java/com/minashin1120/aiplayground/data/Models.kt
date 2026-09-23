@@ -342,6 +342,9 @@ data class McpDecision(
 class ApiException(val status: Int, val payload: JSONObject, val retryAfter: Long = 5) : IOException() {
     val code: String get() = payload.optString("code").ifBlank { payload.optString("error") }
     override val message: String get() = when {
+        code == "passkey_unavailable" -> "パスキーでログインできません。「パスキーのみでログイン」を有効にしたアカウントか確認してください。"
+        code == "invalid_auth_code" -> "外部ログインを確認できませんでした。もう一度ログインしてください。"
+        code == "setup_already_completed" -> "初回設定はすでに完了しています。アプリを再起動してください。"
         status == 401 -> "ログインの有効期限が切れました。もう一度連携してください。"
         code == "invalid_credentials" -> "ユーザー名またはパスワードが正しくありません。"
         code == "username_taken" -> "そのユーザー名はすでに使われています。"

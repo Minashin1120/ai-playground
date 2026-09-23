@@ -899,8 +899,8 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
                 Text("既存のブラウザー連携", style = MaterialTheme.typography.titleMedium)
                 Text("旧方式です。現在も利用できますが、アプリ内ログインを推奨します。", color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(onClick = model::pair, modifier = Modifier.fillMaxWidth()) { Text("ブラウザーで連携（旧方式）") }
-                OutlinedButton(onClick = { onWeb("/android/auth/google/start") }, modifier = Modifier.fillMaxWidth()) { Text("Google（ブラウザー・旧方式）") }
-                OutlinedButton(onClick = { onWeb("/android/auth/minashin/start") }, modifier = Modifier.fillMaxWidth()) { Text("Minashinでログイン") }
+                OutlinedButton(onClick = { onWeb(model.browserLoginPath("google")) }, modifier = Modifier.fillMaxWidth()) { Text("Google（ブラウザー・旧方式）") }
+                OutlinedButton(onClick = { onWeb(model.browserLoginPath("minashin")) }, modifier = Modifier.fillMaxWidth()) { Text("Minashinでログイン") }
                 TextButton(onClick = { onWeb("/") }, modifier = Modifier.fillMaxWidth()) { Text("Web版を開く") }
             }
         }

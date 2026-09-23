@@ -114,7 +114,7 @@ WebとAndroidの両方を変更するため、Webのバージョン準備・公�
 | Android: パスキーログイン、WebAuthn 2FA、パスキー登録/削除、TOTP登録/無効化、2FA設定 | 実装済み |
 | Android: 初回セットアップ（モデル／APIキー／Vertex AI／E2EE） | 実装済み |
 | Android: アカウントZIP取り込み（進捗・キャンセル・設定変更確認） | 実装済み |
-| Play Integrity Standard API と Turnstile 自動フォールバック | 実装済み（サーバー回帰テスト追加。GitHub Actions・Play services搭載端末での確認待ち） |
+| Play Integrity Standard API と Turnstile 自動フォールバック | 実装済み（サーバー回帰テスト・GitHub Actions成功。Play services搭載端末での実機確認待ち） |
 | 実機での Credential Manager 動作確認 | 未確認（GitHub Actionsでは検証不可） |
 | Play Integrity 実機動作とTurnstileからの認証再開 | 未確認（GitHub Actionsでは検証不可） |
 

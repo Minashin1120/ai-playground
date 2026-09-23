@@ -2,8 +2,7 @@ package com.minashin1120.aiplayground.data
 
 import android.content.Context
 import com.google.android.play.core.integrity.IntegrityManagerFactory
-import com.google.android.play.core.integrity.PrepareIntegrityTokenRequest
-import com.google.android.play.core.integrity.StandardIntegrityTokenRequest
+import com.google.android.play.core.integrity.StandardIntegrityManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.json.JSONArray
@@ -17,7 +16,7 @@ import kotlin.coroutines.resumeWithException
 /** Requests an on-demand Standard API token bound to one auth endpoint and attempt. */
 class PlayIntegrityClient(context: Context) {
     private val manager = IntegrityManagerFactory.createStandard(context.applicationContext)
-    @Volatile private var provider: com.google.android.play.core.integrity.StandardIntegrityTokenProvider? = null
+    @Volatile private var provider: StandardIntegrityManager.StandardIntegrityTokenProvider? = null
     @Volatile private var projectNumber: Long = 0L
 
     suspend fun requestFields(endpoint: String, cloudProjectNumber: String, body: JSONObject): JSONObject {
@@ -29,12 +28,13 @@ class PlayIntegrityClient(context: Context) {
             var current = provider
             if (current == null || projectNumber != number) {
                 current = awaitTask(manager.prepareIntegrityToken(
-                    PrepareIntegrityTokenRequest.builder().setCloudProjectNumber(number).build()
+                    StandardIntegrityManager.PrepareIntegrityTokenRequest.builder()
+                        .setCloudProjectNumber(number).build()
                 ))
                 provider = current
                 projectNumber = number
             }
-            token = awaitTask(current.request(StandardIntegrityTokenRequest.builder()
+            token = awaitTask(current.request(StandardIntegrityManager.StandardIntegrityTokenRequest.builder()
                 .setRequestHash(requestHash).build())).token()
         } catch (cancelled: CancellationException) {
             throw cancelled

@@ -1,5 +1,14 @@
 package com.minashin1120.aiplayground.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -53,6 +62,7 @@ fun SettingsDialog(
     val prefs = state.preferences
     var search by remember { mutableStateOf("") }
     var tab by remember { mutableStateOf("一般") }
+    val reduce = LocalReduceMotion.current
     var defaultModel by remember(prefs?.defaultModel) { mutableStateOf(prefs?.defaultModel.orEmpty()) }
     var visionModel by remember(prefs?.defaultVisionModel) { mutableStateOf(prefs?.defaultVisionModel.orEmpty()) }
     var thinking by remember(prefs?.defaultEnableThinking) { mutableStateOf(prefs?.defaultEnableThinking ?: false) }
@@ -145,279 +155,295 @@ fun SettingsDialog(
                 }
                 if (visibleTabs.isEmpty()) Text("該当する設定はありません。", style = MaterialTheme.typography.bodySmall)
                 else if (tab !in visibleTabs) tab = visibleTabs.first()
-                if (tab == "一般" && tab in visibleTabs) {
-                    Text(state.account?.name.orEmpty(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("送信設定", fontWeight = FontWeight.SemiBold)
-                    CheckboxRow("Enterで送信（改行はShift+Enter）", enterToSend) { enterToSend = it }
-                    Text("プロンプトバー表示", fontWeight = FontWeight.SemiBold)
-                    listOf("normal" to "通常表示", "compact" to "コンパクト表示", "minimal" to "ミニマル表示").forEach { (value, label) ->
-                        FilterChip(promptBar == value, { promptBar = value }, { Text(label) })
-                    }
-                    CheckboxRow("音声系モデルで音声スタジオを使う", voiceStudio) { voiceStudio = it }
-                    Text("チャット既定値", fontWeight = FontWeight.SemiBold)
-                    TextButton(onClick = { modelPicker = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("既定モデル: ${state.account?.models?.firstOrNull { it.id == defaultModel }?.name ?: defaultModel.ifBlank { "未設定" }} ▾")
-                    }
-                    TextButton(onClick = { visionPicker = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Vision Model: ${state.account?.models?.firstOrNull { it.id == visionModel }?.name ?: visionModel.ifBlank { "未設定" }} ▾")
-                    }
-                    CheckboxRow("前回の設定を保存して継続する", useLast) { useLast = it }
-                    CheckboxRow("既定でThinkingを使う", thinking) { thinking = it }
-                    ChoiceRow("Thinking level", thinkingLevel, THINKING_LEVELS) { thinkingLevel = it }
-                    OutlinedTextField(thinkingBudget, { thinkingBudget = it.filter(Char::isDigit).take(5) }, singleLine = true,
-                        label = { Text("Thinking Budget") }, modifier = Modifier.fillMaxWidth())
-                    ChoiceRow("Reasoning effort", reasoningEffort, EFFORTS) { reasoningEffort = it }
-                    ChoiceRow("Safety", safetySetting, listOf("default", "none")) { safetySetting = it }
-                    CheckboxRow("既定でWeb検索を使う", searchDefault) { searchDefault = it }
-                    CheckboxRow("既定でURLsを使う", urlContext) { urlContext = it }
-                    CheckboxRow("既定でMapsを使う", maps) { maps = it }
-                    CheckboxRow("既定でPythonを使う", python) { python = it }
-                    CheckboxRow("既定でFileを使う", fileCreation) { fileCreation = it }
-                    CheckboxRow("既定でSysPromptを使う", systemPromptDefault) { systemPromptDefault = it }
-                    CheckboxRow("既定でMCPを使う", mcp) { mcp = it }
-                    CheckboxRow("リンクのX投稿を自動検索", autoSearch) { autoSearch = it }
-                    OutlinedTextField(timeout, { timeout = it.filter { c -> c.isDigit() }.take(6) }, singleLine = true,
-                        label = { Text("一時チャットの自動削除（秒）") }, modifier = Modifier.fillMaxWidth())
-                    Text("音声設定", fontWeight = FontWeight.SemiBold)
-                    ChoiceRow("マイク文字起こし", micMode, listOf("stt_api", "llm")) { micMode = it }
-                    ChoiceRow("STTモデル", sttModel, STT_MODELS) { sttModel = it }
-                    Text("STT APIはWebの録音経路で使います。この端末のマイクボタンはOSの音声認識です。",
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("アプリ更新", fontWeight = FontWeight.SemiBold)
-                    Text("現在のバージョン: ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
-                    when (appUpdate.phase) {
-                        AppUpdatePhase.Checking -> Text("更新を確認中…", style = MaterialTheme.typography.bodySmall)
-                        AppUpdatePhase.UpToDate -> Text("最新のAndroid版を使用しています。", style = MaterialTheme.typography.bodySmall)
-                        AppUpdatePhase.Available -> appUpdate.update?.let { update ->
-                            Text("Android版 ${update.versionName} が利用できます。", style = MaterialTheme.typography.bodySmall)
+                // Web `tabEnter` / `tabExit`: the panel slides toward the side of the newly chosen tab.
+                AnimatedContent(
+                    targetState = tab,
+                    transitionSpec = {
+                        val forward = settingsTabDirection(visibleTabs, initialState, targetState)
+                        if (reduce) EnterTransition.None togetherWith ExitTransition.None
+                        else (slideInHorizontally(tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Emphasized)) { width -> forward * width / 6 } +
+                            fadeIn(tween(PlaygroundMotion.MEDIUM))) togetherWith
+                            (slideOutHorizontally(tween(PlaygroundMotion.SHORT, easing = PlaygroundMotion.Exit)) { width -> -forward * width / 6 } +
+                                fadeOut(tween(PlaygroundMotion.SHORT)))
+                    },
+                    label = "settings tab",
+                ) { target ->
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (target == "一般" && target in visibleTabs) {
+                        Text(state.account?.name.orEmpty(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("送信設定", fontWeight = FontWeight.SemiBold)
+                        CheckboxRow("Enterで送信（改行はShift+Enter）", enterToSend) { enterToSend = it }
+                        Text("プロンプトバー表示", fontWeight = FontWeight.SemiBold)
+                        listOf("normal" to "通常表示", "compact" to "コンパクト表示", "minimal" to "ミニマル表示").forEach { (value, label) ->
+                            FilterChip(promptBar == value, { promptBar = value }, { Text(label) })
                         }
-                        AppUpdatePhase.Error -> Text(appUpdate.errorMessage ?: "更新を確認できませんでした。", style = MaterialTheme.typography.bodySmall)
-                        else -> Unit
-                    }
-                    TextButton(
-                        onClick = onCheckForUpdate,
-                        enabled = appUpdate.phase != AppUpdatePhase.Checking &&
-                            appUpdate.phase != AppUpdatePhase.Downloading &&
-                            appUpdate.phase != AppUpdatePhase.Ready &&
-                            appUpdate.phase != AppUpdatePhase.AwaitingInstallPermission &&
-                            appUpdate.phase != AppUpdatePhase.Installing,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text(if (appUpdate.phase == AppUpdatePhase.Checking) "確認中…" else "更新を確認") }
-                }
-                if (tab == "APIキー" && tab in visibleTabs) {
-                    Text("APIキーは端末へ渡しません。認証済みブラウザーの設定画面で登録・変更します。",
-                        style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { onWeb("/settings") }, modifier = Modifier.fillMaxWidth()) { Text("WebでAPIキーを開く") }
-                }
-                if (tab == "プロンプト" && tab in visibleTabs) {
-                    Text("全体システムプロンプト（参照のみ）", fontWeight = FontWeight.SemiBold)
-                    OutlinedTextField(prefs?.globalSystemPrompt.orEmpty(), {}, readOnly = true, minLines = 3, maxLines = 8,
-                        modifier = Modifier.fillMaxWidth())
-                    CheckboxRow("全体システムプロンプトを適用", applyGlobal) { applyGlobal = it }
-                    CheckboxRow("自動システム通知を適用", applyNotices) { applyNotices = it }
-                    CheckboxRow("ユーザーシステムプロンプトを有効", userPromptEnabled) { userPromptEnabled = it }
-                    OutlinedTextField(userPrompt, { userPrompt = it.take(100_000) }, minLines = 4, maxLines = 10,
-                        label = { Text("ユーザーシステムプロンプト") }, modifier = Modifier.fillMaxWidth())
-                    TextButton(onClick = { userPrompt = ""; userPromptEnabled = false }) { Text("リセット（空にして無効化）") }
-                }
-                if (tab == "表示" && tab in visibleTabs) {
-                    Text("テーマ", fontWeight = FontWeight.SemiBold)
-                    OutlinedTextField(themeColor, { themeColor = it.take(7) }, singleLine = true,
-                        label = { Text("テーマカラー（HEX）") }, placeholder = { Text("#0DD4BF") }, modifier = Modifier.fillMaxWidth())
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        THEME_PRESETS.forEach { color ->
-                            val parsed = runCatching { Color(android.graphics.Color.parseColor(color)) }.getOrNull()
-                            if (parsed != null) Box(Modifier.size(28.dp).clip(CircleShape).background(parsed).clickable { themeColor = color })
+                        CheckboxRow("音声系モデルで音声スタジオを使う", voiceStudio) { voiceStudio = it }
+                        Text("チャット既定値", fontWeight = FontWeight.SemiBold)
+                        TextButton(onClick = { modelPicker = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("既定モデル: ${state.account?.models?.firstOrNull { it.id == defaultModel }?.name ?: defaultModel.ifBlank { "未設定" }} ▾")
                         }
-                    }
-                    TextButton(onClick = { themeColor = "" }) { Text("テーマをリセット") }
-                    CheckboxRow("手動ライトモード", lightMode) { lightMode = it }
-                    CheckboxRow("Liquid Glassモード", liquidGlass) { liquidGlass = it }
-                }
-                if (tab == "データ" && tab in visibleTabs) {
-                    Text("端末キャッシュ", fontWeight = FontWeight.SemiBold)
-                    Text("表示済みのチャット履歴とファイルは、Androidのシステムキャッシュとは別の暗号化領域に保存されます。",
-                        style = MaterialTheme.typography.bodySmall)
-                    ChoiceRow("履歴の保存範囲", if (historyCacheMode == HistoryCacheMode.FULL) "全件同期" else "表示済み部分のみ",
-                        listOf("表示済み部分のみ", "全件同期")) {
-                        historyCacheMode = if (it == "全件同期") HistoryCacheMode.FULL else HistoryCacheMode.VIEWED
-                    }
-                    CheckboxRow("モバイルデータ通信でもキャッシュを同期", cacheMobileData) { cacheMobileData = it }
-                    val cacheStats = state.offlineCacheStats
-                    Text("チャット履歴: ${formatByteSize(cacheStats.historyBytes)} / ファイル: ${formatByteSize(cacheStats.fileBytes)}",
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (state.cacheSyncing) {
-                        if (state.cacheSyncTotal > 0) {
-                            LinearProgressIndicator(
-                                progress = { (state.cacheSyncProgress.toFloat() / state.cacheSyncTotal).coerceIn(0f, 1f) },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                        } else LinearProgressIndicator(Modifier.fillMaxWidth())
-                        TextButton(onClick = model::cancelCacheSync, modifier = Modifier.fillMaxWidth()) { Text("同期をキャンセル") }
-                    } else {
-                        TextButton(onClick = model::syncOfflineCache, modifier = Modifier.fillMaxWidth()) { Text("今すぐ全件同期") }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { confirmCacheCategory = CacheCategory.CHAT_HISTORY }, modifier = Modifier.weight(1f)) { Text("履歴を削除") }
-                        TextButton(onClick = { confirmCacheCategory = CacheCategory.FILES }, modifier = Modifier.weight(1f)) { Text("ファイルを削除") }
-                    }
-                    Text("ストレージ", fontWeight = FontWeight.SemiBold)
-                    val storage = state.storage
-                    if (storage == null) Text("読み込み中…", style = MaterialTheme.typography.bodySmall)
-                    else {
-                        Text(if (storage.unlimited) "使用量 ${storage.usedMb} MB（上限なし）"
-                            else "使用量 ${storage.usedMb} / ${storage.limitMb} MB",
-                            style = MaterialTheme.typography.bodySmall)
-                        if (!storage.unlimited && storage.limitBytes > 0) {
-                            LinearProgressIndicator(
-                                progress = { (storage.usedBytes.toFloat() / storage.limitBytes).coerceIn(0f, 1f) },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
+                        TextButton(onClick = { visionPicker = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Vision Model: ${state.account?.models?.firstOrNull { it.id == visionModel }?.name ?: visionModel.ifBlank { "未設定" }} ▾")
                         }
-                    }
-                    TextButton(onClick = { model.loadStorageUsage() }) { Text("使用量を更新") }
-                    Text("サイトキャッシュとアカウントZIPの移行はブラウザー専用です。", style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { onWeb("/settings") }) { Text("Webでデータ移行を開く") }
-                    CheckboxRow("リッチ貼り付けのカスタム既定プロンプトを使う", richPasteCustom) { richPasteCustom = it }
-                    if (richPasteCustom) OutlinedTextField(richPastePrompt, { richPastePrompt = it.take(20_000) }, minLines = 3, maxLines = 8,
-                        label = { Text("リッチ貼り付けプロンプト") }, modifier = Modifier.fillMaxWidth())
-                }
-                if (tab == "アカウント" && tab in visibleTabs) {
-                    Text("ユーザー名: ${prefs?.username.orEmpty()}", style = MaterialTheme.typography.bodyMedium)
-                    Text("Google: ${prefs?.googleEmail?.ifBlank { "未連携" } ?: "未連携"}", style = MaterialTheme.typography.bodySmall)
-                    Text("Minashin: ${prefs?.minashinEmail?.ifBlank { "未連携" } ?: "未連携"}", style = MaterialTheme.typography.bodySmall)
-                    Text("ユーザー名・パスワード・SSO連携の変更はWeb設定で行います。", style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { onWeb("/settings") }) { Text("Webでアカウント設定を開く") }
-                }
-                if (tab == "セキュリティ" && tab in visibleTabs) {
-                    Text("暗号化: ${if (prefs?.e2eeEnabled == true) "有効（サーバー管理鍵）" else "無効"}", style = MaterialTheme.typography.bodySmall)
-                    Text("E2EEの切替、他端末のセッション失効、アカウント削除はWeb設定で行います。", style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { onWeb("/settings") }) { Text("Webでセキュリティ設定を開く") }
-                }
-                if (tab == "2要素認証" && tab in visibleTabs) {
-                    LaunchedEffect(tab, state.account?.id) {
-                        if (state.account != null) model.loadSecurity()
-                    }
-                    val security = state.security
-                    Text("状態: ${if (security?.is2faEnabled == true) "有効" else "無効"} / TOTP: ${if (security?.hasTotp == true) "登録済" else "未登録"} / パスキー: ${if (security?.hasWebauthn == true) "登録済" else "未登録"}",
-                        style = MaterialTheme.typography.bodySmall)
-                    if (state.securityBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                    state.securityError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-
-                    Text("認証アプリ（TOTP）", fontWeight = FontWeight.SemiBold)
-                    if (security?.hasTotp == true) {
-                        OutlinedTextField(totpDisableCode, { totpDisableCode = it.filter { c -> c.isDigit() }.take(8) },
-                            singleLine = true, label = { Text("現在のコード") }, modifier = Modifier.fillMaxWidth())
+                        CheckboxRow("前回の設定を保存して継続する", useLast) { useLast = it }
+                        CheckboxRow("既定でThinkingを使う", thinking) { thinking = it }
+                        ChoiceRow("Thinking level", thinkingLevel, THINKING_LEVELS) { thinkingLevel = it }
+                        OutlinedTextField(thinkingBudget, { thinkingBudget = it.filter(Char::isDigit).take(5) }, singleLine = true,
+                            label = { Text("Thinking Budget") }, modifier = Modifier.fillMaxWidth())
+                        ChoiceRow("Reasoning effort", reasoningEffort, EFFORTS) { reasoningEffort = it }
+                        ChoiceRow("Safety", safetySetting, listOf("default", "none")) { safetySetting = it }
+                        CheckboxRow("既定でWeb検索を使う", searchDefault) { searchDefault = it }
+                        CheckboxRow("既定でURLsを使う", urlContext) { urlContext = it }
+                        CheckboxRow("既定でMapsを使う", maps) { maps = it }
+                        CheckboxRow("既定でPythonを使う", python) { python = it }
+                        CheckboxRow("既定でFileを使う", fileCreation) { fileCreation = it }
+                        CheckboxRow("既定でSysPromptを使う", systemPromptDefault) { systemPromptDefault = it }
+                        CheckboxRow("既定でMCPを使う", mcp) { mcp = it }
+                        CheckboxRow("リンクのX投稿を自動検索", autoSearch) { autoSearch = it }
+                        OutlinedTextField(timeout, { timeout = it.filter { c -> c.isDigit() }.take(6) }, singleLine = true,
+                            label = { Text("一時チャットの自動削除（秒）") }, modifier = Modifier.fillMaxWidth())
+                        Text("音声設定", fontWeight = FontWeight.SemiBold)
+                        ChoiceRow("マイク文字起こし", micMode, listOf("stt_api", "llm")) { micMode = it }
+                        ChoiceRow("STTモデル", sttModel, STT_MODELS) { sttModel = it }
+                        Text("STT APIはWebの録音経路で使います。この端末のマイクボタンはOSの音声認識です。",
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("アプリ更新", fontWeight = FontWeight.SemiBold)
+                        Text("現在のバージョン: ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
+                        when (appUpdate.phase) {
+                            AppUpdatePhase.Checking -> Text("更新を確認中…", style = MaterialTheme.typography.bodySmall)
+                            AppUpdatePhase.UpToDate -> Text("最新のAndroid版を使用しています。", style = MaterialTheme.typography.bodySmall)
+                            AppUpdatePhase.Available -> appUpdate.update?.let { update ->
+                                Text("Android版 ${update.versionName} が利用できます。", style = MaterialTheme.typography.bodySmall)
+                            }
+                            AppUpdatePhase.Error -> Text(appUpdate.errorMessage ?: "更新を確認できませんでした。", style = MaterialTheme.typography.bodySmall)
+                            else -> Unit
+                        }
                         TextButton(
-                            onClick = { model.disableTotp(totpDisableCode); totpDisableCode = "" },
-                            enabled = !state.securityBusy && totpDisableCode.isNotBlank(),
-                        ) { Text("TOTPを無効化") }
-                    } else if (state.securityTotpSecret != null) {
-                        Text("認証アプリに次のキーを登録してください。", style = MaterialTheme.typography.bodySmall)
-                        SelectionContainer { Text(state.securityTotpSecret.orEmpty(), fontFamily = FontFamily.Monospace) }
-                        state.securityTotpUri?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
-                        OutlinedTextField(totpEnableCode, { totpEnableCode = it.filter { c -> c.isDigit() }.take(8) },
-                            singleLine = true, label = { Text("認証コード") }, modifier = Modifier.fillMaxWidth())
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            onClick = onCheckForUpdate,
+                            enabled = appUpdate.phase != AppUpdatePhase.Checking &&
+                                appUpdate.phase != AppUpdatePhase.Downloading &&
+                                appUpdate.phase != AppUpdatePhase.Ready &&
+                                appUpdate.phase != AppUpdatePhase.AwaitingInstallPermission &&
+                                appUpdate.phase != AppUpdatePhase.Installing,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(if (appUpdate.phase == AppUpdatePhase.Checking) "確認中…" else "更新を確認") }
+                    }
+                    if (target == "APIキー" && target in visibleTabs) {
+                        Text("APIキーは端末へ渡しません。認証済みブラウザーの設定画面で登録・変更します。",
+                            style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { onWeb("/settings") }, modifier = Modifier.fillMaxWidth()) { Text("WebでAPIキーを開く") }
+                    }
+                    if (target == "プロンプト" && target in visibleTabs) {
+                        Text("全体システムプロンプト（参照のみ）", fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(prefs?.globalSystemPrompt.orEmpty(), {}, readOnly = true, minLines = 3, maxLines = 8,
+                            modifier = Modifier.fillMaxWidth())
+                        CheckboxRow("全体システムプロンプトを適用", applyGlobal) { applyGlobal = it }
+                        CheckboxRow("自動システム通知を適用", applyNotices) { applyNotices = it }
+                        CheckboxRow("ユーザーシステムプロンプトを有効", userPromptEnabled) { userPromptEnabled = it }
+                        OutlinedTextField(userPrompt, { userPrompt = it.take(100_000) }, minLines = 4, maxLines = 10,
+                            label = { Text("ユーザーシステムプロンプト") }, modifier = Modifier.fillMaxWidth())
+                        TextButton(onClick = { userPrompt = ""; userPromptEnabled = false }) { Text("リセット（空にして無効化）") }
+                    }
+                    if (target == "表示" && target in visibleTabs) {
+                        Text("テーマ", fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(themeColor, { themeColor = it.take(7) }, singleLine = true,
+                            label = { Text("テーマカラー（HEX）") }, placeholder = { Text("#0DD4BF") }, modifier = Modifier.fillMaxWidth())
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            THEME_PRESETS.forEach { color ->
+                                val parsed = runCatching { Color(android.graphics.Color.parseColor(color)) }.getOrNull()
+                                if (parsed != null) Box(Modifier.size(28.dp).clip(CircleShape).background(parsed).clickable { themeColor = color })
+                            }
+                        }
+                        TextButton(onClick = { themeColor = "" }) { Text("テーマをリセット") }
+                        CheckboxRow("手動ライトモード", lightMode) { lightMode = it }
+                        CheckboxRow("Liquid Glassモード", liquidGlass) { liquidGlass = it }
+                    }
+                    if (target == "データ" && target in visibleTabs) {
+                        Text("端末キャッシュ", fontWeight = FontWeight.SemiBold)
+                        Text("表示済みのチャット履歴とファイルは、Androidのシステムキャッシュとは別の暗号化領域に保存されます。",
+                            style = MaterialTheme.typography.bodySmall)
+                        ChoiceRow("履歴の保存範囲", if (historyCacheMode == HistoryCacheMode.FULL) "全件同期" else "表示済み部分のみ",
+                            listOf("表示済み部分のみ", "全件同期")) {
+                            historyCacheMode = if (it == "全件同期") HistoryCacheMode.FULL else HistoryCacheMode.VIEWED
+                        }
+                        CheckboxRow("モバイルデータ通信でもキャッシュを同期", cacheMobileData) { cacheMobileData = it }
+                        val cacheStats = state.offlineCacheStats
+                        Text("チャット履歴: ${formatByteSize(cacheStats.historyBytes)} / ファイル: ${formatByteSize(cacheStats.fileBytes)}",
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (state.cacheSyncing) {
+                            if (state.cacheSyncTotal > 0) {
+                                LinearProgressIndicator(
+                                    progress = { (state.cacheSyncProgress.toFloat() / state.cacheSyncTotal).coerceIn(0f, 1f) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            } else LinearProgressIndicator(Modifier.fillMaxWidth())
+                            TextButton(onClick = model::cancelCacheSync, modifier = Modifier.fillMaxWidth()) { Text("同期をキャンセル") }
+                        } else {
+                            TextButton(onClick = model::syncOfflineCache, modifier = Modifier.fillMaxWidth()) { Text("今すぐ全件同期") }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = { confirmCacheCategory = CacheCategory.CHAT_HISTORY }, modifier = Modifier.weight(1f)) { Text("履歴を削除") }
+                            TextButton(onClick = { confirmCacheCategory = CacheCategory.FILES }, modifier = Modifier.weight(1f)) { Text("ファイルを削除") }
+                        }
+                        Text("ストレージ", fontWeight = FontWeight.SemiBold)
+                        val storage = state.storage
+                        if (storage == null) Text("読み込み中…", style = MaterialTheme.typography.bodySmall)
+                        else {
+                            Text(if (storage.unlimited) "使用量 ${storage.usedMb} MB（上限なし）"
+                                else "使用量 ${storage.usedMb} / ${storage.limitMb} MB",
+                                style = MaterialTheme.typography.bodySmall)
+                            if (!storage.unlimited && storage.limitBytes > 0) {
+                                LinearProgressIndicator(
+                                    progress = { (storage.usedBytes.toFloat() / storage.limitBytes).coerceIn(0f, 1f) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
+                        TextButton(onClick = { model.loadStorageUsage() }) { Text("使用量を更新") }
+                        Text("サイトキャッシュとアカウントZIPの移行はブラウザー専用です。", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { onWeb("/settings") }) { Text("Webでデータ移行を開く") }
+                        CheckboxRow("リッチ貼り付けのカスタム既定プロンプトを使う", richPasteCustom) { richPasteCustom = it }
+                        if (richPasteCustom) OutlinedTextField(richPastePrompt, { richPastePrompt = it.take(20_000) }, minLines = 3, maxLines = 8,
+                            label = { Text("リッチ貼り付けプロンプト") }, modifier = Modifier.fillMaxWidth())
+                    }
+                    if (target == "アカウント" && target in visibleTabs) {
+                        Text("ユーザー名: ${prefs?.username.orEmpty()}", style = MaterialTheme.typography.bodyMedium)
+                        Text("Google: ${prefs?.googleEmail?.ifBlank { "未連携" } ?: "未連携"}", style = MaterialTheme.typography.bodySmall)
+                        Text("Minashin: ${prefs?.minashinEmail?.ifBlank { "未連携" } ?: "未連携"}", style = MaterialTheme.typography.bodySmall)
+                        Text("ユーザー名・パスワード・SSO連携の変更はWeb設定で行います。", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { onWeb("/settings") }) { Text("Webでアカウント設定を開く") }
+                    }
+                    if (target == "セキュリティ" && target in visibleTabs) {
+                        Text("暗号化: ${if (prefs?.e2eeEnabled == true) "有効（サーバー管理鍵）" else "無効"}", style = MaterialTheme.typography.bodySmall)
+                        Text("E2EEの切替、他端末のセッション失効、アカウント削除はWeb設定で行います。", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { onWeb("/settings") }) { Text("Webでセキュリティ設定を開く") }
+                    }
+                    if (target == "2要素認証" && target in visibleTabs) {
+                        LaunchedEffect(target, state.account?.id) {
+                            if (state.account != null) model.loadSecurity()
+                        }
+                        val security = state.security
+                        Text("状態: ${if (security?.is2faEnabled == true) "有効" else "無効"} / TOTP: ${if (security?.hasTotp == true) "登録済" else "未登録"} / パスキー: ${if (security?.hasWebauthn == true) "登録済" else "未登録"}",
+                            style = MaterialTheme.typography.bodySmall)
+                        if (state.securityBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        state.securityError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+
+                        Text("認証アプリ（TOTP）", fontWeight = FontWeight.SemiBold)
+                        if (security?.hasTotp == true) {
+                            OutlinedTextField(totpDisableCode, { totpDisableCode = it.filter { c -> c.isDigit() }.take(8) },
+                                singleLine = true, label = { Text("現在のコード") }, modifier = Modifier.fillMaxWidth())
                             TextButton(
-                                onClick = { model.enableTotp(totpEnableCode); totpEnableCode = "" },
-                                enabled = !state.securityBusy && totpEnableCode.isNotBlank(),
-                            ) { Text("有効化") }
-                            TextButton(onClick = model::cancelTotpSetup) { Text("キャンセル") }
+                                onClick = { model.disableTotp(totpDisableCode); totpDisableCode = "" },
+                                enabled = !state.securityBusy && totpDisableCode.isNotBlank(),
+                            ) { Text("TOTPを無効化") }
+                        } else if (state.securityTotpSecret != null) {
+                            Text("認証アプリに次のキーを登録してください。", style = MaterialTheme.typography.bodySmall)
+                            SelectionContainer { Text(state.securityTotpSecret.orEmpty(), fontFamily = FontFamily.Monospace) }
+                            state.securityTotpUri?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
+                            OutlinedTextField(totpEnableCode, { totpEnableCode = it.filter { c -> c.isDigit() }.take(8) },
+                                singleLine = true, label = { Text("認証コード") }, modifier = Modifier.fillMaxWidth())
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(
+                                    onClick = { model.enableTotp(totpEnableCode); totpEnableCode = "" },
+                                    enabled = !state.securityBusy && totpEnableCode.isNotBlank(),
+                                ) { Text("有効化") }
+                                TextButton(onClick = model::cancelTotpSetup) { Text("キャンセル") }
+                            }
+                        } else {
+                            TextButton(onClick = model::startTotpSetup, enabled = !state.securityBusy) { Text("TOTPを登録") }
                         }
-                    } else {
-                        TextButton(onClick = model::startTotpSetup, enabled = !state.securityBusy) { Text("TOTPを登録") }
-                    }
 
-                    Text("パスキー", fontWeight = FontWeight.SemiBold)
-                    if (security?.passkeys.isNullOrEmpty()) {
-                        Text("登録済みのパスキーはありません。", style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        security?.passkeys?.forEach { key ->
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(key.name, style = MaterialTheme.typography.bodySmall)
-                                TextButton(onClick = { model.removePasskey(key.id) }, enabled = !state.securityBusy) { Text("削除") }
+                        Text("パスキー", fontWeight = FontWeight.SemiBold)
+                        if (security?.passkeys.isNullOrEmpty()) {
+                            Text("登録済みのパスキーはありません。", style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            security?.passkeys?.forEach { key ->
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(key.name, style = MaterialTheme.typography.bodySmall)
+                                    TextButton(onClick = { model.removePasskey(key.id) }, enabled = !state.securityBusy) { Text("削除") }
+                                }
                             }
                         }
-                    }
-                    TextButton(onClick = model::beginPasskeyRegistration, enabled = !state.securityBusy) { Text("パスキーを登録") }
+                        TextButton(onClick = model::beginPasskeyRegistration, enabled = !state.securityBusy) { Text("パスキーを登録") }
 
-                    CheckboxRow("Googleログイン時に2FAをスキップ", skip2faGoogle) { skip2faGoogle = it }
-                    ChoiceRow("既定の2要素認証方式", default2fa, listOf("totp", "webauthn")) { default2fa = it }
-                    CheckboxRow("パスキーのみでログイン", passkeyOnly) { passkeyOnly = it }
-                    Button(
-                        onClick = { model.saveSecurityPreferences(default2fa, passkeyOnly, skip2faGoogle) },
-                        enabled = !state.securityBusy,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("2FA設定を保存") }
-                    Text("パスワード変更やアカウント削除はWeb設定で行います。", style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { onWeb("/settings") }) { Text("Webでセキュリティ設定を開く") }
-                }
-                if (tab == "フィードバック" && tab in visibleTabs) {
-                    OutlinedTextField(feedbackTitle, { feedbackTitle = it.take(200) }, singleLine = true,
-                        label = { Text("タイトル（任意）") }, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(feedbackMessage, { feedbackMessage = it.take(100_000) }, minLines = 4, maxLines = 8,
-                        label = { Text("バグ報告・要望") }, modifier = Modifier.fillMaxWidth())
-                    TextButton(onClick = { model.submitFeedback(feedbackTitle, feedbackMessage); feedbackTitle = ""; feedbackMessage = "" },
-                        enabled = feedbackMessage.isNotBlank() && !state.feedbackBusy) { Text("送信") }
-                    Text("あなたのフィードバック", fontWeight = FontWeight.SemiBold)
-                    if (state.feedbackItems.isEmpty()) Text("まだありません。", style = MaterialTheme.typography.bodySmall)
-                    state.feedbackItems.take(20).forEach { item ->
-                        Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(item.title.ifBlank { "（無題）" }, fontWeight = FontWeight.SemiBold)
-                                Text(item.message.take(400), style = MaterialTheme.typography.bodySmall)
-                                Text("${item.status} · ${item.createdAt}", style = MaterialTheme.typography.labelSmall)
-                                if (item.adminReply.isNotBlank()) Text("返信: ${item.adminReply.take(400)}", style = MaterialTheme.typography.bodySmall)
+                        CheckboxRow("Googleログイン時に2FAをスキップ", skip2faGoogle) { skip2faGoogle = it }
+                        ChoiceRow("既定の2要素認証方式", default2fa, listOf("totp", "webauthn")) { default2fa = it }
+                        CheckboxRow("パスキーのみでログイン", passkeyOnly) { passkeyOnly = it }
+                        Button(
+                            onClick = { model.saveSecurityPreferences(default2fa, passkeyOnly, skip2faGoogle) },
+                            enabled = !state.securityBusy,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("2FA設定を保存") }
+                        Text("パスワード変更やアカウント削除はWeb設定で行います。", style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = { onWeb("/settings") }) { Text("Webでセキュリティ設定を開く") }
+                    }
+                    if (target == "フィードバック" && target in visibleTabs) {
+                        OutlinedTextField(feedbackTitle, { feedbackTitle = it.take(200) }, singleLine = true,
+                            label = { Text("タイトル（任意）") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(feedbackMessage, { feedbackMessage = it.take(100_000) }, minLines = 4, maxLines = 8,
+                            label = { Text("バグ報告・要望") }, modifier = Modifier.fillMaxWidth())
+                        TextButton(onClick = { model.submitFeedback(feedbackTitle, feedbackMessage); feedbackTitle = ""; feedbackMessage = "" },
+                            enabled = feedbackMessage.isNotBlank() && !state.feedbackBusy) { Text("送信") }
+                        Text("あなたのフィードバック", fontWeight = FontWeight.SemiBold)
+                        if (state.feedbackItems.isEmpty()) Text("まだありません。", style = MaterialTheme.typography.bodySmall)
+                        state.feedbackItems.take(20).forEach { item ->
+                            Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(item.title.ifBlank { "（無題）" }, fontWeight = FontWeight.SemiBold)
+                                    Text(item.message.take(400), style = MaterialTheme.typography.bodySmall)
+                                    Text("${item.status} · ${item.createdAt}", style = MaterialTheme.typography.labelSmall)
+                                    if (item.adminReply.isNotBlank()) Text("返信: ${item.adminReply.take(400)}", style = MaterialTheme.typography.bodySmall)
+                                }
                             }
                         }
                     }
-                }
-                if (tab == "MCP" && tab in visibleTabs) {
-                    Text("接続中のサーバーをこの端末で有効／無効にできます。OAuthやBearerの秘密設定はWebで行います。",
-                        style = MaterialTheme.typography.bodySmall)
-                    if (state.mcpBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                    if (state.mcpServers.isEmpty() && !state.mcpBusy) Text("登録済みサーバーはありません。", style = MaterialTheme.typography.bodySmall)
-                    state.mcpServers.forEach { server ->
-                        Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                            Column(Modifier.fillMaxWidth().padding(10.dp)) {
-                                CheckboxRow("${server.name}（${server.toolCount}ツール）", server.enabled) { model.setMcpServerEnabled(server, it) }
-                                Text("${server.connectionState} / ${server.authStatus}", style = MaterialTheme.typography.labelSmall)
+                    if (target == "MCP" && target in visibleTabs) {
+                        Text("接続中のサーバーをこの端末で有効／無効にできます。OAuthやBearerの秘密設定はWebで行います。",
+                            style = MaterialTheme.typography.bodySmall)
+                        if (state.mcpBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        if (state.mcpServers.isEmpty() && !state.mcpBusy) Text("登録済みサーバーはありません。", style = MaterialTheme.typography.bodySmall)
+                        state.mcpServers.forEach { server ->
+                            Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                                Column(Modifier.fillMaxWidth().padding(10.dp)) {
+                                    CheckboxRow("${server.name}（${server.toolCount}ツール）", server.enabled) { model.setMcpServerEnabled(server, it) }
+                                    Text("${server.connectionState} / ${server.authStatus}", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                        TextButton(onClick = { onWeb("/settings") }) { Text("WebでMCP秘密設定を開く") }
+                    }
+                    if (target == "画像圧縮" && target in visibleTabs) {
+                        Text("画像の圧縮", fontWeight = FontWeight.SemiBold)
+                        CheckboxRow("画像を圧縮して送信", compressionEnabled) { compressionEnabled = it }
+                        if (compressionEnabled) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(maxSizeMB, { maxSizeMB = it.filter { c -> c.isDigit() || c == '.' }.take(5) },
+                                    singleLine = true, label = { Text("最大サイズ (MB)") }, modifier = Modifier.weight(1f))
+                                OutlinedTextField(maxDim, { maxDim = it.filter { c -> c.isDigit() }.take(4) },
+                                    singleLine = true, label = { Text("最大辺 (px)") }, modifier = Modifier.weight(1f))
+                            }
+                            CheckboxRow("形式のみ変換（サイズ・寸法は変更しない）", formatOnly) { formatOnly = it }
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("original" to "元の形式", "image/jpeg" to "JPEG", "image/png" to "PNG", "image/webp" to "WebP").forEach { (value, label) ->
+                                    FilterChip(outputType == value, { outputType = value }, { Text(label) })
+                                }
                             }
                         }
                     }
-                    TextButton(onClick = { onWeb("/settings") }) { Text("WebでMCP秘密設定を開く") }
-                }
-                if (tab == "画像圧縮" && tab in visibleTabs) {
-                    Text("画像の圧縮", fontWeight = FontWeight.SemiBold)
-                    CheckboxRow("画像を圧縮して送信", compressionEnabled) { compressionEnabled = it }
-                    if (compressionEnabled) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(maxSizeMB, { maxSizeMB = it.filter { c -> c.isDigit() || c == '.' }.take(5) },
-                                singleLine = true, label = { Text("最大サイズ (MB)") }, modifier = Modifier.weight(1f))
-                            OutlinedTextField(maxDim, { maxDim = it.filter { c -> c.isDigit() }.take(4) },
-                                singleLine = true, label = { Text("最大辺 (px)") }, modifier = Modifier.weight(1f))
+                    if (target == "セッション" && target in visibleTabs) {
+                        Text("この端末のセッション", fontWeight = FontWeight.SemiBold)
+                        Text("端末: ${prefs?.deviceName?.ifBlank { "このAndroid端末" } ?: "このAndroid端末"}", style = MaterialTheme.typography.labelSmall)
+                        if (prefs != null) {
+                            Text("連携日時: ${prefs.sessionCreatedAt}", style = MaterialTheme.typography.labelSmall)
+                            Text("有効期限: ${prefs.sessionExpiresAt}", style = MaterialTheme.typography.labelSmall)
                         }
-                        CheckboxRow("形式のみ変換（サイズ・寸法は変更しない）", formatOnly) { formatOnly = it }
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("original" to "元の形式", "image/jpeg" to "JPEG", "image/png" to "PNG", "image/webp" to "WebP").forEach { (value, label) ->
-                                FilterChip(outputType == value, { outputType = value }, { Text(label) })
-                            }
-                        }
+                        TextButton(onClick = { confirmLogout = true }) { Text("この端末の連携を取り消す") }
                     }
-                }
-                if (tab == "セッション" && tab in visibleTabs) {
-                    Text("この端末のセッション", fontWeight = FontWeight.SemiBold)
-                    Text("端末: ${prefs?.deviceName?.ifBlank { "このAndroid端末" } ?: "このAndroid端末"}", style = MaterialTheme.typography.labelSmall)
-                    if (prefs != null) {
-                        Text("連携日時: ${prefs.sessionCreatedAt}", style = MaterialTheme.typography.labelSmall)
-                        Text("有効期限: ${prefs.sessionExpiresAt}", style = MaterialTheme.typography.labelSmall)
                     }
-                    TextButton(onClick = { confirmLogout = true }) { Text("この端末の連携を取り消す") }
                 }
             }
         },
@@ -472,8 +498,8 @@ fun SettingsDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
     )
-    if (modelPicker) ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { defaultModel = it; modelPicker = false }, selectedId = defaultModel)
-    if (visionPicker) ModelPicker(state, onDismiss = { visionPicker = false }, onSelect = { visionModel = it; visionPicker = false }, selectedId = visionModel)
+    ModalHost(modelPicker) { ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { defaultModel = it; modelPicker = false }, selectedId = defaultModel) }
+    ModalHost(visionPicker) { ModelPicker(state, onDismiss = { visionPicker = false }, onSelect = { visionModel = it; visionPicker = false }, selectedId = visionModel) }
     if (confirmLogout) AlertDialog(onDismissRequest = { confirmLogout = false }, title = { Text("この端末からログアウト") },
         text = { Text("このAndroid端末の連携を取り消します。Webや他の端末のログインは継続します。") },
         confirmButton = { TextButton(onClick = { confirmLogout = false; onLogout() }) { Text("ログアウト") } },
@@ -506,4 +532,11 @@ private fun ChoiceRow(label: String, value: String, choices: List<String>, onCha
         Text("$label: $value", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = { onChange(choices[(choices.indexOf(value).let { if (it < 0) 0 else it } + 1) % choices.size]) }) { Text("変更") }
     }
+}
+
+/** +1 when moving to a tab further right in the chip row, -1 when moving left. */
+internal fun settingsTabDirection(tabs: List<String>, from: String, to: String): Int {
+    val fromIndex = tabs.indexOf(from)
+    val toIndex = tabs.indexOf(to)
+    return if (fromIndex < 0 || toIndex < 0 || toIndex >= fromIndex) 1 else -1
 }

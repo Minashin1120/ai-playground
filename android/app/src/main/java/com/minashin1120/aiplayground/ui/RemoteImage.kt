@@ -3,16 +3,22 @@ package com.minashin1120.aiplayground.ui
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -25,6 +31,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -97,17 +106,59 @@ fun ProtectedImage(
             contentAlignment = Alignment.Center,
         ) {
             val image = bitmap
-            when {
-                image != null -> Image(
-                    image.asImageBitmap(), contentDescription,
-                    modifier = Modifier.fillMaxWidth(), contentScale = ContentScale.Fit,
-                )
-                failed -> Text(
-                    "画像を読み込めませんでした", style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(16.dp),
-                )
-                else -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            val phase = when {
+                image != null -> ImageLoadPhase.Loaded
+                failed -> ImageLoadPhase.Failed
+                else -> ImageLoadPhase.Loading
             }
+            // Web `libShimmer` → `thumb-pop`: a soft sweep while loading, then a cross-fade to the image.
+            Crossfade(phase, animationSpec = motionTween(LocalReduceMotion.current), label = "protected image") { shown ->
+                when (shown) {
+                    ImageLoadPhase.Loaded -> image?.let {
+                        Image(
+                            it.asImageBitmap(), contentDescription,
+                            modifier = Modifier.fillMaxWidth(), contentScale = ContentScale.Fit,
+                        )
+                    }
+                    ImageLoadPhase.Failed -> Text(
+                        "画像を読み込めませんでした", style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(16.dp),
+                    )
+                    ImageLoadPhase.Loading -> LoadingShimmer(
+                        if (compact) Modifier.fillMaxWidth().height(120.dp) else Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private enum class ImageLoadPhase { Loading, Loaded, Failed }
+
+/** Diagonal highlight sweeping across the placeholder; static under reduced motion. */
+@Composable
+private fun LoadingShimmer(modifier: Modifier) {
+    val reduce = LocalReduceMotion.current
+    val base = MaterialTheme.colorScheme.surfaceVariant
+    val highlight = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+    val transition = rememberInfiniteTransition(label = "image shimmer")
+    val sweep by transition.animateFloat(
+        initialValue = -1f,
+        targetValue = 2f,
+        animationSpec = infiniteRepeatable(tween(1_300, easing = LinearEasing)),
+        label = "image shimmer sweep",
+    )
+    Canvas(modifier) {
+        drawRect(base)
+        if (!reduce) {
+            val center = size.width * sweep
+            drawRect(
+                Brush.linearGradient(
+                    colors = listOf(Color.Transparent, highlight, Color.Transparent),
+                    start = Offset(center - size.width * 0.4f, 0f),
+                    end = Offset(center + size.width * 0.4f, size.height),
+                ),
+            )
         }
     }
 }

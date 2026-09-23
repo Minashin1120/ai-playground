@@ -1,11 +1,28 @@
 package com.minashin1120.aiplayground.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.text.KeyboardActions
@@ -20,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.input.ImeAction
@@ -51,6 +69,7 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
     var details by remember(promptMode) { mutableStateOf(promptMode == "normal") }
     val selectedModel = state.account?.models?.firstOrNull { it.id == state.model }
     val colors = MaterialTheme.colorScheme
+    val reduce = LocalReduceMotion.current
     val slashMatches = matchingSlashCommands(state.draft)
     val runSlash: (SlashCommand) -> Unit = { command ->
         when (command.id) {
@@ -79,7 +98,7 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
             Modifier.widthIn(max = PlaygroundDimens.contentMax).fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 9.dp),
             verticalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            if (state.editingMessageId != null) {
+            AnimatedVisibility(state.editingMessageId != null, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                 Surface(shape = RoundedCornerShape(12.dp), color = colors.secondary.copy(alpha = 0.10f), border = androidx.compose.foundation.BorderStroke(1.dp, colors.secondary.copy(alpha = 0.25f))) {
                     Row(Modifier.fillMaxWidth().padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Edit, contentDescription = null, tint = colors.secondary, modifier = Modifier.size(16.dp))
@@ -133,7 +152,10 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                     if (state.codingMode) CodingTargetPanel(state.allMessages, state.codingTarget, model)
                 }
             }
-            state.selectedGem?.let { gem ->
+            val shownGem = rememberRetained(state.selectedGem)
+            AnimatedVisibility(state.selectedGem != null, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
+                shownGem?.let { gem ->
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 InputChip(selected = true, onClick = { model.chooseGem(null) }, label = { Text("Gem: ${gem.name.take(20)} ×") })
                 if (gem.fixedPrompts.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     gem.fixedPrompts.forEach { prompt ->
@@ -142,38 +164,51 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                             label = { Text(prompt.name) })
                     }
                 }
+                }
+                }
             }
-            state.imageMask?.let { mask ->
+            AnimatedVisibility(state.imageMask != null, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                 InputChip(selected = true, onClick = { model.setImageMask(null) },
                     label = { Text("🎭 マスク適用中 ×") })
             }
-            if (slashMatches.isNotEmpty()) {
+            val shownSlash = rememberRetained(slashMatches.takeIf { it.isNotEmpty() })
+            AnimatedVisibility(slashMatches.isNotEmpty(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    slashMatches.take(8).forEach { command ->
+                    shownSlash.orEmpty().take(8).forEach { command ->
                         SuggestionChip(onClick = { runSlash(command) }, label = { Text("${command.label}  ${command.description}") })
                     }
                 }
             }
             val gemMention = gemMentionQuery(state.draft)
-            if (gemMention != null && state.gems.isNotEmpty()) {
-                val candidates = state.gems.filter { it.name.contains(gemMention, ignoreCase = true) }.take(6)
-                if (candidates.isNotEmpty()) {
+            val mentionCandidates = if (gemMention != null && state.gems.isNotEmpty()) {
+                state.gems.filter { it.name.contains(gemMention, ignoreCase = true) }.take(6)
+            } else emptyList()
+            val shownMention = rememberRetained(gemMention?.takeIf { mentionCandidates.isNotEmpty() }?.let { it to mentionCandidates })
+            AnimatedVisibility(mentionCandidates.isNotEmpty(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
+                shownMention?.let { (query, candidates) ->
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         candidates.forEach { gem ->
-                            InputChip(selected = false, onClick = { model.applyGemMention(gem, gemMention) },
+                            InputChip(selected = false, onClick = { model.applyGemMention(gem, query) },
                                 label = { Text("@${gem.name.take(20)}") })
                         }
                     }
                 }
             }
-            if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                state.attachments.forEach { attachment ->
-                    InputChip(selected = true, onClick = { model.removeAttachment(attachment.reference) },
-                        label = { Text("${attachmentKindIcon(attachmentKind(attachment.name, attachment.mime))} ${attachment.name.take(20)} ×") })
+            AnimatedVisibility(state.attachments.isNotEmpty(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    state.attachments.forEach { attachment ->
+                        key(attachment.reference) {
+                            AppearOnce(enter = ::popIn) {
+                                InputChip(selected = true, onClick = { model.removeAttachment(attachment.reference) },
+                                    label = { Text("${attachmentKindIcon(attachmentKind(attachment.name, attachment.mime))} ${attachment.name.take(20)} ×") })
+                            }
+                        }
+                    }
                 }
             }
-            if (state.uploading) {
+            AnimatedVisibility(state.uploading, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                 val fraction = if (state.uploadTotal > 0) (state.uploadSent.toFloat() / state.uploadTotal).coerceIn(0f, 1f) else null
+                val shownFraction by animateFloatAsState(fraction ?: 0f, motionTween(reduce, PlaygroundMotion.MEDIUM), label = "upload progress")
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("アップロード中: ${state.uploadName.ifBlank { "添付" }.take(24)}",
@@ -181,7 +216,7 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                         TextButton(onClick = model::cancelUpload) { Text("キャンセル", style = MaterialTheme.typography.labelMedium) }
                     }
                     if (fraction != null) {
-                        LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+                        LinearProgressIndicator(progress = { shownFraction }, modifier = Modifier.fillMaxWidth())
                         Text("${formatByteSize(state.uploadSent)} / ${formatByteSize(state.uploadTotal)}",
                             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
@@ -222,10 +257,25 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                             keyboardActions = KeyboardActions(onSend = { sendOrSlash() }),
                             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent, disabledBorderColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent),
                         )
-                        if (state.streaming) FilledIconButton(onClick = model::stop, enabled = state.jobId != null, colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.error, contentColor = colors.onError), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(bottom = 5.dp)) {
-                            Icon(Icons.Rounded.Stop, contentDescription = "生成を停止")
-                        } else FilledIconButton(onClick = sendOrSlash, enabled = !state.offline && !state.busy && !state.uploading && (state.draft.isNotBlank() || state.attachments.isNotEmpty()), shape = RoundedCornerShape(12.dp), modifier = Modifier.padding(bottom = 5.dp)) {
-                            Icon(Icons.Rounded.Send, contentDescription = "送信")
+                        val canSend = !state.offline && !state.busy && !state.uploading && (state.draft.isNotBlank() || state.attachments.isNotEmpty())
+                        val sendContainer by animateColorAsState(if (canSend) colors.primary else colors.onSurface.copy(alpha = 0.12f),
+                            motionTween(reduce, PlaygroundMotion.MEDIUM), label = "send container")
+                        val sendContent by animateColorAsState(if (canSend) colors.onPrimary else colors.onSurface.copy(alpha = 0.38f),
+                            motionTween(reduce, PlaygroundMotion.MEDIUM), label = "send content")
+                        // Web `btn-swap-pop`: the send and stop buttons trade places with a small scale.
+                        AnimatedContent(
+                            targetState = state.streaming,
+                            transitionSpec = { popIn(reduce) togetherWith popOut(reduce) },
+                            modifier = Modifier.padding(bottom = 5.dp),
+                            label = "send stop swap",
+                        ) { streaming ->
+                            if (streaming) FilledIconButton(onClick = model::stop, enabled = state.jobId != null, colors = IconButtonDefaults.filledIconButtonColors(containerColor = colors.error, contentColor = colors.onError), shape = RoundedCornerShape(12.dp)) {
+                                Icon(Icons.Rounded.Stop, contentDescription = "生成を停止")
+                            } else FilledIconButton(onClick = sendOrSlash, enabled = canSend, shape = RoundedCornerShape(12.dp),
+                                colors = IconButtonDefaults.filledIconButtonColors(containerColor = sendContainer, contentColor = sendContent,
+                                    disabledContainerColor = sendContainer, disabledContentColor = sendContent)) {
+                                Icon(Icons.Rounded.Send, contentDescription = "送信")
+                            }
                         }
                     }
                 }
@@ -317,8 +367,12 @@ fun StatusCardView(card: StatusCard) {
     Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (card.done) Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                else CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                Crossfade(card.done, modifier = Modifier.size(16.dp), animationSpec = motionTween(LocalReduceMotion.current), label = "status card icon") { done ->
+                    Box(contentAlignment = Alignment.Center) {
+                        if (done) Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                        else CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                    }
+                }
                 Text(card.label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 8.dp))
             }
@@ -343,9 +397,10 @@ fun StatusCardView(card: StatusCard) {
 @Composable
 fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) -> Unit,
                 loader: FileBytesLoader? = null, onMcpDecision: (Boolean) -> Unit = {}) {
+    val reduce = LocalReduceMotion.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        state.cards.forEach { card -> key(card.id + card.kind) { StatusCardView(card) } }
-        state.mcpDecision?.let { decision ->
+        state.cards.forEach { card -> key(card.id + card.kind) { AppearOnce { StatusCardView(card) } } }
+        state.mcpDecision?.let { decision -> key(decision.id) { AppearOnce {
             Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = RoundedCornerShape(12.dp)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("MCPツールの実行確認", fontWeight = FontWeight.SemiBold)
@@ -358,13 +413,123 @@ fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) ->
                         Button(onClick = { onMcpDecision(true) }) { Text("今回だけ許可") } }
                 }
             }
-        }
+        } } }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.streaming) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-            Text(state.status.ifBlank { "受信した回答" }, style = MaterialTheme.typography.labelMedium)
+            AnimatedContent(
+                targetState = state.status.ifBlank { "受信した回答" },
+                transitionSpec = {
+                    if (reduce) EnterTransition.None togetherWith ExitTransition.None
+                    else (slideInVertically(tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Emphasized)) { it / 2 } +
+                        fadeIn(tween(PlaygroundMotion.MEDIUM))) togetherWith
+                        (slideOutVertically(tween(PlaygroundMotion.SHORT, easing = PlaygroundMotion.Exit)) { -it / 2 } +
+                            fadeOut(tween(PlaygroundMotion.SHORT)))
+                },
+                label = "live status",
+            ) { status -> Text(status, style = MaterialTheme.typography.labelMedium) }
         }
-        if (state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty()) {
+        val hasText = state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty()
+        AnimatedVisibility(state.streaming && !hasText, enter = fadeIn(motionTween(reduce)), exit = fadeOut(motionTween(reduce, PlaygroundMotion.SHORT))) {
+            Surface(shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 5.dp, bottomEnd = 20.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f))) {
+                TypingDots(Modifier.padding(horizontal = 18.dp, vertical = 16.dp))
+            }
+        }
+        AnimatedVisibility(hasText, enter = expandFadeIn(reduce), exit = ExitTransition.None) {
             MessageCard(ChatMessage("live", "assistant", state.liveContent, state.liveThought), onFile, onQuote, loader)
         }
     }
+}
+
+/**
+ * Keeps conversation list keys stable when the stream's local rows are replaced by stored messages,
+ * so the sent message and the streamed reply stay in place instead of fading out and back in.
+ * Also remembers which keys are genuinely new so only those play the entry motion.
+ */
+internal class ConversationKeyTracker {
+    private var lastMessages: List<ChatMessage>? = null
+    private var lastLiveShown = false
+    private var lastStreaming = false
+    private val aliases = HashMap<String, String>()
+    private val fresh = HashSet<String>()
+    private var liveSerial = 0
+
+    /** True once the streamed reply has been handed to a stored message during the current stream. */
+    var liveConsumed = false
+        private set
+
+    val liveKey: String get() = "live-$liveSerial"
+
+    fun keyOf(message: ChatMessage): String = aliases[message.id] ?: message.id
+
+    /** Returns true only the first time a newly added key asks, so re-composition never replays the entry. */
+    fun consumeFresh(key: String): Boolean = fresh.remove(key)
+
+    fun update(messages: List<ChatMessage>, streaming: Boolean, liveVisible: Boolean) {
+        if (streaming && !lastStreaming) liveConsumed = false
+        lastStreaming = streaming
+        val previous = lastMessages
+        if (previous !== messages) {
+            lastMessages = messages
+            if (previous != null) carryOver(previous, messages)
+        }
+        val shown = liveVisible && !liveConsumed
+        if (shown && !lastLiveShown && previous != null) fresh += liveKey
+        lastLiveShown = shown
+    }
+
+    private fun carryOver(previous: List<ChatMessage>, next: List<ChatMessage>) {
+        val previousIds = previous.mapTo(HashSet()) { it.id }
+        val added = next.filter { it.id !in previousIds }
+        if (added.isEmpty()) return
+        val nextIds = next.mapTo(HashSet()) { it.id }
+        val claimed = HashSet<String>()
+        val removedLocal = previous.filter { it.role == "user" && it.id.startsWith("local-") && it.id !in nextIds }
+        val addedUsers = added.filter { it.role == "user" }
+        removedLocal.forEach { local ->
+            val match = addedUsers.firstOrNull { it.id !in claimed && it.content == local.content }
+                ?: addedUsers.singleOrNull()?.takeIf { removedLocal.size == 1 && it.id !in claimed }
+                ?: return@forEach
+            claimed += match.id
+            aliases[match.id] = keyOf(local)
+        }
+        if (lastLiveShown) {
+            added.lastOrNull { it.role == "assistant" }?.let { reply ->
+                claimed += reply.id
+                aliases[reply.id] = liveKey
+                liveSerial += 1
+                liveConsumed = true
+                lastLiveShown = false
+            }
+        }
+        added.forEach { if (it.id !in claimed) fresh += keyOf(it) }
+    }
+}
+
+/** Three softly pulsing dots shown while the reply has not produced text yet. */
+@Composable
+internal fun TypingDots(modifier: Modifier = Modifier) {
+    val reduce = LocalReduceMotion.current
+    val color = MaterialTheme.colorScheme.primary
+    val transition = rememberInfiniteTransition(label = "typing dots")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1_050, easing = LinearEasing)),
+        label = "typing phase",
+    )
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+        repeat(3) { index ->
+            val alpha = if (reduce) 0.7f else typingDotAlpha(phase, index)
+            Box(Modifier.size(7.dp).graphicsLayer { this.alpha = alpha }.clip(CircleShape).background(color))
+        }
+    }
+}
+
+/** Each dot peaks a third of a cycle after the previous one. */
+internal fun typingDotAlpha(phase: Float, index: Int): Float {
+    val local = ((phase - index / 3f) % 1f + 1f) % 1f
+    val wave = if (local < 0.5f) local * 2f else (1f - local) * 2f
+    return 0.3f + 0.7f * wave
 }

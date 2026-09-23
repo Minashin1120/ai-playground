@@ -7,6 +7,9 @@ import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -30,7 +33,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
@@ -49,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
@@ -417,7 +423,8 @@ fun PlaygroundScreen(
                     }
                 ) { padding ->
                     Column(Modifier.fillMaxSize().padding(padding)) {
-                        if (state.connectionBannerVisible || state.offline) {
+                        AnimatedVisibility(state.connectionBannerVisible || state.offline,
+                            enter = expandFadeIn(reduceMotion), exit = shrinkFadeOut(reduceMotion)) {
                             ConnectionBanner(
                                 status = if (state.connectionStatus == ConnectionStatus.UNKNOWN) ConnectionStatus.OFFLINE else state.connectionStatus,
                                 message = state.connectionMessage,
@@ -678,11 +685,24 @@ private fun ConnectionBanner(status: ConnectionStatus, message: String, onRetry:
         ConnectionStatus.SERVER_DOWN -> Icons.Rounded.Dns
         ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> Icons.Rounded.CloudOff
     }
-    Surface(color = container, modifier = Modifier.fillMaxWidth()) {
+    val reduce = LocalReduceMotion.current
+    val shownContainer by animateColorAsState(container, motionTween(reduce), label = "banner container")
+    val shownContent by animateColorAsState(content, motionTween(reduce), label = "banner content")
+    // Web `bannerPulse`: the icon pulses once whenever the connection gets worse.
+    val pulse = remember { Animatable(1f) }
+    LaunchedEffect(status) {
+        if (reduce || status == ConnectionStatus.ONLINE) return@LaunchedEffect
+        pulse.animateTo(1.25f, tween(PlaygroundMotion.SHORT, easing = PlaygroundMotion.Emphasized))
+        pulse.animateTo(1f, tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Standard))
+    }
+    Surface(color = shownContainer, modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = null, tint = shownContent, modifier = Modifier.size(18.dp).graphicsLayer {
+                scaleX = pulse.value
+                scaleY = pulse.value
+            })
             Text(message.ifBlank { status.defaultMessage() }, modifier = Modifier.weight(1f).padding(start = 8.dp),
-                style = MaterialTheme.typography.bodySmall, color = content)
+                style = MaterialTheme.typography.bodySmall, color = shownContent)
             if (status != ConnectionStatus.ONLINE) TextButton(onClick = onRetry) { Text("再試行") }
         }
     }
@@ -705,6 +725,7 @@ private fun ThreadPanel(
     onChangelog: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
+    val reduce = LocalReduceMotion.current
     Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 12.dp, vertical = 12.dp)) {
         Text(state.selected?.title?.ifBlank { "AI Chat" } ?: "AI Chat", style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -737,10 +758,12 @@ private fun ThreadPanel(
         LazyColumn(Modifier.heightIn(max = 140.dp)) {
             items(state.gems, key = { it.uuid }) { gem ->
                 TextButton(onClick = { model.chooseGem(gem); onNavigate() }, enabled = !state.streaming,
-                    modifier = Modifier.fillMaxWidth()) {
+                    modifier = Modifier.fillMaxWidth().animateItem(fadeInSpec = listFade(reduce), placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce))) {
                     Icon(Icons.Rounded.AutoAwesome, null, modifier = Modifier.size(16.dp))
                     Text(gem.name, modifier = Modifier.weight(1f).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (state.selectedGem?.uuid == gem.uuid) Icon(Icons.Rounded.Check, "適用中", modifier = Modifier.size(16.dp))
+                    AnimatedVisibility(state.selectedGem?.uuid == gem.uuid, enter = popIn(reduce), exit = popOut(reduce)) {
+                        Icon(Icons.Rounded.Check, "適用中", modifier = Modifier.size(16.dp))
+                    }
                 }
             }
         }
@@ -748,13 +771,21 @@ private fun ThreadPanel(
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             items(state.threads, key = { it.id }) { thread ->
                 val selected = state.selected?.id == thread.id
+                val rowBackground by animateColorAsState(if (selected) colors.primary.copy(alpha = 0.13f) else colors.primary.copy(alpha = 0f),
+                    motionTween(reduce), label = "thread background")
+                val rowBorder by animateColorAsState(if (selected) colors.primary.copy(alpha = 0.25f) else colors.primary.copy(alpha = 0f),
+                    motionTween(reduce), label = "thread border")
+                val rowInteraction = remember { MutableInteractionSource() }
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                        .background(if (selected) colors.primary.copy(alpha = 0.13f) else Color.Transparent)
-                        .border(1.dp, if (selected) colors.primary.copy(alpha = 0.25f) else Color.Transparent, RoundedCornerShape(12.dp)),
+                    Modifier.fillMaxWidth()
+                        .animateItem(fadeInSpec = listFade(reduce), placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce))
+                        .pressScale(rowInteraction)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(rowBackground)
+                        .border(1.dp, rowBorder, RoundedCornerShape(12.dp)),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Row(modifier = Modifier.weight(1f).clickable { model.openThread(thread); onNavigate() }.padding(horizontal = 10.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(modifier = Modifier.weight(1f).clickable(rowInteraction, LocalIndication.current) { model.openThread(thread); onNavigate() }.padding(horizontal = 10.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(if (thread.isTemporary) Icons.Rounded.Schedule else Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = if (selected) colors.primary else colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
                         Column(Modifier.fillMaxWidth()) {
                             Text(buildString {
@@ -765,7 +796,9 @@ private fun ThreadPanel(
                         }
                     }
                     IconButton(onClick = { model.toggleBookmark(thread) }, enabled = !state.offline, modifier = Modifier.size(38.dp)) {
-                        Icon(if (thread.isBookmarked) Icons.Rounded.Star else Icons.Rounded.StarBorder, contentDescription = if (thread.isBookmarked) "ブックマーク解除" else "ブックマーク", modifier = Modifier.size(18.dp), tint = if (thread.isBookmarked) colors.secondary else colors.onSurfaceVariant)
+                        AnimatedContent(thread.isBookmarked, transitionSpec = { popIn(reduce) togetherWith popOut(reduce) }, label = "bookmark star") { bookmarked ->
+                            Icon(if (bookmarked) Icons.Rounded.Star else Icons.Rounded.StarBorder, contentDescription = if (bookmarked) "ブックマーク解除" else "ブックマーク", modifier = Modifier.size(18.dp), tint = if (bookmarked) colors.secondary else colors.onSurfaceVariant)
+                        }
                     }
                     IconButton(onClick = { onDelete(thread) }, enabled = !state.offline, modifier = Modifier.size(38.dp)) {
                         Icon(Icons.Rounded.DeleteOutline, contentDescription = "削除", modifier = Modifier.size(18.dp), tint = colors.onSurfaceVariant)
@@ -773,12 +806,11 @@ private fun ThreadPanel(
                 }
             }
             if (state.threads.isEmpty()) item(key = "empty") {
-                Text(
-                    if (state.search.isBlank()) "チャット履歴はまだありません。"
+                Text(modifier = Modifier.animateItem(fadeInSpec = listFade(reduce), placementSpec = null, fadeOutSpec = listFade(reduce)).padding(12.dp),
+                    text = if (state.search.isBlank()) "チャット履歴はまだありません。"
                     else "「${state.search}」に一致する履歴はありません。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(12.dp),
                 )
             }
             if (state.nextPage != null) item(key = "more") {
@@ -1336,10 +1368,15 @@ private fun ConversationContent(
     onFile: (String) -> Unit,
     loader: FileBytesLoader?,
 ) {
+    val reduce = LocalReduceMotion.current
     val scroll = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var showScrollToBottom by remember { mutableStateOf(false) }
-    val live = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty() || state.cards.isNotEmpty()
+    val keys = remember { ConversationKeyTracker() }
+    val streamActive = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty() || state.cards.isNotEmpty()
+    keys.update(state.messages, state.streaming, streamActive)
+    // Once the stored reply has taken over the streamed row, the placeholder must not reappear.
+    val live = streamActive && !keys.liveConsumed
     LaunchedEffect(scroll.firstVisibleItemIndex, scroll.layoutInfo.totalItemsCount) {
         val info = scroll.layoutInfo
         val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -1356,23 +1393,32 @@ private fun ConversationContent(
             positioned = true
             scroll.scrollToItem(count - 1)
         } else if (nearBottom) {
-            scroll.animateScrollToItem(count - 1)
+            if (reduce) scroll.scrollToItem(count - 1) else scroll.animateScrollToItem(count - 1)
         }
     }
+    val temporary = state.selected?.isTemporary == true || (state.selected == null && state.newThreadTemporary)
     Column(Modifier.fillMaxSize()) {
-        if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (state.selected?.isTemporary == true || (state.selected == null && state.newThreadTemporary)) {
+        // Keep the bar's slot so starting or finishing a load never shifts the conversation.
+        val busyAlpha by animateFloatAsState(if (state.busy) 1f else 0f, motionTween(reduce), label = "busy bar")
+        Box(Modifier.fillMaxWidth().height(4.dp)) {
+            if (busyAlpha > 0f) LinearProgressIndicator(Modifier.fillMaxWidth().graphicsLayer { alpha = busyAlpha })
+        }
+        AnimatedVisibility(temporary, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
             Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
                 Text("一時チャット・離席後に自動削除されます",
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
             }
         }
-        if (state.jobId != null && !state.streaming) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("生成の状態を確認できます", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = model::resume) { Text("再接続") }
+        AnimatedVisibility(state.jobId != null && !state.streaming, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("生成の状態を確認できます", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = model::resume) { Text("再接続") }
+            }
         }
-        if (state.retryAvailable) TextButton(onClick = model::retry, modifier = Modifier.fillMaxWidth(), enabled = !state.streaming) { Text("同じ送信を再試行（二重送信を防止）") }
+        AnimatedVisibility(state.retryAvailable, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
+            TextButton(onClick = model::retry, modifier = Modifier.fillMaxWidth(), enabled = !state.streaming) { Text("同じ送信を再試行（二重送信を防止）") }
+        }
         if (state.canvasMode) CanvasPreview(state.messages + if (state.liveContent.isNotBlank()) listOf(ChatMessage("canvas-live", "assistant", state.liveContent)) else emptyList(),
             onUse = { code -> model.draft(code) }, onClose = model::toggleCanvas)
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -1382,16 +1428,19 @@ private fun ConversationContent(
                 contentPadding = PaddingValues(horizontal = PlaygroundDimens.conversationHorizontalPadding, vertical = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-            if (state.hasOlder) item(key = "older") { TextButton(onClick = model::olderMessages, enabled = !state.busy && !state.offline, modifier = Modifier.fillMaxWidth()) { Text("以前のメッセージ（オンラインで取得）") } }
+            if (state.hasOlder) item(key = "older") { TextButton(onClick = model::olderMessages, enabled = !state.busy && !state.offline, modifier = Modifier.fillMaxWidth().animateItem(fadeInSpec = listFade(reduce), placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce))) { Text("以前のメッセージ（オンラインで取得）") } }
             if (state.messages.isEmpty() && !state.busy && !live) item(key = "welcome") {
-                Column(Modifier.fillMaxWidth().padding(vertical = 34.dp), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f), modifier = Modifier.size(58.dp)) {
-                        Box(contentAlignment = Alignment.Center) { Text("✦", color = MaterialTheme.colorScheme.primary, fontSize = 30.sp, fontWeight = FontWeight.Bold) }
+                Column(Modifier.fillMaxWidth().animateItem(fadeInSpec = listFade(reduce), placementSpec = null, fadeOutSpec = listFade(reduce)).padding(vertical = 34.dp), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    StaggerIn(0) {
+                        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f), modifier = Modifier.size(58.dp)) {
+                            Box(contentAlignment = Alignment.Center) { Text("✦", color = MaterialTheme.colorScheme.primary, fontSize = 30.sp, fontWeight = FontWeight.Bold) }
+                        }
                     }
-                    Text("AI Gems & Chat", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                    Text("使いたいモデルを選んで、すぐに会話を始められます", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    StaggerIn(1) { Text("AI Gems & Chat", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
+                    StaggerIn(2) { Text("使いたいモデルを選んで、すぐに会話を始められます", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                     Spacer(Modifier.height(6.dp))
-                    recentWebModels(state.account?.models.orEmpty()).forEach { info ->
+                    recentWebModels(state.account?.models.orEmpty()).forEachIndexed { index, info ->
+                        StaggerIn(3 + index) {
                         Surface(
                             onClick = { model.chooseModel(info.id) },
                             shape = RoundedCornerShape(PlaygroundDimens.cardRadius),
@@ -1402,38 +1451,58 @@ private fun ConversationContent(
                         ) {
                             Row(Modifier.padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text("${info.emoji} ${info.name}".trim(), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                                Icon(if (state.model == info.id) Icons.Rounded.Check else Icons.Rounded.ArrowForward, contentDescription = if (state.model == info.id) "選択中" else null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                Crossfade(state.model == info.id, animationSpec = motionTween(reduce), label = "welcome model check") { chosen ->
+                                    Icon(if (chosen) Icons.Rounded.Check else Icons.Rounded.ArrowForward, contentDescription = if (chosen) "選択中" else null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                }
                             }
+                        }
                         }
                     }
                 }
             }
-            items(state.messages, key = { it.id }) { message ->
+            items(state.messages, key = { keys.keyOf(it) }) { message ->
+                val entering = remember { keys.consumeFresh(keys.keyOf(message)) }
                 val siblings = siblingGroup(state.allMessages, message)
                 val index = siblings.indexOfFirst { it.id == message.id }
-                MessageCard(
-                    message = message,
-                    onFile = onFile,
-                    onQuote = model::quoteMessage,
-                    loader = loader,
-                    onEdit = { model.beginEdit(it) },
-                    onRegenerate = { model.regenerate(it) },
-                    branchIndex = if (index < 0) 0 else index,
-                    branchCount = if (numericId(message) != null) siblings.size else 0,
-                    onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) },
-                )
+                Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce))) {
+                    StaggerIn(0, animate = entering) {
+                        MessageCard(
+                            message = message,
+                            onFile = onFile,
+                            onQuote = model::quoteMessage,
+                            loader = loader,
+                            onEdit = { model.beginEdit(it) },
+                            onRegenerate = { model.regenerate(it) },
+                            branchIndex = if (index < 0) 0 else index,
+                            branchCount = if (numericId(message) != null) siblings.size else 0,
+                            onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) },
+                        )
+                    }
+                }
             }
-                if (live) item(key = "live") { LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision) }
+                if (live) item(key = keys.liveKey) {
+                    val entering = remember { keys.consumeFresh(keys.liveKey) }
+                    Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce))) {
+                        StaggerIn(0, animate = entering) {
+                            LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision)
+                        }
+                    }
+                }
             }
-            if (showScrollToBottom) {
+            AnimatedVisibility(
+                visible = showScrollToBottom,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 16.dp),
+                enter = popIn(reduce),
+                exit = popOut(reduce),
+                label = "scroll to bottom",
+            ) {
                 SmallFloatingActionButton(
                     onClick = {
                         scope.launch {
                             val last = (scroll.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
-                            scroll.animateScrollToItem(last)
+                            if (reduce) scroll.scrollToItem(last) else scroll.animateScrollToItem(last)
                         }
                     },
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 16.dp),
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                     contentColor = MaterialTheme.colorScheme.primary,
                 ) {
@@ -1447,6 +1516,7 @@ private fun ConversationContent(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LibraryDialog(state: ChatState, model: ChatViewModel, onOpenFile: (FileViewRequest) -> Unit, onDismiss: () -> Unit) {
+    val reduce = LocalReduceMotion.current
     val loader: FileBytesLoader = { reference, thumbnail, limit -> model.loadAttachmentBytes(reference, thumbnail, limit) }
     var renameTarget by remember { mutableStateOf<LibraryFile?>(null) }
     var deleteTarget by remember { mutableStateOf<LibraryFile?>(null) }
@@ -1467,7 +1537,7 @@ private fun LibraryDialog(state: ChatState, model: ChatViewModel, onOpenFile: (F
                 if (state.libraryBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 LazyColumn(Modifier.heightIn(max = 360.dp)) {
                     items(state.library, key = { it.filepath }) { file ->
-                        Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                        Column(Modifier.fillMaxWidth().animateItem(fadeInSpec = listFade(reduce), placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce)).padding(vertical = 2.dp)) {
                             val reference = file.url.ifBlank { file.filepath }
                             if (file.isImage) ProtectedImage(reference, loader, {
                                 onOpenFile(FileViewRequest(it, file.displayName, file.ext, "image/"))

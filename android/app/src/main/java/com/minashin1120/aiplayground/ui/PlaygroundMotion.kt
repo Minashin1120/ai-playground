@@ -12,6 +12,9 @@ import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -22,6 +25,10 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -35,7 +42,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.composed
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -200,3 +211,67 @@ internal fun ModalPanelMotion(
         }) { content() }
     }
 }
+
+/** Keeps the last non-null value so content can still render while it animates out. */
+@Composable
+internal fun <T : Any> rememberRetained(value: T?): T? {
+    val latest = remember { mutableStateOf<T?>(null) }
+    SideEffect { if (value != null) latest.value = value }
+    return value ?: latest.value
+}
+
+/** Plays [enter] once when first composed; used for rows that only ever appear (cards, chips). */
+@Composable
+internal fun AppearOnce(
+    enter: (Boolean) -> EnterTransition = ::expandFadeIn,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val reduce = LocalReduceMotion.current
+    val state = remember { MutableTransitionState(reduce).apply { targetState = true } }
+    AnimatedVisibility(visibleState = state, modifier = modifier, enter = enter(reduce), exit = ExitTransition.None, label = "appear once") {
+        content()
+    }
+}
+
+/** Fades and lifts content in, delayed by [index] steps (Web `uiEnterUp` stagger). */
+@Composable
+internal fun StaggerIn(index: Int, animate: Boolean = true, content: @Composable () -> Unit) {
+    val reduce = LocalReduceMotion.current
+    val progress = remember { Animatable(if (reduce || !animate) 1f else 0f) }
+    LaunchedEffect(Unit) {
+        if (progress.value < 1f) {
+            progress.animateTo(1f, tween(PlaygroundMotion.LONG, delayMillis = staggerDelay(index), easing = PlaygroundMotion.Emphasized))
+        }
+    }
+    val lift = with(LocalDensity.current) { 12.dp.toPx() }
+    Box(Modifier.graphicsLayer {
+        alpha = progress.value
+        translationY = (1f - progress.value) * lift
+    }) { content() }
+}
+
+internal fun staggerDelay(index: Int): Int = index.coerceIn(0, 8) * 40
+
+/** Slightly shrinks a pressable surface while it is held. */
+internal fun Modifier.pressScale(interactionSource: InteractionSource): Modifier = composed {
+    val reduce = LocalReduceMotion.current
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && !reduce) 0.98f else 1f,
+        animationSpec = motionTween(reduce, PlaygroundMotion.SHORT),
+        label = "press scale",
+    )
+    graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
+}
+
+/** Fade used when list rows are inserted or removed; null disables it under reduced motion. */
+internal fun listFade(reduce: Boolean): FiniteAnimationSpec<Float>? =
+    if (reduce) null else tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Standard)
+
+/** Movement of list rows that shift because others were inserted, removed or reordered. */
+internal fun listPlacement(reduce: Boolean): FiniteAnimationSpec<IntOffset>? =
+    if (reduce) null else spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow, visibilityThreshold = IntOffset.VisibilityThreshold)

@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -44,6 +45,7 @@ internal fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Str
         }
     }
     val colors = MaterialTheme.colorScheme
+    val reduce = LocalReduceMotion.current
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         ModalPanelMotion(fullScreen = false, onDismissRequest = onDismiss) {
         Surface(Modifier.padding(12.dp).widthIn(max = 720.dp).fillMaxWidth().fillMaxHeight(0.9f),
@@ -72,14 +74,20 @@ internal fun ModelPicker(state: ChatState, onDismiss: () -> Unit, onSelect: (Str
                 Text("${models.size}件", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 LazyColumn(state = listState, modifier = Modifier.weight(1f), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (models.isEmpty()) item {
+                    if (models.isEmpty()) item(key = "empty") {
                         Text("一致するモデルがありません。検索語または分類を変更してください。", modifier = Modifier.padding(16.dp))
                     }
                     items(models, key = { it.id }) { info ->
+                        val chosen = info.id == selectedId
+                        val rowColor by animateColorAsState(if (chosen) colors.primaryContainer else colors.surfaceContainerLow,
+                            motionTween(reduce), label = "model row")
+                        val rowBorder by animateColorAsState(if (chosen) colors.primary else colors.outlineVariant,
+                            motionTween(reduce), label = "model border")
                         Surface(onClick = { onSelect(info.id) }, enabled = info.selectable,
+                            modifier = Modifier.animateItem(fadeInSpec = listFade(reduce), placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce)),
                             shape = RoundedCornerShape(12.dp),
-                            color = if (info.id == selectedId) colors.primaryContainer else colors.surfaceContainerLow,
-                            border = BorderStroke(1.dp, if (info.id == selectedId) colors.primary else colors.outlineVariant)) {
+                            color = rowColor,
+                            border = BorderStroke(1.dp, rowBorder)) {
                             Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(info.name, fontWeight = FontWeight.SemiBold)

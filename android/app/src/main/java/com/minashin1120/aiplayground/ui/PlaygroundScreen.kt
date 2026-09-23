@@ -1489,7 +1489,8 @@ private fun ConversationContent(
                     }
                 }
             }
-            AnimatedVisibility(
+            // Qualified so the outer Column's scoped overload is not picked inside this Box.
+            androidx.compose.animation.AnimatedVisibility(
                 visible = showScrollToBottom,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 16.dp),
                 enter = popIn(reduce),

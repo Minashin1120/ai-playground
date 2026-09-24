@@ -2326,14 +2326,16 @@ nslate-preview",implementedAt:"2026-08-25",implementedRank:8523,quickEmoji:"\u{1
 s.",price:"Audio In $3.50/1M, Audio Out $21.00/1M"},{id:"grok-voice-think-fast-2.0",implementedAt:"2\
 026-08-25",implementedRank:8502,quickEmoji:"\u{1F3A4}",name:"Grok Voice Think Fast 2.0",desc:"Curren\
 t xAI speech-to-speech model.",price:"$0.08 / min ($4.80 / hr) audio + $0.004 / text input"},{id:"gr\
-ok-voice-latest",implementedAt:"2026-05-27",implementedRank:5550,name:"Grok Voice Latest",desc:"Alia\
-s for the current flagship voice model.",price:"$0.08 / min ($4.80 / hr) audio + $0.004 / text input"},
-{id:"grok-voice-think-fast-1.0",implementedAt:"2026-05-11",implementedRank:5140,name:"Grok Voice Thi\
-nk Fast 1.0",desc:"Deprecated xAI realtime voice model retained for history compatibility.",price:"$\
-0.05 / min ($3.00 / hr)",deprecated:!0},{id:"grok-voice-fast-1.0",implementedAt:"2026-05-01",implementedRank:500,
-name:"Grok Voice Fast 1.0",desc:"Legacy xAI realtime voice model retained for history compatibility.",
-price:"$0.05 / min ($3.00 / hr)",deprecated:!0},{id:"grok-voice-agent",implementedAt:"2026-04-01",implementedRank:380,
-name:"Grok Voice Agent",desc:"xAI realtime voice agent API.",price:"$0.05 / min (Realtime)",deprecated:!0}]},
+ok-voice-transcribe-2.0",implementedAt:"2026-09-24",implementedRank:10261,name:"Grok Voice Transcrib\
+e 2.0 (Live)",desc:"xAI streaming speech-to-text.",price:"$0.20 / hr"},{id:"grok-voice-latest",implementedAt:"\
+2026-05-27",implementedRank:5550,name:"Grok Voice Latest",desc:"Alias for the current flagship voice\
+ model.",price:"$0.08 / min ($4.80 / hr) audio + $0.004 / text input"},{id:"grok-voice-think-fast-1.\
+0",implementedAt:"2026-05-11",implementedRank:5140,name:"Grok Voice Think Fast 1.0",desc:"Deprecated\
+ xAI realtime voice model retained for history compatibility.",price:"$0.05 / min ($3.00 / hr)",deprecated:!0},
+{id:"grok-voice-fast-1.0",implementedAt:"2026-05-01",implementedRank:500,name:"Grok Voice Fast 1.0",
+desc:"Legacy xAI realtime voice model retained for history compatibility.",price:"$0.05 / min ($3.00\
+ / hr)",deprecated:!0},{id:"grok-voice-agent",implementedAt:"2026-04-01",implementedRank:380,name:"G\
+rok Voice Agent",desc:"xAI realtime voice agent API.",price:"$0.05 / min (Realtime)",deprecated:!0}]},
 {category:"Gemini Agent / Specialized",icon:"fas fa-robot text-indigo-400",description:"Gemini agent\
  and specialized models",items:[{id:"gemini-robotics-er-2-preview",implementedAt:"2026-08-25",implementedRank:8515,
 name:"Gemini Robotics ER 2",desc:"Embodied reasoning model for robots with advanced video understand\
@@ -2520,9 +2522,9 @@ t-live-transcribe","gpt-realtime-2","gpt-realtime-translate","gpt-realtime-whisp
 5","gpt-realtime","gpt-realtime-mini","gemini-2.5-flash-native-audio-preview-12-2025","gemini-3.1-fl\
 ash-live-preview","gemini-3.8-live","gemini-3.8-live-extended-thinking","gemini-3.5-live-translate-p\
 review","gemini-3.5-transcribe-live","grok-voice-think-fast-2.0","grok-voice-latest","grok-voice-thi\
-nk-fast-1.0","grok-voice-fast-1.0","grok-voice-agent"]),FILE_BASE_URL=CHAT_CONFIG.urls.serveFileBase,
-FILE_THUMB_BASE_URL=CHAT_CONFIG.urls.serveFileThumbBase,RICH_PASTE_PDF_SERVER_ROUTE=CHAT_CONFIG.urls.
-richPastePdfServer,IMAGE_EXTS=["png","jpg","jpeg","webp","gif","bmp","avif","heic","heif"],AUDIO_EXTS=[
+nk-fast-1.0","grok-voice-fast-1.0","grok-voice-agent","grok-voice-transcribe-2.0"]),FILE_BASE_URL=CHAT_CONFIG.
+urls.serveFileBase,FILE_THUMB_BASE_URL=CHAT_CONFIG.urls.serveFileThumbBase,RICH_PASTE_PDF_SERVER_ROUTE=CHAT_CONFIG.
+urls.richPastePdfServer,IMAGE_EXTS=["png","jpg","jpeg","webp","gif","bmp","avif","heic","heif"],AUDIO_EXTS=[
 "mp3","wav","aac","ogg","flac","aiff","aif","m4a","opus","oga","weba","webm"],VIDEO_EXTS=["mp4","mov",
 "avi","mkv","m4v","webm","mpg","mpeg","wmv","3gp","3gpp","flv"],getFileExt=o(e=>{const t=typeof e=="\
 string"?e:e==null?"":String(e);if(!t)return"";const n=t.lastIndexOf(".");return n===-1?"":t.slice(n+
@@ -2597,32 +2599,35 @@ ive"||e==="gemini-3.8-live-extended-thinking"||e==="gemini-3.5-live-translate-pr
 3.5-transcribe-live"},"isGeminiLiveModel"),isGeminiLiveExtendedThinkingModel=o(()=>get("model-select").
 value==="gemini-3.8-live-extended-thinking","isGeminiLiveExtendedThinkingModel"),isGeminiLiveTranslateModel=o(
 ()=>get("model-select").value==="gemini-3.5-live-translate-preview","isGeminiLiveTranslateModel"),isGeminiLiveTranscribeModel=o(
-()=>get("model-select").value==="gemini-3.5-transcribe-live","isGeminiLiveTranscribeModel"),isGeminiRealtimeMusicModel=o(
-()=>(get("model-select").value||"")==="lyria-realtime-exp","isGeminiRealtimeMusicModel"),isLyriaRealtimeModel=o(
-()=>isGeminiRealtimeMusicModel(),"isLyriaRealtimeModel"),isRealtimeSessionModel=o(()=>!(!isStsModel()||
-isGeminiLiveModel()||isTranscriptionModel()||get("model-select")&&get("model-select").value==="gpt-r\
-ealtime-whisper"),"isRealtimeSessionModel"),getStsProvider=o(e=>{const t=(e||"").toLowerCase();return t.
-includes("gpt-realtime")||t==="gpt-transcribe"||t==="gpt-live-transcribe"?"openai":t.includes("grok-\
-voice")?"xai":t.includes("gemini")&&(t.includes("native-audio")||t.includes("live"))?"gemini":null},
-"getStsProvider");function setStsStatus(e,t=!1){const n=get("sts-status"),i=get("sts-mic-btn");n&&e&&
-(n.innerText=e),i&&(t?(i.classList.add("bg-red-600","animate-pulse"),i.classList.remove("bg-cyan-600")):
-(i.classList.remove("bg-red-600","animate-pulse"),i.classList.add("bg-cyan-600")))}o(setStsStatus,"s\
-etStsStatus");function updateStsUi(){const e=isStsModel(),t=e&&voiceStudioUiEnabled!==!1,n=get("inpu\
-t-row"),i=get("sts-panel"),a=get("voice-studio-bar"),r=get("file-preview");e?(n&&n.classList.add("hi\
-dden"),r&&r.classList.add("hidden"),t?(i&&(window.VoiceStudioOpen?i.classList.remove("hidden"):i.classList.
-add("hidden")),a&&a.classList.remove("hidden")):(i&&i.classList.remove("hidden"),a&&a.classList.add(
-"hidden"),window.VoiceStudio&&window.VoiceStudio.closeIfOpen()),setStsStatus("Tap to speak",!1)):(n&&
-n.classList.remove("hidden"),i&&i.classList.add("hidden"),a&&a.classList.add("hidden"),window.VoiceStudio&&
-window.VoiceStudio.closeIfOpen())}o(updateStsUi,"updateStsUi");function updateStsOptions(){if(!isStsModel())
-return;const e=get("model-select").value||"",t=getStsProvider(e),n=get("sts-voice"),i=get("sts-speed\
--wrap"),a=get("sts-speed"),r=get("sts-speed-label"),l=get("sts-rate-wrap"),c=get("sts-rate-in"),u=get(
-"sts-rate-out"),f=get("sts-thinking-wrap"),b=get("sts-note"),y=get("sts-voice-wrap"),w=get("sts-auto\
--play-wrap"),v=get("sts-mode-label"),k=isTranscriptionModel()||isGeminiLiveTranscribeModel(),_=get("\
-sts-lang-wrap");if(k){v&&(v.textContent="Realtime Speech-to-Text"),y&&y.classList.add("hidden"),w&&w.
-classList.add("hidden"),i&&i.classList.add("hidden"),l&&l.classList.add("hidden"),f&&f.classList.add(
-"hidden"),_&&_.classList.add("hidden");const C=get("sts-transcribe-wrap"),L=get("sts-custom-vocab-wr\
-ap");C&&C.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),L&&L.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),
-b&&(b.textContent=isGeminiLiveTranscribeModel()?"\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u4F4E\u9045\u5EF6\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM / \u6700\u592710\u5206\uFF09":
+()=>get("model-select").value==="gemini-3.5-transcribe-live","isGeminiLiveTranscribeModel"),isXaiLiveTranscribeModel=o(
+()=>!!get("model-select")&&get("model-select").value==="grok-voice-transcribe-2.0","isXaiLiveTranscr\
+ibeModel"),isGeminiRealtimeMusicModel=o(()=>(get("model-select").value||"")==="lyria-realtime-exp","\
+isGeminiRealtimeMusicModel"),isLyriaRealtimeModel=o(()=>isGeminiRealtimeMusicModel(),"isLyriaRealtim\
+eModel"),isRealtimeSessionModel=o(()=>!(!isStsModel()||isGeminiLiveModel()||isTranscriptionModel()||
+get("model-select")&&get("model-select").value==="gpt-realtime-whisper"),"isRealtimeSessionModel"),getStsProvider=o(
+e=>{const t=(e||"").toLowerCase();return t.includes("gpt-realtime")||t==="gpt-transcribe"||t==="gpt-\
+live-transcribe"?"openai":t.includes("grok-voice")?"xai":t.includes("gemini")&&(t.includes("native-a\
+udio")||t.includes("live"))?"gemini":null},"getStsProvider");function setStsStatus(e,t=!1){const n=get(
+"sts-status"),i=get("sts-mic-btn");n&&e&&(n.innerText=e),i&&(t?(i.classList.add("bg-red-600","animat\
+e-pulse"),i.classList.remove("bg-cyan-600")):(i.classList.remove("bg-red-600","animate-pulse"),i.classList.
+add("bg-cyan-600")))}o(setStsStatus,"setStsStatus");function updateStsUi(){const e=isStsModel(),t=e&&
+voiceStudioUiEnabled!==!1,n=get("input-row"),i=get("sts-panel"),a=get("voice-studio-bar"),r=get("fil\
+e-preview");e?(n&&n.classList.add("hidden"),r&&r.classList.add("hidden"),t?(i&&(window.VoiceStudioOpen?
+i.classList.remove("hidden"):i.classList.add("hidden")),a&&a.classList.remove("hidden")):(i&&i.classList.
+remove("hidden"),a&&a.classList.add("hidden"),window.VoiceStudio&&window.VoiceStudio.closeIfOpen()),
+setStsStatus("Tap to speak",!1)):(n&&n.classList.remove("hidden"),i&&i.classList.add("hidden"),a&&a.
+classList.add("hidden"),window.VoiceStudio&&window.VoiceStudio.closeIfOpen())}o(updateStsUi,"updateS\
+tsUi");function updateStsOptions(){if(!isStsModel())return;const e=get("model-select").value||"",t=getStsProvider(
+e),n=get("sts-voice"),i=get("sts-speed-wrap"),a=get("sts-speed"),r=get("sts-speed-label"),l=get("sts\
+-rate-wrap"),c=get("sts-rate-in"),u=get("sts-rate-out"),f=get("sts-thinking-wrap"),b=get("sts-note"),
+y=get("sts-voice-wrap"),w=get("sts-auto-play-wrap"),v=get("sts-mode-label"),k=isTranscriptionModel()||
+isGeminiLiveTranscribeModel()||isXaiLiveTranscribeModel(),_=get("sts-lang-wrap");if(k){v&&(v.textContent=
+"Realtime Speech-to-Text"),y&&y.classList.add("hidden"),w&&w.classList.add("hidden"),i&&i.classList.
+add("hidden"),l&&l.classList.add("hidden"),f&&f.classList.add("hidden"),_&&_.classList.add("hidden");
+const C=get("sts-transcribe-wrap"),L=get("sts-custom-vocab-wrap");C&&C.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),
+L&&L.classList.toggle("hidden",!isGeminiLiveTranscribeModel()&&!isXaiLiveTranscribeModel()),b&&(b.textContent=
+isGeminiLiveTranscribeModel()?"\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u4F4E\u9045\u5EF6\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM / \u6700\u592710\u5206\uFF09":
+isXaiLiveTranscribeModel()?"xAI \u30B9\u30C8\u30EA\u30FC\u30DF\u30F3\u30B0\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM\uFF09":
 e==="gpt-live-transcribe"?"\u4F4E\u9045\u5EF6\u30E9\u30A4\u30D6\u6587\u5B57\u8D77\u3053\u3057\uFF0824kHz PCM\uFF09":
 "\u9AD8\u7CBE\u5EA6\u306A\u30B3\u30DF\u30C3\u30C8\u5358\u4F4D\u306E\u6587\u5B57\u8D77\u3053\u3057\uFF0824kHz PCM\uFF09")}else if(t===
 "openai")v&&(v.textContent="Speech-to-Speech Live"),y&&y.classList.remove("hidden"),w&&w.classList.remove(
@@ -4619,9 +4624,10 @@ value:"",speed:get("sts-speed")?get("sts-speed").value:"",rate_in:get("sts-rate-
 n").value:"",rate_out:get("sts-rate-out")?get("sts-rate-out").value:"",thinking_level:get("sts-think\
 ing-level")?get("sts-thinking-level").value:"",include_thoughts:get("sts-include-thoughts")?get("sts\
 -include-thoughts").checked:!1,target_lang:isGeminiLiveTranslateModel()&&get("sts-target-lang")?get(
-"sts-target-lang").value:""};setStsStatus("\u63A5\u7D9A\u4E2D...",!0);try{const g=await apiFetch("/a\
-pi/realtime/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(h)}),
-x=await g.json().catch(()=>({}));if(!g.ok)throw new Error(x.error||"\u30BB\u30C3\u30B7\u30E7\u30F3\u958B\u59CB\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
+"sts-target-lang").value:""};isXaiLiveTranscribeModel()&&get("sts-custom-vocab")&&(h.custom_vocabulary=
+get("sts-custom-vocab").value.split(/[,、\n]/)),setStsStatus("\u63A5\u7D9A\u4E2D...",!0);try{const g=await apiFetch(
+"/api/realtime/start",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(
+h)}),x=await g.json().catch(()=>({}));if(!g.ok)throw new Error(x.error||"\u30BB\u30C3\u30B7\u30E7\u30F3\u958B\u59CB\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
 this.sessionId=x.session_id,this.rateIn=x.rate_in||this.rateIn,this.rateOut=x.rate_out||this.rateOut,
 this.active=!0,this.capturing=!0,this.saved=!1,this.userTranscript="",this.assistantTranscript="",this.
 assistantThought="",this.responseDoneCount=0,this.lastAudioAt=0,this.streamError=null,this.rtPlayer=

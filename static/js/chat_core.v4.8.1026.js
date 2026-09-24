@@ -7350,6 +7350,7 @@
                     { id: "gemini-3.8-live-extended-thinking", implementedAt: "2026-09-20", implementedRank: 9182, quickEmoji: "🧠", name: "Gemini 3.8 Live Extended Thinking", desc: "Live audio-to-audio model with configurable background reasoning for complex multi-step interactions.", price: "See Gemini API pricing" },
                     { id: "gemini-3.5-live-translate-preview", implementedAt: "2026-08-25", implementedRank: 8523, quickEmoji: "🌐", name: "Gemini 3.5 Live Translate", desc: "Low-latency real-time speech-to-speech translation supporting 70+ languages.", price: "Audio In $3.50/1M, Audio Out $21.00/1M" },
                     { id: "grok-voice-think-fast-2.0", implementedAt: "2026-08-25", implementedRank: 8502, quickEmoji: "🎤", name: "Grok Voice Think Fast 2.0", desc: "Current xAI speech-to-speech model.", price: "$0.08 / min ($4.80 / hr) audio + $0.004 / text input" },
+                    { id: "grok-voice-transcribe-2.0", implementedAt: "2026-09-24", implementedRank: 10261, name: "Grok Voice Transcribe 2.0 (Live)", desc: "xAI streaming speech-to-text.", price: "$0.20 / hr" },
                     { id: "grok-voice-latest", implementedAt: "2026-05-27", implementedRank: 5550, name: "Grok Voice Latest", desc: "Alias for the current flagship voice model.", price: "$0.08 / min ($4.80 / hr) audio + $0.004 / text input" },
                     { id: "grok-voice-think-fast-1.0", implementedAt: "2026-05-11", implementedRank: 5140, name: "Grok Voice Think Fast 1.0", desc: "Deprecated xAI realtime voice model retained for history compatibility.", price: "$0.05 / min ($3.00 / hr)", deprecated: true },
                     { id: "grok-voice-fast-1.0", implementedAt: "2026-05-01", implementedRank: 500, name: "Grok Voice Fast 1.0", desc: "Legacy xAI realtime voice model retained for history compatibility.", price: "$0.05 / min ($3.00 / hr)", deprecated: true },
@@ -7733,7 +7734,8 @@
             'grok-voice-latest',
             'grok-voice-think-fast-1.0',
             'grok-voice-fast-1.0',
-            'grok-voice-agent'
+            'grok-voice-agent',
+            'grok-voice-transcribe-2.0'
         ]);
         const FILE_BASE_URL = CHAT_CONFIG.urls.serveFileBase;
         const FILE_THUMB_BASE_URL = CHAT_CONFIG.urls.serveFileThumbBase;
@@ -7934,6 +7936,7 @@
         const isGeminiLiveExtendedThinkingModel = () => get('model-select').value === 'gemini-3.8-live-extended-thinking';
         const isGeminiLiveTranslateModel = () => get('model-select').value === 'gemini-3.5-live-translate-preview';
         const isGeminiLiveTranscribeModel = () => get('model-select').value === 'gemini-3.5-transcribe-live';
+        const isXaiLiveTranscribeModel = () => !!get('model-select') && get('model-select').value === 'grok-voice-transcribe-2.0';
         const isGeminiRealtimeMusicModel = () => (get('model-select').value || '') === 'lyria-realtime-exp';
         const isLyriaRealtimeModel = () => isGeminiRealtimeMusicModel();
         // True real-time server-session STS models: OpenAI Realtime conversation
@@ -8013,7 +8016,7 @@
             const voiceWrap = get('sts-voice-wrap');
             const autoPlayWrap = get('sts-auto-play-wrap');
             const modeLabel = get('sts-mode-label');
-            const transcription = isTranscriptionModel() || isGeminiLiveTranscribeModel();
+            const transcription = isTranscriptionModel() || isGeminiLiveTranscribeModel() || isXaiLiveTranscribeModel();
             const langWrap = get('sts-lang-wrap');
 
             if (transcription) {
@@ -8027,10 +8030,12 @@
                 const transcribeWrap = get('sts-transcribe-wrap');
                 const customVocabWrap = get('sts-custom-vocab-wrap');
                 if (transcribeWrap) transcribeWrap.classList.toggle('hidden', !isGeminiLiveTranscribeModel());
-                if (customVocabWrap) customVocabWrap.classList.toggle('hidden', !isGeminiLiveTranscribeModel());
+                if (customVocabWrap) customVocabWrap.classList.toggle('hidden', !isGeminiLiveTranscribeModel() && !isXaiLiveTranscribeModel());
                 if (note) {
                     note.textContent = isGeminiLiveTranscribeModel()
                         ? 'リアルタイム低遅延文字起こし（16kHz PCM / 最大10分）'
+                        : isXaiLiveTranscribeModel()
+                            ? 'xAI ストリーミング文字起こし（16kHz PCM）'
                         : model === 'gpt-live-transcribe'
                             ? '低遅延ライブ文字起こし（24kHz PCM）'
                             : '高精度なコミット単位の文字起こし（24kHz PCM）';
@@ -13794,6 +13799,7 @@
                         include_thoughts: get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false,
                         target_lang: (isGeminiLiveTranslateModel() && get('sts-target-lang')) ? get('sts-target-lang').value : ''
                     };
+                    if (isXaiLiveTranscribeModel() && get('sts-custom-vocab')) payload.custom_vocabulary = get('sts-custom-vocab').value.split(/[,、\n]/);
                     setStsStatus('接続中...', true);
                     try {
                         const resp = await apiFetch('/api/realtime/start', {

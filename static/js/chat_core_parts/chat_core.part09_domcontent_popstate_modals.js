@@ -967,6 +967,7 @@
                         include_thoughts: get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false,
                         target_lang: (isGeminiLiveTranslateModel() && get('sts-target-lang')) ? get('sts-target-lang').value : ''
                     };
+                    if (isXaiLiveTranscribeModel() && get('sts-custom-vocab')) payload.custom_vocabulary = get('sts-custom-vocab').value.split(/[,、\n]/);
                     setStsStatus('接続中...', true);
                     try {
                         const resp = await apiFetch('/api/realtime/start', {

@@ -349,6 +349,10 @@ def realtime_save():
     if not session:
         return jsonify({'error': 'Session not found'}), 404
 
+    if _rt_is_live_transcription_session(session) and not session.stop_event.is_set():
+        # Flush trailing audio (audio.done) and wait briefly for transcript.done.
+        session.audio_in.put(("commit",))
+        session.stop_event.wait(timeout=8)
     session.stop_event.set()
     if session.thread:
         session.thread.join(timeout=6)
@@ -357,6 +361,11 @@ def realtime_save():
         assistant_pcm = bytes(session.assistant_audio)
     with session.user_lock:
         user_pcm = bytes(session.user_audio)
+    live_transcript = None
+    if _rt_is_live_transcription_session(session):
+        live_transcript = (session.user_transcript or "").strip()
+        if not live_transcript:
+            user_pcm = b""  # nothing recognized: do not keep the recording
 
     audio_url = None
     in_fname = None
@@ -374,6 +383,11 @@ def realtime_save():
     user_text = (session.user_transcript or "音声メッセージ").strip()
     assistant_text = (session.assistant_transcript or "").strip()
     assistant_thought = (session.assistant_thought or "").strip()
+    if live_transcript is not None:
+        # Live transcription: the transcript is the assistant output; the user
+        # message keeps the recorded audio (same layout as Gemini Live transcribe).
+        assistant_text = live_transcript
+        user_text = "音声文字起こし" if live_transcript else ""
 
     # Nothing was captured — drop the empty session without saving a message.
     if (not assistant_pcm and not user_pcm

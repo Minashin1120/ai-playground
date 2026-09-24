@@ -190,6 +190,7 @@ STS_MODELS = {
     "grok-voice-think-fast-1.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
     "grok-voice-fast-1.0": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
     "grok-voice-agent": {"provider": "xai", "rate_in": 24000, "rate_out": 24000},
+    "grok-voice-transcribe-2.0": {"provider": "xai", "mode": "transcription", "rate_in": 16000, "rate_out": 16000},
 }
 XAI_STS_MODEL_ALIASES = {
     "grok-voice-latest": "grok-voice-think-fast-2.0",
@@ -249,6 +250,7 @@ ALL_VALID_MODEL_IDS = {
     "gemini-3.8-live", "gemini-3.8-live-extended-thinking",
     "gemini-3.5-transcribe", "gemini-3.5-transcribe-live",
     "grok-voice-latest", "grok-voice-think-fast-2.0", "grok-voice-think-fast-1.0", "grok-voice-fast-1.0", "grok-voice-agent",
+    "grok-voice-transcribe-2.0",
     # Grok Imagine
     "grok-imagine-image-2.0", "grok-imagine-image-quality", "grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video-1.5", "grok-imagine-video",
     # xAI Grok

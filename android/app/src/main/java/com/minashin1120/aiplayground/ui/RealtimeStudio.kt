@@ -30,6 +30,8 @@ private fun isGeminiLive(model: String): Boolean = model.startsWith("gemini-3.1-
 
 private fun isGeminiExtendedThinking(model: String): Boolean = model == "gemini-3.8-live-extended-thinking"
 
+private fun isGrokLiveTranscribe(model: String): Boolean = model == "grok-voice-transcribe-2.0"
+
 @Composable
 fun RealtimeStudioDialog(state: ChatState, model: ChatViewModel, onDismiss: () -> Unit) {
     val models = realtimeModels(state)
@@ -72,16 +74,22 @@ fun RealtimeStudioDialog(state: ChatState, model: ChatViewModel, onDismiss: () -
                             label = { Text("カスタム語彙") }, supportingText = { Text("カンマまたは改行区切り（任意）") },
                             modifier = Modifier.fillMaxWidth())
                     }
+                    if (isGrokLiveTranscribe(selectedModel)) {
+                        OutlinedTextField(customVocabulary, { customVocabulary = it }, minLines = 2, maxLines = 4,
+                            label = { Text("キーワード") }, supportingText = { Text("カンマまたは改行区切り（任意・最大100件）") },
+                            modifier = Modifier.fillMaxWidth())
+                    }
                     if (isGeminiExtendedThinking(selectedModel)) {
                         OutlinedTextField(thinkingLevel, { thinkingLevel = it }, singleLine = true,
                             label = { Text("Thinking level") }, supportingText = { Text("low / medium / high") },
                             modifier = Modifier.fillMaxWidth())
                     }
-                    if (selectedModel != "gemini-3.5-live-translate-preview" && selectedModel != "gemini-3.5-transcribe-live") {
+                    if (selectedModel != "gemini-3.5-live-translate-preview" && selectedModel != "gemini-3.5-transcribe-live" &&
+                        !isGrokLiveTranscribe(selectedModel)) {
                         OutlinedTextField(voice, { voice = it }, singleLine = true, label = { Text("Voice") },
                             supportingText = { Text("OpenAI: alloy等 / Grok: Ara等 / Gemini: Kore等") }, modifier = Modifier.fillMaxWidth())
                     }
-                    Text(if (selectedModel == "gemini-3.5-transcribe-live")
+                    Text(if (selectedModel == "gemini-3.5-transcribe-live" || isGrokLiveTranscribe(selectedModel))
                         "リアルタイム文字起こし。音声は返さず、入力テキストを履歴へ保存します。"
                     else if (selectedModel == "gemini-3.5-live-translate-preview")
                         "音声を指定言語へリアルタイム翻訳します。"

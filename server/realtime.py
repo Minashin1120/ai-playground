@@ -31,6 +31,8 @@ def _rt_is_conversation_model(model_key):
         "gemini-3.5-transcribe-live",
     ):
         return True
+    if model_key in XAI_LIVE_STT_MODELS:
+        return True
     meta = STS_MODELS.get(model_key, {})
     if meta.get("mode") == "transcription":
         return False
@@ -38,6 +40,16 @@ def _rt_is_conversation_model(model_key):
     if model_key == "gpt-realtime-whisper":
         return False
     return True
+
+
+# Streaming STT models served by xAI's wss://api.x.ai/v1/stt endpoint.
+XAI_LIVE_STT_MODELS = {"grok-voice-transcribe-2.0"}
+XAI_LIVE_STT_MAX_KEYTERMS = 100
+XAI_LIVE_STT_KEYTERM_MAX_CHARS = 50
+
+
+def _rt_is_live_transcription_session(session):
+    return session.model_key in XAI_LIVE_STT_MODELS
 
 
 def _rt_push_event(session, event):
@@ -137,6 +149,17 @@ def _normalize_rt_params(provider, model_key, data):
             params["custom_vocabulary"] = [str(item).strip()[:120] for item in vocabulary if str(item).strip()][:1000]
         else:
             params["custom_vocabulary"] = []
+    if model_key in XAI_LIVE_STT_MODELS:
+        # 16 kHz PCM is the model's native rate; keyterms bias recognition.
+        params["rate_in"] = params["rate_out"] = 16000
+        vocabulary = data.get("custom_vocabulary")
+        terms = []
+        if isinstance(vocabulary, list):
+            for item in vocabulary:
+                term = str(item or "").strip()[:XAI_LIVE_STT_KEYTERM_MAX_CHARS]
+                if term and term not in terms:
+                    terms.append(term)
+        params["keyterms"] = terms[:XAI_LIVE_STT_MAX_KEYTERMS]
     return params
 
 
@@ -502,6 +525,134 @@ async def _rt_gemini_session_async(session):
             pass
 
 
+def _rt_join_transcript(prev, nxt):
+    """Join finalized STT chunks; no space between CJK text (Japanese etc.)."""
+    prev = prev or ""
+    nxt = (nxt or "").strip()
+    if not prev:
+        return nxt
+    if not nxt:
+        return prev
+    def _cjk(ch):
+        return ord(ch) >= 0x3000
+    if _cjk(prev[-1]) or _cjk(nxt[0]) or prev[-1].isspace():
+        return prev + nxt
+    return prev + " " + nxt
+
+
+async def _rt_xai_stt_send_loop(session, ws):
+    while not session.stop_event.is_set():
+        try:
+            item = session.audio_in.get_nowait()
+        except _queue.Empty:
+            item = None
+        if item is None:
+            await asyncio.sleep(0.02)
+            continue
+        try:
+            if item[0] == "audio":
+                if item[1]:
+                    # Raw binary PCM frames (no base64) per xAI streaming STT.
+                    await ws.send(item[1])
+            elif item[0] == "commit":
+                # End of audio: the server flushes and replies with transcript.done.
+                await ws.send(json.dumps({"type": "audio.done"}))
+                session.status = "speaking"
+                return
+        except Exception as exc:
+            logger.error(f"Realtime STT send error: {exc}")
+
+
+async def _rt_xai_stt_receive_loop(session, ws):
+    finalized = ""
+    try:
+        while True:
+            raw = await ws.recv()
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8", "replace")
+            msg = json.loads(raw)
+            mtype = msg.get("type")
+            if mtype == "transcript.partial":
+                text = str(msg.get("text") or "")
+                if msg.get("is_final"):
+                    finalized = _rt_join_transcript(finalized, text)
+                    shown = finalized
+                else:
+                    shown = _rt_join_transcript(finalized, text)
+                session.user_transcript = finalized
+                _rt_push_event(session, {"type": "transcript", "role": "user", "delta": shown, "cumulative": True})
+                if msg.get("speech_final"):
+                    _rt_push_event(session, {"type": "speech_stopped"})
+            elif mtype == "transcript.done":
+                text = str(msg.get("text") or "").strip()
+                if text:
+                    finalized = text
+                session.user_transcript = finalized
+                _rt_push_event(session, {"type": "transcript", "role": "user", "delta": finalized, "cumulative": True})
+                session.turn_count += 1
+                _rt_push_event(session, {"type": "turn_complete"})
+                session.stop_event.set()
+                return
+            elif mtype == "error":
+                raise RuntimeError(str(msg.get("message") or msg.get("error") or "Provider error"))
+    except asyncio.CancelledError:
+        raise
+    except websockets.exceptions.ConnectionClosedOK:
+        session.stop_event.set()
+    except Exception as exc:
+        session.error = str(exc)
+        session.status = "error"
+        session.stop_event.set()
+        _rt_push_event(session, {"type": "error", "message": str(exc)})
+        with session.pending_cond:
+            session.pending_cond.notify_all()
+
+
+async def _rt_xai_stt_session_async(session):
+    query = [
+        ("model", session.model_key),
+        ("sample_rate", str(session.rate_in)),
+        ("encoding", "pcm"),
+        ("interim_results", "true"),
+    ]
+    query += [("keyterm", term) for term in session.params.get("keyterms", [])]
+    url = f"wss://{_XAI_API_HOST}/v1/stt?{urlencode(query)}"
+    headers = {"Authorization": f"Bearer {session.api_key}"}
+    async with websockets.connect(url, additional_headers=headers, max_size=None) as ws:
+        session.ws = ws
+        # Wait for transcript.created before streaming audio.
+        while True:
+            raw = await asyncio.wait_for(ws.recv(), timeout=30)
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8", "replace")
+            msg = json.loads(raw)
+            if msg.get("type") == "transcript.created":
+                session.status = "ready"
+                _rt_push_event(session, {"type": "status", "status": "ready"})
+                break
+            if msg.get("type") == "error":
+                raise RuntimeError(str(msg.get("message") or "Session setup failed"))
+
+        recv_task = asyncio.ensure_future(_rt_xai_stt_receive_loop(session, ws))
+        send_task = asyncio.ensure_future(_rt_xai_stt_send_loop(session, ws))
+        while not session.stop_event.is_set():
+            if time.time() - session.started_at > RT_MAX_SESSION_SECONDS:
+                session.error = "最大セッション時間（15分）に達したため自動停止しました。"
+                session.status = "stopped"
+                session.stop_event.set()
+                break
+            if recv_task.done():
+                break
+            await asyncio.sleep(0.05)
+        recv_task.cancel()
+        send_task.cancel()
+        for task in (recv_task, send_task):
+            try:
+                await task
+            except BaseException:
+                pass
+
+
 def _rt_worker(session):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -509,6 +660,8 @@ def _rt_worker(session):
     try:
         if session.provider == "google":
             loop.run_until_complete(_rt_gemini_session_async(session))
+        elif _rt_is_live_transcription_session(session):
+            loop.run_until_complete(_rt_xai_stt_session_async(session))
         else:
             loop.run_until_complete(_rt_openai_xai_session_async(session))
     except asyncio.CancelledError:

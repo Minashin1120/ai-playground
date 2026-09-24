@@ -178,7 +178,7 @@ fun SettingsDialog(
                         listOf("normal" to "通常表示", "compact" to "コンパクト表示", "minimal" to "ミニマル表示").forEach { (value, label) ->
                             FilterChip(promptBar == value, { promptBar = value }, { Text(label) })
                         }
-                        CheckboxRow("音声系モデルで音声スタジオを使う", voiceStudio) { voiceStudio = it }
+                        CheckboxRow("音声系モデルで音声ドックを使う", voiceStudio) { voiceStudio = it }
                         Text("チャット既定値", fontWeight = FontWeight.SemiBold)
                         TextButton(onClick = { modelPicker = true }, modifier = Modifier.fillMaxWidth()) {
                             Text("既定モデル: ${state.account?.models?.firstOrNull { it.id == defaultModel }?.name ?: defaultModel.ifBlank { "未設定" }} ▾")

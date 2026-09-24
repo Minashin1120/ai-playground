@@ -139,9 +139,15 @@ class RealtimeStsRegressionTests(unittest.TestCase):
         self.assertIn("rtVoiceSession.isActive()", segment)
         self.assertIn("rtVoiceSession._cancel()", segment)
 
-    def test_voice_studio_close_cancels_realtime_session(self):
+    def test_voice_studio_close_keeps_realtime_session_in_dock(self):
+        # The studio is an enlarged view of the inline voice dock: closing it moves
+        # the controls back to the composer and must not cancel the conversation.
         segment = CHAT_JS[CHAT_JS.index("const VoiceStudio"):CHAT_JS.index("VoiceStudio.init()")]
-        self.assertIn("rtVoiceSession.isActive()", segment)
+        close_fn = segment[segment.index("function close()"):segment.index("function closeIfOpen")]
+        self.assertIn("movePanelBack()", close_fn)
+        self.assertNotIn("cancelRecording", close_fn)
+        self.assertIn("function cancelRecording", CHAT_JS)
+        self.assertIn("rtVoiceSession.isActive()", CHAT_JS)
 
     def test_realtime_stream_uses_sse_events(self):
         segment = CHAT_JS[CHAT_JS.index("class RealtimeVoiceSession"):CHAT_JS.index("const rtVoiceSession")]

@@ -1525,28 +1525,22 @@
             const studioMode = sts && voiceStudioUiEnabled !== false;
             const inputRow = get('input-row');
             const stsPanel = get('sts-panel');
-            const studioBar = get('voice-studio-bar');
             const filePreview = get('file-preview');
             if (sts) {
                 if (inputRow) inputRow.classList.add('hidden');
                 if (filePreview) filePreview.classList.add('hidden');
-                if (studioMode) {
-                    // The STS panel lives inside the studio modal while it is open.
-                    if (stsPanel) {
-                        if (window.VoiceStudioOpen) stsPanel.classList.remove('hidden');
-                        else stsPanel.classList.add('hidden');
-                    }
-                    if (studioBar) studioBar.classList.remove('hidden');
-                } else {
-                    if (stsPanel) stsPanel.classList.remove('hidden');
-                    if (studioBar) studioBar.classList.add('hidden');
-                    if (window.VoiceStudio) window.VoiceStudio.closeIfOpen();
+                // Studio mode docks the voice controls inline with the chat;
+                // the studio modal is only an optional enlarged view.
+                if (stsPanel) {
+                    stsPanel.classList.remove('hidden');
+                    stsPanel.classList.toggle('voice-dock', studioMode);
                 }
+                if (!studioMode && window.VoiceStudio) window.VoiceStudio.closeIfOpen();
+                if (window.VoiceStudio) window.VoiceStudio.syncDock();
                 setStsStatus('Tap to speak', false);
             } else {
                 if (inputRow) inputRow.classList.remove('hidden');
                 if (stsPanel) stsPanel.classList.add('hidden');
-                if (studioBar) studioBar.classList.add('hidden');
                 if (window.VoiceStudio) window.VoiceStudio.closeIfOpen();
             }
         }

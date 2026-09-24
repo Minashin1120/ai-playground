@@ -6327,6 +6327,99 @@ body.minimal-prompt-mode .composer-shell > #audio-gen-options {
 #voice-studio-panel-host #sts-panel {
     width: 100%;
 }
+
+/* Voice dock: STS controls stay inline with the chat instead of a separate modal */
+#sts-panel .sts-dock-main {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+#sts-panel #sts-mic-btn { flex-shrink: 0; }
+#sts-panel .sts-dock-info {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+#sts-panel #sts-mode-label,
+#sts-panel #sts-status {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#sts-panel .sts-dock-actions {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.4rem;
+}
+#sts-panel .sts-dock-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    padding: 0 0.65rem;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    font-size: 12px;
+    transition: background var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
+}
+#sts-panel .sts-dock-icon-btn:hover,
+#sts-panel .sts-dock-icon-btn[aria-expanded="true"] {
+    background: rgba(var(--theme-rgb), 0.14);
+    border-color: rgba(var(--theme-rgb), 0.45);
+}
+#sts-panel .sts-settings { margin-top: 0.75rem; }
+#sts-panel:not(.voice-dock) .sts-dock-only { display: none !important; }
+#sts-panel.voice-dock:not(.settings-open) .sts-settings { display: none; }
+#sts-panel.voice-dock .sts-settings {
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--line-soft);
+}
+#sts-panel.voice-dock .sts-settings,
+#sts-panel.voice-dock .sts-settings select,
+#sts-panel.voice-dock .sts-settings input[type="number"],
+#sts-panel.voice-dock .sts-settings input[type="text"] {
+    font-size: 12px;
+}
+#sts-panel.voice-dock .sts-settings select,
+#sts-panel.voice-dock .sts-settings input[type="number"],
+#sts-panel.voice-dock .sts-settings input[type="text"] {
+    min-height: 1.9rem;
+    padding: 0.2rem 0.4rem;
+}
+#sts-panel.voice-dock .sts-settings input[type="checkbox"] {
+    width: 0.9rem;
+    height: 0.9rem;
+}
+#sts-panel.voice-dock #sts-options { gap: 0.6rem 1rem; }
+#sts-live-transcript {
+    margin-top: 0.65rem;
+    max-height: 6.5rem;
+    overflow-y: auto;
+    padding: 0.5rem 0.65rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line-soft);
+    background: rgba(0, 0, 0, 0.18);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text);
+}
+#sts-live-transcript .voice-studio-line {
+    display: flex;
+    gap: 0.35rem;
+}
+#voice-studio-panel-host #sts-live-transcript { display: none !important; }
+@media (max-width: 640px) {
+    #sts-panel .sts-dock-main { gap: 0.6rem; }
+    #sts-panel .sts-dock-btn-label { display: none; }
+    #sts-panel #sts-hint { display: none; }
+}
         /* ===== MCP (外部モデル連携) UI ===== */
         .mcp-mini-btn {
             display: inline-flex; align-items: center; gap: 0.25rem;

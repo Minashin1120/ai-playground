@@ -64,7 +64,9 @@ import com.minashin1120.aiplayground.data.parseSlashAction
 @Composable
 fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pickFiles: () -> Unit, onVoice: () -> Unit,
              onRichPaste: () -> Unit = {}, onMask: () -> Unit = {}, onSettings: () -> Unit = {},
-             onRealtime: () -> Unit = {}, onLyria: () -> Unit = {}) {
+             onRealtime: () -> Unit = {}, onLyria: () -> Unit = {},
+             realtimeOptions: RealtimeOptions = RealtimeOptions(), onRealtimeOptions: (RealtimeOptions) -> Unit = {},
+             onRealtimeStart: () -> Unit = {}) {
     val promptMode = state.preferences?.effectivePromptBarMode ?: "normal"
     var details by remember(promptMode) { mutableStateOf(promptMode == "normal") }
     val selectedModel = state.account?.models?.firstOrNull { it.id == state.model }
@@ -224,7 +226,12 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
                     }
                 }
             }
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Web voice dock: realtime audio models replace the text row with inline voice controls.
+            val voiceDock = state.realtime.active ||
+                (state.preferences?.voiceStudioUi != false && isRealtimeAudioModel(selectedModel))
+            if (voiceDock) RealtimeVoiceDock(state, model, realtimeOptions, onRealtimeOptions,
+                onStart = onRealtimeStart, onExpand = onRealtime)
+            else Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(shape = RoundedCornerShape(16.dp), color = colors.surfaceContainerLow, border = androidx.compose.foundation.BorderStroke(1.dp, colors.outline), shadowElevation = 2.dp, modifier = Modifier.weight(1f)) {
                     Row(Modifier.padding(start = 2.dp, end = 5.dp), verticalAlignment = Alignment.Bottom) {
                         IconButton(onClick = pickFiles, enabled = !state.offline && !state.uploading && !state.streaming, modifier = Modifier.padding(bottom = 4.dp)) {

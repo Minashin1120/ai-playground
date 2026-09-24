@@ -1,9 +1,20 @@
-                <div id="sts-panel" class="hidden px-4 py-3 rounded-lg flex items-center justify-between gap-3">
-                    <div class="flex flex-col gap-2">
-                        <div id="sts-mode-label" class="text-[10px] uppercase tracking-widest text-cyan-300/80">Speech-to-Speech Live</div>
-                        <div id="sts-status" class="text-sm text-gray-200">Tap to speak</div>
-                        <div class="text-[10px] text-gray-400">マイクをタップして開始/停止</div>
-                        <div class="flex flex-wrap gap-3 text-[10px] text-gray-300 mt-1">
+                <div id="sts-panel" class="hidden px-4 py-3 rounded-lg">
+                    <div class="sts-dock-main">
+                        <button id="sts-mic-btn" aria-label="録音を開始/停止" class="bg-cyan-600 hover:bg-cyan-500 text-white w-14 h-14 rounded-full flex items-center justify-center text-xl transition"><i class="fas fa-microphone"></i></button>
+                        <div class="sts-dock-info">
+                            <div id="sts-mode-label" class="text-[10px] uppercase tracking-widest text-cyan-300/80">Speech-to-Speech Live</div>
+                            <div id="sts-status" class="text-sm text-gray-200" aria-live="polite">Tap to speak</div>
+                            <div id="sts-hint" class="text-[10px] text-gray-400">マイクをタップして開始/停止。停止するとチャットに保存されます</div>
+                        </div>
+                        <div class="sts-dock-actions">
+                            <button id="sts-cancel-btn" class="text-[10px] px-2 py-1 rounded bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 transition">Cancel</button>
+                            <button id="sts-settings-toggle" type="button" data-progress-no-spinner="true" aria-expanded="false" aria-controls="sts-settings" title="音声設定" class="sts-dock-only sts-dock-icon-btn"><i class="fas fa-sliders-h"></i><span class="sts-dock-btn-label">設定</span></button>
+                            <button id="voice-studio-open-btn" type="button" data-progress-no-spinner="true" title="音声スタジオで拡大表示" aria-label="音声スタジオで拡大表示" class="sts-dock-only sts-dock-icon-btn"><i class="fas fa-up-right-from-square"></i></button>
+                        </div>
+                    </div>
+                    <div id="sts-live-transcript" class="sts-dock-only hidden" aria-live="polite"></div>
+                    <div id="sts-settings" class="sts-settings">
+                        <div class="sts-toggle-row flex flex-wrap gap-3 text-[10px] text-gray-300">
                             <label id="sts-auto-play-wrap" class="flex items-center gap-1 cursor-pointer select-none"><input id="sts-auto-play" type="checkbox" class="accent-cyan-400 w-3 h-3" checked><span>Auto Play</span></label>
                             <label class="flex items-center gap-1 cursor-pointer select-none"><input id="sts-auto-restart" type="checkbox" class="accent-cyan-400 w-3 h-3" checked><span>Auto Restart</span></label>
                             <label class="flex items-center gap-1 cursor-pointer select-none" title="音声の無音を検知して自動送信"><input id="sts-auto-send" type="checkbox" class="accent-cyan-400 w-3 h-3"><span>Auto Send</span></label>
@@ -73,15 +84,6 @@
                             <span id="sts-note" class="text-gray-500"></span>
                         </div>
                     </div>
-                    <div class="flex flex-col items-center gap-2">
-                        <button id="sts-mic-btn" class="bg-cyan-600 hover:bg-cyan-500 text-white w-14 h-14 rounded-full flex items-center justify-center text-xl transition"><i class="fas fa-microphone"></i></button>
-                        <button id="sts-cancel-btn" class="text-[10px] px-2 py-1 rounded bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 transition">Cancel</button>
-                    </div>
-                </div>
-                <div id="voice-studio-bar" class="hidden mt-2 px-3 py-2 bg-cyan-900/30 border border-cyan-500/30 rounded-lg text-xs text-cyan-100 flex flex-wrap items-center gap-3">
-                    <i class="fas fa-microphone text-cyan-300"></i>
-                    <span class="min-w-0">この音声モデルは専用の音声スタジオで利用できます。マイクをタップするか、下のボタンで開いて会話します。</span>
-                    <button id="voice-studio-open-btn" data-progress-no-spinner="true" class="ml-auto shrink-0 px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-[11px] font-bold btn-hover">音声スタジオを開く</button>
                 </div>
                 <div id="auto-search-banner" class="hidden mb-2 px-3 py-2 bg-yellow-900/30 border border-yellow-600/60 text-yellow-200 text-xs rounded flex items-center justify-between gap-3">
                     <div class="flex items-center gap-2"><i class="fas fa-bolt"></i><span id="auto-search-msg">Xリンクを検出しました。検索ON＋Grok 4 Fast Reasoningに切替します。</span></div>

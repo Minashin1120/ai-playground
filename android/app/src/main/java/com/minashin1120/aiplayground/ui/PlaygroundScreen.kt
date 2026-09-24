@@ -231,6 +231,8 @@ fun PlaygroundScreen(
             var realtimeOpen by remember { mutableStateOf(false) }
             var lyriaOpen by remember { mutableStateOf(false) }
             var awaitingMic by remember { mutableStateOf(false) }
+            var realtimeOptions by remember { mutableStateOf(RealtimeOptions()) }
+            var startDockAfterMic by remember { mutableStateOf(false) }
             var richPasteOpen by remember { mutableStateOf(false) }
             var maskOpen by remember { mutableStateOf(false) }
             var maskSource by remember { mutableStateOf<Uri?>(null) }
@@ -255,7 +257,11 @@ fun PlaygroundScreen(
             val microphone = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                 if (awaitingMic) {
                     awaitingMic = false
-                    if (granted) realtimeOpen = true else model.notify("Realtime音声にはマイクの権限が必要です。")
+                    val startDock = startDockAfterMic
+                    startDockAfterMic = false
+                    if (!granted) model.notify("Realtime音声にはマイクの権限が必要です。")
+                    else if (startDock) startRealtimeWith(model, model.state.value.model, realtimeOptions)
+                    else realtimeOpen = true
                 }
             }
             LaunchedEffect(state.account?.id) {
@@ -420,7 +426,14 @@ fun PlaygroundScreen(
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
                                 else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
                             },
-                            onLyria = { lyriaOpen = true })
+                            onLyria = { lyriaOpen = true },
+                            realtimeOptions = realtimeOptions,
+                            onRealtimeOptions = { realtimeOptions = it },
+                            onRealtimeStart = {
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                                    startRealtimeWith(model, state.model, realtimeOptions)
+                                } else { awaitingMic = true; startDockAfterMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
+                            })
                     }
                 ) { padding ->
                     Column(Modifier.fillMaxSize().padding(padding)) {
@@ -537,7 +550,7 @@ fun PlaygroundScreen(
                         else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
                     }, onLyria = { advancedOpen = false; lyriaOpen = true })
             }
-            ModalHost(realtimeOpen) { RealtimeStudioDialog(state, model, onDismiss = { realtimeOpen = false }) }
+            ModalHost(realtimeOpen) { RealtimeStudioDialog(state, model, realtimeOptions, { realtimeOptions = it }, onDismiss = { realtimeOpen = false }) }
             ModalHost(lyriaOpen) { LyriaStudioDialog(state, model, onDismiss = { lyriaOpen = false }) }
             ModalHost(richPasteOpen) {
                 RichPasteDialog(state.draft, onDismiss = { richPasteOpen = false }) { text ->

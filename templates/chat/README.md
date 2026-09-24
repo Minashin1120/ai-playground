@@ -25,11 +25,11 @@
 | `composer_attachments.html` | 添付ファイル／マスクのプレビュー | 添付、マスク表示 |
 | `composer_gen_image.html` | GPT / Gemini / Grok の画像生成パネル | 画像生成の詳細設定 |
 | `composer_gen_media.html` | xAI 詳細パネル、動画/音楽/OCR/TTS パネル | メディア生成の詳細設定 |
-| `composer_panels.html` | STS パネル、Voice スタジオ帯、自動検索バナー | STS、Voice、自動検索 |
+| `composer_panels.html` | STS パネル（音声ドック：マイク・文字起こし・折りたたみ設定）、自動検索バナー | STS、音声ドック、自動検索 |
 | `composer_input.html` | 入力欄、送信、スラッシュ/`@` 候補、アップロード状態 | 送信ボタン、入力欄、スラッシュコマンド |
 | `composer_popups.html` | ミニマルモードのポップアップ、思考量スライダー | ミニマルモード、思考量 |
 | `overlay_upload.html` | ドロップオーバーレイ、アップロードモーダル、カメラ | アップロード、カメラ |
-| `overlay_voice.html` | Lyria スタジオ、Voice スタジオ、マーカー編集 | 音声スタジオ、画像マーカー |
+| `overlay_voice.html` | Lyria スタジオ、Voice スタジオ（音声ドックの拡大表示）、マーカー編集 | 音声スタジオ、画像マーカー |
 | `overlay_thread.html` | 履歴モーダル、スレッド設定、圧縮設定、Batch処理一覧モーダル | 履歴、スレッド設定、画像圧縮、Batch処理の確認・停止・削除 |
 | `overlay_model_gem.html` | モデル選択モーダル、Gem 作成/編集 | モデル一覧、Gem |
 | `overlay_settings.html` | 設定モーダル（タブ、2FA、MCP 設定を含む） | 設定画面、MCP タブ、2FA タブ |

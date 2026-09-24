@@ -34,8 +34,10 @@ class VoiceStudioRegressionTests(unittest.TestCase):
 
     def test_voice_studio_ui_elements_exist(self):
         for elem in (
-            'id="voice-studio-bar"',
             'id="voice-studio-open-btn"',
+            'id="sts-settings-toggle"',
+            'id="sts-settings"',
+            'id="sts-live-transcript"',
             'id="voice-studio-modal"',
             'id="voice-studio-title"',
             'id="voice-studio-transcript"',
@@ -56,15 +58,32 @@ class VoiceStudioRegressionTests(unittest.TestCase):
             "voice-studio-transcript",
             "movePanelIntoModal",
             "voice-studio-panel-host",
+            "sts-live-transcript",
+            "syncDock",
+            "voiceDockSettingsOpen",
         ):
             self.assertIn(symbol, CHAT_JS, symbol)
 
     def test_update_sts_ui_is_studio_aware(self):
         segment = CHAT_JS[CHAT_JS.index("function updateStsUi"):CHAT_JS.index("function updateStsOptions")]
         self.assertIn("voiceStudioUiEnabled", segment)
-        self.assertIn("voice-studio-bar", segment)
+        self.assertIn("voice-dock", segment)
         self.assertIn("window.VoiceStudio", segment)
         self.assertIn("closeIfOpen", segment)
+        self.assertIn("syncDock", segment)
+        # The dock stays visible inline; the studio modal is only an enlarged view.
+        self.assertNotIn("voice-studio-bar", segment)
+
+    def test_voice_dock_is_inline_with_chat(self):
+        self.assertNotIn('id="voice-studio-bar"', CHAT_HTML)
+        panel = CHAT_HTML[CHAT_HTML.index('id="sts-panel"'):CHAT_HTML.index('id="auto-search-banner"')]
+        for elem in ('id="sts-mic-btn"', 'id="voice-studio-open-btn"', 'id="sts-settings-toggle"', 'id="sts-options"'):
+            self.assertIn(elem, panel, elem)
+        studio = CHAT_JS[CHAT_JS.index("const VoiceStudio = (() => {"):CHAT_JS.index("VoiceStudio.init();")]
+        close_fn = studio[studio.index("function close()"):studio.index("function closeIfOpen")]
+        # Closing the enlarged view must not cancel an active conversation.
+        self.assertNotIn("cancelRecording", close_fn)
+        self.assertIn("case 'voice-studio-modal': if (window.VoiceStudio) window.VoiceStudio.close()", CHAT_JS)
 
     def test_mic_handler_logs_to_voice_studio(self):
         segment = CHAT_JS[CHAT_JS.index("get('mic-btn').onclick"):]

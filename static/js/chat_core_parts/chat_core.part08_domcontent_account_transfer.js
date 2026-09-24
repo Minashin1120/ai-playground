@@ -1559,6 +1559,7 @@
                     case 'gem-modal': if (window.closeGemModal) window.closeGemModal(skipHistory); break;
                     case 'compression-modal': if (window.closeCompressionModal) window.closeCompressionModal(skipHistory); break;
                     case 'bot-admin-modal': if (window.closeBotAdminModal) window.closeBotAdminModal(skipHistory); break;
+                    case 'voice-studio-modal': if (window.VoiceStudio) window.VoiceStudio.close(); else hideModal(id); break;
                     case 'version-update-modal':
                         const latest = localStorage.getItem("app_version") || "";
                         if (latest) localStorage.setItem("version_notified", latest);

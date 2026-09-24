@@ -589,7 +589,10 @@
             // ===========================================================================
             const VoiceStudio = (() => {
                 let originalPanelParent = null;
+                let originalPanelNext = null;
                 let originalFileParent = null;
+                const SETTINGS_OPEN_KEY = 'voiceDockSettingsOpen';
+                const PLACEHOLDER = '会話の文字起こしがここに表示されます。';
                 const $ = (id) => document.getElementById(id);
 
                 function isStudioMode() {
@@ -610,27 +613,25 @@
                 }
 
                 function resetTranscript() {
-                    const host = $('voice-studio-transcript');
-                    if (!host) return;
-                    host.innerHTML = '<div class="text-[10px] text-gray-500">会話の文字起こしがここに表示されます。</div>';
+                    const modalHost = $('voice-studio-transcript');
+                    if (modalHost) modalHost.innerHTML = `<div class="voice-studio-placeholder text-[10px] text-gray-500">${PLACEHOLDER}</div>`;
+                    const dockHost = $('sts-live-transcript');
+                    if (dockHost) {
+                        dockHost.innerHTML = '';
+                        dockHost.classList.add('hidden');
+                    }
                 }
 
-                function log(role, text) {
-                    if (!text || !String(text).trim()) return;
-                    const host = $('voice-studio-transcript');
-                    if (!host || !window.VoiceStudioOpen) return;
-                    const label = role === 'user' ? 'あなた' : 'AI';
-                    const cls = role === 'user' ? 'text-cyan-300' : 'text-gray-100';
+                function writeLine(host, role, inner) {
                     const lines = host.querySelectorAll('.voice-studio-line');
                     let target = null;
                     for (let i = lines.length - 1; i >= 0; i--) {
                         if (lines[i].dataset.role === role) { target = lines[i]; break; }
                     }
-                    const inner = `<span class="${cls} font-bold">${escapeHtml(label)}:</span> <span class="text-gray-200">${escapeHtml(text)}</span>`;
                     if (target) {
                         target.innerHTML = inner;
                     } else {
-                        const placeholder = host.querySelector('.text-gray-500');
+                        const placeholder = host.querySelector('.voice-studio-placeholder');
                         if (placeholder) placeholder.remove();
                         const line = document.createElement('div');
                         line.className = 'voice-studio-line';
@@ -638,7 +639,43 @@
                         line.innerHTML = inner;
                         host.appendChild(line);
                     }
+                    host.classList.remove('hidden');
                     host.scrollTop = host.scrollHeight;
+                }
+
+                function log(role, text) {
+                    if (!text || !String(text).trim()) return;
+                    if (!isStudioMode()) return;
+                    const label = role === 'user' ? 'あなた' : 'AI';
+                    const cls = role === 'user' ? 'text-cyan-300' : 'text-gray-100';
+                    const inner = `<span class="${cls} font-bold">${escapeHtml(label)}:</span> <span class="text-gray-200">${escapeHtml(text)}</span>`;
+                    [$('voice-studio-transcript'), $('sts-live-transcript')].filter(Boolean).forEach(host => writeLine(host, role, inner));
+                }
+
+                function setSettingsOpen(isOpen, persist = true) {
+                    const panel = $('sts-panel');
+                    const toggle = $('sts-settings-toggle');
+                    if (panel) panel.classList.toggle('settings-open', !!isOpen);
+                    if (toggle) toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                    if (persist) {
+                        try { localStorage.setItem(SETTINGS_OPEN_KEY, isOpen ? '1' : '0'); } catch (e) {}
+                    }
+                }
+
+                function readSettingsOpen() {
+                    try { return localStorage.getItem(SETTINGS_OPEN_KEY) === '1'; } catch (e) { return false; }
+                }
+
+                // Called from updateStsUi whenever the model or the studio preference changes.
+                let lastDockModel = null;
+                function syncDock() {
+                    const model = get('model-select') ? get('model-select').value : '';
+                    if (model !== lastDockModel) {
+                        lastDockModel = model;
+                        resetTranscript();
+                    }
+                    setSettingsOpen(readSettingsOpen(), false);
+                    updateTitle();
                 }
 
                 function movePanelIntoModal() {
@@ -646,6 +683,7 @@
                     const host = $('voice-studio-panel-host');
                     if (panel && host && panel.parentNode !== host) {
                         originalPanelParent = panel.parentNode;
+                        originalPanelNext = panel.nextSibling;
                         host.appendChild(panel);
                     }
                     const filePreview = $('file-preview');
@@ -660,7 +698,11 @@
                 function movePanelBack() {
                     const panel = $('sts-panel');
                     if (panel && originalPanelParent && panel.parentNode !== originalPanelParent) {
-                        originalPanelParent.appendChild(panel);
+                        if (originalPanelNext && originalPanelNext.parentNode === originalPanelParent) {
+                            originalPanelParent.insertBefore(panel, originalPanelNext);
+                        } else {
+                            originalPanelParent.appendChild(panel);
+                        }
                     }
                     const filePreview = $('file-preview');
                     if (filePreview && originalFileParent && filePreview.parentNode !== originalFileParent) {
@@ -669,34 +711,26 @@
                     const fileHost = $('voice-studio-file-host');
                     if (fileHost) fileHost.classList.add('hidden');
                     originalPanelParent = null;
+                    originalPanelNext = null;
                     originalFileParent = null;
                 }
 
+                // Enlarged view. The conversation keeps running when switching between
+                // the inline dock and this view, so opening/closing never cancels it.
                 function open() {
-                    if (!isStudioMode()) {
-                        showToast('音声系モデルを選択してから開いてください', 'warning', true);
-                        return;
-                    }
+                    if (!isStudioMode()) return;
                     movePanelIntoModal();
                     const panel = $('sts-panel');
                     if (panel) panel.classList.remove('hidden');
                     updateTitle();
-                    resetTranscript();
                     window.VoiceStudioOpen = true;
                     showModal('voice-studio-modal');
                 }
 
                 function close() {
-                    if (window.VoiceStudioOpen && (currentGeminiLive || (mediaRecorder && mediaRecorder.state === 'recording') || rtVoiceSession.isActive())) {
-                        cancelRecording();
-                    }
                     window.VoiceStudioOpen = false;
                     movePanelBack();
                     hideModal('voice-studio-modal');
-                    if (isStsModel() && voiceStudioUiEnabled !== false) {
-                        const panel = $('sts-panel');
-                        if (panel) panel.classList.add('hidden');
-                    }
                 }
 
                 function closeIfOpen() {
@@ -709,10 +743,16 @@
                     if (openBtn) openBtn.addEventListener('click', () => open());
                     const closeBtn = $('voice-studio-close');
                     if (closeBtn) closeBtn.addEventListener('click', () => close());
-                    window.VoiceStudio = { open, close, closeIfOpen, log, isStudioMode };
+                    const settingsToggle = $('sts-settings-toggle');
+                    if (settingsToggle) settingsToggle.addEventListener('click', () => {
+                        const panel = $('sts-panel');
+                        setSettingsOpen(!(panel && panel.classList.contains('settings-open')));
+                    });
+                    window.VoiceStudio = { open, close, closeIfOpen, log, isStudioMode, syncDock };
+                    syncDock();
                 }
 
-                return { init, open, close, closeIfOpen, log, isStudioMode };
+                return { init };
             })();
             VoiceStudio.init();
 

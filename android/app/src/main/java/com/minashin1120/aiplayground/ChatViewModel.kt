@@ -1423,6 +1423,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     catch (resumeError: ApiException) { if (resumeError.status != 404) throw resumeError }
                 }
                 failed = null
+                // Branching sends (edit-and-resend, regenerate) create a new leaf whose id is unknown
+                // yet; drop the stale leafId so loadMessages() falls back to the newest message
+                // instead of keeping the previous branch selected.
+                if (submission.body.optBoolean("parent_id_explicit")) mutable.update { it.copy(leafId = null) }
                 loadMessages(id)
                 fetchThreads(false)
                 if (submission.body.optBoolean("batch_mode")) {

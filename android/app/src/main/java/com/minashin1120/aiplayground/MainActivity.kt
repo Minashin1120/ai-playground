@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Build
+import android.os.Parcelable
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,6 +30,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         handleBubbleIntent(intent)
         handleAuthIntent(intent)
+        handleShareIntent(intent)
         setContent {
             val updateState = updateModel.state.collectAsStateWithLifecycle().value
             val changelogState = changelogModel.state.collectAsStateWithLifecycle().value
@@ -65,6 +67,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         handleBubbleIntent(intent)
         handleAuthIntent(intent)
+        handleShareIntent(intent)
     }
 
     private fun handleBubbleIntent(intent: Intent?) {
@@ -81,6 +84,19 @@ class MainActivity : ComponentActivity() {
         data.getQueryParameter("integrity_ticket")?.let { model.integrityTurnstileComplete(it); return }
         data.getQueryParameter("code")?.let { model.exchangeNativeCode(it); return }
         data.getQueryParameter("error")?.let { model.notify("外部ログインに失敗しました。($it)") }
+    }
+
+    /** Handles files shared from other apps via the system share sheet (Intent.ACTION_SEND[_MULTIPLE]). */
+    private fun handleShareIntent(intent: Intent?) {
+        val uris: List<Uri> = when (intent?.action) {
+            Intent.ACTION_SEND -> intent.parcelableExtraCompat<Uri>(Intent.EXTRA_STREAM)?.let { listOf(it) } ?: emptyList()
+            Intent.ACTION_SEND_MULTIPLE -> intent.parcelableArrayListExtraCompat<Uri>(Intent.EXTRA_STREAM) ?: emptyList()
+            else -> emptyList()
+        }
+        if (uris.isEmpty()) return
+        intent?.action = null
+        intent?.removeExtra(Intent.EXTRA_STREAM)
+        model.upload(uris)
     }
 
     private fun openBubble() {
@@ -145,3 +161,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+@Suppress("DEPRECATION")
+private inline fun <reified T : Parcelable> Intent.parcelableExtraCompat(name: String): T? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) getParcelableExtra(name, T::class.java)
+    else getParcelableExtra(name)
+
+@Suppress("DEPRECATION")
+private inline fun <reified T : Parcelable> Intent.parcelableArrayListExtraCompat(name: String): ArrayList<T>? =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) getParcelableArrayListExtra(name, T::class.java)
+    else getParcelableArrayListExtra(name)

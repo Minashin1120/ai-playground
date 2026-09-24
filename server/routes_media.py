@@ -64,6 +64,37 @@ def synthesize():
         logger.error(f"TTS Synthesis failed: {e}")
         return jsonify({'error': str(e)}), 500
 
+def _transcribe_with_xai_stt(audio_content, fname, model, user):
+    """Batch transcription via xAI Grok Voice Transcribe (POST /v1/stt)."""
+    key = _get_model_specific_api_key(user, model) or decrypt_val(user.xai_api_key)
+    if not key and _admin_env_fallback_enabled(user):
+        key = os.getenv('XAI_API_KEY')
+    if not key:
+        return jsonify({'error': 'xAI API Key not configured'}), 400
+    mime = mimetypes.guess_type(fname or "")[0] or "application/octet-stream"
+    # Option fields must precede `file` in the multipart body (xAI docs).
+    resp = requests.post(
+        "https://api.x.ai/v1/stt",
+        headers={"Authorization": f"Bearer {key}"},
+        data=[("model", model)],
+        files=[("file", (fname or "audio", audio_content, mime))],
+        timeout=600,
+    )
+    if resp.status_code != 200:
+        detail = ""
+        try:
+            body = resp.json()
+            detail = body.get("error") or body.get("message") or ""
+            if isinstance(detail, dict):
+                detail = detail.get("message") or ""
+        except Exception:
+            detail = (resp.text or "")[:300]
+        logger.error(f"xAI STT failed: status={resp.status_code} {detail}")
+        status = resp.status_code if resp.status_code in (400, 401, 413, 429) else 502
+        return jsonify({'error': f"xAI STT error {resp.status_code}: {detail}".strip()}), status
+    result = resp.json() or {}
+    return jsonify({'transcript': result.get("text") or "", 'mode': 'stt_api'})
+
 @app.route('/transcribe', methods=['POST'])
 @login_required
 def transcribe():
@@ -105,16 +136,11 @@ def transcribe():
             transcript = _transcribe_audio_with_llm(audio_content, fname, llm_model_key, current_user)
             return jsonify({'transcript': transcript, 'mode': 'llm'})
 
-        allowed_models = {
-            "gpt-transcribe",
-            "gpt-4o-mini-transcribe",
-            "gpt-4o-transcribe",
-            "gpt-4o-transcribe-diarize",
-            "whisper-1"
-        }
         model = (current_user.stt_model or "").strip()
-        if model not in allowed_models:
+        if model not in VALID_STT_MODELS:
             model = "gpt-4o-mini-transcribe"
+        if model in XAI_STT_MODELS:
+            return _transcribe_with_xai_stt(audio_content, fname, model, current_user)
         key = _get_model_specific_api_key(current_user, model) or decrypt_val(current_user.openai_api_key)
         if not key and _admin_env_fallback_enabled(current_user):
             key = os.getenv('OPENAI_API_KEY')

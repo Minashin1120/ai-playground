@@ -46,6 +46,7 @@ private val THINKING_LEVELS = listOf("minimal", "low", "medium", "high")
 private val EFFORTS = listOf("none", "low", "medium", "high", "xhigh", "max")
 private val STT_MODELS = listOf(
     "gpt-transcribe", "gpt-4o-mini-transcribe", "gpt-4o-transcribe", "gpt-4o-transcribe-diarize", "whisper-1",
+    "grok-voice-transcribe-2.0", "grok-voice-transcribe-1.0",
 )
 
 @OptIn(ExperimentalLayoutApi::class)

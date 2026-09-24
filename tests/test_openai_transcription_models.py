@@ -18,7 +18,8 @@ class OpenAITranscriptionModelRegressionTests(unittest.TestCase):
         self.assertIn('"type": "transcription"', source)
         self.assertIn('"conversation.item.input_audio_transcription.delta"', source)
         self.assertIn('"conversation.item.input_audio_transcription.completed"', source)
-        self.assertIn('"gpt-transcribe",\n            "gpt-4o-mini-transcribe"', source)
+        self.assertIn('"gpt-transcribe",\n    "gpt-4o-mini-transcribe"', source)
+        self.assertIn('if model not in VALID_STT_MODELS:', source)
 
     def test_frontend_exposes_both_models_and_handles_text_only_completion(self):
         assets = list((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))

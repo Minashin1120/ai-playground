@@ -257,7 +257,10 @@ VALID_STT_MODELS = {
     "gpt-4o-transcribe",
     "gpt-4o-transcribe-diarize",
     "whisper-1",
+    "grok-voice-transcribe-2.0",
+    "grok-voice-transcribe-1.0",
 }
+XAI_STT_MODELS = {"grok-voice-transcribe-2.0", "grok-voice-transcribe-1.0"}
 
 DEFAULT_LLM_TRANSCRIBE_PROMPT = (
     "この音声を正確に文字起こししてください。"

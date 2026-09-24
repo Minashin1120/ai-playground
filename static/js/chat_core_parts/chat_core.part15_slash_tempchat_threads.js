@@ -173,8 +173,10 @@
                 }
             }
 
-            // Set default leaf (latest message or fixed branch)
-            const storedFixedId = localStorage.getItem(`fixed_branch_${currentThreadId}`);
+            // Set default leaf (latest message or fixed branch). A reload right after an
+            // edit/regenerate send (forceLatestLeaf) must show the branch just created,
+            // not snap back to a branch the user pinned earlier in this thread.
+            const storedFixedId = opts.forceLatestLeaf ? null : localStorage.getItem(`fixed_branch_${currentThreadId}`);
             if (storedFixedId && allMessages.find(m => String(m.id) === String(storedFixedId))) {
                 currentLeafId = storedFixedId;
             } else if (allMessages.length > 0) {

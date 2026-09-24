@@ -1098,7 +1098,7 @@
                 }
                 // Full reload to establish new tree structure. Errors are persisted
                 // server-side as assistant messages (```chat_error), so reload keeps them visible.
-                await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
+                await loadMessages(currentThreadId, { preserveDraft: true, silent: true, forceLatestLeaf: !!editingId });
                 if (!hadError && codingModeEnabled) {
                     codingTargetSelection = null;
                     syncCodingModeUi(true, { persist: false });

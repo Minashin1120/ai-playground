@@ -1180,6 +1180,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val uuid = reply.nullableString("last_gem_uuid")
                 if (uuid.isBlank()) null else it.gems.firstOrNull { gem -> gem.uuid == uuid }
             }) }
+        // Keep the per-thread remembered branch in sync with what was actually resolved here,
+        // so a stale branch (e.g. from before an edit/regenerate created a new one) does not
+        // reassert itself the next time this thread is opened.
+        state.value.selected?.let { thread -> leaf?.let { prefs.edit().putInt("leaf_${thread.id}", it).apply() } }
         state.value.account?.let { account ->
             withContext(Dispatchers.IO) {
                 offlineCache.saveThread(
@@ -1412,6 +1416,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     mutable.update { it.copy(selected = ThreadItem(id, created.optString("title", "新しいチャット"), it.model,
                         isTemporary = created.optBoolean("is_temporary")), newThreadTemporary = false) }
                     syncHeartbeat()
+                }
+                if (submission.body.optBoolean("parent_id_explicit")) {
+                    // Branching send (edit-and-resend, regenerate): drop the old branch's tail
+                    // from the visible path immediately, instead of leaving the previous
+                    // prompt/reply bubbles on screen until the new answer finishes streaming.
+                    val parentId = submission.body.opt("parent_id") as? Int
+                    mutable.update { current ->
+                        val truncated = if (parentId == null) emptyList()
+                        else current.messages.indexOfFirst { numericId(it) == parentId }
+                            .let { idx -> if (idx >= 0) current.messages.subList(0, idx + 1) else current.messages }
+                        current.copy(messages = truncated)
+                    }
                 }
                 val userId = "local-${submission.body.getString("client_request_id")}"
                 mutable.update { it.copy(messages = it.messages.filterNot { m -> m.id == userId } + ChatMessage(userId, "user",

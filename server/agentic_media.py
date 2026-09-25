@@ -72,12 +72,7 @@ def _sanitize_and_rasterize_agentic_svg(data):
     output_width = max(1, int(round(width * scale)))
     output_height = max(1, int(round(height * scale)))
     sanitized_svg = ET.tostring(root, encoding="utf-8")
-    png_data = cairosvg.svg2png(
-        bytestring=sanitized_svg,
-        output_width=output_width,
-        output_height=output_height,
-        unsafe=False,
-    )
+    png_data = _rasterize_svg_png(sanitized_svg, output_width, output_height)
     if not png_data or len(png_data) > _AGENTIC_IMAGE_MAX_BYTES:
         raise ValueError("Rasterized generated image is invalid")
     return png_data
@@ -99,12 +94,10 @@ def _prepare_agentic_image_bytes(data, declared_mime=None):
     if is_svg:
         return _sanitize_and_rasterize_agentic_svg(data), "png"
 
-    try:
-        with Image.open(BytesIO(data)) as image:
-            image.verify()
-            image_format = str(image.format or "").upper()
-    except Exception as exc:
-        raise ValueError("Gemini inline data is not a supported image") from exc
+    info = _probe_image(data)
+    if not info or not _validate_image_structure(data, info):
+        raise ValueError("Gemini inline data is not a supported image")
+    image_format = info["format"]
 
     extension_by_format = {
         "PNG": "png",

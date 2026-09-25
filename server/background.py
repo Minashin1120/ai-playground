@@ -4310,16 +4310,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         img_mime = fi['mime']
                         # xAI supports jpg/jpeg or png.
                         if img_mime not in ('image/png', 'image/jpeg'):
-                            try:
-                                im = Image.open(BytesIO(img_bytes))
-                                if im.mode not in ('RGB', 'RGBA'):
-                                    im = im.convert('RGB')
-                                out = BytesIO()
-                                im.save(out, format='PNG')
-                                img_bytes = out.getvalue()
+                            converted_png = _convert_image_to_png(img_bytes)
+                            if converted_png:
+                                img_bytes = converted_png
                                 img_mime = 'image/png'
-                            except Exception:
-                                pass
                         img_name = os.path.basename(fi.get('send_name') or fi.get('name') or f"input_{len(img_inputs)}")
                         img_inputs.append((img_name, img_bytes, img_mime))
                     for hp in history_image_parts:
@@ -4485,13 +4479,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             if mime.startswith('image/'):
                                 b64 = base64.b64encode(fi['bytes']).decode('utf-8')
                                 payload["image"] = {"url": f"data:{mime};base64,{b64}"}
-                                try:
-                                    im = Image.open(BytesIO(fi['bytes']))
-                                    inferred = _closest_aspect_ratio(im.width, im.height, {"16:9", "4:3", "1:1", "9:16", "3:4", "3:2", "2:3"})
+                                image_info = _probe_image(fi['bytes'])
+                                if image_info:
+                                    inferred = _closest_aspect_ratio(image_info["width"], image_info["height"], {"16:9", "4:3", "1:1", "9:16", "3:4", "3:2", "2:3"})
                                     if inferred:
                                         payload["aspect_ratio"] = inferred
-                                except Exception:
-                                    pass
                             elif mime.startswith('video/'):
                                 # Video edit requires a public URL. Local files won't work easily here.
                                 # But we'll try to provide it if we had a public URL.
@@ -5152,16 +5144,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         img_bytes = fi['bytes']
                         img_mime = fi['mime']
                         if img_mime not in ('image/png', 'image/jpeg', 'image/webp'):
-                            try:
-                                im = Image.open(BytesIO(img_bytes))
-                                if im.mode not in ('RGB', 'RGBA'):
-                                    im = im.convert('RGB')
-                                out = BytesIO()
-                                im.save(out, format='PNG')
-                                img_bytes = out.getvalue()
+                            converted_png = _convert_image_to_png(img_bytes)
+                            if converted_png:
+                                img_bytes = converted_png
                                 img_mime = 'image/png'
-                            except Exception:
-                                pass
                         img_name = os.path.basename(fi.get('send_name') or fi.get('name') or f"input_{len(img_inputs)}")
                         img_inputs.append((img_name, img_bytes, img_mime))
                     existing_input_names = {item[0] for item in img_inputs}
@@ -5189,13 +5175,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if not mbytes:
                             raise RuntimeError("Mask file not found.")
                         try:
-                            base_img = Image.open(BytesIO(img_inputs[0][1]))
-                            mask_img = Image.open(BytesIO(mbytes)).convert('RGBA')
-                            if base_img.size != mask_img.size:
+                            base_info = _probe_image(img_inputs[0][1])
+                            mask_info = _probe_image(mbytes)
+                            if not base_info or not mask_info:
+                                raise ValueError("Unreadable mask or input image.")
+                            if (base_info["width"], base_info["height"]) != (mask_info["width"], mask_info["height"]):
                                 raise RuntimeError("Mask must match input image size.")
-                            out = BytesIO()
-                            mask_img.save(out, format='PNG')
-                            mbytes = out.getvalue()
+                            if not (mask_info["format"] == "PNG" and mask_info["rgba8"] and _validate_image_structure(mbytes, mask_info)):
+                                mbytes = _convert_image_to_png(mbytes, rgba=True)
+                                if not mbytes:
+                                    raise ValueError("Mask conversion failed.")
                             if len(mbytes) > 4 * 1024 * 1024:
                                 raise RuntimeError("Mask must be less than 4MB.")
                             mask_file = ("mask.png", mbytes, "image/png")
@@ -6134,16 +6123,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         img_bytes = fi['bytes']
                         img_mime = fi['mime']
                         if is_grok and img_mime not in ('image/jpeg', 'image/png'):
-                            try:
-                                im = Image.open(BytesIO(img_bytes))
-                                if im.mode not in ('RGB', 'RGBA'):
-                                    im = im.convert('RGB')
-                                out = BytesIO()
-                                im.save(out, format='PNG')
-                                img_bytes = out.getvalue()
+                            converted_png = _convert_image_to_png(img_bytes)
+                            if converted_png:
+                                img_bytes = converted_png
                                 img_mime = 'image/png'
-                            except Exception:
-                                pass
                         b64 = base64.b64encode(img_bytes).decode('utf-8')
                         curr_content.append({"type": image_type, "image_url": f"data:{img_mime};base64,{b64}"})
                         img_label = fi.get('send_name') or fi.get('name') or f"画像{len(current_image_names) + 1}"

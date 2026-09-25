@@ -817,10 +817,7 @@ def totp_setup():
     session['temp_totp_secret'] = secret
     
     uri = pyotp.totp.TOTP(secret).provisioning_uri(name=current_user.username, issuer_name="AI Chat Playground")
-    img = qrcode.make(uri)
-    buf = BytesIO()
-    img.save(buf)
-    b64 = base64.b64encode(buf.getvalue()).decode()
+    b64 = base64.b64encode(_qr_png_bytes(uri)).decode()
     
     return jsonify({'secret': secret, 'qr_image': f"data:image/png;base64,{b64}"})
 

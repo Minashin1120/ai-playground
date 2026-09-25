@@ -1,12 +1,15 @@
 import base64
-import io
 import os
 import tempfile
 import unittest
 from unittest import mock
 
-from PIL import Image
 
+TINY_RED_JPEG_4X4 = base64.b64decode(
+    "/9j/4AAQSkZJRgABAgAAAQABAAD//gAQTGF2YzU5LjM3LjEwMAD/2wBDAAgoKC8oLzc3Nzc3N0E8QUNDQ0FBQUFDQ0NISEhVVVVISEhDQ0hIUFBV"
+    "VVxfXFdXVVdfX2RkZHh4c3OMjJGsrM//xABMAAEBAAAAAAAAAAAAAAAAAAAABgEBAQAAAAAAAAAAAAAAAAAABgcQAQAAAAAAAAAAAAAAAAAAAAAR"
+    "AQAAAAAAAAAAAAAAAAAAAAD/wAARCAAEAAQDASIAAhEAAxEA/9oADAMBAAIRAxEAPwCLAFF/f//Z"
+)
 
 os.environ.setdefault("FLASK_SECRET_KEY", "agentic-image-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-agentic-image-tests.db")
@@ -33,9 +36,10 @@ class AgenticImageRegressionTests(unittest.TestCase):
 
         self.assertEqual(extension, "png")
         self.assertTrue(image_bytes.startswith(b"\x89PNG\r\n\x1a\n"))
-        with Image.open(io.BytesIO(image_bytes)) as image:
-            self.assertEqual(image.format, "PNG")
-            self.assertEqual(image.size, (120, 80))
+        info = target._probe_image(image_bytes)
+        self.assertEqual(info["format"], "PNG")
+        self.assertEqual((info["width"], info["height"]), (120, 80))
+        self.assertTrue(target._validate_image_structure(image_bytes, info))
 
     def test_svg_disallows_active_or_external_content(self):
         unsafe_samples = [
@@ -55,16 +59,13 @@ class AgenticImageRegressionTests(unittest.TestCase):
             target._prepare_agentic_image_bytes(b'{"kind":"tool-output"}', "application/json")
 
     def test_raster_extension_comes_from_actual_bytes(self):
-        buffer = io.BytesIO()
-        Image.new("RGB", (4, 3), "red").save(buffer, format="JPEG")
-
         image_bytes, extension = target._prepare_agentic_image_bytes(
-            buffer.getvalue(),
+            TINY_RED_JPEG_4X4,
             "image/png",
         )
 
         self.assertEqual(extension, "jpg")
-        self.assertEqual(image_bytes, buffer.getvalue())
+        self.assertEqual(image_bytes, TINY_RED_JPEG_4X4)
 
     def test_sandbox_image_ref_streamed_with_saved_url(self):
         buffer_state = [""]

@@ -48,20 +48,9 @@ def serve_file_thumb(filename):
                     if info and info.get("exists"):
                         return _unreadable_file_http_response(filename, is_thumb=True)
                     abort(404)
-                try:
-                    with Image.open(BytesIO(data)) as im:
-                        if hasattr(Image, "Resampling"):
-                            resample_lanczos = Image.Resampling.LANCZOS
-                        else:
-                            resample_lanczos = Image.LANCZOS
-                        if im.mode not in ("RGB", "RGBA"):
-                            im = im.convert("RGB")
-                        im.thumbnail((_THUMBNAIL_SIZE, _THUMBNAIL_SIZE), resample=resample_lanczos)
-                        buf = BytesIO()
-                        im.save(buf, format="WEBP", quality=_THUMBNAIL_QUALITY, method=4)
-                        thumb_bytes = buf.getvalue()
-                except Exception as e:
-                    log_force(f"Thumbnail generation failed for {actual_rel_path}: {e}")
+                thumb_bytes = _make_thumbnail_webp(data, _THUMBNAIL_SIZE, _THUMBNAIL_QUALITY)
+                if not thumb_bytes:
+                    log_force(f"Thumbnail generation failed for {actual_rel_path}")
                     return redirect(url_for('serve_file', filename=filename))
                 _thumbnail_bytes_cache_put(cache_key, thumb_bytes)
         finally:

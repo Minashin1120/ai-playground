@@ -1,5 +1,9 @@
 import os
 import sys
+
+# Pillow is only for the WeasyPrint/CairoSVG child processes; optional importers (google-genai, openpyxl, pypdf, qrcode) skip it.
+sys.modules["PIL"] = None
+
 import json
 import time
 import logging
@@ -19,13 +23,11 @@ import subprocess
 import random
 import math
 import pyotp
-import qrcode
 import wave
 import asyncio
 import tempfile
 import zipfile
 import warnings
-import cairosvg
 from lxml import etree as _LXML
 from defusedxml import ElementTree as ET
 from urllib.parse import urlparse, unquote, quote, urlencode
@@ -54,7 +56,6 @@ from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_t
 from rq import Queue
 from datetime import datetime, timedelta
 from io import BytesIO
-from PIL import Image
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash, send_file, send_from_directory, abort, session, g
 from flask.sessions import SecureCookieSessionInterface
 from flask_sqlalchemy import SQLAlchemy
@@ -79,9 +80,6 @@ from cryptography.fernet import Fernet, InvalidToken
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from authlib.integrations.flask_client import OAuth
-
-Image.MAX_IMAGE_PIXELS = 40_000_000
-warnings.simplefilter("error", Image.DecompressionBombWarning)
 
 try:
     from anthropic import Anthropic, APIError as AnthropicAPIError
@@ -756,8 +754,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-24-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.1028'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-25-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.1029'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -918,6 +916,7 @@ _SERVER_PARTS = [
     "mobile_auth.py",
     "request_hooks.py",
     "storage.py",
+    "image_tools.py",
     "crypto.py",
     "providers.py",
     "create_file.py",

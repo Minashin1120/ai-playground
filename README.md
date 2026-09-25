@@ -1,6 +1,6 @@
 # AI Chat Playground
 
-[![Version](https://img.shields.io/badge/version-V4.8.1028-2563eb)](static/changelogs/20260924_v4.8.1028.md)
+[![Version](https://img.shields.io/badge/version-V4.8.1029-2563eb)](static/changelogs/20260925_v4.8.1029.md)
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b)](LICENSE)
 
@@ -65,7 +65,8 @@ Gunicornだけ、またはRQワーカーだけを起動しても、すべての�
 - MariaDBまたはMySQL互換サーバー
 - Redis
 - Apache 2.4（本書の例）またはSSEと大容量アップロードに対応した同等のプロキシ
-- ffmpeg（音声・動画処理）
+- ffmpeg（音声・動画処理、画像の形式変換）
+- webp（`cwebp`／`dwebp`。サムネイル生成とWebP画像の変換）
 - bubblewrapとutil-linuxの`prlimit`（Pythonコード実行サンドボックス）
 - Cairo、Pango等（CairoSVG／WeasyPrintによるPDF・画像生成）
 - TLS証明書（Certbot等）
@@ -83,7 +84,7 @@ sudo apt update
 sudo apt install -y git python3.11 python3.11-venv python3.11-dev \
   build-essential pkg-config libssl-dev libffi-dev \
   mariadb-server redis-server apache2 certbot python3-certbot-apache \
-  ffmpeg bubblewrap util-linux libcairo2 libpango-1.0-0 \
+  ffmpeg webp bubblewrap util-linux libcairo2 libpango-1.0-0 \
   libpangoft2-1.0-0 libgdk-pixbuf-2.0-0 shared-mime-info
 ```
 

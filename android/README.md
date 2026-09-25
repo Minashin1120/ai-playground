@@ -4,6 +4,7 @@
 |---|---|---|
 | `../deploy/ANDROID_CLIENT.md` | 通信仕様・アプリ操作・構築・署名・公開手順 | 開発・導入・障害対応 |
 | `WEB_PARITY.md` | Web版との機能・デザイン差分、完成条件、実装順、進捗の正本 | Web版相当の機能・デザインを実装するとき |
+| `ANDROID_ONLY.md` | Web版と意図的に異なる点だけを記録する正本（ここにない差分は追従漏れ） | Web版とAndroid版の差分を判断・変更するとき |
 | `NATIVE_AUTH_PLAN.md` | ネイティブ認証・初期セットアップの承認済み実装計画と進捗 | 認証・2FA・パスキー・取り込みの作業を再開するとき |
 | `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties` | Android Gradleプロジェクトのルート設定 | SDK・Kotlin・Gradleを更新するとき |
 | `version.properties` | AndroidのversionCodeとversionName | 新しいAndroid版を配布するとき |

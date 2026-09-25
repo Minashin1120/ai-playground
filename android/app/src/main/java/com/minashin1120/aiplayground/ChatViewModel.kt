@@ -117,6 +117,8 @@ data class ChatState(
     val lowBandwidthPreference: String = "auto",
     val lowBandwidthMode: Boolean = false,
     val lowBandwidthReason: String = "",
+    /** Incremented to ask the screen to open the settings modal (e.g. from the encryption status dialog). */
+    val settingsRequest: Long = 0L,
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -1323,6 +1325,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             fetchThreads(false)
         } catch (e: Exception) { report(e) }
     } }
+
+    fun requestSettings() { mutable.update { it.copy(settingsRequest = it.settingsRequest + 1) } }
+
+    /** Web `deleteMessage`: removes the message and everything after it, then reloads the thread. */
+    fun deleteMessage(message: ChatMessage) {
+        val id = numericId(message) ?: return
+        val thread = state.value.selected ?: return
+        viewModelScope.launch {
+            if (state.value.offline) { notify("オフライン中はメッセージを削除できません。"); return@launch }
+            try {
+                api.delete("/api/messages/$id", token())
+                if (state.value.selected?.id == thread.id) {
+                    mutable.update { it.copy(leafId = null) }
+                    prefs.edit().remove("leaf_${thread.id}").apply()
+                    loadMessages(thread.id)
+                }
+            } catch (e: Exception) { report(e) }
+        }
+    }
 
     /** Pull-to-refresh of the sidebar thread list. */
     fun reloadThreads(onDone: () -> Unit) { viewModelScope.launch {

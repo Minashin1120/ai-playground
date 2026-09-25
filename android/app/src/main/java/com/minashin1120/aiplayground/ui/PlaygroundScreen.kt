@@ -82,6 +82,7 @@ import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.FixedPrompt
 import com.minashin1120.aiplayground.data.ChatMessage
+import com.minashin1120.aiplayground.data.buildTokenTotals
 import com.minashin1120.aiplayground.data.recentWebModels
 import com.minashin1120.aiplayground.data.ConnectionStatus
 import com.minashin1120.aiplayground.data.defaultMessage
@@ -338,6 +339,26 @@ fun PlaygroundScreen(
                     } catch (_: Exception) { model.notify("PDFを共有できません。") }
                 }
             }
+            // Code-block download: Web saves `code.<ext>`; Android asks where to save it (ANDROID_ONLY.md §2).
+            var pendingCodeDownload by remember { mutableStateOf<String?>(null) }
+            val codeSaver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+                val code = pendingCodeDownload
+                pendingCodeDownload = null
+                if (uri != null && code != null) scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                    runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(code.toByteArray(Charsets.UTF_8)) } }
+                        .onFailure { model.notify("ダウンロードに失敗しました") }
+                }
+            }
+            val codeActions = remember(model) {
+                MarkdownCodeActions(
+                    onDownload = { code, language -> pendingCodeDownload = code; codeSaver.launch(codeDownloadName(language)) },
+                    onCodingTarget = { code, language ->
+                        model.selectCodingTarget(com.minashin1120.aiplayground.data.CodingTarget(
+                            "${language}:${code.hashCode()}", code, language.ifBlank { "text" }, ""))
+                    },
+                )
+            }
+            LaunchedEffect(state.settingsRequest) { if (state.settingsRequest > 0L) settingsOpen = true }
             LaunchedEffect(state.notice) {
                 state.notice?.let { snackbar.showSnackbar(it, duration = SnackbarDuration.Long); model.dismissNotice() }
             }
@@ -496,10 +517,12 @@ fun PlaygroundScreen(
                                     PlaygroundScreenKind.Starting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                                     PlaygroundScreenKind.Setup -> SetupScreen(state, model, onWeb)
                                     PlaygroundScreenKind.Auth -> AuthScreen(state, model, onWeb)
-                                    PlaygroundScreenKind.Chat -> Conversation(
-                                        state, model, openInApp, loader,
-                                        animationsEnabled = animationsEnabled,
-                                    )
+                                    PlaygroundScreenKind.Chat -> ProvideMarkdownCodeActions(codeActions) {
+                                        Conversation(
+                                            state, model, openInApp, loader,
+                                            animationsEnabled = animationsEnabled,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1314,19 +1337,24 @@ private fun ConversationContent(
         }
     }
     val temporary = state.selected?.isTemporary == true || (state.selected == null && state.newThreadTemporary)
+    // Web shows the hover controls of the bubble the user last tapped.
+    var activeMessageId by remember { mutableStateOf<String?>(null) }
+    var deletingMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    var tokenDetail by remember { mutableStateOf<TokenDetail?>(null) }
+    var encryptionState by remember { mutableStateOf<Boolean?>(null) }
+    // Choosing a quick-access model hides the welcome screen until the next chat, as on Web.
+    var welcomeDismissed by remember(state.chatTransitionId) { mutableStateOf(false) }
+    val pathTotals = remember(state.messages) { buildTokenTotals(state.messages) }
+    val allTotals = remember(state.allMessages) { buildTokenTotals(state.allMessages) }
+    val actions = MessageActions(
+        onEdit = { model.beginEdit(it) },
+        onRegenerate = { model.regenerate(it) },
+        onDelete = { deletingMessage = it },
+        onTokenDetail = { tokenDetail = it },
+        onEncryption = { encryptionState = it },
+    )
     Column(Modifier.fillMaxSize()) {
-        // Keep the bar's slot so starting or finishing a load never shifts the conversation.
-        val busyAlpha by animateFloatAsState(if (state.busy) 1f else 0f, motionTween(reduce), label = "busy bar")
-        Box(Modifier.fillMaxWidth().height(4.dp)) {
-            if (busyAlpha > 0f) LinearProgressIndicator(Modifier.fillMaxWidth().graphicsLayer { alpha = busyAlpha })
-        }
-        AnimatedVisibility(temporary, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
-            Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
-                Text("一時チャット・離席後に自動削除されます",
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
-            }
-        }
+        TotalTokenBar(pathTotals, allTotals) { tokenDetail = it }
         AnimatedVisibility(state.jobId != null && !state.streaming, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("生成の状態を確認できます", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
@@ -1341,39 +1369,27 @@ private fun ConversationContent(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             LazyColumn(
                 state = scroll,
-                modifier = Modifier.fillMaxSize().widthIn(max = PlaygroundDimens.contentMax).align(Alignment.Center),
-                contentPadding = PaddingValues(horizontal = PlaygroundDimens.conversationHorizontalPadding, vertical = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                modifier = Modifier.fillMaxSize().widthIn(max = 832.dp).align(Alignment.TopCenter),
+                // `#chat-container`: 12px padding on phones, 20px between message groups.
+                contentPadding = PaddingValues(12.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
-            if (state.hasOlder) item(key = "older") { TextButton(onClick = model::olderMessages, enabled = !state.busy && !state.offline, modifier = Modifier.fillMaxWidth().animateItem(fadeInSpec = listFade(reduce), placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce))) { Text("以前のメッセージ（オンラインで取得）") } }
-            if (state.messages.isEmpty() && !state.busy && !live) item(key = "welcome") {
-                Column(Modifier.fillMaxWidth().animateItem(fadeInSpec = listFade(reduce), placementSpec = null, fadeOutSpec = listFade(reduce)).padding(vertical = 34.dp), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    StaggerIn(0) {
-                        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f), modifier = Modifier.size(58.dp)) {
-                            Box(contentAlignment = Alignment.Center) { Text("✦", color = MaterialTheme.colorScheme.primary, fontSize = 30.sp, fontWeight = FontWeight.Bold) }
-                        }
-                    }
-                    StaggerIn(1) { Text("AI Gems & Chat", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold) }
-                    StaggerIn(2) { Text("使いたいモデルを選んで、すぐに会話を始められます", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
-                    Spacer(Modifier.height(6.dp))
-                    recentWebModels(state.account?.models.orEmpty()).forEachIndexed { index, info ->
-                        StaggerIn(3 + index) {
-                        Surface(
-                            onClick = { model.chooseModel(info.id) },
-                            shape = RoundedCornerShape(PlaygroundDimens.cardRadius),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f),
-                            contentColor = MaterialTheme.colorScheme.onSurface,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Row(Modifier.padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("${info.emoji} ${info.name}".trim(), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                                Crossfade(state.model == info.id, animationSpec = motionTween(reduce), label = "welcome model check") { chosen ->
-                                    Icon(if (chosen) Icons.Rounded.Check else Icons.Rounded.ArrowForward, contentDescription = if (chosen) "選択中" else null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                }
-                            }
-                        }
-                        }
+            if (state.hasOlder) item(key = "older") {
+                Box(Modifier.fillMaxWidth().padding(bottom = 12.dp), contentAlignment = Alignment.Center) {
+                    val web = LocalWebPalette.current
+                    val enabled = !state.busy && !state.offline
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .border(1.dp, web.twBorder(Tw.gray600), RoundedCornerShape(4.dp))
+                            .clickable(enabled = enabled, onClick = model::olderMessages)
+                            .graphicsLayer { alpha = if (enabled) 1f else 0.5f }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        FaIcon(com.minashin1120.aiplayground.R.drawable.fa_solid_clock_rotate_left, null, size = 12.dp,
+                            tint = web.twText(Tw.gray200), modifier = Modifier.padding(end = 4.dp))
+                        Text(if (state.busy) "読み込み中..." else "過去メッセージを読み込む", color = web.twText(Tw.gray200), fontSize = 12.sp, lineHeight = 16.sp)
                     }
                 }
             }
@@ -1383,16 +1399,19 @@ private fun ConversationContent(
                 val index = siblings.indexOfFirst { it.id == message.id }
                 Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
                     StaggerIn(0, animate = entering) {
-                        MessageCard(
+                        MessageBubble(
                             message = message,
                             onFile = onFile,
-                            onQuote = model::quoteMessage,
                             loader = loader,
-                            onEdit = { model.beginEdit(it) },
-                            onRegenerate = { model.regenerate(it) },
+                            actions = MessageActions(
+                                onEdit = actions.onEdit, onRegenerate = actions.onRegenerate, onDelete = actions.onDelete,
+                                onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) },
+                                onTokenDetail = actions.onTokenDetail, onEncryption = actions.onEncryption,
+                            ),
+                            controlsVisible = activeMessageId == message.id,
+                            onToggleControls = { activeMessageId = if (activeMessageId == message.id) null else message.id },
                             branchIndex = if (index < 0) 0 else index,
                             branchCount = if (numericId(message) != null) siblings.size else 0,
-                            onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) },
                         )
                     }
                 }
@@ -1406,27 +1425,73 @@ private fun ConversationContent(
                     }
                 }
             }
+            val showWelcome = state.messages.isEmpty() && !state.busy && !live && !welcomeDismissed
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showWelcome,
+                enter = fadeIn(motionTween(reduce)),
+                exit = fadeOut(motionTween(reduce, PlaygroundMotion.SHORT)),
+                label = "welcome",
+            ) {
+                if (temporary) TemporaryChatWelcome(state.preferences?.tempChatTimeoutSeconds ?: 90)
+                else WelcomeScreen(
+                    recentWebModels(state.account?.models.orEmpty()).map { info -> info.id to "${info.emoji} ${info.name}".trim() },
+                    onChoose = { id -> model.chooseModel(id); welcomeDismissed = true },
+                )
+            }
             // Qualified so the outer Column's scoped overload is not picked inside this Box.
             androidx.compose.animation.AnimatedVisibility(
-                visible = showScrollToBottom,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 16.dp),
+                visible = showScrollToBottom && !showWelcome,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
                 enter = popIn(reduce),
                 exit = popOut(reduce),
                 label = "scroll to bottom",
             ) {
-                SmallFloatingActionButton(
-                    onClick = {
-                        scope.launch {
-                            val last = (scroll.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
-                            if (reduce) scroll.scrollToItem(last) else scroll.animateScrollToItem(last)
-                        }
-                    },
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                    contentColor = MaterialTheme.colorScheme.primary,
-                ) {
-                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "一番下へ")
-                }
+                ScrollToBottomPill(onClick = {
+                    scope.launch {
+                        val last = (scroll.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
+                        if (reduce) scroll.scrollToItem(last) else scroll.animateScrollToItem(last)
+                    }
+                })
             }
+        }
+    }
+    deletingMessage?.let { message ->
+        BrowserConfirmDialog("Delete this message and subsequent history?") { ok ->
+            if (ok) model.deleteMessage(message)
+            deletingMessage = null
+        }
+    }
+    ModalValueHost(tokenDetail) { detail -> TokenDetailDialog(detail, onDismiss = { tokenDetail = null }) }
+    ModalValueHost(encryptionState) { encrypted ->
+        EncryptionStatusDialog(encrypted, onSettings = { encryptionState = null; model.requestSettings() }, onDismiss = { encryptionState = null })
+    }
+}
+
+/** `#welcome-temporary-content`: amber card that replaces the welcome screen in a temporary chat. */
+@Composable
+private fun TemporaryChatWelcome(timeoutSeconds: Int) {
+    val web = LocalWebPalette.current
+    val seconds = timeoutSeconds.coerceIn(10, 3600)
+    Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 24.dp), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier
+                .widthIn(max = 448.dp)
+                .padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(web.twBg(Tw.amber900, 0.2f))
+                .border(1.dp, Tw.amber500.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                .padding(16.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FaIcon(com.minashin1120.aiplayground.R.drawable.fa_solid_user_secret, null, size = 14.dp, tint = web.twText(Tw.amber300),
+                    modifier = Modifier.padding(end = 8.dp))
+                Text("一時チャットモード", color = web.twText(Tw.amber300), fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(
+                "このページが非表示/切断の状態で $seconds 秒経過すると、この一時チャットとこのチャットでアップロードした添付を自動削除します（ライブラリ添付は除外）。",
+                color = if (web.isLight) Color(0xFF92400E) else Color(0xFFFEF3C7).copy(alpha = 0.9f), fontSize = 12.sp, lineHeight = 19.5.sp,
+                modifier = Modifier.padding(top = 8.dp),
+            )
         }
     }
 }

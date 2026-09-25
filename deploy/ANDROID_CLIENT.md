@@ -34,7 +34,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 |---|---|
 | ユーザー認証 | アプリ内のユーザー名／パスワード新規登録・ログイン、Google（Credential ManagerでIDトークン取得）・パスキー（Credential Manager）、TOTP／WebAuthn 2FA。MinashinはCustom Tabs＋HTTPS App Links。Google／Minashinの旧ブラウザー方式とブラウザー端末連携も非推奨フォールバックとして維持 |
 | 2FA・パスキー管理 | ネイティブでTOTP登録・有効化・無効化、パスキー登録・削除、既定2FA方式、パスキーのみログイン、Googleログイン時の2FA省略を設定。パスワード変更・アカウント削除はWeb |
-| 通常のチャット | スレッド一覧・検索・作成・取得・削除、ブックマーク、タイトル・スレッド指示、送信、ストリーム再接続、停止、メッセージの編集・再生成・分岐切替、ネイティブPDF出力。Web相当のハートビートでオフライン／不安定／メンテナンス／サーバー停止／復帰を表示 |
+| 通常のチャット | スレッド一覧・検索・作成・取得・削除、ブックマーク、タイトル・スレッド指示、送信、ストリーム再接続、停止、メッセージの編集・再生成・分岐切替・削除、ネイティブPDF出力。Web相当のハートビートでオフライン／不安定／メンテナンス／サーバー停止／復帰を表示 |
 | 添付 | 通常アップロード、大容量チャンクアップロード、進捗表示・キャンセル、Photo Picker・カメラ、他アプリの共有シート（`ACTION_SEND`／`ACTION_SEND_MULTIPLE`、任意のMIMEタイプ）からの添付受信、MIME別プレビュー、画像圧縮設定、本人のファイル・サムネイル取得、容量表示、アプリ内プレビュー（画像・テキスト・PDF・音声・動画。未対応形式は外部アプリ） |
 | 一時チャット | 作成・heartbeat。自動削除タイマーをクライアント側でも考慮する |
 | ファイルライブラリ | 一覧・検索・お気に入り・名前変更・削除・チャットへの再利用、アプリ内プレビュー。所有者ディレクトリのみ対象 |
@@ -268,11 +268,12 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | GET `/api/threads` | `page=1&q=検索語`。ページは1始まり | `threads`, `has_next`, `next_page`。1ページ20件 |
 | POST `/api/threads` | `{}` または `{"is_temporary":true}` | `id`, `title`, 一時チャットのメタデータ |
 | GET `/api/threads/<id>` | `limit=50&before_id=<最古ID>&include_meta=1` | `messages`, `has_older_messages`, `oldest_loaded_id`, `pending_job` 等 |
-| DELETE `/api/threads/<id>` | 本文不要 | `{"status":"deleted"}`。履歴・紐付く添付を削除するため画面で確認する |
+| DELETE `/api/threads/<id>` | 本文不要 | `{"status":"deleted"}`。履歴・紐付く添付を削除する（Webと同じ `confirm("Delete?")` 相当の確認後） |
 | GET `/api/threads/<id>/settings` | なし | スレッド指示、共通指示の有無、一時チャットの期限情報 |
 | PUT `/api/threads/<id>/settings` | `custom_instruction`, `include_global_instruction`, `is_temporary` | 更新後の一時チャット状態。指示は100,000文字以下 |
 | PUT `/api/threads/<id>/title` | `title` | 正規化後のタイトル。最大200文字 |
 | POST `/api/threads/<id>/bookmark` | `{}` | 切り替え後の `is_bookmarked` |
+| DELETE `/api/messages/<id>` | 本文不要 | `{"status":"ok"}`。指定メッセージ以降の履歴と、その添付を削除する（Webと同じ `confirm` 相当の確認後）。本人のスレッドのみ |
 | POST `/chat_stream` | 下の送信JSON | NDJSONストリーム、またはエラーJSON |
 | POST `/chat_stream_resume` | `{"thread_id":"...","job_id":"..."}` | 蓄積内容と継続ストリーム |
 | POST `/api/stop_chat` | `thread_id` と、分かれば `job_id` | `status`, `job_id`, `source`。停止信号の受付であり即時停止完了ではない |

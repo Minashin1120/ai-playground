@@ -17,7 +17,11 @@ data class ThreadItem(
 )
 data class ChatMessage(val id: String, val role: String, val content: String,
                        val thought: String = "", val files: List<String> = emptyList(),
-                       val parentId: Int? = null, val model: String = "")
+                       val parentId: Int? = null, val model: String = "",
+                       /** Web message meta: token counts, encryption, quote and Gem shown in the bubble footer. */
+                       val tokens: Int? = null, val tokensIn: Int? = null, val tokensOut: Int? = null,
+                       val tokensContent: Int? = null, val tokensThought: Int? = null,
+                       val encrypted: Boolean? = null, val quote: String = "", val gemName: String = "")
 data class Attachment(val name: String, val reference: String, val mime: String = "")
 data class ModelInfo(val id: String, val name: String, val provider: String, val providerLabel: String,
                      val mode: String, val capabilities: Set<String>, val deprecated: Boolean,
@@ -401,7 +405,51 @@ fun parseMessages(json: JSONObject): List<ChatMessage> {
         ChatMessage(row.get("id").toString(), row.optString("role"), row.nullableString("content"),
             row.nullableString("thought_data"), files,
             parentId = if (row.isNull("parent_id")) null else row.optInt("parent_id"),
-            model = row.nullableString("model"))
+            model = row.nullableString("model"),
+            tokens = row.nullableInt("tokens"), tokensIn = row.nullableInt("tokens_in"),
+            tokensOut = row.nullableInt("tokens_out"), tokensContent = row.nullableInt("tokens_content"),
+            tokensThought = row.nullableInt("tokens_thought"),
+            encrypted = if (row.has("is_encrypted") && !row.isNull("is_encrypted")) row.optBoolean("is_encrypted") else null,
+            quote = row.nullableString("quote_text"), gemName = row.nullableString("gem_name"))
+    }
+}
+
+/** Integer field that may be absent or JSON null. */
+fun JSONObject.nullableInt(name: String): Int? =
+    if (!has(name) || isNull(name)) null else optDouble(name).takeIf { !it.isNaN() }?.toInt()
+
+/** Web `buildTokenTotals`: sums per-message totals; a field is null when no message reported it. */
+data class TokenTotals(val total: Int, val tokensIn: Int?, val tokensOut: Int?, val tokensContent: Int?, val tokensThought: Int?)
+
+fun buildTokenTotals(messages: List<ChatMessage>): TokenTotals {
+    var total = 0
+    var sumIn = 0; var hasIn = false
+    var sumOut = 0; var hasOut = false
+    var sumContent = 0; var hasContent = false
+    var sumThought = 0; var hasThought = false
+    messages.forEach { m ->
+        val rowTotal = m.tokens ?: if (m.tokensIn != null || m.tokensOut != null) (m.tokensIn ?: 0) + (m.tokensOut ?: 0) else null
+        if (rowTotal != null) total += rowTotal
+        m.tokensIn?.let { sumIn += it; hasIn = true }
+        m.tokensOut?.let { sumOut += it; hasOut = true }
+        m.tokensContent?.let { sumContent += it; hasContent = true }
+        m.tokensThought?.let { sumThought += it; hasThought = true }
+    }
+    return TokenTotals(total, sumIn.takeIf { hasIn }, sumOut.takeIf { hasOut }, sumContent.takeIf { hasContent }, sumThought.takeIf { hasThought })
+}
+
+/** Web bubble footer token label: `In a / Out b (Thought c)`, or `N tokens`, or null. */
+fun messageTokenLabel(message: ChatMessage): String? {
+    val parts = buildList {
+        message.tokensIn?.let { add("In $it") }
+        message.tokensOut?.let { out ->
+            add(if ((message.tokensThought ?: 0) > 0) "Out $out (Thought ${message.tokensThought})" else "Out $out")
+        }
+    }
+    return when {
+        parts.isNotEmpty() -> parts.joinToString(" / ")
+        message.tokens != null -> "${message.tokens} tokens"
+        else -> null
     }
 }
 

@@ -23,6 +23,8 @@ MOBILE_ENDPOINT_METHODS = {
     'handle_threads': {'GET', 'POST'}, 'handle_thread_item': {'GET', 'DELETE'},
     'update_thread_settings': {'GET', 'PUT'}, 'update_title': {'PUT'},
     'toggle_bookmark': {'POST'},
+    # Message delete from the bubble controls (owner-checked in the route, like Web).
+    'delete_message': {'DELETE'},
     'chat_stream': {'POST'}, 'chat_stream_resume': {'POST'}, 'stop_chat': {'POST'},
     'temporary_chat_heartbeat': {'POST'}, 'estimate_prompt_tokens_api': {'POST'},
     'upload': {'POST'}, 'upload_init': {'POST'}, 'upload_chunk': {'POST'},

@@ -79,6 +79,9 @@ fun ProtectedImage(
     maxDecodeWidth: Int = 1280,
     limitBytes: Long = 8L * 1024 * 1024,
     contentDescription: String? = null,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(12.dp),
+    contentScale: ContentScale = ContentScale.Fit,
+    background: Color? = null,
 ) {
     val key = "$reference|${if (thumbnail) "t" else "f"}|$maxDecodeWidth"
     var bitmap by remember(key) { mutableStateOf(ProtectedImageCache.get(key)) }
@@ -96,9 +99,9 @@ fun ProtectedImage(
     }
     val click = if (onOpen != null) Modifier.clickable { onOpen(reference) } else Modifier
     Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = modifier.clip(RoundedCornerShape(12.dp)).then(click),
+        shape = shape,
+        color = background ?: MaterialTheme.colorScheme.surfaceVariant,
+        modifier = modifier.clip(shape).then(click),
     ) {
         Box(
             if (compact) Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 320.dp)
@@ -117,7 +120,7 @@ fun ProtectedImage(
                     ImageLoadPhase.Loaded -> image?.let {
                         Image(
                             it.asImageBitmap(), contentDescription,
-                            modifier = Modifier.fillMaxWidth(), contentScale = ContentScale.Fit,
+                            modifier = if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxSize(), contentScale = contentScale,
                         )
                     }
                     ImageLoadPhase.Failed -> Text(

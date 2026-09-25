@@ -158,6 +158,31 @@ class MobileApiTests(unittest.TestCase):
             self.assertEqual(self.call('/api/threads/' + foreign_id, token, method).status_code, 403)
         self.assertEqual(self.call('/api/threads/' + thread_id, token, 'DELETE').status_code, 200)
 
+    def test_native_message_delete_is_owner_scoped_and_removes_later_history(self):
+        token = self.token()
+        with target.app.app_context():
+            thread = target.Thread(user_id=self.user_id, public_id=target.generate_thread_public_id())
+            foreign = target.Thread(user_id=self.other_id, public_id=target.generate_thread_public_id())
+            target.db.session.add_all([thread, foreign])
+            target.db.session.commit()
+            base = datetime.utcnow()
+            first = target.Message(thread_id=thread.id, role='user', content='keep', timestamp=base)
+            second = target.Message(thread_id=thread.id, role='user', content='drop', timestamp=base + timedelta(seconds=1))
+            third = target.Message(thread_id=thread.id, role='assistant', content='drop too', timestamp=base + timedelta(seconds=2))
+            other = target.Message(thread_id=foreign.id, role='user', content='not mine', timestamp=base)
+            target.db.session.add_all([first, second, third, other])
+            target.db.session.commit()
+            thread_id, second_id, other_id = thread.id, second.id, other.id
+        self.assertEqual(self.call(f'/api/messages/{other_id}', token, 'DELETE').status_code, 403)
+        self.assertEqual(self.call(f'/api/messages/{second_id}', token, 'DELETE').status_code, 200)
+        with target.app.app_context():
+            remaining = [m.content for m in target.Message.query.filter_by(thread_id=thread_id).order_by(target.Message.timestamp)]
+            self.assertEqual(remaining, ['keep'])
+            self.assertIsNotNone(target.db.session.get(target.Message, other_id))
+        # Without the bearer (and without a cookie) the native client cannot reach the route.
+        unauthenticated = self.native.open(f'/api/messages/{other_id}', method='DELETE', base_url='https://localhost')
+        self.assertIn(unauthenticated.status_code, (401, 403))
+
     def test_native_thread_settings_bookmark_title_and_temporary_heartbeat(self):
         token = self.token()
         created = self.call('/api/threads', token, 'POST', json={'is_temporary': True})
@@ -405,8 +430,8 @@ class MobileApiTests(unittest.TestCase):
             target.db.session.commit()
             foreign_id = foreign.public_id
         self.assertEqual(self.call('/c/' + foreign_id + '/pdf', token).status_code, 403)
-        # Message deletion is not part of the native scope.
-        self.assertEqual(self.call('/api/messages/1', token, 'DELETE').status_code, 403)
+        # Message deletion is in the native scope (Web parity) and stays owner-checked; see the delete test.
+        self.assertEqual(self.call('/api/messages/999999', token, 'DELETE').status_code, 404)
 
     def test_native_batch_history_is_owner_scoped(self):
         token = self.token()

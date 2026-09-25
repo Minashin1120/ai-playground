@@ -267,6 +267,11 @@ class OfflineCacheStore(private val context: Context) {
         .put("id", message.id).put("role", message.role).put("content", message.content)
         .put("thought_data", message.thought).put("image_url", JSONArray(message.files).toString())
         .put("parent_id", message.parentId ?: JSONObject.NULL).put("model", message.model)
+        .put("tokens", message.tokens ?: JSONObject.NULL).put("tokens_in", message.tokensIn ?: JSONObject.NULL)
+        .put("tokens_out", message.tokensOut ?: JSONObject.NULL).put("tokens_content", message.tokensContent ?: JSONObject.NULL)
+        .put("tokens_thought", message.tokensThought ?: JSONObject.NULL)
+        .put("is_encrypted", message.encrypted ?: JSONObject.NULL)
+        .put("quote_text", message.quote).put("gem_name", message.gemName)
 
     private fun parseMessage(row: JSONObject): ChatMessage {
         val files = row.optJSONArray("files")?.let { values ->
@@ -277,7 +282,12 @@ class OfflineCacheStore(private val context: Context) {
         }.orEmpty()
         return ChatMessage(row.getString("id"), row.optString("role"), row.optString("content"),
             row.optString("thought").ifBlank { row.optString("thought_data") }, files,
-            if (row.isNull("parent_id")) null else row.optInt("parent_id"), row.optString("model"))
+            if (row.isNull("parent_id")) null else row.optInt("parent_id"), row.optString("model"),
+            tokens = row.nullableInt("tokens"), tokensIn = row.nullableInt("tokens_in"),
+            tokensOut = row.nullableInt("tokens_out"), tokensContent = row.nullableInt("tokens_content"),
+            tokensThought = row.nullableInt("tokens_thought"),
+            encrypted = if (row.has("is_encrypted") && !row.isNull("is_encrypted")) row.optBoolean("is_encrypted") else null,
+            quote = row.optString("quote_text"), gemName = row.optString("gem_name"))
     }
 
     private fun libraryJson(file: LibraryFile): JSONObject = JSONObject()

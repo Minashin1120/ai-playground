@@ -50,7 +50,8 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/WebFonts.kt`, `app/src/main/res/values/font_certs.xml` | Google Fonts経由のNoto Sans JP／JetBrains Mono | フォントを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/WebComponents.kt` | Web再現の共通部品（Font Awesomeアイコン、トグル、チェックボックス、select、チップ、設定カード、ボタン、モーダルの見出し・下部） | Webと同じ見た目の部品を使うとき |
 | `app/src/main/res/drawable/fa_*.xml`, `ci/sync-web-icons.py` | WebのFont Awesomeサブセットから生成したアイコン（手で編集しない。`--check` で一致確認） | Webで使うアイコンが増減したとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | 安全なMarkdown、リンク、引用、数式、表、画像、折り畳み・コピー対応コード表示 | メッセージ本文表示を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | Webの `marked`（GFM・`breaks`）と `pre-wrap` 表示を再現するMarkdown（リスト、引用、表、コード、`chat_error`、色分け、インラインコード） | メッセージ本文表示を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MessageBubble.kt` | Webの `.message-bubble`（吹き出し、タップで出る操作ボタン、引用、Thinking、添付グリッド、分岐切替、フッター）、合計トークン帯、トークン詳細・暗号化モーダル、Welcome、一番下へ | メッセージの見た目を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LatexText.kt` | LaTeXをWebViewなしで読めるネイティブ表示へ変換 | 数式表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RemoteImage.kt` | 同一originの添付画像をBearer付きで取得し、キャッシュしてプレビュー | 添付・画像プレビューを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/FileViewer.kt` | ファイルライブラリとチャット添付のアプリ内プレビュー（画像・テキスト・PDF・音声・動画） | ファイルの開き方・プレビュー種別を編集するとき |

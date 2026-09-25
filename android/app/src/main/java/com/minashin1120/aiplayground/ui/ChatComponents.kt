@@ -293,83 +293,6 @@ fun Composer(state: ChatState, model: ChatViewModel, pickModel: () -> Unit, pick
 }
 
 @Composable
-fun MessageCard(
-    message: ChatMessage,
-    onFile: (String) -> Unit,
-    onQuote: (String) -> Unit = {},
-    loader: FileBytesLoader? = null,
-    onEdit: (ChatMessage) -> Unit = {},
-    onRegenerate: (ChatMessage) -> Unit = {},
-    branchIndex: Int = 0,
-    branchCount: Int = 0,
-    onSwitchBranch: (Int) -> Unit = {},
-) {
-    val user = message.role == "user"
-    val persisted = numericId(message) != null
-    var thoughtExpanded by remember(message.id) { mutableStateOf(false) }
-    val clipboard = LocalClipboardManager.current
-    val colors = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = if (user) 20.dp else 5.dp, bottomEnd = if (user) 5.dp else 20.dp)
-    val fill = if (user) Modifier.background(Brush.linearGradient(listOf(colors.primary, Color(0xFF08B2A5))))
-        else Modifier.background(colors.surface.copy(alpha = 0.90f))
-    Box(
-        Modifier.fillMaxWidth().padding(start = if (user) 40.dp else 0.dp, end = if (user) 0.dp else 24.dp)
-            .shadow(8.dp, shape).clip(shape).then(fill)
-            .border(1.dp, if (user) colors.primary.copy(alpha = 0.38f) else colors.outlineVariant.copy(alpha = 0.72f), shape)
-    ) {
-        CompositionLocalProvider(LocalContentColor provides if (user) colors.onPrimary else colors.onSurface) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(if (user) Icons.Rounded.Person else Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp), tint = if (user) colors.onPrimary else colors.primary)
-                Text(if (user) "あなた" else "AI", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            }
-            if (message.thought.isNotBlank()) {
-                TextButton(onClick = { thoughtExpanded = !thoughtExpanded }, colors = ButtonDefaults.textButtonColors(contentColor = if (user) colors.onPrimary else colors.primary)) { Text(if (thoughtExpanded) "思考を閉じる" else "思考を表示") }
-                AnimatedVisibility(
-                    visible = thoughtExpanded,
-                    enter = expandFadeIn(LocalReduceMotion.current),
-                    exit = shrinkFadeOut(LocalReduceMotion.current),
-                ) {
-                    SelectionContainer { Text(message.thought, style = MaterialTheme.typography.bodySmall, color = if (user) colors.onPrimary.copy(alpha = 0.78f) else colors.onSurfaceVariant) }
-                }
-            }
-            if (message.content.isNotEmpty()) MarkdownText(message.content, loader, onFile)
-            message.files.forEach { file ->
-                // Assistant images are already rendered inline from the message body.
-                val inlineImage = !user && message.content.contains(file)
-                if (!inlineImage) {
-                    if (isImageReference(file)) {
-                        ProtectedImage(file, loader, onFile, modifier = Modifier.fillMaxWidth(), thumbnail = true,
-                            contentDescription = file.substringAfterLast('/'))
-                    } else {
-                        val kind = attachmentKind(file)
-                        OutlinedButton(onClick = { onFile(file) }) {
-                            Text("${attachmentKindIcon(kind)} ${file.substringAfterLast('/').take(40)}")
-                        }
-                    }
-                }
-            }
-            if (message.content.isNotBlank() || branchCount > 1 || persisted) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (branchCount > 1) {
-                        IconButton(onClick = { onSwitchBranch(branchIndex - 1) }, enabled = branchIndex > 0, modifier = Modifier.size(34.dp)) { Icon(Icons.Rounded.ChevronLeft, contentDescription = "前の分岐", modifier = Modifier.size(18.dp)) }
-                        Text("${branchIndex + 1}/$branchCount", style = MaterialTheme.typography.labelSmall)
-                        IconButton(onClick = { onSwitchBranch(branchIndex + 1) }, enabled = branchIndex < branchCount - 1, modifier = Modifier.size(34.dp)) { Icon(Icons.Rounded.ChevronRight, contentDescription = "次の分岐", modifier = Modifier.size(18.dp)) }
-                    }
-                    if (message.content.isNotBlank()) {
-                        IconButton(onClick = { clipboard.setText(AnnotatedString(message.content)) }, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.ContentCopy, contentDescription = "コピー", modifier = Modifier.size(17.dp)) }
-                        IconButton(onClick = { onQuote(message.content) }, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.FormatQuote, contentDescription = "引用", modifier = Modifier.size(18.dp)) }
-                    }
-                    if (persisted && user) IconButton(onClick = { onEdit(message) }, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Edit, contentDescription = "編集", modifier = Modifier.size(18.dp)) }
-                    if (persisted && !user) IconButton(onClick = { onRegenerate(message) }, enabled = message.parentId != null, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Replay, contentDescription = "再生成", modifier = Modifier.size(18.dp)) }
-                }
-            }
-        }
-        }
-    }
-}
-
-@Composable
 fun StatusCardView(card: StatusCard) {
     Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -424,7 +347,7 @@ fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) ->
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.streaming) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
             AnimatedContent(
-                targetState = state.status.ifBlank { "受信した回答" },
+                targetState = state.status.ifBlank { "回答を生成中..." },
                 transitionSpec = {
                     if (reduce) EnterTransition.None togetherWith ExitTransition.None
                     else (slideInVertically(tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Emphasized)) { it / 2 } +
@@ -444,7 +367,8 @@ fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) ->
             }
         }
         AnimatedVisibility(hasText, enter = expandFadeIn(reduce), exit = ExitTransition.None) {
-            MessageCard(ChatMessage("live", "assistant", state.liveContent, state.liveThought), onFile, onQuote, loader)
+            MessageBubble(ChatMessage("live", "assistant", state.liveContent, state.liveThought), onFile, loader,
+                MessageActions(), controlsVisible = false, onToggleControls = {}, streaming = true)
         }
     }
 }

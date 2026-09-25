@@ -60,10 +60,11 @@ fun SettingsDialog(
     appUpdate: AppUpdateUiState = AppUpdateUiState(),
     onCheckForUpdate: () -> Unit = {},
     onBubble: () -> Unit = {},
+    initialTab: String = "一般",
 ) {
     val prefs = state.preferences
     var search by remember { mutableStateOf("") }
-    var tab by remember { mutableStateOf("一般") }
+    var tab by remember { mutableStateOf(initialTab) }
     val reduce = LocalReduceMotion.current
     var defaultModel by remember(prefs?.defaultModel) { mutableStateOf(prefs?.defaultModel.orEmpty()) }
     var visionModel by remember(prefs?.defaultVisionModel) { mutableStateOf(prefs?.defaultVisionModel.orEmpty()) }

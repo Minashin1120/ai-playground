@@ -27,26 +27,6 @@ private fun codeBlocks(messages: List<ChatMessage>): List<CodeBlock> {
 }
 
 @Composable
-fun CodingTargetPanel(messages: List<ChatMessage>, selected: CodingTarget?, model: ChatViewModel) {
-    val blocks = remember(messages) { codeBlocks(messages) }
-    Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = MaterialTheme.shapes.small) {
-        Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text("Coding対象", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-            if (blocks.isEmpty()) Text("履歴にコードブロックがありません。入力欄に ```コード``` を指定できます。",
-                style = MaterialTheme.typography.bodySmall)
-            else Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                blocks.forEach { block ->
-                    FilterChip(selected?.id == block.id, { model.selectCodingTarget(
-                        if (selected?.id == block.id) null else CodingTarget(block.id, block.code, block.language, block.messageId)
-                    ) }, { Text("${block.language} · ${block.code.trim().lines().size}行") })
-                }
-            }
-            selected?.let { Text("選択中: ${it.language}（${it.code.length}文字）", style = MaterialTheme.typography.labelSmall) }
-        }
-    }
-}
-
-@Composable
 fun CanvasPreview(messages: List<ChatMessage>, onUse: (String) -> Unit, onClose: () -> Unit) {
     val blocks = remember(messages) { codeBlocks(messages) }
     var selected by remember(blocks) { mutableStateOf(blocks.lastOrNull()) }

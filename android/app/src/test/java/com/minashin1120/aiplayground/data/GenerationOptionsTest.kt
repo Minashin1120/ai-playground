@@ -28,7 +28,9 @@ class GenerationOptionsTest {
         assertEquals(true, ocr.get("ocr_include_image_base64"))
         val chat = generationOptionsPayload(model("grok-4", "chat"), emptyMap())
         assertFalse(chat.has("xai_temperature"))
-        assertEquals(true, chat.get("enable_file_creation"))
+        // Composer chips own these request fields; the panel must not send a second copy.
+        assertFalse(chat.has("enable_file_creation"))
+        assertFalse(chat.has("thinking_level"))
     }
 
     @Test fun geminiVideoOptionsUseModelSpecificResolutionLimits() {

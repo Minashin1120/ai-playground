@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.minashin1120.aiplayground.R
@@ -61,12 +62,12 @@ class WebComponentsScreenshotTest {
                         }
                         WebSettingsCard("Composer", compact = true) {
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                WebCheckChip("Canvas", true, {}, ChipTones.Canvas.accent, composerChipStyle(true, ChipTones.Canvas))
-                                WebCheckChip("Coding", false, {}, ChipTones.Coding.accent, composerChipStyle(false, ChipTones.Coding))
+                                WebCheckChip("Canvas", true, {}, ChipTone.Canvas.accent, composerChipStyle(true, ChipTone.Canvas))
+                                WebCheckChip("Coding", false, {}, ChipTone.Coding.accent, composerChipStyle(false, ChipTone.Coding))
                             }
                             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 WebCheckChip("Search", true, {}, Tw.blue500, composerOptStyle(true))
-                                WebCheckChip("Python", false, {}, Tw.yellow500, composerOptStyle(false), labelColor = Tw.yellow200)
+                                WebCheckChip("Python", false, {}, Tw.yellow500, composerOptStyle(false), labelColor = Color(254, 240, 138))
                                 WebSelect("medium", webOptions("minimal" to "Min", "low" to "Low", "medium" to "Mid", "high" to "High"), {})
                             }
                         }

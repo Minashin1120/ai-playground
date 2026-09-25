@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.R
+import com.minashin1120.aiplayground.data.codingTargetKey
 import com.minashin1120.aiplayground.data.fileReferencePath
 import kotlinx.coroutines.delay
 import java.net.URI
@@ -431,6 +432,8 @@ private val ListIndent = 24.dp
 internal class MarkdownCodeActions(
     val onDownload: (code: String, language: String) -> Unit = { _, _ -> },
     val onCodingTarget: ((code: String, language: String) -> Unit)? = null,
+    /** Key of the explicit Coding target (`codingTargetKey`); its button shows the pin. */
+    val selectedCodingKey: String? = null,
 )
 
 internal val LocalMarkdownCodeActions = compositionLocalOf { MarkdownCodeActions() }
@@ -812,7 +815,9 @@ private fun CodeBlock(block: MarkdownBlock.Code, colors: MarkdownColors, startCo
             CodeActionButton(if (collapsed) R.drawable.fa_solid_chevron_down else R.drawable.fa_solid_chevron_up,
                 if (collapsed) "展開" else "折りたたむ", colors) { collapsed = !collapsed }
             if (block.language.lowercase() != "diff" && actions.onCodingTarget != null) {
-                CodeActionButton(R.drawable.fa_solid_quote_right, "編集対象に指定", colors) { actions.onCodingTarget.invoke(block.text, block.language) }
+                val active = actions.selectedCodingKey == codingTargetKey(block.language.ifBlank { "text" }, block.text)
+                CodeActionButton(if (active) R.drawable.fa_solid_thumbtack else R.drawable.fa_solid_quote_right,
+                    if (active) "編集対象に設定済み" else "編集対象に指定", colors) { actions.onCodingTarget.invoke(block.text, block.language) }
             }
             CodeActionButton(R.drawable.fa_solid_download, "ダウンロード", colors) { actions.onDownload(block.text, block.language) }
             CodeActionButton(

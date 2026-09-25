@@ -281,7 +281,7 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | POST `/api/realtime/commit`、`/api/realtime/cancel`、`/api/realtime/save` | `session_id`、保存時は任意の `thread_id` | 発話確定、破棄、履歴保存 |
 | POST `/api/gemini/music/start`、GET `/api/gemini/music/stream` | `weighted_prompts`、SSEの `session_id` | LyriaセッションとBase64音声スナップショット |
 | POST `/api/gemini/music/command`、`/cancel`、`/save` | `session_id`、`control`／`action`、保存時は任意の `thread_id` | 一時停止／再開、破棄、履歴保存 |
-| POST `/api/token_estimate` | `model`, `message`, 必要なら `image_urls` | 既存のトークン見積応答。請求額の確定値ではない |
+| POST `/api/token_estimate` | `model`, `message`, `quote_text`, `image_urls` | 既存のトークン見積応答（`countable`, `tokens_total`, `tokens_prompt`, `tokens_files` など）。入力欄の下にWebと同じ文言で表示する。請求額の確定値ではない |
 | POST `/api/temporary_chat/heartbeat` | `thread_id`, `active` | 一時チャットの状態・期限情報 |
 | GET `/c/<thread_id>/pdf` | 任意で `leaf_id` | スレッドのPDF用JSON。AndroidはネイティブA4へ描画して共有する |
 | POST `/upload` | multipart/form-data、同名 `file` フィールドを必要数 | `filename`（先頭）, `filenames`（全件） |

@@ -234,6 +234,7 @@ fun PlaygroundScreen(
             var legalKind by remember { mutableStateOf<String?>(null) }
             var renaming by remember { mutableStateOf<ThreadItem?>(null) }
             var settingsOpen by remember { mutableStateOf(false) }
+            var settingsTab by remember { mutableStateOf("一般") }
             var changelogOpen by remember { mutableStateOf(false) }
             var advancedOpen by remember { mutableStateOf(false) }
             var realtimeOpen by remember { mutableStateOf(false) }
@@ -349,13 +350,16 @@ fun PlaygroundScreen(
                         .onFailure { model.notify("ダウンロードに失敗しました") }
                 }
             }
-            val codeActions = remember(model) {
+            val codingKey = state.codingTarget?.id
+            val codeActions = remember(model, codingKey) {
                 MarkdownCodeActions(
                     onDownload = { code, language -> pendingCodeDownload = code; codeSaver.launch(codeDownloadName(language)) },
                     onCodingTarget = { code, language ->
+                        val lang = language.ifBlank { "text" }
                         model.selectCodingTarget(com.minashin1120.aiplayground.data.CodingTarget(
-                            "${language}:${code.hashCode()}", code, language.ifBlank { "text" }, ""))
+                            com.minashin1120.aiplayground.data.codingTargetKey(lang, code), code, lang, ""))
                     },
+                    selectedCodingKey = codingKey,
                 )
             }
             LaunchedEffect(state.settingsRequest) { if (state.settingsRequest > 0L) settingsOpen = true }
@@ -469,9 +473,14 @@ fun PlaygroundScreen(
                         if (showThreads && !wide) MobileChatHeader(state, onMenu = openDrawer, onNewChat = { model.newChat() }, onPdf = sharePdf)
                     }, snackbarHost = { SnackbarHost(snackbar) },
                     bottomBar = {
-                        if (showThreads) Composer(state, model, { modelPicker = true }, { attachMenu = true }, launchSpeech,
+                        if (showThreads) CompositionLocalProvider(LocalComposerEstimator provides model::estimatePromptTokens) {
+                        Composer(state, model, { modelPicker = true }, { attachMenu = true }, launchSpeech,
                             onRichPaste = { richPasteOpen = true }, onMask = { maskPicker.launch("image/*") },
-                            onSettings = { settingsOpen = true },
+                            onSettings = { settingsTab = "一般"; settingsOpen = true },
+                            onChatInstructions = { model.ensureThread { threadSettings = true } },
+                            onCompressionSettings = { settingsTab = "画像圧縮"; settingsOpen = true },
+                            onTemporarySettings = { settingsTab = "一般"; settingsOpen = true },
+                            loader = loader, onOpenFile = openInApp,
                             onRealtime = {
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
                                 else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
@@ -484,6 +493,7 @@ fun PlaygroundScreen(
                                     startRealtimeWith(model, state.model, realtimeOptions)
                                 } else { awaitingMic = true; startDockAfterMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
                             })
+                        }
                     }
                 ) { padding ->
                     Column(Modifier.fillMaxSize().padding(padding)) {
@@ -601,7 +611,7 @@ fun PlaygroundScreen(
                 BrowserPromptDialog("Title:") { title -> if (!title.isNullOrEmpty()) model.renameThread(thread, title); renaming = null }
             }
             ModalHost(settingsOpen) {
-                SettingsDialog(state, model, onDismiss = { settingsOpen = false },
+                SettingsDialog(state, model, onDismiss = { settingsOpen = false }, initialTab = settingsTab,
                     onLogout = { model.logout(); settingsOpen = false; closeDrawer() }, onWeb = onWeb,
                     appUpdate = appUpdate ?: AppUpdateUiState(), onCheckForUpdate = onCheckForUpdate,
                     onBubble = { openBubble(); settingsOpen = false })
@@ -1234,7 +1244,7 @@ private fun Conversation(
             else -> state
         }
         lastShown[0] = contentState
-        ConversationContent(contentState, model, onFile, loader)
+        ProvideQuoteSelection(model::quoteMessage) { ConversationContent(contentState, model, onFile, loader) }
     }
 }
 

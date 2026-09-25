@@ -23,7 +23,11 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTP、NDJSON、APIモデル、Keystore保存、Credential Managerのパスキー手順（`PasskeyClient.kt`） | 認証・通信・保存 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/PlayIntegrityClient.kt` | Play Integrity Standard APIの事前準備・要求内容に結び付いた認証token取得 | Android認証の端末リスク信号 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BrowserLoginPkce.kt` | ブラウザー経由ログインのPKCE（S256）verifier・challenge生成 | Google・MinashinのApp Link復帰を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `ChatComponents.kt` | Compose画面の組み立て（ドロワー／タブレット2ペイン、各モーダルの開閉）、メッセージ操作、状態カード、入力欄 | 画面構造と操作を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `ChatComponents.kt` | Compose画面の組み立て（ドロワー／タブレット2ペイン、各モーダルの開閉）、メッセージ操作、状態カード、生成中の回答 | 画面構造と操作を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/Composer.kt` | Webのプロンプトバー（引用・Coding対象・編集バー、モデルボタン、Canvas／Coding／Batch、詳細チップ、添付プレビュー、固定プロンプト、Gem表示、`/`・`@` 候補、入力シェル、送信・停止、トークン見積もり） | 入力欄の見た目や操作を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/QuoteSelection.kt` | 会話の範囲選択に「Quote」を加える選択ツールバー | 引用の操作を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/ComposerRules.kt` | Webの `toggleOptions()` 相当（モデル別のチップ表示・強制値・Thinking level／Effortの候補）、PromptCacheの提供元、トークン見積もりの文言 | モデル追加でチップの表示条件を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/CodingTargets.kt` | Coding Modeの対象候補の抽出、対象バーの文言、送信時の候補と上限 | Coding Modeの送信内容を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/Sidebar.kt` | Webの `#sidebar` 相当（ツールバー、検索、Gems、スレッド一覧、引っ張って更新、フッター） | サイドバーを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ChatHeader.kt` | スマートフォン用の上部バー（Webの `header.main-chrome-header`） | 上部バーを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/WebDialogs.kt` | Webの `confirm()`／`prompt()` 相当、チャット履歴・アルファ版・利用規約のモーダル、共通オーバーレイ | 確認ダイアログや小さなモーダルを編集するとき |
@@ -32,7 +36,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsDialog.kt` | Web設定タブ相当のネイティブ設定（検索、一般／プロンプト／表示／データ／フィードバック／MCP／圧縮／セッション、秘密項目のWeb導線） | 設定画面を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/SlashCommands.kt` | 入力欄の `/` コマンド定義と解析 | スラッシュコマンドを追加するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AdvancedTools.kt` | Batch管理と高度な生成機能・安全なWeb導線 | 高度な機能メニューを編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasCodingPanels.kt` | Canvasプレビュー・編集とCoding履歴対象選択 | Canvas／Codingの編集操作を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasCodingPanels.kt` | Canvasプレビュー・編集 | Canvasの編集操作を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMaskEditor.kt` | GPT-Image用の端末マスク描画とPNG化 | 画像マスクの描画・送信を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | 入力欄の音声ドック、Realtime音声（Gemini 3.8 Live / Extended Thinkingを含む）の拡大スタジオと設定チップ、Lyria音楽スタジオ | 音声／音楽セッションUIを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | クリップボードHTML／テキストの安全な取り込み | リッチ貼り付けの入力変換を変更するとき |
@@ -41,7 +45,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundMotion.kt` | 共通の時間・イージング、アニメーション削除設定への追従、モーダルの開閉・予測型「戻る」、一覧・登場・押下の動きの部品 | 画面の動き・遷移を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AppChangelogDialog.kt` | Android版更新履歴のネイティブMarkdown表示、読み込み・再試行・戻る操作 | 更新履歴画面を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/GenerationOptionsPanel.kt` | モデル別生成設定のネイティブ入力パネル | 詳細設定の表示を編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/GenerationOptions.kt` | モデル別の既存APIオプション、値検証、送信対象の限定 | 画像・動画・OCR・TTS・Thinking設定を追加するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/GenerationOptions.kt` | モデル別の生成パネル項目（画像・動画・OCR・TTS・xAI詳細）、値検証、送信対象の限定。File／SysPrompt／URLs／Thinking／Effort／SafetyはComposerのチップが持つ | 画像・動画・OCR・TTSの設定を追加するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/RealtimeModels.kt` | Realtime／Lyriaのセッション状態 | 音声・音楽ストリームの状態表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/WebModelCatalog.kt`, `app/src/main/assets/web-model-catalog.json` | Webの表示名・説明・価格・タグ・追加順をネイティブAPIのモデル一覧に合成 | モデル情報の表示差を確認するとき |
 | `ci/sync-web-catalog.mjs` | Webモデル定義からAndroid表示用JSONを生成・`--check`で一致検証 | Webのモデル定義変更をAndroidへ同期するとき |

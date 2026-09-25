@@ -74,12 +74,16 @@ data class ChatState(
     val enableFileCreation: Boolean = true, val enableSystemPrompt: Boolean = false,
     val enablePromptCache: Boolean = false,
     val generationValues: Map<String, Map<String, String>> = emptyMap(),
+    /** Web composer selects that do not depend on the model (Thinking level/Budget, Effort, Safety). */
+    val chipValues: Map<String, String> = COMPOSER_SELECT_DEFAULTS,
     val batchMode: Boolean = false, val enablePython: Boolean = false, val enableMcp: Boolean = true,
     val canvasMode: Boolean = false, val codingMode: Boolean = false,
     val codingTarget: CodingTarget? = null,
     val imageMask: String? = null,
     val uploading: Boolean = false, val streaming: Boolean = false,
     val uploadSent: Long = 0L, val uploadTotal: Long = 0L, val uploadName: String = "",
+    /** Files finished / queued in the running upload batch (Web `Preparing... (completed/total)`). */
+    val uploadCompleted: Int = 0, val uploadCount: Int = 0,
     val library: List<LibraryFile> = emptyList(), val libraryBusy: Boolean = false,
     val libraryQuery: String = "", val libraryFavoritesOnly: Boolean = false,
     val libraryHasMore: Boolean = false, val libraryTotal: Int = 0,
@@ -117,6 +121,8 @@ data class ChatState(
     val lowBandwidthPreference: String = "auto",
     val lowBandwidthMode: Boolean = false,
     val lowBandwidthReason: String = "",
+    /** Web `currentQuote`: text quoted from a message, sent as `quote_text` with the next message. */
+    val quote: String = "",
     /** Incremented to ask the screen to open the settings modal (e.g. from the encryption status dialog). */
     val settingsRequest: Long = 0L,
 )
@@ -827,6 +833,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         runCatching { fetchGems() }.onFailure { report(it) }
         runCatching { fetchPreferences(applyDefaults = true) }.onFailure { report(it) }
         runCatching { fetchBatchJobs(notify = false) }.onFailure { report(it) }
+        // The composer shows the MCP chip only when a server is enabled (Web `applyMcpPromptChipUi`).
+        loadMcpServers()
         if (foreground) startBatchPolling()
         if (state.value.historyCacheMode == HistoryCacheMode.FULL) startCacheSyncIfAllowed()
     }
@@ -1046,30 +1054,54 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun draft(text: String) { mutable.update { it.copy(draft = text) } }
     fun quoteMessage(text: String) {
-        val quoted = text.trim().lineSequence().filter { it.isNotBlank() }
-            .joinToString("\n") { "> $it" }
+        val quoted = text.trim()
         if (quoted.isBlank()) return
-        mutable.update {
-            it.copy(draft = if (it.draft.isBlank()) "$quoted\n\n" else it.draft.trimEnd() + "\n\n$quoted\n\n")
-        }
+        mutable.update { it.copy(quote = quoted) }
     }
+    fun clearQuote() { mutable.update { it.copy(quote = "") } }
+    /**
+     * Web `toggleOptions()` writes the forced checkbox values and moves the Thinking level / Effort
+     * selects to an allowed option; the new values stay after switching to another model.
+     */
+    private fun ChatState.withModelRules(): ChatState {
+        val rules = composerRules(model, mcpServers.any { it.enabled })
+        val level = chipValues["thinking_level"].orEmpty()
+        val effort = chipValues["reasoning_effort"].orEmpty()
+        val nextLevel = if (level !in rules.thinkingLevels && rules.thinkingFallback != null) rules.thinkingFallback else level
+        val nextEffort = if (rules.effort.visible && effort !in rules.effortOptions) rules.effortFallback else effort
+        return copy(
+            enableSearch = rules.search.forced ?: enableSearch,
+            enableUrlContext = rules.urls.forced ?: enableUrlContext,
+            enableMaps = rules.maps.forced ?: enableMaps,
+            enablePython = rules.python.forced ?: enablePython,
+            enableSystemPrompt = rules.sysPrompt.forced ?: enableSystemPrompt,
+            enableThinking = rules.thinking.forced ?: enableThinking,
+            enablePromptCache = rules.promptCache.forced ?: enablePromptCache,
+            batchMode = batchMode && rules.batch.visible,
+            chipValues = chipValues + mapOf("thinking_level" to nextLevel, "reasoning_effort" to nextEffort),
+        )
+    }
+
+    /**
+     * Web keeps each option's checkbox when the model changes; only the per-model rules force values
+     * (applied when sending). OCR turns Canvas/Coding off and non GPT-Image models drop the mask, as on Web.
+     */
     fun chooseModel(model: String) {
         val info = state.value.account?.models?.firstOrNull { it.id == model && it.selectable } ?: return
+        if (state.value.enablePromptCache) {
+            val currentProvider = modelApiProvider(state.value.model)
+            val nextProvider = modelApiProvider(info.id)
+            if (currentProvider != null && nextProvider != null && currentProvider != nextProvider) {
+                notify("PromptCache 有効中は他API（${PROVIDER_LABELS[nextProvider] ?: nextProvider}）のモデルに変更できません。現在: ${PROVIDER_LABELS[currentProvider] ?: currentProvider}")
+                return
+            }
+        }
+        val ocr = isMistralOcrModel(info.id)
         mutable.update { it.copy(model = model,
-            enableThinking = it.enableThinking && info.supports("thinking"),
-            enableSearch = it.enableSearch && info.supports("search"),
-            enableUrlContext = it.enableUrlContext && (info.supports("url_context") || info.id.startsWith("gemini-")),
-            enableMaps = it.enableMaps && (info.supports("maps") || info.id.startsWith("gemini-3")),
-            enableFileCreation = if (info.mode == "chat" || info.mode == "agent") it.enableFileCreation else false,
-            enableSystemPrompt = if (info.mode == "chat" || info.mode == "agent") it.enableSystemPrompt else false,
-            canvasMode = if (info.mode == "chat" || info.mode == "agent") it.canvasMode else false,
-            codingMode = if (info.mode == "chat" || info.mode == "agent") it.codingMode else false,
-            codingTarget = if (info.mode == "chat" || info.mode == "agent") it.codingTarget else null,
-            imageMask = if (info.id.startsWith("gpt-image")) it.imageMask else null,
-            enablePromptCache = it.enablePromptCache && info.supports("prompt_cache"),
-            batchMode = it.batchMode && info.supports("batch"),
-            enablePython = it.enablePython && info.supports("python"),
-            enableMcp = it.enableMcp && info.supports("mcp")) }
+            canvasMode = it.canvasMode && !ocr,
+            codingMode = it.codingMode && !ocr,
+            codingTarget = if (ocr) null else it.codingTarget,
+            imageMask = if (info.id.contains("gpt-image")) it.imageMask else null).withModelRules() }
         state.value.account?.let { prefs.edit().putString("model_${it.id}", model).apply() }
     }
     fun toggleThinking() { mutable.update { it.copy(enableThinking = !it.enableThinking) } }
@@ -1078,12 +1110,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleMaps() { mutable.update { it.copy(enableMaps = !it.enableMaps) } }
     fun toggleFileCreation() { mutable.update { it.copy(enableFileCreation = !it.enableFileCreation) } }
     fun toggleSystemPrompt() { mutable.update { it.copy(enableSystemPrompt = !it.enableSystemPrompt) } }
-    fun togglePromptCache() { mutable.update { it.copy(enablePromptCache = !it.enablePromptCache) } }
+    fun togglePromptCache() {
+        mutable.update { it.copy(enablePromptCache = !it.enablePromptCache) }
+        if (state.value.enablePromptCache) {
+            val provider = modelApiProvider(state.value.model)
+            val label = PROVIDER_LABELS[provider] ?: provider ?: "現在のAPI"
+            notify("PromptCache を有効化しました。以降は $label 以外のモデルに変更できません。")
+        }
+    }
     fun toggleBatchMode() { mutable.update { it.copy(batchMode = !it.batchMode) } }
     fun togglePython() { mutable.update { it.copy(enablePython = !it.enablePython) } }
     fun toggleMcp() { mutable.update { it.copy(enableMcp = !it.enableMcp) } }
-    fun toggleCanvas() { mutable.update { it.copy(canvasMode = !it.canvasMode, codingMode = false) } }
-    fun toggleCoding() { mutable.update { it.copy(codingMode = !it.codingMode, canvasMode = false, codingTarget = null) } }
+    fun toggleCanvas() { mutable.update { it.copy(canvasMode = !it.canvasMode) } }
+    fun toggleCoding() { mutable.update { it.copy(codingMode = !it.codingMode) } }
     fun toggleTemporaryChat() {
         val selected = state.value.selected
         if (selected != null) {
@@ -1092,7 +1131,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(newThreadTemporary = !it.newThreadTemporary) }
         }
     }
-    fun selectCodingTarget(target: CodingTarget?) { mutable.update { it.copy(codingTarget = target, codingMode = target != null || it.codingMode) } }
+    /** Web `selectCodingTargetFromButton` / `clear-coding-target-btn`; selecting does not turn Coding on. */
+    fun selectCodingTarget(target: CodingTarget?) {
+        mutable.update { it.copy(codingTarget = target) }
+        notify(when {
+            target == null -> "最新のコードブロックを自動選択します"
+            state.value.codingMode -> "Coding Modeの編集対象に設定しました"
+            else -> "編集対象を選択しました。プロンプトバーのCodingをオンにすると使用します"
+        })
+    }
     fun setImageMask(reference: String?) { mutable.update { it.copy(imageMask = reference) } }
     fun uploadImageMask(name: String, bytes: ByteArray) {
         if (bytes.isEmpty() || state.value.banned || state.value.streaming || state.value.uploading) return
@@ -1105,10 +1152,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     fun generationOption(key: String, value: String) {
+        if (key in COMPOSER_SELECT_DEFAULTS) {
+            mutable.update { it.copy(chipValues = it.chipValues + (key to value)) }
+            return
+        }
         if (state.value.streaming) return
         mutable.update { current -> current.copy(generationValues = current.generationValues +
             (current.model to (current.generationValues[current.model].orEmpty() + (key to value)))) }
     }
+    fun clearAttachments() { mutable.update { it.copy(attachments = emptyList()) } }
     fun removeAttachment(reference: String) { mutable.update { it.copy(attachments = it.attachments.filterNot { a -> a.reference == reference }) } }
     fun search(query: String) {
         mutable.update { it.copy(search = query) }
@@ -1356,6 +1408,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     } }
 
     /** `/static/legal/<kind>.md` shown by the terms / privacy modal (public, no token). */
+    /** Web `openThreadModal`: a new chat is created first so its settings can be edited. */
+    fun ensureThread(onReady: () -> Unit) {
+        if (state.value.selected != null) { onReady(); return }
+        if (state.value.offline) { notify("オフライン中はメッセージを送信できません。"); return }
+        viewModelScope.launch {
+            try {
+                val created = api.post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
+                val id = created.get("id").toString()
+                mutable.update { it.copy(selected = ThreadItem(id, created.nullableString("title"), it.model,
+                    isTemporary = created.optBoolean("is_temporary")), newThreadTemporary = false) }
+                syncHeartbeat()
+                reloadThreads {}
+                onReady()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { notify("チャットの作成に失敗しました") }
+        }
+    }
+
+    /** Web `schedulePromptTokenEstimate` request (`POST /api/token_estimate`). */
+    suspend fun estimatePromptTokens(model: String, message: String, quote: String, imageUrls: List<String>): JSONObject =
+        api.post("/api/token_estimate", JSONObject().put("model", model).put("message", message)
+            .put("quote_text", quote).put("image_urls", JSONArray(imageUrls)), token())
+
     suspend fun legalMarkdown(kind: String): String {
         val safe = if (kind == "privacy") "privacy" else "terms"
         return api.getText("/static/legal/$safe.md?t=${System.currentTimeMillis()}")
@@ -1445,45 +1520,50 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val info = current.account?.models?.firstOrNull { it.id == current.model && it.selectable } ?: return
         val generation = try { generationOptionsPayload(info, current.generationValues[current.model].orEmpty()) }
             catch (e: IllegalArgumentException) { notify(e.message ?: "生成設定を確認してください。"); return }
+        // Web toggleOptions: hidden options are off and forced checkboxes send their forced value.
+        val rules = composerRules(current.model, current.mcpServers.any { it.enabled })
+        if (current.batchMode && rules.batch.visible && current.codingMode) {
+            notify("Batch APIではCoding Modeを利用できません。Batchを解除するかCodingを解除してください。")
+            return
+        }
+        fun effective(value: Boolean, rule: OptionRule) = rule.forced ?: value
+        val effort = current.chipValues["reasoning_effort"].orEmpty()
+        val deepSeekNonThinking = current.model.lowercase().contains("deepseek") && effort.lowercase() == "none"
         val body = JSONObject().put("model", current.model).put("message", current.draft)
             .put("client_request_id", UUID.randomUUID().toString()).put("image_urls", JSONArray(current.attachments.map { it.reference }))
-            .put("enable_thinking", current.enableThinking).put("enable_search", current.enableSearch)
-            .put("enable_url_context", current.enableUrlContext).put("enable_maps", current.enableMaps)
-            .put("enable_file_creation", current.enableFileCreation).put("enable_system_prompt", current.enableSystemPrompt)
-            .put("enable_prompt_caching", current.enablePromptCache)
-            .put("batch_mode", current.batchMode).put("enable_python", current.enablePython)
-            .put("enable_mcp", current.enableMcp)
+            .put("enable_thinking", !deepSeekNonThinking && effective(current.enableThinking, rules.thinking))
+            .put("enable_search", effective(current.enableSearch, rules.search))
+            .put("enable_url_context", effective(current.enableUrlContext, rules.urls))
+            .put("enable_maps", effective(current.enableMaps, rules.maps))
+            .put("enable_file_creation", effective(current.enableFileCreation, rules.file))
+            .put("enable_system_prompt", effective(current.enableSystemPrompt, rules.sysPrompt))
+            .put("enable_prompt_caching", effective(current.enablePromptCache, rules.promptCache))
+            .put("batch_mode", current.batchMode && rules.batch.visible).put("enable_python", effective(current.enablePython, rules.python))
+            .put("enable_mcp", current.enableMcp && rules.mcp.visible)
             .put("coding_mode", current.codingMode)
             .put("canvas_mode", current.canvasMode)
             .put("temporary_chat", current.selected?.isTemporary ?: current.newThreadTemporary)
         current.imageMask?.let { body.put("image_mask", it) }
+        if (current.quote.isNotBlank()) body.put("quote_text", current.quote)
         if (current.codingMode) {
-            val target = current.codingTarget
-            if (target != null) {
-                body.put("coding_target", JSONObject().put("id", target.id).put("source", "history")
-                    .put("code", target.code).put("language", target.language).put("message_id", target.messageId).put("explicit", true))
-                body.put("coding_candidates", JSONArray().put(JSONObject().put("id", target.id).put("source", "history")
-                    .put("code", target.code).put("language", target.language).put("explicit", true)))
-            } else {
-                val blocks = Regex("```([^\\n`]*)\\n([\\s\\S]*?)```").findAll(current.draft).mapIndexed { index, match ->
-                    val language = match.groupValues[1].trim().ifBlank { "text" }.take(40)
-                    val code = match.groupValues[2]
-                    JSONObject().put("id", "prompt-$index").put("source", "prompt")
-                        .put("prompt_index", index).put("code", JSONObject.NULL)
-                        .put("language", language).put("explicit", true) to (language to code)
-                }.toList()
-                if (blocks.isEmpty()) {
-                    notify("Coding Modeでは入力にコードブロックを指定してください。")
-                    return
-                }
-                val candidates = JSONArray().apply { blocks.forEach { put(it.first) } }
-                val (language, _) = blocks.first().second
-                body.put("coding_target", JSONObject().put("id", "prompt-0").put("source", "prompt")
-                    .put("prompt_index", 0).put("language", language).put("explicit", true))
-                body.put("coding_candidates", candidates)
-            }
+            val plan = planCodingSend(current.draft, historyCodingTargets(current.messages), current.codingTarget, current.model)
+            plan.error?.let { notify(it); return }
+            val target = plan.target
+            if (plan.active && target != null) {
+                fun JSONObject.candidateFields(candidate: CodingCandidate) = put("id", candidate.candidateId)
+                    .put("code", if (candidate.promptSource) JSONObject.NULL else candidate.code)
+                    .put("language", candidate.language.ifBlank { "text" })
+                    .put("source", if (candidate.promptSource) "prompt" else "history")
+                    .put("explicit", candidate.explicit)
+                body.put("coding_target", JSONObject().candidateFields(target).put("key", target.key)
+                    .put("message_id", target.messageId ?: JSONObject.NULL))
+                body.put("coding_candidates", JSONArray().apply {
+                    plan.candidates.forEach { put(JSONObject().candidateFields(it).put("prompt_index", it.promptIndex ?: JSONObject.NULL)) }
+                })
+            } else body.put("coding_mode", false)
         }
         generation.keys().forEach { key -> body.put(key, generation.get(key)) }
+        COMPOSER_SELECT_DEFAULTS.forEach { (key, fallback) -> body.put(key, current.chipValues[key] ?: fallback) }
         current.selectedGem?.let { body.put("gem_uuid", it.uuid) }
         if (current.editingMessageId != null) {
             // Branch from the edited message's parent; send null explicitly for the first message.
@@ -1497,7 +1577,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val submission = Submission(body, current.attachments)
         failed = submission
         pendingParentId = null
-        mutable.update { it.copy(draft = "", attachments = emptyList(), editingMessageId = null) }
+        mutable.update { it.copy(draft = "", attachments = emptyList(), editingMessageId = null, quote = "") }
         submit(submission)
     }
     fun retry() { failed?.let { submit(it) } }
@@ -1530,7 +1610,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val userId = "local-${submission.body.getString("client_request_id")}"
                 mutable.update { it.copy(messages = it.messages.filterNot { m -> m.id == userId } + ChatMessage(userId, "user",
-                    submission.body.getString("message"), files = submission.files.map { a -> a.reference })) }
+                    submission.body.getString("message"), files = submission.files.map { a -> a.reference },
+                    quote = submission.body.optString("quote_text"), gemName = it.selectedGem?.name.orEmpty())) }
                 try { api.stream("/chat_stream", submission.body, token()) { event -> if (streamJob === owner) acceptEvent(id, event) } }
                 catch (e: ApiException) {
                     if (e.code != "request_already_accepted") throw e
@@ -2080,7 +2161,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (uris.isEmpty() || state.value.uploading) return
         if (uris.size + state.value.attachments.size > 30) { mutable.update { it.copy(notice = "添付は30件までです。") }; return }
         uploadJob = viewModelScope.launch {
-            mutable.update { it.copy(uploading = true, uploadSent = 0, uploadTotal = 0, uploadName = "") }
+            mutable.update { it.copy(uploading = true, uploadSent = 0, uploadTotal = 0, uploadName = "",
+                uploadCompleted = 0, uploadCount = uris.size) }
             try {
                 for (uri in uris) {
                     val resolver = getApplication<Application>().contentResolver
@@ -2092,12 +2174,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         uploadTotal = if (source.size > 0) source.size else 0) }
                     val uploaded = if (source.size > CHUNK_UPLOAD_THRESHOLD_BYTES) uploadInChunks(source)
                         else uploadWhole(source)
-                    mutable.update { it.copy(attachments = it.attachments + Attachment(source.name, uploaded, source.mime)) }
+                    mutable.update { it.copy(attachments = it.attachments + Attachment(source.name, uploaded, source.mime),
+                        uploadCompleted = it.uploadCompleted + 1) }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) { report(e) }
-            finally { mutable.update { it.copy(uploading = false, uploadSent = 0, uploadTotal = 0, uploadName = "") } }
+            finally { mutable.update { it.copy(uploading = false, uploadSent = 0, uploadTotal = 0, uploadName = "",
+                uploadCompleted = 0, uploadCount = 0) } }
         }
     }
 
@@ -2438,13 +2522,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             enableFileCreation = if (useLast) preferences.lastEnableFileCreation else preferences.defaultEnableFileCreation,
             enableSystemPrompt = if (useLast) preferences.lastEnableSystemPrompt else preferences.defaultEnableSystemPrompt,
             enableMcp = if (useLast) preferences.lastEnableMcp else preferences.defaultEnableMcp,
-            generationValues = it.generationValues + ((selectable.ifBlank { it.model }) to (it.generationValues[selectable.ifBlank { it.model }].orEmpty() + mapOf(
+            chipValues = it.chipValues + mapOf(
                 "thinking_level" to thinkingLevel,
                 "thinking_budget" to thinkingBudget.toString(),
                 "reasoning_effort" to effort,
                 "safety_setting" to safety,
-            )))
-        ) }
+            ),
+        ).withModelRules() }
     }
 
     fun loadPreferences() {

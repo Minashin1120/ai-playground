@@ -40,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Brush
@@ -128,39 +130,58 @@ internal fun WebToggle(
 }
 
 /**
- * Native `<input type="checkbox" class="accent-… w-3 h-3">` as Chrome draws it: a small rounded square
- * with a gray border, filled with the accent color and a check mark when checked.
+ * The Web's global checkbox (`input[type="checkbox"]` in chat.custom.v*.css): a 14px rounded square
+ * with a dark fill; when checked the border turns to the theme color, a 2px theme ring appears and an
+ * 8px rounded square with the theme gradient scales in. The light theme keeps a white box without the ring.
+ * [accent] is kept for call sites that still pass the Tailwind `accent-*` color; the Web ignores it.
  */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 internal fun WebCheckbox(
     checked: Boolean,
     onCheckedChange: ((Boolean) -> Unit)?,
-    accent: Color,
+    accent: Color = Color.Unspecified,
     modifier: Modifier = Modifier,
-    size: Dp = 12.dp,
+    size: Dp = 14.dp,
     enabled: Boolean = true,
 ) {
     val web = LocalWebPalette.current
-    val checkColor = if (accent.luminance() > 0.55f) Color(0xFF101010) else Tw.white
+    val reduce = LocalReduceMotion.current
+    val tick by androidx.compose.animation.core.animateFloatAsState(if (checked) 1f else 0f,
+        motionTween(reduce, 180, PlaygroundMotion.WebEaseOut), label = "checkbox tick")
+    val shape = RoundedCornerShape(5.dp)
+    val border = when {
+        web.isLight -> Color(15, 23, 42).copy(alpha = 0.22f)
+        checked -> web.theme.rgb(0.55f)
+        else -> Color.White.copy(alpha = 0.15f)
+    }
+    val ring = web.theme.rgb(0.15f)
     val base = modifier
         .size(size)
-        .alpha(if (enabled) 1f else 0.5f)
-        .clip(RoundedCornerShape(2.dp))
-        .background(if (checked) accent else Tw.white)
-        .border(1.dp, if (checked) accent else if (web.isLight) Color(0xFF767676) else Color(0xFF858585), RoundedCornerShape(2.dp))
+        // `box-shadow: 0 0 0 2px` ring outside the box; it does not take layout space.
+        .drawBehind {
+            if (checked && !web.isLight) {
+                val spread = 2.dp.toPx()
+                drawRoundRect(ring, topLeft = androidx.compose.ui.geometry.Offset(-spread, -spread),
+                    size = androidx.compose.ui.geometry.Size(this.size.width + spread * 2, this.size.height + spread * 2),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(7.dp.toPx(), 7.dp.toPx()))
+            }
+        }
+        .clip(shape)
+        .background(if (web.isLight) Color.White else Color(8, 14, 26).copy(alpha = 0.8f))
+        .border(1.dp, border, shape)
     val interactive = if (onCheckedChange != null) {
         base.toggleable(checked, enabled = enabled, role = Role.Checkbox, onValueChange = onCheckedChange)
     } else base
     Box(interactive, contentAlignment = Alignment.Center) {
-        if (checked) {
-            Canvas(Modifier.size(size * 0.72f)) {
-                val path = Path().apply {
-                    moveTo(this@Canvas.size.width * 0.12f, this@Canvas.size.height * 0.52f)
-                    lineTo(this@Canvas.size.width * 0.40f, this@Canvas.size.height * 0.80f)
-                    lineTo(this@Canvas.size.width * 0.90f, this@Canvas.size.height * 0.22f)
-                }
-                drawPath(path, checkColor, style = Stroke(width = this.size.width * 0.18f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            }
+        if (tick > 0f) {
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .graphicsLayer { scaleX = tick; scaleY = tick }
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(Brush.verticalGradient(listOf(web.theme300, web.theme.t600))),
+            )
         }
     }
 }
@@ -259,52 +280,61 @@ internal data class WebPillStyle(
 )
 
 /**
- * `.composer-opt` detail chip (`body:not(.minimal-prompt-mode)`): 10.5px text, `padding: .15rem .5rem`,
- * a translucent border, and the theme tint while its checkbox is checked.
+ * `.composer-opt` detail chip (`body:not(.minimal-prompt-mode)`): 10px text, `min-height: 1.8rem`,
+ * `padding: .28rem .58rem`, theme tint while checked (dark only; the light theme keeps the neutral pill).
+ * `<label>` chips are 12px round, `<div>` groups (SysPrompt, Thinking, Effort, …) are fully round.
  */
 @Composable
-internal fun composerOptStyle(checked: Boolean): WebPillStyle {
+internal fun composerOptStyle(checked: Boolean, group: Boolean = false): WebPillStyle {
     val web = LocalWebPalette.current
-    return if (checked) WebPillStyle(
-        background = web.theme.rgb(0.10f),
-        border = web.theme.rgb(0.35f),
-        content = web.theme200,
-        padding = PaddingValues(horizontal = 8.dp, vertical = 2.4.dp),
-        fontSize = 10.5.sp,
-    ) else WebPillStyle(
-        background = if (web.isLight) Color(15, 23, 42).copy(alpha = 0.04f) else Color(10, 14, 26).copy(alpha = 0.5f),
-        border = if (web.isLight) Color(15, 23, 42).copy(alpha = 0.10f) else Tw.white.copy(alpha = 0.07f),
-        content = if (web.isLight) web.muted else Color(0xFFA8B3C7),
-        padding = PaddingValues(horizontal = 8.dp, vertical = 2.4.dp),
-        fontSize = 10.5.sp,
-    )
+    val shape = if (group) CircleShape else RoundedCornerShape(12.dp)
+    val padding = PaddingValues(horizontal = 9.28.dp, vertical = 4.48.dp)
+    return when {
+        web.isLight -> WebPillStyle(Color(15, 23, 42).copy(alpha = 0.04f), Color(15, 23, 42).copy(alpha = 0.08f),
+            Color(92, 103, 121), shape, padding, 10.sp, minHeight = 28.8.dp)
+        checked -> WebPillStyle(web.theme.rgb(0.106f), web.theme.rgb(0.34f), web.theme200, shape, padding, 10.sp, minHeight = 28.8.dp)
+        else -> WebPillStyle(Color(10, 16, 31).copy(alpha = 0.52f), Color(148, 163, 184).copy(alpha = 0.14f),
+            Color(168, 179, 199), shape, padding, 10.sp, minHeight = 28.8.dp)
+    }
+}
+
+/** The three `.composer-chip` toggles next to the model button. */
+internal enum class ChipTone(val accent: Color) {
+    Canvas(Tw.cyan400), Coding(Tw.emerald400), Batch(Tw.violet400),
 }
 
 /**
- * `.composer-chip` (Canvas / Coding / Batch): 11px semibold pill, `min-height: 1.9rem`,
- * `padding: .32rem .62rem`. `tone` supplies the per-chip border/background/text of the checked state.
+ * `.composer-chip` (Canvas / Coding / Batch): 11px semibold, `min-height: 1.9rem`, `padding: .32rem .62rem`,
+ * 12px radius. Canvas keeps its teal tint; Coding and Batch are neutral in dark and tinted in light.
  */
 @Composable
 internal fun composerChipStyle(checked: Boolean, tone: ChipTone): WebPillStyle {
     val web = LocalWebPalette.current
+    val neutralBg = Color(14, 22, 41).copy(alpha = 0.58f)
+    val neutralBorder = Color(148, 163, 184).copy(alpha = 0.16f)
+    val (bg, border, text) = when (tone) {
+        ChipTone.Canvas -> when {
+            web.isLight -> Triple(Color(6, 182, 212).copy(alpha = 0.12f),
+                if (checked) Color(34, 211, 238).copy(alpha = 0.55f) else web.theme.rgb(0.35f), web.theme.t700)
+            checked -> Triple(Color(8, 51, 68).copy(alpha = 0.45f), Color(34, 211, 238).copy(alpha = 0.55f), Color(165, 243, 252))
+            else -> Triple(web.theme.rgb(0.12f), web.theme.rgb(0.35f), Color(207, 250, 254))
+        }
+        ChipTone.Coding -> Triple(
+            if (web.isLight) Color(16, 185, 129).copy(alpha = 0.12f) else if (checked) Color(6, 95, 70).copy(alpha = 0.36f) else neutralBg,
+            if (checked) Color(52, 211, 153).copy(alpha = 0.68f) else neutralBorder,
+            if (web.isLight) Color(4, 120, 87) else Color(154, 166, 186),
+        )
+        ChipTone.Batch -> Triple(
+            if (web.isLight) Color(139, 92, 246).copy(alpha = 0.12f) else neutralBg,
+            neutralBorder,
+            if (web.isLight) Color(109, 40, 217) else Color(154, 166, 186),
+        )
+    }
     return WebPillStyle(
-        background = if (checked) tone.checkedBackground else if (web.isLight) Color(15, 23, 42).copy(alpha = 0.04f) else Color(14, 22, 41).copy(alpha = 0.58f),
-        border = if (checked) tone.checkedBorder else Color(148, 163, 184).copy(alpha = 0.16f),
-        content = web.twText(tone.text),
-        padding = PaddingValues(horizontal = 10.dp, vertical = 5.dp),
-        fontSize = 11.sp,
-        fontWeight = FontWeight.SemiBold,
-        minHeight = 30.dp,
+        background = bg, border = border, content = text, shape = RoundedCornerShape(12.dp),
+        padding = PaddingValues(horizontal = 9.92.dp, vertical = 5.12.dp),
+        fontSize = 11.sp, fontWeight = FontWeight.SemiBold, minHeight = 30.4.dp,
     )
-}
-
-/** Checked colors of a `.composer-chip` (e.g. `#canvas-mode-container:has(input:checked)`). */
-internal data class ChipTone(val text: Color, val checkedBorder: Color, val checkedBackground: Color, val accent: Color)
-
-internal object ChipTones {
-    val Canvas = ChipTone(Tw.cyan200, Color(34, 211, 238).copy(alpha = 0.55f), Color(8, 51, 68).copy(alpha = 0.45f), Tw.cyan400)
-    val Coding = ChipTone(Tw.emerald200, Tw.emerald500.copy(alpha = 0.30f), Tw.emerald900.copy(alpha = 0.15f), Tw.emerald400)
-    val Batch = ChipTone(Tw.violet200, Tw.violet500.copy(alpha = 0.40f), Tw.violet900.copy(alpha = 0.20f), Tw.violet400)
 }
 
 /** A pill container shared by chips and option groups. */
@@ -354,10 +384,9 @@ internal fun WebCheckChip(
     enabled: Boolean = true,
     trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
-    val web = LocalWebPalette.current
     WebPill(style, modifier.toggleable(checked, enabled = enabled, role = Role.Checkbox, onValueChange = onCheckedChange), enabled = enabled) {
         WebCheckbox(checked, onCheckedChange = null, accent = accent)
-        Text(label, color = labelColor?.let(web::twText) ?: style.content, maxLines = 1)
+        Text(label, color = labelColor ?: style.content, maxLines = 1)
         trailing?.invoke(this)
     }
 }

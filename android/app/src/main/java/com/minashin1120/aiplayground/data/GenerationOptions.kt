@@ -30,22 +30,8 @@ fun generationOptions(model: ModelInfo): List<GenerationOption> = buildList {
     val id = model.id.lowercase()
     val gemini = id.startsWith("gemini-")
     val grok = id.startsWith("grok-")
+    // File / SysPrompt / URLs / Thinking / Effort / Safety are composer chips (see ComposerRules), not panel fields.
     if (model.mode == "chat" || model.mode == "agent") {
-        add(toggle("enable_file_creation", "File", true))
-        add(toggle("enable_system_prompt", "SysPrompt"))
-        if (gemini) {
-            add(toggle("enable_url_context", "URLs"))
-            val thinkingLevels = when {
-                id.contains("3.6") -> arrayOf("medium", "high")
-                id.contains("3.5") -> arrayOf("minimal", "medium", "high")
-                else -> arrayOf("minimal", "low", "medium", "high")
-            }
-            add(choice("thinking_level", "Thinking level", thinkingLevels.last(), *thinkingLevels))
-            if (id.startsWith("gemini-2.5")) add(number("thinking_budget", "Thinking Budget", "4096", 0.0, 32768.0, true))
-            add(choice("safety_setting", "Safety", "default", "default", "none"))
-        } else if (model.supports("thinking")) {
-            add(choice("reasoning_effort", "Effort", "medium", "none", "low", "medium", "high", "xhigh", "max"))
-        }
         if (grok) {
             add(number("xai_temperature", "Temperature", min = 0.0, max = 2.0))
             add(number("xai_top_p", "Top P", min = 0.0, max = 1.0))

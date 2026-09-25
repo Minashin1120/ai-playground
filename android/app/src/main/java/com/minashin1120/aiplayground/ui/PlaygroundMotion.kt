@@ -58,8 +58,12 @@ internal object PlaygroundMotion {
     const val LONG = 340
     const val EMPHASIZED = 420
 
-    /** Exit length of modal panels; hosts keep the dialog composed at least this long after closing. */
-    const val MODAL_EXIT = 200
+    /** Exit length of modal panels (Web `.modal-close`: 220ms); hosts keep the dialog composed at least this long. */
+    const val MODAL_EXIT = 220
+
+    /** Web `--ease-out` and `--ease-standard`. */
+    val WebEaseOut: Easing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+    val WebStandard: Easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
 
     val Standard: Easing = FastOutSlowInEasing
     val Emphasized: Easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
@@ -118,21 +122,27 @@ internal fun popOut(reduce: Boolean): ExitTransition =
     else scaleOut(tween(PlaygroundMotion.SHORT, easing = PlaygroundMotion.Exit), targetScale = 0.92f) +
         fadeOut(tween(PlaygroundMotion.SHORT))
 
-/** Full-screen phone panels rise slightly (Web `uiEnterUp`); floating panels scale up (Web `uiEnterScale`). */
-internal fun modalEnter(fullScreen: Boolean, reduce: Boolean): EnterTransition = when {
-    reduce -> EnterTransition.None
-    fullScreen -> slideInVertically(tween(PlaygroundMotion.LONG, easing = PlaygroundMotion.Emphasized)) { it / 10 } +
-        fadeIn(tween(PlaygroundMotion.MEDIUM))
-    else -> scaleIn(tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Emphasized), initialScale = 0.94f) +
-        fadeIn(tween(PlaygroundMotion.SHORT + 40))
+/**
+ * Web `.modal-overlay .modal-panel`: opens from `translateY(14px) scale(.975)` (transform 400ms `--ease-out`,
+ * opacity 320ms) and closes to `translateY(10px) scale(.98)` (220ms / 200ms `--ease-standard`).
+ * [risePx] and [dropPx] are the 14px / 10px offsets in pixels.
+ */
+@Suppress("UNUSED_PARAMETER")
+internal fun modalEnter(fullScreen: Boolean, reduce: Boolean, risePx: Int = 0): EnterTransition = if (reduce) {
+    EnterTransition.None
+} else {
+    slideInVertically(tween(400, easing = PlaygroundMotion.WebEaseOut)) { risePx } +
+        scaleIn(tween(400, easing = PlaygroundMotion.WebEaseOut), initialScale = 0.975f) +
+        fadeIn(tween(320, easing = PlaygroundMotion.WebStandard))
 }
 
-internal fun modalExit(fullScreen: Boolean, reduce: Boolean): ExitTransition = when {
-    reduce -> ExitTransition.None
-    fullScreen -> slideOutVertically(tween(PlaygroundMotion.MODAL_EXIT, easing = PlaygroundMotion.Exit)) { it / 12 } +
-        fadeOut(tween(PlaygroundMotion.MODAL_EXIT))
-    else -> scaleOut(tween(PlaygroundMotion.MODAL_EXIT, easing = PlaygroundMotion.Exit), targetScale = 0.96f) +
-        fadeOut(tween(PlaygroundMotion.MODAL_EXIT))
+@Suppress("UNUSED_PARAMETER")
+internal fun modalExit(fullScreen: Boolean, reduce: Boolean, dropPx: Int = 0): ExitTransition = if (reduce) {
+    ExitTransition.None
+} else {
+    slideOutVertically(tween(PlaygroundMotion.MODAL_EXIT, easing = PlaygroundMotion.WebStandard)) { dropPx } +
+        scaleOut(tween(PlaygroundMotion.MODAL_EXIT, easing = PlaygroundMotion.WebStandard), targetScale = 0.98f) +
+        fadeOut(tween(200, easing = PlaygroundMotion.WebStandard))
 }
 
 /** Scale applied to a modal panel while a predictive back gesture is in progress. */
@@ -197,11 +207,14 @@ internal fun ModalPanelMotion(
             throw e
         }
     }
+    val density = LocalDensity.current
+    val risePx = with(density) { 14.dp.roundToPx() }
+    val dropPx = with(density) { 10.dp.roundToPx() }
     AnimatedVisibility(
         visibleState = transition,
         modifier = modifier,
-        enter = modalEnter(fullScreen, reduce),
-        exit = modalExit(fullScreen, reduce),
+        enter = modalEnter(fullScreen, reduce, risePx),
+        exit = modalExit(fullScreen, reduce, dropPx),
         label = "modal panel",
     ) {
         Box(Modifier.graphicsLayer {

@@ -136,7 +136,8 @@ fun PlaygroundScreen(
     onOpenBubble: () -> Unit = {},
 ) {
     val state by model.state.collectAsStateWithLifecycle()
-    PlaygroundTheme(darkTheme = state.preferences?.let { !it.lightModeEnabled } ?: isSystemInDarkTheme(),
+    // Web applies the light theme for a light system setting (theme-light.css) or manual light mode.
+    PlaygroundTheme(darkTheme = isSystemInDarkTheme() && state.preferences?.lightModeEnabled != true,
         themeColor = state.preferences?.themeColor, liquidGlass = state.preferences?.liquidGlassEnabled == true) {
         val colors = MaterialTheme.colorScheme
         val context = LocalContext.current

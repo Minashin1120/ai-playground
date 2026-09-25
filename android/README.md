@@ -33,7 +33,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | 入力欄の音声ドック、Realtime音声（Gemini 3.8 Live / Extended Thinkingを含む）の拡大スタジオと設定チップ、Lyria音楽スタジオ | 音声／音楽セッションUIを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | クリップボードHTML／テキストの安全な取り込み | リッチ貼り付けの入力変換を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ModelPicker.kt` | WebのSelect Model構成に合わせた検索・提供元／用途／対応能力フィルター・選択状態 | モデル選択画面を編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundDialog.kt` | 共通のネイティブモーダル枠、ヘッダー、フッター、キーボード余白 | 設定・Gems・ライブラリ・Batchの画面枠を調整するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundDialog.kt` | Webモーダル（オーバーレイ、ぼかし、パネル、見出し、下部）の共通枠 | 設定・Gems・ライブラリ・Batchの画面枠を調整するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundMotion.kt` | 共通の時間・イージング、アニメーション削除設定への追従、モーダルの開閉・予測型「戻る」、一覧・登場・押下の動きの部品 | 画面の動き・遷移を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AppChangelogDialog.kt` | Android版更新履歴のネイティブMarkdown表示、読み込み・再試行・戻る操作 | 更新履歴画面を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/GenerationOptionsPanel.kt` | モデル別生成設定のネイティブ入力パネル | 詳細設定の表示を編集するとき |
@@ -41,7 +41,11 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/RealtimeModels.kt` | Realtime／Lyriaのセッション状態 | 音声・音楽ストリームの状態表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/WebModelCatalog.kt`, `app/src/main/assets/web-model-catalog.json` | Webの表示名・説明・価格・タグ・追加順をネイティブAPIのモデル一覧に合成 | モデル情報の表示差を確認するとき |
 | `ci/sync-web-catalog.mjs` | Webモデル定義からAndroid表示用JSONを生成・`--check`で一致検証 | Webのモデル定義変更をAndroidへ同期するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundTheme.kt` | Web版トークンに対応する配色・タイポグラフィ・形状・レイアウト寸法 | 色・テーマ・ブランドを編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundTheme.kt` | Webトークンから作るMaterial配色、Tailwindの文字サイズ、形状、レイアウト寸法、ライト／ダークの判定 | 色・テーマ・ブランドを編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/WebTokens.kt` | Webの `:root` トークン（ダーク／ライト）、テーマ色の段階計算、Tailwind v3の色、ライトテーマでの置き換え | Webの色をそのまま使うとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/WebFonts.kt`, `app/src/main/res/values/font_certs.xml` | Google Fonts経由のNoto Sans JP／JetBrains Mono | フォントを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/WebComponents.kt` | Web再現の共通部品（Font Awesomeアイコン、トグル、チェックボックス、select、チップ、設定カード、ボタン、モーダルの見出し・下部） | Webと同じ見た目の部品を使うとき |
+| `app/src/main/res/drawable/fa_*.xml`, `ci/sync-web-icons.py` | WebのFont Awesomeサブセットから生成したアイコン（手で編集しない。`--check` で一致確認） | Webで使うアイコンが増減したとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | 安全なMarkdown、リンク、引用、数式、表、画像、折り畳み・コピー対応コード表示 | メッセージ本文表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LatexText.kt` | LaTeXをWebViewなしで読めるネイティブ表示へ変換 | 数式表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RemoteImage.kt` | 同一originの添付画像をBearer付きで取得し、キャッシュしてプレビュー | 添付・画像プレビューを編集するとき |
@@ -51,6 +55,8 @@
 | `app/src/main/res/` | アイコン、HTTPS設定、バックアップ除外、添付共有範囲 | Androidリソース・保護設定 |
 | `ci/changelogs/` | Android版のバージョンごとの公開更新履歴Markdown | アプリ版の更新履歴を追加・修正するとき |
 | `app/src/test/` | HTTP認証境界・ストリーム・データ解析・Markdown・数式のテスト | 通信・表示実装を変更するとき |
+| `app/src/test/java/com/minashin1120/aiplayground/ui/*ScreenshotTest.kt` | Roborazziによる画面のスクリーンショット（Actionsの `android-reports` に保存） | Webとの見た目を比べるとき |
+| `THIRD_PARTY_NOTICES.md` | Android版に含める第三者素材の表示 | アイコン・フォントなどを追加するとき |
 | `ci/bootstrap-keystore.sh` | Actions限定の初回鍵生成と保存 | 初回署名準備 |
 | `ci/verify-keystore.sh`, `ci/verify-apk.sh` | 固定証明書とAPK署名の一致確認 | 署名・上書き更新を検証するとき |
 | `ci/debug.keystore`, `ci/signing-fingerprint.txt` | Actionsが初回だけ保存する共有固定鍵と証明書のSHA-256 | 再利用のみ。削除・置換・再生成しない |

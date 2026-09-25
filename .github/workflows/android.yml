@@ -93,7 +93,7 @@ jobs:
         working-directory: android
         run: |
           set +e
-          ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug --stacktrace > "$RUNNER_TEMP/android-build.log" 2>&1
+          ./gradlew --no-daemon testDebugUnitTest -Proborazzi.test.record=true lintDebug assembleDebug --stacktrace > "$RUNNER_TEMP/android-build.log" 2>&1
           status=$?
           if [[ $status -ne 0 ]]; then
             tail -n 120 "$RUNNER_TEMP/android-build.log"
@@ -133,7 +133,10 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: android-reports
-          path: android/app/build/reports/
+          # Roborazzi screenshots of the Web-parity UI are compared with the Web chat at the same width.
+          path: |
+            android/app/build/reports/
+            android/app/build/outputs/roborazzi/
           if-no-files-found: ignore
           retention-days: 14
 

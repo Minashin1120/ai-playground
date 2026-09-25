@@ -146,6 +146,8 @@ fun SettingsDialog(
     PlaygroundDialog(
         onDismissRequest = onDismiss,
         title = { Text("設定") },
+        icon = com.minashin1120.aiplayground.R.drawable.fa_solid_cog,
+        subtitle = "アプリの動作・表示・セキュリティを管理",
         text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (state.prefsBusy) LinearProgressIndicator(Modifier.fillMaxWidth())

@@ -8,63 +8,76 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Native equivalents of the Web design tokens in chat.custom.css.
-private val WebDarkColors = darkColorScheme(
-    primary = Color(0xFF0DD4BF), onPrimary = Color(0xFF031413),
-    primaryContainer = Color(0xFF0A514B), onPrimaryContainer = Color(0xFFB9FFF5),
-    secondary = Color(0xFFF59E0B), onSecondary = Color(0xFF1F1303),
-    secondaryContainer = Color(0xFF1B263C), onSecondaryContainer = Color(0xFFEEF1F7),
-    tertiary = Color(0xFF818CF8), onTertiary = Color(0xFF070B16),
-    tertiaryContainer = Color(0xFF18203B), onTertiaryContainer = Color(0xFFC7D2FE),
-    background = Color(0xFF090B12), onBackground = Color(0xFFF5F7FB),
-    surface = Color(0xFF101522), onSurface = Color(0xFFF5F7FB),
-    surfaceVariant = Color(0xFF171D2A), onSurfaceVariant = Color(0xFFC1C8D5),
-    surfaceContainerLowest = Color(0xFF090B12),
-    surfaceContainerLow = Color(0xFF101621),
-    surfaceContainer = Color(0xFF141B2A),
-    surfaceContainerHigh = Color(0xFF1B2435),
-    surfaceContainerHighest = Color(0xFF253149),
-    outline = Color(0xFF53617A), outlineVariant = Color(0xFF3A4862),
-    error = Color(0xFFF9708D), errorContainer = Color(0xFF451827), onErrorContainer = Color(0xFFFFD9E2),
-)
-
-private val WebLightColors = lightColorScheme(
-    primary = Color(0xFF087E76), onPrimary = Color.White,
-    primaryContainer = Color(0xFFCCFBF1), onPrimaryContainer = Color(0xFF043A36),
+/**
+ * Material color roles filled from the Web `:root` tokens ([WebPalette]) so that Material components
+ * that are still in use render with the Web surfaces, lines and text colors.
+ */
+private fun webColorScheme(web: WebPalette) = if (web.isLight) lightColorScheme(
+    primary = web.theme.t600, onPrimary = Color.White,
+    primaryContainer = web.theme.rgb(0.16f), onPrimaryContainer = web.theme.t700,
     secondary = Color(0xFF9A5B00), onSecondary = Color.White,
-    secondaryContainer = Color(0xFFE8F0F0), onSecondaryContainer = Color(0xFF172326),
-    tertiary = Color(0xFF4F46E5), onTertiary = Color.White,
+    secondaryContainer = Color(0xFFEEF2F9), onSecondaryContainer = web.text,
+    tertiary = Tw.indigo600, onTertiary = Color.White,
     tertiaryContainer = Color(0xFFE0E7FF), onTertiaryContainer = Color(0xFF25205F),
-    background = Color(0xFFF6F8FC), onBackground = Color(0xFF131C2E),
-    surface = Color(0xFFFFFFFF), onSurface = Color(0xFF131C2E),
-    surfaceVariant = Color(0xFFF1F5FA), onSurfaceVariant = Color(0xFF5C6779),
-    surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF7F9FC),
-    surfaceContainer = Color(0xFFF1F5FA),
-    surfaceContainerHigh = Color(0xFFEEF2F9),
+    background = web.bg1, onBackground = web.text,
+    surface = web.panel, onSurface = web.text,
+    surfaceVariant = web.panel2, onSurfaceVariant = web.muted,
+    surfaceContainerLowest = web.panel,
+    surfaceContainerLow = web.panel2,
+    surfaceContainer = web.bg3,
+    surfaceContainerHigh = web.bg2,
     surfaceContainerHighest = Color(0xFFE7EDF6),
-    outline = Color(0xFFD9E1EC), outlineVariant = Color(0xFFE2E7EF),
-    error = Color(0xFFB4233E), errorContainer = Color(0xFFFFE4E8), onErrorContainer = Color(0xFF681326),
+    outline = web.line, outlineVariant = Color(0xFFE2E8F1),
+    error = Color(0xFFB91C1C), onError = Color.White, errorContainer = Color(0xFFFFE4E8), onErrorContainer = Color(0xFF681326),
+    scrim = Color(15, 23, 42),
+) else darkColorScheme(
+    primary = web.theme.t500, onPrimary = web.textInverse,
+    primaryContainer = web.theme.rgb(0.16f), onPrimaryContainer = web.theme.t200,
+    secondary = web.accent2, onSecondary = Color(0xFF1F1303),
+    secondaryContainer = Color(0xFF111A30), onSecondaryContainer = web.text,
+    tertiary = Tw.indigo400, onTertiary = Color(0xFF070B16),
+    tertiaryContainer = Color(0xFF18203B), onTertiaryContainer = Tw.indigo200,
+    background = web.bg1, onBackground = web.text,
+    surface = web.panel, onSurface = web.text,
+    surfaceVariant = web.panel2, onSurfaceVariant = web.muted,
+    surfaceContainerLowest = web.bg1,
+    surfaceContainerLow = web.panel2,
+    surfaceContainer = web.panel,
+    surfaceContainerHigh = Color(0xFF0E1428),
+    surfaceContainerHighest = Color(0xFF141C33),
+    outline = web.lineStrong, outlineVariant = web.line,
+    error = web.danger, onError = Color(0xFF2A0710), errorContainer = Color(0xFF451827), onErrorContainer = Color(0xFFFFD9E2),
+    scrim = Color(3, 7, 16),
 )
 
 // Japanese and code-heavy answers need a little more line height than Material's default.
 private val DefaultTypography = Typography()
+private fun androidx.compose.ui.text.TextStyle.web(size: Int, line: Int) =
+    copy(fontFamily = WebFonts.sans, fontSize = size.sp, lineHeight = line.sp)
+
+/** Tailwind type scale (`text-xs` 12/16 … `text-3xl` 30/36) in the Web font. */
 private val WebTypography = Typography(
-    headlineLarge = DefaultTypography.headlineLarge.copy(fontSize = 32.sp, lineHeight = 40.sp),
-    headlineMedium = DefaultTypography.headlineMedium.copy(fontSize = 25.sp, lineHeight = 32.sp),
-    headlineSmall = DefaultTypography.headlineSmall.copy(fontSize = 20.sp, lineHeight = 27.sp),
-    titleLarge = DefaultTypography.titleLarge.copy(fontSize = 18.sp, lineHeight = 25.sp),
-    titleMedium = DefaultTypography.titleMedium.copy(fontSize = 15.sp, lineHeight = 22.sp),
-    bodyLarge = DefaultTypography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 25.sp),
-    bodyMedium = DefaultTypography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 22.sp),
-    bodySmall = DefaultTypography.bodySmall.copy(fontSize = 12.sp, lineHeight = 19.sp),
-    labelLarge = DefaultTypography.labelLarge.copy(fontSize = 13.sp),
-    labelMedium = DefaultTypography.labelMedium.copy(fontSize = 11.sp),
-    labelSmall = DefaultTypography.labelSmall.copy(fontSize = 10.sp),
+    displayLarge = DefaultTypography.displayLarge.copy(fontFamily = WebFonts.sans),
+    displayMedium = DefaultTypography.displayMedium.copy(fontFamily = WebFonts.sans),
+    displaySmall = DefaultTypography.displaySmall.copy(fontFamily = WebFonts.sans),
+    headlineLarge = DefaultTypography.headlineLarge.web(30, 36),
+    headlineMedium = DefaultTypography.headlineMedium.web(24, 32),
+    headlineSmall = DefaultTypography.headlineSmall.web(20, 28),
+    titleLarge = DefaultTypography.titleLarge.web(18, 28),
+    titleMedium = DefaultTypography.titleMedium.web(16, 24),
+    titleSmall = DefaultTypography.titleSmall.web(14, 20),
+    bodyLarge = DefaultTypography.bodyLarge.web(16, 24),
+    bodyMedium = DefaultTypography.bodyMedium.web(14, 20),
+    bodySmall = DefaultTypography.bodySmall.web(12, 16),
+    labelLarge = DefaultTypography.labelLarge.web(14, 20),
+    labelMedium = DefaultTypography.labelMedium.web(12, 16),
+    labelSmall = DefaultTypography.labelSmall.web(10, 14),
 )
 
 // Rounded corners mirror the Web panel, card and bubble radii.
@@ -102,21 +115,25 @@ object PlaygroundDimens {
     val controlRadius = 12.dp
 }
 
+/**
+ * App theme. [darkTheme] follows Web: the light theme applies when the system prefers light
+ * (`theme-light.css`) or the account enables manual light mode (`theme-light-manual.css`).
+ */
 @Composable
 fun PlaygroundTheme(darkTheme: Boolean = isSystemInDarkTheme(), themeColor: String? = null, liquidGlass: Boolean = false, content: @Composable () -> Unit) {
-    val accent = themeColor?.trim()?.removePrefix("#")?.takeIf { it.matches(Regex("[0-9a-fA-F]{6}")) }
-        ?.let { runCatching { Color(android.graphics.Color.parseColor("#$it")) }.getOrNull() }
-    val scheme = if (darkTheme) WebDarkColors else WebLightColors
-    val glass = if (liquidGlass) scheme.copy(
+    val web = remember(darkTheme, themeColor) { webPalette(light = !darkTheme, themeColor = themeColor) }
+    val scheme = webColorScheme(web)
+    val themed = if (liquidGlass) scheme.copy(
         surface = scheme.surface.copy(alpha = 0.86f),
         surfaceContainer = scheme.surfaceContainer.copy(alpha = 0.82f),
         surfaceContainerHigh = scheme.surfaceContainerHigh.copy(alpha = 0.88f),
     ) else scheme
-    val themed = accent?.let { glass.copy(primary = it, primaryContainer = it.copy(alpha = if (darkTheme) .22f else .16f)) } ?: glass
-    MaterialTheme(
-        colorScheme = themed,
-        typography = WebTypography,
-        shapes = WebShapes,
-        content = content,
-    )
+    CompositionLocalProvider(LocalWebPalette provides web) {
+        MaterialTheme(
+            colorScheme = themed,
+            typography = WebTypography,
+            shapes = WebShapes,
+            content = content,
+        )
+    }
 }

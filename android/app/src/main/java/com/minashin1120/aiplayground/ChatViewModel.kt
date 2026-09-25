@@ -113,6 +113,10 @@ data class ChatState(
     /** Advances the moment a history/new-chat navigation starts, before its content loads. */
     val chatNavigationId: Long = 0L,
     val chatNavigationKind: ChatTransitionKind = ChatTransitionKind.NONE,
+    /** Web low-bandwidth mode: preference (auto/on/off), effective state and the detection reason. */
+    val lowBandwidthPreference: String = "auto",
+    val lowBandwidthMode: Boolean = false,
+    val lowBandwidthReason: String = "",
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -189,10 +193,46 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         override fun onLost(network: Network) {
             if (!hasUsableNetwork()) setConnectionUnavailable(ConnectionStatus.OFFLINE)
         }
+
+        override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+            // Web recomputes on `navigator.connection` change and toasts when the mode flips in auto.
+            viewModelScope.launch { recomputeLowBandwidth(notify = state.value.lowBandwidthPreference == "auto") }
+        }
+    }
+
+    private fun lowBandwidthSignal(): LowBandwidthSignal? {
+        val manager = connectivity ?: return null
+        val capabilities = manager.getNetworkCapabilities(manager.activeNetwork ?: return null) ?: return null
+        val kbps = capabilities.linkDownstreamBandwidthKbps
+        val saveData = manager.restrictBackgroundStatus == ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
+        return LowBandwidthSignal(saveData, effectiveConnectionType(kbps), roundedDownlinkMbps(kbps))
+    }
+
+    /** Web `recomputeLowBandwidthMode`; [notify] shows the toast only when the effective mode changes. */
+    private fun recomputeLowBandwidth(notify: Boolean) {
+        val detection = detectLowBandwidth(runCatching { lowBandwidthSignal() }.getOrNull())
+        val current = state.value
+        val active = effectiveLowBandwidth(current.lowBandwidthPreference, detection.enabled)
+        val changed = active != current.lowBandwidthMode
+        mutable.update { it.copy(lowBandwidthMode = active, lowBandwidthReason = detection.reason) }
+        if (notify && changed) this.notify(lowBandwidthToast(active, current.lowBandwidthPreference, detection.reason))
+    }
+
+    /** Sidebar button: auto → on → off, persisted like Web's localStorage preference. */
+    fun cycleLowBandwidth() {
+        val next = nextLowBandwidthPreference(state.value.lowBandwidthPreference)
+        prefs.edit().apply { if (next == "auto") remove(LOW_BANDWIDTH_PREF_KEY) else putString(LOW_BANDWIDTH_PREF_KEY, next) }.apply()
+        mutable.update { it.copy(lowBandwidthPreference = next) }
+        val detection = detectLowBandwidth(runCatching { lowBandwidthSignal() }.getOrNull())
+        val active = effectiveLowBandwidth(next, detection.enabled)
+        mutable.update { it.copy(lowBandwidthMode = active, lowBandwidthReason = detection.reason) }
+        notify(lowBandwidthToast(active, next, detection.reason))
     }
 
     init { viewModelScope.launch {
-        mutable.update { it.copy(compression = compressionSettingsFrom(prefs)) }
+        mutable.update { it.copy(compression = compressionSettingsFrom(prefs),
+            lowBandwidthPreference = normalizeLowBandwidthPreference(prefs.getString(LOW_BANDWIDTH_PREF_KEY, "auto"))) }
+        recomputeLowBandwidth(notify = false)
         mutable.update { it.copy(
             historyCacheMode = HistoryCacheMode.from(prefs.getString("offline_history_cache_mode", HistoryCacheMode.VIEWED.value)),
             cacheMobileDataAllowed = prefs.getBoolean("offline_cache_mobile_data", false),
@@ -836,6 +876,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (!value) heartbeatJob?.cancel()
         if (!value) batchPollJob?.cancel()
         if (value) startConnectionMonitor() else stopConnectionMonitor()
+        if (returning) recomputeLowBandwidth(notify = false)
         if (value && state.value.account != null) startBatchPolling()
         if (returning && state.value.account != null && state.value.selected != null && !state.value.busy) refresh()
         if (returning && state.value.account != null) startCacheSyncIfAllowed()
@@ -1154,7 +1195,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val before = if (older) "&before_id=${state.value.oldestId ?: return}" else ""
-        val reply = api.get("/api/threads/$id?limit=50$before", token())
+        val low = state.value.lowBandwidthMode
+        val limit = when {
+            older && low -> LOW_BANDWIDTH_OLDER_PAGE_SIZE
+            older -> THREAD_OLDER_PAGE_SIZE
+            low -> LOW_BANDWIDTH_INITIAL_MESSAGE_LIMIT
+            else -> THREAD_INITIAL_MESSAGE_LIMIT
+        }
+        val reply = api.get("/api/threads/$id?limit=$limit$before", token())
         if (state.value.selected?.id != id) return
         val parsed = parseMessages(reply)
         val all = if (older) (parsed + state.value.allMessages).distinctBy { m -> m.id } else parsed
@@ -1262,6 +1310,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             fetchThreads(false)
         } catch (e: Exception) { report(e) }
     } }
+    /** Web `renameThread`: `prompt("Title:")` then PUT the new title; empty input is ignored. */
+    fun renameThread(thread: ThreadItem, title: String) { viewModelScope.launch {
+        if (title.isEmpty()) return@launch
+        if (state.value.offline) { notify("オフライン中はタイトルを変更できません。"); return@launch }
+        try {
+            val reply = api.put("/api/threads/${thread.id}/title", JSONObject().put("title", title), token())
+            val saved = reply.optString("title", title).ifBlank { title }
+            mutable.update { current -> current.copy(
+                selected = current.selected?.let { if (it.id == thread.id) it.copy(title = saved) else it },
+            ) }
+            fetchThreads(false)
+        } catch (e: Exception) { report(e) }
+    } }
+
+    /** Pull-to-refresh of the sidebar thread list. */
+    fun reloadThreads(onDone: () -> Unit) { viewModelScope.launch {
+        try { fetchThreads(false) } catch (e: Exception) { report(e) } finally { onDone() }
+    } }
+
+    /** Pull-to-refresh of the sidebar Gem list. */
+    fun reloadGems(onDone: () -> Unit) { viewModelScope.launch {
+        try { fetchGems() } catch (e: Exception) { report(e) } finally { onDone() }
+    } }
+
+    /** `/static/legal/<kind>.md` shown by the terms / privacy modal (public, no token). */
+    suspend fun legalMarkdown(kind: String): String {
+        val safe = if (kind == "privacy") "privacy" else "terms"
+        return api.getText("/static/legal/$safe.md?t=${System.currentTimeMillis()}")
+    }
+
     fun toggleBookmark(thread: ThreadItem) { viewModelScope.launch {
         if (state.value.offline) { notify("オフライン中はブックマークを変更できません。"); return@launch }
         try {
@@ -1413,7 +1491,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     val created = api.post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
                     id = created.get("id").toString()
                     submission.body.put("thread_id", id)
-                    mutable.update { it.copy(selected = ThreadItem(id, created.optString("title", "新しいチャット"), it.model,
+                    mutable.update { it.copy(selected = ThreadItem(id, created.nullableString("title"), it.model,
                         isTemporary = created.optBoolean("is_temporary")), newThreadTemporary = false) }
                     syncHeartbeat()
                 }
@@ -2473,8 +2551,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Fetches the server thread payload and writes a native A4 PDF into the share cache. */
+    private var pdfExporting = false
+
+    /** Web `openThreadPdfPrintDialog` guards and failure toast, then a native PDF for the share sheet. */
     fun exportPdf(onReady: (File) -> Unit) {
-        val id = state.value.selected?.id ?: return
+        val id = state.value.selected?.id
+        if (id == null) { notify("PDF化するスレッドを開いてください"); return }
+        if (pdfExporting) { notify("PDF出力の準備中です。しばらくお待ちください。"); return }
+        if (state.value.offline) { notify("PDF出力に失敗しました"); return }
+        pdfExporting = true
         viewModelScope.launch {
             mutable.update { it.copy(busy = true) }
             try {
@@ -2488,8 +2573,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     writeThreadPdf(title, payload.optString("generated_at"), messages, target)
                 }
                 onReady(target)
-            } catch (e: Exception) { report(e) }
-            finally { mutable.update { it.copy(busy = false) } }
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { notify("PDF出力に失敗しました") }
+            finally { pdfExporting = false; mutable.update { it.copy(busy = false) } }
         }
     }
 

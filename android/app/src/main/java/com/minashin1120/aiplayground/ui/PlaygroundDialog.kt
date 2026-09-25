@@ -95,9 +95,9 @@ internal fun WebModalPanel(modifier: Modifier, phone: Boolean, content: @Composa
     )
 }
 
-/** Web overlay tint (`rgba(3,7,16,.72)`, light `rgba(15,23,42,.35)`) fading with the modal (320ms). */
+/** Web overlay tint (`rgba(3,7,16,.72)`, light `rgba(15,23,42,.35)` unless [color] is given) fading with the modal (320ms). */
 @Composable
-internal fun WebModalScrim() {
+internal fun WebModalScrim(color: Color? = null) {
     val web = LocalWebPalette.current
     val visible = LocalModalVisible.current
     val reduce = LocalReduceMotion.current
@@ -105,7 +105,7 @@ internal fun WebModalScrim() {
     LaunchedEffect(visible) {
         alpha.animateTo(if (visible) 1f else 0f, motionTween(reduce, 320, PlaygroundMotion.WebStandard))
     }
-    val tint = if (web.isLight) Color(15, 23, 42).copy(alpha = 0.35f) else Color(3, 7, 16).copy(alpha = 0.72f)
+    val tint = color ?: if (web.isLight) Color(15, 23, 42).copy(alpha = 0.35f) else Color(3, 7, 16).copy(alpha = 0.72f)
     Box(Modifier.fillMaxSize().background(tint.copy(alpha = tint.alpha * alpha.value)))
 }
 

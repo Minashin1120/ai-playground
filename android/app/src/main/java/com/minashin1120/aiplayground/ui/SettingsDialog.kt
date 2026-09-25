@@ -59,6 +59,7 @@ fun SettingsDialog(
     onWeb: (String) -> Unit,
     appUpdate: AppUpdateUiState = AppUpdateUiState(),
     onCheckForUpdate: () -> Unit = {},
+    onBubble: () -> Unit = {},
 ) {
     val prefs = state.preferences
     var search by remember { mutableStateOf("") }
@@ -230,6 +231,11 @@ fun SettingsDialog(
                                 appUpdate.phase != AppUpdatePhase.Installing,
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(if (appUpdate.phase == AppUpdatePhase.Checking) "確認中…" else "更新を確認") }
+                        // Android-only (ANDROID_ONLY.md §2): open the current chat as a conversation bubble.
+                        Text("バブル", fontWeight = FontWeight.SemiBold)
+                        TextButton(onClick = onBubble, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (android.os.Build.VERSION.SDK_INT >= com.minashin1120.aiplayground.ANDROID_17_APP_BUBBLE_API) "バブルに追加する方法" else "バブルで開く")
+                        }
                     }
                     if (target == "APIキー" && target in visibleTabs) {
                         Text("APIキーは端末へ渡しません。認証済みブラウザーの設定画面で登録・変更します。",

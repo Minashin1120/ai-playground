@@ -52,6 +52,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -219,13 +220,18 @@ fun PlaygroundScreen(
                 scope.launch { drawer.open() }
             }
             var deleting by remember { mutableStateOf<ThreadItem?>(null) }
-            var logout by remember { mutableStateOf(false) }
             var modelPicker by remember { mutableStateOf(false) }
             var threadSettings by remember { mutableStateOf(false) }
             var attachMenu by remember { mutableStateOf(false) }
             var libraryOpen by remember { mutableStateOf(false) }
             var viewingFile by remember { mutableStateOf<FileViewRequest?>(null) }
-            var gemsOpen by remember { mutableStateOf(false) }
+            var gemEditorOpen by remember { mutableStateOf(false) }
+            var gemEditing by remember { mutableStateOf<Gem?>(null) }
+            var gemDeleting by remember { mutableStateOf<Gem?>(null) }
+            var historyOpen by remember { mutableStateOf(false) }
+            var alphaOpen by remember { mutableStateOf(false) }
+            var legalKind by remember { mutableStateOf<String?>(null) }
+            var renaming by remember { mutableStateOf<ThreadItem?>(null) }
             var settingsOpen by remember { mutableStateOf(false) }
             var changelogOpen by remember { mutableStateOf(false) }
             var advancedOpen by remember { mutableStateOf(false) }
@@ -341,13 +347,17 @@ fun PlaygroundScreen(
                 if (state.banned) {
                     allowDrawerOpen = false
                     deleting = null
-                    logout = false
+                    renaming = null
+                    gemDeleting = null
                     modelPicker = false
                     threadSettings = false
                     attachMenu = false
                     libraryOpen = false
                     viewingFile = null
-                    gemsOpen = false
+                    gemEditorOpen = false
+                    historyOpen = false
+                    alphaOpen = false
+                    legalKind = null
                     settingsOpen = false
                     changelogOpen = false
                     advancedOpen = false
@@ -360,7 +370,8 @@ fun PlaygroundScreen(
                 }
             }
             val hasOverlay = modelPicker || threadSettings || attachMenu || libraryOpen || viewingFile != null ||
-                gemsOpen || settingsOpen || changelogOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || maskOpen || logout
+                gemEditorOpen || historyOpen || alphaOpen || legalKind != null ||
+                settingsOpen || changelogOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || maskOpen
             BackHandler(enabled = hasOverlay || (!wide && drawer.currentValue == DrawerValue.Open)) {
                 when {
                     attachMenu -> attachMenu = false
@@ -375,8 +386,10 @@ fun PlaygroundScreen(
                     maskOpen -> { maskOpen = false; maskSource = null }
                     viewingFile != null -> viewingFile = null
                     libraryOpen -> libraryOpen = false
-                    gemsOpen -> gemsOpen = false
-                    logout -> logout = false
+                    gemEditorOpen -> gemEditorOpen = false
+                    alphaOpen -> alphaOpen = false
+                    legalKind != null -> legalKind = null
+                    historyOpen -> historyOpen = false
                     !wide -> closeDrawer()
                 }
             }
@@ -392,32 +405,47 @@ fun PlaygroundScreen(
                 if (!state.starting && showThreads && !wide) allowDrawerOpen = true
             }
 
+            val versionLabel = "V${com.minashin1120.aiplayground.BuildConfig.VERSION_NAME}"
+            val openExternal: (String) -> Unit = { url ->
+                try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                catch (_: Exception) { model.notify("ブラウザーを開けません。") }
+            }
+            fun sidebarActions(onNavigate: () -> Unit) = SidebarActions(
+                onNavigate = onNavigate,
+                onChangelog = { changelogOpen = true; onOpenChangelog() },
+                onHistory = { historyOpen = true },
+                onLowBandwidth = model::cycleLowBandwidth,
+                onSettings = { settingsOpen = true },
+                onLibrary = { libraryOpen = true },
+                onNewChat = { model.newChat() },
+                onBatch = { advancedOpen = true },
+                onPdf = sharePdf,
+                onExternal = openExternal,
+                onSearch = model::search,
+                onOpenThread = { thread -> historyOpen = false; model.openThread(thread) },
+                onBookmark = model::toggleBookmark,
+                onRenameThread = { renaming = it },
+                onDeleteThread = { deleting = it },
+                onMoreThreads = model::moreThreads,
+                onRefreshThreads = model::reloadThreads,
+                onChooseGem = { gem -> model.chooseGem(gem) },
+                onNewGem = { gemEditing = null; gemEditorOpen = true },
+                onEditGem = { gem -> gemEditing = gem; gemEditorOpen = true },
+                onDeleteGem = { gemDeleting = it },
+                onRefreshGems = model::reloadGems,
+                onHelp = { onWeb("/help") },
+                onLegal = { legalKind = it },
+                onAlphaInfo = { alphaOpen = true },
+                onLogout = { model.logout(); closeDrawer() },
+            )
+
             val content: @Composable () -> Unit = {
                 Scaffold(
                     modifier = Modifier.imePadding(),
                     containerColor = Color.Transparent,
                     topBar = {
-                        TopAppBar(colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.surface.copy(alpha = 0.94f)), title = { Column {
-                            Text(state.selected?.title?.ifBlank { "新しいチャット" } ?: "AI Playground", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (state.selected?.isTemporary == true || state.newThreadTemporary) Text("一時チャット", style = MaterialTheme.typography.labelSmall, color = colors.secondary)
-                        } }, navigationIcon = {
-                            if (showThreads && !wide) IconButton(onClick = openDrawer) {
-                                Icon(Icons.Rounded.Menu, contentDescription = "履歴メニュー")
-                            }
-                        }, actions = {
-                            if (showThreads) IconButton(onClick = { model.newChat() }, enabled = !state.busy && !state.streaming) {
-                                Icon(Icons.Rounded.Add, contentDescription = "新規チャット", tint = colors.primary)
-                            }
-                            if (state.selected != null) IconButton(onClick = { threadSettings = true }, enabled = !state.busy && !state.streaming) {
-                                Icon(Icons.Rounded.Tune, contentDescription = "チャット設定")
-                            }
-                            if (state.selected != null) IconButton(onClick = {
-                                sharePdf()
-                            }, enabled = !state.offline && !state.busy && !state.streaming) { Icon(Icons.Rounded.PictureAsPdf, contentDescription = "PDFを共有") }
-                            if (showThreads) IconButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) {
-                                Icon(Icons.Rounded.Refresh, contentDescription = "更新")
-                            }
-                        })
+                        // Web shows `header.main-chrome-header` below the md breakpoint only.
+                        if (showThreads && !wide) MobileChatHeader(state, onMenu = openDrawer, onNewChat = { model.newChat() }, onPdf = sharePdf)
                     }, snackbarHost = { SnackbarHost(snackbar) },
                     bottomBar = {
                         if (showThreads) Composer(state, model, { modelPicker = true }, { attachMenu = true }, launchSpeech,
@@ -481,22 +509,27 @@ fun PlaygroundScreen(
 
             if (showThreads && wide) {
                 Row(Modifier.fillMaxSize()) {
-                    Surface(Modifier.width(PlaygroundDimens.sidePane).fillMaxHeight(),
-                        color = colors.surface.copy(alpha = 0.94f), contentColor = colors.onSurface) {
-                        ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = {}, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onBubble = openBubble, onWeb = onWeb, onChangelog = { changelogOpen = true; onOpenChangelog() })
-                    }
-                    VerticalDivider()
+                    Sidebar(state, versionLabel, sidebarActions {})
                     Box(Modifier.weight(1f)) { content() }
                 }
             } else {
+                val web = LocalWebPalette.current
+                // `#overlay` (rgba(4,8,20,.55), light rgba(15,23,42,.32)) with its 4px backdrop blur.
+                val contentBlur by androidx.compose.animation.core.animateDpAsState(
+                    if (drawer.targetValue == DrawerValue.Open && !reduceMotion) 4.dp else 0.dp, label = "drawer blur")
                 ModalNavigationDrawer(drawerState = drawer, gesturesEnabled = showThreads && allowDrawerOpen,
+                    scrimColor = if (web.isLight) Color(15, 23, 42).copy(alpha = 0.32f) else Color(4, 8, 20).copy(alpha = 0.55f),
                     drawerContent = {
-                        ModalDrawerSheet(Modifier.width(PlaygroundDimens.drawerPane), drawerContainerColor = colors.surface) {
-                            if (showThreads) {
-                                ThreadPanel(state, model, onLogout = { logout = true }, onDelete = { deleting = it }, onNavigate = closeDrawer, onLibrary = { libraryOpen = true }, onGems = { gemsOpen = true }, onSettings = { settingsOpen = true }, onAdvanced = { advancedOpen = true }, onPdf = sharePdf, onBubble = { openBubble(); closeDrawer() }, onWeb = { path -> onWeb(path); closeDrawer() }, onChangelog = { changelogOpen = true; onOpenChangelog(); closeDrawer() })
-                            }
+                        ModalDrawerSheet(
+                            Modifier.width(PlaygroundDimens.drawerPane),
+                            drawerShape = androidx.compose.ui.graphics.RectangleShape,
+                            drawerContainerColor = Color.Transparent,
+                            drawerTonalElevation = 0.dp,
+                            windowInsets = WindowInsets(0, 0, 0, 0),
+                        ) {
+                            if (showThreads) Sidebar(state, versionLabel, sidebarActions(closeDrawer))
                         }
-                    }) { content() }
+                    }) { Box(Modifier.blur(contentBlur)) { content() } }
             }
 
             ChatTransitionVeil(
@@ -530,11 +563,25 @@ fun PlaygroundScreen(
                     onOpenExternal = onFile,
                 )
             }
-            ModalHost(gemsOpen) { GemsDialog(state, model, onDismiss = { gemsOpen = false }) }
+            ModalHost(gemEditorOpen) {
+                val editing = gemEditing
+                GemEditorDialog(gem = editing, onDismiss = { gemEditorOpen = false }) { n, d, i, m, prompts, done ->
+                    model.saveGem(editing?.uuid, n, d, i, m, prompts) { ok -> if (ok) gemEditorOpen = false; done(ok) }
+                }
+            }
+            ModalHost(historyOpen) { HistoryDialog(state, sidebarActions {}, onDismiss = { historyOpen = false }) }
+            ModalHost(alphaOpen) { AlphaInfoDialog(onDismiss = { alphaOpen = false }) }
+            ModalValueHost(legalKind) { kind -> LegalDialog(kind, model::legalMarkdown, onDismiss = { legalKind = null }) }
+            // Web `confirm("Delete?")` / `prompt("Title:")` for Gems and threads.
+            gemDeleting?.let { gem -> BrowserConfirmDialog("Delete?") { ok -> if (ok) model.deleteGem(gem); gemDeleting = null } }
+            renaming?.let { thread ->
+                BrowserPromptDialog("Title:") { title -> if (!title.isNullOrEmpty()) model.renameThread(thread, title); renaming = null }
+            }
             ModalHost(settingsOpen) {
                 SettingsDialog(state, model, onDismiss = { settingsOpen = false },
                     onLogout = { model.logout(); settingsOpen = false; closeDrawer() }, onWeb = onWeb,
-                    appUpdate = appUpdate ?: AppUpdateUiState(), onCheckForUpdate = onCheckForUpdate)
+                    appUpdate = appUpdate ?: AppUpdateUiState(), onCheckForUpdate = onCheckForUpdate,
+                    onBubble = { openBubble(); settingsOpen = false })
             }
             ModalHost(changelogOpen) {
                 AppChangelogDialog(
@@ -595,14 +642,7 @@ fun PlaygroundScreen(
                     threadSettings = false
                 }
             }
-            deleting?.let { thread -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text("チャットを削除しますか？") },
-                text = { Text("「${thread.title}」の履歴と紐付く添付ファイルを削除します。この操作は取り消せません。") },
-                confirmButton = { TextButton(onClick = { model.deleteThread(thread); deleting = null }) { Text("削除") } },
-                dismissButton = { TextButton(onClick = { deleting = null }) { Text("キャンセル") } }) }
-            if (logout) AlertDialog(onDismissRequest = { logout = false }, title = { Text("この端末からログアウト") },
-                text = { Text("このAndroid端末の連携を取り消します。Webや他の端末のログインは継続します。") },
-                confirmButton = { TextButton(onClick = { model.logout(); logout = false; closeDrawer() }) { Text("ログアウト") } },
-                dismissButton = { TextButton(onClick = { logout = false }) { Text("キャンセル") } })
+            deleting?.let { thread -> BrowserConfirmDialog("Delete?") { ok -> if (ok) model.deleteThread(thread); deleting = null } }
             if (state.banned) BannedScreen(
                 reason = state.banReason,
                 bannedAt = state.banAt,
@@ -721,153 +761,6 @@ private fun ConnectionBanner(status: ConnectionStatus, message: String, onRetry:
             if (status != ConnectionStatus.ONLINE) TextButton(onClick = onRetry) { Text("再試行") }
         }
     }
-}
-
-@Composable
-private fun ThreadPanel(
-    state: ChatState,
-    model: ChatViewModel,
-    onLogout: () -> Unit,
-    onDelete: (ThreadItem) -> Unit,
-    onNavigate: () -> Unit,
-    onLibrary: () -> Unit,
-    onGems: () -> Unit,
-    onSettings: () -> Unit,
-    onAdvanced: () -> Unit,
-    onPdf: () -> Unit,
-    onBubble: () -> Unit,
-    onWeb: (String) -> Unit,
-    onChangelog: () -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    val reduce = LocalReduceMotion.current
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 12.dp, vertical = 12.dp)) {
-        Text(state.selected?.title?.ifBlank { "AI Chat" } ?: "AI Chat", style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            IconButton(onClick = { onSettings(); onNavigate() }) { Icon(Icons.Rounded.Settings, "設定", modifier = Modifier.size(20.dp)) }
-            IconButton(onClick = { onLibrary(); onNavigate() }) { Icon(Icons.Rounded.FolderOpen, "ライブラリ", modifier = Modifier.size(20.dp)) }
-            IconButton(onClick = { model.newChat(); onNavigate() }, enabled = !state.busy && !state.streaming) { Icon(Icons.Rounded.Add, "新規チャット", tint = colors.primary) }
-            IconButton(onClick = { onPdf(); onNavigate() }, enabled = state.selected != null && !state.offline && !state.busy && !state.streaming) { Icon(Icons.Rounded.PictureAsPdf, "PDFを共有") }
-            IconButton(onClick = { onAdvanced(); onNavigate() }) { Icon(Icons.Rounded.Layers, "Batch処理・高度な機能", modifier = Modifier.size(20.dp)) }
-            IconButton(onClick = model::refresh, enabled = !state.busy && !state.streaming) { Icon(Icons.Rounded.Refresh, "更新", modifier = Modifier.size(20.dp)) }
-        }
-        TextButton(onClick = onBubble, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Rounded.ChatBubble, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text(
-                if (Build.VERSION.SDK_INT >= ANDROID_17_APP_BUBBLE_API) "バブルに追加する方法"
-                else "バブルで開く",
-                modifier = Modifier.padding(start = 6.dp),
-            )
-        }
-        OutlinedTextField(
-            state.search, model::search, singleLine = true, placeholder = { Text("チャットを検索...", style = MaterialTheme.typography.bodySmall) },
-            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-            shape = RoundedCornerShape(PlaygroundDimens.controlRadius), modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = colors.surfaceContainerLow.copy(alpha = 0.72f), focusedContainerColor = colors.surfaceContainerLow),
-        )
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Gems", style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant, modifier = Modifier.weight(1f))
-            TextButton(onClick = { onGems(); onNavigate() }) { Text("＋ New / 編集") }
-        }
-        LazyColumn(Modifier.heightIn(max = 140.dp)) {
-            items(state.gems, key = { it.uuid }) { gem ->
-                TextButton(onClick = { model.chooseGem(gem); onNavigate() }, enabled = !state.streaming,
-                    modifier = Modifier.fillMaxWidth().animateItem(fadeInSpec = listFade(reduce), placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce))) {
-                    Icon(Icons.Rounded.AutoAwesome, null, modifier = Modifier.size(16.dp))
-                    Text(gem.name, modifier = Modifier.weight(1f).padding(start = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    AnimatedVisibility(state.selectedGem?.uuid == gem.uuid, enter = popIn(reduce), exit = popOut(reduce)) {
-                        Icon(Icons.Rounded.Check, "適用中", modifier = Modifier.size(16.dp))
-                    }
-                }
-            }
-        }
-        HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f))
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            items(state.threads, key = { it.id }) { thread ->
-                val selected = state.selected?.id == thread.id
-                val rowBackground by animateColorAsState(if (selected) colors.primary.copy(alpha = 0.13f) else colors.primary.copy(alpha = 0f),
-                    motionTween(reduce), label = "thread background")
-                val rowBorder by animateColorAsState(if (selected) colors.primary.copy(alpha = 0.25f) else colors.primary.copy(alpha = 0f),
-                    motionTween(reduce), label = "thread border")
-                val rowInteraction = remember { MutableInteractionSource() }
-                Row(
-                    Modifier.fillMaxWidth()
-                        .animateItem(fadeInSpec = listFade(reduce), placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce))
-                        .pressScale(rowInteraction)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(rowBackground)
-                        .border(1.dp, rowBorder, RoundedCornerShape(12.dp)),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Row(modifier = Modifier.weight(1f).clickable(rowInteraction, LocalIndication.current) { model.openThread(thread); onNavigate() }.padding(horizontal = 10.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(if (thread.isTemporary) Icons.Rounded.Schedule else Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = if (selected) colors.primary else colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                        Column(Modifier.fillMaxWidth()) {
-                            Text(buildString {
-                                if (thread.isBookmarked) append("★  ")
-                                append(thread.title.ifBlank { "新しいチャット" })
-                            }, modifier = Modifier.padding(start = 9.dp), style = MaterialTheme.typography.bodyMedium, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            if (thread.model.isNotBlank()) Text(thread.model, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, modifier = Modifier.padding(start = 9.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                    IconButton(onClick = { model.toggleBookmark(thread) }, enabled = !state.offline, modifier = Modifier.size(38.dp)) {
-                        AnimatedContent(thread.isBookmarked, transitionSpec = { popIn(reduce) togetherWith popOut(reduce) }, label = "bookmark star") { bookmarked ->
-                            Icon(if (bookmarked) Icons.Rounded.Star else Icons.Rounded.StarBorder, contentDescription = if (bookmarked) "ブックマーク解除" else "ブックマーク", modifier = Modifier.size(18.dp), tint = if (bookmarked) colors.secondary else colors.onSurfaceVariant)
-                        }
-                    }
-                    IconButton(onClick = { onDelete(thread) }, enabled = !state.offline, modifier = Modifier.size(38.dp)) {
-                        Icon(Icons.Rounded.DeleteOutline, contentDescription = "削除", modifier = Modifier.size(18.dp), tint = colors.onSurfaceVariant)
-                    }
-                }
-            }
-            if (state.threads.isEmpty()) item(key = "empty") {
-                Text(modifier = Modifier.animateItem(fadeInSpec = listFade(reduce), placementSpec = null, fadeOutSpec = listFade(reduce)).padding(12.dp),
-                    text = if (state.search.isBlank()) "チャット履歴はまだありません。"
-                    else "「${state.search}」に一致する履歴はありません。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (state.nextPage != null) item(key = "more") {
-                TextButton(onClick = model::moreThreads, modifier = Modifier.fillMaxWidth()) { Text("もっと読み込む") }
-            }
-        }
-        HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f), modifier = Modifier.padding(vertical = 6.dp))
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SidebarFooterLink("ヘルプ") { onWeb("/help"); onNavigate() }
-            Text("·", color = colors.onSurfaceVariant, style = MaterialTheme.typography.labelSmall)
-            SidebarFooterLink("更新履歴") { onChangelog(); onNavigate() }
-        }
-        Button(
-            onClick = onLogout,
-            modifier = Modifier.fillMaxWidth().height(40.dp),
-            shape = RoundedCornerShape(10.dp),
-            contentPadding = PaddingValues(horizontal = 12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = colors.surfaceContainerHigh,
-                contentColor = colors.onSurface,
-            ),
-        ) {
-            Text("ログアウト", style = MaterialTheme.typography.labelLarge)
-        }
-        Spacer(Modifier.navigationBarsPadding())
-    }
-}
-
-@Composable
-private fun SidebarFooterLink(
-    label: String,
-    onClick: () -> Unit,
-) {
-    TextButton(
-        onClick = onClick,
-        modifier = Modifier.height(32.dp),
-        contentPadding = PaddingValues(horizontal = 6.dp),
-    ) { Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelSmall) }
 }
 
 @Composable
@@ -1616,53 +1509,6 @@ private fun RenameLibraryFileDialog(file: LibraryFile, onDismiss: () -> Unit, on
         text = { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("表示名") }, modifier = Modifier.fillMaxWidth()) },
         confirmButton = { TextButton(onClick = { onRename(name.trim()) }, enabled = name.isNotBlank() && name.length <= 200) { Text("保存") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } })
-}
-
-@Composable
-private fun GemsDialog(state: ChatState, model: ChatViewModel, onDismiss: () -> Unit) {
-    var editor by remember { mutableStateOf<Gem?>(null) }
-    var creating by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { model.loadGems() }
-    PlaygroundDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Gems") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${state.gems.size}件", style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { creating = true }) { Text("新規作成") }
-                }
-                if (state.gemsBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                    items(state.gems, key = { it.uuid }) { gem ->
-                        Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                            Text((if (state.selectedGem?.uuid == gem.uuid) "✓ " else "") + gem.name, fontWeight = FontWeight.SemiBold)
-                            if (gem.description.isNotBlank()) Text(gem.description, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row {
-                                TextButton(onClick = { model.chooseGem(gem); onDismiss() }) { Text("適用") }
-                                TextButton(onClick = { editor = gem }) { Text("編集") }
-                                TextButton(onClick = { model.deleteGem(gem) }) { Text("削除") }
-                            }
-                        }
-                    }
-                    if (state.gems.isEmpty() && !state.gemsBusy) item(key = "empty") {
-                        Text("Gemはまだありません。繰り返す指示を登録して、入力欄の @ から呼び出せます。",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(12.dp))
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
-    )
-    if (creating) GemEditorDialog(gem = null, onDismiss = { creating = false }) { n, d, i, m, prompts, done ->
-        model.saveGem(null, n, d, i, m, prompts) { ok -> if (ok) creating = false; done(ok) }
-    }
-    editor?.let { gem -> GemEditorDialog(gem = gem, onDismiss = { editor = null }) { n, d, i, m, prompts, done ->
-        model.saveGem(gem.uuid, n, d, i, m, prompts) { ok -> if (ok) editor = null; done(ok) }
-    } }
 }
 
 @Composable

@@ -9,6 +9,7 @@
 | `request_hooks.py` | `@app.before_request`。古いログイン flash の除去、設定保存 flash の掃除、ユーザー別アップロード上限 | リクエスト前処理、flash 漏れ、アップロードサイズ |
 | `storage.py` | 容量制限、アップロードパス、添付の正規化、PDF/DOCX テキスト抽出、チャンクアップロード、サムネイルとメディアのメモリキャッシュ | ファイル保存、容量、添付、チャンク |
 | `image_tools.py` | 画像ヘッダー解析・構造検証、cwebp／dwebp／ffmpeg／CairoSVG を子プロセスで使うサムネイル・PNG変換・SVG描画、PNG書き出しとTOTP用QR。Pillowは読み込まない | サムネイル、画像形式の変換、画像検証、QRコード |
+| `IMAGE_PROCESSING.md` | 画像処理の方針（常駐プロセスでPillowを読み込まない）、処理と形式ごとの経路、安全上の制約、既知の制限、変更時のルール | `image_tools.py` や画像を扱う呼び出し元を変更する前 |
 | `crypto.py` | 暗号化鍵リング、`encrypt_val` / `decrypt_val`、バイト暗号化、TTS 音声選択、`secure_delete` | 暗号化、鍵、削除 |
 | `providers.py` | モデル種別判定、Mistral OCR、Gemini 文字起こし、PCM/WAV 変換、生成バイトの保存 | プロバイダ分岐、OCR、STT、音声形式 |
 | `create_file.py` | チャットの `create_file` ツール（txt/md/pdf/docx/xlsx をライブラリへ保存） | ファイル作成ツール |

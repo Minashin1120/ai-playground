@@ -77,6 +77,7 @@ import com.minashin1120.aiplayground.ImportSettingChange
 import com.minashin1120.aiplayground.AppChangelogUiState
 import com.minashin1120.aiplayground.AppUpdateUiState
 import com.minashin1120.aiplayground.data.ThreadItem
+import com.minashin1120.aiplayground.data.Attachment
 import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.ChatMessage
@@ -245,8 +246,8 @@ fun PlaygroundScreen(
             var realtimeOptions by remember { mutableStateOf(RealtimeOptions()) }
             var startDockAfterMic by remember { mutableStateOf(false) }
             var richPasteOpen by remember { mutableStateOf(false) }
-            var maskOpen by remember { mutableStateOf(false) }
-            var maskSource by remember { mutableStateOf<Uri?>(null) }
+            var markerTarget by remember { mutableStateOf<Attachment?>(null) }
+            var visionPicker by remember { mutableStateOf(false) }
             var cameraUri by remember { mutableStateOf<Uri?>(null) }
             var bubbleAfterNotificationPermission by remember { mutableStateOf(false) }
             val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -303,7 +304,7 @@ fun PlaygroundScreen(
             }
             val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { model.upload(it) }
             val maskPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-                if (uri != null) { maskSource = uri; maskOpen = true }
+                if (uri != null) model.uploadImageMask(uri)
             }
             val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
                 val uri = cameraUri
@@ -387,16 +388,18 @@ fun PlaygroundScreen(
                     realtimeOpen = false
                     lyriaOpen = false
                     richPasteOpen = false
-                    maskOpen = false
-                    maskSource = null
+                    markerTarget = null
+                    visionPicker = false
                     closeDrawer()
                 }
             }
             val hasOverlay = modelPicker || threadSettings || attachMenu || libraryOpen || viewingFile != null ||
                 gemEditorOpen || historyOpen || branchOpen || alphaOpen || legalKind != null ||
-                settingsOpen || changelogOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || maskOpen || compressionOpen
+                settingsOpen || changelogOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || markerTarget != null || visionPicker || compressionOpen
             BackHandler(enabled = hasOverlay || (!wide && drawer.currentValue == DrawerValue.Open)) {
                 when {
+                    markerTarget != null -> markerTarget = null
+                    visionPicker -> visionPicker = false
                     attachMenu -> attachMenu = false
                     compressionOpen -> compressionOpen = false
                     modelPicker -> modelPicker = false
@@ -407,7 +410,6 @@ fun PlaygroundScreen(
                     realtimeOpen -> realtimeOpen = false
                     lyriaOpen -> lyriaOpen = false
                     richPasteOpen -> richPasteOpen = false
-                    maskOpen -> { maskOpen = false; maskSource = null }
                     viewingFile != null -> viewingFile = null
                     libraryOpen -> libraryOpen = false
                     gemEditorOpen -> gemEditorOpen = false
@@ -670,35 +672,26 @@ fun PlaygroundScreen(
                     model.draft(if (state.draft.isBlank()) text else state.draft.trimEnd() + "\n\n" + text)
                 }
             }
-            ModalValueHost(if (maskOpen) maskSource else null) { uri ->
-                ImageMaskEditor(uri, onDismiss = { maskOpen = false; maskSource = null }) { bytes ->
-                    model.uploadImageMask("mask_${System.currentTimeMillis()}.png", bytes)
-                    maskOpen = false
-                    maskSource = null
-                }
+            if (attachMenu) UploadSheet(
+                state, model, loader,
+                onDismiss = { attachMenu = false },
+                onPickFiles = { picker.launch(arrayOf("*/*")) },
+                onCamera = launchCamera,
+                onPhotos = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
+                onLibrary = { libraryOpen = true },
+                onChangeVisionModel = { visionPicker = true },
+                onOpenFile = openInApp,
+                onEditImage = { markerTarget = it },
+            )
+            ModalHost(visionPicker) {
+                ModelPicker(state, onDismiss = { visionPicker = false },
+                    onSelect = { model.setVisionModel(it); visionPicker = false },
+                    selectedId = state.visionModel ?: state.preferences?.defaultVisionModel.orEmpty(), lockToPromptCache = false)
             }
-            if (attachMenu) {
-                val attachSheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-                // Slide the sheet away first, then run the chosen action so the motion is never cut.
-                val closeAttachMenu: (() -> Unit) -> Unit = { then ->
-                    scope.launch { attachSheet.hide() }.invokeOnCompletion {
-                        attachMenu = false
-                        then()
-                    }
-                }
-                ModalBottomSheet(onDismissRequest = { attachMenu = false }, sheetState = attachSheet) {
-                    Column(
-                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text("添付を追加", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(start = 12.dp, bottom = 8.dp))
-                        DialogAction(Icons.Rounded.FolderOpen, "ファイルを選択") { closeAttachMenu { picker.launch(arrayOf("*/*")) } }
-                        DialogAction(Icons.Rounded.PhotoLibrary, "写真・動画を選択") { closeAttachMenu { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) } }
-                        DialogAction(Icons.Rounded.PhotoCamera, "カメラで撮影") { closeAttachMenu { launchCamera() } }
-                        DialogAction(Icons.Rounded.FolderShared, "ライブラリから選択") { closeAttachMenu { libraryOpen = true } }
-                    }
-                }
+            ModalValueHost(markerTarget) { target ->
+                ImageMarkerEditor(target, loader, onDismiss = { markerTarget = null },
+                    onSave = { png, attachOriginal -> model.applyImageEdit(target.reference, png, attachOriginal); markerTarget = null },
+                    onError = model::notify)
             }
             ModalHost(threadSettings && state.selected != null) {
                 ChatInstructionsDialog(state, onRefresh = model::loadPreferences, onDismiss = { threadSettings = false }) {
@@ -771,14 +764,6 @@ private fun BannedScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun DialogAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp)) {
-        Icon(icon, contentDescription = null)
-        Text(label, modifier = Modifier.padding(start = 12.dp).weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Start)
     }
 }
 

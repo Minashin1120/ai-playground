@@ -22,7 +22,39 @@ data class ChatMessage(val id: String, val role: String, val content: String,
                        val tokens: Int? = null, val tokensIn: Int? = null, val tokensOut: Int? = null,
                        val tokensContent: Int? = null, val tokensThought: Int? = null,
                        val encrypted: Boolean? = null, val quote: String = "", val gemName: String = "")
-data class Attachment(val name: String, val reference: String, val mime: String = "")
+/**
+ * One composer attachment (Web `#upload-list` row). [name] is the send name ("送信名"), [defaultName] what it
+ * falls back to; [source] is Web `upload` / `library`. After an image edit, [original] keeps the pre-edit file,
+ * sent too when [attachOriginal] ("元画像も添付") is on, and [edited] adds the Web marker hint to the request.
+ */
+data class Attachment(
+    val name: String,
+    val reference: String,
+    val mime: String = "",
+    val source: String = "upload",
+    val defaultName: String = name,
+    val original: Attachment? = null,
+    val attachOriginal: Boolean = false,
+    val edited: Boolean = false,
+)
+
+/** Web `MARKER_HINT_TEXT`: sent as `marker_system_prompt` while an edited image is attached. */
+const val MARKER_HINT_TEXT = "編集済みの画像を見てください。"
+
+/** Web `collectAttachmentItemsForSend`: each row, then its original when "元画像も添付" is on; duplicates merged. */
+fun attachmentItemsForSend(attachments: List<Attachment>): List<Attachment> {
+    val items = LinkedHashMap<String, Attachment>()
+    fun push(item: Attachment) {
+        val previous = items[item.reference]
+        if (previous == null) items[item.reference] = item
+        else if (previous.source == "library" && item.source == "upload") items[item.reference] = previous.copy(source = "upload")
+    }
+    attachments.forEach { attachment ->
+        push(attachment)
+        if (attachment.attachOriginal) attachment.original?.let(::push)
+    }
+    return items.values.toList()
+}
 data class ModelInfo(val id: String, val name: String, val provider: String, val providerLabel: String,
                      val mode: String, val capabilities: Set<String>, val deprecated: Boolean,
                      val selectable: Boolean,

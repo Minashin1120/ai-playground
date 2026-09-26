@@ -83,6 +83,10 @@ data class ChatState(
     val canvasMode: Boolean = false, val codingMode: Boolean = false,
     val codingTarget: CodingTarget? = null,
     val imageMask: String? = null,
+    /** Web `currentVisionModel` changed from the upload sheet; null follows the Vision Model setting. */
+    val visionModel: String? = null,
+    /** The attachment whose edited image is uploading (row status "編集反映中..."). */
+    val editingAttachment: String? = null,
     val uploading: Boolean = false, val streaming: Boolean = false,
     val uploadSent: Long = 0L, val uploadTotal: Long = 0L, val uploadName: String = "",
     /** Files finished / queued in the running upload batch (Web `Preparing... (completed/total)`). */
@@ -1188,14 +1192,56 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         })
     }
     fun setImageMask(reference: String?) { mutable.update { it.copy(imageMask = reference) } }
-    fun uploadImageMask(name: String, bytes: ByteArray) {
-        if (bytes.isEmpty() || state.value.banned || state.value.streaming || state.value.uploading) return
+    /** Web `uploadMaskFile`: the chosen mask image is uploaded as it is. */
+    fun uploadImageMask(uri: Uri) {
+        if (state.value.banned || state.value.offline) return
         viewModelScope.launch {
             try {
-                val response = api.upload(name, bytes.toRequestBody("image/png".toMediaType()), token())
+                val resolver = getApplication<Application>().contentResolver
+                val local = withContext(Dispatchers.IO) { queryLocalAttachment(resolver, uri) }
+                val bytes = withContext(Dispatchers.IO) { resolver.openInputStream(uri)?.use { it.readBytes() } }
+                    ?: throw IOException("Mask upload failed")
+                val mime = local.mime.ifBlank { "image/png" }
+                val response = api.upload(local.name, bytes.toRequestBody(mime.toMediaType()), token())
                 setImageMask(response.getString("filename"))
-                notify("画像マスクを設定しました。次の画像生成で適用されます。")
-            } catch (e: Exception) { report(e) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: ApiException) { notify(e.payload.optString("error").ifBlank { "Mask upload failed" }) }
+            catch (e: Exception) { notify("Mask upload failed") }
+        }
+    }
+    /** Web `selectModel` while the vision picker is active. */
+    fun setVisionModel(id: String) { mutable.update { it.copy(visionModel = id) } }
+    /** Web `promptRowAttachmentName`: a blank name restores the default. */
+    fun renameAttachment(reference: String, input: String) {
+        val next = input.trim()
+        mutable.update { current -> current.copy(attachments = current.attachments.map {
+            if (it.reference != reference) it else it.copy(name = next.ifEmpty { it.defaultName })
+        }) }
+        notify(if (next.isEmpty()) "送信名をデフォルトに戻しました" else "送信名を更新しました")
+    }
+    /**
+     * Web `saveMarkerToRow`: uploads the edited PNG as `<name>_marked.png` and swaps it into the row,
+     * keeping the first pre-edit file as the row's original.
+     */
+    fun applyImageEdit(reference: String, png: ByteArray, attachOriginal: Boolean) {
+        val row = state.value.attachments.firstOrNull { it.reference == reference } ?: return
+        if (state.value.offline) { notify("オフライン中はファイルをアップロードできません。"); return }
+        val fileName = markedFileName(row.name.ifBlank { "marked.png" })
+        mutable.update { current -> current.copy(editingAttachment = reference, attachments = current.attachments.map {
+            if (it.reference == reference) it.copy(attachOriginal = attachOriginal) else it
+        }) }
+        viewModelScope.launch {
+            try {
+                val response = api.upload(fileName, png.toRequestBody("image/png".toMediaType()), token())
+                val uploaded = response.getString("filename")
+                val original = row.original ?: row.copy(original = null, attachOriginal = false, edited = false)
+                mutable.update { current -> current.copy(attachments = current.attachments.map {
+                    if (it.reference != reference) it
+                    else Attachment(fileName, uploaded, "image/png", "upload", fileName, original, attachOriginal, edited = true)
+                }) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { notify("編集画像のアップロードに失敗しました") }
+            finally { mutable.update { it.copy(editingAttachment = null) } }
         }
     }
     fun generationOption(key: String, value: String) {
@@ -1206,7 +1252,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (state.value.streaming) return
         mutable.update { current -> current.copy(generationValues = current.generationValues + (key to value)) }
     }
-    fun clearAttachments() { mutable.update { it.copy(attachments = emptyList()) } }
     fun removeAttachment(reference: String) { mutable.update { it.copy(attachments = it.attachments.filterNot { a -> a.reference == reference }) } }
     fun search(query: String) {
         mutable.update { it.copy(search = query) }
@@ -1662,8 +1707,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         fun effective(value: Boolean, rule: OptionRule) = rule.forced ?: value
         val effort = current.chipValues["reasoning_effort"].orEmpty()
         val deepSeekNonThinking = current.model.lowercase().contains("deepseek") && effort.lowercase() == "none"
+        val items = attachmentItemsForSend(current.attachments)
+        if (current.imageMask != null && isGptImageModel(current.model) && items.isEmpty()) {
+            notify("Mask は画像入力が必要です")
+            return
+        }
         val body = JSONObject().put("model", current.model).put("message", current.draft)
-            .put("client_request_id", UUID.randomUUID().toString()).put("image_urls", JSONArray(current.attachments.map { it.reference }))
+            .put("client_request_id", UUID.randomUUID().toString()).put("image_urls", JSONArray(items.map { it.reference }))
+            .put("image_items", JSONArray().apply {
+                items.forEach { put(JSONObject().put("path", it.reference).put("source", it.source).put("name", it.name)) }
+            })
+            .put("uploaded_image_urls", JSONArray(items.filter { it.source == "upload" }.map { it.reference }))
+            .put("marker_system_prompt", if (current.attachments.any { it.edited }) MARKER_HINT_TEXT else JSONObject.NULL)
+            .put("image_vision_model", current.visionModel ?: current.preferences?.defaultVisionModel ?: JSONObject.NULL)
             .put("enable_thinking", !deepSeekNonThinking && effective(current.enableThinking, rules.thinking))
             .put("enable_search", effective(current.enableSearch, rules.search))
             .put("enable_url_context", effective(current.enableUrlContext, rules.urls))
@@ -2888,10 +2944,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Removing the uploading row (Web `uploadCancelTokens`): the rest of this batch is not uploaded. */
     fun cancelUpload() {
         if (!state.value.uploading) return
         uploadJob?.cancel()
-        mutable.update { it.copy(notice = "アップロードをキャンセルしました。") }
+    }
+
+    /** Web `resetUploadState`: the composer ✕ and "リストをクリア" drop every attachment and the mask. */
+    fun resetUploads() {
+        uploadJob?.cancel()
+        mutable.update { it.copy(attachments = emptyList(), imageMask = null) }
     }
 
     /** Persists the local image-compression settings used before image uploads. */
@@ -3178,7 +3240,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return@forEach
             }
             if (state.value.attachments.none { it.reference == file.filepath } && added.none { it.reference == file.filepath }) {
-                added += Attachment(file.displayName, file.filepath, "")
+                added += Attachment(file.displayName, file.filepath, "", source = "library")
             }
         }
         val parts = listOfNotNull(skippedAudio.takeIf { it > 0 }?.let { "${it}件の音声" }, skippedVideo.takeIf { it > 0 }?.let { "${it}件の動画" })
@@ -3223,7 +3285,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(notice = "添付は30件までです。") }
             return
         }
-        mutable.update { it.copy(attachments = it.attachments + Attachment(file.displayName, file.filepath, "")) }
+        mutable.update { it.copy(attachments = it.attachments + Attachment(file.displayName, file.filepath, "", source = "library")) }
     }
 
     // --- Gems ---

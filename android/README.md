@@ -52,7 +52,9 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/BatchDialog.kt` | Webの `#batch-modal`（Batch処理：フィルタ、状態バッジ、開く・停止・履歴から削除、5秒ごとの更新） | Batch処理の画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ConfirmDialogs.kt` | Webの確認モーダル（外部ツール操作の確認、ローカルPython実行に切替） | 送信前・生成中の確認ダイアログを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasCodingPanels.kt` | Canvasプレビュー・編集 | Canvasの編集操作を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMaskEditor.kt` | GPT-Image用の端末マスク描画とPNG化 | 画像マスクの描画・送信を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMarkerEditor.kt` | Webの「画像編集」（マーカー、モザイク、トリミング、二本指の拡大、保存して反映） | 画像編集の画面や保存を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/ImageMarker.kt` | 画像編集の計算（線の補間、モザイク範囲、トリミングの掴み位置、拡大時の位置制限、保存名） | 画像編集の操作の決まりを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/UploadSheet.kt` | Webの「ファイルアップロード」画面（ボタン、Vision Model、進行状況、ファイルごとの画像編集・送信名・削除） | 添付の追加画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | Webの音声ドック（`#sts-panel`）と音声スタジオ、提供元別の音声設定 | 音声セッションUIを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LyriaStudio.kt` | Webの「Lyria RealTime Studio」（重み付きプロンプト、音楽設定、再生操作、チャットへ保存） | Lyriaスタジオを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | クリップボードHTML／テキストの安全な取り込み | リッチ貼り付けの入力変換を変更するとき |

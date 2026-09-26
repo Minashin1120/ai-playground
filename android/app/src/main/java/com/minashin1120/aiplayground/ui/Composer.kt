@@ -74,6 +74,7 @@ import com.minashin1120.aiplayground.data.composerRules
 import com.minashin1120.aiplayground.data.gemMentionQuery
 import com.minashin1120.aiplayground.data.historyCodingTargets
 import com.minashin1120.aiplayground.data.isImageReference
+import com.minashin1120.aiplayground.data.attachmentItemsForSend
 import com.minashin1120.aiplayground.data.tokenEstimateLine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -708,18 +709,15 @@ private fun AttachmentPreview(state: ChatState, model: ChatViewModel, loader: Fi
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 val text = if (state.uploading) "Preparing... (${state.uploadCompleted}/${state.uploadCount})"
-                    else "${state.attachments.size} files ready"
+                    else "${attachmentItemsForSend(state.attachments).size} files ready"
                 Text(text, fontSize = 12.sp, color = web.theme300, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Text("✕", fontSize = 12.sp, color = Tw.gray400,
                     modifier = Modifier.padding(start = 8.dp).clickable(role = Role.Button) {
-                        if (state.uploading) model.cancelUpload() else model.clearAttachments()
+                        model.resetUploads()
                     })
             }
             if (state.uploading) {
-                val fraction = if (state.uploadCount > 0) {
-                    val current = if (state.uploadTotal > 0) (state.uploadSent.toFloat() / state.uploadTotal).coerceIn(0f, 1f) else 0f
-                    ((state.uploadCompleted + current) / state.uploadCount).coerceIn(0f, 1f)
-                } else 0f
+                val fraction = uploadFraction(state)
                 val shown by animateFloatAsState(fraction, motionTween(reduce, 300), label = "upload total")
                 Box(Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Tw.gray800)) {
                     Box(Modifier.fillMaxHeight().fillMaxWidth(shown).background(Tw.blue500))
@@ -1033,7 +1031,7 @@ private fun TokenEstimate(state: ChatState) {
     val model = state.model
     val message = state.draft
     val quote = state.quote
-    val files = state.attachments.map { it.reference }
+    val files = attachmentItemsForSend(state.attachments).map { it.reference }
     val hasInput = message.isNotBlank() || quote.isNotBlank() || files.isNotEmpty()
     var pending by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<JSONObject?>(null) }

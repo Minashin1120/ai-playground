@@ -87,8 +87,8 @@ internal fun BrowserAlertDialog(message: String, onDismiss: () -> Unit) {
 
 /** Web `prompt(message)`: returns the entered text, or null when cancelled (Web ignores empty input). */
 @Composable
-internal fun BrowserPromptDialog(message: String, onResult: (String?) -> Unit) {
-    var value by remember { mutableStateOf("") }
+internal fun BrowserPromptDialog(message: String, initial: String = "", onResult: (String?) -> Unit) {
+    var value by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = { onResult(null) },
         title = { Text("$WEB_DIALOG_HOST の内容", fontSize = 18.sp) },

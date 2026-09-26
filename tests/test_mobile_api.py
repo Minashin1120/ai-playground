@@ -317,6 +317,9 @@ class MobileApiTests(unittest.TestCase):
                            json={'filepath': filename, 'filename': 'renamed.txt'})
         self.assertEqual(rename.status_code, 200)
         self.assertEqual(rename.json['filename'], 'renamed.txt')
+        usage = self.call('/api/files/usage?filepath=' + filename, token)
+        self.assertEqual(usage.status_code, 200)
+        self.assertEqual(usage.json['chats'], [])
         with target.app.app_context():
             foreign = target.User(username='library-other', is_setup_completed=True)
             target.db.session.add(foreign)
@@ -324,6 +327,7 @@ class MobileApiTests(unittest.TestCase):
             foreign_id = foreign.id
         self.assertEqual(self.call('/api/files/favorite', token, 'POST',
                                    json={'filepath': f'{foreign_id}/secret.txt'}).status_code, 403)
+        self.assertEqual(self.call(f'/api/files/usage?filepath={foreign_id}/secret.txt', token).status_code, 403)
         deleted = self.call('/api/files/delete', token, 'POST', json={'filenames': [filename]})
         self.assertEqual(deleted.status_code, 200)
         self.assertFalse(self.call('/files/' + filename, token).status_code == 200)

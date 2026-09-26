@@ -180,6 +180,8 @@ internal class SidebarActions(
     val onLibrary: () -> Unit,
     val onNewChat: () -> Unit,
     val onBatch: () -> Unit,
+    /** `#branch-manage-btn`; defaults to nothing for previews. */
+    val onBranches: () -> Unit = {},
     val onPdf: () -> Unit,
     val onExternal: (String) -> Unit,
     val onSearch: (String) -> Unit,
@@ -271,6 +273,7 @@ private fun SidebarHeader(state: ChatState, colors: SidebarColors, actions: Side
             SidebarIconButton(R.drawable.fa_solid_cog, "設定", colors) { actions.onSettings(); actions.onNavigate() }
             SidebarIconButton(R.drawable.fa_solid_folder, "ライブラリ", colors) { actions.onLibrary(); actions.onNavigate() }
             NewChatToolButton(enabled = true) { actions.onNewChat(); actions.onNavigate() }
+            SidebarIconButton(R.drawable.fa_solid_sitemap, "ブランチ管理", colors) { actions.onBranches(); actions.onNavigate() }
             SidebarIconButton(R.drawable.fa_solid_layer_group, "Batch処理", colors) { actions.onBatch(); actions.onNavigate() }
             SidebarIconButton(R.drawable.fa_solid_file_pdf, "PDF出力", colors) { actions.onPdf() }
         }

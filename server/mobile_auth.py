@@ -32,7 +32,7 @@ MOBILE_ENDPOINT_METHODS = {
     'serve_file_thumb': {'GET', 'HEAD'}, 'get_storage_usage': {'GET'},
     'get_files_lib': {'GET'},
     'toggle_file_favorite': {'POST'}, 'delete_files_batch': {'POST'},
-    'rename_library_file': {'POST'},
+    'rename_library_file': {'POST'}, 'get_file_usage_chats': {'GET'},
     'handle_gems': {'GET', 'POST'}, 'handle_gem_item': {'GET', 'PUT', 'DELETE'},
     'export_thread_pdf': {'GET'},
     'gemini_batch_status_api': {'GET'}, 'list_batch_jobs_api': {'GET'},

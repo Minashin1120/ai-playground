@@ -229,6 +229,7 @@ fun PlaygroundScreen(
             var gemEditing by remember { mutableStateOf<Gem?>(null) }
             var gemDeleting by remember { mutableStateOf<Gem?>(null) }
             var historyOpen by remember { mutableStateOf(false) }
+            var branchOpen by remember { mutableStateOf(false) }
             var alphaOpen by remember { mutableStateOf(false) }
             var legalKind by remember { mutableStateOf<String?>(null) }
             var renaming by remember { mutableStateOf<ThreadItem?>(null) }
@@ -381,6 +382,7 @@ fun PlaygroundScreen(
                     viewingFile = null
                     gemEditorOpen = false
                     historyOpen = false
+                    branchOpen = false
                     alphaOpen = false
                     legalKind = null
                     settingsOpen = false
@@ -395,7 +397,7 @@ fun PlaygroundScreen(
                 }
             }
             val hasOverlay = modelPicker || threadSettings || attachMenu || libraryOpen || viewingFile != null ||
-                gemEditorOpen || historyOpen || alphaOpen || legalKind != null ||
+                gemEditorOpen || historyOpen || branchOpen || alphaOpen || legalKind != null ||
                 settingsOpen || changelogOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || maskOpen || compressionOpen
             BackHandler(enabled = hasOverlay || (!wide && drawer.currentValue == DrawerValue.Open)) {
                 when {
@@ -416,6 +418,7 @@ fun PlaygroundScreen(
                     alphaOpen -> alphaOpen = false
                     legalKind != null -> legalKind = null
                     historyOpen -> historyOpen = false
+                    branchOpen -> branchOpen = false
                     !wide -> closeDrawer()
                 }
             }
@@ -445,6 +448,7 @@ fun PlaygroundScreen(
                 onLibrary = { libraryOpen = true },
                 onNewChat = { model.newChat() },
                 onBatch = { advancedOpen = true },
+                onBranches = { if (state.selected == null) model.notify("チャットを選択してください") else branchOpen = true },
                 onPdf = sharePdf,
                 onExternal = openExternal,
                 onSearch = model::search,
@@ -602,6 +606,10 @@ fun PlaygroundScreen(
                 GemEditorDialog(gem = editing, onDismiss = { gemEditorOpen = false }) { n, d, i, prompts, done ->
                     model.saveGem(editing?.uuid, n, d, i, prompts) { ok -> if (ok) gemEditorOpen = false; done(ok) }
                 }
+            }
+            ModalHost(branchOpen && state.selected != null) {
+                BranchManagerDialog(state, onDismiss = { branchOpen = false }, onSwitch = model::switchBranch,
+                    onDelete = model::deleteMessage, notify = model::notify)
             }
             ModalHost(historyOpen) { HistoryDialog(state, sidebarActions {}, onDismiss = { historyOpen = false }) }
             ModalHost(alphaOpen) { AlphaInfoDialog(onDismiss = { alphaOpen = false }) }
@@ -1462,85 +1470,5 @@ private fun TemporaryChatWelcome(timeoutSeconds: Int) {
             )
         }
     }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun LibraryDialog(state: ChatState, model: ChatViewModel, onOpenFile: (FileViewRequest) -> Unit, onDismiss: () -> Unit) {
-    val reduce = LocalReduceMotion.current
-    val loader: FileBytesLoader = { reference, thumbnail, limit -> model.loadAttachmentBytes(reference, thumbnail, limit) }
-    var renameTarget by remember { mutableStateOf<LibraryFile?>(null) }
-    var deleteTarget by remember { mutableStateOf<LibraryFile?>(null) }
-    LaunchedEffect(Unit) { model.refreshLibrary() }
-    PlaygroundDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("ファイルライブラリ") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(state.libraryQuery, model::librarySearch, singleLine = true,
-                    label = { Text("ファイル名で検索") }, modifier = Modifier.fillMaxWidth())
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(state.libraryFavoritesOnly, { model.setLibraryFavoritesOnly(!state.libraryFavoritesOnly) }, { Text("★ お気に入り") })
-                    Spacer(Modifier.width(12.dp))
-                    Text("${state.libraryTotal}件", style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                if (state.libraryBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                LazyColumn(Modifier.heightIn(max = 360.dp)) {
-                    items(state.library, key = { it.filepath }) { file ->
-                        Column(Modifier.fillMaxWidth().animateItem(fadeInSpec = listFade(reduce), placementSpec = listPlacement(reduce), fadeOutSpec = listFade(reduce)).padding(vertical = 2.dp)) {
-                            val reference = file.url.ifBlank { file.filepath }
-                            if (file.isImage) ProtectedImage(reference, loader, {
-                                onOpenFile(FileViewRequest(it, file.displayName, file.ext, "image/"))
-                            },
-                                modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp), thumbnail = true, contentDescription = file.displayName)
-                            Text("${attachmentKindIcon(attachmentKind(file.displayName))} ${file.displayName}",
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            FlowRow {
-                                TextButton(onClick = {
-                                    onOpenFile(FileViewRequest(reference, file.displayName, file.ext,
-                                        if (file.type == "image") "image/" else ""))
-                                }) { Text("開く") }
-                                TextButton(onClick = { model.reuseLibraryFile(file); onDismiss() }) { Text("再利用") }
-                                TextButton(onClick = { model.toggleLibraryFavorite(file) }, enabled = !state.offline) { Text(if (file.isFavorite) "★" else "☆") }
-                                TextButton(onClick = { renameTarget = file }, enabled = !state.offline) { Text("名前変更") }
-                                TextButton(onClick = { deleteTarget = file }, enabled = !state.offline) { Text("削除") }
-                            }
-                        }
-                    }
-                    if (state.library.isEmpty() && !state.libraryBusy) item(key = "empty") {
-                        Text("ファイルはありません。チャットで送った添付がここに表示されます。",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(12.dp))
-                    }
-                    if (state.libraryHasMore) item(key = "more") {
-                        TextButton(onClick = model::moreLibrary, modifier = Modifier.fillMaxWidth()) { Text("もっと読み込む") }
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
-    )
-    renameTarget?.let { file ->
-        RenameLibraryFileDialog(file, onDismiss = { renameTarget = null }) { name ->
-            model.renameLibraryFile(file, name)
-            renameTarget = null
-        }
-    }
-    deleteTarget?.let { file ->
-        AlertDialog(onDismissRequest = { deleteTarget = null }, title = { Text("ファイルを削除しますか？") },
-            text = { Text("「${file.displayName}」を削除します。この操作は取り消せません。") },
-            confirmButton = { TextButton(onClick = { model.deleteLibraryFile(file); deleteTarget = null }) { Text("削除") } },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("キャンセル") } })
-    }
-}
-
-@Composable
-private fun RenameLibraryFileDialog(file: LibraryFile, onDismiss: () -> Unit, onRename: (String) -> Unit) {
-    var name by remember(file.filepath) { mutableStateOf(file.displayName) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("ファイル名を変更") },
-        text = { OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("表示名") }, modifier = Modifier.fillMaxWidth()) },
-        confirmButton = { TextButton(onClick = { onRename(name.trim()) }, enabled = name.isNotBlank() && name.length <= 200) { Text("保存") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } })
 }
 

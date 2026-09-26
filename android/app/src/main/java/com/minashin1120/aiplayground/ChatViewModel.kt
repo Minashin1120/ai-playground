@@ -88,6 +88,10 @@ data class ChatState(
     val uploadCompleted: Int = 0, val uploadCount: Int = 0,
     val library: List<LibraryFile> = emptyList(), val libraryBusy: Boolean = false,
     val libraryQuery: String = "", val libraryFavoritesOnly: Boolean = false,
+    /** Web `lib-sort` (newest / oldest / name_asc / name_desc), kept on the device like Web localStorage. */
+    val librarySort: String = "newest",
+    /** The first page failed to load (Web grid error state). */
+    val libraryFailed: Boolean = false,
     val libraryHasMore: Boolean = false, val libraryTotal: Int = 0,
     val gems: List<Gem> = emptyList(), val gemsBusy: Boolean = false, val selectedGem: Gem? = null,
     val preferences: Preferences? = null, val prefsBusy: Boolean = false,
@@ -140,6 +144,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val connectionProbeMutex = Mutex()
     private val mutable = MutableStateFlow(ChatState())
     val state = mutable.asStateFlow()
+
+    init {
+        // Web keeps the library order and favorites filter in localStorage.
+        mutable.update { it.copy(
+            librarySort = prefs.getString(LIB_SORT_KEY, null)?.takeIf { value -> value in LIBRARY_SORTS } ?: "newest",
+            libraryFavoritesOnly = prefs.getBoolean(LIB_FAVORITES_ONLY_KEY, false),
+        ) }
+    }
     private var session: StoredSession? = null
     private var foreground = false
     private var pairingJob: Job? = null
@@ -2375,7 +2387,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val current = state.value
         val query = URLEncoder.encode(current.libraryQuery, "UTF-8")
         val favorites = if (current.libraryFavoritesOnly) "&favorites_only=1" else ""
-        return "/api/files?limit=40&offset=$offset&sort=newest&q=$query$favorites"
+        return "/api/files?limit=40&offset=$offset&sort=${current.librarySort}&q=$query$favorites"
     }
 
     private suspend fun fetchLibrary(append: Boolean) {
@@ -2386,6 +2398,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     (state.value.libraryQuery.isBlank() || file.displayName.contains(state.value.libraryQuery, true)) &&
                         (!state.value.libraryFavoritesOnly || file.isFavorite)
                 }
+                .let { sortLibraryFiles(it, state.value.librarySort) }
             mutable.update { it.copy(library = files, libraryHasMore = false, libraryTotal = files.size, libraryBusy = false) }
             return
         }
@@ -2402,6 +2415,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 libraryHasMore = reply.optBoolean("has_more"),
                 libraryTotal = reply.optInt("total"),
                 libraryBusy = false,
+                libraryFailed = false,
             )
         }
     }
@@ -2410,7 +2424,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         libraryJob?.cancel()
         libraryJob = viewModelScope.launch {
             mutable.update { it.copy(libraryBusy = true) }
-            try { fetchLibrary(false) } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(libraryBusy = false) } }
+            try { fetchLibrary(false) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { mutable.update { it.copy(libraryFailed = true) } }
+            finally { mutable.update { it.copy(libraryBusy = false) } }
         }
     }
 
@@ -2420,12 +2437,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         libraryJob = viewModelScope.launch {
             delay(300)
             mutable.update { it.copy(libraryBusy = true) }
-            try { fetchLibrary(false) } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(libraryBusy = false) } }
+            try { fetchLibrary(false) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { mutable.update { it.copy(libraryFailed = true) } }
+            finally { mutable.update { it.copy(libraryBusy = false) } }
         }
     }
 
     fun setLibraryFavoritesOnly(value: Boolean) {
         if (state.value.libraryFavoritesOnly == value) return
+        prefs.edit().putBoolean(LIB_FAVORITES_ONLY_KEY, value).apply()
         mutable.update { it.copy(libraryFavoritesOnly = value) }
         refreshLibrary()
     }
@@ -2434,7 +2455,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (state.value.offline || !state.value.libraryHasMore || state.value.libraryBusy) return
         libraryJob = viewModelScope.launch {
             mutable.update { it.copy(libraryBusy = true) }
-            try { fetchLibrary(true) } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(libraryBusy = false) } }
+            try { fetchLibrary(true) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { notify("追加読み込みに失敗しました。もう一度お試しください。") }
+            finally { mutable.update { it.copy(libraryBusy = false) } }
         }
     }
 
@@ -2443,23 +2467,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         try {
             val reply = api.post("/api/files/favorite", JSONObject().put("filepath", file.filepath), token())
             val favorite = reply.optBoolean("is_favorite")
-            mutable.update { current -> current.copy(library = current.library.map {
-                if (it.filepath == file.filepath) it.copy(isFavorite = favorite) else it
-            }) }
+            mutable.update { current -> current.copy(
+                library = current.library.map { if (it.filepath == file.filepath) it.copy(isFavorite = favorite) else it },
+                notice = if (favorite) "お気に入りに追加しました" else "お気に入りから外しました",
+            ) }
             state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.saveLibrary(account.id, state.value.library) } }
-        } catch (e: Exception) { report(e) }
+        } catch (e: Exception) { notify("お気に入りの更新に失敗しました") }
     } }
 
     fun renameLibraryFile(file: LibraryFile, name: String) { viewModelScope.launch {
         if (state.value.offline) { notify("オフライン中はファイル名を変更できません。"); return@launch }
         try {
-            val reply = api.post("/api/files/rename", JSONObject().put("filepath", file.filepath).put("filename", name), token())
-            val display = reply.optString("filename", name)
-            mutable.update { current -> current.copy(library = current.library.map {
-                if (it.filepath == file.filepath) it.copy(displayName = display) else it
-            }) }
+            if (name.isBlank()) { notify("ファイル名を入力してください"); return@launch }
+            val reply = api.post("/api/files/rename", JSONObject().put("filepath", file.filepath).put("filename", name.trim()), token())
+            val display = reply.optString("filename", name.trim())
+            mutable.update { current -> current.copy(
+                library = current.library.map { if (it.filepath == file.filepath) it.copy(displayName = display) else it },
+                attachments = current.attachments.map { if (it.reference == file.filepath) it.copy(name = display) else it },
+                notice = "ファイル名を変更しました",
+            ) }
             state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.saveLibrary(account.id, state.value.library) } }
-        } catch (e: Exception) { report(e) }
+        } catch (e: ApiException) { notify(e.payload.optString("error").ifBlank { "名前変更に失敗しました" }) }
+        catch (e: Exception) { notify("名前変更に失敗しました") }
     } }
 
     fun deleteLibraryFile(file: LibraryFile) { viewModelScope.launch {
@@ -2468,7 +2497,80 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             api.post("/api/files/delete", JSONObject().put("filenames", JSONArray().put(file.filepath)), token())
             state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.deleteLibraryFile(account.id, file.filepath) } }
             mutable.update { current -> current.copy(library = current.library.filterNot { it.filepath == file.filepath }) }
-        } catch (e: Exception) { report(e) }
+        } catch (e: Exception) { notify("削除に失敗しました") }
+    } }
+
+    /** Web `deleteSelectedFiles`: one batch request, then the list is reloaded. */
+    fun deleteLibraryFiles(filepaths: List<String>) { viewModelScope.launch {
+        if (state.value.offline) { notify("オフライン中はファイルを削除できません。"); return@launch }
+        try {
+            api.post("/api/files/delete", JSONObject().put("filenames", JSONArray(filepaths)), token())
+            state.value.account?.let { account ->
+                withContext(Dispatchers.IO) { filepaths.forEach { offlineCache.deleteLibraryFile(account.id, it) } }
+            }
+            mutable.update { it.copy(libraryBusy = true) }
+            try { fetchLibrary(false) } finally { mutable.update { it.copy(libraryBusy = false) } }
+        } catch (e: Exception) { notify("削除エラー") }
+    } }
+
+    fun setLibrarySort(order: String) {
+        if (order !in LIBRARY_SORTS || state.value.librarySort == order) return
+        prefs.edit().putString(LIB_SORT_KEY, order).apply()
+        mutable.update { it.copy(librarySort = order) }
+        refreshLibrary()
+    }
+
+    /**
+     * Web `attachSelectedLibraryFiles`: adds the files without uploading again, skipping audio or video
+     * the current model cannot take (`getModelMediaSupport`).
+     */
+    fun attachLibraryFiles(files: List<LibraryFile>) {
+        val support = modelMediaSupport(state.value.model)
+        var skippedAudio = 0
+        var skippedVideo = 0
+        val added = mutableListOf<Attachment>()
+        files.forEach { file ->
+            val audio = isAudioPath(file.filepath)
+            val video = isVideoPath(file.filepath)
+            if ((audio && !support.first) || (video && !support.second)) {
+                if (audio) skippedAudio += 1
+                if (video) skippedVideo += 1
+                return@forEach
+            }
+            if (state.value.attachments.none { it.reference == file.filepath } && added.none { it.reference == file.filepath }) {
+                added += Attachment(file.displayName, file.filepath, "")
+            }
+        }
+        val parts = listOfNotNull(skippedAudio.takeIf { it > 0 }?.let { "${it}件の音声" }, skippedVideo.takeIf { it > 0 }?.let { "${it}件の動画" })
+        mutable.update { it.copy(
+            attachments = it.attachments + added,
+            notice = if (parts.isNotEmpty()) "このモデルは${parts.joinToString("・")}入力に非対応のため除外しました" else "ライブラリから添付しました",
+        ) }
+    }
+
+    /** Web `showSelectedFileUsage`: chats that reference the file (up to 100) and whether more exist. */
+    suspend fun libraryFileUsage(file: LibraryFile): Pair<List<FileUsageChat>, Boolean> {
+        val reply = api.get("/api/files/usage?filepath=" + URLEncoder.encode(file.filepath, "UTF-8"), token())
+        val rows = reply.optJSONArray("chats") ?: JSONArray()
+        val chats = (0 until rows.length()).map { index ->
+            val row = rows.getJSONObject(index)
+            FileUsageChat(row.optString("id"), row.nullableString("title").ifBlank { "新しいチャット" }, row.nullableString("updated_at"))
+        }
+        return chats to reply.optBoolean("has_more")
+    }
+
+    /** Web `downloadSelectedLibraryFiles`: fetches each file for the chosen save location. */
+    fun saveLibraryFiles(files: List<LibraryFile>, target: suspend (LibraryFile, File, String) -> Unit) { viewModelScope.launch {
+        var saved = 0
+        files.forEach { file ->
+            runCatching {
+                val (local, mime) = downloadAttachment(file.url.ifBlank { file.filepath })
+                target(file, local, mime)
+                local.delete()
+            }.onSuccess { saved += 1 }
+        }
+        if (saved == files.size) notify("${files.size}件のファイルをダウンロードしました")
+        else notify("ダウンロードに失敗しました（${files.size - saved}件）")
     } }
 
     /** Reuses a library file as a composer attachment without re-uploading it. */
@@ -2738,6 +2840,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val CHUNK_UPLOAD_THRESHOLD_BYTES = 8L * 1024 * 1024
+        const val LIB_SORT_KEY = "lib_sort_order"
+        const val LIB_FAVORITES_ONLY_KEY = "lib_favorites_only"
         const val MAX_SINGLE_UPLOAD_BYTES = 64L * 1024 * 1024
         const val PREF_BROWSER_LOGIN_VERIFIER = "browser_login_pkce_verifier"
         const val PREF_BROWSER_LOGIN_STARTED_AT = "browser_login_started_at"

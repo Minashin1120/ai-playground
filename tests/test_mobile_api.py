@@ -246,6 +246,50 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json['error'], 'turnstile_required')
 
+    def test_signed_in_turnstile_check_issues_an_account_bound_ticket(self):
+        token = self.token()
+        with mock.patch.object(target, '_bot_turnstile_active', return_value=True), \
+             mock.patch.object(target, '_bot_turnstile_verified', return_value=False):
+            blocked = self.call('/chat_stream', token, 'POST', json={'message': 'hello'})
+            self.assertEqual(blocked.status_code, 403)
+            self.assertEqual(blocked.json['error'], 'turnstile_required')
+            started = self.call('/api/mobile/v1/security/turnstile', token, 'POST', json={})
+            self.assertEqual(started.status_code, 200)
+            url = started.json['turnstile_url']
+            self.assertTrue(url.startswith('/android/integrity/turnstile?challenge='))
+            page = self.browser.get(url, base_url='https://localhost')
+            self.assertEqual(page.status_code, 200)
+            csrf_token = page.data.decode().split('name="csrf_token" value="', 1)[1].split('"', 1)[0]
+            challenge = url.split('=', 1)[1]
+            with mock.patch.object(target, 'verify_turnstile', return_value=False):
+                failed = self.browser.post('/android/integrity/turnstile/verify', base_url='https://localhost', data={
+                    'challenge': challenge, 'csrf_token': csrf_token, 'cf-turnstile-response': 'bad'})
+            self.assertEqual(failed.status_code, 403)
+            with mock.patch.object(target, 'verify_turnstile', return_value=True):
+                verified = self.browser.post('/android/integrity/turnstile/verify', base_url='https://localhost', data={
+                    'challenge': challenge, 'csrf_token': csrf_token, 'cf-turnstile-response': 'ok'})
+            self.assertEqual(verified.status_code, 303)
+            self.assertTrue(verified.location.startswith('https://ai.minashin1120.com/android/auth/callback?turnstile_ticket='))
+            ticket = verified.location.split('turnstile_ticket=', 1)[1]
+            # The ticket cannot be exchanged for a login and only this account can redeem it.
+            self.assertEqual(self.native.post('/api/mobile/v1/auth/login', base_url='https://localhost', json={
+                'username': 'android-owner', 'password': 'x', 'device_name': 'Pixel',
+                'integrity_enabled': True, 'integrity_turnstile_ticket': ticket,
+            }).status_code, 428)
+            foreign = 'f' * 43
+            self.redis.set('mobile:turnstile:session:' + target._mobile_digest(foreign), str(self.other_id), ex=60)
+            self.assertEqual(self.call('/api/mobile/v1/security/turnstile/complete', token, 'POST',
+                                       json={'ticket': foreign}).status_code, 410)
+            completed = self.call('/api/mobile/v1/security/turnstile/complete', token, 'POST', json={'ticket': ticket})
+            self.assertEqual(completed.status_code, 200)
+            self.assertEqual(completed.json['status'], 'ok')
+            self.assertTrue(self.redis.exists(f'bot:tst:v:{self.user_id}'))
+            replay = self.call('/api/mobile/v1/security/turnstile/complete', token, 'POST', json={'ticket': ticket})
+            self.assertEqual(replay.status_code, 410)
+        # Browsers cannot use the native endpoints with their session cookie.
+        self.assertIn(self.browser.post('/api/mobile/v1/security/turnstile', base_url='https://localhost',
+                                        json={}).status_code, (400, 401))
+
     def test_native_upload_download_and_foreign_file_denial(self):
         token = self.token()
         response = self.call('/upload', token, 'POST', data={'file': (io.BytesIO(b'android attachment'), 'note.txt')},

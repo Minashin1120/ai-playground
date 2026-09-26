@@ -626,6 +626,10 @@ fun PlaygroundScreen(
             }
             state.mcpDecision?.let { decision -> key(decision.id) { McpDecisionDialog(decision, model::resolveMcpDecision) } }
             state.accountLock?.let { lock -> AccountLockOverlay(lock, model::accountLockExpired) }
+            state.sessionTurnstileUrl?.let { url ->
+                LaunchedEffect(url) { onWeb(url) }
+                SessionTurnstileOverlay(onOpen = { onWeb(url) }, onDismiss = model::dismissSessionTurnstile)
+            }
             state.apiKeyPrompt?.let { modelId ->
                 apiKeyInfoFor(modelId)?.let { info ->
                     ApiKeyRequiredDialog(model.modelDisplayName(modelId), modelId, info, onSave = model::saveApiKeyAndResend,

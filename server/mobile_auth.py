@@ -15,6 +15,8 @@ MOBILE_ENDPOINT_METHODS = {
     'mobile_security_totp_disable': {'POST'},
     'mobile_security_passkey_options': {'POST'}, 'mobile_security_passkey_verify': {'POST'},
     'mobile_security_passkey_remove': {'POST'}, 'mobile_security_preferences': {'POST'},
+    # Chat Turnstile gate for a signed-in app: browser check, then a ticket redeemed here.
+    'mobile_security_turnstile': {'POST'}, 'mobile_security_turnstile_complete': {'POST'},
     # In-app account ZIP import during first-run setup reuses the tested Web
     # chunked-upload routes with the native bearer token.
     'start_account_import_upload': {'POST'}, 'account_import_upload_chunk': {'POST'},

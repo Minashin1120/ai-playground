@@ -53,6 +53,8 @@ data class ChatState(
     val auth2faMethod: String = "totp", val credentialRequest: CredentialRequest? = null,
     val googleLoginRequest: Long = 0L, val googleServerClientId: String = "",
     val integrityProjectNumber: String = "", val authTurnstileUrl: String? = null,
+    /** The chat Turnstile check page (Web `#bot-detection-overlay`) while it is open in the browser. */
+    val sessionTurnstileUrl: String? = null,
     val googleAuthDiagnostics: String? = null,
     val security: SecurityInfo? = null, val securityBusy: Boolean = false, val securityError: String? = null,
     val securityTotpSecret: String? = null, val securityTotpUri: String? = null,
@@ -343,6 +345,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             throw error
         }
     }
+
+    /** Opens the browser Turnstile check for this signed-in account (server `mobile_security_turnstile`). */
+    fun startSessionTurnstile() { viewModelScope.launch {
+        try {
+            val reply = api.post("/api/mobile/v1/security/turnstile", JSONObject(), token())
+            val url = reply.optString("turnstile_url")
+            if (url.startsWith("/android/integrity/turnstile?")) mutable.update { it.copy(sessionTurnstileUrl = url) }
+            else notify("安全性の確認を完了しました。もう一度送信してください。")
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { notify("安全性の確認を完了できませんでした。しばらく待ってから再送信してください。") }
+    } }
+
+    /** The browser check came back with a ticket that only this account can redeem. */
+    fun completeSessionTurnstile(ticket: String) {
+        if (ticket.length !in 20..128) return
+        viewModelScope.launch {
+            val ok = runCatching {
+                api.post("/api/mobile/v1/security/turnstile/complete", JSONObject().put("ticket", ticket), token())
+            }.isSuccess
+            mutable.update { it.copy(sessionTurnstileUrl = null) }
+            notify(if (ok) "安全性の確認を完了しました。もう一度送信してください。"
+                else "安全性の確認を完了できませんでした。しばらく待ってから再送信してください。")
+        }
+    }
+
+    fun dismissSessionTurnstile() { mutable.update { it.copy(sessionTurnstileUrl = null) } }
 
     fun integrityTurnstileComplete(ticket: String) {
         if (ticket.length !in 20..128) return
@@ -2110,6 +2138,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         apiKeyMissingMessage = e.payload.optString("error").ifBlank { null }
                         mutable.update { it.copy(apiKeyPrompt = e.payload.optString("model").ifBlank { modelId }) }
                     }
+                    // Web re-runs Turnstile, then asks to send again.
+                    e is ApiException && e.code == "turnstile_required" -> startSessionTurnstile()
                     e is ApiException && (e.code == "banned" || e.status == 401) -> report(e)
                     e is ApiException -> notify("Connection Error: " + e.payload.optString("error").ifBlank { "HTTP ${e.status}" })
                     else -> notify("Connection Error: " + (e.message ?: "通信に失敗しました"))

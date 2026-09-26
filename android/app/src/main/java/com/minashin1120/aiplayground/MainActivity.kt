@@ -82,6 +82,7 @@ class MainActivity : ComponentActivity() {
         if (data.scheme != "https" || data.host != "ai.minashin1120.com" || data.path != "/android/auth/callback") return
         intent?.data = null
         data.getQueryParameter("integrity_ticket")?.let { model.integrityTurnstileComplete(it); return }
+        data.getQueryParameter("turnstile_ticket")?.let { model.completeSessionTurnstile(it); return }
         data.getQueryParameter("linked")?.let { model.linkCompleted(it); return }
         when (data.getQueryParameter("error")) {
             // Same messages as the Web settings link flow.

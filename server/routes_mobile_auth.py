@@ -158,6 +158,13 @@ def mobile_integrity_turnstile_verify():
     if not challenge_action:
         return '確認リンクの期限が切れました。アプリからやり直してください。', 410
     challenge_action = challenge_action.decode('utf-8') if isinstance(challenge_action, bytes) else str(challenge_action)
+    session_user = re.fullmatch(r'session:(\d+)', challenge_action)
+    if session_user:
+        # A signed-in app asked to pass the chat Turnstile gate; the app redeems
+        # this ticket with its own bearer token (mobile_security_turnstile_complete).
+        ticket = secrets.token_urlsafe(32)
+        redis_conn.set(_mobile_session_turnstile_key(ticket), session_user.group(1), ex=300, nx=True)
+        return redirect('https://ai.minashin1120.com/android/auth/callback?turnstile_ticket=' + quote(ticket), code=303)
     if challenge_action not in {
         '/api/mobile/v1/auth/signup', '/api/mobile/v1/auth/login', '/api/mobile/v1/auth/google',
         '/api/mobile/v1/auth/totp', '/api/mobile/v1/auth/exchange',
@@ -168,6 +175,50 @@ def mobile_integrity_turnstile_verify():
     ticket = secrets.token_urlsafe(32)
     redis_conn.set('mobile:integrity:turnstile:' + _mobile_digest(ticket), challenge_action, ex=300, nx=True)
     return redirect('https://ai.minashin1120.com/android/auth/callback?integrity_ticket=' + quote(ticket), code=303)
+
+
+def _mobile_session_turnstile_key(ticket):
+    return 'mobile:turnstile:session:' + _mobile_digest(str(ticket))
+
+
+@app.route('/api/mobile/v1/security/turnstile', methods=['POST'])
+def mobile_security_turnstile():
+    """Start the chat Turnstile check for a signed-in app (Web shows the widget in place).
+
+    The app opens the returned page in the browser; after Turnstile it comes back
+    with a one-time ticket that only this account can redeem.
+    """
+    if not _bot_turnstile_active():
+        return jsonify({'status': 'ok', 'skipped': True})
+    if current_user.is_bot_banned:
+        return _mobile_error('banned', 403)
+    if _bot_turnstile_verified():
+        return jsonify({'status': 'ok', 'already': True})
+    if not rate_limit(f'rl:mobile:turnstile:user:{current_user.id}', 10, 300):
+        return _mobile_error('rate_limit', 429)
+    challenge = secrets.token_urlsafe(32)
+    redis_conn.set('mobile:integrity:challenge:' + _mobile_digest(challenge), f'session:{current_user.id}', ex=300, nx=True)
+    return jsonify({'turnstile_url': _mobile_integrity_turnstile_url(challenge), 'expires_in': 300})
+
+
+@app.route('/api/mobile/v1/security/turnstile/complete', methods=['POST'])
+def mobile_security_turnstile_complete():
+    body = request.get_json(silent=True) or {}
+    ticket = body.get('ticket')
+    if not isinstance(ticket, str) or not re.fullmatch(r'[A-Za-z0-9_-]{40,60}', ticket):
+        return _mobile_error('turnstile_expired', 410)
+    owner = _mobile_integrity_consume_challenge(_mobile_session_turnstile_key(ticket))
+    owner = owner.decode('utf-8') if isinstance(owner, bytes) else owner
+    if owner != str(current_user.id):
+        return _mobile_error('turnstile_expired', 410)
+    if not _bot_turnstile_active():
+        return jsonify({'status': 'ok', 'skipped': True})
+    if current_user.is_bot_banned:
+        return _mobile_error('banned', 403)
+    if _bot_turnstile_register_success():
+        return _mobile_error('banned', 403)
+    _log_bot_evidence('verify_ok', details='android')
+    return jsonify({'status': 'ok'})
 
 
 def _mobile_auth_tx_key(transaction_id):

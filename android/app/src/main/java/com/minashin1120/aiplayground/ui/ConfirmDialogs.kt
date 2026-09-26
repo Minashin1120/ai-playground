@@ -197,6 +197,36 @@ internal fun AccountLockOverlay(lock: com.minashin1120.aiplayground.data.Account
 }
 
 /**
+ * Web `#bot-detection-overlay` for the chat Turnstile check. The check runs on the site in the browser
+ * (Android cannot host the widget), so the card offers to open it again or to close.
+ */
+@Composable
+internal fun SessionTurnstileOverlay(onOpen: () -> Unit, onDismiss: () -> Unit) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false, usePlatformDefaultWidth = false),
+    ) {
+        WebModalWindow(0.dp)
+        Box(Modifier.fillMaxSize().background(Color(3, 7, 18).copy(alpha = 0.92f)).padding(24.dp), contentAlignment = Alignment.Center) {
+            val shape = RoundedCornerShape(12.dp)
+            Column(
+                Modifier.widthIn(max = 420.dp).fillMaxWidth().clip(shape).background(Color(0xFF0F172A)).border(1.dp, Color(0xFF334155), shape)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("安全性の確認中...", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF1F5F9))
+                Text("自動アクセス防止のため、確認を完了してください。", fontSize = 12.sp, lineHeight = 19.2.sp, color = Color(0xFF94A3B8),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    WebButton(onClick = onDismiss) { Text("閉じる") }
+                    WebButton(onClick = onOpen, variant = WebButtonVariant.Primary) { Text("確認を開く") }
+                }
+            }
+        }
+    }
+}
+
+/**
  * Web `#api-key-required-modal`: save the missing key and send again, switch to another model,
  * or cancel and show the error.
  */

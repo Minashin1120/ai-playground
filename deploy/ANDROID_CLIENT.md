@@ -246,6 +246,8 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 | POST `/api/mobile/v1/security/passkeys/verify` | Bearer | `credential`, `name`（任意） | 更新後のセキュリティ状態 |
 | POST `/api/mobile/v1/security/passkeys/remove` | Bearer | `id` | 更新後のセキュリティ状態 |
 | POST `/api/mobile/v1/security/preferences` | Bearer | `default_2fa_method`（`totp`／`webauthn`）, `passkey_only_login`, `skip_2fa_on_google_login` | 更新後のセキュリティ状態 |
+| POST `/api/mobile/v1/security/turnstile` | Bearer | なし | Bot対策でチャットのTurnstile確認が必要なとき、ブラウザーで開く一回限りの確認ページ（`turnstile_url`、5分）。確認不要なら `skipped`、確認済みなら `already` |
+| POST `/api/mobile/v1/security/turnstile/complete` | Bearer | `ticket`（確認ページ完了後にApp Link `turnstile_ticket` で受け取る値） | 発行したアカウントだけが一回限り引き換えられ、Webの `/api/bot/turnstile-verify` 成功時と同じ確認済み状態にする。期限切れ・他アカウント・再利用は410 |
 
 パスキー認証はユーザー検証必須（`user_verification=REQUIRED`）です。パスキーのみログインは事前にパスキー登録が必要で、未登録で要求すると400 `passkey_required` を返します。Webと同じく、パスキー単独でのログインは `passkey_only_login` を有効にしたアカウントだけが利用でき、無効な場合のパスキーは2FAの2要素目としてだけ使います。無効化後は発行済みの開始トランザクションも検証で拒否します。未知アカウント、パスキー未登録、パスキーのみログイン無効の開始要求は、存在確認につながらないよう401 `passkey_unavailable` で統一します。
 
@@ -804,7 +806,7 @@ configは200 JSON、未認証meは401 JSONが期待値です。テスト出力�
 | 生成中に切断 | CDN/Gunicorn/Apache/端末の待機時間、回線変更、アプリのライフサイクル |
 | 再接続後に本文が重複 | 再接続前の仮表示バッファをクリアしているか、最後にDB履歴へ置き換えているか |
 
-Turnstileの確認にはアプリ内の「Webで安全性を確認」導線に加え、認証要求でPlay Integrityの判定が高リスクまたは不能の場合にCustom Tabを開く一回限りの確認を用意しています。Play Integrityは補助的な端末信号で、認証拒否には使いません。Bot対策対象アカウントでは別途継続利用中の再確認が必要になる場合があります。
+Turnstileの確認は、認証要求でPlay Integrityの判定が高リスクまたは不能の場合にCustom Tabを開く一回限りの確認を用意しています。Play Integrityは補助的な端末信号で、認証拒否には使いません。Bot対策対象アカウントがチャットで `turnstile_required` を受けた場合は、Web版の確認画面と同じ文言を表示し、`/api/mobile/v1/security/turnstile` の確認ページをCustom Tabで開きます。確認後はApp Linkの一回限りのticketをBearerで引き換え、「安全性の確認を完了しました。もう一度送信してください。」と表示します。確認ページの送信先はTurnstileの関門の対象外です。
 
 今後の拡張候補は、refresh tokenのローテーション、端末間E2EEの新しい設計、Webと説明・価格まで共有するモデルカタログ、イベント連番による再開です。Play IntegrityとTurnstileの認証フォールバックは実装済みですが、Play services搭載端末での実機確認が必要です。認可コード＋PKCEとHTTPS App Linksによるブラウザー認証からの復帰、パスキー、TOTP／WebAuthn 2FA、2FA・パスキー管理、アカウントZIPのチャンク取り込み（設定変更確認を含む）も実装済みです。
 

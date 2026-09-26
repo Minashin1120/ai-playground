@@ -50,7 +50,7 @@
 
 | 分野 | Web版 | Android版 | 理由 | 代替導線 |
 |---|---|---|---|---|
-| ログイン | Cookieセッション、各ログイン画面、Turnstile | ネイティブのログイン・登録・2FA画面、Bearerトークン（Android Keystoreで保存）、Play Integrity、判定できない場合のTurnstile代替経路。Google／MinashinはCredential ManagerまたはCustom Tabs＋App Links | CookieとBearerの認証境界を分離するため（`../deploy/ANDROID_CLIENT.md`） | — |
+| ログイン | Cookieセッション、各ログイン画面、Turnstile | ネイティブのログイン・登録・2FA画面、Bearerトークン（Android Keystoreで保存）、Play Integrity、判定できない場合のTurnstile代替経路。チャット中のTurnstile再確認はWebの確認画面と同じ文言のカードからCustom Tabの確認ページを開き、App Linkで戻る。Google／MinashinはCredential ManagerまたはCustom Tabs＋App Links | CookieとBearerの認証境界を分離するため（`../deploy/ANDROID_CLIENT.md`） | — |
 | セッション切れ | ログイン画面へ遷移 | 端末のトークンを消去して、ネイティブのログイン画面へ戻る | 同上 | — |
 | ログアウト | Cookieセッションを終了 | この端末のトークンを失効させる | 同上 | — |
 | BAN | `/banned` ページ | `/banned` ページと同じ内容をネイティブ画面で表示 | ページ遷移がない | — |
@@ -86,6 +86,7 @@
 
 | Android版 | 内容 |
 |---|---|
+| 1.30.0 | チャット中のTurnstile再確認をアプリ内の導線（Custom Tabの確認ページ）で行うことを認証の行へ記載
 | 1.29.0 | Canvasとリッチ貼り付けのPDF化の差を、実装した画面の内容（スマートフォンの初期表示、HTMLの状態表示、リッチ貼り付けの見出しと持たないボタン）に合わせて具体化 |
 | 1.20.0 | アカウント・セキュリティ・データ移行をアプリ内で実装し、重要な操作の前の「本人確認」を追加 |
 | 1.19.0 | 設定をWebの10タブへ作り直し、Android独自の「画像圧縮」「セッション」タブを廃止。Androidカードにバブルを含めた |

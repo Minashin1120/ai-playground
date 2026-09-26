@@ -546,6 +546,9 @@ _BOT_TURNSTILE_FAIL_COOLDOWN_SEC = 15
 # Endpoints a bot-detection-active, not-yet-verified user still needs to reach.
 _BOT_TURNSTILE_GATE_WHITELIST = {
     'mobile_revoke',
+    'mobile_security_turnstile',
+    'mobile_security_turnstile_complete',
+    'mobile_integrity_turnstile_verify',
     'bot_turnstile_verify',
     'bot_telemetry',
     'bot_lock',

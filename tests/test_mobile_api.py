@@ -526,6 +526,56 @@ class MobileApiTests(unittest.TestCase):
         foreign = self.call('/api/mobile/v1/sessions/revoke', token, 'POST', json={'id': 999999})
         self.assertEqual(foreign.status_code, 404)
 
+    def test_native_link_grant_requires_reauth_and_is_single_use(self):
+        password = self.set_password()
+        token = self.token()
+        self.assertEqual(self.call('/api/mobile/v1/account/link/google/start', token, 'POST', json={}).json['error'], 'reauth_required')
+        self.assertEqual(self.call('/api/mobile/v1/reauth', token, 'POST', json={'method': 'password', 'password': password}).status_code, 200)
+        self.assertEqual(self.call('/api/mobile/v1/account/link/github/start', token, 'POST', json={}).status_code, 404)
+        started = self.call('/api/mobile/v1/account/link/google/start', token, 'POST', json={})
+        self.assertEqual(started.status_code, 200)
+        path = started.json['path']
+        self.assertTrue(path.startswith('/android/link/google?grant='))
+        browser = target.app.test_client()
+        with mock.patch.object(target.oauth.google, 'authorize_redirect', return_value=target.redirect('https://accounts.google.com/o/oauth2')) as authorize:
+            opened = browser.get(path, base_url='https://localhost')
+        self.assertEqual(opened.status_code, 302)
+        self.assertTrue(authorize.called)
+        with browser.session_transaction() as sess:
+            self.assertEqual(sess['mobile_native_link_user'], self.user_id)
+            self.assertEqual(sess['mobile_native_link_provider'], 'google')
+        # The grant cannot be replayed from another browser.
+        replay = target.app.test_client().get(path, base_url='https://localhost')
+        self.assertIn('error=link_expired', replay.headers['Location'])
+        # A later native sign-in in the same browser drops the pending link.
+        with mock.patch.object(target.oauth.google, 'authorize_redirect', return_value=target.redirect('https://accounts.google.com/o/oauth2')):
+            browser.get('/android/auth/google/start?code_challenge=' + 'a' * 43, base_url='https://localhost')
+        with browser.session_transaction() as sess:
+            self.assertNotIn('mobile_native_link_user', sess)
+
+    def test_native_google_callback_links_the_granted_user(self):
+        browser = target.app.test_client()
+        with browser.session_transaction() as sess:
+            sess['mobile_native_google'] = True
+            sess['mobile_native_link_user'] = self.user_id
+            sess['mobile_native_link_provider'] = 'google'
+        userinfo = {'sub': 'google-sub-1', 'email': 'owner@example.com', 'email_verified': True}
+        with mock.patch.object(target.oauth.google, 'authorize_access_token', return_value={'userinfo': userinfo}):
+            linked = browser.get('/android/auth/google/callback', base_url='https://localhost')
+        self.assertIn('linked=google', linked.headers['Location'])
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertEqual(user.google_id, 'google-sub-1')
+        # Another user cannot take over an identity that is already linked.
+        other = target.app.test_client()
+        with other.session_transaction() as sess:
+            sess['mobile_native_google'] = True
+            sess['mobile_native_link_user'] = self.other_id
+            sess['mobile_native_link_provider'] = 'google'
+        with mock.patch.object(target.oauth.google, 'authorize_access_token', return_value={'userinfo': userinfo}):
+            refused = other.get('/android/auth/google/callback', base_url='https://localhost')
+        self.assertIn('error=google_already_linked', refused.headers['Location'])
+
     def test_native_totp_setup_returns_web_qr_and_scan_is_available(self):
         token = self.token()
         setup = self.call('/api/mobile/v1/security/totp/setup', token, 'POST', json={})

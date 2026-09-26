@@ -155,10 +155,11 @@ private fun linkCard(
                     } }
                     .padding(horizontal = 16.dp, vertical = 8.dp))
         } else {
-            // Linking needs the provider sign-in in a browser tab (Phase 3c); until then it opens Web.
+            // The provider sign-in runs in a browser tab and returns through the App Link.
             Text(linkLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White,
                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(web.theme.t600)
-                    .clickableRole { ctx.onWeb("/settings") }.padding(horizontal = 16.dp, vertical = 8.dp))
+                    .clickableRole { ctx.ops.run("連携を開始できませんでした") { ctx.onWeb(linkStart(key)) } }
+                    .padding(horizontal = 16.dp, vertical = 8.dp))
         }
     }
 }
@@ -511,7 +512,7 @@ internal fun accountDataCard(transfer: TransferUiState, importForm: ImportFormSt
                     else -> ctx.confirm("次のデータをインポートします。既存データは削除されません。すでに同じ内容のデータがある場合はスキップされます。\n\n" +
                         selected.joinToString("、") { it.second } +
                         (if (importForm.inplace) "\n※「元の場所へ復元」: このアカウントの同名ファイルを上書きします" else "") + "\n\n続行しますか？") {
-                        controller.import(uri, selected.map { it.first }, importForm.inplace, importForm.settingsBypass)
+                        controller.startImport(uri, selected.map { it.first }, importForm.inplace, importForm.settingsBypass)
                     }
                 }
             }, tone = SettingsButtonTone.Emerald, enabled = !transfer.running, icon = R.drawable.fa_solid_file_import, fill = true)

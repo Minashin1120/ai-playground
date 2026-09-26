@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
                     val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
                         .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     try { startActivity(Intent.createChooser(intent, "添付を開く")) }
-                    catch (_: Exception) { model.notify("この添付を開けるアプリが見つかりません。") }
+                    catch (ignored: Exception) { model.notify("この添付を開けるアプリが見つかりません。") }
                 }
             })
         }
@@ -82,6 +82,12 @@ class MainActivity : ComponentActivity() {
         if (data.scheme != "https" || data.host != "ai.minashin1120.com" || data.path != "/android/auth/callback") return
         intent?.data = null
         data.getQueryParameter("integrity_ticket")?.let { model.integrityTurnstileComplete(it); return }
+        data.getQueryParameter("linked")?.let { model.linkCompleted(it); return }
+        when (data.getQueryParameter("error")) {
+            // Same messages as the Web settings link flow.
+            "google_already_linked" -> { model.notify("この Google アカウントは既に他のユーザーに紐付けられています。"); return }
+            "minashin_already_linked" -> { model.notify("この Minashin アカウントは既に他のユーザーに紐付けられています。"); return }
+        }
         data.getQueryParameter("code")?.let { model.exchangeNativeCode(it); return }
         data.getQueryParameter("error")?.let { model.notify("外部ログインに失敗しました。($it)") }
     }
@@ -109,7 +115,7 @@ class MainActivity : ComponentActivity() {
                     startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
                         putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
                     })
-                } catch (_: Exception) {
+                } catch (ignored: Exception) {
                     model.notify("Androidの通知設定を開けません。設定からAI Playgroundのバブルを許可してください。")
                 }
             }
@@ -127,7 +133,7 @@ class MainActivity : ComponentActivity() {
             updateModel.awaitInstallPermission()
             try {
                 startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
-            } catch (_: Exception) {
+            } catch (ignored: Exception) {
                 updateModel.installFailed("Androidのインストール設定を開けません。端末の設定から許可してください。")
             }
             return
@@ -140,14 +146,14 @@ class MainActivity : ComponentActivity() {
         updateModel.markInstalling()
         try {
             installerLauncher.launch(intent)
-        } catch (_: Exception) {
+        } catch (ignored: Exception) {
             updateModel.installFailed("Androidのインストーラーを開けません。端末の設定を確認してください。")
         }
     }
 
     private fun openExternalUrl(url: String) {
         try { CustomTabsIntent.Builder().build().launchUrl(this, Uri.parse(url)) }
-        catch (_: Exception) { model.notify("ブラウザーを開けません。ブラウザーをインストールして再試行してください。") }
+        catch (ignored: Exception) { model.notify("ブラウザーを開けません。ブラウザーをインストールして再試行してください。") }
     }
 
     override fun onStart() { super.onStart(); model.setForeground(true) }

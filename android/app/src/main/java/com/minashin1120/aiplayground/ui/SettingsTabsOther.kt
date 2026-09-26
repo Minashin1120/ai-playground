@@ -167,11 +167,11 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
 )
 
 internal fun mcpCards(state: ChatState, model: ChatViewModel, extras: SettingsExtras, ops: AccountOps): List<SettingsCardSpec> {
-    val status = McpStatus()
     return listOf(
         SettingsCardSpec(SettingsTab.Mcp, "servers", "外部MCPサーバー連携",
             "外部MCPサーバー連携 MCP（Model Context Protocol）で、チャット中に Gmail や Google Drive などの外部ツールをモデルから利用できるようになります。 Google Workspace 連携（OAuthクライアント情報） 登録済みサーバー 接続テスト ツール一覧") {
             val web = LocalWebPalette.current
+            val status = remember { McpStatus() }
             SettingsDesc("MCP（Model Context Protocol）で、チャット中に Gmail や Google Drive などの外部ツールをモデルから利用できるようになります。サーバーごとに「有効」にすると、そのツールがチャットで使えるようになります（変更を伴う操作は実行前に確認されます）。",
                 Modifier.padding(bottom = 12.dp))
             // ANDROID_ONLY.md: OAuth client credentials are registered on Web.
@@ -194,8 +194,8 @@ internal fun mcpCards(state: ChatState, model: ChatViewModel, extras: SettingsEx
                     fontSize = 11.sp, color = Tw.gray600, modifier = Modifier.padding(vertical = 8.dp))
                 state.mcpServers.forEach { server -> McpServerRow(server, model, ops, status) }
             }
-            if (state.mcpBusy && state.mcpServers.isEmpty()) status.set("読み込み中...", false)
-            status.message?.let { Text(it, fontSize = 11.sp, color = if (status.error) Color(0xFFF87171) else Tw.gray400, modifier = Modifier.padding(top = 8.dp)) }
+            val loadingText = if (state.mcpBusy && state.mcpServers.isEmpty()) "読み込み中..." else null
+            (loadingText ?: status.message)?.let { Text(it, fontSize = 11.sp, color = if (status.error) Color(0xFFF87171) else Tw.gray400, modifier = Modifier.padding(top = 8.dp)) }
         },
         SettingsCardSpec(SettingsTab.Mcp, "custom", "カスタムMCPサーバーを追加",
             // `fa-plus-circle` is not in the Web icon subset, so the title has no glyph there either.

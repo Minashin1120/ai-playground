@@ -471,6 +471,8 @@ def mobile_auth_exchange():
 
 @app.route('/android/auth/callback', methods=['GET'])
 def mobile_auth_callback():
+    if request.args.get('linked'):
+        return "連携が完了しました。AI Playgroundアプリに戻ってください。", 200
     if request.args.get('code'):
         return "認証が完了しました。AI Playgroundアプリに戻ってください。", 200
     return "認証に失敗しました。AI Playgroundアプリで再試行してください。", 400
@@ -478,6 +480,9 @@ def mobile_auth_callback():
 
 @app.route('/android/auth/google/start', methods=['GET'])
 def mobile_google_start():
+    # A sign-in never completes an abandoned settings link started in the same browser.
+    session.pop('mobile_native_link_user', None)
+    session.pop('mobile_native_link_provider', None)
     session['mobile_native_google'] = True
     session['mobile_native_device_name'] = _mobile_native_device_name(request.args.get('device_name'))
     session['mobile_native_code_challenge'] = _mobile_native_code_challenge(request.args)
@@ -487,6 +492,7 @@ def mobile_google_start():
 
 @app.route('/android/auth/google/callback', methods=['GET'])
 def mobile_google_callback():
+    link_user = _mobile_native_link_target('google')
     device_name = _mobile_native_device_name(session.pop('mobile_native_device_name', None))
     code_challenge = session.pop('mobile_native_code_challenge', None)
     session.pop('mobile_native_google', None)
@@ -499,6 +505,8 @@ def mobile_google_callback():
         email = str(user_info.get('email') or '').strip().lower()
         if not google_id or not email or len(email) > 128:
             return _mobile_native_redirect(error='google_identity_invalid')
+        if link_user is not None:
+            return _mobile_native_link_google(link_user, google_id, email)
         user = _resolve_or_create_google_user(google_id, email)
         if user.is_2fa_enabled and not user.skip_2fa_on_google_login:
             # The one-time code is exchanged by the app into its TOTP transaction;
@@ -512,6 +520,9 @@ def mobile_google_callback():
 
 @app.route('/android/auth/minashin/start', methods=['GET'])
 def mobile_minashin_start():
+    # A sign-in never completes an abandoned settings link started in the same browser.
+    session.pop('mobile_native_link_user', None)
+    session.pop('mobile_native_link_provider', None)
     session['mobile_native_auth'] = True
     session['mobile_native_device_name'] = _mobile_native_device_name(request.args.get('device_name'))
     session['mobile_native_code_challenge'] = _mobile_native_code_challenge(request.args)
@@ -520,6 +531,7 @@ def mobile_minashin_start():
 
 
 def _mobile_minashin_callback_native():
+    link_user = _mobile_native_link_target('minashin')
     device_name = _mobile_native_device_name(session.pop('mobile_native_device_name', None))
     code_challenge = session.pop('mobile_native_code_challenge', None)
     session.pop('mobile_native_auth', None)
@@ -557,6 +569,8 @@ def _mobile_minashin_callback_native():
             return _mobile_native_redirect(error='minashin_identity_invalid')
         if user_data.get('email_verified') is False or str(user_data.get('email_verified')) == 'False':
             email = ''
+        if link_user is not None:
+            return _mobile_native_link_minashin(link_user, sub, email)
         user = _resolve_or_create_minashin_user(sub, email, user_data)
         return _mobile_native_redirect(code=_mobile_native_auth_code(user, device_name, 'minashin', code_challenge))
     except Exception:

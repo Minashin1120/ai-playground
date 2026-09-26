@@ -247,3 +247,85 @@ def mobile_security_e2ee():
         return jsonify({'status': 'ok', 'message': None})
     task_queue.enqueue(migrate_e2ee_task, current_user.id, target)
     return jsonify({'status': 'ok', 'message': '暗号化設定の変更処理を開始しました。完了までしばらくお待ちください。'})
+
+
+# --- Google / Minashin linking from the settings Account tab ------------------
+# The provider sign-in runs in a browser tab without the app's bearer token, so
+# the app first obtains a one-time grant (after a re-authentication) and opens
+# /android/link/<provider>?grant=…; the native OAuth callbacks then link the
+# verified identity to that user exactly like the Web settings link flow.
+
+_MOBILE_LINK_TTL = 600
+_MOBILE_LINK_PROVIDERS = ('google', 'minashin')
+
+
+def _mobile_link_grant_key(grant):
+    return 'mobile:link:' + _mobile_digest(grant)
+
+
+@app.route('/api/mobile/v1/account/link/<provider>/start', methods=['POST'])
+def mobile_account_link_start(provider):
+    if provider not in _MOBILE_LINK_PROVIDERS:
+        return _mobile_error('invalid_provider', 404)
+    grant = secrets.token_urlsafe(32)
+    redis_conn.set(_mobile_link_grant_key(grant), json.dumps({'user_id': current_user.id, 'provider': provider}),
+                   ex=_MOBILE_LINK_TTL)
+    return jsonify({'status': 'ok', 'path': url_for('mobile_account_link_open', provider=provider, grant=grant),
+                    'expires_in': _MOBILE_LINK_TTL})
+
+
+@app.route('/android/link/<provider>', methods=['GET'])
+def mobile_account_link_open(provider):
+    grant = str(request.args.get('grant') or '')
+    if provider not in _MOBILE_LINK_PROVIDERS or not re.fullmatch(r'[A-Za-z0-9_-]{43}', grant):
+        return _mobile_native_redirect(error='link_invalid')
+    key = _mobile_link_grant_key(grant)
+    payload = _mobile_redis_json(key)
+    redis_conn.delete(key)
+    if not payload or payload.get('provider') != provider:
+        return _mobile_native_redirect(error='link_expired')
+    for stale in ('mobile_native_google', 'mobile_native_auth', 'mobile_native_device_name', 'mobile_native_code_challenge'):
+        session.pop(stale, None)
+    session['mobile_native_link_user'] = int(payload.get('user_id') or 0)
+    session['mobile_native_link_provider'] = provider
+    if provider == 'google':
+        session['mobile_native_google'] = True
+        return oauth.google.authorize_redirect(url_for('mobile_google_callback', _external=True, _scheme='https'))
+    session['mobile_native_auth'] = True
+    return login_minashin()
+
+
+def _mobile_native_link_target(provider):
+    """Pops the pending link for [provider]; returns the user to link or None."""
+    user_id = session.pop('mobile_native_link_user', None)
+    linked_provider = session.pop('mobile_native_link_provider', None)
+    if not user_id or linked_provider != provider:
+        return None
+    return db.session.get(User, int(user_id))
+
+
+def _mobile_native_link_redirect(provider, error=None):
+    params = {'error': error} if error else {'linked': provider}
+    return redirect(url_for('mobile_auth_callback', _external=True, _scheme='https', **params))
+
+
+def _mobile_native_link_google(user, google_id, email):
+    existing = User.query.filter_by(google_id=google_id).first()
+    if existing and existing.id != user.id:
+        return _mobile_native_link_redirect('google', 'google_already_linked')
+    user.google_id = google_id
+    if not user.google_email:
+        user.google_email = email
+    safe_db_commit()
+    return _mobile_native_link_redirect('google')
+
+
+def _mobile_native_link_minashin(user, sub, email):
+    existing = User.query.filter_by(minashin_sub=sub).first()
+    if existing and existing.id != user.id:
+        return _mobile_native_link_redirect('minashin', 'minashin_already_linked')
+    user.minashin_sub = sub
+    if not user.minashin_email:
+        user.minashin_email = email or None
+    safe_db_commit()
+    return _mobile_native_link_redirect('minashin')

@@ -1013,7 +1013,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val mode = connectionStatusForHttp(e.status)
                 ?: if (e.status >= 500) ConnectionStatus.UNSTABLE else null
             if (mode != null) setConnectionUnavailable(mode)
-        } catch (_: Exception) {
+        } catch (ignored: Exception) {
             setConnectionUnavailable(if (hasUsableNetwork()) ConnectionStatus.UNSTABLE else ConnectionStatus.OFFLINE)
         }
     }
@@ -1423,6 +1423,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if ("files" in categories) loadStorageUsage()
             if ("settings" in categories || "api_credentials" in categories) loadPreferences()
         }
+    }
+
+    /** App Link back from `/android/link/<provider>` (Web flash text after linking). */
+    fun linkCompleted(provider: String) {
+        notify(if (provider == "minashin") "Minashin アカウントと連携しました。" else "Google アカウントと連携しました。")
+        loadPreferences()
     }
 
     /** Ends this device's sign-in after the account or every session was removed on the server. */
@@ -2699,7 +2705,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 onReady(target)
             } catch (e: CancellationException) { throw e }
-            catch (_: Exception) { notify("PDF出力に失敗しました") }
+            catch (ignored: Exception) { notify("PDF出力に失敗しました") }
             finally { pdfExporting = false; mutable.update { it.copy(busy = false) } }
         }
     }

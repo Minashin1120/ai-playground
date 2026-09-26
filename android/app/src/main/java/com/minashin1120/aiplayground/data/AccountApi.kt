@@ -5,8 +5,8 @@ import org.json.JSONObject
 import java.io.OutputStream
 
 /**
- * Settings-modal operations that the Web performs through `/api/settings`, `/api/account/*`,
- * `/api/sessions/*` and `/api/easy_login` (server `routes_mobile_account.py`).
+ * Settings-modal operations that the Web performs through `/api/settings`, the `/api/account`
+ * and `/api/sessions` routes and `/api/easy_login` (server `routes_mobile_account.py`).
  * Calls that answer `reauth_required` are retried after [ReauthRequired] is handled by the UI.
  */
 class AccountApi internal constructor(private val api: PlaygroundApi, private val token: () -> String) {
@@ -94,6 +94,10 @@ class AccountApi internal constructor(private val api: PlaygroundApi, private va
     /** Streams the export ZIP into [output]; [onProgress] receives the bytes written so far. */
     suspend fun downloadExport(jobId: String, output: OutputStream, onProgress: (Long) -> Unit) =
         api.downloadTo("/api/account/export/$jobId/download", token(), output, onProgress)
+
+    /** One-time path that opens the provider sign-in in a browser tab and links it to this account. */
+    suspend fun linkStart(provider: String): String =
+        api.post("/api/mobile/v1/account/link/$provider/start", JSONObject(), token()).getString("path")
 
     suspend fun unlinkGoogle() = api.post("/api/account/unlink_google", JSONObject(), token())
     suspend fun unlinkMinashin() = api.post("/api/account/unlink_minashin", JSONObject(), token())

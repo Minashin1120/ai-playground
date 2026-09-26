@@ -315,6 +315,7 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | POST `/api/mobile/v1/security/e2ee` | `enabled` | 値が変わる場合に暗号化の移行を開始し、Webと同じメッセージを返す。進捗は設定の `migration_status`／`migration_progress` |
 | GET `/api/encryption_scan` | `thread_id`（任意） | Webと同じ暗号化スキャン結果 |
 | POST `/api/account/unlink_google`、`/api/account/unlink_minashin` | `{}` | 連携の解除（本人確認が必要） |
+| POST `/api/mobile/v1/account/link/<google|minashin>/start` | `{}` | 本人確認のあと、10分間・1回だけ使える `path`（`/android/link/<provider>?grant=…`）を返す。アプリはこれをCustom Tabで開き、既存のネイティブOAuthコールバックが検証済みのIDをこのユーザーに連携して `/android/auth/callback?linked=<provider>`（失敗時は `error=<provider>_already_linked` など）へ戻す。同じブラウザーで後からネイティブログインを始めると、未完了の連携は破棄される |
 | POST `/api/account/export`、GET `/api/account/export/latest`、GET `/api/account/transfer/<job_id>`、POST `/api/account/transfer/<job_id>/cancel`、GET `/api/account/export/<job_id>/download` | Webと同じ | アカウントデータのエクスポート。作成とダウンロードは本人確認が必要 |
 | POST `/api/account/import/upload/*`、POST `/api/account/import` | Webと同じ（`categories`、`selected_files`、`restore_inplace`、`confirm_settings`、`job_id`） | 設定画面からのインポート。初回設定の完了後は本人確認が必要 |
 | POST `/api/account/dedupe/preview`・`execute` | `{}` | 重複データの確認と修復 |

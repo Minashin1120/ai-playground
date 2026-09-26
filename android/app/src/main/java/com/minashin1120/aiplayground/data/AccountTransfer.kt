@@ -117,7 +117,7 @@ class AccountTransferController(
                 val data = account().transferStatus(jobId)
                 if (data.optString("state") != "pending") progressFrom(data)
                 if (data.optString("state") in TERMINAL_STATES) return data
-            } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+            } catch (e: CancellationException) { throw e } catch (ignored: Exception) { }
             delay(700)
         }
         return null
@@ -148,7 +148,7 @@ class AccountTransferController(
                     }
                     else -> if (state.isBlank()) return@launch
                 }
-            } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+            } catch (e: CancellationException) { throw e } catch (ignored: Exception) { }
         }
     }
 
@@ -251,7 +251,7 @@ class AccountTransferController(
     }
 
     /** `#account-import-btn` after the category checks and the confirm dialog. */
-    fun import(uri: Uri, categories: List<String>, restoreInplace: Boolean, settingsBypass: Boolean) {
+    fun startImport(uri: Uri, categories: List<String>, restoreInplace: Boolean, settingsBypass: Boolean) {
         if (mutable.value.running) return
         val id = newId()
         activeId = id
@@ -270,7 +270,7 @@ class AccountTransferController(
                 val start = try { account().importStart(size) } catch (e: ApiException) {
                     if (e.needsReauth()) {
                         finish(); mutable.update { it.copy(progress = null) }
-                        reauth.value = { import(uri, categories, restoreInplace, settingsBypass) }
+                        reauth.value = { startImport(uri, categories, restoreInplace, settingsBypass) }
                         return@launch
                     }
                     throw IOException(e.payload.optString("error").ifBlank { "アップロードを開始できません" })

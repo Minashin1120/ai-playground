@@ -393,15 +393,74 @@ class MobileApiTests(unittest.TestCase):
                                    json={'stt_model': 'not-a-stt'}).status_code, 400)
         self.assertEqual(self.call('/api/mobile/v1/preferences', token, 'PUT',
                                    json={'prompt_bar_mode': 'huge'}).status_code, 400)
-        # Provider secrets cannot be injected through the native preference endpoint.
-        ignored = self.call('/api/mobile/v1/preferences', token, 'PUT', json={'openai_key': 'sk-live-secret'})
-        self.assertEqual(ignored.status_code, 200)
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)
-            self.assertNotEqual(user.openai_api_key, 'sk-live-secret')
             self.assertTrue(user.default_enable_thinking)
             self.assertEqual(user.temp_chat_timeout_seconds, 900)
             self.assertEqual(user.system_prompt, 'Be concise.')
+
+    def test_native_provider_keys_are_write_only_like_web_settings(self):
+        token = self.token()
+        saved = self.call('/api/mobile/v1/preferences', token, 'PUT', json={
+            'openai_key': 'sk-live-secret',
+            'model_api_keys': {'gpt-5.6': 'sk-model-secret'},
+            'gemini_backend': 'vertex_ai',
+            'gemini_vertex_project': 'my-project',
+            'google_project': 'tts-project',
+        })
+        self.assertEqual(saved.status_code, 200)
+        body = json.dumps(saved.json)
+        self.assertNotIn('sk-live-secret', body)
+        self.assertNotIn('sk-model-secret', body)
+        self.assertEqual(saved.json['openai_key'], target._SECRET_MASK)
+        self.assertEqual(saved.json['gemini_key'], '')
+        self.assertEqual(saved.json['model_api_keys'], {'gpt-5.6': target._SECRET_MASK})
+        self.assertEqual(saved.json['gemini_backend'], 'vertex_ai')
+        self.assertEqual(saved.json['gemini_vertex_project'], 'my-project')
+        self.assertEqual(saved.json['google_project'], 'tts-project')
+        # Sending the mask back keeps the stored value; an empty string clears it.
+        kept = self.call('/api/mobile/v1/preferences', token, 'PUT', json={
+            'openai_key': target._SECRET_MASK, 'model_api_keys': {'gpt-5.6': target._SECRET_MASK},
+        })
+        self.assertEqual(kept.status_code, 200)
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            self.assertNotEqual(user.openai_api_key, 'sk-live-secret')
+            self.assertEqual(target.decrypt_val(user.openai_api_key), 'sk-live-secret')
+            self.assertEqual(target._load_user_model_api_key_map(user), {'gpt-5.6': 'sk-model-secret'})
+        cleared = self.call('/api/mobile/v1/preferences', token, 'PUT', json={'openai_key': '', 'model_api_keys': {}})
+        self.assertEqual(cleared.json['openai_key'], '')
+        self.assertEqual(cleared.json['model_api_keys'], {})
+        self.assertEqual(self.call('/api/mobile/v1/preferences', token, 'PUT',
+                                   json={'openai_key': 'x' * 5000}).status_code, 400)
+        self.assertEqual(self.call('/api/mobile/v1/preferences', token, 'PUT',
+                                   json={'gemini_vertex_credentials_json': '{not json'}).status_code, 400)
+
+    def test_native_prompt_settings_match_web_fields(self):
+        token = self.token()
+        prefs = self.call('/api/mobile/v1/preferences', token).json
+        self.assertIn('global_system_prompt_effective', prefs)
+        self.assertIn('global_system_prompt_uses_time_fallback', prefs)
+        self.assertTrue(prefs['llm_transcribe_prompt_default'])
+        config = prefs['auto_system_prompt_notices_config']
+        self.assertIn('python', config)
+        self.assertTrue(config['python']['default_text'])
+        updated = self.call('/api/mobile/v1/preferences', token, 'PUT', json={
+            'auto_system_prompt_notices_config': {'python': {'enabled': False, 'text': 'custom'}, 'mcp': {'enabled': False}},
+            'llm_transcribe_prompt': 'transcribe exactly',
+            'enable_latency_metrics': True,
+        })
+        self.assertEqual(updated.status_code, 200)
+        self.assertFalse(updated.json['auto_system_prompt_notices_config']['python']['enabled'])
+        self.assertEqual(updated.json['auto_system_prompt_notices_config']['python']['text'], 'custom')
+        # MCP follows the prompt-bar switch and cannot be turned off here (same as Web).
+        self.assertTrue(updated.json['auto_system_prompt_notices_config']['mcp']['enabled'])
+        self.assertEqual(updated.json['llm_transcribe_prompt'], 'transcribe exactly')
+        self.assertTrue(updated.json['enable_latency_metrics'])
+        self.assertEqual(self.call('/api/mobile/v1/preferences', token, 'PUT',
+                                   json={'auto_system_prompt_notices_config': 'nope'}).status_code, 400)
+        self.assertEqual(self.call('/api/mobile/v1/preferences', token, 'PUT',
+                                   json={'passkey_only_login': True}).status_code, 400)
 
     def test_native_feedback_and_mcp_list_are_owner_scoped(self):
         token = self.token()

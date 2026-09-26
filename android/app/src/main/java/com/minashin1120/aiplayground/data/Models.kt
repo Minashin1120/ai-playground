@@ -136,6 +136,23 @@ data class Preferences(
     val default2faMethod: String = "totp",
     val googleEmail: String = "",
     val minashinEmail: String = "",
+    val globalSystemPromptEffective: String = "",
+    val globalSystemPromptUsesTimeFallback: Boolean = false,
+    val autoSystemPrompts: List<AutoSystemPrompt> = emptyList(),
+    val llmTranscribePrompt: String = "",
+    val llmTranscribePromptDefault: String = "",
+    val enableLatencyMetrics: Boolean = false,
+    val enableClientDebugLog: Boolean = false,
+    val passkeyOnlyLogin: Boolean = false,
+    /** Provider key fields (`openai_key` …) mapped to the server mask; blank when not set. */
+    val providerKeys: Map<String, String> = emptyMap(),
+    /** Model ids with a model-specific key (values are never sent to the device). */
+    val modelApiKeys: Set<String> = emptySet(),
+    val geminiBackend: String = "gemini_api",
+    val geminiVertexProject: String = "",
+    val geminiVertexLocation: String = "global",
+    val geminiVertexCredentialsSet: Boolean = false,
+    val googleProject: String = "",
 ) {
     val effectivePromptBarMode: String
         get() = when {
@@ -241,7 +258,59 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
     default2faMethod = json.nullableString("default_2fa_method").ifBlank { "totp" },
     googleEmail = json.nullableString("google_email"),
     minashinEmail = json.nullableString("minashin_email"),
+    globalSystemPromptEffective = json.nullableString("global_system_prompt_effective"),
+    globalSystemPromptUsesTimeFallback = json.optBoolean("global_system_prompt_uses_time_fallback"),
+    autoSystemPrompts = json.optJSONObject("auto_system_prompt_notices_config")?.let(::parseAutoSystemPrompts).orEmpty(),
+    llmTranscribePrompt = json.nullableString("llm_transcribe_prompt"),
+    llmTranscribePromptDefault = json.nullableString("llm_transcribe_prompt_default"),
+    enableLatencyMetrics = json.optBoolean("enable_latency_metrics"),
+    enableClientDebugLog = json.optBoolean("enable_client_debug_log"),
+    passkeyOnlyLogin = json.optBoolean("passkey_only_login"),
+    providerKeys = PROVIDER_KEY_FIELDS.associateWith { json.nullableString(it) },
+    modelApiKeys = json.optJSONObject("model_api_keys")?.keys()?.asSequence()?.toSet().orEmpty(),
+    geminiBackend = json.nullableString("gemini_backend").ifBlank { "gemini_api" },
+    geminiVertexProject = json.nullableString("gemini_vertex_project"),
+    geminiVertexLocation = json.nullableString("gemini_vertex_location").ifBlank { "global" },
+    geminiVertexCredentialsSet = json.nullableString("gemini_vertex_credentials_json").isNotBlank(),
+    googleProject = json.nullableString("google_project"),
 )
+
+/** Server mask for stored secrets (Web `_SECRET_MASK`): sending it back keeps the stored value. */
+const val SECRET_MASK = "********"
+
+val PROVIDER_KEY_FIELDS = listOf(
+    "openai_key", "gemini_key", "deepseek_key", "kimi_key", "mistral_key", "anthropic_key", "xai_key", "google_key",
+)
+
+/** One row of the Web "自動注入システムプロンプト" list (`AUTO_SYS_PROMPT_ITEMS`). */
+data class AutoSystemPrompt(
+    val key: String, val label: String, val enabled: Boolean, val text: String, val defaultText: String,
+    val hint: String = "", val mcpLocked: Boolean = false,
+)
+
+/** Web order and labels; the server supplies the current value and default text. */
+val AUTO_SYSTEM_PROMPT_ITEMS = listOf(
+    Triple("python", "Python 実行案内", ""),
+    Triple("gemini_local_python", "Gemini 音声/動画/PDF/DOCX + Python（ローカル実行）", ""),
+    Triple("grok_search", "Search補助（Grok）", ""),
+    Triple("openai_search", "Search補助（OpenAI/xAI Responses）", ""),
+    Triple("marker", "Marker編集時", ""),
+    Triple("attachment_names", "添付ファイル名（LLM入力時）", "利用可能変数: {{attachment_names}} / {{attachment_count}}"),
+    Triple("mathjax", "MathJax（LaTeX数式）", ""),
+    Triple("image_analysis", "画像解析（Vision Model指示文）", ""),
+    Triple("mcp", "MCP（外部ツール接続）", "利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）"),
+)
+
+fun parseAutoSystemPrompts(json: JSONObject): List<AutoSystemPrompt> = AUTO_SYSTEM_PROMPT_ITEMS.map { (key, label, hint) ->
+    val row = json.optJSONObject(key)
+    AutoSystemPrompt(
+        key = key, label = label,
+        enabled = row?.optBoolean("enabled", true) ?: true,
+        text = row?.nullableString("text").orEmpty(),
+        defaultText = row?.nullableString("default_text").orEmpty(),
+        hint = hint, mcpLocked = key == "mcp",
+    )
+}
 
 fun parseMcpServers(json: JSONObject): List<McpServerInfo> {
     val rows = json.optJSONArray("servers") ?: return emptyList()

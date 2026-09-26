@@ -3,6 +3,7 @@ package com.minashin1120.aiplayground.ui
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -10,46 +11,49 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.minashin1120.aiplayground.AppUpdatePhase
+import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.AppUpdateUiState
-import com.minashin1120.aiplayground.BuildConfig
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
+import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.CacheCategory
-import com.minashin1120.aiplayground.data.CompressionSettings
-import com.minashin1120.aiplayground.data.HistoryCacheMode
-import com.minashin1120.aiplayground.data.formatByteSize
-import org.json.JSONObject
+import kotlinx.coroutines.delay
 
-private val SETTINGS_TABS = listOf(
-    "一般", "APIキー", "プロンプト", "表示", "データ", "アカウント",
-    "セキュリティ", "2要素認証", "フィードバック", "MCP", "画像圧縮", "セッション",
-)
-private val THEME_PRESETS = listOf("#0DD4BF", "#38BDF8", "#A855F7", "#F97316", "#22C55E", "#FF00BB")
-private val THINKING_LEVELS = listOf("minimal", "low", "medium", "high")
-private val EFFORTS = listOf("none", "low", "medium", "high", "xhigh", "max")
-private val STT_MODELS = listOf(
-    "gpt-transcribe", "gpt-4o-mini-transcribe", "gpt-4o-transcribe", "gpt-4o-transcribe-diarize", "whisper-1",
-    "grok-voice-transcribe-2.0", "grok-voice-transcribe-1.0",
-)
+/** SharedPreferences key of the Web `GEMINI_LOCAL_PY_DIALOG_KEY` (stored per device, like the browser). */
+internal const val GEMINI_LOCAL_PY_DIALOG_PREF = "gemini_local_py_dialog"
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * Web settings modal (`templates/chat/overlay_settings.html`): header, search, ten tabs, cards and
+ * the キャンセル／保存 footer. Phones show the tabs as a scrolling row, wider screens as a 188dp column.
+ */
 @Composable
 fun SettingsDialog(
     state: ChatState,
@@ -62,59 +66,18 @@ fun SettingsDialog(
     onBubble: () -> Unit = {},
     initialTab: String = "一般",
 ) {
-    val prefs = state.preferences
-    var search by remember { mutableStateOf("") }
-    var tab by remember { mutableStateOf(initialTab) }
-    val reduce = LocalReduceMotion.current
-    var defaultModel by remember(prefs?.defaultModel) { mutableStateOf(prefs?.defaultModel.orEmpty()) }
-    var visionModel by remember(prefs?.defaultVisionModel) { mutableStateOf(prefs?.defaultVisionModel.orEmpty()) }
-    var thinking by remember(prefs?.defaultEnableThinking) { mutableStateOf(prefs?.defaultEnableThinking ?: false) }
-    var searchDefault by remember(prefs?.defaultEnableSearch) { mutableStateOf(prefs?.defaultEnableSearch ?: false) }
-    var urlContext by remember(prefs?.defaultEnableUrlContext) { mutableStateOf(prefs?.defaultEnableUrlContext ?: false) }
-    var maps by remember(prefs?.defaultEnableMaps) { mutableStateOf(prefs?.defaultEnableMaps ?: false) }
-    var python by remember(prefs?.defaultEnablePython) { mutableStateOf(prefs?.defaultEnablePython ?: false) }
-    var fileCreation by remember(prefs?.defaultEnableFileCreation) { mutableStateOf(prefs?.defaultEnableFileCreation ?: true) }
-    var systemPromptDefault by remember(prefs?.defaultEnableSystemPrompt) { mutableStateOf(prefs?.defaultEnableSystemPrompt ?: false) }
-    var mcp by remember(prefs?.defaultEnableMcp) { mutableStateOf(prefs?.defaultEnableMcp ?: true) }
-    var thinkingLevel by remember(prefs?.defaultThinkingLevel) { mutableStateOf(prefs?.defaultThinkingLevel ?: "high") }
-    var thinkingBudget by remember(prefs?.defaultThinkingBudget) { mutableStateOf((prefs?.defaultThinkingBudget ?: 4096).toString()) }
-    var reasoningEffort by remember(prefs?.defaultReasoningEffort) { mutableStateOf(prefs?.defaultReasoningEffort ?: "medium") }
-    var safetySetting by remember(prefs?.defaultSafetySetting) { mutableStateOf(prefs?.defaultSafetySetting ?: "default") }
-    var enterToSend by remember(prefs?.enterToSend) { mutableStateOf(prefs?.enterToSend ?: false) }
-    var lightMode by remember(prefs?.lightModeEnabled) { mutableStateOf(prefs?.lightModeEnabled ?: false) }
-    var liquidGlass by remember(prefs?.liquidGlassEnabled) { mutableStateOf(prefs?.liquidGlassEnabled ?: false) }
-    var themeColor by remember(prefs?.themeColor) { mutableStateOf(prefs?.themeColor.orEmpty()) }
-    var autoSearch by remember(prefs?.autoSearchOnLinks) { mutableStateOf(prefs?.autoSearchOnLinks ?: true) }
-    var timeout by remember(prefs?.tempChatTimeoutSeconds) { mutableStateOf((prefs?.tempChatTimeoutSeconds ?: 90).toString()) }
-    var useLast by remember(prefs?.useLastChatSettings) { mutableStateOf(prefs?.useLastChatSettings ?: false) }
-    var voiceStudio by remember(prefs?.voiceStudioUi) { mutableStateOf(prefs?.voiceStudioUi ?: true) }
-    var promptBar by remember(prefs?.effectivePromptBarMode) { mutableStateOf(prefs?.effectivePromptBarMode ?: "normal") }
-    var micMode by remember(prefs?.micTranscribeMode) { mutableStateOf(prefs?.micTranscribeMode ?: "stt_api") }
-    var sttModel by remember(prefs?.sttModel) { mutableStateOf(prefs?.sttModel ?: "gpt-4o-mini-transcribe") }
-    var userPrompt by remember(prefs?.systemPrompt) { mutableStateOf(prefs?.systemPrompt.orEmpty()) }
-    var userPromptEnabled by remember(prefs?.systemPromptEnabled) { mutableStateOf(prefs?.systemPromptEnabled ?: true) }
-    var applyGlobal by remember(prefs?.applyGlobalSystemPrompt) { mutableStateOf(prefs?.applyGlobalSystemPrompt ?: true) }
-    var applyNotices by remember(prefs?.applyAutoSystemPromptNotices) { mutableStateOf(prefs?.applyAutoSystemPromptNotices ?: true) }
-    var richPasteCustom by remember(prefs?.richPastePromptUseCustomDefault) { mutableStateOf(prefs?.richPastePromptUseCustomDefault ?: false) }
-    var richPastePrompt by remember(prefs?.richPastePromptDefault) { mutableStateOf(prefs?.richPastePromptDefault.orEmpty()) }
-    var skip2faGoogle by remember(prefs?.skip2faOnGoogleLogin) { mutableStateOf(prefs?.skip2faOnGoogleLogin ?: false) }
-    var default2fa by remember(prefs?.default2faMethod) { mutableStateOf(prefs?.default2faMethod ?: "totp") }
-    var passkeyOnly by remember(state.security?.passkeyOnlyLogin) { mutableStateOf(state.security?.passkeyOnlyLogin ?: false) }
-    var totpEnableCode by remember { mutableStateOf("") }
-    var totpDisableCode by remember { mutableStateOf("") }
-    var compressionEnabled by remember(state.compression) { mutableStateOf(state.compression.enabled) }
-    var maxSizeMB by remember(state.compression) { mutableStateOf(state.compression.maxSizeMB.toString()) }
-    var maxDim by remember(state.compression) { mutableStateOf(state.compression.maxDimension.toString()) }
-    var formatOnly by remember(state.compression) { mutableStateOf(state.compression.formatOnly) }
-    var outputType by remember(state.compression) { mutableStateOf(state.compression.outputType) }
-    var modelPicker by remember { mutableStateOf(false) }
-    var visionPicker by remember { mutableStateOf(false) }
-    var confirmLogout by remember { mutableStateOf(false) }
-    var confirmCacheCategory by remember { mutableStateOf<CacheCategory?>(null) }
-    var historyCacheMode by remember(state.historyCacheMode) { mutableStateOf(state.historyCacheMode) }
-    var cacheMobileData by remember(state.cacheMobileDataAllowed) { mutableStateOf(state.cacheMobileDataAllowed) }
-    var feedbackTitle by remember { mutableStateOf("") }
-    var feedbackMessage by remember { mutableStateOf("") }
+    // `onLogout` stays in the signature for callers; like Web, logout lives in the sidebar footer only.
+    val context = LocalContext.current
+    val devicePrefs = remember { context.getSharedPreferences("settings_local", 0) }
+    var localPythonDialog by remember { mutableStateOf(devicePrefs.getBoolean(GEMINI_LOCAL_PY_DIALOG_PREF, true)) }
+    var tab by remember { mutableStateOf(SettingsTab.entries.firstOrNull { it.label == initialTab || it.id == initialTab } ?: SettingsTab.General) }
+    var query by remember { mutableStateOf("") }
+    var jumpTarget by remember { mutableStateOf<String?>(null) }
+    var colorPicker by remember { mutableStateOf(false) }
+    var confirmCache by remember { mutableStateOf<CacheCategory?>(null) }
+    // The form is filled from the payload fetched when the modal opens (Web `openSettingsModal`).
+    var loaded by remember { mutableStateOf(state.offline) }
+    var sawBusy by remember { mutableStateOf(false) }
     LaunchedEffect(state.account?.id, state.offline) {
         if (state.account != null) {
             model.loadPreferences()
@@ -122,431 +85,331 @@ fun SettingsDialog(
                 model.loadStorageUsage()
                 model.loadFeedback()
                 model.loadMcpServers()
+                model.loadSecurity()
             }
         }
     }
-    val query = search.trim()
-    fun matches(vararg haystacks: String): Boolean =
-        query.isBlank() || haystacks.any { it.contains(query, ignoreCase = true) }
-    val visibleTabs = SETTINGS_TABS.filter { tabName ->
-        query.isBlank() || tabName.contains(query, ignoreCase = true) || when (tabName) {
-            "一般" -> matches("Enter", "モデル", "Thinking", "Search", "URLs", "Maps", "Python", "File", "SysPrompt", "MCP", "音声", "STT", "一時チャット", "プロンプトバー", "アプリ更新", "更新")
-            "APIキー" -> matches("API", "キー", "OpenAI", "Gemini", "xAI")
-            "プロンプト" -> matches("システムプロンプト", "全体", "ユーザー")
-            "表示" -> matches("テーマ", "ライト", "Liquid", "色")
-            "データ" -> matches("ストレージ", "キャッシュ", "エクスポート", "リッチ")
-            "アカウント" -> matches("ユーザー名", "パスワード", "Google", "Minashin")
-            "セキュリティ" -> matches("E2EE", "暗号化", "セッション", "削除")
-            "2要素認証" -> matches("2FA", "TOTP", "パスキー")
-            "フィードバック" -> matches("バグ", "要望")
-            "MCP" -> matches("MCP", "サーバー", "Gmail")
-            "画像圧縮" -> matches("圧縮", "JPEG", "WebP")
-            "セッション" -> matches("端末", "ログアウト")
-            else -> false
-        }
+    LaunchedEffect(state.prefsBusy) {
+        if (state.prefsBusy) sawBusy = true
+        else if (sawBusy || state.offline) loaded = true
     }
+    LaunchedEffect(Unit) { delay(4000); loaded = true }
+    val prefs = state.preferences
+    val form = remember(if (loaded) "loaded" else prefs) { SettingsForm(prefs) }
+    val notify: (String) -> Unit = model::notify
+    val extras = SettingsExtras(appUpdate, onCheckForUpdate, onBubble, onWeb) { confirmCache = it }
+
+    val cards = generalCards(state, form, localPythonDialog, { localPythonDialog = it }, notify) + androidCard(state, extras) +
+        apiCards(state, form, notify) + promptCards(state, form) + displayCards(form) { colorPicker = true } +
+        dataCards(state, model, form, extras) + accountCards(state, extras) + securityCards(state, extras) +
+        twoFactorCards(state, model, form) + feedbackCards(state, model, notify) + mcpCards(state, model, extras)
+
     PlaygroundDialog(
         onDismissRequest = onDismiss,
         title = { Text("設定") },
-        icon = com.minashin1120.aiplayground.R.drawable.fa_solid_cog,
+        icon = R.drawable.fa_solid_cog,
         subtitle = "アプリの動作・表示・セキュリティを管理",
+        fillHeight = true,
+        padBody = false,
         text = {
-            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (state.prefsBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                OutlinedTextField(search, { search = it }, singleLine = true, label = { Text("設定を検索") },
-                    modifier = Modifier.fillMaxWidth())
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    visibleTabs.forEach { name -> FilterChip(tab == name, { tab = name }, { Text(name) }) }
+            val phone = LocalConfiguration.current.screenWidthDp < 768
+            Column(Modifier.fillMaxSize()) {
+                SettingsSearchBox(query, { query = it }, phone)
+                val content: @Composable (Modifier) -> Unit = { modifier ->
+                    SettingsContent(
+                        cards = cards, tab = tab, query = query.trim(), phone = phone, modifier = modifier,
+                        jumpTarget = jumpTarget, onJumpDone = { jumpTarget = null },
+                        onJump = { spec -> query = ""; tab = spec.tab; jumpTarget = spec.key },
+                    )
                 }
-                if (visibleTabs.isEmpty()) Text("該当する設定はありません。", style = MaterialTheme.typography.bodySmall)
-                else if (tab !in visibleTabs) tab = visibleTabs.first()
-                // Web `tabEnter` / `tabExit`: the panel slides toward the side of the newly chosen tab.
-                AnimatedContent(
-                    targetState = tab,
-                    transitionSpec = {
-                        val forward = settingsTabDirection(visibleTabs, initialState, targetState)
-                        if (reduce) EnterTransition.None togetherWith ExitTransition.None
-                        else (slideInHorizontally(tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Emphasized)) { width -> forward * width / 6 } +
-                            fadeIn(tween(PlaygroundMotion.MEDIUM))) togetherWith
-                            (slideOutHorizontally(tween(PlaygroundMotion.SHORT, easing = PlaygroundMotion.Exit)) { width -> -forward * width / 6 } +
-                                fadeOut(tween(PlaygroundMotion.SHORT)))
-                    },
-                    label = "settings tab",
-                ) { target ->
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (target == "一般" && target in visibleTabs) {
-                        Text(state.account?.name.orEmpty(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("送信設定", fontWeight = FontWeight.SemiBold)
-                        CheckboxRow("Enterで送信（改行はShift+Enter）", enterToSend) { enterToSend = it }
-                        Text("プロンプトバー表示", fontWeight = FontWeight.SemiBold)
-                        listOf("normal" to "通常表示", "compact" to "コンパクト表示", "minimal" to "ミニマル表示").forEach { (value, label) ->
-                            FilterChip(promptBar == value, { promptBar = value }, { Text(label) })
-                        }
-                        CheckboxRow("音声系モデルで音声ドックを使う", voiceStudio) { voiceStudio = it }
-                        Text("チャット既定値", fontWeight = FontWeight.SemiBold)
-                        TextButton(onClick = { modelPicker = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text("既定モデル: ${state.account?.models?.firstOrNull { it.id == defaultModel }?.name ?: defaultModel.ifBlank { "未設定" }} ▾")
-                        }
-                        TextButton(onClick = { visionPicker = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Vision Model: ${state.account?.models?.firstOrNull { it.id == visionModel }?.name ?: visionModel.ifBlank { "未設定" }} ▾")
-                        }
-                        CheckboxRow("前回の設定を保存して継続する", useLast) { useLast = it }
-                        CheckboxRow("既定でThinkingを使う", thinking) { thinking = it }
-                        ChoiceRow("Thinking level", thinkingLevel, THINKING_LEVELS) { thinkingLevel = it }
-                        OutlinedTextField(thinkingBudget, { thinkingBudget = it.filter(Char::isDigit).take(5) }, singleLine = true,
-                            label = { Text("Thinking Budget") }, modifier = Modifier.fillMaxWidth())
-                        ChoiceRow("Reasoning effort", reasoningEffort, EFFORTS) { reasoningEffort = it }
-                        ChoiceRow("Safety", safetySetting, listOf("default", "none")) { safetySetting = it }
-                        CheckboxRow("既定でWeb検索を使う", searchDefault) { searchDefault = it }
-                        CheckboxRow("既定でURLsを使う", urlContext) { urlContext = it }
-                        CheckboxRow("既定でMapsを使う", maps) { maps = it }
-                        CheckboxRow("既定でPythonを使う", python) { python = it }
-                        CheckboxRow("既定でFileを使う", fileCreation) { fileCreation = it }
-                        CheckboxRow("既定でSysPromptを使う", systemPromptDefault) { systemPromptDefault = it }
-                        CheckboxRow("既定でMCPを使う", mcp) { mcp = it }
-                        CheckboxRow("リンクのX投稿を自動検索", autoSearch) { autoSearch = it }
-                        OutlinedTextField(timeout, { timeout = it.filter { c -> c.isDigit() }.take(6) }, singleLine = true,
-                            label = { Text("一時チャットの自動削除（秒）") }, modifier = Modifier.fillMaxWidth())
-                        Text("音声設定", fontWeight = FontWeight.SemiBold)
-                        ChoiceRow("マイク文字起こし", micMode, listOf("stt_api", "llm")) { micMode = it }
-                        ChoiceRow("STTモデル", sttModel, STT_MODELS) { sttModel = it }
-                        Text("STT APIはWebの録音経路で使います。この端末のマイクボタンはOSの音声認識です。",
-                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("アプリ更新", fontWeight = FontWeight.SemiBold)
-                        Text("現在のバージョン: ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall)
-                        when (appUpdate.phase) {
-                            AppUpdatePhase.Checking -> Text("更新を確認中…", style = MaterialTheme.typography.bodySmall)
-                            AppUpdatePhase.UpToDate -> Text("最新のAndroid版を使用しています。", style = MaterialTheme.typography.bodySmall)
-                            AppUpdatePhase.Available -> appUpdate.update?.let { update ->
-                                Text("Android版 ${update.versionName} が利用できます。", style = MaterialTheme.typography.bodySmall)
-                            }
-                            AppUpdatePhase.Error -> Text(appUpdate.errorMessage ?: "更新を確認できませんでした。", style = MaterialTheme.typography.bodySmall)
-                            else -> Unit
-                        }
-                        TextButton(
-                            onClick = onCheckForUpdate,
-                            enabled = appUpdate.phase != AppUpdatePhase.Checking &&
-                                appUpdate.phase != AppUpdatePhase.Downloading &&
-                                appUpdate.phase != AppUpdatePhase.Ready &&
-                                appUpdate.phase != AppUpdatePhase.AwaitingInstallPermission &&
-                                appUpdate.phase != AppUpdatePhase.Installing,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text(if (appUpdate.phase == AppUpdatePhase.Checking) "確認中…" else "更新を確認") }
-                        // Android-only (ANDROID_ONLY.md §2): open the current chat as a conversation bubble.
-                        Text("バブル", fontWeight = FontWeight.SemiBold)
-                        TextButton(onClick = onBubble, modifier = Modifier.fillMaxWidth()) {
-                            Text(if (android.os.Build.VERSION.SDK_INT >= com.minashin1120.aiplayground.ANDROID_17_APP_BUBBLE_API) "バブルに追加する方法" else "バブルで開く")
-                        }
-                    }
-                    if (target == "APIキー" && target in visibleTabs) {
-                        Text("APIキーは端末へ渡しません。認証済みブラウザーの設定画面で登録・変更します。",
-                            style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = { onWeb("/settings") }, modifier = Modifier.fillMaxWidth()) { Text("WebでAPIキーを開く") }
-                    }
-                    if (target == "プロンプト" && target in visibleTabs) {
-                        Text("全体システムプロンプト（参照のみ）", fontWeight = FontWeight.SemiBold)
-                        OutlinedTextField(prefs?.globalSystemPrompt.orEmpty(), {}, readOnly = true, minLines = 3, maxLines = 8,
-                            modifier = Modifier.fillMaxWidth())
-                        CheckboxRow("全体システムプロンプトを適用", applyGlobal) { applyGlobal = it }
-                        CheckboxRow("自動システム通知を適用", applyNotices) { applyNotices = it }
-                        CheckboxRow("ユーザーシステムプロンプトを有効", userPromptEnabled) { userPromptEnabled = it }
-                        OutlinedTextField(userPrompt, { userPrompt = it.take(100_000) }, minLines = 4, maxLines = 10,
-                            label = { Text("ユーザーシステムプロンプト") }, modifier = Modifier.fillMaxWidth())
-                        TextButton(onClick = { userPrompt = ""; userPromptEnabled = false }) { Text("リセット（空にして無効化）") }
-                    }
-                    if (target == "表示" && target in visibleTabs) {
-                        Text("テーマ", fontWeight = FontWeight.SemiBold)
-                        OutlinedTextField(themeColor, { themeColor = it.take(7) }, singleLine = true,
-                            label = { Text("テーマカラー（HEX）") }, placeholder = { Text("#0DD4BF") }, modifier = Modifier.fillMaxWidth())
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            THEME_PRESETS.forEach { color ->
-                                val parsed = runCatching { Color(android.graphics.Color.parseColor(color)) }.getOrNull()
-                                if (parsed != null) Box(Modifier.size(28.dp).clip(CircleShape).background(parsed).clickable { themeColor = color })
-                            }
-                        }
-                        TextButton(onClick = { themeColor = "" }) { Text("テーマをリセット") }
-                        CheckboxRow("手動ライトモード", lightMode) { lightMode = it }
-                        CheckboxRow("Liquid Glassモード", liquidGlass) { liquidGlass = it }
-                    }
-                    if (target == "データ" && target in visibleTabs) {
-                        Text("端末キャッシュ", fontWeight = FontWeight.SemiBold)
-                        Text("表示済みのチャット履歴とファイルは、Androidのシステムキャッシュとは別の暗号化領域に保存されます。",
-                            style = MaterialTheme.typography.bodySmall)
-                        ChoiceRow("履歴の保存範囲", if (historyCacheMode == HistoryCacheMode.FULL) "全件同期" else "表示済み部分のみ",
-                            listOf("表示済み部分のみ", "全件同期")) {
-                            historyCacheMode = if (it == "全件同期") HistoryCacheMode.FULL else HistoryCacheMode.VIEWED
-                        }
-                        CheckboxRow("モバイルデータ通信でもキャッシュを同期", cacheMobileData) { cacheMobileData = it }
-                        val cacheStats = state.offlineCacheStats
-                        Text("チャット履歴: ${formatByteSize(cacheStats.historyBytes)} / ファイル: ${formatByteSize(cacheStats.fileBytes)}",
-                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (state.cacheSyncing) {
-                            if (state.cacheSyncTotal > 0) {
-                                LinearProgressIndicator(
-                                    progress = { (state.cacheSyncProgress.toFloat() / state.cacheSyncTotal).coerceIn(0f, 1f) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            } else LinearProgressIndicator(Modifier.fillMaxWidth())
-                            TextButton(onClick = model::cancelCacheSync, modifier = Modifier.fillMaxWidth()) { Text("同期をキャンセル") }
-                        } else {
-                            TextButton(onClick = model::syncOfflineCache, modifier = Modifier.fillMaxWidth()) { Text("今すぐ全件同期") }
-                        }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { confirmCacheCategory = CacheCategory.CHAT_HISTORY }, modifier = Modifier.weight(1f)) { Text("履歴を削除") }
-                            TextButton(onClick = { confirmCacheCategory = CacheCategory.FILES }, modifier = Modifier.weight(1f)) { Text("ファイルを削除") }
-                        }
-                        Text("ストレージ", fontWeight = FontWeight.SemiBold)
-                        val storage = state.storage
-                        if (storage == null) Text("読み込み中…", style = MaterialTheme.typography.bodySmall)
-                        else {
-                            Text(if (storage.unlimited) "使用量 ${storage.usedMb} MB（上限なし）"
-                                else "使用量 ${storage.usedMb} / ${storage.limitMb} MB",
-                                style = MaterialTheme.typography.bodySmall)
-                            if (!storage.unlimited && storage.limitBytes > 0) {
-                                LinearProgressIndicator(
-                                    progress = { (storage.usedBytes.toFloat() / storage.limitBytes).coerceIn(0f, 1f) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-                        }
-                        TextButton(onClick = { model.loadStorageUsage() }) { Text("使用量を更新") }
-                        Text("サイトキャッシュとアカウントZIPの移行はブラウザー専用です。", style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = { onWeb("/settings") }) { Text("Webでデータ移行を開く") }
-                        CheckboxRow("リッチ貼り付けのカスタム既定プロンプトを使う", richPasteCustom) { richPasteCustom = it }
-                        if (richPasteCustom) OutlinedTextField(richPastePrompt, { richPastePrompt = it.take(20_000) }, minLines = 3, maxLines = 8,
-                            label = { Text("リッチ貼り付けプロンプト") }, modifier = Modifier.fillMaxWidth())
-                    }
-                    if (target == "アカウント" && target in visibleTabs) {
-                        Text("ユーザー名: ${prefs?.username.orEmpty()}", style = MaterialTheme.typography.bodyMedium)
-                        Text("Google: ${prefs?.googleEmail?.ifBlank { "未連携" } ?: "未連携"}", style = MaterialTheme.typography.bodySmall)
-                        Text("Minashin: ${prefs?.minashinEmail?.ifBlank { "未連携" } ?: "未連携"}", style = MaterialTheme.typography.bodySmall)
-                        Text("ユーザー名・パスワード・SSO連携の変更はWeb設定で行います。", style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = { onWeb("/settings") }) { Text("Webでアカウント設定を開く") }
-                    }
-                    if (target == "セキュリティ" && target in visibleTabs) {
-                        Text("暗号化: ${if (prefs?.e2eeEnabled == true) "有効（サーバー管理鍵）" else "無効"}", style = MaterialTheme.typography.bodySmall)
-                        Text("E2EEの切替、他端末のセッション失効、アカウント削除はWeb設定で行います。", style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = { onWeb("/settings") }) { Text("Webでセキュリティ設定を開く") }
-                    }
-                    if (target == "2要素認証" && target in visibleTabs) {
-                        LaunchedEffect(target, state.account?.id) {
-                            if (state.account != null) model.loadSecurity()
-                        }
-                        val security = state.security
-                        Text("状態: ${if (security?.is2faEnabled == true) "有効" else "無効"} / TOTP: ${if (security?.hasTotp == true) "登録済" else "未登録"} / パスキー: ${if (security?.hasWebauthn == true) "登録済" else "未登録"}",
-                            style = MaterialTheme.typography.bodySmall)
-                        if (state.securityBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                        state.securityError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-
-                        Text("認証アプリ（TOTP）", fontWeight = FontWeight.SemiBold)
-                        if (security?.hasTotp == true) {
-                            OutlinedTextField(totpDisableCode, { totpDisableCode = it.filter { c -> c.isDigit() }.take(8) },
-                                singleLine = true, label = { Text("現在のコード") }, modifier = Modifier.fillMaxWidth())
-                            TextButton(
-                                onClick = { model.disableTotp(totpDisableCode); totpDisableCode = "" },
-                                enabled = !state.securityBusy && totpDisableCode.isNotBlank(),
-                            ) { Text("TOTPを無効化") }
-                        } else if (state.securityTotpSecret != null) {
-                            Text("認証アプリに次のキーを登録してください。", style = MaterialTheme.typography.bodySmall)
-                            SelectionContainer { Text(state.securityTotpSecret.orEmpty(), fontFamily = FontFamily.Monospace) }
-                            state.securityTotpUri?.let { Text(it, style = MaterialTheme.typography.labelSmall) }
-                            OutlinedTextField(totpEnableCode, { totpEnableCode = it.filter { c -> c.isDigit() }.take(8) },
-                                singleLine = true, label = { Text("認証コード") }, modifier = Modifier.fillMaxWidth())
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(
-                                    onClick = { model.enableTotp(totpEnableCode); totpEnableCode = "" },
-                                    enabled = !state.securityBusy && totpEnableCode.isNotBlank(),
-                                ) { Text("有効化") }
-                                TextButton(onClick = model::cancelTotpSetup) { Text("キャンセル") }
-                            }
-                        } else {
-                            TextButton(onClick = model::startTotpSetup, enabled = !state.securityBusy) { Text("TOTPを登録") }
-                        }
-
-                        Text("パスキー", fontWeight = FontWeight.SemiBold)
-                        if (security?.passkeys.isNullOrEmpty()) {
-                            Text("登録済みのパスキーはありません。", style = MaterialTheme.typography.bodySmall)
-                        } else {
-                            security?.passkeys?.forEach { key ->
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(key.name, style = MaterialTheme.typography.bodySmall)
-                                    TextButton(onClick = { model.removePasskey(key.id) }, enabled = !state.securityBusy) { Text("削除") }
-                                }
-                            }
-                        }
-                        TextButton(onClick = model::beginPasskeyRegistration, enabled = !state.securityBusy) { Text("パスキーを登録") }
-
-                        CheckboxRow("Googleログイン時に2FAをスキップ", skip2faGoogle) { skip2faGoogle = it }
-                        ChoiceRow("既定の2要素認証方式", default2fa, listOf("totp", "webauthn")) { default2fa = it }
-                        CheckboxRow("パスキーのみでログイン", passkeyOnly) { passkeyOnly = it }
-                        Button(
-                            onClick = { model.saveSecurityPreferences(default2fa, passkeyOnly, skip2faGoogle) },
-                            enabled = !state.securityBusy,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { Text("2FA設定を保存") }
-                        Text("パスワード変更やアカウント削除はWeb設定で行います。", style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = { onWeb("/settings") }) { Text("Webでセキュリティ設定を開く") }
-                    }
-                    if (target == "フィードバック" && target in visibleTabs) {
-                        OutlinedTextField(feedbackTitle, { feedbackTitle = it.take(200) }, singleLine = true,
-                            label = { Text("タイトル（任意）") }, modifier = Modifier.fillMaxWidth())
-                        OutlinedTextField(feedbackMessage, { feedbackMessage = it.take(100_000) }, minLines = 4, maxLines = 8,
-                            label = { Text("バグ報告・要望") }, modifier = Modifier.fillMaxWidth())
-                        TextButton(onClick = { model.submitFeedback(feedbackTitle, feedbackMessage); feedbackTitle = ""; feedbackMessage = "" },
-                            enabled = feedbackMessage.isNotBlank() && !state.feedbackBusy) { Text("送信") }
-                        Text("あなたのフィードバック", fontWeight = FontWeight.SemiBold)
-                        if (state.feedbackItems.isEmpty()) Text("まだありません。", style = MaterialTheme.typography.bodySmall)
-                        state.feedbackItems.take(20).forEach { item ->
-                            Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                                Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                    Text(item.title.ifBlank { "（無題）" }, fontWeight = FontWeight.SemiBold)
-                                    Text(item.message.take(400), style = MaterialTheme.typography.bodySmall)
-                                    Text("${item.status} · ${item.createdAt}", style = MaterialTheme.typography.labelSmall)
-                                    if (item.adminReply.isNotBlank()) Text("返信: ${item.adminReply.take(400)}", style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                        }
-                    }
-                    if (target == "MCP" && target in visibleTabs) {
-                        Text("接続中のサーバーをこの端末で有効／無効にできます。OAuthやBearerの秘密設定はWebで行います。",
-                            style = MaterialTheme.typography.bodySmall)
-                        if (state.mcpBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                        if (state.mcpServers.isEmpty() && !state.mcpBusy) Text("登録済みサーバーはありません。", style = MaterialTheme.typography.bodySmall)
-                        state.mcpServers.forEach { server ->
-                            Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                                Column(Modifier.fillMaxWidth().padding(10.dp)) {
-                                    CheckboxRow("${server.name}（${server.toolCount}ツール）", server.enabled) { model.setMcpServerEnabled(server, it) }
-                                    Text("${server.connectionState} / ${server.authStatus}", style = MaterialTheme.typography.labelSmall)
-                                }
-                            }
-                        }
-                        TextButton(onClick = { onWeb("/settings") }) { Text("WebでMCP秘密設定を開く") }
-                    }
-                    if (target == "画像圧縮" && target in visibleTabs) {
-                        Text("画像の圧縮", fontWeight = FontWeight.SemiBold)
-                        CheckboxRow("画像を圧縮して送信", compressionEnabled) { compressionEnabled = it }
-                        if (compressionEnabled) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedTextField(maxSizeMB, { maxSizeMB = it.filter { c -> c.isDigit() || c == '.' }.take(5) },
-                                    singleLine = true, label = { Text("最大サイズ (MB)") }, modifier = Modifier.weight(1f))
-                                OutlinedTextField(maxDim, { maxDim = it.filter { c -> c.isDigit() }.take(4) },
-                                    singleLine = true, label = { Text("最大辺 (px)") }, modifier = Modifier.weight(1f))
-                            }
-                            CheckboxRow("形式のみ変換（サイズ・寸法は変更しない）", formatOnly) { formatOnly = it }
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                listOf("original" to "元の形式", "image/jpeg" to "JPEG", "image/png" to "PNG", "image/webp" to "WebP").forEach { (value, label) ->
-                                    FilterChip(outputType == value, { outputType = value }, { Text(label) })
-                                }
-                            }
-                        }
-                    }
-                    if (target == "セッション" && target in visibleTabs) {
-                        Text("この端末のセッション", fontWeight = FontWeight.SemiBold)
-                        Text("端末: ${prefs?.deviceName?.ifBlank { "このAndroid端末" } ?: "このAndroid端末"}", style = MaterialTheme.typography.labelSmall)
-                        if (prefs != null) {
-                            Text("連携日時: ${prefs.sessionCreatedAt}", style = MaterialTheme.typography.labelSmall)
-                            Text("有効期限: ${prefs.sessionExpiresAt}", style = MaterialTheme.typography.labelSmall)
-                        }
-                        TextButton(onClick = { confirmLogout = true }) { Text("この端末の連携を取り消す") }
-                    }
-                    }
+                if (phone) {
+                    SettingsTabRow(tab, cards, query.trim(), phone = true) { query = ""; tab = it }
+                    content(Modifier.weight(1f))
+                } else Row(Modifier.weight(1f).drawBehind {
+                    drawLine(Color(0xFF1A2338), androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx())
+                }) {
+                    SettingsTabRow(tab, cards, query.trim(), phone = false) { query = ""; tab = it }
+                    content(Modifier.weight(1f))
                 }
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    model.saveCacheSettings(historyCacheMode, cacheMobileData)
-                    model.saveCompressionSettings(CompressionSettings(
-                        enabled = compressionEnabled,
-                        maxSizeMB = maxSizeMB.toFloatOrNull()?.coerceIn(0.05f, 50f) ?: 1.0f,
-                        maxDimension = maxDim.toIntOrNull()?.coerceIn(256, 8192) ?: 1920,
-                        outputType = outputType,
-                        formatOnly = formatOnly,
-                    ))
-                    model.savePreferences(JSONObject()
-                        .put("default_model", defaultModel)
-                        .put("default_vision_model", visionModel)
-                        .put("default_enable_thinking", thinking)
-                        .put("default_enable_search", searchDefault)
-                        .put("default_enable_url_context", urlContext)
-                        .put("default_enable_maps", maps)
-                        .put("default_enable_python", python)
-                        .put("default_enable_file_creation", fileCreation)
-                        .put("default_enable_system_prompt", systemPromptDefault)
-                        .put("default_enable_mcp", mcp)
-                        .put("default_thinking_level", thinkingLevel)
-                        .put("default_thinking_budget", thinkingBudget.toIntOrNull()?.coerceIn(0, 32768) ?: 4096)
-                        .put("default_reasoning_effort", reasoningEffort)
-                        .put("default_safety_setting", safetySetting)
-                        .put("enter_to_send", enterToSend)
-                        .put("light_mode_enabled", lightMode)
-                        .put("liquid_glass_enabled", liquidGlass)
-                        .put("auto_search_on_links", autoSearch)
-                        .put("temp_chat_timeout_seconds", timeout.toIntOrNull() ?: 90)
-                        .put("theme_color", themeColor.trim())
-                        .put("use_last_chat_settings", useLast)
-                        .put("voice_studio_ui", voiceStudio)
-                        .put("prompt_bar_mode", promptBar)
-                        .put("mic_transcribe_mode", micMode)
-                        .put("stt_model", sttModel)
-                        .put("system_prompt", userPrompt)
-                        .put("system_prompt_enabled", userPromptEnabled)
-                        .put("apply_global_system_prompt", applyGlobal)
-                        .put("apply_auto_system_prompt_notices", applyNotices)
-                        .put("rich_paste_prompt_use_custom_default", richPasteCustom)
-                        .put("rich_paste_prompt_default", richPastePrompt)
-                        .put("skip_2fa_on_google_login", skip2faGoogle)
-                        .put("default_2fa_method", default2fa))
-                },
-                enabled = !state.prefsBusy,
-            ) { Text("保存") }
+        dismissButton = {
+            WebButton(onClick = onDismiss, variant = WebButtonVariant.Ghost, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) {
+                Text("キャンセル")
+            }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("閉じる") } },
+        confirmButton = {
+            WebButton(
+                onClick = {
+                    if (!loaded) notify("設定を読み込み中です。完了するまでお待ちください")
+                    else {
+                        devicePrefs.edit().putBoolean(GEMINI_LOCAL_PY_DIALOG_PREF, localPythonDialog).apply()
+                        model.savePreferences(form.payload())
+                        onDismiss()
+                    }
+                },
+                variant = WebButtonVariant.Primary,
+                enabled = !state.prefsBusy,
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+            ) {
+                FaIcon(R.drawable.fa_solid_save, null, size = 13.dp)
+                Text("保存")
+            }
+        },
     )
-    ModalHost(modelPicker) { ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { defaultModel = it; modelPicker = false }, selectedId = defaultModel) }
-    ModalHost(visionPicker) { ModelPicker(state, onDismiss = { visionPicker = false }, onSelect = { visionModel = it; visionPicker = false }, selectedId = visionModel) }
-    if (confirmLogout) AlertDialog(onDismissRequest = { confirmLogout = false }, title = { Text("この端末からログアウト") },
-        text = { Text("このAndroid端末の連携を取り消します。Webや他の端末のログインは継続します。") },
-        confirmButton = { TextButton(onClick = { confirmLogout = false; onLogout() }) { Text("ログアウト") } },
-        dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("キャンセル") } })
-    confirmCacheCategory?.let { category ->
+    if (colorPicker) ColorPickerDialog(normalizeWebHex(form.themeColor) ?: THEME_DEFAULT, onDismiss = { colorPicker = false }) {
+        form.themeColor = it
+        colorPicker = false
+    }
+    confirmCache?.let { category ->
         val label = if (category == CacheCategory.CHAT_HISTORY) "チャット履歴" else "ファイル"
-        AlertDialog(
-            onDismissRequest = { confirmCacheCategory = null },
-            title = { Text("${label}キャッシュを削除") },
-            text = { Text("端末に保存された${label}キャッシュだけを削除します。サーバー上のデータは削除されません。") },
-            confirmButton = {
-                TextButton(onClick = { model.clearOfflineCache(category); confirmCacheCategory = null }) { Text("削除") }
+        BrowserConfirmDialog("端末に保存された${label}キャッシュだけを削除します。サーバー上のデータは削除されません。") { ok ->
+            if (ok) model.clearOfflineCache(category)
+            confirmCache = null
+        }
+    }
+}
+
+/** `.settings-toolbar` search box with the clear button. */
+@Composable
+private fun SettingsSearchBox(value: String, onChange: (String) -> Unit, @Suppress("UNUSED_PARAMETER") phone: Boolean) {
+    val web = LocalWebPalette.current
+    val shape = RoundedCornerShape(12.dp)
+    val style = TextStyle(fontSize = 13.sp, lineHeight = 18.85.sp, color = web.text, fontFamily = WebFonts.sans)
+    Box(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 10.dp)) {
+        BasicTextField(
+            value = value, onValueChange = onChange, singleLine = true, textStyle = style, cursorBrush = SolidColor(web.text),
+            modifier = Modifier.fillMaxWidth().clip(shape)
+                .background(if (web.isLight) Color.White else Color.White.copy(alpha = 0.04f))
+                .border(1.dp, if (web.isLight) Color(15, 23, 42).copy(alpha = 0.14f) else web.line, shape)
+                .semantics { contentDescription = "設定を検索" },
+            decorationBox = { inner ->
+                Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FaIcon(R.drawable.fa_solid_search, null, size = 12.dp, tint = web.muted)
+                    Box(Modifier.weight(1f).padding(start = 12.dp)) {
+                        if (value.isEmpty()) Text("設定を検索...", style = style.copy(color = web.muted))
+                        inner()
+                    }
+                    if (value.isNotEmpty()) Box(
+                        Modifier.size(22.dp).clip(RoundedCornerShape(999.dp)).background(Color.White.copy(alpha = 0.06f))
+                            .clickable(role = Role.Button) { onChange("") }.semantics { contentDescription = "検索をクリア" },
+                        contentAlignment = Alignment.Center,
+                    ) { FaIcon(R.drawable.fa_solid_times, null, size = 10.dp, tint = web.muted) }
+                }
             },
-            dismissButton = { TextButton(onClick = { confirmCacheCategory = null }) { Text("キャンセル") } },
         )
     }
 }
 
+/** `#settings-tabs`: a scrolling pill row on phones, a vertical list beside the content otherwise. */
 @Composable
-private fun CheckboxRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(checked, onChange)
-        Text(label, modifier = Modifier.weight(1f))
+private fun SettingsTabRow(active: SettingsTab, cards: List<SettingsCardSpec>, query: String, phone: Boolean, onSelect: (SettingsTab) -> Unit) {
+    val web = LocalWebPalette.current
+    val wrapBg = if (web.isLight) Color(15, 23, 42).copy(alpha = 0.035f) else Color(8, 12, 22).copy(alpha = if (phone) 0.45f else 0.55f)
+    val lineColor = if (web.isLight) Color(15, 23, 42).copy(alpha = 0.10f) else web.line
+    val hits = if (query.isEmpty()) emptyMap() else cards.filter { it.matches(query) }.groupingBy { it.tab }.eachCount()
+    val tabs: @Composable (Modifier) -> Unit = { itemModifier ->
+        SettingsTab.entries.forEach { entry ->
+            SettingsTabButton(entry, entry == active, hits[entry] ?: 0, phone, itemModifier) { onSelect(entry) }
+        }
+    }
+    if (phone) {
+        Row(
+            Modifier.fillMaxWidth().background(wrapBg)
+                .drawBehind {
+                    drawLine(lineColor, androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx())
+                    drawLine(lineColor, androidx.compose.ui.geometry.Offset(0f, size.height), androidx.compose.ui.geometry.Offset(size.width, size.height), 1.dp.toPx())
+                }
+                .horizontalScroll(rememberScrollState()).padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) { tabs(Modifier) }
+    } else {
+        Column(
+            Modifier.width(188.dp).fillMaxHeight().background(wrapBg)
+                .drawBehind { drawLine(lineColor, androidx.compose.ui.geometry.Offset(size.width, 0f), androidx.compose.ui.geometry.Offset(size.width, size.height), 1.dp.toPx()) }
+                .verticalScroll(rememberScrollState()).padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) { tabs(Modifier.fillMaxWidth()) }
     }
 }
 
 @Composable
-private fun ChoiceRow(label: String, value: String, choices: List<String>, onChange: (String) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("$label: $value", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-        TextButton(onClick = { onChange(choices[(choices.indexOf(value).let { if (it < 0) 0 else it } + 1) % choices.size]) }) { Text("変更") }
+private fun SettingsTabButton(tab: SettingsTab, active: Boolean, hits: Int, phone: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val web = LocalWebPalette.current
+    val shape = RoundedCornerShape(12.dp)
+    val fg = when {
+        !active -> web.muted
+        web.isLight -> web.theme.t600
+        else -> web.theme200
+    }
+    Row(
+        modifier.clip(shape)
+            .background(if (active) web.theme.rgb(0.14f) else Color.Transparent)
+            .border(1.dp, if (active) web.theme.rgb(0.28f) else Color.Transparent, shape)
+            .clickable(role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 11.dp, vertical = if (phone) 7.dp else 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(Modifier.width(16.dp), contentAlignment = Alignment.Center) {
+            tab.icon?.let { FaIcon(it, null, size = 12.dp, tint = if (active) web.theme300 else fg.copy(alpha = 0.85f)) }
+        }
+        Text(tab.label, fontSize = if (phone) 12.sp else 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.12.sp, color = fg, maxLines = 1)
+        if (hits > 0) Text(
+            hits.toString(), fontSize = 9.sp, fontWeight = FontWeight.Bold, color = web.theme200,
+            modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(web.theme.rgb(0.2f)).padding(horizontal = 6.dp, vertical = 1.dp),
+        )
     }
 }
 
-/** +1 when moving to a tab further right in the chip row, -1 when moving left. */
-internal fun settingsTabDirection(tabs: List<String>, from: String, to: String): Int {
-    val fromIndex = tabs.indexOf(from)
-    val toIndex = tabs.indexOf(to)
-    return if (fromIndex < 0 || toIndex < 0 || toIndex >= fromIndex) 1 else -1
+internal fun SettingsCardSpec.matches(query: String): Boolean =
+    query.isNotEmpty() && ((title ?: "") + " " + search).contains(query, ignoreCase = true)
+
+/** Web `getSectionSnippet`: 25 characters before and 35 after the match. */
+internal fun settingsSnippet(text: String, query: String): String {
+    val index = text.lowercase().indexOf(query.lowercase())
+    if (index < 0) return ""
+    val start = (index - 25).coerceAtLeast(0)
+    val end = (index + query.length + 35).coerceAtMost(text.length)
+    var snippet = text.substring(start, end).replace(Regex("\\s+"), " ").trim()
+    if (start > 0) snippet = "…$snippet"
+    if (end < text.length) snippet = "$snippet…"
+    return snippet
+}
+
+/** The active tab's cards, or the Web search overlay while a query is typed. */
+@Composable
+private fun SettingsContent(
+    cards: List<SettingsCardSpec>,
+    tab: SettingsTab,
+    query: String,
+    phone: Boolean,
+    modifier: Modifier,
+    jumpTarget: String?,
+    onJumpDone: () -> Unit,
+    onJump: (SettingsCardSpec) -> Unit,
+) {
+    val web = LocalWebPalette.current
+    val reduce = LocalReduceMotion.current
+    Box(
+        modifier.fillMaxWidth().drawBehind {
+            // `radial-gradient(520px 180px at 100% 0%, rgba(theme,.06), transparent 70%)`
+            drawRect(Brush.radialGradient(listOf(web.theme.rgb(0.06f), Color.Transparent),
+                center = androidx.compose.ui.geometry.Offset(size.width, 0f), radius = 364.dp.toPx()))
+        },
+    ) {
+        if (query.isNotEmpty()) {
+            SearchResults(cards, tab, query, phone, onJump)
+            return@Box
+        }
+        AnimatedContent(
+            targetState = tab,
+            transitionSpec = {
+                val forward = if (targetState.ordinal >= initialState.ordinal) 1 else -1
+                if (reduce) EnterTransition.None togetherWith ExitTransition.None
+                else (slideInHorizontally(tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Emphasized)) { w -> forward * w / 6 } +
+                    fadeIn(tween(PlaygroundMotion.MEDIUM))) togetherWith
+                    (slideOutHorizontally(tween(PlaygroundMotion.SHORT, easing = PlaygroundMotion.Exit)) { w -> -forward * w / 6 } +
+                        fadeOut(tween(PlaygroundMotion.SHORT)))
+            },
+            label = "settings tab",
+        ) { target ->
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                    .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                cards.filter { it.tab == target }.forEach { spec -> SettingsCardView(spec, jumpTarget == spec.key, onJumpDone) }
+            }
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun SettingsCardView(spec: SettingsCardSpec, highlight: Boolean, onJumpDone: () -> Unit) {
+    val web = LocalWebPalette.current
+    val requester = remember { BringIntoViewRequester() }
+    val flash = remember { Animatable(0f) }
+    LaunchedEffect(highlight) {
+        if (highlight) {
+            delay(260)
+            requester.bringIntoView()
+            flash.snapTo(1f)
+            flash.animateTo(0f, tween(1800))
+            onJumpDone()
+        }
+    }
+    val titleContent: String? = spec.title
+    WebSettingsCard(
+        title = null,
+        modifier = Modifier.bringIntoViewRequester(requester).drawBehind {
+            if (flash.value > 0f) drawRoundRect(web.theme.rgb(0.45f * flash.value),
+                topLeft = androidx.compose.ui.geometry.Offset(-3.dp.toPx(), -3.dp.toPx()),
+                size = androidx.compose.ui.geometry.Size(size.width + 6.dp.toPx(), size.height + 6.dp.toPx()),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(19.dp.toPx()))
+        },
+        danger = spec.danger,
+        compact = true,
+    ) {
+        if (titleContent != null) Row(Modifier.padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            spec.titleIcon?.let { FaIcon(it, null, size = 12.dp, tint = if (spec.danger) Tw.rose300 else web.theme300, modifier = Modifier.padding(end = 8.dp)) }
+            Text(titleContent, color = if (spec.danger) Tw.rose300 else web.theme300, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.26.sp)
+        }
+        spec.content(this)
+    }
+}
+
+@Composable
+private fun SearchResults(cards: List<SettingsCardSpec>, current: SettingsTab, query: String, @Suppress("UNUSED_PARAMETER") phone: Boolean, onJump: (SettingsCardSpec) -> Unit) {
+    val web = LocalWebPalette.current
+    val results = cards.filter { it.matches(query) }
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 14.dp),
+    ) {
+        if (results.isEmpty()) {
+            Column(Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.size(56.dp).clip(RoundedCornerShape(16.dp)).background(web.theme.rgb(0.10f)), contentAlignment = Alignment.Center) {
+                    FaIcon(R.drawable.fa_solid_search, null, size = 20.dp, tint = web.theme300)
+                }
+                Text("一致する設定はありません", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = web.text)
+                Text("「$query」に一致する設定項目はありません。", fontSize = 12.sp, lineHeight = 19.2.sp, color = web.muted)
+            }
+            return@Column
+        }
+        Text("${results.size}件の一致", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = web.muted,
+            modifier = Modifier.padding(start = 2.dp, end = 2.dp, bottom = 8.dp))
+        // The Web lists the results of the current tab first when it has any.
+        val target = if (results.any { it.tab == current }) current else results.first().tab
+        val ordered = results.filter { it.tab == target } + results.filter { it.tab != target }
+        var previous: SettingsTab? = null
+        ordered.forEach { spec ->
+            if (spec.tab != previous) {
+                if (previous != null) Box(Modifier.fillMaxWidth().padding(vertical = 6.dp).height(1.dp).background(web.twBorder(Tw.gray700).copy(alpha = 0.5f)))
+                if (spec.tab != target) Text("▼ ${spec.tab.label}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Tw.gray500,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
+                previous = spec.tab
+            }
+            val shape = RoundedCornerShape(8.dp)
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 4.dp).clip(shape)
+                    .background(if (web.isLight) Color(15, 23, 42).copy(alpha = 0.03f) else Color(10, 16, 30).copy(alpha = 0.75f))
+                    .border(1.dp, Color.White.copy(alpha = 0.04f), shape)
+                    .clickable { onJump(spec) }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(spec.tab.label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = web.theme200, maxLines = 1,
+                    modifier = Modifier.padding(top = 2.dp).clip(RoundedCornerShape(999.dp)).background(web.theme.rgb(0.14f))
+                        .border(1.dp, web.theme.rgb(0.28f), RoundedCornerShape(999.dp)).padding(horizontal = 8.dp, vertical = 1.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(spec.title ?: spec.search.substringBefore(' ').ifBlank { spec.tab.label }, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        color = if (web.isLight) web.text else Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(settingsSnippet(spec.search, query), fontSize = 11.sp, color = Tw.gray400, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp))
+                }
+            }
+        }
+    }
 }

@@ -326,8 +326,8 @@ def mobile_revoke():
     return jsonify({'status': 'revoked'})
 
 
-# Only non-secret, Android-relevant preferences are exposed. Provider API keys,
-# passwords, 2FA setup, MCP OAuth secrets, and account archives stay on Web.
+# Settings shared with the Web settings modal. Provider API keys are write-only
+# (masked on read, like Web). MCP OAuth secrets stay on Web.
 _MOBILE_PREFERENCE_BOOLS = (
     'default_enable_thinking', 'default_enable_search', 'enter_to_send',
     'light_mode_enabled', 'auto_search_on_links', 'default_enable_url_context',
@@ -336,7 +336,15 @@ _MOBILE_PREFERENCE_BOOLS = (
     'use_last_chat_settings', 'voice_studio_ui', 'liquid_glass_enabled',
     'system_prompt_enabled', 'apply_global_system_prompt',
     'apply_auto_system_prompt_notices', 'skip_2fa_on_google_login',
-    'rich_paste_prompt_use_custom_default',
+    'rich_paste_prompt_use_custom_default', 'enable_latency_metrics', 'enable_client_debug_log',
+)
+# Provider credentials follow Web /api/settings: GET returns only the mask, and a
+# submitted mask keeps the stored value, so a native client never sees plaintext keys.
+_MOBILE_SECRET_FIELDS = (
+    ('openai_key', 'openai_api_key'), ('gemini_key', 'gemini_api_key'),
+    ('anthropic_key', 'anthropic_api_key'), ('deepseek_key', 'deepseek_api_key'),
+    ('kimi_key', 'kimi_api_key'), ('mistral_key', 'mistral_api_key'),
+    ('xai_key', 'xai_api_key'), ('google_key', 'google_api_key'),
 )
 _MOBILE_STT_MODELS = VALID_STT_MODELS
 _MOBILE_PROMPT_BAR_MODES = {'normal', 'compact', 'minimal'}
@@ -363,11 +371,19 @@ def _mobile_apply_prompt_bar_mode(mode):
     current_user.minimal_prompt_mode = mode == 'minimal'
 
 
+def _mobile_global_prompt_status():
+    value = get_app_setting("global_system_prompt", "") or ""
+    enabled = get_bool_app_setting("global_system_prompt_enabled", True)
+    effective = ""
+    if enabled:
+        effective = str(value) if str(value).strip() else build_global_system_prompt()
+    return value, enabled, effective, bool(enabled and not str(value).strip())
+
+
 def _mobile_preferences_payload():
     user = current_user
-    global_prompt_value = get_app_setting("global_system_prompt", "") or ""
-    global_prompt_enabled = get_bool_app_setting("global_system_prompt_enabled", True)
-    return {
+    global_prompt_value, global_prompt_enabled, global_prompt_effective, global_prompt_time_fallback = _mobile_global_prompt_status()
+    payload = {
         'api_version': 1,
         'username': user.username,
         'google_email': user.google_email or "",
@@ -429,7 +445,53 @@ def _mobile_preferences_payload():
         'session_created_at': g.mobile_session.created_at.isoformat() + 'Z',
         'session_expires_at': (g.mobile_session.created_at + timedelta(seconds=MOBILE_TOKEN_TTL)).isoformat() + 'Z',
         'device_name': (g.mobile_session.user_agent or '').replace('Official Android: ', '').strip() or None,
+        'global_system_prompt_effective': global_prompt_effective,
+        'global_system_prompt_uses_time_fallback': global_prompt_time_fallback,
+        'auto_system_prompt_notices_config': get_user_auto_system_prompt_notices_config(user),
+        'llm_transcribe_prompt': _normalize_llm_transcribe_prompt(getattr(user, 'llm_transcribe_prompt', None)) or "",
+        'llm_transcribe_prompt_default': DEFAULT_LLM_TRANSCRIBE_PROMPT,
+        'enable_latency_metrics': bool(user.enable_latency_metrics),
+        'enable_client_debug_log': bool(user.enable_client_debug_log),
+        'passkey_only_login': bool(user.passkey_only_login),
+        'model_api_keys': {model_key: _SECRET_MASK for model_key in _load_user_model_api_key_map(user)},
+        'gemini_backend': _normalize_gemini_backend(user.gemini_backend),
+        'gemini_vertex_project': decrypt_val(user.gemini_vertex_project) or "",
+        'gemini_vertex_location': _normalize_gemini_vertex_location(user.gemini_vertex_location),
+        'gemini_vertex_credentials_json': _masked_secret(user.gemini_vertex_credentials_json),
+        'google_project': decrypt_val(user.google_cloud_project) or "",
     }
+    for field, column in _MOBILE_SECRET_FIELDS:
+        payload[field] = _masked_secret(getattr(user, column, None))
+    return payload
+
+
+def _mobile_apply_provider_settings(data):
+    """Web /api/settings credential rules; returns an error code or None."""
+    for field, _column in _MOBILE_SECRET_FIELDS + (('google_project', None), ('gemini_vertex_project', None)):
+        if field in data and len(str(data.get(field) or '')) > 4096:
+            return f'{field}_too_large'
+    if 'gemini_vertex_credentials_json' in data and len(str(data.get('gemini_vertex_credentials_json') or '')) > 100_000:
+        return 'gemini_vertex_credentials_json_too_large'
+    if 'gemini_vertex_credentials_json' in data and data['gemini_vertex_credentials_json'] != _SECRET_MASK:
+        try:
+            normalized_vertex_json = _normalize_gemini_vertex_credentials_json(data['gemini_vertex_credentials_json'])
+        except ValueError as e:
+            return str(e)
+        current_user.gemini_vertex_credentials_json = encrypt_val(normalized_vertex_json)
+    for field, column in _MOBILE_SECRET_FIELDS:
+        if field in data and data[field] != _SECRET_MASK:
+            setattr(current_user, column, encrypt_val(str(data[field] or '')))
+    if 'model_api_keys' in data:
+        _merge_masked_model_api_key_map(current_user, data.get('model_api_keys'))
+    if 'gemini_backend' in data:
+        current_user.gemini_backend = _normalize_gemini_backend(data['gemini_backend'])
+    if 'gemini_vertex_project' in data:
+        current_user.gemini_vertex_project = encrypt_val(str(data['gemini_vertex_project'] or ''))
+    if 'gemini_vertex_location' in data:
+        current_user.gemini_vertex_location = _normalize_gemini_vertex_location(data['gemini_vertex_location'])
+    if 'google_project' in data:
+        current_user.google_cloud_project = encrypt_val(str(data['google_project'] or ''))
+    return None
 
 
 @app.route('/api/mobile/v1/preferences', methods=['GET', 'PUT'])
@@ -503,5 +565,22 @@ def mobile_preferences():
             return _mobile_error('invalid_rich_paste_prompt')
         prompt = data['rich_paste_prompt_default'].replace('\x00', '')[:20_000]
         current_user.rich_paste_prompt_default = prompt
+    if 'llm_transcribe_prompt' in data:
+        if len(str(data.get('llm_transcribe_prompt') or '')) > 100_000:
+            return _mobile_error('llm_transcribe_prompt_too_large')
+        current_user.llm_transcribe_prompt = _normalize_llm_transcribe_prompt(data.get('llm_transcribe_prompt'))
+    if 'auto_system_prompt_notices_config' in data:
+        if not isinstance(data.get('auto_system_prompt_notices_config'), dict):
+            return _mobile_error('invalid_auto_system_prompt_notices_config')
+        set_user_auto_system_prompt_notices_config(current_user, data['auto_system_prompt_notices_config'])
+    if 'passkey_only_login' in data:
+        target = bool(data['passkey_only_login'])
+        if target and not _load_user_webauthn_credentials(current_user):
+            return _mobile_error('passkey_required')
+        current_user.passkey_only_login = target
+    provider_error = _mobile_apply_provider_settings(data)
+    if provider_error:
+        db.session.rollback()
+        return _mobile_error(provider_error)
     safe_db_commit()
     return jsonify(_mobile_preferences_payload())

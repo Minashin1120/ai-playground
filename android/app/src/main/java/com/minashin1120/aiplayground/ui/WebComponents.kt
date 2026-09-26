@@ -102,11 +102,13 @@ internal fun WebToggle(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     contentDescription: String? = null,
+    /** `peer-checked:bg-*`; the theme 600 color when null. */
+    activeColor: Color? = null,
 ) {
     val web = LocalWebPalette.current
     val reduce = LocalReduceMotion.current
     val track by animateColorAsState(
-        if (checked) web.theme.t600 else web.twBg(Tw.gray700),
+        if (checked) activeColor ?: web.theme.t600 else web.twBg(Tw.gray700),
         motionTween(reduce, 150), label = "toggle track",
     )
     val knobOffset by animateDpAsState(if (checked) 20.dp else 0.dp, motionTween(reduce, 150), label = "toggle knob")
@@ -187,7 +189,7 @@ internal fun WebCheckbox(
 }
 
 /** An `<option>`: the stored value and the label shown by the Web select. */
-internal data class WebOption(val value: String, val label: String)
+internal data class WebOption(val value: String, val label: String, val group: String? = null)
 
 internal fun webOptions(vararg pairs: Pair<String, String>): List<WebOption> = pairs.map { WebOption(it.first, it.second) }
 
@@ -236,7 +238,12 @@ internal fun WebSelect(
             SelectArrow(fg, (fontSize.value * 0.6f).dp)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { option ->
+            options.forEachIndexed { index, option ->
+                // `<optgroup label>` heading when the group changes.
+                if (option.group != null && option.group != options.getOrNull(index - 1)?.group) {
+                    Text(option.group, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                }
                 DropdownMenuItem(
                     text = {
                         Text(

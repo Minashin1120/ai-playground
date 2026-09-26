@@ -120,7 +120,7 @@ internal fun WebOverlayModal(
 
 /** `bg-gray-900/95` overlays used by the history, legal and alpha modals. */
 @Composable
-private fun grayOverlay(): Color {
+internal fun grayOverlay(): Color {
     val web = LocalWebPalette.current
     return if (web.isLight) Color(0xFFF7F9FC) else Tw.gray900.copy(alpha = 0.95f)
 }

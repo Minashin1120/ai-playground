@@ -94,14 +94,6 @@ class ConversationMotionTest {
     }
 
     @Test
-    fun settingsTabsSlideTowardTheChosenTab() {
-        val tabs = listOf("一般", "表示", "データ")
-        assertEquals(1, settingsTabDirection(tabs, "一般", "データ"))
-        assertEquals(-1, settingsTabDirection(tabs, "データ", "表示"))
-        assertEquals(1, settingsTabDirection(tabs, "不明", "表示"))
-    }
-
-    @Test
     fun staggerDelayIsCapped() {
         assertEquals(0, staggerDelay(0))
         assertEquals(80, staggerDelay(2))

@@ -2550,7 +2550,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(prefsBusy = true) }
             try {
                 val reply = api.put("/api/mobile/v1/preferences", payload, token())
-                mutable.update { it.copy(preferences = parsePreferences(reply), notice = "設定を保存しました。") }
+                mutable.update { it.copy(preferences = parsePreferences(reply), notice = "設定を保存しました") }
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(prefsBusy = false) } }
         }

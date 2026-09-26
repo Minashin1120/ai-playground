@@ -33,7 +33,13 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/WebDialogs.kt` | Webの `confirm()`／`prompt()` 相当、チャット履歴・アルファ版・利用規約のモーダル、共通オーバーレイ | 確認ダイアログや小さなモーダルを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/LowBandwidth.kt` | Web相当の低速回線モードの判定・設定の切り替え・表示文言 | 低速回線モードを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/StartupSplash.kt`, `app/src/main/res/drawable/ic_playground_mark.xml` | 起動時のロゴズーム・画面リビールとアクセシビリティ対応 | 起動アニメーション・ロゴ素材を編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsDialog.kt` | Web設定タブ相当のネイティブ設定（検索、一般／プロンプト／表示／データ／フィードバック／MCP／圧縮／セッション、秘密項目のWeb導線） | 設定画面を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsDialog.kt` | Web設定モーダルの枠（見出し、検索と結果一覧、10タブ、キャンセル／保存） | 設定画面の枠や検索を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsTabs.kt` | 設定のタブ定義と一般・APIキー・プロンプト・表示タブのカード | これらのタブの項目を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsTabsOther.kt` | データ・アカウント・セキュリティ・2要素認証・フィードバック・MCPタブのカードとAndroidカード | これらのタブの項目を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsForm.kt` | 設定の編集中の値と保存時の送信内容 | 設定項目を追加するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsFields.kt` | 設定カード内の入力部品（チェックボックス、ラジオ、select、入力欄、小ボタン、スイッチ行） | 設定の部品の見た目を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ColorPickerDialog.kt` | テーマ色の選択（Webの `input[type=color]` 相当） | 色選択を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/CompressionDialog.kt` | 「画像・圧縮詳細設定」モーダル（圧縮と画像・OCRの生成設定） | 圧縮設定を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/SlashCommands.kt` | 入力欄の `/` コマンド定義と解析 | スラッシュコマンドを追加するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AdvancedTools.kt` | Batch管理と高度な生成機能・安全なWeb導線 | 高度な機能メニューを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasCodingPanels.kt` | Canvasプレビュー・編集 | Canvasの編集操作を変更するとき |

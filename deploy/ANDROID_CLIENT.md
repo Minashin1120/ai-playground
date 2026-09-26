@@ -298,8 +298,8 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | GET `/api/gems` | なし | 本人のGem配列（トップレベルJSON配列） |
 | POST `/api/gems` | `name`, `description`, `instruction`, `default_model` | 作成したGem |
 | GET/PUT/DELETE `/api/gems/<uuid>` | PUTは作成と同じ項目 | 取得・更新・削除。所有者のみ |
-| GET `/api/mobile/v1/preferences` | なし | 既定モデル／Vision、ツール既定値、Enter送信、ライト／Liquid Glass、テーマ、プロンプトバー、STT、システムプロンプト、前回設定、2FA状態、この端末のセッション情報。APIキーは含まない |
-| PUT `/api/mobile/v1/preferences` | GETと同じ非秘密フィールド。`prompt_bar_mode`（normal／compact／minimal）、`system_prompt`、`stt_model`、`mic_transcribe_mode` など | 更新後の設定。APIキー・パスワード・E2EE切替等の未知キーは無視し、値を変更しない |
+| GET `/api/mobile/v1/preferences` | なし | 既定モデル／Vision、ツール既定値、Enter送信、ライト／Liquid Glass、テーマ、プロンプトバー、STT、LLM文字起こしプロンプトと既定文面、システムプロンプト、全体システムプロンプトの実効値と状態、自動注入システムプロンプト（`auto_system_prompt_notices_config`）、デバッグ設定、前回設定、2FA状態、この端末のセッション情報。APIキー（`openai_key` など、`gemini_vertex_credentials_json`、`model_api_keys` の値）はWeb `/api/settings` と同じく設定済みなら `********` だけを返し、平文は返さない。Gemini接続方式、Vertex Project／Location、Google Cloud Projectは平文 |
+| PUT `/api/mobile/v1/preferences` | GETと同じフィールド。`prompt_bar_mode`（normal／compact／minimal）、`system_prompt`、`stt_model`、`mic_transcribe_mode`、`llm_transcribe_prompt`、`auto_system_prompt_notices_config`、`passkey_only_login`、APIキー類など。APIキーは `********` を送ると保存済みの値を保持し、空文字で削除する（Webと同じ）。長さの上限とVertex JSONの検証もWebと同じ | 更新後の設定。パスワード・E2EE切替などの未知キーは無視する |
 | GET `/api/feedback`、POST `/api/feedback` | POSTは `title`, `message` | 本人のフィードバック一覧と送信。管理者用の全件取得や返信更新は対象外 |
 | GET `/api/mcp/servers` | なし | 登録済みMCPサーバーの名前・有効状態・接続状態。秘密は含まない |
 | PUT `/api/mcp/servers/<id>` | `{ "enabled": true/false }` のみ | 本人のMCPサーバーの有効切替。Bearer／OAuth秘密の更新は403 |

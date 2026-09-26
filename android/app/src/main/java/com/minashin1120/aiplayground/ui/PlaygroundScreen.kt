@@ -235,6 +235,7 @@ fun PlaygroundScreen(
             var renaming by remember { mutableStateOf<ThreadItem?>(null) }
             var settingsOpen by remember { mutableStateOf(false) }
             var settingsTab by remember { mutableStateOf("一般") }
+            var compressionOpen by remember { mutableStateOf(false) }
             var changelogOpen by remember { mutableStateOf(false) }
             var advancedOpen by remember { mutableStateOf(false) }
             var realtimeOpen by remember { mutableStateOf(false) }
@@ -396,10 +397,11 @@ fun PlaygroundScreen(
             }
             val hasOverlay = modelPicker || threadSettings || attachMenu || libraryOpen || viewingFile != null ||
                 gemEditorOpen || historyOpen || alphaOpen || legalKind != null ||
-                settingsOpen || changelogOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || maskOpen
+                settingsOpen || changelogOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || maskOpen || compressionOpen
             BackHandler(enabled = hasOverlay || (!wide && drawer.currentValue == DrawerValue.Open)) {
                 when {
                     attachMenu -> attachMenu = false
+                    compressionOpen -> compressionOpen = false
                     modelPicker -> modelPicker = false
                     threadSettings -> threadSettings = false
                     settingsOpen -> settingsOpen = false
@@ -478,7 +480,7 @@ fun PlaygroundScreen(
                             onRichPaste = { richPasteOpen = true }, onMask = { maskPicker.launch("image/*") },
                             onSettings = { settingsTab = "一般"; settingsOpen = true },
                             onChatInstructions = { model.ensureThread { threadSettings = true } },
-                            onCompressionSettings = { settingsTab = "画像圧縮"; settingsOpen = true },
+                            onCompressionSettings = { compressionOpen = true },
                             onTemporarySettings = { settingsTab = "一般"; settingsOpen = true },
                             loader = loader, onOpenFile = openInApp,
                             onRealtime = {
@@ -616,6 +618,7 @@ fun PlaygroundScreen(
                     appUpdate = appUpdate ?: AppUpdateUiState(), onCheckForUpdate = onCheckForUpdate,
                     onBubble = { openBubble(); settingsOpen = false })
             }
+            ModalHost(compressionOpen) { CompressionDialog(state, model) { compressionOpen = false } }
             ModalHost(changelogOpen) {
                 AppChangelogDialog(
                     state = appChangelog,

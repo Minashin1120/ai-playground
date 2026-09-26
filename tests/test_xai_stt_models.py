@@ -26,9 +26,11 @@ class XaiSttModelRegressionTests(unittest.TestCase):
 
         settings = (
             APP_ROOT / "android" / "app" / "src" / "main" / "java" / "com" / "minashin1120"
-            / "aiplayground" / "ui" / "SettingsDialog.kt"
+            / "aiplayground" / "ui" / "SettingsTabs.kt"
         ).read_text(encoding="utf-8")
-        self.assertIn('"grok-voice-transcribe-2.0", "grok-voice-transcribe-1.0",', settings)
+        # Android shows the same option labels as the Web select.
+        self.assertIn('"grok-voice-transcribe-2.0" to "grok-voice-transcribe-2.0（xAI）"', settings)
+        self.assertIn('"grok-voice-transcribe-1.0" to "grok-voice-transcribe-1.0（xAI）"', settings)
 
 
 if __name__ == "__main__":

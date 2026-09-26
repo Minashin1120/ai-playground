@@ -43,6 +43,8 @@ internal fun PlaygroundDialog(
     subtitle: String? = null,
     panelMaxWidth: Dp = 920.dp,
     fillHeight: Boolean = false,
+    /** False when the body lays out its own full-width bars (settings toolbar and tabs). */
+    padBody: Boolean = true,
 ) {
     Dialog(onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         WebModalWindow()
@@ -63,7 +65,8 @@ internal fun PlaygroundDialog(
                     WebModalHeader(title = title, onClose = onDismissRequest, phone = phone, icon = icon, subtitle = subtitle)
                     Box(
                         Modifier.weight(1f, fill = fillHeight).fillMaxWidth()
-                            .padding(start = if (phone) 12.dp else 18.dp, end = if (phone) 12.dp else 18.dp, top = if (phone) 12.dp else 16.dp, bottom = if (phone) 14.dp else 18.dp),
+                            .then(if (padBody) Modifier.padding(start = if (phone) 12.dp else 18.dp, end = if (phone) 12.dp else 18.dp,
+                                top = if (phone) 12.dp else 16.dp, bottom = if (phone) 14.dp else 18.dp) else Modifier),
                     ) { text() }
                     WebModalFooter(phone) {
                         dismissButton?.invoke()

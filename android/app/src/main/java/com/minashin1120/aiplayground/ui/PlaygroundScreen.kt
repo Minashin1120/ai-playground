@@ -288,11 +288,13 @@ fun PlaygroundScreen(
             }
             val launchSpeech: () -> Unit = {
                 val selected = state.model
-                val useStudio = state.preferences?.voiceStudioUi != false
                 when {
-                    useStudio && isRealtimeAudioModel(state.account?.models?.firstOrNull { it.id == selected }) -> {
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
-                        else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
+                    // Web `mic-btn` with a voice model starts (or stops) the voice session in the dock.
+                    isRealtimeAudioModel(state.account?.models?.firstOrNull { it.id == selected }) -> when {
+                        state.realtime.active -> model.stopRealtime(save = true)
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED ->
+                            startRealtimeWith(model, selected, realtimeOptions)
+                        else -> { awaitingMic = true; startDockAfterMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
                     }
                     ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED ->
                         model.toggleMicRecording()
@@ -654,7 +656,14 @@ fun PlaygroundScreen(
                     onDismiss = { advancedOpen = false },
                 )
             }
-            ModalHost(realtimeOpen) { RealtimeStudioDialog(state, model, realtimeOptions, { realtimeOptions = it }, onDismiss = { realtimeOpen = false }) }
+            ModalHost(realtimeOpen) {
+                RealtimeStudioDialog(state, model, realtimeOptions, { realtimeOptions = it }, onDismiss = { realtimeOpen = false },
+                    onStart = {
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                            startRealtimeWith(model, state.model, realtimeOptions)
+                        } else { awaitingMic = true; startDockAfterMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
+                    })
+            }
             ModalHost(lyriaOpen) { LyriaStudioDialog(state, model, onDismiss = { lyriaOpen = false }) }
             ModalHost(richPasteOpen) {
                 RichPasteDialog(state.draft, onDismiss = { richPasteOpen = false }) { text ->

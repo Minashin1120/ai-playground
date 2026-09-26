@@ -235,8 +235,8 @@ fun Composer(
             GenerationOptionsPanel(state.model, state.generationValues, !state.streaming, model::generationOption,
                 onOpenLyriaStudio = onLyria, minimal = minimal)
             // Web voice dock: realtime audio models replace the text row with inline voice controls.
-            val voiceDock = state.realtime.active ||
-                (state.preferences?.voiceStudioUi != false && isRealtimeAudioModel(selectedModel))
+            // Web `updateStsUi`: voice models always replace the text row; the studio setting only changes the dock's extras.
+            val voiceDock = state.realtime.active || isRealtimeAudioModel(selectedModel)
             if (voiceDock) RealtimeVoiceDock(state, model, realtimeOptions, onRealtimeOptions,
                 onStart = onRealtimeStart, onExpand = onRealtime)
             else Column {

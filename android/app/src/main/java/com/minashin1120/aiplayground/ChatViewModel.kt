@@ -2268,9 +2268,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         transcriptionMode: String = "VERBATIM",
         customVocabulary: String = "",
         includeThoughts: Boolean = false,
+        speed: Float? = null,
+        rateIn: Int? = null,
+        rateOut: Int? = null,
+        autoPlay: Boolean = true,
     ) {
         if (state.value.offline) { notify("オフライン中はRealtimeを開始できません。"); return }
+        rtAutoPlay = autoPlay
+        rtResponseDone = 0
+        rtLastAudioAt = 0L
+        rtSpeechActive = false
+        rtStreamError = null
         if (state.value.realtime.active || modelId.isBlank()) return
+        rtStopping = false
+        mutable.update { it.copy(realtime = RealtimeState(model = modelId, status = "接続中...")) }
         viewModelScope.launch {
             try {
                 val started = api.post("/api/realtime/start", JSONObject()
@@ -2281,15 +2292,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     .put("include_thoughts", includeThoughts)
                     .put("transcription_mode", transcriptionMode.trim().uppercase().ifBlank { "VERBATIM" })
                     .put("custom_vocabulary", JSONArray(customVocabulary.split(',', '、', '\n')
-                        .map { it.trim() }.filter { it.isNotBlank() }.take(1000))), token())
+                        .map { it.trim() }.filter { it.isNotBlank() }.take(1000)))
+                    .apply {
+                        speed?.let { put("speed", it.toDouble()) }
+                        rateIn?.let { put("rate_in", it) }
+                        rateOut?.let { put("rate_out", it) }
+                    }, token())
                 val sessionId = started.getString("session_id")
                 val rateOut = started.optInt("rate_out", 24000).coerceIn(8000, 48000)
                 realtimeTrack = createAudioTrack(rateOut, stereo = false)
-                mutable.update { it.copy(realtime = RealtimeState(true, modelId, sessionId, "接続中…")) }
+                mutable.update { it.copy(realtime = RealtimeState(true, modelId, sessionId, "話してください...")) }
                 realtimeCaptureJob = viewModelScope.launch(Dispatchers.IO) {
                     try { captureRealtimeAudio(sessionId, started.optInt("rate_in", rateOut).coerceIn(8000, 48000)) }
                     catch (e: CancellationException) { throw e }
-                    catch (e: Exception) { mutable.update { it.copy(realtime = it.realtime.copy(error = e.message ?: "マイク入力を開始できません。")) } }
+                    catch (e: Exception) {
+                        mutable.update { it.copy(realtime = it.realtime.copy(status = "マイクエラー", error = e.message)) }
+                        notify("マイクを利用できません: " + (e.message ?: ""))
+                    }
                 }
                 realtimeStreamJob = viewModelScope.launch(Dispatchers.IO) {
                     try {
@@ -2297,12 +2316,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             handleRealtimeEvent(event, rateOut)
                         }
                     } catch (e: CancellationException) { throw e }
-                    catch (e: Exception) { mutable.update { it.copy(realtime = it.realtime.copy(error = e.message ?: "Realtime接続が終了しました。")) } }
-                    finally {
-                        if (state.value.realtime.sessionId == sessionId) mutable.update { it.copy(realtime = it.realtime.copy(active = false, status = "終了")) }
+                    catch (e: Exception) {
+                        if (state.value.realtime.sessionId == sessionId && !rtStopping) {
+                            mutable.update { it.copy(realtime = it.realtime.copy(status = "ストリームエラー")) }
+                            notify("リアルタイム接続が切断されました")
+                        }
                     }
                 }
-            } catch (e: Exception) { report(e) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                val message = (e as? ApiException)?.payload?.optString("error")?.ifBlank { null } ?: e.message ?: "セッション開始に失敗しました"
+                mutable.update { it.copy(realtime = RealtimeState(status = "接続エラー")) }
+                notify("リアルタイムセッションを開始できませんでした: $message")
+            }
         }
     }
 
@@ -2334,16 +2360,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .setBufferSizeInBytes(min * 2).setTransferMode(AudioTrack.MODE_STREAM).build().also { it.play() }
     }
 
+    private var rtAutoPlay = true
+    private var rtResponseDone = 0
+    private var rtLastAudioAt = 0L
+    private var rtSpeechActive = false
+    private var rtStreamError: String? = null
+    private var rtStopping = false
+
+    private fun setRealtimeStatus(text: String) = mutable.update { it.copy(realtime = it.realtime.copy(status = text)) }
+
+    /** Web `RealtimeVoiceSession._handleEvent`. */
     private fun handleRealtimeEvent(event: JSONObject, rateOut: Int) {
         when (event.optString("type")) {
-            "status" -> mutable.update { it.copy(realtime = it.realtime.copy(status = event.optString("status"))) }
-            "interaction_status" -> mutable.update { it.copy(realtime = it.realtime.copy(status = event.optString("status"))) }
+            "status" -> if (event.optString("status") == "ready" && state.value.realtime.active && !rtStopping) setRealtimeStatus("話してください...")
             "audio" -> {
+                rtLastAudioAt = System.currentTimeMillis()
+                if (!rtAutoPlay) return
                 val encoded = event.nullableString("data")
                 val bytes = runCatching { android.util.Base64.decode(encoded, android.util.Base64.DEFAULT) }.getOrNull() ?: ByteArray(0)
                 if (bytes.isNotEmpty()) {
                     realtimeTrack?.write(bytes, 0, bytes.size, AudioTrack.WRITE_NON_BLOCKING)
-                    mutable.update { it.copy(realtime = it.realtime.copy(audioBytes = it.realtime.audioBytes + bytes.size)) }
+                    mutable.update { it.copy(realtime = it.realtime.copy(audioBytes = it.realtime.audioBytes + bytes.size,
+                        status = if (rtStopping) it.realtime.status else "再生中...")) }
                 }
             }
             "transcript" -> {
@@ -2355,33 +2393,86 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     thoughtText = if (role == "thought") current.realtime.thoughtText + delta else current.realtime.thoughtText,
                 )) }
             }
-            "error" -> mutable.update { it.copy(realtime = it.realtime.copy(error = event.nullableString("message"))) }
-            "final" -> mutable.update { it.copy(realtime = it.realtime.copy(active = false, status = "終了")) }
+            "speech_started" -> {
+                rtSpeechActive = true
+                realtimeTrack?.let { track -> runCatching { track.pause(); track.flush(); track.play() } }
+                if (!rtStopping) setRealtimeStatus("聞き取り中...")
+            }
+            "speech_stopped" -> { rtSpeechActive = false; if (!rtStopping) setRealtimeStatus("応答待ち...") }
+            "interrupted" -> realtimeTrack?.let { track -> runCatching { track.pause(); track.flush(); track.play() } }
+            "response_done", "turn_complete" -> rtResponseDone += 1
+            "error" -> {
+                rtStreamError = event.nullableString("message").ifBlank { "リアルタイムエラー" }
+                mutable.update { it.copy(realtime = it.realtime.copy(status = "エラー", error = rtStreamError)) }
+            }
+            "final" -> if (state.value.realtime.active && !rtStopping) stopRealtime(save = true)
         }
     }
 
-    fun commitRealtime() {
-        val sid = state.value.realtime.sessionId.takeIf { it.isNotBlank() } ?: return
-        viewModelScope.launch { runCatching { api.post("/api/realtime/commit", JSONObject().put("session_id", sid), token()) }
-            .onFailure { report(it) } }
-    }
-
+    /**
+     * Web `RealtimeVoiceSession.stop` / `_cancel`: saving commits the last audio, waits for the reply (or a
+     * quiet moment, up to 20s) and stores the conversation in the chat; cancelling discards it.
+     */
     fun stopRealtime(save: Boolean) {
         val current = state.value.realtime
         if (!current.active && current.sessionId.isBlank()) return
+        if (rtStopping) return
+        rtStopping = true
         viewModelScope.launch {
-            realtimeCaptureJob?.cancelAndJoin(); realtimeStreamJob?.cancelAndJoin()
             val sid = current.sessionId
+            realtimeCaptureJob?.cancelAndJoin()
+            if (!save) {
+                realtimeStreamJob?.cancelAndJoin()
+                if (sid.isNotBlank()) runCatching { api.post("/api/realtime/cancel", JSONObject().put("session_id", sid), token()) }
+                finishRealtime("Canceled", 800)
+                return@launch
+            }
+            setRealtimeStatus("応答を待っています...")
+            runCatching { api.post("/api/realtime/commit", JSONObject().put("session_id", sid), token()) }
+            val startedAt = System.currentTimeMillis()
+            val before = rtResponseDone
+            var lastActivity = rtLastAudioAt
+            while (System.currentTimeMillis() - startedAt < 20_000) {
+                if (rtResponseDone > before) break
+                if (rtLastAudioAt > lastActivity) lastActivity = rtLastAudioAt
+                val now = System.currentTimeMillis()
+                if (!rtSpeechActive && now - startedAt > 2_000 && now - lastActivity > 2_500) break
+                delay(250)
+            }
+            realtimeStreamJob?.cancelAndJoin()
             try {
-                if (sid.isNotBlank()) {
-                    val path = if (save) "/api/realtime/save" else "/api/realtime/cancel"
-                    api.post(path, JSONObject().put("session_id", sid).apply { state.value.selected?.id?.let { put("thread_id", it) } }, token())
+                val reply = api.post("/api/realtime/save", JSONObject().put("session_id", sid)
+                    .apply { state.value.selected?.id?.let { put("thread_id", it) } }, token())
+                val error = rtStreamError
+                if (error != null) {
+                    finishRealtime("エラー", 0)
+                    notify("リアルタイム会話でエラーが発生しました: $error")
+                } else {
+                    finishRealtime("保存しました", 1200)
+                    val threadId = reply.optString("thread_id").ifBlank { state.value.selected?.id.orEmpty() }
+                    if (threadId.isNotBlank()) {
+                        if (state.value.selected?.id == threadId) runCatching { loadMessages(threadId) } else openThreadId(threadId)
+                    }
                 }
-            } catch (e: Exception) { report(e) }
-            realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
-            mutable.update { it.copy(realtime = RealtimeState()) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                finishRealtime("保存エラー", 0)
+                notify("音声会話の保存に失敗しました: " + ((e as? ApiException)?.payload?.optString("error")?.ifBlank { null } ?: e.message ?: ""))
+            }
         }
     }
+
+    /** Releases the session and shows [status]; after [resetMillis] the dock returns to "Tap to speak". */
+    private suspend fun finishRealtime(status: String, resetMillis: Long) {
+        realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
+        rtStopping = false
+        mutable.update { it.copy(realtime = RealtimeState(status = status)) }
+        if (resetMillis > 0) {
+            delay(resetMillis)
+            mutable.update { if (!it.realtime.active && it.realtime.status == status) it.copy(realtime = RealtimeState()) else it }
+        }
+    }
+
 
     // --- Native Lyria RealTime studio ---
 
@@ -2390,59 +2481,177 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { if (it.lyria.active) it else it.copy(lyria = it.lyria.copy(prompt = text)) }
     }
 
-    fun startLyria(prompt: String) {
-        if (state.value.offline) { notify("オフライン中はLyriaを開始できません。"); return }
-        if (state.value.lyria.active || prompt.isBlank()) return
+    private fun setLyriaStatus(text: String, kind: String) =
+        mutable.update { it.copy(lyria = it.lyria.copy(status = text, kind = kind)) }
+
+    /** Web `collectPrompts`: non-empty rows with their weights. */
+    private fun lyriaPromptsJson(prompts: List<LyriaPrompt>): JSONArray = JSONArray().apply {
+        prompts.filter { it.text.isNotBlank() }.forEach { put(JSONObject().put("text", it.text.trim().take(4000)).put("weight", it.weight.toDouble())) }
+    }
+
+    /** Web `startSession`: starts a Lyria RealTime session with the weighted prompts and music settings. */
+    fun lyriaStart(prompts: List<LyriaPrompt>, config: JSONObject) {
+        if (state.value.lyria.busy) return
+        val weighted = lyriaPromptsJson(prompts)
+        if (weighted.length() == 0) { notify("プロンプトを入力してください"); return }
+        mutable.update { it.copy(lyria = it.lyria.copy(busy = true, status = "接続中...", kind = "connecting")) }
         viewModelScope.launch {
             try {
-                val payload = JSONObject().put("weighted_prompts", JSONArray().put(JSONObject().put("text", prompt.trim().take(4000)).put("weight", 1.0)))
-                val started = api.post("/api/gemini/music/start", payload, token())
+                val started = api.post("/api/gemini/music/start", JSONObject().put("weighted_prompts", weighted).put("config", config), token())
                 val sid = started.getString("session_id")
+                lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }
                 lyriaTrack = createAudioTrack(48000, stereo = true)
-                mutable.update { it.copy(lyria = LyriaState(true, sid, "接続中…", prompt.trim().take(4000))) }
-                lyriaStreamJob = viewModelScope.launch(Dispatchers.IO) {
-                    try {
-                        api.streamSse("/api/gemini/music/stream?session_id=${URLEncoder.encode(sid, "UTF-8")}", token()) { event ->
-                            handleLyriaEvent(event)
-                        }
-                    } catch (e: CancellationException) { throw e }
-                    catch (e: Exception) { mutable.update { it.copy(lyria = it.lyria.copy(error = e.message ?: "Lyria接続が終了しました。")) } }
-                    finally { if (state.value.lyria.sessionId == sid) mutable.update { it.copy(lyria = it.lyria.copy(active = false, status = "終了")) } }
+                mutable.update { it.copy(lyria = it.lyria.copy(sessionId = sid, startedAt = 0L, status = "接続中...", kind = "connecting")) }
+                openLyriaStream(sid)
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                val message = (e as? ApiException)?.payload?.optString("error")?.ifBlank { null } ?: e.message ?: "セッション開始に失敗しました"
+                setLyriaStatus("エラー: $message", "error")
+                notify("Lyria RealTime: $message")
+            } finally { mutable.update { it.copy(lyria = it.lyria.copy(busy = false)) } }
+        }
+    }
+
+    /** Web `openStream`: server events carry audio, status snapshots, errors and the end; a dropped stream reconnects. */
+    private fun openLyriaStream(sid: String) {
+        lyriaStreamJob?.cancel()
+        lyriaStreamJob = viewModelScope.launch(Dispatchers.IO) {
+            while (state.value.lyria.sessionId == sid) {
+                try {
+                    api.streamSse("/api/gemini/music/stream?session_id=${URLEncoder.encode(sid, "UTF-8")}", token()) { event -> handleLyriaEvent(event) }
+                    break
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) {
+                    if (state.value.lyria.sessionId != sid) break
+                    setLyriaStatus("ストリーム切断。再接続します…", "connecting")
+                    delay(1200)
                 }
-            } catch (e: Exception) { report(e) }
+            }
         }
     }
 
     private fun handleLyriaEvent(event: JSONObject) {
-        val encoded = event.nullableString("audio").ifBlank { event.nullableString("snapshot") }
+        if (event.optBoolean("snapshot")) {
+            when (val status = event.optString("status")) {
+                "error" -> setLyriaStatus("エラー", "error")
+                "closed", "stopped" -> setLyriaStatus("終了", "closed")
+                else -> if (status == "paused") setLyriaStatus("一時停止中", "paused") else setLyriaStatus("接続中...", "connecting")
+            }
+            return
+        }
+        val encoded = event.nullableString("audio")
         if (encoded.isNotBlank()) {
             val bytes = runCatching { android.util.Base64.decode(encoded, android.util.Base64.DEFAULT) }.getOrNull() ?: ByteArray(0)
-            if (bytes.isNotEmpty()) {
-                lyriaTrack?.write(bytes, 0, bytes.size, AudioTrack.WRITE_NON_BLOCKING)
-                mutable.update { it.copy(lyria = it.lyria.copy(audioBytes = it.lyria.audioBytes + bytes.size, status = event.optString("status").ifBlank { "生成中…" })) }
-            }
+            if (bytes.isNotEmpty()) lyriaTrack?.write(bytes, 0, bytes.size, AudioTrack.WRITE_NON_BLOCKING)
+            mutable.update { it.copy(lyria = it.lyria.copy(status = "再生中...", kind = "streaming",
+                startedAt = if (it.lyria.startedAt == 0L) System.currentTimeMillis() else it.lyria.startedAt)) }
+            return
         }
-        event.nullableString("error").takeIf { it.isNotBlank() }?.let { error -> mutable.update { it.copy(lyria = it.lyria.copy(error = error)) } }
+        event.nullableString("error").takeIf { it.isNotBlank() }?.let { error -> setLyriaStatus("エラー: $error", "error"); return }
+        if (event.optBoolean("final")) setLyriaStatus("終了", "closed")
     }
 
+    private suspend fun lyriaCommand(type: String, fill: JSONObject.() -> Unit) {
+        val sid = state.value.lyria.sessionId
+        api.post("/api/gemini/music/command", JSONObject().put("session_id", sid).put("type", type).apply(fill), token())
+    }
+
+    private fun lyriaErrorMessage(e: Exception, fallback: String) =
+        (e as? ApiException)?.payload?.optString("error")?.ifBlank { null } ?: e.message ?: fallback
+
+    /** Web `control`: PLAY / PAUSE / STOP / RESET_CONTEXT. */
     fun lyriaControl(action: String) {
-        val sid = state.value.lyria.sessionId.takeIf { it.isNotBlank() } ?: return
-        viewModelScope.launch { runCatching { api.post("/api/gemini/music/command", JSONObject().put("session_id", sid).put("type", "control").put("action", action), token()) }
-            .onFailure { report(it) } }
+        if (!state.value.lyria.active) return
+        mutable.update { it.copy(lyria = it.lyria.copy(busy = true)) }
+        viewModelScope.launch {
+            try {
+                lyriaCommand("control") { put("action", action) }
+                when (action) {
+                    "PLAY" -> setLyriaStatus("再生中...", "streaming")
+                    "PAUSE" -> setLyriaStatus("一時停止中", "paused")
+                    "STOP" -> setLyriaStatus("停止中", "stopped")
+                    "RESET_CONTEXT" -> setLyriaStatus("コンテキストをリセット...", "connecting")
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                val message = lyriaErrorMessage(e, "コマンド送信に失敗しました")
+                notify("Lyria RealTime: $message")
+                setLyriaStatus("エラー: $message", "error")
+            } finally { mutable.update { it.copy(lyria = it.lyria.copy(busy = false)) } }
+        }
     }
 
-    fun stopLyria(save: Boolean) {
-        val current = state.value.lyria
-        if (!current.active && current.sessionId.isBlank()) return
+    /** Web `applyPrompts`. */
+    fun lyriaApplyPrompts(prompts: List<LyriaPrompt>) {
+        if (!state.value.lyria.active) return
+        val weighted = lyriaPromptsJson(prompts)
+        if (weighted.length() == 0) { notify("プロンプトを入力してください"); return }
+        mutable.update { it.copy(lyria = it.lyria.copy(busy = true)) }
         viewModelScope.launch {
-            lyriaStreamJob?.cancelAndJoin()
             try {
-                if (current.sessionId.isNotBlank()) api.post(if (save) "/api/gemini/music/save" else "/api/gemini/music/cancel",
-                    JSONObject().put("session_id", current.sessionId).apply { state.value.selected?.id?.let { put("thread_id", it) } }, token())
-            } catch (e: Exception) { report(e) }
-            lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
-            mutable.update { it.copy(lyria = LyriaState()) }
+                lyriaCommand("prompts") { put("weighted_prompts", weighted) }
+                setLyriaStatus("プロンプトを適用しました", if (state.value.lyria.kind == "paused") "paused" else "streaming")
+                notify("プロンプトを適用しました")
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { notify("Lyria RealTime: " + lyriaErrorMessage(e, "コマンド送信に失敗しました")) }
+            finally { mutable.update { it.copy(lyria = it.lyria.copy(busy = false)) } }
         }
+    }
+
+    /** Web `applyConfig`: BPM or scale changes reset the context. */
+    fun lyriaApplyConfig(config: JSONObject, resetContext: Boolean) {
+        if (!state.value.lyria.active) return
+        mutable.update { it.copy(lyria = it.lyria.copy(busy = true)) }
+        viewModelScope.launch {
+            try {
+                lyriaCommand("config") { put("config", config).put("reset_context", resetContext) }
+                val text = if (resetContext) "設定を適用しました（コンテキストをリセット）" else "設定を適用しました"
+                setLyriaStatus(text, if (state.value.lyria.kind == "paused") "paused" else "streaming")
+                notify(text)
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { notify("Lyria RealTime: " + lyriaErrorMessage(e, "コマンド送信に失敗しました")) }
+            finally { mutable.update { it.copy(lyria = it.lyria.copy(busy = false)) } }
+        }
+    }
+
+    /** Web `saveSession`: stores the played audio in the chat as WAV, opens that chat and closes the studio. */
+    fun lyriaSave(onSaved: () -> Unit) {
+        val sid = state.value.lyria.sessionId.takeIf { it.isNotBlank() } ?: return
+        mutable.update { it.copy(lyria = it.lyria.copy(busy = true, status = "保存中...", kind = "connecting")) }
+        viewModelScope.launch {
+            try {
+                val data = api.post("/api/gemini/music/save", JSONObject().put("session_id", sid)
+                    .put("thread_id", state.value.selected?.id ?: JSONObject.NULL), token())
+                setLyriaStatus("保存しました", "closed")
+                notify("チャットに保存しました")
+                closeLyriaSession(cancel = false)
+                val threadId = data.optString("thread_id").ifBlank { state.value.selected?.id.orEmpty() }
+                if (threadId.isNotBlank()) openThreadId(threadId)
+                onSaved()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                val message = lyriaErrorMessage(e, "保存に失敗しました")
+                setLyriaStatus("エラー: $message", "error")
+                notify("Lyria RealTime: $message")
+            } finally { mutable.update { it.copy(lyria = it.lyria.copy(busy = false)) } }
+        }
+    }
+
+    /** Web `closeAndCleanup`: closing the studio cancels the session. */
+    fun stopLyria(save: Boolean = false) {
+        if (save) return lyriaSave {}
+        closeLyriaSession(cancel = true)
+    }
+
+    private fun closeLyriaSession(cancel: Boolean) {
+        val sid = state.value.lyria.sessionId
+        lyriaStreamJob?.cancel()
+        lyriaStreamJob = null
+        if (cancel && sid.isNotBlank()) viewModelScope.launch {
+            runCatching { api.post("/api/gemini/music/cancel", JSONObject().put("session_id", sid), token()) }
+        }
+        lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
+        mutable.update { it.copy(lyria = LyriaState()) }
     }
 
     fun logout() { viewModelScope.launch {

@@ -11,7 +11,7 @@ class RealtimeStudioTest {
 
         assertEquals("alloy", resolvedRealtimeVoice("gpt-realtime-2", options))
         assertEquals("Ara", resolvedRealtimeVoice("grok-voice-fast-1.0", options))
-        assertEquals("Zephyr", resolvedRealtimeVoice("gemini-3.1-flash-live-preview", options))
+        assertEquals("Kore", resolvedRealtimeVoice("gemini-3.1-flash-live-preview", options))
         assertEquals("Kore", resolvedRealtimeVoice("gemini-3.1-flash-live-preview", RealtimeOptions(voice = "Kore")))
     }
 
@@ -30,5 +30,16 @@ class RealtimeStudioTest {
         assertEquals("medium", resolvedRealtimeThinking("gemini-3.8-live-extended-thinking", RealtimeOptions(thinkingLevel = "minimal")))
         assertEquals("minimal", resolvedRealtimeThinking("gemini-3.1-flash-live-preview", RealtimeOptions()))
         assertEquals("high", resolvedRealtimeThinking("gemini-3.1-flash-live-preview", RealtimeOptions(thinkingLevel = "high")))
+    }
+
+    @Test
+    fun dockLabelsAndNotesFollowTheWeb() {
+        assertEquals("Speech-to-Speech Live", realtimeModeLabel("gpt-realtime-2"))
+        assertEquals("Realtime Speech-to-Text", realtimeModeLabel("gemini-3.5-transcribe-live"))
+        assertEquals("Realtime Translation", realtimeModeLabel("gemini-3.5-live-translate-preview"))
+        assertEquals("OpenAI Realtimeは24kHz PCM固定", realtimeNote("gpt-realtime-2"))
+        assertEquals("xAIはPCMサンプルレート変更可", realtimeNote("grok-voice-fast-1.0"))
+        assertEquals("Gemini Liveは音声速度変更非対応", realtimeNote("gemini-3.1-flash-live-preview"))
+        assertEquals("xai", realtimeProvider("grok-voice-fast-1.0"))
     }
 }

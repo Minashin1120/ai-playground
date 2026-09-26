@@ -607,6 +607,7 @@ fun PlaygroundScreen(
                     model.saveGem(editing?.uuid, n, d, i, prompts) { ok -> if (ok) gemEditorOpen = false; done(ok) }
                 }
             }
+            state.mcpDecision?.let { decision -> key(decision.id) { McpDecisionDialog(decision, model::resolveMcpDecision) } }
             ModalHost(branchOpen && state.selected != null) {
                 BranchManagerDialog(state, onDismiss = { branchOpen = false }, onSwitch = model::switchBranch,
                     onDelete = model::deleteMessage, notify = model::notify)
@@ -634,12 +635,12 @@ fun PlaygroundScreen(
                 )
             }
             ModalHost(advancedOpen) {
-                AdvancedToolsDialog(state, model, onDismiss = { advancedOpen = false }, onWebPath = onWeb,
-                    onRealtime = {
-                        advancedOpen = false
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
-                        else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
-                    }, onLyria = { advancedOpen = false; lyriaOpen = true })
+                BatchDialog(
+                    state, onLoad = model::loadBatchJobs,
+                    onOpen = { job -> advancedOpen = false; model.openThreadId(job.threadId) },
+                    onCancel = model::cancelBatchJob, onDelete = model::deleteBatchJob,
+                    onDismiss = { advancedOpen = false },
+                )
             }
             ModalHost(realtimeOpen) { RealtimeStudioDialog(state, model, realtimeOptions, { realtimeOptions = it }, onDismiss = { realtimeOpen = false }) }
             ModalHost(lyriaOpen) { LyriaStudioDialog(state, model, onDismiss = { lyriaOpen = false }) }

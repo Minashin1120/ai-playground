@@ -46,7 +46,8 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/AccountApi.kt` | 設定のアカウント・セッション・2FA・MCP・データ移行のAPI呼び出し | これらの通信を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/AccountTransfer.kt` | エクスポート・インポート・重複修復の進行（設定を閉じても続く） | データ移行の手順を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/SlashCommands.kt` | 入力欄の `/` コマンド定義と解析 | スラッシュコマンドを追加するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/AdvancedTools.kt` | Batch管理と高度な生成機能・安全なWeb導線 | 高度な機能メニューを編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/BatchDialog.kt` | Webの `#batch-modal`（Batch処理：フィルタ、状態バッジ、開く・停止・履歴から削除、5秒ごとの更新） | Batch処理の画面を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ConfirmDialogs.kt` | Webの確認モーダル（外部ツール操作の確認、ローカルPython実行に切替） | 送信前・生成中の確認ダイアログを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasCodingPanels.kt` | Canvasプレビュー・編集 | Canvasの編集操作を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMaskEditor.kt` | GPT-Image用の端末マスク描画とPNG化 | 画像マスクの描画・送信を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | 入力欄の音声ドック、Realtime音声（Gemini 3.8 Live / Extended Thinkingを含む）の拡大スタジオと設定チップ、Lyria音楽スタジオ | 音声／音楽セッションUIを変更するとき |

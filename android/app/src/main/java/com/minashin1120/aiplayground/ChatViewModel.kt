@@ -1810,14 +1810,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Web `loadBatchJobs`; [silent] skips the failure toast (the 5-second refresh in the modal). */
+    fun loadBatchJobs(silent: Boolean) { viewModelScope.launch {
+        try { fetchBatchJobs(notify = true) }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { if (!silent) notify("Batch処理の履歴を取得できませんでした") }
+    } }
+
     fun cancelBatchJob(job: BatchJob) { viewModelScope.launch {
-        try { api.post("/api/batch/jobs/${job.id}/cancel", JSONObject(), token()); fetchBatchJobs(notify = false) }
-        catch (e: Exception) { report(e) }
+        try { api.post("/api/batch/jobs/${job.id}/cancel", JSONObject(), token()) }
+        catch (e: ApiException) { notify(e.payload.optString("error").ifBlank { "Batch処理を停止できませんでした" }); return@launch }
+        catch (e: Exception) { notify("Batch処理を停止できませんでした"); return@launch }
+        notify("Batch処理を停止しました")
+        runCatching { fetchBatchJobs(notify = false) }
+        if (state.value.selected?.id == job.threadId) runCatching { loadMessages(job.threadId) }
     } }
 
     fun deleteBatchJob(job: BatchJob) { viewModelScope.launch {
-        try { api.delete("/api/batch/jobs/${job.id}", token()); fetchBatchJobs(notify = false) }
-        catch (e: Exception) { report(e) }
+        try { api.delete("/api/batch/jobs/${job.id}", token()) }
+        catch (e: ApiException) { notify(e.payload.optString("error").ifBlank { "Batch履歴を削除できませんでした" }); return@launch }
+        catch (e: Exception) { notify("Batch履歴を削除できませんでした"); return@launch }
+        notify("Batch履歴を削除しました")
+        runCatching { fetchBatchJobs(notify = false) }
     } }
 
     fun openThreadId(id: String) {

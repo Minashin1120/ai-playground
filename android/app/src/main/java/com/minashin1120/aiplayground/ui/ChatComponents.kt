@@ -98,20 +98,7 @@ fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) ->
     val reduce = LocalReduceMotion.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         state.cards.forEach { card -> key(card.id + card.kind) { AppearOnce { StatusCardView(card) } } }
-        state.mcpDecision?.let { decision -> key(decision.id) { AppearOnce {
-            Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = RoundedCornerShape(12.dp)) {
-                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("MCPツールの実行確認", fontWeight = FontWeight.SemiBold)
-                    Text("${decision.serverName} / ${decision.toolName}", style = MaterialTheme.typography.bodySmall)
-                    if (decision.argsPreview.isNotBlank()) SelectionContainer {
-                        Text(decision.argsPreview.take(2000), fontFamily = FontFamily.Monospace,
-                            style = MaterialTheme.typography.bodySmall, maxLines = 10, overflow = TextOverflow.Ellipsis)
-                    }
-                    Row { TextButton(onClick = { onMcpDecision(false) }) { Text("拒否") }
-                        Button(onClick = { onMcpDecision(true) }) { Text("今回だけ許可") } }
-                }
-            }
-        } } }
+        // MCP confirmations use the Web modal (`McpDecisionDialog`).
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.streaming) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
             AnimatedContent(

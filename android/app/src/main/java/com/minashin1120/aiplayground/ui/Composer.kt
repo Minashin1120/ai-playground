@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -58,6 +59,8 @@ import com.minashin1120.aiplayground.data.OptionRule
 import com.minashin1120.aiplayground.data.SlashCommand
 import com.minashin1120.aiplayground.data.THINKING_LEVELS
 import com.minashin1120.aiplayground.data.codingBarText
+import com.minashin1120.aiplayground.data.isAudioPath
+import com.minashin1120.aiplayground.data.isVideoPath
 import com.minashin1120.aiplayground.data.composerRules
 import com.minashin1120.aiplayground.data.gemMentionQuery
 import com.minashin1120.aiplayground.data.generationOptions
@@ -123,12 +126,27 @@ fun Composer(
                 ?: model.draft(command.label + " ")
         }
     }
+    // Web `confirmGeminiLocalPythonSwitch`: asked before sending audio or video to Gemini with Python on.
+    val context = LocalContext.current
+    var localPythonConfirm by remember { mutableStateOf(false) }
+    val guardedSend: () -> Unit = {
+        val hasAudio = state.attachments.any { isAudioPath(it.reference) || isAudioPath(it.name) }
+        val hasVideo = state.attachments.any { isVideoPath(it.reference) || isVideoPath(it.name) }
+        val ask = context.getSharedPreferences("settings_local", 0).getBoolean(GEMINI_LOCAL_PY_DIALOG_PREF, true)
+        if (ask && isGeminiLocalPythonMode(state.model, hasAudio, hasVideo, state.enablePython)) localPythonConfirm = true
+        else model.send()
+    }
+    if (localPythonConfirm) GeminiLocalPythonDialog { proceed, dontShow ->
+        localPythonConfirm = false
+        if (dontShow) context.getSharedPreferences("settings_local", 0).edit().putBoolean(GEMINI_LOCAL_PY_DIALOG_PREF, false).apply()
+        if (proceed) model.send()
+    }
     val sendOrSlash: () -> Unit = {
         val action = parseSlashAction(state.draft)
         val command = slashMatches.firstOrNull { it.id == action?.id } ?: slashMatches.singleOrNull()
         if (command != null && (action != null || command.id in SLASH_LOCAL_COMMANDS)) {
             if (action != null && command.id !in SLASH_LOCAL_COMMANDS) model.applySlash(action) else runSlash(command)
-        } else model.send()
+        } else guardedSend()
     }
     val history = remember(state.messages) { historyCodingTargets(state.messages) }
 
@@ -183,7 +201,7 @@ fun Composer(
                 val shownGem = rememberRetained(gem)
                 AnimatedVisibility(gem != null && gem.fixedPrompts.isNotEmpty(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                     FixedPromptsBar(shownGem?.fixedPrompts.orEmpty().map { it.name to it.content }) { content ->
-                        model.draft(content); model.send()
+                        model.draft(content); guardedSend()
                     }
                 }
                 AnimatedVisibility(gem != null, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {

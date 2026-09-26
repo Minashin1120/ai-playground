@@ -86,6 +86,10 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
     suspend fun post(path: String, payload: JSONObject, token: String? = null): JSONObject = execute(
         request(path, token).header("Accept", "application/json")
             .post(payload.toString().toRequestBody(jsonType)).build(), consume = ::jsonResponse)
+    /** POST that may run for minutes on the server (account import). */
+    suspend fun postLong(path: String, payload: JSONObject, token: String): JSONObject = execute(
+        request(path, token).header("Accept", "application/json")
+            .post(payload.toString().toRequestBody(jsonType)).build(), client = streaming, consume = ::jsonResponse)
     suspend fun put(path: String, payload: JSONObject, token: String): JSONObject = execute(
         request(path, token).header("Accept", "application/json")
             .put(payload.toString().toRequestBody(jsonType)).build(), consume = ::jsonResponse)
@@ -225,6 +229,25 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
                 } }
             } catch (e: Exception) { destination.delete(); throw e }
             mime
+        }
+    }
+
+    /** Streams an authenticated same-origin download (account export ZIP) into [output]. */
+    suspend fun downloadTo(path: String, token: String, output: java.io.OutputStream, onProgress: (Long) -> Unit) {
+        execute(request(path, token).build(), client = streaming) { response ->
+            if (!response.isSuccessful) throw error(response)
+            var count = 0L
+            response.body.byteStream().use { input ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val size = input.read(buffer)
+                    if (size < 0) break
+                    output.write(buffer, 0, size)
+                    count += size
+                    onProgress(count)
+                }
+            }
+            output.flush()
         }
     }
 

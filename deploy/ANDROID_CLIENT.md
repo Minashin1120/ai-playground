@@ -28,7 +28,7 @@ Androidから開くブラウザー ── HTTPS + Cookie ───────�
                                                        └─ Redis ── RQワーカー ── AI事業者
 ```
 
-AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセスしません。Webと同じアカウント、履歴、保存済みのモデルAPIキーを利用します。新規登録・パスワードログイン・パスキー・TOTP／WebAuthn 2FA・2FA／パスキー管理・初回セットアップ（モデル、APIキー、Vertex AI、保存時暗号化、アカウントZIPのチャンク取り込み）はネイティブAPIで行います。パスワード変更・プロフィール・アカウント削除は従来どおりWebの設定画面へ案内します。
+AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセスしません。Webと同じアカウント、履歴、保存済みのモデルAPIキーを利用します。新規登録・パスワードログイン・パスキー・TOTP／WebAuthn 2FA・2FA／パスキー管理・初回セットアップ（モデル、APIキー、Vertex AI、保存時暗号化、アカウントZIPのチャンク取り込み）はネイティブAPIで行います。設定画面では、APIキー（読み取りはマスクのみ）、ユーザー名・パスワード変更、アカウント削除、ログインセッション、アカウントデータのエクスポート・インポートもネイティブAPIで行います。重要な操作はこの端末での本人確認を求めます。
 
 | 機能 | このAPIでの扱い |
 |---|---|
@@ -52,7 +52,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 
-Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴、スレッド設定、一時チャット、添付、ファイルライブラリ、Gems、Web相当の設定タブ、この端末のセッション、編集・再生成・分岐、ネイティブPDF、画像・動画・OCR・TTS・文字起こし、Batchの送信・管理・完了通知、ユーザー操作で現在のチャットを開くAndroidバブル、生成停止、切断後の再接続、端末連携・失効、スラッシュコマンド、OpenAI／Grok／Gemini Native Audio／Gemini Live Realtime、Lyriaに対応します。本文はMarkdown、コード、表、数式近似、添付プレビューに加え、検索・Python・MCP・Coding差分を構造化カードで表示します。ファイルライブラリとチャットの添付はアプリ内で画像・テキスト・PDF・音声・動画を確認でき、未対応形式は外部アプリで開けます。APIキー・パスワード・MCP OAuth秘密の扱いは認証済みWebへの明示的な導線を使います。2FA・パスキーの登録と管理、アカウントZIPの取り込みはアプリ内でも行えます。
+Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴、スレッド設定、一時チャット、添付、ファイルライブラリ、Gems、Web相当の設定タブ、この端末のセッション、編集・再生成・分岐、ネイティブPDF、画像・動画・OCR・TTS・文字起こし、Batchの送信・管理・完了通知、ユーザー操作で現在のチャットを開くAndroidバブル、生成停止、切断後の再接続、端末連携・失効、スラッシュコマンド、OpenAI／Grok／Gemini Native Audio／Gemini Live Realtime、Lyriaに対応します。本文はMarkdown、コード、表、数式近似、添付プレビューに加え、検索・Python・MCP・Coding差分を構造化カードで表示します。ファイルライブラリとチャットの添付はアプリ内で画像・テキスト・PDF・音声・動画を確認でき、未対応形式は外部アプリで開けます。MCP OAuth秘密と認証付きMCPサーバー、Google／Minashinの新規連携は認証済みWebへの明示的な導線を使います。
 
 暗号化の境界は「HTTPSで通信」「サーバーが保存データを暗号化・復号」「端末トークンをAndroid Keystoreの鍵で暗号化保存」です。既存Webの `enable_e2ee` はサーバー側の `encrypt_val` / `decrypt_val` とファイル暗号化に使われます。そのため、この設定を理由にAndroidを拒否する必要はありません。真の端末間E2EEに変更する場合は、端末鍵の生成・共有・回復とAI処理時の平文の扱いを別途設計する必要があります。
 
@@ -239,7 +239,7 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 | POST `/api/mobile/v1/auth/2fa/webauthn/options` | なし | `transaction_id` | `public_key` |
 | POST `/api/mobile/v1/auth/2fa/webauthn/verify` | なし | `transaction_id`, `credential` | 通常のトークン応答 |
 | GET `/api/mobile/v1/security` | Bearer | なし | `is_2fa_enabled`, `has_totp`, `has_webauthn`, `default_2fa_method`, `passkey_only_login`, `skip_2fa_on_google_login`, `passkeys` |
-| POST `/api/mobile/v1/security/totp/setup` | Bearer | `{}` | `secret`, `otpauth_uri`, `expires_in` |
+| POST `/api/mobile/v1/security/totp/setup` | Bearer | `{}` | `secret`, `otpauth_uri`, `expires_in`, `qr_image`（Webと同じQRのPNG data URL） |
 | POST `/api/mobile/v1/security/totp/enable` | Bearer | `code` | 更新後のセキュリティ状態 |
 | POST `/api/mobile/v1/security/totp/disable` | Bearer | `code` | 更新後のセキュリティ状態 |
 | POST `/api/mobile/v1/security/passkeys/options` | Bearer | `{}` | `public_key`（登録options） |
@@ -251,7 +251,7 @@ Webのログアウトと同様、端末の失効操作はBot確認待ち・ロ�
 
 認証トランザクション、OAuth state、WebAuthnチャレンジ、TOTP一時シークレットはRedisへ短時間だけ保存し、DBスキーマは変更しません（既存の `User` / `UserSession` / TOTP / WebAuthn情報を利用）。
 
-セットアップ未完了（`is_setup_completed=false`）のBearerでもセキュリティ管理と取り込みAPIは利用でき、通常のチャットAPIだけが `setup_required` で拒否されます。セットアップ完了後は、Web `/setup` と同じく `PUT /api/mobile/v1/setup` を409 `setup_already_completed` で拒否し（E2EEの移行処理を経ない切り替えを防ぐため）、アカウントZIPの取り込みAPIもBearerでは403 `setup_already_completed` で拒否します。完了後の取り込みはWebで行います。
+セットアップ未完了（`is_setup_completed=false`）のBearerでもセキュリティ管理と取り込みAPIは利用でき、通常のチャットAPIだけが `setup_required` で拒否されます。セットアップ完了後は、Web `/setup` と同じく `PUT /api/mobile/v1/setup` を409 `setup_already_completed` で拒否します（E2EEの移行処理を経ない切り替えを防ぐため）。完了後のアカウントZIPの取り込みは設定のデータタブから行い、`POST /api/mobile/v1/reauth` による本人確認（10分間有効）がない場合は403 `reauth_required` を返します。
 
 アカウントZIPの取り込みはWebと同じチャンクAPIを再利用します。`start` → `chunk`（既定10MiB）→ `complete` → `import`（`upload_id` と `categories`）。`categories` は `settings,api_credentials,chats,gems,files,feedback,diagnostics`。設定が現在値と異なる場合、Androidクライアントは `settings_changes` を表示して、利用者が確認した後に `confirm_settings=true` で適用します。取り消した場合はアップロードを削除します。中間ファイルはアプリ本体の自動処理だけが作成・削除します。
 
@@ -298,11 +298,26 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | GET `/api/gems` | なし | 本人のGem配列（トップレベルJSON配列） |
 | POST `/api/gems` | `name`, `description`, `instruction`, `default_model` | 作成したGem |
 | GET/PUT/DELETE `/api/gems/<uuid>` | PUTは作成と同じ項目 | 取得・更新・削除。所有者のみ |
-| GET `/api/mobile/v1/preferences` | なし | 既定モデル／Vision、ツール既定値、Enter送信、ライト／Liquid Glass、テーマ、プロンプトバー、STT、LLM文字起こしプロンプトと既定文面、システムプロンプト、全体システムプロンプトの実効値と状態、自動注入システムプロンプト（`auto_system_prompt_notices_config`）、デバッグ設定、前回設定、2FA状態、この端末のセッション情報。APIキー（`openai_key` など、`gemini_vertex_credentials_json`、`model_api_keys` の値）はWeb `/api/settings` と同じく設定済みなら `********` だけを返し、平文は返さない。Gemini接続方式、Vertex Project／Location、Google Cloud Projectは平文 |
+| GET `/api/mobile/v1/preferences` | なし | 管理者か（`is_admin`）、Google／Minashinの連携状態（`google_linked`／`minashin_linked`）、E2EE移行状況、既定モデル／Vision、ツール既定値、Enter送信、ライト／Liquid Glass、テーマ、プロンプトバー、STT、LLM文字起こしプロンプトと既定文面、システムプロンプト、全体システムプロンプトの実効値と状態、自動注入システムプロンプト（`auto_system_prompt_notices_config`）、デバッグ設定、前回設定、2FA状態、この端末のセッション情報。APIキー（`openai_key` など、`gemini_vertex_credentials_json`、`model_api_keys` の値）はWeb `/api/settings` と同じく設定済みなら `********` だけを返し、平文は返さない。Gemini接続方式、Vertex Project／Location、Google Cloud Projectは平文 |
 | PUT `/api/mobile/v1/preferences` | GETと同じフィールド。`prompt_bar_mode`（normal／compact／minimal）、`system_prompt`、`stt_model`、`mic_transcribe_mode`、`llm_transcribe_prompt`、`auto_system_prompt_notices_config`、`passkey_only_login`、APIキー類など。APIキーは `********` を送ると保存済みの値を保持し、空文字で削除する（Webと同じ）。長さの上限とVertex JSONの検証もWebと同じ | 更新後の設定。パスワード・E2EE切替などの未知キーは無視する |
 | GET `/api/feedback`、POST `/api/feedback` | POSTは `title`, `message` | 本人のフィードバック一覧と送信。管理者用の全件取得や返信更新は対象外 |
 | GET `/api/mcp/servers` | なし | 登録済みMCPサーバーの名前・有効状態・接続状態。秘密は含まない |
 | PUT `/api/mcp/servers/<id>` | `{ "enabled": true/false }` のみ | 本人のMCPサーバーの有効切替。Bearer／OAuth秘密の更新は403 |
+| POST `/api/mcp/servers` | `name`, `url`, `auth_type: "none"`, `description` | 認証なしのカスタムサーバーを登録し、接続テストの結果を返す。`auth_type` が `none` 以外、または `bearer_token` を含む場合は403 |
+| POST `/api/mcp/servers/<id>/test`、GET `/api/mcp/servers/<id>/tools`、DELETE `/api/mcp/servers/<id>` | なし | 接続テスト、ツール一覧（読み取り／変更の分類付き）、カスタムサーバーの削除。本人のサーバーのみ |
+| POST `/api/mobile/v1/reauth/options` | `{}` | 使える本人確認の方法（`password`／`totp`／`passkey`）とパスキーのWebAuthnオプション。方法がないアカウントは、発行10分以内のトークンなら確認済みになる |
+| POST `/api/mobile/v1/reauth` | `method` と `password`／`code`／`credential` | この端末のトークンを10分間「本人確認済み」にする。失敗は401 `invalid_credentials` |
+| POST `/api/mobile/v1/account/credentials` | `new_username`、`new_password` | ユーザー名（3〜80文字、使用中は409）とパスワード（8〜256文字、本人確認が必要。ほかの端末とWebのセッションは失効） |
+| POST `/api/mobile/v1/account/easy-login` | `minutes`（1〜120）または `cancel: true` | 一時パスワードの発行（本人確認が必要）または取消し |
+| POST `/api/mobile/v1/account/delete` | `{}` | アカウント削除（本人確認が必要。管理者は403） |
+| GET `/api/mobile/v1/sessions`、POST `/api/mobile/v1/sessions/revoke`・`revoke_others`・`revoke_all` | `revoke` は `id` | ログインセッションの一覧（`is_current` はこの端末）と失効。`revoke_all` は本人確認が必要 |
+| POST `/api/mobile/v1/security/2fa/disable` | `{}` | TOTPとすべてのパスキーを削除（Webの「Disable 2FA」。本人確認が必要） |
+| POST `/api/mobile/v1/security/e2ee` | `enabled` | 値が変わる場合に暗号化の移行を開始し、Webと同じメッセージを返す。進捗は設定の `migration_status`／`migration_progress` |
+| GET `/api/encryption_scan` | `thread_id`（任意） | Webと同じ暗号化スキャン結果 |
+| POST `/api/account/unlink_google`、`/api/account/unlink_minashin` | `{}` | 連携の解除（本人確認が必要） |
+| POST `/api/account/export`、GET `/api/account/export/latest`、GET `/api/account/transfer/<job_id>`、POST `/api/account/transfer/<job_id>/cancel`、GET `/api/account/export/<job_id>/download` | Webと同じ | アカウントデータのエクスポート。作成とダウンロードは本人確認が必要 |
+| POST `/api/account/import/upload/*`、POST `/api/account/import` | Webと同じ（`categories`、`selected_files`、`restore_inplace`、`confirm_settings`、`job_id`） | 設定画面からのインポート。初回設定の完了後は本人確認が必要 |
+| POST `/api/account/dedupe/preview`・`execute` | `{}` | 重複データの確認と修復 |
 | GET `/api/gemini/batch/status` | なし | Provider状態を更新し、完了・実行中Batchを返す |
 | GET `/api/batch/jobs` | なし | 本人のBatch履歴（最大500件） |
 | POST `/api/batch/jobs/<job_id>/cancel` | `{}` | 本人の実行中Batchを停止 |

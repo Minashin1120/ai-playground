@@ -70,6 +70,13 @@ internal class SettingsForm(prefs: Preferences?) {
     var latencyMetrics by mutableStateOf(prefs?.enableLatencyMetrics ?: false)
     var clientDebugLog by mutableStateOf(prefs?.enableClientDebugLog ?: false)
 
+    /** `set-username` / `set-password`: empty means unchanged (sent through the account API). */
+    var newUsername by mutableStateOf("")
+    var newPassword by mutableStateOf("")
+    /** `set-e2ee`; only a change from [e2eeLoaded] is sent, like Web. */
+    val e2eeLoaded = prefs?.e2eeEnabled ?: false
+    var e2ee by mutableStateOf(e2eeLoaded)
+
     var skip2faGoogle by mutableStateOf(prefs?.skip2faOnGoogleLogin ?: false)
     var default2fa by mutableStateOf(prefs?.default2faMethod ?: "totp")
     var passkeyOnly by mutableStateOf(prefs?.passkeyOnlyLogin ?: false)

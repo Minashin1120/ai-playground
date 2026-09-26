@@ -56,6 +56,8 @@ data class ChatState(
     val googleAuthDiagnostics: String? = null,
     val security: SecurityInfo? = null, val securityBusy: Boolean = false, val securityError: String? = null,
     val securityTotpSecret: String? = null, val securityTotpUri: String? = null,
+    /** `data:image/png;base64,…` QR of the pending TOTP secret (same image as Web). */
+    val securityTotpQr: String? = null,
     val setupImportBusy: Boolean = false, val setupImportName: String = "", val setupImportProgress: Int = 0,
     val setupImportTotalChunks: Int = 0, val setupImportError: String? = null, val setupImportDone: Boolean = false,
     val setupImportPendingUploadId: String? = null,
@@ -497,9 +499,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Starts passkey registration from the security settings. */
-    fun beginPasskeyRegistration() {
+    fun beginPasskeyRegistration(name: String = "") {
         if (state.value.securityBusy) return
-        pendingPasskeyName = "Androidのパスキー ${(state.value.security?.passkeys?.size ?: 0) + 1}"
+        // Web sends the typed name; the server falls back to `Passkey N` when it is blank.
+        pendingPasskeyName = name.trim().take(80)
         viewModelScope.launch {
             mutable.update { it.copy(securityBusy = true, securityError = null, credentialRequest = null) }
             try {
@@ -574,6 +577,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 securityBusy = false,
                 securityTotpSecret = reply.getString("secret"),
                 securityTotpUri = reply.optString("otpauth_uri"),
+                securityTotpQr = reply.optString("qr_image").ifBlank { null },
             ) }
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { mutable.update { it.copy(securityBusy = false, securityError = e.message ?: "TOTPを開始できませんでした。") } }
@@ -1408,6 +1412,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     } }
 
     /** `/static/legal/<kind>.md` shown by the terms / privacy modal (public, no token). */
+    /** Account, session and data-transfer operations used by the settings modal. */
+    fun accountApi(): AccountApi = AccountApi(api) { token() }
+
+    /** Settings Data tab export / import / dedupe; outlives the settings modal like the Web tab. */
+    val accountTransfer: AccountTransferController by lazy {
+        AccountTransferController(viewModelScope, ::accountApi, getApplication<Application>().contentResolver, ::notify) { categories ->
+            if ("chats" in categories) reloadThreads {}
+            if ("gems" in categories) reloadGems {}
+            if ("files" in categories) loadStorageUsage()
+            if ("settings" in categories || "api_credentials" in categories) loadPreferences()
+        }
+    }
+
+    /** Ends this device's sign-in after the account or every session was removed on the server. */
+    fun signedOutRemotely() { viewModelScope.launch { clearSession() } }
+
     /** Web `openThreadModal`: a new chat is created first so its settings can be edited. */
     fun ensureThread(onReady: () -> Unit) {
         if (state.value.selected != null) { onReady(); return }
@@ -2544,13 +2564,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun savePreferences(payload: JSONObject) {
+    fun savePreferences(payload: JSONObject, message: String = "設定を保存しました") {
         viewModelScope.launch {
             if (state.value.offline) { notify("オフライン中はアカウント設定を保存できません。接続後に再試行してください。"); return@launch }
             mutable.update { it.copy(prefsBusy = true) }
             try {
                 val reply = api.put("/api/mobile/v1/preferences", payload, token())
-                mutable.update { it.copy(preferences = parsePreferences(reply), notice = "設定を保存しました") }
+                mutable.update { it.copy(preferences = parsePreferences(reply), notice = message) }
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(prefsBusy = false) } }
         }

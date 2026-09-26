@@ -851,7 +851,10 @@ def mobile_security_totp_setup():
     secret = pyotp.random_base32()
     redis_conn.set('mobile:sec:totp:' + str(current_user.id), json.dumps({'secret': secret}), ex=_MOBILE_SEC_TTL)
     uri = pyotp.totp.TOTP(secret).provisioning_uri(name=current_user.username, issuer_name='AI Chat Playground')
-    return jsonify({'status': 'ok', 'secret': secret, 'otpauth_uri': uri, 'expires_in': _MOBILE_SEC_TTL})
+    # Same QR image as Web `/api/2fa/totp/setup` (rendered by image_tools in a subprocess).
+    qr_b64 = base64.b64encode(_qr_png_bytes(uri)).decode()
+    return jsonify({'status': 'ok', 'secret': secret, 'otpauth_uri': uri, 'expires_in': _MOBILE_SEC_TTL,
+                    'qr_image': f"data:image/png;base64,{qr_b64}"})
 
 
 @app.route('/api/mobile/v1/security/totp/enable', methods=['POST'])

@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.minashin1120.aiplayground.ui
 
 import androidx.compose.foundation.background
@@ -108,11 +110,6 @@ internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsFor
             }
         }
     },
-    SettingsCardSpec(SettingsTab.Data, "account-data", "アカウントデータ",
-        "アカウントデータ 設定、チャット、Gem、ファイルなどをZIPで保存・復元できます。 エクスポートZIPを作成 インポート 重複データの修復") {
-        SettingsDesc("設定、チャット、Gem、ファイルなどをZIPで保存・復元できます。ユーザー名、パスワード、2FA、パスキー、ログイン連携・セッション、権限、BAN情報は対象外です。")
-        SettingsSmallButton("Webでデータ移行を開く", { extras.onWeb("/settings") }, Modifier.padding(top = 8.dp), fill = true)
-    },
     SettingsCardSpec(SettingsTab.Data, "debug", "デバッグ設定",
         "デバッグ設定 レスポンス速度の計測 プロンプト送信から初回トークンまでの待機時間を計測し、サーバーへ記録します。 デバッグログの拡張送信") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -131,139 +128,6 @@ private fun UsageBar(fraction: Float) {
     Box(Modifier.fillMaxWidth().height(8.dp).clip(shape).background(web.twBg(Tw.gray800)).border(1.dp, web.twBorder(Tw.gray700), shape)) {
         Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).background(Tw.blue500.copy(alpha = 0.8f)))
     }
-}
-
-internal fun accountCards(state: ChatState, extras: SettingsExtras): List<SettingsCardSpec> {
-    val prefs = state.preferences
-    return listOf(
-        SettingsCardSpec(SettingsTab.Account, "account", "アカウント設定", "アカウント設定 ユーザー名変更 パスワード変更") {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SettingsFieldLabel("ユーザー名")
-                Text(prefs?.username.orEmpty(), fontSize = 13.sp, color = settingsLabelColor())
-                SettingsSmallButton("Webでアカウント設定を開く", { extras.onWeb("/settings") }, fill = true)
-            }
-        },
-        linkCard("google", "Google 連携", R.drawable.fa_brands_google, prefs?.googleEmail.orEmpty(), "Google アカウントでログインできるようになります。"),
-        linkCard("minashin", "Minashin 連携", null, prefs?.minashinEmail.orEmpty(), "Minashin アカウントでログインできるようになります。"),
-    )
-}
-
-private fun linkCard(key: String, title: String, icon: Int?, email: String, hint: String) =
-    SettingsCardSpec(SettingsTab.Account, key, title, "$title 未連携 $hint", titleIcon = icon) {
-        val web = LocalWebPalette.current
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(40.dp).clip(CircleShape).background(web.twBg(Tw.gray800)), contentAlignment = Alignment.Center) {
-                if (icon != null) FaIcon(icon, null, size = 20.dp, tint = if (web.isLight) web.text else Tw.gray200)
-            }
-            Column {
-                Text(if (email.isBlank()) "未連携" else "連携済み", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                    color = if (web.isLight) web.text else Tw.gray200)
-                SettingsDesc(email.ifBlank { hint })
-            }
-        }
-    }
-
-internal fun securityCards(state: ChatState, extras: SettingsExtras): List<SettingsCardSpec> = listOf(
-    SettingsCardSpec(SettingsTab.Security, "e2ee", null, "E2EE (End-to-End Encryption) チャット履歴とファイルを暗号化します。") {
-        val web = LocalWebPalette.current
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("E2EE (End-to-End Encryption)", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White)
-                Text("チャット履歴とファイルを暗号化します。", fontSize = 12.sp, color = if (web.isLight) Color(92, 103, 121) else Tw.gray500)
-            }
-            WebToggle(state.preferences?.e2eeEnabled == true, { extras.onWeb("/settings") }, activeColor = Tw.green600)
-        }
-    },
-    SettingsCardSpec(SettingsTab.Security, "sessions", "ログインセッション",
-        "ログインセッション 現在ログイン中の端末を確認し、不要なセッションをログアウトできます。") {
-        SettingsDesc("現在ログイン中の端末を確認し、不要なセッションをログアウトできます。")
-        SettingsSmallButton("Webでセキュリティ設定を開く", { extras.onWeb("/settings") }, Modifier.padding(top = 8.dp), fill = true)
-    },
-)
-
-internal fun twoFactorCards(state: ChatState, model: ChatViewModel, form: SettingsForm): List<SettingsCardSpec> {
-    val security = state.security
-    return listOf(
-        SettingsCardSpec(SettingsTab.TwoFactor, "status", "Status", "Status Two-Factor Authentication ENABLED DISABLED") {
-            val web = LocalWebPalette.current
-            val enabled = security?.is2faEnabled == true
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Two-Factor Authentication", fontSize = 14.sp, color = if (web.isLight) web.text else Tw.gray300, modifier = Modifier.weight(1f))
-                Text(if (enabled) "ENABLED" else "DISABLED", fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                    color = if (enabled) Color.White else Tw.gray400,
-                    modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(if (enabled) Tw.green600 else web.twBg(Tw.gray700))
-                        .padding(horizontal = 8.dp, vertical = 2.dp))
-            }
-            state.securityError?.let { SettingsDesc(it, Modifier.padding(top = 8.dp), color = Tw.red300) }
-        },
-        SettingsCardSpec(SettingsTab.TwoFactor, "totp", "Authenticator App (TOTP)", "Authenticator App (TOTP) Google Authenticator, Authy, etc. Setup TOTP Verify",
-            titleIcon = R.drawable.fa_solid_mobile_alt) {
-            var code by remember { mutableStateOf("") }
-            Text("Google Authenticator, Authy, etc.", fontSize = 12.sp, color = Tw.gray400, modifier = Modifier.padding(bottom = 12.dp))
-            if (security?.hasTotp == true) {
-                SettingsTextField(code, { code = it.filter(Char::isDigit).take(8) }, Modifier.fillMaxWidth(), placeholder = "000000", number = true)
-                SettingsSmallButton("TOTPを無効化", { model.disableTotp(code); code = "" }, Modifier.padding(top = 8.dp),
-                    tone = SettingsButtonTone.Red, enabled = code.isNotBlank() && !state.securityBusy, fill = true)
-            } else {
-                SettingsSmallButton("Setup TOTP", model::startTotpSetup, tone = SettingsButtonTone.Purple, enabled = !state.securityBusy, fill = true)
-                state.securityTotpSecret?.let { secret ->
-                    Column(Modifier.padding(top = 16.dp).fillMaxWidth().clip(RoundedCornerShape(4.dp)).background(LocalWebPalette.current.twBg(Tw.gray800)).padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SelectionContainer { Text(secret, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Tw.gray400) }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            SettingsTextField(code, { code = it.filter(Char::isDigit).take(8) }, Modifier.weight(1f), placeholder = "000000", number = true)
-                            SettingsSmallButton("Verify", { model.enableTotp(code); code = "" }, tone = SettingsButtonTone.Blue,
-                                enabled = code.isNotBlank() && !state.securityBusy)
-                        }
-                    }
-                }
-            }
-        },
-        SettingsCardSpec(SettingsTab.TwoFactor, "passkey", "Security Key / Passkey",
-            "Security Key / Passkey YubiKey, Touch ID, Windows Hello. 複数のパスキーを登録できます。 Register Key 登録済みパスキー",
-            titleIcon = R.drawable.fa_solid_key) {
-            val web = LocalWebPalette.current
-            Text("YubiKey, Touch ID, Windows Hello. 複数のパスキーを登録できます。", fontSize = 12.sp, color = Tw.gray400,
-                modifier = Modifier.padding(bottom = 12.dp))
-            SettingsSmallButton("Register Key", model::beginPasskeyRegistration, tone = SettingsButtonTone.Green,
-                enabled = !state.securityBusy, fill = true)
-            val keys = security?.passkeys.orEmpty()
-            Text("登録済みパスキー: ${keys.size}", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
-            keys.forEach { key ->
-                val shape = RoundedCornerShape(6.dp)
-                Row(
-                    Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(shape).background(web.twBg(Tw.gray900).copy(alpha = 0.7f))
-                        .border(1.dp, web.twBorder(Tw.gray700), shape).padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(key.name, fontSize = 11.sp, color = if (web.isLight) web.text else Tw.gray200, modifier = Modifier.weight(1f))
-                    SettingsSmallButton("削除", { model.removePasskey(key.id) }, tone = SettingsButtonTone.Red, fontSize = 10.sp)
-                }
-            }
-        },
-        SettingsCardSpec(SettingsTab.TwoFactor, "auth-prefs", "Authentication Preferences",
-            "Authentication Preferences Google ログイン時に2FAをスキップ 既定の2要素認証方式 パスキーのみログインを有効化",
-            titleIcon = R.drawable.fa_solid_user_shield) {
-            val web = LocalWebPalette.current
-            val labelColor = if (web.isLight) web.text else Tw.gray300
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Google ログイン時に2FAをスキップ", fontSize = 12.sp, color = labelColor, modifier = Modifier.weight(1f))
-                    WebToggle(form.skip2faGoogle, { form.skip2faGoogle = it }, activeColor = Tw.emerald500)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("既定の2要素認証方式", fontSize = 12.sp, color = labelColor, modifier = Modifier.weight(1f))
-                    SettingsSelect(form.default2fa, webOptions("totp" to "Authenticator App (TOTP)", "webauthn" to "Security Key / Passkey"),
-                        { form.default2fa = it }, fillWidth = false, fontSize = 12.sp)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("パスキーのみログインを有効化", fontSize = 12.sp, color = labelColor, modifier = Modifier.weight(1f))
-                    WebToggle(form.passkeyOnly, { form.passkeyOnly = it }, activeColor = Tw.emerald500)
-                }
-            }
-            if (security?.passkeys.isNullOrEmpty()) SettingsDesc("パスキー未登録のため有効化できません。", Modifier.padding(top = 8.dp), color = Tw.red300)
-        },
-    )
 }
 
 internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (String) -> Unit): List<SettingsCardSpec> = listOf(
@@ -302,32 +166,218 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
     },
 )
 
-internal fun mcpCards(state: ChatState, model: ChatViewModel, extras: SettingsExtras): List<SettingsCardSpec> = listOf(
-    SettingsCardSpec(SettingsTab.Mcp, "servers", "外部MCPサーバー連携",
-        "外部MCPサーバー連携 MCP（Model Context Protocol）で、チャット中に Gmail や Google Drive などの外部ツールをモデルから利用できるようになります。 登録済みサーバー 有効") {
-        val web = LocalWebPalette.current
-        SettingsDesc("MCP（Model Context Protocol）で、チャット中に Gmail や Google Drive などの外部ツールをモデルから利用できるようになります。サーバーごとに「有効」にすると、そのツールがチャットで使えるようになります（変更を伴う操作は実行前に確認されます）。",
-            Modifier.padding(bottom = 12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FaIcon(R.drawable.fa_solid_server, null, size = 12.dp, tint = Tw.gray400)
-            Text("登録済みサーバー", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White,
-                modifier = Modifier.weight(1f))
-            Text("${state.mcpServers.size}件", fontSize = 10.sp, color = Tw.gray500)
+internal fun mcpCards(state: ChatState, model: ChatViewModel, extras: SettingsExtras, ops: AccountOps): List<SettingsCardSpec> {
+    val status = McpStatus()
+    return listOf(
+        SettingsCardSpec(SettingsTab.Mcp, "servers", "外部MCPサーバー連携",
+            "外部MCPサーバー連携 MCP（Model Context Protocol）で、チャット中に Gmail や Google Drive などの外部ツールをモデルから利用できるようになります。 Google Workspace 連携（OAuthクライアント情報） 登録済みサーバー 接続テスト ツール一覧") {
+            val web = LocalWebPalette.current
+            SettingsDesc("MCP（Model Context Protocol）で、チャット中に Gmail や Google Drive などの外部ツールをモデルから利用できるようになります。サーバーごとに「有効」にすると、そのツールがチャットで使えるようになります（変更を伴う操作は実行前に確認されます）。",
+                Modifier.padding(bottom = 12.dp))
+            // ANDROID_ONLY.md: OAuth client credentials are registered on Web.
+            SettingsSubBox(Modifier.padding(bottom = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FaIcon(R.drawable.fa_brands_google, null, size = 12.dp, tint = Tw.cyan300)
+                    Text("Google Workspace 連携（OAuthクライアント情報）", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Tw.cyan300)
+                }
+                SettingsDesc("OAuthクライアント情報の登録と、認証が必要なサーバーの認証はWeb版で行います。")
+                SettingsSmallButton("WebでMCP秘密設定を開く", { extras.onWeb("/settings") }, fill = true)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FaIcon(R.drawable.fa_solid_server, null, size = 12.dp, tint = Tw.gray400)
+                Text("登録済みサーバー", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White,
+                    modifier = Modifier.weight(1f))
+                Text("${state.mcpServers.size}件", fontSize = 10.sp, color = Tw.gray500)
+            }
+            Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (state.mcpServers.isEmpty() && !state.mcpBusy) Text("まだサーバーがありません。上のカスタム追加フォームから登録するか、Google Workspace の認証をしてください。",
+                    fontSize = 11.sp, color = Tw.gray600, modifier = Modifier.padding(vertical = 8.dp))
+                state.mcpServers.forEach { server -> McpServerRow(server, model, ops, status) }
+            }
+            if (state.mcpBusy && state.mcpServers.isEmpty()) status.set("読み込み中...", false)
+            status.message?.let { Text(it, fontSize = 11.sp, color = if (status.error) Color(0xFFF87171) else Tw.gray400, modifier = Modifier.padding(top = 8.dp)) }
+        },
+        SettingsCardSpec(SettingsTab.Mcp, "custom", "カスタムMCPサーバーを追加",
+            // `fa-plus-circle` is not in the Web icon subset, so the title has no glyph there either.
+            "カスタムMCPサーバーを追加 表示名 MCP URL（Streamable HTTP） 認証方式 認証なし 説明（任意） 接続テストして追加") {
+            McpCustomForm(model, ops)
+        },
+    )
+}
+
+/** `#mcp-status-msg` for the whole list. */
+@Stable
+private class McpStatus {
+    var message by mutableStateOf<String?>(null)
+    var error by mutableStateOf(false)
+    fun set(text: String?, isError: Boolean) { message = text; error = isError }
+}
+
+@Composable
+private fun McpServerRow(server: com.minashin1120.aiplayground.data.McpServerInfo, model: ChatViewModel, ops: AccountOps, status: McpStatus) {
+    val web = LocalWebPalette.current
+    var toolsOpen by remember(server.id) { mutableStateOf(false) }
+    var tools by remember(server.id) { mutableStateOf<List<com.minashin1120.aiplayground.data.McpTool>?>(null) }
+    var toolsError by remember(server.id) { mutableStateOf<String?>(null) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    SettingsSubBox {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(server.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White,
+                modifier = Modifier.align(Alignment.CenterVertically))
+            McpBadge(if (server.isPreset) "プリセット" else "カスタム", if (server.isPreset) Tw.blue700.copy(alpha = 0.5f) else Tw.purple700.copy(alpha = 0.5f),
+                if (server.isPreset) Tw.blue100 else Tw.purple100, Modifier.align(Alignment.CenterVertically), round = false)
+            val (label, kind) = when {
+                server.authType == "none" -> "認証不要" to "neutral"
+                server.authStatus == "connected" -> "接続済み" to "ok"
+                server.authStatus == "expired" -> "期限切れ（再認証）" to "expired"
+                server.authStatus == "needs_auth" -> "認証が必要" to "auth"
+                else -> "未認証" to "neutral"
+            }
+            val (bg, fg) = when (kind) {
+                "ok" -> Tw.emerald700.copy(alpha = 0.6f) to Tw.emerald100
+                "expired" -> Tw.red700.copy(alpha = 0.6f) to Tw.red100
+                "auth" -> Tw.amber600.copy(alpha = 0.5f) to Tw.amber100
+                else -> web.twBg(Tw.gray700) to Tw.gray300
+            }
+            McpBadge(label, bg, fg, Modifier.align(Alignment.CenterVertically))
         }
-        Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            state.mcpServers.forEach { server ->
-                SettingsSubBox {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(server.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White)
-                            SettingsDesc("${server.toolCount} tools · ${server.connectionState}")
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Spacer(Modifier.weight(1f))
+            if (!server.isPreset) SettingsSmallButton("削除", { confirmDelete = true }, tone = SettingsButtonTone.Red, fontSize = 10.sp)
+            WebToggle(server.enabled, { enabled ->
+                status.set(if (enabled) "有効化しています..." else "無効化しています...", false)
+                model.setMcpServerEnabled(server, enabled)
+                status.set(if (enabled) "有効にしました。チャットのモデルへツールが公開されます。" else "無効にしました。", false)
+            }, contentDescription = if (server.enabled) "無効化" else "有効化")
+        }
+        if (server.url.isNotBlank()) Text(server.url, fontSize = 10.sp, color = Tw.gray500)
+        if (server.description.isNotBlank()) Text(server.description, fontSize = 10.sp, color = Tw.gray500)
+        if (server.lastError.isNotBlank()) Text(server.lastError, fontSize = 10.sp, color = Tw.red400)
+        if (server.authType == "bearer") Text("Bearer トークン ${if (server.authHasToken) "（保存済み・********）" else "（未設定）"}",
+            fontSize = 10.sp, color = if (server.authHasToken) Tw.emerald300 else Tw.amber300)
+        if (server.authType == "oauth" && !server.oauthClientRegistered) SettingsDesc("OAuthクライアント情報を保存すると「認証する」が使えます。")
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(if (server.toolCount > 0) "${server.toolCount}ツール" else "ツール未取得", fontSize = 10.sp,
+                color = if (server.toolCount > 0) Tw.emerald300 else Tw.gray500)
+            SettingsSmallButton("ツール一覧", {
+                toolsOpen = true
+                tools = null
+                toolsError = null
+                ops.run("取得に失敗しました") {
+                    try { tools = mcpTools(server.id) } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        toolsError = serverErrorText(e, "取得に失敗しました")
+                    }
+                }
+            }, fontSize = 10.sp)
+            Spacer(Modifier.weight(1f))
+            SettingsSmallButton("接続テスト", {
+                status.set("接続テスト中...", false)
+                ops.run("接続テストに失敗しました") {
+                    try {
+                        val reply = mcpTest(server.id)
+                        val probe = reply.optJSONObject("probe")
+                        probe?.optString("message")?.takeIf { it.isNotBlank() }?.let { status.set(it, !probe.optBoolean("ok")) }
+                        model.loadMcpServers()
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        status.set(serverErrorText(e, "接続テストに失敗しました"), true)
+                    }
+                }
+            }, fontSize = 10.sp, icon = null)
+            Text(when (server.connectionState) {
+                "error" -> "エラー"
+                "connected" -> "接続OK"
+                "needs_auth" -> "認証待ち"
+                else -> "未接続"
+            }, fontSize = 9.sp, color = Tw.gray600)
+        }
+        if (toolsOpen) {
+            val list = tools
+            when {
+                toolsError != null -> Text(toolsError.orEmpty(), fontSize = 10.sp, color = Tw.red400)
+                list == null -> Text("読み込み中...", fontSize = 10.sp, color = Tw.gray500)
+                list.isEmpty() -> Text("ツール一覧がありません。「接続テスト」で取得してください。", fontSize = 10.sp, color = Tw.gray600)
+                else -> Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).background(Color.Black.copy(alpha = 0.2f))
+                    .border(1.dp, web.twBorder(Tw.gray800), RoundedCornerShape(4.dp)).padding(8.dp)) {
+                    list.forEach { tool ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Column(Modifier.weight(1f)) {
+                                Text(tool.name, fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = Tw.cyan200)
+                                if (tool.description.isNotBlank()) Text(tool.description, fontSize = 10.sp, color = Tw.gray500, maxLines = 2,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            }
+                            McpBadge(if (tool.readOnly) "読み取り" else "変更",
+                                if (tool.readOnly) Tw.emerald800.copy(alpha = 0.4f) else Tw.amber800.copy(alpha = 0.4f),
+                                if (tool.readOnly) Tw.emerald200 else Tw.amber200, round = false)
                         }
-                        WebToggle(server.enabled, { model.setMcpServerEnabled(server, it) })
                     }
                 }
             }
         }
-        // ANDROID_ONLY.md: OAuth clients and Bearer/OAuth custom servers are managed on Web.
-        SettingsSmallButton("WebでMCP秘密設定を開く", { extras.onWeb("/settings") }, Modifier.padding(top = 12.dp), fill = true)
-    },
-)
+    }
+    if (confirmDelete) BrowserConfirmDialog("このカスタムMCPサーバーを削除しますか？") { ok ->
+        confirmDelete = false
+        if (ok) ops.run("削除に失敗しました") {
+            try { mcpDelete(server.id); status.set("削除しました。", false); model.loadMcpServers() } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                status.set(serverErrorText(e, "削除に失敗しました"), true)
+            }
+        }
+    }
+}
+
+@Composable
+private fun McpBadge(text: String, background: Color, color: Color, modifier: Modifier = Modifier, round: Boolean = true) {
+    Text(text, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = color,
+        modifier = modifier.clip(if (round) CircleShape else RoundedCornerShape(4.dp)).background(background)
+            .padding(horizontal = if (round) 8.dp else 6.dp, vertical = 2.dp))
+}
+
+/** `カスタムMCPサーバーを追加` (unauthenticated servers only, ANDROID_ONLY.md). */
+@Composable
+private fun McpCustomForm(model: ChatViewModel, ops: AccountOps) {
+    var name by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("") }
+    var statusColor by remember { mutableStateOf(Tw.gray400) }
+    var busy by remember { mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column { SettingsFieldLabel("表示名"); SettingsTextField(name, { name = it.take(120) }, Modifier.fillMaxWidth(), placeholder = "例: 社内ナレッジMCP") }
+        Column { SettingsFieldLabel("MCP URL（Streamable HTTP）"); SettingsTextField(url, { url = it.take(2048) }, Modifier.fillMaxWidth(), placeholder = "https://example.com/mcp") }
+        Column {
+            SettingsFieldLabel("認証方式")
+            SettingsSelect("none", webOptions("none" to "認証なし"), {})
+            SettingsDesc("Bearer トークンと OAuth 2.0 のサーバーはWeb版で追加します。", Modifier.padding(top = 4.dp))
+        }
+        Column { SettingsFieldLabel("説明（任意）"); SettingsTextField(description, { description = it.take(500) }, Modifier.fillMaxWidth(), placeholder = "このサーバーの説明") }
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+            Text(status, fontSize = 10.sp, color = statusColor, modifier = Modifier.weight(1f))
+            WebButton(onClick = {
+                if (name.isBlank() || url.isBlank()) { status = "表示名とURLは必須です"; statusColor = Color(0xFFF87171) }
+                else {
+                    busy = true
+                    status = "接続テスト中..."; statusColor = Tw.gray400
+                    ops.run("追加に失敗しました") {
+                        try {
+                            val reply = mcpAdd(name.trim(), url.trim(), description.trim())
+                            val probe = reply.optJSONObject("probe")
+                            status = probe?.optString("message")?.ifBlank { null } ?: "追加しました"
+                            statusColor = if (probe?.optBoolean("ok") == true) Color(0xFF34D399) else Color(0xFFFBBF24)
+                            name = ""; url = ""; description = ""
+                            model.loadMcpServers()
+                        } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
+                            status = serverErrorText(e, "追加に失敗しました"); statusColor = Color(0xFFF87171)
+                        } finally { busy = false }
+                    }
+                }
+            }, variant = WebButtonVariant.Primary, enabled = !busy, radius = 11.dp,
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp), fontSize = 12.sp) {
+                Text("接続テストして追加")
+            }
+        }
+        SettingsDesc("URLはサーバー側で安全性（SSRF対策）を検査します。内部ネットワーク・ループバック等への接続はできません。", color = Tw.gray400)
+    }
+}

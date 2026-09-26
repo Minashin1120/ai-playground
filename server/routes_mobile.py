@@ -459,7 +459,18 @@ def _mobile_preferences_payload():
         'gemini_vertex_location': _normalize_gemini_vertex_location(user.gemini_vertex_location),
         'gemini_vertex_credentials_json': _masked_secret(user.gemini_vertex_credentials_json),
         'google_project': decrypt_val(user.google_cloud_project) or "",
+        'is_admin': bool(getattr(user, 'is_admin', False)),
+        'google_linked': bool(user.google_id),
+        'minashin_linked': bool(user.minashin_sub),
     }
+    try:
+        status = redis_conn.get(f"migration_status:{user.id}")
+        progress = redis_conn.get(f"migration_progress:{user.id}")
+        payload['migration_status'] = status.decode() if status else "idle"
+        payload['migration_progress'] = progress.decode() if progress else ""
+    except Exception:
+        payload['migration_status'] = "idle"
+        payload['migration_progress'] = ""
     for field, column in _MOBILE_SECRET_FIELDS:
         payload[field] = _masked_secret(getattr(user, column, None))
     return payload

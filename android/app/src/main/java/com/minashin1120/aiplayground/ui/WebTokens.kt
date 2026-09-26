@@ -170,12 +170,14 @@ internal object Tw {
     val orange700 = Color(0xFFC2410C)
     val orange900 = Color(0xFF7C2D12)
 
+    val amber100 = Color(0xFFFEF3C7)
     val amber200 = Color(0xFFFDE68A)
     val amber300 = Color(0xFFFCD34D)
     val amber400 = Color(0xFFFBBF24)
     val amber500 = Color(0xFFF59E0B)
     val amber600 = Color(0xFFD97706)
     val amber700 = Color(0xFFB45309)
+    val amber800 = Color(0xFF92400E)
     val amber900 = Color(0xFF78350F)
 
     val yellow200 = Color(0xFFFEF08A)
@@ -194,13 +196,16 @@ internal object Tw {
     val green700 = Color(0xFF15803D)
     val green900 = Color(0xFF14532D)
 
+    val emerald100 = Color(0xFFD1FAE5)
     val emerald200 = Color(0xFFA7F3D0)
     val emerald300 = Color(0xFF6EE7B7)
     val emerald400 = Color(0xFF34D399)
     val emerald500 = Color(0xFF10B981)
     val emerald600 = Color(0xFF059669)
     val emerald700 = Color(0xFF047857)
+    val emerald800 = Color(0xFF065F46)
     val emerald900 = Color(0xFF064E3B)
+    val emerald950 = Color(0xFF022C22)
 
     val teal200 = Color(0xFF99F6E4)
     val teal300 = Color(0xFF5EEAD4)
@@ -224,6 +229,7 @@ internal object Tw {
     val sky600 = Color(0xFF0284C7)
     val sky700 = Color(0xFF0369A1)
 
+    val blue100 = Color(0xFFDBEAFE)
     val blue200 = Color(0xFFBFDBFE)
     val blue300 = Color(0xFF93C5FD)
     val blue400 = Color(0xFF60A5FA)
@@ -231,6 +237,7 @@ internal object Tw {
     val blue600 = Color(0xFF2563EB)
     val blue700 = Color(0xFF1D4ED8)
     val blue900 = Color(0xFF1E3A8A)
+    val blue950 = Color(0xFF172554)
 
     val indigo200 = Color(0xFFC7D2FE)
     val indigo300 = Color(0xFFA5B4FC)
@@ -246,11 +253,13 @@ internal object Tw {
     val violet600 = Color(0xFF7C3AED)
     val violet900 = Color(0xFF4C1D95)
 
+    val purple100 = Color(0xFFF3E8FF)
     val purple200 = Color(0xFFE9D5FF)
     val purple300 = Color(0xFFD8B4FE)
     val purple400 = Color(0xFFC084FC)
     val purple500 = Color(0xFFA855F7)
     val purple600 = Color(0xFF9333EA)
+    val purple700 = Color(0xFF7E22CE)
     val purple900 = Color(0xFF581C87)
 
     val pink300 = Color(0xFFF9A8D4)

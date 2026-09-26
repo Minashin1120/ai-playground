@@ -39,9 +39,26 @@ MOBILE_ENDPOINT_METHODS = {
     'cancel_batch_job_api': {'POST'}, 'delete_batch_job_api': {'DELETE'},
     'mcp_service.chat_decision': {'POST'},
     'mcp_service.list_servers': {'GET'}, 'mcp_service.update_server': {'PUT'},
+    # Unauthenticated custom servers only; Bearer/OAuth secrets stay on Web (ANDROID_ONLY.md).
+    'mcp_service.add_custom_server': {'POST'}, 'mcp_service.delete_server': {'DELETE'},
+    'mcp_service.test_server': {'POST'}, 'mcp_service.list_server_tools': {'GET'},
     'feedback': {'GET', 'POST'},
     # Native clients use the same authenticated provider sessions as Web for
     # realtime audio/music. These endpoints never return provider API keys.
+    # Settings modal parity (routes_mobile_account.py): account, sessions, 2FA and
+    # data transfer. Sensitive ones also require a recent re-authentication.
+    'mobile_reauth_options': {'POST'}, 'mobile_reauth': {'POST'},
+    'mobile_account_credentials': {'POST'}, 'mobile_account_delete': {'POST'},
+    'mobile_easy_login': {'POST'},
+    'mobile_sessions': {'GET'}, 'mobile_sessions_revoke': {'POST'},
+    'mobile_sessions_revoke_others': {'POST'}, 'mobile_sessions_revoke_all': {'POST'},
+    'mobile_security_disable_2fa': {'POST'}, 'mobile_security_e2ee': {'POST'},
+    'encryption_scan': {'GET'},
+    'unlink_google': {'POST'}, 'unlink_minashin': {'POST'},
+    'export_account_data': {'POST'}, 'get_latest_account_export': {'GET'},
+    'download_account_export': {'GET'}, 'get_account_transfer_status': {'GET'},
+    'cancel_account_transfer': {'POST'},
+    'account_dedupe_preview': {'POST'}, 'account_dedupe_execute': {'POST'},
     'realtime_start': {'POST'}, 'realtime_stream': {'GET'}, 'realtime_audio': {'POST'},
     'realtime_commit': {'POST'}, 'realtime_cancel': {'POST'}, 'realtime_save': {'POST'},
     'gemini_music_start': {'POST'}, 'gemini_music_stream': {'GET'},
@@ -60,12 +77,32 @@ MOBILE_SETUP_ENDPOINTS = {
     'start_account_import_upload', 'account_import_upload_chunk', 'complete_account_import_upload',
     'cancel_account_import_upload', 'import_account_data',
 }
-# Account archives stay on Web once setup is complete; the native bearer may
-# only import during first-run setup.
-MOBILE_FIRST_RUN_ONLY_ENDPOINTS = {
-    'start_account_import_upload', 'account_import_upload_chunk', 'complete_account_import_upload',
-    'cancel_account_import_upload', 'import_account_data',
+# Endpoints limited to first-run setup (none: the settings Data tab imports too).
+MOBILE_FIRST_RUN_ONLY_ENDPOINTS = set()
+# After setup, these need a re-authentication within MOBILE_REAUTH_TTL on this
+# device (password, TOTP or passkey; see routes_mobile_account.py). Archives
+# contain decrypted provider keys, so creating/downloading/importing them is
+# covered too.
+MOBILE_REAUTH_TTL = 600
+MOBILE_REAUTH_ENDPOINTS = {
+    'mobile_account_delete', 'mobile_easy_login', 'mobile_sessions_revoke_all',
+    'mobile_security_disable_2fa', 'export_account_data', 'download_account_export',
+    'start_account_import_upload', 'import_account_data', 'unlink_google', 'unlink_minashin',
 }
+
+
+def _mobile_reauth_key(session_row):
+    return 'mobile:reauth:' + _mobile_digest(session_row.session_id)
+
+
+def _mobile_recently_reauthenticated():
+    row = getattr(g, 'mobile_session', None)
+    if row is None:
+        return False
+    try:
+        return bool(redis_conn.get(_mobile_reauth_key(row)))
+    except Exception:
+        return False
 
 
 def _mobile_digest(value):
@@ -154,6 +191,9 @@ def mobile_request_guard():
             return _mobile_error('setup_required', 403)
         if current_user.is_setup_completed and endpoint in MOBILE_FIRST_RUN_ONLY_ENDPOINTS:
             return _mobile_error('setup_already_completed', 403)
+        if current_user.is_setup_completed and endpoint in MOBILE_REAUTH_ENDPOINTS and not _mobile_recently_reauthenticated():
+            if endpoint != 'mobile_easy_login' or not (request.get_json(silent=True) or {}).get('cancel'):
+                return _mobile_error('reauth_required', 403)
     elif endpoint in MOBILE_ENDPOINT_METHODS:
         return _mobile_error('invalid_token', 401)
 

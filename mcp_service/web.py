@@ -106,6 +106,9 @@ def add_custom_server():
     url = (data.get("url") or "").strip()
     auth_type = (data.get("auth_type") or "none").strip().lower()
     description = (data.get("description") or "").strip()
+    if getattr(g, 'mobile_bearer_request', False) and (auth_type != "none" or data.get("bearer_token")):
+        # The Android client registers unauthenticated servers only; secrets stay on Web.
+        return jsonify({"error": "insufficient_scope", "code": "insufficient_scope"}), 403
     bearer_token = data.get("bearer_token")
     if bearer_token is not None and str(bearer_token).strip() in ("", "********"):
         bearer_token = None

@@ -40,6 +40,11 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsFields.kt` | 設定カード内の入力部品（チェックボックス、ラジオ、select、入力欄、小ボタン、スイッチ行） | 設定の部品の見た目を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ColorPickerDialog.kt` | テーマ色の選択（Webの `input[type=color]` 相当） | 色選択を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/CompressionDialog.kt` | 「画像・圧縮詳細設定」モーダル（圧縮と画像・OCRの生成設定） | 圧縮設定を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsAccount.kt` | アカウント・セキュリティ・2要素認証タブのカードとデータタブの「アカウントデータ」カード | アカウント操作やデータ移行の画面を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ReauthDialog.kt` | 重要な操作の前の本人確認（ANDROID_ONLY.md）と、設定の操作を実行する `AccountOps` | 本人確認の流れを変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ImportDialogs.kt` | インポート時の設定変更の確認と、容量超過時のファイル選択 | インポートの確認画面を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/AccountApi.kt` | 設定のアカウント・セッション・2FA・MCP・データ移行のAPI呼び出し | これらの通信を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/AccountTransfer.kt` | エクスポート・インポート・重複修復の進行（設定を閉じても続く） | データ移行の手順を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/SlashCommands.kt` | 入力欄の `/` コマンド定義と解析 | スラッシュコマンドを追加するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AdvancedTools.kt` | Batch管理と高度な生成機能・安全なWeb導線 | 高度な機能メニューを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasCodingPanels.kt` | Canvasプレビュー・編集 | Canvasの編集操作を変更するとき |

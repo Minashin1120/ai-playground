@@ -21,7 +21,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Text
+import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -98,11 +101,34 @@ fun SettingsDialog(
     val form = remember(if (loaded) "loaded" else prefs) { SettingsForm(prefs) }
     val notify: (String) -> Unit = model::notify
     val extras = SettingsExtras(appUpdate, onCheckForUpdate, onBubble, onWeb) { confirmCache = it }
+    val ops = remember(model) { AccountOps(model.viewModelScope, model::accountApi, notify) }
+    var confirmRequest by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
+    val transfer by model.accountTransfer.state.collectAsState()
+    val transferReauth by model.accountTransfer.reauth.collectAsState()
+    val importForm = remember { ImportFormState() }
+    val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            importForm.fileUri = uri
+            importForm.fileName = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: uri.lastPathSegment
+        }
+    }
+    val exportSaver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) model.accountTransfer.download(uri)
+    }
+    LaunchedEffect(Unit) { if (!state.offline) model.accountTransfer.refreshLatestExport() }
+    val accountCtx = AccountSettingsContext(
+        model = model, ops = ops, confirm = { message, action -> confirmRequest = message to action }, notify = notify, onWeb = onWeb,
+        pickImportFile = { importPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) },
+        saveExport = { exportSaver.launch("ai-playground-account.zip") },
+    )
+    val dataTab = dataCards(state, model, form, extras).toMutableList()
+        .apply { add(indexOfFirst { it.key == "debug" }.coerceAtLeast(0), accountDataCard(transfer, importForm, accountCtx)) }
 
     val cards = generalCards(state, form, localPythonDialog, { localPythonDialog = it }, notify) + androidCard(state, extras) +
         apiCards(state, form, notify) + promptCards(state, form) + displayCards(form) { colorPicker = true } +
-        dataCards(state, model, form, extras) + accountCards(state, extras) + securityCards(state, extras) +
-        twoFactorCards(state, model, form) + feedbackCards(state, model, notify) + mcpCards(state, model, extras)
+        dataTab + accountCards(state, form, accountCtx) + securityCards(state, form, accountCtx) +
+        twoFactorCards(state, form, accountCtx) + feedbackCards(state, model, notify) + mcpCards(state, model, extras, ops)
 
     PlaygroundDialog(
         onDismissRequest = onDismiss,
@@ -144,8 +170,31 @@ fun SettingsDialog(
                     if (!loaded) notify("設定を読み込み中です。完了するまでお待ちください")
                     else {
                         devicePrefs.edit().putBoolean(GEMINI_LOCAL_PY_DIALOG_PREF, localPythonDialog).apply()
-                        model.savePreferences(form.payload())
-                        onDismiss()
+                        val username = form.newUsername.trim()
+                        val password = form.newPassword
+                        val e2eeChanged = form.e2ee != form.e2eeLoaded
+                        if (username.isEmpty() && password.isEmpty() && !e2eeChanged) {
+                            model.savePreferences(form.payload())
+                            onDismiss()
+                        } else ops.run("設定の保存に失敗しました") {
+                            // Web sends these with the same save; a taken user name is left unchanged there too.
+                            if (username.isNotEmpty() || password.isNotEmpty()) {
+                                try { changeCredentials(username, password) } catch (e: com.minashin1120.aiplayground.data.ApiException) {
+                                    when (e.code) {
+                                        "username_unavailable" -> if (password.isNotEmpty()) changeCredentials("", password)
+                                        "invalid_username" -> throw com.minashin1120.aiplayground.data.ApiException(e.status, org.json.JSONObject().put("error", "Username must be 3-80 characters"))
+                                        "invalid_password" -> throw com.minashin1120.aiplayground.data.ApiException(e.status, org.json.JSONObject().put("error", "Password must be 8-256 characters"))
+                                        else -> throw e
+                                    }
+                                }
+                                form.newUsername = ""
+                                form.newPassword = ""
+                            }
+                            // Web shows the migration notice instead of 「設定を保存しました」.
+                            val e2eeMessage = if (e2eeChanged) setE2ee(form.e2ee) else null
+                            model.savePreferences(form.payload(), e2eeMessage ?: "設定を保存しました")
+                            onDismiss()
+                        }
                     }
                 },
                 variant = WebButtonVariant.Primary,
@@ -157,6 +206,30 @@ fun SettingsDialog(
             }
         },
     )
+    val pendingReauth = ops.reauthRetry ?: transferReauth
+    if (pendingReauth != null) ReauthDialog(model::accountApi, onDismiss = {
+        ops.reauthRetry = null
+        model.accountTransfer.reauth.value = null
+    }) {
+        ops.reauthRetry = null
+        model.accountTransfer.reauth.value = null
+        pendingReauth()
+    }
+    confirmRequest?.let { (message, action) ->
+        BrowserConfirmDialog(message) { ok -> confirmRequest = null; if (ok) action() }
+    }
+    transfer.dedupePreview?.let { preview ->
+        val kept = if (preview.keptReferenced > 0) "\n※チャットから参照されているため、ファイル ${preview.keptReferenced}件は削除せず残します。" else ""
+        BrowserConfirmDialog("重複データが ${preview.total}件 見つかりました。\n\n${preview.parts}$kept\n\n同じ内容のデータは最も古い1件を残して削除します。続行しますか？") { ok ->
+            model.accountTransfer.confirmDedupe(ok)
+        }
+    }
+    transfer.settingsChanges?.let { changes ->
+        ImportSettingsConfirmDialog(changes) { ok -> model.accountTransfer.answerSettingsChanges(ok) }
+    }
+    transfer.fileSelection?.let { request ->
+        ImportFileSelectionDialog(request) { selected -> model.accountTransfer.answerFileSelection(selected) }
+    }
     if (colorPicker) ColorPickerDialog(normalizeWebHex(form.themeColor) ?: THEME_DEFAULT, onDismiss = { colorPicker = false }) {
         form.themeColor = it
         colorPicker = false

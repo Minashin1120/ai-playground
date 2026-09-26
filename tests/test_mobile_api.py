@@ -462,6 +462,84 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(self.call('/api/mobile/v1/preferences', token, 'PUT',
                                    json={'passkey_only_login': True}).status_code, 400)
 
+    def set_password(self, password='correct-horse-1'):
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.set_password(password)
+            target.db.session.commit()
+        return password
+
+    def test_native_sensitive_account_actions_require_recent_reauth(self):
+        password = self.set_password()
+        token = self.token()
+        for path, body in (
+            ('/api/mobile/v1/account/delete', {}),
+            ('/api/mobile/v1/account/easy-login', {'minutes': 5}),
+            ('/api/mobile/v1/sessions/revoke_all', {}),
+            ('/api/mobile/v1/security/2fa/disable', {}),
+            ('/api/account/export', {}),
+            ('/api/account/unlink_google', {}),
+        ):
+            blocked = self.call(path, token, 'POST', json=body)
+            self.assertEqual(blocked.status_code, 403, path)
+            self.assertEqual(blocked.json['error'], 'reauth_required', path)
+        # Cancelling an easy-login password never needs a re-authentication.
+        self.assertEqual(self.call('/api/mobile/v1/account/easy-login', token, 'POST', json={'cancel': True}).status_code, 200)
+        options = self.call('/api/mobile/v1/reauth/options', token, 'POST', json={})
+        self.assertEqual(options.json['methods'], ['password'])
+        self.assertFalse(options.json['reauthenticated'])
+        self.assertEqual(self.call('/api/mobile/v1/reauth', token, 'POST', json={'method': 'password', 'password': 'wrong'}).status_code, 401)
+        self.assertEqual(self.call('/api/mobile/v1/reauth', token, 'POST', json={'method': 'totp', 'code': '123456'}).status_code, 400)
+        self.assertEqual(self.call('/api/mobile/v1/reauth', token, 'POST', json={'method': 'password', 'password': password}).status_code, 200)
+        easy = self.call('/api/mobile/v1/account/easy-login', token, 'POST', json={'minutes': 500})
+        self.assertEqual(easy.status_code, 200)
+        self.assertEqual(easy.json['minutes'], 120)
+        self.assertTrue(easy.json['temp_password'])
+        # The re-authentication belongs to this device token only.
+        other = self.token()
+        self.assertEqual(self.call('/api/mobile/v1/account/easy-login', other, 'POST', json={'minutes': 5}).status_code, 403)
+
+    def test_native_credentials_sessions_and_2fa_reset(self):
+        password = self.set_password()
+        token = self.token()
+        other = self.token()
+        renamed = self.call('/api/mobile/v1/account/credentials', token, 'POST', json={'new_username': 'android-renamed'})
+        self.assertEqual(renamed.status_code, 200)
+        self.assertEqual(renamed.json['username'], 'android-renamed')
+        self.assertEqual(self.call('/api/mobile/v1/account/credentials', token, 'POST',
+                                   json={'new_username': 'another-owner'}).status_code, 409)
+        self.assertEqual(self.call('/api/mobile/v1/account/credentials', token, 'POST',
+                                   json={'new_password': 'new-password-1'}).json['error'], 'reauth_required')
+        sessions = self.call('/api/mobile/v1/sessions', token).json['sessions']
+        self.assertEqual(sum(1 for row in sessions if row['is_current']), 1)
+        # Both Android devices are listed with the Web sessions of the same account.
+        self.assertGreaterEqual(sum(1 for row in sessions if 'Android' in (row['user_agent'] or '')), 2)
+        self.assertEqual(self.call('/api/mobile/v1/reauth', token, 'POST', json={'method': 'password', 'password': password}).status_code, 200)
+        changed = self.call('/api/mobile/v1/account/credentials', token, 'POST', json={'new_password': 'new-password-1'})
+        self.assertTrue(changed.json['password_changed'])
+        # A password change signs out the other devices but keeps this one.
+        self.assertEqual(self.call('/api/mobile/v1/me', other).status_code, 401)
+        self.assertEqual(self.call('/api/mobile/v1/me', token).status_code, 200)
+        disabled = self.call('/api/mobile/v1/security/2fa/disable', token, 'POST', json={})
+        self.assertEqual(disabled.status_code, 200)
+        self.assertFalse(disabled.json['is_2fa_enabled'])
+        foreign = self.call('/api/mobile/v1/sessions/revoke', token, 'POST', json={'id': 999999})
+        self.assertEqual(foreign.status_code, 404)
+
+    def test_native_totp_setup_returns_web_qr_and_scan_is_available(self):
+        token = self.token()
+        setup = self.call('/api/mobile/v1/security/totp/setup', token, 'POST', json={})
+        self.assertEqual(setup.status_code, 200)
+        self.assertTrue(setup.json['qr_image'].startswith('data:image/png;base64,'))
+        scan = self.call('/api/encryption_scan', token)
+        self.assertEqual(scan.status_code, 200)
+        self.assertIn('total', scan.json)
+        preview = self.call('/api/account/dedupe/preview', token, 'POST', json={})
+        self.assertEqual(preview.status_code, 200)
+        prefs = self.call('/api/mobile/v1/preferences', token).json
+        self.assertEqual(prefs['migration_status'], 'idle')
+        self.assertFalse(prefs['is_admin'])
+
     def test_native_feedback_and_mcp_list_are_owner_scoped(self):
         token = self.token()
         created = self.call('/api/feedback', token, 'POST', json={'title': 'Android', 'message': 'native note'})
@@ -472,7 +550,12 @@ class MobileApiTests(unittest.TestCase):
         servers = self.call('/api/mcp/servers', token)
         self.assertEqual(servers.status_code, 200)
         self.assertIn('servers', servers.json)
-        self.assertEqual(self.call('/api/mcp/servers', token, 'POST', json={'name': 'x', 'url': 'https://example.com'}).status_code, 403)
+        # Custom servers with secrets stay on Web; the native client may only add unauthenticated ones.
+        for secret in ({'auth_type': 'bearer', 'bearer_token': 't'}, {'auth_type': 'oauth'}, {'bearer_token': 't'}):
+            body = {'name': 'x', 'url': 'https://example.com/mcp', **secret}
+            self.assertEqual(self.call('/api/mcp/servers', token, 'POST', json=body).status_code, 403)
+        self.assertEqual(self.call('/api/mcp/servers/999999/test', token, 'POST', json={}).status_code, 404)
+        self.assertEqual(self.call('/api/mcp/oauth-client', token, 'PUT', json={}).status_code, 403)
 
     def test_native_thread_pdf_export_is_owner_scoped(self):
         token = self.token()
@@ -1055,7 +1138,7 @@ class MobileApiTests(unittest.TestCase):
             })
         self.assertEqual(revoked.status_code, 401)
 
-    def test_account_import_is_limited_to_first_run_setup(self):
+    def test_account_import_after_setup_requires_reauth(self):
         token = self.token()
         # Rejected by the bearer guard before the view runs; should that regress,
         # the view still writes into a throwaway directory, never the real one.
@@ -1064,10 +1147,12 @@ class MobileApiTests(unittest.TestCase):
         patcher = mock.patch.object(target, '_account_import_upload_root', return_value=import_root.name)
         patcher.start()
         self.addCleanup(patcher.stop)
-        blocked =self.call('/api/account/import/upload/start', token, 'POST', json={'size': 10})
+        # The settings Data tab imports too, but only right after a re-authentication.
+        blocked = self.call('/api/account/import/upload/start', token, 'POST', json={'size': 10})
         self.assertEqual(blocked.status_code, 403)
-        self.assertEqual(blocked.json['error'], 'setup_already_completed')
-        self.assertEqual(self.call('/api/account/import', token, 'POST', json={'upload_id': 'x'}).status_code, 403)
+        self.assertEqual(blocked.json['error'], 'reauth_required')
+        self.assertEqual(self.call('/api/account/import', token, 'POST', json={'upload_id': 'x'}).json['error'], 'reauth_required')
+        self.assertEqual(self.call('/api/account/export/latest', token).status_code, 200)
         replay = self.call('/api/mobile/v1/setup', token, 'PUT', json={'default_model': 'gemini-3.6-flash'})
         self.assertEqual(replay.status_code, 409)
 

@@ -153,6 +153,12 @@ data class Preferences(
     val geminiVertexLocation: String = "global",
     val geminiVertexCredentialsSet: Boolean = false,
     val googleProject: String = "",
+    val isAdmin: Boolean = false,
+    val googleLinked: Boolean = false,
+    val minashinLinked: Boolean = false,
+    /** Web `migration_status` / `migration_progress` of the E2EE switch. */
+    val migrationStatus: String = "idle",
+    val migrationProgress: String = "",
 ) {
     val effectivePromptBarMode: String
         get() = when {
@@ -172,6 +178,11 @@ data class McpServerInfo(
     val toolCount: Int,
     val isPreset: Boolean,
     val description: String,
+    val url: String = "",
+    val authType: String = "none",
+    val lastError: String = "",
+    val oauthClientRegistered: Boolean = false,
+    val authHasToken: Boolean = false,
 )
 
 data class FeedbackItem(
@@ -273,6 +284,11 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
     geminiVertexLocation = json.nullableString("gemini_vertex_location").ifBlank { "global" },
     geminiVertexCredentialsSet = json.nullableString("gemini_vertex_credentials_json").isNotBlank(),
     googleProject = json.nullableString("google_project"),
+    isAdmin = json.optBoolean("is_admin"),
+    googleLinked = json.optBoolean("google_linked", json.nullableString("google_email").isNotBlank()),
+    minashinLinked = json.optBoolean("minashin_linked", json.nullableString("minashin_email").isNotBlank()),
+    migrationStatus = json.nullableString("migration_status").ifBlank { "idle" },
+    migrationProgress = json.nullableString("migration_progress"),
 )
 
 /** Server mask for stored secrets (Web `_SECRET_MASK`): sending it back keeps the stored value. */
@@ -325,6 +341,11 @@ fun parseMcpServers(json: JSONObject): List<McpServerInfo> {
             toolCount = row.optInt("tool_count"),
             isPreset = row.optBoolean("is_preset"),
             description = row.nullableString("description"),
+            url = row.nullableString("url"),
+            authType = row.nullableString("auth_type").ifBlank { "none" },
+            lastError = row.nullableString("last_error"),
+            oauthClientRegistered = row.optBoolean("oauth_client_registered"),
+            authHasToken = row.optBoolean("auth_has_token"),
         )
     }
 }

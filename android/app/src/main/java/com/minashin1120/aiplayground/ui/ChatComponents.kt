@@ -46,6 +46,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.drawBehind
+import com.minashin1120.aiplayground.R
+import com.minashin1120.aiplayground.data.CardKind
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.data.ChatMessage
@@ -59,6 +63,46 @@ import com.minashin1120.aiplayground.data.SlashCommand
 import com.minashin1120.aiplayground.data.matchingSlashCommands
 import com.minashin1120.aiplayground.data.numericId
 import com.minashin1120.aiplayground.data.parseSlashAction
+
+/** Web `.mcp-box`: running (spinner, 実行中...), done (✓, 実行しました) or failed (✕, 失敗) with the dashed note. */
+@Composable
+private fun McpBox(card: StatusCard) {
+    val (border, color) = when {
+        card.failed -> Color(248, 113, 113).copy(alpha = 0.5f) to Color(0xFFFECACA)
+        card.done -> Color(52, 211, 153).copy(alpha = 0.4f) to Color(0xFFA7F3D0)
+        else -> Color(34, 211, 238).copy(alpha = 0.45f) to Color(0xFFA5F3FC)
+    }
+    val web = LocalWebPalette.current
+    val shape = RoundedCornerShape(11.2.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(if (web.isLight) Color.White else Color(8, 14, 28).copy(alpha = 0.85f))
+            .border(1.dp, border, shape).padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            when {
+                // `fa-times-circle` is not in the Web icon subset, so the Web shows no glyph for a failure.
+                card.failed -> Unit
+                card.done -> FaIcon(R.drawable.fa_solid_check_circle, null, size = 11.5.dp, tint = Color(0xFF34D399))
+                else -> CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 2.dp, color = Color(0xFF22D3EE),
+                    trackColor = Color(148, 163, 184).copy(alpha = 0.3f))
+            }
+            Text(card.label, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else color)
+            Text(if (card.failed) "失敗" else if (card.done) "実行しました" else "実行中...", fontSize = 10.9.sp, color = Color(0xFF94A3B8))
+        }
+        if (card.note.isNotBlank()) {
+            val dash = Color(148, 163, 184).copy(alpha = 0.2f)
+            Text(
+                card.note, fontSize = 10.9.sp, color = if (card.failed) Color(0xFFFCA5A5) else Color(0xFF94A3B8),
+                modifier = Modifier.padding(top = 4.dp).fillMaxWidth()
+                    .drawBehind {
+                        drawLine(dash, androidx.compose.ui.geometry.Offset.Zero, androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx(),
+                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx())))
+                    }
+                    .padding(top = 4.8.dp),
+            )
+        }
+    }
+}
 
 @Composable
 fun StatusCardView(card: StatusCard) {
@@ -97,7 +141,7 @@ fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) ->
                 loader: FileBytesLoader? = null, onMcpDecision: (Boolean) -> Unit = {}) {
     val reduce = LocalReduceMotion.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        state.cards.forEach { card -> key(card.id + card.kind) { AppearOnce { StatusCardView(card) } } }
+        state.cards.forEach { card -> key(card.id + card.kind) { AppearOnce { if (card.kind == CardKind.MCP) McpBox(card) else StatusCardView(card) } } }
         // MCP confirmations use the Web modal (`McpDecisionDialog`).
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.streaming) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)

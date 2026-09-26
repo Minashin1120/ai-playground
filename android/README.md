@@ -62,8 +62,8 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundDialog.kt` | Webモーダル（オーバーレイ、ぼかし、パネル、見出し、下部）の共通枠 | 設定・Gems・ライブラリ・Batchの画面枠を調整するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundMotion.kt` | 共通の時間・イージング、アニメーション削除設定への追従、モーダルの開閉・予測型「戻る」、一覧・登場・押下の動きの部品 | 画面の動き・遷移を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AppChangelogDialog.kt` | Android版更新履歴のネイティブMarkdown表示、読み込み・再試行・戻る操作 | 更新履歴画面を編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/GenerationOptionsPanel.kt` | モデル別生成設定のネイティブ入力パネル | 詳細設定の表示を編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/GenerationOptions.kt` | モデル別の生成パネル項目（画像・動画・OCR・TTS・xAI詳細）、値検証、送信対象の限定。File／SysPrompt／URLs／Thinking／Effort／SafetyはComposerのチップが持つ | 画像・動画・OCR・TTSの設定を追加するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/GenerationOptionsPanel.kt` | Webの生成パネル（`composer_gen_image.html`／`composer_gen_media.html`）の描画、Lyria RealTimeの案内バー、入力制限の注記 | 詳細設定の表示を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/GenerationOptions.kt` | Webの生成パネルの項目とモデル別の表示規則（`p07` の `update*Ui` 相当）、値検証、送信対象の限定。File／SysPrompt／URLs／Thinking／Effort／SafetyはComposerのチップが持つ | 画像・動画・OCR・TTSの設定を追加するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/RealtimeModels.kt` | Realtime／Lyriaのセッション状態 | 音声・音楽ストリームの状態表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/WebModelCatalog.kt`, `app/src/main/assets/web-model-catalog.json` | Webの表示名・説明・価格・タグ・追加順をネイティブAPIのモデル一覧に合成 | モデル情報の表示差を確認するとき |
 | `ci/sync-web-catalog.mjs` | Webモデル定義からAndroid表示用JSONを生成・`--check`で一致検証 | Webのモデル定義変更をAndroidへ同期するとき |

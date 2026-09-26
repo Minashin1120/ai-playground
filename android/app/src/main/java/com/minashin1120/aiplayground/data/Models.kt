@@ -428,6 +428,10 @@ data class StatusCard(
     val code: String = "",
     val output: String = "",
     val done: Boolean = false,
+    /** The MCP call failed (Web `.mcp-box.mcp-error`). */
+    val failed: Boolean = false,
+    /** The dashed note under an MCP card: the result summary or the error message. */
+    val note: String = "",
 )
 
 data class McpDecision(
@@ -437,6 +441,9 @@ data class McpDecision(
     val toolName: String,
     val argsPreview: String,
 )
+
+/** Web `showBotLockOverlay` state. */
+data class AccountLock(val message: String, val untilMillis: Long)
 
 class ApiException(val status: Int, val payload: JSONObject, val retryAfter: Long = 5) : IOException() {
     val code: String get() = payload.optString("code").ifBlank { payload.optString("error") }
@@ -453,6 +460,7 @@ class ApiException(val status: Int, val payload: JSONObject, val retryAfter: Lon
         code == "setup_required" -> "初回設定を完了してください。"
         code == "invalid_vertex_credentials" -> "Vertex AIのサービスアカウントJSONを確認してください。"
         code == "turnstile_required" -> "Webで安全性の確認が必要です。「Web設定」を開いて確認してください。"
+        code == "account_locked" -> payload.optString("message").ifBlank { "アカウントが一時的にロックされています。" }
         code == "banned" || code == "request_blocked" -> "アカウントの利用が制限されています。Webで状態を確認してください。"
         status == 429 -> "アクセスが集中しています。${retryAfter}秒以上待って再試行してください。"
         status == 503 -> "サービスを一時的に利用できません。しばらくしてからお試しください。"
@@ -622,8 +630,31 @@ fun upsertPythonCard(cards: List<StatusCard>, payload: JSONObject): List<StatusC
 }
 
 /** Renders structured tool events without leaking raw protocol JSON into the answer text. */
+/**
+ * Web `handleMcpStreamEvent`: `start` adds a running card, `result` marks it done with the first line of
+ * the summary, `error` marks it failed with the message. Decision events do not create cards.
+ */
+fun upsertMcpCard(cards: List<StatusCard>, payload: JSONObject?): List<StatusCard> {
+    val type = payload?.optString("type").orEmpty()
+    if (payload == null || type !in setOf("start", "result", "error")) return cards
+    val id = payload.optString("id").ifBlank { "mcp_" + cards.count { it.kind == CardKind.MCP } }
+    val tool = payload.optString("tool_name").ifBlank { payload.optString("internal_name") }
+    val label = "${payload.optString("server_name").ifBlank { "MCP" }} / $tool"
+    val index = cards.indexOfFirst { it.kind == CardKind.MCP && it.id == id }
+    val card = when (type) {
+        "start" -> if (index >= 0) return cards else StatusCard(id, CardKind.MCP, label)
+        "result" -> StatusCard(id, CardKind.MCP, label, done = true,
+            note = payload.optString("summary").lineSequence().firstOrNull().orEmpty().take(220))
+        else -> StatusCard(id, CardKind.MCP, label, done = true, failed = true,
+            note = payload.optString("message").ifBlank { "MCPツールの実行に失敗しました" }.take(300))
+    }
+    return if (index >= 0) cards.toMutableList().also { it[index] = card } else cards + card
+}
+
 fun upsertToolCard(cards: List<StatusCard>, type: String, content: Any?): List<StatusCard> {
     val payload = content as? JSONObject
+    if (type == "mcp") return upsertMcpCard(cards, payload)
+    if (type.startsWith("mcp")) return cards
     val kind = if (type == "coding_diff") CardKind.CODING else if (type.startsWith("mcp")) CardKind.MCP else CardKind.TOOL
     val id = payload?.optString("id")?.takeIf { it.isNotBlank() }
         ?: payload?.optString("tool_call_id")?.takeIf { it.isNotBlank() }

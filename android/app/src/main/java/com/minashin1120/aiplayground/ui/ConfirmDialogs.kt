@@ -156,3 +156,42 @@ internal fun GeminiLocalPythonDialog(onResult: (Boolean, Boolean) -> Unit) {
         }
     }
 }
+
+/**
+ * Web `#bot-lock-overlay`: blocks the whole app until the lock ends, counting down `ロック解除まで: m:ss`.
+ * [onExpired] runs when the countdown reaches zero (the Web reloads the page).
+ */
+@Composable
+internal fun AccountLockOverlay(lock: com.minashin1120.aiplayground.data.AccountLock, onExpired: () -> Unit) {
+    var remaining by remember(lock) { mutableStateOf(((lock.untilMillis - System.currentTimeMillis()) / 1000).coerceAtLeast(0)) }
+    LaunchedEffect(lock) {
+        while (true) {
+            remaining = ((lock.untilMillis - System.currentTimeMillis() + 999) / 1000).coerceAtLeast(0)
+            if (remaining <= 0) { onExpired(); break }
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = {},
+        properties = androidx.compose.ui.window.DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false, usePlatformDefaultWidth = false),
+    ) {
+        WebModalWindow(0.dp)
+        Box(Modifier.fillMaxSize().background(Color(3, 7, 18).copy(alpha = 0.94f)).padding(24.dp), contentAlignment = Alignment.Center) {
+            val shape = RoundedCornerShape(12.dp)
+            Column(
+                Modifier.widthIn(max = 440.dp).fillMaxWidth().clip(shape).background(Color(0xFF0F172A)).border(1.dp, Color(0xFFF59E0B), shape)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                FaIcon(R.drawable.fa_solid_lock, null, size = 26.dp, tint = Color(0xFFFBBF24))
+                Text("アカウントが一時的にロックされました", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text(lock.message, fontSize = 13.sp, lineHeight = 22.1.sp, color = Color(0xFFF1F5F9), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text("ロック解除まで: ${remaining / 60}:${(remaining % 60).toString().padStart(2, '0')}", fontSize = 12.sp, color = Color(0xFF94A3B8),
+                    modifier = Modifier.padding(top = 2.dp))
+                Text("ロック解除までしばらくお待ちください。同じ操作を繰り返すとBANされる場合があります。", fontSize = 11.sp, lineHeight = 17.6.sp,
+                    color = Color(0xFF94A3B8), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
+        }
+    }
+}

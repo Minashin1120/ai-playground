@@ -40,7 +40,7 @@ internal fun CompressionDialog(state: ChatState, model: ChatViewModel, onDismiss
     var maxSize by remember { mutableStateOf(current.maxSizeMB.toString()) }
     var maxDim by remember { mutableStateOf(current.maxDimension.toString()) }
     val modelId = state.model.lowercase()
-    val values = remember { mutableStateMapOf<String, String>().apply { putAll(state.generationValues[state.model].orEmpty()) } }
+    val values = remember { mutableStateMapOf<String, String>().apply { putAll(state.generationValues) } }
     fun v(key: String, default: String) = values[key] ?: default
     WebOverlayModal(onDismiss, grayOverlay(), 4.dp, alignment = Alignment.Center) { _ ->
         val shape = RoundedCornerShape(8.dp)

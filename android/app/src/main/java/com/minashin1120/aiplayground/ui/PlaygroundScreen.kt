@@ -297,7 +297,6 @@ fun PlaygroundScreen(
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
                         else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
                     }
-                    useStudio && selected.startsWith("lyria") -> lyriaOpen = true
                     else -> try {
                         speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                             .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -608,6 +607,7 @@ fun PlaygroundScreen(
                 }
             }
             state.mcpDecision?.let { decision -> key(decision.id) { McpDecisionDialog(decision, model::resolveMcpDecision) } }
+            state.accountLock?.let { lock -> AccountLockOverlay(lock, model::accountLockExpired) }
             ModalHost(branchOpen && state.selected != null) {
                 BranchManagerDialog(state, onDismiss = { branchOpen = false }, onSwitch = model::switchBranch,
                     onDelete = model::deleteMessage, notify = model::notify)

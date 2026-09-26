@@ -63,7 +63,6 @@ import com.minashin1120.aiplayground.data.isAudioPath
 import com.minashin1120.aiplayground.data.isVideoPath
 import com.minashin1120.aiplayground.data.composerRules
 import com.minashin1120.aiplayground.data.gemMentionQuery
-import com.minashin1120.aiplayground.data.generationOptions
 import com.minashin1120.aiplayground.data.historyCodingTargets
 import com.minashin1120.aiplayground.data.isImageReference
 import com.minashin1120.aiplayground.data.matchingSlashCommands
@@ -133,7 +132,13 @@ fun Composer(
         val hasAudio = state.attachments.any { isAudioPath(it.reference) || isAudioPath(it.name) }
         val hasVideo = state.attachments.any { isVideoPath(it.reference) || isVideoPath(it.name) }
         val ask = context.getSharedPreferences("settings_local", 0).getBoolean(GEMINI_LOCAL_PY_DIALOG_PREF, true)
-        if (ask && isGeminiLocalPythonMode(state.model, hasAudio, hasVideo, state.enablePython)) localPythonConfirm = true
+        if (state.model == "lyria-realtime-exp") {
+            // Web: Lyria RealTime has no text generation; the text opens the studio instead.
+            val text = state.draft
+            model.draft("")
+            model.prepareLyriaPrompt(text)
+            onLyria()
+        } else if (ask && isGeminiLocalPythonMode(state.model, hasAudio, hasVideo, state.enablePython)) localPythonConfirm = true
         else model.send()
     }
     if (localPythonConfirm) GeminiLocalPythonDialog { proceed, dontShow ->
@@ -186,11 +191,8 @@ fun Composer(
             AnimatedVisibility(state.imageMask != null, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                 MaskPreview(state.imageMask.orEmpty().substringAfterLast('/'), onClear = { model.setImageMask(null) })
             }
-            selectedModel?.let { info ->
-                if (!minimal && generationOptions(info).isNotEmpty()) {
-                    GenerationOptionsPanel(info, state.generationValues[info.id].orEmpty(), !state.streaming, model::generationOption)
-                }
-            }
+            GenerationOptionsPanel(state.model, state.generationValues, !state.streaming, model::generationOption,
+                onOpenLyriaStudio = onLyria, minimal = minimal)
             // Web voice dock: realtime audio models replace the text row with inline voice controls.
             val voiceDock = state.realtime.active ||
                 (state.preferences?.voiceStudioUi != false && isRealtimeAudioModel(selectedModel))

@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.data.ModelInfo
@@ -66,6 +67,8 @@ data class RealtimeOptions(
     val thinkingLevel: String = "",
     val transcriptionMode: String = "VERBATIM",
     val customVocabulary: String = "",
+    /** Web `#sts-include-thoughts` (Thoughts). */
+    val includeThoughts: Boolean = false,
 )
 
 internal fun isRealtimeTranscription(model: String): Boolean =
@@ -103,7 +106,8 @@ internal fun resolvedRealtimeThinking(model: String, options: RealtimeOptions): 
 
 internal fun startRealtimeWith(model: ChatViewModel, modelId: String, options: RealtimeOptions) {
     model.startRealtime(modelId, resolvedRealtimeVoice(modelId, options), options.targetLanguage,
-        resolvedRealtimeThinking(modelId, options), options.transcriptionMode, options.customVocabulary)
+        resolvedRealtimeThinking(modelId, options), options.transcriptionMode, options.customVocabulary,
+        includeThoughts = realtimeThinkingLevels(modelId).isNotEmpty() && options.includeThoughts)
 }
 
 private fun realtimeModeLabel(model: String): String = when {
@@ -142,6 +146,8 @@ fun RealtimeOptionsEditor(modelId: String, options: RealtimeOptions, enabled: Bo
         val levels = realtimeThinkingLevels(modelId)
         if (levels.isNotEmpty()) OptionChips("Thinking", levels.map { it to it.replaceFirstChar(Char::uppercase) },
             resolvedRealtimeThinking(modelId, options)) { if (enabled) onChange(options.copy(thinkingLevel = it)) }
+        if (levels.isNotEmpty()) SettingsCheck("Thoughts", options.includeThoughts, { if (enabled) onChange(options.copy(includeThoughts = it)) },
+            fontSize = 10.sp, boxSize = 12.dp, enabled = enabled)
         if (modelId == "gemini-3.5-transcribe-live") {
             OptionChips("モード", listOf("VERBATIM" to "Verbatim", "SMART" to "Smart"), options.transcriptionMode) {
                 if (enabled) onChange(options.copy(transcriptionMode = it))

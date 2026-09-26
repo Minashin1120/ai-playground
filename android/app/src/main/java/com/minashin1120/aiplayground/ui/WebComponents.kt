@@ -212,6 +212,8 @@ internal fun WebSelect(
     contentPadding: PaddingValues = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
     fillWidth: Boolean = false,
     contentDescription: String? = null,
+    /** `<option disabled>` values: listed but not selectable. */
+    disabledValues: Set<String> = emptySet(),
 ) {
     val web = LocalWebPalette.current
     var open by remember { mutableStateOf(false) }
@@ -253,6 +255,7 @@ internal fun WebSelect(
                         )
                     },
                     onClick = { open = false; if (option.value != value) onSelect(option.value) },
+                    enabled = option.value !in disabledValues,
                 )
             }
         }

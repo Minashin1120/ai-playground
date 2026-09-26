@@ -55,11 +55,22 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
             })
         }
 
+    /**
+     * Called for every `account_locked` response (message, remaining seconds), like the Web `apiFetch`
+     * that opens the lock overlay whichever request hit the lock.
+     */
+    @Volatile var onAccountLocked: ((String, Long) -> Unit)? = null
+
     private fun error(response: Response): ApiException {
         val payload = runCatching {
             JSONObject(readBoundedUtf8(response.body.byteStream(), 1024 * 1024))
         }.getOrElse { JSONObject().put("error", "サーバーとの通信に失敗しました（HTTP ${response.code}）。") }
-        return ApiException(response.code, payload, response.header("Retry-After")?.toLongOrNull() ?: 5)
+        val exception = ApiException(response.code, payload, response.header("Retry-After")?.toLongOrNull() ?: 5)
+        if (exception.code == "account_locked") {
+            onAccountLocked?.invoke(payload.optString("message").ifBlank { "アカウントが一時的にロックされています。" },
+                payload.optLong("remaining_seconds", 600))
+        }
+        return exception
     }
     private fun jsonResponse(response: Response): JSONObject {
         if (!response.isSuccessful) throw error(response)

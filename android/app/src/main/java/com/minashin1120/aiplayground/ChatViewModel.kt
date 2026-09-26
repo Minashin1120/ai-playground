@@ -75,7 +75,8 @@ data class ChatState(
     val enableUrlContext: Boolean = false, val enableMaps: Boolean = false,
     val enableFileCreation: Boolean = true, val enableSystemPrompt: Boolean = false,
     val enablePromptCache: Boolean = false,
-    val generationValues: Map<String, Map<String, String>> = emptyMap(),
+    /** Web generation panel inputs, shared across models like the Web DOM (see `generationPanels`). */
+    val generationValues: Map<String, String> = emptyMap(),
     /** Web composer selects that do not depend on the model (Thinking level/Budget, Effort, Safety). */
     val chipValues: Map<String, String> = COMPOSER_SELECT_DEFAULTS,
     val batchMode: Boolean = false, val enablePython: Boolean = false, val enableMcp: Boolean = true,
@@ -90,6 +91,8 @@ data class ChatState(
     val libraryQuery: String = "", val libraryFavoritesOnly: Boolean = false,
     /** Web `lib-sort` (newest / oldest / name_asc / name_desc), kept on the device like Web localStorage. */
     val librarySort: String = "newest",
+    /** Web `#bot-lock-overlay`: the lock message and when it ends (epoch millis). */
+    val accountLock: AccountLock? = null,
     /** The first page failed to load (Web grid error state). */
     val libraryFailed: Boolean = false,
     val libraryHasMore: Boolean = false, val libraryTotal: Int = 0,
@@ -146,6 +149,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val state = mutable.asStateFlow()
 
     init {
+        // Web `apiFetch`: any request answered with `account_locked` shows the lock overlay (never for admins).
+        api.onAccountLocked = { message, seconds ->
+            mutable.update { current ->
+                if (current.preferences?.isAdmin == true || current.accountLock != null) current
+                else current.copy(accountLock = AccountLock(message, System.currentTimeMillis() + seconds.coerceAtLeast(0) * 1000))
+            }
+        }
         // Web keeps the library order and favorites filter in localStorage.
         mutable.update { it.copy(
             librarySort = prefs.getString(LIB_SORT_KEY, null)?.takeIf { value -> value in LIBRARY_SORTS } ?: "newest",
@@ -1173,8 +1183,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         if (state.value.streaming) return
-        mutable.update { current -> current.copy(generationValues = current.generationValues +
-            (current.model to (current.generationValues[current.model].orEmpty() + (key to value)))) }
+        mutable.update { current -> current.copy(generationValues = current.generationValues + (key to value)) }
     }
     fun clearAttachments() { mutable.update { it.copy(attachments = emptyList()) } }
     fun removeAttachment(reference: String) { mutable.update { it.copy(attachments = it.attachments.filterNot { a -> a.reference == reference }) } }
@@ -1366,6 +1375,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             finally { mutable.update { it.copy(busy = false) } }
         }
     }
+    /** The lock countdown reached zero: the Web reloads the page; the app clears the overlay and reloads. */
+    fun accountLockExpired() {
+        mutable.update { it.copy(accountLock = null) }
+        refresh()
+    }
+
     fun refresh() {
         val thread = state.value.selected
         if (thread != null) openThread(thread)
@@ -1580,8 +1595,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (current.offline) { mutable.update { it.copy(notice = "オフライン中はメッセージを送信できません。") }; return }
         if (current.streaming || current.busy || current.uploading || (current.draft.isBlank() && current.attachments.isEmpty())) return
         if (current.model.isBlank()) { mutable.update { it.copy(notice = "モデルを選択してください。") }; return }
-        val info = current.account?.models?.firstOrNull { it.id == current.model && it.selectable } ?: return
-        val generation = try { generationOptionsPayload(info, current.generationValues[current.model].orEmpty()) }
+        current.account?.models?.firstOrNull { it.id == current.model && it.selectable } ?: return
+        val generation = try { generationOptionsPayload(current.model, current.generationValues) }
             catch (e: IllegalArgumentException) { notify(e.message ?: "生成設定を確認してください。"); return }
         // Web toggleOptions: hidden options are off and forced checkboxes send their forced value.
         val rules = composerRules(current.model, current.mcpServers.any { it.enabled })
@@ -1857,6 +1872,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         thinkingLevel: String = "minimal",
         transcriptionMode: String = "VERBATIM",
         customVocabulary: String = "",
+        includeThoughts: Boolean = false,
     ) {
         if (state.value.offline) { notify("オフライン中はRealtimeを開始できません。"); return }
         if (state.value.realtime.active || modelId.isBlank()) return
@@ -1867,6 +1883,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     .put("voice", voice)
                     .put("target_lang", targetLanguage.trim().lowercase().take(16).ifBlank { "ja" })
                     .put("thinking_level", thinkingLevel.trim().lowercase().ifBlank { "minimal" })
+                    .put("include_thoughts", includeThoughts)
                     .put("transcription_mode", transcriptionMode.trim().uppercase().ifBlank { "VERBATIM" })
                     .put("custom_vocabulary", JSONArray(customVocabulary.split(',', '、', '\n')
                         .map { it.trim() }.filter { it.isNotBlank() }.take(1000))), token())
@@ -1972,6 +1989,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- Native Lyria RealTime studio ---
+
+    /** Web `openLyriaStudio(promptText)`: the sent text becomes the studio's first prompt (while no session runs). */
+    fun prepareLyriaPrompt(text: String) {
+        mutable.update { if (it.lyria.active) it else it.copy(lyria = it.lyria.copy(prompt = text)) }
+    }
 
     fun startLyria(prompt: String) {
         if (state.value.offline) { notify("オフライン中はLyriaを開始できません。"); return }

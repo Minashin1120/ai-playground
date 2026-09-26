@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -531,6 +532,7 @@ fun PlaygroundScreen(
                                     PlaygroundScreenKind.Setup -> SetupScreen(state, model, onWeb)
                                     PlaygroundScreenKind.Auth -> AuthScreen(state, model, onWeb)
                                     PlaygroundScreenKind.Chat -> ProvideMarkdownCodeActions(codeActions) {
+                                        CompositionLocalProvider(LocalCanvasMode provides state.canvasMode) {
                                         Conversation(
                                             state, model, openInApp, loader,
                                             animationsEnabled = animationsEnabled,
@@ -543,6 +545,7 @@ fun PlaygroundScreen(
                                                 }
                                             },
                                         )
+                                        }
                                     }
                                 }
                             }
@@ -576,6 +579,14 @@ fun PlaygroundScreen(
                     }) { Box(Modifier.blur(contentBlur)) { content() } }
             }
 
+            // Web `#canvas-panel` below 1024px: a full-screen layer over the header and the composer.
+            if (showThreads && state.canvasMode && LocalConfiguration.current.screenWidthDp.dp < CANVAS_SIDE_PANEL_MIN_WIDTH) {
+                androidx.compose.ui.window.Dialog(onDismissRequest = model::toggleCanvas,
+                    properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+                    CanvasPanel(canvasSourceText(state), fullScreen = true, notify = model::notify, onClose = model::toggleCanvas,
+                        modifier = Modifier.fillMaxSize().safeDrawingPadding())
+                }
+            }
             ChatTransitionVeil(
                 navigationId = state.chatNavigationId,
                 kind = state.chatNavigationKind,
@@ -668,7 +679,8 @@ fun PlaygroundScreen(
             }
             ModalHost(lyriaOpen) { LyriaStudioDialog(state, model, onDismiss = { lyriaOpen = false }) }
             ModalHost(richPasteOpen) {
-                RichPasteDialog(state.draft, onDismiss = { richPasteOpen = false }) { text ->
+                RichPasteDialog(state.preferences, onDismiss = { richPasteOpen = false },
+                    onSavePrompt = model::saveRichPastePrompt, notify = model::notify) { text ->
                     model.draft(if (state.draft.isBlank()) text else state.draft.trimEnd() + "\n\n" + text)
                 }
             }
@@ -1340,9 +1352,10 @@ private fun ConversationContent(
     )
     Column(Modifier.fillMaxSize()) {
         TotalTokenBar(pathTotals, allTotals) { tokenDetail = it }
-        if (state.canvasMode) CanvasPreview(state.messages + if (state.liveContent.isNotBlank()) listOf(ChatMessage("canvas-live", "assistant", state.liveContent)) else emptyList(),
-            onUse = { code -> model.draft(code) }, onClose = model::toggleCanvas)
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+        val sideCanvas = state.canvasMode && screenWidth >= CANVAS_SIDE_PANEL_MIN_WIDTH
+        Row(Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.weight(1f).fillMaxHeight()) {
             LazyColumn(
                 state = scroll,
                 modifier = Modifier.fillMaxSize().widthIn(max = 832.dp).align(Alignment.TopCenter),
@@ -1434,6 +1447,9 @@ private fun ConversationContent(
                     }
                 })
             }
+        }
+        if (sideCanvas) CanvasPanel(canvasSourceText(state), fullScreen = false, notify = model::notify, onClose = model::toggleCanvas,
+            modifier = Modifier.width(canvasSidePanelWidth(screenWidth)).fillMaxHeight())
         }
     }
     deletingMessage?.let { message ->

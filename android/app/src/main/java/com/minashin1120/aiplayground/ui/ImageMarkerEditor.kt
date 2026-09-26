@@ -514,7 +514,7 @@ private fun OpacityNumber(value: Double, onChange: (Double) -> Unit) {
 
 /** A Web Tailwind modal panel (`bg-gray-800 rounded-lg p-6 m-4`, `p-3 m-2` on phones). */
 @Composable
-private fun TwModalFrame(onDismiss: () -> Unit, maxPanelWidth: androidx.compose.ui.unit.Dp, content: @Composable ColumnScope.(Boolean) -> Unit) {
+internal fun TwModalFrame(onDismiss: () -> Unit, maxPanelWidth: androidx.compose.ui.unit.Dp, content: @Composable ColumnScope.(Boolean) -> Unit) {
     val web = LocalWebPalette.current
     WebOverlayModal(onDismiss, grayOverlay(), 4.dp) { phone ->
         Column(

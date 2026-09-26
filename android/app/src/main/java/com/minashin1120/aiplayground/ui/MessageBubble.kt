@@ -172,7 +172,7 @@ internal fun MessageBubble(
                 } else if (liveSkeleton != null) {
                     liveSkeleton()
                 } else if (message.content.isNotEmpty()) {
-                    MarkdownText(message.content, loader, onFile, startCollapsed = !streaming)
+                    MarkdownText(message.content, loader, onFile, startCollapsed = !streaming, canvasMode = LocalCanvasMode.current)
                 }
                 liveBottom?.invoke()
                 val files = message.files.filterNot { !user && message.content.contains(it) }

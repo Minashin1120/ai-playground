@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
@@ -69,6 +70,9 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.codingTargetKey
+import com.minashin1120.aiplayground.data.CANVAS_PLACEHOLDER_LINE
+import com.minashin1120.aiplayground.data.CANVAS_PLACEHOLDER_TEXT
+import com.minashin1120.aiplayground.data.parseCanvasMarkdown
 import com.minashin1120.aiplayground.data.fileReferencePath
 import kotlinx.coroutines.delay
 import java.net.URI
@@ -92,6 +96,8 @@ internal sealed interface MarkdownBlock {
     /** ```` ```chat_error ```` fence: a persisted generation error (Web `buildChatErrorBubbleHtml`). */
     data class ChatError(val text: String) : MarkdownBlock
     data object Rule : MarkdownBlock
+    /** A fence moved to the Canvas panel (Web `.canvas-code-placeholder`). */
+    data object CanvasPlaceholder : MarkdownBlock
 }
 
 /** One list item; [checked] is non-null for GFM task items. */
@@ -131,6 +137,7 @@ private fun splitTableRow(line: String): List<String> {
 
 /** Lines that end a paragraph (marked's "interrupting" block starts). */
 private fun interruptsParagraph(line: String): Boolean {
+    if (line == CANVAS_PLACEHOLDER_LINE) return true
     if (FENCE.matches(line) || RULE.matches(line) || QUOTE.matches(line)) return true
     if (HEADING.matches(line)) return true
     if (line.trimStart().startsWith("$$") || line.trimStart().startsWith("\\[")) return true
@@ -154,6 +161,8 @@ private fun parseBlocks(lines: List<String>): List<MarkdownBlock> {
         val fence = FENCE.matchEntire(line)
         when {
             line.isBlank() -> index++
+
+            line == CANVAS_PLACEHOLDER_LINE -> { result += MarkdownBlock.CanvasPlaceholder; index++ }
 
             fence != null && !(fence.groupValues[2][0] == '`' && fence.groupValues[3].contains('`')) -> {
                 val indent = fence.groupValues[1].length
@@ -443,8 +452,15 @@ internal val LocalMarkdownCodeActions = compositionLocalOf { MarkdownCodeActions
  * while an answer that is still streaming keeps them open.
  */
 @Composable
-fun MarkdownText(text: String, loader: FileBytesLoader? = null, onOpen: (String) -> Unit = {}, startCollapsed: Boolean = true) {
-    val blocks = remember(text) { parseMarkdownBlocks(text) }
+fun MarkdownText(
+    text: String,
+    loader: FileBytesLoader? = null,
+    onOpen: (String) -> Unit = {},
+    startCollapsed: Boolean = true,
+    /** Web Canvas mode: fenced blocks are shown in the Canvas panel and replaced here. */
+    canvasMode: Boolean = false,
+) {
+    val blocks = remember(text, canvasMode) { parseMarkdownBlocks(if (canvasMode) parseCanvasMarkdown(text).renderText else text) }
     val colors = markdownColors()
     val base = TextStyle(
         color = colors.text, fontSize = MarkdownBodySize, lineHeight = MarkdownLineHeight,
@@ -462,6 +478,7 @@ private fun MarkdownBlock.marginTop(): Dp = when (this) {
     is MarkdownBlock.Code -> CodeGap
     is MarkdownBlock.ChatError -> 8.dp
     MarkdownBlock.Rule -> 24.dp
+    MarkdownBlock.CanvasPlaceholder -> 14.4.dp
     else -> 0.dp
 }
 
@@ -471,6 +488,7 @@ private fun MarkdownBlock.marginBottom(): Dp = when (this) {
     is MarkdownBlock.Code -> CodeGap
     MarkdownBlock.Rule -> 24.dp
     is MarkdownBlock.Heading, is MarkdownBlock.ChatError -> 0.dp
+    MarkdownBlock.CanvasPlaceholder -> 14.4.dp
 }
 
 /** Code blocks come from a custom renderer that does not end with a newline. */
@@ -538,6 +556,7 @@ private fun BlockContent(
             contentDescription = block.alt.ifBlank { null },
         )
         MarkdownBlock.Rule -> Box(Modifier.fillMaxWidth().height(1.dp).background(colors.rule))
+        MarkdownBlock.CanvasPlaceholder -> CanvasPlaceholderPill(style)
     }
 }
 
@@ -1099,3 +1118,19 @@ internal fun markdownTextColor(): Color = markdownColors().text
 
 @Suppress("unused")
 private fun widthCap(): Modifier = Modifier.widthIn(max = 832.dp)
+
+/** `.canvas-code-placeholder`: a dashed theme pill in place of a fence while Canvas mode is on. */
+@Composable
+private fun CanvasPlaceholderPill(style: TextStyle) {
+    val web = LocalWebPalette.current
+    Box(
+        Modifier.fillMaxWidth().clip(CircleShape).background(web.theme.rgb(0.12f))
+            .drawBehind {
+                drawRoundRect(web.theme.rgb(0.5f), cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx(),
+                        pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))))
+            }
+            .padding(horizontal = 16.dp, vertical = 12.8.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text(CANVAS_PLACEHOLDER_TEXT, style = style.copy(color = web.theme200)) }
+}

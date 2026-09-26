@@ -3400,6 +3400,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Web `saveRichPastePromptPreferences`: saved quietly while the rich paste prompt is edited. */
+    fun saveRichPastePrompt(prompt: String, useCustomDefault: Boolean) {
+        if (state.value.offline) return
+        viewModelScope.launch {
+            runCatching {
+                val reply = api.put("/api/mobile/v1/preferences", JSONObject().put("rich_paste_prompt_default", prompt)
+                    .put("rich_paste_prompt_use_custom_default", useCustomDefault), token())
+                mutable.update { it.copy(preferences = parsePreferences(reply)) }
+            }
+        }
+    }
+
     fun savePreferences(payload: JSONObject, message: String = "設定を保存しました") {
         viewModelScope.launch {
             if (state.value.offline) { notify("オフライン中はアカウント設定を保存できません。接続後に再試行してください。"); return@launch }

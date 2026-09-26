@@ -51,13 +51,14 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/AiSettings.kt` | `/settings` のAI設定変更（移動先と値の表示）、APIキー未設定時の提供元、Xリンクの判定 | `/settings` やAPIキー画面を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/BatchDialog.kt` | Webの `#batch-modal`（Batch処理：フィルタ、状態バッジ、開く・停止・履歴から削除、5秒ごとの更新） | Batch処理の画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ConfirmDialogs.kt` | Webの確認モーダル（外部ツール操作の確認、ローカルPython実行に切替） | 送信前・生成中の確認ダイアログを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasCodingPanels.kt` | Canvasプレビュー・編集 | Canvasの編集操作を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasPanel.kt` | Webの `#canvas-panel`（スマートフォンは全画面、1024dp以上は右側。Blocks／Source、Copy、Clear、×） | Canvasの表示や操作を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/CanvasBlocks.kt` | Canvasモードのコードブロック抽出（Web `parseCanvasMarkdown`）、選択、見出し・状態の文言 | Canvasに出すブロックや文言を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMarkerEditor.kt` | Webの「画像編集」（マーカー、モザイク、トリミング、二本指の拡大、保存して反映） | 画像編集の画面や保存を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageMarker.kt` | 画像編集の計算（線の補間、モザイク範囲、トリミングの掴み位置、拡大時の位置制限、保存名） | 画像編集の操作の決まりを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/UploadSheet.kt` | Webの「ファイルアップロード」画面（ボタン、Vision Model、進行状況、ファイルごとの画像編集・送信名・削除） | 添付の追加画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | Webの音声ドック（`#sts-panel`）と音声スタジオ、提供元別の音声設定 | 音声セッションUIを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LyriaStudio.kt` | Webの「Lyria RealTime Studio」（重み付きプロンプト、音楽設定、再生操作、チャットへ保存） | Lyriaスタジオを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | クリップボードHTML／テキストの安全な取り込み | リッチ貼り付けの入力変換を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | Webの「リッチ貼り付け」画面の枠（クリップボードHTMLのテキスト化、モデルへの指示、既定値の保存） | リッチ貼り付けを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ModelPicker.kt` | Webの「Select Model」（検索、固定タグバー、カテゴリ見出し、モデルカード、PromptCacheのロックバナー） | モデル選択画面を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/GemDialog.kt` | Webの `#gem-modal`（Gemの作成・編集、固定プロンプトの行）とTailwind風の入力欄 `TwInput` | Gemの編集画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LibraryDialog.kt` | Webの `#lib-modal`（検索、表示順、お気に入りのみ、複数選択の添付・ダウンロード・名前変更・使用チャット・削除、グリッド、使用チャットのモーダル） | ファイルライブラリを変更するとき |

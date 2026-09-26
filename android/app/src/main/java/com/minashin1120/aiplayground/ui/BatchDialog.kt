@@ -67,9 +67,9 @@ internal fun BatchDialog(
     WebOverlayModal(onDismiss, if (web.isLight) Color(15, 23, 42).copy(alpha = 0.35f) else Color(3, 7, 16).copy(alpha = 0.72f), 10.dp) { phone ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(if (phone) 8.dp else 16.dp), contentAlignment = Alignment.Center) {
             val shape = RoundedCornerShape(if (phone) 18.dp else 22.dp)
-            val size = if (phone) Modifier.fillMaxSize() else Modifier.widthIn(max = 820.dp).fillMaxWidth().height(minOf(maxHeight * 0.88f, 820.dp))
+            val panelSize = if (phone) Modifier.fillMaxSize() else Modifier.widthIn(max = 820.dp).fillMaxWidth().height(minOf(maxHeight * 0.88f, 820.dp))
             Column(
-                size.clip(shape)
+                panelSize.clip(shape)
                     .background(Brush.verticalGradient(
                         if (web.isLight) listOf(Color.White, Color(0xFFF7F9FC))
                         else listOf(Color(10, 14, 28).copy(alpha = 0.98f), Color(6, 9, 18).copy(alpha = 0.99f)),

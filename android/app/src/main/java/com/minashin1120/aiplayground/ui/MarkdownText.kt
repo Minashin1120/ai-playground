@@ -1227,6 +1227,7 @@ private fun SvgRenderBox(markup: String, style: TextStyle) {
     }
     if (svg == null) { Text(markup, style = style); return }
     val shape = RoundedCornerShape(12.dp)
+    val density = LocalDensity.current.density
     BoxWithConstraints(
         Modifier.fillMaxWidth().clip(shape).background(Color(0xFFF8FAFC)).border(1.dp, Color(148, 163, 184).copy(alpha = 0.25f), shape).padding(12.dp),
         contentAlignment = Alignment.Center,

@@ -839,11 +839,11 @@ private fun ConnectionBanner(status: ConnectionStatus, message: String, onRetry:
         ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> Triple(Color(0xFFFECACA), Color(248, 113, 113).copy(alpha = 0.6f), Color(28, 8, 14).copy(alpha = 0.92f))
     }
     val icon = when (status) {
-        ConnectionStatus.MAINTENANCE -> R.drawable.fa_solid_screwdriver_wrench
-        ConnectionStatus.UNSTABLE -> R.drawable.fa_solid_exclamation_triangle
-        ConnectionStatus.ONLINE -> R.drawable.fa_solid_check_circle
-        ConnectionStatus.SERVER_DOWN -> R.drawable.fa_solid_server
-        ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> R.drawable.fa_solid_unlink
+        ConnectionStatus.MAINTENANCE -> com.minashin1120.aiplayground.R.drawable.fa_solid_screwdriver_wrench
+        ConnectionStatus.UNSTABLE -> com.minashin1120.aiplayground.R.drawable.fa_solid_exclamation_triangle
+        ConnectionStatus.ONLINE -> com.minashin1120.aiplayground.R.drawable.fa_solid_check_circle
+        ConnectionStatus.SERVER_DOWN -> com.minashin1120.aiplayground.R.drawable.fa_solid_server
+        ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> com.minashin1120.aiplayground.R.drawable.fa_solid_unlink
     }
     val reduce = LocalReduceMotion.current
     // Web `bannerPulse`: the icon pulses once whenever the connection gets worse.

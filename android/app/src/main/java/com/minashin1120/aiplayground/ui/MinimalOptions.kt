@@ -300,7 +300,7 @@ private fun MinimalOptionRow(item: MinimalItem, state: ChatState, modifier: Modi
         horizontalArrangement = if (upload) Arrangement.spacedBy(8.8.dp, Alignment.CenterHorizontally) else Arrangement.spacedBy(7.2.dp),
     ) {
         Box(Modifier.width(16.dp), contentAlignment = Alignment.Center) {
-            item.icon?.let { FaIcon(it, null, size = 13.dp, tint = if (upload) blue else if (on) web.theme.t400 else if (web.isLight) web.muted else Color(0xFF94A3B8)) }
+            item.icon?.let { FaIcon(it, null, size = 13.dp, tint = if (upload) blue else if (on) androidx.compose.ui.graphics.lerp(web.theme.t300, web.theme.t500, 0.5f) else if (web.isLight) web.muted else Color(0xFF94A3B8)) }
         }
         Text(item.label, fontSize = 11.84.sp, lineHeight = 14.2.sp, fontWeight = FontWeight.SemiBold, color = fg,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = if (upload) Modifier else Modifier.weight(1f))

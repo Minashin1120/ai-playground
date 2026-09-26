@@ -102,6 +102,8 @@ internal sealed interface MarkdownBlock {
     data object CanvasPlaceholder : MarkdownBlock
     /** Raw `<svg>` markup in the answer, drawn in Web `.svg-render-box`. */
     data class Svg(val markup: String) : MarkdownBlock
+    /** Raw `<details>`: the browser's disclosure (▶ summary), closed unless it has `open`. */
+    data class Details(val summary: String, val blocks: List<MarkdownBlock>, val open: Boolean) : MarkdownBlock
 }
 
 /** One list item; [checked] is non-null for GFM task items. */
@@ -110,6 +112,49 @@ internal data class ListItem(val blocks: List<MarkdownBlock>, val checked: Boole
 private val FENCE = Regex("^( {0,3})(`{3,}|~{3,})(.*)$")
 private val SVG_START = Regex("^ {0,3}<svg[\\s>]", RegexOption.IGNORE_CASE)
 private val HTML_RULE = Regex("^ {0,3}<hr\\s*/?>\\s*$", RegexOption.IGNORE_CASE)
+private val DETAILS_START = Regex("^ {0,3}<details(\\s[^>]*)?>", RegexOption.IGNORE_CASE)
+private val TABLE_START = Regex("^ {0,3}<table(\\s[^>]*)?>", RegexOption.IGNORE_CASE)
+private val HTML_SUMMARY = Regex("<summary[^>]*>([\\s\\S]*?)</summary\\s*>", RegexOption.IGNORE_CASE)
+private val HTML_ROW = Regex("<tr[^>]*>([\\s\\S]*?)</tr\\s*>", RegexOption.IGNORE_CASE)
+private val HTML_CELL = Regex("<(t[hd])(\\s[^>]*)?>([\\s\\S]*?)</\\1\\s*>", RegexOption.IGNORE_CASE)
+
+/** Lines of an HTML block from [start] through the line that closes [tag] (same-name nesting counted). */
+private fun htmlBlockLines(lines: List<String>, start: Int, tag: String): List<String> {
+    val open = Regex("<$tag(\\s[^>]*)?>", RegexOption.IGNORE_CASE)
+    val close = Regex("</$tag\\s*>", RegexOption.IGNORE_CASE)
+    var depth = 0
+    var index = start
+    val body = mutableListOf<String>()
+    while (index < lines.size) {
+        val line = lines[index]
+        body += line
+        depth += open.findAll(line).count() - close.findAll(line).count()
+        index++
+        if (depth <= 0) break
+    }
+    return body
+}
+
+/** Web (DOMPurify + browser) `<details>`: summary text, inner Markdown, `open` attribute. */
+internal fun parseHtmlDetails(markup: String): MarkdownBlock.Details {
+    val openTag = DETAILS_START.find(markup.trimStart())
+    val attributes = openTag?.groupValues?.get(1).orEmpty()
+    var inner = markup.trimStart().substring(openTag?.value?.length ?: 0)
+    inner = inner.replace(Regex("</details\\s*>\\s*$", RegexOption.IGNORE_CASE), "")
+    val summary = HTML_SUMMARY.find(inner)
+    val title = summary?.groupValues?.get(1)?.trim()?.replace(Regex("\\s+"), " ").orEmpty().ifEmpty { "詳細" }
+    if (summary != null) inner = inner.removeRange(summary.range)
+    return MarkdownBlock.Details(title, parseMarkdownBlocks(inner.trim('\n')), Regex("\\bopen\\b", RegexOption.IGNORE_CASE).containsMatchIn(attributes))
+}
+
+/** Web `.prose table` for a raw HTML table: `<th>` cells of the first row become the header. */
+internal fun parseHtmlTable(markup: String): MarkdownBlock.Table {
+    val rows = HTML_ROW.findAll(markup).map { row ->
+        HTML_CELL.findAll(row.groupValues[1]).map { it.groupValues[1].lowercase() to it.groupValues[3].trim().replace(Regex("\\s*\\n\\s*"), " ") }.toList()
+    }.filter { it.isNotEmpty() }.toList()
+    val header = rows.firstOrNull()?.takeIf { cells -> cells.all { it.first == "th" } }
+    return MarkdownBlock.Table(header?.map { it.second }.orEmpty(), rows.drop(if (header != null) 1 else 0).map { cells -> cells.map { it.second } })
+}
 private val HEADING = Regex("^ {0,3}(#{1,6})(?:[ \\t]+(.*?))?(?:[ \\t]+#+)?[ \\t]*$")
 private val RULE = Regex("^ {0,3}([-*_])(?:[ \\t]*\\1){2,}[ \\t]*$")
 private val QUOTE = Regex("^ {0,3}> ?(.*)$")
@@ -144,7 +189,7 @@ private fun splitTableRow(line: String): List<String> {
 /** Lines that end a paragraph (marked's "interrupting" block starts). */
 private fun interruptsParagraph(line: String): Boolean {
     if (line == CANVAS_PLACEHOLDER_LINE) return true
-    if (SVG_START.containsMatchIn(line) || HTML_RULE.matches(line)) return true
+    if (SVG_START.containsMatchIn(line) || HTML_RULE.matches(line) || DETAILS_START.containsMatchIn(line) || TABLE_START.containsMatchIn(line)) return true
     if (FENCE.matches(line) || RULE.matches(line) || QUOTE.matches(line)) return true
     if (HEADING.matches(line)) return true
     if (line.trimStart().startsWith("$$") || line.trimStart().startsWith("\\[")) return true
@@ -183,6 +228,18 @@ private fun parseBlocks(lines: List<String>): List<MarkdownBlock> {
             }
 
             HTML_RULE.matches(line) -> { result += MarkdownBlock.Rule; index++ }
+
+            DETAILS_START.containsMatchIn(line) -> {
+                val body = htmlBlockLines(lines, index, "details")
+                index += body.size
+                result += parseHtmlDetails(body.joinToString("\n"))
+            }
+
+            TABLE_START.containsMatchIn(line) -> {
+                val body = htmlBlockLines(lines, index, "table")
+                index += body.size
+                result += parseHtmlTable(body.joinToString("\n"))
+            }
 
             fence != null && !(fence.groupValues[2][0] == '`' && fence.groupValues[3].contains('`')) -> {
                 val indent = fence.groupValues[1].length
@@ -504,6 +561,7 @@ private fun MarkdownBlock.marginTop(): Dp = when (this) {
     MarkdownBlock.Rule -> 24.dp
     MarkdownBlock.CanvasPlaceholder -> 14.4.dp
     is MarkdownBlock.Svg -> 11.2.dp
+    is MarkdownBlock.Details -> 0.dp
     else -> 0.dp
 }
 
@@ -515,6 +573,7 @@ private fun MarkdownBlock.marginBottom(): Dp = when (this) {
     is MarkdownBlock.Heading, is MarkdownBlock.ChatError -> 0.dp
     MarkdownBlock.CanvasPlaceholder -> 14.4.dp
     is MarkdownBlock.Svg -> 11.2.dp
+    is MarkdownBlock.Details -> ParagraphGap
 }
 
 /** Code blocks come from a custom renderer that does not end with a newline. */
@@ -584,6 +643,7 @@ private fun BlockContent(
         MarkdownBlock.Rule -> Box(Modifier.fillMaxWidth().height(1.dp).background(colors.rule))
         MarkdownBlock.CanvasPlaceholder -> CanvasPlaceholderPill(style)
         is MarkdownBlock.Svg -> SvgRenderBox(block.markup, style)
+        is MarkdownBlock.Details -> DetailsBlock(block, style, colors, loader, onOpen, startCollapsed)
     }
 }
 
@@ -1074,7 +1134,8 @@ private fun TableBlock(block: MarkdownBlock.Table, colors: MarkdownColors) {
         color = colors.text, fontSize = 13.68.sp, lineHeight = 23.53.sp, letterSpacing = 0.01.em, fontFamily = WebFonts.sans,
     )
     val headStyle = cellStyle.copy(color = colors.tableHeadText, fontWeight = FontWeight.SemiBold)
-    val rows = listOf(block.headers) + block.rows
+    val hasHeader = block.headers.isNotEmpty()
+    val rows = if (hasHeader) listOf(block.headers) + block.rows else block.rows
     val geometry = remember { TableGeometry() }
     val density = LocalDensity.current
     val border = with(density) { 1.dp.toPx() }
@@ -1088,14 +1149,14 @@ private fun TableBlock(block: MarkdownBlock.Table, colors: MarkdownColors) {
                         for (column in 0 until columnCount) {
                             val cell = row.getOrNull(column).orEmpty()
                             Box(Modifier.padding(horizontal = 13.6.dp, vertical = 9.6.dp)) {
-                                InlineText(cell, if (rowIndex == 0) headStyle else cellStyle, colors)
+                                InlineText(cell, if (rowIndex == 0 && hasHeader) headStyle else cellStyle, colors)
                             }
                         }
                     }
                 },
                 modifier = Modifier.drawBehind {
                     drawRect(colors.table, size = Size(geometry.width.toFloat(), geometry.height.toFloat()))
-                    if (geometry.rowTops.size > 1) {
+                    if (hasHeader && geometry.rowTops.size > 1) {
                         drawRect(colors.tableHead, size = Size(geometry.width.toFloat(), geometry.rowTops[1].toFloat()))
                     }
                     geometry.rowTops.forEach { y -> drawRect(colors.tableBorder, Offset(0f, y.toFloat()), Size(geometry.width.toFloat(), border)) }
@@ -1247,5 +1308,28 @@ private fun SvgRenderBox(markup: String, style: TextStyle) {
         }
         if (bitmap != null) androidx.compose.foundation.Image(bitmap.asImageBitmap(), contentDescription = null)
         else Text(markup, style = style)
+    }
+}
+
+/** Browser `<details>`: "▶ summary" toggles the content ("▼" while open). */
+@Composable
+private fun DetailsBlock(
+    block: MarkdownBlock.Details,
+    style: TextStyle,
+    colors: MarkdownColors,
+    loader: FileBytesLoader?,
+    onOpen: (String) -> Unit,
+    startCollapsed: Boolean,
+) {
+    var open by remember(block) { mutableStateOf(block.open) }
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = if (open) "閉じる" else "開く") { open = !open },
+            verticalAlignment = Alignment.Top,
+        ) {
+            Text(if (open) "▼ " else "▶ ", style = style.copy(fontSize = style.fontSize * 0.75f))
+            InlineText(block.summary, style, colors)
+        }
+        if (open) PreWrapBlocks(block.blocks, style, colors, loader, onOpen, startCollapsed, leadingLine = false)
     }
 }

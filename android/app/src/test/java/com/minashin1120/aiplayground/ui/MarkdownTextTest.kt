@@ -116,6 +116,19 @@ println("安全")
         assertEquals(MarkdownBlock.Rule, blocks[3])
     }
 
+    @Test fun rawDetailsAndTablesFollowTheBrowser() {
+        assertEquals(
+            MarkdownBlock.Details("詳しく", listOf(MarkdownBlock.Paragraph("本文です")), open = false),
+            parseMarkdownBlocks("<details>\n<summary>詳しく</summary>\n\n本文です\n</details>").single(),
+        )
+        assertTrue((parseMarkdownBlocks("<details open><summary>s</summary>x</details>").single() as MarkdownBlock.Details).open)
+        assertEquals(
+            listOf(MarkdownBlock.Paragraph("前"), MarkdownBlock.Table(listOf("名前", "値"), listOf(listOf("a", "<b>1</b>"))), MarkdownBlock.Paragraph("後")),
+            parseMarkdownBlocks("前\n<table>\n<tr><th>名前</th><th>値</th></tr>\n<tr><td>a</td><td><b>1</b></td></tr>\n</table>\n後"),
+        )
+        assertEquals(MarkdownBlock.Table(emptyList(), listOf(listOf("x"))), parseMarkdownBlocks("<table><tr><td>x</td></tr></table>").single())
+    }
+
     @Test fun setextHeadingsAndRules() {
         assertEquals(MarkdownBlock.Heading(1, "Title"), parseMarkdownBlocks("Title\n===").single())
         assertEquals(MarkdownBlock.Rule, parseMarkdownBlocks("***").single())

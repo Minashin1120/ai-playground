@@ -823,3 +823,47 @@ fun readBoundedBytes(input: InputStream, limit: Long): ByteArray {
     }
     return output.toByteArray()
 }
+
+/**
+ * The pending / streaming answer bubble of the Web (`sendMessage`): the skeleton with its status and
+ * sub line until the first answer event, the search box, image analysis, the reasoning placeholder
+ * and a stream error.
+ */
+data class LiveAnswer(
+    val model: String = "",
+    /** `.skeleton-status`; null once the first answer event arrived (`beginPendingToStreamTransition`). */
+    val pendingStatus: String? = null,
+    val pendingSub: String = "",
+    /** `markApiAccepted` ran (the status only moves to 接続完了 once). */
+    val accepted: Boolean = false,
+    /** `search_status`: "searching", "done" (Search complete, removed after 2s) or "". */
+    val search: String = "",
+    val imageAnalysis: String? = null,
+    /** The collapsed "Thinking Process" placeholder shown for reasoning requests until thoughts arrive. */
+    val thoughtPlaceholder: String? = null,
+    val error: String? = null,
+)
+
+/** Web `getPendingSkeletonKind`. */
+fun pendingSkeletonKind(model: String): String {
+    val m = model.lowercase()
+    return when {
+        m.contains("video") -> "video"
+        m.contains("tts") || m.contains("transcribe") || m.contains("realtime") || m.contains("voice") ||
+            m.contains("native-audio") || (m.contains("live") && m.contains("gemini")) -> "audio"
+        m.contains("gpt-image") || m.contains("imagine-image") || (m.contains("image") && !m.contains("vision")) ||
+            (m.contains("gemini") && (m.contains("image") || m.contains("nano"))) -> "image"
+        m.contains("ocr") -> "text"
+        m.contains("build") || m.contains("code-fast") || m.contains("coding") -> "code"
+        else -> "text"
+    }
+}
+
+/** Web `shouldShowReasoningProgress`: reasoning was requested for a model that streams reasoning. */
+fun showsReasoningProgress(model: String, enableThinking: Boolean, effort: String): Boolean {
+    val m = model.lowercase()
+    val requested = enableThinking || (effort.isNotBlank() && effort.lowercase() != "none")
+    val capable = m.contains("gemini") || m.contains("o1") || m.contains("o3") || m.contains("gpt-5") ||
+        (m.contains("reasoning") && !m.contains("non-reasoning"))
+    return requested && capable
+}

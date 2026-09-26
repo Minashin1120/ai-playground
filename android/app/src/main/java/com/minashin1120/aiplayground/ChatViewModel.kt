@@ -112,6 +112,8 @@ data class ChatState(
     val realtime: RealtimeState = RealtimeState(), val lyria: LyriaState = LyriaState(),
     val liveContent: String = "", val liveThought: String = "", val status: String = "",
     val cards: List<StatusCard> = emptyList(),
+    /** The streamed answer as the Web draws it (`LiveAnswer`): skeleton, search box, analysis, thought placeholder, error. */
+    val live: LiveAnswer = LiveAnswer(),
     val mcpDecision: McpDecision? = null,
     val offline: Boolean = false,
     val connectionStatus: ConnectionStatus = ConnectionStatus.UNKNOWN,
@@ -147,6 +149,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val connectionProbeMutex = Mutex()
     private val mutable = MutableStateFlow(ChatState())
     val state = mutable.asStateFlow()
+    /** Web global spinner label (`progress_spinner.js`); null while no tracked request runs. */
+    val progressLabel = api.progress.label
 
     init {
         // Web `apiFetch`: any request answered with `account_locked` shows the lock overlay (never for admins).
@@ -1028,19 +1032,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Parsing also ensures a proxy's non-JSON response is not accepted as a heartbeat.
             reply.optString("version")
         } catch (e: TimeoutCancellationException) {
-            setConnectionUnavailable(if (hasUsableNetwork()) ConnectionStatus.UNSTABLE else ConnectionStatus.OFFLINE)
+            setConnectionUnavailable(ConnectionStatus.OFFLINE)
         } catch (e: CancellationException) {
             throw e
         } catch (e: ApiException) {
             val mode = connectionStatusForHttp(e.status)
-                ?: if (e.status >= 500) ConnectionStatus.UNSTABLE else null
             if (mode != null) setConnectionUnavailable(mode)
+            else setConnectionUnavailable(ConnectionStatus.UNSTABLE, "サーバーでエラーが発生しています（HTTP ${e.status}）")
         } catch (ignored: Exception) {
-            setConnectionUnavailable(if (hasUsableNetwork()) ConnectionStatus.UNSTABLE else ConnectionStatus.OFFLINE)
+            setConnectionUnavailable(ConnectionStatus.OFFLINE)
         }
     }
 
-    private fun setConnectionUnavailable(status: ConnectionStatus, message: String = status.defaultMessage()) {
+    private fun setConnectionUnavailable(requested: ConnectionStatus, requestedMessage: String = requested.defaultMessage()) {
+        // Web `setUnavailable`: a failed request only shows this server is unreachable; the Internet-offline
+        // wording is kept for a device without a network.
+        val siteOnly = requested == ConnectionStatus.OFFLINE && hasUsableNetwork()
+        val status = if (siteOnly) ConnectionStatus.UNSTABLE else requested
+        val message = if (siteOnly) "このサイトへの通信が完了しませんでした。接続を再確認しています" else requestedMessage
         slowConnectionCount = 0
         connectionRecoveredHideJob?.cancel()
         connectionRecoveredHideJob = null
@@ -1268,7 +1277,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             finally { mutable.update { it.copy(busy = false) } }
         }
     }
-    private suspend fun loadMessages(id: String, older: Boolean = false) {
+    private suspend fun loadMessages(id: String, older: Boolean = false, autoResume: Boolean = true) {
         if (state.value.offline) {
             loadCachedMessages(id, older)
             return
@@ -1324,6 +1333,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             refreshOfflineCacheStats(account.id)
         }
         if (!older) syncHeartbeat()
+        // Web `loadMessages`: an answer still running on the server is rejoined automatically.
+        if (!older && autoResume && state.value.jobId != null && !state.value.streaming) resume()
     }
 
     private suspend fun loadCachedMessages(id: String, older: Boolean) {
@@ -1659,26 +1670,54 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         submit(submission)
     }
     fun retry() { failed?.let { submit(it) } }
+    private var searchClearJob: Job? = null
+
+    /** Web `fetchChatStreamWithUnavailableRetry`: which responses keep the send waiting instead of failing. */
+    private fun waitingStatusFor(error: Throwable): String? = when {
+        error is ApiException && error.status == 503 -> "メンテナンス終了を待っています..."
+        error is ApiException && connectionStatusForHttp(error.status) == ConnectionStatus.SERVER_DOWN -> "サーバーの復帰を待っています..."
+        error is ApiException && error.status == 425 && error.code == "submission_in_progress" -> "サーバーの復帰を待っています..."
+        error is ApiException -> null
+        error is IOException -> "インターネット接続の復帰を待っています..."
+        else -> null
+    }
+
+    private fun updateLive(transform: (LiveAnswer) -> LiveAnswer) = mutable.update { it.copy(live = transform(it.live)) }
+
+    /** Web `markApiAccepted`: once, the skeleton says the connection is up and the model is being awaited. */
+    private fun markApiAccepted() = updateLive { live ->
+        if (live.accepted || live.pendingStatus == null) live.copy(accepted = true)
+        else live.copy(accepted = true, pendingStatus = "接続完了。モデル応答を待機中...", pendingSub = "キュー待機や初期化中の可能性があります")
+    }
+
     private fun submit(submission: Submission) {
         streamJob?.cancel()
         streamJob = viewModelScope.launch {
             val owner = currentCoroutineContext().job
-            mutable.update { it.copy(streaming = true, retryAvailable = false, status = "送信中…", liveContent = "", liveThought = "", cards = emptyList(), mcpDecision = null) }
-            var id = submission.body.nullableString("thread_id")
+            val body = submission.body
+            val modelId = body.optString("model")
+            val reasoning = showsReasoningProgress(modelId, body.optBoolean("enable_thinking"), body.optString("reasoning_effort"))
+            mutable.update { it.copy(streaming = true, retryAvailable = false, status = "", liveContent = "", liveThought = "",
+                cards = emptyList(), mcpDecision = null,
+                live = LiveAnswer(model = modelId, pendingStatus = "APIに送信中...",
+                    thoughtPlaceholder = if (reasoning) "推論プロセスを準備中..." else null)) }
+            val flow = api.progress.startFlow("chat")
+            var id = body.nullableString("thread_id")
+            var accepted = false
             try {
                 if (id.isBlank()) {
                     val created = api.post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
                     id = created.get("id").toString()
-                    submission.body.put("thread_id", id)
+                    body.put("thread_id", id)
                     mutable.update { it.copy(selected = ThreadItem(id, created.nullableString("title"), it.model,
                         isTemporary = created.optBoolean("is_temporary")), newThreadTemporary = false) }
                     syncHeartbeat()
                 }
-                if (submission.body.optBoolean("parent_id_explicit")) {
+                if (body.optBoolean("parent_id_explicit")) {
                     // Branching send (edit-and-resend, regenerate): drop the old branch's tail
                     // from the visible path immediately, instead of leaving the previous
                     // prompt/reply bubbles on screen until the new answer finishes streaming.
-                    val parentId = submission.body.opt("parent_id") as? Int
+                    val parentId = body.opt("parent_id") as? Int
                     mutable.update { current ->
                         val truncated = if (parentId == null) emptyList()
                         else current.messages.indexOfFirst { numericId(it) == parentId }
@@ -1686,93 +1725,193 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         current.copy(messages = truncated)
                     }
                 }
-                val userId = "local-${submission.body.getString("client_request_id")}"
+                val userId = "local-${body.getString("client_request_id")}"
                 mutable.update { it.copy(messages = it.messages.filterNot { m -> m.id == userId } + ChatMessage(userId, "user",
-                    submission.body.getString("message"), files = submission.files.map { a -> a.reference },
-                    quote = submission.body.optString("quote_text"), gemName = it.selectedGem?.name.orEmpty())) }
-                try { api.stream("/chat_stream", submission.body, token()) { event -> if (streamJob === owner) acceptEvent(id, event) } }
-                catch (e: ApiException) {
-                    if (e.code != "request_already_accepted") throw e
-                    try { api.stream("/chat_stream_resume", JSONObject().put("thread_id", id).put("job_id", e.payload.getString("job_id")), token()) { event -> if (streamJob === owner) acceptEvent(id, event) } }
-                    catch (resumeError: ApiException) { if (resumeError.status != 404) throw resumeError }
+                    body.getString("message"), files = submission.files.map { a -> a.reference },
+                    quote = body.optString("quote_text"), gemName = it.selectedGem?.name.orEmpty())) }
+                val threadId = id
+                val onEvent: (JSONObject) -> Unit = { event ->
+                    if (streamJob === owner) {
+                        flow.setPhase("receiving")
+                        acceptEvent(threadId, event)
+                    }
+                }
+                val onAccepted: () -> Unit = {
+                    accepted = true
+                    flow.setPhase("waiting")
+                    markConnectionReachable()
+                    markApiAccepted()
+                }
+                var retryCount = 0
+                while (true) {
+                    try {
+                        api.stream("/chat_stream", body, token(), onAccepted, onEvent)
+                        break
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: ApiException) {
+                        if (e.code == "request_already_accepted") {
+                            accepted = true
+                            val jobId = e.payload.optString("job_id")
+                            mutable.update { it.copy(jobId = jobId.ifBlank { it.jobId }) }
+                            reconnectUntilAvailable(threadId, jobId, owner)
+                            break
+                        }
+                        val waiting = waitingStatusFor(e) ?: throw e
+                        retryCount += 1
+                        connectionStatusForHttp(e.status)?.let { setConnectionUnavailable(it) }
+                        updateLive { it.copy(pendingStatus = waiting, pendingSub = "送信内容を保持して自動再試行中（${retryCount}回目）") }
+                    } catch (e: IOException) {
+                        if (accepted) {
+                            // Web: the answer keeps running on the server; reconnect to it in the background.
+                            setConnectionUnavailable(ConnectionStatus.OFFLINE)
+                            notify("回答への接続が切れました。バックグラウンド処理へ自動再接続します。")
+                            reconnectUntilAvailable(threadId, state.value.jobId.orEmpty(), owner)
+                            break
+                        }
+                        retryCount += 1
+                        setConnectionUnavailable(ConnectionStatus.OFFLINE)
+                        updateLive { it.copy(pendingStatus = "インターネット接続の復帰を待っています...",
+                            pendingSub = "送信内容を保持して自動再試行中（${retryCount}回目）") }
+                    }
+                    delay(CONNECTION_RETRY_DELAY_MS)
                 }
                 failed = null
                 // Branching sends (edit-and-resend, regenerate) create a new leaf whose id is unknown
                 // yet; drop the stale leafId so loadMessages() falls back to the newest message
                 // instead of keeping the previous branch selected.
-                if (submission.body.optBoolean("parent_id_explicit")) mutable.update { it.copy(leafId = null) }
+                if (body.optBoolean("parent_id_explicit")) mutable.update { it.copy(leafId = null) }
                 loadMessages(id)
                 fetchThreads(false)
-                if (submission.body.optBoolean("batch_mode")) {
+                if (body.optBoolean("batch_mode")) {
                     fetchBatchJobs(notify = false)
                     startBatchPolling()
                 }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
-                report(e)
-                val retryable = e !is ApiException || e.status >= 500 || e.status in listOf(409, 425, 429)
-                if (session != null) mutable.update { it.copy(retryAvailable = retryable,
-                    draft = if (!retryable) submission.body.optString("message") else it.draft,
-                    attachments = if (!retryable) submission.files else it.attachments) }
+                // Web: before the server accepted the send, the optimistic rows go away and the input,
+                // attachments and quote stay; the error is shown as "Connection Error: …".
+                val userId = "local-${body.optString("client_request_id")}"
+                mutable.update { it.copy(
+                    messages = it.messages.filterNot { m -> m.id == userId },
+                    draft = if (it.draft.isBlank()) body.optString("message") else it.draft,
+                    attachments = if (it.attachments.isEmpty()) submission.files else it.attachments,
+                    quote = if (it.quote.isBlank()) body.optString("quote_text") else it.quote,
+                ) }
+                when {
+                    e is ApiException && (e.code == "banned" || e.status == 401) -> report(e)
+                    e is ApiException -> notify("Connection Error: " + e.payload.optString("error").ifBlank { "HTTP ${e.status}" })
+                    else -> notify("Connection Error: " + (e.message ?: "通信に失敗しました"))
+                }
                 if (id.isNotBlank() && session != null) runCatching { loadMessages(id) }
-            } finally { if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "") } }
+            } finally {
+                flow.finish()
+                if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "", live = LiveAnswer()) }
+            }
         }
     }
+
+    /**
+     * Web `reconnectPendingStreamUntilAvailable`: while the answer runs on the server, wait and rejoin it
+     * through `/chat_stream_resume` until it finishes (404 means it already ended).
+     */
+    private suspend fun reconnectUntilAvailable(threadId: String, jobId: String, owner: Job) {
+        while (true) {
+            updateLive { it.copy(pendingStatus = if (it.pendingStatus != null) "サーバーへの再接続を待っています..." else null,
+                pendingSub = "回答処理はバックグラウンドで継続しています") }
+            delay(CONNECTION_RETRY_DELAY_MS)
+            if (state.value.selected?.id != threadId || jobId.isBlank()) return
+            try {
+                api.stream("/chat_stream_resume", JSONObject().put("thread_id", threadId).put("job_id", jobId), token(),
+                    onAccepted = { markConnectionReachable() }) { event -> if (streamJob === owner) acceptEvent(threadId, event) }
+                return
+            } catch (e: CancellationException) { throw e }
+            catch (e: ApiException) {
+                if (e.status == 404) return
+                if (waitingStatusFor(e) == null) throw e
+            } catch (e: IOException) { /* keep waiting */ }
+        }
+    }
+
     private fun acceptEvent(threadId: String, event: JSONObject) {
         if (state.value.selected?.id != threadId) return
-        when (event.optString("type")) {
-            "python" -> {
-                val payload = event.optJSONObject("content") ?: return
-                mutable.update { it.copy(cards = upsertPythonCard(it.cards, payload), status = "ツールを実行しています…") }
-                return
-            }
+        val type = event.optString("type")
+        val content = event.opt("content")?.takeIf { it != JSONObject.NULL }?.toString().orEmpty()
+        when (type) {
+            "thread_id" -> { markApiAccepted(); return }
+            "job_id" -> { markApiAccepted(); mutable.update { it.copy(jobId = content) }; return }
             "search_status" -> {
-                val value = event.opt("content")?.toString().orEmpty()
-                mutable.update { it.copy(cards = upsertSearchCard(it.cards, value), status = "Webを検索しています…") }
+                if (content == "searching") updateLive { if (it.search.isEmpty()) it.copy(search = "searching") else it }
+                else if (content == "done" && state.value.live.search == "searching") {
+                    updateLive { it.copy(search = "done") }
+                    searchClearJob?.cancel()
+                    searchClearJob = viewModelScope.launch { delay(2000); updateLive { if (it.search == "done") it.copy(search = "") else it } }
+                }
                 return
             }
-            "mcp", "mcp_decision_request", "mcp_decision_resolved", "coding_diff" -> {
-                val type = event.optString("type")
+            "mcp", "mcp_decision_request", "mcp_decision_resolved" -> {
                 val payload = event.optJSONObject("content")
                 mutable.update { current -> current.copy(
                     cards = upsertToolCard(current.cards, type, event.opt("content")),
                     mcpDecision = when (type) {
                         "mcp_decision_request" -> payload?.let { McpDecision(
                             id = it.optString("id"), jobId = current.jobId.orEmpty(),
-                            serverName = it.optString("server_name", "MCP"),
+                            serverName = it.optString("server_name").ifBlank { "不明なサーバー" },
                             toolName = it.optString("tool_name"), argsPreview = it.optString("args_preview"),
                         ) }
-                        "mcp_decision_resolved" -> null
-                        else -> current.mcpDecision
+                        "mcp_decision_resolved" -> current.mcpDecision?.takeIf { d -> d.id != payload?.optString("id") }
+                        else -> if (payload?.optString("type") == "decision_resolved" &&
+                            current.mcpDecision?.id == payload?.optString("id")) null else current.mcpDecision
                     },
-                    status = "ツールを実行しています…",
                 ) }
                 return
             }
+            "status" -> {
+                markApiAccepted()
+                updateLive { live ->
+                    live.copy(
+                        pendingStatus = live.pendingStatus?.let { content.ifBlank { "モデル処理中..." } },
+                        pendingSub = if (live.pendingStatus != null) "応答開始までの進捗を表示しています" else live.pendingSub,
+                        thoughtPlaceholder = live.thoughtPlaceholder?.let { content.ifBlank { "推論プロセスを準備中..." } },
+                    )
+                }
+                return
+            }
+            "done" -> return
         }
-        val content = event.opt("content")?.toString().orEmpty()
-        mutable.update { when (event.optString("type")) {
-            "job_id" -> it.copy(jobId = content, status = "応答を待っています…")
-            "status" -> it.copy(status = content)
-            "content" -> it.copy(liveContent = it.liveContent + content, status = "受信中…")
-            "thought" -> it.copy(liveThought = it.liveThought + content)
-            "error" -> it.copy(notice = content.take(500))
-            else -> it
-        } }
+        // Web `beginPendingToStreamTransition`: the first answer event replaces the skeleton.
+        updateLive { it.copy(pendingStatus = null, pendingSub = "") }
+        when (type) {
+            "python" -> event.optJSONObject("content")?.let { payload -> mutable.update { it.copy(cards = upsertPythonCard(it.cards, payload)) } }
+            "coding_diff" -> mutable.update { it.copy(cards = upsertToolCard(it.cards, type, event.opt("content"))) }
+            "image_analysis" -> updateLive { it.copy(imageAnalysis = content) }
+            "thought" -> mutable.update { it.copy(liveThought = it.liveThought + content, live = it.live.copy(thoughtPlaceholder = null)) }
+            "content" -> mutable.update { it.copy(liveContent = it.liveContent + content) }
+            "error" -> mutable.update { it.copy(live = it.live.copy(error = content.ifBlank { "Unknown error" }), notice = content.ifBlank { "Unknown error" }.take(500)) }
+        }
     }
+
+    /** Web `resumePendingStream`: rejoin an answer still running on the server when the thread is opened. */
     fun resume() {
         if (state.value.streaming) return
         val id = state.value.selected?.id ?: return
         val jobId = state.value.jobId ?: return
         streamJob = viewModelScope.launch {
             val owner = currentCoroutineContext().job
-            mutable.update { it.copy(streaming = true, liveContent = "", liveThought = "", status = "再接続中…") }
+            val flow = api.progress.startFlow("chatResume")
+            mutable.update { it.copy(streaming = true, liveContent = "", liveThought = "", status = "",
+                live = LiveAnswer(model = it.model, pendingStatus = "回答を生成中...")) }
             try {
-                api.stream("/chat_stream_resume", JSONObject().put("thread_id", id).put("job_id", jobId), token()) { event -> if (streamJob === owner) acceptEvent(id, event) }
+                api.stream("/chat_stream_resume", JSONObject().put("thread_id", id).put("job_id", jobId), token(),
+                    onAccepted = { flow.setPhase("waiting") }) { event ->
+                    if (streamJob === owner) { flow.setPhase("receiving"); acceptEvent(id, event) }
+                }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { if (e !is ApiException || e.status != 404) report(e) }
-            finally { if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "") } }
-            runCatching { loadMessages(id) }.onFailure { report(it) }
+            finally {
+                flow.finish()
+                if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "", live = LiveAnswer()) }
+            }
+            runCatching { loadMessages(id, autoResume = false) }.onFailure { report(it) }
         }
     }
     fun stop() { viewModelScope.launch {
@@ -2876,6 +3015,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val CHUNK_UPLOAD_THRESHOLD_BYTES = 8L * 1024 * 1024
+        /** Web `CONNECTION_RETRY_DELAY_MS`. */
+        const val CONNECTION_RETRY_DELAY_MS = 2000L
         const val LIB_SORT_KEY = "lib_sort_order"
         const val LIB_FAVORITES_ONLY_KEY = "lib_favorites_only"
         const val MAX_SINGLE_UPLOAD_BYTES = 64L * 1024 * 1024

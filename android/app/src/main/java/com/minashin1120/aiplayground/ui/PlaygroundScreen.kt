@@ -608,6 +608,8 @@ fun PlaygroundScreen(
             }
             state.mcpDecision?.let { decision -> key(decision.id) { McpDecisionDialog(decision, model::resolveMcpDecision) } }
             state.accountLock?.let { lock -> AccountLockOverlay(lock, model::accountLockExpired) }
+            val progressLabel by model.progressLabel.collectAsState()
+            GlobalProgressSpinner(progressLabel, Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(16.dp))
             ModalHost(branchOpen && state.selected != null) {
                 BranchManagerDialog(state, onDismiss = { branchOpen = false }, onSwitch = model::switchBranch,
                     onDelete = model::deleteMessage, notify = model::notify)
@@ -1332,15 +1334,6 @@ private fun ConversationContent(
     )
     Column(Modifier.fillMaxSize()) {
         TotalTokenBar(pathTotals, allTotals) { tokenDetail = it }
-        AnimatedVisibility(state.jobId != null && !state.streaming, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("生成の状態を確認できます", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = model::resume) { Text("再接続") }
-            }
-        }
-        AnimatedVisibility(state.retryAvailable, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
-            TextButton(onClick = model::retry, modifier = Modifier.fillMaxWidth(), enabled = !state.streaming) { Text("同じ送信を再試行（二重送信を防止）") }
-        }
         if (state.canvasMode) CanvasPreview(state.messages + if (state.liveContent.isNotBlank()) listOf(ChatMessage("canvas-live", "assistant", state.liveContent)) else emptyList(),
             onUse = { code -> model.draft(code) }, onClose = model::toggleCanvas)
         Box(Modifier.weight(1f).fillMaxWidth()) {

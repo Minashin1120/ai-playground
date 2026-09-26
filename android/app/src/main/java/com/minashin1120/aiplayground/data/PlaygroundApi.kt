@@ -40,7 +40,20 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
         .header("User-Agent", "AIPlayground-Android/${BuildConfig.VERSION_NAME}")
         .apply { if (token != null) header("Authorization", "Bearer $token") }
 
-    private suspend fun <T> execute(req: Request, client: OkHttpClient = normal, consume: (Response) -> T): T =
+    /** Web `ProgressSpinner`: requests the user waits for, shown by the global spinner. */
+    val progress = ProgressTracker()
+
+    /**
+     * Runs [req]; unless [track] is false (streams with their own flow, file bytes the Web loads through
+     * `<img>`/links) or the request is passive, it is shown by [progress] like the Web `fetch` hook.
+     */
+    private suspend fun <T> execute(req: Request, client: OkHttpClient = normal, track: Boolean = true, consume: (Response) -> T): T {
+        val path = req.url.encodedPath
+        val operation = if (track && !ProgressText.isPassive(path)) progress.start(ProgressText.forRequest(req.method, path)) else null
+        try { return executeUntracked(req, client, consume) } finally { operation?.finish() }
+    }
+
+    private suspend fun <T> executeUntracked(req: Request, client: OkHttpClient, consume: (Response) -> T): T =
         suspendCancellableCoroutine { continuation ->
             val call = client.newCall(req)
             continuation.invokeOnCancellation { call.cancel() }
@@ -110,11 +123,11 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
     /** Sends a bounded binary chunk to an authenticated streaming endpoint. */
     suspend fun postBytes(path: String, bytes: ByteArray, contentType: String, token: String): JSONObject = execute(
         request(path, token).header("Accept", "application/json")
-            .post(bytes.toRequestBody(contentType.toMediaType())).build(), consume = ::jsonResponse)
+            .post(bytes.toRequestBody(contentType.toMediaType())).build(), track = false, consume = ::jsonResponse)
 
     /** Reads an authenticated Server-Sent Events response without retaining it. */
     suspend fun streamSse(path: String, token: String, onEvent: (JSONObject) -> Unit) {
-        execute(request(path, token).header("Accept", "text/event-stream").get().build(), streaming) { response ->
+        execute(request(path, token).header("Accept", "text/event-stream").get().build(), streaming, track = false) { response ->
             if (!response.isSuccessful) throw error(response)
             val source = response.body.source()
             var data = StringBuilder()
@@ -194,12 +207,17 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
             .put("categories", categories)
             .put("confirm_settings", confirmSettings), token)
 
-    suspend fun stream(path: String, payload: JSONObject, token: String, onEvent: (JSONObject) -> Unit) {
+    /**
+     * NDJSON chat stream. It is not tracked automatically: the caller drives a `chat` flow with
+     * [onAccepted] (headers received) and each event, like the Web manual spinner flow.
+     */
+    suspend fun stream(path: String, payload: JSONObject, token: String, onAccepted: () -> Unit = {}, onEvent: (JSONObject) -> Unit) {
         val req = request(path, token).header("Accept", "application/x-ndjson")
             .post(payload.toString().toRequestBody(jsonType)).build()
-        execute(req, streaming) { response ->
+        execute(req, streaming, track = false) { response ->
             if (!response.isSuccessful) throw error(response)
             if (response.body.contentType()?.subtype != "x-ndjson") throw IOException("チャットの応答形式が正しくありません。")
+            onAccepted()
             val source = response.body.source()
             var terminal = false
             while (!source.exhausted()) {
@@ -223,7 +241,7 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
         // Never attach credentials to a provider URL or another origin.
         val ref = fileReferencePath(reference) ?: throw IOException("添付の参照が不正です。")
         val path = filePath(ref, thumbnail = false)
-        return execute(request(path, token).build()) { response ->
+        return execute(request(path, token).build(), track = false) { response ->
             if (!response.isSuccessful) throw error(response)
             val mime = response.body.contentType()?.let { "${it.type}/${it.subtype}" } ?: "application/octet-stream"
             var count = 0L
@@ -245,7 +263,7 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
 
     /** Streams an authenticated same-origin download (account export ZIP) into [output]. */
     suspend fun downloadTo(path: String, token: String, output: java.io.OutputStream, onProgress: (Long) -> Unit) {
-        execute(request(path, token).build(), client = streaming) { response ->
+        execute(request(path, token).build(), client = streaming, track = false) { response ->
             if (!response.isSuccessful) throw error(response)
             var count = 0L
             response.body.byteStream().use { input ->
@@ -265,7 +283,7 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
     /** Loads a same-origin attachment or its WebP thumbnail within a byte budget. */
     suspend fun loadFileBytes(reference: String, token: String, thumbnail: Boolean, limit: Long): ByteArray {
         val ref = fileReferencePath(reference) ?: throw IOException("添付の参照が不正です。")
-        return execute(request(filePath(ref, thumbnail), token).build()) { response ->
+        return execute(request(filePath(ref, thumbnail), token).build(), track = false) { response ->
             if (!response.isSuccessful) throw error(response)
             readBoundedBytes(response.body.byteStream(), limit)
         }

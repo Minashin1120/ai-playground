@@ -136,40 +136,40 @@ fun StatusCardView(card: StatusCard) {
     }
 }
 
+/**
+ * The Web pending / streaming answer bubble (`sendMessage`): the skeleton with its status until the first
+ * answer event, then the search box, Python boxes, image analysis and "Thinking Process" above the
+ * streamed text, MCP cards after it and a stream error at the end.
+ */
 @Composable
 fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) -> Unit,
                 loader: FileBytesLoader? = null, onMcpDecision: (Boolean) -> Unit = {}) {
-    val reduce = LocalReduceMotion.current
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        state.cards.forEach { card -> key(card.id + card.kind) { AppearOnce { if (card.kind == CardKind.MCP) McpBox(card) else StatusCardView(card) } } }
-        // MCP confirmations use the Web modal (`McpDecisionDialog`).
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (state.streaming) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-            AnimatedContent(
-                targetState = state.status.ifBlank { "回答を生成中..." },
-                transitionSpec = {
-                    if (reduce) EnterTransition.None togetherWith ExitTransition.None
-                    else (slideInVertically(tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Emphasized)) { it / 2 } +
-                        fadeIn(tween(PlaygroundMotion.MEDIUM))) togetherWith
-                        (slideOutVertically(tween(PlaygroundMotion.SHORT, easing = PlaygroundMotion.Exit)) { -it / 2 } +
-                            fadeOut(tween(PlaygroundMotion.SHORT)))
-                },
-                label = "live status",
-            ) { status -> Text(status, style = MaterialTheme.typography.labelMedium) }
-        }
-        val hasText = state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty()
-        AnimatedVisibility(state.streaming && !hasText, enter = fadeIn(motionTween(reduce)), exit = fadeOut(motionTween(reduce, PlaygroundMotion.SHORT))) {
-            Surface(shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 5.dp, bottomEnd = 20.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.90f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f))) {
-                TypingDots(Modifier.padding(horizontal = 18.dp, vertical = 16.dp))
+    val live = state.live
+    val thought = state.liveThought.ifBlank { live.thoughtPlaceholder.orEmpty() }
+    val python = state.cards.filter { it.kind == CardKind.PYTHON }
+    val mcp = state.cards.filter { it.kind == CardKind.MCP }
+    val coding = state.cards.filter { it.kind == CardKind.CODING || it.kind == CardKind.TOOL }
+    val pending = live.pendingStatus
+    val skeleton: (@Composable () -> Unit)? =
+        if (pending != null) { { PendingSkeleton(live.model.ifBlank { state.model }, pending, live.pendingSub) } } else null
+    MessageBubble(
+        ChatMessage("live", "assistant", state.liveContent, thought), onFile, loader,
+        MessageActions(), controlsVisible = false, onToggleControls = {}, streaming = true,
+        thoughtCollapsed = state.liveThought.isBlank(),
+        liveTop = {
+            if (live.search.isNotEmpty()) LiveSearchBox(live.search)
+            python.asReversed().forEach { card -> key(card.id) { PythonExecutionBox(card) } }
+            live.imageAnalysis?.let { LiveImageAnalysis(it) }
+            coding.forEach { card -> key(card.id + card.kind) { StatusCardView(card) } }
+        },
+        liveSkeleton = skeleton,
+        liveBottom = {
+            if (mcp.isNotEmpty()) Column(Modifier.padding(top = 12.dp)) {
+                mcp.forEach { card -> key(card.id) { Box(Modifier.padding(bottom = 8.dp)) { McpBox(card) } } }
             }
-        }
-        AnimatedVisibility(hasText, enter = expandFadeIn(reduce), exit = ExitTransition.None) {
-            MessageBubble(ChatMessage("live", "assistant", state.liveContent, state.liveThought), onFile, loader,
-                MessageActions(), controlsVisible = false, onToggleControls = {}, streaming = true)
-        }
-    }
+            live.error?.let { Box(Modifier.padding(top = 8.dp)) { ChatErrorBlock(it) } }
+        },
+    )
 }
 
 /**

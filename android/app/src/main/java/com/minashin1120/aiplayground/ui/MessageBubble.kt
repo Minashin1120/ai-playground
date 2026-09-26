@@ -122,6 +122,12 @@ internal fun MessageBubble(
     branchIndex: Int = 0,
     branchCount: Int = 0,
     streaming: Boolean = false,
+    /** Streaming answer parts the Web inserts into the bubble: boxes above the thought, the skeleton, and rows below. */
+    liveTop: (@Composable () -> Unit)? = null,
+    liveSkeleton: (@Composable () -> Unit)? = null,
+    liveBottom: (@Composable () -> Unit)? = null,
+    /** The reasoning placeholder is shown collapsed (`.thought-content.collapsed`). */
+    thoughtCollapsed: Boolean = false,
 ) {
     val web = LocalWebPalette.current
     val user = message.role == "user"
@@ -153,18 +159,22 @@ internal fun MessageBubble(
                     .padding(16.dp),
             ) {
                 if (message.quote.isNotBlank()) QuoteStrip(message.quote)
+                liveTop?.invoke()
                 if (!user && message.thought.isNotBlank()) {
                     val thought = remember(message.thought) { thoughtText(message.thought) }
-                    if (thought.isNotBlank()) ThoughtContainer(thought, openInitially = streaming)
+                    if (thought.isNotBlank()) ThoughtContainer(thought, openInitially = streaming && !thoughtCollapsed)
                 }
                 if (user) {
                     // User messages are shown as raw text (`whitespace-pre-wrap font-sans text-sm`).
                     SelectionContainer {
                         Text(message.content, color = textColor, fontSize = 14.sp, lineHeight = 20.sp, fontFamily = FontFamily.Default)
                     }
+                } else if (liveSkeleton != null) {
+                    liveSkeleton()
                 } else if (message.content.isNotEmpty()) {
                     MarkdownText(message.content, loader, onFile, startCollapsed = !streaming)
                 }
+                liveBottom?.invoke()
                 val files = message.files.filterNot { !user && message.content.contains(it) }
                 if (files.isNotEmpty()) AttachmentGrid(files, loader, onFile)
                 if (branchCount > 1) VersionSwitcher(branchIndex, branchCount, actions.onSwitchBranch)

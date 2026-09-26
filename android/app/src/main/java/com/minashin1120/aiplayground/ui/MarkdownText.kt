@@ -851,7 +851,7 @@ private fun Modifier.graphicsAlpha(alpha: Float): Modifier = this.alpha(alpha)
 
 /** `.code-actions button`: 24.8px, 5.6px corners, 11.2px glyph. */
 @Composable
-private fun CodeActionButton(@androidx.annotation.DrawableRes icon: Int, label: String, colors: MarkdownColors, onClick: () -> Unit) {
+internal fun CodeActionButton(@androidx.annotation.DrawableRes icon: Int, label: String, colors: MarkdownColors, onClick: () -> Unit) {
     Box(
         Modifier
             .size(24.8.dp)
@@ -936,8 +936,9 @@ internal fun highlightCode(code: String, language: String, colors: SyntaxColors)
 }
 
 /** Web `buildChatErrorBubbleHtml`: `text-red-400 text-xs border border-red-500 p-2 rounded` with a warning glyph. */
+/** `.chat-error-box`: also drawn for a stream `error` event (`buildChatErrorBubbleHtml`). */
 @Composable
-private fun ChatErrorBlock(text: String) {
+internal fun ChatErrorBlock(text: String) {
     val shape = RoundedCornerShape(4.dp)
     Row(
         Modifier

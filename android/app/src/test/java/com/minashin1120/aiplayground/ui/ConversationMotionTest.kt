@@ -83,17 +83,6 @@ class ConversationMotionTest {
     }
 
     @Test
-    fun typingDotsPeakInTurn() {
-        assertEquals(1f, typingDotAlpha(0.5f, 0), 0.001f)
-        assertEquals(0.3f, typingDotAlpha(0f, 0), 0.001f)
-        assertTrue(typingDotAlpha(0.5f + 1f / 3f, 1) > 0.99f)
-        for (i in 0..20) {
-            val alpha = typingDotAlpha(i / 20f, 2)
-            assertTrue(alpha in 0.3f..1f)
-        }
-    }
-
-    @Test
     fun staggerDelayIsCapped() {
         assertEquals(0, staggerDelay(0))
         assertEquals(80, staggerDelay(2))

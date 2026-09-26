@@ -52,7 +52,6 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.08.00"))
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-text-google-fonts")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -67,6 +66,8 @@ dependencies {
     implementation("com.google.android.play:integrity:1.5.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.2.0")
     implementation("com.squareup.okhttp3:okhttp:5.3.0")
+    // Inline <svg> in answers (Web `.svg-render-box`); it never loads external references.
+    implementation("com.caverock:androidsvg-aar:1.4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     testImplementation("junit:junit:4.13.2")

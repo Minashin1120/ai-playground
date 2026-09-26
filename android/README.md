@@ -23,7 +23,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTP、NDJSON、APIモデル、Keystore保存、Credential Managerのパスキー手順（`PasskeyClient.kt`） | 認証・通信・保存 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/PlayIntegrityClient.kt` | Play Integrity Standard APIの事前準備・要求内容に結び付いた認証token取得 | Android認証の端末リスク信号 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BrowserLoginPkce.kt` | ブラウザー経由ログインのPKCE（S256）verifier・challenge生成 | Google・MinashinのApp Link復帰を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `ChatComponents.kt` | Compose画面の組み立て（ドロワー／タブレット2ペイン、各モーダルの開閉）、メッセージ操作、状態カード、生成中の回答 | 画面構造と操作を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `ChatComponents.kt` | Compose画面の組み立て（ドロワー／タブレット2ペイン、各モーダルの開閉）、メッセージ操作、Coding差分（Live Code Changes）とBatch完了バナー、生成中の回答 | 画面構造と操作を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LiveAnswer.kt` | 生成待ちのスケルトン、Searching web／Search complete、Image Analysis、Python Execution、右下の通信スピナー | 生成中の表示を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ProgressText.kt` | Web `progress_spinner.js` の文言表と通信中の処理一覧（`PlaygroundApi.progress`） | 通信スピナーの文言や対象を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/Composer.kt` | Webのプロンプトバー（引用・Coding対象・編集バー、モデルボタン、Canvas／Coding／Batch、詳細チップ、添付プレビュー、固定プロンプト、Gem表示、`/`・`@` 候補、入力シェル、送信・停止、トークン見積もり） | 入力欄の見た目や操作を編集するとき |
@@ -55,8 +55,10 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/CanvasBlocks.kt` | Canvasモードのコードブロック抽出（Web `parseCanvasMarkdown`）、選択、見出し・状態の文言 | Canvasに出すブロックや文言を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMarkerEditor.kt` | Webの「画像編集」（マーカー、モザイク、トリミング、二本指の拡大、保存して反映） | 画像編集の画面や保存を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageMarker.kt` | 画像編集の計算（線の補間、モザイク範囲、トリミングの掴み位置、拡大時の位置制限、保存名） | 画像編集の操作の決まりを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MinimalOptions.kt` | ミニマル表示の上部モデルバー、＋の「オプション」ポップアップ、Thinkingのスライドバー | ミニマル表示を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/MessageExtras.kt` | 回答からのPython実行結果とMCP実行メモの取り出し、Batch状態カードの文言 | 回答本文の前処理やBatchカードを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/UploadSheet.kt` | Webの「ファイルアップロード」画面（ボタン、Vision Model、進行状況、ファイルごとの画像編集・送信名・削除） | 添付の追加画面を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | Webの音声ドック（`#sts-panel`）と音声スタジオ、提供元別の音声設定 | 音声セッションUIを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | Webの音声ドック（`#sts-panel`）と音声スタジオ、提供元別の音声設定、録音して `/sts` へ送る文字起こし系モデルの振り分け | 音声セッションUIを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LyriaStudio.kt` | Webの「Lyria RealTime Studio」（重み付きプロンプト、音楽設定、再生操作、チャットへ保存） | Lyriaスタジオを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | Webの「リッチ貼り付け」画面の枠（クリップボードHTMLのテキスト化、モデルへの指示、既定値の保存） | リッチ貼り付けを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ModelPicker.kt` | Webの「Select Model」（検索、固定タグバー、カテゴリ見出し、モデルカード、PromptCacheのロックバナー） | モデル選択画面を編集するとき |
@@ -74,16 +76,17 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/RealtimeModels.kt` | Realtime／Lyriaのセッション状態 | 音声・音楽ストリームの状態表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/WebModelCatalog.kt`, `app/src/main/assets/web-model-catalog.json` | Webの表示名・説明・価格・タグ・追加順をネイティブAPIのモデル一覧に合成 | モデル情報の表示差を確認するとき |
 | `ci/sync-web-catalog.mjs` | Webモデル定義からAndroid表示用JSONを生成・`--check`で一致検証 | Webのモデル定義変更をAndroidへ同期するとき |
+| `ci/audit-web-strings.py` | Androidの日本語文字列のうち、Webのテンプレート・JS・サーバー文言にないものを一覧表示 | 文言をWebと突き合わせるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundTheme.kt` | Webトークンから作るMaterial配色、Tailwindの文字サイズ、形状、レイアウト寸法、ライト／ダークの判定 | 色・テーマ・ブランドを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/WebTokens.kt` | Webの `:root` トークン（ダーク／ライト）、テーマ色の段階計算、Tailwind v3の色、ライトテーマでの置き換え | Webの色をそのまま使うとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/WebFonts.kt`, `app/src/main/res/values/font_certs.xml` | Google Fonts経由のNoto Sans JP／JetBrains Mono | フォントを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/WebComponents.kt` | Web再現の共通部品（Font Awesomeアイコン、トグル、チェックボックス、select、チップ、設定カード、ボタン、モーダルの見出し・下部） | Webと同じ見た目の部品を使うとき |
 | `app/src/main/res/drawable/fa_*.xml`, `ci/sync-web-icons.py` | WebのFont Awesomeサブセットから生成したアイコン（手で編集しない。`--check` で一致確認） | Webで使うアイコンが増減したとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | Webの `marked`（GFM・`breaks`）と `pre-wrap` 表示を再現するMarkdown（リスト、引用、表、コード、`chat_error`、色分け、インラインコード） | メッセージ本文表示を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | Webの `marked`（GFM・`breaks`）と `pre-wrap` 表示を再現するMarkdown（リスト、引用、表、コード、`chat_error`、色分け、インラインコード）、回答中の生HTMLとSVG | メッセージ本文表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MessageBubble.kt` | Webの `.message-bubble`（吹き出し、タップで出る操作ボタン、引用、Thinking、添付グリッド、分岐切替、フッター）、合計トークン帯、トークン詳細・暗号化モーダル、Welcome、一番下へ | メッセージの見た目を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LatexText.kt` | LaTeXをWebViewなしで読めるネイティブ表示へ変換 | 数式表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RemoteImage.kt` | 同一originの添付画像をBearer付きで取得し、キャッシュしてプレビュー | 添付・画像プレビューを編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/FileViewer.kt` | ファイルライブラリとチャット添付のアプリ内プレビュー（画像・テキスト・PDF・音声・動画） | ファイルの開き方・プレビュー種別を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/FileViewer.kt` | Webの画像ビューアー（件数・前後移動・Download／Copy URL／Reuse／Close）とファイル表示パネル（テキスト・PDF・音声・動画） | ファイルや画像の表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ThreadPdf.kt` | スレッドのネイティブA4 PDF出力（WebView不使用） | PDF出力を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageCompression.kt` | Web相当の画像圧縮設定と、アップロード前の縮小・再エンコード | 画像圧縮を編集するとき |
 | `app/src/main/res/` | アイコン、HTTPS設定、バックアップ除外、添付共有範囲 | Androidリソース・保護設定 |

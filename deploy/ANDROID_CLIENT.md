@@ -299,6 +299,7 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | POST `/api/files/delete` | `filenames`（配列） | 本人のファイルを削除 |
 | GET `/api/files/usage` | `filepath` | そのファイルを添付したチャット（最大100件、`chats`, `has_more`） |
 | POST `/transcribe` | `file`（録音）、`llm_model` | マイクの文字起こし（設定の方式に従いSTT APIまたはLLM、`transcript` または `error`） |
+| POST `/sts` | `file`（録音）、`model`、`thread_id`、`sts_voice`、`sts_speed`、`sts_rate_in`、`sts_rate_out`、`sts_thinking_level`、`sts_include_thoughts` | gpt-transcribe／gpt-live-transcribe／Realtime Whisperの音声ドック（Webと同じく録音してから送る）。スレッドの所有者を検証し、NDJSON（`audio_delta`、`input_delta`、`transcript_delta`、`final`）または同期応答のJSONを返す |
 | POST `/api/settings/apply-ai-prompt` | `prompt`, `model`, `conversation` | `/settings` のAI設定変更（`mode`: inspect／更新、`current` または `applied`） |
 | GET `/api/gems` | なし | 本人のGem配列（トップレベルJSON配列） |
 | POST `/api/gems` | `name`, `description`, `instruction`, `default_model` | 作成したGem |
@@ -344,7 +345,7 @@ IDは文字列として扱います。古い履歴の数値IDを受け取る場�
 }
 ```
 
-`model` は省略できません。`/me` の `models` から `selectable: true` のモデルだけを選び、`mode` に応じた入力と `capabilities` に含まれる設定だけを表示します。ネイティブ対象は `chat`、`image`、`video`、`ocr`、`tts`、`transcription`、`agent`、会話型の `realtime_audio` とLyriaの `music` です。`realtime_audio` は認証済みサーバーセッションを介してOpenAI／Grok／Gemini Liveを入力欄の音声ドックまたはRealtimeスタジオで利用します。文字起こし専用のRealtimeモデルは、対応する専用フローがない限り選択不可として返します。既存のモデル用APIキーがない場合は400と `code: api_key_missing` 等が返るため、Webの設定を案内します。
+`model` は省略できません。`/me` の `models` から `selectable: true` のモデルだけを選び、`mode` に応じた入力と `capabilities` に含まれる設定だけを表示します。ネイティブ対象は `chat`、`image`、`video`、`ocr`、`tts`、`transcription`、`agent`、`embedding`、会話型の `realtime_audio` とLyriaの `music` です（Lyria 3とEmbeddingは `/chat_stream`、Lyria RealTimeは音楽セッションAPI）。`realtime_audio` は認証済みサーバーセッションを介してOpenAI／Grok／Gemini Liveを入力欄の音声ドックまたはRealtimeスタジオで利用します。gpt-transcribe／gpt-live-transcribe／Realtime WhisperはWebと同じく、音声ドックで録音してから `/sts` へ送ります。既存のモデル用APIキーがない場合は400と `code: api_key_missing` 等が返るため、Webの設定を案内します。
 
 `gem_uuid` を付けると、そのGemの指示が回答生成に適用されます。`/api/gems` が返す本人の `uuid` だけを使い、他ユーザーのGemを指定しないでください。現在のスレッドの最後に使ったGemは、スレッド取得応答の `last_gem_uuid` で確認できます。
 

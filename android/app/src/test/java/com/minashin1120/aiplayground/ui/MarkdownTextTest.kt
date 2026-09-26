@@ -87,11 +87,33 @@ println("安全")
         assertTrue((bracketed.single() as MarkdownBlock.Math).display)
     }
 
-    @Test fun attachmentsBecomeImageBlocksAndForeignImagesStayText() {
+    @Test fun attachmentsAndHttpsImagesBecomeImageBlocks() {
         val blocks = parseMarkdownBlocks("![図](/files/123/pic.png)")
         assertEquals(MarkdownBlock.Image("123/pic.png", "図"), blocks.single())
-        val foreign = parseMarkdownBlocks("![x](https://example.org/a.png)")
-        assertTrue(foreign.single() is MarkdownBlock.Paragraph)
+        // Web shows images on other sites with <img>; plain http stays text (the site is https only).
+        assertEquals(MarkdownBlock.Image("https://example.org/a.png", "x"), parseMarkdownBlocks("![x](https://example.org/a.png \"t\")").single())
+        assertTrue(parseMarkdownBlocks("![x](http://example.org/a.png)").single() is MarkdownBlock.Paragraph)
+    }
+
+    @Test fun rawHtmlFollowsTheSanitizedWebRendering() {
+        val colors = markdownColorsFor(webPalette(light = false, themeColor = null))
+        assertEquals("a\nb", parseInlineMarkdown("a<br>b", colors).text.text)
+        val bold = parseInlineMarkdown("x <b>太字</b> y", colors).text
+        assertEquals("x 太字 y", bold.text)
+        assertTrue(bold.spanStyles.any { it.item.fontWeight == androidx.compose.ui.text.font.FontWeight.Bold })
+        assertEquals("H2O", parseInlineMarkdown("H<sub>2</sub>O", colors).text.text)
+        assertEquals("前後", parseInlineMarkdown("前<script>alert(1)</script>後", colors).text.text)
+        assertEquals("考えた", parseInlineMarkdown("<think>考えた</think>", colors).text.text)
+        assertEquals("a < b", parseInlineMarkdown("a < b", colors).text.text)
+        val link = parseInlineMarkdown("<a href=\"https://example.org\">site</a>", colors).text
+        assertEquals("site", link.text)
+        assertEquals(1, link.getLinkAnnotations(0, link.length).size)
+        assertEquals(1, parseInlineMarkdown("<a href=\"javascript:alert(1)\">x</a>", colors).text.text.length)
+        val blocks = parseMarkdownBlocks("前\n<svg viewBox=\"0 0 10 10\">\n<rect width=\"10\" height=\"10\"/>\n</svg>\n後\n<hr>")
+        assertEquals(MarkdownBlock.Paragraph("前"), blocks[0])
+        assertTrue(blocks[1] is MarkdownBlock.Svg)
+        assertEquals(MarkdownBlock.Paragraph("後"), blocks[2])
+        assertEquals(MarkdownBlock.Rule, blocks[3])
     }
 
     @Test fun setextHeadingsAndRules() {

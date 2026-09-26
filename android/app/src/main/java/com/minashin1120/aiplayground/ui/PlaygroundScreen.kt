@@ -43,19 +43,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
@@ -79,6 +80,8 @@ import com.minashin1120.aiplayground.AppChangelogUiState
 import com.minashin1120.aiplayground.AppUpdateUiState
 import com.minashin1120.aiplayground.data.ThreadItem
 import com.minashin1120.aiplayground.data.Attachment
+import com.minashin1120.aiplayground.data.isImageReference
+import com.minashin1120.aiplayground.BuildConfig
 import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.ChatMessage
@@ -248,6 +251,7 @@ fun PlaygroundScreen(
             var startDockAfterMic by remember { mutableStateOf(false) }
             var richPasteOpen by remember { mutableStateOf(false) }
             var markerTarget by remember { mutableStateOf<Attachment?>(null) }
+            var composerHeight by remember { mutableIntStateOf(0) }
             var visionPicker by remember { mutableStateOf(false) }
             var cameraUri by remember { mutableStateOf<Uri?>(null) }
             var bubbleAfterNotificationPermission by remember { mutableStateOf(false) }
@@ -326,8 +330,35 @@ fun PlaygroundScreen(
                 model.loadAttachmentBytes(reference, thumbnail, limit)
             }
             val openInApp: (String) -> Unit = { reference ->
-                viewingFile = FileViewRequest(reference)
+                // Web `openImageViewer` steps through the chat's images.
+                val gallery = state.messages.flatMap { it.files }.filter { isImageReference(it) }.distinct()
+                viewingFile = FileViewRequest(reference, gallery = gallery)
             }
+            // Web image viewer "Download": Android asks where to save it (ANDROID_ONLY.md §2).
+            var pendingFileDownload by remember { mutableStateOf<String?>(null) }
+            val fileSaver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+                val reference = pendingFileDownload
+                pendingFileDownload = null
+                if (uri != null && reference != null) scope.launch {
+                    runCatching {
+                        val (local, _) = model.downloadAttachment(reference)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            context.contentResolver.openOutputStream(uri)?.use { out -> local.inputStream().use { it.copyTo(out) } }
+                            local.delete()
+                        }
+                    }.onFailure { model.notify("ダウンロードに失敗しました") }
+                }
+            }
+            val viewerClipboard = LocalClipboardManager.current
+            val imageActions = ImageViewerActions(
+                onDownload = { reference -> pendingFileDownload = reference; fileSaver.launch(fileViewerTitle(reference)) },
+                onCopyUrl = { reference ->
+                    viewerClipboard.setText(androidx.compose.ui.text.AnnotatedString(
+                        BuildConfig.BASE_URL.trimEnd('/') + "/files/" + reference.removePrefix("/files/")))
+                    model.notify("画像URLをコピーしました")
+                },
+                onReuse = { reference -> model.reuseImage(reference) },
+            )
             val sharePdf: () -> Unit = {
                 model.exportPdf { file ->
                     try {
@@ -484,7 +515,7 @@ fun PlaygroundScreen(
                             onChatInstructions = { model.ensureThread { threadSettings = true } },
                             onCompressionSettings = { compressionOpen = true },
                             onTemporarySettings = { settingsTab = "一般"; settingsOpen = true },
-                            loader = loader, onOpenFile = openInApp,
+                            loader = loader, onOpenFile = openInApp, onDockHeight = { composerHeight = it },
                             onRealtime = {
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
                                 else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
@@ -501,19 +532,16 @@ fun PlaygroundScreen(
                     }
                 ) { padding ->
                     Column(Modifier.fillMaxSize().padding(padding)) {
-                        AnimatedVisibility(state.connectionBannerVisible || state.offline,
-                            enter = expandFadeIn(reduceMotion), exit = shrinkFadeOut(reduceMotion)) {
-                            ConnectionBanner(
-                                status = if (state.connectionStatus == ConnectionStatus.UNKNOWN) ConnectionStatus.OFFLINE else state.connectionStatus,
-                                message = state.connectionMessage,
-                                onRetry = model::reconnect,
-                            )
-                        }
                         val screen = when {
                             state.starting -> PlaygroundScreenKind.Starting
                             state.setupRequired -> PlaygroundScreenKind.Setup
                             state.account == null -> PlaygroundScreenKind.Auth
                             else -> PlaygroundScreenKind.Chat
+                        }
+                        // Web `#top-model-bar` (minimal prompt bar): the model button under the header.
+                        AnimatedVisibility(screen == PlaygroundScreenKind.Chat && state.preferences?.effectivePromptBarMode == "minimal",
+                            enter = expandFadeIn(reduceMotion), exit = shrinkFadeOut(reduceMotion)) {
+                            TopModelBar(state) { modelPicker = true }
                         }
                         AnimatedContent(
                             targetState = screen,
@@ -616,6 +644,7 @@ fun PlaygroundScreen(
                     download = { model.downloadAttachment(it) },
                     onDismiss = { viewingFile = null },
                     onOpenExternal = onFile,
+                    imageActions = imageActions,
                 )
             }
             ModalHost(gemEditorOpen) {
@@ -638,7 +667,20 @@ fun PlaygroundScreen(
                 }
             }
             val progressLabel by model.progressLabel.collectAsState()
-            GlobalProgressSpinner(progressLabel, Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(16.dp))
+            // Web `#offline-banner` and `#global-progress-spinner`: bottom-right, above the composer.
+            val bannerShown = showThreads && (state.connectionBannerVisible || state.offline)
+            val aboveComposer = with(LocalDensity.current) { composerHeight.toDp() }
+            AnimatedVisibility(bannerShown, Modifier.align(Alignment.BottomEnd).imePadding().padding(end = 16.dp, bottom = aboveComposer + 16.dp),
+                enter = fadeIn(tween(if (reduceMotion) 0 else 280)) + slideInVertically(tween(if (reduceMotion) 0 else 280)) { it / 5 },
+                exit = fadeOut(tween(if (reduceMotion) 0 else 280)) + slideOutVertically(tween(if (reduceMotion) 0 else 280)) { it / 5 }) {
+                ConnectionBanner(
+                    status = if (state.connectionStatus == ConnectionStatus.UNKNOWN) ConnectionStatus.OFFLINE else state.connectionStatus,
+                    message = state.connectionMessage,
+                    onRetry = model::reconnect,
+                )
+            }
+            GlobalProgressSpinner(progressLabel, Modifier.align(Alignment.BottomEnd).imePadding()
+                .padding(end = 16.dp, bottom = aboveComposer + if (bannerShown) 64.dp else 16.dp))
             ModalHost(branchOpen && state.selected != null) {
                 BranchManagerDialog(state, onDismiss = { branchOpen = false }, onSwitch = model::switchBranch,
                     onDelete = model::deleteMessage, notify = model::notify)
@@ -783,31 +825,27 @@ private fun BannedScreen(
     }
 }
 
+/**
+ * Web `#offline-banner` (`connection_monitor.js`): a pill with the state's colours, icon and wording.
+ * The "再試行" button is Android's own (ANDROID_ONLY.md).
+ */
 @Composable
 private fun ConnectionBanner(status: ConnectionStatus, message: String, onRetry: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    val container = when (status) {
-        ConnectionStatus.MAINTENANCE -> colors.tertiaryContainer
-        ConnectionStatus.UNSTABLE -> colors.secondaryContainer
-        ConnectionStatus.ONLINE -> colors.primaryContainer
-        ConnectionStatus.SERVER_DOWN, ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> colors.errorContainer
-    }
-    val content = when (status) {
-        ConnectionStatus.MAINTENANCE -> colors.onTertiaryContainer
-        ConnectionStatus.UNSTABLE -> colors.onSecondaryContainer
-        ConnectionStatus.ONLINE -> colors.onPrimaryContainer
-        ConnectionStatus.SERVER_DOWN, ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> colors.onErrorContainer
+    val (fg, border, background) = when (status) {
+        ConnectionStatus.MAINTENANCE -> Triple(Color(0xFFE9D5FF), Color(192, 132, 252).copy(alpha = 0.62f), Color(32, 12, 52).copy(alpha = 0.94f))
+        ConnectionStatus.UNSTABLE -> Triple(Color(0xFFFEF3C7), Color(245, 158, 11).copy(alpha = 0.55f), Color(40, 24, 0).copy(alpha = 0.92f))
+        ConnectionStatus.ONLINE -> Triple(Color(0xFFD1FAE5), Color(52, 211, 153).copy(alpha = 0.58f), Color(3, 34, 26).copy(alpha = 0.92f))
+        ConnectionStatus.SERVER_DOWN -> Triple(Color(0xFFFECACA), Color(239, 68, 68).copy(alpha = 0.75f), Color(48, 5, 12).copy(alpha = 0.95f))
+        ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> Triple(Color(0xFFFECACA), Color(248, 113, 113).copy(alpha = 0.6f), Color(28, 8, 14).copy(alpha = 0.92f))
     }
     val icon = when (status) {
-        ConnectionStatus.MAINTENANCE -> Icons.Rounded.Build
-        ConnectionStatus.UNSTABLE -> Icons.Rounded.WarningAmber
-        ConnectionStatus.ONLINE -> Icons.Rounded.CheckCircle
-        ConnectionStatus.SERVER_DOWN -> Icons.Rounded.Dns
-        ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> Icons.Rounded.CloudOff
+        ConnectionStatus.MAINTENANCE -> R.drawable.fa_solid_screwdriver_wrench
+        ConnectionStatus.UNSTABLE -> R.drawable.fa_solid_exclamation_triangle
+        ConnectionStatus.ONLINE -> R.drawable.fa_solid_check_circle
+        ConnectionStatus.SERVER_DOWN -> R.drawable.fa_solid_server
+        ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> R.drawable.fa_solid_unlink
     }
     val reduce = LocalReduceMotion.current
-    val shownContainer by animateColorAsState(container, motionTween(reduce), label = "banner container")
-    val shownContent by animateColorAsState(content, motionTween(reduce), label = "banner content")
     // Web `bannerPulse`: the icon pulses once whenever the connection gets worse.
     val pulse = remember { Animatable(1f) }
     LaunchedEffect(status) {
@@ -815,16 +853,17 @@ private fun ConnectionBanner(status: ConnectionStatus, message: String, onRetry:
         pulse.animateTo(1.25f, tween(PlaygroundMotion.SHORT, easing = PlaygroundMotion.Emphasized))
         pulse.animateTo(1f, tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Standard))
     }
-    Surface(color = shownContainer, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = null, tint = shownContent, modifier = Modifier.size(18.dp).graphicsLayer {
-                scaleX = pulse.value
-                scaleY = pulse.value
-            })
-            Text(message.ifBlank { status.defaultMessage() }, modifier = Modifier.weight(1f).padding(start = 8.dp),
-                style = MaterialTheme.typography.bodySmall, color = shownContent)
-            if (status != ConnectionStatus.ONLINE) TextButton(onClick = onRetry) { Text("再試行") }
-        }
+    val screen = LocalConfiguration.current.screenWidthDp.dp
+    Row(
+        Modifier.widthIn(max = minOf(screen - 32.dp, 420.dp)).shadow(20.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.35f))
+            .clip(CircleShape).background(background).border(1.dp, border, CircleShape).padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FaIcon(icon, null, size = 12.dp, tint = fg, modifier = Modifier.graphicsLayer { scaleX = pulse.value; scaleY = pulse.value })
+        Text(message.ifBlank { status.defaultMessage() }, fontSize = 12.sp, lineHeight = 16.sp, color = fg, modifier = Modifier.weight(1f, fill = false))
+        if (status != ConnectionStatus.ONLINE) Text("再試行", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = fg,
+            modifier = Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onRetry).padding(horizontal = 6.dp, vertical = 2.dp))
     }
 }
 
@@ -1342,6 +1381,7 @@ private fun ConversationContent(
     var activeMessageId by remember { mutableStateOf<String?>(null) }
     var deletingMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var tokenDetail by remember { mutableStateOf<TokenDetail?>(null) }
+    var pythonRuns by remember { mutableStateOf<List<com.minashin1120.aiplayground.data.PythonExecution>?>(null) }
     var encryptionState by remember { mutableStateOf<Boolean?>(null) }
     // Choosing a quick-access model hides the welcome screen until the next chat, as on Web.
     var welcomeDismissed by remember(state.chatTransitionId) { mutableStateOf(false) }
@@ -1353,9 +1393,13 @@ private fun ConversationContent(
         onDelete = { deletingMessage = it },
         onTokenDetail = { tokenDetail = it },
         onEncryption = { encryptionState = it },
+        onPython = { runs -> if (runs.isEmpty()) model.notify("Python実行結果がありません") else pythonRuns = runs },
     )
     Column(Modifier.fillMaxSize()) {
         TotalTokenBar(pathTotals, allTotals) { tokenDetail = it }
+        state.batchBanner?.let { (text, _) ->
+            BatchCompletionBanner(text, onOpen = { model.dismissBatchBanner(open = true) }, onClose = { model.dismissBatchBanner(open = false) })
+        }
         val screenWidth = LocalConfiguration.current.screenWidthDp.dp
         val sideCanvas = state.canvasMode && screenWidth >= CANVAS_SIDE_PANEL_MIN_WIDTH
         Row(Modifier.weight(1f).fillMaxWidth()) {
@@ -1463,6 +1507,7 @@ private fun ConversationContent(
         }
     }
     ModalValueHost(tokenDetail) { detail -> TokenDetailDialog(detail, onDismiss = { tokenDetail = null }) }
+    ModalValueHost(pythonRuns) { runs -> PythonExecutionDialog(runs, onDismiss = { pythonRuns = null }) }
     ModalValueHost(encryptionState) { encrypted ->
         EncryptionStatusDialog(encrypted, onSettings = { encryptionState = null; model.requestSettings() }, onDismiss = { encryptionState = null })
     }

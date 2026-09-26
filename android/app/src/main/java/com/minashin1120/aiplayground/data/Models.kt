@@ -21,7 +21,9 @@ data class ChatMessage(val id: String, val role: String, val content: String,
                        /** Web message meta: token counts, encryption, quote and Gem shown in the bubble footer. */
                        val tokens: Int? = null, val tokensIn: Int? = null, val tokensOut: Int? = null,
                        val tokensContent: Int? = null, val tokensThought: Int? = null,
-                       val encrypted: Boolean? = null, val quote: String = "", val gemName: String = "")
+                       val encrypted: Boolean? = null, val quote: String = "", val gemName: String = "",
+                       /** Web `batch_job`: shown as the Batch card above the answer. */
+                       val batch: BatchInfo? = null)
 /**
  * One composer attachment (Web `#upload-list` row). [name] is the send name ("送信名"), [defaultName] what it
  * falls back to; [source] is Web `upload` / `library`. After an image edit, [original] keeps the pre-edit file,
@@ -450,7 +452,7 @@ fun replaceGemMention(text: String, query: String): String {
 }
 
 /** Live-only progress cards for streamed search and tool execution. */
-enum class CardKind { SEARCH, PYTHON, MCP, CODING, TOOL }
+enum class CardKind { PYTHON, MCP, CODING, TOOL }
 
 data class StatusCard(
     val id: String,
@@ -545,7 +547,8 @@ fun parseMessages(json: JSONObject): List<ChatMessage> {
             tokensOut = row.nullableInt("tokens_out"), tokensContent = row.nullableInt("tokens_content"),
             tokensThought = row.nullableInt("tokens_thought"),
             encrypted = if (row.has("is_encrypted") && !row.isNull("is_encrypted")) row.optBoolean("is_encrypted") else null,
-            quote = row.nullableString("quote_text"), gemName = row.nullableString("gem_name"))
+            quote = row.nullableString("quote_text"), gemName = row.nullableString("gem_name"),
+            batch = parseBatchInfo(row))
     }
 }
 
@@ -633,18 +636,6 @@ fun parsePdfMessages(payload: JSONObject): List<ChatMessage> {
     }
 }
 
-/** Adds or updates the single Web-search card for the current stream. */
-fun upsertSearchCard(cards: List<StatusCard>, content: String): List<StatusCard> {
-    val done = content.trim().lowercase() in setOf("done", "complete", "completed", "finished")
-    val card = StatusCard(
-        id = "search", kind = CardKind.SEARCH,
-        label = if (done) "Web検索が完了しました" else "Webを検索しています…",
-        done = done,
-    )
-    val index = cards.indexOfFirst { it.kind == CardKind.SEARCH }
-    return if (index >= 0) cards.toMutableList().also { it[index] = card } else cards + card
-}
-
 /** Merges the code and output events that share one Python execution id. */
 fun upsertPythonCard(cards: List<StatusCard>, payload: JSONObject): List<StatusCard> {
     val id = payload.optString("id").ifBlank { "python" }
@@ -683,11 +674,27 @@ fun upsertMcpCard(cards: List<StatusCard>, payload: JSONObject?): List<StatusCar
     return if (index >= 0) cards.toMutableList().also { it[index] = card } else cards + card
 }
 
+/**
+ * Web `appendCodingLiveDiff`: one "Live Code Changes" entry per edit ([StatusCard.label] is the
+ * "Edit n · language" line, [StatusCard.output] the diff); a repeated edit index is ignored.
+ */
+fun appendCodingDiff(cards: List<StatusCard>, payload: JSONObject?): List<StatusCard> {
+    val diff = payload?.optString("diff").orEmpty()
+    if (payload == null || diff.isEmpty()) return cards
+    val editIndex = payload.optInt("edit_index", 0).coerceAtLeast(0)
+    val id = if (editIndex > 0) "coding-edit-$editIndex" else "coding-${cards.count { it.kind == CardKind.CODING }}"
+    if (editIndex > 0 && cards.any { it.kind == CardKind.CODING && it.id == id }) return cards
+    val repair = payload.optInt("repair_attempt", 0).takeIf { it > 0 }?.let { " · Auto repair $it" }.orEmpty()
+    val language = payload.optString("language").ifBlank { "text" }
+    return cards + StatusCard(id, CardKind.CODING, "Edit $editIndex · $language$repair", output = diff, done = true)
+}
+
 fun upsertToolCard(cards: List<StatusCard>, type: String, content: Any?): List<StatusCard> {
     val payload = content as? JSONObject
     if (type == "mcp") return upsertMcpCard(cards, payload)
     if (type.startsWith("mcp")) return cards
-    val kind = if (type == "coding_diff") CardKind.CODING else if (type.startsWith("mcp")) CardKind.MCP else CardKind.TOOL
+    if (type == "coding_diff") return appendCodingDiff(cards, payload)
+    val kind = CardKind.TOOL
     val id = payload?.optString("id")?.takeIf { it.isNotBlank() }
         ?: payload?.optString("tool_call_id")?.takeIf { it.isNotBlank() }
         ?: payload?.optString("target_id")?.takeIf { it.isNotBlank() }

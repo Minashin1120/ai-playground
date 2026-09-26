@@ -7,6 +7,7 @@ import okhttp3.Callback
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -30,6 +31,13 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
         .writeTimeout(120, TimeUnit.SECONDS).callTimeout(180, TimeUnit.SECONDS).build()
     private val streaming = normal.newBuilder().readTimeout(660, TimeUnit.SECONDS)
         .callTimeout(0, TimeUnit.SECONDS).build()
+    /**
+     * Images from other sites inside answers (Web renders them with `<img>`). A separate client that never
+     * carries the token or cookies; only https, and redirects may not leave https.
+     */
+    private val external = OkHttpClient.Builder().cookieJar(CookieJar.NO_COOKIES)
+        .followRedirects(true).followSslRedirects(false).retryOnConnectionFailure(false)
+        .connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).callTimeout(40, TimeUnit.SECONDS).build()
 
     internal fun url(path: String): HttpUrl {
         require(path.startsWith('/') && !path.startsWith("//")) { "Invalid API path" }
@@ -160,6 +168,27 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("file", name, body).build()
         return execute(request("/upload", token).post(multipart).build(), consume = ::jsonResponse)
+    }
+
+    /**
+     * Web one-shot speech-to-speech (`POST /sts`): the recorded clip plus the dock settings. Each response
+     * line (NDJSON, or the single JSON object of the synchronous path) is passed to [onLine].
+     */
+    suspend fun sts(file: File, fields: Map<String, String>, token: String, onLine: (JSONObject) -> Unit) {
+        val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("file", file.name, file.asRequestBody("audio/mp4".toMediaType()))
+            .apply { fields.forEach { (key, value) -> addFormDataPart(key, value) } }
+            .build()
+        execute(request("/sts", token).post(multipart).build(), streaming, track = false) { response ->
+            if (!response.isSuccessful) throw error(response)
+            val source = response.body.source()
+            while (!source.exhausted()) {
+                // The synchronous path answers with one JSON object that may lack the final newline.
+                val line = source.readUtf8Line() ?: break
+                if (line.isBlank()) continue
+                onLine(JSONObject(line))
+            }
+        }
     }
 
     /** Web `/transcribe`: a recorded clip for the STT API or the current LLM ([llmModel]). */
@@ -295,6 +324,15 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
     }
 
     /** Loads a same-origin attachment or its WebP thumbnail within a byte budget. */
+    suspend fun loadExternalImage(url: String, limit: Long): ByteArray {
+        val target = url.toHttpUrlOrNull()?.takeIf { it.scheme == "https" && it.host.isNotBlank() } ?: throw IOException("画像のURLが不正です。")
+        val req = Request.Builder().url(target).header("User-Agent", "AIPlayground-Android/${BuildConfig.VERSION_NAME}").build()
+        return execute(req, external, track = false) { response ->
+            if (!response.isSuccessful || response.request.url.scheme != "https") throw IOException("画像を取得できませんでした。")
+            readBoundedBytes(response.body.byteStream(), limit)
+        }
+    }
+
     suspend fun loadFileBytes(reference: String, token: String, thumbnail: Boolean, limit: Long): ByteArray {
         val ref = fileReferencePath(reference) ?: throw IOException("添付の参照が不正です。")
         return execute(request(filePath(ref, thumbnail), token).build(), track = false) { response ->

@@ -12,9 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
@@ -119,11 +116,11 @@ fun AppChangelogDialog(
                             onValueChange = { query = it },
                             singleLine = true,
                             placeholder = { Text("更新履歴を検索...") },
-                            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                            leadingIcon = { FaIcon(com.minashin1120.aiplayground.R.drawable.fa_solid_search, null, size = 14.dp) },
                             trailingIcon = {
                                 if (query.isNotEmpty()) {
                                     IconButton(onClick = { query = "" }) {
-                                        Icon(Icons.Rounded.Close, contentDescription = "検索をクリア")
+                                        FaIcon(com.minashin1120.aiplayground.R.drawable.fa_solid_times, "検索をクリア", size = 14.dp)
                                     }
                                 }
                             },

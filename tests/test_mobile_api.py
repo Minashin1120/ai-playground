@@ -125,7 +125,12 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(catalog['gpt-realtime-2']['mode'], 'realtime_audio')
         self.assertTrue(catalog['gpt-realtime-2']['selectable'])
         self.assertTrue(catalog['gpt-realtime-translate']['selectable'])
-        self.assertFalse(catalog['gpt-realtime-whisper']['selectable'])
+        self.assertTrue(catalog['gpt-realtime-whisper']['selectable'])
+        self.assertEqual(catalog['gemini-embedding-2']['mode'], 'embedding')
+        self.assertTrue(catalog['gemini-embedding-2']['selectable'])
+        self.assertEqual(catalog['lyria-3.5']['mode'], 'music')
+        self.assertTrue(catalog['lyria-3.5']['selectable'])
+        self.assertTrue(catalog['lyria-realtime-exp']['selectable'])
         self.assertIn('batch', catalog['gpt-5.6-sol']['capabilities'])
         self.assertTrue(catalog['gemini-3-pro-preview']['deprecated'])
         self.assertIn('no-store', response.headers['Cache-Control'])
@@ -360,6 +365,35 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json['mode'], 'inspect')
         self.assertIn('enter_to_send', response.json['current'])
+
+    def test_native_one_shot_sts_is_owner_scoped(self):
+        token = self.token()
+        own = self.call('/api/threads', token, 'POST', json={})
+        self.assertEqual(own.status_code, 200)
+        with target.app.app_context():
+            foreign = target.Thread(user_id=self.other_id, title='other')
+            target.db.session.add(foreign)
+            target.db.session.commit()
+            foreign_id = foreign.id
+
+        def clip():
+            return (io.BytesIO(b'fake-m4a'), 'sts_recording.m4a')
+
+        response = self.call('/sts', token, 'POST', data={'file': clip(), 'model': 'gpt-transcribe', 'thread_id': str(foreign_id)},
+                             content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 403)
+        response = self.call('/sts', token, 'POST', data={'file': clip(), 'model': 'gpt-5.6-sol', 'thread_id': str(own.json['id'])},
+                             content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 400)
+        with mock.patch.object(target, '_get_model_specific_api_key', return_value='sk-test'), \
+             mock.patch.object(target, '_convert_audio_to_pcm', return_value=b'\x00\x00' * 240), \
+             mock.patch.object(target, '_openai_realtime_transcribe', new=mock.AsyncMock(return_value='こんにちは')):
+            response = self.call('/sts', token, 'POST', data={'file': clip(), 'model': 'gpt-transcribe', 'thread_id': str(own.json['id'])},
+                                 content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 200)
+        line = json.loads(response.data.decode().splitlines()[0])
+        self.assertTrue(line['final'])
+        self.assertEqual(line['transcript'], 'こんにちは')
 
     def test_native_library_and_gems_are_owner_scoped(self):
         token = self.token()

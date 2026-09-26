@@ -20,15 +20,18 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -102,32 +105,44 @@ private fun McpBox(card: StatusCard) {
     }
 }
 
+/**
+ * Web `.coding-live-diff` ("Live Code Changes"): each Coding edit's diff as it arrives, with added, removed,
+ * hunk and file lines coloured like `renderCodingDiffLines`.
+ */
 @Composable
-fun StatusCardView(card: StatusCard) {
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, shape = RoundedCornerShape(12.dp), border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Crossfade(card.done, modifier = Modifier.size(16.dp), animationSpec = motionTween(LocalReduceMotion.current), label = "status card icon") { done ->
-                    Box(contentAlignment = Alignment.Center) {
-                        if (done) Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                        else CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+fun CodingLiveDiff(edits: List<StatusCard>) {
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        Modifier.padding(vertical = 12.dp).fillMaxWidth().clip(shape).background(Color(2, 18, 17).copy(alpha = 0.82f))
+            .border(1.dp, Color(52, 211, 153).copy(alpha = 0.32f), shape),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().background(Color(6, 78, 59).copy(alpha = 0.28f)).padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FaIcon(R.drawable.fa_solid_code_branch, null, size = 11.dp, tint = Color(0xFFA7F3D0), modifier = Modifier.padding(end = 4.dp))
+            Text("Live Code Changes", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA7F3D0), modifier = Modifier.weight(1f))
+            Text("${edits.size} edit${if (edits.size == 1) "" else "s"}", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = Color(0xFF6EE7B7))
+        }
+        Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+            edits.forEachIndexed { index, edit ->
+                if (index > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(Color(148, 163, 184).copy(alpha = 0.16f)))
+                Text(edit.label, fontSize = 10.sp, lineHeight = 14.sp, fontFamily = WebFonts.mono, color = Color(0xFF94A3B8),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+                Column(Modifier.fillMaxWidth().background(Color(2, 6, 23).copy(alpha = 0.58f)).horizontalScroll(rememberScrollState())
+                    .padding(top = 8.dp, bottom = 10.dp)) {
+                    edit.output.split('\n').forEach { line ->
+                        val (color, background) = when {
+                            line.startsWith("+++") || line.startsWith("---") -> Color(0xFF7DD3FC) to Color.Transparent
+                            line.startsWith("@@") -> Color(0xFFC4B5FD) to Color(124, 58, 237).copy(alpha = 0.1f)
+                            line.startsWith("+") -> Color(0xFFBBF7D0) to Color(22, 163, 74).copy(alpha = 0.16f)
+                            line.startsWith("-") -> Color(0xFFFECACA) to Color(220, 38, 38).copy(alpha = 0.14f)
+                            else -> Color(0xFFCBD5E1) to Color.Transparent
+                        }
+                        Text(line.ifEmpty { " " }, fontSize = 11.sp, lineHeight = 17.sp, fontFamily = WebFonts.mono, color = color, softWrap = false,
+                            fontWeight = if (line.startsWith("+++") || line.startsWith("---")) FontWeight.Bold else null,
+                            modifier = Modifier.background(background).padding(horizontal = 10.dp))
                     }
-                }
-                Text(card.label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(start = 8.dp))
-            }
-            if (card.code.isNotBlank()) {
-                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(8.dp)) {
-                    Text(card.code, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(10.dp))
-                }
-            }
-            if (card.detail.isNotBlank()) Text(card.detail, style = MaterialTheme.typography.bodySmall)
-            if (card.output.isNotBlank()) {
-                Text("出力", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                SelectionContainer {
-                    Text(card.output, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall,
-                        maxLines = 12, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -146,7 +161,7 @@ fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) ->
     val thought = state.liveThought.ifBlank { live.thoughtPlaceholder.orEmpty() }
     val python = state.cards.filter { it.kind == CardKind.PYTHON }
     val mcp = state.cards.filter { it.kind == CardKind.MCP }
-    val coding = state.cards.filter { it.kind == CardKind.CODING || it.kind == CardKind.TOOL }
+    val coding = state.cards.filter { it.kind == CardKind.CODING }
     val pending = live.pendingStatus
     val skeleton: (@Composable () -> Unit)? =
         if (pending != null) { { PendingSkeleton(live.model.ifBlank { state.model }, pending, live.pendingSub) } } else null
@@ -158,10 +173,10 @@ fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) ->
             if (live.search.isNotEmpty()) LiveSearchBox(live.search)
             python.asReversed().forEach { card -> key(card.id) { PythonExecutionBox(card) } }
             live.imageAnalysis?.let { LiveImageAnalysis(it) }
-            coding.forEach { card -> key(card.id + card.kind) { StatusCardView(card) } }
         },
         liveSkeleton = skeleton,
         liveBottom = {
+            if (coding.isNotEmpty()) CodingLiveDiff(coding)
             if (mcp.isNotEmpty()) Column(Modifier.padding(top = 12.dp)) {
                 mcp.forEach { card -> key(card.id) { Box(Modifier.padding(bottom = 8.dp)) { McpBox(card) } } }
             }
@@ -265,29 +280,30 @@ internal class ConversationKeyTracker {
     }
 }
 
-/** Three softly pulsing dots shown while the reply has not produced text yet. */
+/** Web `#batch-notification-banner`: a finished Batch job, with 開く (opens its chat) and ×. */
 @Composable
-internal fun TypingDots(modifier: Modifier = Modifier) {
-    val reduce = LocalReduceMotion.current
-    val color = MaterialTheme.colorScheme.primary
-    val transition = rememberInfiniteTransition(label = "typing dots")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1_050, easing = LinearEasing)),
-        label = "typing phase",
-    )
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-        repeat(3) { index ->
-            val alpha = if (reduce) 0.7f else typingDotAlpha(phase, index)
-            Box(Modifier.size(7.dp).graphicsLayer { this.alpha = alpha }.clip(CircleShape).background(color))
+internal fun BatchCompletionBanner(text: String, onOpen: () -> Unit, onClose: () -> Unit) {
+    val web = LocalWebPalette.current
+    val shape = RoundedCornerShape(12.dp)
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Row(
+            Modifier.padding(12.dp).widthIn(max = 544.dp).fillMaxWidth().clip(shape)
+                .background(if (web.isLight) Color(0xFFF5F3FF) else Color(46, 16, 101).copy(alpha = 0.95f))
+                .border(1.dp, Tw.violet400.copy(alpha = 0.4f), shape)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            val fg = if (web.isLight) Color(0xFF4C1D95) else Color(0xFFEDE9FE)
+            FaIcon(R.drawable.fa_solid_layer_group, null, size = 14.dp, tint = if (web.isLight) Color(0xFF6D28D9) else Tw.violet300)
+            Text(text, fontSize = 14.sp, lineHeight = 20.sp, color = fg, modifier = Modifier.weight(1f))
+            Text("開く", fontSize = 12.sp, color = fg,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(139, 92, 246).copy(alpha = 0.3f))
+                    .clickable(role = Role.Button, onClick = onOpen).padding(horizontal = 10.dp, vertical = 4.dp))
+            Box(Modifier.size(24.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClose), contentAlignment = Alignment.Center) {
+                FaIcon(R.drawable.fa_solid_times, "閉じる", size = 12.dp, tint = (if (web.isLight) Color(0xFF6D28D9) else Tw.violet200).copy(alpha = 0.7f))
+            }
         }
     }
-}
-
-/** Each dot peaks a third of a cycle after the previous one. */
-internal fun typingDotAlpha(phase: Float, index: Int): Float {
-    val local = ((phase - index / 3f) % 1f + 1f) % 1f
-    val wave = if (local < 0.5f) local * 2f else (1f - local) * 2f
-    return 0.3f + 0.7f * wave
 }

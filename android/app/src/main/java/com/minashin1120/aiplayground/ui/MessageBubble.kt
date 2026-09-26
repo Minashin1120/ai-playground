@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -99,6 +100,8 @@ internal class MessageActions(
     val onSwitchBranch: (Int) -> Unit = {},
     val onTokenDetail: (TokenDetail) -> Unit = {},
     val onEncryption: (Boolean) -> Unit = {},
+    /** Web `openPythonExecDetail`: the footer's "Python" button. */
+    val onPython: (List<com.minashin1120.aiplayground.data.PythonExecution>) -> Unit = {},
 )
 
 /** Web thought text: stored as JSON `{"text": …}` or as plain text. */
@@ -132,6 +135,12 @@ internal fun MessageBubble(
     val web = LocalWebPalette.current
     val user = message.role == "user"
     val persisted = numericId(message) != null
+    // Web `renderMessage`: Python runs leave the answer (footer button) and MCP notices move after the prose.
+    val (display, pythonRuns) = remember(message.content, user) {
+        if (user) message.content to emptyList()
+        else com.minashin1120.aiplayground.data.extractPythonExecutions(message.content)
+            .let { (text, runs) -> com.minashin1120.aiplayground.data.moveMcpNotesToEnd(text) to runs }
+    }
     val shape = if (user) RoundedCornerShape(20.dp, 20.dp, 8.dp, 20.dp) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 8.dp)
     val background = when {
         user -> Brush.verticalGradient(listOf(web.theme.t500, web.theme.t600))
@@ -171,14 +180,15 @@ internal fun MessageBubble(
                     }
                 } else if (liveSkeleton != null) {
                     liveSkeleton()
-                } else if (message.content.isNotEmpty()) {
-                    MarkdownText(message.content, loader, onFile, startCollapsed = !streaming, canvasMode = LocalCanvasMode.current)
+                } else {
+                    message.batch?.let { BatchStatusCard(it) }
+                    if (display.isNotEmpty()) MarkdownText(display, loader, onFile, startCollapsed = !streaming, canvasMode = LocalCanvasMode.current)
                 }
                 liveBottom?.invoke()
                 val files = message.files.filterNot { !user && message.content.contains(it) }
                 if (files.isNotEmpty()) AttachmentGrid(files, loader, onFile)
                 if (branchCount > 1) VersionSwitcher(branchIndex, branchCount, actions.onSwitchBranch)
-                MessageFooter(message, user, actions)
+                MessageFooter(message, user, actions, pythonRuns)
             }
             // `.msg-controls`: absolute, 12px above the bubble's top-right corner.
             val controlsAlpha by animateFloatAsState(if (controlsVisible) 1f else 0f, motionTween(LocalReduceMotion.current, 220), label = "msg controls")
@@ -397,7 +407,8 @@ private fun VersionSwitcher(index: Int, count: Int, onSwitch: (Int) -> Unit) {
 /** `.message-footer-meta`: model • Gem • token counts (dotted underline) • lock, 10px monospace, right-aligned. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageActions) {
+private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageActions,
+                          pythonRuns: List<com.minashin1120.aiplayground.data.PythonExecution> = emptyList()) {
     val web = LocalWebPalette.current
     val color = if (web.isLight) Color(0xFF3F4A5C) else Color(203, 213, 225).copy(alpha = 0.9f)
     val style = TextStyle(color = color, fontSize = 10.sp, lineHeight = 20.sp, fontFamily = FontFamily.Monospace)
@@ -427,6 +438,20 @@ private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageA
                 FaIcon(if (encrypted) R.drawable.fa_solid_lock else R.drawable.fa_solid_lock_open, if (encrypted) "Encrypted" else "Plain",
                     size = 10.dp, tint = if (web.isLight) (if (user) Color.White else web.text) else Color(203, 213, 225).copy(alpha = 0.8f))
             }
+        }
+    }
+    if (!user && pythonRuns.isNotEmpty()) parts += {
+        // `.python-exec-btn`
+        Row(
+            Modifier.padding(start = 2.4.dp).clip(CircleShape).background(Color(245, 158, 11).copy(alpha = 0.12f))
+                .border(1.dp, Color(245, 158, 11).copy(alpha = 0.35f), CircleShape)
+                .clickable(onClickLabel = "Python実行結果を表示", role = Role.Button) { actions.onPython(pythonRuns) }
+                .padding(horizontal = 7.2.dp, vertical = 2.4.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.8.dp),
+        ) {
+            FaIcon(R.drawable.fa_solid_terminal, null, size = 8.5.dp, tint = Color(0xFFFDE68A))
+            Text(if (pythonRuns.size > 1) "Python ×${pythonRuns.size}" else "Python",
+                style = style.copy(color = Color(0xFFFDE68A), lineHeight = 12.sp))
         }
     }
     if (parts.isEmpty()) return
@@ -641,5 +666,29 @@ internal fun ScrollToBottomPill(onClick: () -> Unit, modifier: Modifier = Modifi
     ) {
         FaIcon(R.drawable.fa_solid_arrow_down, null, size = 12.dp, tint = Color(0xFFF8FAFC))
         Text("一番下へ", color = Color(0xFFF8FAFC), fontSize = 12.sp, lineHeight = 12.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** Web `.batch-status-card`: Batch state above the answer (violet while running, green done, red failed). */
+@Composable
+private fun BatchStatusCard(info: com.minashin1120.aiplayground.data.BatchInfo) {
+    val web = LocalWebPalette.current
+    val (border, background, text) = when (info.state) {
+        "JOB_STATE_FAILED", "JOB_STATE_CANCELLED", "JOB_STATE_EXPIRED" ->
+            Triple(Tw.red400.copy(alpha = 0.4f), Color(69, 10, 10).copy(alpha = 0.3f), web.twText(Tw.red100))
+        "JOB_STATE_SUCCEEDED" -> Triple(Tw.emerald400.copy(alpha = 0.4f), Tw.emerald950.copy(alpha = 0.3f), web.twText(Tw.emerald100))
+        else -> Triple(Tw.violet400.copy(alpha = 0.4f), Color(46, 16, 101).copy(alpha = 0.3f), web.twText(Color(0xFFEDE9FE)))
+    }
+    val shape = RoundedCornerShape(8.dp)
+    Column(
+        Modifier.padding(bottom = 12.dp).fillMaxWidth().clip(shape).background(background).border(1.dp, border, shape)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            FaIcon(R.drawable.fa_solid_layer_group, null, size = 11.dp, tint = text, modifier = Modifier.padding(end = 4.dp))
+            Text("Batch", fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.SemiBold, color = text)
+        }
+        Text(com.minashin1120.aiplayground.data.batchStatusText(info), fontSize = 12.sp, lineHeight = 16.sp,
+            color = text.copy(alpha = 0.9f), modifier = Modifier.padding(top = 4.dp))
     }
 }

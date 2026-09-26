@@ -17,6 +17,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -39,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.StatusCard
+import com.minashin1120.aiplayground.data.CardKind
 import com.minashin1120.aiplayground.data.pendingSkeletonKind
 import kotlinx.coroutines.delay
 
@@ -200,11 +203,16 @@ internal fun LiveImageAnalysis(text: String) {
     }
 }
 
-/** `.python-box`: "Python Execution" (collapsed), expand, copy code, copy output; Code and Output sections. */
+/**
+ * `.python-box`: "Python Execution" (collapsed), expand, copy code, copy output; Code and Output sections.
+ * [detail] is the box in the "Python 実行結果" modal (`buildPythonExecDetailBoxHtml`): open, with the Coding
+ * target and download buttons instead of expand.
+ */
 @Composable
-internal fun PythonExecutionBox(card: StatusCard) {
+internal fun PythonExecutionBox(card: StatusCard, label: String = "Python Execution", detail: Boolean = false) {
     val colors = markdownColors()
-    var collapsed by remember(card.id) { mutableStateOf(true) }
+    val actions = LocalMarkdownCodeActions.current
+    var collapsed by remember(card.id) { mutableStateOf(!detail) }
     val clipboard = LocalClipboardManager.current
     val shape = RoundedCornerShape(16.dp)
     Column(
@@ -218,10 +226,17 @@ internal fun PythonExecutionBox(card: StatusCard) {
         ) {
             Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.6.dp)) {
                 FaIcon(R.drawable.fa_solid_terminal, null, size = 10.88.dp, tint = Color(0xFFFDE68A))
-                Text("Python Execution", color = Color(0xFFFDE68A), fontSize = 10.88.sp, lineHeight = 13.06.sp, fontWeight = FontWeight.SemiBold)
+                Text(label, color = Color(0xFFFDE68A), fontSize = 10.88.sp, lineHeight = 13.06.sp, fontWeight = FontWeight.SemiBold)
             }
             val actionColors = colors.copy(codeHeaderText = Color(0xFFCBD5F5))
-            CodeActionButton(if (collapsed) R.drawable.fa_solid_chevron_down else R.drawable.fa_solid_chevron_up,
+            if (detail) {
+                if (actions.onCodingTarget != null) {
+                    val active = actions.selectedCodingKey == com.minashin1120.aiplayground.data.codingTargetKey("python", card.code)
+                    CodeActionButton(if (active) R.drawable.fa_solid_thumbtack else R.drawable.fa_solid_quote_right,
+                        if (active) "編集対象に設定済み" else "Coding Modeの編集対象に指定", actionColors) { actions.onCodingTarget.invoke(card.code, "python") }
+                }
+                CodeActionButton(R.drawable.fa_solid_download, "コードをダウンロード", actionColors) { actions.onDownload(card.code, "python") }
+            } else CodeActionButton(if (collapsed) R.drawable.fa_solid_chevron_down else R.drawable.fa_solid_chevron_up,
                 if (collapsed) "展開" else "折りたたむ", actionColors) { collapsed = !collapsed }
             CodeActionButton(R.drawable.fa_solid_copy, "コードをコピー", actionColors) { clipboard.setText(AnnotatedString(card.code)) }
             CodeActionButton(R.drawable.fa_solid_align_left, "出力をコピー", actionColors) { clipboard.setText(AnnotatedString(card.output)) }
@@ -320,6 +335,38 @@ private fun SettingsResultRows(entries: List<Pair<String, String>>, onJump: (Str
                 }
                 FaIcon(R.drawable.fa_solid_arrow_up_right_from_square, null, size = 10.dp, tint = web.twText(Tw.blue300))
             }
+        }
+    }
+}
+
+/** Web `#python-exec-modal` (`openPythonExecDetail`): every Python run saved in the answer. */
+@Composable
+internal fun PythonExecutionDialog(runs: List<com.minashin1120.aiplayground.data.PythonExecution>, onDismiss: () -> Unit) {
+    val web = LocalWebPalette.current
+    WebOverlayModal(onDismiss, grayOverlay(), 4.dp) { _ ->
+        val shape = RoundedCornerShape(12.dp)
+        Box(
+            Modifier.padding(16.dp).widthIn(max = 672.dp).fillMaxWidth().clip(shape).background(web.twBg(Tw.gray900))
+                .border(1.dp, web.twBorder(Tw.gray700), shape).padding(16.dp),
+        ) {
+            Column {
+                Row(Modifier.padding(end = 32.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FaIcon(R.drawable.fa_solid_terminal, null, size = 13.dp, tint = web.twText(Tw.amber300), modifier = Modifier.padding(end = 6.dp))
+                    Text("Python 実行結果" + if (runs.size > 1) "（${runs.size}件）" else "", fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                        color = web.twText(Tw.amber300))
+                }
+                Column(Modifier.padding(top = 12.dp).heightIn(max = 640.dp).verticalScroll(rememberScrollState())) {
+                    runs.forEachIndexed { index, run ->
+                        PythonExecutionBox(
+                            StatusCard("pyexec-detail-$index", CardKind.PYTHON, "", code = run.code, output = run.output, done = true),
+                            label = if (runs.size > 1) "Python Execution ${index + 1}/${runs.size}" else "Python Execution",
+                            detail = true,
+                        )
+                    }
+                }
+            }
+            Box(Modifier.align(Alignment.TopEnd).size(24.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onDismiss),
+                contentAlignment = Alignment.Center) { FaIcon(R.drawable.fa_solid_times, "閉じる", size = 13.dp, tint = Tw.gray400) }
         }
     }
 }

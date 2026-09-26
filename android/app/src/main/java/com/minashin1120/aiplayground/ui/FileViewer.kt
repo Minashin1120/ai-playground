@@ -10,17 +10,25 @@ import android.widget.FrameLayout
 import android.widget.MediaController
 import android.widget.VideoView
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
+import com.minashin1120.aiplayground.R
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -49,6 +57,16 @@ internal data class FileViewRequest(
     val displayName: String = "",
     val ext: String = "",
     val mime: String = "",
+    /** Web `openImageViewer`: the chat's images the viewer steps through ("n / total"). */
+    val gallery: List<String> = emptyList(),
+)
+
+/** What the Web image viewer toolbar does with the shown image. */
+internal class ImageViewerActions(
+    val onDownload: (String) -> Unit = {},
+    val onCopyUrl: (String) -> Unit = {},
+    /** Returns whether the image was added (the viewer then closes, as on Web). */
+    val onReuse: (String) -> Boolean = { false },
 )
 
 internal fun fileViewerTitle(reference: String, displayName: String = ""): String {
@@ -97,57 +115,111 @@ internal fun FileViewerDialog(
     download: suspend (String) -> Pair<File, String>,
     onDismiss: () -> Unit,
     onOpenExternal: (String) -> Unit,
+    imageActions: ImageViewerActions = ImageViewerActions(),
 ) {
     val title = fileViewerTitle(request.reference, request.displayName)
     val kind = fileViewerKind(request)
+    if (kind == AttachmentKind.IMAGE) {
+        ImageViewer(request, loader, onDismiss, imageActions)
+        return
+    }
+    // Web `#file-viewer`: a dark panel with the file name and the round close button.
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        ModalPanelMotion(fullScreen = false, onDismissRequest = onDismiss) {
-        Surface(
-            Modifier.fillMaxWidth().fillMaxHeight(0.94f).padding(8.dp),
-            shape = MaterialTheme.shapes.large,
-            tonalElevation = 3.dp,
-        ) {
-            Column(Modifier.fillMaxSize()) {
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+        WebModalWindow(0.dp)
+        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(2, 6, 16).copy(alpha = 0.94f))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
+            contentAlignment = Alignment.Center) {
+            ModalPanelMotion(fullScreen = false, onDismissRequest = onDismiss) {
+                val web = LocalWebPalette.current
+                val shape = RoundedCornerShape(16.dp)
+                val screen = LocalConfiguration.current
+                Column(
+                    Modifier.width(minOf(screen.screenWidthDp.dp * 0.92f, 980.dp)).heightIn(max = screen.screenHeightDp.dp * 0.86f)
+                        .clip(shape).background(androidx.compose.ui.graphics.Color(10, 16, 30).copy(alpha = 0.92f)).border(1.dp, web.line, shape)
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
                 ) {
-                    Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 2,
-                        modifier = Modifier.weight(1f))
-                    IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, "閉じる") }
-                }
-                HorizontalDivider()
-                Box(Modifier.weight(1f).fillMaxWidth().padding(12.dp)) {
-                    when (kind) {
-                        AttachmentKind.IMAGE -> ImagePreview(request.reference, loader)
-                        AttachmentKind.TEXT -> TextPreview(request.reference, loader)
-                        AttachmentKind.PDF -> DownloadedPreview(request.reference, download) { file, _ ->
-                            PdfPreview(file)
+                    Row(
+                        Modifier.fillMaxWidth().drawBehind {
+                            drawRect(androidx.compose.ui.graphics.Color(148, 163, 184).copy(alpha = 0.12f),
+                                Offset(0f, size.height - 1.dp.toPx()), androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx()))
+                        }.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(title, fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFFE5E7EB), maxLines = 1,
+                            overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Box(Modifier.size(32.dp).clip(CircleShape).background(androidx.compose.ui.graphics.Color(13, 21, 40).copy(alpha = 0.7f))
+                            .border(1.dp, web.line, CircleShape).clickable(role = Role.Button, onClick = onDismiss),
+                            contentAlignment = Alignment.Center) {
+                            FaIcon(R.drawable.fa_solid_times, "close", size = 12.dp, tint = androidx.compose.ui.graphics.Color(0xFFE5E7EB))
                         }
-                        AttachmentKind.AUDIO -> DownloadedPreview(request.reference, download) { file, _ ->
-                            AudioPreview(file)
-                        }
-                        AttachmentKind.VIDEO -> DownloadedPreview(request.reference, download) { file, _ ->
-                            VideoPreview(file)
-                        }
-                        AttachmentKind.FILE -> UnsupportedPreview()
                     }
-                }
-                HorizontalDivider()
-                Row(
-                    Modifier.fillMaxWidth().padding(8.dp),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextButton(onClick = { onOpenExternal(request.reference) }) {
-                        Icon(Icons.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("外部アプリで開く")
+                    Box(Modifier.weight(1f, fill = false).fillMaxWidth().padding(10.dp)) {
+                        when (kind) {
+                            AttachmentKind.TEXT -> TextPreview(request.reference, loader)
+                            AttachmentKind.PDF -> DownloadedPreview(request.reference, download) { file, _ -> PdfPreview(file) }
+                            AttachmentKind.AUDIO -> DownloadedPreview(request.reference, download) { file, _ -> AudioPreview(file) }
+                            AttachmentKind.VIDEO -> DownloadedPreview(request.reference, download) { file, _ -> VideoPreview(file) }
+                            else -> UnsupportedPreview(onDownload = { imageActions.onDownload(request.reference) },
+                                onOpen = { onOpenExternal(request.reference) })
+                        }
                     }
-                    TextButton(onClick = onDismiss) { Text("閉じる") }
                 }
             }
         }
+    }
+}
+
+/**
+ * Web `#image-viewer`: the image on a dark backdrop with pinch zoom, "n / total • name" at the top, the
+ * previous / next buttons for the chat's other images and the Download / Copy URL / Reuse / Close toolbar.
+ */
+@Composable
+private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDismiss: () -> Unit, actions: ImageViewerActions) {
+    val items = request.gallery.takeIf { request.reference in it } ?: listOf(request.reference)
+    var index by remember(request) { mutableIntStateOf(items.indexOf(request.reference).coerceAtLeast(0)) }
+    val current = items[index]
+    val glass = androidx.compose.ui.graphics.Color(13, 21, 40).copy(alpha = 0.45f)
+    val edge = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f)
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        WebModalWindow(0.dp)
+        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(2, 6, 16).copy(alpha = 0.96f)).safeDrawingPadding()) {
+            key(current) {
+                Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 64.dp)) { ImagePreview(current, loader) }
+            }
+            Text(
+                "${index + 1} / ${items.size} • ${fileViewerTitle(current, if (current == request.reference) request.displayName else "")}",
+                fontSize = 13.sp, color = androidx.compose.ui.graphics.Color(0xFFF8FAFC), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp).fillMaxWidth(0.8f).wrapContentWidth()
+                    .clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).padding(horizontal = 20.dp, vertical = 8.dp),
+            )
+            if (items.size > 1) {
+                listOf(-1 to R.drawable.fa_solid_chevron_left, 1 to R.drawable.fa_solid_chevron_right).forEach { (step, icon) ->
+                    val enabled = index + step in items.indices
+                    Box(
+                        Modifier.align(if (step < 0) Alignment.CenterStart else Alignment.CenterEnd).padding(horizontal = 16.dp).size(48.dp)
+                            .graphicsLayer { alpha = if (enabled) 1f else 0.3f }.clip(CircleShape)
+                            .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f))
+                            .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f), CircleShape)
+                            .clickable(enabled = enabled, role = Role.Button) { index += step },
+                        contentAlignment = Alignment.Center,
+                    ) { FaIcon(icon, if (step < 0) "前へ" else "次へ", size = 16.dp, tint = androidx.compose.ui.graphics.Color.White) }
+                }
+            }
+            Row(
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape)
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                listOf<Triple<Int, String, () -> Unit>>(
+                    Triple(R.drawable.fa_solid_download, "Download", { actions.onDownload(current) }),
+                    Triple(R.drawable.fa_solid_link, "Copy URL", { actions.onCopyUrl(current) }),
+                    Triple(R.drawable.fa_solid_reply, "Reuse as Attachment", { if (actions.onReuse(current)) onDismiss() }),
+                    Triple(R.drawable.fa_solid_times, "Close", onDismiss),
+                ).forEach { (icon, label, action) ->
+                    Box(Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = label, onClick = action),
+                        contentAlignment = Alignment.Center) { FaIcon(icon, label, size = 16.dp, tint = androidx.compose.ui.graphics.Color(0xFFF1F5F9)) }
+                }
+            }
         }
     }
 }
@@ -369,8 +441,7 @@ private fun AudioPreview(file: File) {
                 playing = true
             }
         }) {
-            Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                contentDescription = if (playing) "一時停止" else "再生")
+            FaIcon(if (playing) R.drawable.fa_solid_pause else R.drawable.fa_solid_play, if (playing) "一時停止" else "再生", size = 16.dp)
         }
     }
 }
@@ -408,15 +479,18 @@ private fun VideoPreview(file: File) {
     )
 }
 
+/** Web `#file-viewer .fallback`: no preview, with ダウンロード and 新しいタブで開く. */
 @Composable
-private fun UnsupportedPreview() {
-    Column(
-        Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("この形式はアプリ内でプレビューできません。", style = MaterialTheme.typography.bodyMedium)
-        Text("外部アプリで開くか、チャットへ再利用できます。",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun UnsupportedPreview(onDownload: () -> Unit, onOpen: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("この形式はプレビューできません。", fontSize = 12.sp, color = androidx.compose.ui.graphics.Color(0xFFCBD5F5))
+        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("ダウンロード" to onDownload, "新しいタブで開く" to onOpen).forEach { (label, action) ->
+                val shape = RoundedCornerShape(4.dp)
+                Text(label, fontSize = 12.sp, color = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier.clip(shape).background(Tw.gray800).border(1.dp, Tw.gray700, shape)
+                        .clickable(role = Role.Button, onClick = action).padding(horizontal = 12.dp, vertical = 4.dp))
+            }
+        }
     }
 }

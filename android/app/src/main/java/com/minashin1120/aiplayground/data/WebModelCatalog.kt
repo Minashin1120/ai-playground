@@ -27,5 +27,5 @@ fun applyWebModelCatalog(models: List<ModelInfo>, json: String): List<ModelInfo>
 
 fun recentWebModels(models: List<ModelInfo>, limit: Int = 5): List<ModelInfo> = models
     .filter { it.selectable && !it.deprecated && it.implementedAt.isNotBlank() }
-    .sortedWith(compareByDescending<ModelInfo> { it.implementedAt }.thenByDescending { it.implementedRank }.thenBy { it.name })
+    .sortedWith(compareByDescending<ModelInfo> { it.implementedAt }.thenByDescending { it.implementedRank }.thenBy { it.id })
     .take(limit.coerceAtLeast(0))

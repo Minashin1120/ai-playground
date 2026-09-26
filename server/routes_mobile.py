@@ -29,7 +29,8 @@ _MOBILE_DEPRECATED_MODELS = {
 # The native Android Realtime studio uses the persistent conversation session
 # API.  OpenAI Realtime Whisper is a transcription-only session and must stay
 # unavailable until the Android client has a matching transcription flow.
-_MOBILE_REALTIME_TRANSCRIPTION_ONLY_MODELS = {'gpt-realtime-whisper'}
+# Realtime Whisper is recorded and sent to /sts in one request by the app, as on Web.
+_MOBILE_REALTIME_TRANSCRIPTION_ONLY_MODELS = set()
 
 
 def _mobile_model_mode(model_id):
@@ -83,7 +84,8 @@ def _mobile_model_metadata(model_id):
             capabilities += ['python', 'mcp']
     if mode in {'chat', 'image'} and globals().get('_is_batch_model', lambda _model: False)(model_id):
         capabilities.append('batch')
-    native_modes = {'chat', 'image', 'video', 'ocr', 'tts', 'transcription', 'realtime_audio', 'agent'}
+    # Lyria 3 music and Gemini embeddings are generated through /chat_stream; Lyria RealTime uses the music session API.
+    native_modes = {'chat', 'image', 'video', 'ocr', 'tts', 'transcription', 'realtime_audio', 'agent', 'music', 'embedding'}
     realtime_transcription_only = model_id in _MOBILE_REALTIME_TRANSCRIPTION_ONLY_MODELS
     return {
         'id': model_id,

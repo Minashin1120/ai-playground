@@ -50,8 +50,12 @@ fun GenerationOptionsPanel(
     onOpenLyriaStudio: () -> Unit = {},
     /** Minimal prompt bar: the Web moves these panels into the ＋ popup (`MINIMAL_MODEL_PANEL_IDS`). */
     minimal: Boolean = false,
+    /** The ＋ popup's "モデル設定" section: only the panels moved there. */
+    popup: Boolean = false,
 ) {
-    val panels = generationPanels(modelId, values).filter { !minimal || it.id !in MINIMAL_MODEL_PANEL_IDS }
+    val panels = generationPanels(modelId, values).filter {
+        if (popup) it.id in MINIMAL_MODEL_PANEL_IDS else !minimal || it.id !in MINIMAL_MODEL_PANEL_IDS
+    }
     if (panels.isEmpty()) return
     Column {
         panels.forEach { panel ->

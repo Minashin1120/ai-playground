@@ -298,10 +298,7 @@ class PlaygroundApiTest {
         assertTrue(runCatching { readBoundedBytes(ByteArrayInputStream(ByteArray(6)), 5L) }.exceptionOrNull() is IOException)
     }
 
-    @Test fun liveCardsMergeSearchAndPythonEvents() {
-        val search = upsertSearchCard(emptyList(), "searching")
-        assertFalse(search.single().done)
-        assertTrue(upsertSearchCard(search, "done").single().done)
+    @Test fun liveCardsMergePythonEvents() {
         val code = upsertPythonCard(emptyList(), JSONObject("""{"id":"p1","code":"print(1)"}"""))
         assertEquals("print(1)", code.single().code)
         val output = upsertPythonCard(code, JSONObject("""{"id":"p1","output":"1"}"""))
@@ -325,8 +322,12 @@ class PlaygroundApiTest {
         assertFalse(done.single().failed)
         assertEquals("ok", done.single().note)
         assertEquals(mcp, upsertToolCard(mcp, "mcp_decision_request", JSONObject("""{"id":"d1"}""")))
-        val coding = upsertToolCard(emptyList(), "coding_diff", JSONObject("""{"target_id":"c1","diff":"@@ -1 +1 @@"}"""))
+        val coding = upsertToolCard(emptyList(), "coding_diff", JSONObject("""{"edit_index":1,"language":"kotlin","diff":"@@ -1 +1 @@"}"""))
         assertEquals(CardKind.CODING, coding.single().kind)
-        assertTrue(coding.single().done)
+        assertEquals("Edit 1 · kotlin", coding.single().label)
+        assertEquals(coding, upsertToolCard(coding, "coding_diff", JSONObject("""{"edit_index":1,"diff":"x"}""")))
+        val repaired = upsertToolCard(coding, "coding_diff", JSONObject("""{"edit_index":2,"repair_attempt":1,"diff":"+a"}"""))
+        assertEquals("Edit 2 · text · Auto repair 1", repaired.last().label)
+        assertEquals(coding, upsertToolCard(coding, "coding_diff", JSONObject("""{"edit_index":3}""")))
     }
 }

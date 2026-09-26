@@ -55,6 +55,8 @@ data class ChatState(
     val integrityProjectNumber: String = "", val authTurnstileUrl: String? = null,
     /** The chat Turnstile check page (Web `#bot-detection-overlay`) while it is open in the browser. */
     val sessionTurnstileUrl: String? = null,
+    /** Web `#batch-notification-banner`: (text, thread to open) after a Batch job finished. */
+    val batchBanner: Pair<String, String>? = null,
     val googleAuthDiagnostics: String? = null,
     val security: SecurityInfo? = null, val securityBusy: Boolean = false, val securityError: String? = null,
     val securityTotpSecret: String? = null, val securityTotpUri: String? = null,
@@ -2277,15 +2279,41 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) { report(e) }
     } }
 
-    private suspend fun fetchBatchJobs(notify: Boolean) {
+    private suspend fun fetchBatchJobs(notify: Boolean, status: Boolean = notify) {
         val previous = state.value.batchJobs.associateBy { it.id }
-        if (notify) runCatching { api.get("/api/gemini/batch/status", token()) }
+        if (status) runCatching { pollBatchStatus() }
         val jobs = parseBatchJobs(api.get("/api/batch/jobs", token()))
+        // The system notification is added on Android (ANDROID_ONLY.md); the in-app banner follows Web.
         if (notify) jobs.filter { !it.active && previous[it.id]?.active == true }.forEach { job ->
             notifyBatchCompletion(getApplication<Application>(), job)
-            mutable.update { it.copy(notice = "Batch処理「${job.threadTitle}」: ${batchStateLabel(job)}") }
         }
         mutable.update { it.copy(batchJobs = jobs, batchBusy = false) }
+    }
+
+    /**
+     * Web `refreshGeminiBatchStatus`: lets the server collect finished jobs, shows the banner for them and
+     * reloads the open chat when one of them belongs to it. Returns whether any job finished.
+     */
+    private suspend fun pollBatchStatus(): Boolean {
+        val status = api.get("/api/gemini/batch/status", token())
+        val completed = status.optJSONArray("completed") ?: return false
+        if (completed.length() == 0) return false
+        val first = completed.getJSONObject(0)
+        val text = if (completed.length() == 1) "${first.optString("model")} のBatch処理が完了しました。"
+            else "${completed.length()}件のBatch処理が完了しました。"
+        mutable.update { it.copy(batchBanner = text to first.optString("thread_id")) }
+        val current = state.value.selected?.id
+        if (current != null && (0 until completed.length()).any { completed.getJSONObject(it).optString("thread_id") == current }) {
+            runCatching { loadMessages(current, autoResume = false) }
+        }
+        return true
+    }
+
+    /** Web `#batch-notification-open` / `#batch-notification-close`. */
+    fun dismissBatchBanner(open: Boolean) {
+        val banner = state.value.batchBanner ?: return
+        mutable.update { it.copy(batchBanner = null) }
+        if (open && banner.second.isNotBlank()) openThreadId(banner.second)
     }
 
     fun refreshBatchJobs() {
@@ -2299,9 +2327,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun startBatchPolling() {
         if (batchPollJob?.isActive == true) return
         batchPollJob = viewModelScope.launch {
+            // Web checks every 2 seconds; the job list itself is refreshed on completion and every 30 seconds.
+            var tick = 0
             while (foreground && session != null) {
-                if (state.value.batchJobs.any { it.active }) runCatching { fetchBatchJobs(notify = true) }
-                delay(30_000)
+                if (state.value.batchJobs.any { it.active }) {
+                    val finished = runCatching { pollBatchStatus() }.getOrDefault(false)
+                    if (finished || tick % 15 == 0) runCatching { fetchBatchJobs(notify = true, status = false) }
+                }
+                tick++
+                delay(2_000)
             }
         }
     }
@@ -2500,6 +2534,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * quiet moment, up to 20s) and stores the conversation in the chat; cancelling discards it.
      */
     fun stopRealtime(save: Boolean) {
+        if (stsRecorder != null) { stopOneShotSts(save); return }
         val current = state.value.realtime
         if (!current.active && current.sessionId.isBlank()) return
         if (rtStopping) return
@@ -2549,6 +2584,111 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Releases the session and shows [status]; after [resetMillis] the dock returns to "Tap to speak". */
+    // --- Web one-shot speech-to-speech (`/sts`) for transcription models ---
+
+    private var stsRecorder: android.media.MediaRecorder? = null
+    private var stsFile: File? = null
+    private var stsRequest: Map<String, String> = emptyMap()
+    private var stsAutoPlay = true
+    private var stsAutoRestart = false
+
+    /**
+     * Web `mic-btn` for models that are not realtime sessions (gpt-transcribe, gpt-live-transcribe,
+     * gpt-realtime-whisper): records until the next tap, then sends the clip to `/sts`.
+     */
+    fun startOneShotSts(modelId: String, fields: Map<String, String>, autoPlay: Boolean, autoRestart: Boolean) {
+        if (state.value.offline) { notify("オフライン中はRealtimeを開始できません。"); return }
+        if (stsRecorder != null || state.value.realtime.active) return
+        stsRequest = fields + ("model" to modelId)
+        stsAutoPlay = autoPlay
+        stsAutoRestart = autoRestart
+        val app = getApplication<Application>()
+        val file = File(app.cacheDir, "sts_recording.m4a")
+        try {
+            val recorder = if (Build.VERSION.SDK_INT >= 31) android.media.MediaRecorder(app) else android.media.MediaRecorder()
+            recorder.setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
+            recorder.setAudioSamplingRate(44_100)
+            recorder.setAudioEncodingBitRate(96_000)
+            recorder.setOutputFile(file.absolutePath)
+            recorder.prepare()
+            recorder.start()
+            stsRecorder = recorder
+            stsFile = file
+        } catch (e: Exception) {
+            stsRecorder?.release()
+            stsRecorder = null
+            notify("Microphone access denied or not available.")
+            return
+        }
+        mutable.update { it.copy(realtime = RealtimeState(active = true, model = modelId, status = "Recording... Tap to stop")) }
+    }
+
+    private fun stopOneShotSts(save: Boolean) {
+        val recorder = stsRecorder ?: return
+        stsRecorder = null
+        runCatching { recorder.stop() }
+        recorder.release()
+        val file = stsFile
+        val modelId = stsRequest["model"].orEmpty()
+        if (!save || file == null || !file.exists() || file.length() == 0L) {
+            file?.delete()
+            viewModelScope.launch { finishRealtime("Canceled", 800) }
+            return
+        }
+        mutable.update { it.copy(realtime = it.realtime.copy(active = false, status = "Sending audio...")) }
+        ensureThread {
+            viewModelScope.launch {
+                val threadId = state.value.selected?.id.orEmpty()
+                var track: AudioTrack? = null
+                var firstAudio = true
+                var saved = false
+                try {
+                    val transcription = modelId == "gpt-transcribe" || modelId == "gpt-live-transcribe"
+                    mutable.update { it.copy(realtime = it.realtime.copy(status = if (transcription) "Transcribing..." else "Processing audio...")) }
+                    val rate = stsRequest["sts_rate_out"]?.toIntOrNull() ?: 24000
+                    withContext(Dispatchers.IO) {
+                        api.sts(file, stsRequest + ("thread_id" to threadId), token()) { chunk ->
+                            chunk.optString("error").takeIf { it.isNotBlank() && !chunk.isNull("error") }?.let { throw IOException(it) }
+                            val audio = chunk.optString("audio_delta")
+                            if (audio.isNotEmpty() && stsAutoPlay) {
+                                if (firstAudio) {
+                                    firstAudio = false
+                                    mutable.update { it.copy(realtime = it.realtime.copy(status = "Playing response...")) }
+                                }
+                                val pcm = android.util.Base64.decode(audio, android.util.Base64.DEFAULT)
+                                val out = track ?: createAudioTrack(rate, stereo = false).also { track = it }
+                                out.write(pcm, 0, pcm.size)
+                            }
+                            chunk.optString("input_delta").takeIf { it.isNotEmpty() }?.let { delta ->
+                                mutable.update { it.copy(realtime = it.realtime.copy(userText = it.realtime.userText + delta)) }
+                            }
+                            chunk.optString("transcript_delta").takeIf { it.isNotEmpty() }?.let { delta ->
+                                mutable.update { it.copy(realtime = it.realtime.copy(assistantText = it.realtime.assistantText + delta)) }
+                            }
+                            if (chunk.optBoolean("final") || chunk.has("audio_url")) saved = true
+                        }
+                    }
+                    if (saved && threadId.isNotBlank()) runCatching { loadMessages(threadId) }
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) {
+                    notify("Audio processing error: " + ((e as? ApiException)?.payload?.optString("error")?.ifBlank { null } ?: e.message ?: ""))
+                    saved = false
+                } finally {
+                    file.delete()
+                    // stop() lets the written audio finish; release it once that has played.
+                    track?.let { played -> runCatching { played.stop() }; viewModelScope.launch { delay(1500); runCatching { played.release() } } }
+                }
+                if (saved && stsAutoRestart && state.value.model == modelId) {
+                    mutable.update { it.copy(realtime = RealtimeState(model = modelId, status = "Listening...")) }
+                    delay(500)
+                    startOneShotSts(modelId, stsRequest - "model" - "thread_id", stsAutoPlay, stsAutoRestart)
+                } else mutable.update { it.copy(realtime = RealtimeState(model = modelId, status = "Tap to speak")) }
+            }
+        }
+    }
+
     private suspend fun finishRealtime(status: String, resetMillis: Long) {
         realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
         rtStopping = false
@@ -2931,6 +3071,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Loads same-origin attachment bytes for preview; returns null when unavailable. */
     suspend fun loadAttachmentBytes(reference: String, thumbnail: Boolean, limit: Long = 8L * 1024 * 1024): ByteArray? {
         if (state.value.banned) return null
+        // Images on other sites in answers load like Web `<img>`: without the token, https only.
+        if (reference.startsWith("https://") && fileReferencePath(reference) == null) {
+            if (state.value.offline) return null
+            return withContext(Dispatchers.IO) { runCatching { api.loadExternalImage(reference, limit) }.getOrNull() }
+        }
         val accountId = state.value.account?.id ?: return null
         val cached = withContext(Dispatchers.IO) { offlineCache.loadFile(accountId, reference, thumbnail, limit) }
         if (cached != null) return cached.bytes
@@ -3304,6 +3449,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (saved == files.size) notify("${files.size}件のファイルをダウンロードしました")
         else notify("ダウンロードに失敗しました（${files.size - saved}件）")
     } }
+
+    /** Web `reuseCurrentImage`: the viewer's image becomes an attachment of the next message. */
+    fun reuseImage(reference: String, name: String = ""): Boolean {
+        if (state.value.attachments.any { it.reference == reference }) { notify("この画像は既に添付されています"); return false }
+        mutable.update { it.copy(attachments = it.attachments + Attachment(name.ifBlank { reference.substringAfterLast('/') }, reference, "", source = "library")) }
+        notify("画像を添付ファイルに追加しました")
+        return true
+    }
 
     /** Reuses a library file as a composer attachment without re-uploading it. */
     fun reuseLibraryFile(file: LibraryFile) {

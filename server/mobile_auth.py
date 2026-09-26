@@ -37,6 +37,8 @@ MOBILE_ENDPOINT_METHODS = {
     'rename_library_file': {'POST'}, 'get_file_usage_chats': {'GET'},
     # Recorded mic input (STT API / current LLM) and the `/settings` AI command, as on Web.
     'transcribe': {'POST'}, 'apply_ai_settings_prompt': {'POST'},
+    # One-shot speech-to-speech for transcription models (the dock records, then sends the clip).
+    'speech_to_speech': {'POST'},
     'handle_gems': {'GET', 'POST'}, 'handle_gem_item': {'GET', 'PUT', 'DELETE'},
     'export_thread_pdf': {'GET'},
     'gemini_batch_status_api': {'GET'}, 'list_batch_jobs_api': {'GET'},

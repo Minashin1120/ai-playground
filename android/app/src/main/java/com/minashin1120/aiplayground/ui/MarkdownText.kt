@@ -62,6 +62,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.style.BaselineShift
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -98,12 +100,16 @@ internal sealed interface MarkdownBlock {
     data object Rule : MarkdownBlock
     /** A fence moved to the Canvas panel (Web `.canvas-code-placeholder`). */
     data object CanvasPlaceholder : MarkdownBlock
+    /** Raw `<svg>` markup in the answer, drawn in Web `.svg-render-box`. */
+    data class Svg(val markup: String) : MarkdownBlock
 }
 
 /** One list item; [checked] is non-null for GFM task items. */
 internal data class ListItem(val blocks: List<MarkdownBlock>, val checked: Boolean? = null)
 
 private val FENCE = Regex("^( {0,3})(`{3,}|~{3,})(.*)$")
+private val SVG_START = Regex("^ {0,3}<svg[\\s>]", RegexOption.IGNORE_CASE)
+private val HTML_RULE = Regex("^ {0,3}<hr\\s*/?>\\s*$", RegexOption.IGNORE_CASE)
 private val HEADING = Regex("^ {0,3}(#{1,6})(?:[ \\t]+(.*?))?(?:[ \\t]+#+)?[ \\t]*$")
 private val RULE = Regex("^ {0,3}([-*_])(?:[ \\t]*\\1){2,}[ \\t]*$")
 private val QUOTE = Regex("^ {0,3}> ?(.*)$")
@@ -138,6 +144,7 @@ private fun splitTableRow(line: String): List<String> {
 /** Lines that end a paragraph (marked's "interrupting" block starts). */
 private fun interruptsParagraph(line: String): Boolean {
     if (line == CANVAS_PLACEHOLDER_LINE) return true
+    if (SVG_START.containsMatchIn(line) || HTML_RULE.matches(line)) return true
     if (FENCE.matches(line) || RULE.matches(line) || QUOTE.matches(line)) return true
     if (HEADING.matches(line)) return true
     if (line.trimStart().startsWith("$$") || line.trimStart().startsWith("\\[")) return true
@@ -163,6 +170,19 @@ private fun parseBlocks(lines: List<String>): List<MarkdownBlock> {
             line.isBlank() -> index++
 
             line == CANVAS_PLACEHOLDER_LINE -> { result += MarkdownBlock.CanvasPlaceholder; index++ }
+
+            // Raw SVG (an HTML block for marked): kept whole until `</svg>`.
+            SVG_START.containsMatchIn(line) -> {
+                val body = mutableListOf<String>()
+                while (index < lines.size) {
+                    body += lines[index]
+                    index++
+                    if (body.last().contains("</svg>", ignoreCase = true)) break
+                }
+                result += MarkdownBlock.Svg(body.joinToString("\n"))
+            }
+
+            HTML_RULE.matches(line) -> { result += MarkdownBlock.Rule; index++ }
 
             fence != null && !(fence.groupValues[2][0] == '`' && fence.groupValues[3].contains('`')) -> {
                 val indent = fence.groupValues[1].length
@@ -325,7 +345,10 @@ private fun parseList(lines: List<String>, start: Int): Pair<MarkdownBlock.ListB
 private fun appendParagraph(result: MutableList<MarkdownBlock>, text: String) {
     var cursor = 0
     IMAGE_TOKEN.findAll(text).forEach { match ->
-        val reference = fileReferencePath(match.groupValues[2]) ?: return@forEach
+        // Web keeps a Markdown title ("…") out of the source; images on other sites load over https.
+        val target = match.groupValues[2].trim().substringBefore(' ')
+        val reference = fileReferencePath(target)
+            ?: target.takeIf { it.startsWith("https://") && safeWebUrl(it) != null } ?: return@forEach
         val before = text.substring(cursor, match.range.first)
         if (before.isNotBlank()) result += MarkdownBlock.Paragraph(before.trim())
         result += MarkdownBlock.Image(reference, match.groupValues[1])
@@ -379,8 +402,9 @@ internal data class SyntaxColors(
 )
 
 @Composable
-internal fun markdownColors(): MarkdownColors {
-    val web = LocalWebPalette.current
+internal fun markdownColors(): MarkdownColors = markdownColorsFor(LocalWebPalette.current)
+
+internal fun markdownColorsFor(web: WebPalette): MarkdownColors {
     return if (web.isLight) MarkdownColors(
         text = web.text,
         quote = web.muted,
@@ -479,6 +503,7 @@ private fun MarkdownBlock.marginTop(): Dp = when (this) {
     is MarkdownBlock.ChatError -> 8.dp
     MarkdownBlock.Rule -> 24.dp
     MarkdownBlock.CanvasPlaceholder -> 14.4.dp
+    is MarkdownBlock.Svg -> 11.2.dp
     else -> 0.dp
 }
 
@@ -489,6 +514,7 @@ private fun MarkdownBlock.marginBottom(): Dp = when (this) {
     MarkdownBlock.Rule -> 24.dp
     is MarkdownBlock.Heading, is MarkdownBlock.ChatError -> 0.dp
     MarkdownBlock.CanvasPlaceholder -> 14.4.dp
+    is MarkdownBlock.Svg -> 11.2.dp
 }
 
 /** Code blocks come from a custom renderer that does not end with a newline. */
@@ -557,6 +583,7 @@ private fun BlockContent(
         )
         MarkdownBlock.Rule -> Box(Modifier.fillMaxWidth().height(1.dp).background(colors.rule))
         MarkdownBlock.CanvasPlaceholder -> CanvasPlaceholderPill(style)
+        is MarkdownBlock.Svg -> SvgRenderBox(block.markup, style)
     }
 }
 
@@ -703,6 +730,10 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
             i += autolink.value.length
             continue
         }
+        if (c == '<') {
+            val consumed = appendInlineHtml(rest, colors, codeRanges, ::flush)
+            if (consumed > 0) { i += consumed; continue }
+        }
         val previous = if (i > 0) source[i - 1] else ' '
         if ((c == 'h' || c == 'w') && !previous.isLetterOrDigit()) {
             val match = BARE_URL.find(rest)
@@ -746,6 +777,59 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
         i++
     }
     flush()
+}
+
+private val HTML_BREAK = Regex("^<br\\s*/?>", RegexOption.IGNORE_CASE)
+private val HTML_COMMENT = Regex("^<!--[\\s\\S]*?-->")
+private val HTML_DROPPED = Regex("^<(script|style|iframe|object|embed|noscript|template)\\b[^>]*>[\\s\\S]*?</\\1\\s*>", RegexOption.IGNORE_CASE)
+private val HTML_OPEN = Regex("^<([A-Za-z][A-Za-z0-9-]*)((?:\\s+[^<>]*?)?)\\s*(/?)>")
+private val HTML_CLOSE = Regex("^</[A-Za-z][A-Za-z0-9-]*\\s*>")
+private val HTML_HREF = Regex("href\\s*=\\s*(\"([^\"]*)\"|'([^']*)'|([^\\s>]+))", RegexOption.IGNORE_CASE)
+
+/**
+ * Raw HTML inside an answer, as Web shows it after DOMPurify: `<br>`, the text styles, links and code are
+ * drawn; script-like elements vanish with their content; other tags are dropped and their text kept.
+ * Returns the characters consumed, or 0 when [rest] does not start with a tag.
+ */
+private fun AnnotatedString.Builder.appendInlineHtml(rest: String, colors: MarkdownColors, codeRanges: MutableList<IntRange>, flush: () -> Unit): Int {
+    HTML_BREAK.find(rest)?.let { flush(); append("\n"); return it.value.length }
+    HTML_COMMENT.find(rest)?.let { flush(); return it.value.length }
+    HTML_DROPPED.find(rest)?.let { flush(); return it.value.length }
+    val open = HTML_OPEN.find(rest)
+    if (open != null) {
+        val name = open.groupValues[1].lowercase()
+        val closing = Regex("</${Regex.escape(name)}\\s*>", RegexOption.IGNORE_CASE).find(rest, open.value.length)
+        val style: SpanStyle? = when (name) {
+            "b", "strong" -> SpanStyle(fontWeight = FontWeight.Bold)
+            "i", "em", "cite", "var" -> SpanStyle(fontStyle = FontStyle.Italic)
+            "u", "ins" -> SpanStyle(textDecoration = TextDecoration.Underline)
+            "s", "del", "strike" -> SpanStyle(textDecoration = TextDecoration.LineThrough)
+            "sup" -> SpanStyle(baselineShift = BaselineShift.Superscript, fontSize = 0.75.em)
+            "sub" -> SpanStyle(baselineShift = BaselineShift.Subscript, fontSize = 0.75.em)
+            "small" -> SpanStyle(fontSize = 0.83.em)
+            "mark" -> SpanStyle(background = Color(0xFFFEF08A), color = Color(0xFF111827))
+            "code", "kbd", "samp", "tt" -> SpanStyle(fontFamily = WebFonts.mono, fontSize = InlineCodeSize, color = colors.inlineCode)
+            else -> null
+        }
+        if (open.groupValues[3].isEmpty() && closing != null && (style != null || name == "a")) {
+            flush()
+            val inner = rest.substring(open.value.length, closing.range.first)
+            val href = if (name == "a") HTML_HREF.find(open.groupValues[2])?.let { m -> m.groupValues.drop(2).firstOrNull { it.isNotEmpty() } }
+                ?.let(::safeWebUrl) else null
+            when {
+                href != null -> withLink(LinkAnnotation.Url(href, TextLinkStyles(SpanStyle(color = colors.link, textDecoration = TextDecoration.Underline)))) {
+                    appendInline(inner, colors, codeRanges)
+                }
+                style != null -> withStyle(style) { appendInline(inner, colors, codeRanges) }
+                else -> appendInline(inner, colors, codeRanges)
+            }
+            return closing.range.last + 1
+        }
+        flush()
+        return open.value.length
+    }
+    HTML_CLOSE.find(rest)?.let { flush(); return it.value.length }
+    return 0
 }
 
 @Composable
@@ -1133,4 +1217,34 @@ private fun CanvasPlaceholderPill(style: TextStyle) {
             .padding(horizontal = 16.dp, vertical = 12.8.dp),
         contentAlignment = Alignment.Center,
     ) { Text(CANVAS_PLACEHOLDER_TEXT, style = style.copy(color = web.theme200)) }
+}
+
+/** Web `.svg-render-box`: the drawing on a light, checkered card; it never loads external references. */
+@Composable
+private fun SvgRenderBox(markup: String, style: TextStyle) {
+    val svg = remember(markup) {
+        if (markup.length > 300_000) null else runCatching { com.caverock.androidsvg.SVG.getFromString(markup) }.getOrNull()
+    }
+    if (svg == null) { Text(markup, style = style); return }
+    val shape = RoundedCornerShape(12.dp)
+    BoxWithConstraints(
+        Modifier.fillMaxWidth().clip(shape).background(Color(0xFFF8FAFC)).border(1.dp, Color(148, 163, 184).copy(alpha = 0.25f), shape).padding(12.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        val available = constraints.maxWidth.coerceAtLeast(1)
+        val bitmap = remember(markup, available) {
+            runCatching {
+                val box = svg.documentViewBox
+                val docW = svg.documentWidth.takeIf { it > 0 } ?: box?.width() ?: 300f
+                val docH = svg.documentHeight.takeIf { it > 0 } ?: box?.height() ?: 150f
+                val scale = (available / (docW * density)).coerceAtMost(1f) * density
+                val w = (docW * scale).toInt().coerceIn(1, 4096)
+                val h = (docH * scale).toInt().coerceIn(1, 4096)
+                svg.setDocumentWidth(w.toFloat()); svg.setDocumentHeight(h.toFloat())
+                android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888).also { svg.renderToCanvas(android.graphics.Canvas(it)) }
+            }.getOrNull()
+        }
+        if (bitmap != null) androidx.compose.foundation.Image(bitmap.asImageBitmap(), contentDescription = null)
+        else Text(markup, style = style)
+    }
 }

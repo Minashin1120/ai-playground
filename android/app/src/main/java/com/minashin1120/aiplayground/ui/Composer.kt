@@ -41,6 +41,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -106,6 +108,8 @@ fun Composer(
     onTemporarySettings: () -> Unit = {},
     loader: FileBytesLoader? = null,
     onOpenFile: (String) -> Unit = {},
+    /** Web `--composer-h`: the dock height, for the overlays placed above it. */
+    onDockHeight: (Int) -> Unit = {},
 ) {
     val web = LocalWebPalette.current
     val reduce = LocalReduceMotion.current
@@ -122,9 +126,14 @@ fun Composer(
     val pendingSlash = state.pendingSlashCommand
     val slashFilter = if (pendingSlash == null) slashPaletteFilter(state.draft) else null
     val slashMatches = slashFilter?.let { visibleSlashCommands(it, minimal) }.orEmpty()
+    // Web minimal mode: ＋ opens `#minimal-options-popup`; Thinking opens `#thinking-slide-bar`.
+    var minimalOptionsOpen by remember { mutableStateOf(false) }
+    var thinkingSliderOpen by remember { mutableStateOf(false) }
+    var dockHeight by remember { mutableIntStateOf(0) }
+    LaunchedEffect(minimal) { if (!minimal) { minimalOptionsOpen = false; thinkingSliderOpen = false } }
     val runLocal: (String) -> Unit = { id ->
         when (id) {
-            "options" -> expanded = true
+            "options" -> { thinkingSliderOpen = false; minimalOptionsOpen = true }
             "attach" -> pickFiles()
             "voice" -> onVoice()
             "paste" -> onRichPaste()
@@ -195,7 +204,17 @@ fun Composer(
     }
     val history = remember(state.messages) { historyCodingTargets(state.messages) }
 
-    Box(Modifier.fillMaxWidth().composerDock(web, minimal, phone)) {
+    Box(Modifier.fillMaxWidth().composerDock(web, minimal, phone).onSizeChanged { dockHeight = it.height; onDockHeight(it.height) }) {
+        if (minimalOptionsOpen) MinimalOptionsPopup(
+            state, model, rules,
+            bottomInset = with(LocalDensity.current) { dockHeight.toDp() },
+            onDismiss = { minimalOptionsOpen = false },
+            onAttach = pickFiles, onVoice = onVoice, onRichPaste = onRichPaste,
+            onShowThinkingSlider = { thinkingSliderOpen = true },
+            onChatInstructions = onChatInstructions, onCompressionSettings = onCompressionSettings,
+            onTemporarySettings = onTemporarySettings, onLyria = onLyria,
+        )
+        if (thinkingSliderOpen && minimal) ThinkingSlideBar(state, model, rules, onDismiss = { thinkingSliderOpen = false })
         Column(
             Modifier
                 .align(Alignment.TopCenter)
@@ -219,9 +238,8 @@ fun Composer(
             AnimatedVisibility(state.editingMessageId != null, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                 EditBar(onCancel = model::cancelEdit)
             }
-            // Minimal mode keeps only the model button (Web `#top-model-bar`); "+" opens the options.
-            if (minimal) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { ModelButton(state, pickModel) }
-            if (!minimal || expanded) ControlsRow(
+            // Minimal mode hides `#prompt-controls-row`; the model button moves to `TopModelBar`.
+            if (!minimal) ControlsRow(
                 state = state, model = model, rules = rules, compact = compact, minimal = minimal,
                 showDetails = showDetails, onToggleDetails = { expanded = !expanded },
                 pickModel = pickModel, onChatInstructions = onChatInstructions,
@@ -283,7 +301,7 @@ fun Composer(
                     }
                 }
                 InputRow(state, model, rules, phone, minimal, pickFiles, onRichPaste, onMask, onVoice,
-                    onPlus = { expanded = !expanded }, onSend = sendOrSlash)
+                    onPlus = { thinkingSliderOpen = false; minimalOptionsOpen = !minimalOptionsOpen }, onSend = sendOrSlash)
                 if (state.micMode == "preparing" || state.micMode == "recording") MicRecordingIndicator(state.micMode, state.micLevels, phone)
                 TokenEstimate(state)
             }
@@ -435,13 +453,13 @@ private fun ControlsRow(
 
 /** `#model-selector-btn`. */
 @Composable
-private fun ModelButton(state: ChatState, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun ModelButton(state: ChatState, onClick: () -> Unit, modifier: Modifier = Modifier, maxWidth: androidx.compose.ui.unit.Dp = 150.dp) {
     val web = LocalWebPalette.current
     val name = state.account?.models?.firstOrNull { it.id == state.model }?.name ?: state.model
     Row(
         modifier
             .heightIn(min = 32.dp)
-            .widthIn(max = 150.dp)
+            .widthIn(max = maxWidth)
             .clip(CircleShape)
             .then(
                 if (web.isLight) Modifier.background(Color.White)
@@ -564,8 +582,8 @@ private fun DetailChips(
     }
 }
 
-private val THINKING_LABELS = mapOf("minimal" to "Min", "low" to "Low", "medium" to "Mid", "high" to "High")
-private val EFFORT_LABELS = mapOf("none" to "None", "low" to "Low", "medium" to "Med", "high" to "High", "xhigh" to "XHigh", "max" to "Max")
+internal val THINKING_LABELS = mapOf("minimal" to "Min", "low" to "Low", "medium" to "Mid", "high" to "High")
+internal val EFFORT_LABELS = mapOf("none" to "None", "low" to "Low", "medium" to "Med", "high" to "High", "xhigh" to "XHigh", "max" to "Max")
 
 /** `<label class="composer-opt">` checkbox chip. */
 @Composable
@@ -1060,7 +1078,7 @@ internal val LocalComposerEstimator = staticCompositionLocalOf<(suspend (String,
 
 /** Web slash-command icons (`fa-*`); `fa-file-lines` and `fa-plug` are not in the Web icon subset, so no glyph. */
 @DrawableRes
-private fun slashIcon(name: String): Int? = when (name) {
+internal fun slashIcon(name: String): Int? = when (name) {
     "cog" -> R.drawable.fa_solid_cog
     "plus" -> R.drawable.fa_solid_plus
     "paperclip" -> R.drawable.fa_solid_paperclip

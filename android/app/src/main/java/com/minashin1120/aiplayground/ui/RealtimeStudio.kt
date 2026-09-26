@@ -38,11 +38,13 @@ import com.minashin1120.aiplayground.data.ModelInfo
 import com.minashin1120.aiplayground.data.RealtimeState
 
 private const val REALTIME_AUDIO_MODE = "realtime_audio"
-private const val REALTIME_TRANSCRIPTION_ONLY_MODEL = "gpt-realtime-whisper"
 
+/** Web STS models that are not realtime sessions: recorded, then sent to `/sts` in one request. */
+internal val ONE_SHOT_STS_MODELS = setOf("gpt-transcribe", "gpt-live-transcribe", "gpt-realtime-whisper")
+
+/** Web `isStsModel`: the voice dock replaces the text row for these models. */
 internal fun isRealtimeAudioModel(model: ModelInfo?): Boolean =
-    model != null && model.mode == REALTIME_AUDIO_MODE && model.selectable &&
-        model.id != REALTIME_TRANSCRIPTION_ONLY_MODEL
+    model != null && model.selectable && (model.mode == REALTIME_AUDIO_MODE || model.id in ONE_SHOT_STS_MODELS)
 
 internal fun realtimeModels(state: ChatState): List<Pair<String, String>> =
     state.account?.models.orEmpty()
@@ -140,6 +142,18 @@ internal fun resolvedRealtimeThinking(model: String, options: RealtimeOptions): 
 
 internal fun startRealtimeWith(model: ChatViewModel, modelId: String, options: RealtimeOptions) {
     val provider = realtimeProvider(modelId)
+    if (modelId in ONE_SHOT_STS_MODELS) {
+        // Web sends the dock's current values with every `/sts` clip.
+        model.startOneShotSts(modelId, mapOf(
+            "sts_voice" to resolvedRealtimeVoice(modelId, options),
+            "sts_speed" to options.speed.toString(),
+            "sts_rate_in" to options.rateIn.toString(),
+            "sts_rate_out" to options.rateOut.toString(),
+            "sts_thinking_level" to resolvedRealtimeThinking(modelId, options),
+            "sts_include_thoughts" to if (options.includeThoughts) "true" else "",
+        ), autoPlay = options.autoPlay, autoRestart = options.autoRestart)
+        return
+    }
     model.startRealtime(modelId, resolvedRealtimeVoice(modelId, options), options.targetLanguage,
         resolvedRealtimeThinking(modelId, options), options.transcriptionMode, options.customVocabulary,
         includeThoughts = realtimeThinkingLevels(modelId).isNotEmpty() && options.includeThoughts,

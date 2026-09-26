@@ -60,9 +60,7 @@ import com.minashin1120.aiplayground.data.formatByteSize
 import com.minashin1120.aiplayground.data.gemMentionQuery
 import com.minashin1120.aiplayground.data.isImageReference
 import com.minashin1120.aiplayground.data.SlashCommand
-import com.minashin1120.aiplayground.data.matchingSlashCommands
 import com.minashin1120.aiplayground.data.numericId
-import com.minashin1120.aiplayground.data.parseSlashAction
 
 /** Web `.mcp-box`: running (spinner, 実行中...), done (✓, 実行しました) or failed (✕, 失敗) with the dashed note. */
 @Composable

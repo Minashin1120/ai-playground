@@ -93,6 +93,18 @@ data class ChatState(
     val librarySort: String = "newest",
     /** Web `#bot-lock-overlay`: the lock message and when it ends (epoch millis). */
     val accountLock: AccountLock? = null,
+    /** Web `pendingSlashCommand`: the command whose argument the input now holds (コマンドモード). */
+    val pendingSlashCommand: String? = null,
+    /** Temporary `/settings` bubbles shown after the conversation (not saved to the thread). */
+    val settingsBubbles: List<SettingsBubble> = emptyList(),
+    /** Web `#api-key-required-modal`: the model whose key is missing. */
+    val apiKeyPrompt: String? = null,
+    /** Web `#auto-search-banner`: an X link was found and the user is asked whether to search. */
+    val xLinkPrompt: Boolean = false,
+    /** Web recording mic: "", "preparing" (録音準備中…), "recording" (録音中…) or "transcribing". */
+    val micMode: String = "",
+    /** The last 24 input levels (0–1) for the `#mic-waveform` bars. */
+    val micLevels: List<Float> = emptyList(),
     /** The first page failed to load (Web grid error state). */
     val libraryFailed: Boolean = false,
     val libraryHasMore: Boolean = false, val libraryTotal: Int = 0,
@@ -1243,7 +1255,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         heartbeatJob?.cancel()
         pendingParentId = null
         val transition = nextChatTransition(ChatTransitionKind.NEW_CHAT)
-        mutable.update { it.copy(selected = null, messages = emptyList(), allMessages = emptyList(), leafId = null,
+        mutable.update { it.copy(selected = null, messages = emptyList(), allMessages = emptyList(), leafId = null, settingsBubbles = emptyList(),
             editingMessageId = null, jobId = null, streaming = false,
             liveContent = "", liveThought = "", status = "", busy = false, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null, customInstruction = "",
@@ -1257,7 +1269,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         pendingParentId = null
         val transition = nextChatTransition(ChatTransitionKind.OPEN_THREAD)
         val storedLeaf = prefs.getInt("leaf_${thread.id}", -1).takeIf { it > 0 }
-        mutable.update { it.copy(selected = thread, messages = emptyList(), allMessages = emptyList(),
+        mutable.update { it.copy(selected = thread, messages = emptyList(), allMessages = emptyList(), settingsBubbles = emptyList(),
             leafId = storedLeaf, editingMessageId = null, streaming = false, busy = true,
             liveContent = "", liveThought = "", jobId = null, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null,
@@ -1600,13 +1612,45 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         siblings.getOrNull(index)?.let { numericId(it)?.let(::switchBranch) }
     }
 
-    fun send() {
-        val current = state.value
+    /**
+     * [xLinkChecked] is set once the X-link question was answered; [disableAutoSearch] tells the server the
+     * user chose to answer without search (Web `disable_auto_search`).
+     */
+    fun send(xLinkChecked: Boolean = false, disableAutoSearch: Boolean = false) {
+        var current = state.value
         if (current.banned) return
         if (current.offline) { mutable.update { it.copy(notice = "オフライン中はメッセージを送信できません。") }; return }
         if (current.streaming || current.busy || current.uploading || (current.draft.isBlank() && current.attachments.isEmpty())) return
         if (current.model.isBlank()) { mutable.update { it.copy(notice = "モデルを選択してください。") }; return }
         current.account?.models?.firstOrNull { it.id == current.model && it.selectable } ?: return
+        // Web sendMessage checks: audio / video the model cannot take, and what Mistral OCR accepts.
+        val (audioOk, videoOk) = modelMediaSupport(current.model)
+        val hasAudio = current.attachments.any { isAudioPath(it.reference) }
+        val hasVideo = current.attachments.any { isVideoPath(it.reference) }
+        if ((hasAudio && !audioOk) || (hasVideo && !videoOk)) {
+            notify("このモデルは音声/動画入力に対応していません")
+            mutable.update { it.copy(attachments = it.attachments.filterNot { a ->
+                (isAudioPath(a.reference) && !audioOk) || (isVideoPath(a.reference) && !videoOk) }) }
+            return
+        }
+        if (isMistralOcrModel(current.model)) {
+            if (hasAudio || hasVideo) { notify("Mistral OCR は音声・動画に対応していません。PDF / 画像 / DOCX / PPTX を添付してください。"); return }
+            if (current.attachments.isEmpty() && !Regex("https?://\\S+", RegexOption.IGNORE_CASE).containsMatchIn(current.draft)) {
+                notify("Mistral OCR は文書専用です。PDF・画像・DOCX・PPTX を添付するか、公開URLを入力してください。")
+                return
+            }
+        }
+        // Web: an X link switches to Search + Grok 4 Fast Reasoning, or asks first when that is turned off.
+        val hasXLink = X_LINK_PATTERN.containsMatchIn(current.draft) || X_LINK_PATTERN.containsMatchIn(current.quote)
+        if (!xLinkChecked && hasXLink && !isMistralOcrModel(current.model) && !current.enableSearch) {
+            if (current.preferences?.autoSearchOnLinks != false) {
+                applyXLinkSearch()
+                current = state.value
+            } else {
+                mutable.update { it.copy(xLinkPrompt = true) }
+                return
+            }
+        }
         val generation = try { generationOptionsPayload(current.model, current.generationValues) }
             catch (e: IllegalArgumentException) { notify(e.message ?: "生成設定を確認してください。"); return }
         // Web toggleOptions: hidden options are off and forced checkboxes send their forced value.
@@ -1632,6 +1676,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .put("coding_mode", current.codingMode)
             .put("canvas_mode", current.canvasMode)
             .put("temporary_chat", current.selected?.isTemporary ?: current.newThreadTemporary)
+            .put("disable_auto_search", disableAutoSearch)
         current.imageMask?.let { body.put("image_mask", it) }
         if (current.quote.isNotBlank()) body.put("quote_text", current.quote)
         if (current.codingMode) {
@@ -1670,6 +1715,212 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         submit(submission)
     }
     fun retry() { failed?.let { submit(it) } }
+
+    private var micRecorder: android.media.MediaRecorder? = null
+    private var micFile: File? = null
+    private var micLevelJob: Job? = null
+
+    /**
+     * Web `mic-btn` for chat models: the first tap records, the second stops and sends the clip to
+     * `/transcribe` (STT API or the current LLM, as set in 設定), then appends the text to the input.
+     * The caller has already obtained the microphone permission.
+     */
+    fun toggleMicRecording() {
+        when (state.value.micMode) {
+            "recording" -> { stopMicRecording(); return }
+            "preparing", "transcribing" -> return
+        }
+        mutable.update { it.copy(micMode = "preparing", micLevels = emptyList()) }
+        val app = getApplication<Application>()
+        val file = File(app.cacheDir, "recording.m4a")
+        try {
+            val recorder = if (Build.VERSION.SDK_INT >= 31) android.media.MediaRecorder(app) else android.media.MediaRecorder()
+            recorder.setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
+            recorder.setAudioSamplingRate(44_100)
+            recorder.setAudioEncodingBitRate(96_000)
+            recorder.setOutputFile(file.absolutePath)
+            recorder.prepare()
+            recorder.start()
+            micRecorder = recorder
+            micFile = file
+        } catch (e: Exception) {
+            micRecorder?.release()
+            micRecorder = null
+            mutable.update { it.copy(micMode = "", micLevels = emptyList()) }
+            notify("Microphone access denied or not available.")
+            return
+        }
+        mutable.update { it.copy(micMode = "recording") }
+        micLevelJob?.cancel()
+        micLevelJob = viewModelScope.launch {
+            while (true) {
+                val amplitude = runCatching { micRecorder?.maxAmplitude ?: 0 }.getOrDefault(0)
+                val level = (amplitude / 32767f).coerceIn(0f, 1f)
+                mutable.update { it.copy(micLevels = (it.micLevels + level).takeLast(24)) }
+                delay(75)
+            }
+        }
+    }
+
+    private fun stopMicRecording() {
+        micLevelJob?.cancel()
+        val recorder = micRecorder ?: return
+        micRecorder = null
+        val file = micFile
+        val stopped = runCatching { recorder.stop() }.isSuccess
+        recorder.release()
+        if (!stopped || file == null || !file.exists()) {
+            mutable.update { it.copy(micMode = "", micLevels = emptyList()) }
+            notify("Audio processing error: 録音できませんでした")
+            return
+        }
+        val modelId = state.value.model
+        if (state.value.preferences?.micTranscribeMode == "llm" && !modelMediaSupport(modelId).first) {
+            mutable.update { it.copy(micMode = "", micLevels = emptyList()) }
+            notify("現在のモデルはLLM音声文字起こし（音声入力）に対応していません")
+            file.delete()
+            return
+        }
+        mutable.update { it.copy(micMode = "transcribing", micLevels = emptyList()) }
+        viewModelScope.launch {
+            try {
+                val data = api.transcribe(file, modelId, token())
+                val transcript = data.optString("transcript")
+                if (transcript.isNotEmpty()) mutable.update { it.copy(draft = if (it.draft.isEmpty()) transcript else it.draft + " " + transcript) }
+                else notify(data.optString("error").ifBlank { "Transcription failed" })
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { notify("Audio processing error: " + (e.message ?: "")) }
+            finally {
+                file.delete()
+                mutable.update { it.copy(micMode = "", micLevels = emptyList()) }
+            }
+        }
+    }
+
+    /** Web `applyXLinkAuto`. */
+    private fun applyXLinkSearch() {
+        mutable.update { it.copy(enableSearch = true) }
+        if (state.value.model != "grok-4-fast-reasoning") chooseModel("grok-4-fast-reasoning")
+    }
+
+    /** Web `#auto-search-banner`: 検索ONで続行 / 検索OFFで回答, optionally remembered (次回から尋ねない). */
+    fun resolveXLinkPrompt(enable: Boolean, remember: Boolean) {
+        mutable.update { it.copy(xLinkPrompt = false) }
+        if (enable) {
+            applyXLinkSearch()
+            if (remember) viewModelScope.launch {
+                runCatching {
+                    val reply = api.put("/api/mobile/v1/preferences", JSONObject().put("auto_search_on_links", true), token())
+                    mutable.update { it.copy(preferences = parsePreferences(reply)) }
+                }
+            }
+        }
+        send(xLinkChecked = true, disableAutoSearch = !enable)
+    }
+
+    /** Web `api-key-modal-save-btn`: saves the key for the model's provider, then sends again. */
+    fun saveApiKeyAndResend(key: String) {
+        val modelId = state.value.apiKeyPrompt ?: return
+        val trimmed = key.trim()
+        if (trimmed.isEmpty()) { notify("APIキーを入力してください"); return }
+        val info = apiKeyInfoFor(modelId) ?: return
+        viewModelScope.launch {
+            try {
+                val reply = api.put("/api/mobile/v1/preferences", JSONObject().put(info.keyField, trimmed), token())
+                mutable.update { it.copy(preferences = parsePreferences(reply), apiKeyPrompt = null) }
+                send()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { notify("APIキーの保存に失敗しました") }
+        }
+    }
+
+    /** `api-key-modal-cancel-btn` shows the original error; `api-key-modal-fallback-btn` leaves the model picker to the UI. */
+    fun dismissApiKeyPrompt(showError: Boolean) {
+        val modelId = state.value.apiKeyPrompt ?: return
+        mutable.update { it.copy(apiKeyPrompt = null) }
+        if (showError) notify(apiKeyMissingMessage ?: "${modelDisplayName(modelId)} のAPIキーが設定されていません")
+    }
+
+    private var apiKeyMissingMessage: String? = null
+
+    fun modelDisplayName(modelId: String): String =
+        state.value.account?.models?.firstOrNull { it.id == modelId }?.name ?: modelId
+
+    /** Web `showPendingSlashCommandIndicator` / `hidePendingSlashCommandIndicator` (leaving `/settings` clears its conversation). */
+    fun setPendingSlashCommand(id: String?) {
+        if (id == null && state.value.pendingSlashCommand == "settings") aiSettingsConversation.clear()
+        mutable.update { it.copy(pendingSlashCommand = id) }
+    }
+
+    /** Web `aiSettingsConversation` (kept for this app session like the Web sessionStorage). */
+    private val aiSettingsConversation = mutableListOf<Pair<String, String>>()
+
+    private fun appendAiSettingsConversation(role: String, content: String) {
+        val text = content.trim()
+        if (text.isEmpty()) return
+        aiSettingsConversation += role to text.take(1600)
+        while (aiSettingsConversation.size > 10) aiSettingsConversation.removeAt(0)
+    }
+
+    /** Web `runAiSettingsCommand`: `/settings <instruction>` changes or inspects settings through the selected model. */
+    fun runAiSettings(instruction: String) {
+        val modelId = state.value.model
+        if (modelId.isBlank()) { notify("モデルを選択してください"); return }
+        if (isMistralOcrModel(modelId)) { notify("Mistral OCR は設定変更コマンドに使えません。チャットモデルを選んでください。"); return }
+        if (state.value.pendingSlashCommand != "settings") mutable.update { it.copy(pendingSlashCommand = "settings") }
+        val history = JSONArray(aiSettingsConversation.map { (role, content) -> JSONObject().put("role", role).put("content", content) })
+        appendAiSettingsConversation("user", instruction)
+        val stamp = System.currentTimeMillis()
+        val pendingId = "settings-pending-$stamp"
+        mutable.update { it.copy(draft = "", settingsBubbles = it.settingsBubbles +
+            SettingsBubble("settings-user-$stamp", "user", "/settings $instruction") +
+            SettingsBubble(pendingId, "assistant", "", modelId, pending = true)) }
+        viewModelScope.launch {
+            fun finish(bubble: SettingsBubble?) = mutable.update { current ->
+                current.copy(settingsBubbles = current.settingsBubbles.filterNot { b -> b.id == pendingId } + listOfNotNull(bubble))
+            }
+            try {
+                val data = api.post("/api/settings/apply-ai-prompt", JSONObject().put("prompt", instruction).put("model", modelId)
+                    .put("conversation", history), token())
+                val inspect = data.optString("mode") == "inspect"
+                val values = if (inspect) data.optJSONObject("current") else data.optJSONObject("applied")
+                if (data.optString("status") == "ok" && values != null) {
+                    appendAiSettingsConversation("assistant", summarizeAiSettings(values, inspect))
+                    val count = values.length()
+                    notify(if (inspect) "現在の設定を確認しました（${count}項目）" else "設定を更新しました（${count}項目）")
+                    if (!inspect) runCatching { fetchPreferences() }
+                    val entries = values.keys().asSequence().map { key -> key to formatAiSettingValue(values.opt(key)) }.toList()
+                    val text = when {
+                        entries.isNotEmpty() && inspect -> "現在の設定を確認しました。\n\n確認した項目をタップすると、設定画面の該当箇所へ移動できます。"
+                        entries.isNotEmpty() -> "設定を更新しました。\n\n変更した項目をタップすると、設定画面の該当箇所へ移動できます。"
+                        inspect -> "確認できる設定項目がありませんでした。"
+                        else -> "変更された設定項目はありませんでした。"
+                    }
+                    finish(SettingsBubble("settings-result-${System.currentTimeMillis()}", "assistant", text, modelId, entries))
+                    return@launch
+                }
+                val message = data.optString("message").ifBlank { data.optString("error") }.ifBlank { "設定変更に失敗しました" }
+                appendAiSettingsConversation("assistant", "設定操作に失敗しました: $message")
+                finish(SettingsBubble("settings-error-${System.currentTimeMillis()}", "assistant", "設定変更に失敗しました。\n\n$message", modelId))
+                notify(message)
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                val message = (e as? ApiException)?.payload?.let { p -> p.optString("message").ifBlank { p.optString("error") } }
+                if (!message.isNullOrBlank()) {
+                    appendAiSettingsConversation("assistant", "設定操作に失敗しました: $message")
+                    finish(SettingsBubble("settings-error-${System.currentTimeMillis()}", "assistant", "設定変更に失敗しました。\n\n$message", modelId))
+                    notify(message)
+                } else {
+                    appendAiSettingsConversation("assistant", "設定操作の通信に失敗しました。")
+                    finish(SettingsBubble("settings-error-${System.currentTimeMillis()}", "assistant",
+                        "設定変更の通信に失敗しました。時間をおいて再度お試しください。", modelId))
+                    notify("設定変更の通信に失敗しました")
+                }
+            }
+        }
+    }
     private var searchClearJob: Job? = null
 
     /** Web `fetchChatStreamWithUnavailableRetry`: which responses keep the send waiting instead of failing. */
@@ -1798,6 +2049,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     quote = if (it.quote.isBlank()) body.optString("quote_text") else it.quote,
                 ) }
                 when {
+                    e is ApiException && e.code == "api_key_missing" -> {
+                        // Web `showApiKeyRequiredModalAsync`: set the key, switch model, or show the error.
+                        apiKeyMissingMessage = e.payload.optString("error").ifBlank { null }
+                        mutable.update { it.copy(apiKeyPrompt = e.payload.optString("model").ifBlank { modelId }) }
+                    }
                     e is ApiException && (e.code == "banned" || e.status == 401) -> report(e)
                     e is ApiException -> notify("Connection Error: " + e.payload.optString("error").ifBlank { "HTTP ${e.status}" })
                     else -> notify("Connection Error: " + (e.message ?: "通信に失敗しました"))
@@ -2938,50 +3194,85 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun applySlash(action: SlashAction) {
-        when (action.id) {
-            "canvas" -> toggleCanvas()
-            "coding" -> toggleCoding()
-            "search" -> toggleSearch()
-            "urls" -> toggleUrlContext()
-            "maps" -> toggleMaps()
-            "python" -> togglePython()
-            "file" -> toggleFileCreation()
-            "mcp" -> toggleMcp()
-            "sysprompt" -> toggleSystemPrompt()
-            "promptcache" -> togglePromptCache()
-            "tempchat" -> toggleTemporaryChat()
-            "compress" -> saveCompressionSettings(state.value.compression.copy(enabled = !state.value.compression.enabled))
-            "thinking" -> {
-                val arg = action.argument.lowercase()
-                if (arg == "off") mutable.update { it.copy(enableThinking = false) }
-                else {
-                    val level = when (arg) {
-                        "min", "minimal" -> "minimal"
-                        "low" -> "low"
-                        "mid", "medium" -> "medium"
-                        "high" -> "high"
-                        else -> null
-                    }
-                    if (level != null) {
-                        mutable.update { it.copy(enableThinking = true) }
-                        generationOption("thinking_level", level)
-                    } else notify("Thinkingは off / min / low / mid / high を指定してください。")
-                }
+    /** The minimal-mode popup item a slash command drives (Web `MINIMAL_POPUP_ITEMS`). */
+    private class SlashItem(val label: String, val rule: OptionRule?, val checked: Boolean, val toggle: () -> Unit)
+
+    private fun slashItem(key: String, current: ChatState, rules: ComposerRules): SlashItem? = when (key) {
+        "canvas" -> SlashItem("Canvas", rules.canvas, current.canvasMode, ::toggleCanvas)
+        "coding" -> SlashItem("Coding", rules.coding, current.codingMode, ::toggleCoding)
+        "search" -> SlashItem("Search", rules.search, current.enableSearch, ::toggleSearch)
+        "urls" -> SlashItem("URLs", rules.urls, current.enableUrlContext, ::toggleUrlContext)
+        "maps" -> SlashItem("Maps", rules.maps, current.enableMaps, ::toggleMaps)
+        "python" -> SlashItem("Python", rules.python, current.enablePython, ::togglePython)
+        "file" -> SlashItem("File", rules.file, current.enableFileCreation, ::toggleFileCreation)
+        "mcp" -> SlashItem("MCP", rules.mcp, current.enableMcp, ::toggleMcp)
+        "sysprompt" -> SlashItem("SysPrompt", rules.sysPrompt, current.enableSystemPrompt, ::toggleSystemPrompt)
+        "thinking" -> SlashItem("Thinking", rules.thinking, current.enableThinking, ::toggleThinking)
+        "promptcache" -> SlashItem("PromptCache", rules.promptCache, current.enablePromptCache, ::togglePromptCache)
+        "compress" -> SlashItem("Compress", null, current.compression.enabled) {
+            saveCompressionSettings(state.value.compression.copy(enabled = !state.value.compression.enabled))
+        }
+        "tempchat" -> SlashItem("一時チャット", null, current.selected?.isTemporary ?: current.newThreadTemporary, ::toggleTemporaryChat)
+        else -> null
+    }
+
+    /**
+     * Web `executeMinimalSlashCommand`: runs a minimal-mode command with the Web notices. Popup-only actions
+     * (＋ menu, attach, voice, rich paste) go to [onLocal]. Returns false when the argument was not usable.
+     */
+    fun runSlashCommand(command: SlashCommand, argument: String, onLocal: (String) -> Unit): Boolean {
+        when (command.id) {
+            "options", "attach", "voice", "paste" -> { onLocal(command.id); return true }
+        }
+        val current = state.value
+        val rules = composerRules(current.model, current.mcpServers.any { it.enabled })
+        val raw = command.presetArgument.ifBlank { argument }.trim()
+        if (command.id == "effort" || command.id == "safety") {
+            if (command.id == "effort" && !rules.effort.visible) { notify("/${command.id} は現在のモデルでは利用できません"); return true }
+            if (command.id == "effort" && (rules.effort.disabled || rules.effort.dimmed)) { notify("/${command.id} は現在変更できません"); return true }
+            if (raw.isEmpty()) {
+                notify("使い方: ${command.label} ${if (command.id == "effort") "none / low / medium / high / xhigh / max" else "default / none"}")
+                return false
             }
-            "effort" -> {
-                val arg = action.argument.lowercase()
-                if (arg in listOf("none", "low", "medium", "med", "high", "xhigh", "max")) {
-                    generationOption("reasoning_effort", if (arg == "med") "medium" else arg)
-                } else notify("Effortは none / low / medium / high / xhigh / max を指定してください。")
+            val options = if (command.id == "effort") rules.effortOptions.map { it to EFFORT_OPTION_LABELS.getValue(it) }
+                else listOf("default" to "Default", "none" to "None")
+            val normalized = raw.lowercase()
+            val option = options.firstOrNull { (value, label) -> value == normalized || label.lowercase() == normalized }
+            if (option == null) { notify("${command.label}: 指定値「$raw」は利用できません"); return false }
+            generationOption(if (command.id == "effort") "reasoning_effort" else "safety_setting", option.first)
+            notify("${if (command.id == "effort") "Effort" else "Safety"}: ${option.second}")
+            return true
+        }
+        val item = slashItem(command.itemKey, current, rules) ?: return false
+        if (item.rule?.visible == false) { notify("/${command.id} は現在のモデルでは利用できません"); return true }
+        val disabled = item.rule != null && (item.rule.disabled || item.rule.dimmed)
+        if (disabled && command.itemKey != "thinking") { notify("/${command.id} は現在変更できません"); return true }
+        if (command.itemKey == "thinking" && raw.isNotEmpty()) {
+            val normalized = raw.lowercase()
+            SLASH_THINKING_LEVELS[normalized]?.let { level ->
+                if (!current.enableThinking && item.rule?.disabled != true) toggleThinking()
+                generationOption("thinking_level", level)
+                notify("Thinking: $normalized")
+                return true
             }
-            "safety" -> {
-                val arg = action.argument.lowercase()
-                if (arg in listOf("default", "none")) generationOption("safety_setting", arg)
-                else notify("Safetyは default / none を指定してください。")
+            if (parseSlashToggle(raw) == SlashToggle.INVALID) {
+                notify("使い方: /thinking on / off / min / low / mid / high")
+                return false
             }
         }
-        if (action.consumeDraft) mutable.update { it.copy(draft = "") }
+        if (raw.isNotEmpty()) {
+            when (val desired = parseSlashToggle(raw)) {
+                SlashToggle.INVALID -> { notify("使い方: ${command.label} on / off"); return false }
+                SlashToggle.ON, SlashToggle.OFF -> if (item.checked == (desired == SlashToggle.ON)) {
+                    notify("${item.label}: ${if (item.checked) "ON" else "OFF"}")
+                    return true
+                }
+                SlashToggle.TOGGLE -> Unit
+            }
+        }
+        if (disabled || item.rule?.disabled == true) return true
+        item.toggle()
+        return true
     }
 
     /** Fetches the server thread payload and writes a native A4 PDF into the share cache. */

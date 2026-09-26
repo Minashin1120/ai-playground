@@ -12,6 +12,7 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONArray
@@ -159,6 +160,19 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("file", name, body).build()
         return execute(request("/upload", token).post(multipart).build(), consume = ::jsonResponse)
+    }
+
+    /** Web `/transcribe`: a recorded clip for the STT API or the current LLM ([llmModel]). */
+    suspend fun transcribe(file: File, llmModel: String, token: String): JSONObject {
+        val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("file", file.name, file.asRequestBody("audio/mp4".toMediaType()))
+            .addFormDataPart("llm_model", llmModel)
+            .build()
+        return execute(request("/transcribe", token).post(multipart).build(), client = streaming) { response ->
+            val payload = runCatching { JSONObject(readBoundedUtf8(response.body.byteStream(), 1024 * 1024)) }.getOrElse { JSONObject() }
+            if (!response.isSuccessful && payload.length() == 0) throw error(response)
+            payload
+        }
     }
 
     /** Starts a resumable chunk session; the server returns its fixed chunk size. */

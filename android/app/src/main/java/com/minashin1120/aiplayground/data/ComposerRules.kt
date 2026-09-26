@@ -47,6 +47,8 @@ data class ComposerRules(
 
 val THINKING_LEVELS = listOf("minimal", "low", "medium", "high")
 val EFFORT_LEVELS = listOf("none", "low", "medium", "high", "xhigh", "max")
+/** Web `#reasoning-effort` option text. */
+val EFFORT_OPTION_LABELS = mapOf("none" to "None", "low" to "Low", "medium" to "Med", "high" to "High", "xhigh" to "XHigh", "max" to "Max")
 
 fun isMistralOcrModel(model: String): Boolean {
     val m = model.lowercase(Locale.ROOT)

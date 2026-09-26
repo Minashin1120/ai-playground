@@ -296,6 +296,8 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | POST `/api/files/rename` | `filepath`, `filename` | 表示名の変更 |
 | POST `/api/files/delete` | `filenames`（配列） | 本人のファイルを削除 |
 | GET `/api/files/usage` | `filepath` | そのファイルを添付したチャット（最大100件、`chats`, `has_more`） |
+| POST `/transcribe` | `file`（録音）、`llm_model` | マイクの文字起こし（設定の方式に従いSTT APIまたはLLM、`transcript` または `error`） |
+| POST `/api/settings/apply-ai-prompt` | `prompt`, `model`, `conversation` | `/settings` のAI設定変更（`mode`: inspect／更新、`current` または `applied`） |
 | GET `/api/gems` | なし | 本人のGem配列（トップレベルJSON配列） |
 | POST `/api/gems` | `name`, `description`, `instruction`, `default_model` | 作成したGem |
 | GET/PUT/DELETE `/api/gems/<uuid>` | PUTは作成と同じ項目 | 取得・更新・削除。所有者のみ |

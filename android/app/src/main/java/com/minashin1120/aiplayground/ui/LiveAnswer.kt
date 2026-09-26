@@ -13,6 +13,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -273,6 +274,52 @@ internal fun GlobalProgressSpinner(label: String?, modifier: Modifier = Modifier
             CircularProgressIndicator(Modifier.size(16.dp), color = Color(0xFF5EEAD4), strokeWidth = 2.dp,
                 trackColor = Color(148, 163, 184).copy(alpha = 0.35f))
             Text(text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.24.sp, color = Color(0xFFE2E8F0))
+        }
+    }
+}
+
+/**
+ * A temporary `/settings` bubble (Web `runAiSettingsCommand`): the user's command, the pending
+ * "設定リクエストを確認しています..." skeleton, or the result with rows that open the matching settings.
+ */
+@Composable
+internal fun SettingsBubbleView(
+    bubble: com.minashin1120.aiplayground.data.SettingsBubble,
+    currentModel: String,
+    onFile: (String) -> Unit,
+    loader: FileBytesLoader?,
+    onJump: (String) -> Unit,
+) {
+    val message = com.minashin1120.aiplayground.data.ChatMessage(bubble.id, bubble.role, bubble.text, model = bubble.model)
+    val skeleton: (@Composable () -> Unit)? = if (bubble.pending) {
+        { PendingSkeleton(bubble.model.ifBlank { currentModel }, "設定リクエストを確認しています...", "") }
+    } else null
+    val rows: (@Composable () -> Unit)? = if (bubble.entries.isEmpty()) null else {
+        { SettingsResultRows(bubble.entries, onJump) }
+    }
+    MessageBubble(message, onFile, loader, MessageActions(), controlsVisible = false, onToggleControls = {},
+        liveSkeleton = skeleton, liveBottom = rows)
+}
+
+/** `.ai-settings-result-list`: label, value and the external-link glyph for each changed or inspected setting. */
+@Composable
+private fun SettingsResultRows(entries: List<Pair<String, String>>, onJump: (String) -> Unit) {
+    val web = LocalWebPalette.current
+    Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        entries.forEach { (key, value) ->
+            val shape = RoundedCornerShape(12.dp)
+            Row(
+                Modifier.fillMaxWidth().clip(shape).background(Color.Black.copy(alpha = 0.2f)).border(1.dp, Color.White.copy(alpha = 0.1f), shape)
+                    .clickable(role = androidx.compose.ui.semantics.Role.Button) { onJump(key) }.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(com.minashin1120.aiplayground.data.AI_SETTING_JUMP_TARGETS[key]?.label ?: key, fontSize = 12.sp, lineHeight = 16.sp,
+                        fontWeight = FontWeight.Bold, color = web.twText(Tw.blue200))
+                    Text(value, fontSize = 11.sp, lineHeight = 16.sp, color = web.twText(Tw.gray300), modifier = Modifier.padding(top = 2.dp))
+                }
+                FaIcon(R.drawable.fa_solid_arrow_up_right_from_square, null, size = 10.dp, tint = web.twText(Tw.blue300))
+            }
         }
     }
 }

@@ -47,7 +47,8 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImportDialogs.kt` | インポート時の設定変更の確認と、容量超過時のファイル選択 | インポートの確認画面を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/AccountApi.kt` | 設定のアカウント・セッション・2FA・MCP・データ移行のAPI呼び出し | これらの通信を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/AccountTransfer.kt` | エクスポート・インポート・重複修復の進行（設定を閉じても続く） | データ移行の手順を変えるとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/SlashCommands.kt` | 入力欄の `/` コマンド定義と解析 | スラッシュコマンドを追加するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/SlashCommands.kt` | Webの `/` コマンド定義、候補の絞り込み、コマンド名の取り出し、on／off引数の解釈 | スラッシュコマンドを追加するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/AiSettings.kt` | `/settings` のAI設定変更（移動先と値の表示）、APIキー未設定時の提供元、Xリンクの判定 | `/settings` やAPIキー画面を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/BatchDialog.kt` | Webの `#batch-modal`（Batch処理：フィルタ、状態バッジ、開く・停止・履歴から削除、5秒ごとの更新） | Batch処理の画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ConfirmDialogs.kt` | Webの確認モーダル（外部ツール操作の確認、ローカルPython実行に切替） | 送信前・生成中の確認ダイアログを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasCodingPanels.kt` | Canvasプレビュー・編集 | Canvasの編集操作を変更するとき |

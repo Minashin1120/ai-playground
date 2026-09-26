@@ -28,7 +28,6 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.app.Activity
-import android.speech.RecognizerIntent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -82,6 +81,8 @@ import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.buildTokenTotals
+import com.minashin1120.aiplayground.data.AI_SETTING_JUMP_TARGETS
+import com.minashin1120.aiplayground.data.apiKeyInfoFor
 import com.minashin1120.aiplayground.data.recentWebModels
 import com.minashin1120.aiplayground.data.ConnectionStatus
 import com.minashin1120.aiplayground.data.defaultMessage
@@ -281,13 +282,9 @@ fun PlaygroundScreen(
                 }
             }
             val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { model.upload(it) }
-            val speech = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                if (result.resultCode == Activity.RESULT_OK) {
-                    result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.let { text ->
-                        val current = model.state.value
-                        if (!current.streaming) model.draft(if (current.draft.isBlank()) text else current.draft.trimEnd() + "\n" + text)
-                    }
-                }
+            // Web recording mic: record, then transcribe with the STT API or the current LLM.
+            val recordPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                if (granted) model.toggleMicRecording() else model.notify("Microphone access denied or not available.")
             }
             val launchSpeech: () -> Unit = {
                 val selected = state.model
@@ -297,11 +294,9 @@ fun PlaygroundScreen(
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
                         else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
                     }
-                    else -> try {
-                        speech.launch(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                            .putExtra(RecognizerIntent.EXTRA_PROMPT, "メッセージを話してください"))
-                    } catch (_: Exception) { model.notify("音声入力に対応するアプリが見つかりません。") }
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED ->
+                        model.toggleMicRecording()
+                    else -> recordPermission.launch(Manifest.permission.RECORD_AUDIO)
                 }
             }
             val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { model.upload(it) }
@@ -535,6 +530,14 @@ fun PlaygroundScreen(
                                         Conversation(
                                             state, model, openInApp, loader,
                                             animationsEnabled = animationsEnabled,
+                                            onSettingJump = { key ->
+                                                val target = AI_SETTING_JUMP_TARGETS[key]
+                                                if (target?.richPaste == true) richPasteOpen = true
+                                                else {
+                                                    settingsTab = SettingsTab.entries.firstOrNull { it.id == target?.tab }?.label ?: "一般"
+                                                    settingsOpen = true
+                                                }
+                                            },
                                         )
                                     }
                                 }
@@ -608,6 +611,13 @@ fun PlaygroundScreen(
             }
             state.mcpDecision?.let { decision -> key(decision.id) { McpDecisionDialog(decision, model::resolveMcpDecision) } }
             state.accountLock?.let { lock -> AccountLockOverlay(lock, model::accountLockExpired) }
+            state.apiKeyPrompt?.let { modelId ->
+                apiKeyInfoFor(modelId)?.let { info ->
+                    ApiKeyRequiredDialog(model.modelDisplayName(modelId), modelId, info, onSave = model::saveApiKeyAndResend,
+                        onSwitch = { model.dismissApiKeyPrompt(false); modelPicker = true },
+                        onCancel = { model.dismissApiKeyPrompt(true) })
+                }
+            }
             val progressLabel by model.progressLabel.collectAsState()
             GlobalProgressSpinner(progressLabel, Modifier.align(Alignment.BottomEnd).safeDrawingPadding().padding(16.dp))
             ModalHost(branchOpen && state.selected != null) {
@@ -1157,6 +1167,7 @@ private fun Conversation(
     onFile: (String) -> Unit,
     loader: FileBytesLoader?,
     animationsEnabled: Boolean,
+    onSettingJump: (String) -> Unit = {},
 ) {
     var outgoingState by remember { mutableStateOf<ChatState?>(null) }
     var keepOutgoingUntilLoaded by remember { mutableStateOf(false) }
@@ -1213,7 +1224,7 @@ private fun Conversation(
             else -> state
         }
         lastShown[0] = contentState
-        ProvideQuoteSelection(model::quoteMessage) { ConversationContent(contentState, model, onFile, loader) }
+        ProvideQuoteSelection(model::quoteMessage) { ConversationContent(contentState, model, onFile, loader, onSettingJump) }
     }
 }
 
@@ -1286,6 +1297,7 @@ private fun ConversationContent(
     model: ChatViewModel,
     onFile: (String) -> Unit,
     loader: FileBytesLoader?,
+    onSettingJump: (String) -> Unit = {},
 ) {
     val reduce = LocalReduceMotion.current
     val scroll = rememberLazyListState()
@@ -1392,6 +1404,11 @@ private fun ConversationContent(
                         StaggerIn(0, animate = entering) {
                             LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision)
                         }
+                    }
+                }
+                items(state.settingsBubbles, key = { it.id }) { bubble ->
+                    Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
+                        SettingsBubbleView(bubble, state.model, onFile, loader, onSettingJump)
                     }
                 }
             }

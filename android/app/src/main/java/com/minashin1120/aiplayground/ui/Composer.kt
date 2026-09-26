@@ -5,6 +5,11 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,6 +62,10 @@ import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ComposerRules
 import com.minashin1120.aiplayground.data.OptionRule
 import com.minashin1120.aiplayground.data.SlashCommand
+import com.minashin1120.aiplayground.data.SLASH_COMMANDS
+import com.minashin1120.aiplayground.data.slashPaletteFilter
+import com.minashin1120.aiplayground.data.stripSlashCommand
+import com.minashin1120.aiplayground.data.visibleSlashCommands
 import com.minashin1120.aiplayground.data.THINKING_LEVELS
 import com.minashin1120.aiplayground.data.codingBarText
 import com.minashin1120.aiplayground.data.isAudioPath
@@ -65,8 +74,6 @@ import com.minashin1120.aiplayground.data.composerRules
 import com.minashin1120.aiplayground.data.gemMentionQuery
 import com.minashin1120.aiplayground.data.historyCodingTargets
 import com.minashin1120.aiplayground.data.isImageReference
-import com.minashin1120.aiplayground.data.matchingSlashCommands
-import com.minashin1120.aiplayground.data.parseSlashAction
 import com.minashin1120.aiplayground.data.tokenEstimateLine
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -77,7 +84,6 @@ import org.json.JSONObject
  * styles of chat.custom.css). Phones use the `max-width: 640px` sizes of the stylesheet.
  */
 
-private val SLASH_LOCAL_COMMANDS = listOf("settings", "options", "attach", "voice", "paste", "realtime", "lyria")
 
 @Composable
 fun Composer(
@@ -111,18 +117,31 @@ fun Composer(
     val selectedModel = state.account?.models?.firstOrNull { it.id == state.model }
     val mcpServerOn = state.mcpServers.any { it.enabled }
     val rules = remember(state.model, mcpServerOn) { composerRules(state.model, mcpServerOn) }
-    val slashMatches = matchingSlashCommands(state.draft)
-    val runSlash: (SlashCommand) -> Unit = { command ->
-        when (command.id) {
-            "settings" -> { model.draft(""); onSettings() }
-            "options" -> { model.draft(""); expanded = true }
-            "attach" -> { model.draft(""); pickFiles() }
-            "voice" -> { model.draft(""); onVoice() }
-            "paste" -> { model.draft(""); onRichPaste() }
-            "realtime" -> { model.draft(""); onRealtime() }
-            "lyria" -> { model.draft(""); onLyria() }
-            else -> parseSlashAction(if (state.draft.startsWith(command.label)) state.draft else command.label)?.let(model::applySlash)
-                ?: model.draft(command.label + " ")
+    // Web slash palette: shown while the input starts with `/` and no command is pending.
+    val pendingSlash = state.pendingSlashCommand
+    val slashFilter = if (pendingSlash == null) slashPaletteFilter(state.draft) else null
+    val slashMatches = slashFilter?.let { visibleSlashCommands(it, minimal) }.orEmpty()
+    val runLocal: (String) -> Unit = { id ->
+        when (id) {
+            "options" -> expanded = true
+            "attach" -> pickFiles()
+            "voice" -> onVoice()
+            "paste" -> onRichPaste()
+        }
+    }
+    /** Web `selectSlashCommand`. */
+    val selectSlash: (SlashCommand) -> Unit = { command ->
+        val argument = stripSlashCommand(state.draft).trim()
+        when {
+            command.autocompleteArgument && argument.isEmpty() -> model.draft("${command.label} ")
+            command.minimal && (!command.requiresArgument || argument.isNotEmpty()) -> {
+                model.draft("")
+                model.runSlashCommand(command, argument, runLocal)
+            }
+            else -> {
+                model.draft(stripSlashCommand(state.draft))
+                model.setPendingSlashCommand(command.id)
+            }
         }
     }
     // Web `confirmGeminiLocalPythonSwitch`: asked before sending audio or video to Gemini with Python on.
@@ -147,11 +166,31 @@ fun Composer(
         if (proceed) model.send()
     }
     val sendOrSlash: () -> Unit = {
-        val action = parseSlashAction(state.draft)
-        val command = slashMatches.firstOrNull { it.id == action?.id } ?: slashMatches.singleOrNull()
-        if (command != null && (action != null || command.id in SLASH_LOCAL_COMMANDS)) {
-            if (action != null && command.id !in SLASH_LOCAL_COMMANDS) model.applySlash(action) else runSlash(command)
-        } else guardedSend()
+        val instruction = state.draft.trim()
+        val settingsInline = Regex("^/settings(?:\\s|$)", RegexOption.IGNORE_CASE)
+        when {
+            // Web: Enter with the palette open picks the highlighted (first) command.
+            slashMatches.isNotEmpty() && !settingsInline.containsMatchIn(instruction) -> selectSlash(slashMatches.first())
+            pendingSlash == "settings" -> {
+                if (instruction.isEmpty()) model.notify("設定変更の指示を入力してください（例: デフォルトモデルをgemini-2.5-flashに）")
+                else model.runAiSettings(instruction)
+            }
+            pendingSlash != null -> {
+                val command = SLASH_COMMANDS.firstOrNull { it.id == pendingSlash }
+                if (command != null && model.runSlashCommand(command, instruction, runLocal)) {
+                    model.draft("")
+                    model.setPendingSlashCommand(null)
+                }
+            }
+            settingsInline.containsMatchIn(instruction) -> {
+                val text = instruction.replace(Regex("^/settings\\s*", RegexOption.IGNORE_CASE), "").trim()
+                if (text.isEmpty()) {
+                    model.notify("使い方: /settings デフォルトモデルを gemini-2.5-flash に変更して thinking をオンに")
+                    model.draft("/settings ")
+                } else model.runAiSettings(text)
+            }
+            else -> guardedSend()
+        }
     }
     val history = remember(state.messages) { historyCodingTargets(state.messages) }
 
@@ -188,6 +227,8 @@ fun Composer(
                 onCompressionSettings = onCompressionSettings, onTemporarySettings = onTemporarySettings,
             )
             AttachmentPreview(state, model, loader, onOpenFile, onEdit = pickFiles)
+            // Web `#file-preview` while a recording is transcribed.
+            if (state.micMode == "transcribing") TranscribingRow()
             AnimatedVisibility(state.imageMask != null, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                 MaskPreview(state.imageMask.orEmpty().substringAfterLast('/'), onClear = { model.setImageMask(null) })
             }
@@ -213,9 +254,18 @@ fun Composer(
                 AnimatedVisibility(slashMatches.isNotEmpty(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                     SuggestionPalette(
                         title = "コマンド",
-                        items = shownSlash.orEmpty().map { PaletteItem(it.label, it.description, R.drawable.fa_solid_terminal, mono = true) },
-                        onPick = { index -> shownSlash?.getOrNull(index)?.let(runSlash) },
+                        items = shownSlash.orEmpty().map { PaletteItem(it.label, it.description, slashIcon(it.iconName), mono = true) },
+                        onPick = { index -> shownSlash?.getOrNull(index)?.let(selectSlash) },
                     )
+                }
+                AnimatedVisibility(pendingSlash != null, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
+                    val shownPending = rememberRetained(pendingSlash)
+                    SlashCommandIndicator(SLASH_COMMANDS.firstOrNull { it.id == shownPending }?.label ?: "/${shownPending.orEmpty()}") {
+                        model.setPendingSlashCommand(null)
+                    }
+                }
+                AnimatedVisibility(state.xLinkPrompt, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
+                    XLinkBanner(onResolve = model::resolveXLinkPrompt)
                 }
                 val mention = gemMentionQuery(state.draft)
                 val mentionCandidates = if (mention != null) state.gems.filter {
@@ -233,6 +283,7 @@ fun Composer(
                 }
                 InputRow(state, model, rules, phone, minimal, pickFiles, onRichPaste, onMask, onVoice,
                     onPlus = { expanded = !expanded }, onSend = sendOrSlash)
+                if (state.micMode == "preparing" || state.micMode == "recording") MicRecordingIndicator(state.micMode, state.micLevels, phone)
                 TokenEstimate(state)
             }
         }
@@ -737,7 +788,7 @@ private fun GemIndicator(name: String, onClear: () -> Unit) {
     }
 }
 
-private data class PaletteItem(val title: String, val description: String, @DrawableRes val icon: Int, val mono: Boolean = false)
+private data class PaletteItem(val title: String, val description: String, @DrawableRes val icon: Int?, val mono: Boolean = false)
 
 /** `#slash-command-suggestions` / `#gem-suggestions`: header row, then icon + title + one-line description. */
 @Composable
@@ -770,7 +821,7 @@ private fun SuggestionPalette(title: String, items: List<PaletteItem>, onPick: (
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Box(Modifier.width(16.dp), contentAlignment = Alignment.Center) {
-                        FaIcon(item.icon, null, size = 14.dp, tint = web.theme300)
+                        item.icon?.let { FaIcon(it, null, size = 14.dp, tint = web.theme300) }
                     }
                     Column(Modifier.weight(1f)) {
                         Text(item.title, fontSize = 14.sp, lineHeight = 20.sp, maxLines = 1,
@@ -838,7 +889,8 @@ private fun InputRow(
                 tint = Color(0xFFFBBF24), plain = true)
             if (rules.mask) ToolButton(R.drawable.fa_solid_mask, "Mask (GPT-Image)", toolSize, toolShape, onClick = onMask,
                 enabled = !uploadActive, tint = Color(0xFFA9B5C7))
-            ToolButton(R.drawable.fa_solid_microphone, "Voice Input", toolSize, toolShape, onClick = onVoice, enabled = !uploadActive)
+            ToolButton(R.drawable.fa_solid_microphone, "Voice Input", toolSize, toolShape, onClick = onVoice, enabled = !uploadActive,
+                active = state.micMode == "recording")
         }
         PromptField(state, model, focused, interaction, onSend, Modifier.weight(1f))
         SendStopButton(state, phone, onSend, onStop = model::stop, enabled = !uploadActive)
@@ -855,9 +907,16 @@ private fun ToolButton(
     enabled: Boolean = true,
     tint: Color? = null,
     plain: Boolean = false,
+    /** Recording: `bg-red-600 animate-pulse` like the Web mic button. */
+    active: Boolean = false,
 ) {
     val web = LocalWebPalette.current
+    val reduce = LocalReduceMotion.current
+    val pulse = if (active && !reduce) rememberInfiniteTransition(label = "mic pulse").animateFloat(
+        1f, 0.5f, infiniteRepeatable(tween(1000), RepeatMode.Reverse), label = "mic alpha",
+    ).value else 1f
     val background = when {
+        active -> Tw.red600
         plain -> Color.Transparent
         web.isLight -> Color.White.copy(alpha = 0.92f)
         else -> Color(13, 21, 40).copy(alpha = 0.6f)
@@ -868,12 +927,12 @@ private fun ToolButton(
         else -> web.line
     }
     Box(
-        Modifier.size(size).alpha(if (enabled) 1f else 0.5f).clip(shape).background(background).border(1.dp, border, shape)
+        Modifier.size(size).alpha(if (enabled) pulse else 0.5f).clip(shape).background(background).border(1.dp, if (active) Tw.red600 else border, shape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        FaIcon(icon, null, size = 14.dp, tint = tint ?: if (web.isLight) web.text else Color(226, 232, 240))
+        FaIcon(icon, null, size = 14.dp, tint = if (active) Color.White else tint ?: if (web.isLight) web.text else Color(226, 232, 240))
     }
 }
 
@@ -889,7 +948,9 @@ private fun PromptField(
 ) {
     val web = LocalWebPalette.current
     val enterToSend = state.preferences?.enterToSend == true
+    val pendingCommand = state.pendingSlashCommand?.let { id -> SLASH_COMMANDS.firstOrNull { it.id == id } }
     val placeholder = when {
+        pendingCommand != null -> pendingCommand.argumentHint.ifBlank { "設定変更の指示を入力（例: デフォルトモデルをgemini-2.5-flashに変更）..." }
         state.editingMessageId != null -> "編集中... (Enter送信は設定に従います)"
         enterToSend -> "Enter で送信 (Shift+Enter で改行)"
         else -> "Ctrl + Enter で送信..."
@@ -998,3 +1059,113 @@ private fun TokenEstimate(state: ChatState) {
 
 /** Supplies the token-estimate request so previews and tests can render the composer without a network. */
 internal val LocalComposerEstimator = staticCompositionLocalOf<(suspend (String, String, String, List<String>) -> JSONObject)?> { null }
+
+/** Web slash-command icons (`fa-*`); `fa-file-lines` and `fa-plug` are not in the Web icon subset, so no glyph. */
+@DrawableRes
+private fun slashIcon(name: String): Int? = when (name) {
+    "cog" -> R.drawable.fa_solid_cog
+    "plus" -> R.drawable.fa_solid_plus
+    "paperclip" -> R.drawable.fa_solid_paperclip
+    "microphone" -> R.drawable.fa_solid_microphone
+    "paste" -> R.drawable.fa_solid_paste
+    "window-restore" -> R.drawable.fa_solid_window_restore
+    "code-branch" -> R.drawable.fa_solid_code_branch
+    "search" -> R.drawable.fa_solid_search
+    "link" -> R.drawable.fa_solid_link
+    "map-location-dot" -> R.drawable.fa_solid_map_location_dot
+    "code" -> R.drawable.fa_solid_code
+    "terminal" -> R.drawable.fa_solid_terminal
+    "brain" -> R.drawable.fa_solid_brain
+    "sliders-h" -> R.drawable.fa_solid_sliders_h
+    "shield-halved" -> R.drawable.fa_solid_shield_halved
+    "database" -> R.drawable.fa_solid_database
+    "compress-alt" -> R.drawable.fa_solid_compress_alt
+    "hourglass-half" -> R.drawable.fa_solid_hourglass_half
+    else -> null
+}
+
+/** `#slash-command-indicator`: コマンドモード: /x with the × cancel. */
+@Composable
+private fun SlashCommandIndicator(label: String, onCancel: () -> Unit) {
+    val web = LocalWebPalette.current
+    val shape = RoundedCornerShape(8.dp)
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(shape).background(web.twBg(Tw.purple900, 0.4f))
+            .border(1.dp, web.twBorder(Tw.purple700, 0.5f), shape).padding(6.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        val color = web.twText(Tw.purple200)
+        FaIcon(R.drawable.fa_solid_terminal, null, size = 12.dp, tint = color)
+        Text("コマンドモード:", fontSize = 12.sp, lineHeight = 16.sp, color = color)
+        Text(label, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = color,
+            modifier = Modifier.weight(1f))
+        Text("×", fontSize = 12.sp, color = web.twText(Tw.purple300),
+            modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable(onClickLabel = "キャンセル", role = Role.Button, onClick = onCancel)
+                .padding(horizontal = 8.dp))
+    }
+}
+
+/** `#auto-search-banner`: X link detected; continue with search or answer without it. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun XLinkBanner(onResolve: (Boolean, Boolean) -> Unit) {
+    val web = LocalWebPalette.current
+    var remember by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(4.dp)
+    val text = web.twText(Tw.yellow200)
+    Column(
+        Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(shape).background(web.twBg(Tw.yellow900, 0.3f))
+            .border(1.dp, web.twBorder(Tw.yellow600, 0.6f), shape).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FaIcon(R.drawable.fa_solid_bolt, null, size = 12.dp, tint = text)
+            Text("Xリンクを検出しました。検索ON＋Grok 4 Fast Reasoningに切替します。", fontSize = 12.sp, lineHeight = 16.sp, color = text)
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
+            itemVerticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.toggleable(remember, role = Role.Checkbox) { remember = it },
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                WebCheckbox(remember, null, size = 12.dp)
+                Text("次回から尋ねない", fontSize = 10.sp, color = web.twText(Tw.yellow100).copy(alpha = 0.9f))
+            }
+            Text("検索ONで続行", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black,
+                modifier = Modifier.clip(shape).background(Tw.yellow600).clickable(role = Role.Button) { onResolve(true, remember) }
+                    .padding(horizontal = 8.dp, vertical = 4.dp))
+            Text("検索OFFで回答", fontSize = 11.sp, color = Color.White,
+                modifier = Modifier.clip(shape).background(web.twBg(Tw.gray700)).clickable(role = Role.Button) { onResolve(false, false) }
+                    .padding(horizontal = 8.dp, vertical = 4.dp))
+        }
+    }
+}
+
+/** `#mic-recording-indicator`: 録音準備中… / 録音中… with the 24-bar `#mic-waveform`. */
+@Composable
+private fun MicRecordingIndicator(mode: String, levels: List<Float>, phone: Boolean) {
+    val color = if (mode == "recording") Color(252, 165, 165) else Color(253, 224, 71)
+    Row(Modifier.padding(start = 4.dp, end = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(if (mode == "recording") "録音中…" else "録音準備中…", fontSize = 11.sp, lineHeight = 16.sp, color = color)
+        val shape = RoundedCornerShape(4.dp)
+        Row(
+            Modifier.height(16.dp).width(if (phone) 112.dp else 144.dp).clip(shape).background(Color(69, 10, 10).copy(alpha = 0.25f))
+                .border(1.dp, Color(185, 28, 28).copy(alpha = 0.3f), shape).padding(horizontal = 4.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            val padded = List(24 - levels.size.coerceAtMost(24)) { 0f } + levels.takeLast(24)
+            padded.forEach { level ->
+                Box(Modifier.width(2.dp).height((2 + level * 10).dp).alpha(0.35f + level * 0.65f).clip(CircleShape)
+                    .background(Color(252, 165, 165).copy(alpha = 0.92f)))
+            }
+        }
+    }
+}
+
+/** `#file-preview` row showing "Transcribing...". */
+@Composable
+private fun TranscribingRow() {
+    val web = LocalWebPalette.current
+    Text("Transcribing...", fontSize = 12.sp, lineHeight = 16.sp, color = web.twText(Tw.blue300), maxLines = 1,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).background(web.twBg(Tw.gray700, 0.5f)).padding(horizontal = 12.dp, vertical = 8.dp))
+}

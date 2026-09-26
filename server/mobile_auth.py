@@ -33,6 +33,8 @@ MOBILE_ENDPOINT_METHODS = {
     'get_files_lib': {'GET'},
     'toggle_file_favorite': {'POST'}, 'delete_files_batch': {'POST'},
     'rename_library_file': {'POST'}, 'get_file_usage_chats': {'GET'},
+    # Recorded mic input (STT API / current LLM) and the `/settings` AI command, as on Web.
+    'transcribe': {'POST'}, 'apply_ai_settings_prompt': {'POST'},
     'handle_gems': {'GET', 'POST'}, 'handle_gem_item': {'GET', 'PUT', 'DELETE'},
     'export_thread_pdf': {'GET'},
     'gemini_batch_status_api': {'GET'}, 'list_batch_jobs_api': {'GET'},

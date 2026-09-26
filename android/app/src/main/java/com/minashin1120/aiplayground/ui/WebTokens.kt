@@ -180,6 +180,7 @@ internal object Tw {
     val amber800 = Color(0xFF92400E)
     val amber900 = Color(0xFF78350F)
 
+    val yellow100 = Color(0xFFFEF9C3)
     val yellow200 = Color(0xFFFEF08A)
     val yellow300 = Color(0xFFFDE047)
     val yellow400 = Color(0xFFFACC15)

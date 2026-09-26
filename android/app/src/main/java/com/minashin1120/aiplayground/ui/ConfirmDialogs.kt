@@ -195,3 +195,67 @@ internal fun AccountLockOverlay(lock: com.minashin1120.aiplayground.data.Account
         }
     }
 }
+
+/**
+ * Web `#api-key-required-modal`: save the missing key and send again, switch to another model,
+ * or cancel and show the error.
+ */
+@Composable
+internal fun ApiKeyRequiredDialog(
+    modelName: String,
+    modelId: String,
+    info: com.minashin1120.aiplayground.data.ApiKeyInfo,
+    onSave: (String) -> Unit,
+    onSwitch: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val web = LocalWebPalette.current
+    var key by remember { mutableStateOf("") }
+    TwPanelModal(onCancel, web.twBorder(Tw.gray700), 448.dp) {
+        Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.padding(top = 2.dp).size(40.dp).clip(CircleShape).background(web.twBg(Tw.red900, 0.5f)), contentAlignment = Alignment.Center) {
+                FaIcon(R.drawable.fa_solid_key, null, size = 18.dp, tint = web.twText(Tw.red400))
+            }
+            Column(Modifier.weight(1f)) {
+                Text("APIキーが必要です", fontSize = 18.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold, color = web.twText(Tw.white))
+                Text("$modelName（$modelId）", fontSize = 12.sp, lineHeight = 16.sp, color = web.twText(Tw.gray400), modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+        Text("このモデルを使用するには${info.label}の設定が必要です。", fontSize = 14.sp, lineHeight = 20.sp, color = web.twText(Tw.gray300),
+            modifier = Modifier.padding(bottom = 16.dp))
+        Text(info.label, fontSize = 12.sp, lineHeight = 16.sp, color = web.twText(Tw.gray500), modifier = Modifier.padding(bottom = 4.dp))
+        val shape = RoundedCornerShape(4.dp)
+        val textColor = web.twText(Tw.white)
+        val style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, lineHeight = 20.sp, color = textColor, fontFamily = WebFonts.sans)
+        androidx.compose.foundation.text.BasicTextField(
+            key, { key = it.take(4096) }, singleLine = true, textStyle = style, cursorBrush = androidx.compose.ui.graphics.SolidColor(textColor),
+            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                imeAction = androidx.compose.ui.text.input.ImeAction.Send),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { onSave(key) }),
+            modifier = Modifier.fillMaxWidth().clip(shape).background(web.twBg(Tw.gray800)).border(1.dp, web.twBorder(Tw.gray600), shape),
+            decorationBox = { inner ->
+                Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    if (key.isEmpty()) Text("APIキーを入力", style = style.copy(color = Tw.gray500))
+                    inner()
+                }
+            },
+        )
+        Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val buttonShape = RoundedCornerShape(8.dp)
+            @Composable
+            fun Action(icon: Int?, label: String, background: Color, color: Color, bold: Boolean, vertical: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+                Row(
+                    Modifier.fillMaxWidth().clip(buttonShape).background(background).clickable(role = Role.Button, onClick = onClick).padding(vertical = vertical),
+                    horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    icon?.let { FaIcon(it, null, size = 13.dp, tint = color, modifier = Modifier.padding(end = 4.dp)) }
+                    Text(label, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal, color = color)
+                }
+            }
+            Action(R.drawable.fa_solid_save, "APIキーを保存して送信", Tw.blue600, Color.White, true, 10.dp) { onSave(key) }
+            Action(R.drawable.fa_solid_exchange_alt, "他のモデルに切り替え", web.twBg(Tw.gray700), web.twText(Tw.white), true, 8.dp, onSwitch)
+            Action(null, "キャンセル（エラーメッセージを表示）", Color.Transparent, web.twText(Tw.gray400), false, 8.dp, onCancel)
+        }
+    }
+}

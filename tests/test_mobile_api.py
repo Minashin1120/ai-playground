@@ -296,6 +296,27 @@ class MobileApiTests(unittest.TestCase):
         }, content_type='multipart/form-data')
         self.assertEqual(response.status_code, 409)
 
+    def test_native_mic_transcription_and_ai_settings_use_bearer(self):
+        token = self.token()
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.mic_transcribe_mode = 'llm'
+            target.db.session.commit()
+        with mock.patch.object(target, '_transcribe_audio_with_llm', return_value='こんにちは') as transcriber:
+            response = self.call('/transcribe', token, 'POST', data={
+                'file': (io.BytesIO(b'fake-m4a'), 'recording.m4a'), 'llm_model': 'gemini-3.6-flash',
+            }, content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['transcript'], 'こんにちは')
+        self.assertEqual(transcriber.call_args.args[2], 'gemini-3.6-flash')
+        decision = {'action': 'inspect_settings', 'arguments': {'fields': ['enter_to_send']}}
+        with mock.patch.object(target, '_call_llm_for_settings_ai', return_value=(decision, None)):
+            response = self.call('/api/settings/apply-ai-prompt', token, 'POST',
+                                 json={'prompt': 'Enterで送信は？', 'model': 'gemini-3.6-flash', 'conversation': []})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['mode'], 'inspect')
+        self.assertIn('enter_to_send', response.json['current'])
+
     def test_native_library_and_gems_are_owner_scoped(self):
         token = self.token()
         response = self.call('/upload', token, 'POST',

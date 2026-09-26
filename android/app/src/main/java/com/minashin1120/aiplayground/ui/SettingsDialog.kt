@@ -426,7 +426,7 @@ private fun SettingsCardView(spec: SettingsCardSpec, highlight: Boolean, onJumpD
         compact = true,
     ) {
         if (titleContent != null) Row(Modifier.padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            spec.titleIcon?.let { FaIcon(it, null, size = 12.dp, tint = if (spec.danger) Tw.rose300 else web.theme300, modifier = Modifier.padding(end = 8.dp)) }
+            spec.titleIcon?.let { FaIcon(it, null, size = 12.dp, tint = spec.titleIconTint ?: if (spec.danger) Tw.rose300 else web.theme300, modifier = Modifier.padding(end = 8.dp)) }
             Text(titleContent, color = if (spec.danger) Tw.rose300 else web.theme300, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.26.sp)
         }
         spec.content(this)

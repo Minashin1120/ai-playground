@@ -3487,13 +3487,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Web `save-gem-btn`: the default model select only offers "Use current model", so it is sent as null. */
-    fun saveGem(uuid: String?, name: String, description: String, instruction: String, fixedPrompts: List<FixedPrompt>, onDone: (Boolean) -> Unit) {
+    /** Web `save-gem-btn`: an empty default model ("Use current model") is sent as null. */
+    fun saveGem(uuid: String?, name: String, description: String, instruction: String, defaultModel: String, fixedPrompts: List<FixedPrompt>, onDone: (Boolean) -> Unit) {
         viewModelScope.launch {
             mutable.update { it.copy(gemsBusy = true) }
             try {
                 val payload = JSONObject().put("name", name).put("description", description)
-                    .put("instruction", instruction).put("default_model", JSONObject.NULL)
+                    .put("instruction", instruction).put("default_model", defaultModel.ifBlank { null } ?: JSONObject.NULL)
                     .put("fixed_prompts", if (fixedPrompts.isEmpty()) JSONObject.NULL else JSONArray().apply {
                         fixedPrompts.forEach { put(JSONObject().put("name", it.name).put("content", it.content)) }
                     })

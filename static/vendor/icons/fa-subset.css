@@ -13,9 +13,9 @@
 .fa-xs{font-size:.75em}
 .fa-sm{font-size:.875em}
 .fa-lg{font-size:1.25em;line-height:.05em;vertical-align:-.075em}
-@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;font-display:swap;src:url(fa-solid-subset.woff2) format("woff2")}
-@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:400;font-display:swap;src:url(fa-regular-subset.woff2) format("woff2")}
-@font-face{font-family:"Font Awesome 6 Brands";font-style:normal;font-weight:400;font-display:swap;src:url(fa-brands-subset.woff2) format("woff2")}
+@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;font-display:swap;src:url(fa-solid-subset.woff2?h=831f926c21) format("woff2")}
+@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:400;font-display:swap;src:url(fa-regular-subset.woff2?h=ac55f0d96e) format("woff2")}
+@font-face{font-family:"Font Awesome 6 Brands";font-style:normal;font-weight:400;font-display:swap;src:url(fa-brands-subset.woff2?h=1c2d4c8983) format("woff2")}
 .fa-align-left:before{content:"\f036"}
 .fa-arrow-down:before{content:"\f063"}
 .fa-arrow-right:before{content:"\f061"}
@@ -58,6 +58,7 @@
 .fa-file:before{content:"\f15b"}
 .fa-file-export:before{content:"\f56e"}
 .fa-file-import:before{content:"\f56f"}
+.fa-file-lines:before{content:"\f15c"}
 .fa-file-pdf:before{content:"\f1c1"}
 .fa-file-upload:before{content:"\f574"}
 .fa-fingerprint:before{content:"\f577"}
@@ -97,7 +98,9 @@
 .fa-pen:before{content:"\f304"}
 .fa-pencil-alt:before{content:"\f303"}
 .fa-play:before{content:"\f04b"}
+.fa-plug:before{content:"\f1e6"}
 .fa-plus:before{content:"\2b"}
+.fa-plus-circle:before{content:"\f055"}
 .fa-quote-left:before{content:"\f10d"}
 .fa-quote-right:before{content:"\f10e"}
 .fa-reply:before{content:"\f3e5"}
@@ -117,12 +120,14 @@
 .fa-spinner:before{content:"\f110"}
 .fa-star:before{content:"\f005"}
 .fa-stop:before{content:"\f04d"}
+.fa-sun:before{content:"\f185"}
 .fa-sync:before{content:"\f021"}
 .fa-tachometer-alt:before{content:"\f625"}
 .fa-tag:before{content:"\f02b"}
 .fa-terminal:before{content:"\f120"}
 .fa-thumbtack:before{content:"\f08d"}
 .fa-times:before{content:"\f00d"}
+.fa-times-circle:before{content:"\f057"}
 .fa-tools:before{content:"\f7d9"}
 .fa-trash:before{content:"\f1f8"}
 .fa-triangle-exclamation:before{content:"\f071"}

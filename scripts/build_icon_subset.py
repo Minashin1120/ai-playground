@@ -8,6 +8,7 @@ stylesheet is not required at runtime.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import shutil
 import subprocess
@@ -54,6 +55,8 @@ def iter_source_files() -> list[Path]:
             path for path in directory.rglob("*")
             if path.suffix.lower() in {".html", ".js", ".css"}
             and "vendor/icons" not in path.as_posix()
+            # Minified bundles can wrap long strings mid-name; their sources are scanned instead.
+            and ".min." not in path.name
         )
     for extra in EXTRA_FILES:
         if extra.is_file():
@@ -118,6 +121,11 @@ def subset_font(pyftsubset: str, source: Path, dest: Path, unicodes: list[str]) 
     subprocess.run(command, check=True)
 
 
+def font_hash(path: Path) -> str:
+    """Short content hash so browsers refetch a font whose glyph set changed."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:10]
+
+
 def write_subset_css(dest: Path, used_map: dict[str, str], families: dict[str, Path]) -> None:
     lines = [
         "/* Font Awesome Free 6.5.2 subset for AI Chat Playground.",
@@ -139,17 +147,17 @@ def write_subset_css(dest: Path, used_map: dict[str, str], families: dict[str, P
     if "solid" in families:
         lines.append(
             '@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;'
-            "font-display:swap;src:url(fa-solid-subset.woff2) format(\"woff2\")}"
+            f"font-display:swap;src:url(fa-solid-subset.woff2?h={font_hash(families['solid'])}) format(\"woff2\")}}"
         )
     if "regular" in families:
         lines.append(
             '@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:400;'
-            "font-display:swap;src:url(fa-regular-subset.woff2) format(\"woff2\")}"
+            f"font-display:swap;src:url(fa-regular-subset.woff2?h={font_hash(families['regular'])}) format(\"woff2\")}}"
         )
     if "brands" in families:
         lines.append(
             '@font-face{font-family:"Font Awesome 6 Brands";font-style:normal;font-weight:400;'
-            "font-display:swap;src:url(fa-brands-subset.woff2) format(\"woff2\")}"
+            f"font-display:swap;src:url(fa-brands-subset.woff2?h={font_hash(families['brands'])}) format(\"woff2\")}}"
         )
     for name, code in sorted(used_map.items()):
         lines.append(f'.fa-{name}:before{{content:"{code}"}}')

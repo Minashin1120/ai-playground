@@ -23,7 +23,7 @@ import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ModelInfo
 
-/** The ten Web settings tabs (`#settings-tabs`). A null icon means the Web subset has no glyph for it. */
+/** The ten Web settings tabs (`#settings-tabs`). */
 internal enum class SettingsTab(val id: String, val label: String, @DrawableRes val icon: Int?) {
     General("general", "一般", R.drawable.fa_solid_sliders_h),
     Api("api", "APIキー", R.drawable.fa_solid_key),
@@ -34,8 +34,7 @@ internal enum class SettingsTab(val id: String, val label: String, @DrawableRes 
     Security("security", "セキュリティ", R.drawable.fa_solid_shield_alt),
     TwoFactor("2fa", "2要素認証", R.drawable.fa_solid_lock),
     Feedback("feedback", "フィードバック", R.drawable.fa_solid_bug),
-    // `fa-plug` is not in the Web icon subset, so the Web tab shows no glyph either.
-    Mcp("mcp", "MCP", null),
+    Mcp("mcp", "MCP", R.drawable.fa_solid_plug),
 }
 
 /**
@@ -49,6 +48,8 @@ internal class SettingsCardSpec(
     val search: String,
     val danger: Boolean = false,
     @DrawableRes val titleIcon: Int? = null,
+    /** Web title icons with their own colour (`fa-plug text-cyan-300`); null keeps the title colour. */
+    val titleIconTint: Color? = null,
     val content: @Composable ColumnScope.() -> Unit,
 )
 
@@ -477,8 +478,8 @@ internal fun displayCards(form: SettingsForm, onPickColor: () -> Unit): List<Set
         }
     },
     SettingsCardSpec(SettingsTab.Display, "light", "ライトモード", "ライトモード 手動ライトモード OSの配色設定に関係なく、明るい配色を使用します。") {
-        // `fa-sun` is not in the Web icon subset; the Web shows the text without a glyph.
-        SettingsSwitchRow("手動ライトモード", "OSの配色設定に関係なく、明るい配色を使用します。", form.lightMode, { form.lightMode = it })
+        SettingsSwitchRow("手動ライトモード", "OSの配色設定に関係なく、明るい配色を使用します。", form.lightMode, { form.lightMode = it },
+            icon = R.drawable.fa_solid_sun, iconTint = Tw.amber300)
     },
     SettingsCardSpec(SettingsTab.Display, "style", "表示スタイル",
         "表示スタイル Liquid Glassモード 操作・ナビゲーション層を、光の屈折や反射を感じるApple風の素材表現に切り替えます。") {

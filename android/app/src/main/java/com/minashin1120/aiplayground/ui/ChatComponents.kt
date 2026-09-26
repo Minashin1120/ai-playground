@@ -81,8 +81,7 @@ private fun McpBox(card: StatusCard) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             when {
-                // `fa-times-circle` is not in the Web icon subset, so the Web shows no glyph for a failure.
-                card.failed -> Unit
+                card.failed -> FaIcon(R.drawable.fa_solid_times_circle, null, size = 11.5.dp, tint = Color(0xFFF87171))
                 card.done -> FaIcon(R.drawable.fa_solid_check_circle, null, size = 11.5.dp, tint = Color(0xFF34D399))
                 else -> CircularProgressIndicator(Modifier.size(12.dp), strokeWidth = 2.dp, color = Color(0xFF22D3EE),
                     trackColor = Color(148, 163, 184).copy(alpha = 0.3f))

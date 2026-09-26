@@ -36,6 +36,7 @@ import com.minashin1120.aiplayground.data.BRANCH_GAP
 import com.minashin1120.aiplayground.data.BRANCH_NODE_HEIGHT
 import com.minashin1120.aiplayground.data.BranchNode
 import com.minashin1120.aiplayground.data.ChatMessage
+import com.minashin1120.aiplayground.data.branchCreatedAt
 import com.minashin1120.aiplayground.data.branchModelBreakdown
 import com.minashin1120.aiplayground.data.buildTokenTotals
 import com.minashin1120.aiplayground.data.layoutBranchTree
@@ -83,7 +84,6 @@ internal fun BranchManagerDialog(
     val store = remember(thread.id) { BranchStore(context, thread.id) }
     var selectedId by remember(thread.id) { mutableStateOf<String?>(null) }
     var confirmBranchDelete by remember { mutableStateOf(false) }
-    var confirmMessageDelete by remember { mutableStateOf(false) }
     val all = state.allMessages
     val total = remember(all) { buildTokenTotals(all).total }
     WebOverlayModal(onDismiss, grayOverlay(), 4.dp) { phone ->
@@ -144,11 +144,6 @@ internal fun BranchManagerDialog(
     }
     if (confirmBranchDelete) BrowserConfirmDialog("このブランチを削除してもよろしいですか？（その後の全てのメッセージも削除されます）") { ok ->
         confirmBranchDelete = false
-        if (ok) confirmMessageDelete = true
-    }
-    // Web `deleteMessage` asks again with its own confirm().
-    if (confirmMessageDelete) BrowserConfirmDialog("Delete this message and subsequent history?") { ok ->
-        confirmMessageDelete = false
         val target = all.firstOrNull { it.id == selectedId }
         if (ok && target != null) { onDelete(target); selectedId = null }
     }
@@ -317,8 +312,8 @@ private fun BranchDetail(
             Text(buildAnnotatedString {
                 withStyle(label) { append("ID: ") }; withStyle(value.copy(fontFamily = FontFamily.Monospace)) { append(node.id) }
             }, fontSize = 12.sp, lineHeight = 16.sp)
-            // The Web reads `created_at`, which the message payload does not carry, so it always shows "-".
-            Text(buildAnnotatedString { withStyle(label) { append("作成: ") }; withStyle(value) { append("-") } }, fontSize = 12.sp, lineHeight = 16.sp)
+            Text(buildAnnotatedString { withStyle(label) { append("作成: ") }; withStyle(value) { append(branchCreatedAt(node.createdAt)) } },
+                fontSize = 12.sp, lineHeight = 16.sp)
             Text(buildAnnotatedString {
                 withStyle(label) { append("モデル: ") }; withStyle(value) { append(node.model.ifBlank { "-" }) }
             }, fontSize = 12.sp, lineHeight = 16.sp)

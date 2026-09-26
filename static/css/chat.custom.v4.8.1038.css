@@ -973,6 +973,7 @@
             transform: translateY(-1px);
         }
         .lib-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .lib-action-btn[hidden] { display: none; }
         .lib-btn-accent { background: rgba(var(--theme-rgb), 0.16); border-color: rgba(var(--theme-rgb), 0.4); color: var(--theme-200); }
         .lib-btn-accent:hover:not(:disabled) { background: rgba(var(--theme-rgb), 0.28); border-color: rgba(var(--theme-rgb), 0.6); color: #eafffb; }
         .lib-btn-danger { background: rgba(249,112,141,0.12); border-color: rgba(249,112,141,0.35); color: #ffd2db; }

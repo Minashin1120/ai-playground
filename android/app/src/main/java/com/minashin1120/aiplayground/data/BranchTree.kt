@@ -22,6 +22,15 @@ const val BRANCH_GAP = 16f
 private fun rowTokens(m: ChatMessage): Int = m.tokens ?: ((m.tokensIn ?: 0) + (m.tokensOut ?: 0))
 
 /** Tokens along the path from the root to [id] (`getCumulativeTokensForNode`). */
+/** Web `formatBranchCreatedAt`: ja-JP `yyyy/MM/dd HH:mm` in local time, "-" when unknown. */
+fun branchCreatedAt(value: String, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String {
+    if (value.isBlank()) return "-"
+    return runCatching {
+        java.time.OffsetDateTime.parse(value).atZoneSameInstant(zone)
+            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm"))
+    }.getOrDefault(value)
+}
+
 fun branchPathTokens(messages: List<ChatMessage>, id: Int): Int {
     val byId = messages.mapNotNull { m -> numericId(m)?.let { it to m } }.toMap()
     var total = 0

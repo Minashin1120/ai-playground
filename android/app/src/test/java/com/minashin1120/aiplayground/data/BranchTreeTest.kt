@@ -62,4 +62,14 @@ class BranchTreeTest {
         assertTrue(isVideoPath("u/clip.mov"))
         assertFalse(isVideoPath("u/doc.pdf"))
     }
+
+    @Test
+    fun createdAtIsShownLikeTheWebBranchDetail() {
+        val tokyo = java.time.ZoneId.of("Asia/Tokyo")
+        assertEquals("2026/09/27 12:04", branchCreatedAt("2026-09-27T03:04:05Z", tokyo))
+        assertEquals("-", branchCreatedAt(""))
+        assertEquals("not a date", branchCreatedAt("not a date"))
+        val parsed = parseMessages(org.json.JSONObject("""{"messages":[{"id":1,"role":"user","content":"hi","created_at":"2026-09-27T03:04:05Z"}]}"""))
+        assertEquals("2026-09-27T03:04:05Z", parsed.single().createdAt)
+    }
 }

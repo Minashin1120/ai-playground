@@ -169,7 +169,8 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
 internal fun mcpCards(state: ChatState, model: ChatViewModel, extras: SettingsExtras, ops: AccountOps): List<SettingsCardSpec> {
     return listOf(
         SettingsCardSpec(SettingsTab.Mcp, "servers", "外部MCPサーバー連携",
-            "外部MCPサーバー連携 MCP（Model Context Protocol）で、チャット中に Gmail や Google Drive などの外部ツールをモデルから利用できるようになります。 Google Workspace 連携（OAuthクライアント情報） 登録済みサーバー 接続テスト ツール一覧") {
+            "外部MCPサーバー連携 MCP（Model Context Protocol）で、チャット中に Gmail や Google Drive などの外部ツールをモデルから利用できるようになります。 Google Workspace 連携（OAuthクライアント情報） 登録済みサーバー 接続テスト ツール一覧",
+            titleIcon = R.drawable.fa_solid_plug, titleIconTint = Tw.cyan300) {
             val web = LocalWebPalette.current
             val status = remember { McpStatus() }
             SettingsDesc("MCP（Model Context Protocol）で、チャット中に Gmail や Google Drive などの外部ツールをモデルから利用できるようになります。サーバーごとに「有効」にすると、そのツールがチャットで使えるようになります（変更を伴う操作は実行前に確認されます）。",
@@ -198,8 +199,8 @@ internal fun mcpCards(state: ChatState, model: ChatViewModel, extras: SettingsEx
             (loadingText ?: status.message)?.let { Text(it, fontSize = 11.sp, color = if (status.error) Color(0xFFF87171) else Tw.gray400, modifier = Modifier.padding(top = 8.dp)) }
         },
         SettingsCardSpec(SettingsTab.Mcp, "custom", "カスタムMCPサーバーを追加",
-            // `fa-plus-circle` is not in the Web icon subset, so the title has no glyph there either.
-            "カスタムMCPサーバーを追加 表示名 MCP URL（Streamable HTTP） 認証方式 認証なし 説明（任意） 接続テストして追加") {
+            "カスタムMCPサーバーを追加 表示名 MCP URL（Streamable HTTP） 認証方式 認証なし 説明（任意） 接続テストして追加",
+            titleIcon = R.drawable.fa_solid_plus_circle, titleIconTint = Tw.emerald400) {
             McpCustomForm(model, ops)
         },
     )
@@ -222,6 +223,8 @@ private fun McpServerRow(server: com.minashin1120.aiplayground.data.McpServerInf
     var confirmDelete by remember { mutableStateOf(false) }
     SettingsSubBox {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            FaIcon(R.drawable.fa_solid_plug, null, size = 12.dp, tint = if (server.enabled) Tw.cyan300 else Tw.gray600,
+                modifier = Modifier.align(Alignment.CenterVertically))
             Text(server.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White,
                 modifier = Modifier.align(Alignment.CenterVertically))
             McpBadge(if (server.isPreset) "プリセット" else "カスタム", if (server.isPreset) Tw.blue700.copy(alpha = 0.5f) else Tw.purple700.copy(alpha = 0.5f),
@@ -284,7 +287,7 @@ private fun McpServerRow(server: com.minashin1120.aiplayground.data.McpServerInf
                         status.set(serverErrorText(e, "接続テストに失敗しました"), true)
                     }
                 }
-            }, fontSize = 10.sp, icon = null)
+            }, fontSize = 10.sp, icon = R.drawable.fa_solid_plug)
             Text(when (server.connectionState) {
                 "error" -> "エラー"
                 "connected" -> "接続OK"

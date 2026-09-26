@@ -188,6 +188,19 @@ class MobileApiTests(unittest.TestCase):
         unauthenticated = self.native.open(f'/api/messages/{other_id}', method='DELETE', base_url='https://localhost')
         self.assertIn(unauthenticated.status_code, (401, 403))
 
+    def test_thread_messages_carry_created_at_for_the_branch_manager(self):
+        token = self.token()
+        with target.app.app_context():
+            thread = target.Thread(user_id=self.user_id, public_id=target.generate_thread_public_id())
+            target.db.session.add(thread)
+            target.db.session.commit()
+            target.db.session.add(target.Message(thread_id=thread.id, role='user', content='hi',
+                                                 timestamp=datetime(2026, 9, 27, 3, 4, 5)))
+            target.db.session.commit()
+            public_id = thread.public_id
+        messages = self.call('/api/threads/' + public_id + '?limit=50', token).json['messages']
+        self.assertEqual(messages[0]['created_at'], '2026-09-27T03:04:05Z')
+
     def test_native_thread_settings_bookmark_title_and_temporary_heartbeat(self):
         token = self.token()
         created = self.call('/api/threads', token, 'POST', json={'is_temporary': True})

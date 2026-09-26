@@ -468,6 +468,37 @@
                 console.error('Failed to load gems:', err);
             }
         }
+        // Gem "Default Model": the chat models by category, after "Use current model".
+        function setGemDefaultModelSelect(value) {
+            const sel = get('gem-default-model');
+            if (!sel) return;
+            sel.innerHTML = '';
+            const first = document.createElement('option');
+            first.value = '';
+            first.textContent = 'Use current model';
+            sel.appendChild(first);
+            MODELS.forEach(group => {
+                const items = (group.items || []).filter(m => !m.deprecated);
+                if (!items.length) return;
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = group.category;
+                items.forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.textContent = item.name;
+                    optgroup.appendChild(opt);
+                });
+                sel.appendChild(optgroup);
+            });
+            const wanted = value || '';
+            if (wanted && !Array.from(sel.options).some(o => o.value === wanted)) {
+                const kept = document.createElement('option');
+                kept.value = wanted;
+                kept.textContent = MODEL_NAME_BY_ID[wanted] || wanted;
+                sel.appendChild(kept);
+            }
+            sel.value = wanted;
+        }
         async function openEditGemModal(e, id) {
             e.stopPropagation();
             editingGemUuid = id;
@@ -477,7 +508,7 @@
                 get('gem-name').value = g.name;
                 get('gem-desc').value = g.description || '';
                 get('gem-inst').value = g.instruction;
-                get('gem-default-model').value = g.default_model || '';
+                setGemDefaultModelSelect(g.default_model);
                 renderGemFixedPromptsForEdit(g.fixed_prompts);
                 get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Edit Gem`;
                 get('save-gem-btn').innerText = "Save Changes";
@@ -1023,7 +1054,7 @@
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleGemItem.replace('0', id), {method: 'DELETE'}); loadGems(); }
         async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { const res = await apiFetch(CHAT_CONFIG.urls.updateTitle.replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); const d = await res.json().catch(() => ({})); if (res.ok && currentThreadId === String(id)) setCurrentChatHeaderTitle((d && d.title) || n); loadThreads(); } }
         async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleThreadItem.replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
-        async function deleteMessage(id) { if(!confirm("Delete this message and subsequent history?")) return; await apiFetch(CHAT_CONFIG.urls.deleteMessage.replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
+        async function deleteMessage(id, confirmed) { if(!confirmed && !confirm("Delete this message and subsequent history?")) return; await apiFetch(CHAT_CONFIG.urls.deleteMessage.replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
         let activePdfPrintFrame = null;
         const PDF_IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'svg']);
         const PDF_PRINT_ROUTE = CHAT_CONFIG.urls.exportThreadPdf;

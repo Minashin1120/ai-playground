@@ -4712,12 +4712,12 @@ Math.floor((Date.now()-j)/1e3):0,D=String(Math.floor(I/60)).padStart(2,"0"),ve=S
 sed");I&&(I.textContent=xe()),P||(P=window.setInterval(()=>{const D=N("lyria-elapsed");D&&(D.textContent=
 xe())},1e3))}o(W,"startElapsedTimer");function le(){P&&(window.clearInterval(P),P=null)}o(le,"stopEl\
 apsedTimer");function Ae(){const I=N("lyria-play-btn"),D=N("lyria-pause-btn"),ve=N("lyria-stop-btn"),
-ae=N("lyria-reset-btn"),_e=!!b,Be=H==="streaming"||H==="connecting";if(I){I.disabled=se||!_e;const Qe=I.
-querySelector("i");Qe&&(Qe.className="fas fa-play")}D&&(D.disabled=se||!Be),ve&&(ve.disabled=se||!_e||
-!Be),ae&&(ae.disabled=se||!_e||!Be)}o(Ae,"updateTransportButtons");function Y(){const I=N("lyria-sav\
-e-btn");if(!I)return;const D=!!b&&H!=="idle"&&H!=="connecting"&&H!=="error";I.classList.toggle("hidd\
-en",!D)}o(Y,"updateSaveButton");function ce(I,D){const ve=N("lyria-prompt-rows");if(!ve)return;const ae=document.
-createElement("div");ae.className="flex items-center gap-2",ae.innerHTML=`
+ae=N("lyria-reset-btn"),_e=!!b,Be=H==="streaming"||H==="connecting";if(I){I.disabled=se;const Qe=I.querySelector(
+"i");Qe&&(Qe.className="fas fa-play")}D&&(D.disabled=se||!Be),ve&&(ve.disabled=se||!_e||!Be),ae&&(ae.
+disabled=se||!_e||!Be)}o(Ae,"updateTransportButtons");function Y(){const I=N("lyria-save-btn");if(!I)
+return;const D=!!b&&H!=="idle"&&H!=="connecting"&&H!=="error";I.classList.toggle("hidden",!D)}o(Y,"u\
+pdateSaveButton");function ce(I,D){const ve=N("lyria-prompt-rows");if(!ve)return;const ae=document.createElement(
+"div");ae.className="flex items-center gap-2",ae.innerHTML=`
                         <input type="text" value="${escapeHtml(I||"")}" placeholder="\u4F8B: minimal tech\
 no / warm acoustic guitar" class="flex-1 bg-gray-700 border border-gray-600 rounded px-2 py-1.5 text\
 -[11px] text-white outline-none min-w-0" maxlength="4000">
@@ -4981,12 +4981,13 @@ $.decode(Q,{stream:!0});const xe=j.split(`
 le.error);le.audio_delta&&H&&(se&&(setStsStatus("Playing response...",!1),se=!1),await H.addChunk(le.
 audio_delta)),le.input_delta&&(q+=le.input_delta,window.VoiceStudio&&window.VoiceStudio.log("user",q)),
 le.transcript_delta&&(N+=le.transcript_delta,window.VoiceStudio&&window.VoiceStudio.log("assistant",
-N)),le.final&&(P=le)}}window.VoiceStudio&&!q.trim()&&window.VoiceStudio.log("user","\uFF08\u97F3\u58F0\u30E1\u30C3\u30BB\u30FC\u30B8\uFF09"),
-P&&(P.audio_url||P.transcription_only)&&(stsOpt("sts-auto-restart")&&isStsModel()?setTimeout(()=>{setStsStatus(
-"Listening...",!0),get("mic-btn").click()},500):setStsStatus("Tap to speak",!1),await loadMessages(currentThreadId))}else{
-const T=get("set-mic-transcribe-mode");if(!!(T&&T.value==="llm")&&!supportsAudioInputModel()){showToast(
-"\u73FE\u5728\u306E\u30E2\u30C7\u30EB\u306FLLM\u97F3\u58F0\u6587\u5B57\u8D77\u3053\u3057\uFF08\u97F3\u58F0\u5165\u529B\uFF09\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
-"error",!0);return}x.append("llm_model",get("model-select")&&get("model-select").value||"");const j=await(await apiFetch(
+N)),(le.final||le.audio_url)&&(P=le)}}window.VoiceStudio&&!q.trim()&&window.VoiceStudio.log("user","\
+\uFF08\u97F3\u58F0\u30E1\u30C3\u30BB\u30FC\u30B8\uFF09"),P&&(P.audio_url||P.transcription_only)&&(stsOpt(
+"sts-auto-restart")&&isStsModel()?setTimeout(()=>{setStsStatus("Listening...",!0),get("mic-btn").click()},
+500):setStsStatus("Tap to speak",!1),await loadMessages(currentThreadId))}else{const T=get("set-mic-\
+transcribe-mode");if(!!(T&&T.value==="llm")&&!supportsAudioInputModel()){showToast("\u73FE\u5728\u306E\u30E2\u30C7\u30EB\u306FLLM\u97F3\u58F0\u6587\u5B57\u8D77\u3053\
+\u3057\uFF08\u97F3\u58F0\u5165\u529B\uFF09\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093","e\
+rror",!0);return}x.append("llm_model",get("model-select")&&get("model-select").value||"");const j=await(await apiFetch(
 CHAT_CONFIG.urls.transcribe,{method:"POST",body:x})).json();if(j.transcript){const P=get("prompt-inp\
 ut");P.value+=(P.value?" ":"")+j.transcript,P.style.height="auto",P.style.height=P.scrollHeight+"px"}else
 showToast(j.error||"Transcription failed","error",!0)}}catch(T){showToast("Audio processing error: "+
@@ -5022,11 +5023,11 @@ onclick=()=>loadLibraryFiles(!0)),get("add-gem-fixed-prompt-row")&&(get("add-gem
 onclick=()=>addGemFixedPromptRow());const pi=o(()=>{editingGemUuid=null,get("gem-modal-title").innerHTML=
 '<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem',get("save-gem-btn").innerText="Create \
 Gem",showModal("gem-modal"),get("gem-name").value="",get("gem-desc").value="",get("gem-inst").value=
-"",get("gem-default-model").value="",get("gem-fixed-prompts-container")&&(get("gem-fixed-prompts-con\
-tainer").innerHTML=""),location.pathname!=="/gem"&&history.pushState({modal:"gem"},"","/gem")},"open\
-GemModal");window.closeGemModal=(d=!1)=>{hideModal("gem-modal"),!d&&location.pathname==="/gem"&&history.
-back()},get("add-gem-btn").onclick=()=>pi(),get("save-gem-btn").onclick=async()=>{const d=get("gem-n\
-ame").value,m=get("gem-desc").value,h=get("gem-inst").value,b=collectGemFixedPrompts();if(d&&h){const x=editingGemUuid?
+"",setGemDefaultModelSelect(""),get("gem-fixed-prompts-container")&&(get("gem-fixed-prompts-containe\
+r").innerHTML=""),location.pathname!=="/gem"&&history.pushState({modal:"gem"},"","/gem")},"openGemMo\
+dal");window.closeGemModal=(d=!1)=>{hideModal("gem-modal"),!d&&location.pathname==="/gem"&&history.back()},
+get("add-gem-btn").onclick=()=>pi(),get("save-gem-btn").onclick=async()=>{const d=get("gem-name").value,
+m=get("gem-desc").value,h=get("gem-inst").value,b=collectGemFixedPrompts();if(d&&h){const x=editingGemUuid?
 "PUT":"POST",S=editingGemUuid?`/api/gems/${editingGemUuid}`:CHAT_CONFIG.urls.handleGems;await apiFetch(
 S,{method:x,headers:{"Content-Type":"application/json"},body:JSON.stringify({name:d,description:m,instruction:h,
 fixed_prompts:b,default_model:get("gem-default-model").value||null})}),window.closeGemModal(),loadGems(),
@@ -7120,38 +7121,44 @@ ems-center gap-1"><button class="text-gray-400 hover:text-blue-400 opacity-100 m
 encil-alt text-[10px]"></i></button><button class="text-gray-400 hover:text-red-400 opacity-100 md:o\
 pacity-0 md:group-hover:opacity-100 px-2 transition" onclick="deleteGem(event,'${i.uuid}')"><i class\
 ="fas fa-trash text-[10px]"></i></button></div>`,a.onclick=r=>{r.target.closest("button")||activateGem(
-i)},n.appendChild(a)})}catch(e){console.error("Failed to load gems:",e)}}o(loadGems,"loadGems");async function openEditGemModal(e,t){
-e.stopPropagation(),editingGemUuid=t;try{const i=await(await apiFetch(`/api/gems/${t}`)).json();get(
-"gem-name").value=i.name,get("gem-desc").value=i.description||"",get("gem-inst").value=i.instruction,
-get("gem-default-model").value=i.default_model||"",renderGemFixedPromptsForEdit(i.fixed_prompts),get(
-"gem-modal-title").innerHTML='<i class="fas fa-gem text-blue-500 mr-2"></i>Edit Gem',get("save-gem-b\
-tn").innerText="Save Changes",showModal("gem-modal"),location.pathname!=="/gem"&&history.pushState({
-modal:"gem"},"","/gem")}catch{showToast("Gem\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
-"error",!0)}}o(openEditGemModal,"openEditGemModal");async function createGem(e,t){await apiFetch(CHAT_CONFIG.
-urls.handleGems,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:e,
-instruction:t})}),loadGems()}o(createGem,"createGem");function applyActiveGem(e){activeGem=e||null;const t=get(
-"fixed-prompts-bar");if(activeGem){if(activeGem.default_model&&selectModelById(activeGem.default_model),
-get("active-gem-name").innerText=activeGem.name,get("gem-active-indicator").classList.remove("hidden"),
-t){t.innerHTML="";let n=[];try{activeGem.fixed_prompts&&(n=JSON.parse(activeGem.fixed_prompts))}catch{}
-n.length>0?(t.classList.remove("hidden"),n.forEach((i,a)=>{const r=document.createElement("button");
-r.className="fixed-prompt-chip whitespace-nowrap px-4 py-1.5 text-[11px] font-bold bg-gray-700 hover\
-:bg-gray-600 text-gray-100 rounded-full transition-all shadow-md border border-gray-600/50 flex item\
-s-center",r.style.animationDelay=`${a*40}ms`,r.textContent=String(i.name||""),r.onclick=()=>{const l=get(
-"prompt-input");l&&(l.value=i.content,l.dispatchEvent(new Event("input")),sendMessage())},t.appendChild(
-r)})):t.classList.add("hidden")}}else get("gem-active-indicator").classList.add("hidden"),t&&(t.innerHTML=
-"",t.classList.add("hidden"));get("sys-prompt-option").style.opacity="1"}o(applyActiveGem,"applyActi\
-veGem");function syncActiveGemForThread(e){const t=e&&threadGemMap[e]?threadGemMap[e]:null;applyActiveGem(
-t)}o(syncActiveGemForThread,"syncActiveGemForThread");async function saveThreadGemUuid(e,t){try{await apiFetch(
-CHAT_CONFIG.urls.handleSettings,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.
-stringify({last_gem_uuid:t,thread_id:e})})}catch{}}o(saveThreadGemUuid,"saveThreadGemUuid");function activateGem(e,t){
-currentThreadId?(threadGemMap[currentThreadId]=e,applyActiveGem(e),showToast(`Gem "${e.name}" \u3092\u3053\u306E\u30C1\u30E3\u30C3\
-\u30C8\u306B\u9069\u7528\u3057\u307E\u3057\u305F`,"success"),t||saveThreadGemUuid(currentThreadId,e?
-e.uuid:null)):(pendingGemForNewThread=e,applyActiveGem(e),allMessages&&allMessages.length>0&&startNewChat(
-{preserveGem:!0}))}o(activateGem,"activateGem");function clearActiveGem(){currentThreadId&&(delete threadGemMap[currentThreadId],
-saveThreadGemUuid(currentThreadId,null)),pendingGemForNewThread=null,applyActiveGem(null)}o(clearActiveGem,
-"clearActiveGem");function addGemFixedPromptRow(e="",t=""){const n=get("gem-fixed-prompts-container");
-if(!n)return;const i=document.createElement("div");i.className="flex gap-2 items-start gem-fixed-pro\
-mpt-row ui-enter",i.innerHTML=`
+i)},n.appendChild(a)})}catch(e){console.error("Failed to load gems:",e)}}o(loadGems,"loadGems");function setGemDefaultModelSelect(e){
+const t=get("gem-default-model");if(!t)return;t.innerHTML="";const n=document.createElement("option");
+n.value="",n.textContent="Use current model",t.appendChild(n),MODELS.forEach(a=>{const r=(a.items||[]).
+filter(c=>!c.deprecated);if(!r.length)return;const l=document.createElement("optgroup");l.label=a.category,
+r.forEach(c=>{const u=document.createElement("option");u.value=c.id,u.textContent=c.name,l.appendChild(
+u)}),t.appendChild(l)});const i=e||"";if(i&&!Array.from(t.options).some(a=>a.value===i)){const a=document.
+createElement("option");a.value=i,a.textContent=MODEL_NAME_BY_ID[i]||i,t.appendChild(a)}t.value=i}o(
+setGemDefaultModelSelect,"setGemDefaultModelSelect");async function openEditGemModal(e,t){e.stopPropagation(),
+editingGemUuid=t;try{const i=await(await apiFetch(`/api/gems/${t}`)).json();get("gem-name").value=i.
+name,get("gem-desc").value=i.description||"",get("gem-inst").value=i.instruction,setGemDefaultModelSelect(
+i.default_model),renderGemFixedPromptsForEdit(i.fixed_prompts),get("gem-modal-title").innerHTML='<i \
+class="fas fa-gem text-blue-500 mr-2"></i>Edit Gem',get("save-gem-btn").innerText="Save Changes",showModal(
+"gem-modal"),location.pathname!=="/gem"&&history.pushState({modal:"gem"},"","/gem")}catch{showToast(
+"Gem\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error",!0)}}o(openEditGemModal,"o\
+penEditGemModal");async function createGem(e,t){await apiFetch(CHAT_CONFIG.urls.handleGems,{method:"\
+POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:e,instruction:t})}),loadGems()}
+o(createGem,"createGem");function applyActiveGem(e){activeGem=e||null;const t=get("fixed-prompts-bar");
+if(activeGem){if(activeGem.default_model&&selectModelById(activeGem.default_model),get("active-gem-n\
+ame").innerText=activeGem.name,get("gem-active-indicator").classList.remove("hidden"),t){t.innerHTML=
+"";let n=[];try{activeGem.fixed_prompts&&(n=JSON.parse(activeGem.fixed_prompts))}catch{}n.length>0?(t.
+classList.remove("hidden"),n.forEach((i,a)=>{const r=document.createElement("button");r.className="f\
+ixed-prompt-chip whitespace-nowrap px-4 py-1.5 text-[11px] font-bold bg-gray-700 hover:bg-gray-600 t\
+ext-gray-100 rounded-full transition-all shadow-md border border-gray-600/50 flex items-center",r.style.
+animationDelay=`${a*40}ms`,r.textContent=String(i.name||""),r.onclick=()=>{const l=get("prompt-input");
+l&&(l.value=i.content,l.dispatchEvent(new Event("input")),sendMessage())},t.appendChild(r)})):t.classList.
+add("hidden")}}else get("gem-active-indicator").classList.add("hidden"),t&&(t.innerHTML="",t.classList.
+add("hidden"));get("sys-prompt-option").style.opacity="1"}o(applyActiveGem,"applyActiveGem");function syncActiveGemForThread(e){
+const t=e&&threadGemMap[e]?threadGemMap[e]:null;applyActiveGem(t)}o(syncActiveGemForThread,"syncActi\
+veGemForThread");async function saveThreadGemUuid(e,t){try{await apiFetch(CHAT_CONFIG.urls.handleSettings,
+{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({last_gem_uuid:t,thread_id:e})})}catch{}}
+o(saveThreadGemUuid,"saveThreadGemUuid");function activateGem(e,t){currentThreadId?(threadGemMap[currentThreadId]=
+e,applyActiveGem(e),showToast(`Gem "${e.name}" \u3092\u3053\u306E\u30C1\u30E3\u30C3\u30C8\u306B\u9069\u7528\u3057\u307E\u3057\u305F`,
+"success"),t||saveThreadGemUuid(currentThreadId,e?e.uuid:null)):(pendingGemForNewThread=e,applyActiveGem(
+e),allMessages&&allMessages.length>0&&startNewChat({preserveGem:!0}))}o(activateGem,"activateGem");function clearActiveGem(){
+currentThreadId&&(delete threadGemMap[currentThreadId],saveThreadGemUuid(currentThreadId,null)),pendingGemForNewThread=
+null,applyActiveGem(null)}o(clearActiveGem,"clearActiveGem");function addGemFixedPromptRow(e="",t=""){
+const n=get("gem-fixed-prompts-container");if(!n)return;const i=document.createElement("div");i.className=
+"flex gap-2 items-start gem-fixed-prompt-row ui-enter",i.innerHTML=`
                 <input type="text" class="gem-fp-name bg-gray-900 border border-gray-600 rounded p-1\
 .5 text-white text-[10px] w-24" placeholder="\u540D\u524D" value="${escapeHtml(e)}" autocomplete="of\
 f" spellcheck="false">
@@ -7300,8 +7307,8 @@ replace("0",t),{method:"PUT",headers:{"Content-Type":"application/json"},body:JS
 a=await i.json().catch(()=>({}));i.ok&&currentThreadId===String(t)&&setCurrentChatHeaderTitle(a&&a.title||
 n),loadThreads()}}o(renameThread,"renameThread");async function deleteThread(e,t){e.stopPropagation(),
 confirm("Delete?")&&(await apiFetch(CHAT_CONFIG.urls.handleThreadItem.replace("0",t),{method:"DELETE"}),
-currentThreadId===t?startNewChat():loadThreads())}o(deleteThread,"deleteThread");async function deleteMessage(e){
-confirm("Delete this message and subsequent history?")&&(await apiFetch(CHAT_CONFIG.urls.deleteMessage.
+currentThreadId===t?startNewChat():loadThreads())}o(deleteThread,"deleteThread");async function deleteMessage(e,t){
+!t&&!confirm("Delete this message and subsequent history?")||(await apiFetch(CHAT_CONFIG.urls.deleteMessage.
 replace("0",e),{method:"DELETE"}),loadMessages(currentThreadId))}o(deleteMessage,"deleteMessage");let activePdfPrintFrame=null;
 const PDF_IMAGE_EXTS=new Set(["jpg","jpeg","png","webp","gif","bmp","avif","svg"]),PDF_PRINT_ROUTE=CHAT_CONFIG.
 urls.exportThreadPdf,pdfEscapeAttr=o(e=>escapeHtml(e==null?"":String(e)),"pdfEscapeAttr"),pdfFormatTimestamp=o(
@@ -7708,17 +7715,19 @@ updateBranchDetailPane()},r.appendChild(l),a.children.length>0){const y=document
 y.className="w-px h-4 bg-gray-700",r.appendChild(y);const w=document.createElement("div");w.className=
 "flex gap-4 items-start",a.children.forEach(v=>w.appendChild(i(v))),r.appendChild(w)}return r}o(i,"r\
 enderNodeRecursive"),n.forEach(a=>e.appendChild(i(a)))}o(renderBranchTreeVisualization,"renderBranch\
-TreeVisualization");function updateBranchDetailPane(){const e=get("branch-detail-panel"),t=get("bran\
-ch-empty-panel");if(!selectedBranchNodeId||!allMessages){e.classList.add("hidden"),t.classList.remove(
-"hidden");return}const n=allMessages.find(u=>u.id===selectedBranchNodeId);if(!n)return;e.classList.remove(
-"hidden"),t.classList.add("hidden"),get("br-id").innerText=n.id,get("br-date").innerText=n.created_at||
-"-",get("br-model").innerText=n.model||"-";const i=n.tokens||Number(n.tokens_in||0)+Number(n.tokens_out||
-0),a=getCumulativeTokensForNode(n.id);get("br-tokens").innerHTML=`<span title="Current message token\
-s">${i}</span> <span class="text-gray-500">/</span> <span class="text-purple-400 font-bold" title="P\
-ath total tokens">${a} total</span>`;const r=get("branch-model-breakdown"),l=getPerModelTokensForPath(
-n.id);r.innerHTML="",Object.entries(l).sort((u,f)=>f[1].total-u[1].total).forEach(([u,f])=>{const g=document.
-createElement("div");g.className="bg-gray-800/50 p-2 rounded border border-gray-700/50",g.innerHTML=
-`
+TreeVisualization");function formatBranchCreatedAt(e){if(!e)return"-";const t=new Date(e);return isNaN(
+t.getTime())?String(e):t.toLocaleString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"\
+2-digit",minute:"2-digit"})}o(formatBranchCreatedAt,"formatBranchCreatedAt");function updateBranchDetailPane(){
+const e=get("branch-detail-panel"),t=get("branch-empty-panel");if(!selectedBranchNodeId||!allMessages){
+e.classList.add("hidden"),t.classList.remove("hidden");return}const n=allMessages.find(u=>u.id===selectedBranchNodeId);
+if(!n)return;e.classList.remove("hidden"),t.classList.add("hidden"),get("br-id").innerText=n.id,get(
+"br-date").innerText=formatBranchCreatedAt(n.created_at),get("br-model").innerText=n.model||"-";const i=n.
+tokens||Number(n.tokens_in||0)+Number(n.tokens_out||0),a=getCumulativeTokensForNode(n.id);get("br-to\
+kens").innerHTML=`<span title="Current message tokens">${i}</span> <span class="text-gray-500">/</sp\
+an> <span class="text-purple-400 font-bold" title="Path total tokens">${a} total</span>`;const r=get(
+"branch-model-breakdown"),l=getPerModelTokensForPath(n.id);r.innerHTML="",Object.entries(l).sort((u,f)=>f[1].
+total-u[1].total).forEach(([u,f])=>{const g=document.createElement("div");g.className="bg-gray-800/5\
+0 p-2 rounded border border-gray-700/50",g.innerHTML=`
                     <div class="flex justify-between font-bold text-gray-300 mb-1">
                         <span class="truncate pr-2">${u}</span>
                         <span class="text-blue-400 shrink-0">${f.total}</span>
@@ -7743,7 +7752,7 @@ null,showToast("\u56FA\u5B9A\u3092\u89E3\u9664\u3057\u307E\u3057\u305F")):(threa
 showToast("\u30E1\u30A4\u30F3\u30EB\u30FC\u30C8\u306B\u56FA\u5B9A\u3057\u307E\u3057\u305F")),saveBranchData(),
 renderBranchTreeVisualization(),updateBranchDetailPane())},get("br-delete-btn").onclick=()=>{selectedBranchNodeId&&
 confirm("\u3053\u306E\u30D6\u30E9\u30F3\u30C1\u3092\u524A\u9664\u3057\u3066\u3082\u3088\u308D\u3057\u3044\u3067\u3059\u304B\uFF1F\uFF08\u305D\u306E\u5F8C\u306E\u5168\u3066\u306E\u30E1\u30C3\u30BB\u30FC\u30B8\u3082\u524A\u9664\u3055\u308C\u307E\u3059\uFF09")&&
-(deleteMessage(selectedBranchNodeId),selectedBranchNodeId=null,setTimeout(()=>{renderBranchTreeVisualization(),
+(deleteMessage(selectedBranchNodeId,!0),selectedBranchNodeId=null,setTimeout(()=>{renderBranchTreeVisualization(),
 updateBranchDetailPane()},500))};let batchJobsCache=[],batchFilterMode="all",batchListTimer=null;function batchProviderLabel(e){
 return{gemini:"Gemini",openai:"OpenAI",xai:"xAI"}[String(e||"").toLowerCase()]||e||"Batch"}o(batchProviderLabel,
 "batchProviderLabel");function batchStateLabelShort(e){return{JOB_STATE_QUEUED:"\u9001\u4FE1\u5F85\u3061",

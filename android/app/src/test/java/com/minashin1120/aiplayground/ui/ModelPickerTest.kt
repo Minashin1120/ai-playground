@@ -43,4 +43,15 @@ class ModelPickerTest {
         val rows = listOf(FixedPrompt(" a ", " b "), FixedPrompt("", "x"), FixedPrompt("y", "  "))
         assertEquals(listOf(FixedPrompt("a", "b")), collectGemFixedPrompts(rows))
     }
+
+    @Test
+    fun gemDefaultModelOffersTheChatModelsAndKeepsASavedOne() {
+        val models = listOf(model("gpt-5.5"), model("old").copy(deprecated = true))
+        val options = gemDefaultModelOptions(models, "")
+        assertEquals(listOf("", "gpt-5.5"), options.map { it.value })
+        assertEquals("Use current model", options.first().label)
+        assertEquals("Featured", options[1].group)
+        assertEquals(listOf("", "gpt-5.5", "retired-1"), gemDefaultModelOptions(models, "retired-1").map { it.value })
+    }
 }
+

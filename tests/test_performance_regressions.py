@@ -322,7 +322,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertEqual(min_css.read_bytes(), source_css.read_bytes())
         # Keep a small allowance for new model-specific UI branches while
         # retaining a hard cap on the browser asset size.
-        self.assertLess(min_js.stat().st_size, 818_000)
+        self.assertLess(min_js.stat().st_size, 819_000)
         self.assertIn("chat_core.min.", template)
         self.assertNotIn("filename='js/chat_core.'", template)
         self.assertIn("chat.custom.min.", template)
@@ -346,6 +346,21 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertIn("font-display:swap", icon_css)
         self.assertIn(".fa-paper-plane:before", icon_css)
         self.assertLess((APP_ROOT / "static/vendor/icons/fa-subset.css").stat().st_size, 12_000)
+        # Every icon class used by the templates and scripts is in the subset, and the fonts are
+        # versioned by content so a rebuilt glyph set is not served from an old cache.
+        import hashlib
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("build_icon_subset", APP_ROOT / "scripts/build_icon_subset.py")
+        builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(builder)
+        used, _prefixes = builder.collect_used_icons()
+        missing = sorted(name for name in used if f".fa-{name}:before" not in icon_css)
+        self.assertEqual(missing, [], "run scripts/build_icon_subset.py")
+        for family in ("solid", "regular", "brands"):
+            font = APP_ROOT / f"static/vendor/icons/fa-{family}-subset.woff2"
+            if f"fa-{family}-subset.woff2" in icon_css:
+                digest = hashlib.sha256(font.read_bytes()).hexdigest()[:10]
+                self.assertIn(f"fa-{family}-subset.woff2?h={digest}", icon_css)
         solid_font = (APP_ROOT / "static/vendor/icons/fa-solid-subset.woff2")
         self.assertGreater(solid_font.stat().st_size, 8_000)
         self.assertLess(solid_font.stat().st_size, 80_000)

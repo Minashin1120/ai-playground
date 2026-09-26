@@ -1076,7 +1076,7 @@ private fun TokenEstimate(state: ChatState) {
 /** Supplies the token-estimate request so previews and tests can render the composer without a network. */
 internal val LocalComposerEstimator = staticCompositionLocalOf<(suspend (String, String, String, List<String>) -> JSONObject)?> { null }
 
-/** Web slash-command icons (`fa-*`); `fa-file-lines` and `fa-plug` are not in the Web icon subset, so no glyph. */
+/** Web slash-command icons (`fa-*`). */
 @DrawableRes
 internal fun slashIcon(name: String): Int? = when (name) {
     "cog" -> R.drawable.fa_solid_cog
@@ -1097,6 +1097,8 @@ internal fun slashIcon(name: String): Int? = when (name) {
     "database" -> R.drawable.fa_solid_database
     "compress-alt" -> R.drawable.fa_solid_compress_alt
     "hourglass-half" -> R.drawable.fa_solid_hourglass_half
+    "file-lines" -> R.drawable.fa_solid_file_lines
+    "plug" -> R.drawable.fa_solid_plug
     else -> null
 }
 

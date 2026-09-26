@@ -14196,7 +14196,8 @@
                     const hasSession = !!sessionId;
                     const playing = state === 'streaming' || state === 'connecting';
                     if (playBtn) {
-                        playBtn.disabled = busy || !hasSession;
+                        // Play starts a new session when none is open yet.
+                        playBtn.disabled = busy;
                         const icon = playBtn.querySelector('i');
                         if (icon) icon.className = 'fas fa-play';
                     }
@@ -15290,7 +15291,8 @@
                                             studioAssistant += chunk.transcript_delta;
                                             if (window.VoiceStudio) window.VoiceStudio.log('assistant', studioAssistant);
                                         }
-                                        if (chunk.final) {
+                                        // Streaming models end with `final`; the one-shot reply (Realtime Whisper) carries `audio_url`.
+                                        if (chunk.final || chunk.audio_url) {
                                             stsData = chunk;
                                         }
                                     }
@@ -15460,7 +15462,7 @@
             get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`;
             get('save-gem-btn').innerText = "Create Gem";
             showModal('gem-modal');
-            get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; get('gem-default-model').value='';
+            get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; setGemDefaultModelSelect('');
             if (get('gem-fixed-prompts-container')) get('gem-fixed-prompts-container').innerHTML = '';
             if (location.pathname !== '/gem') {
                 history.pushState({ modal: 'gem' }, '', '/gem');
@@ -22573,6 +22575,37 @@
                 console.error('Failed to load gems:', err);
             }
         }
+        // Gem "Default Model": the chat models by category, after "Use current model".
+        function setGemDefaultModelSelect(value) {
+            const sel = get('gem-default-model');
+            if (!sel) return;
+            sel.innerHTML = '';
+            const first = document.createElement('option');
+            first.value = '';
+            first.textContent = 'Use current model';
+            sel.appendChild(first);
+            MODELS.forEach(group => {
+                const items = (group.items || []).filter(m => !m.deprecated);
+                if (!items.length) return;
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = group.category;
+                items.forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item.id;
+                    opt.textContent = item.name;
+                    optgroup.appendChild(opt);
+                });
+                sel.appendChild(optgroup);
+            });
+            const wanted = value || '';
+            if (wanted && !Array.from(sel.options).some(o => o.value === wanted)) {
+                const kept = document.createElement('option');
+                kept.value = wanted;
+                kept.textContent = MODEL_NAME_BY_ID[wanted] || wanted;
+                sel.appendChild(kept);
+            }
+            sel.value = wanted;
+        }
         async function openEditGemModal(e, id) {
             e.stopPropagation();
             editingGemUuid = id;
@@ -22582,7 +22615,7 @@
                 get('gem-name').value = g.name;
                 get('gem-desc').value = g.description || '';
                 get('gem-inst').value = g.instruction;
-                get('gem-default-model').value = g.default_model || '';
+                setGemDefaultModelSelect(g.default_model);
                 renderGemFixedPromptsForEdit(g.fixed_prompts);
                 get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Edit Gem`;
                 get('save-gem-btn').innerText = "Save Changes";
@@ -23128,7 +23161,7 @@
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleGemItem.replace('0', id), {method: 'DELETE'}); loadGems(); }
         async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { const res = await apiFetch(CHAT_CONFIG.urls.updateTitle.replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); const d = await res.json().catch(() => ({})); if (res.ok && currentThreadId === String(id)) setCurrentChatHeaderTitle((d && d.title) || n); loadThreads(); } }
         async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleThreadItem.replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
-        async function deleteMessage(id) { if(!confirm("Delete this message and subsequent history?")) return; await apiFetch(CHAT_CONFIG.urls.deleteMessage.replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
+        async function deleteMessage(id, confirmed) { if(!confirmed && !confirm("Delete this message and subsequent history?")) return; await apiFetch(CHAT_CONFIG.urls.deleteMessage.replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
         let activePdfPrintFrame = null;
         const PDF_IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'svg']);
         const PDF_PRINT_ROUTE = CHAT_CONFIG.urls.exportThreadPdf;
@@ -24173,6 +24206,12 @@
             roots.forEach(root => container.appendChild(renderNodeRecursive(root)));
         }
 
+        function formatBranchCreatedAt(value) {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (isNaN(date.getTime())) return String(value);
+            return date.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
         function updateBranchDetailPane() {
             const detailPanel = get('branch-detail-panel');
             const emptyPanel = get('branch-empty-panel');
@@ -24186,7 +24225,7 @@
             detailPanel.classList.remove('hidden');
             emptyPanel.classList.add('hidden');
             get('br-id').innerText = node.id;
-            get('br-date').innerText = node.created_at || '-';
+            get('br-date').innerText = formatBranchCreatedAt(node.created_at);
             get('br-model').innerText = node.model || '-';
             const nodeTokens = (node.tokens || (Number(node.tokens_in || 0) + Number(node.tokens_out || 0)));
             const pathTokens = getCumulativeTokensForNode(node.id);
@@ -24246,7 +24285,7 @@
         get('br-delete-btn').onclick = () => {
             if (!selectedBranchNodeId) return;
             if (!confirm('このブランチを削除してもよろしいですか？（その後の全てのメッセージも削除されます）')) return;
-            deleteMessage(selectedBranchNodeId);
+            deleteMessage(selectedBranchNodeId, true);
             selectedBranchNodeId = null;
             setTimeout(() => { renderBranchTreeVisualization(); updateBranchDetailPane(); }, 500);
         };

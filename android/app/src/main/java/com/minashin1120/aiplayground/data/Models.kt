@@ -23,7 +23,9 @@ data class ChatMessage(val id: String, val role: String, val content: String,
                        val tokensContent: Int? = null, val tokensThought: Int? = null,
                        val encrypted: Boolean? = null, val quote: String = "", val gemName: String = "",
                        /** Web `batch_job`: shown as the Batch card above the answer. */
-                       val batch: BatchInfo? = null)
+                       val batch: BatchInfo? = null,
+                       /** `created_at` (UTC ISO), shown as 作成 in the branch manager. */
+                       val createdAt: String = "")
 /**
  * One composer attachment (Web `#upload-list` row). [name] is the send name ("送信名"), [defaultName] what it
  * falls back to; [source] is Web `upload` / `library`. After an image edit, [original] keeps the pre-edit file,
@@ -548,7 +550,7 @@ fun parseMessages(json: JSONObject): List<ChatMessage> {
             tokensThought = row.nullableInt("tokens_thought"),
             encrypted = if (row.has("is_encrypted") && !row.isNull("is_encrypted")) row.optBoolean("is_encrypted") else null,
             quote = row.nullableString("quote_text"), gemName = row.nullableString("gem_name"),
-            batch = parseBatchInfo(row))
+            batch = parseBatchInfo(row), createdAt = row.nullableString("created_at"))
     }
 }
 

@@ -649,8 +649,8 @@ fun PlaygroundScreen(
             }
             ModalHost(gemEditorOpen) {
                 val editing = gemEditing
-                GemEditorDialog(gem = editing, onDismiss = { gemEditorOpen = false }) { n, d, i, prompts, done ->
-                    model.saveGem(editing?.uuid, n, d, i, prompts) { ok -> if (ok) gemEditorOpen = false; done(ok) }
+                GemEditorDialog(gem = editing, models = state.account?.models.orEmpty(), onDismiss = { gemEditorOpen = false }) { n, d, i, m, prompts, done ->
+                    model.saveGem(editing?.uuid, n, d, i, m, prompts) { ok -> if (ok) gemEditorOpen = false; done(ok) }
                 }
             }
             state.mcpDecision?.let { decision -> key(decision.id) { McpDecisionDialog(decision, model::resolveMcpDecision) } }

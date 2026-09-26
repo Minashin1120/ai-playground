@@ -82,7 +82,8 @@
                     const hasSession = !!sessionId;
                     const playing = state === 'streaming' || state === 'connecting';
                     if (playBtn) {
-                        playBtn.disabled = busy || !hasSession;
+                        // Play starts a new session when none is open yet.
+                        playBtn.disabled = busy;
                         const icon = playBtn.querySelector('i');
                         if (icon) icon.className = 'fas fa-play';
                     }
@@ -1176,7 +1177,8 @@
                                             studioAssistant += chunk.transcript_delta;
                                             if (window.VoiceStudio) window.VoiceStudio.log('assistant', studioAssistant);
                                         }
-                                        if (chunk.final) {
+                                        // Streaming models end with `final`; the one-shot reply (Realtime Whisper) carries `audio_url`.
+                                        if (chunk.final || chunk.audio_url) {
                                             stsData = chunk;
                                         }
                                     }
@@ -1346,7 +1348,7 @@
             get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`;
             get('save-gem-btn').innerText = "Create Gem";
             showModal('gem-modal');
-            get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; get('gem-default-model').value='';
+            get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; setGemDefaultModelSelect('');
             if (get('gem-fixed-prompts-container')) get('gem-fixed-prompts-container').innerHTML = '';
             if (location.pathname !== '/gem') {
                 history.pushState({ modal: 'gem' }, '', '/gem');

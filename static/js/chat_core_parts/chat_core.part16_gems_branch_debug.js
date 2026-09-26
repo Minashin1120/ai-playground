@@ -583,6 +583,12 @@
             roots.forEach(root => container.appendChild(renderNodeRecursive(root)));
         }
 
+        function formatBranchCreatedAt(value) {
+            if (!value) return '-';
+            const date = new Date(value);
+            if (isNaN(date.getTime())) return String(value);
+            return date.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
         function updateBranchDetailPane() {
             const detailPanel = get('branch-detail-panel');
             const emptyPanel = get('branch-empty-panel');
@@ -596,7 +602,7 @@
             detailPanel.classList.remove('hidden');
             emptyPanel.classList.add('hidden');
             get('br-id').innerText = node.id;
-            get('br-date').innerText = node.created_at || '-';
+            get('br-date').innerText = formatBranchCreatedAt(node.created_at);
             get('br-model').innerText = node.model || '-';
             const nodeTokens = (node.tokens || (Number(node.tokens_in || 0) + Number(node.tokens_out || 0)));
             const pathTokens = getCumulativeTokensForNode(node.id);
@@ -656,7 +662,7 @@
         get('br-delete-btn').onclick = () => {
             if (!selectedBranchNodeId) return;
             if (!confirm('このブランチを削除してもよろしいですか？（その後の全てのメッセージも削除されます）')) return;
-            deleteMessage(selectedBranchNodeId);
+            deleteMessage(selectedBranchNodeId, true);
             selectedBranchNodeId = null;
             setTimeout(() => { renderBranchTreeVisualization(); updateBranchDetailPane(); }, 500);
         };

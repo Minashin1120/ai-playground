@@ -28,10 +28,18 @@ import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.FixedPrompt
 import com.minashin1120.aiplayground.data.Gem
+import com.minashin1120.aiplayground.data.ModelInfo
 
 /** Web `collectGemFixedPrompts()`: rows with both a name and content, trimmed; empty rows are ignored. */
 internal fun collectGemFixedPrompts(rows: List<FixedPrompt>): List<FixedPrompt> =
     rows.map { FixedPrompt(it.name.trim(), it.content.trim()) }.filter { it.name.isNotEmpty() && it.content.isNotEmpty() }
+
+/** Web `setGemDefaultModelSelect`: "Use current model", the chat models by category, and a saved model no longer listed. */
+internal fun gemDefaultModelOptions(models: List<ModelInfo>, current: String): List<WebOption> {
+    val options = listOf(WebOption("", "Use current model")) + defaultModelOptions(models)
+    if (current.isBlank() || options.any { it.value == current }) return options
+    return options + WebOption(current, models.firstOrNull { it.id == current }?.name ?: current)
+}
 
 /**
  * `#gem-modal`: Create New Gem / Edit Gem with Name, Description (Optional), System Instruction,
@@ -41,15 +49,15 @@ internal fun collectGemFixedPrompts(rows: List<FixedPrompt>): List<FixedPrompt> 
 @Composable
 internal fun GemEditorDialog(
     gem: Gem?,
+    models: List<ModelInfo>,
     onDismiss: () -> Unit,
-    onSave: (name: String, description: String, instruction: String, fixedPrompts: List<FixedPrompt>, done: (Boolean) -> Unit) -> Unit,
+    onSave: (name: String, description: String, instruction: String, defaultModel: String, fixedPrompts: List<FixedPrompt>, done: (Boolean) -> Unit) -> Unit,
 ) {
     val web = LocalWebPalette.current
     var name by remember { mutableStateOf(gem?.name.orEmpty()) }
     var description by remember { mutableStateOf(gem?.description.orEmpty()) }
     var instruction by remember { mutableStateOf(gem?.instruction.orEmpty()) }
-    // Web offers only "Use current model" here, so the option is always the empty value.
-    var defaultModel by remember { mutableStateOf("") }
+    var defaultModel by remember { mutableStateOf(gem?.defaultModel.orEmpty()) }
     val rows = remember { mutableStateListOf<FixedPrompt>().apply { addAll(gem?.fixedPrompts.orEmpty()) } }
     var saving by remember { mutableStateOf(false) }
     var missing by remember { mutableStateOf(false) }
@@ -78,7 +86,7 @@ internal fun GemEditorDialog(
                     }
                     GemField("Default Model (optional)") {
                         WebSelect(
-                            defaultModel, listOf(WebOption("", "Use current model")), { defaultModel = it },
+                            defaultModel, gemDefaultModelOptions(models, defaultModel), { defaultModel = it },
                             fontSize = 14.sp, background = web.twBg(Tw.gray900), fillWidth = true,
                             contentPadding = PaddingValues(8.dp), contentDescription = "Default Model (optional)",
                         )
@@ -110,7 +118,7 @@ internal fun GemEditorDialog(
                                 if (name.isEmpty() || instruction.isEmpty()) missing = true
                                 else {
                                     saving = true
-                                    onSave(name, description, instruction, collectGemFixedPrompts(rows)) { saving = false }
+                                    onSave(name, description, instruction, defaultModel, collectGemFixedPrompts(rows)) { saving = false }
                                 }
                             }
                             .padding(horizontal = 16.dp, vertical = 8.dp))

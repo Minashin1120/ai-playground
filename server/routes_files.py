@@ -275,6 +275,7 @@ def handle_thread_item(thread_id):
                 'parent_id': m.parent_id,
                 'gem_uuid': m.gem_uuid,
                 'gem_name': m.gem_name,
+                'created_at': m.timestamp.isoformat() + 'Z' if m.timestamp else None,
                 'batch_job': ({
                     'job_id': batch_row.job_id,
                     'state': batch_row.state,

@@ -269,7 +269,7 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 |---|---|---|
 | GET `/api/threads` | `page=1&q=検索語`。ページは1始まり | `threads`, `has_next`, `next_page`。1ページ20件 |
 | POST `/api/threads` | `{}` または `{"is_temporary":true}` | `id`, `title`, 一時チャットのメタデータ |
-| GET `/api/threads/<id>` | `limit=50&before_id=<最古ID>&include_meta=1` | `messages`, `has_older_messages`, `oldest_loaded_id`, `pending_job` 等 |
+| GET `/api/threads/<id>` | `limit=50&before_id=<最古ID>&include_meta=1` | `messages`（各メッセージの `created_at` はUTCのISO形式。ブランチ管理の「作成」に表示）, `has_older_messages`, `oldest_loaded_id`, `pending_job` 等 |
 | DELETE `/api/threads/<id>` | 本文不要 | `{"status":"deleted"}`。履歴・紐付く添付を削除する（Webと同じ `confirm("Delete?")` 相当の確認後） |
 | GET `/api/threads/<id>/settings` | なし | スレッド指示、共通指示の有無、一時チャットの期限情報 |
 | PUT `/api/threads/<id>/settings` | `custom_instruction`, `include_global_instruction`, `is_temporary` | 更新後の一時チャット状態。指示は100,000文字以下 |

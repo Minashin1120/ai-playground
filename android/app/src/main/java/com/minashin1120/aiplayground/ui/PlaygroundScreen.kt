@@ -80,7 +80,6 @@ import com.minashin1120.aiplayground.AppUpdateUiState
 import com.minashin1120.aiplayground.data.ThreadItem
 import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
-import com.minashin1120.aiplayground.data.FixedPrompt
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.buildTokenTotals
 import com.minashin1120.aiplayground.data.recentWebModels
@@ -600,8 +599,8 @@ fun PlaygroundScreen(
             }
             ModalHost(gemEditorOpen) {
                 val editing = gemEditing
-                GemEditorDialog(gem = editing, onDismiss = { gemEditorOpen = false }) { n, d, i, m, prompts, done ->
-                    model.saveGem(editing?.uuid, n, d, i, m, prompts) { ok -> if (ok) gemEditorOpen = false; done(ok) }
+                GemEditorDialog(gem = editing, onDismiss = { gemEditorOpen = false }) { n, d, i, prompts, done ->
+                    model.saveGem(editing?.uuid, n, d, i, prompts) { ok -> if (ok) gemEditorOpen = false; done(ok) }
                 }
             }
             ModalHost(historyOpen) { HistoryDialog(state, sidebarActions {}, onDismiss = { historyOpen = false }) }
@@ -672,10 +671,9 @@ fun PlaygroundScreen(
                 }
             }
             ModalHost(threadSettings && state.selected != null) {
-                ThreadSettingsDialog(state, onDismiss = { threadSettings = false }) {
-                    title, instruction, includeGlobal, temporary ->
-                    model.saveThreadSettings(title, instruction, includeGlobal, temporary)
-                    threadSettings = false
+                ChatInstructionsDialog(state, onRefresh = model::loadPreferences, onDismiss = { threadSettings = false }) {
+                    instruction, includeGlobal, userPrompt, done ->
+                    model.saveChatInstructions(instruction, includeGlobal, userPrompt) { ok -> if (ok) threadSettings = false; done(ok) }
                 }
             }
             deleting?.let { thread -> BrowserConfirmDialog("Delete?") { ok -> if (ok) model.deleteThread(thread); deleting = null } }
@@ -1140,49 +1138,6 @@ private fun PairingScreen(state: ChatState, model: ChatViewModel, onWeb: (String
     }
 }
 
-@Composable
-private fun ThreadSettingsDialog(
-    state: ChatState,
-    onDismiss: () -> Unit,
-    onSave: (String, String, Boolean, Boolean) -> Unit,
-) {
-    val thread = state.selected ?: return
-    var title by remember(thread.id) { mutableStateOf(thread.title) }
-    var instruction by remember(thread.id) { mutableStateOf(state.customInstruction) }
-    var includeGlobal by remember(thread.id) { mutableStateOf(state.includeGlobalInstruction) }
-    var temporary by remember(thread.id) { mutableStateOf(thread.isTemporary) }
-    PlaygroundDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("チャット設定") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(title, { title = it }, label = { Text("タイトル") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(instruction, { instruction = it }, label = { Text("このチャットの指示") },
-                    minLines = 3, maxLines = 7, modifier = Modifier.fillMaxWidth())
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(includeGlobal, { includeGlobal = it })
-                    Text("アカウント共通の指示も使う", modifier = Modifier.weight(1f))
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(temporary, { temporary = it })
-                    Column(Modifier.weight(1f)) {
-                        Text("一時チャット")
-                        Text("アプリが在席更新を停止すると、設定時間後に自動削除されます。",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-                if (thread.isTemporary && state.tempChatRemainingSeconds != null) {
-                    Text("現在の自動削除目安: ${state.tempChatRemainingSeconds}秒",
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = { onSave(title, instruction, includeGlobal, temporary) }, enabled = !state.offline && title.length <= 200 && instruction.length <= 100_000) { Text("保存") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } },
-    )
-}
-
 @OptIn(androidx.compose.animation.ExperimentalAnimationApi::class)
 @Composable
 private fun Conversation(
@@ -1589,49 +1544,3 @@ private fun RenameLibraryFileDialog(file: LibraryFile, onDismiss: () -> Unit, on
         dismissButton = { TextButton(onClick = onDismiss) { Text("キャンセル") } })
 }
 
-@Composable
-private fun GemEditorDialog(
-    gem: Gem?,
-    onDismiss: () -> Unit,
-    onSave: (String, String, String, String, List<FixedPrompt>, (Boolean) -> Unit) -> Unit,
-) {
-    var name by remember { mutableStateOf(gem?.name.orEmpty()) }
-    var description by remember { mutableStateOf(gem?.description.orEmpty()) }
-    var instruction by remember { mutableStateOf(gem?.instruction.orEmpty()) }
-    var defaultModel by remember { mutableStateOf(gem?.defaultModel.orEmpty()) }
-    var saving by remember { mutableStateOf(false) }
-    var prompts by remember { mutableStateOf(gem?.fixedPrompts.orEmpty()) }
-    PlaygroundDialog(
-        onDismissRequest = { if (!saving) onDismiss() },
-        title = { Text(if (gem == null) "Gemを作成" else "Gemを編集") },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it }, singleLine = true, label = { Text("名前") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(description, { description = it }, label = { Text("説明") },
-                    minLines = 1, maxLines = 3, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(instruction, { instruction = it }, label = { Text("指示") },
-                    minLines = 3, maxLines = 8, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(defaultModel, { defaultModel = it }, singleLine = true,
-                    label = { Text("既定モデル（任意・モデルID）") }, modifier = Modifier.fillMaxWidth())
-                HorizontalDivider()
-                Text("Fixed Prompts", style = MaterialTheme.typography.titleSmall)
-                prompts.forEachIndexed { index, prompt ->
-                    OutlinedTextField(prompt.name, { value -> prompts = prompts.mapIndexed { i, old -> if (i == index) old.copy(name = value) else old } },
-                        label = { Text("プロンプト名") }, singleLine = true, enabled = !saving, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(prompt.content, { value -> prompts = prompts.mapIndexed { i, old -> if (i == index) old.copy(content = value) else old } },
-                        label = { Text("プロンプト内容") }, maxLines = 4, enabled = !saving, modifier = Modifier.fillMaxWidth())
-                    TextButton(onClick = { prompts = prompts.filterIndexed { i, _ -> i != index } }, enabled = !saving) { Text("このプロンプトを削除") }
-                }
-                TextButton(onClick = { prompts = prompts + FixedPrompt("", "") }, enabled = !saving && prompts.size < 50) { Text("＋ プロンプトを追加") }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { saving = true; onSave(name.trim(), description.trim(), instruction.trim(), defaultModel.trim(), prompts) { saving = false } },
-                enabled = !saving && name.isNotBlank() && name.length <= 100 && description.length <= 4000 && instruction.length <= 100_000 &&
-                    prompts.all { it.name.isNotBlank() && it.name.length <= 100 && it.content.isNotBlank() && it.content.length <= 20_000 },
-            ) { Text("保存") }
-        },
-        dismissButton = { TextButton(onClick = { if (!saving) onDismiss() }) { Text("キャンセル") } },
-    )
-}

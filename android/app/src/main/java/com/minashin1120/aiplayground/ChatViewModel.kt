@@ -1501,6 +1501,31 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             finally { mutable.update { it.copy(busy = false) } }
         }
     }
+    /**
+     * Web `save-thread-settings-btn`: the thread's own instruction, then the user system prompt and
+     * auto-injected prompts. Toasts 保存されました only when both requests succeed.
+     */
+    fun saveChatInstructions(instruction: String, includeGlobal: Boolean, userPrompt: JSONObject, onDone: (Boolean) -> Unit) {
+        val thread = state.value.selected ?: return onDone(false)
+        viewModelScope.launch {
+            if (state.value.offline) { notify("オフライン中はチャット設定を変更できません。"); onDone(false); return@launch }
+            try {
+                api.put("/api/threads/${thread.id}/settings", JSONObject()
+                    .put("custom_instruction", instruction)
+                    .put("include_global_instruction", includeGlobal), token())
+                mutable.update { current ->
+                    if (current.selected?.id != thread.id) current
+                    else current.copy(customInstruction = instruction, includeGlobalInstruction = includeGlobal)
+                }
+                val reply = api.put("/api/mobile/v1/preferences", userPrompt, token())
+                mutable.update { it.copy(preferences = parsePreferences(reply), notice = "保存されました") }
+                onDone(true)
+            } catch (e: Exception) {
+                if (e is ApiException) notify("保存に失敗しました") else notify("エラー: ${e.message}")
+                onDone(false)
+            }
+        }
+    }
     /** Prepares the composer to edit a user message, branching from its parent. */
     fun beginEdit(message: ChatMessage) {
         if (message.role != "user") return
@@ -2475,14 +2500,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun saveGem(uuid: String?, name: String, description: String, instruction: String, defaultModel: String, fixedPrompts: List<FixedPrompt>, onDone: (Boolean) -> Unit) {
+    /** Web `save-gem-btn`: the default model select only offers "Use current model", so it is sent as null. */
+    fun saveGem(uuid: String?, name: String, description: String, instruction: String, fixedPrompts: List<FixedPrompt>, onDone: (Boolean) -> Unit) {
         viewModelScope.launch {
             mutable.update { it.copy(gemsBusy = true) }
             try {
                 val payload = JSONObject().put("name", name).put("description", description)
-                    .put("instruction", instruction).put("default_model", defaultModel)
-                    .put("fixed_prompts", JSONArray().apply {
-                        fixedPrompts.forEach { put(JSONObject().put("name", it.name.trim()).put("content", it.content.trim())) }
+                    .put("instruction", instruction).put("default_model", JSONObject.NULL)
+                    .put("fixed_prompts", if (fixedPrompts.isEmpty()) JSONObject.NULL else JSONArray().apply {
+                        fixedPrompts.forEach { put(JSONObject().put("name", it.name).put("content", it.content)) }
                     })
                 if (uuid.isNullOrBlank()) api.post("/api/gems", payload, token())
                 else api.put("/api/gems/$uuid", payload, token())

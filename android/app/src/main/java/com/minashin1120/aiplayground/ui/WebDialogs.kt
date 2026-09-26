@@ -74,6 +74,17 @@ internal fun BrowserConfirmDialog(message: String, onResult: (Boolean) -> Unit) 
     )
 }
 
+/** Web `alert(message)` as Chrome for Android shows it: the site host as the title, the message and OK. */
+@Composable
+internal fun BrowserAlertDialog(message: String, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("$WEB_DIALOG_HOST の内容", fontSize = 18.sp) },
+        text = { Text(message, fontSize = 15.sp) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
+    )
+}
+
 /** Web `prompt(message)`: returns the entered text, or null when cancelled (Web ignores empty input). */
 @Composable
 internal fun BrowserPromptDialog(message: String, onResult: (String?) -> Unit) {

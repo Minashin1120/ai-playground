@@ -18,7 +18,10 @@ fun applyWebModelCatalog(models: List<ModelInfo>, json: String): List<ModelInfo>
             implementedRank = row.optInt("implementedRank"), emoji = row.optString("emoji"),
             tags = row.optJSONArray("tags")?.let { tags -> (0 until tags.length()).map { tags.getString(it) }.toSet() }.orEmpty(),
             deprecated = deprecated, selectable = model.selectable && !deprecated,
-            webCatalogOrder = webCatalogOrder)
+            webCatalogOrder = webCatalogOrder,
+            categoryIcon = row.optString("categoryIcon"), categoryDescription = row.optString("categoryDescription"),
+            apiId = row.optString("apiId").ifBlank { model.id }, agenticView = row.optBoolean("agenticView"),
+            searchTerms = row.optJSONArray("searchTerms")?.let { terms -> (0 until terms.length()).map { terms.getString(it) } }.orEmpty())
     }
 }
 

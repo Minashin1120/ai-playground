@@ -141,10 +141,10 @@ Webと見分けがつかない状態には未到達です。以下の旧表で�
 | 設定：2FA | 完了 | Android 1.19.0〜1.20.0で英語表記、TOTPのQR画像、パスキー名の入力と登録日時、登録数、Disable 2FA（本人確認付き）、設定の保存を全体の「保存」へ一本化 | 3 |
 | 設定：フィードバック | 完了 | Android 1.19.0で全件・全文、`No Title`、`Status:`／`Reply:`、全幅の送信ボタン、空欄時の文言を同期 | 3 |
 | 設定：MCP | 完了 | Android 1.20.0でサーバー一覧（プリセット／カスタム、認証状態、URL・説明・エラー、ツール数、ツール一覧と読み取り／変更、接続テスト、接続状態、削除、有効切替、状態メッセージ）と認証なしカスタムサーバーの追加を同期。OAuthクライアントと認証付きサーバーはWeb（ANDROID_ONLY.md） | 3 |
-| Chat Instructions | 一部 | 入口（SysPromptの⚙）、名称、プレビューと状態文、ユーザーシステムプロンプト、自動注入の簡易版。タイトル欄・一時チャットの切替を本来の位置へ | 3 |
+| Chat Instructions | 完了 | Android 1.21.0でSysPromptの⚙から開く「Chat Instructions」（このチャット専用のシステムプロンプトと注記、全体プロンプトを含めるスイッチ、全体システムプロンプトの参照と状態文、ユーザーシステムプロンプトと「有効」、自動注入の簡易版9項目・既定に戻す・全体適用、保存中の表示、「保存されました」）を同期。タイトル欄と一時チャットの切替はWebと同じくダイアログから外した（名前変更はサイドバー、一時チャットはComposerのチップ） | 3 |
 | 圧縮設定 | 完了 | Android 1.19.0でCompressの⚙から開く「画像・圧縮詳細設定」モーダル（出力形式、形式変換のみ、0.1〜10MB、256〜8192px、形式変換のみのときの無効化、GPT Image／Nano Banana／Grok／Mistral OCRの生成設定との同期、保存時の「設定を保存しました」）を同期 | 3 |
-| モデル選択 | 一部 | 検索欄の文言と対象、固定18個のタグバー、カテゴリ見出し、カードの内容、提供終了モデルを出さない、PromptCacheのロック、0件の文言 | 3 |
-| Gems | 一部 | フォームの文言と項目、既定モデルのselect、固定プロンプトの行の形、必須項目、削除確認、Gems一覧モーダルの廃止 | 3 |
+| モデル選択 | 完了 | Android 1.21.0で「Select Model」の見出し、「Search models or capabilities...」（名前・ID・API model・Agentic View・カテゴリ・タグ・対応能力語を検索）、固定18個のタグバー、カテゴリ見出し（アイコン・名前・説明）、2列のカード（Agentic Viewバッジ、`API model:`、価格、選択中だけの✓）、提供終了モデルの非表示、PromptCacheのロックバナーと提供元の絞り込み、0件の文言、開いたときに選択中のグループへ移動を同期。`web-model-catalog.json` にカテゴリのアイコン・説明、API model、Agentic View、検索語を追加 | 3 |
+| Gems | 完了 | Android 1.21.0で「Create New Gem」／「Edit Gem」、Name／Description (Optional)／System Instruction／Default Model (optional)（Webと同じく「Use current model」だけ）、Fixed Prompts (Gem specific) の行（名前・プロンプト内容・×）と「プロンプトを追加」、Cancel／Create Gem／Save Changes、「Name and Instruction are required.」、空の行を無視する保存を同期。削除確認「Delete?」とGems一覧モーダルの廃止は1.16.0で対応済み | 3 |
 | ファイルライブラリ | 一部 | サブタイトル、並び順、グリッド表示、複数選択の一括操作、ダウンロード、使用チャット、添付時の形式確認 | 3 |
 | ブランチ管理 | 未実装 | ツリー、詳細、トークン内訳、名前・固定、切替、削除、合計 | 3 |
 | 利用規約・プライバシー・Alpha案内 | 未実装 | Webと同じモーダル | 3 |

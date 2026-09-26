@@ -5,12 +5,25 @@
     "description": "Most intelligent Flash model for long-horizon software engineering, autonomous agents, and complex enterprise workflows.",
     "price": "In $0.75/1M, Out $3.75/1M (through 2026-12-31)",
     "category": "Gemini 3.8 / 3.7 / 3.6 / 3.5",
+    "categoryIcon": "fas fa-star text-yellow-400",
+    "categoryDescription": "Google's latest multimodal models",
+    "apiId": "gemini-3.8-flash",
+    "agenticView": true,
     "implementedAt": "2026-09-05",
     "implementedRank": 9160,
     "emoji": "⚡",
     "deprecated": false,
     "tags": [
       "gemini",
+      "agentic view"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "low",
+      "medium",
+      "high",
       "agentic view"
     ]
   },
@@ -20,12 +33,26 @@
     "description": "Gemini 3.8 Flash post-trained for cybersecurity workflows. Vertex AI only; access is allowlisted by Google.",
     "price": "Google Cloud Standard PayGo / Flex PayGo / Priority PayGo",
     "category": "Gemini 3.8 / 3.7 / 3.6 / 3.5",
+    "categoryIcon": "fas fa-star text-yellow-400",
+    "categoryDescription": "Google's latest multimodal models",
+    "apiId": "gemini-3.8-flash-cyber",
+    "agenticView": true,
     "implementedAt": "2026-09-20",
     "implementedRank": 9180,
     "emoji": "🛡️",
     "deprecated": false,
     "tags": [
       "gemini",
+      "agentic view"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "minimal",
+      "low",
+      "medium",
+      "high",
       "agentic view"
     ]
   },
@@ -35,6 +62,10 @@
     "description": "Most capable Flash model for complex coding, agentic workflows, and multimodal tasks.",
     "price": "In $0.75/1M, Out $3.75/1M (introductory)",
     "category": "Gemini 3.8 / 3.7 / 3.6 / 3.5",
+    "categoryIcon": "fas fa-star text-yellow-400",
+    "categoryDescription": "Google's latest multimodal models",
+    "apiId": "gemini-3.7-flash",
+    "agenticView": true,
     "implementedAt": "2026-08-14",
     "implementedRank": 8000,
     "emoji": "⚡",
@@ -42,6 +73,15 @@
     "tags": [
       "gemini",
       "agent",
+      "agentic view"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "low",
+      "medium",
+      "high",
       "agentic view"
     ]
   },
@@ -51,6 +91,10 @@
     "description": "Latest Flash model for agentic, coding, and multimodal tasks.",
     "price": "In $1.50/1M, Out $7.50/1M",
     "category": "Gemini 3.8 / 3.7 / 3.6 / 3.5",
+    "categoryIcon": "fas fa-star text-yellow-400",
+    "categoryDescription": "Google's latest multimodal models",
+    "apiId": "gemini-3.6-flash",
+    "agenticView": true,
     "implementedAt": "2026-07-30",
     "implementedRank": 6411,
     "emoji": "⚡",
@@ -58,6 +102,14 @@
     "tags": [
       "gemini",
       "agent",
+      "agentic view"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "medium",
+      "high",
       "agentic view"
     ]
   },
@@ -67,12 +119,26 @@
     "description": "Most intelligent Gemini 3.5 model built for speed.",
     "price": "In $1.50/1M, Out $9.00/1M",
     "category": "Gemini 3.8 / 3.7 / 3.6 / 3.5",
+    "categoryIcon": "fas fa-star text-yellow-400",
+    "categoryDescription": "Google's latest multimodal models",
+    "apiId": "gemini-3.5-flash",
+    "agenticView": true,
     "implementedAt": "2026-06-13",
     "implementedRank": 5900,
     "emoji": "✨",
     "deprecated": false,
     "tags": [
       "gemini",
+      "agentic view"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "minimal",
+      "low",
+      "medium",
+      "high",
       "agentic view"
     ]
   },
@@ -82,6 +148,10 @@
     "description": "Fastest, lowest-cost Gemini 3.5 model for high-throughput execution.",
     "price": "In $0.30/1M, Out $2.50/1M",
     "category": "Gemini 3.8 / 3.7 / 3.6 / 3.5",
+    "categoryIcon": "fas fa-star text-yellow-400",
+    "categoryDescription": "Google's latest multimodal models",
+    "apiId": "gemini-3.5-flash-lite",
+    "agenticView": true,
     "implementedAt": "2026-07-30",
     "implementedRank": 6410,
     "emoji": "🚀",
@@ -89,6 +159,15 @@
     "tags": [
       "gemini",
       "fast",
+      "agentic view"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "minimal",
+      "medium",
+      "high",
       "agentic view"
     ]
   },
@@ -98,12 +177,26 @@
     "description": "Stable, cost-efficient model for high-volume lightweight tasks.",
     "price": "In $0.25/1M, Out $1.50/1M",
     "category": "Gemini 3.1 / Previous",
+    "categoryIcon": "fas fa-star text-yellow-400",
+    "categoryDescription": "Previous Gemini 3.x generation models",
+    "apiId": "gemini-3.1-flash-lite",
+    "agenticView": true,
     "implementedAt": "2026-07-30",
     "implementedRank": 6440,
     "emoji": "💨",
     "deprecated": false,
     "tags": [
       "gemini",
+      "agentic view"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "minimal",
+      "low",
+      "medium",
+      "high",
       "agentic view"
     ]
   },
@@ -113,12 +206,23 @@
     "description": "Next-gen native multimodal model.",
     "price": "In $2.00/1M, Out $12.00/1M (≤200k)",
     "category": "Gemini 3.1 / Previous",
+    "categoryIcon": "fas fa-star text-yellow-400",
+    "categoryDescription": "Previous Gemini 3.x generation models",
+    "apiId": "gemini-3.1-pro-preview",
+    "agenticView": false,
     "implementedAt": "2026-02-20",
     "implementedRank": 2430,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "gemini"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "low",
+      "high"
     ]
   },
   {
@@ -127,12 +231,25 @@
     "description": "Retired preview model retained for chat history compatibility.",
     "price": "In $0.25/1M, Out $1.50/1M",
     "category": "Gemini 3.1 / Previous",
+    "categoryIcon": "fas fa-star text-yellow-400",
+    "categoryDescription": "Previous Gemini 3.x generation models",
+    "apiId": "gemini-3.1-flash-lite-preview",
+    "agenticView": false,
     "implementedAt": "2026-03-04",
     "implementedRank": 3000,
     "emoji": "",
     "deprecated": true,
     "tags": [
       "gemini"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "minimal",
+      "low",
+      "medium",
+      "high"
     ]
   },
   {
@@ -141,6 +258,10 @@
     "description": "Fastest and most cost-efficient.",
     "price": "In $0.50/1M, Out $3.00/1M",
     "category": "Gemini 3.1 / Previous",
+    "categoryIcon": "fas fa-star text-yellow-400",
+    "categoryDescription": "Previous Gemini 3.x generation models",
+    "apiId": "gemini-3-flash-preview",
+    "agenticView": false,
     "implementedAt": "2026-06-13",
     "implementedRank": 5930,
     "emoji": "",
@@ -148,6 +269,15 @@
     "tags": [
       "gemini",
       "fast"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "minimal",
+      "low",
+      "medium",
+      "high"
     ]
   },
   {
@@ -156,12 +286,23 @@
     "description": "Shut down by Google (March 2026). Retained for chat history compatibility.",
     "price": "In $2.00/1M, Out $12.00/1M (≤200k)",
     "category": "Gemini 3.1 / Previous",
+    "categoryIcon": "fas fa-star text-yellow-400",
+    "categoryDescription": "Previous Gemini 3.x generation models",
+    "apiId": "gemini-3-pro-preview",
+    "agenticView": false,
     "implementedAt": "2026-01-15",
     "implementedRank": 100,
     "emoji": "",
     "deprecated": true,
     "tags": [
       "gemini"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "low",
+      "high"
     ]
   },
   {
@@ -170,6 +311,10 @@
     "description": "Most advanced Gemini 2.5 model for complex reasoning, coding, and long-context analysis.",
     "price": "In $1.25/1M (≤200k), Out $10.00/1M (≤200k)",
     "category": "Gemini 2.5",
+    "categoryIcon": "fas fa-history text-gray-400",
+    "categoryDescription": "Gemini 2.5 generation models",
+    "apiId": "gemini-2.5-pro",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8524,
     "emoji": "🧠",
@@ -177,6 +322,13 @@
     "tags": [
       "gemini",
       "reasoning"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "low",
+      "high"
     ]
   },
   {
@@ -185,6 +337,10 @@
     "description": "Fastest and most cost-efficient Gemini 2.5 model.",
     "price": "In $0.10/1M, Out $0.40/1M",
     "category": "Gemini 2.5",
+    "categoryIcon": "fas fa-history text-gray-400",
+    "categoryDescription": "Gemini 2.5 generation models",
+    "apiId": "gemini-2.5-flash-lite",
+    "agenticView": false,
     "implementedAt": "2026-02-07",
     "implementedRank": 1530,
     "emoji": "",
@@ -192,6 +348,15 @@
     "tags": [
       "gemini",
       "fast"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "minimal",
+      "low",
+      "medium",
+      "high"
     ]
   },
   {
@@ -200,12 +365,25 @@
     "description": "Balanced performance.",
     "price": "In $0.30/1M, Out $2.50/1M",
     "category": "Gemini 2.5",
+    "categoryIcon": "fas fa-history text-gray-400",
+    "categoryDescription": "Gemini 2.5 generation models",
+    "apiId": "gemini-2.5-flash",
+    "agenticView": false,
     "implementedAt": "2026-02-07",
     "implementedRank": 1531,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "gemini"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "minimal",
+      "low",
+      "medium",
+      "high"
     ]
   },
   {
@@ -214,6 +392,10 @@
     "description": "Fast image generation.",
     "price": "In $0.30/1M, Out $0.039/image",
     "category": "Gemini Image (Banana)",
+    "categoryIcon": "fas fa-image text-pink-400",
+    "categoryDescription": "Gemini image generation models",
+    "apiId": "gemini-2.5-flash-image",
+    "agenticView": false,
     "implementedAt": "2026-01-20",
     "implementedRank": 120,
     "emoji": "🍌",
@@ -222,6 +404,10 @@
       "gemini",
       "image",
       "fast"
+    ],
+    "searchTerms": [
+      "image generation",
+      "image editing"
     ]
   },
   {
@@ -230,6 +416,10 @@
     "description": "High-efficiency image generation and editing (stable).",
     "price": "In $0.50/1M; Text/Thinking Out $3.00/1M; Image Out $60.00/1M ($0.067/1K image)",
     "category": "Gemini Image (Banana)",
+    "categoryIcon": "fas fa-image text-pink-400",
+    "categoryDescription": "Gemini image generation models",
+    "apiId": "gemini-3.1-flash-image",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8526,
     "emoji": "🍌",
@@ -237,6 +427,15 @@
     "tags": [
       "gemini",
       "image"
+    ],
+    "searchTerms": [
+      "image generation",
+      "image editing",
+      "thinking",
+      "思考",
+      "minimal",
+      "high",
+      "thinking level"
     ]
   },
   {
@@ -245,6 +444,10 @@
     "description": "Retired preview retained for chat history compatibility. Use gemini-3.1-flash-image.",
     "price": "In $0.50/1M, Out $0.067/1K image ($60/1M img tokens)",
     "category": "Gemini Image (Banana)",
+    "categoryIcon": "fas fa-image text-pink-400",
+    "categoryDescription": "Gemini image generation models",
+    "apiId": "gemini-3.1-flash-image-preview",
+    "agenticView": false,
     "implementedAt": "2026-02-26",
     "implementedRank": 2860,
     "emoji": "",
@@ -252,6 +455,10 @@
     "tags": [
       "gemini",
       "image"
+    ],
+    "searchTerms": [
+      "image generation",
+      "image editing"
     ]
   },
   {
@@ -260,6 +467,10 @@
     "description": "Low-latency Gemini image generation and editing with 1K output.",
     "price": "In $0.25/1M; Text/Thinking Out $1.50/1M; Image Out $30/1M ($0.0336/1K image)",
     "category": "Gemini Image (Banana)",
+    "categoryIcon": "fas fa-image text-pink-400",
+    "categoryDescription": "Gemini image generation models",
+    "apiId": "gemini-3.1-flash-lite-image",
+    "agenticView": false,
     "implementedAt": "2026-07-01",
     "implementedRank": 6020,
     "emoji": "🍌",
@@ -267,6 +478,13 @@
     "tags": [
       "gemini",
       "image"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "minimal",
+      "high",
+      "thinking level"
     ]
   },
   {
@@ -275,6 +493,10 @@
     "description": "Professional image generation and editing with 4K output (stable).",
     "price": "In $2.00/1M; Text/Thinking Out $12.00/1M; Image Out $120.00/1M ($0.134/1K-2K, $0.24/4K)",
     "category": "Gemini Image (Banana)",
+    "categoryIcon": "fas fa-image text-pink-400",
+    "categoryDescription": "Gemini image generation models",
+    "apiId": "gemini-3-pro-image",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8525,
     "emoji": "🍌",
@@ -282,6 +504,10 @@
     "tags": [
       "gemini",
       "image"
+    ],
+    "searchTerms": [
+      "image generation",
+      "image editing"
     ]
   },
   {
@@ -290,6 +516,10 @@
     "description": "Retired preview retained for chat history compatibility. Use gemini-3-pro-image.",
     "price": "In $2.00/1M, Out $0.134 (1K/2K) or $0.24 (4K)",
     "category": "Gemini Image (Banana)",
+    "categoryIcon": "fas fa-image text-pink-400",
+    "categoryDescription": "Gemini image generation models",
+    "apiId": "gemini-3-pro-image-preview",
+    "agenticView": false,
     "implementedAt": "2026-01-25",
     "implementedRank": 130,
     "emoji": "",
@@ -297,6 +527,10 @@
     "tags": [
       "gemini",
       "image"
+    ],
+    "searchTerms": [
+      "image generation",
+      "image editing"
     ]
   },
   {
@@ -305,6 +539,10 @@
     "description": "Fastest multimodal video generation and conversational editing from text, images, video, and audio (native audio in output).",
     "price": "In $1.50/1M (text/image/video/audio); Text Out $9.00/1M; Video $17.50/1M (≈$0.10/sec)",
     "category": "Gemini Video Generation",
+    "categoryIcon": "fas fa-clapperboard text-cyan-400",
+    "categoryDescription": "Gemini video generation models (Veo 3.1 / Omni Flash)",
+    "apiId": "gemini-omni-1.1-flash",
+    "agenticView": false,
     "implementedAt": "2026-09-02",
     "implementedRank": 9010,
     "emoji": "🎬",
@@ -315,6 +553,15 @@
       "audio",
       "fast",
       "video"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "minimal",
+      "low",
+      "medium",
+      "high"
     ]
   },
   {
@@ -323,6 +570,10 @@
     "description": "Fast conversational video generation and editing from text and images.",
     "price": "In $1.50/1M; Text Out $9.00/1M; Video ≈$0.10/sec",
     "category": "Gemini Video Generation",
+    "categoryIcon": "fas fa-clapperboard text-cyan-400",
+    "categoryDescription": "Gemini video generation models (Veo 3.1 / Omni Flash)",
+    "apiId": "gemini-omni-flash",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8522,
     "emoji": "🎬",
@@ -332,7 +583,8 @@
       "image",
       "fast",
       "video"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "veo-3.1-generate-preview",
@@ -340,6 +592,10 @@
     "description": "Cinematic video generation with native audio and 4K output.",
     "price": "$0.40/sec (720p/1080p), $0.60/sec (4K)",
     "category": "Gemini Video Generation",
+    "categoryIcon": "fas fa-clapperboard text-cyan-400",
+    "categoryDescription": "Gemini video generation models (Veo 3.1 / Omni Flash)",
+    "apiId": "veo-3.1-generate-preview",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8521,
     "emoji": "🎥",
@@ -348,7 +604,8 @@
       "gemini",
       "audio",
       "video"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "veo-3.1-fast-generate-preview",
@@ -356,6 +613,10 @@
     "description": "Low-cost, fast video generation from the Veo 3.1 family.",
     "price": "$0.10/sec (720p), $0.12/sec (1080p)",
     "category": "Gemini Video Generation",
+    "categoryIcon": "fas fa-clapperboard text-cyan-400",
+    "categoryDescription": "Gemini video generation models (Veo 3.1 / Omni Flash)",
+    "apiId": "veo-3.1-fast-generate-preview",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8520,
     "emoji": "",
@@ -364,7 +625,8 @@
       "gemini",
       "fast",
       "video"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "veo-3.1-lite-generate-preview",
@@ -372,6 +634,10 @@
     "description": "High-efficiency, developer-first video generation (no 4K).",
     "price": "$0.05/sec (720p), $0.08/sec (1080p)",
     "category": "Gemini Video Generation",
+    "categoryIcon": "fas fa-clapperboard text-cyan-400",
+    "categoryDescription": "Gemini video generation models (Veo 3.1 / Omni Flash)",
+    "apiId": "veo-3.1-lite-generate-preview",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8519,
     "emoji": "",
@@ -379,7 +645,8 @@
     "tags": [
       "gemini",
       "video"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "lyria-3.5",
@@ -387,6 +654,10 @@
     "description": "Full-length song generation from text or images with vocals, lyrics, and structured arrangements.",
     "price": "See Google AI pricing",
     "category": "Gemini Music Generation",
+    "categoryIcon": "fas fa-music text-fuchsia-400",
+    "categoryDescription": "Lyria music generation models",
+    "apiId": "lyria-3.5",
+    "agenticView": false,
     "implementedAt": "2026-09-05",
     "implementedRank": 9050,
     "emoji": "🎼",
@@ -396,7 +667,8 @@
       "image",
       "audio",
       "music"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "lyria-3-pro-preview",
@@ -404,6 +676,10 @@
     "description": "Flagship music generation for full-length songs with structural coherence.",
     "price": "$0.08 / song",
     "category": "Gemini Music Generation",
+    "categoryIcon": "fas fa-music text-fuchsia-400",
+    "categoryDescription": "Lyria music generation models",
+    "apiId": "lyria-3-pro-preview",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8518,
     "emoji": "🎵",
@@ -412,7 +688,8 @@
       "gemini",
       "audio",
       "music"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "lyria-3-clip-preview",
@@ -420,6 +697,10 @@
     "description": "Short musical clips, loops, and previews (30 seconds).",
     "price": "$0.04 / song",
     "category": "Gemini Music Generation",
+    "categoryIcon": "fas fa-music text-fuchsia-400",
+    "categoryDescription": "Lyria music generation models",
+    "apiId": "lyria-3-clip-preview",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8517,
     "emoji": "🎶",
@@ -428,7 +709,8 @@
       "gemini",
       "audio",
       "music"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "lyria-realtime-exp",
@@ -436,6 +718,10 @@
     "description": "Experimental realtime music generation with deep melodic control.",
     "price": "Experimental (no vocals)",
     "category": "Gemini Music Generation",
+    "categoryIcon": "fas fa-music text-fuchsia-400",
+    "categoryDescription": "Lyria music generation models",
+    "apiId": "lyria-realtime-exp",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8516,
     "emoji": "",
@@ -444,7 +730,8 @@
       "gemini",
       "audio",
       "music"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gemini-3.5-transcribe",
@@ -452,6 +739,10 @@
     "description": "Audio-file speech-to-text with language detection, speaker diarization, word timestamps, and smart formatting (audio file up to 1 hour).",
     "price": "In $2.00/1M (audio), Out $12.00/1M (text)",
     "category": "Gemini Transcription",
+    "categoryIcon": "fas fa-microphone text-teal-400",
+    "categoryDescription": "Gemini speech-to-text transcription models",
+    "apiId": "gemini-3.5-transcribe",
+    "agenticView": false,
     "implementedAt": "2026-08-27",
     "implementedRank": 8621,
     "emoji": "🎙️",
@@ -460,7 +751,8 @@
       "gemini",
       "audio",
       "transcription"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gemini-3.5-transcribe-live",
@@ -468,6 +760,10 @@
     "description": "Real-time low-latency streaming speech-to-text over the Live API (microphone input, sessions up to 10 minutes).",
     "price": "In $3.50/1M (audio), Out $21.00/1M (text)",
     "category": "Gemini Transcription",
+    "categoryIcon": "fas fa-microphone text-teal-400",
+    "categoryDescription": "Gemini speech-to-text transcription models",
+    "apiId": "gemini-3.5-transcribe-live",
+    "agenticView": false,
     "implementedAt": "2026-08-27",
     "implementedRank": 8622,
     "emoji": "🔴",
@@ -476,7 +772,8 @@
       "gemini",
       "audio",
       "transcription"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-image-2.5-sunburst",
@@ -484,6 +781,10 @@
     "description": "Most capable image generation and editing with precision-focused quality.",
     "price": "Text In $5/1M; Image In $8/1M; Image Out $30/1M",
     "category": "OpenAI Image Gen",
+    "categoryIcon": "fas fa-paint-brush text-purple-400",
+    "categoryDescription": "GPT Image models",
+    "apiId": "gpt-image-2.5-sunburst",
+    "agenticView": false,
     "implementedAt": "2026-09-09",
     "implementedRank": 9320,
     "emoji": "🌞",
@@ -491,7 +792,8 @@
     "tags": [
       "openai",
       "image"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-image-2.5-flare",
@@ -499,6 +801,10 @@
     "description": "Fast, high-quality everyday image generation and editing.",
     "price": "Text In $5/1M; Image In $8/1M; Image Out $30/1M",
     "category": "OpenAI Image Gen",
+    "categoryIcon": "fas fa-paint-brush text-purple-400",
+    "categoryDescription": "GPT Image models",
+    "apiId": "gpt-image-2.5-flare",
+    "agenticView": false,
     "implementedAt": "2026-09-09",
     "implementedRank": 9321,
     "emoji": "🔥",
@@ -507,7 +813,8 @@
       "openai",
       "image",
       "fast"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-image-2",
@@ -515,6 +822,10 @@
     "description": "State-of-the-art image generation and editing.",
     "price": "Text In $5/1M; Image In $8/1M; Image Out $30/1M",
     "category": "OpenAI Image Gen",
+    "categoryIcon": "fas fa-paint-brush text-purple-400",
+    "categoryDescription": "GPT Image models",
+    "apiId": "gpt-image-2",
+    "agenticView": false,
     "implementedAt": "2026-04-30",
     "implementedRank": 4680,
     "emoji": "",
@@ -522,7 +833,8 @@
     "tags": [
       "openai",
       "image"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-image-1.5",
@@ -530,6 +842,10 @@
     "description": "Previous-generation flagship image model.",
     "price": "Text In $5/1M, Text Out $10/1M; Image Out $32/1M",
     "category": "OpenAI Image Gen",
+    "categoryIcon": "fas fa-paint-brush text-purple-400",
+    "categoryDescription": "GPT Image models",
+    "apiId": "gpt-image-1.5",
+    "agenticView": false,
     "implementedAt": "2026-03-13",
     "implementedRank": 3410,
     "emoji": "",
@@ -537,7 +853,8 @@
     "tags": [
       "openai",
       "image"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-image-1",
@@ -545,6 +862,10 @@
     "description": "Standard quality.",
     "price": "Text In $5/1M; Image Out $40/1M",
     "category": "OpenAI Image Gen",
+    "categoryIcon": "fas fa-paint-brush text-purple-400",
+    "categoryDescription": "GPT Image models",
+    "apiId": "gpt-image-1",
+    "agenticView": false,
     "implementedAt": "2026-03-13",
     "implementedRank": 3411,
     "emoji": "",
@@ -552,7 +873,8 @@
     "tags": [
       "openai",
       "image"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-image-1-mini",
@@ -560,6 +882,10 @@
     "description": "Faster, lower resolution.",
     "price": "Text In $2/1M; Image In $2.50/1M; Image Out $8/1M",
     "category": "OpenAI Image Gen",
+    "categoryIcon": "fas fa-paint-brush text-purple-400",
+    "categoryDescription": "GPT Image models",
+    "apiId": "gpt-image-1-mini",
+    "agenticView": false,
     "implementedAt": "2026-03-13",
     "implementedRank": 3412,
     "emoji": "",
@@ -568,7 +894,8 @@
       "openai",
       "image",
       "fast"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-5.6-sol",
@@ -576,6 +903,10 @@
     "description": "Frontier reasoning model for complex professional work with 1.05M context.",
     "price": "In $5.00/1M, Cached $0.50/1M, Out $30.00/1M (over 272K: In $10.00, Out $45.00)",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.6-sol",
+    "agenticView": false,
     "implementedAt": "2026-07-31",
     "implementedRank": 6550,
     "emoji": "☀️",
@@ -583,6 +914,17 @@
     "tags": [
       "openai",
       "reasoning"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none",
+      "max",
+      "xhigh"
     ]
   },
   {
@@ -591,12 +933,27 @@
     "description": "Balanced intelligence and cost for everyday work with 1.05M context.",
     "price": "In $2.00/1M, Cached $0.20/1M, Out $12.00/1M (over 272K: In $4.00, Out $18.00)",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.6-terra",
+    "agenticView": false,
     "implementedAt": "2026-07-31",
     "implementedRank": 6560,
     "emoji": "🌍",
     "deprecated": false,
     "tags": [
       "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none",
+      "max",
+      "xhigh"
     ]
   },
   {
@@ -605,12 +962,27 @@
     "description": "Cost-efficient model for high-volume workloads with 1.05M context.",
     "price": "In $0.20/1M, Cached $0.02/1M, Out $1.20/1M (over 272K: In $0.40, Out $1.80)",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.6-luna",
+    "agenticView": false,
     "implementedAt": "2026-07-31",
     "implementedRank": 6561,
     "emoji": "🌙",
     "deprecated": false,
     "tags": [
       "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none",
+      "max",
+      "xhigh"
     ]
   },
   {
@@ -619,12 +991,23 @@
     "description": "Multimodal flagship model.",
     "price": "In $2.50/1M, Out $10.00/1M",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-4o",
+    "agenticView": false,
     "implementedAt": "2026-06-04",
     "implementedRank": 5820,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high"
     ]
   },
   {
@@ -633,6 +1016,10 @@
     "description": "Fast, low-cost model.",
     "price": "In $0.15/1M, Out $0.60/1M",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-4o-mini",
+    "agenticView": false,
     "implementedAt": "2026-06-04",
     "implementedRank": 5821,
     "emoji": "",
@@ -640,6 +1027,13 @@
     "tags": [
       "openai",
       "fast"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high"
     ]
   },
   {
@@ -648,12 +1042,25 @@
     "description": "Experimental OpenAI model ID for accounts with access.",
     "price": "In $5.00/1M, Out $30.00/1M",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.5",
+    "agenticView": false,
     "implementedAt": "2026-04-26",
     "implementedRank": 4500,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -662,12 +1069,25 @@
     "description": "Smaller and more cost-efficient GPT-5.5 tier.",
     "price": "Pricing not publicly listed",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.5-mini",
+    "agenticView": false,
     "implementedAt": "2026-04-26",
     "implementedRank": 4501,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -676,6 +1096,10 @@
     "description": "Smallest and fastest GPT-5.5 tier.",
     "price": "Pricing not publicly listed",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.5-nano",
+    "agenticView": false,
     "implementedAt": "2026-04-26",
     "implementedRank": 4502,
     "emoji": "",
@@ -683,6 +1107,15 @@
     "tags": [
       "openai",
       "fast"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -691,12 +1124,25 @@
     "description": "Higher-capacity GPT-5.5 tier for accounts with access.",
     "price": "In $30.00/1M, Out $180.00/1M",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.5-pro",
+    "agenticView": false,
     "implementedAt": "2026-04-26",
     "implementedRank": 4503,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -705,12 +1151,25 @@
     "description": "Experimental OpenAI model ID for accounts with access.",
     "price": "In $2.50/1M, Out $15.00/1M",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.4",
+    "agenticView": false,
     "implementedAt": "2026-03-08",
     "implementedRank": 3150,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -719,12 +1178,25 @@
     "description": "Smaller and more cost-efficient GPT-5.4 tier.",
     "price": "In $0.75/1M, Out $4.50/1M",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.4-mini",
+    "agenticView": false,
     "implementedAt": "2026-03-08",
     "implementedRank": 3151,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -733,6 +1205,10 @@
     "description": "Smallest and fastest GPT-5.4 tier.",
     "price": "In $0.20/1M, Out $1.25/1M",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.4-nano",
+    "agenticView": false,
     "implementedAt": "2026-03-08",
     "implementedRank": 3152,
     "emoji": "",
@@ -740,6 +1216,15 @@
     "tags": [
       "openai",
       "fast"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -748,12 +1233,25 @@
     "description": "Higher-capacity GPT-5.4 tier for accounts with access.",
     "price": "In $30.00/1M, Out $180.00/1M",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.4-pro",
+    "agenticView": false,
     "implementedAt": "2026-03-08",
     "implementedRank": 3153,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -762,6 +1260,10 @@
     "description": "Most capable reasoning model.",
     "price": "In $1.75/1M, Out $14.00/1M",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.2",
+    "agenticView": false,
     "implementedAt": "2026-02-15",
     "implementedRank": 200,
     "emoji": "",
@@ -769,6 +1271,15 @@
     "tags": [
       "openai",
       "reasoning"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -777,12 +1288,25 @@
     "description": "Search-optimized model (Chat Completions).",
     "price": "Model rates + Web search $10/1k calls",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5-search-api",
+    "agenticView": false,
     "implementedAt": "2026-02-02",
     "implementedRank": 740,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -791,12 +1315,25 @@
     "description": "High intelligence.",
     "price": "In $1.25/1M, Out $10.00/1M",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5.1",
+    "agenticView": false,
     "implementedAt": "2026-02-05",
     "implementedRank": 200,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -805,12 +1342,25 @@
     "description": "Small and efficient.",
     "price": "In $0.25/1M, Out $2.00/1M",
     "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-5-mini",
+    "agenticView": false,
     "implementedAt": "2026-02-02",
     "implementedRank": 770,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -819,6 +1369,10 @@
     "description": "V4.1 Flash with Vision, 1M context, 384K output, thinking, tools, and JSON.",
     "price": "In $0.003 hit/$0.15 miss, Out $0.60 off-peak",
     "category": "DeepSeek V4.1 / V4",
+    "categoryIcon": "fas fa-bolt text-cyan-400",
+    "categoryDescription": "DeepSeek's OpenAI-compatible V4.1 Flash and V4 Pro models",
+    "apiId": "deepseek-flash",
+    "agenticView": false,
     "implementedAt": "2026-09-13",
     "implementedRank": 9600,
     "emoji": "⚡",
@@ -827,6 +1381,15 @@
       "deepseek",
       "reasoning",
       "fast"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "high",
+      "low"
     ]
   },
   {
@@ -835,6 +1398,10 @@
     "description": "Retired; retained for history.",
     "price": "Retired",
     "category": "DeepSeek V4.1 / V4",
+    "categoryIcon": "fas fa-bolt text-cyan-400",
+    "categoryDescription": "DeepSeek's OpenAI-compatible V4.1 Flash and V4 Pro models",
+    "apiId": "deepseek-v4-flash-vision-exp",
+    "agenticView": false,
     "implementedAt": "2026-08-23",
     "implementedRank": 8260,
     "emoji": "",
@@ -843,6 +1410,17 @@
       "deepseek",
       "reasoning",
       "fast"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "high",
+      "low",
+      "none",
+      "max"
     ]
   },
   {
@@ -851,6 +1429,10 @@
     "description": "Retired; retained for history.",
     "price": "Retired",
     "category": "DeepSeek V4.1 / V4",
+    "categoryIcon": "fas fa-bolt text-cyan-400",
+    "categoryDescription": "DeepSeek's OpenAI-compatible V4.1 Flash and V4 Pro models",
+    "apiId": "deepseek-v4-flash-0731",
+    "agenticView": false,
     "implementedAt": "2026-07-31",
     "implementedRank": 6610,
     "emoji": "",
@@ -859,6 +1441,17 @@
       "deepseek",
       "reasoning",
       "fast"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "high",
+      "low",
+      "none",
+      "max"
     ]
   },
   {
@@ -867,6 +1460,10 @@
     "description": "Retired; retained for history.",
     "price": "Retired",
     "category": "DeepSeek V4.1 / V4",
+    "categoryIcon": "fas fa-bolt text-cyan-400",
+    "categoryDescription": "DeepSeek's OpenAI-compatible V4.1 Flash and V4 Pro models",
+    "apiId": "deepseek-v4-flash",
+    "agenticView": false,
     "implementedAt": "2026-04-26",
     "implementedRank": 4510,
     "emoji": "",
@@ -875,6 +1472,17 @@
       "deepseek",
       "reasoning",
       "fast"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "high",
+      "low",
+      "none",
+      "max"
     ]
   },
   {
@@ -883,6 +1491,10 @@
     "description": "V4 Pro with 1M context, 384K output, thinking, tools, and JSON.",
     "price": "In $0.022 hit/$0.66 miss, Out $1.98 off-peak",
     "category": "DeepSeek V4.1 / V4",
+    "categoryIcon": "fas fa-bolt text-cyan-400",
+    "categoryDescription": "DeepSeek's OpenAI-compatible V4.1 Flash and V4 Pro models",
+    "apiId": "deepseek-v4-pro",
+    "agenticView": false,
     "implementedAt": "2026-04-26",
     "implementedRank": 4511,
     "emoji": "",
@@ -890,6 +1502,14 @@
     "tags": [
       "deepseek",
       "reasoning"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "high"
     ]
   },
   {
@@ -898,6 +1518,10 @@
     "description": "Always-reasoning flagship model with 1M context, vision, tool calling.",
     "price": "In $3.00/1M (miss), $0.30/1M (hit), Out $15.00/1M",
     "category": "Kimi K3",
+    "categoryIcon": "fas fa-brain text-violet-400",
+    "categoryDescription": "Moonshot AI's flagship 2.8T-parameter model with 1M context and always-on thinking",
+    "apiId": "kimi-k3",
+    "agenticView": false,
     "implementedAt": "2026-07-30",
     "implementedRank": 6340,
     "emoji": "🧠",
@@ -905,7 +1529,8 @@
     "tags": [
       "reasoning",
       "kimi"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "mistral-ocr-4-0",
@@ -913,6 +1538,10 @@
     "description": "Document AI OCR with markdown, tables, headers/footers, and paragraph bounding boxes. Chat history is not sent.",
     "price": "$4 / 1,000 pages ($5 / 1,000 annotated pages)",
     "category": "Mistral Document OCR",
+    "categoryIcon": "fas fa-file text-orange-300",
+    "categoryDescription": "Document OCR (PDF / image / DOCX / PPTX). Not a chat completion model.",
+    "apiId": "mistral-ocr-4-0",
+    "agenticView": false,
     "implementedAt": "2026-08-15",
     "implementedRank": 8130,
     "emoji": "📄",
@@ -920,7 +1549,8 @@
     "tags": [
       "mistral",
       "ocr"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "claude-opus-4-6",
@@ -928,6 +1558,10 @@
     "description": "Most capable model for deep reasoning and complex tasks.",
     "price": "In $5.00/1M, Out $25.00/1M",
     "category": "Anthropic Claude",
+    "categoryIcon": "fas fa-brain text-orange-400",
+    "categoryDescription": "Anthropic's latest deep reasoning models",
+    "apiId": "claude-opus-4-6",
+    "agenticView": false,
     "implementedAt": "2026-05-01",
     "implementedRank": 480,
     "emoji": "",
@@ -935,6 +1569,12 @@
     "tags": [
       "reasoning",
       "anthropic"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking budget",
+      "budget"
     ]
   },
   {
@@ -943,12 +1583,22 @@
     "description": "Excellent balance of speed and intelligence with adaptive thinking.",
     "price": "In $3.00/1M, Out $15.00/1M",
     "category": "Anthropic Claude",
+    "categoryIcon": "fas fa-brain text-orange-400",
+    "categoryDescription": "Anthropic's latest deep reasoning models",
+    "apiId": "claude-sonnet-4-6",
+    "agenticView": false,
     "implementedAt": "2026-05-01",
     "implementedRank": 481,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "anthropic"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking budget",
+      "budget"
     ]
   },
   {
@@ -957,6 +1607,10 @@
     "description": "Google TTS (Preview).",
     "price": "Text In $1.00/1M, Audio Out $20.00/1M",
     "category": "Audio (TTS)",
+    "categoryIcon": "fas fa-microphone text-red-400",
+    "categoryDescription": "Text-to-Speech models",
+    "apiId": "gemini-3.1-flash-tts-preview",
+    "agenticView": false,
     "implementedAt": "2026-04-17",
     "implementedRank": 4250,
     "emoji": "",
@@ -964,7 +1618,8 @@
     "tags": [
       "gemini",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-4o-mini-tts",
@@ -972,6 +1627,10 @@
     "description": "OpenAI TTS.",
     "price": "Text In $0.60/1M, Audio Out $12.00/1M",
     "category": "Audio (TTS)",
+    "categoryIcon": "fas fa-microphone text-red-400",
+    "categoryDescription": "Text-to-Speech models",
+    "apiId": "gpt-4o-mini-tts",
+    "agenticView": false,
     "implementedAt": "2026-03-01",
     "implementedRank": 250,
     "emoji": "",
@@ -979,7 +1638,8 @@
     "tags": [
       "openai",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gemini-2.5-flash-preview-tts",
@@ -987,6 +1647,10 @@
     "description": "Google TTS (Preview).",
     "price": "Text In $0.50/1M, Audio Out $10.00/1M",
     "category": "Audio (TTS)",
+    "categoryIcon": "fas fa-microphone text-red-400",
+    "categoryDescription": "Text-to-Speech models",
+    "apiId": "gemini-2.5-flash-preview-tts",
+    "agenticView": false,
     "implementedAt": "2026-02-10",
     "implementedRank": 160,
     "emoji": "",
@@ -994,7 +1658,8 @@
     "tags": [
       "gemini",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gemini-2.5-pro-preview-tts",
@@ -1002,6 +1667,10 @@
     "description": "Google TTS Pro (Preview).",
     "price": "Text In $1.00/1M, Audio Out $20.00/1M",
     "category": "Audio (TTS)",
+    "categoryIcon": "fas fa-microphone text-red-400",
+    "categoryDescription": "Text-to-Speech models",
+    "apiId": "gemini-2.5-pro-preview-tts",
+    "agenticView": false,
     "implementedAt": "2026-02-10",
     "implementedRank": 161,
     "emoji": "",
@@ -1009,7 +1678,8 @@
     "tags": [
       "gemini",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "google-tts-studio",
@@ -1017,13 +1687,18 @@
     "description": "High fidelity studio voices.",
     "price": "$160 / 1M chars",
     "category": "Audio (TTS)",
+    "categoryIcon": "fas fa-microphone text-red-400",
+    "categoryDescription": "Text-to-Speech models",
+    "apiId": "google-tts-studio",
+    "agenticView": false,
     "implementedAt": "2026-01-20",
     "implementedRank": 110,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "google-tts-neural",
@@ -1031,13 +1706,18 @@
     "description": "Standard neural voices.",
     "price": "$16 / 1M chars",
     "category": "Audio (TTS)",
+    "categoryIcon": "fas fa-microphone text-red-400",
+    "categoryDescription": "Text-to-Speech models",
+    "apiId": "google-tts-neural",
+    "agenticView": false,
     "implementedAt": "2026-01-20",
     "implementedRank": 111,
     "emoji": "",
     "deprecated": false,
     "tags": [
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-tts",
@@ -1045,6 +1725,10 @@
     "description": "xAI Text-to-Speech with expressive voices.",
     "price": "$15.00 / 1M chars",
     "category": "Audio (TTS)",
+    "categoryIcon": "fas fa-microphone text-red-400",
+    "categoryDescription": "Text-to-Speech models",
+    "apiId": "grok-tts",
+    "agenticView": false,
     "implementedAt": "2026-05-27",
     "implementedRank": 5560,
     "emoji": "🔊",
@@ -1052,7 +1736,8 @@
     "tags": [
       "xai",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-transcribe",
@@ -1060,6 +1745,10 @@
     "description": "High-accuracy file and committed-turn transcription.",
     "price": "$0.0045 / minute",
     "category": "OpenAI Transcription",
+    "categoryIcon": "fas fa-closed-captioning text-emerald-400",
+    "categoryDescription": "Speech-to-text models (audio in / text out)",
+    "apiId": "gpt-transcribe",
+    "agenticView": false,
     "implementedAt": "2026-07-29",
     "implementedRank": 6330,
     "emoji": "",
@@ -1068,7 +1757,8 @@
       "openai",
       "audio",
       "transcription"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-live-transcribe",
@@ -1076,6 +1766,10 @@
     "description": "Low-latency realtime transcription.",
     "price": "$0.017 / minute",
     "category": "OpenAI Transcription",
+    "categoryIcon": "fas fa-closed-captioning text-emerald-400",
+    "categoryDescription": "Speech-to-text models (audio in / text out)",
+    "apiId": "gpt-live-transcribe",
+    "agenticView": false,
     "implementedAt": "2026-07-29",
     "implementedRank": 6331,
     "emoji": "",
@@ -1084,7 +1778,8 @@
       "openai",
       "audio",
       "transcription"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-realtime-2",
@@ -1092,6 +1787,10 @@
     "description": "Most capable speech-to-speech reasoning model.",
     "price": "Audio In $32/1M, Audio Out $64/1M",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gpt-realtime-2",
+    "agenticView": false,
     "implementedAt": "2026-05-11",
     "implementedRank": 5080,
     "emoji": "",
@@ -1100,7 +1799,8 @@
       "openai",
       "audio",
       "reasoning"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-realtime-translate",
@@ -1108,6 +1808,10 @@
     "description": "Streaming speech-to-speech translation.",
     "price": "$0.034 / minute",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gpt-realtime-translate",
+    "agenticView": false,
     "implementedAt": "2026-05-11",
     "implementedRank": 5081,
     "emoji": "",
@@ -1115,7 +1819,8 @@
     "tags": [
       "openai",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-realtime-whisper",
@@ -1123,6 +1828,10 @@
     "description": "Streaming speech-to-text (transcription).",
     "price": "$0.017 / minute",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gpt-realtime-whisper",
+    "agenticView": false,
     "implementedAt": "2026-05-11",
     "implementedRank": 5082,
     "emoji": "",
@@ -1131,7 +1840,8 @@
       "openai",
       "audio",
       "transcription"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-realtime-1.5",
@@ -1139,6 +1849,10 @@
     "description": "Latest OpenAI speech-to-speech flagship model.",
     "price": "Audio In $32/1M, Audio Out $64/1M",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gpt-realtime-1.5",
+    "agenticView": false,
     "implementedAt": "2026-02-24",
     "implementedRank": 2530,
     "emoji": "",
@@ -1146,7 +1860,8 @@
     "tags": [
       "openai",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-realtime",
@@ -1154,6 +1869,10 @@
     "description": "OpenAI realtime speech-to-speech model.",
     "price": "Audio In $32/1M, Audio Out $64/1M",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gpt-realtime",
+    "agenticView": false,
     "implementedAt": "2026-02-24",
     "implementedRank": 2531,
     "emoji": "",
@@ -1161,7 +1880,8 @@
     "tags": [
       "openai",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gpt-realtime-mini",
@@ -1169,6 +1889,10 @@
     "description": "Lower-latency, smaller realtime model.",
     "price": "Audio In $10/1M, Audio Out $20/1M",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gpt-realtime-mini",
+    "agenticView": false,
     "implementedAt": "2026-02-24",
     "implementedRank": 2532,
     "emoji": "",
@@ -1176,7 +1900,8 @@
     "tags": [
       "openai",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gemini-2.5-flash-native-audio-preview-12-2025",
@@ -1184,6 +1909,10 @@
     "description": "Google Live native audio model.",
     "price": "Audio In $3.00/1M, Audio Out $12.00/1M",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gemini-2.5-flash-native-audio-preview-12-2025",
+    "agenticView": false,
     "implementedAt": "2026-01-15",
     "implementedRank": 90,
     "emoji": "",
@@ -1191,7 +1920,8 @@
     "tags": [
       "gemini",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gemini-3.1-flash-live-preview",
@@ -1199,6 +1929,10 @@
     "description": "Google Live native audio model.",
     "price": "Audio In $3.00/1M (~$0.005/min), Out $12.00/1M",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gemini-3.1-flash-live-preview",
+    "agenticView": false,
     "implementedAt": "2026-03-29",
     "implementedRank": 3870,
     "emoji": "",
@@ -1206,7 +1940,8 @@
     "tags": [
       "gemini",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gemini-3.8-live",
@@ -1214,6 +1949,10 @@
     "description": "Low-latency audio-to-audio Live API model with interleaved reasoning and asynchronous function calling.",
     "price": "See Gemini API pricing",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gemini-3.8-live",
+    "agenticView": false,
     "implementedAt": "2026-09-20",
     "implementedRank": 9181,
     "emoji": "🔴",
@@ -1222,7 +1961,8 @@
       "gemini",
       "audio",
       "reasoning"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gemini-3.8-live-extended-thinking",
@@ -1230,6 +1970,10 @@
     "description": "Live audio-to-audio model with configurable background reasoning for complex multi-step interactions.",
     "price": "See Gemini API pricing",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gemini-3.8-live-extended-thinking",
+    "agenticView": false,
     "implementedAt": "2026-09-20",
     "implementedRank": 9182,
     "emoji": "🧠",
@@ -1238,7 +1982,8 @@
       "gemini",
       "audio",
       "reasoning"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gemini-3.5-live-translate-preview",
@@ -1246,6 +1991,10 @@
     "description": "Low-latency real-time speech-to-speech translation supporting 70+ languages.",
     "price": "Audio In $3.50/1M, Audio Out $21.00/1M",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gemini-3.5-live-translate-preview",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8523,
     "emoji": "🌐",
@@ -1253,7 +2002,8 @@
     "tags": [
       "gemini",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-voice-think-fast-2.0",
@@ -1261,6 +2011,10 @@
     "description": "Current xAI speech-to-speech model.",
     "price": "$0.08 / min ($4.80 / hr) audio + $0.004 / text input",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "grok-voice-think-fast-2.0",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8502,
     "emoji": "🎤",
@@ -1269,7 +2023,29 @@
       "xai",
       "audio",
       "fast"
-    ]
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "grok-voice-transcribe-2.0",
+    "name": "Grok Voice Transcribe 2.0 (Live)",
+    "description": "xAI streaming speech-to-text.",
+    "price": "$0.20 / hr",
+    "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "grok-voice-transcribe-2.0",
+    "agenticView": false,
+    "implementedAt": "2026-09-24",
+    "implementedRank": 10261,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "xai",
+      "audio",
+      "transcription"
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-voice-latest",
@@ -1277,6 +2053,10 @@
     "description": "Alias for the current flagship voice model.",
     "price": "$0.08 / min ($4.80 / hr) audio + $0.004 / text input",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "grok-voice-latest",
+    "agenticView": false,
     "implementedAt": "2026-05-27",
     "implementedRank": 5550,
     "emoji": "",
@@ -1284,7 +2064,8 @@
     "tags": [
       "xai",
       "audio"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-voice-think-fast-1.0",
@@ -1292,6 +2073,10 @@
     "description": "Deprecated xAI realtime voice model retained for history compatibility.",
     "price": "$0.05 / min ($3.00 / hr)",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "grok-voice-think-fast-1.0",
+    "agenticView": false,
     "implementedAt": "2026-05-11",
     "implementedRank": 5140,
     "emoji": "",
@@ -1300,7 +2085,8 @@
       "xai",
       "audio",
       "fast"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-voice-fast-1.0",
@@ -1308,6 +2094,10 @@
     "description": "Legacy xAI realtime voice model retained for history compatibility.",
     "price": "$0.05 / min ($3.00 / hr)",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "grok-voice-fast-1.0",
+    "agenticView": false,
     "implementedAt": "2026-05-01",
     "implementedRank": 500,
     "emoji": "",
@@ -1316,7 +2106,8 @@
       "xai",
       "audio",
       "fast"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-voice-agent",
@@ -1324,6 +2115,10 @@
     "description": "xAI realtime voice agent API.",
     "price": "$0.05 / min (Realtime)",
     "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "grok-voice-agent",
+    "agenticView": false,
     "implementedAt": "2026-04-01",
     "implementedRank": 380,
     "emoji": "",
@@ -1332,7 +2127,8 @@
       "xai",
       "audio",
       "agent"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gemini-robotics-er-2-preview",
@@ -1340,6 +2136,10 @@
     "description": "Embodied reasoning model for robots with advanced video understanding.",
     "price": "In $2.00/1M, Out $8.00/1M",
     "category": "Gemini Agent / Specialized",
+    "categoryIcon": "fas fa-robot text-indigo-400",
+    "categoryDescription": "Gemini agent and specialized models",
+    "apiId": "gemini-robotics-er-2-preview",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8515,
     "emoji": "",
@@ -1349,6 +2149,13 @@
       "reasoning",
       "video",
       "agent"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "low",
+      "high"
     ]
   },
   {
@@ -1357,6 +2164,10 @@
     "description": "Agentic multi-step research producing comprehensive cited reports.",
     "price": "Standard Gemini rates + tool usage fees",
     "category": "Gemini Agent / Specialized",
+    "categoryIcon": "fas fa-robot text-indigo-400",
+    "categoryDescription": "Gemini agent and specialized models",
+    "apiId": "deep-research-preview-04-2026",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8514,
     "emoji": "🔎",
@@ -1364,7 +2175,8 @@
     "tags": [
       "gemini",
       "agent"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "deep-research-max-preview-04-2026",
@@ -1372,6 +2184,10 @@
     "description": "Maximum-comprehension research agent over hundreds of sources.",
     "price": "Standard Gemini rates + tool usage fees",
     "category": "Gemini Agent / Specialized",
+    "categoryIcon": "fas fa-robot text-indigo-400",
+    "categoryDescription": "Gemini agent and specialized models",
+    "apiId": "deep-research-max-preview-04-2026",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8513,
     "emoji": "",
@@ -1379,7 +2195,8 @@
     "tags": [
       "gemini",
       "agent"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "antigravity-preview-05-2026",
@@ -1387,6 +2204,10 @@
     "description": "Managed agent that plans, runs code, manages files, and browses the web in a sandbox.",
     "price": "Standard Gemini rates (sandbox compute free during preview)",
     "category": "Gemini Agent / Specialized",
+    "categoryIcon": "fas fa-robot text-indigo-400",
+    "categoryDescription": "Gemini agent and specialized models",
+    "apiId": "antigravity-preview-05-2026",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8512,
     "emoji": "",
@@ -1394,7 +2215,8 @@
     "tags": [
       "gemini",
       "agent"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "gemini-2.5-computer-use-preview-10-2025",
@@ -1402,6 +2224,10 @@
     "description": "Browser / desktop control agent model for UI automation.",
     "price": "In $1.25/1M (≤200k), Out $10.00/1M (≤200k)",
     "category": "Gemini Agent / Specialized",
+    "categoryIcon": "fas fa-robot text-indigo-400",
+    "categoryDescription": "Gemini agent and specialized models",
+    "apiId": "gemini-2.5-computer-use-preview-10-2025",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8511,
     "emoji": "",
@@ -1409,6 +2235,13 @@
     "tags": [
       "gemini",
       "agent"
+    ],
+    "searchTerms": [
+      "thinking",
+      "思考",
+      "thinking level",
+      "low",
+      "high"
     ]
   },
   {
@@ -1417,6 +2250,10 @@
     "description": "Multimodal embedding model (text / image / audio / video / PDF).",
     "price": "Text In $0.20/1M, Image $0.45/1M",
     "category": "Gemini Agent / Specialized",
+    "categoryIcon": "fas fa-robot text-indigo-400",
+    "categoryDescription": "Gemini agent and specialized models",
+    "apiId": "gemini-embedding-2",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8510,
     "emoji": "",
@@ -1427,7 +2264,8 @@
       "audio",
       "video",
       "agent"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-imagine-image-2.0",
@@ -1435,6 +2273,10 @@
     "description": "Precise image generation and editing with 1K/2K output and low/medium quality control.",
     "price": "from $0.04 / image",
     "category": "Grok Imagine",
+    "categoryIcon": "fas fa-magic text-blue-400",
+    "categoryDescription": "Grok generation models",
+    "apiId": "grok-imagine-image-2.0",
+    "agenticView": false,
     "implementedAt": "2026-08-22",
     "implementedRank": 8250,
     "emoji": "🎨",
@@ -1442,7 +2284,8 @@
     "tags": [
       "xai",
       "image"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-imagine-image-quality",
@@ -1450,6 +2293,10 @@
     "description": "Next-gen Grok image generation with 1K/2K support.",
     "price": "$0.05 / image",
     "category": "Grok Imagine",
+    "categoryIcon": "fas fa-magic text-blue-400",
+    "categoryDescription": "Grok generation models",
+    "apiId": "grok-imagine-image-quality",
+    "agenticView": false,
     "implementedAt": "2026-05-09",
     "implementedRank": 5020,
     "emoji": "",
@@ -1457,7 +2304,8 @@
     "tags": [
       "xai",
       "image"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-imagine-image",
@@ -1465,6 +2313,10 @@
     "description": "Latest Grok image generation.",
     "price": "$0.02 / image",
     "category": "Grok Imagine",
+    "categoryIcon": "fas fa-magic text-blue-400",
+    "categoryDescription": "Grok generation models",
+    "apiId": "grok-imagine-image",
+    "agenticView": false,
     "implementedAt": "2026-01-30",
     "implementedRank": 520,
     "emoji": "",
@@ -1472,7 +2324,8 @@
     "tags": [
       "xai",
       "image"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-imagine-image-pro",
@@ -1480,6 +2333,10 @@
     "description": "Discontinued by xAI. Retained for chat history compatibility.",
     "price": "$0.07 / image",
     "category": "Grok Imagine",
+    "categoryIcon": "fas fa-magic text-blue-400",
+    "categoryDescription": "Grok generation models",
+    "apiId": "grok-imagine-image-pro",
+    "agenticView": false,
     "implementedAt": "2026-02-01",
     "implementedRank": 530,
     "emoji": "",
@@ -1487,7 +2344,8 @@
     "tags": [
       "xai",
       "image"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-imagine-video-1.5",
@@ -1495,6 +2353,10 @@
     "description": "Current xAI video generation model with 1080p text/image-to-video support.",
     "price": "$0.080 / second",
     "category": "Grok Imagine",
+    "categoryIcon": "fas fa-magic text-blue-400",
+    "categoryDescription": "Grok generation models",
+    "apiId": "grok-imagine-video-1.5",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8501,
     "emoji": "🎬",
@@ -1503,7 +2365,8 @@
       "xai",
       "image",
       "video"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-imagine-video",
@@ -1511,6 +2374,10 @@
     "description": "Legacy Grok video generation.",
     "price": "$0.05 / second",
     "category": "Grok Imagine",
+    "categoryIcon": "fas fa-magic text-blue-400",
+    "categoryDescription": "Grok generation models",
+    "apiId": "grok-imagine-video",
+    "agenticView": false,
     "implementedAt": "2026-01-30",
     "implementedRank": 530,
     "emoji": "",
@@ -1518,7 +2385,8 @@
     "tags": [
       "xai",
       "video"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-4.6",
@@ -1526,6 +2394,10 @@
     "description": "Frontier model for coding, agentic tasks, and knowledge work.",
     "price": "In $2.00/1M, Out $6.00/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4.6",
+    "agenticView": false,
     "implementedAt": "2026-08-19",
     "implementedRank": 8161,
     "emoji": "",
@@ -1533,6 +2405,15 @@
     "tags": [
       "xai",
       "agent"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "xhigh"
     ]
   },
   {
@@ -1541,6 +2422,10 @@
     "description": "Intelligent coding model for agentic software and engineering tasks.",
     "price": "In $2.00/1M, Out $6.00/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4.5",
+    "agenticView": false,
     "implementedAt": "2026-08-19",
     "implementedRank": 8160,
     "emoji": "",
@@ -1548,6 +2433,14 @@
     "tags": [
       "xai",
       "agent"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium"
     ]
   },
   {
@@ -1556,6 +2449,10 @@
     "description": "Most intelligent and fastest flagship model.",
     "price": "In $1.25/1M, Out $2.50/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4.3",
+    "agenticView": false,
     "implementedAt": "2026-05-27",
     "implementedRank": 5530,
     "emoji": "",
@@ -1563,6 +2460,15 @@
     "tags": [
       "xai",
       "fast"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -1571,6 +2477,10 @@
     "description": "Fast agentic coding model with vision and reasoning support.",
     "price": "In $1.00/1M, Out $2.00/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-build-0.1",
+    "agenticView": false,
     "implementedAt": "2026-05-27",
     "implementedRank": 5520,
     "emoji": "🛠️",
@@ -1580,6 +2490,15 @@
       "reasoning",
       "fast",
       "agent"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none"
     ]
   },
   {
@@ -1588,6 +2507,10 @@
     "description": "Dated Grok 4.20 reasoning release.",
     "price": "In $1.25/1M, Out $2.50/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4.20-0309-reasoning",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8503,
     "emoji": "",
@@ -1595,6 +2518,14 @@
     "tags": [
       "xai",
       "reasoning"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium"
     ]
   },
   {
@@ -1603,6 +2534,10 @@
     "description": "Dated Grok 4.20 standard release.",
     "price": "In $1.25/1M, Out $2.50/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4.20-0309-non-reasoning",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8504,
     "emoji": "",
@@ -1610,7 +2545,8 @@
     "tags": [
       "xai",
       "reasoning"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-4.20-multi-agent-0309",
@@ -1618,6 +2554,10 @@
     "description": "Dated Grok 4.20 multi-agent release.",
     "price": "In $1.25/1M, Out $2.50/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4.20-multi-agent-0309",
+    "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8505,
     "emoji": "",
@@ -1625,6 +2565,15 @@
     "tags": [
       "xai",
       "agent"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "xhigh"
     ]
   },
   {
@@ -1633,6 +2582,10 @@
     "description": "Flagship reasoning model.",
     "price": "In $1.25/1M, Out $2.50/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4.20-reasoning",
+    "agenticView": false,
     "implementedAt": "2026-04-09",
     "implementedRank": 4000,
     "emoji": "",
@@ -1640,7 +2593,8 @@
     "tags": [
       "xai",
       "reasoning"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-4.20-non-reasoning",
@@ -1648,6 +2602,10 @@
     "description": "Flagship standard model.",
     "price": "In $1.25/1M, Out $2.50/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4.20-non-reasoning",
+    "agenticView": false,
     "implementedAt": "2026-04-09",
     "implementedRank": 4001,
     "emoji": "",
@@ -1655,7 +2613,8 @@
     "tags": [
       "xai",
       "reasoning"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-4.20-multi-agent",
@@ -1663,6 +2622,10 @@
     "description": "Agentic flagship model.",
     "price": "In $1.25/1M, Out $2.50/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4.20-multi-agent",
+    "agenticView": false,
     "implementedAt": "2026-04-09",
     "implementedRank": 4002,
     "emoji": "",
@@ -1670,6 +2633,15 @@
     "tags": [
       "xai",
       "agent"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "xhigh"
     ]
   },
   {
@@ -1678,6 +2650,10 @@
     "description": "Fast with reasoning capabilities.",
     "price": "In $0.20/1M, Out $0.50/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4-1-fast-reasoning",
+    "agenticView": false,
     "implementedAt": "2026-03-01",
     "implementedRank": 280,
     "emoji": "",
@@ -1686,7 +2662,8 @@
       "xai",
       "reasoning",
       "fast"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-4-1-fast-non-reasoning",
@@ -1694,6 +2671,10 @@
     "description": "Fast standard model.",
     "price": "In $0.20/1M, Out $0.50/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4-1-fast-non-reasoning",
+    "agenticView": false,
     "implementedAt": "2026-03-01",
     "implementedRank": 281,
     "emoji": "",
@@ -1702,7 +2683,8 @@
       "xai",
       "reasoning",
       "fast"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-4-fast-reasoning",
@@ -1710,6 +2692,10 @@
     "description": "Previous gen reasoning.",
     "price": "In $0.20/1M, Out $0.50/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4-fast-reasoning",
+    "agenticView": false,
     "implementedAt": "2026-02-01",
     "implementedRank": 150,
     "emoji": "",
@@ -1718,7 +2704,8 @@
       "xai",
       "reasoning",
       "fast"
-    ]
+    ],
+    "searchTerms": []
   },
   {
     "id": "grok-4-fast-non-reasoning",
@@ -1726,6 +2713,10 @@
     "description": "Previous gen standard.",
     "price": "In $0.20/1M, Out $0.50/1M",
     "category": "xAI Grok",
+    "categoryIcon": "fas fa-rocket text-white",
+    "categoryDescription": "Models by xAI",
+    "apiId": "grok-4-fast-non-reasoning",
+    "agenticView": false,
     "implementedAt": "2026-02-01",
     "implementedRank": 151,
     "emoji": "",
@@ -1734,6 +2725,7 @@
       "xai",
       "reasoning",
       "fast"
-    ]
+    ],
+    "searchTerms": []
   }
 ]

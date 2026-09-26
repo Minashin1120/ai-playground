@@ -28,7 +28,12 @@ data class ModelInfo(val id: String, val name: String, val provider: String, val
                      val selectable: Boolean,
                      val description: String = "", val price: String = "", val category: String = "",
                      val implementedAt: String = "", val implementedRank: Int = 0, val emoji: String = "",
-                     val tags: Set<String> = emptySet(), val webCatalogOrder: Int = Int.MAX_VALUE) {
+                     val tags: Set<String> = emptySet(), val webCatalogOrder: Int = Int.MAX_VALUE,
+                     /** Web `MODELS` group icon (`fas fa-star text-yellow-400`) and description, for the picker headers. */
+                     val categoryIcon: String = "", val categoryDescription: String = "",
+                     val apiId: String = "", val agenticView: Boolean = false,
+                     /** Web `getModelCapabilitySearchTerms`: extra words the picker search matches. */
+                     val searchTerms: List<String> = emptyList()) {
     fun supports(capability: String) = capability in capabilities
 }
 data class Account(val id: Int, val name: String, val models: List<ModelInfo>, val defaultModel: String,

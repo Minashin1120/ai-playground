@@ -212,6 +212,7 @@ internal object Tw {
     val teal400 = Color(0xFF2DD4BF)
     val teal500 = Color(0xFF14B8A6)
     val teal600 = Color(0xFF0D9488)
+    val teal700 = Color(0xFF0F766E)
     val teal900 = Color(0xFF134E4A)
 
     val cyan100 = Color(0xFFCFFAFE)

@@ -51,7 +51,9 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMaskEditor.kt` | GPT-Image用の端末マスク描画とPNG化 | 画像マスクの描画・送信を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | 入力欄の音声ドック、Realtime音声（Gemini 3.8 Live / Extended Thinkingを含む）の拡大スタジオと設定チップ、Lyria音楽スタジオ | 音声／音楽セッションUIを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | クリップボードHTML／テキストの安全な取り込み | リッチ貼り付けの入力変換を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/ModelPicker.kt` | WebのSelect Model構成に合わせた検索・提供元／用途／対応能力フィルター・選択状態 | モデル選択画面を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ModelPicker.kt` | Webの「Select Model」（検索、固定タグバー、カテゴリ見出し、モデルカード、PromptCacheのロックバナー） | モデル選択画面を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/GemDialog.kt` | Webの `#gem-modal`（Gemの作成・編集、固定プロンプトの行）とTailwind風の入力欄 `TwInput` | Gemの編集画面を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ChatInstructionsDialog.kt` | Webの `#thread-modal`（Chat Instructions：チャット専用の指示、全体プロンプトの参照、ユーザーシステムプロンプト、自動注入の簡易版） | SysPromptの⚙から開く画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundDialog.kt` | Webモーダル（オーバーレイ、ぼかし、パネル、見出し、下部）の共通枠 | 設定・Gems・ライブラリ・Batchの画面枠を調整するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundMotion.kt` | 共通の時間・イージング、アニメーション削除設定への追従、モーダルの開閉・予測型「戻る」、一覧・登場・押下の動きの部品 | 画面の動き・遷移を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AppChangelogDialog.kt` | Android版更新履歴のネイティブMarkdown表示、読み込み・再試行・戻る操作 | 更新履歴画面を編集するとき |

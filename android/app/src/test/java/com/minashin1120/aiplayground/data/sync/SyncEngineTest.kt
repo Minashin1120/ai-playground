@@ -2,6 +2,7 @@ package com.minashin1120.aiplayground.data.sync
 
 import com.minashin1120.aiplayground.data.PlaygroundApi
 import com.minashin1120.aiplayground.data.local.LocalChatStore
+import com.minashin1120.aiplayground.data.local.textOf
 import com.minashin1120.aiplayground.data.secure.EncryptedFileStore
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
@@ -50,6 +51,40 @@ class SyncEngineTest {
         assertEquals(listOf("Webから", "返事"), pulledRows.map { it.getString("content") })
         assertEquals(pulledRows[0].getInt("id"), pulledRows[1].getInt("parent_id"))
         assertEquals("Webのチャット", store.threadRow(pulled)!!.getString("title"))
+    }
+
+    @Test fun serverChatsWithoutDeviceUuidStaySeparate() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(json("""{"threads":[{"id":"a1","client_uuid":null,"title":"古いチャット","updated_at_ms":10},{"id":"b2","client_uuid":null,"title":"新しいチャット","updated_at_ms":20}],"tombstones":[],"has_more":false,"server_time_ms":1000000}"""))
+            server.enqueue(json("""{"messages":[{"id":1,"role":"user","content":"古い","parent_id":null,"created_at":"2026-09-27T00:00:00Z"}],"has_older_messages":false}"""))
+            server.enqueue(json("""{"messages":[{"id":2,"role":"user","content":null,"parent_id":null,"created_at":null}],"has_older_messages":false}"""))
+            assertEquals(2, SyncEngine(store, PlaygroundApi(server.url("/"))) { "token" }.run().downloadedChats)
+        }
+        val titles = store.listThreads(1, "").getJSONArray("threads").let { rows -> (0 until rows.length()).map { rows.getJSONObject(it).getString("title") } }
+        assertEquals(listOf("新しいチャット", "古いチャット"), titles)
+        val newer = store.localIdForServer("b2", null)!!
+        assertNotEquals(store.localIdForServer("a1", null), newer)
+        assertNotEquals("null", store.threadRow(newer)!!.getString("uuid"))
+        assertEquals("", store.messages(newer).single().getString("content"))
+    }
+
+    @Test fun storesMergedByOlderVersionsAreRepairedAndPulledAgain() {
+        val merged = store.upsertServerThread(org.json.JSONObject().put("id", "b2").put("client_uuid", "null").put("title", "T"))
+        store.setSyncSince(123)
+        assertTrue(store.repairSyncIdentities())
+        assertNull(store.syncSince())
+        assertNotEquals("null", store.threadRow(merged)!!.getString("uuid"))
+        assertEquals("b2", store.threadRow(merged)!!.getString("server_id"))
+        assertFalse(store.repairSyncIdentities())
+    }
+
+    @Test fun jsonNullReadsAsTheFallback() {
+        val row = org.json.JSONObject().put("a", org.json.JSONObject.NULL).put("b", "x")
+        assertEquals("", row.textOf("a"))
+        assertEquals("New Chat", row.textOf("a", "New Chat"))
+        assertEquals("New Chat", row.textOf("missing", "New Chat"))
+        assertEquals("x", row.textOf("b"))
     }
 
     @Test fun serverDeletionsRemoveSyncedMessagesAndKeepUnsentOnes() {

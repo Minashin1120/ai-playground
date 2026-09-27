@@ -290,6 +290,25 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     fun setSyncSince(value: Long) { val index = loadIndex(); index.put("sync_since", value); saveIndex(index) }
 
     /**
+     * Repairs stores written by 1.38.0–1.40.1, whose pull saved a server chat without a device UUID
+     * as UUID "null" (Android's `optString` turns JSON null into "null"), so every such chat was
+     * merged into one. Gives those chats fresh UUIDs and forgets the sync cursor, so the next pull
+     * reads every server chat again. Returns true when something was repaired.
+     */
+    @Synchronized
+    fun repairSyncIdentities(): Boolean {
+        val index = loadIndex()
+        val rows = threads(index)
+        val broken = rows.filter { it.optString("uuid").let { uuid -> uuid.isBlank() || uuid == "null" } }
+        if (broken.isEmpty()) return false
+        broken.forEach { it.put("uuid", UUID.randomUUID().toString()) }
+        putThreads(index, rows)
+        index.remove("sync_since")
+        saveIndex(index)
+        return true
+    }
+
+    /**
      * Chats with unsent settings or messages. Messages are listed oldest first so parents come before
      * children; a parent is referenced by its server id when known, otherwise by its UUID. Answers still
      * being generated (for less than 10 minutes) wait for the next sync.
@@ -394,18 +413,18 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         val index = loadIndex()
         val rows = threads(index)
         val existing = rows.firstOrNull { it.opt("server_id")?.toString() == serverId }
-            ?: row.optString("client_uuid").takeIf { it.isNotBlank() }?.let { uuid -> rows.firstOrNull { it.optString("uuid") == uuid } }
+            ?: row.textOf("client_uuid").takeIf { it.isNotBlank() }?.let { uuid -> rows.firstOrNull { it.optString("uuid") == uuid } }
         val serverChanged = row.optLong("changed_at_ms")
         val stamp = row.optLong("updated_at_ms").takeIf { it > 0 } ?: now()
         val thread: JSONObject = existing ?: JSONObject().put("id", "l_" + UUID.randomUUID().toString().replace("-", ""))
-            .put("uuid", row.optString("client_uuid").ifBlank { UUID.randomUUID().toString() })
+            .put("uuid", row.textOf("client_uuid").ifBlank { UUID.randomUUID().toString() })
             .put("is_temporary", false).put("bookmarked_at", 0L).put("enable_prompt_caching", false)
             .put("created_at", stamp).put("updated_at", stamp).put("meta_changed_at", 0L).put("dirty", false)
             .also { rows += it }
         thread.put("server_id", serverId)
         if (!thread.optBoolean("dirty") || thread.optLong("meta_changed_at") <= serverChanged) {
-            thread.put("title", row.optString("title", "New Chat")).put("is_bookmarked", row.optBoolean("is_bookmarked"))
-                .put("custom_instruction", row.optString("custom_instruction"))
+            thread.put("title", row.textOf("title", "New Chat")).put("is_bookmarked", row.optBoolean("is_bookmarked"))
+                .put("custom_instruction", row.textOf("custom_instruction"))
                 .put("include_global_instruction", row.optBoolean("include_global_instruction", true))
                 .put("last_model", row.opt("last_model") ?: JSONObject.NULL).put("last_gem_uuid", row.opt("last_gem_uuid") ?: JSONObject.NULL)
             if (row.optBoolean("is_bookmarked") && thread.optLong("bookmarked_at") == 0L) thread.put("bookmarked_at", serverChanged)
@@ -431,21 +450,21 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         val serverIds = server.map { it.optInt("id") }.toSet()
         val localByServerId = HashMap<Int, Int>()
         byServer.forEach { (serverId, row) -> localByServerId[serverId] = row.optInt("id") }
-        val ordered = server.sortedWith(compareBy<JSONObject> { it.optString("created_at") }.thenBy { it.optInt("id") })
+        val ordered = server.sortedWith(compareBy<JSONObject> { it.textOf("created_at") }.thenBy { it.optInt("id") })
         for (message in ordered) {
             val serverId = message.optInt("id")
             val thought = message.opt("thought_data")?.takeIf { it != JSONObject.NULL }?.toString()
             val existing = byServer[serverId]
             if (existing != null) {
-                existing.put("content", message.optString("content")).put("thought_data", thought ?: JSONObject.NULL).put("synced", true)
+                existing.put("content", message.textOf("content")).put("thought_data", thought ?: JSONObject.NULL).put("synced", true)
                 continue
             }
             val localIdForMessage = nextId++
             localByServerId[serverId] = localIdForMessage
             val parentServer = if (message.isNull("parent_id")) null else message.optInt("parent_id")
-            val created = runCatching { Instant.parse(message.optString("created_at")).toEpochMilli() }.getOrElse { now() }
+            val created = runCatching { Instant.parse(message.textOf("created_at")).toEpochMilli() }.getOrElse { now() }
             rows += JSONObject().put("id", localIdForMessage).put("uuid", UUID.randomUUID().toString())
-                .put("role", message.optString("role")).put("content", message.optString("content"))
+                .put("role", message.textOf("role")).put("content", message.textOf("content"))
                 .put("thought_data", thought ?: JSONObject.NULL).put("model", message.opt("model") ?: JSONObject.NULL)
                 .put("image_url", message.opt("image_url") ?: JSONObject.NULL)
                 .put("parent_id", parentServer?.let { localByServerId[it] } ?: JSONObject.NULL)
@@ -483,8 +502,8 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     fun applyTombstone(serverId: String?, uuid: String?) {
         val index = loadIndex()
         val rows = threads(index)
-        val thread = rows.firstOrNull { (serverId != null && it.opt("server_id")?.toString() == serverId) ||
-            (!uuid.isNullOrBlank() && it.optString("uuid") == uuid) } ?: return
+        val thread = rows.firstOrNull { (!serverId.isNullOrBlank() && it.opt("server_id")?.toString() == serverId) ||
+            (!uuid.isNullOrBlank() && uuid != "null" && it.optString("uuid") == uuid) } ?: return
         val id = thread.getString("id")
         val messages = loadMessages(id)
         if (messages.any { it.isNull("server_id") }) {
@@ -631,3 +650,6 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
                 reference.removePrefix(LOCAL_PREFIX).none { it == '/' || it == '?' || it == '#' || it == ':' }
     }
 }
+
+/** A string field of a server row, with JSON null read as [fallback] (Android's `optString` returns "null" for it). */
+internal fun JSONObject.textOf(key: String, fallback: String = ""): String = if (isNull(key)) fallback else optString(key, fallback)

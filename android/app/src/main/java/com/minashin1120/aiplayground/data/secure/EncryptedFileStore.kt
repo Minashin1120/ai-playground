@@ -53,8 +53,11 @@ class EncryptedFileStore(
                 output.write(iv)
                 CipherOutputStream(output, cipher).use { encrypted -> input.copyTo(encrypted, 64 * 1024) }
             }
-            if (target.exists() && !target.delete()) throw IOException("キャッシュを更新できません。")
-            if (!temporary.renameTo(target)) throw IOException("キャッシュを保存できません。")
+            // rename(2) replaces the old file atomically, so a reader never finds the record missing.
+            if (!temporary.renameTo(target)) {
+                if (target.exists() && !target.delete()) throw IOException("キャッシュを更新できません。")
+                if (!temporary.renameTo(target)) throw IOException("キャッシュを保存できません。")
+            }
         } finally {
             input.close()
             temporary.delete()
@@ -112,9 +115,15 @@ class EncryptedFileStore(
         const val DEFAULT_JSON_LIMIT = 16L * 1024 * 1024
 
         /** An AES-256-GCM Android Keystore key under [alias], created on first use. */
-        fun keystoreKey(alias: String): () -> SecretKey = {
+        fun keystoreKey(alias: String): () -> SecretKey = { synchronized(KEY_LOCK) { loadOrCreateKey(alias) } }
+
+        // Two threads creating the key at once would each store one under the alias, and records
+        // written with the replaced key could no longer be read.
+        private val KEY_LOCK = Any()
+
+        private fun loadOrCreateKey(alias: String): SecretKey {
             val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-            (store.getKey(alias, null) as? SecretKey) ?: KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {
+            return (store.getKey(alias, null) as? SecretKey) ?: KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {
                 init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
                     .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                     .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)

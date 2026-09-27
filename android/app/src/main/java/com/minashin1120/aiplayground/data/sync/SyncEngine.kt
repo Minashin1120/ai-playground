@@ -3,6 +3,7 @@ package com.minashin1120.aiplayground.data.sync
 import com.minashin1120.aiplayground.data.ApiException
 import com.minashin1120.aiplayground.data.PlaygroundApi
 import com.minashin1120.aiplayground.data.local.LocalChatStore
+import com.minashin1120.aiplayground.data.local.textOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -33,6 +34,7 @@ class SyncEngine(
     private val token: () -> String,
 ) {
     suspend fun run(): SyncReport = withContext(Dispatchers.IO) {
+        store.repairSyncIdentities()
         val pushed = push()
         val downloaded = pull()
         pushed.copy(downloadedChats = downloaded)
@@ -101,7 +103,7 @@ class SyncEngine(
                 serverThreadId = result.optString("id").ifBlank { serverThreadId }
                 val accepted = HashMap<String, Int>()
                 result.optJSONArray("messages")?.let { rows ->
-                    for (k in 0 until rows.length()) rows.optJSONObject(k)?.let { accepted[it.optString("client_uuid")] = it.optInt("id") }
+                    for (k in 0 until rows.length()) rows.optJSONObject(k)?.let { accepted[it.textOf("client_uuid")] = it.optInt("id") }
                 }
                 val rejectedRows = result.optJSONArray("rejected")?.length() ?: 0
                 rejected += rejectedRows
@@ -144,7 +146,7 @@ class SyncEngine(
             val tombstones = reply.optJSONArray("tombstones") ?: JSONArray()
             for (i in 0 until tombstones.length()) {
                 val row = tombstones.getJSONObject(i)
-                store.applyTombstone(row.optString("id").ifBlank { null }, row.optString("client_uuid").ifBlank { null })
+                store.applyTombstone(row.textOf("id").ifBlank { null }, row.textOf("client_uuid").ifBlank { null })
             }
             cursor = if (reply.optBoolean("has_more")) reply.optInt("next_cursor").takeIf { it > 0 } else null
         } while (cursor != null)

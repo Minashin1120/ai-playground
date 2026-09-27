@@ -21,9 +21,14 @@ class LocalProfiles(private val context: Context) {
 
     private fun dir(key: String) = File(root, EncryptedFileStore.sha256Hex(key).take(32))
 
-    fun open(key: String): Profile {
+    // One store object per profile, so the store's own locking covers every caller (the sync job
+    // started before an account reload keeps writing through the same object as the chat screen).
+    private val opened = HashMap<String, Profile>()
+
+    @Synchronized
+    fun open(key: String): Profile = opened.getOrPut(key) {
         val base = dir(key)
-        return Profile(key, LocalChatStore(File(base, "chats"), crypto), LocalSettingsStore(File(base, "settings"), crypto, secrets))
+        Profile(key, LocalChatStore(File(base, "chats"), crypto), LocalSettingsStore(File(base, "settings"), crypto, secrets))
     }
 
     fun local(): Profile = open(LOCAL_KEY)
@@ -33,7 +38,8 @@ class LocalProfiles(private val context: Context) {
 
     fun hasLocalData(): Boolean = File(dir(LOCAL_KEY), "chats/index.enc").isFile
 
-    fun delete(key: String) { dir(key).deleteRecursively() }
+    @Synchronized
+    fun delete(key: String) { opened.remove(key); dir(key).deleteRecursively() }
 
     /** `assets/serverless-defaults.json`: the server's model catalog and prompt texts for offline use. */
     fun defaults(): ServerlessDefaults = ServerlessDefaults(runCatching {

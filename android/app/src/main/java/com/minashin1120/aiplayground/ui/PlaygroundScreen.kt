@@ -149,6 +149,8 @@ fun PlaygroundScreen(
     onDismissUpdate: () -> Unit = {},
     onDownloadUpdate: () -> Unit = {},
     onCancelDownload: () -> Unit = {},
+    onHideUpdate: () -> Unit = {},
+    onShowUpdate: () -> Unit = {},
     onRetryUpdate: () -> Unit = {},
     onInstallUpdate: () -> Unit = {},
     onCheckForUpdate: () -> Unit = {},
@@ -785,14 +787,17 @@ fun PlaygroundScreen(
                 onLogout = model::logout,
             )
             if (!state.banned) appUpdate?.let { update ->
-                AppUpdateDialog(
+                if (!update.dialogHidden) AppUpdateDialog(
                     update,
                     onDismiss = onDismissUpdate,
                     onDownload = onDownloadUpdate,
                     onCancelDownload = onCancelDownload,
+                    onHide = onHideUpdate,
                     onRetry = onRetryUpdate,
                     onInstall = onInstallUpdate,
                 )
+                // ANDROID_ONLY.md: a hidden update download stays visible as a bar over the top edge.
+                AppUpdateProgressBar(update, onShowUpdate, Modifier.align(Alignment.TopCenter))
             }
             StartupSplash(startupSplashEnabled)
             }

@@ -1,6 +1,11 @@
 package com.minashin1120.aiplayground.ui
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -10,6 +15,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.window.DialogProperties
 import com.minashin1120.aiplayground.AppUpdatePhase
 import com.minashin1120.aiplayground.AppUpdateUiState
@@ -20,19 +27,19 @@ fun AppUpdateDialog(
     onDismiss: () -> Unit,
     onDownload: () -> Unit,
     onCancelDownload: () -> Unit,
+    onHide: () -> Unit,
     onRetry: () -> Unit,
     onInstall: () -> Unit,
 ) {
     val update = state.update ?: return
     val downloading = state.phase == AppUpdatePhase.Downloading
     val installing = state.phase == AppUpdatePhase.Installing
-    val progress = state.totalBytes?.takeIf { it > 0L }?.let {
-        (state.downloadedBytes.toFloat() / it).coerceIn(0f, 1f)
-    }
+    val progress = downloadFraction(state)
     AlertDialog(
-        onDismissRequest = { if (downloading) onCancelDownload() else onDismiss() },
-        // A stray tap beside the dialog must not cancel a download or hide a running install.
-        properties = DialogProperties(dismissOnClickOutside = !downloading && !installing),
+        // Back or a tap beside the dialog only hides a running download; the top bar brings it back.
+        onDismissRequest = { if (downloading) onHide() else onDismiss() },
+        // A stray tap beside the dialog must not hide a running install.
+        properties = DialogProperties(dismissOnClickOutside = !installing),
         title = {
             Text(
                 when (state.phase) {
@@ -52,7 +59,7 @@ fun AppUpdateDialog(
                 when (state.phase) {
                     AppUpdatePhase.Available -> Text("GitHubからAPKを直接取得して、Androidの標準インストーラーで更新します。")
                     AppUpdatePhase.Downloading -> {
-                        Text(formatProgress(state.downloadedBytes, state.totalBytes))
+                        Text(formatUpdateProgress(state.downloadedBytes, state.totalBytes))
                         if (progress == null) LinearProgressIndicator(Modifier.fillMaxWidth())
                         else LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
                     }
@@ -78,12 +85,40 @@ fun AppUpdateDialog(
             }
         },
         dismissButton = {
-            if (!installing) TextButton(onClick = { if (downloading) onCancelDownload() else onDismiss() }) { Text("後で") }
+            if (!installing) TextButton(onClick = { if (downloading) onHide() else onDismiss() }) {
+                Text(if (downloading) "バックグラウンドで続ける" else "後で")
+            }
         },
     )
 }
 
-private fun formatProgress(downloaded: Long, total: Long?): String {
+/** Thin bar over the top edge while the update dialog is hidden; tapping it reopens the dialog. */
+@Composable
+fun AppUpdateProgressBar(state: AppUpdateUiState, onShow: () -> Unit, modifier: Modifier = Modifier) {
+    if (state.phase != AppUpdatePhase.Downloading || !state.dialogHidden) return
+    val progress = downloadFraction(state)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .clickable(onClickLabel = "更新の進捗を表示", onClick = onShow)
+            .semantics { contentDescription = "Android版をダウンロード中 ${formatUpdateProgress(state.downloadedBytes, state.totalBytes)}" }
+            // Taller transparent touch target around the 3dp bar.
+            .height(16.dp),
+    ) {
+        val barModifier = Modifier.fillMaxWidth().height(3.dp)
+        val color = MaterialTheme.colorScheme.primary
+        val track = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+        if (progress == null) LinearProgressIndicator(barModifier, color = color, trackColor = track)
+        else LinearProgressIndicator(progress = { progress }, modifier = barModifier, color = color, trackColor = track)
+    }
+}
+
+private fun downloadFraction(state: AppUpdateUiState): Float? = state.totalBytes?.takeIf { it > 0L }?.let {
+    (state.downloadedBytes.toFloat() / it).coerceIn(0f, 1f)
+}
+
+internal fun formatUpdateProgress(downloaded: Long, total: Long?): String {
     if (total == null || total <= 0L) return "${formatBytes(downloaded)}を取得しました。"
     val percent = (downloaded * 100L / total).coerceIn(0L, 100L)
     return "$percent%（${formatBytes(downloaded)} / ${formatBytes(total)}）"

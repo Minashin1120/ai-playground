@@ -31,6 +31,7 @@ class MainActivity : ComponentActivity() {
         handleBubbleIntent(intent)
         handleAuthIntent(intent)
         handleShareIntent(intent)
+        handleUpdateIntent(intent)
         setContent {
             val updateState = updateModel.state.collectAsStateWithLifecycle().value
             val changelogState = changelogModel.state.collectAsStateWithLifecycle().value
@@ -38,9 +39,11 @@ class MainActivity : ComponentActivity() {
                 appChangelog = changelogState,
                 playStartupAnimation = savedInstanceState == null,
                 onDismissUpdate = updateModel::dismiss,
-                onDownloadUpdate = updateModel::startDownload,
+                onDownloadUpdate = ::startUpdateDownload,
                 onCancelDownload = updateModel::cancelDownload,
-                onRetryUpdate = updateModel::retryDownload,
+                onHideUpdate = updateModel::hideDialog,
+                onShowUpdate = updateModel::showDialog,
+                onRetryUpdate = ::startUpdateDownload,
                 onInstallUpdate = ::installUpdate,
                 onCheckForUpdate = { updateModel.check(BuildConfig.VERSION_NAME) },
                 onOpenChangelog = changelogModel::load,
@@ -68,6 +71,14 @@ class MainActivity : ComponentActivity() {
         handleBubbleIntent(intent)
         handleAuthIntent(intent)
         handleShareIntent(intent)
+        handleUpdateIntent(intent)
+    }
+
+    /** Update notifications only ask to show the dialog; the APK always comes from the update manager. */
+    private fun handleUpdateIntent(intent: Intent?) {
+        if (intent == null || !intent.getBooleanExtra(EXTRA_SHOW_APP_UPDATE, false)) return
+        intent.removeExtra(EXTRA_SHOW_APP_UPDATE)
+        updateModel.showDialog()
     }
 
     private fun handleBubbleIntent(intent: Intent?) {
@@ -124,6 +135,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun startUpdateDownload() {
+        // Without the foreground service the download still runs while the app stays open.
+        if (updateModel.startDownload()) AppUpdateDownloadService.start(this)
+    }
+
     private fun installUpdate() {
         val file = updateModel.state.value.readyFile
         if (file == null || !file.isFile) {
@@ -157,7 +173,12 @@ class MainActivity : ComponentActivity() {
         catch (ignored: Exception) { model.notify("ブラウザーを開けません。ブラウザーをインストールして再試行してください。") }
     }
 
-    override fun onStart() { super.onStart(); model.setForeground(true) }
+    override fun onStart() {
+        super.onStart()
+        model.setForeground(true)
+        // The dialog shows a finished or failed download itself once the app is visible again.
+        clearAppUpdateResultNotification(this)
+    }
     override fun onStop() { model.setForeground(false); super.onStop() }
     override fun onResume() {
         super.onResume()

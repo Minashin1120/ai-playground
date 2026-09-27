@@ -6,17 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.minashin1120.aiplayground.data.AppUpdate
 import com.minashin1120.aiplayground.data.AppUpdateChecker
 import com.minashin1120.aiplayground.data.AppUpdateCheckResult
-import com.minashin1120.aiplayground.data.AppUpdateDownloadProgress
-import com.minashin1120.aiplayground.data.AppUpdateDownloader
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import java.io.File
@@ -39,27 +32,22 @@ data class AppUpdateUiState(
     val totalBytes: Long? = null,
     val readyFile: File? = null,
     val errorMessage: String? = null,
+    /** True while the user keeps a download running behind a progress bar instead of the dialog. */
+    val dialogHidden: Boolean = false,
 )
 
 class AppUpdateViewModel(application: Application) : AndroidViewModel(application) {
     private val checker = AppUpdateChecker()
-    private val downloader = AppUpdateDownloader()
-    private val mutable = MutableStateFlow(AppUpdateUiState())
-    val state = mutable.asStateFlow()
+    private val downloads = (application as PlaygroundApplication).appUpdates
+    val state = downloads.state
     private var checkJob: Job? = null
-    private var downloadJob: Job? = null
 
     fun check(currentVersion: String) {
         if (checkJob?.isActive == true) return
-        if (state.value.phase in setOf(
-                AppUpdatePhase.Downloading,
-                AppUpdatePhase.Ready,
-                AppUpdatePhase.AwaitingInstallPermission,
-                AppUpdatePhase.Installing,
-            )) return
+        if (state.value.phase in BUSY_PHASES) return
 
         if (state.value.update == null) {
-            mutable.update { it.copy(phase = AppUpdatePhase.Checking, errorMessage = null) }
+            downloads.updateState { it.copy(phase = AppUpdatePhase.Checking, errorMessage = null) }
         }
         checkJob = viewModelScope.launch {
             try {
@@ -75,23 +63,22 @@ class AppUpdateViewModel(application: Application) : AndroidViewModel(applicatio
                     if (result !is AppUpdateCheckResult.Failed || attempt == 2) break
                     delay(if (attempt == 0) 1_500L else 4_000L)
                 }
-                when (val checked = result) {
-                    is AppUpdateCheckResult.Available -> mutable.update {
-                        it.copy(
-                            update = checked.update,
-                            phase = AppUpdatePhase.Available,
-                            downloadedBytes = 0L,
-                            totalBytes = checked.update.apkSizeBytes,
-                            readyFile = null,
-                            errorMessage = null,
-                        )
-                    }
-                    AppUpdateCheckResult.UpToDate -> mutable.update { AppUpdateUiState(phase = AppUpdatePhase.UpToDate) }
-                    is AppUpdateCheckResult.Failed -> mutable.update {
-                        if (it.update == null) AppUpdateUiState(phase = AppUpdatePhase.Error, errorMessage = checked.message)
-                        else it
-                    }
-                }
+                // The download is process-wide, so it may have started while this check was running.
+                val checked = result
+                downloads.updateState { current -> if (current.phase in BUSY_PHASES) current else when (checked) {
+                    is AppUpdateCheckResult.Available -> current.copy(
+                        update = checked.update,
+                        phase = AppUpdatePhase.Available,
+                        downloadedBytes = 0L,
+                        totalBytes = checked.update.apkSizeBytes,
+                        readyFile = null,
+                        errorMessage = null,
+                    )
+                    AppUpdateCheckResult.UpToDate -> AppUpdateUiState(phase = AppUpdatePhase.UpToDate)
+                    is AppUpdateCheckResult.Failed ->
+                        if (current.update == null) AppUpdateUiState(phase = AppUpdatePhase.Error, errorMessage = checked.message)
+                        else current
+                } }
             } finally {
                 checkJob = null
             }
@@ -106,104 +93,46 @@ class AppUpdateViewModel(application: Application) : AndroidViewModel(applicatio
             continuation.invokeOnCancellation { checker.cancel() }
         }
 
-    fun startDownload() {
-        val update = state.value.update ?: return
-        if (downloadJob?.isActive == true) return
-        mutable.update {
-            it.copy(
-                phase = AppUpdatePhase.Downloading,
-                downloadedBytes = 0L,
-                totalBytes = update.apkSizeBytes,
-                readyFile = null,
-                errorMessage = null,
-            )
-        }
-        // The response body is consumed after the suspending OkHttp call resumes. Keep that
-        // potentially long-running stream read off the main thread so Compose can render each
-        // progress update while the APK is downloading.
-        downloadJob = viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val directory = File(getApplication<Application>().cacheDir, "updates/${update.versionName}")
-                val file = downloader.download(update, directory) { progress ->
-                    // Publish each progress update on the UI dispatcher while the stream read
-                    // remains on IO, so rapid reads do not block Compose rendering.
-                    withContext(Dispatchers.Main.immediate) {
-                        updateProgress(progress)
-                    }
-                }
-                withContext(Dispatchers.Main.immediate) {
-                    mutable.update { it.copy(phase = AppUpdatePhase.Ready, readyFile = file, errorMessage = null) }
-                }
-            } catch (_: CancellationException) {
-                // Cancellation is represented by the Available state in cancelDownload().
-            } catch (error: Throwable) {
-                withContext(Dispatchers.Main.immediate) {
-                    mutable.update {
-                        it.copy(
-                            phase = AppUpdatePhase.Error,
-                            readyFile = null,
-                            errorMessage = error.message ?: "更新ファイルを取得できませんでした。",
-                        )
-                    }
-                }
-            }
-        }
-    }
+    fun startDownload(): Boolean = downloads.startDownload()
 
-    fun cancelDownload() {
-        downloadJob?.cancel()
-        downloadJob = null
-        state.value.update?.let { update ->
-            mutable.update {
-                it.copy(
-                    update = update,
-                    phase = AppUpdatePhase.Available,
-                    downloadedBytes = 0L,
-                    totalBytes = update.apkSizeBytes,
-                    readyFile = null,
-                    errorMessage = null,
-                )
-            }
-        }
-    }
+    fun cancelDownload() = downloads.cancelDownload()
 
-    fun retryDownload() {
-        startDownload()
-    }
+    fun hideDialog() = downloads.hideDialog()
+
+    fun showDialog() = downloads.showDialog()
 
     fun awaitInstallPermission() {
-        mutable.update { it.copy(phase = AppUpdatePhase.AwaitingInstallPermission) }
+        downloads.updateState { it.copy(phase = AppUpdatePhase.AwaitingInstallPermission) }
     }
 
     fun markInstalling() {
-        mutable.update { it.copy(phase = AppUpdatePhase.Installing) }
+        downloads.updateState { it.copy(phase = AppUpdatePhase.Installing) }
     }
 
     fun installerClosed() {
         if (state.value.phase == AppUpdatePhase.Installing) {
-            mutable.update { it.copy(phase = AppUpdatePhase.Ready) }
+            downloads.updateState { it.copy(phase = AppUpdatePhase.Ready) }
         }
     }
 
     fun installFailed(message: String) {
-        mutable.update { it.copy(phase = AppUpdatePhase.Error, errorMessage = message) }
+        downloads.updateState { it.copy(phase = AppUpdatePhase.Error, errorMessage = message) }
     }
 
-    fun dismiss() {
-        if (state.value.phase != AppUpdatePhase.Downloading) {
-            mutable.update { it.copy(update = null, readyFile = null) }
-        }
-    }
+    fun dismiss() = downloads.dismiss()
 
-    private fun updateProgress(progress: AppUpdateDownloadProgress) {
-        mutable.update {
-            it.copy(downloadedBytes = progress.downloadedBytes, totalBytes = progress.totalBytes)
-        }
+    private companion object {
+        val BUSY_PHASES = setOf(
+            AppUpdatePhase.Downloading,
+            AppUpdatePhase.Ready,
+            AppUpdatePhase.AwaitingInstallPermission,
+            AppUpdatePhase.Installing,
+        )
     }
 
     override fun onCleared() {
+        // The download belongs to the process-wide manager and keeps running without this screen.
         checkJob?.cancel()
-        downloadJob?.cancel()
         checker.cancel()
         super.onCleared()
     }

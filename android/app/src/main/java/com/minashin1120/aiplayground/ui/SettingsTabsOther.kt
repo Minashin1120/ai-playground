@@ -50,6 +50,7 @@ internal fun androidCard(state: ChatState, extras: SettingsExtras): SettingsCard
                 AppUpdatePhase.Checking -> SettingsDesc("更新を確認中…")
                 AppUpdatePhase.UpToDate -> SettingsDesc("最新のAndroid版を使用しています。")
                 AppUpdatePhase.Available -> update.update?.let { SettingsDesc("Android版 ${it.versionName} が利用できます。") }
+                AppUpdatePhase.Downloading -> SettingsDesc("更新ファイルをダウンロード中: ${formatUpdateProgress(update.downloadedBytes, update.totalBytes)}")
                 AppUpdatePhase.Error -> SettingsDesc(update.errorMessage ?: "更新を確認できませんでした。", color = Tw.red300)
                 else -> Unit
             }

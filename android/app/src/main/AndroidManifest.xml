@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Keeps an update APK download running while the user leaves the app. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <application android:name=".PlaygroundApplication"
         android:label="AI Playground" android:icon="@drawable/ic_playground"
         android:allowBackup="false" android:fullBackupContent="false"
@@ -43,5 +46,7 @@
             android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+        <service android:name=".AppUpdateDownloadService" android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>

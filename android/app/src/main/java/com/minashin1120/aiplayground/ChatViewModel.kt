@@ -1428,7 +1428,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             low -> LOW_BANDWIDTH_INITIAL_MESSAGE_LIMIT
             else -> THREAD_INITIAL_MESSAGE_LIMIT
         }
-        val reply = api.get("/api/threads/$id?limit=$limit$before", token())
+        val reply = try {
+            api.get("/api/threads/$id?limit=$limit$before", token())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            val canUseCache = if (e is ApiException) e.status >= 500 else e is IOException
+            if (!canUseCache) throw e
+            val accountId = state.value.account?.id ?: throw e
+            val cached = withContext(Dispatchers.IO) { offlineCache.loadThread(accountId, id) } ?: throw e
+            setConnectionUnavailable(
+                if (e is ApiException) ConnectionStatus.SERVER_DOWN else ConnectionStatus.OFFLINE,
+            )
+            loadCachedMessages(id, older, cached)
+            return
+        }
         if (state.value.selected?.id != id) return
         val parsed = parseMessages(reply)
         val all = if (older) (parsed + state.value.allMessages).distinctBy { m -> m.id } else parsed
@@ -1479,9 +1493,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (!older && autoResume && state.value.jobId != null && !state.value.streaming) resume()
     }
 
-    private suspend fun loadCachedMessages(id: String, older: Boolean) {
+    private suspend fun loadCachedMessages(id: String, older: Boolean, cachedPayload: JSONObject? = null) {
         val accountId = state.value.account?.id ?: return
-        val cached = withContext(Dispatchers.IO) { offlineCache.loadThread(accountId, id) } ?: return
+        val cached = cachedPayload ?: withContext(Dispatchers.IO) { offlineCache.loadThread(accountId, id) } ?: return
         val parsed = parseMessages(cached)
         val all = if (older) (parsed + state.value.allMessages).distinctBy { it.id } else parsed
         val leaf = state.value.leafId?.takeIf { candidate -> all.any { numericId(it) == candidate } }

@@ -2631,7 +2631,8 @@
             setTimeout(() => focusRichPasteEditor(), 80);
         };
         window.closeRichPasteModal = (skipHistory = false) => {
-            hideModal('rich-paste-modal');
+            if (hasRichPasteContent() && !confirm('貼り付けた内容を破棄して閉じますか？')) return;
+            hideModal('rich-paste-modal', { skipConfirm: true });
             if (!skipHistory && location.pathname === '/paste') {
                 history.back();
             }
@@ -9203,6 +9204,7 @@
             }
         }
         window.closeModelModal = (skipHistory = false) => {
+            window._visionPickerActive = false;
             hideModal('model-modal');
             if (!skipHistory && location.pathname === '/model') {
                 history.back();
@@ -12816,6 +12818,15 @@
                     case 'gem-modal': if (window.closeGemModal) window.closeGemModal(skipHistory); break;
                     case 'compression-modal': if (window.closeCompressionModal) window.closeCompressionModal(skipHistory); break;
                     case 'bot-admin-modal': if (window.closeBotAdminModal) window.closeBotAdminModal(skipHistory); break;
+                    case 'mcp-decision-modal':
+                        if (typeof submitMcpDecision === 'function') submitMcpDecision('deny'); else hideModal(id);
+                        break;
+                    case 'api-key-required-modal': {
+                        const cancelBtn = get('api-key-modal-cancel-btn');
+                        if (cancelBtn && typeof cancelBtn.onclick === 'function') cancelBtn.click(); else hideModal(id);
+                        break;
+                    }
+                    case 'lyria-studio-modal': if (window.closeLyriaStudio) window.closeLyriaStudio(); else hideModal(id); break;
                     case 'voice-studio-modal': if (window.VoiceStudio) window.VoiceStudio.close(); else hideModal(id); break;
                     case 'version-update-modal':
                         const latest = localStorage.getItem("app_version") || "";
@@ -14695,9 +14706,16 @@
                     window.openLyriaStudio = open;
                 }
 
-                return { init, open };
+                // Overlay click: same as the × button, but never while saving.
+                function requestClose() {
+                    if (busy) return;
+                    closeAndCleanup(false);
+                }
+
+                return { init, open, requestClose };
             })();
             LyriaRealtimeStudio.init();
+            window.closeLyriaStudio = () => LyriaRealtimeStudio.requestClose();
 
             // ===========================================================================
             // Voice Studio (WebSocket voice / STS models) — dedicated studio UI

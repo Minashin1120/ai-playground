@@ -27,6 +27,8 @@ MOBILE_ENDPOINT_METHODS = {
     'toggle_bookmark': {'POST'},
     # Message delete from the bubble controls (owner-checked in the route, like Web).
     'delete_message': {'DELETE'},
+    # Chat-screen lock icon: an admin decrypts/re-encrypts their own thread (re-auth below).
+    'admin_toggle_thread_encryption': {'POST'},
     'chat_stream': {'POST'}, 'chat_stream_resume': {'POST'}, 'stop_chat': {'POST'},
     'temporary_chat_heartbeat': {'POST'}, 'estimate_prompt_tokens_api': {'POST'},
     'upload': {'POST'}, 'upload_init': {'POST'}, 'upload_chunk': {'POST'},
@@ -94,7 +96,7 @@ MOBILE_REAUTH_ENDPOINTS = {
     'mobile_account_delete', 'mobile_easy_login', 'mobile_sessions_revoke_all',
     'mobile_security_disable_2fa', 'export_account_data', 'download_account_export',
     'start_account_import_upload', 'import_account_data', 'unlink_google', 'unlink_minashin',
-    'mobile_account_link_start',
+    'mobile_account_link_start', 'admin_toggle_thread_encryption',
 }
 
 

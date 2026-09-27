@@ -156,6 +156,9 @@ data class ChatState(
     val quote: String = "",
     /** Incremented to ask the screen to open the settings modal (e.g. from the encryption status dialog). */
     val settingsRequest: Long = 0L,
+    /** Tab (id or label) and card key the latest [settingsRequest] opens at; null keeps the last tab. */
+    val settingsRequestTab: String? = null,
+    val settingsRequestCard: String? = null,
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -1507,7 +1510,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) { report(e) }
     } }
 
-    fun requestSettings() { mutable.update { it.copy(settingsRequest = it.settingsRequest + 1) } }
+    fun requestSettings(tab: String? = null, card: String? = null) {
+        mutable.update { it.copy(settingsRequest = it.settingsRequest + 1, settingsRequestTab = tab, settingsRequestCard = card) }
+    }
 
     /** Web `deleteMessage`: removes the message and everything after it, then reloads the thread. */
     fun deleteMessage(message: ChatMessage) {
@@ -1523,6 +1528,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     loadMessages(thread.id)
                 }
             } catch (e: Exception) { report(e) }
+        }
+    }
+
+    /**
+     * Web `toggleThreadEncryptionFromModal` (admin): decrypts or re-encrypts the open thread and reloads it.
+     * A `reauth_required` answer hands [onReauth] a retry to run once the user confirms their identity.
+     */
+    fun setThreadEncryption(enable: Boolean, onReauth: (retry: () -> Unit) -> Unit, onDone: (Boolean) -> Unit) {
+        val action = if (enable) "再暗号化" else "復号化"
+        val thread = state.value.selected ?: run { notify("チャットがありません"); onDone(false); return }
+        viewModelScope.launch {
+            try {
+                val reply = accountApi().setThreadEncryption(thread.id, enable)
+                notify("${action}しました（${reply.optInt("changed")}件を変換）")
+                if (state.value.selected?.id == thread.id) loadMessages(thread.id)
+                onDone(true)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (e.needsReauth()) onReauth { setThreadEncryption(enable, onReauth, onDone) }
+                else notify((e as? ApiException)?.payload?.optString("error")?.ifBlank { null } ?: "${action}に失敗しました")
+                onDone(false)
+            }
         }
     }
 

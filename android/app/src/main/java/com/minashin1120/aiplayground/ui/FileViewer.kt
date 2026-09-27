@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.R
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -182,9 +183,13 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
     val edge = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         WebModalWindow(0.dp)
-        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(2, 6, 16).copy(alpha = 0.96f)).safeDrawingPadding()) {
+        // Web `#image-viewer` / `.viewer-content` click: a tap anywhere but the image or the controls closes.
+        Box(
+            Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(2, 6, 16).copy(alpha = 0.96f))
+                .pointerInput(Unit) { detectTapGestures { onDismiss() } }.safeDrawingPadding(),
+        ) {
             key(current) {
-                Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 64.dp)) { ImagePreview(current, loader) }
+                Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 64.dp)) { ImagePreview(current, loader, onDismiss) }
             }
             Text(
                 "${index + 1} / ${items.size} • ${fileViewerTitle(current, if (current == request.reference) request.displayName else "")}",
@@ -225,12 +230,15 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
 }
 
 @Composable
-private fun ImagePreview(reference: String, loader: FileBytesLoader) {
+private fun ImagePreview(reference: String, loader: FileBytesLoader, onBackdropTap: () -> Unit) {
     var scale by remember(reference) { mutableFloatStateOf(1f) }
     var offset by remember(reference) { mutableStateOf(Offset.Zero) }
     var viewport by remember(reference) { mutableStateOf(IntSize.Zero) }
+    var imageSize by remember(reference) { mutableStateOf<IntSize?>(null) }
     Box(
         Modifier.fillMaxSize().onSizeChanged { viewport = it }.pointerInput(reference) {
+            detectTapGestures { tap -> if (!isOnFittedImage(tap, viewport, imageSize, scale, offset)) onBackdropTap() }
+        }.pointerInput(reference) {
             detectTransformGestures { centroid, pan, zoom, _ ->
                 val oldScale = scale
                 val nextScale = (oldScale * zoom).coerceIn(1f, 6f)
@@ -258,8 +266,23 @@ private fun ImagePreview(reference: String, loader: FileBytesLoader) {
             maxDecodeWidth = 2048,
             limitBytes = 24L * 1024 * 1024,
             contentDescription = "画像プレビュー",
+            onImageSize = { imageSize = it },
         )
     }
+}
+
+/**
+ * Whether [tap] lands on the image as drawn: fitted (ContentScale.Fit) and centered in [viewport], then
+ * zoomed by [scale] and moved by [offset]. Before the image has loaded ([image] null) nothing counts as image.
+ */
+internal fun isOnFittedImage(tap: Offset, viewport: IntSize, image: IntSize?, scale: Float, offset: Offset): Boolean {
+    if (image == null || image.width <= 0 || image.height <= 0 || viewport.width <= 0 || viewport.height <= 0) return false
+    val fit = minOf(viewport.width / image.width.toFloat(), viewport.height / image.height.toFloat())
+    val halfW = image.width * fit * scale / 2f
+    val halfH = image.height * fit * scale / 2f
+    val centerX = viewport.width / 2f + offset.x
+    val centerY = viewport.height / 2f + offset.y
+    return tap.x in (centerX - halfW)..(centerX + halfW) && tap.y in (centerY - halfH)..(centerY + halfH)
 }
 
 private fun clampImagePreviewOffset(offset: Offset, scale: Float, viewport: IntSize): Offset {

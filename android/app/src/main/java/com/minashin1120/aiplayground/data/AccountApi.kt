@@ -70,6 +70,10 @@ class AccountApi internal constructor(private val api: PlaygroundApi, private va
     suspend fun setE2ee(enabled: Boolean): String? =
         api.post("/api/mobile/v1/security/e2ee", JSONObject().put("enabled", enabled), token()).nullableString("message").ifBlank { null }
 
+    /** Admin only: decrypts (`enable=false`) or re-encrypts one of the admin's own threads; needs re-authentication. */
+    suspend fun setThreadEncryption(threadId: String, enable: Boolean): JSONObject =
+        api.post("/api/admin/threads/${java.net.URLEncoder.encode(threadId, "UTF-8")}/encryption", JSONObject().put("enable", enable), token())
+
     suspend fun encryptionScan(threadId: String?): JSONObject =
         api.get("/api/encryption_scan" + if (threadId.isNullOrBlank()) "" else "?thread_id=${java.net.URLEncoder.encode(threadId, "UTF-8")}", token())
 

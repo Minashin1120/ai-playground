@@ -581,9 +581,16 @@
                     window.openLyriaStudio = open;
                 }
 
-                return { init, open };
+                // Overlay click: same as the × button, but never while saving.
+                function requestClose() {
+                    if (busy) return;
+                    closeAndCleanup(false);
+                }
+
+                return { init, open, requestClose };
             })();
             LyriaRealtimeStudio.init();
+            window.closeLyriaStudio = () => LyriaRealtimeStudio.requestClose();
 
             // ===========================================================================
             // Voice Studio (WebSocket voice / STS models) — dedicated studio UI

@@ -513,15 +513,45 @@ internal fun TokenDetailDialog(detail: TokenDetail, onDismiss: () -> Unit) {
     }
 }
 
-/** `#encryption-status-modal` for a non-admin account. */
+/**
+ * `#encryption-status-modal`. For an admin with an open chat it adds Web's `#encryption-status-admin-actions`
+ * button that decrypts (encrypted message) or re-encrypts (plain message) the whole chat; [busy] shows 処理中....
+ */
 @Composable
-internal fun EncryptionStatusDialog(encrypted: Boolean, onSettings: () -> Unit, onDismiss: () -> Unit) {
+internal fun EncryptionStatusDialog(
+    encrypted: Boolean,
+    admin: Boolean,
+    canToggle: Boolean,
+    busy: Boolean,
+    onToggle: () -> Unit,
+    onSettings: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     val web = LocalWebPalette.current
     SmallInfoModal(onDismiss) {
         Text(if (encrypted) "暗号化されています" else "暗号化されていません", color = Tw.blue300, fontSize = 14.sp, lineHeight = 20.sp,
             fontWeight = FontWeight.Bold)
-        Text(if (encrypted) "このメッセージはE2EEで暗号化されています。" else "このメッセージは暗号化されていません。",
-            color = web.twText(Tw.gray300), fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 12.dp))
+        Text(
+            when {
+                encrypted && admin -> "このメッセージはE2EEで暗号化されています。管理者は下のボタンでこのチャット全体を復号化できます。"
+                encrypted -> "このメッセージはE2EEで暗号化されています。"
+                admin -> "このメッセージは暗号化されていません。管理者は下のボタンでこのチャット全体を再暗号化できます。"
+                else -> "このメッセージは暗号化されていません。"
+            },
+            color = web.twText(Tw.gray300), fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 12.dp),
+        )
+        if (canToggle) Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("管理者: このチャット全体のメッセージを変換できます。", color = web.twText(Tw.cyan200).copy(alpha = 0.8f),
+                fontSize = 10.sp, lineHeight = 14.sp)
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(4.dp)).background(if (encrypted) Tw.amber600 else Tw.cyan700)
+                    .clickable(enabled = !busy, role = Role.Button, onClick = onToggle).padding(horizontal = 12.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(if (busy) "処理中..." else if (encrypted) "このチャットを復号化" else "このチャットを再暗号化",
+                    color = web.twText(Tw.white), fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold)
+            }
+        }
         Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
             SmallModalButton("閉じる", web.twBg(Tw.gray700), onDismiss)
             SmallModalButton("設定へ", Tw.blue600, onSettings)
@@ -559,6 +589,7 @@ private fun SmallInfoModal(onDismiss: () -> Unit, content: @Composable () -> Uni
                 .padding(16.dp)
                 .widthIn(max = 384.dp)
                 .fillMaxWidth()
+                .modalPanelTaps()
                 .clip(shape)
                 .background(web.twBg(Tw.gray900))
                 .border(1.dp, web.twBorder(Tw.gray700), shape)

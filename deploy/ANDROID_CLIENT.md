@@ -276,6 +276,7 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | PUT `/api/threads/<id>/title` | `title` | 正規化後のタイトル。最大200文字 |
 | POST `/api/threads/<id>/bookmark` | `{}` | 切り替え後の `is_bookmarked` |
 | DELETE `/api/messages/<id>` | 本文不要 | `{"status":"ok"}`。指定メッセージ以降の履歴と、その添付を削除する（Webと同じ `confirm` 相当の確認後）。本人のスレッドのみ |
+| POST `/api/admin/threads/<thread_id>/encryption` | `{"enable": false}`（復号化）または `true`（再暗号化） | チャット画面の鍵マークから、管理者が自分のスレッド全体を変換する（Webの `encryption-status-modal` と同じ）。本人確認が必要。管理者以外は403、本人以外のスレッドは404。ほかの管理者APIはBearerの許可リスト外 |
 | POST `/chat_stream` | 下の送信JSON | NDJSONストリーム、またはエラーJSON |
 | POST `/chat_stream_resume` | `{"thread_id":"...","job_id":"..."}` | 蓄積内容と継続ストリーム |
 | POST `/api/stop_chat` | `thread_id` と、分かれば `job_id` | `status`, `job_id`, `source`。停止信号の受付であり即時停止完了ではない |

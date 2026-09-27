@@ -67,6 +67,7 @@ internal const val WEB_DIALOG_HOST = "ai.minashin1120.com"
 internal fun BrowserConfirmDialog(message: String, onResult: (Boolean) -> Unit) {
     AlertDialog(
         onDismissRequest = { onResult(false) },
+        properties = BrowserDialogProperties,
         title = { Text("$WEB_DIALOG_HOST の内容", fontSize = 18.sp) },
         text = { Text(message, fontSize = 15.sp) },
         confirmButton = { TextButton(onClick = { onResult(true) }) { Text("OK") } },
@@ -74,11 +75,15 @@ internal fun BrowserConfirmDialog(message: String, onResult: (Boolean) -> Unit) 
     )
 }
 
+/** Browser dialogs close only through their buttons (or back), never an outside tap. */
+private val BrowserDialogProperties = DialogProperties(dismissOnClickOutside = false)
+
 /** Web `alert(message)` as Chrome for Android shows it: the site host as the title, the message and OK. */
 @Composable
 internal fun BrowserAlertDialog(message: String, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        properties = BrowserDialogProperties,
         title = { Text("$WEB_DIALOG_HOST の内容", fontSize = 18.sp) },
         text = { Text(message, fontSize = 15.sp) },
         confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
@@ -91,6 +96,7 @@ internal fun BrowserPromptDialog(message: String, initial: String = "", onResult
     var value by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = { onResult(null) },
+        properties = BrowserDialogProperties,
         title = { Text("$WEB_DIALOG_HOST の内容", fontSize = 18.sp) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -105,7 +111,8 @@ internal fun BrowserPromptDialog(message: String, initial: String = "", onResult
 
 /**
  * A Web `.modal-overlay` with a custom `.modal-panel`: tinted, blurred backdrop and the Web
- * open/close motion. [content] draws the panel itself.
+ * open/close motion. [content] draws the panel itself and must mark it with [modalPanelTaps];
+ * any other tap (including on a full-size scroll wrapper) closes the modal like Web's overlay click.
  */
 @Composable
 internal fun WebOverlayModal(
@@ -113,11 +120,13 @@ internal fun WebOverlayModal(
     overlay: Color,
     blur: Dp,
     alignment: Alignment = Alignment.Center,
+    /** Web `.modal-overlay`: a tap outside the panel closes it. False where Web's panel covers the overlay. */
+    dismissOnOutsideTap: Boolean = true,
     content: @Composable BoxScope.(phone: Boolean) -> Unit,
 ) {
     Dialog(onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         WebModalWindow(blur)
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().modalBackdropDismiss(dismissOnOutsideTap, onDismissRequest)) {
             WebModalScrim(overlay)
             BoxWithConstraints(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = alignment) {
                 val phone = maxWidth < PlaygroundDimens.breakpoint
@@ -150,6 +159,7 @@ internal fun HistoryDialog(state: ChatState, actions: SidebarActions, onDismiss:
                 .padding(horizontal = 16.dp, vertical = 60.dp)
                 .widthIn(max = 720.dp)
                 .fillMaxSize()
+                .modalPanelTaps()
                 .clip(shape)
                 .background(panel)
                 .border(1.dp, border, shape),
@@ -208,6 +218,7 @@ internal fun AlphaInfoDialog(onDismiss: () -> Unit) {
                 .padding(16.dp)
                 .widthIn(max = 448.dp)
                 .fillMaxWidth()
+                .modalPanelTaps()
                 .clip(shape)
                 .background(if (web.isLight) Color.White.copy(alpha = 0.95f) else Color(14, 20, 40).copy(alpha = 0.9f))
                 .border(1.dp, Color(249, 115, 22).copy(alpha = 0.6f), shape)
@@ -267,6 +278,7 @@ internal fun LegalDialog(kind: String, load: suspend (String) -> String, onDismi
                 .widthIn(max = 768.dp)
                 .fillMaxWidth()
                 .heightIn(max = 2000.dp)
+                .modalPanelTaps()
                 .clip(shape)
                 .background(web.twBg(Tw.gray800))
                 .border(1.dp, border, shape)

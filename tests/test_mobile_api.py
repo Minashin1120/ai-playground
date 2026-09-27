@@ -615,6 +615,42 @@ class MobileApiTests(unittest.TestCase):
         other = self.token()
         self.assertEqual(self.call('/api/mobile/v1/account/easy-login', other, 'POST', json={'minutes': 5}).status_code, 403)
 
+    def test_native_admin_thread_encryption_toggle_requires_reauth(self):
+        # The chat-screen lock modal: an admin converts their own thread, only after a re-authentication.
+        password = self.set_password()
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.is_admin = True
+            thread = target.Thread(user_id=self.user_id, public_id=target.generate_thread_public_id())
+            foreign = target.Thread(user_id=self.other_id, public_id=target.generate_thread_public_id())
+            target.db.session.add_all([thread, foreign])
+            target.db.session.flush()
+            target.db.session.add(target.Message(thread_id=thread.id, role='user',
+                                                 content=target.encrypt_val('secret'), is_encrypted=True))
+            target.db.session.commit()
+            thread_id, foreign_id = thread.public_id, foreign.public_id
+        token = self.token()
+        path = f'/api/admin/threads/{thread_id}/encryption'
+        blocked = self.call(path, token, 'POST', json={'enable': False})
+        self.assertEqual(blocked.status_code, 403)
+        self.assertEqual(blocked.json['error'], 'reauth_required')
+        self.assertEqual(self.call('/api/mobile/v1/reauth', token, 'POST', json={'method': 'password', 'password': password}).status_code, 200)
+        decrypted = self.call(path, token, 'POST', json={'enable': False})
+        self.assertEqual(decrypted.status_code, 200, decrypted.get_data(as_text=True))
+        self.assertEqual(decrypted.json['changed'], 1)
+        with target.app.app_context():
+            message = target.db.session.query(target.Message).join(target.Thread).filter(target.Thread.public_id == thread_id).one()
+            self.assertFalse(message.is_encrypted)
+            self.assertEqual(message.content, 'secret')
+        # Only the admin's own threads, and only for admins.
+        self.assertEqual(self.call(f'/api/admin/threads/{foreign_id}/encryption', token, 'POST', json={'enable': True}).status_code, 404)
+        with target.app.app_context():
+            target.db.session.get(target.User, self.user_id).is_admin = False
+            target.db.session.commit()
+        self.assertEqual(self.call(path, token, 'POST', json={'enable': True}).status_code, 403)
+        # Other admin routes stay off the Android token.
+        self.assertEqual(self.call('/api/admin/threads', token).json['error'], 'insufficient_scope')
+
     def test_native_credentials_sessions_and_2fa_reset(self):
         password = self.set_password()
         token = self.token()

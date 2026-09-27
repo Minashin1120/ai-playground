@@ -75,12 +75,13 @@ private fun ImportModal(
     footerNote: @Composable RowScope.() -> Unit,
     footerButtons: @Composable RowScope.() -> Unit,
     toolbar: (@Composable () -> Unit)? = null,
+    dismissOnOutsideTap: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val web = LocalWebPalette.current
     val line = web.twBorder(Tw.gray700)
-    WebOverlayModal(onClose, grayOverlay(), 4.dp) { _ ->
-        Column(Modifier.widthIn(max = maxWidth).fillMaxWidth().fillMaxHeight(if (maxWidth > 600.dp) 1f else 0.85f)) {
+    WebOverlayModal(onClose, grayOverlay(), 4.dp, dismissOnOutsideTap = dismissOnOutsideTap) { _ ->
+        Column(Modifier.widthIn(max = maxWidth).fillMaxWidth().fillMaxHeight(if (maxWidth > 600.dp) 1f else 0.85f).modalPanelTaps()) {
             Row(
                 Modifier.fillMaxWidth().background(web.twBg(Tw.gray800))
                     .drawBehind { drawLine(line, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx()) }.padding(16.dp),
@@ -147,6 +148,8 @@ internal fun ImportFileSelectionDialog(request: FileSelectionRequest, onResult: 
     ImportModal(
         title = "インポートするファイルを選択", icon = R.drawable.fa_solid_file_import, iconTint = Tw.emerald400, maxWidth = 4000.dp,
         onClose = { onResult(null) },
+        // Web's `#import-files-modal` panel fills the overlay; closing here would abort the import.
+        dismissOnOutsideTap = false,
         toolbar = {
             Row(Modifier.fillMaxWidth().background(web.twBg(Tw.gray800).copy(alpha = 0.5f)).padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -70,7 +70,7 @@ internal fun GemEditorDialog(
         ) {
             val shape = RoundedCornerShape(8.dp)
             Column(
-                Modifier.padding(16.dp).widthIn(max = 512.dp).fillMaxWidth().clip(shape).background(web.twBg(Tw.gray800))
+                Modifier.padding(16.dp).widthIn(max = 512.dp).fillMaxWidth().modalPanelTaps().clip(shape).background(web.twBg(Tw.gray800))
                     .border(1.dp, border, shape).padding(24.dp),
             ) {
                 Row(Modifier.padding(bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {

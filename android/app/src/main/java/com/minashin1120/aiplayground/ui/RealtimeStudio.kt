@@ -417,7 +417,7 @@ fun RealtimeStudioDialog(
         ) {
             val shape = RoundedCornerShape(8.dp)
             Column(
-                Modifier.padding(16.dp).widthIn(max = 672.dp).fillMaxWidth().clip(shape).background(web.twBg(Tw.gray800))
+                Modifier.padding(16.dp).widthIn(max = 672.dp).fillMaxWidth().modalPanelTaps().clip(shape).background(web.twBg(Tw.gray800))
                     .border(1.dp, Tw.cyan500.copy(alpha = 0.3f), shape).padding(if (phone) 16.dp else 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {

@@ -45,7 +45,7 @@ internal fun CompressionDialog(state: ChatState, model: ChatViewModel, onDismiss
     WebOverlayModal(onDismiss, grayOverlay(), 4.dp, alignment = Alignment.Center) { _ ->
         val shape = RoundedCornerShape(8.dp)
         Column(
-            Modifier.padding(16.dp).widthIn(max = 448.dp).fillMaxWidth().clip(shape)
+            Modifier.padding(16.dp).widthIn(max = 448.dp).fillMaxWidth().modalPanelTaps().clip(shape)
                 .background(web.twBg(Tw.gray800)).border(1.dp, web.twBorder(Tw.gray700), shape).padding(24.dp),
         ) {
             Row(Modifier.padding(bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

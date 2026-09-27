@@ -68,6 +68,8 @@ fun SettingsDialog(
     onCheckForUpdate: () -> Unit = {},
     onBubble: () -> Unit = {},
     initialTab: String = "一般",
+    /** Card scrolled into view on open, like Web `goToEncryptionSettings` (no highlight). */
+    initialCard: String? = null,
 ) {
     // `onLogout` stays in the signature for callers; like Web, logout lives in the sidebar footer only.
     val context = LocalContext.current
@@ -75,7 +77,9 @@ fun SettingsDialog(
     var localPythonDialog by remember { mutableStateOf(devicePrefs.getBoolean(GEMINI_LOCAL_PY_DIALOG_PREF, true)) }
     var tab by remember { mutableStateOf(SettingsTab.entries.firstOrNull { it.label == initialTab || it.id == initialTab } ?: SettingsTab.General) }
     var query by remember { mutableStateOf("") }
-    var jumpTarget by remember { mutableStateOf<String?>(null) }
+    var jumpTarget by remember { mutableStateOf(initialCard) }
+    // Search results highlight the card they jump to; an opening jump only scrolls to it.
+    var jumpFlash by remember { mutableStateOf(initialCard == null) }
     var colorPicker by remember { mutableStateOf(false) }
     var confirmCache by remember { mutableStateOf<CacheCategory?>(null) }
     // The form is filled from the payload fetched when the modal opens (Web `openSettingsModal`).
@@ -144,8 +148,8 @@ fun SettingsDialog(
                 val content: @Composable (Modifier) -> Unit = { modifier ->
                     SettingsContent(
                         cards = cards, tab = tab, query = query.trim(), phone = phone, modifier = modifier,
-                        jumpTarget = jumpTarget, onJumpDone = { jumpTarget = null },
-                        onJump = { spec -> query = ""; tab = spec.tab; jumpTarget = spec.key },
+                        jumpTarget = jumpTarget, jumpFlash = jumpFlash, onJumpDone = { jumpTarget = null },
+                        onJump = { spec -> query = ""; tab = spec.tab; jumpTarget = spec.key; jumpFlash = true },
                     )
                 }
                 if (phone) {
@@ -359,6 +363,7 @@ private fun SettingsContent(
     phone: Boolean,
     modifier: Modifier,
     jumpTarget: String?,
+    jumpFlash: Boolean,
     onJumpDone: () -> Unit,
     onJump: (SettingsCardSpec) -> Unit,
 ) {
@@ -392,7 +397,7 @@ private fun SettingsContent(
                     .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                cards.filter { it.tab == target }.forEach { spec -> SettingsCardView(spec, jumpTarget == spec.key, onJumpDone) }
+                cards.filter { it.tab == target }.forEach { spec -> SettingsCardView(spec, jumpTarget == spec.key, jumpFlash, onJumpDone) }
             }
         }
     }
@@ -400,7 +405,7 @@ private fun SettingsContent(
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun SettingsCardView(spec: SettingsCardSpec, highlight: Boolean, onJumpDone: () -> Unit) {
+private fun SettingsCardView(spec: SettingsCardSpec, highlight: Boolean, flashOnJump: Boolean, onJumpDone: () -> Unit) {
     val web = LocalWebPalette.current
     val requester = remember { BringIntoViewRequester() }
     val flash = remember { Animatable(0f) }
@@ -408,8 +413,10 @@ private fun SettingsCardView(spec: SettingsCardSpec, highlight: Boolean, onJumpD
         if (highlight) {
             delay(260)
             requester.bringIntoView()
-            flash.snapTo(1f)
-            flash.animateTo(0f, tween(1800))
+            if (flashOnJump) {
+                flash.snapTo(1f)
+                flash.animateTo(0f, tween(1800))
+            }
             onJumpDone()
         }
     }

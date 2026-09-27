@@ -346,7 +346,7 @@ internal fun PythonExecutionDialog(runs: List<com.minashin1120.aiplayground.data
     WebOverlayModal(onDismiss, grayOverlay(), 4.dp) { _ ->
         val shape = RoundedCornerShape(12.dp)
         Box(
-            Modifier.padding(16.dp).widthIn(max = 672.dp).fillMaxWidth().clip(shape).background(web.twBg(Tw.gray900))
+            Modifier.padding(16.dp).widthIn(max = 672.dp).fillMaxWidth().modalPanelTaps().clip(shape).background(web.twBg(Tw.gray900))
                 .border(1.dp, web.twBorder(Tw.gray700), shape).padding(16.dp),
         ) {
             Column {

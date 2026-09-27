@@ -970,7 +970,8 @@
             setTimeout(() => focusRichPasteEditor(), 80);
         };
         window.closeRichPasteModal = (skipHistory = false) => {
-            hideModal('rich-paste-modal');
+            if (hasRichPasteContent() && !confirm('貼り付けた内容を破棄して閉じますか？')) return;
+            hideModal('rich-paste-modal', { skipConfirm: true });
             if (!skipHistory && location.pathname === '/paste') {
                 history.back();
             }

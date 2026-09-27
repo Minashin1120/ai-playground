@@ -27,6 +27,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -39,9 +42,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.composed
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -223,6 +228,21 @@ internal fun ModalPanelMotion(
             scaleY = scale
         }) { content() }
     }
+}
+
+/**
+ * Web `.modal-overlay` click (`closeModalById`): a tap on the backdrop dismisses the modal. Taps on the
+ * panel never get here because [modalPanelTaps] consumes them first. Ignored while the modal animates out.
+ */
+internal fun Modifier.modalBackdropDismiss(enabled: Boolean, onDismissRequest: () -> Unit): Modifier = composed {
+    val visible = LocalModalVisible.current
+    val dismiss by rememberUpdatedState(onDismissRequest)
+    if (!enabled || !visible) Modifier else Modifier.pointerInput(Unit) { detectTapGestures { dismiss() } }
+}
+
+/** Marks the modal panel: a press that starts on it (and its children) never dismisses through the backdrop. */
+internal fun Modifier.modalPanelTaps(): Modifier = pointerInput(Unit) {
+    awaitEachGesture { awaitFirstDown(requireUnconsumed = false).consume() }
 }
 
 /** Keeps the last non-null value so content can still render while it animates out. */

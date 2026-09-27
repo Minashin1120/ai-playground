@@ -76,18 +76,25 @@ fun RichPasteDialog(
     var prompt by remember { mutableStateOf(richPasteEffectivePrompt(preferences)) }
     var useDefault by remember { mutableStateOf(preferences?.richPastePromptUseCustomDefault == true) }
     var edited by remember { mutableStateOf(false) }
+    // Web `hideModal('rich-paste-modal')`: closing with imported content asks before discarding it.
+    var confirmDiscard by remember { mutableStateOf(false) }
+    val requestClose = { if (content?.text.orEmpty().isNotBlank()) confirmDiscard = true else onDismiss() }
+    if (confirmDiscard) BrowserConfirmDialog("貼り付けた内容を破棄して閉じますか？") { discard ->
+        confirmDiscard = false
+        if (discard) onDismiss()
+    }
     // Web `queueRichPastePromptPreferenceSave`: saved 500ms after the last change.
     LaunchedEffect(prompt, useDefault) {
         if (!edited) return@LaunchedEffect
         delay(500)
         onSavePrompt(prompt, useDefault)
     }
-    TwModalFrame(onDismiss, maxPanelWidth = 896.dp) { phone ->
+    TwModalFrame(requestClose, maxPanelWidth = 896.dp) { phone ->
         Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             FaIcon(R.drawable.fa_solid_paste, null, size = 16.dp, tint = web.twText(Tw.amber400))
             Text("リッチ貼り付け → テキスト", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = web.text,
                 modifier = Modifier.padding(start = 8.dp).weight(1f))
-            Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable(role = Role.Button, onClick = onDismiss),
+            Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable(role = Role.Button, onClick = requestClose),
                 contentAlignment = Alignment.Center) { FaIcon(R.drawable.fa_solid_times, "閉じる", size = 14.dp, tint = Tw.gray400) }
         }
         val left: @Composable ColumnScope.() -> Unit = {
@@ -161,7 +168,7 @@ fun RichPasteDialog(
                     onInsert(if (instruction.isEmpty()) imported else "$instruction\n\n$imported")
                     onDismiss()
                 }
-                RichPasteButton("閉じる", Tw.gray700, Modifier.fillMaxWidth(), vertical = 10.dp, onClick = onDismiss)
+                RichPasteButton("閉じる", Tw.gray700, Modifier.fillMaxWidth(), vertical = 10.dp, onClick = requestClose)
             }
         }
         if (phone) Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { left(); right() }

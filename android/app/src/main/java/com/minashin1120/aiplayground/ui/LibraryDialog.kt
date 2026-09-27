@@ -124,10 +124,12 @@ internal fun LibraryDialog(state: ChatState, model: ChatViewModel, onOpenFile: (
         onOpenFile(FileViewRequest(reference, file.displayName, file.ext, if (file.type == "image") "image/" else ""))
     }
 
-    WebOverlayModal(onDismiss, if (web.isLight) Color(15, 23, 42).copy(alpha = 0.35f) else Color(3, 7, 16).copy(alpha = 0.72f), 10.dp) { phone ->
+    // Web's `#lib-modal` panel fills the overlay, so there is no backdrop to tap.
+    WebOverlayModal(onDismiss, if (web.isLight) Color(15, 23, 42).copy(alpha = 0.35f) else Color(3, 7, 16).copy(alpha = 0.72f), 10.dp,
+        dismissOnOutsideTap = false) { phone ->
         val shape = RoundedCornerShape(if (phone) 0.dp else 22.dp)
         Column(
-            Modifier.fillMaxSize().padding(if (phone) 0.dp else 16.dp).clip(shape)
+            Modifier.fillMaxSize().padding(if (phone) 0.dp else 16.dp).modalPanelTaps().clip(shape)
                 .background(Brush.verticalGradient(
                     if (web.isLight) listOf(Color.White, Color(0xFFF7F9FC))
                     else listOf(Color(8, 12, 24).copy(alpha = 0.99f), Color(5, 7, 15).copy(alpha = 0.99f)),
@@ -553,7 +555,7 @@ private fun FileUsageDialog(
             val shape = RoundedCornerShape(12.dp)
             val rule = web.twBorder(Tw.gray700)
             Column(
-                Modifier.padding(16.dp).widthIn(max = 576.dp).heightIn(max = maxHeight * 0.8f).fillMaxWidth().clip(shape)
+                Modifier.padding(16.dp).widthIn(max = 576.dp).heightIn(max = maxHeight * 0.8f).fillMaxWidth().modalPanelTaps().clip(shape)
                     .background(web.twBg(Tw.gray900)).border(1.dp, web.twBorder(Tw.gray700), shape).padding(20.dp),
             ) {
                 Row(

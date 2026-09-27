@@ -69,7 +69,7 @@ internal fun BatchDialog(
             val shape = RoundedCornerShape(if (phone) 18.dp else 22.dp)
             val panelSize = if (phone) Modifier.fillMaxSize() else Modifier.widthIn(max = 820.dp).fillMaxWidth().height(minOf(maxHeight * 0.88f, 820.dp))
             Column(
-                panelSize.clip(shape)
+                panelSize.modalPanelTaps().clip(shape)
                     .background(Brush.verticalGradient(
                         if (web.isLight) listOf(Color.White, Color(0xFFF7F9FC))
                         else listOf(Color(10, 14, 28).copy(alpha = 0.98f), Color(6, 9, 18).copy(alpha = 0.99f)),

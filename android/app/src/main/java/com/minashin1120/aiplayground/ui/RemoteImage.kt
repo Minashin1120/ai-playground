@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -82,9 +83,12 @@ fun ProtectedImage(
     shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(12.dp),
     contentScale: ContentScale = ContentScale.Fit,
     background: Color? = null,
+    /** Pixel size of the decoded image once it is available (the viewer uses it to find the drawn area). */
+    onImageSize: ((IntSize) -> Unit)? = null,
 ) {
     val key = "$reference|${if (thumbnail) "t" else "f"}|$maxDecodeWidth"
     var bitmap by remember(key) { mutableStateOf(ProtectedImageCache.get(key)) }
+    LaunchedEffect(bitmap) { bitmap?.let { onImageSize?.invoke(IntSize(it.width, it.height)) } }
     var failed by remember(key) { mutableStateOf(false) }
     LaunchedEffect(key) {
         if (bitmap != null || loader == null) return@LaunchedEffect

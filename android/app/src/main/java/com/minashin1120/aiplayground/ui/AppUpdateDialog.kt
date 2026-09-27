@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.window.DialogProperties
 import com.minashin1120.aiplayground.AppUpdatePhase
 import com.minashin1120.aiplayground.AppUpdateUiState
 
@@ -30,6 +31,8 @@ fun AppUpdateDialog(
     }
     AlertDialog(
         onDismissRequest = { if (downloading) onCancelDownload() else onDismiss() },
+        // A stray tap beside the dialog must not cancel a download or hide a running install.
+        properties = DialogProperties(dismissOnClickOutside = !downloading && !installing),
         title = {
             Text(
                 when (state.phase) {

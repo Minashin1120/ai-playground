@@ -56,7 +56,7 @@ private fun TwPanelModal(onDismiss: () -> Unit, border: Color, maxWidth: Dp, con
         ) {
             val shape = RoundedCornerShape(8.dp)
             Column(
-                Modifier.padding(16.dp).widthIn(max = maxWidth).fillMaxWidth().clip(shape).background(web.twBg(Tw.gray800))
+                Modifier.padding(16.dp).widthIn(max = maxWidth).fillMaxWidth().modalPanelTaps().clip(shape).background(web.twBg(Tw.gray800))
                     .border(1.dp, border, shape).padding(24.dp),
                 content = content,
             )

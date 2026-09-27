@@ -47,10 +47,12 @@ internal fun PlaygroundDialog(
     padBody: Boolean = true,
     /** False for modals without the キャンセル／保存 bar (model picker). */
     showFooter: Boolean = true,
+    /** Web `.modal-overlay`: a tap outside the panel closes it. False where Web's panel covers the overlay. */
+    dismissOnOutsideTap: Boolean = true,
 ) {
     Dialog(onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         WebModalWindow()
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().modalBackdropDismiss(dismissOnOutsideTap, onDismissRequest)) {
         WebModalScrim()
         BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             val phone = maxWidth < PlaygroundDimens.breakpoint
@@ -63,7 +65,7 @@ internal fun PlaygroundDialog(
                     .then(if (fillHeight) Modifier.height(height) else Modifier.heightIn(max = height))
             }
             ModalPanelMotion(fullScreen = phone, onDismissRequest = onDismissRequest) {
-                WebModalPanel(panelModifier, phone) {
+                WebModalPanel(panelModifier.modalPanelTaps(), phone) {
                     WebModalHeader(title = title, onClose = onDismissRequest, phone = phone, icon = icon, subtitle = subtitle)
                     Box(
                         Modifier.weight(1f, fill = fillHeight).fillMaxWidth()

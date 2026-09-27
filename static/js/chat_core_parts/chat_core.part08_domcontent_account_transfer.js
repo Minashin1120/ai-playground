@@ -1559,6 +1559,15 @@
                     case 'gem-modal': if (window.closeGemModal) window.closeGemModal(skipHistory); break;
                     case 'compression-modal': if (window.closeCompressionModal) window.closeCompressionModal(skipHistory); break;
                     case 'bot-admin-modal': if (window.closeBotAdminModal) window.closeBotAdminModal(skipHistory); break;
+                    case 'mcp-decision-modal':
+                        if (typeof submitMcpDecision === 'function') submitMcpDecision('deny'); else hideModal(id);
+                        break;
+                    case 'api-key-required-modal': {
+                        const cancelBtn = get('api-key-modal-cancel-btn');
+                        if (cancelBtn && typeof cancelBtn.onclick === 'function') cancelBtn.click(); else hideModal(id);
+                        break;
+                    }
+                    case 'lyria-studio-modal': if (window.closeLyriaStudio) window.closeLyriaStudio(); else hideModal(id); break;
                     case 'voice-studio-modal': if (window.VoiceStudio) window.VoiceStudio.close(); else hideModal(id); break;
                     case 'version-update-modal':
                         const latest = localStorage.getItem("app_version") || "";

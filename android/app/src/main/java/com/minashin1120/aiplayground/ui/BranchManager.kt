@@ -96,7 +96,7 @@ internal fun BranchManagerDialog(
             ) {
                 val shape = RoundedCornerShape(8.dp)
                 Column(
-                    Modifier.padding(16.dp).widthIn(max = 896.dp).fillMaxWidth().then(panelHeight).clip(shape)
+                    Modifier.padding(16.dp).widthIn(max = 896.dp).fillMaxWidth().then(panelHeight).modalPanelTaps().clip(shape)
                         .background(web.twBg(Tw.gray800)).border(1.dp, web.twBorder(Tw.gray700), shape).padding(24.dp),
                 ) {
                     BranchHeader(onDismiss)

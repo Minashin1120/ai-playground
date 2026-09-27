@@ -167,7 +167,7 @@ private fun TwPanelFrame(onDismiss: () -> Unit, border: Color, panelMaxWidth: Dp
             ) {
                 val shape = RoundedCornerShape(8.dp)
                 Column(
-                    Modifier.padding(16.dp).widthIn(max = panelMaxWidth).fillMaxWidth().clip(shape)
+                    Modifier.padding(16.dp).widthIn(max = panelMaxWidth).fillMaxWidth().modalPanelTaps().clip(shape)
                         .background(web.twBg(Tw.gray800)).border(1.dp, border, shape).padding(if (phone) 16.dp else 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) { content(wide) }

@@ -524,7 +524,7 @@ internal fun TwModalFrame(onDismiss: () -> Unit, maxPanelWidth: androidx.compose
         ) {
             val shape = RoundedCornerShape(8.dp)
             Column(
-                Modifier.padding(if (phone) 8.dp else 16.dp).widthIn(max = maxPanelWidth).fillMaxWidth().clip(shape)
+                Modifier.padding(if (phone) 8.dp else 16.dp).widthIn(max = maxPanelWidth).fillMaxWidth().modalPanelTaps().clip(shape)
                     .background(web.twBg(Tw.gray800)).border(1.dp, web.twBorder(Tw.gray700), shape).padding(if (phone) 12.dp else 24.dp),
             ) { content(phone) }
         }

@@ -241,6 +241,7 @@ fun PlaygroundScreen(
             var renaming by remember { mutableStateOf<ThreadItem?>(null) }
             var settingsOpen by remember { mutableStateOf(false) }
             var settingsTab by remember { mutableStateOf("一般") }
+            var settingsCard by remember { mutableStateOf<String?>(null) }
             var compressionOpen by remember { mutableStateOf(false) }
             var changelogOpen by remember { mutableStateOf(false) }
             var advancedOpen by remember { mutableStateOf(false) }
@@ -392,7 +393,14 @@ fun PlaygroundScreen(
                     selectedCodingKey = codingKey,
                 )
             }
-            LaunchedEffect(state.settingsRequest) { if (state.settingsRequest > 0L) settingsOpen = true }
+            LaunchedEffect(state.settingsRequest) {
+                if (state.settingsRequest > 0L) {
+                    state.settingsRequestTab?.let { settingsTab = it }
+                    settingsCard = state.settingsRequestCard
+                    settingsOpen = true
+                }
+            }
+            LaunchedEffect(settingsOpen) { if (!settingsOpen) settingsCard = null }
             LaunchedEffect(state.notice) {
                 state.notice?.let { snackbar.showSnackbar(it, duration = SnackbarDuration.Long); model.dismissNotice() }
             }
@@ -695,6 +703,7 @@ fun PlaygroundScreen(
             }
             ModalHost(settingsOpen) {
                 SettingsDialog(state, model, onDismiss = { settingsOpen = false }, initialTab = settingsTab,
+                    initialCard = settingsCard,
                     onLogout = { model.logout(); settingsOpen = false; closeDrawer() }, onWeb = onWeb,
                     appUpdate = appUpdate ?: AppUpdateUiState(), onCheckForUpdate = onCheckForUpdate,
                     onBubble = { openBubble(); settingsOpen = false })
@@ -1029,6 +1038,8 @@ private fun SetupScreen(state: ChatState, model: ChatViewModel, onWeb: (String) 
     if (state.setupImportSettingsChanges.isNotEmpty()) {
         AlertDialog(
             onDismissRequest = { if (!state.setupImportBusy) model.cancelSetupImportConfirmation() },
+            // Cancelling here drops the uploaded archive, so only the buttons (or back) may do it.
+            properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
             title = { Text("設定の変更を確認") },
             text = {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 360.dp)) {
@@ -1383,6 +1394,10 @@ private fun ConversationContent(
     var tokenDetail by remember { mutableStateOf<TokenDetail?>(null) }
     var pythonRuns by remember { mutableStateOf<List<com.minashin1120.aiplayground.data.PythonExecution>?>(null) }
     var encryptionState by remember { mutableStateOf<Boolean?>(null) }
+    // Admin decrypt / re-encrypt from the lock modal: the pending confirm, the request and a re-auth retry.
+    var encryptionConfirm by remember { mutableStateOf<Boolean?>(null) }
+    var encryptionBusy by remember { mutableStateOf(false) }
+    var encryptionReauth by remember { mutableStateOf<(() -> Unit)?>(null) }
     // Choosing a quick-access model hides the welcome screen until the next chat, as on Web.
     var welcomeDismissed by remember(state.chatTransitionId) { mutableStateOf(false) }
     val pathTotals = remember(state.messages) { buildTokenTotals(state.messages) }
@@ -1509,7 +1524,33 @@ private fun ConversationContent(
     ModalValueHost(tokenDetail) { detail -> TokenDetailDialog(detail, onDismiss = { tokenDetail = null }) }
     ModalValueHost(pythonRuns) { runs -> PythonExecutionDialog(runs, onDismiss = { pythonRuns = null }) }
     ModalValueHost(encryptionState) { encrypted ->
-        EncryptionStatusDialog(encrypted, onSettings = { encryptionState = null; model.requestSettings() }, onDismiss = { encryptionState = null })
+        EncryptionStatusDialog(
+            encrypted,
+            admin = state.preferences?.isAdmin == true,
+            canToggle = state.preferences?.isAdmin == true && state.selected != null && !state.offline,
+            busy = encryptionBusy,
+            onToggle = { encryptionConfirm = !encrypted },
+            // Web `goToEncryptionSettings`: the security tab, scrolled to the E2EE card.
+            onSettings = { encryptionState = null; model.requestSettings(SettingsTab.Security.id, "e2ee") },
+            onDismiss = { encryptionState = null },
+        )
+    }
+    encryptionConfirm?.let { enable ->
+        BrowserConfirmDialog("このチャットを${if (enable) "再暗号化" else "復号化"}しますか？") { ok ->
+            encryptionConfirm = null
+            if (ok) {
+                encryptionBusy = true
+                model.setThreadEncryption(enable,
+                    onReauth = { retry -> encryptionReauth = { encryptionBusy = true; retry() } },
+                    onDone = { done -> encryptionBusy = false; if (done) encryptionState = null })
+            }
+        }
+    }
+    encryptionReauth?.let { retry ->
+        ReauthDialog(model::accountApi, onDismiss = { encryptionReauth = null }) {
+            encryptionReauth = null
+            retry()
+        }
     }
 }
 

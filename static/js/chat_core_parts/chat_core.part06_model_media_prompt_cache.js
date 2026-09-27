@@ -997,6 +997,7 @@
             }
         }
         window.closeModelModal = (skipHistory = false) => {
+            window._visionPickerActive = false;
             hideModal('model-modal');
             if (!skipHistory && location.pathname === '/model') {
                 history.back();

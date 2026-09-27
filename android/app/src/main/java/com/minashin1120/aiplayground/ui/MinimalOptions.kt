@@ -53,6 +53,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.R
@@ -344,7 +345,9 @@ internal fun ThinkingSlideBar(state: ChatState, model: ChatViewModel, rules: Com
     LaunchedEffect(visible.currentState, visible.targetState) { if (!visible.targetState && !visible.currentState) onDismiss() }
     val value = state.chipValues["thinking_level"].orEmpty()
     val index = THINKING_LEVELS.indexOf(value).takeIf { it >= 0 } ?: 3
-    Popup(popupPositionProvider = remember(gap) { AboveAnchor(gap) }, onDismissRequest = { visible.targetState = false }) {
+    // Web's `#thinking-slide-bar` has no backdrop: an outside tap leaves it open until the timer, × or a swipe.
+    Popup(popupPositionProvider = remember(gap) { AboveAnchor(gap) }, onDismissRequest = { visible.targetState = false },
+        properties = PopupProperties(dismissOnClickOutside = false)) {
         AnimatedVisibility(
             visible,
             enter = fadeIn(tween(if (reduce) 0 else 300)) + slideInVertically(tween(if (reduce) 0 else 340)) { it / 3 },

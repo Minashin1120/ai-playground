@@ -1,6 +1,5 @@
 package com.minashin1120.aiplayground.data
 
-import com.minashin1120.aiplayground.BuildConfig
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
@@ -74,7 +73,8 @@ data class ModelInfo(val id: String, val name: String, val provider: String, val
 }
 data class Account(val id: Int, val name: String, val models: List<ModelInfo>, val defaultModel: String,
                    val encrypted: Boolean)
-data class StoredSession(val token: String, val expiresAt: Long)
+/** A Bearer token and the server ([origin], `https://host/`) that issued it; null means the official host. */
+data class StoredSession(val token: String, val expiresAt: Long, val origin: String? = null)
 
 data class LibraryFile(
     val displayName: String,
@@ -791,7 +791,7 @@ fun fileReferencePath(value: String): String? {
     val raw = value.trim()
     if (raw.isEmpty()) return null
     val path = if (raw.startsWith("http://") || raw.startsWith("https://")) {
-        val base = BuildConfig.BASE_URL.toHttpUrlOrNull() ?: return null
+        val base = ServerOrigin.current
         val url = raw.toHttpUrlOrNull() ?: return null
         if (url.scheme != base.scheme || url.host != base.host || url.port != base.port) return null
         url.encodedPath

@@ -17,6 +17,9 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.minashin1120.aiplayground.ui.PlaygroundScreen
 
+/** Browser flows on servers other than the official host return through this scheme (server `_MOBILE_APP_CALLBACK`). */
+private const val APP_AUTH_SCHEME = "com.minashin1120.aiplayground.auth"
+
 open class MainActivity : ComponentActivity() {
     private val model: ChatViewModel by viewModels()
     private val updateModel: AppUpdateViewModel by viewModels()
@@ -51,7 +54,7 @@ open class MainActivity : ComponentActivity() {
                 onOpenBubble = { openBubble() },
                 onWeb = { path ->
                 val safePath = path.takeIf { it.startsWith('/') && !it.startsWith("//") } ?: "/"
-                val url = BuildConfig.BASE_URL.trimEnd('/') + safePath
+                val url = com.minashin1120.aiplayground.data.ServerOrigin.base + safePath
                 openExternalUrl(url)
             }, onFile = { reference ->
                 model.openFile(reference) { file, mime ->
@@ -90,7 +93,7 @@ open class MainActivity : ComponentActivity() {
 
     private fun handleAuthIntent(intent: Intent?) {
         val data = intent?.data ?: return
-        if (data.scheme != "https" || data.host != "ai.minashin1120.com" || data.path != "/android/auth/callback") return
+        if (!isAuthCallback(data)) return
         intent?.data = null
         data.getQueryParameter("integrity_ticket")?.let { model.integrityTurnstileComplete(it); return }
         data.getQueryParameter("turnstile_ticket")?.let { model.completeSessionTurnstile(it); return }
@@ -102,6 +105,18 @@ open class MainActivity : ComponentActivity() {
         }
         data.getQueryParameter("code")?.let { model.exchangeNativeCode(it); return }
         data.getQueryParameter("error")?.let { model.notify("外部ログインに失敗しました。($it)") }
+    }
+
+    /**
+     * The verified App Link of the official server, or the app scheme that other servers use (the manifest
+     * can only verify one host). The app scheme is ignored while the official server is active, and a login
+     * code is only redeemed with the PKCE verifier of a login this app started.
+     */
+    private fun isAuthCallback(data: Uri): Boolean {
+        val official = com.minashin1120.aiplayground.data.ServerOrigin.DEFAULT
+        if (data.scheme == "https") return data.host == official.host && data.path == "/android/auth/callback"
+        return data.scheme == APP_AUTH_SCHEME && !com.minashin1120.aiplayground.data.ServerOrigin.isOfficial &&
+            (data.path == "/callback" || data.schemeSpecificPart.substringBefore('?') == "/callback")
     }
 
     /** Handles files shared from other apps via the system share sheet (Intent.ACTION_SEND[_MULTIPLE]). */

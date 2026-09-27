@@ -1,12 +1,12 @@
 package com.minashin1120.aiplayground.data
 
 import com.minashin1120.aiplayground.BuildConfig
+import com.minashin1120.aiplayground.data.direct.readSse
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
-import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -22,8 +22,13 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-class PlaygroundApi internal constructor(private val origin: HttpUrl) {
-    constructor() : this(BuildConfig.BASE_URL.toHttpUrl())
+/**
+ * Cookie-less HTTP client for the Playground server. With no [fixedOrigin] it follows the active server
+ * ([ServerOrigin.current]) so switching servers on the login screen does not need a new instance.
+ */
+class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
+    constructor() : this(null)
+    private val origin: HttpUrl get() = fixedOrigin ?: ServerOrigin.current
     private val jsonType = "application/json; charset=utf-8".toMediaType()
     private val normal = OkHttpClient.Builder().cookieJar(CookieJar.NO_COOKIES)
         .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
@@ -41,8 +46,9 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
 
     internal fun url(path: String): HttpUrl {
         require(path.startsWith('/') && !path.startsWith("//")) { "Invalid API path" }
-        val result = requireNotNull(origin.resolve(path))
-        require(result.scheme == origin.scheme && result.host == origin.host && result.port == origin.port)
+        val base = origin
+        val result = requireNotNull(base.resolve(path))
+        require(result.scheme == base.scheme && result.host == base.host && result.port == base.port)
         return result
     }
     private fun request(path: String, token: String?): Request.Builder = Request.Builder().url(url(path))
@@ -138,20 +144,10 @@ class PlaygroundApi internal constructor(private val origin: HttpUrl) {
     suspend fun streamSse(path: String, token: String, onEvent: (JSONObject) -> Unit) {
         execute(request(path, token).header("Accept", "text/event-stream").get().build(), streaming, track = false) { response ->
             if (!response.isSuccessful) throw error(response)
-            val source = response.body.source()
-            var data = StringBuilder()
-            while (!source.exhausted()) {
-                val line = source.readUtf8LineStrict(2L * 1024 * 1024)
-                when {
-                    line.startsWith("data:") -> data.append(line.substringAfter("data:").trimStart()).append('\n')
-                    line.isBlank() && data.isNotEmpty() -> {
-                        val payload = data.toString().trimEnd('\n')
-                        data = StringBuilder()
-                        runCatching { onEvent(JSONObject(payload)) }
-                    }
-                }
+            readSse(response.body.source(), maxLine = 2L * 1024 * 1024) { event ->
+                runCatching { onEvent(JSONObject(event.data)) }
+                true
             }
-            if (data.isNotEmpty()) runCatching { onEvent(JSONObject(data.toString().trimEnd('\n'))) }
         }
     }
 

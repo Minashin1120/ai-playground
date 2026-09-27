@@ -56,8 +56,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.R
 
-/** Host shown by Chrome in the title of `alert()` / `confirm()` / `prompt()` dialogs. */
-internal const val WEB_DIALOG_HOST = "ai.minashin1120.com"
+/** Host shown by Chrome in the title of `alert()` / `confirm()` / `prompt()` dialogs (the active server). */
+internal val WEB_DIALOG_HOST: String get() = com.minashin1120.aiplayground.data.ServerOrigin.host
 
 /**
  * Web `confirm(message)` as Chrome for Android shows it: the site host as the title, the message,

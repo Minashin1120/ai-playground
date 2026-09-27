@@ -18,7 +18,8 @@ data class AppChangelogUiState(
 )
 
 class AppChangelogViewModel(application: Application) : AndroidViewModel(application) {
-    private val api = PlaygroundApi()
+    // Android release notes always come from the official server, whichever server the user signed in to.
+    private val api = PlaygroundApi(com.minashin1120.aiplayground.data.ServerOrigin.DEFAULT)
     private val mutable = MutableStateFlow(AppChangelogUiState())
     val state = mutable.asStateFlow()
     private var loadJob: Job? = null

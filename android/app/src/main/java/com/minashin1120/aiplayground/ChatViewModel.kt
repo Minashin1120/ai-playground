@@ -18,6 +18,8 @@ import android.webkit.MimeTypeMap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.minashin1120.aiplayground.data.*
+import com.minashin1120.aiplayground.data.backend.ChatBackend
+import com.minashin1120.aiplayground.data.backend.ServerChatBackend
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +27,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody
 import okhttp3.MediaType.Companion.toMediaType
@@ -56,6 +59,9 @@ data class ChatState(
     val auth2faMethod: String = "totp", val credentialRequest: CredentialRequest? = null,
     val googleLoginRequest: Long = 0L, val googleServerClientId: String = "",
     val integrityProjectNumber: String = "", val authTurnstileUrl: String? = null,
+    /** The server the app signs in to (login screen "接続先"): label, its config, check in progress, error, recent list. */
+    val serverLabel: String = originLabel(ServerOrigin.DEFAULT), val serverInfo: ServerInfo? = null,
+    val serverChecking: Boolean = false, val serverError: String? = null, val savedServers: List<String> = emptyList(),
     /** The chat Turnstile check page (Web `#bot-detection-overlay`) while it is open in the browser. */
     val sessionTurnstileUrl: String? = null,
     /** Web `#batch-notification-banner`: (text, thread to open) after a Batch job finished. */
@@ -170,6 +176,10 @@ data class ChatState(
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val api = PlaygroundApi()
+    private val serverBackend = ServerChatBackend(api)
+    /** Set while a no-account profile or serverless mode answers chat endpoints on the device. */
+    private var localBackend: ChatBackend? = null
+    private val backend: ChatBackend get() = localBackend ?: serverBackend
     private val store = TokenStore(application)
     private val playIntegrity = PlayIntegrityClient(application)
     private var integrityTurnstileTicket: String? = null
@@ -310,8 +320,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             historyCacheMode = HistoryCacheMode.from(prefs.getString("offline_history_cache_mode", HistoryCacheMode.VIEWED.value)),
             cacheMobileDataAllowed = prefs.getBoolean("offline_cache_mobile_data", false),
         ) }
+        restoreServerOrigin(withContext(Dispatchers.IO) { store.loadForOffline() }?.origin ?: prefs.getString(PREF_SERVER_ORIGIN, null))
         runCatching { api.get("/api/mobile/v1/config") }.getOrNull()?.let { config ->
-            mutable.update { it.copy(
+            val info = parseServerInfo(ServerOrigin.current, config)
+            if (info != null) applyServerInfo(info) else mutable.update { it.copy(
                 googleServerClientId = config.optString("google_server_client_id"),
                 integrityProjectNumber = config.optString("play_integrity_cloud_project_number"),
             ) }
@@ -335,6 +347,49 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(starting = false) }
     } }
     private fun token(): String = session?.token ?: throw IOException("端末連携が必要です。")
+
+    /** Points the app at the server saved with the session (or chosen last on the login screen). */
+    private fun restoreServerOrigin(saved: String?) {
+        saved?.toHttpUrlOrNull()?.let { parseServerOrigin(it.toString()) }?.let(ServerOrigin::set)
+        mutable.update { it.copy(serverLabel = originLabel(ServerOrigin.current), savedServers = savedServers()) }
+    }
+
+    private fun savedServers(): List<String> =
+        prefs.getString(PREF_SAVED_SERVERS, null).orEmpty().split('\n').filter { it.isNotBlank() }
+
+    private fun applyServerInfo(info: ServerInfo) {
+        mutable.update { it.copy(
+            serverInfo = info, serverLabel = originLabel(ServerOrigin.current),
+            googleServerClientId = info.googleServerClientId, integrityProjectNumber = info.integrityProjectNumber,
+        ) }
+    }
+
+    /** Login screen "接続先": checks that [input] is an AI Playground server before switching to it. */
+    fun selectServer(input: String) {
+        if (state.value.serverChecking || state.value.authBusy) return
+        val origin = parseServerOrigin(input) ?: run {
+            mutable.update { it.copy(serverError = "https で接続できるサーバーのアドレス（例: ai.example.com）を入力してください。") }
+            return
+        }
+        viewModelScope.launch {
+            mutable.update { it.copy(serverChecking = true, serverError = null) }
+            try {
+                val config = PlaygroundApi(origin).get("/api/mobile/v1/config")
+                val info = parseServerInfo(origin, config) ?: throw IOException("AI Playground のサーバーとして確認できませんでした。")
+                ServerOrigin.set(origin)
+                val recent = (listOf(originLabel(origin)) + savedServers()).distinct().take(5)
+                prefs.edit().putString(PREF_SERVER_ORIGIN, origin.toString()).putString(PREF_SAVED_SERVERS, recent.joinToString("\n")).apply()
+                integrityTurnstileTicket = null
+                applyServerInfo(info)
+                mutable.update { it.copy(serverChecking = false, savedServers = recent, authError = null,
+                    authTwoFactorTransaction = null, authTurnstileUrl = null) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                mutable.update { it.copy(serverChecking = false,
+                    serverError = "接続先を確認できませんでした。" + (e.message?.let { message -> "（$message）" } ?: "")) }
+            }
+        }
+    }
     private fun deviceName(): String = "${Build.MANUFACTURER} ${Build.MODEL}".trim().take(80)
 
     private suspend fun authPost(path: String, body: JSONObject): JSONObject {
@@ -344,7 +399,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (ticket != null) {
             request.put("integrity_turnstile_ticket", ticket)
             integrityTurnstileTicket = null
-        } else {
+        } else if (state.value.integrityProjectNumber.isNotBlank()) {
+            // Play Integrity is only verified by the official server (fixed package and service account).
             val fields = playIntegrity.requestFields(path, state.value.integrityProjectNumber, request)
             val keys = fields.keys()
             while (keys.hasNext()) {
@@ -358,7 +414,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (error.code == "turnstile_required") {
                 val url = error.payload.optString("turnstile_url")
                 if (url.startsWith("/android/integrity/turnstile?")) {
-                    mutable.update { it.copy(authTurnstileUrl = url) }
+                    mutable.update { it.copy(authTurnstileUrl = withAppReturn(url)) }
                 }
             }
             throw error
@@ -368,9 +424,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Opens the browser Turnstile check for this signed-in account (server `mobile_security_turnstile`). */
     fun startSessionTurnstile() { viewModelScope.launch {
         try {
-            val reply = api.post("/api/mobile/v1/security/turnstile", JSONObject(), token())
+            val reply = backend.post("/api/mobile/v1/security/turnstile", JSONObject(), token())
             val url = reply.optString("turnstile_url")
-            if (url.startsWith("/android/integrity/turnstile?")) mutable.update { it.copy(sessionTurnstileUrl = url) }
+            if (url.startsWith("/android/integrity/turnstile?")) mutable.update { it.copy(sessionTurnstileUrl = withAppReturn(url)) }
             else notify("安全性の確認を完了しました。もう一度送信してください。")
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { notify("安全性の確認を完了できませんでした。しばらく待ってから再送信してください。") }
@@ -381,7 +437,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (ticket.length !in 20..128) return
         viewModelScope.launch {
             val ok = runCatching {
-                api.post("/api/mobile/v1/security/turnstile/complete", JSONObject().put("ticket", ticket), token())
+                backend.post("/api/mobile/v1/security/turnstile/complete", JSONObject().put("ticket", ticket), token())
             }.isSuccess
             mutable.update { it.copy(sessionTurnstileUrl = null) }
             notify(if (ok) "安全性の確認を完了しました。もう一度送信してください。"
@@ -400,7 +456,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun acceptAuthResponse(reply: JSONObject) {
         val accessToken = reply.optString("access_token")
         require(accessToken.isNotBlank()) { "認証トークンを取得できませんでした。" }
-        session = StoredSession(accessToken, System.currentTimeMillis() + reply.optLong("expires_in", 2_592_000L) * 1000L)
+        session = StoredSession(accessToken, System.currentTimeMillis() + reply.optLong("expires_in", 2_592_000L) * 1000L,
+            ServerOrigin.current.toString())
         withContext(Dispatchers.IO) { store.save(requireNotNull(session)) }
         mutable.update { it.copy(
             authBusy = false, authError = null, authTwoFactorTransaction = null,
@@ -516,8 +573,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val verifier = BrowserLoginPkce.newVerifier()
         prefs.edit().putString(PREF_BROWSER_LOGIN_VERIFIER, verifier)
             .putLong(PREF_BROWSER_LOGIN_STARTED_AT, System.currentTimeMillis()).apply()
-        return "/android/auth/$provider/start?code_challenge_method=S256&code_challenge=" +
-            BrowserLoginPkce.challenge(verifier)
+        return withAppReturn("/android/auth/$provider/start?code_challenge_method=S256&code_challenge=" +
+            BrowserLoginPkce.challenge(verifier))
     }
 
     /** Exchanges the one-time code returned to the verified HTTPS App Link. */
@@ -595,7 +652,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             mutable.update { it.copy(securityBusy = true, securityError = null, credentialRequest = null) }
             try {
-                val reply = api.post("/api/mobile/v1/security/passkeys/options", JSONObject(), token())
+                val reply = backend.post("/api/mobile/v1/security/passkeys/options", JSONObject(), token())
                 mutable.update { it.copy(
                     securityBusy = false,
                     credentialRequest = CredentialRequest(
@@ -622,7 +679,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         .put("transaction_id", request.transactionId)
                         .put("credential", credential)))
                     "register" -> {
-                        val reply = api.post("/api/mobile/v1/security/passkeys/verify", JSONObject()
+                        val reply = backend.post("/api/mobile/v1/security/passkeys/verify", JSONObject()
                             .put("credential", credential)
                             .put("name", pendingPasskeyName), token())
                         mutable.update { it.copy(
@@ -652,7 +709,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadSecurity() { viewModelScope.launch {
         try {
-            val reply = api.get("/api/mobile/v1/security", token())
+            val reply = backend.get("/api/mobile/v1/security", token())
             mutable.update { it.copy(security = parseSecurityInfo(reply), securityError = null) }
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { mutable.update { it.copy(securityError = e.message ?: "セキュリティ設定を取得できませんでした。") } }
@@ -661,7 +718,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun startTotpSetup() { viewModelScope.launch {
         mutable.update { it.copy(securityBusy = true, securityError = null) }
         try {
-            val reply = api.post("/api/mobile/v1/security/totp/setup", JSONObject(), token())
+            val reply = backend.post("/api/mobile/v1/security/totp/setup", JSONObject(), token())
             mutable.update { it.copy(
                 securityBusy = false,
                 securityTotpSecret = reply.getString("secret"),
@@ -675,19 +732,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun cancelTotpSetup() { mutable.update { it.copy(securityTotpSecret = null, securityTotpUri = null) } }
 
     fun enableTotp(code: String) = securityAction {
-        api.post("/api/mobile/v1/security/totp/enable", JSONObject().put("code", code), token())
+        backend.post("/api/mobile/v1/security/totp/enable", JSONObject().put("code", code), token())
     }
 
     fun disableTotp(code: String) = securityAction {
-        api.post("/api/mobile/v1/security/totp/disable", JSONObject().put("code", code), token())
+        backend.post("/api/mobile/v1/security/totp/disable", JSONObject().put("code", code), token())
     }
 
     fun removePasskey(id: String) = securityAction {
-        api.post("/api/mobile/v1/security/passkeys/remove", JSONObject().put("id", id), token())
+        backend.post("/api/mobile/v1/security/passkeys/remove", JSONObject().put("id", id), token())
     }
 
     fun saveSecurityPreferences(default2fa: String, passkeyOnly: Boolean, skipGoogle: Boolean) = securityAction {
-        api.post("/api/mobile/v1/security/preferences", JSONObject()
+        backend.post("/api/mobile/v1/security/preferences", JSONObject()
             .put("default_2fa_method", default2fa)
             .put("passkey_only_login", passkeyOnly)
             .put("skip_2fa_on_google_login", skipGoogle), token())
@@ -847,7 +904,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun loadSetup() {
-        val reply = api.get("/api/mobile/v1/setup", token())
+        val reply = backend.get("/api/mobile/v1/setup", token())
         val models = parseModels(reply)
         val defaultModel = reply.optString("default_model", "gemini-3.6-flash")
         mutable.update { it.copy(
@@ -882,7 +939,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             mutable.update { it.copy(authBusy = true, authError = null) }
             try {
-                val reply = api.put("/api/mobile/v1/setup", JSONObject()
+                val reply = backend.put("/api/mobile/v1/setup", JSONObject()
                     .put("default_model", defaultModel)
                     .put("openai_api_key", openaiKey)
                     .put("gemini_api_key", geminiKey)
@@ -907,7 +964,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     private suspend fun loadAccount() {
-        val me = api.get("/api/mobile/v1/me", token())
+        val me = backend.get("/api/mobile/v1/me", token())
         val serverModels = parseModels(me)
         val displayModels = displayModels(serverModels)
         val account = Account(me.getInt("id"), me.getString("username"), displayModels,
@@ -993,7 +1050,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (session != null) { loadAccount(); return@launch }
                 val config = api.get("/api/mobile/v1/config")
                 require(config.getInt("api_version") == 1) { "このサーバーの接続方式には未対応です。" }
-                val grant = api.post("/api/mobile/v1/device", JSONObject().put("client_id", "official-android")
+                val grant = backend.post("/api/mobile/v1/device", JSONObject().put("client_id", "official-android")
                     .put("device_name", "${Build.MANUFACTURER} ${Build.MODEL}".take(80)))
                 mutable.update { it.copy(userCode = grant.getString("user_code")) }
                 val deadline = SystemClock.elapsedRealtime() + grant.getLong("expires_in") * 1000
@@ -1002,9 +1059,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     delay(interval * 1000)
                     if (!foreground) continue
                     try {
-                        val reply = api.post("/api/mobile/v1/token", JSONObject().put("client_id", "official-android")
+                        val reply = backend.post("/api/mobile/v1/token", JSONObject().put("client_id", "official-android")
                             .put("device_code", grant.getString("device_code")))
-                        val linked = StoredSession(reply.getString("access_token"), System.currentTimeMillis() + reply.getLong("expires_in") * 1000)
+                        val linked = StoredSession(reply.getString("access_token"), System.currentTimeMillis() + reply.getLong("expires_in") * 1000,
+                            ServerOrigin.current.toString())
                         withContext(Dispatchers.IO) { store.save(linked) }
                         session = linked
                         // The grant is already consumed. Never poll it again if /me or history fails.
@@ -1082,7 +1140,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val startedAt = SystemClock.elapsedRealtime()
         try {
             val reply = withTimeout(3_000L) {
-                api.get("/api/version?heartbeat=${System.currentTimeMillis()}")
+                backend.get("/api/version?heartbeat=${System.currentTimeMillis()}")
             }
             val latencyMs = SystemClock.elapsedRealtime() - startedAt
             val wasDisconnected = state.value.connectionStatus.isDisconnected()
@@ -1237,7 +1295,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (state.value.offline) { notify("オフライン中はチャット設定を変更できません。"); return@launch }
             try {
-                val reply = api.put("/api/threads/${selected.id}/settings", JSONObject().put("is_temporary", next), token())
+                val reply = backend.put("/api/threads/${selected.id}/settings", JSONObject().put("is_temporary", next), token())
                 mutable.update { current -> current.copy(
                     selected = current.selected?.takeIf { it.id == selected.id }?.copy(isTemporary = reply.optBoolean("is_temporary", next))
                         ?: current.selected,
@@ -1341,7 +1399,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         val current = state.value
         val page = if (more) current.nextPage ?: return else 1
-        val reply = api.get("/api/threads?page=$page&q=${URLEncoder.encode(current.search, "UTF-8")}", token())
+        val reply = backend.get("/api/threads?page=$page&q=${URLEncoder.encode(current.search, "UTF-8")}", token())
         if (current.search != state.value.search) return
         val rows = reply.getJSONArray("threads")
         val items = (0 until rows.length()).map { parseThreadItem(rows.getJSONObject(it)) }
@@ -1429,7 +1487,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             else -> THREAD_INITIAL_MESSAGE_LIMIT
         }
         val reply = try {
-            api.get("/api/threads/$id?limit=$limit$before", token())
+            backend.get("/api/threads/$id?limit=$limit$before", token())
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -1524,7 +1582,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         heartbeatJob = viewModelScope.launch {
             while (isActive && foreground && state.value.selected?.id == selected.id && state.value.selected?.isTemporary == true) {
                 try {
-                    val reply = api.post("/api/temporary_chat/heartbeat",
+                    val reply = backend.post("/api/temporary_chat/heartbeat",
                         JSONObject().put("thread_id", selected.id).put("active", true), token())
                     mutable.update { it.copy(tempChatRemainingSeconds =
                         reply.optLong("temp_chat_remaining_seconds").takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 }) }
@@ -1557,7 +1615,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteThread(thread: ThreadItem, onNewChat: () -> Unit = {}) { viewModelScope.launch {
         if (state.value.offline) { notify("オフライン中は履歴を削除できません。"); return@launch }
         try {
-            api.delete("/api/threads/${thread.id}", token())
+            backend.delete("/api/threads/${thread.id}", token())
             state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.deleteThread(account.id, thread.id) } }
             if (state.value.selected?.id == thread.id) { newChat(); onNewChat() }
             fetchThreads(false)
@@ -1568,7 +1626,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (title.isEmpty()) return@launch
         if (state.value.offline) { notify("オフライン中はタイトルを変更できません。"); return@launch }
         try {
-            val reply = api.put("/api/threads/${thread.id}/title", JSONObject().put("title", title), token())
+            val reply = backend.put("/api/threads/${thread.id}/title", JSONObject().put("title", title), token())
             val saved = reply.optString("title", title).ifBlank { title }
             mutable.update { current -> current.copy(
                 selected = current.selected?.let { if (it.id == thread.id) it.copy(title = saved) else it },
@@ -1588,7 +1646,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (state.value.offline) { notify("オフライン中はメッセージを削除できません。"); return@launch }
             try {
-                api.delete("/api/messages/$id", token())
+                backend.delete("/api/messages/$id", token())
                 if (state.value.selected?.id == thread.id) {
                     // Web reloads the chat without `preserveDraft`, which runs `cancelEdit`.
                     pendingParentId = null
@@ -1661,7 +1719,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (state.value.offline) { notify("オフライン中はメッセージを送信できません。"); return }
         viewModelScope.launch {
             try {
-                val created = api.post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
+                val created = backend.post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
                 val id = created.get("id").toString()
                 mutable.update { it.copy(selected = ThreadItem(id, created.nullableString("title"), it.model,
                     isTemporary = created.optBoolean("is_temporary")), newThreadTemporary = false) }
@@ -1675,7 +1733,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Web `schedulePromptTokenEstimate` request (`POST /api/token_estimate`). */
     suspend fun estimatePromptTokens(model: String, message: String, quote: String, imageUrls: List<String>): JSONObject =
-        api.post("/api/token_estimate", JSONObject().put("model", model).put("message", message)
+        backend.post("/api/token_estimate", JSONObject().put("model", model).put("message", message)
             .put("quote_text", quote).put("image_urls", JSONArray(imageUrls)), token())
 
     suspend fun legalMarkdown(kind: String): String {
@@ -1686,7 +1744,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleBookmark(thread: ThreadItem) { viewModelScope.launch {
         if (state.value.offline) { notify("オフライン中はブックマークを変更できません。"); return@launch }
         try {
-            val reply = api.post("/api/threads/${thread.id}/bookmark", JSONObject(), token())
+            val reply = backend.post("/api/threads/${thread.id}/bookmark", JSONObject(), token())
             val bookmarked = reply.optBoolean("is_bookmarked")
             mutable.update { current -> current.copy(
                 threads = current.threads.map { if (it.id == thread.id) it.copy(isBookmarked = bookmarked) else it },
@@ -1703,9 +1761,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val normalizedTitle = title.trim().ifBlank { "新しいチャット" }
                 if (normalizedTitle != thread.title) {
-                    api.put("/api/threads/${thread.id}/title", JSONObject().put("title", normalizedTitle), token())
+                    backend.put("/api/threads/${thread.id}/title", JSONObject().put("title", normalizedTitle), token())
                 }
-                val reply = api.put("/api/threads/${thread.id}/settings", JSONObject()
+                val reply = backend.put("/api/threads/${thread.id}/settings", JSONObject()
                     .put("custom_instruction", instruction)
                     .put("include_global_instruction", includeGlobal)
                     .put("is_temporary", temporary), token())
@@ -1731,14 +1789,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (state.value.offline) { notify("オフライン中はチャット設定を変更できません。"); onDone(false); return@launch }
             try {
-                api.put("/api/threads/${thread.id}/settings", JSONObject()
+                backend.put("/api/threads/${thread.id}/settings", JSONObject()
                     .put("custom_instruction", instruction)
                     .put("include_global_instruction", includeGlobal), token())
                 mutable.update { current ->
                     if (current.selected?.id != thread.id) current
                     else current.copy(customInstruction = instruction, includeGlobalInstruction = includeGlobal)
                 }
-                val reply = api.put("/api/mobile/v1/preferences", userPrompt, token())
+                val reply = backend.put("/api/mobile/v1/preferences", userPrompt, token())
                 mutable.update { it.copy(preferences = parsePreferences(reply), notice = "保存されました") }
                 onDone(true)
             } catch (e: Exception) {
@@ -1890,7 +1948,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         generation.keys().forEach { key -> body.put(key, generation.get(key)) }
         COMPOSER_SELECT_DEFAULTS.forEach { (key, fallback) -> body.put(key, current.chipValues[key] ?: fallback) }
-        current.selectedGem?.let { body.put("gem_uuid", it.uuid) }
+        // Web part14: the server never reads Gem.instruction, the client sends it as the system prompt.
+        current.selectedGem?.let { gem ->
+            body.put("gem_uuid", gem.uuid)
+            body.put("system_prompt", gem.instruction).put("enable_system_prompt", true)
+        }
         if (current.editingMessageId != null) {
             // Branch from the edited message's parent; send null explicitly for the first message.
             body.put("parent_id", pendingParentId ?: JSONObject.NULL)
@@ -2037,7 +2099,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             applyXLinkSearch()
             if (remember) viewModelScope.launch {
                 runCatching {
-                    val reply = api.put("/api/mobile/v1/preferences", JSONObject().put("auto_search_on_links", true), token())
+                    val reply = backend.put("/api/mobile/v1/preferences", JSONObject().put("auto_search_on_links", true), token())
                     mutable.update { it.copy(preferences = parsePreferences(reply)) }
                 }
             }
@@ -2053,7 +2115,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val info = apiKeyInfoFor(modelId) ?: return
         viewModelScope.launch {
             try {
-                val reply = api.put("/api/mobile/v1/preferences", JSONObject().put(info.keyField, trimmed), token())
+                val reply = backend.put("/api/mobile/v1/preferences", JSONObject().put(info.keyField, trimmed), token())
                 mutable.update { it.copy(preferences = parsePreferences(reply), apiKeyPrompt = null) }
                 send()
             } catch (e: CancellationException) { throw e }
@@ -2107,7 +2169,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 current.copy(settingsBubbles = current.settingsBubbles.filterNot { b -> b.id == pendingId } + listOfNotNull(bubble))
             }
             try {
-                val data = api.post("/api/settings/apply-ai-prompt", JSONObject().put("prompt", instruction).put("model", modelId)
+                val data = backend.post("/api/settings/apply-ai-prompt", JSONObject().put("prompt", instruction).put("model", modelId)
                     .put("conversation", history), token())
                 val inspect = data.optString("mode") == "inspect"
                 val values = if (inspect) data.optJSONObject("current") else data.optJSONObject("applied")
@@ -2182,7 +2244,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             var accepted = false
             try {
                 if (id.isBlank()) {
-                    val created = api.post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
+                    val created = backend.post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
                     id = created.get("id").toString()
                     body.put("thread_id", id)
                     mutable.update { it.copy(selected = ThreadItem(id, created.nullableString("title"), it.model,
@@ -2221,7 +2283,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 var retryCount = 0
                 while (true) {
                     try {
-                        api.stream("/chat_stream", body, token(), onAccepted, onEvent)
+                        backend.stream("/chat_stream", body, token(), onAccepted, onEvent)
                         break
                     } catch (e: CancellationException) { throw e }
                     catch (e: ApiException) {
@@ -2308,7 +2370,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             delay(CONNECTION_RETRY_DELAY_MS)
             if (state.value.selected?.id != threadId || jobId.isBlank()) return
             try {
-                api.stream("/chat_stream_resume", JSONObject().put("thread_id", threadId).put("job_id", jobId), token(),
+                backend.stream("/chat_stream_resume", JSONObject().put("thread_id", threadId).put("job_id", jobId), token(),
                     onAccepted = { markConnectionReachable() }) { event -> if (streamJob === owner) acceptEvent(threadId, event) }
                 return
             } catch (e: CancellationException) { throw e }
@@ -2388,7 +2450,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(streaming = true, liveContent = "", liveThought = "", status = "",
                 live = LiveAnswer(model = it.model, pendingStatus = "回答を生成中...")) }
             try {
-                api.stream("/chat_stream_resume", JSONObject().put("thread_id", id).put("job_id", jobId), token(),
+                backend.stream("/chat_stream_resume", JSONObject().put("thread_id", id).put("job_id", jobId), token(),
                     onAccepted = { flow.setPhase("waiting") }) { event ->
                     if (streamJob === owner) { flow.setPhase("receiving"); acceptEvent(id, event) }
                 }
@@ -2404,7 +2466,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun stop() { viewModelScope.launch {
         val id = state.value.selected?.id ?: return@launch
         try {
-            api.post("/api/stop_chat", JSONObject().put("thread_id", id).apply { state.value.jobId?.let { put("job_id", it) } }, token())
+            backend.post("/api/stop_chat", JSONObject().put("thread_id", id).apply { state.value.jobId?.let { put("job_id", it) } }, token())
             streamJob?.cancelAndJoin()
             mutable.update { it.copy(streaming = false, status = "停止を要求しました。") }
             delay(1000); loadMessages(id)
@@ -2417,7 +2479,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (decision.jobId.isBlank()) return@launch
         mutable.update { it.copy(mcpDecision = null) }
         try {
-            api.post("/api/mcp/chat/${URLEncoder.encode(decision.jobId, "UTF-8")}/decision",
+            backend.post("/api/mcp/chat/${URLEncoder.encode(decision.jobId, "UTF-8")}/decision",
                 JSONObject().put("decision", if (allow) "allow" else "deny").put("id", decision.id), token())
         } catch (e: Exception) { report(e) }
     } }
@@ -2425,7 +2487,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun fetchBatchJobs(notify: Boolean, status: Boolean = notify) {
         val previous = state.value.batchJobs.associateBy { it.id }
         if (status) runCatching { pollBatchStatus() }
-        val jobs = parseBatchJobs(api.get("/api/batch/jobs", token()))
+        val jobs = parseBatchJobs(backend.get("/api/batch/jobs", token()))
         // The system notification is added on Android (ANDROID_ONLY.md); the in-app banner follows Web.
         if (notify) jobs.filter { !it.active && previous[it.id]?.active == true }.forEach { job ->
             notifyBatchCompletion(getApplication<Application>(), job)
@@ -2438,7 +2500,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * reloads the open chat when one of them belongs to it. Returns whether any job finished.
      */
     private suspend fun pollBatchStatus(): Boolean {
-        val status = api.get("/api/gemini/batch/status", token())
+        val status = backend.get("/api/gemini/batch/status", token())
         val completed = status.optJSONArray("completed") ?: return false
         if (completed.length() == 0) return false
         val first = completed.getJSONObject(0)
@@ -2491,7 +2553,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     } }
 
     fun cancelBatchJob(job: BatchJob) { viewModelScope.launch {
-        try { api.post("/api/batch/jobs/${job.id}/cancel", JSONObject(), token()) }
+        try { backend.post("/api/batch/jobs/${job.id}/cancel", JSONObject(), token()) }
         catch (e: ApiException) { notify(e.payload.optString("error").ifBlank { "Batch処理を停止できませんでした" }); return@launch }
         catch (e: Exception) { notify("Batch処理を停止できませんでした"); return@launch }
         notify("Batch処理を停止しました")
@@ -2500,7 +2562,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     } }
 
     fun deleteBatchJob(job: BatchJob) { viewModelScope.launch {
-        try { api.delete("/api/batch/jobs/${job.id}", token()) }
+        try { backend.delete("/api/batch/jobs/${job.id}", token()) }
         catch (e: ApiException) { notify(e.payload.optString("error").ifBlank { "Batch履歴を削除できませんでした" }); return@launch }
         catch (e: Exception) { notify("Batch履歴を削除できませんでした"); return@launch }
         notify("Batch履歴を削除しました")
@@ -2547,7 +2609,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(realtime = RealtimeState(model = modelId, status = "接続中...")) }
         viewModelScope.launch {
             try {
-                val started = api.post("/api/realtime/start", JSONObject()
+                val started = backend.post("/api/realtime/start", JSONObject()
                     .put("model", modelId)
                     .put("voice", voice)
                     .put("target_lang", targetLanguage.trim().lowercase().take(16).ifBlank { "ja" })
@@ -2687,12 +2749,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             realtimeCaptureJob?.cancelAndJoin()
             if (!save) {
                 realtimeStreamJob?.cancelAndJoin()
-                if (sid.isNotBlank()) runCatching { api.post("/api/realtime/cancel", JSONObject().put("session_id", sid), token()) }
+                if (sid.isNotBlank()) runCatching { backend.post("/api/realtime/cancel", JSONObject().put("session_id", sid), token()) }
                 finishRealtime("Canceled", 800)
                 return@launch
             }
             setRealtimeStatus("応答を待っています...")
-            runCatching { api.post("/api/realtime/commit", JSONObject().put("session_id", sid), token()) }
+            runCatching { backend.post("/api/realtime/commit", JSONObject().put("session_id", sid), token()) }
             val startedAt = System.currentTimeMillis()
             val before = rtResponseDone
             var lastActivity = rtLastAudioAt
@@ -2705,7 +2767,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             realtimeStreamJob?.cancelAndJoin()
             try {
-                val reply = api.post("/api/realtime/save", JSONObject().put("session_id", sid)
+                val reply = backend.post("/api/realtime/save", JSONObject().put("session_id", sid)
                     .apply { state.value.selected?.id?.let { put("thread_id", it) } }, token())
                 val error = rtStreamError
                 if (error != null) {
@@ -2866,7 +2928,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(lyria = it.lyria.copy(busy = true, status = "接続中...", kind = "connecting")) }
         viewModelScope.launch {
             try {
-                val started = api.post("/api/gemini/music/start", JSONObject().put("weighted_prompts", weighted).put("config", config), token())
+                val started = backend.post("/api/gemini/music/start", JSONObject().put("weighted_prompts", weighted).put("config", config), token())
                 val sid = started.getString("session_id")
                 lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }
                 lyriaTrack = createAudioTrack(48000, stereo = true)
@@ -2922,7 +2984,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun lyriaCommand(type: String, fill: JSONObject.() -> Unit) {
         val sid = state.value.lyria.sessionId
-        api.post("/api/gemini/music/command", JSONObject().put("session_id", sid).put("type", type).apply(fill), token())
+        backend.post("/api/gemini/music/command", JSONObject().put("session_id", sid).put("type", type).apply(fill), token())
     }
 
     private fun lyriaErrorMessage(e: Exception, fallback: String) =
@@ -2989,7 +3051,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(lyria = it.lyria.copy(busy = true, status = "保存中...", kind = "connecting")) }
         viewModelScope.launch {
             try {
-                val data = api.post("/api/gemini/music/save", JSONObject().put("session_id", sid)
+                val data = backend.post("/api/gemini/music/save", JSONObject().put("session_id", sid)
                     .put("thread_id", state.value.selected?.id ?: JSONObject.NULL), token())
                 setLyriaStatus("保存しました", "closed")
                 notify("チャットに保存しました")
@@ -3017,7 +3079,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         lyriaStreamJob?.cancel()
         lyriaStreamJob = null
         if (cancel && sid.isNotBlank()) viewModelScope.launch {
-            runCatching { api.post("/api/gemini/music/cancel", JSONObject().put("session_id", sid), token()) }
+            runCatching { backend.post("/api/gemini/music/cancel", JSONObject().put("session_id", sid), token()) }
         }
         lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
         mutable.update { it.copy(lyria = LyriaState()) }
@@ -3025,7 +3087,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() { viewModelScope.launch {
         try {
-            api.post("/api/mobile/v1/revoke", JSONObject(), token())
+            backend.post("/api/mobile/v1/revoke", JSONObject(), token())
             clearSession()
         } catch (e: Exception) {
             // Keep the Web BAN screen's logout escape hatch even if revoke fails.
@@ -3042,8 +3104,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         GoogleAuthClient.clearCredentialState(getApplication())
         cancelChatBubble(getApplication())
         session = null; failed = null
+        val server = state.value
         mutable.value = ChatState(
             starting = false,
+            serverLabel = server.serverLabel, serverInfo = server.serverInfo, savedServers = server.savedServers,
+            googleServerClientId = server.googleServerClientId, integrityProjectNumber = server.integrityProjectNumber,
             historyCacheMode = HistoryCacheMode.from(prefs.getString("offline_history_cache_mode", HistoryCacheMode.VIEWED.value)),
             cacheMobileDataAllowed = prefs.getBoolean("offline_cache_mobile_data", false),
         )
@@ -3145,7 +3210,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         var page = 1
         var hasNext: Boolean
         do {
-            val reply = api.get("/api/threads?page=$page&q=", token())
+            val reply = backend.get("/api/threads?page=$page&q=", token())
             val rows = reply.getJSONArray("threads")
             val items = (0 until rows.length()).map { parseThreadItem(rows.getJSONObject(it)) }
             threads += items
@@ -3162,7 +3227,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val messages = LinkedHashMap<String, ChatMessage>()
             do {
                 val suffix = before?.let { "&before_id=${URLEncoder.encode(it, "UTF-8")}" }.orEmpty()
-                val reply = api.get("/api/threads/${thread.id}?limit=200$suffix", token())
+                val reply = backend.get("/api/threads/${thread.id}?limit=200$suffix", token())
                 parseMessages(reply).forEach { messages[it.id] = it }
                 older = reply.optBoolean("has_older_messages")
                 before = reply.nullableString("oldest_loaded_id").ifBlank { null }
@@ -3181,7 +3246,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         var offset = 0
         var moreFiles: Boolean
         do {
-            val reply = api.get("/api/files?limit=40&offset=$offset&sort=newest&q=")
+            val reply = backend.get("/api/files?limit=40&offset=$offset&sort=newest&q=")
             val files = parseLibraryFiles(reply)
             withContext(Dispatchers.IO) { offlineCache.saveLibrary(accountId, files) }
             moreFiles = reply.optBoolean("has_more")
@@ -3430,7 +3495,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val offset = if (append) state.value.library.size else 0
-        val reply = api.get(libraryPath(offset), token())
+        val reply = backend.get(libraryPath(offset), token())
         val files = parseLibraryFiles(reply)
         state.value.account?.let { account ->
             withContext(Dispatchers.IO) { offlineCache.saveLibrary(account.id, files) }
@@ -3492,7 +3557,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleLibraryFavorite(file: LibraryFile) { viewModelScope.launch {
         if (state.value.offline) { notify("オフライン中はファイルのお気に入りを変更できません。"); return@launch }
         try {
-            val reply = api.post("/api/files/favorite", JSONObject().put("filepath", file.filepath), token())
+            val reply = backend.post("/api/files/favorite", JSONObject().put("filepath", file.filepath), token())
             val favorite = reply.optBoolean("is_favorite")
             mutable.update { current -> current.copy(
                 library = current.library.map { if (it.filepath == file.filepath) it.copy(isFavorite = favorite) else it },
@@ -3506,7 +3571,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (state.value.offline) { notify("オフライン中はファイル名を変更できません。"); return@launch }
         try {
             if (name.isBlank()) { notify("ファイル名を入力してください"); return@launch }
-            val reply = api.post("/api/files/rename", JSONObject().put("filepath", file.filepath).put("filename", name.trim()), token())
+            val reply = backend.post("/api/files/rename", JSONObject().put("filepath", file.filepath).put("filename", name.trim()), token())
             val display = reply.optString("filename", name.trim())
             mutable.update { current -> current.copy(
                 library = current.library.map { if (it.filepath == file.filepath) it.copy(displayName = display) else it },
@@ -3521,7 +3586,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteLibraryFile(file: LibraryFile) { viewModelScope.launch {
         if (state.value.offline) { notify("オフライン中はファイルを削除できません。"); return@launch }
         try {
-            api.post("/api/files/delete", JSONObject().put("filenames", JSONArray().put(file.filepath)), token())
+            backend.post("/api/files/delete", JSONObject().put("filenames", JSONArray().put(file.filepath)), token())
             state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.deleteLibraryFile(account.id, file.filepath) } }
             mutable.update { current -> current.copy(library = current.library.filterNot { it.filepath == file.filepath }) }
         } catch (e: Exception) { notify("削除に失敗しました") }
@@ -3531,7 +3596,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteLibraryFiles(filepaths: List<String>) { viewModelScope.launch {
         if (state.value.offline) { notify("オフライン中はファイルを削除できません。"); return@launch }
         try {
-            api.post("/api/files/delete", JSONObject().put("filenames", JSONArray(filepaths)), token())
+            backend.post("/api/files/delete", JSONObject().put("filenames", JSONArray(filepaths)), token())
             state.value.account?.let { account ->
                 withContext(Dispatchers.IO) { filepaths.forEach { offlineCache.deleteLibraryFile(account.id, it) } }
             }
@@ -3577,7 +3642,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Web `showSelectedFileUsage`: chats that reference the file (up to 100) and whether more exist. */
     suspend fun libraryFileUsage(file: LibraryFile): Pair<List<FileUsageChat>, Boolean> {
-        val reply = api.get("/api/files/usage?filepath=" + URLEncoder.encode(file.filepath, "UTF-8"), token())
+        val reply = backend.get("/api/files/usage?filepath=" + URLEncoder.encode(file.filepath, "UTF-8"), token())
         val rows = reply.optJSONArray("chats") ?: JSONArray()
         val chats = (0 until rows.length()).map { index ->
             val row = rows.getJSONObject(index)
@@ -3624,7 +3689,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // --- Gems ---
 
     private suspend fun fetchGems() {
-        val gems = parseGems(api.getArray("/api/gems", token()))
+        val gems = parseGems(backend.getArray("/api/gems", token()))
         mutable.update { current ->
             current.copy(gems = gems, selectedGem = current.selectedGem?.let { selected -> gems.firstOrNull { it.uuid == selected.uuid } })
         }
@@ -3647,8 +3712,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     .put("fixed_prompts", if (fixedPrompts.isEmpty()) JSONObject.NULL else JSONArray().apply {
                         fixedPrompts.forEach { put(JSONObject().put("name", it.name).put("content", it.content)) }
                     })
-                if (uuid.isNullOrBlank()) api.post("/api/gems", payload, token())
-                else api.put("/api/gems/$uuid", payload, token())
+                if (uuid.isNullOrBlank()) backend.post("/api/gems", payload, token())
+                else backend.put("/api/gems/$uuid", payload, token())
                 fetchGems()
                 mutable.update { current -> current.copy(selectedGem = current.selectedGem?.let { selected -> current.gems.firstOrNull { it.uuid == selected.uuid } }) }
                 onDone(true)
@@ -3659,7 +3724,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteGem(gem: Gem) { viewModelScope.launch {
         try {
-            api.delete("/api/gems/${gem.uuid}", token())
+            backend.delete("/api/gems/${gem.uuid}", token())
             mutable.update { current -> current.copy(
                 gems = current.gems.filterNot { it.uuid == gem.uuid },
                 selectedGem = current.selectedGem?.takeIf { it.uuid != gem.uuid },
@@ -3679,7 +3744,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (state.value.offline) return
         viewModelScope.launch {
             runCatching {
-                api.put("/api/mobile/v1/preferences",
+                backend.put("/api/mobile/v1/preferences",
                     JSONObject().put("last_gem_uuid", gem?.uuid ?: JSONObject.NULL).put("thread_id", thread.id), token())
             }
         }
@@ -3694,7 +3759,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // --- General preferences and this device's session ---
 
     private suspend fun fetchPreferences(applyDefaults: Boolean = false) {
-        val payload = api.get("/api/mobile/v1/preferences", token())
+        val payload = backend.get("/api/mobile/v1/preferences", token())
         val preferences = parsePreferences(payload)
         state.value.account?.let { account ->
             withContext(Dispatchers.IO) { offlineCache.savePreferences(account.id, payload) }
@@ -3749,7 +3814,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (state.value.offline) return
         viewModelScope.launch {
             runCatching {
-                val reply = api.put("/api/mobile/v1/preferences", JSONObject().put("rich_paste_prompt_default", prompt)
+                val reply = backend.put("/api/mobile/v1/preferences", JSONObject().put("rich_paste_prompt_default", prompt)
                     .put("rich_paste_prompt_use_custom_default", useCustomDefault), token())
                 mutable.update { it.copy(preferences = parsePreferences(reply)) }
             }
@@ -3761,7 +3826,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (state.value.offline) { notify("オフライン中はアカウント設定を保存できません。接続後に再試行してください。"); return@launch }
             mutable.update { it.copy(prefsBusy = true) }
             try {
-                val reply = api.put("/api/mobile/v1/preferences", payload, token())
+                val reply = backend.put("/api/mobile/v1/preferences", payload, token())
                 mutable.update { it.copy(preferences = parsePreferences(reply), notice = message) }
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(prefsBusy = false) } }
@@ -3771,7 +3836,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun loadStorageUsage() {
         viewModelScope.launch {
             if (state.value.offline) return@launch
-            runCatching { mutable.update { it.copy(storage = parseStorageUsage(api.get("/api/storage", token()))) } }
+            runCatching { mutable.update { it.copy(storage = parseStorageUsage(backend.get("/api/storage", token()))) } }
                 .onFailure { report(it) }
         }
     }
@@ -3780,7 +3845,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (state.value.offline) return@launch
             mutable.update { it.copy(feedbackBusy = true) }
-            try { mutable.update { it.copy(feedbackItems = parseFeedbackItems(api.get("/api/feedback", token()))) } }
+            try { mutable.update { it.copy(feedbackItems = parseFeedbackItems(backend.get("/api/feedback", token()))) } }
             catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(feedbackBusy = false) } }
         }
@@ -3792,7 +3857,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (state.value.offline) { notify("オフライン中はフィードバックを送信できません。"); return@launch }
             mutable.update { it.copy(feedbackBusy = true) }
             try {
-                api.post("/api/feedback", JSONObject().put("title", title.trim()).put("message", message.trim()), token())
+                backend.post("/api/feedback", JSONObject().put("title", title.trim()).put("message", message.trim()), token())
                 loadFeedback()
                 notify("フィードバックを送信しました。")
             } catch (e: Exception) { report(e) }
@@ -3804,7 +3869,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (state.value.offline) return@launch
             mutable.update { it.copy(mcpBusy = true) }
-            try { mutable.update { it.copy(mcpServers = parseMcpServers(api.get("/api/mcp/servers", token()))) } }
+            try { mutable.update { it.copy(mcpServers = parseMcpServers(backend.get("/api/mcp/servers", token()))) } }
             catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(mcpBusy = false) } }
         }
@@ -3814,7 +3879,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             mutable.update { it.copy(mcpBusy = true) }
             try {
-                api.put("/api/mcp/servers/${server.id}", JSONObject().put("enabled", enabled), token())
+                backend.put("/api/mcp/servers/${server.id}", JSONObject().put("enabled", enabled), token())
                 loadMcpServers()
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(mcpBusy = false) } }
@@ -3918,7 +3983,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             mutable.update { it.copy(busy = true) }
             try {
-                val payload = api.get("/c/$id/pdf" + (leaf?.let { "?leaf_id=$it" } ?: ""), token())
+                val payload = backend.get("/c/$id/pdf" + (leaf?.let { "?leaf_id=$it" } ?: ""), token())
                 val messages = parsePdfMessages(payload)
                 val title = payload.optJSONObject("thread")?.optString("title").orEmpty().ifBlank { "AI Chat" }
                 val safeId = id.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(24).ifBlank { "thread" }
@@ -3942,6 +4007,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val LIB_FAVORITES_ONLY_KEY = "lib_favorites_only"
         const val MAX_SINGLE_UPLOAD_BYTES = 64L * 1024 * 1024
         const val PREF_BROWSER_LOGIN_VERIFIER = "browser_login_pkce_verifier"
+        const val PREF_SERVER_ORIGIN = "server_origin"
+        const val PREF_SAVED_SERVERS = "saved_servers"
         const val PREF_BROWSER_LOGIN_STARTED_AT = "browser_login_started_at"
         const val BROWSER_LOGIN_TTL_MS = 10L * 60 * 1000
     }

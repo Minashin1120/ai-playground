@@ -2,7 +2,7 @@
 
 この文書は、AI Chat Playgroundの公式Androidクライアントの通信仕様、実装構成、APKの構築・配布、サーバー設定をまとめたものです。Androidプロジェクトは同じリポジトリの `android/` にあり、モジュールは `android/app/` です。GitHub Actionsで署名付きdebug/release APKを構築し、GitHub Releaseへ配布します。Google Playへの登録とAAB配布は対象外です。
 
-接続先は `https://ai.minashin1120.com`。接続仕様の版は `api_version: 1` です。標準認証は `native_credentials_v1`（ユーザー名／パスワード、Google IDトークン、TOTP）です。Minashinと旧Googleブラウザー認証コード引き渡し、旧 `device_pairing_v1` は非推奨のフォールバックとして残します。Webのリリース番号とAndroidのversionCodeは別々に管理します。
+既定の接続先は `https://ai.minashin1120.com` です。Android 1.37.0以降は、ログイン画面の「接続先」で本OSSをセルフホストした別のサーバー（httpsのみ）を指定できます（§3.2の `auth_methods` などで対応機能を判定）。接続仕様の版は `api_version: 1` です。標準認証は `native_credentials_v1`（ユーザー名／パスワード、Google IDトークン、TOTP）です。Minashinと旧Googleブラウザー認証コード引き渡し、旧 `device_pairing_v1` は非推奨のフォールバックとして残します。Webのリリース番号とAndroidのversionCodeは別々に管理します。
 
 ## 目次
 
@@ -104,7 +104,7 @@ Android版は通常チャット、メタデータ付きモデル選択、Thinkin
 
 HTTPS必須。JSONはUTF-8。APIレスポンスと認証ページは `Cache-Control: private, no-store`。アプリはリダイレクトの自動追跡を無効にし、HTTPステータスとContent-Typeを確認します。native APIが返すCookieは保存・再送しません。
 
-以下の相対パスは固定の接続先に対して解決してください。サーバーからのパスを使う場合も、scheme・host・portが元の接続先と一致することを検証します。
+以下の相対パスは、ログイン時に選んだ接続先（トークンと一緒に保存）に対して解決してください。サーバーからのパスを使う場合も、scheme・host・portが元の接続先と一致することを検証します。
 
 ### 3.2 接続仕様
 
@@ -137,6 +137,11 @@ HTTPS必須。JSONはUTF-8。APIレスポンスと認証ページは `Cache-Cont
     "import": "/api/account/import"
   },
   "native_setup_endpoint": "/api/mobile/v1/setup",
+  "server_name": "<MOBILE_SERVER_NAME またはホスト名>",
+  "auth_methods": {"password": true, "passkey": true, "google_native": true, "google_browser": true,
+                   "minashin": true, "turnstile": true, "play_integrity": true},
+  "auth_callback_modes": ["app_link", "app_scheme"],
+  "app_links_configured": true,
   "device_endpoint": "/api/mobile/v1/device",
   "token_endpoint": "/api/mobile/v1/token",
   "verification_uri": "/android/connect",
@@ -150,6 +155,17 @@ HTTPS必須。JSONはUTF-8。APIレスポンスと認証ページは `Cache-Cont
 ```
 
 実際の応答には `system_version`、`me_endpoint`、`revoke_endpoint`、`allowed_endpoints` も含みます。`allowed_endpoints` の `<thread_id>`、`<path:filename>` はFlaskのパス変数表記です。
+
+#### 接続先の指定（Android 1.37.0以降）
+
+ログイン画面の「接続先」に入力されたドメインは、`https` だけを受け付けます（利用者情報・パス・クエリ付きのURL、ドットを含まないホスト名、IPv6リテラルは拒否）。アプリはそのサーバーの `/api/mobile/v1/config` を取得し、`api_version == 1` かつ `client_id == "official-android"` の場合だけ切り替えます。選んだ接続先はBearerトークンと一緒に暗号化して保存し、端末キャッシュのフォルダーも接続先ごとに分けます（公式ホストは従来のフォルダーを継続）。
+
+- `server_name`：ログイン画面の表示名（`MOBILE_SERVER_NAME`、未設定ならホスト名）。
+- `auth_methods`：このサーバーで完了できるログイン方法。`passkey` は `ANDROID_APP_LINK_SHA256` が設定されている場合だけ true です（Credential Managerが接続先の `assetlinks.json` を確認するため。`assetlinks.json` は `handle_all_urls` と `get_login_creds` を宣言します）。
+- **公式ホストだけの機能**：Credential ManagerによるGoogleネイティブログインとPlay Integrityは、Android OAuthクライアントとIntegrityの検証アカウントが公式の運営者に固定されているため、公式ホストだけで使います。別のサーバーではGoogleをブラウザー方式で使います。
+- `auth_callback_modes` に `app_scheme` があるサーバーでは、ブラウザー方式のログイン（`/android/auth/{google,minashin}/start`）、アカウント連携（`/android/link/<provider>`）、Turnstile確認ページ（`/android/integrity/turnstile`）に `return=app` を付けて開きます。完了後の戻り先はApp Linkではなく `com.minashin1120.aiplayground.auth:/callback?...` になります。ログインの `return=app` はPKCE（`code_challenge`）が必須で、無い場合は `error=pkce_required` で戻ります。アプリは公式ホスト使用中はこのスキームの戻りを無視し、自分で開始していないログインのコードは交換しません。公式ホストの戻り先（App Link）は変わりません。Turnstileの戻り先も、公式ホストの直書きではなく要求されたホストの `/android/auth/callback` になりました。
+- TurnstileもPlay Integrityも設定していないサーバーでは、ネイティブログインの安全性確認を通過できません。運営者が `MOBILE_NATIVE_GATE=turnstile_optional` を設定し、かつ `TURNSTILE_SECRET_KEY` が未設定の場合だけ、確認を省略します（IP単位の試行回数制限は残り、超過時は429 `rate_limit`）。
+- 自己署名証明書のサーバーには接続できません（システムの認証局だけを信頼）。
 
 `POST /api/mobile/v1/auth/google` はCookie・Origin・Bearerなしで呼び出します。本文は `{"id_token":"<Credential Managerで取得したGoogle IDトークン>","nonce":"<同じログイン要求に設定したNonce>","device_name":"Pixel"}` です。AndroidのGoogleログインボタンはCredential Managerの `GetSignInWithGoogleOption` を使うため、保存済み資格情報がない場合、再認証が必要な場合、端末にGoogleアカウントを追加する場合もGoogleの選択・認証画面へ進めます。`Account reauth failed` を受けた場合はCredential Managerの認証状態を一度消去して、同じボタン方式を新しいNonceで再試行します。失敗が続く場合はログイン画面にコピー可能な診断ログを表示します。診断ログにはアプリ版、端末、Google Play services、例外種別、公開OAuthクライアントID、アプリ署名SHA-1／SHA-256を含めますが、IDトークンとNonceは含めません。サーバーは `GOOGLE_CLIENT_ID` と一致するaudience、署名、発行者、有効期限、Nonce、メール確認済みを検証してから既存のGoogle連携アカウントを解決し、Android用Bearerを発行します。2FAが有効でGoogleログイン時の省略設定が無効なら、通常の `auth/totp` またはWebAuthn 2FAトランザクションを返します。`google_server_client_id` はIDトークン取得用の公開クライアントIDであり、秘密情報ではありません。
 
@@ -469,7 +485,7 @@ Googleログインは通常、Android Credential ManagerでGoogle IDトークン
 ```text
 MainActivity.kt                  ブラウザー・App Links・添付の起動と共有シート受信、画面ライフサイクル
 ChatViewModel.kt                 ネイティブ認証・初回設定・端末連携、履歴、送信、再接続、添付、失効
-data/PlaygroundApi.kt            固定接続先、CookieなしHTTP、JSON/NDJSON、キャンセル
+data/PlaygroundApi.kt            選択中の接続先（data/ServerOrigin.kt）、CookieなしHTTP、JSON/NDJSON、キャンセル
 data/TokenStore.kt               Keystoreによるトークン暗号化保存
 data/Models.kt                   データ変換、エラー表示、応答サイズ制限
 ui/PlaygroundScreen.kt           連携、履歴、モデル選択、チャット画面

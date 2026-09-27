@@ -19,6 +19,10 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/OfflineCacheStore.kt` | アカウント別の暗号化オフライン履歴・ファイル保存、同期設定、カテゴリ削除 | オフライン閲覧・端末保存・キャッシュ管理を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AppUpdateDialog.kt` | APK更新の確認、進捗、設定案内、再試行ダイアログと、非表示中の画面上部プログレスバー | 更新UI・文言・導線 |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatViewModel.kt` | ネイティブ認証・パスキー／TOTP 2FA・セキュリティ管理・初回セットアップ／ZIP取り込み・旧端末連携・履歴・送信・再接続・アップロード状態 | アプリ操作・通信フロー |
+| `app/src/main/java/com/minashin1120/aiplayground/data/ServerOrigin.kt` | 現在の接続先（公式ホスト／セルフホスト）、接続先入力の検証、`/api/mobile/v1/config` からの対応ログイン方法の判定、アプリ固有スキームへの戻り指定 | 接続先の指定・同一オリジン判定を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/backend/ChatBackend.kt` | 画面が呼ぶJSONエンドポイントの窓口（サーバー送信とローカル応答の切り替え） | 送信先・ローカルモードの経路を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/secure/EncryptedFileStore.kt` | Android KeystoreのAES-GCMによる暗号化ファイル（書き込み途中で壊れない保存） | 端末内の暗号化保存を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/direct/SseReader.kt` | Server-Sent Eventsの読み取り（サーバーのRealtime／Lyriaと事業者APIのストリーム） | SSEの解析を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ConnectionStatus.kt` | Web相当のハートビート接続状態・HTTP障害分類・監視間隔 | 接続状態・復帰表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/BatchNotifications.kt` | Batch完了通知チャンネルと安全な通知表示 | Batch通知を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/BubbleNotifications.kt` | ユーザー操作で作成するチャットバブル通知と会話ショートカット、Android 10〜16のバブル専用 `ChatBubbleActivity` | Androidバブル・通知・ショートカットを変更するとき |

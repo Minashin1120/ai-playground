@@ -436,7 +436,7 @@ internal fun markdownLinkTarget(value: String): String? {
     val lower = trimmed.lowercase()
     if ((lower.startsWith("mailto:") || lower.startsWith("tel:")) && trimmed.substringAfter(':').isNotBlank()) return trimmed
     if (trimmed.startsWith("//")) return safeWebUrl("https:$trimmed")
-    if (trimmed.startsWith("/")) return safeWebUrl(com.minashin1120.aiplayground.BuildConfig.BASE_URL.trimEnd('/') + trimmed)
+    if (trimmed.startsWith("/")) return safeWebUrl(com.minashin1120.aiplayground.data.ServerOrigin.base + trimmed)
     return null
 }
 

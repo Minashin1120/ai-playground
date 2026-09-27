@@ -101,7 +101,7 @@ class AccountApi internal constructor(private val api: PlaygroundApi, private va
 
     /** One-time path that opens the provider sign-in in a browser tab and links it to this account. */
     suspend fun linkStart(provider: String): String =
-        api.post("/api/mobile/v1/account/link/$provider/start", JSONObject(), token()).getString("path")
+        withAppReturn(api.post("/api/mobile/v1/account/link/$provider/start", JSONObject(), token()).getString("path"))
 
     suspend fun unlinkGoogle() = api.post("/api/account/unlink_google", JSONObject(), token())
     suspend fun unlinkMinashin() = api.post("/api/account/unlink_minashin", JSONObject(), token())

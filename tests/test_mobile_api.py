@@ -287,7 +287,8 @@ class MobileApiTests(unittest.TestCase):
                 verified = self.browser.post('/android/integrity/turnstile/verify', base_url='https://localhost', data={
                     'challenge': challenge, 'csrf_token': csrf_token, 'cf-turnstile-response': 'ok'})
             self.assertEqual(verified.status_code, 303)
-            self.assertTrue(verified.location.startswith('https://ai.minashin1120.com/android/auth/callback?turnstile_ticket='))
+            # The return link follows the serving host (the official host in production).
+            self.assertTrue(verified.location.startswith('https://localhost/android/auth/callback?turnstile_ticket='))
             ticket = verified.location.split('turnstile_ticket=', 1)[1]
             # The ticket cannot be exchanged for a login and only this account can redeem it.
             self.assertEqual(self.native.post('/api/mobile/v1/auth/login', base_url='https://localhost', json={
@@ -1033,6 +1034,81 @@ class MobileApiTests(unittest.TestCase):
         self.assertNotIn('service_account', json.dumps(config.json).lower())
         self.assertNotIn('/home/private', json.dumps(config.json))
 
+    def test_mobile_config_describes_the_server_for_the_login_screen(self):
+        with mock.patch.dict(target.os.environ, {
+            'GOOGLE_CLIENT_ID': 'cid', 'GOOGLE_CLIENT_SECRET': 'secret-value',
+            'ANDROID_APP_LINK_SHA256': 'AA:BB', 'MOBILE_SERVER_NAME': 'Example AI',
+        }):
+            config = self.native.get('/api/mobile/v1/config', base_url='https://localhost').json
+        self.assertEqual(config['api_version'], 1)
+        self.assertEqual(config['client_id'], 'official-android')
+        self.assertEqual(config['server_name'], 'Example AI')
+        self.assertIn('app_scheme', config['auth_callback_modes'])
+        self.assertTrue(config['app_links_configured'])
+        methods = config['auth_methods']
+        self.assertTrue(methods['password'] and methods['passkey'] and methods['google_browser'])
+        self.assertNotIn('secret-value', json.dumps(config))
+        with mock.patch.dict(target.os.environ, {'ANDROID_APP_LINK_SHA256': '', 'GOOGLE_CLIENT_SECRET': ''}):
+            bare = self.native.get('/api/mobile/v1/config', base_url='https://localhost').json
+        self.assertFalse(bare['auth_methods']['passkey'])
+        self.assertFalse(bare['auth_methods']['google_browser'])
+        self.assertEqual(bare['server_name'], 'localhost')
+
+    def test_turnstile_can_return_through_the_app_scheme(self):
+        token = self.token()
+        with mock.patch.object(target, '_bot_turnstile_active', return_value=True), \
+             mock.patch.object(target, '_bot_turnstile_verified', return_value=False):
+            url = self.call('/api/mobile/v1/security/turnstile', token, 'POST', json={}).json['turnstile_url']
+            page = self.browser.get(url + '&return=app', base_url='https://localhost')
+            self.assertIn('name="return" value="app"', page.data.decode())
+            csrf_token = page.data.decode().split('name="csrf_token" value="', 1)[1].split('"', 1)[0]
+            with mock.patch.object(target, 'verify_turnstile', return_value=True):
+                verified = self.browser.post('/android/integrity/turnstile/verify', base_url='https://localhost', data={
+                    'challenge': url.split('=', 1)[1], 'csrf_token': csrf_token,
+                    'cf-turnstile-response': 'ok', 'return': 'app'})
+        self.assertEqual(verified.status_code, 303)
+        self.assertTrue(verified.location.startswith('com.minashin1120.aiplayground.auth:/callback?turnstile_ticket='))
+        # Unknown return values fall back to the https callback.
+        self.assertIsNone(target._mobile_return_mode('https://evil.example'))
+
+    def test_browser_login_app_scheme_requires_pkce(self):
+        oauth_redirect = target.redirect('https://accounts.google.com/o/oauth2/auth')
+        with mock.patch.object(target.oauth.google, 'authorize_redirect', return_value=oauth_redirect):
+            rejected = self.browser.get('/android/auth/google/start?return=app', base_url='https://localhost')
+            self.assertEqual(rejected.status_code, 302)
+            self.assertEqual(rejected.location, 'com.minashin1120.aiplayground.auth:/callback?error=pkce_required')
+            challenge = 'A' * 43
+            started = self.browser.get(f'/android/auth/google/start?return=app&code_challenge={challenge}&code_challenge_method=S256',
+                                       base_url='https://localhost')
+            self.assertEqual(started.location, 'https://accounts.google.com/o/oauth2/auth')
+            with self.browser.session_transaction() as sess:
+                self.assertEqual(sess.get('mobile_native_return'), 'app')
+            with self.browser.session_transaction() as sess:
+                sess['mobile_native_return'] = 'app'
+            with target.app.test_request_context('/', base_url='https://localhost'):
+                target.session['mobile_native_return'] = 'app'
+                self.assertEqual(target._mobile_native_redirect(code='abc').location,
+                                 'com.minashin1120.aiplayground.auth:/callback?code=abc')
+                # Without the flag the App Link callback on this host is used.
+                self.assertEqual(target._mobile_native_redirect(error='x').location,
+                                 'https://localhost/android/auth/callback?error=x')
+
+    def test_native_gate_can_be_relaxed_only_by_the_operator_without_turnstile(self):
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.set_password('gate-password')
+            target.db.session.commit()
+        body = {'username': 'android-owner', 'password': 'gate-password', 'device_name': 'Pixel'}
+        strict = self.native.post('/api/mobile/v1/auth/login', base_url='https://localhost', json=body)
+        self.assertEqual(strict.status_code, 428)
+        with mock.patch.dict(target.os.environ, {'MOBILE_NATIVE_GATE': 'turnstile_optional', 'TURNSTILE_SECRET_KEY': 'configured'}):
+            still_strict = self.native.post('/api/mobile/v1/auth/login', base_url='https://localhost', json=body)
+        self.assertEqual(still_strict.status_code, 428)
+        with mock.patch.dict(target.os.environ, {'MOBILE_NATIVE_GATE': 'turnstile_optional', 'TURNSTILE_SECRET_KEY': ''}):
+            relaxed = self.native.post('/api/mobile/v1/auth/login', base_url='https://localhost', json=body)
+        self.assertEqual(relaxed.status_code, 200)
+        self.assertEqual(relaxed.json['status'], 'ok')
+
     def test_native_google_login_uses_verified_id_token(self):
         self.pass_integrity_gate()
         with mock.patch.dict(target.os.environ, {'GOOGLE_CLIENT_ID': 'android-server-client'}), \
@@ -1069,6 +1145,7 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(links.status_code, 200)
         self.assertEqual(links.json[0]['target']['package_name'], 'com.example.test')
         self.assertEqual(links.json[0]['target']['sha256_cert_fingerprints'], ['AA:BB', 'CC:DD'])
+        self.assertIn('delegate_permission/common.get_login_creds', links.json[0]['relation'])
 
     def test_cookie_and_bearer_cannot_mix(self):
         token = self.token()

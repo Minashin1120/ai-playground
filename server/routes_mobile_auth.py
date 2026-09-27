@@ -23,6 +23,10 @@ _MOBILE_SETUP_SECRET_FIELDS = {
 }
 
 _MOBILE_INTEGRITY_PACKAGE = 'com.minashin1120.aiplayground'
+# Browser flows on servers other than the official host cannot use the App Link (the Android
+# manifest can only verify one fixed host), so the app asks to come back through its own scheme.
+# Login codes stay PKCE-bound, so an app that intercepts this redirect cannot redeem them.
+_MOBILE_APP_CALLBACK = 'com.minashin1120.aiplayground.auth:/callback'
 _MOBILE_INTEGRITY_TTL_MS = 2 * 60 * 1000
 
 
@@ -37,6 +41,19 @@ def _mobile_integrity_hash(request_id, endpoint, body):
 
 def _mobile_integrity_turnstile_url(challenge):
     return '/android/integrity/turnstile?challenge=' + quote(challenge)
+
+
+def _mobile_return_mode(value):
+    """`return=app` asks a browser flow to come back through the app scheme; anything else is ignored."""
+    return 'app' if value == 'app' else None
+
+
+def _mobile_callback_redirect(params, return_mode=None, code=302):
+    """Send the browser back to the app: the https App Link, or the app scheme when requested."""
+    if return_mode == 'app':
+        query = urlencode(params)
+        return redirect(_MOBILE_APP_CALLBACK + ('?' + query if query else ''), code=code)
+    return redirect(url_for('mobile_auth_callback', _external=True, _scheme='https', **params), code=code)
 
 
 def _mobile_integrity_consume_challenge(key):
@@ -67,6 +84,16 @@ def _mobile_integrity_decode(token):
     )
     response.raise_for_status()
     return response.json().get('tokenPayloadExternal') or {}
+
+
+def _mobile_native_gate_optional():
+    """True when the operator set MOBILE_NATIVE_GATE=turnstile_optional and Turnstile is not configured.
+
+    Without either Turnstile or Play Integrity a native login could never pass the gate; the
+    official server keeps the default strict behaviour.
+    """
+    return (os.getenv('MOBILE_NATIVE_GATE', '').strip() == 'turnstile_optional'
+            and not os.getenv('TURNSTILE_SECRET_KEY'))
 
 
 def _mobile_integrity_gate(body, endpoint):
@@ -124,6 +151,12 @@ def _mobile_integrity_gate(body, endpoint):
             risk = True
     if not risk:
         return None
+    if _mobile_native_gate_optional():
+        # Operator opt-out for self-hosted servers without Turnstile or Play Integrity:
+        # only the per-IP attempt limit still applies.
+        if concentrated:
+            return _mobile_error('rate_limit', 429)
+        return None
     challenge = secrets.token_urlsafe(32)
     redis_conn.set('mobile:integrity:challenge:' + _mobile_digest(challenge), endpoint, ex=300, nx=True)
     return jsonify({'code': 'turnstile_required', 'error': 'turnstile_required',
@@ -138,17 +171,19 @@ def mobile_integrity_turnstile():
         return '確認リンクの期限が切れました。アプリからやり直してください。', 410
     site_key = html.escape(os.getenv('TURNSTILE_SITE_KEY', ''), quote=True)
     csrf_token = html.escape(get_csrf_token(), quote=True)
+    return_field = '<input type="hidden" name="return" value="app">' if _mobile_return_mode(request.args.get('return')) else ''
     action = '/android/integrity/turnstile/verify'
     return Response(f'''<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>安全性の確認</title>
 <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 <h1>安全性の確認</h1><p>確認後、AI Playgroundへ戻ります。</p><form method="post" action="{action}">
-<input type="hidden" name="csrf_token" value="{csrf_token}"><input type="hidden" name="challenge" value="{html.escape(challenge, quote=True)}"><div class="cf-turnstile" data-sitekey="{site_key}"></div>
+<input type="hidden" name="csrf_token" value="{csrf_token}"><input type="hidden" name="challenge" value="{html.escape(challenge, quote=True)}">{return_field}<div class="cf-turnstile" data-sitekey="{site_key}"></div>
 <button type="submit">続行</button></form>''', mimetype='text/html', headers={'Cache-Control': 'no-store'})
 
 
 @app.route('/android/integrity/turnstile/verify', methods=['POST'])
 def mobile_integrity_turnstile_verify():
     challenge = request.form.get('challenge', '')
+    return_mode = _mobile_return_mode(request.form.get('return'))
     challenge_key = 'mobile:integrity:challenge:' + _mobile_digest(challenge)
     if not re.fullmatch(r'[A-Za-z0-9_-]{40,60}', challenge) or not redis_conn.get(challenge_key):
         return '確認リンクの期限が切れました。アプリからやり直してください。', 410
@@ -164,7 +199,7 @@ def mobile_integrity_turnstile_verify():
         # this ticket with its own bearer token (mobile_security_turnstile_complete).
         ticket = secrets.token_urlsafe(32)
         redis_conn.set(_mobile_session_turnstile_key(ticket), session_user.group(1), ex=300, nx=True)
-        return redirect('https://ai.minashin1120.com/android/auth/callback?turnstile_ticket=' + quote(ticket), code=303)
+        return _mobile_callback_redirect({'turnstile_ticket': ticket}, return_mode, code=303)
     if challenge_action not in {
         '/api/mobile/v1/auth/signup', '/api/mobile/v1/auth/login', '/api/mobile/v1/auth/google',
         '/api/mobile/v1/auth/totp', '/api/mobile/v1/auth/exchange',
@@ -174,7 +209,7 @@ def mobile_integrity_turnstile_verify():
         return '確認リンクの期限が切れました。アプリからやり直してください。', 410
     ticket = secrets.token_urlsafe(32)
     redis_conn.set('mobile:integrity:turnstile:' + _mobile_digest(ticket), challenge_action, ex=300, nx=True)
-    return redirect('https://ai.minashin1120.com/android/auth/callback?integrity_ticket=' + quote(ticket), code=303)
+    return _mobile_callback_redirect({'integrity_ticket': ticket}, return_mode, code=303)
 
 
 def _mobile_session_turnstile_key(ticket):
@@ -306,7 +341,16 @@ def _mobile_native_redirect(code=None, error=None):
         params['code'] = code
     if error:
         params['error'] = error
-    return redirect(url_for('mobile_auth_callback', _external=True, _scheme='https', **params))
+    return _mobile_callback_redirect(params, session.pop('mobile_native_return', None))
+
+
+def _mobile_native_start_return(args):
+    """Remember how this browser login returns; the app scheme is only allowed with PKCE."""
+    return_mode = _mobile_return_mode(args.get('return'))
+    session['mobile_native_return'] = return_mode
+    if return_mode == 'app' and not session.get('mobile_native_code_challenge'):
+        return _mobile_native_redirect(error='pkce_required')
+    return None
 
 
 def _mobile_native_device_name(value):
@@ -537,6 +581,9 @@ def mobile_google_start():
     session['mobile_native_google'] = True
     session['mobile_native_device_name'] = _mobile_native_device_name(request.args.get('device_name'))
     session['mobile_native_code_challenge'] = _mobile_native_code_challenge(request.args)
+    rejected = _mobile_native_start_return(request.args)
+    if rejected is not None:
+        return rejected
     redirect_uri = url_for('mobile_google_callback', _external=True, _scheme='https')
     return oauth.google.authorize_redirect(redirect_uri)
 
@@ -577,6 +624,9 @@ def mobile_minashin_start():
     session['mobile_native_auth'] = True
     session['mobile_native_device_name'] = _mobile_native_device_name(request.args.get('device_name'))
     session['mobile_native_code_challenge'] = _mobile_native_code_challenge(request.args)
+    rejected = _mobile_native_start_return(request.args)
+    if rejected is not None:
+        return rejected
     # Reuse the existing PKCE generator and central-account authorization URL.
     return login_minashin()
 
@@ -634,7 +684,8 @@ def android_assetlinks():
     fingerprints = [item.strip() for item in (os.getenv('ANDROID_APP_LINK_SHA256') or '').split(',') if item.strip()]
     package_name = os.getenv('ANDROID_APP_ID', 'com.minashin1120.aiplayground')
     return jsonify([{
-        'relation': ['delegate_permission/common.handle_all_urls'],
+        # get_login_creds lets Credential Manager use this site's passkeys in the app.
+        'relation': ['delegate_permission/common.handle_all_urls', 'delegate_permission/common.get_login_creds'],
         'target': {'namespace': 'android_app', 'package_name': package_name, 'sha256_cert_fingerprints': fingerprints},
     }])
 

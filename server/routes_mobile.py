@@ -99,6 +99,23 @@ def _mobile_model_metadata(model_id):
     }
 
 
+def _mobile_auth_methods():
+    """Sign-in methods this server can complete for the Android app."""
+    google = bool(os.getenv('GOOGLE_CLIENT_ID') and os.getenv('GOOGLE_CLIENT_SECRET'))
+    return {
+        'password': True,
+        # Credential Manager passkeys need assetlinks for the app's signing key on this host.
+        'passkey': bool((os.getenv('ANDROID_APP_LINK_SHA256') or '').strip()),
+        # The app uses native Google sign-in only on the official host (one Android OAuth client
+        # per package); other servers use the browser flow.
+        'google_native': bool(os.getenv('GOOGLE_CLIENT_ID')),
+        'google_browser': google,
+        'minashin': True,
+        'turnstile': bool(os.getenv('TURNSTILE_SECRET_KEY') and os.getenv('TURNSTILE_SITE_KEY')),
+        'play_integrity': bool(os.getenv('PLAY_INTEGRITY_CLOUD_PROJECT_NUMBER') and os.getenv('PLAY_INTEGRITY_SERVICE_ACCOUNT_FILE')),
+    }
+
+
 @app.route('/api/mobile/v1/config')
 def mobile_config():
     return jsonify({
@@ -133,6 +150,11 @@ def mobile_config():
         'me_endpoint': '/api/mobile/v1/me', 'revoke_endpoint': '/api/mobile/v1/revoke',
         'token_expires_in': MOBILE_TOKEN_TTL, 'grant_expires_in': MOBILE_GRANT_TTL,
         'poll_interval': MOBILE_POLL_INTERVAL, 'stream_format': 'application/x-ndjson',
+        # Discovery for servers entered on the Android login screen (additive; old clients ignore it).
+        'server_name': os.getenv('MOBILE_SERVER_NAME', '').strip()[:80] or request.host,
+        'auth_methods': _mobile_auth_methods(),
+        'auth_callback_modes': ['app_link', 'app_scheme'],
+        'app_links_configured': bool((os.getenv('ANDROID_APP_LINK_SHA256') or '').strip()),
         'e2ee_supported': True,
         'encryption_mode': 'server_managed_at_rest',
         'allowed_endpoints': [

@@ -277,6 +277,8 @@ def mobile_account_link_start(provider):
 @app.route('/android/link/<provider>', methods=['GET'])
 def mobile_account_link_open(provider):
     grant = str(request.args.get('grant') or '')
+    # The link grant is bound to the signed-in account, so the app scheme needs no PKCE here.
+    session['mobile_native_return'] = _mobile_return_mode(request.args.get('return'))
     if provider not in _MOBILE_LINK_PROVIDERS or not re.fullmatch(r'[A-Za-z0-9_-]{43}', grant):
         return _mobile_native_redirect(error='link_invalid')
     key = _mobile_link_grant_key(grant)
@@ -306,7 +308,7 @@ def _mobile_native_link_target(provider):
 
 def _mobile_native_link_redirect(provider, error=None):
     params = {'error': error} if error else {'linked': provider}
-    return redirect(url_for('mobile_auth_callback', _external=True, _scheme='https', **params))
+    return _mobile_callback_redirect(params, session.pop('mobile_native_return', None))
 
 
 def _mobile_native_link_google(user, google_id, email):

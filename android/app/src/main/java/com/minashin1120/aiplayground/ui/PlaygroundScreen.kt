@@ -34,6 +34,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -93,7 +94,6 @@ import com.minashin1120.aiplayground.data.ThreadItem
 import com.minashin1120.aiplayground.data.ChatAutoScroll
 import com.minashin1120.aiplayground.data.Attachment
 import com.minashin1120.aiplayground.data.isImageReference
-import com.minashin1120.aiplayground.BuildConfig
 import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.ChatMessage
@@ -110,6 +110,8 @@ import com.minashin1120.aiplayground.data.numericId
 import com.minashin1120.aiplayground.data.siblingGroup
 import com.minashin1120.aiplayground.data.PasskeyClient
 import com.minashin1120.aiplayground.data.GoogleAuthClient
+import com.minashin1120.aiplayground.data.ServerOrigin
+import com.minashin1120.aiplayground.data.originLabel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -361,7 +363,7 @@ fun PlaygroundScreen(
                 onDownload = { reference -> pendingFileDownload = reference; fileSaver.launch(fileViewerTitle(reference)) },
                 onCopyUrl = { reference ->
                     viewerClipboard.setText(androidx.compose.ui.text.AnnotatedString(
-                        BuildConfig.BASE_URL.trimEnd('/') + "/files/" + reference.removePrefix("/files/")))
+                        com.minashin1120.aiplayground.data.ServerOrigin.base + "/files/" + reference.removePrefix("/files/")))
                     model.notify("画像URLをコピーしました")
                 },
                 onReuse = { reference -> model.reuseImage(reference) },
@@ -923,6 +925,7 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
                 }
             }
         }
+        item { ServerOriginField(state, model) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (state.authTwoFactorTransaction != null) {
@@ -1002,12 +1005,13 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
                         Text(if (signup) "すでにアカウントをお持ちですか？ログイン" else "アカウントを新規作成")
                     }
                     if (!signup) {
-                        OutlinedButton(
+                        val server = state.serverInfo
+                        if (server?.passkey != false) OutlinedButton(
                             onClick = { model.beginPasskeyLogin(username) },
                             enabled = !state.authBusy && username.isNotBlank(),
                             modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
                         ) { Text("パスキーでログイン") }
-                        Button(
+                        if (server?.googleNative ?: ServerOrigin.isOfficial) Button(
                             onClick = model::beginGoogleLogin,
                             enabled = !state.authBusy,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
@@ -1022,10 +1026,51 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
                 Text("既存のブラウザー連携", style = MaterialTheme.typography.titleMedium)
                 Text("旧方式です。現在も利用できますが、アプリ内ログインを推奨します。", color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                 OutlinedButton(onClick = model::pair, modifier = Modifier.fillMaxWidth()) { Text("ブラウザーで連携（旧方式）") }
-                OutlinedButton(onClick = { onWeb(model.browserLoginPath("google")) }, modifier = Modifier.fillMaxWidth()) { Text("Google（ブラウザー・旧方式）") }
-                OutlinedButton(onClick = { onWeb(model.browserLoginPath("minashin")) }, modifier = Modifier.fillMaxWidth()) { Text("Minashinでログイン") }
+                if (state.serverInfo?.googleBrowser ?: ServerOrigin.isOfficial) {
+                    OutlinedButton(onClick = { onWeb(model.browserLoginPath("google")) }, modifier = Modifier.fillMaxWidth()) { Text("Google（ブラウザー・旧方式）") }
+                }
+                if (state.serverInfo?.minashin ?: ServerOrigin.isOfficial) {
+                    OutlinedButton(onClick = { onWeb(model.browserLoginPath("minashin")) }, modifier = Modifier.fillMaxWidth()) { Text("Minashinでログイン") }
+                }
                 TextButton(onClick = { onWeb("/") }, modifier = Modifier.fillMaxWidth()) { Text("Web版を開く") }
             }
+        }
+    }
+}
+
+/** Login screen "接続先": the official server by default, or a self-hosted AI Playground server. */
+@Composable
+private fun ServerOriginField(state: ChatState, model: ChatViewModel) {
+    val colors = MaterialTheme.colorScheme
+    var editing by rememberSaveable { mutableStateOf(false) }
+    var input by rememberSaveable(state.serverLabel) { mutableStateOf(state.serverLabel) }
+    LaunchedEffect(state.serverLabel, state.serverChecking) { if (!state.serverChecking && state.serverError == null) editing = false }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("接続先", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+                Text(state.serverInfo?.name?.takeIf { it != state.serverLabel }?.let { "$it（${state.serverLabel}）" } ?: state.serverLabel,
+                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            }
+            TextButton(onClick = { editing = !editing }, enabled = !state.authBusy && !state.serverChecking) {
+                Text(if (editing) "閉じる" else "変更")
+            }
+        }
+        if (editing) {
+            OutlinedTextField(
+                value = input, onValueChange = { input = it }, label = { Text("サーバーのドメイン") },
+                placeholder = { Text("ai.example.com") }, singleLine = true, enabled = !state.serverChecking,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            val recent = (listOf(originLabel(ServerOrigin.DEFAULT)) + state.savedServers).distinct()
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                recent.forEach { label -> AssistChip(onClick = { input = label; model.selectServer(label) }, label = { Text(label) }) }
+            }
+            state.serverError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
+            Button(onClick = { model.selectServer(input) }, enabled = !state.serverChecking && input.isNotBlank(),
+                modifier = Modifier.fillMaxWidth()) { Text(if (state.serverChecking) "確認しています…" else "この接続先を使う") }
+            Text("本アプリに対応した AI Playground のサーバーだけに接続できます（https のみ）。", style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant)
         }
     }
 }
@@ -1228,7 +1273,7 @@ private fun PairingScreen(state: ChatState, model: ChatViewModel, onWeb: (String
                         Text(if (state.pairing) "連携を準備しています…" else "アカウントを連携")
                     }
                 }
-                Text("接続先: ai.minashin1120.com", color = colors.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                Text("接続先: " + com.minashin1120.aiplayground.data.originLabel(com.minashin1120.aiplayground.data.ServerOrigin.current), color = colors.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
                 TextButton(onClick = { onWeb("/") }) { Text("アカウント作成・Webアプリを開く", color = colors.primary) }
             }
         }

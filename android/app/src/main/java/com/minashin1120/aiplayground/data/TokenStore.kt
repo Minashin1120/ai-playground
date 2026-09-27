@@ -30,7 +30,8 @@ class TokenStore(context: Context) {
         }.generateKey()
     }
     @Synchronized fun save(session: StoredSession) {
-        val plain = JSONObject().put("token", session.token).put("expiresAt", session.expiresAt).toString()
+        val plain = JSONObject().put("token", session.token).put("expiresAt", session.expiresAt)
+            .apply { session.origin?.let { put("origin", it) } }.toString()
         val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, key()) }
         val encrypted = cipher.doFinal(plain.toByteArray(Charsets.UTF_8))
         val stream = file.startWrite()
@@ -56,7 +57,7 @@ class TokenStore(context: Context) {
                     init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, iv))
                 }
                 val plain = JSONObject(String(cipher.doFinal(input.readBytes()), Charsets.UTF_8))
-                StoredSession(plain.getString("token"), plain.getLong("expiresAt"))
+                StoredSession(plain.getString("token"), plain.getLong("expiresAt"), plain.optString("origin").takeIf { it.isNotBlank() })
             }
         }.getOrElse { clear(); return null }
         return result.takeIf { !requireValid || it.expiresAt > System.currentTimeMillis() }

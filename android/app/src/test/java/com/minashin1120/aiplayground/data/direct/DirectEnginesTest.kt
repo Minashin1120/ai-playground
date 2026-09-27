@@ -158,7 +158,9 @@ class DirectEnginesTest {
         assertEquals("xai", router.route("grok-4.6", "chat")?.provider)
         assertEquals("openai", router.route("gpt-5-search-api", "chat")?.provider)
         assertEquals("deepseek", router.route("deepseek-v4-pro", "chat")?.provider)
-        assertNull(router.route("veo-3.1-generate-preview", "video"))
-        assertNull(router.route("gpt-image-2", "image"))
+        // Media models run on the device since 1.40.0; music and realtime sessions still do not.
+        assertEquals("gemini", router.route("veo-3.1-generate-preview", "video")?.provider)
+        assertEquals("openai", router.route("gpt-image-2", "image")?.provider)
+        assertNull(router.route("lyria-3.5", "music"))
     }
 }

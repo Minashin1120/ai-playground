@@ -19,9 +19,9 @@ internal val LOCAL_PROFILE_HIDDEN_TABS = setOf(SettingsTab.Account, SettingsTab.
  * ANDROID_ONLY.md: the "接続" card after the Android card in the General tab. Shows the server (or the
  * no-account profile) and switches serverless mode of the signed-in account.
  */
-internal fun connectionCard(state: ChatState, model: ChatViewModel): SettingsCardSpec =
+internal fun connectionCard(state: ChatState, model: ChatViewModel, ctx: AccountSettingsContext): SettingsCardSpec =
     SettingsCardSpec(SettingsTab.General, "connection", "接続",
-        "接続 接続先 サーバー不使用モード サーバーを経由せずに送信 アカウントなし この端末 サーバーにログイン") {
+        "接続 接続先 サーバー不使用モード サーバーを経由せずに送信 アカウントなし この端末 サーバーにログイン 同期 今すぐ同期 自動同期 APIキーを取り込む") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.localProfile) {
                 SettingsFieldLabel("接続先")
@@ -40,7 +40,35 @@ internal fun connectionCard(state: ChatState, model: ChatViewModel): SettingsCar
                 )
                 if (state.serverless) {
                     SettingsDesc("このモードでは、Batch、Realtime、Lyria、動画生成、MCP、ファイル作成、サーバーでのPython実行など、サーバーで処理する機能は使えません。")
+                    SettingsFieldLabel("同期", Modifier.padding(top = 4.dp))
+                    SettingsCheck("自動で同期する（モバイルデータ通信は「端末キャッシュ」の設定に従う）", state.autoSync, model::setAutoSync)
+                    SettingsDesc(when {
+                        state.syncing -> "同期しています…"
+                        state.lastSyncAt != null -> "最終同期: " + formatSyncTime(state.lastSyncAt)
+                        else -> "まだ同期していません。"
+                    })
+                    state.syncMessage?.let { SettingsDesc(it) }
+                    SettingsSmallButton(if (state.syncing) "同期中…" else "今すぐ同期", model::syncNow, enabled = !state.syncing, fill = true)
+                    if (state.serverInfo?.secretsExport != false) {
+                        SettingsFieldLabel("APIキー", Modifier.padding(top = 4.dp))
+                        SettingsDesc("このモードでは端末に保存したAPIキーを使います。サーバーに保存済みのキーを、本人確認のうえで端末へ取り込めます。")
+                        SettingsSmallButton("サーバーのAPIキーを端末へ取り込む", {
+                            ctx.ops.run("APIキーを取り込めませんでした") { model.importServerSecrets(exportSecrets()) }
+                        }, fill = true)
+                    }
+                    if (state.localImportAvailable) {
+                        SettingsFieldLabel("アカウントなしのチャット", Modifier.padding(top = 4.dp))
+                        SettingsDesc("「サーバーを使わずに始める」で作成したチャットを、このアカウント（${state.account?.name.orEmpty()} / ${originLabel(ServerOrigin.current)}）へ取り込み、次の同期でアップロードします。")
+                        SettingsSmallButton("端末のチャットをこのアカウントへ取り込む", {
+                            ctx.confirm("アカウントなしで作成したチャットを「${state.account?.name.orEmpty()}」（${originLabel(ServerOrigin.current)}）へ取り込み、サーバーにアップロードしますか？") {
+                                model.importLocalProfileChats()
+                            }
+                        }, fill = true)
+                    }
                 }
             }
         }
     }
+
+private fun formatSyncTime(millis: Long): String =
+    java.text.SimpleDateFormat("yyyy/MM/dd HH:mm", java.util.Locale.JAPAN).format(java.util.Date(millis))

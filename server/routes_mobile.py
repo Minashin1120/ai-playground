@@ -155,6 +155,8 @@ def mobile_config():
         'auth_methods': _mobile_auth_methods(),
         'auth_callback_modes': ['app_link', 'app_scheme'],
         'app_links_configured': bool((os.getenv('ANDROID_APP_LINK_SHA256') or '').strip()),
+        'sync_api_version': 1,
+        'secrets_export': True,
         'e2ee_supported': True,
         'encryption_mode': 'server_managed_at_rest',
         'allowed_endpoints': [

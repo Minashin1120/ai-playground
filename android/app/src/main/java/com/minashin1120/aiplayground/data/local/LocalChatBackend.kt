@@ -223,7 +223,7 @@ class LocalChatBackend(
             defaults, route.provider)
         val all = store.messages(threadId)
         val turns = history(all, userId, preferences, quote)
-        val assistantId = store.appendMessage(threadId, LocalChatStore.NewMessage("assistant", "", userId, model = model, gemUuid = gemUuid, gemName = gemName))
+        val assistantId = store.appendMessage(threadId, LocalChatStore.NewMessage("assistant", "", userId, model = model, gemUuid = gemUuid, gemName = gemName, generating = true))
         var partialContent = ""
         var partialThought = ""
         var lastSave = 0L
@@ -235,17 +235,17 @@ class LocalChatBackend(
             }
             val outputs = result.files.map { file -> store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong()) }
             store.updateMessage(threadId, assistantId, result.content, result.thought, result.tokensIn, result.tokensOut,
-                files = outputs.takeIf { it.isNotEmpty() })
+                files = outputs.takeIf { it.isNotEmpty() }, done = true)
             onEvent(JSONObject().put("type", "done"))
         } catch (e: CancellationException) {
-            withContext(NonCancellable) { store.updateMessage(threadId, assistantId, partialContent, partialThought) }
+            withContext(NonCancellable) { store.updateMessage(threadId, assistantId, partialContent, partialThought, done = true) }
             throw e
         } catch (e: Exception) {
             val text = when (e) {
                 is DirectApiException -> "API Error${if (e.status > 0) " (${e.status})" else ""}: ${e.message}"
                 else -> "Connection Error: ${e.message ?: e.javaClass.simpleName}"
             }
-            store.updateMessage(threadId, assistantId, errorContent(text, partialContent), partialThought)
+            store.updateMessage(threadId, assistantId, errorContent(text, partialContent), partialThought, done = true)
             onEvent(JSONObject().put("type", "error").put("content", text))
         } finally {
             onChanged()

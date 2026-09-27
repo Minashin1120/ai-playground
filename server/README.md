@@ -6,6 +6,7 @@
 | `mobile_auth.py` | Android専用Bearer認証、API許可範囲、HTTPS・Cookie分離、レスポンス保護。全フックより先に読み込む | ネイティブ認証、端末トークン、API権限 |
 | `routes_mobile.py` | Android端末連携、確認コード承認、トークン発行・失効、接続仕様API | Android連携フロー、接続情報 |
 | `routes_mobile_account.py` | Androidの設定用API：再認証、ユーザー名・パスワード変更、アカウント削除、簡易ログイン、ログインセッション、2FAの全体無効化、E2EE切替 | Android設定のアカウント・セキュリティ操作 |
+| `routes_mobile_sync.py` | Androidのサーバー不使用モード：端末チャットの同期（変更一覧・アップロード・削除）と、本人確認後のAPIキー取り出し | 同期API、端末へのキー取り込み |
 | `routes_mobile_auth.py` | Androidのネイティブ新規登録・パスワード／パスキーログイン・TOTP／WebAuthn 2FA・セキュリティ管理・初回セットアップとZIP取り込み・旧ブラウザー連携 | アプリ内認証、2FA・パスキー管理、初回設定 |
 | `request_hooks.py` | `@app.before_request`。古いログイン flash の除去、設定保存 flash の掃除、ユーザー別アップロード上限 | リクエスト前処理、flash 漏れ、アップロードサイズ |
 | `storage.py` | 容量制限、アップロードパス、添付の正規化、PDF/DOCX テキスト抽出、チャンクアップロード、サムネイルとメディアのメモリキャッシュ | ファイル保存、容量、添付、チャンク |

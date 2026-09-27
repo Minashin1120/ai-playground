@@ -235,6 +235,9 @@ def _delete_user_account_immediately(user):
     BannedIdentifier.query.filter_by(source_user_id=user_id).delete(synchronize_session=False)
     ChatLatencyTrace.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     FirstTokenLatencyMetric.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    SyncThreadState.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    SyncMessageRef.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    SyncTombstone.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     _unblock_identifiers(ips, tokens)
 
     user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))

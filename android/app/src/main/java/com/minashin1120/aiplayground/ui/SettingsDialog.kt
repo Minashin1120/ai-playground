@@ -133,7 +133,7 @@ fun SettingsDialog(
         .apply { add(indexOfFirst { it.key == "debug" }.coerceAtLeast(0), accountDataCard(transfer, importForm, accountCtx)) }
 
     val allCards = generalCards(state, form, localPythonDialog, { localPythonDialog = it }, notify) + androidCard(state, extras) +
-        connectionCard(state, model) +
+        connectionCard(state, model, accountCtx) +
         apiCards(state, form, notify) + promptCards(state, form) + displayCards(form) { colorPicker = true } +
         dataTab + accountCards(state, form, accountCtx) + securityCards(state, form, accountCtx) +
         twoFactorCards(state, form, accountCtx) + feedbackCards(state, model, notify) + mcpCards(state, model, extras, ops)

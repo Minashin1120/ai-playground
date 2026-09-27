@@ -444,6 +444,19 @@ AIが返した外部画像URL、リダイレクト先、任意リンクにはAnd
 - 対応するモデル：Gemini（テキスト・画像生成）、OpenAI（Responses API、検索モデルはChat Completions）、Anthropic、xAI（OpenAI互換Responses）、DeepSeek、Kimi、Mistral。それ以外（動画、音楽、TTS、Realtimeなど）はこの版では選択できません。Batch・Coding Modeは送信時に「使えません」と返します。Pythonは事業者側の実行環境（Geminiのcode_execution、OpenAIのcode_interpreter）を使います。
 - 停止は通信の切断で行い、途中までの回答を保存します。生成中は数秒ごとに途中保存します。エラーはサーバーと同じ `chat_error` の囲みで回答として保存します。
 
+#### 同期API（サーバー `server/routes_mobile_sync.py`、`sync_api_version: 1`）
+
+サーバー不使用モードの端末チャットは、アカウントと双方向に同期します（`data/sync/SyncEngine.kt`）。どちらもAndroid用Bearerだけで呼べ、WebのCookieでは使えません。
+
+- `GET /api/mobile/v1/sync/changes?since=<epoch ms>&cursor=<n>`：`since` がなければ全チャット、あればその時刻以降に変わったチャットと、削除されたチャット（`tombstones`）を返します。1ページ200件で、`has_more` と `next_cursor` で続きを取得します。一時チャットとライブラリ用スレッドは含みません。端末は `server_time_ms` の2分前を次回の `since` にします（変更時刻はコミット前に記録されるため、重なりを持たせます）。各チャットの本文は既存の `GET /api/threads/<id>`（`limit=200`、`before_id` で遡る）で取得し、端末側で全件を比較してマージします。
+- `POST /api/mobile/v1/sync/push`：`threads[]`（`client_uuid`、公開ID `id`、設定、`meta_changed_at_ms`、`messages[]`）と `deleted_threads[]`（公開ID）、`deleted_messages[]`（メッセージID）を受け取ります。メッセージは `client_uuid` ごとに一度だけ保存され（サーバーのDBで一意）、再送しても重複しません。親はサーバーIDかUUIDで指定し、親から順に保存します。添付は先に `/upload`（大きいファイルは `/upload/init|chunk|complete`）で上げた自分の参照だけを受け付けます。1回あたり100メッセージ・8MBまで、E2EE設定に従って暗号化し、E2EEの切り替え中は409 `e2ee_migration_in_progress` を返します。チャットの設定（タイトル・ブックマーク・チャット固有の指示など）は、後から変更した側が優先されます。
+- 変更の記録は別テーブル（`sync_thread_state`、`sync_message_ref`、`sync_tombstone`）に保存し、`thread`／`message` テーブルの形は変えません。SQLAlchemyの `after_flush` で記録し、ORMを通らない一括削除（メッセージ削除）は明示的に記録します。Webのサイドバー順（`updated_at`）は変えません。
+- 端末側の扱い：生成中の回答は完了するまで送りません。サーバーで削除されたメッセージは端末からも消し、その下に端末で追加した未送信のメッセージは、残っている直近の親へ付け替えます。サーバーで削除されたチャットに未送信のメッセージがある場合は、新しいチャットとして送り直します。容量超過などで送れなかった添付は本文だけ同期し、件数を「接続」カードに表示します。自動同期は変更の数秒後と、アプリが前面に戻ったときに行い、モバイルデータ通信は「端末キャッシュ」の設定に従います。
+
+#### APIキーの取り込み
+
+`POST /api/mobile/v1/secrets/export` は、利用者本人のAPIキー（`openai_key` など8種と `model_api_keys`）を返します。本人確認（`MOBILE_REAUTH_ENDPOINTS`、10分）が必要で、未確認なら403 `reauth_required` です。管理者用の環境変数キーは含めず、応答は保存されません（`Cache-Control: no-store`）。利用者ごとに1時間10回までです。
+
 ## 6. Androidプロジェクトの作成
 
 ### 6.1 開発環境

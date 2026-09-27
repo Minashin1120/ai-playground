@@ -63,6 +63,8 @@ MOBILE_ENDPOINT_METHODS = {
     'mobile_security_disable_2fa': {'POST'}, 'mobile_security_e2ee': {'POST'},
     'encryption_scan': {'GET'},
     'unlink_google': {'POST'}, 'unlink_minashin': {'POST'}, 'mobile_account_link_start': {'POST'},
+    # Serverless mode (routes_mobile_sync.py): chat sync and the user's own API keys.
+    'mobile_sync_changes': {'GET'}, 'mobile_sync_push': {'POST'}, 'mobile_secrets_export': {'POST'},
     'export_account_data': {'POST'}, 'get_latest_account_export': {'GET'},
     'download_account_export': {'GET'}, 'get_account_transfer_status': {'GET'},
     'cancel_account_transfer': {'POST'},
@@ -96,7 +98,7 @@ MOBILE_REAUTH_ENDPOINTS = {
     'mobile_account_delete', 'mobile_easy_login', 'mobile_sessions_revoke_all',
     'mobile_security_disable_2fa', 'export_account_data', 'download_account_export',
     'start_account_import_upload', 'import_account_data', 'unlink_google', 'unlink_minashin',
-    'mobile_account_link_start', 'admin_toggle_thread_encryption',
+    'mobile_account_link_start', 'admin_toggle_thread_encryption', 'mobile_secrets_export',
 }
 
 

@@ -103,6 +103,10 @@ class AccountApi internal constructor(private val api: PlaygroundApi, private va
     suspend fun linkStart(provider: String): String =
         withAppReturn(api.post("/api/mobile/v1/account/link/$provider/start", JSONObject(), token()).getString("path"))
 
+    /** Serverless mode: the account's own API keys (needs a recent re-authentication, `reauth_required` otherwise). */
+    suspend fun exportSecrets(): JSONObject =
+        api.post("/api/mobile/v1/secrets/export", JSONObject(), token()).getJSONObject("secrets")
+
     suspend fun unlinkGoogle() = api.post("/api/account/unlink_google", JSONObject(), token())
     suspend fun unlinkMinashin() = api.post("/api/account/unlink_minashin", JSONObject(), token())
 

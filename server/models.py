@@ -345,6 +345,103 @@ class ChatLatencyTrace(db.Model):
     import_signature = db.Column(db.String(64), nullable=True, index=True)
 
 
+# --- Android sync (serverless mode) -------------------------------------------------
+from sqlalchemy import event as _sa_event, select as _sa_select  # noqa: E402
+from sqlalchemy.orm import Session as _SyncOrmSession  # noqa: E402
+
+# Side tables so the thread/message tables keep their shape: which threads changed and
+# when (sync_thread_state), which messages came from which device record
+# (sync_message_ref, unique per user so a retry days later never duplicates), and which
+# synced chats were deleted (sync_tombstone).
+class SyncThreadState(db.Model):
+    __tablename__ = 'sync_thread_state'
+    thread_id = db.Column(db.Integer, primary_key=True, autoincrement=False)
+    user_id = db.Column(db.Integer, nullable=False)
+    client_uuid = db.Column(db.String(36), nullable=True)
+    changed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'client_uuid', name='uq_sync_thread_client'),
+        db.Index('ix_sync_thread_changed', 'user_id', 'changed_at'),
+    )
+
+
+class SyncMessageRef(db.Model):
+    __tablename__ = 'sync_message_ref'
+    message_id = db.Column(db.Integer, primary_key=True, autoincrement=False)
+    thread_id = db.Column(db.Integer, nullable=False, index=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    client_uuid = db.Column(db.String(36), nullable=False)
+    __table_args__ = (db.UniqueConstraint('user_id', 'client_uuid', name='uq_sync_message_client'),)
+
+
+class SyncTombstone(db.Model):
+    __tablename__ = 'sync_tombstone'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    public_id = db.Column(db.String(64), nullable=True)
+    client_uuid = db.Column(db.String(36), nullable=True)
+    deleted_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    __table_args__ = (db.Index('ix_sync_tombstone_user', 'user_id', 'deleted_at'),)
+
+
+def _sync_touch_threads(connection, thread_ids, now=None):
+    """Mark threads as changed for /api/mobile/v1/sync/changes (Core statements, safe inside a flush)."""
+    ids = sorted({int(t) for t in thread_ids if t})
+    if not ids:
+        return
+    now = now or datetime.utcnow()
+    state = SyncThreadState.__table__
+    thread = Thread.__table__
+    owners = dict(connection.execute(
+        _sa_select(thread.c.id, thread.c.user_id).where(thread.c.id.in_(ids))
+    ).all())
+    existing = {row[0] for row in connection.execute(_sa_select(state.c.thread_id).where(state.c.thread_id.in_(ids))).all()}
+    for thread_id in ids:
+        if thread_id in existing:
+            connection.execute(state.update().where(state.c.thread_id == thread_id).values(changed_at=now))
+        elif thread_id in owners:
+            connection.execute(state.insert().values(thread_id=thread_id, user_id=owners[thread_id], changed_at=now))
+
+
+def _sync_after_flush(session, flush_context):
+    if session.info.get('sync_suppress'):
+        return
+    try:
+        touched = set()
+        for obj in list(session.new) + list(session.dirty):
+            if isinstance(obj, Message) and obj.thread_id:
+                touched.add(obj.thread_id)
+            elif isinstance(obj, Thread) and obj.id:
+                touched.add(obj.id)
+        connection = session.connection()
+        state = SyncThreadState.__table__
+        refs = SyncMessageRef.__table__
+        tombstones = SyncTombstone.__table__
+        for obj in list(session.deleted):
+            if isinstance(obj, Message) and obj.thread_id:
+                touched.add(obj.thread_id)
+                connection.execute(refs.delete().where(refs.c.message_id == obj.id))
+            elif isinstance(obj, Thread) and obj.id:
+                touched.discard(obj.id)
+                row = connection.execute(_sa_select(state.c.client_uuid).where(state.c.thread_id == obj.id)).first()
+                if not obj.is_temporary:
+                    connection.execute(tombstones.insert().values(
+                        user_id=obj.user_id, public_id=obj.public_id,
+                        client_uuid=row[0] if row else None, deleted_at=datetime.utcnow()))
+                connection.execute(state.delete().where(state.c.thread_id == obj.id))
+                connection.execute(refs.delete().where(refs.c.thread_id == obj.id))
+        _sync_touch_threads(connection, touched)
+    except Exception:
+        # Sync bookkeeping must never break a chat save; the next change retries it.
+        try:
+            logger.exception('sync bookkeeping failed')
+        except Exception:
+            pass
+
+
+_sa_event.listen(_SyncOrmSession, 'after_flush', _sync_after_flush)
+
+
 # MCP外部連携（mcp_service）のモデル定義を db.create_all() より前に登録する。
 # mcp_service は app/mcp_service に置き、PyPI の公式 mcp SDK との名前衝突を避けている。
 from mcp_service import models as _mcp_models  # noqa: E402,F401

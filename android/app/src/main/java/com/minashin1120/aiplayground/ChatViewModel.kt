@@ -25,6 +25,7 @@ import com.minashin1120.aiplayground.data.direct.DirectRouter
 import com.minashin1120.aiplayground.data.local.LocalChatBackend
 import com.minashin1120.aiplayground.data.local.LocalChatStore
 import com.minashin1120.aiplayground.data.local.LocalProfiles
+import com.minashin1120.aiplayground.data.sync.SyncEngine
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -71,6 +72,10 @@ data class ChatState(
     val localProfile: Boolean = false,
     /** Serverless mode of a signed-in account: answers come straight from the providers, chats are kept on the device. */
     val serverless: Boolean = false,
+    /** Serverless mode sync with the account: running, automatic, last success (epoch ms), last result or error. */
+    val syncing: Boolean = false, val autoSync: Boolean = true, val lastSyncAt: Long? = null, val syncMessage: String? = null,
+    /** The no-account profile has chats that can be copied into this account. */
+    val localImportAvailable: Boolean = false,
     /** The chat Turnstile check page (Web `#bot-detection-overlay`) while it is open in the browser. */
     val sessionTurnstileUrl: String? = null,
     /** Web `#batch-notification-banner`: (text, thread to open) after a Batch job finished. */
@@ -193,6 +198,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Device store of the active profile while chats are local (no-account profile or serverless mode). */
     private var localChats: LocalChatStore? = null
     private val directHttp by lazy { DirectHttp() }
+    /** Separate client for background sync, so its requests never show the global spinner. */
+    private val syncApi by lazy { PlaygroundApi() }
+    private var syncJob: Job? = null
+    private var syncScheduleJob: Job? = null
     private val store = TokenStore(application)
     private val playIntegrity = PlayIntegrityClient(application)
     private var integrityTurnstileTicket: String? = null
@@ -377,10 +386,100 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         localBackend = LocalChatBackend(profile.chats, profile.settings, defaults, DirectRouter(directHttp), accountName, fallback,
             modeOf = { id -> state.value.account?.models?.firstOrNull { it.id == id }?.mode
                 ?: defaults.json.optJSONArray("models")?.let { rows -> (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
-                    .firstOrNull { it.optString("id") == id }?.optString("mode") } ?: "chat" })
+                    .firstOrNull { it.optString("id") == id }?.optString("mode") } ?: "chat" },
+            onChanged = { if (fallback != null) scheduleSync() })
     }
 
-    private fun closeLocalChats() { localChats = null; localBackend = null }
+    private fun closeLocalChats() {
+        syncScheduleJob?.cancel(); syncJob?.cancel()
+        localChats = null; localBackend = null
+    }
+
+    private fun autoSyncPrefKey(accountId: Int) = "autosync_" + LocalProfiles.accountKey(accountId)
+
+    /** Settings "接続" card: automatic sync while serverless mode is on. */
+    fun setAutoSync(enabled: Boolean) {
+        val account = state.value.account ?: return
+        prefs.edit().putBoolean(autoSyncPrefKey(account.id), enabled).apply()
+        mutable.update { it.copy(autoSync = enabled) }
+        if (enabled) scheduleSync()
+    }
+
+    /** A sync a few seconds after the last change; automatic syncs follow the mobile-data setting of the device cache. */
+    private fun scheduleSync(delayMillis: Long = 3000) {
+        if (!state.value.serverless || !state.value.autoSync || session == null) return
+        syncScheduleJob?.cancel()
+        syncScheduleJob = viewModelScope.launch {
+            delay(delayMillis)
+            val metered = runCatching { connectivity?.isActiveNetworkMetered == true }.getOrDefault(false)
+            if (!hasUsableNetwork() || (metered && !state.value.cacheMobileDataAllowed)) return@launch
+            runSync(manual = false)
+        }
+    }
+
+    /** Settings "今すぐ同期". */
+    fun syncNow() { viewModelScope.launch { runSync(manual = true) } }
+
+    private suspend fun runSync(manual: Boolean) {
+        val store = localChats ?: return
+        if (!state.value.serverless || session == null || syncJob?.isActive == true) return
+        val job = viewModelScope.launch {
+            mutable.update { it.copy(syncing = true, syncMessage = null) }
+            try {
+                val report = SyncEngine(store, syncApi) { token() }.run()
+                val now = System.currentTimeMillis()
+                state.value.account?.let { account -> prefs.edit().putLong("last_sync_" + LocalProfiles.accountKey(account.id), now).apply() }
+                val parts = listOfNotNull(
+                    "送信 ${report.uploadedMessages}件、受信 ${report.downloadedChats}件",
+                    report.skippedAttachments.takeIf { it > 0 }?.let { "サーバーへ送れなかった添付 ${it}件" },
+                    report.rejected.takeIf { it > 0 }?.let { "次回に再送するメッセージ ${it}件" },
+                )
+                mutable.update { it.copy(syncing = false, lastSyncAt = now, syncMessage = parts.joinToString("、")) }
+                if (!state.value.streaming) {
+                    runCatching { fetchThreads(false) }
+                    state.value.selected?.id?.let { id -> if (!state.value.busy) runCatching { loadMessages(id, autoResume = false) } }
+                }
+            } catch (e: CancellationException) { mutable.update { it.copy(syncing = false) }; throw e }
+            catch (e: Exception) {
+                val message = when {
+                    e is ApiException && e.code == "turnstile_required" -> "安全性の確認が必要です。送信欄から一度送信するか、しばらく待ってから同期してください。"
+                    e is ApiException && e.code == "e2ee_migration_in_progress" -> "暗号化の切り替え中のため、完了後に同期します。"
+                    e is ApiException && e.status == 401 -> "ログインの有効期限が切れました。"
+                    else -> "同期できませんでした: " + (e.message ?: e.javaClass.simpleName)
+                }
+                mutable.update { it.copy(syncing = false, syncMessage = message) }
+                if (manual && e is ApiException && e.code == "turnstile_required") startSessionTurnstile()
+                if (e is ApiException && e.status == 401) report(e)
+            }
+        }
+        syncJob = job
+        job.join()
+    }
+
+    /** Settings "サーバーのAPIキーを端末へ取り込む": the account's own keys (after re-authentication) go to the device store. */
+    fun importServerSecrets(secrets: JSONObject) {
+        val account = state.value.account ?: return
+        val settings = localProfiles.account(account.id).settings
+        viewModelScope.launch {
+            val count = withContext(Dispatchers.IO) {
+                settings.importSecrets(secrets, overwrite = true)
+                PROVIDER_KEY_FIELDS.count { secrets.optString(it).isNotBlank() } + (secrets.optJSONObject("model_api_keys")?.length() ?: 0)
+            }
+            notify(if (count > 0) "APIキーを${count}件、端末に取り込みました" else "サーバーに保存されたAPIキーはありません")
+            runCatching { fetchPreferences() }
+        }
+    }
+
+    /** Settings: copies the no-account profile's chats into this account (uploaded by the next sync). */
+    fun importLocalProfileChats() {
+        val account = state.value.account ?: return
+        viewModelScope.launch {
+            val count = withContext(Dispatchers.IO) { localProfiles.account(account.id).chats.importFrom(localProfiles.local().chats) }
+            notify(if (count > 0) "端末のチャットを${count}件取り込みました" else "取り込むチャットはありません")
+            runCatching { fetchThreads(false) }
+            scheduleSync(0)
+        }
+    }
 
     /** Login screen "サーバーを使わずに始める": a device-only profile, no network to the Playground server. */
     fun startLocalProfile() {
@@ -433,7 +532,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (state.value.localProfile) return
         val enabled = prefs.getBoolean(serverlessPrefKey(account.id), false)
         if (enabled) useLocalChats(localProfiles.account(account.id), account.name, fallback = serverBackend) else closeLocalChats()
-        mutable.update { it.copy(serverless = enabled) }
+        val key = LocalProfiles.accountKey(account.id)
+        mutable.update { it.copy(serverless = enabled, autoSync = prefs.getBoolean(autoSyncPrefKey(account.id), true),
+            lastSyncAt = prefs.getLong("last_sync_$key", 0L).takeIf { value -> value > 0 }, syncMessage = null,
+            localImportAvailable = enabled && localProfiles.hasLocalData()) }
+        if (enabled) scheduleSync(0)
     }
 
     /** Stores an attachment on the device while chats are local; null means upload it to the server. */
@@ -1138,6 +1241,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (value && state.value.account != null && !state.value.localProfile) startBatchPolling()
         if (returning && state.value.account != null && state.value.selected != null && !state.value.busy) refresh()
         if (returning && state.value.account != null) startCacheSyncIfAllowed()
+        if (returning && state.value.serverless) scheduleSync()
     }
     fun pair() {
         if (state.value.pairing) return

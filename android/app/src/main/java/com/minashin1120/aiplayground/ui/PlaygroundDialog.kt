@@ -110,7 +110,7 @@ internal fun WebModalScrim(color: Color? = null) {
     val reduce = LocalReduceMotion.current
     val alpha = remember { Animatable(0f) }
     LaunchedEffect(visible) {
-        alpha.animateTo(if (visible) 1f else 0f, motionTween(reduce, 320, PlaygroundMotion.WebStandard))
+        alpha.animateTo(if (visible) 1f else 0f, motionTween(reduce, PlaygroundMotion.MODAL_SCRIM_EXIT, PlaygroundMotion.WebStandard))
     }
     val tint = color ?: if (web.isLight) Color(15, 23, 42).copy(alpha = 0.35f) else Color(3, 7, 16).copy(alpha = 0.72f)
     Box(Modifier.fillMaxSize().background(tint.copy(alpha = tint.alpha * alpha.value)))

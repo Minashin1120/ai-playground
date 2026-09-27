@@ -65,6 +65,8 @@ internal object PlaygroundMotion {
 
     /** Exit length of modal panels (Web `.modal-close`: 220ms); hosts keep the dialog composed at least this long. */
     const val MODAL_EXIT = 220
+    /** Modal scrim fade; the host must outlive both the panel and this background transition. */
+    const val MODAL_SCRIM_EXIT = 320
 
     /** Web `--ease-out` and `--ease-standard`. */
     val WebEaseOut: Easing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
@@ -168,7 +170,7 @@ internal fun ModalHost(visible: Boolean, content: @Composable () -> Unit) {
         if (visible) {
             present = true
         } else {
-            if (!reduce) delay(PlaygroundMotion.MODAL_EXIT + 40L)
+            if (!reduce) delay(maxOf(PlaygroundMotion.MODAL_EXIT, PlaygroundMotion.MODAL_SCRIM_EXIT) + 40L)
             present = false
         }
     }

@@ -132,10 +132,13 @@ fun SettingsDialog(
     val dataTab = dataCards(state, model, form, extras).toMutableList()
         .apply { add(indexOfFirst { it.key == "debug" }.coerceAtLeast(0), accountDataCard(transfer, importForm, accountCtx)) }
 
-    val cards = generalCards(state, form, localPythonDialog, { localPythonDialog = it }, notify) + androidCard(state, extras) +
+    val allCards = generalCards(state, form, localPythonDialog, { localPythonDialog = it }, notify) + androidCard(state, extras) +
+        connectionCard(state, model) +
         apiCards(state, form, notify) + promptCards(state, form) + displayCards(form) { colorPicker = true } +
         dataTab + accountCards(state, form, accountCtx) + securityCards(state, form, accountCtx) +
         twoFactorCards(state, form, accountCtx) + feedbackCards(state, model, notify) + mcpCards(state, model, extras, ops)
+    // The no-account profile has no server account: account, security, 2FA, feedback, MCP and account data are hidden.
+    val cards = if (state.localProfile) allCards.filter { it.tab !in LOCAL_PROFILE_HIDDEN_TABS && it.key != "account-data" } else allCards
 
     PlaygroundDialog(
         onDismissRequest = onDismiss,
@@ -289,7 +292,7 @@ private fun SettingsTabRow(active: SettingsTab, cards: List<SettingsCardSpec>, q
     val lineColor = if (web.isLight) Color(15, 23, 42).copy(alpha = 0.10f) else web.line
     val hits = if (query.isEmpty()) emptyMap() else cards.filter { it.matches(query) }.groupingBy { it.tab }.eachCount()
     val tabs: @Composable (Modifier) -> Unit = { itemModifier ->
-        SettingsTab.entries.forEach { entry ->
+        SettingsTab.entries.filter { entry -> cards.any { it.tab == entry } }.forEach { entry ->
             SettingsTabButton(entry, entry == active, hits[entry] ?: 0, phone, itemModifier) { onSelect(entry) }
         }
     }

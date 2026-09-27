@@ -428,6 +428,22 @@ AIが返した外部画像URL、リダイレクト先、任意リンクにはAnd
 
 ストリームには完全なイベント連番・exactly-once保証がありません。競合による重複等があり得るため、完了後のDB履歴を表示の正本にします。アプリ停止中もRQでの生成が続く場合があります。
 
+### 5.2 サーバー不使用モード・アカウントなしで開始（Android 1.38.0以降）
+
+端末だけで回答を生成する2つの使い方があります。どちらも画面はサーバー利用時と同じで、`data/local/LocalChatBackend.kt` が `/api/threads`、`/api/threads/<id>`、`/chat_stream` などの同じパスに、サーバーと同じJSON形で端末から応答します。
+
+- **アカウントなしで開始**：ログイン画面の「サーバーを使わずに始める」。Playgroundサーバーには一切接続しません（接続状態の監視・Batchの確認も行いません）。モデル一覧、自動注入プロンプト、Coding Modeの指示文は、サーバーから生成して同梱した `assets/serverless-defaults.json`（`android/ci/sync-serverless-defaults.py --check` で検査）を使います。
+- **サーバー不使用モード**：ログイン中のアカウントのまま、設定の「接続」カードで切り替えます（アカウントとサーバーの組ごとに保存）。チャットの送信・保存・添付は端末で行い、設定・Gem・MCP・アカウント操作などはこれまでどおりサーバーへ送ります。システムプロンプトは、サーバーから取得した設定（`global_system_prompt_effective`、`auto_system_prompt_notices_config` など）を端末に保存して組み立てます。
+
+共通の仕様:
+
+- 事業者APIへの接続は `data/direct/DirectHttp.kt` の専用クライアントで、許可したAPIホスト（Google Generative Language／Vertex、OpenAI、Anthropic、xAI、DeepSeek、Moonshot、Mistral）だけにhttpsで送ります。Cookieなし、リダイレクトなし、ログ出力なしです。Anthropicへは、サーバー以外からの呼び出しで必要な `anthropic-dangerous-direct-browser-access` ヘッダーを付けます。
+- APIキーは端末のAndroid Keystoreで暗号化して保存し（チャットとは別の鍵）、画面にはサーバーと同じマスク（`********`）だけを返します。モデル別キー → プロバイダ別キーの順に選ぶのはサーバーと同じです。サーバーの管理者用フォールバックキーは使いません。
+- システムプロンプトはサーバーの組み立て順（Gemの指示 → 運営の全体指示または現在時刻 → 利用者の指示 → チャット固有の指示 → Coding Mode → 自動注入）を `data/direct/SystemPromptBuilder.kt` に移植しています。
+- 添付は端末に暗号化して保存し、メッセージには `local/<uuid>.<ext>` の参照を記録します（サーバーの `uid/ファイル名` 参照とは重なりません）。画像・PDFはそのまま、DOCX・XLSX・テキストは端末でテキスト化して送ります。
+- 対応するモデル：Gemini（テキスト・画像生成）、OpenAI（Responses API、検索モデルはChat Completions）、Anthropic、xAI（OpenAI互換Responses）、DeepSeek、Kimi、Mistral。それ以外（動画、音楽、TTS、Realtimeなど）はこの版では選択できません。Batch・Coding Modeは送信時に「使えません」と返します。Pythonは事業者側の実行環境（Geminiのcode_execution、OpenAIのcode_interpreter）を使います。
+- 停止は通信の切断で行い、途中までの回答を保存します。生成中は数秒ごとに途中保存します。エラーはサーバーと同じ `chat_error` の囲みで回答として保存します。
+
 ## 6. Androidプロジェクトの作成
 
 ### 6.1 開発環境

@@ -20,6 +20,11 @@ import androidx.lifecycle.viewModelScope
 import com.minashin1120.aiplayground.data.*
 import com.minashin1120.aiplayground.data.backend.ChatBackend
 import com.minashin1120.aiplayground.data.backend.ServerChatBackend
+import com.minashin1120.aiplayground.data.direct.DirectHttp
+import com.minashin1120.aiplayground.data.direct.DirectRouter
+import com.minashin1120.aiplayground.data.local.LocalChatBackend
+import com.minashin1120.aiplayground.data.local.LocalChatStore
+import com.minashin1120.aiplayground.data.local.LocalProfiles
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -62,6 +67,10 @@ data class ChatState(
     /** The server the app signs in to (login screen "接続先"): label, its config, check in progress, error, recent list. */
     val serverLabel: String = originLabel(ServerOrigin.DEFAULT), val serverInfo: ServerInfo? = null,
     val serverChecking: Boolean = false, val serverError: String? = null, val savedServers: List<String> = emptyList(),
+    /** No-account profile ("サーバーを使わずに始める"): everything runs and is stored on the device. */
+    val localProfile: Boolean = false,
+    /** Serverless mode of a signed-in account: answers come straight from the providers, chats are kept on the device. */
+    val serverless: Boolean = false,
     /** The chat Turnstile check page (Web `#bot-detection-overlay`) while it is open in the browser. */
     val sessionTurnstileUrl: String? = null,
     /** Web `#batch-notification-banner`: (text, thread to open) after a Batch job finished. */
@@ -180,6 +189,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Set while a no-account profile or serverless mode answers chat endpoints on the device. */
     private var localBackend: ChatBackend? = null
     private val backend: ChatBackend get() = localBackend ?: serverBackend
+    private val localProfiles = LocalProfiles(application)
+    /** Device store of the active profile while chats are local (no-account profile or serverless mode). */
+    private var localChats: LocalChatStore? = null
+    private val directHttp by lazy { DirectHttp() }
     private val store = TokenStore(application)
     private val playIntegrity = PlayIntegrityClient(application)
     private var integrityTurnstileTicket: String? = null
@@ -321,6 +334,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             cacheMobileDataAllowed = prefs.getBoolean("offline_cache_mobile_data", false),
         ) }
         restoreServerOrigin(withContext(Dispatchers.IO) { store.loadForOffline() }?.origin ?: prefs.getString(PREF_SERVER_ORIGIN, null))
+        if (prefs.getString(PREF_PROFILE_MODE, PROFILE_SERVER) == PROFILE_LOCAL) {
+            // The no-account profile never contacts the Playground server.
+            enterLocalProfile()
+            mutable.update { it.copy(starting = false) }
+            return@launch
+        }
         runCatching { api.get("/api/mobile/v1/config") }.getOrNull()?.let { config ->
             val info = parseServerInfo(ServerOrigin.current, config)
             if (info != null) applyServerInfo(info) else mutable.update { it.copy(
@@ -346,7 +365,82 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         refreshOfflineCacheStats()
         mutable.update { it.copy(starting = false) }
     } }
-    private fun token(): String = session?.token ?: throw IOException("端末連携が必要です。")
+    private fun token(): String = session?.token ?: if (state.value.localProfile) "" else throw IOException("端末連携が必要です。")
+
+    /** Chats are answered on the device: offline checks for chat operations do not apply. */
+    private val chatLocal: Boolean get() = localChats != null
+
+    /** Opens the device store of [profile]; [fallback] is the server for a signed-in account in serverless mode. */
+    private fun useLocalChats(profile: LocalProfiles.Profile, accountName: String, fallback: ChatBackend?) {
+        val defaults = localProfiles.defaults()
+        localChats = profile.chats
+        localBackend = LocalChatBackend(profile.chats, profile.settings, defaults, DirectRouter(directHttp), accountName, fallback,
+            modeOf = { id -> state.value.account?.models?.firstOrNull { it.id == id }?.mode
+                ?: defaults.json.optJSONArray("models")?.let { rows -> (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
+                    .firstOrNull { it.optString("id") == id }?.optString("mode") } ?: "chat" })
+    }
+
+    private fun closeLocalChats() { localChats = null; localBackend = null }
+
+    /** Login screen "サーバーを使わずに始める": a device-only profile, no network to the Playground server. */
+    fun startLocalProfile() {
+        if (state.value.authBusy) return
+        viewModelScope.launch {
+            prefs.edit().putString(PREF_PROFILE_MODE, PROFILE_LOCAL).apply()
+            enterLocalProfile()
+        }
+    }
+
+    private suspend fun enterLocalProfile() {
+        useLocalChats(localProfiles.local(), LOCAL_PROFILE_NAME, fallback = null)
+        mutable.update { it.copy(localProfile = true, serverless = false, offline = false, connectionBannerVisible = false,
+            connectionStatus = ConnectionStatus.ONLINE, authError = null) }
+        runCatching { loadAccount() }.onFailure { report(it) }
+    }
+
+    /** Leaves the no-account profile for the login screen; the device chats stay for a later upload. */
+    fun leaveLocalProfile() { viewModelScope.launch {
+        streamJob?.cancel(); navigationJob?.cancel()
+        prefs.edit().putString(PREF_PROFILE_MODE, PROFILE_SERVER).apply()
+        closeLocalChats()
+        val server = state.value
+        mutable.value = ChatState(starting = false, serverLabel = server.serverLabel, serverInfo = server.serverInfo,
+            savedServers = server.savedServers, googleServerClientId = server.googleServerClientId,
+            integrityProjectNumber = server.integrityProjectNumber, historyCacheMode = server.historyCacheMode,
+            cacheMobileDataAllowed = server.cacheMobileDataAllowed)
+        runCatching { api.get("/api/mobile/v1/config") }.getOrNull()?.let { config ->
+            parseServerInfo(ServerOrigin.current, config)?.let(::applyServerInfo)
+        }
+    } }
+
+    /** Settings "接続" card: serverless mode of the signed-in account (answers from the providers, chats on the device). */
+    fun setServerless(enabled: Boolean) {
+        val account = state.value.account ?: return
+        if (state.value.localProfile || state.value.streaming) return
+        viewModelScope.launch {
+            prefs.edit().putBoolean(serverlessPrefKey(account.id), enabled).apply()
+            applyServerlessMode(account)
+            newChat()
+            runCatching { fetchThreads(false) }.onFailure { report(it) }
+            notify(if (enabled) "サーバー不使用モードをオンにしました" else "サーバー不使用モードをオフにしました")
+        }
+    }
+
+    private fun serverlessPrefKey(accountId: Int) = "serverless_" + LocalProfiles.accountKey(accountId)
+
+    /** Applies the saved serverless choice of [account] (called after the account loads). */
+    private fun applyServerlessMode(account: Account) {
+        if (state.value.localProfile) return
+        val enabled = prefs.getBoolean(serverlessPrefKey(account.id), false)
+        if (enabled) useLocalChats(localProfiles.account(account.id), account.name, fallback = serverBackend) else closeLocalChats()
+        mutable.update { it.copy(serverless = enabled) }
+    }
+
+    /** Stores an attachment on the device while chats are local; null means upload it to the server. */
+    private fun storeLocalUpload(name: String, mime: String, size: Long, opener: () -> java.io.InputStream): String? {
+        val store = localChats ?: return null
+        return opener().use { input -> store.saveFile(name, mime, input, size) }
+    }
 
     /** Points the app at the server saved with the session (or chosen last on the login screen). */
     private fun restoreServerOrigin(saved: String?) {
@@ -972,9 +1066,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val chosen = prefs.getString("model_${account.id}", account.defaultModel).orEmpty()
             .takeIf { chosen -> account.models.any { it.id == chosen && it.selectable } }
             ?: account.models.firstOrNull { it.selectable }?.id.orEmpty()
-        withContext(Dispatchers.IO) { offlineCache.saveAccount(account.id, me) }
-        prefs.edit().putString("offline_cache_account_id", account.id.toString()).apply()
-        markConnectionReachable()
+        if (!state.value.localProfile) {
+            withContext(Dispatchers.IO) { offlineCache.saveAccount(account.id, me) }
+            prefs.edit().putString("offline_cache_account_id", account.id.toString()).apply()
+            markConnectionReachable()
+            applyServerlessMode(account)
+        }
         mutable.update { it.copy(
             account = account, model = chosen, pairing = false, userCode = "", offline = false,
             setupRequired = false, authBusy = false, authError = null,
@@ -985,6 +1082,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         runCatching { fetchBatchJobs(notify = false) }.onFailure { report(it) }
         // The composer shows the MCP chip only when a server is enabled (Web `applyMcpPromptChipUi`).
         loadMcpServers()
+        if (state.value.localProfile) return
         if (foreground) startBatchPolling()
         if (state.value.historyCacheMode == HistoryCacheMode.FULL) startCacheSyncIfAllowed()
     }
@@ -1035,9 +1133,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (!value && state.value.lyria.active) stopLyria(save = false)
         if (!value) heartbeatJob?.cancel()
         if (!value) batchPollJob?.cancel()
-        if (value) startConnectionMonitor() else stopConnectionMonitor()
+        if (value && !state.value.localProfile) startConnectionMonitor() else stopConnectionMonitor()
         if (returning) recomputeLowBandwidth(notify = false)
-        if (value && state.value.account != null) startBatchPolling()
+        if (value && state.value.account != null && !state.value.localProfile) startBatchPolling()
         if (returning && state.value.account != null && state.value.selected != null && !state.value.busy) refresh()
         if (returning && state.value.account != null) startCacheSyncIfAllowed()
     }
@@ -1166,6 +1264,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun setConnectionUnavailable(requested: ConnectionStatus, requestedMessage: String = requested.defaultMessage()) {
+        if (state.value.localProfile) return
         // Web `setUnavailable`: a failed request only shows this server is unreachable; the Internet-offline
         // wording is kept for a device without a network.
         val siteOnly = requested == ConnectionStatus.OFFLINE && hasUsableNetwork()
@@ -1293,7 +1392,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         val next = !selected.isTemporary
         viewModelScope.launch {
-            if (state.value.offline) { notify("オフライン中はチャット設定を変更できません。"); return@launch }
+            if (state.value.offline && !chatLocal) { notify("オフライン中はチャット設定を変更できません。"); return@launch }
             try {
                 val reply = backend.put("/api/threads/${selected.id}/settings", JSONObject().put("is_temporary", next), token())
                 mutable.update { current -> current.copy(
@@ -1323,7 +1422,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun setImageMask(reference: String?) { mutable.update { it.copy(imageMask = reference) } }
     /** Web `uploadMaskFile`: the chosen mask image is uploaded as it is. */
     fun uploadImageMask(uri: Uri) {
-        if (state.value.banned || state.value.offline) return
+        if (state.value.banned || (state.value.offline && !chatLocal)) return
         viewModelScope.launch {
             try {
                 val resolver = getApplication<Application>().contentResolver
@@ -1331,8 +1430,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val bytes = withContext(Dispatchers.IO) { resolver.openInputStream(uri)?.use { it.readBytes() } }
                     ?: throw IOException("Mask upload failed")
                 val mime = local.mime.ifBlank { "image/png" }
-                val response = api.upload(local.name, bytes.toRequestBody(mime.toMediaType()), token())
-                setImageMask(response.getString("filename"))
+                val uploaded = withContext(Dispatchers.IO) { storeLocalUpload(local.name, mime, bytes.size.toLong()) { bytes.inputStream() } }
+                    ?: api.upload(local.name, bytes.toRequestBody(mime.toMediaType()), token()).getString("filename")
+                setImageMask(uploaded)
             } catch (e: CancellationException) { throw e }
             catch (e: ApiException) { notify(e.payload.optString("error").ifBlank { "Mask upload failed" }) }
             catch (e: Exception) { notify("Mask upload failed") }
@@ -1354,15 +1454,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun applyImageEdit(reference: String, png: ByteArray, attachOriginal: Boolean) {
         val row = state.value.attachments.firstOrNull { it.reference == reference } ?: return
-        if (state.value.offline) { notify("オフライン中はファイルをアップロードできません。"); return }
+        if (state.value.offline && !chatLocal) { notify("オフライン中はファイルをアップロードできません。"); return }
         val fileName = markedFileName(row.name.ifBlank { "marked.png" })
         mutable.update { current -> current.copy(editingAttachment = reference, attachments = current.attachments.map {
             if (it.reference == reference) it.copy(attachOriginal = attachOriginal) else it
         }) }
         viewModelScope.launch {
             try {
-                val response = api.upload(fileName, png.toRequestBody("image/png".toMediaType()), token())
-                val uploaded = response.getString("filename")
+                val uploaded = withContext(Dispatchers.IO) { storeLocalUpload(fileName, "image/png", png.size.toLong()) { png.inputStream() } }
+                    ?: api.upload(fileName, png.toRequestBody("image/png".toMediaType()), token()).getString("filename")
                 val original = row.original ?: row.copy(original = null, attachOriginal = false, edited = false)
                 mutable.update { current -> current.copy(attachments = current.attachments.map {
                     if (it.reference != reference) it
@@ -1388,12 +1488,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         navigationJob = viewModelScope.launch {
             delay(300)
             try {
-                if (state.value.offline) applyCachedThreads(query) else fetchThreads(false)
+                if (state.value.offline && !chatLocal) applyCachedThreads(query) else fetchThreads(false)
             } catch (e: Exception) { report(e) }
         }
     }
     private suspend fun fetchThreads(more: Boolean) {
-        if (state.value.offline) {
+        if (state.value.offline && !chatLocal) {
             applyCachedThreads(state.value.search)
             return
         }
@@ -1403,7 +1503,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (current.search != state.value.search) return
         val rows = reply.getJSONArray("threads")
         val items = (0 until rows.length()).map { parseThreadItem(rows.getJSONObject(it)) }
-        state.value.account?.let { account ->
+        if (!chatLocal) state.value.account?.let { account ->
             withContext(Dispatchers.IO) { offlineCache.saveThreads(account.id, items) }
             refreshOfflineCacheStats(account.id)
         }
@@ -1421,7 +1521,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(threads = visible, nextPage = null, offline = true) }
     }
     fun moreThreads() {
-        if (state.value.offline) return
+        if (state.value.offline && !chatLocal) return
         navigationJob?.cancel(); navigationJob = viewModelScope.launch { try { fetchThreads(true) } catch (e: Exception) { report(e) } }
     }
     fun newChat(temporary: Boolean = false) {
@@ -1474,7 +1574,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     private suspend fun loadMessages(id: String, older: Boolean = false, autoResume: Boolean = true) {
-        if (state.value.offline) {
+        if (state.value.offline && !chatLocal) {
             loadCachedMessages(id, older)
             return
         }
@@ -1534,7 +1634,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(enablePromptCache = reply.optBoolean("enable_prompt_caching")) }
             reply.nullableString("last_model").takeIf { it.isNotBlank() && it != state.value.model }?.let(::chooseModel)
         }
-        state.value.account?.let { account ->
+        if (!chatLocal) state.value.account?.let { account ->
             withContext(Dispatchers.IO) {
                 offlineCache.saveThread(
                     account.id, state.value.selected ?: return@withContext, all,
@@ -1546,7 +1646,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             refreshOfflineCacheStats(account.id)
         }
-        if (!older) syncHeartbeat()
+        if (!older && !chatLocal) syncHeartbeat()
         // Web `loadMessages`: an answer still running on the server is rejoined automatically.
         if (!older && autoResume && state.value.jobId != null && !state.value.streaming) resume()
     }
@@ -1613,7 +1713,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     /** [onNewChat] runs when the open chat was deleted (Web `startNewChat` also closes the phone sidebar). */
     fun deleteThread(thread: ThreadItem, onNewChat: () -> Unit = {}) { viewModelScope.launch {
-        if (state.value.offline) { notify("オフライン中は履歴を削除できません。"); return@launch }
+        if (state.value.offline && !chatLocal) { notify("オフライン中は履歴を削除できません。"); return@launch }
         try {
             backend.delete("/api/threads/${thread.id}", token())
             state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.deleteThread(account.id, thread.id) } }
@@ -1624,7 +1724,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Web `renameThread`: `prompt("Title:")` then PUT the new title; empty input is ignored. */
     fun renameThread(thread: ThreadItem, title: String) { viewModelScope.launch {
         if (title.isEmpty()) return@launch
-        if (state.value.offline) { notify("オフライン中はタイトルを変更できません。"); return@launch }
+        if (state.value.offline && !chatLocal) { notify("オフライン中はタイトルを変更できません。"); return@launch }
         try {
             val reply = backend.put("/api/threads/${thread.id}/title", JSONObject().put("title", title), token())
             val saved = reply.optString("title", title).ifBlank { title }
@@ -1644,7 +1744,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val id = numericId(message) ?: return
         val thread = state.value.selected ?: return
         viewModelScope.launch {
-            if (state.value.offline) { notify("オフライン中はメッセージを削除できません。"); return@launch }
+            if (state.value.offline && !chatLocal) { notify("オフライン中はメッセージを削除できません。"); return@launch }
             try {
                 backend.delete("/api/messages/$id", token())
                 if (state.value.selected?.id == thread.id) {
@@ -1716,7 +1816,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Web `openThreadModal`: a new chat is created first so its settings can be edited. */
     fun ensureThread(onReady: () -> Unit) {
         if (state.value.selected != null) { onReady(); return }
-        if (state.value.offline) { notify("オフライン中はメッセージを送信できません。"); return }
+        if (state.value.offline && !chatLocal) { notify("オフライン中はメッセージを送信できません。"); return }
         viewModelScope.launch {
             try {
                 val created = backend.post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
@@ -1742,7 +1842,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleBookmark(thread: ThreadItem) { viewModelScope.launch {
-        if (state.value.offline) { notify("オフライン中はブックマークを変更できません。"); return@launch }
+        if (state.value.offline && !chatLocal) { notify("オフライン中はブックマークを変更できません。"); return@launch }
         try {
             val reply = backend.post("/api/threads/${thread.id}/bookmark", JSONObject(), token())
             val bookmarked = reply.optBoolean("is_bookmarked")
@@ -1756,7 +1856,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun saveThreadSettings(title: String, instruction: String, includeGlobal: Boolean, temporary: Boolean) {
         val thread = state.value.selected ?: return
         viewModelScope.launch {
-            if (state.value.offline) { notify("オフライン中はチャット設定を変更できません。"); return@launch }
+            if (state.value.offline && !chatLocal) { notify("オフライン中はチャット設定を変更できません。"); return@launch }
             mutable.update { it.copy(busy = true) }
             try {
                 val normalizedTitle = title.trim().ifBlank { "新しいチャット" }
@@ -1787,7 +1887,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun saveChatInstructions(instruction: String, includeGlobal: Boolean, userPrompt: JSONObject, onDone: (Boolean) -> Unit) {
         val thread = state.value.selected ?: return onDone(false)
         viewModelScope.launch {
-            if (state.value.offline) { notify("オフライン中はチャット設定を変更できません。"); onDone(false); return@launch }
+            if (state.value.offline && !chatLocal) { notify("オフライン中はチャット設定を変更できません。"); onDone(false); return@launch }
             try {
                 backend.put("/api/threads/${thread.id}/settings", JSONObject()
                     .put("custom_instruction", instruction)
@@ -1854,7 +1954,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (!preChecked && !beginSend()) return
         var current = state.value
         if (current.banned) return
-        if (current.offline) { mutable.update { it.copy(notice = "オフライン中はメッセージを送信できません。") }; return }
+        if (current.offline && !chatLocal) { mutable.update { it.copy(notice = "オフライン中はメッセージを送信できません。") }; return }
         if (current.busy || (current.draft.isBlank() && current.attachments.isEmpty())) return
         if (current.attachments.size > ATTACHMENT_MAX_FILES) {
             notify("添付は最大${ATTACHMENT_MAX_FILES}件です。添付を減らして再送してください。")
@@ -2017,6 +2117,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "recording" -> { stopMicRecording(); return }
             "preparing", "transcribing" -> return
         }
+        // Voice input is transcribed by the server; the no-account profile has none yet.
+        if (state.value.localProfile) { notify("音声入力はサーバーにログインすると使えます。"); return }
         mutable.update { it.copy(micMode = "preparing", micLevels = emptyList()) }
         val app = getApplication<Application>()
         val file = File(app.cacheDir, "recording.m4a")
@@ -2466,6 +2568,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun stop() { viewModelScope.launch {
         val id = state.value.selected?.id ?: return@launch
         try {
+            if (chatLocal) {
+                // The answer is generated on the device: cancelling the request saves what arrived so far.
+                streamJob?.cancelAndJoin()
+                mutable.update { it.copy(streaming = false, status = "停止を要求しました。", live = LiveAnswer()) }
+                loadMessages(id)
+                return@launch
+            }
             backend.post("/api/stop_chat", JSONObject().put("thread_id", id).apply { state.value.jobId?.let { put("job_id", it) } }, token())
             streamJob?.cancelAndJoin()
             mutable.update { it.copy(streaming = false, status = "停止を要求しました。") }
@@ -3086,6 +3195,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun logout() { viewModelScope.launch {
+        if (state.value.localProfile) { leaveLocalProfile(); return@launch }
         try {
             backend.post("/api/mobile/v1/revoke", JSONObject(), token())
             clearSession()
@@ -3101,6 +3211,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
         lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
         withContext(NonCancellable + Dispatchers.IO) { store.clear() }
+        closeLocalChats()
         GoogleAuthClient.clearCredentialState(getApplication())
         cancelChatBubble(getApplication())
         session = null; failed = null
@@ -3120,7 +3231,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             enterBannedState(error)
             return
         }
-        if (error is ApiException && error.status == 401) clearSession()
+        if (error is ApiException && error.status == 401 && !state.value.localProfile) clearSession()
         val networkFailure = error !is ApiException && (error is java.net.ConnectException || error is java.net.UnknownHostException ||
             error is java.net.SocketTimeoutException || error is java.net.SocketException || error is IOException
         )
@@ -3285,6 +3396,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (state.value.offline) return null
             return withContext(Dispatchers.IO) { runCatching { api.loadExternalImage(reference, limit) }.getOrNull() }
         }
+        if (LocalChatStore.isLocalReference(reference)) {
+            val store = localChats ?: return null
+            return withContext(Dispatchers.IO) { store.loadFile(reference, maxOf(limit, 64L * 1024 * 1024)) }
+        }
         val accountId = state.value.account?.id ?: return null
         val cached = withContext(Dispatchers.IO) { offlineCache.loadFile(accountId, reference, thumbnail, limit) }
         if (cached != null) return cached.bytes
@@ -3300,7 +3415,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun upload(uris: List<Uri>) {
         if (state.value.banned) return
-        if (state.value.offline) { mutable.update { it.copy(notice = "オフライン中はファイルをアップロードできません。") }; return }
+        if (state.value.offline && !chatLocal) { mutable.update { it.copy(notice = "オフライン中はファイルをアップロードできません。") }; return }
         if (uris.isEmpty() || state.value.uploading) return
         // Web `handleFiles`: over the limit only the first files that still fit are added.
         val remain = ATTACHMENT_MAX_FILES - state.value.attachments.size
@@ -3321,8 +3436,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     val source = withContext(Dispatchers.IO) { prepareUpload(resolver, uri, local) }
                     mutable.update { it.copy(uploadName = source.name, uploadSent = 0,
                         uploadTotal = if (source.size > 0) source.size else 0) }
-                    val uploaded = if (source.size > CHUNK_UPLOAD_THRESHOLD_BYTES) uploadInChunks(source)
-                        else uploadWhole(source)
+                    val uploaded = withContext(Dispatchers.IO) { storeLocalUpload(source.name, source.mime, source.size, source.opener) }
+                        ?: if (source.size > CHUNK_UPLOAD_THRESHOLD_BYTES) uploadInChunks(source) else uploadWhole(source)
                     mutable.update { it.copy(attachments = it.attachments + Attachment(source.name, uploaded, source.mime),
                         uploadCompleted = it.uploadCompleted + 1) }
                 }
@@ -3450,6 +3565,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val directory = File(getApplication<Application>().cacheDir, "shared").apply { mkdirs() }
         val suffix = reference.substringBefore('?').substringAfterLast('.', "bin").take(8).filter { it.isLetterOrDigit() }.ifBlank { "bin" }
         val target = File(directory, "${UUID.randomUUID()}.$suffix")
+        if (LocalChatStore.isLocalReference(reference)) {
+            val store = localChats ?: throw IOException("この添付は別のプロファイルの端末内ファイルです。")
+            val mime = withContext(Dispatchers.IO) { store.materializeFile(reference, target) } ?: throw IOException("添付を開けません。")
+            return target to mime
+        }
         val cachedMime = withContext(Dispatchers.IO) { offlineCache.materializeFile(accountId, reference, target) }
         if (cachedMime != null) return target to cachedMime
         val mime = withContext(Dispatchers.IO) {
@@ -3975,7 +4095,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val id = state.value.selected?.id
         if (id == null) { notify("PDF化するスレッドを開いてください"); return }
         if (pdfExporting) { notify("PDF出力の準備中です。しばらくお待ちください。"); return }
-        if (state.value.offline) { notify("PDF出力に失敗しました"); return }
+        if (state.value.offline && !chatLocal) { notify("PDF出力に失敗しました"); return }
         pdfExporting = true
         // Web `openThreadPdfPrintDialog`: the branch on screen (`leaf_id`) with the 準備中 progress toast.
         notify("PDF出力の準備中です")
@@ -4008,6 +4128,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val MAX_SINGLE_UPLOAD_BYTES = 64L * 1024 * 1024
         const val PREF_BROWSER_LOGIN_VERIFIER = "browser_login_pkce_verifier"
         const val PREF_SERVER_ORIGIN = "server_origin"
+        const val PREF_PROFILE_MODE = "profile_mode"
+        const val PROFILE_LOCAL = "local"
+        const val PROFILE_SERVER = "server"
+        const val LOCAL_PROFILE_NAME = "この端末"
         const val PREF_SAVED_SERVERS = "saved_servers"
         const val PREF_BROWSER_LOGIN_STARTED_AT = "browser_login_started_at"
         const val BROWSER_LOGIN_TTL_MS = 10L * 60 * 1000

@@ -926,6 +926,7 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
             }
         }
         item { ServerOriginField(state, model) }
+        item { LocalProfileEntry(state, model) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (state.authTwoFactorTransaction != null) {
@@ -1035,6 +1036,18 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
                 TextButton(onClick = { onWeb("/") }, modifier = Modifier.fillMaxWidth()) { Text("Web版を開く") }
             }
         }
+    }
+}
+
+/** Login screen "サーバーを使わずに始める": the no-account profile (ANDROID_ONLY.md). */
+@Composable
+private fun LocalProfileEntry(state: ChatState, model: ChatViewModel) {
+    val colors = MaterialTheme.colorScheme
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        OutlinedButton(onClick = model::startLocalProfile, enabled = !state.authBusy,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) { Text("サーバーを使わずに始める") }
+        Text("アカウントなしで、この端末だけで使います。APIキーとチャットは端末内に暗号化して保存し、AIの各社APIへ直接送信します。あとからサーバーにログインしてチャットを同期できます。",
+            style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
     }
 }
 

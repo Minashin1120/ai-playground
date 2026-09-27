@@ -17,7 +17,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.minashin1120.aiplayground.ui.PlaygroundScreen
 
-class MainActivity : ComponentActivity() {
+open class MainActivity : ComponentActivity() {
     private val model: ChatViewModel by viewModels()
     private val updateModel: AppUpdateViewModel by viewModels()
     private val changelogModel: AppChangelogViewModel by viewModels()

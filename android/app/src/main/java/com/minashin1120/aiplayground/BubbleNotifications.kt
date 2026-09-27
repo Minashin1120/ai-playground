@@ -25,6 +25,13 @@ const val ANDROID_17_APP_BUBBLE_API = 37
 
 private const val BUBBLE_SHORTCUT_CATEGORY = "android.shortcut.conversation"
 
+/**
+ * Expanded notification bubble (Android 10-16). It is separate from the
+ * launcher activity so that the bubble's `documentLaunchMode="always"` does not
+ * make every launcher tap open another task.
+ */
+class ChatBubbleActivity : MainActivity()
+
 enum class ChatBubbleResult {
     POSTED,
     SETTINGS_REQUIRED,
@@ -38,7 +45,8 @@ internal fun bubbleTitle(thread: ThreadItem?): String =
 
 fun createChatBubble(context: Context, thread: ThreadItem?): ChatBubbleResult {
     // Android 17's app bubbles are a system windowing mode. The user adds an
-    // app from the launcher; notification BubbleMetadata is a separate API.
+    // app from the launcher (MainActivity itself, in a single task);
+    // notification BubbleMetadata is a separate API.
     if (Build.VERSION.SDK_INT >= ANDROID_17_APP_BUBBLE_API) {
         return ChatBubbleResult.ANDROID_17_USER_ACTION
     }
@@ -56,7 +64,7 @@ fun createChatBubble(context: Context, thread: ThreadItem?): ChatBubbleResult {
     createChatBubbleChannel(context)
     val threadId = bubbleThreadId(thread?.id)
     val title = bubbleTitle(thread)
-    val targetIntent = Intent(context, MainActivity::class.java).apply {
+    val targetIntent = Intent(context, ChatBubbleActivity::class.java).apply {
         action = Intent.ACTION_VIEW
         putExtra(EXTRA_BUBBLE_THREAD_ID, threadId)
         addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)

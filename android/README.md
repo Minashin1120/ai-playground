@@ -21,7 +21,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ChatViewModel.kt` | ネイティブ認証・パスキー／TOTP 2FA・セキュリティ管理・初回セットアップ／ZIP取り込み・旧端末連携・履歴・送信・再接続・アップロード状態 | アプリ操作・通信フロー |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ConnectionStatus.kt` | Web相当のハートビート接続状態・HTTP障害分類・監視間隔 | 接続状態・復帰表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/BatchNotifications.kt` | Batch完了通知チャンネルと安全な通知表示 | Batch通知を編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/BubbleNotifications.kt` | ユーザー操作で作成するチャットバブル通知と会話ショートカット | Androidバブル・通知・ショートカットを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/BubbleNotifications.kt` | ユーザー操作で作成するチャットバブル通知と会話ショートカット、Android 10〜16のバブル専用 `ChatBubbleActivity` | Androidバブル・通知・ショートカットを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTP、NDJSON、APIモデル、Keystore保存、Credential Managerのパスキー手順（`PasskeyClient.kt`） | 認証・通信・保存 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/PlayIntegrityClient.kt` | Play Integrity Standard APIの事前準備・要求内容に結び付いた認証token取得 | Android認証の端末リスク信号 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BrowserLoginPkce.kt` | ブラウザー経由ログインのPKCE（S256）verifier・challenge生成 | Google・MinashinのApp Link復帰を変更するとき |

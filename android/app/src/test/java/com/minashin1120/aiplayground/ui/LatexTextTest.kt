@@ -28,4 +28,18 @@ class LatexTextTest {
     @Test fun emptyInputIsEmpty() {
         assertEquals("", latexToDisplay("   "))
     }
+
+    @Test fun inlineMathFromGeminiReplyRenders() {
+        assertEquals("E = mc\u00B2", latexToDisplay(" E = mc^2 "))
+        assertEquals("x = (-b \u00B1 \u221A(b\u00B2 - 4ac))/(2a)", latexToDisplay("x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}"))
+    }
+
+    // Android's ICU regex engine throws on a bare brace that the JVM accepts, so the JVM
+    // test run cannot catch it by compiling the patterns; check the source form instead.
+    @Test fun patternsEscapeEveryBraceForIcu() {
+        LATEX_PATTERNS.forEach { regex ->
+            val bare = Regex("""(?<!\\)[{}]""").find(regex.pattern.replace("\\\\", ""))
+            assertTrue("bare brace in ${regex.pattern}", bare == null)
+        }
+    }
 }

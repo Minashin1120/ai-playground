@@ -6,7 +6,10 @@ package com.minashin1120.aiplayground.ui
  * or bundled JavaScript. Unsupported commands fall back to their literal form instead
  * of failing, so no markup is ever executed.
  */
-internal fun latexToDisplay(tex: String): String {
+internal fun latexToDisplay(tex: String): String =
+    runCatching { renderLatex(tex) }.getOrElse { tex.trim() }
+
+private fun renderLatex(tex: String): String {
     var value = tex.trim()
     if (value.isEmpty()) return ""
 
@@ -24,24 +27,20 @@ internal fun latexToDisplay(tex: String): String {
     ).forEach { value = value.replace(it, "") }
     listOf("\\,", "\\!", "\\;", "\\:", "\\ ").forEach { value = value.replace(it, " ") }
     value = value.replace("\\quad", "  ").replace("\\qquad", "    ")
-    value = value.replace(Regex("""\\begin\{[A-Za-z*]+}"""), "").replace(Regex("""\\end\{[A-Za-z*]+}"""), "")
+    value = value.replace(BEGIN_ENV, "").replace(END_ENV, "")
 
     // Layout commands are resolved innermost-first so nested braces stay safe.
     var pass = 0
     while (pass < 6) {
         val before = value
-        value = Regex("""\\(?:d|t)?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}""")
-            .replace(value) { "(${it.groupValues[1]})/(${it.groupValues[2]})" }
-        value = Regex("""\\sqrt\s*\[([^{}]*)\]\s*\{([^{}]*)\}""")
-            .replace(value) { "${it.groupValues[1]}\u221A(${it.groupValues[2]})" }
-        value = Regex("""\\sqrt\s*\{([^{}]*)\}""")
-            .replace(value) { "\u221A(${it.groupValues[1]})" }
-        value = Regex("""\\(?:text|mathrm|mathbf|operatorname)\s*\{([^{}]*)\}""")
-            .replace(value) { it.groupValues[1] }
-        value = Regex("""\\overline\s*\{([^{}]*)\}""").replace(value) { it.groupValues[1] + "\u0305" }
-        value = Regex("""\\underline\s*\{([^{}]*)\}""").replace(value) { it.groupValues[1] + "\u0332" }
-        value = Regex("""\\hat\s*\{([^{}]*)\}""").replace(value) { it.groupValues[1] + "\u0302" }
-        value = Regex("""\\vec\s*\{([^{}]*)\}""").replace(value) { it.groupValues[1] + "\u20D7" }
+        value = FRAC.replace(value) { "(${it.groupValues[1]})/(${it.groupValues[2]})" }
+        value = NTH_ROOT.replace(value) { "${it.groupValues[1]}\u221A(${it.groupValues[2]})" }
+        value = SQRT.replace(value) { "\u221A(${it.groupValues[1]})" }
+        value = TEXT_COMMAND.replace(value) { it.groupValues[1] }
+        value = OVERLINE.replace(value) { it.groupValues[1] + "\u0305" }
+        value = UNDERLINE.replace(value) { it.groupValues[1] + "\u0332" }
+        value = HAT.replace(value) { it.groupValues[1] + "\u0302" }
+        value = VEC.replace(value) { it.groupValues[1] + "\u20D7" }
         pass++
         if (value == before) break
     }
@@ -73,20 +72,43 @@ internal fun latexToDisplay(tex: String): String {
         "cdots" to "\u22EF", "ldots" to "\u2026", "dots" to "\u2026", "vdots" to "\u22EE",
         "ddots" to "\u22F1",
     )
-    value = Regex("""\\([A-Za-z]+)""").replace(value) { match ->
+    value = COMMAND.replace(value) { match ->
         symbols[match.groupValues[1]] ?: match.value
     }
 
     // Scripts are resolved before braces are dropped so x^{n+1} stays intact.
-    value = Regex("""\^\{([^{}]*)\}""").replace(value) { script(it.groupValues[1], SUPERSCRIPTS, "^") }
-    value = Regex("""\^(\S)""").replace(value) { script(it.groupValues[1], SUPERSCRIPTS, "^") }
-    value = Regex("""_\{([^{}]*)\}""").replace(value) { script(it.groupValues[1], SUBSCRIPTS, "_") }
-    value = Regex("""_(\S)""").replace(value) { script(it.groupValues[1], SUBSCRIPTS, "_") }
+    value = SUPERSCRIPT_GROUP.replace(value) { script(it.groupValues[1], SUPERSCRIPTS, "^") }
+    value = SUPERSCRIPT_CHAR.replace(value) { script(it.groupValues[1], SUPERSCRIPTS, "^") }
+    value = SUBSCRIPT_GROUP.replace(value) { script(it.groupValues[1], SUBSCRIPTS, "_") }
+    value = SUBSCRIPT_CHAR.replace(value) { script(it.groupValues[1], SUBSCRIPTS, "_") }
 
     value = value.replace("\\\\", "\n").replace("&", "  ")
     value = value.replace("{", "").replace("}", "")
     return value.trim()
 }
+
+// Android's ICU regex engine rejects a bare "{" or "}", so every brace below is escaped.
+internal val LATEX_PATTERNS: List<Regex> by lazy {
+    listOf(
+        BEGIN_ENV, END_ENV, FRAC, NTH_ROOT, SQRT, TEXT_COMMAND, OVERLINE, UNDERLINE, HAT, VEC,
+        COMMAND, SUPERSCRIPT_GROUP, SUPERSCRIPT_CHAR, SUBSCRIPT_GROUP, SUBSCRIPT_CHAR,
+    )
+}
+private val BEGIN_ENV = Regex("""\\begin\{[A-Za-z*]+\}""")
+private val END_ENV = Regex("""\\end\{[A-Za-z*]+\}""")
+private val FRAC = Regex("""\\(?:d|t)?frac\s*\{([^\{\}]*)\}\s*\{([^\{\}]*)\}""")
+private val NTH_ROOT = Regex("""\\sqrt\s*\[([^\{\}]*)\]\s*\{([^\{\}]*)\}""")
+private val SQRT = Regex("""\\sqrt\s*\{([^\{\}]*)\}""")
+private val TEXT_COMMAND = Regex("""\\(?:text|mathrm|mathbf|operatorname)\s*\{([^\{\}]*)\}""")
+private val OVERLINE = Regex("""\\overline\s*\{([^\{\}]*)\}""")
+private val UNDERLINE = Regex("""\\underline\s*\{([^\{\}]*)\}""")
+private val HAT = Regex("""\\hat\s*\{([^\{\}]*)\}""")
+private val VEC = Regex("""\\vec\s*\{([^\{\}]*)\}""")
+private val COMMAND = Regex("""\\([A-Za-z]+)""")
+private val SUPERSCRIPT_GROUP = Regex("""\^\{([^\{\}]*)\}""")
+private val SUPERSCRIPT_CHAR = Regex("""\^(\S)""")
+private val SUBSCRIPT_GROUP = Regex("""_\{([^\{\}]*)\}""")
+private val SUBSCRIPT_CHAR = Regex("""_(\S)""")
 
 private fun script(body: String, table: Map<Char, Char>, prefix: String): String {
     if (body.isEmpty()) return ""

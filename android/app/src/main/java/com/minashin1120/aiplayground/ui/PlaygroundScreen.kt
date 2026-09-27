@@ -268,7 +268,7 @@ fun PlaygroundScreen(
             var markerTarget by remember { mutableStateOf<Attachment?>(null) }
             var composerHeight by remember { mutableIntStateOf(0) }
             var visionPicker by remember { mutableStateOf(false) }
-            var cameraUri by remember { mutableStateOf<Uri?>(null) }
+            var cameraOpen by remember { mutableStateOf(false) }
             var bubbleAfterNotificationPermission by remember { mutableStateOf(false) }
             val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                 if (bubbleAfterNotificationPermission) {
@@ -326,20 +326,7 @@ fun PlaygroundScreen(
             val maskPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
                 if (uri != null) model.uploadImageMask(uri)
             }
-            val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-                val uri = cameraUri
-                cameraUri = null
-                if (success && uri != null) model.upload(listOf(uri))
-            }
-            val launchCamera: () -> Unit = {
-                try {
-                    val directory = File(context.cacheDir, "shared").apply { mkdirs() }
-                    val file = File(directory, "camera_${System.currentTimeMillis()}.jpg").apply { createNewFile() }
-                    val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-                    cameraUri = uri
-                    camera.launch(uri)
-                } catch (e: Exception) { model.notify("カメラを起動できません。") }
-            }
+            val launchCamera: () -> Unit = { attachMenu = false; cameraOpen = true }
             val snackbar = remember { SnackbarHostState() }
             val loader: FileBytesLoader = { reference, thumbnail, limit ->
                 model.loadAttachmentBytes(reference, thumbnail, limit)
@@ -767,6 +754,13 @@ fun PlaygroundScreen(
                 onOpenFile = openInApp,
                 onEditImage = { markerTarget = it },
             )
+            ModalHost(cameraOpen) {
+                InAppCameraDialog(
+                    onDismiss = { cameraOpen = false },
+                    onCaptured = { uri -> cameraOpen = false; model.upload(listOf(uri)) },
+                    onError = model::notify,
+                )
+            }
             ModalHost(visionPicker) {
                 ModelPicker(state, onDismiss = { visionPicker = false },
                     onSelect = { model.setVisionModel(it); visionPicker = false },

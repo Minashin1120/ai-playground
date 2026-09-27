@@ -4,6 +4,8 @@ import android.os.Build
 import android.view.WindowManager
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -25,6 +27,7 @@ import androidx.compose.ui.unit.min
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
+import kotlin.math.roundToInt
 
 /**
  * Web modal (`.modal-overlay` + `.settings-modal-panel`): a blurred, tinted overlay and a rounded
@@ -118,21 +121,42 @@ internal fun WebModalScrim(color: Color? = null) {
 
 /**
  * Replaces the platform dialog dim with the Web overlay and, where the device supports cross-window
- * blur (Android 12+), blurs what is behind like `backdrop-filter: blur(10px)`.
+ * blur (Android 12+), blurs what is behind like `backdrop-filter: blur(10px)`. Web fades that blur
+ * with the overlay's opacity, so the radius follows the scrim in and out; a blur left at full strength
+ * would vanish in a single frame when the window is removed after the close animation.
  */
 @Composable
 internal fun WebModalWindow(blur: Dp = 10.dp) {
     val view = LocalView.current
     val blurPx = with(LocalDensity.current) { blur.roundToPx() }
+    val visible = LocalModalVisible.current
+    val reduce = LocalReduceMotion.current
     DisposableEffect(view) {
         val window = (view.parent as? DialogWindowProvider)?.window
         window?.setDimAmount(0f)
         if (window != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            runCatching {
-                window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                window.attributes = window.attributes.apply { blurBehindRadius = blurPx }
-            }
+            runCatching { window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND) }
         }
         onDispose { }
     }
+    LaunchedEffect(view, visible, blurPx) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return@LaunchedEffect
+        val window = (view.parent as? DialogWindowProvider)?.window ?: return@LaunchedEffect
+        var applied = -1
+        fun setRadius(radius: Int) {
+            if (radius == applied) return
+            applied = radius
+            runCatching { window.attributes = window.attributes.apply { blurBehindRadius = radius } }
+        }
+        val start = window.attributes.blurBehindRadius
+        val target = if (visible) blurPx else 0
+        if (reduce || start == target) setRadius(target)
+        else animate(0f, 1f, animationSpec = tween(PlaygroundMotion.MODAL_SCRIM_EXIT, easing = PlaygroundMotion.WebStandard)) { fraction, _ ->
+            setRadius(modalBlurRadius(start, target, fraction))
+        }
+    }
 }
+
+/** Blur radius between [from] and [to] at [fraction] of the scrim fade. */
+internal fun modalBlurRadius(from: Int, to: Int, fraction: Float): Int =
+    (from + (to - from) * fraction.coerceIn(0f, 1f)).roundToInt()

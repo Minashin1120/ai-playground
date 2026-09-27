@@ -46,4 +46,14 @@ class PlaygroundMotionTest {
         assertEquals(0.92f, predictiveBackScale(3f), 0.0001f)
         assertEquals(1f, predictiveBackScale(-1f), 0.0001f)
     }
+
+    @Test
+    fun modalBlurRadiusFollowsTheScrimFade() {
+        assertEquals(0, modalBlurRadius(0, 26, 0f))
+        assertEquals(13, modalBlurRadius(0, 26, 0.5f))
+        assertEquals(26, modalBlurRadius(0, 26, 1f))
+        assertEquals(0, modalBlurRadius(26, 0, 1f))
+        assertEquals(0, modalBlurRadius(26, 0, 2f))
+        assertEquals(26, modalBlurRadius(26, 0, -1f))
+    }
 }

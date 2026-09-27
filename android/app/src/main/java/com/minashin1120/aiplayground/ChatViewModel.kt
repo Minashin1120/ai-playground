@@ -27,6 +27,7 @@ import com.minashin1120.aiplayground.data.local.LocalSettingsStore
 import com.minashin1120.aiplayground.data.local.LocalChatBackend
 import com.minashin1120.aiplayground.data.local.LocalChatStore
 import com.minashin1120.aiplayground.data.local.LocalProfiles
+import com.minashin1120.aiplayground.data.local.ServerHistory
 import com.minashin1120.aiplayground.data.sync.SyncEngine
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,10 +73,10 @@ data class ChatState(
     val serverChecking: Boolean = false, val serverError: String? = null, val savedServers: List<String> = emptyList(),
     /** No-account profile ("サーバーを使わずに始める"): everything runs and is stored on the device. */
     val localProfile: Boolean = false,
-    /** Serverless mode of a signed-in account: answers come straight from the providers, chats are kept on the device. */
+    /** Serverless mode of a signed-in account: answers come straight from the providers and are then saved to the account. */
     val serverless: Boolean = false,
-    /** Serverless mode sync with the account: running, automatic, last success (epoch ms), last result or error. */
-    val syncing: Boolean = false, val autoSync: Boolean = true, val lastSyncAt: Long? = null, val syncMessage: String? = null,
+    /** Serverless mode upload of finished answers: running, messages still on the device, last success (epoch ms), last result or error. */
+    val syncing: Boolean = false, val pendingCount: Int = 0, val lastSyncAt: Long? = null, val syncMessage: String? = null,
     /** The no-account profile has chats that can be copied into this account. */
     val localImportAvailable: Boolean = false,
     /** The chat Turnstile check page (Web `#bot-detection-overlay`) while it is open in the browser. */
@@ -380,19 +381,43 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     } }
     private fun token(): String = session?.token ?: if (state.value.localProfile) "" else throw IOException("端末連携が必要です。")
 
-    /** Chats are answered on the device: offline checks for chat operations do not apply. */
-    private val chatLocal: Boolean get() = localChats != null
+    /** No-account profile: every chat is on the device, so offline checks for chat operations do not apply. */
+    private val chatLocal: Boolean get() = localChats != null && state.value.localProfile
+
+    /** Answers and attachments stay on the device (no-account profile or serverless mode), so they work offline. */
+    private val uploadsLocal: Boolean get() = localChats != null
+
+    /** A chat kept on the device: any chat of the no-account profile, a device chat of serverless mode. */
+    private fun deviceChat(id: String?): Boolean =
+        chatLocal || (state.value.serverless && id != null && LocalChatStore.isDeviceThreadId(id))
 
     /** Opens the device store of [profile]; [fallback] is the server for a signed-in account in serverless mode. */
     private fun useLocalChats(profile: LocalProfiles.Profile, accountName: String, fallback: ChatBackend?) {
         val defaults = localProfiles.defaults()
         localChats = profile.chats
         localSettings = profile.settings
+        val remote = if (fallback == null) null else ServerHistory(fallback, { token() },
+            serverFile = { reference, limit -> api.loadFileBytes(reference, token(), thumbnail = false, limit = limit) },
+            cachedThread = { id -> state.value.account?.let { account -> offlineCache.loadThread(account.id, id) } },
+            cachedFile = { reference, limit -> cachedFileBytes(reference, limit) },
+            isOffline = { state.value.offline },
+            afterAnswer = { syncJob?.join(); runSync(manual = false) })
         localBackend = LocalChatBackend(profile.chats, profile.settings, defaults, DirectRouter(directHttp), accountName, fallback,
             modeOf = { id -> state.value.account?.models?.firstOrNull { it.id == id }?.mode
                 ?: defaults.json.optJSONArray("models")?.let { rows -> (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
                     .firstOrNull { it.optString("id") == id }?.optString("mode") } ?: "chat" },
-            onChanged = { if (fallback != null) scheduleSync() })
+            onChanged = { if (fallback != null) refreshPendingCount() },
+            remote = remote)
+    }
+
+    /** Attachment bytes from the offline cache (serverless mode answering while the server is out of reach). */
+    private fun cachedFileBytes(reference: String, limit: Long): ByteArray? {
+        val accountId = state.value.account?.id ?: return null
+        val target = File(getApplication<Application>().cacheDir, "serverless-" + java.util.UUID.randomUUID())
+        return try {
+            offlineCache.materializeFile(accountId, reference, target) ?: return null
+            if (target.length() > limit) null else target.readBytes()
+        } finally { target.delete() }
     }
 
     private fun closeLocalChats() {
@@ -400,24 +425,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         localChats = null; localBackend = null; localSettings = null
     }
 
-    private fun autoSyncPrefKey(accountId: Int) = "autosync_" + LocalProfiles.accountKey(accountId)
-
-    /** Settings "接続" card: automatic sync while serverless mode is on. */
-    fun setAutoSync(enabled: Boolean) {
-        val account = state.value.account ?: return
-        prefs.edit().putBoolean(autoSyncPrefKey(account.id), enabled).apply()
-        mutable.update { it.copy(autoSync = enabled) }
-        if (enabled) scheduleSync()
+    /**
+     * Serverless mode: a device chat that went up to the server is followed under its server id (the open
+     * chat is switched to it). Any other id is returned as it is.
+     */
+    private suspend fun serverIdOf(id: String): String {
+        val store = localChats?.takeIf { state.value.serverless && LocalChatStore.isDeviceThreadId(id) } ?: return id
+        val serverId = withContext(Dispatchers.IO) { store.resolveAlias(id) }
+        if (serverId != id) mutable.update { current ->
+            if (current.selected?.id == id) current.copy(selected = current.selected?.copy(id = serverId)) else current
+        }
+        return serverId
     }
 
-    /** A sync a few seconds after the last change; automatic syncs follow the mobile-data setting of the device cache. */
-    private fun scheduleSync(delayMillis: Long = 3000) {
-        if (!state.value.serverless || !state.value.autoSync || session == null) return
+    private fun refreshPendingCount() {
+        val store = localChats ?: return
+        viewModelScope.launch {
+            val count = withContext(Dispatchers.IO) { store.pendingCount() }
+            mutable.update { it.copy(pendingCount = count) }
+        }
+    }
+
+    /** Sends what serverless mode still keeps on the device, when the server can be reached. */
+    private fun scheduleSync(delayMillis: Long = 0) {
+        if (!state.value.serverless || session == null) return
         syncScheduleJob?.cancel()
         syncScheduleJob = viewModelScope.launch {
             delay(delayMillis)
-            val metered = runCatching { connectivity?.isActiveNetworkMetered == true }.getOrDefault(false)
-            if (!hasUsableNetwork() || (metered && !state.value.cacheMobileDataAllowed)) return@launch
+            if (!hasUsableNetwork()) return@launch
             runSync(manual = false)
         }
     }
@@ -435,12 +470,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val now = System.currentTimeMillis()
                 state.value.account?.let { account -> prefs.edit().putLong("last_sync_" + LocalProfiles.accountKey(account.id), now).apply() }
                 val parts = listOfNotNull(
-                    "送信 ${report.uploadedMessages}件、受信 ${report.downloadedChats}件",
+                    "送信 ${report.uploadedMessages}件",
                     report.skippedAttachments.takeIf { it > 0 }?.let { "サーバーへ送れなかった添付 ${it}件" },
                     report.rejected.takeIf { it > 0 }?.let { "次回に再送するメッセージ ${it}件" },
                 )
-                mutable.update { it.copy(syncing = false, lastSyncAt = now, syncMessage = parts.joinToString("、")) }
-                if (!state.value.streaming) {
+                mutable.update { it.copy(syncing = false, lastSyncAt = now, pendingCount = report.pending, syncMessage = parts.joinToString("、")) }
+                if (report.uploadedMessages > 0 && !state.value.streaming) {
                     runCatching { fetchThreads(false) }
                     state.value.selected?.id?.let { id -> if (!state.value.busy) runCatching { loadMessages(id, autoResume = false) } }
                 }
@@ -452,7 +487,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     e is ApiException && e.status == 401 -> "ログインの有効期限が切れました。"
                     else -> "同期できませんでした: " + (e.message ?: e.javaClass.simpleName)
                 }
-                mutable.update { it.copy(syncing = false, syncMessage = message) }
+                val pending = withContext(Dispatchers.IO) { runCatching { store.pendingCount() }.getOrDefault(state.value.pendingCount) }
+                mutable.update { it.copy(syncing = false, pendingCount = pending, syncMessage = message) }
                 if (manual && e is ApiException && e.code == "turnstile_required") startSessionTurnstile()
                 if (e is ApiException && e.status == 401) report(e)
             }
@@ -482,7 +518,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val count = withContext(Dispatchers.IO) { localProfiles.account(account.id).chats.importFrom(localProfiles.local().chats) }
             notify(if (count > 0) "端末のチャットを${count}件取り込みました" else "取り込むチャットはありません")
             runCatching { fetchThreads(false) }
-            scheduleSync(0)
+            refreshPendingCount()
+            scheduleSync()
         }
     }
 
@@ -538,10 +575,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val enabled = prefs.getBoolean(serverlessPrefKey(account.id), false)
         if (enabled) useLocalChats(localProfiles.account(account.id), account.name, fallback = serverBackend) else closeLocalChats()
         val key = LocalProfiles.accountKey(account.id)
-        mutable.update { it.copy(serverless = enabled, autoSync = prefs.getBoolean(autoSyncPrefKey(account.id), true),
+        mutable.update { it.copy(serverless = enabled, pendingCount = 0,
             lastSyncAt = prefs.getLong("last_sync_$key", 0L).takeIf { value -> value > 0 }, syncMessage = null,
             localImportAvailable = enabled && localProfiles.hasLocalData()) }
-        if (enabled) scheduleSync(0)
+        if (enabled) {
+            // Stores of 1.38.0–1.40.x held a copy of every chat; only what the server lacks is kept.
+            localChats?.let { store -> viewModelScope.launch {
+                withContext(Dispatchers.IO) { runCatching { store.repairSyncIdentities(); store.migrateToOutbox() } }
+                refreshPendingCount()
+                scheduleSync()
+            } }
+        }
     }
 
     /** Stores an attachment on the device while chats are local; null means upload it to the server. */
@@ -1399,6 +1443,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             connectionBannerVisible = wasDisconnected,
             offline = false,
         ) }
+        // Serverless mode: answers finished while the server was out of reach go up now.
+        if (wasDisconnected && state.value.serverless) scheduleSync()
         if (wasDisconnected) {
             connectionRecoveredHideJob = viewModelScope.launch {
                 delay(5_000L)
@@ -1501,7 +1547,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         val next = !selected.isTemporary
         viewModelScope.launch {
-            if (state.value.offline && !chatLocal) { notify("オフライン中はチャット設定を変更できません。"); return@launch }
+            if (state.value.offline && !deviceChat(selected.id)) { notify("オフライン中はチャット設定を変更できません。"); return@launch }
             try {
                 val reply = backend.put("/api/threads/${selected.id}/settings", JSONObject().put("is_temporary", next), token())
                 mutable.update { current -> current.copy(
@@ -1531,7 +1577,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun setImageMask(reference: String?) { mutable.update { it.copy(imageMask = reference) } }
     /** Web `uploadMaskFile`: the chosen mask image is uploaded as it is. */
     fun uploadImageMask(uri: Uri) {
-        if (state.value.banned || (state.value.offline && !chatLocal)) return
+        if (state.value.banned || (state.value.offline && !uploadsLocal)) return
         viewModelScope.launch {
             try {
                 val resolver = getApplication<Application>().contentResolver
@@ -1563,7 +1609,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun applyImageEdit(reference: String, png: ByteArray, attachOriginal: Boolean) {
         val row = state.value.attachments.firstOrNull { it.reference == reference } ?: return
-        if (state.value.offline && !chatLocal) { notify("オフライン中はファイルをアップロードできません。"); return }
+        if (state.value.offline && !uploadsLocal) { notify("オフライン中はファイルをアップロードできません。"); return }
         val fileName = markedFileName(row.name.ifBlank { "marked.png" })
         mutable.update { current -> current.copy(editingAttachment = reference, attachments = current.attachments.map {
             if (it.reference == reference) it.copy(attachOriginal = attachOriginal) else it
@@ -1608,12 +1654,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         val current = state.value
         val page = if (more) current.nextPage ?: return else 1
-        val reply = backend.get("/api/threads?page=$page&q=${URLEncoder.encode(current.search, "UTF-8")}", token())
+        val reply = try {
+            backend.get("/api/threads?page=$page&q=${URLEncoder.encode(current.search, "UTF-8")}", token())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Serverless mode keeps working without the server: the cached list and the device chats stand in.
+            if (!current.serverless || more || !ServerHistory.unreachable(e)) throw e
+            applyCachedThreads(current.search)
+            return
+        }
         if (current.search != state.value.search) return
         val rows = reply.getJSONArray("threads")
         val items = (0 until rows.length()).map { parseThreadItem(rows.getJSONObject(it)) }
         if (!chatLocal) state.value.account?.let { account ->
-            withContext(Dispatchers.IO) { offlineCache.saveThreads(account.id, items) }
+            withContext(Dispatchers.IO) { offlineCache.saveThreads(account.id, items.filterNot { LocalChatStore.isDeviceThreadId(it.id) }) }
             refreshOfflineCacheStats(account.id)
         }
         mutable.update { it.copy(threads = if (more) (it.threads + items).distinctBy { t -> t.id } else items,
@@ -1627,7 +1682,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val visible = if (normalized.isBlank()) cached else cached.filter {
             it.title.contains(normalized, ignoreCase = true) || it.model.contains(normalized, ignoreCase = true)
         }
-        mutable.update { it.copy(threads = visible, nextPage = null, offline = true) }
+        // Serverless mode: chats created on the device while the server was out of reach come first.
+        val device = localChats?.takeIf { state.value.serverless }?.let { store ->
+            val rows = withContext(Dispatchers.IO) { store.deviceThreads(normalized) }
+            (0 until rows.length()).map { parseThreadItem(rows.getJSONObject(it)) }
+        }.orEmpty()
+        mutable.update { it.copy(threads = device + visible, nextPage = null, offline = true) }
     }
     fun moreThreads() {
         if (state.value.offline && !chatLocal) return
@@ -1682,8 +1742,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             finally { mutable.update { it.copy(busy = false) } }
         }
     }
-    private suspend fun loadMessages(id: String, older: Boolean = false, autoResume: Boolean = true) {
-        if (state.value.offline && !chatLocal) {
+    private suspend fun loadMessages(requestedId: String, older: Boolean = false, autoResume: Boolean = true) {
+        val id = serverIdOf(requestedId)
+        if (state.value.offline && !deviceChat(id)) {
             loadCachedMessages(id, older)
             return
         }
@@ -1743,10 +1804,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(enablePromptCache = reply.optBoolean("enable_prompt_caching")) }
             reply.nullableString("last_model").takeIf { it.isNotBlank() && it != state.value.model }?.let(::chooseModel)
         }
-        if (!chatLocal) state.value.account?.let { account ->
+        if (!deviceChat(id)) state.value.account?.let { account ->
             withContext(Dispatchers.IO) {
                 offlineCache.saveThread(
-                    account.id, state.value.selected ?: return@withContext, all,
+                    // Unsent answers of serverless mode are not cached: they are shown from the outbox.
+                    account.id, state.value.selected ?: return@withContext,
+                    all.filterNot { m -> numericId(m)?.let { n -> state.value.serverless && LocalChatStore.isPendingId(n) } == true },
                     reply.optBoolean("has_older_messages"), reply.nullableString("oldest_loaded_id").ifBlank { null },
                     reply.nullableString("custom_instruction"), reply.optBoolean("include_global_instruction", true),
                     reply.optLong("temp_chat_remaining_seconds").takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 },
@@ -1762,10 +1825,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun loadCachedMessages(id: String, older: Boolean, cachedPayload: JSONObject? = null) {
         val accountId = state.value.account?.id ?: return
-        val cached = cachedPayload ?: withContext(Dispatchers.IO) { offlineCache.loadThread(accountId, id) } ?: return
+        val outbox = localChats?.takeIf { state.value.serverless }
+        val stored = cachedPayload ?: withContext(Dispatchers.IO) { offlineCache.loadThread(accountId, id) }
+        // Serverless mode: answers not yet on the server are shown on top of the cached chat.
+        val cached = if (outbox == null) stored ?: return else withContext(Dispatchers.IO) {
+            val base = stored?.let { JSONObject(it.toString()) }
+                ?: JSONObject().put("messages", JSONArray()).takeIf { outbox.outboxIdFor(id) != null }
+            base?.let { outbox.overlayPending(id, it) }
+        } ?: return
         val parsed = parseMessages(cached)
         val all = if (older) (parsed + state.value.allMessages).distinctBy { it.id } else parsed
         val leaf = state.value.leafId?.takeIf { candidate -> all.any { numericId(it) == candidate } }
+            ?: all.mapNotNull { numericId(it) }.filter { outbox != null && LocalChatStore.isPendingId(it) }.maxOrNull()
             ?: cached.optInt("leaf_id").takeIf { it > 0 }
             ?: all.mapNotNull { numericId(it) }.maxOrNull()
         val path = activeBranchPath(all, leaf)
@@ -1822,7 +1893,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     /** [onNewChat] runs when the open chat was deleted (Web `startNewChat` also closes the phone sidebar). */
     fun deleteThread(thread: ThreadItem, onNewChat: () -> Unit = {}) { viewModelScope.launch {
-        if (state.value.offline && !chatLocal) { notify("オフライン中は履歴を削除できません。"); return@launch }
+        if (state.value.offline && !deviceChat(thread.id)) { notify("オフライン中は履歴を削除できません。"); return@launch }
         try {
             backend.delete("/api/threads/${thread.id}", token())
             state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.deleteThread(account.id, thread.id) } }
@@ -1833,7 +1904,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Web `renameThread`: `prompt("Title:")` then PUT the new title; empty input is ignored. */
     fun renameThread(thread: ThreadItem, title: String) { viewModelScope.launch {
         if (title.isEmpty()) return@launch
-        if (state.value.offline && !chatLocal) { notify("オフライン中はタイトルを変更できません。"); return@launch }
+        if (state.value.offline && !deviceChat(thread.id)) { notify("オフライン中はタイトルを変更できません。"); return@launch }
         try {
             val reply = backend.put("/api/threads/${thread.id}/title", JSONObject().put("title", title), token())
             val saved = reply.optString("title", title).ifBlank { title }
@@ -1853,7 +1924,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val id = numericId(message) ?: return
         val thread = state.value.selected ?: return
         viewModelScope.launch {
-            if (state.value.offline && !chatLocal) { notify("オフライン中はメッセージを削除できません。"); return@launch }
+            if (state.value.offline && !deviceChat(thread.id) && !(state.value.serverless && LocalChatStore.isPendingId(id))) {
+                notify("オフライン中はメッセージを削除できません。"); return@launch
+            }
             try {
                 backend.delete("/api/messages/$id", token())
                 if (state.value.selected?.id == thread.id) {
@@ -1925,7 +1998,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Web `openThreadModal`: a new chat is created first so its settings can be edited. */
     fun ensureThread(onReady: () -> Unit) {
         if (state.value.selected != null) { onReady(); return }
-        if (state.value.offline && !chatLocal) { notify("オフライン中はメッセージを送信できません。"); return }
+        if (state.value.offline && !uploadsLocal) { notify("オフライン中はメッセージを送信できません。"); return }
         viewModelScope.launch {
             try {
                 val created = backend.post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
@@ -1951,7 +2024,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun toggleBookmark(thread: ThreadItem) { viewModelScope.launch {
-        if (state.value.offline && !chatLocal) { notify("オフライン中はブックマークを変更できません。"); return@launch }
+        if (state.value.offline && !deviceChat(thread.id)) { notify("オフライン中はブックマークを変更できません。"); return@launch }
         try {
             val reply = backend.post("/api/threads/${thread.id}/bookmark", JSONObject(), token())
             val bookmarked = reply.optBoolean("is_bookmarked")
@@ -1965,7 +2038,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun saveThreadSettings(title: String, instruction: String, includeGlobal: Boolean, temporary: Boolean) {
         val thread = state.value.selected ?: return
         viewModelScope.launch {
-            if (state.value.offline && !chatLocal) { notify("オフライン中はチャット設定を変更できません。"); return@launch }
+            if (state.value.offline && !deviceChat(thread.id)) { notify("オフライン中はチャット設定を変更できません。"); return@launch }
             mutable.update { it.copy(busy = true) }
             try {
                 val normalizedTitle = title.trim().ifBlank { "新しいチャット" }
@@ -1996,7 +2069,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun saveChatInstructions(instruction: String, includeGlobal: Boolean, userPrompt: JSONObject, onDone: (Boolean) -> Unit) {
         val thread = state.value.selected ?: return onDone(false)
         viewModelScope.launch {
-            if (state.value.offline && !chatLocal) { notify("オフライン中はチャット設定を変更できません。"); onDone(false); return@launch }
+            if (state.value.offline && !deviceChat(thread.id)) { notify("オフライン中はチャット設定を変更できません。"); onDone(false); return@launch }
             try {
                 backend.put("/api/threads/${thread.id}/settings", JSONObject()
                     .put("custom_instruction", instruction)
@@ -2063,7 +2136,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (!preChecked && !beginSend()) return
         var current = state.value
         if (current.banned) return
-        if (current.offline && !chatLocal) { mutable.update { it.copy(notice = "オフライン中はメッセージを送信できません。") }; return }
+        // Serverless mode answers on the device, so it can send while the server is out of reach.
+        if (current.offline && !uploadsLocal) { mutable.update { it.copy(notice = "オフライン中はメッセージを送信できません。") }; return }
         if (current.busy || (current.draft.isBlank() && current.attachments.isEmpty())) return
         if (current.attachments.size > ATTACHMENT_MAX_FILES) {
             notify("添付は最大${ATTACHMENT_MAX_FILES}件です。添付を減らして再送してください。")
@@ -2687,11 +2761,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun stop() { viewModelScope.launch {
         val id = state.value.selected?.id ?: return@launch
         try {
-            if (chatLocal) {
-                // The answer is generated on the device: cancelling the request saves what arrived so far.
+            // The answer is generated on the device (a server job is only rejoined, with its job id):
+            // cancelling the request saves what arrived so far, and serverless mode then uploads it.
+            if (uploadsLocal && state.value.jobId == null) {
                 streamJob?.cancelAndJoin()
                 mutable.update { it.copy(streaming = false, status = "停止を要求しました。", live = LiveAnswer()) }
                 loadMessages(id)
+                scheduleSync()
                 return@launch
             }
             backend.post("/api/stop_chat", JSONObject().put("thread_id", id).apply { state.value.jobId?.let { put("job_id", it) } }, token())
@@ -3534,7 +3610,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun upload(uris: List<Uri>) {
         if (state.value.banned) return
-        if (state.value.offline && !chatLocal) { mutable.update { it.copy(notice = "オフライン中はファイルをアップロードできません。") }; return }
+        if (state.value.offline && !uploadsLocal) { mutable.update { it.copy(notice = "オフライン中はファイルをアップロードできません。") }; return }
         if (uris.isEmpty() || state.value.uploading) return
         // Web `handleFiles`: over the limit only the first files that still fit are added.
         val remain = ATTACHMENT_MAX_FILES - state.value.attachments.size
@@ -4214,7 +4290,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val id = state.value.selected?.id
         if (id == null) { notify("PDF化するスレッドを開いてください"); return }
         if (pdfExporting) { notify("PDF出力の準備中です。しばらくお待ちください。"); return }
-        if (state.value.offline && !chatLocal) { notify("PDF出力に失敗しました"); return }
+        if (state.value.offline && !deviceChat(id)) { notify("PDF出力に失敗しました"); return }
         pdfExporting = true
         // Web `openThreadPdfPrintDialog`: the branch on screen (`leaf_id`) with the 準備中 progress toast.
         notify("PDF出力の準備中です")

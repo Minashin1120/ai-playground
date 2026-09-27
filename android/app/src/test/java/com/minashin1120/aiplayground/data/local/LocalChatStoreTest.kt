@@ -81,4 +81,100 @@ class LocalChatStoreTest {
         val index = crypto.readJson(folder.root.resolve("chats/index.enc"))!!
         assertEquals("srv123", index.getJSONArray("deleted_threads").getJSONObject(0).getString("server_id"))
     }
+
+    @Test fun unsentMessagesOfAServerChatAreShownInThePendingRange() {
+        val outbox = store.ensureOutboxThread("srvA")
+        assertEquals(outbox, store.ensureOutboxThread("srvA"))
+        assertFalse(store.isDeviceThread(outbox))
+        assertEquals(0, store.deviceThreads("").length())
+        val user = store.appendMessage(outbox, LocalChatStore.NewMessage("user", "質問", null, parentServerId = 42))
+        store.appendMessage(outbox, LocalChatStore.NewMessage("assistant", "回答", user))
+        val payload = JSONObject().put("messages", org.json.JSONArray().put(JSONObject().put("id", 42).put("role", "assistant").put("content", "前の回答")))
+        val rows = store.overlayPending("srvA", payload).getJSONArray("messages")
+        assertEquals(3, rows.length())
+        val shownUser = rows.getJSONObject(1)
+        assertEquals(LocalChatStore.PENDING_ID_BASE + user, shownUser.getInt("id"))
+        assertEquals(42, shownUser.getInt("parent_id"))
+        assertEquals(shownUser.getInt("id"), rows.getJSONObject(2).getInt("parent_id"))
+        assertTrue(LocalChatStore.isPendingId(rows.getJSONObject(2).getInt("id")))
+        assertEquals(2, store.pendingCount())
+        val pending = store.pendingPush().single()
+        assertEquals("srvA", pending.entry.getString("id"))
+        // The server's own settings stay: an outbox row sends none.
+        assertFalse(pending.entry.has("title"))
+        assertEquals(42, pending.entry.getJSONArray("messages").getJSONObject(0).getJSONObject("parent").getInt("id"))
+        assertEquals(1, pending.serverParented.size)
+    }
+
+    @Test fun acceptedMessagesLeaveTheDeviceAndUploadedChatsBecomeAliases() {
+        val device = store.createThread(false, "端末").getString("id")
+        assertTrue(LocalChatStore.isDeviceThreadId(device))
+        assertTrue(store.isDeviceThread(device))
+        assertEquals(1, store.deviceThreads("").length())
+        val file = store.saveFile("a.png", "image/png", byteArrayOf(1).inputStream(), 1)
+        val user = store.appendMessage(device, LocalChatStore.NewMessage("user", "質問", null, files = listOf(file)))
+        val answer = store.appendMessage(device, LocalChatStore.NewMessage("assistant", "回答", user))
+        val uuids = store.messages(device).associate { it.getInt("id") to it.getString("uuid") }
+        // Only the question is accepted: the answer now points at the question's server id.
+        store.markPushed(device, "srvB", mapOf(uuids.getValue(user) to 7), allAccepted = false)
+        assertEquals("srvB", store.resolveAlias(device))
+        assertFalse(store.isDeviceThread(device))
+        assertNull(store.loadFile(file, 10))
+        assertEquals(7, store.messages(device).single().getInt("parent_server_id"))
+        store.markPushed(device, "srvB", mapOf(uuids.getValue(answer) to 8), allAccepted = true)
+        assertNull(store.threadRow(device))
+        assertEquals(0, store.pendingCount())
+        assertEquals("srvB", store.resolveAlias(device))
+        assertFalse(LocalChatStore.isDeviceThreadId("srvB"))
+    }
+
+    @Test fun deviceChatsOfServerlessModeUseThePendingRange() {
+        val device = store.createThread(false).getString("id")
+        val first = store.appendMessage(device, LocalChatStore.NewMessage("user", "a", null))
+        store.appendMessage(device, LocalChatStore.NewMessage("assistant", "b", first))
+        val payload = store.getThread(device, null, null, LocalChatStore.PENDING_ID_BASE)!!
+        val rows = payload.getJSONArray("messages")
+        assertEquals(LocalChatStore.PENDING_ID_BASE + first, rows.getJSONObject(0).getInt("id"))
+        assertEquals(LocalChatStore.PENDING_ID_BASE + first, rows.getJSONObject(1).getInt("parent_id"))
+        assertEquals(LocalChatStore.PENDING_ID_BASE + first, payload.getInt("oldest_loaded_id"))
+    }
+
+    @Test fun fullCopiesOfOlderVersionsShrinkToTheOutbox() {
+        val copy = store.createThread(false, "Web").getString("id")
+        val question = store.appendMessage(copy, LocalChatStore.NewMessage("user", "a", null, serverId = 11), synced = true)
+        val answer = store.appendMessage(copy, LocalChatStore.NewMessage("assistant", "b", question, serverId = 12), synced = true)
+        store.appendMessage(copy, LocalChatStore.NewMessage("user", "端末で追加", answer))
+        val clean = store.createThread(false, "同期済み").getString("id")
+        store.appendMessage(clean, LocalChatStore.NewMessage("user", "c", null, serverId = 13), synced = true)
+        val device = store.createThread(false, "端末だけ").getString("id")
+        val indexFile = folder.root.resolve("chats/index.enc")
+        val index = crypto.readJson(indexFile)!!
+        val threads = index.getJSONArray("threads")
+        for (i in 0 until threads.length()) {
+            val row = threads.getJSONObject(i)
+            when (row.getString("id")) {
+                copy -> row.put("server_id", "srvC").put("dirty", false)
+                clean -> row.put("server_id", "srvD").put("dirty", false)
+            }
+        }
+        index.put("sync_since", 5L)
+        crypto.writeJson(indexFile, index)
+        assertTrue(store.migrateToOutbox())
+        assertFalse(store.migrateToOutbox())
+        val left = store.messages(copy).single()
+        assertEquals("端末で追加", left.getString("content"))
+        assertEquals(12, left.getInt("parent_server_id"))
+        assertNull(store.threadRow(clean))
+        assertTrue(store.isDeviceThread(device))
+        assertFalse(crypto.readJson(indexFile)!!.has("sync_since"))
+    }
+
+    @Test fun unsentMessagesUnderADeletedServerParentAreDropped() {
+        val outbox = store.ensureOutboxThread("srvE")
+        val user = store.appendMessage(outbox, LocalChatStore.NewMessage("user", "q", null, parentServerId = 3))
+        store.appendMessage(outbox, LocalChatStore.NewMessage("assistant", "a", user))
+        store.dropMessages(outbox, listOf(store.messages(outbox).first { it.getInt("id") == user }.getString("uuid")))
+        assertNull(store.outboxIdFor("srvE"))
+        assertEquals(0, store.pendingCount())
+    }
 }

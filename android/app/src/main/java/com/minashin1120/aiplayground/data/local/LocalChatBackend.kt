@@ -18,10 +18,16 @@ import org.json.JSONObject
 import java.net.URLDecoder
 
 /**
- * Answers the chat screen's endpoints on the device: chats come from [store], answers from the AI
- * providers ([router]) with the profile's own keys ([settings]). With a signed-in account in serverless
- * mode, endpoints that only the server can answer (account, security, library, MCP, …) go to
- * [fallback]; in the no-account profile they fail with `local_unavailable`.
+ * Answers the chat screen's endpoints on the device: answers come from the AI providers ([router])
+ * with the profile's own keys ([settings]).
+ *
+ * - No-account profile ([fallback] null): every chat lives in [store]; endpoints only the server can
+ *   answer fail with `local_unavailable`.
+ * - Serverless mode of a signed-in account ([remote] set): chats are read from the server ([fallback])
+ *   like the normal mode; an answer is generated here on top of the server history, kept in the outbox
+ *   of [store] and sent to the server when it is finished. Device chats (created while the server was
+ *   out of reach, temporary chats) stay in [store] until they are uploaded. Endpoints of the account
+ *   (security, library, MCP, …) go to [fallback].
  */
 class LocalChatBackend(
     private val store: LocalChatStore,
@@ -32,8 +38,10 @@ class LocalChatBackend(
     private val fallback: ChatBackend?,
     /** Model id → catalog mode (`chat`, `image`, …) of the models this profile can pick. */
     private val modeOf: (String) -> String,
-    /** Called after every change so a sync can be scheduled. */
+    /** Called after every change of the device store. */
     private val onChanged: () -> Unit = {},
+    /** Server history and outbox upload of serverless mode; null in the no-account profile. */
+    private val remote: ServerHistory? = null,
 ) : ChatBackend {
 
     // Every call runs on the IO dispatcher: the store reads and writes encrypted files.
@@ -45,21 +53,47 @@ class LocalChatBackend(
         withContext(Dispatchers.IO) { putLocal(path, payload, token) }
     override suspend fun delete(path: String, token: String): JSONObject = withContext(Dispatchers.IO) { deleteLocal(path, token) }
     override suspend fun stream(path: String, payload: JSONObject, token: String, onAccepted: () -> Unit, onEvent: (JSONObject) -> Unit) =
-        withContext(Dispatchers.IO) { streamLocal(path, payload, onAccepted, onEvent) }
+        withContext(Dispatchers.IO) { streamLocal(path, payload, token, onAccepted, onEvent) }
+
+    /**
+     * Screen ids of device messages are local id + this: in serverless mode every device message sits in
+     * the pending range, so it can never be mistaken for a server message.
+     */
+    private val idOffset: Int get() = if (remote != null) LocalChatStore.PENDING_ID_BASE else 0
+
+    /** A chat answered from [store]: every chat of the no-account profile, device chats in serverless mode. */
+    private fun onDevice(id: String): Boolean = remote == null || store.isDeviceThread(id)
+
+    /** `/api/threads/<id><suffix>` with a device chat already uploaded replaced by its server id. */
+    private fun threadPath(route: String, suffix: String): Pair<String, String> {
+        val id = store.resolveAlias(threadIdOf(route, suffix))
+        return id to "/api/threads/$id$suffix"
+    }
+
+    private fun server(): ChatBackend = fallback ?: throw unavailable()
 
     private suspend fun getLocal(path: String, token: String?): JSONObject {
         val (route, query) = split(path)
         return when {
             route == "/api/mobile/v1/me" -> fallback?.get(path, token)?.let { accountFrom(it) } ?: localAccount()
-            route == "/api/threads" -> store.listThreads(query["page"]?.toIntOrNull() ?: 1, query["q"].orEmpty())
+            route == "/api/threads" -> if (remote == null) store.listThreads(query["page"]?.toIntOrNull() ?: 1, query["q"].orEmpty())
+                else withDeviceThreads(server().get(path, token), query)
             route.startsWith("/api/threads/") && route.count { it == '/' } == 3 -> {
-                val id = route.removePrefix("/api/threads/")
-                store.getThread(id, query["limit"]?.toIntOrNull()?.coerceIn(1, 200), query["before_id"]?.toIntOrNull())
-                    ?: throw ApiException(403, JSONObject().put("error", "403"))
+                val (id, resolved) = threadPath(route, "")
+                if (onDevice(id)) {
+                    store.getThread(id, query["limit"]?.toIntOrNull()?.coerceIn(1, 200), query["before_id"]?.toIntOrNull()?.minus(idOffset), idOffset)
+                        ?: throw ApiException(403, JSONObject().put("error", "403"))
+                } else {
+                    val reply = server().get(resolved + path.substring(route.length), token)
+                    if (query["before_id"] == null) store.overlayPending(id, reply) else reply
+                }
             }
             route == "/api/mobile/v1/preferences" -> preferences(token)
-            route.startsWith("/c/") && route.endsWith("/pdf") && store.threadExists(route.removePrefix("/c/").removeSuffix("/pdf")) ->
-                threadPdf(route.removePrefix("/c/").removeSuffix("/pdf"), query["leaf_id"]?.toIntOrNull())
+            route.startsWith("/c/") && route.endsWith("/pdf") -> {
+                val id = store.resolveAlias(route.removePrefix("/c/").removeSuffix("/pdf"))
+                if (store.threadExists(id) && onDevice(id)) threadPdf(id, query["leaf_id"]?.toIntOrNull()?.minus(idOffset))
+                else server().get("/c/$id/pdf" + path.substring(route.length), token)
+            }
             route == "/api/batch/jobs" && fallback == null -> JSONObject().put("jobs", JSONArray())
             route == "/api/gemini/batch/status" && fallback == null -> JSONObject().put("completed", JSONArray())
             route == "/api/mcp/servers" && fallback == null -> JSONObject().put("servers", JSONArray())
@@ -67,6 +101,16 @@ class LocalChatBackend(
             route == "/api/files" && fallback == null -> JSONObject().put("files", JSONArray()).put("total", 0).put("has_more", false)
             else -> fallback?.get(path, token) ?: throw unavailable()
         }
+    }
+
+    /** The server's chat list with the device chats on top of the first page. */
+    private fun withDeviceThreads(reply: JSONObject, query: Map<String, String>): JSONObject {
+        if ((query["page"]?.toIntOrNull() ?: 1) != 1) return reply
+        val device = store.deviceThreads(query["q"].orEmpty())
+        if (device.length() == 0) return reply
+        val server = reply.optJSONArray("threads") ?: JSONArray()
+        for (i in 0 until server.length()) device.put(server.get(i))
+        return reply.put("threads", device)
     }
 
     private suspend fun getArrayLocal(path: String, token: String?): JSONArray = when (split(path).first) {
@@ -77,9 +121,11 @@ class LocalChatBackend(
     private suspend fun postLocal(path: String, payload: JSONObject, token: String?): JSONObject {
         val route = split(path).first
         return when {
-            route == "/api/threads" -> store.createThread(payload.optBoolean("is_temporary")).also { onChanged() }
+            route == "/api/threads" -> createThread(payload, token)
             route.startsWith("/api/threads/") && route.endsWith("/bookmark") -> {
-                val row = store.updateThread(threadIdOf(route, "/bookmark")) { row ->
+                val (id, resolved) = threadPath(route, "/bookmark")
+                if (!onDevice(id)) return server().post(resolved, payload, token)
+                val row = store.updateThread(id) { row ->
                     val next = !row.optBoolean("is_bookmarked")
                     row.put("is_bookmarked", next).put("bookmarked_at", if (next) System.currentTimeMillis() else 0L)
                 } ?: throw ApiException(403, JSONObject().put("error", "403"))
@@ -94,23 +140,47 @@ class LocalChatBackend(
                 JSONObject().put("countable", true).put("tokens_total", prompt).put("tokens_prompt", prompt).put("tokens_files", 0)
                     .put("files_total", files).put("files_counted", 0).put("files_non_text", files).put("files_missing", 0).put("files_error", 0)
             }
-            route == "/api/stop_chat" -> JSONObject().put("status", "ok")
+            // A server answer being rejoined (it has a job id) is stopped on the server.
+            route == "/api/stop_chat" -> if (fallback != null && payload.has("job_id")) fallback.post(path, payload, token)
+                else JSONObject().put("status", "ok")
             route == "/api/gems" && fallback == null -> settings.saveGem(null, payload)
             else -> fallback?.post(path, payload, token) ?: throw unavailable()
         }
+    }
+
+    /**
+     * A new chat: on the server in serverless mode, on the device in the no-account profile, for
+     * temporary chats (the server does not take messages into them) and while the server is out of reach.
+     */
+    private suspend fun createThread(payload: JSONObject, token: String?): JSONObject {
+        val temporary = payload.optBoolean("is_temporary")
+        if (remote != null && fallback != null && !temporary && !remote.isOffline()) {
+            try {
+                return fallback.post("/api/threads", payload, token)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (!ServerHistory.unreachable(e)) throw e
+            }
+        }
+        return store.createThread(temporary).also { onChanged() }
     }
 
     private suspend fun putLocal(path: String, payload: JSONObject, token: String): JSONObject {
         val route = split(path).first
         return when {
             route.startsWith("/api/threads/") && route.endsWith("/title") -> {
+                val (id, resolved) = threadPath(route, "/title")
+                if (!onDevice(id)) return server().put(resolved, payload, token)
                 val title = normalizeTitle(payload.optString("title", "Untitled"))
-                store.updateThread(threadIdOf(route, "/title")) { it.put("title", title) } ?: throw ApiException(403, JSONObject().put("error", "403"))
+                store.updateThread(id) { it.put("title", title) } ?: throw ApiException(403, JSONObject().put("error", "403"))
                 onChanged()
                 JSONObject().put("status", "ok").put("title", title)
             }
             route.startsWith("/api/threads/") && route.endsWith("/settings") -> {
-                val row = store.updateThread(threadIdOf(route, "/settings"), touch = true) { row ->
+                val (id, resolved) = threadPath(route, "/settings")
+                if (!onDevice(id)) return server().put(resolved, payload, token)
+                val row = store.updateThread(id, touch = true) { row ->
                     if (payload.has("custom_instruction")) row.put("custom_instruction", payload.optString("custom_instruction").take(100_000))
                     if (payload.has("include_global_instruction")) row.put("include_global_instruction", payload.optBoolean("include_global_instruction"))
                     if (payload.has("is_temporary")) row.put("is_temporary", payload.optBoolean("is_temporary"))
@@ -131,13 +201,18 @@ class LocalChatBackend(
         val route = split(path).first
         return when {
             route.startsWith("/api/threads/") && route.count { it == '/' } == 3 -> {
-                if (!store.deleteThread(route.removePrefix("/api/threads/"))) throw ApiException(403, JSONObject().put("error", "403"))
+                val (id, resolved) = threadPath(route, "")
+                if (!onDevice(id)) return server().delete(resolved, token).also { store.dropOutbox(id); onChanged() }
+                if (!store.deleteThread(id)) throw ApiException(403, JSONObject().put("error", "403"))
                 onChanged()
                 JSONObject().put("status", "ok")
             }
             route.startsWith("/api/messages/") -> {
                 val id = route.removePrefix("/api/messages/").toIntOrNull() ?: throw ApiException(404, JSONObject().put("error", "not_found"))
-                store.deleteMessage(id) ?: throw ApiException(404, JSONObject().put("error", "not_found"))
+                // In serverless mode, ids below the pending range are server messages; unsent ones under
+                // them are dropped by the next sync (the server rejects their parent).
+                if (remote != null && !LocalChatStore.isPendingId(id)) return server().delete(path, token).also { onChanged() }
+                store.deleteMessage(id - idOffset) ?: throw ApiException(404, JSONObject().put("error", "not_found"))
                 onChanged()
                 JSONObject().put("status", "ok")
             }
@@ -146,10 +221,12 @@ class LocalChatBackend(
         }
     }
 
-    private suspend fun streamLocal(path: String, payload: JSONObject, onAccepted: () -> Unit, onEvent: (JSONObject) -> Unit) {
-        when (path) {
-            "/chat_stream" -> generate(payload, onAccepted, onEvent)
-            // Answers never keep running without the app, so there is nothing to rejoin.
+    private suspend fun streamLocal(path: String, payload: JSONObject, token: String, onAccepted: () -> Unit, onEvent: (JSONObject) -> Unit) {
+        when {
+            path == "/chat_stream" -> generate(payload, onAccepted, onEvent)
+            // An answer running on the server (started on the Web) can be rejoined; device answers never outlive the app.
+            fallback != null && !onDevice(store.resolveAlias(payload.optString("thread_id"))) ->
+                fallback.stream(path, payload, token, onAccepted, onEvent)
             else -> throw ApiException(404, JSONObject().put("error", "not_found"))
         }
     }
@@ -179,10 +256,55 @@ class LocalChatBackend(
 
     // --- generation ---
 
+    /**
+     * The chat a new answer is added to: [rows] are its messages with screen ids (server messages and
+     * unsent ones in the pending range, or a device chat's local ids), [outboxId] the [store] chat that
+     * keeps the new messages until the server has them.
+     */
+    private class Conversation(
+        val outboxId: String,
+        val serverId: String?,
+        val settings: JSONObject,
+        val rows: List<JSONObject>,
+        val parentId: Int?,
+    )
+
+    private suspend fun conversation(threadId: String, body: JSONObject): Conversation {
+        val explicit = body.optBoolean("parent_id_explicit")
+        val requested: Int? = if (body.has("parent_id") && !body.isNull("parent_id")) body.optInt("parent_id") else null
+        val history = remote
+        if (history == null || store.isDeviceThread(threadId)) {
+            val thread = store.threadRow(threadId)?.takeIf { !it.optBoolean("deleted") }
+                ?: throw ApiException(403, JSONObject().put("error", "403"))
+            val rows = store.messages(threadId)
+            val parent = when {
+                requested != null -> requested - idOffset
+                explicit -> null
+                else -> rows.maxByOrNull { it.optLong("created_ms") }?.optInt("id")
+            }
+            return Conversation(threadId, null, thread, rows, parent)
+        }
+        // A server chat: the ancestors on the server, then the unsent messages on top.
+        val pending = store.pendingRows(threadId)
+        val pendingById = pending.associateBy { it.optInt("id") }
+        var serverParent = requested
+        val seen = HashSet<Int>()
+        while (serverParent != null && LocalChatStore.isPendingId(serverParent) && seen.add(serverParent)) {
+            val row = pendingById[serverParent] ?: break
+            serverParent = if (row.isNull("parent_id")) null else row.optInt("parent_id")
+        }
+        val snapshot = history.thread(threadId, serverParent?.takeIf { !LocalChatStore.isPendingId(it) })
+        val rows = snapshot.messages + pending
+        val parent = when {
+            requested != null -> requested
+            explicit -> null
+            else -> rows.maxOfOrNull { it.optInt("id") }
+        }
+        return Conversation(store.ensureOutboxThread(threadId), threadId, snapshot.thread, rows, parent)
+    }
+
     private suspend fun generate(body: JSONObject, onAccepted: () -> Unit, onEvent: (JSONObject) -> Unit) {
-        val threadId = body.optString("thread_id")
-        val thread = store.threadRow(threadId)?.takeIf { !it.optBoolean("deleted") }
-            ?: throw ApiException(403, JSONObject().put("error", "403"))
+        val threadId = store.resolveAlias(body.optString("thread_id"))
         val model = body.optString("model")
         val message = body.optString("message")
         val found = router.route(model, modeOf(model)) ?: throw ApiException(400, JSONObject().put("code", "serverless_unsupported")
@@ -196,62 +318,85 @@ class LocalChatBackend(
         if (body.has("coding_target")) throw ApiException(400, JSONObject().put("code", "serverless_unsupported")
             .put("error", "Coding Modeはサーバー不使用モードではまだ使えません。"))
         val files = attachmentRefs(body)
+        val chat = conversation(threadId, body)
         onAccepted()
-        onEvent(JSONObject().put("type", "thread_id").put("content", threadId))
-        val existing = store.messages(threadId)
-        val parentId: Int? = when {
-            body.optBoolean("parent_id_explicit") -> if (body.isNull("parent_id")) null else body.optInt("parent_id")
-            body.has("parent_id") && !body.isNull("parent_id") -> body.optInt("parent_id")
-            else -> existing.maxByOrNull { it.optLong("created_ms") }?.optInt("id")
-        }
+        onEvent(JSONObject().put("type", "thread_id").put("content", body.optString("thread_id")))
         val quote = body.optString("quote_text").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
         val gemUuid = body.optString("gem_uuid").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
         val gemName = if (gemUuid.isEmpty()) "" else (0 until settings.gems().length())
             .mapNotNull { settings.gems().optJSONObject(it) }.firstOrNull { it.optString("uuid") == gemUuid }?.optString("name").orEmpty()
-        val userId = store.appendMessage(threadId, LocalChatStore.NewMessage("user", message, parentId, model = model,
-            files = files, quote = quote, gemUuid = gemUuid, gemName = gemName))
-        store.updateThread(threadId) { row ->
-            row.put("last_model", model)
-            if (gemUuid.isNotEmpty()) row.put("last_gem_uuid", gemUuid)
-            if (row.optString("title", "New Chat") == "New Chat" && message.isNotBlank()) {
-                val snippet = message.take(50).trim().replace('\n', ' ')
-                row.put("title", normalizeTitle(snippet + if (message.length > 50) "..." else ""))
+        // In a server chat the parent is a server message or an unsent one (pending range).
+        val parent = chat.parentId
+        val onServerParent = chat.serverId != null && parent != null && !LocalChatStore.isPendingId(parent)
+        val userId = store.appendMessage(chat.outboxId, LocalChatStore.NewMessage("user", message,
+            parentId = if (chat.serverId != null && parent != null && !onServerParent) parent - LocalChatStore.PENDING_ID_BASE
+                else if (chat.serverId == null) parent else null,
+            parentServerId = if (onServerParent) parent else null,
+            model = model, files = files, quote = quote, gemUuid = gemUuid, gemName = gemName))
+        // Server `chat_stream`: the first message names a new chat.
+        val title = chat.settings.optString("title")
+        val newTitle = if (title == "New Chat" && message.isNotBlank()) {
+            val snippet = message.take(50).trim().replace('\n', ' ')
+            normalizeTitle(snippet + if (message.length > 50) "..." else "")
+        } else null
+        if (chat.serverId == null) {
+            store.updateThread(chat.outboxId) { row ->
+                row.put("last_model", model)
+                if (gemUuid.isNotEmpty()) row.put("last_gem_uuid", gemUuid)
+                newTitle?.let { row.put("title", it) }
             }
-        }
+        } else newTitle?.let { store.setPendingTitle(chat.serverId, it) }
         onChanged()
         val preferences = promptPreferences()
         val system = SystemPromptBuilder.build(body, preferences,
-            SystemPromptBuilder.ThreadSettings(thread.optString("custom_instruction"), thread.optBoolean("include_global_instruction", true)),
+            SystemPromptBuilder.ThreadSettings(chat.settings.optString("custom_instruction").takeIf { it != "null" }.orEmpty(),
+                chat.settings.optBoolean("include_global_instruction", true)),
             defaults, route.provider)
-        val all = store.messages(threadId)
-        val turns = history(all, userId, preferences, quote)
-        val assistantId = store.appendMessage(threadId, LocalChatStore.NewMessage("assistant", "", userId, model = model, gemUuid = gemUuid, gemName = gemName, generating = true))
+        val all: List<JSONObject>
+        val userScreenId: Int
+        if (chat.serverId == null) {
+            all = store.messages(chat.outboxId); userScreenId = userId
+        } else {
+            all = chat.rows.filterNot { LocalChatStore.isPendingId(it.optInt("id")) } + store.pendingRows(chat.serverId)
+            userScreenId = LocalChatStore.PENDING_ID_BASE + userId
+        }
+        val assistantId = store.appendMessage(chat.outboxId, LocalChatStore.NewMessage("assistant", "", userId, model = model,
+            gemUuid = gemUuid, gemName = gemName, generating = true))
         var partialContent = ""
         var partialThought = ""
         var lastSave = 0L
-        try {
+        val last: JSONObject = try {
+            // Attachments that cannot be read (a server file out of reach) end the answer with an error.
+            val turns = history(all, userScreenId, preferences, quote)
             val result = route.engine.run(DirectRequest(model, apiKey, system, turns, body), onEvent) { content, thought ->
                 partialContent = content; partialThought = thought
                 val now = System.currentTimeMillis()
-                if (now - lastSave > 3000) { lastSave = now; store.updateMessage(threadId, assistantId, content, thought) }
+                if (now - lastSave > 3000) { lastSave = now; store.updateMessage(chat.outboxId, assistantId, content, thought) }
             }
             val outputs = result.files.map { file -> store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong()) }
-            store.updateMessage(threadId, assistantId, result.content, result.thought, result.tokensIn, result.tokensOut,
+            store.updateMessage(chat.outboxId, assistantId, result.content, result.thought, result.tokensIn, result.tokensOut,
                 files = outputs.takeIf { it.isNotEmpty() }, done = true)
-            onEvent(JSONObject().put("type", "done"))
+            JSONObject().put("type", "done")
         } catch (e: CancellationException) {
-            withContext(NonCancellable) { store.updateMessage(threadId, assistantId, partialContent, partialThought, done = true) }
+            // Stopped: what arrived so far is kept; the chat screen asks for the upload.
+            withContext(NonCancellable) { store.updateMessage(chat.outboxId, assistantId, partialContent, partialThought, done = true) }
+            onChanged()
             throw e
         } catch (e: Exception) {
             val text = when (e) {
                 is DirectApiException -> "API Error${if (e.status > 0) " (${e.status})" else ""}: ${e.message}"
+                is ApiException -> e.payload.optString("error").ifBlank { e.message }
                 else -> "Connection Error: ${e.message ?: e.javaClass.simpleName}"
             }
-            store.updateMessage(threadId, assistantId, errorContent(text, partialContent), partialThought, done = true)
-            onEvent(JSONObject().put("type", "error").put("content", text))
-        } finally {
-            onChanged()
+            store.updateMessage(chat.outboxId, assistantId, errorContent(text, partialContent), partialThought, done = true)
+            JSONObject().put("type", "error").put("content", text)
         }
+        onChanged()
+        // The finished question and answer go to the server before the screen reloads the chat.
+        remote?.let { history ->
+            try { history.afterAnswer() } catch (e: CancellationException) { throw e } catch (_: Exception) {}
+        }
+        onEvent(last)
     }
 
     private var vertexAuth: com.minashin1120.aiplayground.data.direct.VertexAuth? = null
@@ -271,7 +416,7 @@ class LocalChatBackend(
     }
 
     /** Ancestors of the new message (server `_iter_chat_history_ancestors`), oldest first, with attachments. */
-    private fun history(all: List<JSONObject>, userId: Int, preferences: JSONObject, quote: String): List<DirectTurn> {
+    private suspend fun history(all: List<JSONObject>, userId: Int, preferences: JSONObject, quote: String): List<DirectTurn> {
         val byId = all.associateBy { it.optInt("id") }
         val chain = ArrayList<JSONObject>()
         var cursor: JSONObject? = byId[userId]
@@ -287,6 +432,18 @@ class LocalChatBackend(
             val current = index == chain.lastIndex
             val refs = messageRefs(row)
             val attachments = refs.mapNotNull { ref ->
+                if (!LocalChatStore.isLocalReference(ref)) {
+                    // A server attachment (a server chat, or a file sent again): read from the server or the offline cache.
+                    val bytes = remote?.file(ref, if (current) MAX_ATTACHMENT_BYTES else minOf(budget, MAX_ATTACHMENT_BYTES))
+                    if (bytes == null) {
+                        if (current) throw ApiException(400, JSONObject().put("error", "添付ファイルをサーバーから読み込めませんでした。"))
+                        return@mapNotNull null
+                    }
+                    if (!current) budget -= bytes.size
+                    val name = ref.substringAfterLast('/')
+                    return@mapNotNull AttachmentExtractor.prepare(name,
+                        java.net.URLConnection.guessContentTypeFromName(name) ?: "application/octet-stream", bytes)
+                }
                 val info = store.fileInfo(ref) ?: return@mapNotNull null
                 val size = info.optLong("size")
                 if (!current && size > budget) return@mapNotNull null
@@ -317,9 +474,11 @@ class LocalChatBackend(
             for (i in 0 until items.length()) items.optJSONObject(i)?.optString("path")?.takeIf { it.isNotBlank() }?.let(refs::add)
         }
         body.optJSONArray("image_urls")?.let { urls -> for (i in 0 until urls.length()) urls.optString(i).takeIf { it.isNotBlank() }?.let(refs::add) }
-        val local = refs.filter { LocalChatStore.isLocalReference(it) }
-        if (local.size != refs.size) throw ApiException(400, JSONObject().put("error", "サーバー上のファイルはサーバー不使用モードでは添付できません。"))
-        return local
+        // Serverless mode can send server files again (edit, regenerate); the no-account profile has none.
+        if (remote == null && refs.any { !LocalChatStore.isLocalReference(it) }) {
+            throw ApiException(400, JSONObject().put("error", "サーバー上のファイルはサーバー不使用モードでは添付できません。"))
+        }
+        return refs.toList()
     }
 
     // --- settings ---
@@ -333,8 +492,9 @@ class LocalChatBackend(
 
     private suspend fun savePreferences(payload: JSONObject, token: String): JSONObject {
         if (payload.has("thread_id")) {
-            val id = payload.optString("thread_id")
-            if (store.threadExists(id)) {
+            val id = store.resolveAlias(payload.optString("thread_id"))
+            payload.put("thread_id", id)
+            if (store.threadExists(id) && onDevice(id)) {
                 store.updateThread(id) { it.put("last_gem_uuid", payload.opt("last_gem_uuid") ?: JSONObject.NULL) }
                 onChanged()
                 return JSONObject().put("status", "ok")

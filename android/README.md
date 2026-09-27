@@ -25,8 +25,8 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/secure/EncryptedFileStore.kt` | Android KeystoreのAES-GCMによる暗号化ファイル（書き込み途中で壊れない保存） | 端末内の暗号化保存を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/SseReader.kt` | Server-Sent Eventsの読み取り（サーバーのRealtime／Lyriaと事業者APIのストリーム） | SSEの解析を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/` | サーバー不使用モードの直接送信：事業者APIへのHTTP（`DirectHttp.kt`、許可ホストのみ）、モデル別の振り分け（`DirectRouter.kt`）、Gemini／OpenAI Responses（xAI含む）／Anthropic／Chat Completionsの各エンジン、システムプロンプトの組み立て（`SystemPromptBuilder.kt`）、添付のテキスト化（`AttachmentExtractor.kt`） | 端末からの送信・対応モデル・プロンプト組み立てを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/local/` | 端末内プロファイル：チャット・添付の暗号化保存（`LocalChatStore.kt`）、設定・Gem・APIキー（`LocalSettingsStore.kt`）、プロファイルの切り替え（`LocalProfiles.kt`）、サーバーと同じ形で応答する窓口（`LocalChatBackend.kt`） | アカウントなし利用・サーバー不使用モードの保存や応答を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/sync/SyncEngine.kt` | サーバー不使用モードの双方向同期（添付の先行アップロード、チャット・メッセージの送信、削除の反映、変更一覧の取得とマージ） | 同期の手順・競合の扱いを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/local/` | 端末内プロファイル：チャット・添付の暗号化保存とサーバー不使用モードの送信待ち（`LocalChatStore.kt`）、設定・Gem・APIキー（`LocalSettingsStore.kt`）、プロファイルの切り替え（`LocalProfiles.kt`）、サーバーと同じ形で応答する窓口（`LocalChatBackend.kt`）、回答の生成に使うサーバーの履歴・添付の読み込み（`ServerHistory.kt`） | アカウントなし利用・サーバー不使用モードの保存や応答を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/sync/SyncEngine.kt` | サーバー不使用モードの送信待ちの保存（添付の先行アップロード、メッセージの送信、新しいチャットのタイトル、旧版の削除の反映） | 回答をアカウントへ送る手順・失敗時の扱いを変更するとき |
 | `app/src/main/assets/serverless-defaults.json`, `ci/sync-serverless-defaults.py` | サーバーから生成したモデル一覧・自動注入プロンプト・Coding Mode指示（`--check` で差分検査） | サーバーのモデル一覧や自動注入プロンプトを変えたとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ServerlessSettings.kt` | 設定の「接続」カード（サーバー不使用モード、アカウントなしの説明とサーバーへのログイン） | 接続モードの設定画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ConnectionStatus.kt` | Web相当のハートビート接続状態・HTTP障害分類・監視間隔 | 接続状態・復帰表示を変更するとき |

@@ -14,19 +14,19 @@ import org.json.JSONObject
 /** Outcome of one sync run, shown in the settings "接続" card. */
 data class SyncReport(
     val uploadedMessages: Int = 0,
-    val downloadedChats: Int = 0,
     val skippedAttachments: Int = 0,
     val rejected: Int = 0,
+    /** Messages still waiting on this device after the run. */
+    val pending: Int = 0,
 )
 
 /**
- * Two-way sync between the device store of serverless mode and the server account
- * (`/api/mobile/v1/sync/push` and `/api/mobile/v1/sync/changes`, server `routes_mobile_sync.py`).
+ * Sends the outbox of serverless mode to the server account (`/api/mobile/v1/sync/push`, server
+ * `routes_mobile_sync.py`). Chats are read from the server itself, so nothing is downloaded here.
  *
- * 1. Push: attachments first (each upload's server reference is recorded at once, so a retry does
- *    not upload it again), then chats and messages in batches of at most 100, then deletions.
- * 2. Pull: changed chats since the last sync; each one is read again in full and merged, and
- *    deleted chats are removed.
+ * Attachments go first (each upload's server reference is recorded at once, so a retry does not
+ * upload it again), then messages in batches of at most 100; accepted records leave the device store.
+ * Titles of new server chats and deletions left by older versions follow.
  */
 class SyncEngine(
     private val store: LocalChatStore,
@@ -35,9 +35,8 @@ class SyncEngine(
 ) {
     suspend fun run(): SyncReport = withContext(Dispatchers.IO) {
         store.repairSyncIdentities()
-        val pushed = push()
-        val downloaded = pull()
-        pushed.copy(downloadedChats = downloaded)
+        store.migrateToOutbox()
+        push().copy(pending = store.pendingCount())
     }
 
     private suspend fun uploadAttachment(reference: String): String? {
@@ -99,18 +98,39 @@ class SyncEngine(
                 serverThreadId?.let { entry.put("id", it) }
                 val reply = api.post("/api/mobile/v1/sync/push", JSONObject().put("threads", JSONArray().put(entry)), token())
                 val result = reply.optJSONArray("threads")?.optJSONObject(0) ?: continue
-                if (result.has("error")) { allAccepted = false; break }
+                if (result.has("error")) {
+                    when (result.textOf("error")) {
+                        // The server chat was deleted on the Web: the unsent messages go up again as a new chat.
+                        "thread_not_found" -> store.detachFromServer(thread.localId)
+                        // A temporary chat on the server does not keep messages sent this way.
+                        "temporary_chat" -> serverThreadId?.let(store::dropOutbox)
+                    }
+                    allAccepted = false
+                    break
+                }
                 serverThreadId = result.optString("id").ifBlank { serverThreadId }
                 val accepted = HashMap<String, Int>()
                 result.optJSONArray("messages")?.let { rows ->
                     for (k in 0 until rows.length()) rows.optJSONObject(k)?.let { accepted[it.textOf("client_uuid")] = it.optInt("id") }
                 }
-                val rejectedRows = result.optJSONArray("rejected")?.length() ?: 0
-                rejected += rejectedRows
-                if (rejectedRows > 0) allAccepted = false
+                val rejectedRows = result.optJSONArray("rejected")?.let { rows -> (0 until rows.length()).mapNotNull { rows.optJSONObject(it) } }.orEmpty()
+                // A server parent that no longer exists was deleted there: those messages cannot be sent any more.
+                val orphans = rejectedRows.filter { it.textOf("reason") == "parent_missing" }.map { it.textOf("client_uuid") }
+                    .filter { uuid -> thread.serverParented.contains(uuid) }
+                rejected += rejectedRows.size - orphans.size
+                if (rejectedRows.size > orphans.size) allAccepted = false
                 uploaded += accepted.size
                 serverThreadId?.let { store.markPushed(thread.localId, it, accepted, allAccepted && batch === batches.last()) }
+                store.dropMessages(thread.localId, orphans)
             }
+        }
+        for ((localId, serverId, title) in store.pendingTitles()) {
+            try {
+                api.put("/api/threads/$serverId/title", JSONObject().put("title", title), token())
+            } catch (e: ApiException) {
+                if (e.status != 403 && e.status != 404) throw e
+            }
+            store.clearPendingTitle(localId)
         }
         val (deletedThreads, deletedMessages) = store.pendingDeletions()
         if (deletedThreads.isNotEmpty() || deletedMessages.isNotEmpty()) {
@@ -123,57 +143,8 @@ class SyncEngine(
         return SyncReport(uploadedMessages = uploaded, skippedAttachments = skipped, rejected = rejected)
     }
 
-    private suspend fun pull(): Int {
-        val since = store.syncSince()
-        var cursor: Int? = null
-        var serverTime = 0L
-        var downloaded = 0
-        do {
-            val query = buildString {
-                append("/api/mobile/v1/sync/changes?")
-                if (since != null) append("since=").append(since).append('&')
-                cursor?.let { append("cursor=").append(it) }
-            }.trimEnd('&', '?')
-            val reply = api.get(query, token())
-            serverTime = reply.optLong("server_time_ms", serverTime)
-            val rows = reply.optJSONArray("threads") ?: JSONArray()
-            for (i in 0 until rows.length()) {
-                val row = rows.getJSONObject(i)
-                val localId = store.upsertServerThread(row)
-                store.mergeServerMessages(localId, fetchMessages(row.getString("id")))
-                downloaded++
-            }
-            val tombstones = reply.optJSONArray("tombstones") ?: JSONArray()
-            for (i in 0 until tombstones.length()) {
-                val row = tombstones.getJSONObject(i)
-                store.applyTombstone(row.textOf("id").ifBlank { null }, row.textOf("client_uuid").ifBlank { null })
-            }
-            cursor = if (reply.optBoolean("has_more")) reply.optInt("next_cursor").takeIf { it > 0 } else null
-        } while (cursor != null)
-        // Changes are stamped before their transaction commits, so the next run looks two minutes back.
-        if (serverTime > 0) store.setSyncSince(serverTime - OVERLAP_MS)
-        return downloaded
-    }
-
-    /** Every message of a server chat, paging with `before_id` like the offline full sync. */
-    private suspend fun fetchMessages(serverId: String): List<JSONObject> {
-        val out = ArrayList<JSONObject>()
-        var before: String? = null
-        while (true) {
-            val suffix = before?.let { "&before_id=$it" }.orEmpty()
-            val reply = api.get("/api/threads/$serverId?limit=200&include_meta=0$suffix", token())
-            val rows = reply.optJSONArray("messages") ?: JSONArray()
-            for (i in 0 until rows.length()) out += rows.getJSONObject(i)
-            val oldest = reply.opt("oldest_loaded_id")?.takeIf { it != JSONObject.NULL }?.toString()
-            if (!reply.optBoolean("has_older_messages") || oldest == null || oldest == before) break
-            before = oldest
-        }
-        return out
-    }
-
     companion object {
         const val MAX_MESSAGES_PER_PUSH = 100
-        const val OVERLAP_MS = 2 * 60 * 1000L
         private const val CHUNK_BYTES = 8 * 1024 * 1024
         private const val MAX_UPLOAD_BYTES = 64L * 1024 * 1024
     }

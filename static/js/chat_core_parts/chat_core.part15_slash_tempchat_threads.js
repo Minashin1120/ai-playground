@@ -158,12 +158,14 @@
             if (get('thread-custom-instruction')) {
                 get('thread-custom-instruction').value = threadData.custom_instruction || '';
             }
-            if (threadData.last_model) {
-                selectModelById(threadData.last_model);
-            }
+            // The chat's PromptCache flag comes first, so a lock left by the previous chat
+            // never blocks switching to this chat's model.
             if (get('enable-prompt-cache')) {
                 get('enable-prompt-cache').checked = !!threadData.enable_prompt_caching;
                 updatePromptCacheUi();
+            }
+            if (threadData.last_model) {
+                selectModelById(threadData.last_model);
             }
             if (threadData.last_gem_uuid && loadedGems.length > 0) {
                 const gem = loadedGems.find(g => g.uuid === threadData.last_gem_uuid);

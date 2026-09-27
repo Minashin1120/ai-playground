@@ -29,11 +29,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -46,6 +48,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
@@ -399,6 +403,12 @@ private fun parseList(lines: List<String>, start: Int): Pair<MarkdownBlock.ListB
     return MarkdownBlock.ListBlock(ordered, startNumber, items, loose) to index
 }
 
+/** Web `openImageViewer('.chat-image')`: the images a reply shows, in order (site files and https images). */
+internal fun markdownImageReferences(text: String): List<String> = IMAGE_TOKEN.findAll(text).mapNotNull { match ->
+    val target = match.groupValues[2].trim().substringBefore(' ')
+    fileReferencePath(target) ?: target.takeIf { it.startsWith("https://") && safeWebUrl(it) != null }
+}.toList()
+
 private fun appendParagraph(result: MutableList<MarkdownBlock>, text: String) {
     var cursor = 0
     IMAGE_TOKEN.findAll(text).forEach { match ->
@@ -413,6 +423,20 @@ private fun appendParagraph(result: MutableList<MarkdownBlock>, text: String) {
     }
     val tail = text.substring(cursor)
     if (tail.isNotBlank()) result += MarkdownBlock.Paragraph(tail.trim())
+}
+
+/**
+ * Web renders every Markdown / `<a>` href as a link: web URLs, `mailto:` / `tel:`, and paths on this site
+ * (`/…`, opened on the server's origin). Other relative forms and script schemes stay plain text.
+ */
+internal fun markdownLinkTarget(value: String): String? {
+    val trimmed = value.trim()
+    safeWebUrl(trimmed)?.let { return it }
+    val lower = trimmed.lowercase()
+    if ((lower.startsWith("mailto:") || lower.startsWith("tel:")) && trimmed.substringAfter(':').isNotBlank()) return trimmed
+    if (trimmed.startsWith("//")) return safeWebUrl("https:$trimmed")
+    if (trimmed.startsWith("/")) return safeWebUrl(com.minashin1120.aiplayground.BuildConfig.BASE_URL.trimEnd('/') + trimmed)
+    return null
 }
 
 internal fun safeWebUrl(value: String): String? = runCatching {
@@ -547,7 +571,16 @@ fun MarkdownText(
         color = colors.text, fontSize = MarkdownBodySize, lineHeight = MarkdownLineHeight,
         letterSpacing = 0.01.em, fontFamily = WebFonts.sans,
     )
-    PreWrapBlocks(blocks, base, colors, loader, onOpen, startCollapsed, leadingLine = false)
+    // Web opens every link in a new tab; here a link that no installed app can open is ignored.
+    val uriHandler = LocalUriHandler.current
+    val safeHandler = remember(uriHandler) { SafeUriHandler(uriHandler) }
+    CompositionLocalProvider(LocalUriHandler provides safeHandler) {
+        PreWrapBlocks(blocks, base, colors, loader, onOpen, startCollapsed, leadingLine = false)
+    }
+}
+
+private class SafeUriHandler(private val base: UriHandler) : UriHandler {
+    override fun openUri(uri: String) { runCatching { base.openUri(uri) } }
 }
 
 /** Height of one pre-wrap line box (the empty line produced by marked's `\n` between blocks). */
@@ -773,7 +806,7 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
             val match = Regex("^\\[((?:[^\\[\\]]|\\[[^\\]]*])*)]\\(\\s*<?([^)\\s>]+)>?(?:\\s+\"[^\"]*\")?\\s*\\)").find(rest)
             if (match != null) {
                 flush()
-                val url = safeWebUrl(match.groupValues[2])
+                val url = markdownLinkTarget(match.groupValues[2])
                 if (url == null) appendInline(match.groupValues[1], colors, codeRanges)
                 else withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = colors.link, textDecoration = TextDecoration.Underline)))) {
                     appendInline(match.groupValues[1], colors, codeRanges)
@@ -875,7 +908,7 @@ private fun AnnotatedString.Builder.appendInlineHtml(rest: String, colors: Markd
             flush()
             val inner = rest.substring(open.value.length, closing.range.first)
             val href = if (name == "a") HTML_HREF.find(open.groupValues[2])?.let { m -> m.groupValues.drop(2).firstOrNull { it.isNotEmpty() } }
-                ?.let(::safeWebUrl) else null
+                ?.let(::markdownLinkTarget) else null
             when {
                 href != null -> withLink(LinkAnnotation.Url(href, TextLinkStyles(SpanStyle(color = colors.link, textDecoration = TextDecoration.Underline)))) {
                     appendInline(inner, colors, codeRanges)
@@ -898,6 +931,16 @@ private fun InlineText(text: String, style: TextStyle, colors: MarkdownColors) {
     InlineRichText(parsed, style, colors.inlineCodeBackground)
 }
 
+/** True inside a bubble-wide selection, so nested text joins it instead of starting its own. */
+private val LocalMessageSelection = staticCompositionLocalOf { false }
+
+/** A [SelectionContainer] unless one is already open around this text. */
+@Composable
+internal fun MessageSelection(content: @Composable () -> Unit) {
+    if (LocalMessageSelection.current) content()
+    else SelectionContainer { CompositionLocalProvider(LocalMessageSelection provides true, content = content) }
+}
+
 /** Text with Web inline-code chips: rounded 6.4px background, 6.4px side padding, 24px tall. */
 @Composable
 internal fun InlineRichText(parsed: InlineMarkdown, style: TextStyle, codeBackground: Color, modifier: Modifier = Modifier) {
@@ -908,7 +951,7 @@ internal fun InlineRichText(parsed: InlineMarkdown, style: TextStyle, codeBackgr
     val density = LocalDensity.current
     val chipHeight = with(density) { 24.dp.toPx() }
     val radius = with(density) { 6.4.dp.toPx() }
-    SelectionContainer {
+    MessageSelection {
         Text(
             parsed.text,
             style = style,
@@ -949,7 +992,8 @@ internal fun InlineRichText(parsed: InlineMarkdown, style: TextStyle, codeBackgr
 
 @Composable
 private fun CodeBlock(block: MarkdownBlock.Code, colors: MarkdownColors, startCollapsed: Boolean) {
-    var collapsed by remember(block.text, block.language) { mutableStateOf(startCollapsed) }
+    // Web `snapshotCodeCollapseByMessage`: the open/closed state survives scrolling away and reloads.
+    var collapsed by rememberSaveable(block.text, block.language) { mutableStateOf(startCollapsed) }
     var copied by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(copied) { if (copied != null) { delay(2000); copied = null } }
     val clipboard = LocalClipboardManager.current
@@ -993,7 +1037,7 @@ private fun CodeBlock(block: MarkdownBlock.Code, colors: MarkdownColors, startCo
         if (!collapsed) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(colors.codeWrapperBorder))
             val highlighted = remember(block.text, block.language, colors.syntax) { highlightCode(block.text, block.language, colors.syntax) }
-            SelectionContainer {
+            MessageSelection {
                 Text(
                     highlighted,
                     color = colors.codeText,

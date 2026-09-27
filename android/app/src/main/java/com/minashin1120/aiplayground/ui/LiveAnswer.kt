@@ -21,7 +21,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -238,8 +237,18 @@ internal fun PythonExecutionBox(card: StatusCard, label: String = "Python Execut
                 CodeActionButton(R.drawable.fa_solid_download, "コードをダウンロード", actionColors) { actions.onDownload(card.code, "python") }
             } else CodeActionButton(if (collapsed) R.drawable.fa_solid_chevron_down else R.drawable.fa_solid_chevron_up,
                 if (collapsed) "展開" else "折りたたむ", actionColors) { collapsed = !collapsed }
-            CodeActionButton(R.drawable.fa_solid_copy, "コードをコピー", actionColors) { clipboard.setText(AnnotatedString(card.code)) }
-            CodeActionButton(R.drawable.fa_solid_align_left, "出力をコピー", actionColors) { clipboard.setText(AnnotatedString(card.output)) }
+            // Web `copyCode`: the icon turns into ✓ (or ✕) for 2 seconds.
+            var codeCopied by remember { mutableStateOf<Boolean?>(null) }
+            var outputCopied by remember { mutableStateOf<Boolean?>(null) }
+            LaunchedEffect(codeCopied) { if (codeCopied != null) { delay(2000); codeCopied = null } }
+            LaunchedEffect(outputCopied) { if (outputCopied != null) { delay(2000); outputCopied = null } }
+            fun copiedIcon(result: Boolean?, idle: Int) = when (result) { true -> R.drawable.fa_solid_check; false -> R.drawable.fa_solid_times; null -> idle }
+            CodeActionButton(copiedIcon(codeCopied, R.drawable.fa_solid_copy), "コードをコピー", actionColors) {
+                codeCopied = runCatching { clipboard.setText(AnnotatedString(card.code)) }.isSuccess
+            }
+            CodeActionButton(copiedIcon(outputCopied, R.drawable.fa_solid_align_left), "出力をコピー", actionColors) {
+                outputCopied = runCatching { clipboard.setText(AnnotatedString(card.output)) }.isSuccess
+            }
         }
         if (!collapsed) Column(Modifier.padding(horizontal = 11.2.dp, vertical = 8.8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             PythonSection("Code", card.code, colors)
@@ -253,7 +262,7 @@ private fun PythonSection(label: String, text: String, colors: MarkdownColors) {
     Column(verticalArrangement = Arrangement.spacedBy(5.6.dp)) {
         Text(label.uppercase(), fontSize = 11.2.sp, letterSpacing = 0.45.sp, color = Color(0xFFA3B3C5))
         val shape = RoundedCornerShape(8.dp)
-        SelectionContainer {
+        MessageSelection {
             Text(
                 text, fontFamily = WebFonts.mono, fontSize = 12.6.sp, lineHeight = 19.sp, color = colors.codeText, softWrap = false,
                 modifier = Modifier.fillMaxWidth().clip(shape).background(Color(0xFF060D1D)).border(1.dp, Color(148, 163, 184).copy(alpha = 0.2f), shape)

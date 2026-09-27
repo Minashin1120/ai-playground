@@ -34,11 +34,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -74,6 +79,7 @@ import com.minashin1120.aiplayground.data.isAudioPath
 import com.minashin1120.aiplayground.data.isVideoPath
 import com.minashin1120.aiplayground.data.composerRules
 import com.minashin1120.aiplayground.data.gemMentionQuery
+import com.minashin1120.aiplayground.data.isMistralOcrModel
 import com.minashin1120.aiplayground.data.historyCodingTargets
 import com.minashin1120.aiplayground.data.isImageReference
 import com.minashin1120.aiplayground.data.attachmentItemsForSend
@@ -124,8 +130,25 @@ fun Composer(
     val rules = remember(state.model, mcpServerOn) { composerRules(state.model, mcpServerOn) }
     // Web slash palette: shown while the input starts with `/` and no command is pending.
     val pendingSlash = state.pendingSlashCommand
-    val slashFilter = if (pendingSlash == null) slashPaletteFilter(state.draft) else null
+    // Web hides the `/` and `@` palettes 150ms after the textarea loses focus; typing shows them again.
+    val inputInteraction = remember { MutableInteractionSource() }
+    val inputFocused by inputInteraction.collectIsFocusedAsState()
+    var palettesHidden by remember { mutableStateOf(false) }
+    LaunchedEffect(inputFocused) { if (!inputFocused) { delay(150); palettesHidden = true } }
+    LaunchedEffect(state.draft) { palettesHidden = false }
+    val slashFilter = if (pendingSlash == null && !palettesHidden) slashPaletteFilter(state.draft) else null
     val slashMatches = slashFilter?.let { visibleSlashCommands(it, minimal) }.orEmpty()
+    val mention = if (pendingSlash == null && !palettesHidden && slashMatches.isEmpty()) gemMentionQuery(state.draft) else null
+    val mentionCandidates = if (mention != null) state.gems.filter {
+        it.name.contains(mention, ignoreCase = true) || it.description.contains(mention, ignoreCase = true)
+    } else emptyList()
+    // Web `slashSelectedIndex` / `gemSelectedIndex`: ↑↓ on a hardware keyboard move the highlight.
+    var paletteIndex by remember { mutableIntStateOf(0) }
+    LaunchedEffect(slashFilter, mention) { paletteIndex = 0 }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(state.composerFocusRequest) {
+        if (state.composerFocusRequest > 0L) runCatching { focusRequester.requestFocus() }
+    }
     // Web minimal mode: ＋ opens `#minimal-options-popup`; Thinking opens `#thinking-slide-bar`.
     var minimalOptionsOpen by remember { mutableStateOf(false) }
     var thinkingSliderOpen by remember { mutableStateOf(false) }
@@ -173,14 +196,18 @@ fun Composer(
     if (localPythonConfirm) GeminiLocalPythonDialog { proceed, dontShow ->
         localPythonConfirm = false
         if (dontShow) context.getSharedPreferences("settings_local", 0).edit().putBoolean(GEMINI_LOCAL_PY_DIALOG_PREF, false).apply()
-        if (proceed) model.send()
+        if (proceed) model.send(preChecked = true)
     }
-    val sendOrSlash: () -> Unit = {
+    /** Web `sendMessage` (send button, and Enter when no palette is open). */
+    val sendOrSlash: () -> Unit = send@{
+        if (!model.beginSend()) return@send
         val instruction = state.draft.trim()
         val settingsInline = Regex("^/settings(?:\\s|$)", RegexOption.IGNORE_CASE)
+        if ((pendingSlash == "settings" || settingsInline.containsMatchIn(instruction)) && isMistralOcrModel(state.model)) {
+            model.notify("Mistral OCR は設定変更コマンドに使えません。チャットモデルを選んでください。")
+            return@send
+        }
         when {
-            // Web: Enter with the palette open picks the highlighted (first) command.
-            slashMatches.isNotEmpty() && !settingsInline.containsMatchIn(instruction) -> selectSlash(slashMatches.first())
             pendingSlash == "settings" -> {
                 if (instruction.isEmpty()) model.notify("設定変更の指示を入力してください（例: デフォルトモデルをgemini-2.5-flashに）")
                 else model.runAiSettings(instruction)
@@ -200,6 +227,25 @@ fun Composer(
                 } else model.runAiSettings(text)
             }
             else -> guardedSend()
+        }
+    }
+    /** Web `#prompt-input` keydown: with a palette open Enter picks the highlighted item, ↑↓ move, Esc closes. */
+    val pickHighlighted: () -> Unit = {
+        if (slashMatches.isNotEmpty()) selectSlash(slashMatches[paletteIndex.coerceIn(0, slashMatches.lastIndex)])
+        else mentionCandidates.getOrNull(paletteIndex.coerceIn(0, mentionCandidates.lastIndex))?.let(model::applyGemMention)
+    }
+    val paletteOpen = slashMatches.isNotEmpty() || mentionCandidates.isNotEmpty()
+    val onEnter: () -> Unit = { if (paletteOpen) pickHighlighted() else sendOrSlash() }
+    val onPaletteKey: (KeyEvent) -> Boolean = { event ->
+        val count = if (slashMatches.isNotEmpty()) slashMatches.size else mentionCandidates.size
+        val down = event.type == KeyEventType.KeyDown
+        when {
+            paletteOpen && event.key == Key.DirectionDown -> { if (down) paletteIndex = (paletteIndex + 1).coerceAtMost(count - 1); true }
+            paletteOpen && event.key == Key.DirectionUp -> { if (down) paletteIndex = (paletteIndex - 1).coerceAtLeast(0); true }
+            paletteOpen && event.key == Key.Enter && !event.isShiftPressed -> { if (down) pickHighlighted(); true }
+            paletteOpen && event.key == Key.Escape -> { if (down) palettesHidden = true; true }
+            pendingSlash != null && event.key == Key.Escape -> { if (down) model.setPendingSlashCommand(null); true }
+            else -> false
         }
     }
     val history = remember(state.messages) { historyCodingTargets(state.messages) }
@@ -263,7 +309,8 @@ fun Composer(
                 val shownGem = rememberRetained(gem)
                 AnimatedVisibility(gem != null && gem.fixedPrompts.isNotEmpty(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                     FixedPromptsBar(shownGem?.fixedPrompts.orEmpty().map { it.name to it.content }) { content ->
-                        model.draft(content); guardedSend()
+                        model.draft(content)
+                        if (model.beginSend()) guardedSend()
                     }
                 }
                 AnimatedVisibility(gem != null, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
@@ -274,6 +321,7 @@ fun Composer(
                     SuggestionPalette(
                         title = "コマンド",
                         items = shownSlash.orEmpty().map { PaletteItem(it.label, it.description, slashIcon(it.iconName), mono = true) },
+                        highlighted = paletteIndex,
                         onPick = { index -> shownSlash?.getOrNull(index)?.let(selectSlash) },
                     )
                 }
@@ -286,22 +334,20 @@ fun Composer(
                 AnimatedVisibility(state.xLinkPrompt, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                     XLinkBanner(onResolve = model::resolveXLinkPrompt)
                 }
-                val mention = gemMentionQuery(state.draft)
-                val mentionCandidates = if (mention != null) state.gems.filter {
-                    it.name.contains(mention, ignoreCase = true) || it.description.contains(mention, ignoreCase = true)
-                } else emptyList()
-                val shownMention = rememberRetained(mention?.takeIf { mentionCandidates.isNotEmpty() }?.let { it to mentionCandidates })
+                val shownMention = rememberRetained(mentionCandidates.takeIf { it.isNotEmpty() })
                 AnimatedVisibility(mentionCandidates.isNotEmpty(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
-                    shownMention?.let { (query, candidates) ->
+                    shownMention?.let { candidates ->
                         SuggestionPalette(
                             title = "Gem",
                             items = candidates.map { PaletteItem(it.name, it.description, R.drawable.fa_solid_gem) },
-                            onPick = { index -> candidates.getOrNull(index)?.let { model.applyGemMention(it, query) } },
+                            highlighted = paletteIndex,
+                            onPick = { index -> candidates.getOrNull(index)?.let(model::applyGemMention) },
                         )
                     }
                 }
                 InputRow(state, model, rules, phone, minimal, pickFiles, onRichPaste, onMask, onVoice,
-                    onPlus = { thinkingSliderOpen = false; minimalOptionsOpen = !minimalOptionsOpen }, onSend = sendOrSlash)
+                    onPlus = { thinkingSliderOpen = false; minimalOptionsOpen = !minimalOptionsOpen }, onSend = sendOrSlash,
+                    onEnter = onEnter, onKey = onPaletteKey, interaction = inputInteraction, focusRequester = focusRequester)
                 if (state.micMode == "preparing" || state.micMode == "recording") MicRecordingIndicator(state.micMode, state.micLevels, phone)
                 TokenEstimate(state)
             }
@@ -564,7 +610,9 @@ private fun DetailChips(
                 onSelect = { model.generationOption("safety_setting", it) },
             )
         }
-        OptGroup(state.enablePromptCache, center, dimmed = rules.promptCache.dimmed) {
+        // Web `updatePromptCacheUi`: `ring-1 ring-teal-500/50` around the chip while PromptCache is on.
+        OptGroup(state.enablePromptCache, center.then(if (state.enablePromptCache) Modifier.outerRing(Tw.teal500.copy(alpha = 0.5f)) else Modifier),
+            dimmed = rules.promptCache.dimmed) {
             GroupCheck("PromptCache", state.enablePromptCache, rules.promptCache, model::togglePromptCache,
                 label(Color(94, 234, 212), Color(15, 118, 110)))
         }
@@ -598,6 +646,13 @@ private fun OptChip(
 ) {
     WebCheckChip(label, checked, { onToggle() }, accent, composerOptStyle(checked), modifier,
         labelColor = labelColor, enabled = !rule.dimmed && !rule.disabled)
+}
+
+/** Tailwind `ring-1`: a 1dp line just outside the pill (a box-shadow, so it does not change the layout). */
+private fun Modifier.outerRing(color: Color): Modifier = drawBehind {
+    val width = 1.dp.toPx()
+    drawRoundRect(color, topLeft = Offset(-width / 2f, -width / 2f), size = Size(size.width + width, size.height + width),
+        cornerRadius = CornerRadius(size.height / 2f + width / 2f), style = Stroke(width))
 }
 
 /** `<div class="composer-opt composer-opt-group">`: a round pill that holds a checkbox label and extra controls. */
@@ -808,7 +863,7 @@ private data class PaletteItem(val title: String, val description: String, @Draw
 
 /** `#slash-command-suggestions` / `#gem-suggestions`: header row, then icon + title + one-line description. */
 @Composable
-private fun SuggestionPalette(title: String, items: List<PaletteItem>, onPick: (Int) -> Unit) {
+private fun SuggestionPalette(title: String, items: List<PaletteItem>, highlighted: Int, onPick: (Int) -> Unit) {
     val web = LocalWebPalette.current
     val shape = RoundedCornerShape(8.dp)
     Column(
@@ -830,7 +885,7 @@ private fun SuggestionPalette(title: String, items: List<PaletteItem>, onPick: (
             items.forEachIndexed { index, item ->
                 Row(
                     Modifier.fillMaxWidth()
-                        .background(if (index == 0) (if (web.isLight) Color(231, 237, 246) else Tw.gray700) else Color.Transparent)
+                        .background(if (index == highlighted) (if (web.isLight) Color(231, 237, 246) else Tw.gray700) else Color.Transparent)
                         .clickable { onPick(index) }
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -866,10 +921,13 @@ private fun InputRow(
     onVoice: () -> Unit,
     onPlus: () -> Unit,
     onSend: () -> Unit,
+    onEnter: () -> Unit,
+    onKey: (KeyEvent) -> Boolean,
+    interaction: MutableInteractionSource,
+    focusRequester: FocusRequester,
 ) {
     val web = LocalWebPalette.current
     val reduce = LocalReduceMotion.current
-    val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
     val shellShape = RoundedCornerShape(if (phone) 17.dp else 20.dp)
     val shellBorder by animateColorAsState(
@@ -908,7 +966,7 @@ private fun InputRow(
             ToolButton(R.drawable.fa_solid_microphone, "Voice Input", toolSize, toolShape, onClick = onVoice, enabled = !uploadActive,
                 active = state.micMode == "recording")
         }
-        PromptField(state, model, focused, interaction, onSend, Modifier.weight(1f))
+        PromptField(state, model, focused, interaction, onEnter, onKey, focusRequester, Modifier.weight(1f))
         SendStopButton(state, phone, onSend, onStop = model::stop, enabled = !uploadActive)
     }
 }
@@ -960,6 +1018,8 @@ private fun PromptField(
     focused: Boolean,
     interaction: MutableInteractionSource,
     onSend: () -> Unit,
+    onKey: (KeyEvent) -> Boolean,
+    focusRequester: FocusRequester,
     modifier: Modifier = Modifier,
 ) {
     val web = LocalWebPalette.current
@@ -983,7 +1043,9 @@ private fun PromptField(
         keyboardActions = KeyboardActions(onSend = { onSend() }),
         modifier = modifier
             .heightIn(min = 37.6.dp, max = 150.dp)
+            .focusRequester(focusRequester)
             .onPreviewKeyEvent { event ->
+                if (onKey(event)) return@onPreviewKeyEvent true
                 val sendKey = event.key == Key.Enter && !event.isShiftPressed && (event.isCtrlPressed || enterToSend)
                 if (sendKey) {
                     if (event.type == KeyEventType.KeyDown) onSend()

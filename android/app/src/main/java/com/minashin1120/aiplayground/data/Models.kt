@@ -443,15 +443,11 @@ fun parseGems(rows: JSONArray): List<Gem> = (0 until rows.length()).map { index 
     )
 }
 
-/** Detects a trailing `@name` mention for the Gem candidate list. */
-fun gemMentionQuery(text: String): String? =
-    Regex("(?:^|\\s)@([^\\s@]*)$").find(text)?.groupValues?.get(1)
+/** Web: the Gem candidates show while the whole (trimmed) input starts with `@`; the rest is the filter. */
+fun gemMentionQuery(text: String): String? = text.trim().takeIf { it.startsWith("@") }?.substring(1)
 
-/** Removes the trailing `@query` mention once a Gem is applied. */
-fun replaceGemMention(text: String, query: String): String {
-    val marker = "@$query"
-    return if (text.endsWith(marker)) text.dropLast(marker.length).trimEnd() else text
-}
+/** Web `selectGemSuggestion`: the input keeps only the text before its last `@`. */
+fun replaceGemMention(text: String): String = text.substringBeforeLast('@', "").trimEnd()
 
 /** Live-only progress cards for streamed search and tool execution. */
 enum class CardKind { PYTHON, MCP, CODING, TOOL }

@@ -210,9 +210,12 @@ class PlaygroundApiTest {
         val gems = parseGems(JSONArray("""[{"uuid":"g1","name":"Brief","description":"d","instruction":"be brief","default_model":"gpt-5.6-sol"}]"""))
         assertEquals("Brief", gems.single().name)
         assertEquals("gpt-5.6-sol", gems.single().defaultModel)
-        assertEquals("bri", gemMentionQuery("hello @bri"))
+        assertEquals("bri", gemMentionQuery("@bri"))
+        assertEquals("brief writer", gemMentionQuery("  @brief writer "))
+        assertNull(gemMentionQuery("hello @bri"))
         assertNull(gemMentionQuery("hello world"))
-        assertEquals("hello", replaceGemMention("hello @bri", "bri"))
+        assertEquals("", replaceGemMention("@bri"))
+        assertEquals("note", replaceGemMention("note @bri"))
     }
 
     @Test fun preferencesParseSafeFields() {

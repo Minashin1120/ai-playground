@@ -39,6 +39,9 @@ import java.util.UUID
 
 enum class ChatTransitionKind { NONE, OPEN_THREAD, NEW_CHAT }
 
+/** Web `ATTACHMENT_MAX_FILES` (server `ATTACHMENT_MAX_FILES`, 30 by default). */
+private const val ATTACHMENT_MAX_FILES = 30
+
 /** Account export categories imported by the first-run wizard. */
 private const val ACCOUNT_IMPORT_CATEGORIES =
     "settings,api_credentials,chats,gems,files,feedback,diagnostics"
@@ -74,6 +77,8 @@ data class ChatState(
     val allMessages: List<ChatMessage> = emptyList(), val leafId: Int? = null, val editingMessageId: String? = null,
     val customInstruction: String = "", val includeGlobalInstruction: Boolean = true,
     val newThreadTemporary: Boolean = false, val tempChatRemainingSeconds: Long? = null,
+    /** The open chat's temporary-chat timeout (`timeout_seconds`); null falls back to the setting. */
+    val tempChatTimeoutSeconds: Int? = null,
     val draft: String = "", val model: String = "", val attachments: List<Attachment> = emptyList(),
     val enableThinking: Boolean = false, val enableSearch: Boolean = false,
     val enableUrlContext: Boolean = false, val enableMaps: Boolean = false,
@@ -159,6 +164,8 @@ data class ChatState(
     /** Tab (id or label) and card key the latest [settingsRequest] opens at; null keeps the last tab. */
     val settingsRequestTab: String? = null,
     val settingsRequestCard: String? = null,
+    /** Incremented to move the focus into the prompt input (Web `input.focus()` after edit / quote). */
+    val composerFocusRequest: Long = 0L,
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -210,7 +217,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var lyriaTrack: AudioTrack? = null
     private var importJob: Job? = null
     private var pendingPasskeyName = "Androidのパスキー"
-    private data class Submission(val body: JSONObject, val files: List<Attachment>)
+    /** A send in flight; the composer state is restored from it when the server never accepted it. */
+    private data class Submission(
+        val body: JSONObject,
+        val files: List<Attachment>,
+        val mask: String? = null,
+        val editingId: String? = null,
+        val parentId: Int? = null,
+    )
     private var failed: Submission? = null
     private var pendingParentId: Int? = null
     private var chatTransitionSequence = 0L
@@ -1140,7 +1154,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun quoteMessage(text: String) {
         val quoted = text.trim()
         if (quoted.isBlank()) return
-        mutable.update { it.copy(quote = quoted) }
+        mutable.update { it.copy(quote = quoted, composerFocusRequest = it.composerFocusRequest + 1) }
     }
     fun clearQuote() { mutable.update { it.copy(quote = "") } }
     /**
@@ -1202,17 +1216,41 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             notify("PromptCache を有効化しました。以降は $label 以外のモデルに変更できません。")
         }
     }
-    fun toggleBatchMode() { mutable.update { it.copy(batchMode = !it.batchMode) } }
+    /** Web `enable-batch-mode` change: turning Batch on releases Coding, which Batch cannot run. */
+    fun toggleBatchMode() {
+        val releaseCoding = !state.value.batchMode && state.value.codingMode
+        mutable.update { it.copy(batchMode = !it.batchMode, codingMode = if (releaseCoding) false else it.codingMode) }
+        if (releaseCoding) notify("Batch APIではCoding Modeを利用できないため解除しました")
+    }
     fun togglePython() { mutable.update { it.copy(enablePython = !it.enablePython) } }
     fun toggleMcp() { mutable.update { it.copy(enableMcp = !it.enableMcp) } }
     fun toggleCanvas() { mutable.update { it.copy(canvasMode = !it.canvasMode) } }
     fun toggleCoding() { mutable.update { it.copy(codingMode = !it.codingMode) } }
+    /** Web `applyTemporaryChatSetting`: an open chat sends only `is_temporary` (its title and instruction stay). */
     fun toggleTemporaryChat() {
         val selected = state.value.selected
-        if (selected != null) {
-            saveThreadSettings(selected.title, state.value.customInstruction, state.value.includeGlobalInstruction, !selected.isTemporary)
-        } else {
+        if (selected == null) {
             mutable.update { it.copy(newThreadTemporary = !it.newThreadTemporary) }
+            return
+        }
+        val next = !selected.isTemporary
+        viewModelScope.launch {
+            if (state.value.offline) { notify("オフライン中はチャット設定を変更できません。"); return@launch }
+            try {
+                val reply = api.put("/api/threads/${selected.id}/settings", JSONObject().put("is_temporary", next), token())
+                mutable.update { current -> current.copy(
+                    selected = current.selected?.takeIf { it.id == selected.id }?.copy(isTemporary = reply.optBoolean("is_temporary", next))
+                        ?: current.selected,
+                    tempChatTimeoutSeconds = reply.optInt("timeout_seconds").takeIf { value -> reply.has("timeout_seconds") && value > 0 }
+                        ?: current.tempChatTimeoutSeconds,
+                    tempChatRemainingSeconds = reply.optLong("temp_chat_remaining_seconds")
+                        .takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 },
+                ) }
+                fetchThreads(false)
+                syncHeartbeat()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) { report(e, "一時チャット設定の更新に失敗しました") }
         }
     }
     /** Web `selectCodingTargetFromButton` / `clear-coding-target-btn`; selecting does not turn Coding on. */
@@ -1337,18 +1375,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             editingMessageId = null, jobId = null, streaming = false,
             liveContent = "", liveThought = "", status = "", busy = false, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null, customInstruction = "",
-            includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null,
+            includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null, tempChatTimeoutSeconds = null,
             selectedGem = null, codingTarget = null, imageMask = null,
+            // Web `startNewChat`: cancelEdit + resetUploadState, and PromptCache starts off.
+            draft = "", attachments = emptyList(), quote = "", enablePromptCache = false,
             chatTransitionId = transition.first, chatTransitionKind = transition.second,
             chatNavigationId = transition.first, chatNavigationKind = transition.second) }
     }
-    fun openThread(thread: ThreadItem) {
+    /**
+     * Web `loadMessages`: the composer is cleared (`cancelEdit`), the branch pinned in ブランチ管理 or else the
+     * latest one is shown, and [onLoaded] runs once the chat is on screen (the phone sidebar closes then).
+     */
+    fun openThread(thread: ThreadItem, onLoaded: () -> Unit = {}) {
         navigationJob?.cancel(); streamJob?.cancel(); heartbeatJob?.cancel(); failed = null
         pendingParentId = null
         val transition = nextChatTransition(ChatTransitionKind.OPEN_THREAD)
-        val storedLeaf = prefs.getInt("leaf_${thread.id}", -1).takeIf { it > 0 }
+        val pinnedLeaf = getApplication<Application>().getSharedPreferences("branches", Context.MODE_PRIVATE)
+            .getString("fixed_branch_${thread.id}", null)?.toIntOrNull()
         mutable.update { it.copy(selected = thread, messages = emptyList(), allMessages = emptyList(), settingsBubbles = emptyList(),
-            leafId = storedLeaf, editingMessageId = null, streaming = false, busy = true,
+            leafId = pinnedLeaf, editingMessageId = null, streaming = false, busy = true,
+            draft = "", attachments = emptyList(), quote = "",
             liveContent = "", liveThought = "", jobId = null, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null,
             // Keep the current transition id while the history loads so the AnimatedContent swap
@@ -1360,10 +1406,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 loadMessages(thread.id)
                 if (state.value.selected?.id == thread.id) {
                     mutable.update { it.copy(busy = false, chatTransitionId = transition.first, chatTransitionKind = transition.second) }
+                    onLoaded()
                 }
                 if (foreground && state.value.jobId != null) resume()
             }
-            catch (e: Exception) { report(e) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { report(e, "チャットの読み込みに失敗しました") }
             finally { mutable.update { it.copy(busy = false) } }
         }
     }
@@ -1398,6 +1446,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             customInstruction = if (older) it.customInstruction else reply.nullableString("custom_instruction"),
             includeGlobalInstruction = if (older) it.includeGlobalInstruction else reply.optBoolean("include_global_instruction", true),
             newThreadTemporary = if (older) it.newThreadTemporary else false,
+            tempChatTimeoutSeconds = if (older) it.tempChatTimeoutSeconds else
+                reply.optInt("timeout_seconds").takeIf { value -> reply.has("timeout_seconds") && value > 0 },
             tempChatRemainingSeconds = if (older) it.tempChatRemainingSeconds else
                 reply.optLong("temp_chat_remaining_seconds").takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 },
             liveContent = if (older) it.liveContent else "", liveThought = if (older) it.liveThought else "",
@@ -1406,10 +1456,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val uuid = reply.nullableString("last_gem_uuid")
                 if (uuid.isBlank()) null else it.gems.firstOrNull { gem -> gem.uuid == uuid }
             }) }
-        // Keep the per-thread remembered branch in sync with what was actually resolved here,
-        // so a stale branch (e.g. from before an edit/regenerate created a new one) does not
-        // reassert itself the next time this thread is opened.
-        state.value.selected?.let { thread -> leaf?.let { prefs.edit().putInt("leaf_${thread.id}", it).apply() } }
+        if (!older) {
+            // Web `loadMessages`: the chat's PromptCache flag and last model come back with it (the flag
+            // first, so a PromptCache lock from the previous chat never blocks the switch).
+            mutable.update { it.copy(enablePromptCache = reply.optBoolean("enable_prompt_caching")) }
+            reply.nullableString("last_model").takeIf { it.isNotBlank() && it != state.value.model }?.let(::chooseModel)
+        }
         state.value.account?.let { account ->
             withContext(Dispatchers.IO) {
                 offlineCache.saveThread(
@@ -1487,12 +1539,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (thread != null) openThread(thread)
         else navigationJob = viewModelScope.launch { try { fetchThreads(false) } catch (e: Exception) { report(e) } }
     }
-    fun deleteThread(thread: ThreadItem) { viewModelScope.launch {
+    /** [onNewChat] runs when the open chat was deleted (Web `startNewChat` also closes the phone sidebar). */
+    fun deleteThread(thread: ThreadItem, onNewChat: () -> Unit = {}) { viewModelScope.launch {
         if (state.value.offline) { notify("オフライン中は履歴を削除できません。"); return@launch }
         try {
             api.delete("/api/threads/${thread.id}", token())
             state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.deleteThread(account.id, thread.id) } }
-            if (state.value.selected?.id == thread.id) newChat()
+            if (state.value.selected?.id == thread.id) { newChat(); onNewChat() }
             fetchThreads(false)
         } catch (e: Exception) { report(e) }
     } }
@@ -1523,8 +1576,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 api.delete("/api/messages/$id", token())
                 if (state.value.selected?.id == thread.id) {
-                    mutable.update { it.copy(leafId = null) }
-                    prefs.edit().remove("leaf_${thread.id}").apply()
+                    // Web reloads the chat without `preserveDraft`, which runs `cancelEdit`.
+                    pendingParentId = null
+                    mutable.update { it.copy(leafId = null, editingMessageId = null, draft = "", attachments = emptyList(), quote = "") }
                     loadMessages(thread.id)
                 }
             } catch (e: Exception) { report(e) }
@@ -1683,32 +1737,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun beginEdit(message: ChatMessage) {
         if (message.role != "user") return
         pendingParentId = message.parentId
+        // Web `beginEditMessage`: the message's own quote comes back (or the quote bar clears) and the input gets focus.
         mutable.update { it.copy(
             editingMessageId = message.id,
             draft = message.content,
             attachments = message.files.map { reference -> Attachment(reference.substringAfterLast('/'), reference) },
+            quote = message.quote,
+            composerFocusRequest = it.composerFocusRequest + 1,
         ) }
     }
 
     /** Re-sends the user message that produced an assistant reply, creating a sibling branch. */
     fun regenerate(message: ChatMessage) {
-        if (message.role != "assistant" || state.value.streaming || state.value.busy) return
-        val parent = message.parentId?.let { pid -> state.value.allMessages.firstOrNull { numericId(it) == pid } } ?: return
+        if (message.role != "assistant" || state.value.busy) return
+        // Web `regenerateMessage`; while an answer streams, send() shows the same waiting notice as Web.
+        val parent = message.parentId?.let { pid -> state.value.allMessages.firstOrNull { numericId(it) == pid } }
+            ?: run { notify("再生成できるメッセージが見つかりません"); return }
         beginEdit(parent)
         send()
     }
 
     fun cancelEdit() {
         pendingParentId = null
-        mutable.update { it.copy(editingMessageId = null, draft = "", attachments = emptyList()) }
+        mutable.update { it.copy(editingMessageId = null, draft = "", attachments = emptyList(), quote = "") }
     }
 
     /** Switches the active path to the branch that contains [targetMessageId]. */
     fun switchBranch(targetMessageId: Int) {
         val all = state.value.allMessages
         val leaf = latestLeafId(all, targetMessageId)
+        // Web keeps ‹ › choices for this visit only; reopening shows the pinned or the latest branch.
         mutable.update { it.copy(leafId = leaf, messages = activeBranchPath(all, leaf)) }
-        state.value.selected?.let { prefs.edit().putInt("leaf_${it.id}", leaf).apply() }
     }
 
     fun switchBranchByIndex(siblings: List<ChatMessage>, index: Int) {
@@ -1719,11 +1778,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * [xLinkChecked] is set once the X-link question was answered; [disableAutoSearch] tells the server the
      * user chose to answer without search (Web `disable_auto_search`).
      */
-    fun send(xLinkChecked: Boolean = false, disableAutoSearch: Boolean = false) {
+    fun send(xLinkChecked: Boolean = false, disableAutoSearch: Boolean = false, preChecked: Boolean = false) {
+        if (!preChecked && !beginSend()) return
         var current = state.value
         if (current.banned) return
         if (current.offline) { mutable.update { it.copy(notice = "オフライン中はメッセージを送信できません。") }; return }
-        if (current.streaming || current.busy || current.uploading || (current.draft.isBlank() && current.attachments.isEmpty())) return
+        if (current.busy || (current.draft.isBlank() && current.attachments.isEmpty())) return
+        if (current.attachments.size > ATTACHMENT_MAX_FILES) {
+            notify("添付は最大${ATTACHMENT_MAX_FILES}件です。添付を減らして再送してください。")
+            return
+        }
         if (current.model.isBlank()) { mutable.update { it.copy(notice = "モデルを選択してください。") }; return }
         current.account?.models?.firstOrNull { it.id == current.model && it.selectable } ?: return
         // Web sendMessage checks: audio / video the model cannot take, and what Mistral OCR accepts.
@@ -1822,13 +1886,46 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             current.leafId?.let { body.put("parent_id", it) }
         }
         current.selected?.let { body.put("thread_id", it.id) }
-        val submission = Submission(body, current.attachments)
+        val submission = Submission(body, current.attachments, current.imageMask, current.editingMessageId, pendingParentId)
         failed = submission
         pendingParentId = null
-        mutable.update { it.copy(draft = "", attachments = emptyList(), editingMessageId = null, quote = "") }
+        // Web `resetUploadState` + `clearQuote`: the mask goes with the attachments.
+        mutable.update { it.copy(draft = "", attachments = emptyList(), editingMessageId = null, quote = "", imageMask = null) }
         submit(submission)
     }
     fun retry() { failed?.let { submit(it) } }
+
+    /**
+     * Web `sendMessage` entry: a short vibration, then the waiting notices while an answer streams or files
+     * upload. Returns false when the send must stop there.
+     */
+    fun beginSend(): Boolean {
+        vibrate(50)
+        when {
+            state.value.streaming -> notify("回答生成中です。完了までお待ちいただくか、停止してください。")
+            state.value.uploading -> notify("ファイルの送信・処理中です。しばらくお待ちください。")
+            else -> return true
+        }
+        return false
+    }
+
+    /** Web `vibrateHelper` (`navigator.vibrate`): one pulse of [timings] ms, or on/off/on… pulses. */
+    private fun vibrate(vararg timings: Long) {
+        runCatching {
+            val context = getApplication<Application>()
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                context.getSystemService(android.os.VibratorManager::class.java)?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(android.os.Vibrator::class.java)
+            }
+            if (vibrator?.hasVibrator() != true) return
+            vibrator.vibrate(
+                if (timings.size == 1) android.os.VibrationEffect.createOneShot(timings[0], android.os.VibrationEffect.DEFAULT_AMPLITUDE)
+                else android.os.VibrationEffect.createWaveform(longArrayOf(0L) + timings, -1),
+            )
+        }
+    }
 
     private var micRecorder: android.media.MediaRecorder? = null
     private var micFile: File? = null
@@ -2140,6 +2237,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     delay(CONNECTION_RETRY_DELAY_MS)
                 }
+                vibrate(100, 50, 100)
                 failed = null
                 // Branching sends (edit-and-resend, regenerate) create a new leaf whose id is unknown
                 // yet; drop the stale leafId so loadMessages() falls back to the newest message
@@ -2161,7 +2259,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     draft = if (it.draft.isBlank()) body.optString("message") else it.draft,
                     attachments = if (it.attachments.isEmpty()) submission.files else it.attachments,
                     quote = if (it.quote.isBlank()) body.optString("quote_text") else it.quote,
+                    imageMask = it.imageMask ?: submission.mask,
+                    editingMessageId = it.editingMessageId ?: submission.editingId,
                 ) }
+                if (state.value.editingMessageId == submission.editingId && submission.editingId != null) pendingParentId = submission.parentId
                 when {
                     e is ApiException && e.code == "api_key_missing" -> {
                         // Web `showApiKeyRequiredModalAsync`: set the key, switch model, or show the error.
@@ -2933,7 +3034,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             cacheMobileDataAllowed = prefs.getBoolean("offline_cache_mobile_data", false),
         )
     }
-    private suspend fun report(error: Throwable) {
+    /** [message] replaces the error text for the Web toasts that use a fixed wording. */
+    private suspend fun report(error: Throwable, message: String? = null) {
         if (error is CancellationException) throw error
         if (error is ApiException && error.code == "banned") {
             enterBannedState(error)
@@ -2952,7 +3054,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 setConnectionUnavailable(if (hasUsableNetwork()) ConnectionStatus.UNSTABLE else ConnectionStatus.OFFLINE)
         }
         mutable.update { it.copy(
-            notice = error.message?.take(500) ?: "通信に失敗しました。再試行してください。",
+            notice = message ?: error.message?.take(500) ?: "通信に失敗しました。再試行してください。",
         ) }
     }
 
@@ -3121,7 +3223,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (state.value.banned) return
         if (state.value.offline) { mutable.update { it.copy(notice = "オフライン中はファイルをアップロードできません。") }; return }
         if (uris.isEmpty() || state.value.uploading) return
-        if (uris.size + state.value.attachments.size > 30) { mutable.update { it.copy(notice = "添付は30件までです。") }; return }
+        // Web `handleFiles`: over the limit only the first files that still fit are added.
+        val remain = ATTACHMENT_MAX_FILES - state.value.attachments.size
+        if (uris.size > remain) {
+            if (remain <= 0) { notify("添付は最大${ATTACHMENT_MAX_FILES}件です"); return }
+            notify("添付は最大${ATTACHMENT_MAX_FILES}件です。先頭${remain}件のみ追加します。")
+            return upload(uris.take(remain))
+        }
         uploadJob = viewModelScope.launch {
             mutable.update { it.copy(uploading = true, uploadSent = 0, uploadTotal = 0, uploadName = "",
                 uploadCompleted = 0, uploadCount = uris.size) }
@@ -3492,8 +3600,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(notice = "この添付はすでに追加されています。") }
             return
         }
-        if (state.value.attachments.size >= 30) {
-            mutable.update { it.copy(notice = "添付は30件までです。") }
+        if (state.value.attachments.size >= ATTACHMENT_MAX_FILES) {
+            notify("添付は最大${ATTACHMENT_MAX_FILES}件です")
             return
         }
         mutable.update { it.copy(attachments = it.attachments + Attachment(file.displayName, file.filepath, "", source = "library")) }
@@ -3545,17 +3653,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) { report(e) }
     } }
 
+    /**
+     * Web `activateGem` / `clearActiveGem`: in an open chat the Gem is announced and saved as the chat's
+     * `last_gem_uuid` right away; in a new chat it waits for the first message.
+     */
     fun chooseGem(gem: Gem?) {
-        if (state.value.streaming) return
         mutable.update { it.copy(selectedGem = gem) }
         gem?.defaultModel?.takeIf { it.isNotBlank() }?.let { chooseModel(it) }
+        val thread = state.value.selected ?: return
+        if (gem != null) notify("Gem \"${gem.name}\" をこのチャットに適用しました")
+        if (state.value.offline) return
+        viewModelScope.launch {
+            runCatching {
+                api.put("/api/mobile/v1/preferences",
+                    JSONObject().put("last_gem_uuid", gem?.uuid ?: JSONObject.NULL).put("thread_id", thread.id), token())
+            }
+        }
     }
 
-    /** Applies a Gem chosen from the `@` candidate list and removes its mention. */
-    fun applyGemMention(gem: Gem, query: String) {
-        if (state.value.streaming) return
+    /** Web `selectGemSuggestion`: applies the Gem picked from the `@` candidates and trims the mention. */
+    fun applyGemMention(gem: Gem) {
+        mutable.update { it.copy(draft = replaceGemMention(it.draft), composerFocusRequest = it.composerFocusRequest + 1) }
         chooseGem(gem)
-        mutable.update { it.copy(draft = replaceGemMention(it.draft, query)) }
     }
 
     // --- General preferences and this device's session ---
@@ -3779,10 +3898,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (pdfExporting) { notify("PDF出力の準備中です。しばらくお待ちください。"); return }
         if (state.value.offline) { notify("PDF出力に失敗しました"); return }
         pdfExporting = true
+        // Web `openThreadPdfPrintDialog`: the branch on screen (`leaf_id`) with the 準備中 progress toast.
+        notify("PDF出力の準備中です")
+        val leaf = state.value.leafId
         viewModelScope.launch {
             mutable.update { it.copy(busy = true) }
             try {
-                val payload = api.get("/c/$id/pdf", token())
+                val payload = api.get("/c/$id/pdf" + (leaf?.let { "?leaf_id=$it" } ?: ""), token())
                 val messages = parsePdfMessages(payload)
                 val title = payload.optJSONObject("thread")?.optString("title").orEmpty().ifBlank { "AI Chat" }
                 val safeId = id.filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(24).ifBlank { "thread" }

@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -167,6 +166,8 @@ internal fun MessageBubble(
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onToggleControls)
                     .padding(16.dp),
             ) {
+              // One selection for the whole bubble, so a long-press selection runs across paragraphs like Web.
+              MessageSelection { Column {
                 if (message.quote.isNotBlank()) QuoteStrip(message.quote)
                 liveTop?.invoke()
                 if (!user && message.thought.isNotBlank()) {
@@ -175,7 +176,7 @@ internal fun MessageBubble(
                 }
                 if (user) {
                     // User messages are shown as raw text (`whitespace-pre-wrap font-sans text-sm`).
-                    SelectionContainer {
+                    MessageSelection {
                         Text(message.content, color = textColor, fontSize = 14.sp, lineHeight = 20.sp, fontFamily = FontFamily.Default)
                     }
                 } else if (liveSkeleton != null) {
@@ -189,6 +190,7 @@ internal fun MessageBubble(
                 if (files.isNotEmpty()) AttachmentGrid(files, loader, onFile)
                 if (branchCount > 1) VersionSwitcher(branchIndex, branchCount, actions.onSwitchBranch)
                 MessageFooter(message, user, actions, pythonRuns)
+              } }
             }
             // `.msg-controls`: absolute, 12px above the bubble's top-right corner.
             val controlsAlpha by animateFloatAsState(if (controlsVisible) 1f else 0f, motionTween(LocalReduceMotion.current, 220), label = "msg controls")
@@ -292,7 +294,7 @@ private fun ThoughtContainer(thought: String, openInitially: Boolean) {
                     .verticalScroll(rememberScrollState())
                     .padding(13.6.dp),
             ) {
-                SelectionContainer {
+                MessageSelection {
                     Text(thought, color = if (web.isLight) Color(0xFF334155) else Color(0xFFCBD5F5), fontSize = 13.6.sp, lineHeight = 20.sp,
                         fontFamily = FontFamily.Monospace)
                 }

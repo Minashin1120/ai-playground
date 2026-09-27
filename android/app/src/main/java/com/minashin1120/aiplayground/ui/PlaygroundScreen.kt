@@ -57,7 +57,18 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
@@ -79,6 +90,7 @@ import com.minashin1120.aiplayground.ImportSettingChange
 import com.minashin1120.aiplayground.AppChangelogUiState
 import com.minashin1120.aiplayground.AppUpdateUiState
 import com.minashin1120.aiplayground.data.ThreadItem
+import com.minashin1120.aiplayground.data.ChatAutoScroll
 import com.minashin1120.aiplayground.data.Attachment
 import com.minashin1120.aiplayground.data.isImageReference
 import com.minashin1120.aiplayground.BuildConfig
@@ -100,6 +112,8 @@ import com.minashin1120.aiplayground.data.PasskeyClient
 import com.minashin1120.aiplayground.data.GoogleAuthClient
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import android.content.Context
 import android.content.ContextWrapper
@@ -331,8 +345,11 @@ fun PlaygroundScreen(
                 model.loadAttachmentBytes(reference, thumbnail, limit)
             }
             val openInApp: (String) -> Unit = { reference ->
-                // Web `openImageViewer` steps through the chat's images.
-                val gallery = state.messages.flatMap { it.files }.filter { isImageReference(it) }.distinct()
+                // Web `openImageViewer` steps through every `.chat-image` on screen: reply images, then attachments.
+                val gallery = state.messages.flatMap { message ->
+                    (if (message.role == "user") emptyList() else markdownImageReferences(message.content)) +
+                        message.files.filter { isImageReference(it) }
+                }.distinct()
                 viewingFile = FileViewRequest(reference, gallery = gallery)
             }
             // Web image viewer "Download": Android asks where to save it (ANDROID_ONLY.md §2).
@@ -490,7 +507,7 @@ fun PlaygroundScreen(
                 onPdf = sharePdf,
                 onExternal = openExternal,
                 onSearch = model::search,
-                onOpenThread = { thread -> historyOpen = false; model.openThread(thread) },
+                onOpenThread = { thread -> historyOpen = false; model.openThread(thread, onLoaded = onNavigate) },
                 onBookmark = model::toggleBookmark,
                 onRenameThread = { renaming = it },
                 onDeleteThread = { deleting = it },
@@ -522,7 +539,7 @@ fun PlaygroundScreen(
                             onSettings = { settingsTab = "一般"; settingsOpen = true },
                             onChatInstructions = { model.ensureThread { threadSettings = true } },
                             onCompressionSettings = { compressionOpen = true },
-                            onTemporarySettings = { settingsTab = "一般"; settingsOpen = true },
+                            onTemporarySettings = { model.requestSettings(SettingsTab.General.id, "temp-chat") },
                             loader = loader, onOpenFile = openInApp, onDockHeight = { composerHeight = it },
                             onRealtime = {
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
@@ -693,7 +710,7 @@ fun PlaygroundScreen(
                 BranchManagerDialog(state, onDismiss = { branchOpen = false }, onSwitch = model::switchBranch,
                     onDelete = model::deleteMessage, notify = model::notify)
             }
-            ModalHost(historyOpen) { HistoryDialog(state, sidebarActions {}, onDismiss = { historyOpen = false }) }
+            ModalHost(historyOpen) { HistoryDialog(state, sidebarActions(closeDrawer), onDismiss = { historyOpen = false }) }
             ModalHost(alphaOpen) { AlphaInfoDialog(onDismiss = { alphaOpen = false }) }
             ModalValueHost(legalKind) { kind -> LegalDialog(kind, model::legalMarkdown, onDismiss = { legalKind = null }) }
             // Web `confirm("Delete?")` / `prompt("Title:")` for Gems and threads.
@@ -766,7 +783,7 @@ fun PlaygroundScreen(
                     model.saveChatInstructions(instruction, includeGlobal, userPrompt) { ok -> if (ok) threadSettings = false; done(ok) }
                 }
             }
-            deleting?.let { thread -> BrowserConfirmDialog("Delete?") { ok -> if (ok) model.deleteThread(thread); deleting = null } }
+            deleting?.let { thread -> BrowserConfirmDialog("Delete?") { ok -> if (ok) model.deleteThread(thread, onNewChat = closeDrawer); deleting = null } }
             if (state.banned) BannedScreen(
                 reason = state.banReason,
                 bannedAt = state.banAt,
@@ -1362,29 +1379,52 @@ private fun ConversationContent(
     val reduce = LocalReduceMotion.current
     val scroll = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    var showScrollToBottom by remember { mutableStateOf(false) }
     val keys = remember { ConversationKeyTracker() }
     val streamActive = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty() || state.cards.isNotEmpty()
     keys.update(state.messages, state.streaming, streamActive)
     // Once the stored reply has taken over the streamed row, the placeholder must not reappear.
     val live = streamActive && !keys.liveConsumed
-    LaunchedEffect(scroll.firstVisibleItemIndex, scroll.layoutInfo.totalItemsCount) {
+    // Web `part05` auto-scroll, restarted for every opened or new chat (Web `resumeChatAutoScroll` in `loadMessages`).
+    val thresholdPx = with(LocalDensity.current) { 64.dp.toPx() }
+    val follow = remember(state.chatNavigationId) { ChatAutoScroll(thresholdPx) }
+    fun distanceToBottom(): Float {
         val info = scroll.layoutInfo
-        val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-        showScrollToBottom = info.totalItemsCount > 0 && lastVisible < info.totalItemsCount - 2
+        val last = info.visibleItemsInfo.lastOrNull() ?: return 0f
+        if (last.index < info.totalItemsCount - 1) return Float.MAX_VALUE
+        return (last.offset + last.size + info.afterContentPadding - info.viewportEndOffset).toFloat().coerceAtLeast(0f)
     }
-    var positioned by remember { mutableStateOf(false) }
-    LaunchedEffect(state.messages.size, state.liveContent.length, state.cards.size) {
-        val info = scroll.layoutInfo
-        val nearBottom = (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 3
-        val count = state.messages.size + (if (state.hasOlder) 1 else 0) + (if (live) 1 else 0)
-        if (count <= 0) return@LaunchedEffect
-        if (!positioned) {
-            // Open a freshly shown conversation at the latest message without scrolling through it.
-            positioned = true
-            scroll.scrollToItem(count - 1)
-        } else if (nearBottom) {
-            if (reduce) scroll.scrollToItem(count - 1) else scroll.animateScrollToItem(count - 1)
+    // Web `performChatAutoScroll` (`scrollTop = scrollHeight`): the very end, even inside a long last message.
+    suspend fun jumpToBottom() {
+        val last = scroll.layoutInfo.totalItemsCount - 1
+        if (last < 0) return
+        try {
+            scroll.scrollToItem(last)
+            scroll.scrollBy(1_000_000f)
+        } catch (e: CancellationException) {
+            // A finger on the list wins over the programmatic scroll; only a cancelled effect stops here.
+            currentCoroutineContext().ensureActive()
+        }
+    }
+    // Web ResizeObserver / MutationObserver: new rows, streamed text, opened thoughts and loaded images.
+    LaunchedEffect(follow) {
+        snapshotFlow {
+            val info = scroll.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()
+            Triple(info.totalItemsCount, last?.index, last?.size)
+        }.collect { if (follow.following) jumpToBottom() }
+    }
+    LaunchedEffect(follow) { snapshotFlow { distanceToBottom() }.collect { follow.onPosition(it) } }
+    // Sending (and reconnecting to an answer) always goes back to following.
+    LaunchedEffect(state.streaming) { if (state.streaming) { follow.resume(); jumpToBottom() } }
+    val showScrollToBottom by remember(follow) { derivedStateOf { follow.showsJumpButton(distanceToBottom()) } }
+    val followConnection = remember(follow) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available.y != 0f) {
+                    follow.onUserScroll(towardTop = available.y > 0f, canScrollBackward = scroll.canScrollBackward)
+                }
+                return Offset.Zero
+            }
         }
     }
     val temporary = state.selected?.isTemporary == true || (state.selected == null && state.newThreadTemporary)
@@ -1418,10 +1458,11 @@ private fun ConversationContent(
         val screenWidth = LocalConfiguration.current.screenWidthDp.dp
         val sideCanvas = state.canvasMode && screenWidth >= CANVAS_SIDE_PANEL_MIN_WIDTH
         Row(Modifier.weight(1f).fillMaxWidth()) {
-        Box(Modifier.weight(1f).fillMaxHeight()) {
+        val focusManager = LocalFocusManager.current
+        Box(Modifier.weight(1f).fillMaxHeight().onBackgroundTap(onTap = { focusManager.clearFocus() }, onUnhandledTap = { activeMessageId = null })) {
             LazyColumn(
                 state = scroll,
-                modifier = Modifier.fillMaxSize().widthIn(max = 832.dp).align(Alignment.TopCenter),
+                modifier = Modifier.fillMaxSize().widthIn(max = 832.dp).align(Alignment.TopCenter).nestedScroll(followConnection),
                 // `#chat-container`: 12px padding on phones, 20px between message groups.
                 contentPadding = PaddingValues(12.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -1459,9 +1500,11 @@ private fun ConversationContent(
                                 onEdit = actions.onEdit, onRegenerate = actions.onRegenerate, onDelete = actions.onDelete,
                                 onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) },
                                 onTokenDetail = actions.onTokenDetail, onEncryption = actions.onEncryption,
+                                onPython = actions.onPython,
                             ),
                             controlsVisible = activeMessageId == message.id,
-                            onToggleControls = { activeMessageId = if (activeMessageId == message.id) null else message.id },
+                            // Web's tap-to-hover: tapping the bubble again keeps its controls; a tap elsewhere hides them.
+                            onToggleControls = { activeMessageId = message.id },
                             branchIndex = if (index < 0) 0 else index,
                             branchCount = if (numericId(message) != null) siblings.size else 0,
                         )
@@ -1489,7 +1532,8 @@ private fun ConversationContent(
                 exit = fadeOut(motionTween(reduce, PlaygroundMotion.SHORT)),
                 label = "welcome",
             ) {
-                if (temporary) TemporaryChatWelcome(state.preferences?.tempChatTimeoutSeconds ?: 90)
+                if (temporary) TemporaryChatWelcome(state.preferences?.tempChatTimeoutSeconds ?: 90,
+                    onSettings = { model.requestSettings(SettingsTab.General.id, "temp-chat") })
                 else WelcomeScreen(
                     recentWebModels(state.account?.models.orEmpty()).map { info -> info.id to "${info.emoji} ${info.name}".trim() },
                     onChoose = { id -> model.chooseModel(id); welcomeDismissed = true },
@@ -1503,12 +1547,8 @@ private fun ConversationContent(
                 exit = popOut(reduce),
                 label = "scroll to bottom",
             ) {
-                ScrollToBottomPill(onClick = {
-                    scope.launch {
-                        val last = (scroll.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
-                        if (reduce) scroll.scrollToItem(last) else scroll.animateScrollToItem(last)
-                    }
-                })
+                // Web `scrollToBottom(true)`: back to the very bottom, following again.
+                ScrollToBottomPill(onClick = { follow.resume(); scope.launch { jumpToBottom() } })
             }
         }
         if (sideCanvas) CanvasPanel(canvasSourceText(state), fullScreen = false, notify = model::notify, onClose = model::toggleCanvas,
@@ -1556,7 +1596,7 @@ private fun ConversationContent(
 
 /** `#welcome-temporary-content`: amber card that replaces the welcome screen in a temporary chat. */
 @Composable
-private fun TemporaryChatWelcome(timeoutSeconds: Int) {
+private fun TemporaryChatWelcome(timeoutSeconds: Int, onSettings: () -> Unit) {
     val web = LocalWebPalette.current
     val seconds = timeoutSeconds.coerceIn(10, 3600)
     Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 24.dp), contentAlignment = Alignment.Center) {
@@ -1579,7 +1619,40 @@ private fun TemporaryChatWelcome(timeoutSeconds: Int) {
                 color = if (web.isLight) Color(0xFF92400E) else Color(0xFFFEF3C7).copy(alpha = 0.9f), fontSize = 12.sp, lineHeight = 19.5.sp,
                 modifier = Modifier.padding(top = 8.dp),
             )
+            // `openTemporaryChatSettings()` button: `border-amber-400/50 bg-amber-950/30 text-amber-200 text-[11px] font-bold`.
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.End) {
+                val shape = RoundedCornerShape(4.dp)
+                Row(
+                    Modifier.clip(shape).background(Color(69, 26, 3).copy(alpha = 0.3f)).border(1.dp, Tw.amber400.copy(alpha = 0.5f), shape)
+                        .clickable(role = Role.Button, onClick = onSettings).padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FaIcon(com.minashin1120.aiplayground.R.drawable.fa_solid_cog, null, size = 11.dp, tint = web.twText(Tw.amber200),
+                        modifier = Modifier.padding(end = 4.dp))
+                    Text("一時チャット設定", color = web.twText(Tw.amber200), fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 }
 
+/**
+ * Web on a phone: a tap outside the textarea blurs it (closing the keyboard and the `/`・`@` palettes) and a
+ * tap that no control handles drops the bubble's tap-hover. Scrolling is not a tap.
+ */
+private fun Modifier.onBackgroundTap(onTap: () -> Unit, onUnhandledTap: () -> Unit): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        var moved = false
+        var up: PointerInputChange? = null
+        while (true) {
+            val change = awaitPointerEvent(PointerEventPass.Final).changes.firstOrNull { it.id == down.id } ?: break
+            if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+            if (!change.pressed) { up = change; break }
+        }
+        val released = up ?: return@awaitEachGesture
+        if (moved) return@awaitEachGesture
+        onTap()
+        if (!released.isConsumed) onUnhandledTap()
+    }
+}

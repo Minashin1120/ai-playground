@@ -253,9 +253,9 @@ private fun SidebarHeader(state: ChatState, colors: SidebarColors, actions: Side
                     letterSpacing = (-0.01).em, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                state.tempChatRemainingSeconds?.takeIf { temporary }?.let { seconds ->
+                temporaryChatTimeoutLabel(state, temporary)?.let { label ->
                     Text(
-                        "${seconds}秒", color = colors.amberText, fontSize = 10.sp, lineHeight = 10.sp,
+                        label, color = colors.amberText, fontSize = 10.sp, lineHeight = 10.sp,
                         modifier = Modifier.border(1.dp, Tw.amber500.copy(alpha = 0.4f), CircleShape)
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     )
@@ -270,11 +270,12 @@ private fun SidebarHeader(state: ChatState, colors: SidebarColors, actions: Side
                 R.drawable.fa_solid_tachometer_alt, "低速回線モード", colors,
                 tint = if (state.lowBandwidthMode) colors.amberText else colors.toolIcon,
             ) { actions.onLowBandwidth() }
-            SidebarIconButton(R.drawable.fa_solid_cog, "設定", colors) { actions.onSettings(); actions.onNavigate() }
-            SidebarIconButton(R.drawable.fa_solid_folder, "ライブラリ", colors) { actions.onLibrary(); actions.onNavigate() }
+            // Web opens these modals over the sidebar and leaves it open.
+            SidebarIconButton(R.drawable.fa_solid_cog, "設定", colors) { actions.onSettings() }
+            SidebarIconButton(R.drawable.fa_solid_folder, "ライブラリ", colors) { actions.onLibrary() }
             NewChatToolButton(enabled = true) { actions.onNewChat(); actions.onNavigate() }
-            SidebarIconButton(R.drawable.fa_solid_sitemap, "ブランチ管理", colors) { actions.onBranches(); actions.onNavigate() }
-            SidebarIconButton(R.drawable.fa_solid_layer_group, "Batch処理", colors) { actions.onBatch(); actions.onNavigate() }
+            SidebarIconButton(R.drawable.fa_solid_sitemap, "ブランチ管理", colors) { actions.onBranches() }
+            SidebarIconButton(R.drawable.fa_solid_layer_group, "Batch処理", colors) { actions.onBatch() }
             SidebarIconButton(R.drawable.fa_solid_file_pdf, "PDF出力", colors) { actions.onPdf() }
         }
         SidebarSearch(state.search, "チャットを検索...", colors, actions.onSearch)
@@ -411,7 +412,7 @@ private fun GemRow(gem: Gem, colors: SidebarColors, actions: SidebarActions) {
             .background(colors.gemBackground)
             .border(1.dp, colors.rule, shape)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                actions.onChooseGem(gem); actions.onNavigate()
+                actions.onChooseGem(gem)
             }
             .padding(horizontal = 8.dp, vertical = 5.6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -421,7 +422,7 @@ private fun GemRow(gem: Gem, colors: SidebarColors, actions: SidebarActions) {
         Text(gem.name, color = colors.gemText, fontSize = 14.sp, lineHeight = 20.sp, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         RowGlyphButton(R.drawable.fa_solid_pencil_alt, "Gemを編集", 10.dp, colors.gemAction, horizontal = 8.dp) {
-            actions.onEditGem(gem); actions.onNavigate()
+            actions.onEditGem(gem)
         }
         Spacer(Modifier.width(4.dp))
         RowGlyphButton(R.drawable.fa_solid_trash, "Gemを削除", 10.dp, colors.gemAction, horizontal = 8.dp) { actions.onDeleteGem(gem) }
@@ -471,8 +472,9 @@ private fun ThreadRow(thread: ThreadItem, selected: Boolean, offline: Boolean, c
             .clip(shape)
             .background(if (selected) colors.threadSelected else colors.threadIdle)
             .border(1.dp, if (selected) web.theme.t500 else Color.Transparent, shape)
+            // Web closes the phone sidebar once the chat has loaded (`onOpenThread` passes that on).
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                actions.onOpenThread(thread); actions.onNavigate()
+                actions.onOpenThread(thread)
             }
             .padding(horizontal = 8.dp, vertical = 6.4.dp),
         verticalAlignment = Alignment.CenterVertically,

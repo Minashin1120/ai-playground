@@ -66,6 +66,17 @@ println("安全")
         assertNull(safeWebUrl("https:///missing-host"))
     }
 
+    @Test fun linksFollowWebHrefs() {
+        assertEquals("https://example.com/a", markdownLinkTarget(" https://example.com/a "))
+        assertEquals("mailto:someone@example.com", markdownLinkTarget("mailto:someone@example.com"))
+        assertEquals("tel:0120000000", markdownLinkTarget("tel:0120000000"))
+        assertEquals("https://example.com/b", markdownLinkTarget("//example.com/b"))
+        assertTrue(markdownLinkTarget("/help")!!.endsWith("/help"))
+        assertNull(markdownLinkTarget("javascript:alert(1)"))
+        assertNull(markdownLinkTarget("mailto:"))
+        assertNull(markdownLinkTarget("#section"))
+    }
+
     @Test fun tablesAreParsedIntoHeadersAndRows() {
         val blocks = parseMarkdownBlocks("""
 | 名前 | 値 |
@@ -76,6 +87,11 @@ println("安全")
         val table = blocks.single() as MarkdownBlock.Table
         assertEquals(listOf("名前", "値"), table.headers)
         assertEquals(listOf(listOf("a", "1"), listOf("b", "2")), table.rows)
+    }
+
+    @Test fun replyImagesAreCollectedForTheViewerInOrder() {
+        val refs = markdownImageReferences("前 ![a](https://example.com/a.png) 中 ![b](http://example.com/b.png) ![c](https://example.com/c.jpg \"t\")")
+        assertEquals(listOf("https://example.com/a.png", "https://example.com/c.jpg"), refs)
     }
 
     @Test fun displayMathIsCapturedAsItsOwnBlock() {

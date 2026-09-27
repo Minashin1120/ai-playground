@@ -68,7 +68,10 @@ fun SettingsDialog(
     onCheckForUpdate: () -> Unit = {},
     onBubble: () -> Unit = {},
     initialTab: String = "一般",
-    /** Card scrolled into view on open, like Web `goToEncryptionSettings` (no highlight). */
+    /**
+     * Card scrolled into view on open: Web `goToEncryptionSettings` only scrolls; `openTemporaryChatSettings`
+     * also rings the 一時チャット card in amber for 1.4s.
+     */
     initialCard: String? = null,
 ) {
     // `onLogout` stays in the signature for callers; like Web, logout lives in the sidebar footer only.
@@ -78,8 +81,8 @@ fun SettingsDialog(
     var tab by remember { mutableStateOf(SettingsTab.entries.firstOrNull { it.label == initialTab || it.id == initialTab } ?: SettingsTab.General) }
     var query by remember { mutableStateOf("") }
     var jumpTarget by remember { mutableStateOf(initialCard) }
-    // Search results highlight the card they jump to; an opening jump only scrolls to it.
-    var jumpFlash by remember { mutableStateOf(initialCard == null) }
+    // Search results flash the card they jump to; an opening jump scrolls (and rings the temporary-chat card).
+    var jumpStyle by remember { mutableStateOf(if (initialCard == "temp-chat") JumpStyle.AmberRing else JumpStyle.ScrollOnly) }
     var colorPicker by remember { mutableStateOf(false) }
     var confirmCache by remember { mutableStateOf<CacheCategory?>(null) }
     // The form is filled from the payload fetched when the modal opens (Web `openSettingsModal`).
@@ -148,8 +151,8 @@ fun SettingsDialog(
                 val content: @Composable (Modifier) -> Unit = { modifier ->
                     SettingsContent(
                         cards = cards, tab = tab, query = query.trim(), phone = phone, modifier = modifier,
-                        jumpTarget = jumpTarget, jumpFlash = jumpFlash, onJumpDone = { jumpTarget = null },
-                        onJump = { spec -> query = ""; tab = spec.tab; jumpTarget = spec.key; jumpFlash = true },
+                        jumpTarget = jumpTarget, jumpStyle = jumpStyle, onJumpDone = { jumpTarget = null },
+                        onJump = { spec -> query = ""; tab = spec.tab; jumpTarget = spec.key; jumpStyle = JumpStyle.Flash },
                     )
                 }
                 if (phone) {
@@ -363,7 +366,7 @@ private fun SettingsContent(
     phone: Boolean,
     modifier: Modifier,
     jumpTarget: String?,
-    jumpFlash: Boolean,
+    jumpStyle: JumpStyle,
     onJumpDone: () -> Unit,
     onJump: (SettingsCardSpec) -> Unit,
 ) {
@@ -397,25 +400,34 @@ private fun SettingsContent(
                     .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                cards.filter { it.tab == target }.forEach { spec -> SettingsCardView(spec, jumpTarget == spec.key, jumpFlash, onJumpDone) }
+                cards.filter { it.tab == target }.forEach { spec -> SettingsCardView(spec, jumpTarget == spec.key, jumpStyle, onJumpDone) }
             }
         }
     }
 }
 
+/** How a card is marked after a jump: search results flash it, the temporary-chat link rings it in amber. */
+private enum class JumpStyle { Flash, AmberRing, ScrollOnly }
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun SettingsCardView(spec: SettingsCardSpec, highlight: Boolean, flashOnJump: Boolean, onJumpDone: () -> Unit) {
+private fun SettingsCardView(spec: SettingsCardSpec, highlight: Boolean, jumpStyle: JumpStyle, onJumpDone: () -> Unit) {
     val web = LocalWebPalette.current
     val requester = remember { BringIntoViewRequester() }
     val flash = remember { Animatable(0f) }
+    var ring by remember { mutableStateOf(false) }
     LaunchedEffect(highlight) {
         if (highlight) {
             delay(260)
             requester.bringIntoView()
-            if (flashOnJump) {
-                flash.snapTo(1f)
-                flash.animateTo(0f, tween(1800))
+            when (jumpStyle) {
+                JumpStyle.Flash -> {
+                    flash.snapTo(1f)
+                    flash.animateTo(0f, tween(1800))
+                }
+                // Web `ring-1 ring-amber-400/70`, removed after 1400ms.
+                JumpStyle.AmberRing -> { ring = true; delay(1400); ring = false }
+                JumpStyle.ScrollOnly -> Unit
             }
             onJumpDone()
         }
@@ -428,6 +440,11 @@ private fun SettingsCardView(spec: SettingsCardSpec, highlight: Boolean, flashOn
                 topLeft = androidx.compose.ui.geometry.Offset(-3.dp.toPx(), -3.dp.toPx()),
                 size = androidx.compose.ui.geometry.Size(size.width + 6.dp.toPx(), size.height + 6.dp.toPx()),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(19.dp.toPx()))
+            if (ring) drawRoundRect(Tw.amber400.copy(alpha = 0.7f),
+                topLeft = androidx.compose.ui.geometry.Offset(-0.5.dp.toPx(), -0.5.dp.toPx()),
+                size = androidx.compose.ui.geometry.Size(size.width + 1.dp.toPx(), size.height + 1.dp.toPx()),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(16.5.dp.toPx()),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()))
         },
         danger = spec.danger,
         compact = true,

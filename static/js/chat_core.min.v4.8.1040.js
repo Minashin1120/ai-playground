@@ -7057,22 +7057,23 @@ y.oldest_loaded_id||(allMessages.length?allMessages[0].id:null);const w=(allMess
 role==="user"&&k.content).map(k=>k.content);if(promptHistory=[...new Set(w.slice().reverse())],historyIndex=
 -1,tempPrompt="",currentThreadPending=y.pending_job||null,setTemporaryChatUiState(!!(y&&y.is_temporary)),
 applyTemporaryChatRuntimeMeta(y||{}),ensureTemporaryChatHeartbeat(!0),get("thread-custom-instruction")&&
-(get("thread-custom-instruction").value=y.custom_instruction||""),y.last_model&&selectModelById(y.last_model),
-get("enable-prompt-cache")&&(get("enable-prompt-cache").checked=!!y.enable_prompt_caching,updatePromptCacheUi()),
-y.last_gem_uuid&&loadedGems.length>0){const k=loadedGems.find(_=>_.uuid===y.last_gem_uuid);k&&(threadGemMap[currentThreadId]=
-k,applyActiveGem(k))}const v=t.forceLatestLeaf?null:localStorage.getItem(`fixed_branch_${currentThreadId}`);
-if(v&&allMessages.find(k=>String(k.id)===String(v))?currentLeafId=v:allMessages.length>0?currentLeafId=
-allMessages[allMessages.length-1].id:currentLeafId=null,renderThreadTree(a?{silent:a,keepScroll:a}:{
-silent:a,keepScroll:a,animate:!0}),a&&r?applyCodeCollapseByMessage(get("chat-container"),r,!0):a||applyCodeCollapseByMessage(
-get("chat-container"),null,!0),currentThreadPending&&!a&&!isPendingJobSuppressed(currentThreadPending.
-job_id)&&resumePendingStream(currentThreadPending),i){const k=get("prompt-input");k&&(k.value=l||"",
-c?k.style.height=c:k.style.height="auto"),currentImageUrls=u,currentImageUrls&&currentImageUrls.length?
-(get("file-preview").classList.remove("hidden"),get("file-name").innerText=`${currentImageUrls.length}\
- files ready`):get("file-preview").classList.add("hidden"),schedulePromptTokenEstimate(!0)}if(i||schedulePromptTokenEstimate(
-!0),window.innerWidth<768&&get("overlay").click(),typeof window.__refreshAdminThreadEncState=="funct\
-ion")try{window.__refreshAdminThreadEncState()}catch{}return!0}catch(f){return n!==threadLoadSequence||
-(console.error("Failed to load chat thread:",f),a||showChatLoadError(e),a||showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\
-\u3057\u305F","error",!0)),!1}}o(loadMessages,"loadMessages");async function loadOlderMessages(){if(loadingOlderMessages||
+(get("thread-custom-instruction").value=y.custom_instruction||""),get("enable-prompt-cache")&&(get("\
+enable-prompt-cache").checked=!!y.enable_prompt_caching,updatePromptCacheUi()),y.last_model&&selectModelById(
+y.last_model),y.last_gem_uuid&&loadedGems.length>0){const k=loadedGems.find(_=>_.uuid===y.last_gem_uuid);
+k&&(threadGemMap[currentThreadId]=k,applyActiveGem(k))}const v=t.forceLatestLeaf?null:localStorage.getItem(
+`fixed_branch_${currentThreadId}`);if(v&&allMessages.find(k=>String(k.id)===String(v))?currentLeafId=
+v:allMessages.length>0?currentLeafId=allMessages[allMessages.length-1].id:currentLeafId=null,renderThreadTree(
+a?{silent:a,keepScroll:a}:{silent:a,keepScroll:a,animate:!0}),a&&r?applyCodeCollapseByMessage(get("c\
+hat-container"),r,!0):a||applyCodeCollapseByMessage(get("chat-container"),null,!0),currentThreadPending&&
+!a&&!isPendingJobSuppressed(currentThreadPending.job_id)&&resumePendingStream(currentThreadPending),
+i){const k=get("prompt-input");k&&(k.value=l||"",c?k.style.height=c:k.style.height="auto"),currentImageUrls=
+u,currentImageUrls&&currentImageUrls.length?(get("file-preview").classList.remove("hidden"),get("fil\
+e-name").innerText=`${currentImageUrls.length} files ready`):get("file-preview").classList.add("hidd\
+en"),schedulePromptTokenEstimate(!0)}if(i||schedulePromptTokenEstimate(!0),window.innerWidth<768&&get(
+"overlay").click(),typeof window.__refreshAdminThreadEncState=="function")try{window.__refreshAdminThreadEncState()}catch{}
+return!0}catch(f){return n!==threadLoadSequence||(console.error("Failed to load chat thread:",f),a||
+showChatLoadError(e),a||showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
+"error",!0)),!1}}o(loadMessages,"loadMessages");async function loadOlderMessages(){if(loadingOlderMessages||
 !currentThreadId||!threadHasOlderMessages||!oldestLoadedMessageId)return;loadingOlderMessages=!0;const e=get(
 "chat-container"),t=e?e.scrollHeight:0,n=e?e.scrollTop:0;try{const i=new URL(CHAT_CONFIG.urls.handleThreadItem.
 replace("0",currentThreadId),window.location.origin);i.searchParams.set("before_id",String(oldestLoadedMessageId)),

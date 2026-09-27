@@ -72,9 +72,9 @@ internal fun MobileChatHeader(
                         color = web.text, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                     )
-                    state.tempChatRemainingSeconds?.takeIf { temporary }?.let { seconds ->
+                    temporaryChatTimeoutLabel(state, temporary)?.let { label ->
                         Text(
-                            "${seconds}秒", color = web.twText(Tw.amber200), fontSize = 9.sp, lineHeight = 9.sp,
+                            label, color = web.twText(Tw.amber200), fontSize = 9.sp, lineHeight = 9.sp,
                             modifier = Modifier.border(1.dp, Tw.amber500.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 4.dp, vertical = 2.dp),
                         )
@@ -110,4 +110,11 @@ internal fun MobileChatHeader(
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(rule))
     }
+}
+
+/** Web `getTemporaryChatTimeoutLabel`: the chat's timeout (`N秒`) while temporary, also before the first message. */
+internal fun temporaryChatTimeoutLabel(state: ChatState, temporary: Boolean): String? {
+    if (!temporary) return null
+    val seconds = state.tempChatTimeoutSeconds ?: state.preferences?.tempChatTimeoutSeconds ?: return null
+    return "${seconds}秒"
 }

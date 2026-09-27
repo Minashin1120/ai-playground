@@ -465,6 +465,27 @@ class MobileApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 403, method)
         self.assertEqual(self.call('/api/gems/' + gem_uuid, token, 'DELETE').status_code, 200)
 
+    def test_native_thread_gem_is_saved_like_web_settings(self):
+        # Web `saveThreadGemUuid`: applying or clearing a Gem stores it on the open chat right away.
+        with target.app.app_context():
+            mine = target.Gem(uuid='22222222-2222-2222-2222-222222222222', user_id=self.user_id, name='Mine', instruction='Yes')
+            foreign = target.Gem(uuid='33333333-3333-3333-3333-333333333333', user_id=self.other_id, name='Foreign', instruction='No')
+            thread = target.Thread(user_id=self.user_id, public_id=target.generate_thread_public_id())
+            target.db.session.add_all([mine, foreign, thread])
+            target.db.session.commit()
+            thread_id = thread.public_id
+        token = self.token()
+        saved = self.call('/api/mobile/v1/preferences', token, 'PUT',
+                          json={'last_gem_uuid': '22222222-2222-2222-2222-222222222222', 'thread_id': thread_id})
+        self.assertEqual(saved.status_code, 200)
+        self.assertEqual(self.call(f'/api/threads/{thread_id}', token).json['last_gem_uuid'], '22222222-2222-2222-2222-222222222222')
+        rejected = self.call('/api/mobile/v1/preferences', token, 'PUT',
+                             json={'last_gem_uuid': '33333333-3333-3333-3333-333333333333', 'thread_id': thread_id})
+        self.assertEqual(rejected.status_code, 403)
+        cleared = self.call('/api/mobile/v1/preferences', token, 'PUT', json={'last_gem_uuid': None, 'thread_id': thread_id})
+        self.assertEqual(cleared.status_code, 200)
+        self.assertIsNone(self.call(f'/api/threads/{thread_id}', token).json['last_gem_uuid'])
+
     def test_native_preferences_are_limited_and_validated(self):
         token = self.token()
         prefs = self.call('/api/mobile/v1/preferences', token)

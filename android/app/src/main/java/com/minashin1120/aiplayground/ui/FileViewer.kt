@@ -24,7 +24,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.R
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
@@ -38,6 +45,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontFamily
@@ -49,6 +57,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.minashin1120.aiplayground.data.AttachmentKind
 import com.minashin1120.aiplayground.data.attachmentKind
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.charset.Charset
@@ -173,12 +183,18 @@ internal fun FileViewerDialog(
 /**
  * Web `#image-viewer`: the image on a dark backdrop with pinch zoom, "n / total • name" at the top, the
  * previous / next buttons for the chat's other images and the Download / Copy URL / Reuse / Close toolbar.
+ * A sideways swipe at 1× shows the neighbour image and moves to it past 22% of the width or with a flick.
  */
 @Composable
 private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDismiss: () -> Unit, actions: ImageViewerActions) {
     val items = request.gallery.takeIf { request.reference in it } ?: listOf(request.reference)
-    var index by remember(request) { mutableIntStateOf(items.indexOf(request.reference).coerceAtLeast(0)) }
+    val pager = rememberPagerState(initialPage = items.indexOf(request.reference).coerceAtLeast(0)) { items.size }
+    val index = pager.currentPage.coerceIn(items.indices)
     val current = items[index]
+    val scope = rememberCoroutineScope()
+    // Web: while zoomed, one finger pans the image instead of swiping.
+    var zoomed by remember { mutableStateOf(false) }
+    LaunchedEffect(pager.settledPage) { zoomed = false }
     val glass = androidx.compose.ui.graphics.Color(13, 21, 40).copy(alpha = 0.45f)
     val edge = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f)
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
@@ -188,8 +204,26 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
             Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(2, 6, 16).copy(alpha = 0.96f))
                 .pointerInput(Unit) { detectTapGestures { onDismiss() } }.safeDrawingPadding(),
         ) {
-            key(current) {
-                Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 64.dp)) { ImagePreview(current, loader, onDismiss) }
+            HorizontalPager(
+                pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed, key = { items[it] },
+                flingBehavior = PagerDefaults.flingBehavior(pager, snapPositionalThreshold = 0.22f),
+            ) { page ->
+                Box(
+                    Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 64.dp).graphicsLayer {
+                        // Web `onViewerTouchMove`: the image being left shrinks slightly and fades; the next one fades in at 97%.
+                        val drag = abs(pager.currentPage + pager.currentPageOffsetFraction - pager.settledPage)
+                        if (page == pager.settledPage) {
+                            val shrink = 1f - minOf(drag / 4f, 0.04f)
+                            scaleX = shrink; scaleY = shrink
+                            alpha = maxOf(1f - minOf(drag / 0.45f, 0.55f), 0.4f)
+                        } else {
+                            scaleX = 0.97f; scaleY = 0.97f
+                            alpha = minOf(drag / 0.3f, 1f)
+                        }
+                    },
+                ) {
+                    ImagePreview(items[page], loader, onDismiss, onZoomed = { if (page == pager.currentPage) zoomed = it })
+                }
             }
             Text(
                 "${index + 1} / ${items.size} • ${fileViewerTitle(current, if (current == request.reference) request.displayName else "")}",
@@ -205,7 +239,7 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
                             .graphicsLayer { alpha = if (enabled) 1f else 0.3f }.clip(CircleShape)
                             .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f))
                             .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f), CircleShape)
-                            .clickable(enabled = enabled, role = Role.Button) { index += step },
+                            .clickable(enabled = enabled, role = Role.Button) { scope.launch { pager.animateScrollToPage(index + step) } },
                         contentAlignment = Alignment.Center,
                     ) { FaIcon(icon, if (step < 0) "前へ" else "次へ", size = 16.dp, tint = androidx.compose.ui.graphics.Color.White) }
                 }
@@ -230,25 +264,34 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
 }
 
 @Composable
-private fun ImagePreview(reference: String, loader: FileBytesLoader, onBackdropTap: () -> Unit) {
+private fun ImagePreview(reference: String, loader: FileBytesLoader, onBackdropTap: () -> Unit, onZoomed: (Boolean) -> Unit = {}) {
     var scale by remember(reference) { mutableFloatStateOf(1f) }
     var offset by remember(reference) { mutableStateOf(Offset.Zero) }
     var viewport by remember(reference) { mutableStateOf(IntSize.Zero) }
     var imageSize by remember(reference) { mutableStateOf<IntSize?>(null) }
+    LaunchedEffect(scale > 1f) { onZoomed(scale > 1f) }
     Box(
         Modifier.fillMaxSize().onSizeChanged { viewport = it }.pointerInput(reference) {
             detectTapGestures { tap -> if (!isOnFittedImage(tap, viewport, imageSize, scale, offset)) onBackdropTap() }
         }.pointerInput(reference) {
-            detectTransformGestures { centroid, pan, zoom, _ ->
-                val oldScale = scale
-                val nextScale = (oldScale * zoom).coerceIn(1f, 6f)
-                val ratio = nextScale / oldScale
-                val center = Offset(viewport.width / 2f, viewport.height / 2f)
-                val focalPoint = centroid - center
-                val nextOffset = offset + pan + (focalPoint - offset) * (1f - ratio)
-                scale = nextScale
-                offset = if (nextScale == 1f) Offset.Zero
-                else clampImagePreviewOffset(nextOffset, nextScale, viewport)
+            // Pinch zooms and a zoomed image pans; one finger at 1× is left to the pager's swipe.
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false)
+                while (true) {
+                    val event = awaitPointerEvent()
+                    if (event.changes.none { it.pressed }) break
+                    if (event.changes.count { it.pressed } < 2 && scale <= 1f) continue
+                    val oldScale = scale
+                    val nextScale = (oldScale * event.calculateZoom()).coerceIn(1f, 6f)
+                    val ratio = nextScale / oldScale
+                    val center = Offset(viewport.width / 2f, viewport.height / 2f)
+                    val focalPoint = event.calculateCentroid() - center
+                    val nextOffset = offset + event.calculatePan() + (focalPoint - offset) * (1f - ratio)
+                    scale = nextScale
+                    offset = if (nextScale == 1f) Offset.Zero
+                    else clampImagePreviewOffset(nextOffset, nextScale, viewport)
+                    event.changes.forEach { if (it.positionChanged()) it.consume() }
+                }
             }
         },
         contentAlignment = Alignment.Center,

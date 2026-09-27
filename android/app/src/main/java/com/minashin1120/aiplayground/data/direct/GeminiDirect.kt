@@ -10,7 +10,12 @@ import java.net.URLEncoder
  * Gemini branch do: history with inline images/PDF, `thinkingConfig`, Google Search / URL context /
  * Maps / code execution tools, thought signatures, and generated images.
  */
-class GeminiDirect(private val http: DirectHttp, private val baseUrl: String = "https://generativelanguage.googleapis.com") : DirectEngine {
+class GeminiDirect(
+    private val http: DirectHttp,
+    private val baseUrl: String = "https://generativelanguage.googleapis.com",
+    /** Vertex AI instead of the Gemini API key (server `gemini_backend = vertex_ai`). */
+    private val vertex: VertexTarget? = null,
+) : DirectEngine {
     override suspend fun run(request: DirectRequest, emit: (JSONObject) -> Unit, onProgress: (String, String) -> Unit): DirectResult {
         val model = request.model
         val payload = buildPayload(request)
@@ -23,8 +28,10 @@ class GeminiDirect(private val http: DirectHttp, private val baseUrl: String = "
         var pythonId: String? = null
         var pythonCode = ""
         emit(event("status", "Geminiへ直接送信中..."))
-        val url = "$baseUrl/v1beta/models/${URLEncoder.encode(model, "UTF-8")}:streamGenerateContent?alt=sse"
-        http.postSse(url, mapOf("x-goog-api-key" to request.apiKey), payload) { sse ->
+        val url = vertex?.modelUrl(URLEncoder.encode(model, "UTF-8"), "streamGenerateContent?alt=sse")
+            ?: "$baseUrl/v1beta/models/${URLEncoder.encode(model, "UTF-8")}:streamGenerateContent?alt=sse"
+        val headers = if (vertex != null) mapOf("Authorization" to "Bearer ${vertex.token()}") else mapOf("x-goog-api-key" to request.apiKey)
+        http.postSse(url, headers, payload) { sse ->
             if (sse.data.isBlank() || sse.data == "[DONE]") return@postSse true
             val chunk = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true
             chunk.optJSONObject("error")?.let { throw DirectApiException(it.optInt("code"), it.optString("message").ifBlank { "Gemini API error" }) }

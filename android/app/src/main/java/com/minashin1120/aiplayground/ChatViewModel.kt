@@ -22,6 +22,8 @@ import com.minashin1120.aiplayground.data.backend.ChatBackend
 import com.minashin1120.aiplayground.data.backend.ServerChatBackend
 import com.minashin1120.aiplayground.data.direct.DirectHttp
 import com.minashin1120.aiplayground.data.direct.DirectRouter
+import com.minashin1120.aiplayground.data.direct.TranscriptionDirect
+import com.minashin1120.aiplayground.data.local.LocalSettingsStore
 import com.minashin1120.aiplayground.data.local.LocalChatBackend
 import com.minashin1120.aiplayground.data.local.LocalChatStore
 import com.minashin1120.aiplayground.data.local.LocalProfiles
@@ -197,6 +199,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val localProfiles = LocalProfiles(application)
     /** Device store of the active profile while chats are local (no-account profile or serverless mode). */
     private var localChats: LocalChatStore? = null
+    /** Settings and API keys of the device profile while chats are local (voice input uses its OpenAI key). */
+    private var localSettings: LocalSettingsStore? = null
     private val directHttp by lazy { DirectHttp() }
     /** Separate client for background sync, so its requests never show the global spinner. */
     private val syncApi by lazy { PlaygroundApi() }
@@ -383,6 +387,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun useLocalChats(profile: LocalProfiles.Profile, accountName: String, fallback: ChatBackend?) {
         val defaults = localProfiles.defaults()
         localChats = profile.chats
+        localSettings = profile.settings
         localBackend = LocalChatBackend(profile.chats, profile.settings, defaults, DirectRouter(directHttp), accountName, fallback,
             modeOf = { id -> state.value.account?.models?.firstOrNull { it.id == id }?.mode
                 ?: defaults.json.optJSONArray("models")?.let { rows -> (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
@@ -392,7 +397,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun closeLocalChats() {
         syncScheduleJob?.cancel(); syncJob?.cancel()
-        localChats = null; localBackend = null
+        localChats = null; localBackend = null; localSettings = null
     }
 
     private fun autoSyncPrefKey(accountId: Int) = "autosync_" + LocalProfiles.accountKey(accountId)
@@ -2221,8 +2226,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "recording" -> { stopMicRecording(); return }
             "preparing", "transcribing" -> return
         }
-        // Voice input is transcribed by the server; the no-account profile has none yet.
-        if (state.value.localProfile) { notify("音声入力はサーバーにログインすると使えます。"); return }
         mutable.update { it.copy(micMode = "preparing", micLevels = emptyList()) }
         val app = getApplication<Application>()
         val file = File(app.cacheDir, "recording.m4a")
@@ -2279,7 +2282,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(micMode = "transcribing", micLevels = emptyList()) }
         viewModelScope.launch {
             try {
-                val data = api.transcribe(file, modelId, token())
+                val data = localSettings?.let { settings -> transcribeOnDevice(settings, file) } ?: api.transcribe(file, modelId, token())
                 val transcript = data.optString("transcript")
                 if (transcript.isNotEmpty()) mutable.update { it.copy(draft = if (it.draft.isEmpty()) transcript else it.draft + " " + transcript) }
                 else notify(data.optString("error").ifBlank { "Transcription failed" })
@@ -2290,6 +2293,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 mutable.update { it.copy(micMode = "", micLevels = emptyList()) }
             }
         }
+    }
+
+    /** Voice input while chats are local: the device's OpenAI key and speech-to-text model (`/transcribe` shape). */
+    private suspend fun transcribeOnDevice(settings: LocalSettingsStore, file: File): JSONObject {
+        val key = withContext(Dispatchers.IO) { settings.providerKey("openai_key") }
+            ?: return JSONObject().put("error", "音声入力にはOpenAI APIキーが必要です（APIキータブで設定）")
+        val model = state.value.preferences?.sttModel?.takeIf { it.startsWith("gpt") || it.startsWith("whisper") } ?: "gpt-4o-mini-transcribe"
+        val bytes = withContext(Dispatchers.IO) { file.readBytes() }
+        val text = TranscriptionDirect(directHttp).transcribe(model, key, file.name, "audio/mp4", bytes)
+        return JSONObject().put("transcript", text)
     }
 
     /** Web `applyXLinkAuto`. */

@@ -37,10 +37,14 @@ class DirectHttp(
     fun request(url: String, headers: Map<String, String>): Request.Builder {
         val target = url.toHttpUrlOrNull() ?: throw IOException("接続先のURLが不正です。")
         val local = allowCleartextLocalhost && target.host in setOf("localhost", "127.0.0.1")
-        if (!local && (target.scheme != "https" || target.host !in allowedHosts)) throw IOException("許可されていない接続先です: ${target.host}")
+        if (!local && (target.scheme != "https" || !hostAllowed(target.host))) throw IOException("許可されていない接続先です: ${target.host}")
         return Request.Builder().url(target).header("User-Agent", "AIPlayground-Android/${BuildConfig.VERSION_NAME}")
             .apply { headers.forEach { (name, value) -> header(name, value) } }
     }
+
+    /** Provider API hosts, plus Vertex AI's regional hosts (`<region>-aiplatform.googleapis.com`). */
+    private fun hostAllowed(host: String): Boolean = host in allowedHosts ||
+        (allowedHosts === PROVIDER_HOSTS && Regex("^[a-z0-9-]+-aiplatform\\.googleapis\\.com$").matches(host))
 
     fun jsonBody(payload: JSONObject): RequestBody = payload.toString().toRequestBody(jsonType)
 
@@ -89,6 +93,33 @@ class DirectHttp(
             val bytes = response.body.byteStream().use { input -> input.readNBytesCompat(limit) }
             bytes to mime
         }
+
+    /**
+     * Downloads a generated file. [headers] (the API key) go only to an allowed provider host on the first
+     * request; redirects (to storage hosts, at most 4, https only) are followed without them.
+     */
+    suspend fun download(url: String, headers: Map<String, String>, limit: Long): ByteArray {
+        var target = url.toHttpUrlOrNull() ?: throw IOException("ダウンロード先のURLが不正です。")
+        var credentials = headers
+        repeat(5) {
+            val local = allowCleartextLocalhost && target.host in setOf("localhost", "127.0.0.1")
+            if (target.scheme != "https" && !local) throw IOException("httpsではないダウンロード先です。")
+            val send = if (hostAllowed(target.host) || local) credentials else emptyMap()
+            val req = Request.Builder().url(target).header("User-Agent", "AIPlayground-Android/${BuildConfig.VERSION_NAME}")
+                .apply { send.forEach { (name, value) -> header(name, value) } }.get().build()
+            val (bytes, location) = execute(req) { response ->
+                if (response.isRedirect) null to response.header("Location")
+                else {
+                    if (!response.isSuccessful) throw providerError(response.code, response.body.string())
+                    response.body.byteStream().use { input -> input.readNBytesCompat(limit) } to null
+                }
+            }
+            if (bytes != null) return bytes
+            target = location?.let { target.resolve(it) } ?: throw IOException("ダウンロードのリダイレクト先が不正です。")
+            credentials = emptyMap()
+        }
+        throw IOException("リダイレクトが多すぎます。")
+    }
 
     companion object {
         val PROVIDER_HOSTS = setOf(

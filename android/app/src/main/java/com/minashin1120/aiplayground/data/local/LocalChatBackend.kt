@@ -185,10 +185,12 @@ class LocalChatBackend(
             ?: throw ApiException(403, JSONObject().put("error", "403"))
         val model = body.optString("model")
         val message = body.optString("message")
-        val apiKey = settings.apiKeyFor(model) ?: throw ApiException(400, JSONObject().put("code", "api_key_missing")
-            .put("error", "このモデルのAPIキーが端末に設定されていません。").put("model", model))
-        val route = router.route(model, modeOf(model)) ?: throw ApiException(400, JSONObject().put("code", "serverless_unsupported")
+        val found = router.route(model, modeOf(model)) ?: throw ApiException(400, JSONObject().put("code", "serverless_unsupported")
             .put("error", "このモデルはサーバー不使用モードでは使えません。"))
+        val vertex = if (found.provider == "gemini" && found.engine is com.minashin1120.aiplayground.data.direct.GeminiDirect) vertexTarget() else null
+        val route = if (vertex != null) DirectRouter.Route("gemini", router.vertexGemini(vertex)) else found
+        val apiKey = if (vertex != null) "" else settings.apiKeyFor(model) ?: throw ApiException(400, JSONObject().put("code", "api_key_missing")
+            .put("error", "このモデルのAPIキーが端末に設定されていません。").put("model", model))
         if (body.optBoolean("batch_mode")) throw ApiException(400, JSONObject().put("code", "serverless_unsupported")
             .put("error", "Batchはサーバー不使用モードでは使えません。"))
         if (body.has("coding_target")) throw ApiException(400, JSONObject().put("code", "serverless_unsupported")
@@ -250,6 +252,22 @@ class LocalChatBackend(
         } finally {
             onChanged()
         }
+    }
+
+    private var vertexAuth: com.minashin1120.aiplayground.data.direct.VertexAuth? = null
+    private var vertexCredentials: String? = null
+
+    /** Gemini on Vertex AI when the profile (or the account) chose it and a service account JSON is on the device. */
+    private fun vertexTarget(): com.minashin1120.aiplayground.data.direct.VertexTarget? {
+        val prefs = promptPreferences()
+        if (prefs.optString("gemini_backend") != "vertex_ai") return null
+        val json = settings.vertexCredentials() ?: throw ApiException(400, JSONObject().put("code", "api_key_missing")
+            .put("error", "Vertex AIのサービスアカウントJSONが端末に設定されていません（APIキータブ）。"))
+        val auth = vertexAuth?.takeIf { vertexCredentials == json } ?: router.vertexAuth(json).also { vertexAuth = it; vertexCredentials = json }
+        val project = prefs.optString("gemini_vertex_project").ifBlank { auth.projectId }
+        if (project.isBlank()) throw ApiException(400, JSONObject().put("error", "Vertex AIのプロジェクトIDを設定してください。"))
+        val location = prefs.optString("gemini_vertex_location").ifBlank { "global" }
+        return com.minashin1120.aiplayground.data.direct.VertexTarget(project, location) { auth.token() }
     }
 
     /** Ancestors of the new message (server `_iter_chat_history_ancestors`), oldest first, with attachments. */

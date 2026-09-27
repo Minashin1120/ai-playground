@@ -441,7 +441,7 @@ AIが返した外部画像URL、リダイレクト先、任意リンクにはAnd
 - APIキーは端末のAndroid Keystoreで暗号化して保存し（チャットとは別の鍵）、画面にはサーバーと同じマスク（`********`）だけを返します。モデル別キー → プロバイダ別キーの順に選ぶのはサーバーと同じです。サーバーの管理者用フォールバックキーは使いません。
 - システムプロンプトはサーバーの組み立て順（Gemの指示 → 運営の全体指示または現在時刻 → 利用者の指示 → チャット固有の指示 → Coding Mode → 自動注入）を `data/direct/SystemPromptBuilder.kt` に移植しています。
 - 添付は端末に暗号化して保存し、メッセージには `local/<uuid>.<ext>` の参照を記録します（サーバーの `uid/ファイル名` 参照とは重なりません）。画像・PDFはそのまま、DOCX・XLSX・テキストは端末でテキスト化して送ります。
-- 対応するモデル：Gemini（テキスト・画像生成）、OpenAI（Responses API、検索モデルはChat Completions）、Anthropic、xAI（OpenAI互換Responses）、DeepSeek、Kimi、Mistral。それ以外（動画、音楽、TTS、Realtimeなど）はこの版では選択できません。Batch・Coding Modeは送信時に「使えません」と返します。Pythonは事業者側の実行環境（Geminiのcode_execution、OpenAIのcode_interpreter）を使います。
+- 対応するモデル：Gemini（テキスト・画像生成。設定でVertex AIを選び、端末にサービスアカウントJSONがある場合はVertex AIへJWTで認証して送信）、OpenAI（Responses API、検索モデルはChat Completions）、Anthropic、xAI（OpenAI互換Responses）、DeepSeek、Kimi、Mistral。1.40.0以降は、画像生成（GPT Imageは `image_generation` ツール、Grok Imagineは `/v1/images/generations|edits`）、音声合成（OpenAI `audio/speech`、xAI `/v1/tts`、Google Cloud Text-to-Speech、Gemini TTSはPCMをWAVに変換）、文字起こしモデル（OpenAI `audio/transcriptions`）、動画生成（Veoは `predictLongRunning` を5秒ごと、Grok Imagine videoは2秒ごとに確認。生成中はアプリを開いたままにする）にも対応します。生成物は端末に保存し、回答の添付として表示します。動画のダウンロードでは、APIキーを最初の事業者ホストにだけ送り、リダイレクト先には送りません。音声入力は、端末のOpenAI APIキーと設定の文字起こしモデルで文字起こしします。音楽（Lyria）、Realtime、Batch、MCP、ファイル作成ツール、Coding Modeは、この版では端末から実行できません（Batch・Coding Modeは送信時に「使えません」と返し、ほかのモデルは選択できません）。Pythonは事業者側の実行環境（Geminiのcode_execution、OpenAIのcode_interpreter）を使います。
 - 停止は通信の切断で行い、途中までの回答を保存します。生成中は数秒ごとに途中保存します。エラーはサーバーと同じ `chat_error` の囲みで回答として保存します。
 
 #### 同期API（サーバー `server/routes_mobile_sync.py`、`sync_api_version: 1`）

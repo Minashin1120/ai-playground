@@ -2534,10 +2534,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 vibrate(100, 50, 100)
                 failed = null
-                // Branching sends (edit-and-resend, regenerate) create a new leaf whose id is unknown
-                // yet; drop the stale leafId so loadMessages() falls back to the newest message
-                // instead of keeping the previous branch selected.
-                if (body.optBoolean("parent_id_explicit")) mutable.update { it.copy(leafId = null) }
+                // The response may add a new leaf even for a normal continuation. Drop the old
+                // leafId so loadMessages() selects the newest path instead of restoring the
+                // previously active branch and hiding the just-sent exchange.
+                mutable.update { current ->
+                    if (current.selected?.id == id) current.copy(leafId = null) else current
+                }
                 loadMessages(id)
                 fetchThreads(false)
                 if (body.optBoolean("batch_mode")) {

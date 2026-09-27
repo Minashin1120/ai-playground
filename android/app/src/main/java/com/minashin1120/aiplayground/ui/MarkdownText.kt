@@ -57,6 +57,7 @@ import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -760,6 +761,22 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
         // Escapes
         if (c == '\\' && i + 1 < source.length && source[i + 1] in ESCAPABLE && !rest.startsWith("\\(") && !rest.startsWith("\\[")) {
             plain.append(source[i + 1]); i += 2; continue
+        }
+        // Display math $$ … $$ / \[ … \] inside a paragraph: MathJax sets it on its own centered line.
+        val closer = when {
+            rest.startsWith("$$") -> "$$"
+            rest.startsWith("\\[") -> "\\]"
+            else -> null
+        }
+        if (closer != null) {
+            val end = source.indexOf(closer, i + 2)
+            if (end > i + 2 && source.substring(i + 2, end).isNotBlank()) {
+                flush()
+                withStyle(ParagraphStyle(textAlign = TextAlign.Center)) {
+                    withStyle(SpanStyle(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)) { append(latexToDisplay(source.substring(i + 2, end))) }
+                }
+                i = end + 2; continue
+            }
         }
         // Inline math \( … \)
         if (rest.startsWith("\\(")) {

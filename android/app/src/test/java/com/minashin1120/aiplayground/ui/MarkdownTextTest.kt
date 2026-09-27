@@ -103,6 +103,17 @@ println("安全")
         assertTrue((bracketed.single() as MarkdownBlock.Math).display)
     }
 
+    @Test fun displayMathInsideAParagraphRendersOnItsOwnCenteredLine() {
+        val colors = markdownColorsFor(webPalette(light = false, themeColor = null))
+        val source = "例: \\( E = mc^2 \\) や公式 $$ x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} $$ など、\\[a^2\\] も"
+        val parsed = parseInlineMarkdown(source, colors).text
+        assertEquals("例: E = mc² や公式 x = (-b ± √(b² - 4ac))/(2a) など、a² も", parsed.text)
+        val centered = parsed.paragraphStyles.filter { it.item.textAlign == androidx.compose.ui.text.style.TextAlign.Center }
+        assertEquals(listOf("x = (-b ± √(b² - 4ac))/(2a)", "a²"), centered.map { parsed.text.substring(it.start, it.end) })
+        // An empty pair stays literal instead of producing a blank line.
+        assertEquals("a $$$$ b", parseInlineMarkdown("a $$$$ b", colors).text.text)
+    }
+
     @Test fun attachmentsAndHttpsImagesBecomeImageBlocks() {
         val blocks = parseMarkdownBlocks("![図](/files/123/pic.png)")
         assertEquals(MarkdownBlock.Image("123/pic.png", "図"), blocks.single())

@@ -1708,7 +1708,9 @@ private fun Modifier.onBackgroundTap(onTap: () -> Unit, onUnhandledTap: () -> Un
             if (!change.pressed) { up = change; break }
         }
         val released = up ?: return@awaitEachGesture
-        if (moved) return@awaitEachGesture
+        // A selection long press also ends with an unmoved pointer-up. Treating that as a
+        // background tap clears focus and dismisses the selection as soon as the finger lifts.
+        if (moved || released.uptimeMillis - down.uptimeMillis >= viewConfiguration.longPressTimeoutMillis) return@awaitEachGesture
         onTap()
         if (!released.isConsumed) onUnhandledTap()
     }

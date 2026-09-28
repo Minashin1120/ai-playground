@@ -510,7 +510,7 @@ class LocalChatBackend(
         if (keys.length() > 0) settings.savePreferences(keys)
         if (fallback == null) {
             settings.savePreferences(rest)
-            return JSONObject().put("status", "ok")
+            return preferences(token)
         }
         return if (rest.length() > 0) fallback.put("/api/mobile/v1/preferences", rest, token) else JSONObject().put("status", "ok")
     }

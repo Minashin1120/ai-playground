@@ -444,7 +444,7 @@ fun PlaygroundScreen(
             val hasOverlay = modelPicker || threadSettings || attachMenu || libraryOpen || viewingFile != null ||
                 gemEditorOpen || historyOpen || branchOpen || alphaOpen || legalKind != null ||
                 settingsOpen || changelogOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || markerTarget != null || visionPicker || compressionOpen
-            BackHandler(enabled = hasOverlay || (!wide && drawer.currentValue == DrawerValue.Open)) {
+            BackHandler(enabled = hasOverlay || (!wide && drawer.currentValue == DrawerValue.Open) || state.canGoBackInChats) {
                 when {
                     markerTarget != null -> markerTarget = null
                     visionPicker -> visionPicker = false
@@ -465,7 +465,8 @@ fun PlaygroundScreen(
                     legalKind != null -> legalKind = null
                     historyOpen -> historyOpen = false
                     branchOpen -> branchOpen = false
-                    !wide -> closeDrawer()
+                    !wide && drawer.currentValue == DrawerValue.Open -> closeDrawer()
+                    state.canGoBackInChats -> model.goBackInChats()
                 }
             }
             LaunchedEffect(showThreads, wide, state.starting) {

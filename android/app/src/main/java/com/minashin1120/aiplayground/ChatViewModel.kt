@@ -95,7 +95,8 @@ data class ChatState(
     val setupModels: List<ModelInfo> = emptyList(),
     val setupDefaultModel: String = "gemini-3.6-flash",
     val threads: List<ThreadItem> = emptyList(), val nextPage: Int? = null, val search: String = "",
-    val selected: ThreadItem? = null, val messages: List<ChatMessage> = emptyList(),
+    val selected: ThreadItem? = null, val canGoBackInChats: Boolean = false,
+    val messages: List<ChatMessage> = emptyList(),
     val hasOlder: Boolean = false, val oldestId: String? = null,
     val allMessages: List<ChatMessage> = emptyList(), val leafId: Int? = null, val editingMessageId: String? = null,
     val customInstruction: String = "", val includeGlobalInstruction: Boolean = true,
@@ -216,6 +217,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val connectionProbeMutex = Mutex()
     private val mutable = MutableStateFlow(ChatState())
     val state = mutable.asStateFlow()
+    private val chatHistory = ChatNavigationHistory()
     /** Web global spinner label (`progress_spinner.js`); null while no tracked request runs. */
     val progressLabel = api.progress.label
 
@@ -533,8 +535,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun enterLocalProfile() {
+        chatHistory.clear()
         useLocalChats(localProfiles.local(), LOCAL_PROFILE_NAME, fallback = null)
-        mutable.update { it.copy(localProfile = true, serverless = false, offline = false, connectionBannerVisible = false,
+        mutable.update { it.copy(localProfile = true, serverless = false, canGoBackInChats = false,
+            offline = false, connectionBannerVisible = false,
             connectionStatus = ConnectionStatus.ONLINE, authError = null) }
         runCatching { loadAccount() }.onFailure { report(it) }
     }
@@ -542,6 +546,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Leaves the no-account profile for the login screen; the device chats stay for a later upload. */
     fun leaveLocalProfile() { viewModelScope.launch {
         streamJob?.cancel(); navigationJob?.cancel()
+        chatHistory.clear()
         prefs.edit().putString(PREF_PROFILE_MODE, PROFILE_SERVER).apply()
         closeLocalChats()
         val server = state.value
@@ -1150,11 +1155,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun loadSetup() {
+        chatHistory.clear()
         val reply = backend.get("/api/mobile/v1/setup", token())
         val models = parseModels(reply)
         val defaultModel = reply.optString("default_model", "gemini-3.6-flash")
         mutable.update { it.copy(
             account = null,
+            canGoBackInChats = false,
             setupRequired = true,
             setupModels = models,
             setupDefaultModel = defaultModel,
@@ -1215,6 +1222,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val displayModels = displayModels(serverModels)
         val account = Account(me.getInt("id"), me.getString("username"), displayModels,
             me.optString("default_model"), me.optBoolean("e2ee_enabled"))
+        if (state.value.account?.id != account.id) chatHistory.clear()
         val chosen = prefs.getString("model_${account.id}", account.defaultModel).orEmpty()
             .takeIf { chosen -> account.models.any { it.id == chosen && it.selectable } }
             ?: account.models.firstOrNull { it.selectable }?.id.orEmpty()
@@ -1227,6 +1235,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(
             account = account, model = chosen, pairing = false, userCode = "", offline = false,
             setupRequired = false, authBusy = false, authError = null,
+            canGoBackInChats = chatHistory.canGoBack,
         ) }
         fetchThreads(false)
         runCatching { fetchGems() }.onFailure { report(it) }
@@ -1254,6 +1263,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             me.optInt("id", accountId), me.optString("username", "この端末のアカウント"),
             displayModels(parseModels(me)), me.optString("default_model"), me.optBoolean("e2ee_enabled"),
         )
+        if (state.value.account?.id != account.id) chatHistory.clear()
         val selected = prefs.getString("model_${account.id}", account.defaultModel).orEmpty()
             .takeIf { value -> account.models.any { it.id == value && it.selectable } }
             ?: account.models.firstOrNull { it.selectable }?.id.orEmpty()
@@ -1261,6 +1271,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val cachedThreads = withContext(Dispatchers.IO) { offlineCache.loadThreads(account.id) }
         mutable.update { current -> current.copy(
             account = account,
+            canGoBackInChats = chatHistory.canGoBack,
             model = selected,
             preferences = cachedPrefs?.let { parsePreferences(it) } ?: current.preferences,
             threads = cachedThreads,
@@ -1693,7 +1704,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (state.value.offline && !chatLocal) return
         navigationJob?.cancel(); navigationJob = viewModelScope.launch { try { fetchThreads(true) } catch (e: Exception) { report(e) } }
     }
-    fun newChat(temporary: Boolean = false) {
+    private fun currentChatLocation() = ChatLocation(state.value.selected, state.value.newThreadTemporary)
+
+    private fun recordChatNavigation(next: ChatLocation) {
+        chatHistory.record(currentChatLocation(), next)
+        mutable.update { it.copy(canGoBackInChats = chatHistory.canGoBack) }
+    }
+
+    fun goBackInChats() {
+        val previous = chatHistory.pop() ?: return
+        mutable.update { it.copy(canGoBackInChats = chatHistory.canGoBack) }
+        if (previous.thread == null) newChat(previous.temporary, recordHistory = false)
+        else openThread(previous.thread, recordHistory = false)
+    }
+
+    fun newChat(temporary: Boolean = false, recordHistory: Boolean = true) {
+        if (recordHistory) recordChatNavigation(ChatLocation(null, temporary))
         navigationJob?.cancel(); streamJob?.cancel(); failed = null
         heartbeatJob?.cancel()
         pendingParentId = null
@@ -1713,7 +1739,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * Web `loadMessages`: the composer is cleared (`cancelEdit`), the branch pinned in ブランチ管理 or else the
      * latest one is shown, and [onLoaded] runs once the chat is on screen (the phone sidebar closes then).
      */
-    fun openThread(thread: ThreadItem, onLoaded: () -> Unit = {}) {
+    fun openThread(thread: ThreadItem, onLoaded: () -> Unit = {}, recordHistory: Boolean = true) {
+        if (recordHistory) recordChatNavigation(ChatLocation(thread))
         navigationJob?.cancel(); streamJob?.cancel(); heartbeatJob?.cancel(); failed = null
         pendingParentId = null
         val transition = nextChatTransition(ChatTransitionKind.OPEN_THREAD)
@@ -1897,7 +1924,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         try {
             backend.delete("/api/threads/${thread.id}", token())
             state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.deleteThread(account.id, thread.id) } }
-            if (state.value.selected?.id == thread.id) { newChat(); onNewChat() }
+            chatHistory.removeThread(thread.id)
+            mutable.update { it.copy(canGoBackInChats = chatHistory.canGoBack) }
+            if (state.value.selected?.id == thread.id) { newChat(recordHistory = false); onNewChat() }
             fetchThreads(false)
         } catch (e: Exception) { report(e) }
     } }
@@ -3400,6 +3429,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     } }
     private suspend fun clearSession() {
+        chatHistory.clear()
         val caller = currentCoroutineContext().job
         listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, cacheSyncJob, batchPollJob,
             realtimeStreamJob, realtimeCaptureJob, lyriaStreamJob, importJob).forEach { if (it !== caller) it?.cancel() }

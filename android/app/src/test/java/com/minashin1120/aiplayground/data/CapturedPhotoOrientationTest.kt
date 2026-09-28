@@ -21,20 +21,22 @@ class CapturedPhotoOrientationTest {
 
     @Test fun rotatesExifPixelsBeforeUpload() {
         val file = photo(ExifInterface.ORIENTATION_ROTATE_90)
+        assertEquals(90, ExifInterface(file).rotationDegrees)
 
         normalizeCapturedPhotoOrientation(file)
 
         val image = BitmapFactory.decodeFile(file.path)
         assertEquals(120, image.width)
         assertEquals(80, image.height)
-        assertEquals(ExifInterface.ORIENTATION_NORMAL,
-            ExifInterface(file).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL))
+        assertTrue(ExifInterface(file).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_UNDEFINED)
+            in setOf(ExifInterface.ORIENTATION_NORMAL, ExifInterface.ORIENTATION_UNDEFINED))
         assertBlue(image.getPixel(20, 20)) // Source bottom-left moves to top-left.
         image.recycle()
     }
 
     @Test fun preservesFrontCameraMirrorDirection() {
         val file = photo(ExifInterface.ORIENTATION_FLIP_HORIZONTAL)
+        assertTrue(ExifInterface(file).isFlipped)
 
         normalizeCapturedPhotoOrientation(file)
 
@@ -47,6 +49,7 @@ class CapturedPhotoOrientationTest {
 
     @Test fun combinesFlipAndRotationFromExif() {
         val file = photo(ExifInterface.ORIENTATION_TRANSPOSE)
+        assertTrue(ExifInterface(file).isFlipped)
 
         normalizeCapturedPhotoOrientation(file)
 
@@ -87,17 +90,17 @@ class CapturedPhotoOrientationTest {
     }
 
     private fun assertBlue(color: Int) {
-        assertTrue(android.graphics.Color.blue(color) > 180)
-        assertTrue(android.graphics.Color.red(color) < 80)
+        assertTrue("Expected blue, got ${color.toUInt().toString(16)}", android.graphics.Color.blue(color) > 180)
+        assertTrue("Expected blue, got ${color.toUInt().toString(16)}", android.graphics.Color.red(color) < 80)
     }
 
     private fun assertGreen(color: Int) {
-        assertTrue(android.graphics.Color.green(color) > 180)
-        assertTrue(android.graphics.Color.red(color) < 80)
+        assertTrue("Expected green, got ${color.toUInt().toString(16)}", android.graphics.Color.green(color) > 180)
+        assertTrue("Expected green, got ${color.toUInt().toString(16)}", android.graphics.Color.red(color) < 80)
     }
 
     private fun assertRed(color: Int) {
-        assertTrue(android.graphics.Color.red(color) > 180)
-        assertTrue(android.graphics.Color.green(color) < 80)
+        assertTrue("Expected red, got ${color.toUInt().toString(16)}", android.graphics.Color.red(color) > 180)
+        assertTrue("Expected red, got ${color.toUInt().toString(16)}", android.graphics.Color.green(color) < 80)
     }
 }

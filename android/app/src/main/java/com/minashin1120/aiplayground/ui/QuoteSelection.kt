@@ -4,6 +4,8 @@ import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import androidx.compose.foundation.ComposeFoundationFlags
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
@@ -26,6 +28,16 @@ import androidx.compose.ui.text.AnnotatedString
  * selection to copy itself and the clipboard wrappers below hand that one copy to [onQuote] instead of
  * the system clipboard.
  */
+
+/**
+ * Compose Foundation 1.9 turned on its new text context menu by default, and SelectionContainer then
+ * builds its own toolbar instead of asking [LocalTextToolbar], so "Quote" never appeared. Keep the
+ * [TextToolbar] path; call once before any content is composed.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+internal fun useQuoteSelectionToolbar() {
+    ComposeFoundationFlags.isNewContextMenuEnabled = false
+}
 
 private class QuoteCapture {
     var armed = false

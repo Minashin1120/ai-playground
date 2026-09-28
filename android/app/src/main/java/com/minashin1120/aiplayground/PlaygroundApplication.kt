@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import android.os.Bundle
 import com.minashin1120.aiplayground.data.AppUpdateDownloader
+import com.minashin1120.aiplayground.ui.useQuoteSelectionToolbar
 
 class PlaygroundApplication : Application() {
     /** Owns the APK update so a download survives the dialog, the activity and leaving the app. */
@@ -17,6 +18,7 @@ class PlaygroundApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        useQuoteSelectionToolbar()
         createBatchNotificationChannel(this)
         createAppUpdateNotificationChannel(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {

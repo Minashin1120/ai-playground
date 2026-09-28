@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -1051,21 +1052,28 @@ private fun CodeBlock(block: MarkdownBlock.Code, colors: MarkdownColors, startCo
                 copied = runCatching { clipboard.setText(AnnotatedString(block.text)) }.isSuccess
             }
         }
-        if (!collapsed) {
-            Box(Modifier.fillMaxWidth().height(1.dp).background(colors.codeWrapperBorder))
-            val highlighted = remember(block.text, block.language, colors.syntax) { highlightCode(block.text, block.language, colors.syntax) }
-            MessageSelection {
-                Text(
-                    highlighted,
-                    color = colors.codeText,
-                    fontFamily = WebFonts.mono, fontSize = 13.68.sp, lineHeight = 21.2.sp, letterSpacing = 0.01.em,
-                    softWrap = false,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(colors.codeBody)
-                        .horizontalScroll(rememberScrollState())
-                        .padding(13.68.dp),
-                )
+        // Web `.code-body`: max-height/opacity/padding animate on the collapse toggle.
+        AnimatedVisibility(
+            visible = !collapsed,
+            enter = expandFadeIn(LocalReduceMotion.current),
+            exit = shrinkFadeOut(LocalReduceMotion.current),
+        ) {
+            Column {
+                Box(Modifier.fillMaxWidth().height(1.dp).background(colors.codeWrapperBorder))
+                val highlighted = remember(block.text, block.language, colors.syntax) { highlightCode(block.text, block.language, colors.syntax) }
+                MessageSelection {
+                    Text(
+                        highlighted,
+                        color = colors.codeText,
+                        fontFamily = WebFonts.mono, fontSize = 13.68.sp, lineHeight = 21.2.sp, letterSpacing = 0.01.em,
+                        softWrap = false,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(colors.codeBody)
+                            .horizontalScroll(rememberScrollState())
+                            .padding(13.68.dp),
+                    )
+                }
             }
         }
     }

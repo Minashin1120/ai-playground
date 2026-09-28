@@ -250,9 +250,16 @@ internal fun PythonExecutionBox(card: StatusCard, label: String = "Python Execut
                 outputCopied = runCatching { clipboard.setText(AnnotatedString(card.output)) }.isSuccess
             }
         }
-        if (!collapsed) Column(Modifier.padding(horizontal = 11.2.dp, vertical = 8.8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            PythonSection("Code", card.code, colors)
-            PythonSection("Output", card.output, colors)
+        // Web `.python-box .code-body`: the same collapse transition as regular code blocks.
+        AnimatedVisibility(
+            visible = !collapsed,
+            enter = expandFadeIn(LocalReduceMotion.current),
+            exit = shrinkFadeOut(LocalReduceMotion.current),
+        ) {
+            Column(Modifier.padding(horizontal = 11.2.dp, vertical = 8.8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PythonSection("Code", card.code, colors)
+                PythonSection("Output", card.output, colors)
+            }
         }
     }
 }

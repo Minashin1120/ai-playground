@@ -29,7 +29,12 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.minashin1120.aiplayground.data.normalizeCapturedPhotoOrientation
 import java.io.File
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun InAppCameraDialog(
@@ -39,6 +44,7 @@ internal fun InAppCameraDialog(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
     var permissionGranted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
@@ -91,8 +97,18 @@ internal fun InAppCameraDialog(
                                 val options = androidx.camera.core.ImageCapture.OutputFileOptions.Builder(file).build()
                                 controller.takePicture(options, ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageSavedCallback {
                                     override fun onImageSaved(result: ImageCapture.OutputFileResults) {
-                                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-                                        onCaptured(uri)
+                                        scope.launch {
+                                            try {
+                                                withContext(Dispatchers.IO) { normalizeCapturedPhotoOrientation(file) }
+                                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+                                                onCaptured(uri)
+                                            } catch (exception: CancellationException) {
+                                                throw exception
+                                            } catch (exception: Exception) {
+                                                captureInProgress = false
+                                                onError("写真を処理できません。")
+                                            }
+                                        }
                                     }
                                     override fun onError(exception: ImageCaptureException) {
                                         captureInProgress = false

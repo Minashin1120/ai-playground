@@ -12,9 +12,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.rules.TemporaryFolder
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34])
 class CapturedPhotoOrientationTest {
     @get:Rule val temporaryFolder = TemporaryFolder()

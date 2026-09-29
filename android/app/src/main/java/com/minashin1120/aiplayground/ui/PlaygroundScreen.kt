@@ -94,6 +94,8 @@ import com.minashin1120.aiplayground.data.ThreadItem
 import com.minashin1120.aiplayground.data.ChatAutoScroll
 import com.minashin1120.aiplayground.data.Attachment
 import com.minashin1120.aiplayground.data.isImageReference
+import com.minashin1120.aiplayground.data.IMAGE_SPLIT_MAX_IMAGES
+import com.minashin1120.aiplayground.data.ImageSplitOptions
 import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
 import com.minashin1120.aiplayground.data.ChatMessage
@@ -161,6 +163,7 @@ fun PlaygroundScreen(
     onOpenBubble: () -> Unit = {},
 ) {
     val state by model.state.collectAsStateWithLifecycle()
+    val imageSplit by model.imageSplit.collectAsStateWithLifecycle()
     // Web applies the light theme for a light system setting (theme-light.css) or manual light mode.
     PlaygroundTheme(darkTheme = isSystemInDarkTheme() && state.preferences?.lightModeEnabled != true,
         themeColor = state.preferences?.themeColor, liquidGlass = state.preferences?.liquidGlassEnabled == true) {
@@ -327,6 +330,16 @@ fun PlaygroundScreen(
                 }
             }
             val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { model.upload(it) }
+            val splitPicker = rememberLauncherForActivityResult(
+                ActivityResultContracts.PickMultipleVisualMedia(IMAGE_SPLIT_MAX_IMAGES),
+            ) { model.openImageSplit(it) }
+            // 画像分割 「保存のみ」 before Android 10: MediaStore needs a storage permission there, so the user picks a folder.
+            var pendingSplitSave by remember { mutableStateOf<ImageSplitOptions?>(null) }
+            val splitFolderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+                val options = pendingSplitSave
+                pendingSplitSave = null
+                if (tree != null && options != null) model.runImageSplit(options, attach = false, tree = tree)
+            }
             val maskPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
                 if (uri != null) model.uploadImageMask(uri)
             }
@@ -754,11 +767,27 @@ fun PlaygroundScreen(
                 onPickFiles = { picker.launch(arrayOf("*/*")) },
                 onCamera = launchCamera,
                 onPhotos = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
+                onSplitImage = {
+                    attachMenu = false
+                    splitPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                },
                 onLibrary = { libraryOpen = true },
                 onChangeVisionModel = { visionPicker = true },
                 onOpenFile = openInApp,
                 onEditImage = { markerTarget = it },
             )
+            ModalValueHost(imageSplit) { request ->
+                ImageSplitDialog(request, onDismiss = model::closeImageSplit,
+                    onAttach = { options -> model.runImageSplit(options, attach = true) },
+                    onSaveOnly = { options ->
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) model.runImageSplit(options, attach = false)
+                        else {
+                            pendingSplitSave = options
+                            try { splitFolderPicker.launch(null) }
+                            catch (ignored: Exception) { pendingSplitSave = null; model.notify("保存先のフォルダーを選択できません。") }
+                        }
+                    })
+            }
             ModalHost(cameraOpen) {
                 InAppCameraDialog(
                     onDismiss = { cameraOpen = false },

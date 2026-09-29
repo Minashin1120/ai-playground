@@ -682,6 +682,8 @@
                     this.onError = null;
                     this.setupComplete = false;
                     this.model = null;
+                    this.assistantTurnBreak = false;
+                    this.userTurnBreak = false;
                 }
                 async start(token, url, model, config = {}) {
                     this.model = model;
@@ -702,10 +704,11 @@
                                 // Enable transcription at setup level (as per docs)
                                 inputAudioTranscription: isTranscribeMode
                                     ? (config.transcriptionConfig || {})
-                                    : {},
-                                outputAudioTranscription: {}
+                                    : {}
                             }
                         };
+                        // Text-only transcription has no model audio to transcribe.
+                        if (!isTranscribeMode) setupMsg.setup.outputAudioTranscription = {};
 
                         // speechConfig is inside generationConfig
                         if (config.speechConfig) {
@@ -717,9 +720,9 @@
                             setupMsg.setup.generationConfig.thinkingConfig = config.thinkingConfig;
                         }
 
-                        // Live Translate uses a top-level translationConfig in the setup message
+                        // Live Translate: translationConfig is a generationConfig field
                         if (config.translationConfig) {
-                            setupMsg.setup.translationConfig = config.translationConfig;
+                            setupMsg.setup.generationConfig.translationConfig = config.translationConfig;
                         }
 
                         console.log("Sending setup:", JSON.stringify(setupMsg));
@@ -733,12 +736,14 @@
                     };
                     this.ws.onclose = (e) => {
                         console.log("Gemini Live WebSocket closed:", e.code, e.reason);
+                        this.closedEvent = e;
                         if (this.onClose) this.onClose(e);
                     };
 
-                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-                    this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    const source = this.audioContext.createMediaStreamSource(this.stream);
+                    this.stream = await navigator.mediaDevices.getUserMedia(getMicCaptureConstraints());
+                    const mic = openMicAudioSource(this.stream, 16000);
+                    this.audioContext = mic.ctx;
+                    const source = mic.source;
                     this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
 
                     this.userAudioChunks = [];
@@ -751,15 +756,12 @@
 
                     this.processor.onaudioprocess = (e) => {
                         if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.setupComplete) return;
-                        const inputData = e.inputBuffer.getChannelData(0);
-                        const pcmData = new Int16Array(inputData.length);
-                        for (let i = 0; i < inputData.length; i++) {
-                            pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-                        }
+                        const pcm = pcm16FromFloat32(e.inputBuffer.getChannelData(0), this.audioContext.sampleRate, 16000);
+                        if (!pcm || !pcm.byteLength) return;
                         this.ws.send(JSON.stringify({
                             realtimeInput: {
                                 audio: {
-                                    data: btoa(String.fromCharCode.apply(null, new Uint8Array(pcmData.buffer))),
+                                    data: btoa(String.fromCharCode.apply(null, new Uint8Array(pcm))),
                                     mimeType: "audio/pcm;rate=16000"
                                 }
                             }
@@ -769,8 +771,12 @@
                     this.processor.connect(this.audioContext.destination);
                 }
                 _handleMessage(e) {
-                    const data = JSON.parse(e.data);
-                    console.log("Gemini Live raw message received:", data);
+                    let data = null;
+                    try {
+                        data = JSON.parse(typeof e.data === 'string' ? e.data : new TextDecoder().decode(e.data));
+                    } catch (err) {
+                        return;
+                    }
 
                     if (data.setupComplete) {
                         console.log("Gemini Live setup complete confirmed");
@@ -784,9 +790,8 @@
                                     if (p.thought) {
                                         console.log("Gemini thought delta:", p.text);
                                         this.assistantThought += p.text;
-                                    } else {
-                                        console.log("Gemini transcript delta (parts):", p.text);
-                                        this.assistantText += p.text;
+                                    } else if (!(this.model === 'gemini-3.5-transcribe-live')) {
+                                        this._appendAssistantText(p.text);
                                     }
                                 }
                                 if (p.inlineData && p.inlineData.data) {
@@ -800,24 +805,32 @@
                                 }
                             });
                         }
-                        if (sc.outputTranscription) {
-                            console.log("Gemini output transcription delta:", sc.outputTranscription.text);
-                            // Some versions send transcript via outputTranscription instead of modelTurn parts
-                            if (!this.assistantText.includes(sc.outputTranscription.text)) {
-                                this.assistantText += sc.outputTranscription.text;
-                            }
+                        // Native-audio models deliver the spoken text only here.
+                        if (sc.outputTranscription && sc.outputTranscription.text) {
+                            this._appendAssistantText(sc.outputTranscription.text);
                         }
-                        if (sc.inputTranscription) {
-                            console.log("User input transcription delta:", sc.inputTranscription.text);
+                        if (sc.inputTranscription && sc.inputTranscription.text) {
+                            if (this.userTurnBreak && this.inputTranscript && !this.inputTranscript.endsWith('\n')) this.inputTranscript += '\n';
+                            this.userTurnBreak = false;
                             this.inputTranscript += sc.inputTranscription.text;
                             this.interimInputTranscript = '';
                         }
                         if (sc.interimInputTranscription) {
-                            console.log("User interim transcription:", sc.interimInputTranscription.text);
-                            this.interimInputTranscript = sc.interimInputTranscription.text;
+                            this.interimInputTranscript = sc.interimInputTranscription.text || '';
+                        }
+                        if (sc.turnComplete) {
+                            this.assistantTurnBreak = true;
+                            if (this.model !== 'gemini-3.5-transcribe-live') this.userTurnBreak = true;
                         }
                     }
+                    if (data.error && this.onError) this.onError(data.error);
                     if (this.onMessage) this.onMessage(data);
+                }
+                _appendAssistantText(text) {
+                    if (!text) return;
+                    if (this.assistantTurnBreak && this.assistantText && !this.assistantText.endsWith('\n')) this.assistantText += '\n';
+                    this.assistantTurnBreak = false;
+                    this.assistantText += text;
                 }
                 stop() {
                     if (this.ws) this.ws.close();
@@ -919,6 +932,8 @@
                     this.saved = false;
                     this.saving = false;
                     this.stopping = false;
+                    this.audioQueue = [];
+                    this.audioFlush = null;
                 }
 
                 isActive() {
@@ -965,7 +980,8 @@
                         rate_out: get('sts-rate-out') ? get('sts-rate-out').value : '',
                         thinking_level: get('sts-thinking-level') ? get('sts-thinking-level').value : '',
                         include_thoughts: get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false,
-                        target_lang: (isGeminiLiveTranslateModel() && get('sts-target-lang')) ? get('sts-target-lang').value : ''
+                        reasoning_effort: get('sts-reasoning-effort') ? get('sts-reasoning-effort').value : '',
+                        target_lang: ((isGeminiLiveTranslateModel() || model === 'gpt-realtime-translate') && get('sts-target-lang')) ? get('sts-target-lang').value : ''
                     };
                     if (isXaiLiveTranscribeModel() && get('sts-custom-vocab')) payload.custom_vocabulary = get('sts-custom-vocab').value.split(/[,、\n]/);
                     setStsStatus('接続中...', true);
@@ -990,6 +1006,8 @@
                         this.lastAudioAt = 0;
                         this.streamError = null;
                         this.rtPlayer = null;
+                        this.audioQueue = [];
+                        this.audioFlush = null;
                     } catch (e) {
                         setStsStatus('接続エラー', false);
                         showToast('リアルタイムセッションを開始できませんでした: ' + e.message, 'error', true);
@@ -1112,6 +1130,10 @@
                         case 'status':
                             if (ev.status === 'ready' && this.active) setStsStatus('話してください...', true);
                             break;
+                        case 'notice':
+                            // Recoverable provider error: the session stays open.
+                            if (ev.message) showToast('リアルタイム音声: ' + ev.message, 'warning', true);
+                            break;
                         case 'error':
                             this.streamError = ev.message || 'リアルタイムエラー';
                             setStsStatus('エラー', false);
@@ -1134,13 +1156,12 @@
                 }
 
                 _startCapture() {
-                    const AC = window.AudioContext || window.webkitAudioContext;
-                    if (!AC) throw new Error('AudioContext not supported');
-                    this.audioCtx = new AC({ sampleRate: this.rateIn || 24000 });
                     return navigator.mediaDevices.getUserMedia(getMicCaptureConstraints()).then((stream) => {
                         this.stream = stream;
-                        const source = this.audioCtx.createMediaStreamSource(stream);
                         const targetRate = this.rateIn || 24000;
+                        const mic = openMicAudioSource(stream, targetRate);
+                        this.audioCtx = mic.ctx;
+                        const source = mic.source;
                         const ctxRate = this.audioCtx.sampleRate;
                         const bufSize = 4096;
                         this.processor = this.audioCtx.createScriptProcessor(bufSize, 1, 1);
@@ -1158,17 +1179,35 @@
 
                 _sendAudio(pcmBytes) {
                     if (!this.sessionId || !this.active) return;
-                    const url = '/api/realtime/audio?session_id=' + encodeURIComponent(this.sessionId);
-                    const opts = {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/octet-stream' },
-                        body: pcmBytes
-                    };
-                    const finalOpts = window.ProgressSpinner && typeof window.ProgressSpinner.manualRequestOptions === 'function'
-                        ? window.ProgressSpinner.manualRequestOptions(opts)
-                        : opts;
-                    fetch(url, finalOpts).catch(() => {});
+                    // One request at a time: parallel POSTs can reach the server
+                    // out of order and scramble the audio stream.
+                    this.audioQueue.push(new Uint8Array(pcmBytes));
+                    if (!this.audioFlush) this.audioFlush = this._flushAudio();
+                }
+
+                async _flushAudio() {
+                    try {
+                        while (this.audioQueue.length && this.sessionId) {
+                            const chunks = this.audioQueue.splice(0, this.audioQueue.length);
+                            const total = chunks.reduce((n, c) => n + c.byteLength, 0);
+                            const body = new Uint8Array(total);
+                            let offset = 0;
+                            chunks.forEach((c) => { body.set(c, offset); offset += c.byteLength; });
+                            const url = '/api/realtime/audio?session_id=' + encodeURIComponent(this.sessionId);
+                            const opts = {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/octet-stream' },
+                                body: body.buffer
+                            };
+                            const finalOpts = window.ProgressSpinner && typeof window.ProgressSpinner.manualRequestOptions === 'function'
+                                ? window.ProgressSpinner.manualRequestOptions(opts)
+                                : opts;
+                            try { await fetch(url, finalOpts); } catch (e) {}
+                        }
+                    } finally {
+                        this.audioFlush = null;
+                    }
                 }
 
                 _stopCapture() {
@@ -1186,6 +1225,8 @@
                     this.stopping = true;
                     this._stopCapture();
                     setStsStatus('応答を待っています...', true);
+                    // Deliver the audio still queued before ending the input.
+                    if (this.audioFlush) { try { await this.audioFlush; } catch (e) {} }
                     // Finalize any trailing audio so the last turn is included.
                     try {
                         await apiFetch('/api/realtime/commit', {
@@ -1219,6 +1260,7 @@
                         });
                         const data = await resp.json().catch(() => ({}));
                         if (!resp.ok) throw new Error(data.error || '保存に失敗しました');
+                        if (data.thread_id && !currentThreadId) currentThreadId = String(data.thread_id);
                         if (this.streamError) {
                             setStsStatus('エラー', false);
                             showToast('リアルタイム会話でエラーが発生しました: ' + this.streamError, 'error', true);
@@ -1254,6 +1296,7 @@
                     this.active = false;
                     this.capturing = false;
                     this.stopping = false;
+                    this.audioQueue = [];
                     this._stopCapture();
                     this._stopPlayback();
                     if (this.abortCtrl) { try { this.abortCtrl.abort(); } catch (e) {} this.abortCtrl = null; }
@@ -1264,6 +1307,23 @@
                         micBtn.classList.remove('bg-red-600', 'animate-pulse');
                         micBtn.classList.add('bg-gray-700');
                     }
+                }
+            }
+
+            // Microphone source at the provider rate when the browser allows it.
+            // Firefox cannot connect a mic stream to a context with another
+            // sample rate; fall back to the device rate (callers resample).
+            function openMicAudioSource(stream, targetRate) {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) throw new Error('AudioContext not supported');
+                let ctx = null;
+                try {
+                    ctx = new AC({ sampleRate: targetRate });
+                    return { ctx, source: ctx.createMediaStreamSource(stream) };
+                } catch (e) {
+                    if (ctx) { try { ctx.close(); } catch (err) {} }
+                    ctx = new AC();
+                    return { ctx, source: ctx.createMediaStreamSource(stream) };
                 }
             }
 

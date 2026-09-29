@@ -72,9 +72,19 @@ def _transcribe_with_xai_stt(audio_content, fname, model, user):
     if not key:
         return jsonify({'error': 'xAI API Key not configured'}), 400
     mime = mimetypes.guess_type(fname or "")[0] or "application/octet-stream"
+    if _audio_ffmpeg_demuxer(audio_content) in ("matroska", None):
+        # Browser recordings are WebM/Opus; xAI's container list covers
+        # Matroska only with MP3/AAC/FLAC audio, so send 16 kHz WAV instead.
+        try:
+            pcm = _convert_audio_to_pcm(audio_content, rate=16000, max_seconds=None, timeout=120)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+        audio_content = _pcm_to_wav_bytes(pcm, rate=16000)
+        fname = os.path.splitext(fname or "audio")[0] + ".wav"
+        mime = "audio/wav"
     # Option fields must precede `file` in the multipart body (xAI docs).
     resp = requests.post(
-        "https://api.x.ai/v1/stt",
+        f"https://{_XAI_API_HOST}/v1/stt",
         headers={"Authorization": f"Bearer {key}"},
         data=[("model", model)],
         files=[("file", (fname or "audio", audio_content, mime))],
@@ -227,6 +237,7 @@ def speech_to_speech():
     sts_thinking_level = request.form.get('sts_thinking_level')
     sts_include_thoughts = request.form.get('sts_include_thoughts') == 'true'
     sts_speed = None
+    sts_reasoning_effort = None
 
     if provider == "openai":
         v = sts_voice.lower() if sts_voice else "alloy"
@@ -234,9 +245,13 @@ def speech_to_speech():
             v = "alloy"
         sts_voice = v
         sts_speed = clamp_float(sts_speed_raw, 0.25, 1.5)
+        effort = str(request.form.get('sts_reasoning_effort') or "").strip().lower()
+        if model_key in OPENAI_RT_REASONING_MODELS and effort in OPENAI_RT_REASONING_EFFORTS:
+            sts_reasoning_effort = effort
     elif provider == "xai":
+        sts_voice = sts_voice.lower()
         if sts_voice not in XAI_STS_VOICES:
-            sts_voice = "Ara"
+            sts_voice = "ara"
         try:
             ri = int(sts_rate_in_raw) if sts_rate_in_raw is not None and str(sts_rate_in_raw).strip() != "" else None
             ro = int(sts_rate_out_raw) if sts_rate_out_raw is not None and str(sts_rate_out_raw).strip() != "" else None
@@ -510,7 +525,8 @@ def speech_to_speech():
             if not key:
                 return jsonify({'error': 'OpenAI API Key not configured'}), 400
             assistant_audio, assistant_text = asyncio.run(
-                _openai_sts_realtime(pcm_bytes, key, model_key, voice=sts_voice, speed=sts_speed, rate=rate_out)
+                _openai_sts_realtime(pcm_bytes, key, model_key, voice=sts_voice, speed=sts_speed, rate=rate_out,
+                                     reasoning_effort=sts_reasoning_effort)
             )
         elif provider == "xai":
             key = model_specific_key or decrypt_val(current_user.xai_api_key)

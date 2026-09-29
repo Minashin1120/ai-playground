@@ -41,7 +41,7 @@ internal fun needsVisionModelNotice(model: String): Boolean {
 /**
  * Web `#upload-modal` as a bottom sheet (ANDROID_ONLY.md): the same title, buttons, Vision Model row,
  * progress line and `#upload-list` rows (newest first). The drop zone is left out because there is no
- * drag and drop on Android.
+ * drag and drop on Android. 「画像を分割」 is Android-only and opens the 画像分割 dialog.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,6 +53,7 @@ internal fun UploadSheet(
     onPickFiles: () -> Unit,
     onCamera: () -> Unit,
     onPhotos: () -> Unit,
+    onSplitImage: () -> Unit,
     onLibrary: () -> Unit,
     onChangeVisionModel: () -> Unit,
     onOpenFile: (String) -> Unit,
@@ -80,6 +81,7 @@ internal fun UploadSheet(
                 Triple("ファイルを選択", Tw.blue600, onPickFiles),
                 Triple("カメラで撮影", Tw.emerald600, onCamera),
                 Triple("写真", Tw.sky600, onPhotos),
+                Triple("画像を分割", Tw.violet600, onSplitImage),
                 Triple("ライブラリから選択", Tw.gray700, onLibrary),
                 Triple("リストをクリア", Tw.gray700, { model.resetUploads() }),
             )

@@ -10,7 +10,7 @@
 | `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties` | Android Gradleプロジェクトのルート設定 | SDK・Kotlin・Gradleを更新するとき |
 | `version.properties` | AndroidのversionCodeとversionName | 新しいAndroid版を配布するとき |
 | `app/build.gradle.kts` | 固定applicationId・共有署名・依存関係 | アプリ構成・署名を確認するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | Custom Tabs・HTTPS App Links・添付共有（送信・他アプリの共有シートからの受信）・APKインストール・Activityライフサイクル | ブラウザー認証からの復帰、ファイル表示、共有シート添付、アプリ更新 |
+| `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | Custom Tabs・HTTPS App Links・添付共有（送信・他アプリの共有シートからの受信、「画像を分割」の共有先）・APKインストール・Activityライフサイクル | ブラウザー認証からの復帰、ファイル表示、共有シート添付、アプリ更新 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/GoogleAuthClient.kt` | Credential ManagerによるGoogle IDトークン取得 | Googleのネイティブログインを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateViewModel.kt` | 更新検出と画面への状態中継・インストール段階 | アプリ更新フローを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateDownloadManager.kt` | プロセス全体で1つの更新状態・APKダウンロード・キャンセル・ダイアログの非表示／再表示 | 更新ダウンロードの状態遷移を変更するとき |
@@ -71,9 +71,12 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/CanvasBlocks.kt` | Canvasモードのコードブロック抽出（Web `parseCanvasMarkdown`）、選択、見出し・状態の文言 | Canvasに出すブロックや文言を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMarkerEditor.kt` | Webの「画像編集」（マーカー、モザイク、トリミング、二本指の拡大、保存して反映） | 画像編集の画面や保存を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageMarker.kt` | 画像編集の計算（線の補間、モザイク範囲、トリミングの掴み位置、拡大時の位置制限、保存名） | 画像編集の操作の決まりを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ImageSplitDialog.kt` | Android版だけの「画像を分割」ダイアログ（プレビュー、分割数、重なり、元画像の扱い、分割して添付／保存のみ） | 画像分割の画面を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplit.kt` | 画像分割の計算（行列の決め方、重なり付きの範囲、EXIFの向きの逆変換、ファイル名、座標の帯の文言） | 画像分割の決まりを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplitRenderer.kt` | 画像分割の描画と保存（部分デコード、番号・分割線・重なりの描き込み、添付用URI、Pictures／選択フォルダーへの保存） | 分割画像の見た目や保存先を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MinimalOptions.kt` | ミニマル表示の上部モデルバー、＋の「オプション」ポップアップ、Thinkingのスライドバー | ミニマル表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/MessageExtras.kt` | 回答からのPython実行結果とMCP実行メモの取り出し、Batch状態カードの文言 | 回答本文の前処理やBatchカードを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/UploadSheet.kt` | Webの「ファイルアップロード」画面（ボタン、Vision Model、進行状況、ファイルごとの画像編集・送信名・削除） | 添付の追加画面を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/UploadSheet.kt` | Webの「ファイルアップロード」画面（ボタン、Vision Model、進行状況、ファイルごとの画像編集・送信名・削除）とAndroid版だけの「画像を分割」ボタン | 添付の追加画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | Webの音声ドック（`#sts-panel`）と音声スタジオ、提供元別の音声設定、録音して `/sts` へ送る文字起こし系モデルの振り分け | 音声セッションUIを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LyriaStudio.kt` | Webの「Lyria RealTime Studio」（重み付きプロンプト、音楽設定、再生操作、チャットへ保存） | Lyriaスタジオを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | Webの「リッチ貼り付け」画面の枠（クリップボードHTMLのテキスト化、モデルへの指示、既定値の保存） | リッチ貼り付けを変更するとき |

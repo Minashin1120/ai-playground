@@ -1,5 +1,7 @@
 package com.minashin1120.aiplayground.data.direct
 
+import com.minashin1120.aiplayground.data.GEMINI_INTERACTIONS_TTS_MODELS
+import com.minashin1120.aiplayground.data.GEMINI_TTS_VOICES
 import kotlinx.coroutines.delay
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -114,8 +116,7 @@ class TtsDirect(private val http: DirectHttp, private val provider: String, priv
                     http.jsonBody(payload)).first to "audio/mpeg"
             }
             "xai" -> {
-                val voice = options.optString("tts_voice").ifBlank { "eve" }.lowercase().replaceFirstChar { it.uppercase() }
-                val payload = JSONObject().put("text", text).put("voice_id", if (voice in setOf("Eve", "Ara", "Rex", "Sal", "Leo")) voice else "Eve")
+                val payload = JSONObject().put("text", text).put("voice_id", xaiTtsVoiceId(options.optString("tts_voice"), options.optString("tts_voice_custom")))
                     .put("language", options.optString("tts_language").ifBlank { "ja" })
                 speed?.coerceIn(0.7, 1.5)?.let { payload.put("speed", it) }
                 http.postBytes("${baseUrl ?: "https://api.x.ai"}/v1/tts", mapOf("Authorization" to "Bearer ${request.apiKey}"), http.jsonBody(payload)).first to "audio/mpeg"
@@ -130,7 +131,12 @@ class TtsDirect(private val http: DirectHttp, private val provider: String, priv
                     JSONObject().put("input", JSONObject().put("text", text)).put("voice", voice).put("audioConfig", audio))
                 Base64.getDecoder().decode(reply.optString("audioContent")) to "audio/mpeg"
             }
-            else -> {
+            else -> if (request.model in GEMINI_INTERACTIONS_TTS_MODELS) {
+                // Gemini 3.8 TTS: verbatim text, style metadata and custom voice IDs (Interactions API).
+                val reply = http.postJson("${baseUrl ?: "https://generativelanguage.googleapis.com"}/v1beta/interactions",
+                    mapOf("x-goog-api-key" to request.apiKey), geminiInteractionsTtsPayload(request.model, text, options))
+                (geminiInteractionsTtsWav(reply) ?: throw DirectApiException(0, "Gemini TTS Error: No audio data returned.")) to "audio/wav"
+            } else {
                 val speech = JSONObject().put("voiceConfig", JSONObject().put("prebuiltVoiceConfig",
                     JSONObject().put("voiceName", options.optString("tts_voice").ifBlank { "Kore" })))
                 options.optString("tts_language").takeIf { it.isNotBlank() }?.let { speech.put("languageCode", it) }
@@ -139,17 +145,88 @@ class TtsDirect(private val http: DirectHttp, private val provider: String, priv
                     .put("generationConfig", JSONObject().put("responseModalities", JSONArray().put("AUDIO")).put("speechConfig", speech))
                 val reply = http.postJson("${baseUrl ?: "https://generativelanguage.googleapis.com"}/v1beta/models/" +
                     URLEncoder.encode(request.model, "UTF-8") + ":generateContent", mapOf("x-goog-api-key" to request.apiKey), payload)
-                val data = reply.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
-                    ?.optJSONObject(0)?.optJSONObject("inlineData") ?: throw DirectApiException(0, "Gemini TTS Error: No audio data returned.")
-                val pcm = Base64.getDecoder().decode(data.optString("data"))
-                val rate = Regex("rate=(\\d+)").find(data.optString("mimeType"))?.groupValues?.get(1)?.toIntOrNull() ?: 24000
-                pcmToWav(pcm, rate) to "audio/wav"
+                val parts = reply.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
+                (geminiTtsWav(parts) ?: throw DirectApiException(0, "Gemini TTS Error: No audio data returned.")) to "audio/wav"
             }
         }
         val ext = if (mime == "audio/wav") "wav" else "mp3"
         emit(event("status", "完了"))
         return DirectResult("", files = listOf(DirectOutputFile("speech_${System.currentTimeMillis()}.$ext", mime, bytes)))
     }
+}
+
+/**
+ * xAI TTS `voice_id` (server `TTS Branch`): a custom voice ID from the Custom Voices API wins over the
+ * preset; IDs are case-insensitive and the docs use lowercase. A leftover Google voice name is ignored.
+ */
+internal fun xaiTtsVoiceId(voice: String, custom: String): String {
+    val c = custom.trim()
+    if (c.isNotEmpty() && Regex("[A-Za-z0-9_\\-]{1,128}").matches(c) && !Regex("^[a-z]{2,3}-[A-Za-z]{2,4}-").containsMatchIn(c)) return c
+    val v = voice.trim().lowercase()
+    return if (v in setOf("eve", "ara", "rex", "sal", "leo")) v else "eve"
+}
+
+private val GEMINI_TTS_CUSTOM_VOICE = Regex("^[A-Za-z0-9][A-Za-z0-9_.\\-]{0,255}$")
+
+/** Server `_gemini_tts_voice`: a designed / replicated voice ID, else a prebuilt voice (Kore). */
+internal fun geminiTtsVoice(voice: String, custom: String): String = custom.trim().takeIf { GEMINI_TTS_CUSTOM_VOICE.matches(it) }
+    ?: voice.trim().takeIf { it in GEMINI_TTS_VOICES } ?: "Kore"
+
+/** Server `_gemini_tts_interactions_rest` request body. */
+internal fun geminiInteractionsTtsPayload(model: String, text: String, options: JSONObject): JSONObject {
+    val content = JSONObject().put("type", "text").put("text", text)
+    options.optString("tts_style").trim().take(500).takeIf { it.isNotEmpty() }?.let { style ->
+        content.put("annotations", JSONArray().put(JSONObject().put("type", "speech_metadata").put("style", style)))
+    }
+    return JSONObject().put("model", model).put("store", false)
+        .put("input", JSONArray().put(JSONObject().put("type", "user_input").put("content", JSONArray().put(content))))
+        .put("response_format", JSONObject().put("type", "audio"))
+        .put("generation_config", JSONObject().put("speech_config", JSONArray().put(JSONObject()
+            .put("voice", geminiTtsVoice(options.optString("tts_voice"), options.optString("tts_voice_custom"))))))
+}
+
+/** Audio blocks of an Interactions response (WAV by default) as one WAV file. */
+internal fun geminiInteractionsTtsWav(reply: JSONObject): ByteArray? {
+    val out = ByteArrayOutputStream()
+    var mime = ""
+    val steps = reply.optJSONArray("steps") ?: return null
+    for (i in 0 until steps.length()) {
+        val step = steps.optJSONObject(i) ?: continue
+        if (step.optString("type", "model_output") != "model_output") continue
+        val content = step.optJSONArray("content") ?: continue
+        for (j in 0 until content.length()) {
+            val block = content.optJSONObject(j) ?: continue
+            if (block.optString("type") != "audio" || block.optString("data").isBlank()) continue
+            var chunk = Base64.getDecoder().decode(block.optString("data"))
+            val isWav = chunk.size > 44 && String(chunk, 0, 4, Charsets.US_ASCII) == "RIFF"
+            if (out.size() > 0 && isWav) chunk = chunk.copyOfRange(44, chunk.size)
+            out.write(chunk)
+            if (mime.isEmpty()) mime = block.optString("mime_type")
+        }
+    }
+    val audio = out.toByteArray()
+    if (audio.isEmpty()) return null
+    if (audio.size > 12 && String(audio, 0, 4, Charsets.US_ASCII) == "RIFF" && String(audio, 8, 4, Charsets.US_ASCII) == "WAVE") return audio
+    val rate = Regex("rate=(\\d+)").find(mime)?.groupValues?.get(1)?.toIntOrNull() ?: 24000
+    return pcmToWav(audio, rate)
+}
+
+/** Gemini TTS audio parts joined into one WAV (headerless 16-bit PCM, or a WAV the API already wrapped). */
+internal fun geminiTtsWav(parts: JSONArray?): ByteArray? {
+    val out = ByteArrayOutputStream()
+    var mime = ""
+    for (i in 0 until (parts?.length() ?: 0)) {
+        val data = parts?.optJSONObject(i)?.optJSONObject("inlineData") ?: continue
+        val encoded = data.optString("data")
+        if (encoded.isBlank()) continue
+        out.write(Base64.getDecoder().decode(encoded))
+        if (mime.isEmpty()) mime = data.optString("mimeType")
+    }
+    val audio = out.toByteArray()
+    if (audio.isEmpty()) return null
+    if (audio.size > 12 && String(audio, 0, 4, Charsets.US_ASCII) == "RIFF" && String(audio, 8, 4, Charsets.US_ASCII) == "WAVE") return audio
+    val rate = Regex("rate=(\\d+)").find(mime)?.groupValues?.get(1)?.toIntOrNull() ?: 24000
+    return pcmToWav(audio, rate)
 }
 
 /** 16-bit mono PCM (Gemini TTS) as a WAV file. */
@@ -174,12 +251,35 @@ class TranscriptionDirect(private val http: DirectHttp, private val baseUrl: Str
     }
 
     suspend fun transcribe(model: String, apiKey: String, name: String, mime: String, bytes: ByteArray, prompt: String = ""): String {
+        // gpt-4o-transcribe-diarize (server `/transcribe`): speaker segments need diarized_json, audio over
+        // 30 seconds needs a chunking strategy, and the model does not take a prompt.
+        val diarize = model == DIARIZE_MODEL
         val body = MultipartBody.Builder().setType(MultipartBody.FORM).addFormDataPart("model", model)
-            .addFormDataPart("file", name, bytes.toRequestBody(mime.ifBlank { "audio/mp4" }.toMediaType()))
-            .apply { if (prompt.isNotBlank()) addFormDataPart("prompt", prompt.take(2000)) }.build()
+            .apply {
+                if (diarize) addFormDataPart("response_format", "diarized_json").addFormDataPart("chunking_strategy", "auto")
+                else if (prompt.isNotBlank()) addFormDataPart("prompt", prompt.take(2000))
+            }
+            .addFormDataPart("file", name, bytes.toRequestBody(mime.ifBlank { "audio/mp4" }.toMediaType())).build()
         val (reply, _) = http.postBytes("$baseUrl/v1/audio/transcriptions", mapOf("Authorization" to "Bearer $apiKey"), body, 8L * 1024 * 1024)
         val text = String(reply, Charsets.UTF_8)
-        return runCatching { JSONObject(text).optString("text") }.getOrDefault(text).trim()
+        val json = runCatching { JSONObject(text) }.getOrNull() ?: return text.trim()
+        if (diarize) diarizedTranscript(json)?.let { return it }
+        return json.optString("text").trim()
+    }
+
+    companion object {
+        const val DIARIZE_MODEL = "gpt-4o-transcribe-diarize"
+
+        /** `speaker: text` lines like the server's diarized transcript. */
+        internal fun diarizedTranscript(json: JSONObject): String? {
+            val segments = json.optJSONArray("segments") ?: return null
+            val lines = (0 until segments.length()).mapNotNull { i ->
+                val seg = segments.optJSONObject(i) ?: return@mapNotNull null
+                val text = seg.optString("text").trim()
+                if (text.isEmpty()) null else "${seg.optString("speaker").ifBlank { "Speaker" }}: $text"
+            }
+            return lines.takeIf { it.isNotEmpty() }?.joinToString("\n")
+        }
     }
 }
 

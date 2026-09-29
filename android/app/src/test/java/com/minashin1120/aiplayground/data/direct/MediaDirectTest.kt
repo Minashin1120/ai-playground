@@ -90,6 +90,50 @@ class MediaDirectTest {
         assertEquals("data", String(wav.copyOfRange(36, 40)))
     }
 
+    @Test fun xaiTtsVoiceUsesLowercasePresetOrCustomId() {
+        assertEquals("rex", xaiTtsVoiceId("Rex", ""))
+        assertEquals("eve", xaiTtsVoiceId("bogus", ""))
+        assertEquals("abc123xy", xaiTtsVoiceId("Eve", "abc123xy"))
+        // A Google voice name left in the shared field is not sent to xAI.
+        assertEquals("ara", xaiTtsVoiceId("Ara", "ja-JP-Neural2-B"))
+    }
+
+    @Test fun geminiTtsJoinsPartsAndKeepsWavHeaders() {
+        fun part(bytes: ByteArray, mime: String) = JSONObject().put("inlineData",
+            JSONObject().put("data", Base64.getEncoder().encodeToString(bytes)).put("mimeType", mime))
+        val pcm = org.json.JSONArray().put(part(ByteArray(4), "audio/L16;codec=pcm;rate=16000")).put(part(ByteArray(2), "audio/L16;codec=pcm;rate=16000"))
+        val wav = geminiTtsWav(pcm)!!
+        assertEquals(44 + 6, wav.size)
+        assertEquals(16000, java.nio.ByteBuffer.wrap(wav, 24, 4).order(java.nio.ByteOrder.LITTLE_ENDIAN).int)
+        val already = pcmToWav(ByteArray(8), 24000)
+        assertArrayEquals(already, geminiTtsWav(org.json.JSONArray().put(part(already, "audio/wav"))))
+        assertNull(geminiTtsWav(org.json.JSONArray()))
+    }
+
+    @Test fun gemini38TtsUsesInteractionsWithStyleAndCustomVoice() {
+        val payload = geminiInteractionsTtsPayload("gemini-3.8-flash-tts", "Hello",
+            JSONObject().put("tts_voice", "Puck").put("tts_voice_custom", "voice_abc123").put("tts_style", "cheerful"))
+        val content = payload.getJSONArray("input").getJSONObject(0).getJSONArray("content").getJSONObject(0)
+        assertEquals("Hello", content.getString("text"))
+        assertEquals("cheerful", content.getJSONArray("annotations").getJSONObject(0).getString("style"))
+        assertEquals("voice_abc123", payload.getJSONObject("generation_config").getJSONArray("speech_config").getJSONObject(0).getString("voice"))
+        assertEquals("Puck", geminiTtsVoice("Puck", ""))
+        assertEquals("Kore", geminiTtsVoice("bogus", "bad id!"))
+        val wav = pcmToWav(ByteArray(8), 24000)
+        val reply = JSONObject().put("steps", org.json.JSONArray().put(JSONObject().put("type", "model_output")
+            .put("content", org.json.JSONArray().put(JSONObject().put("type", "audio").put("mime_type", "audio/wav")
+                .put("data", Base64.getEncoder().encodeToString(wav))))))
+        assertArrayEquals(wav, geminiInteractionsTtsWav(reply))
+        assertNull(geminiInteractionsTtsWav(JSONObject()))
+    }
+
+    @Test fun diarizedTranscriptListsSpeakers() {
+        val json = JSONObject().put("text", "hi there").put("segments", org.json.JSONArray()
+            .put(JSONObject().put("speaker", "A").put("text", "hi"))
+            .put(JSONObject().put("speaker", "B").put("text", "there")))
+        assertEquals("A: hi\nB: there", TranscriptionDirect.diarizedTranscript(json))
+    }
+
     @Test fun downloadsFollowRedirectsWithoutTheKey() {
         MockWebServer().use { server ->
             server.start()

@@ -71,6 +71,15 @@ class GenerationOptionsTest {
         assertEquals("openai", ttsProvider("gpt-4o-mini-tts"))
     }
 
+    @Test fun gemini38TtsOffersStyleAndCustomVoice() {
+        val tts38 = fields("gemini-3.8-flash-tts")
+        assertFalse(tts38.getValue("tts_style").hidden)
+        assertFalse(tts38.getValue("tts_voice_custom").hidden)
+        assertEquals("warm", generationOptionsPayload("gemini-3.8-flash-lite-tts", mapOf("tts_style" to "warm")).getString("tts_style"))
+        assertTrue(fields("gemini-3.1-flash-tts-preview").getValue("tts_style").hidden)
+        assertTrue(fields("gemini-3.1-flash-tts-preview").getValue("tts_voice_custom").hidden)
+    }
+
     @Test fun musicAndLyriaRealtimePanels() {
         assertEquals(false, generationOptionsPayload("lyria-3", emptyMap()).get("music_instrumental"))
         assertTrue(generationPanels("lyria-realtime-exp").single { it.studioBar }.fields.isEmpty())

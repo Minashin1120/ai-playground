@@ -7316,6 +7316,8 @@
                 icon: "fas fa-microphone text-red-400",
                 description: "Text-to-Speech models",
                 items: [
+                    { id: "gemini-3.8-flash-tts", implementedAt: "2026-09-29", implementedRank: 10423, quickEmoji: "🗣️", name: "Gemini 3.8 Flash TTS", desc: "Studio-grade expressive Google TTS with long-form multi-speaker stability.", price: "Text In $0.50/1M, Audio Out $9.00/1M" },
+                    { id: "gemini-3.8-flash-lite-tts", implementedAt: "2026-09-29", implementedRank: 10424, name: "Gemini 3.8 Flash-Lite TTS", desc: "Fast, cost-efficient Google TTS for high-volume speech.", price: "Text In $0.50/1M, Audio Out $6.00/1M" },
                     { id: "gemini-3.1-flash-tts-preview", implementedAt: "2026-04-17", implementedRank: 4250, name: "Gemini 3.1 Flash TTS", desc: "Google TTS (Preview).", price: "Text In $1.00/1M, Audio Out $20.00/1M" },
                     { id: "gpt-4o-mini-tts", implementedAt: "2026-03-01", implementedRank: 250, name: "GPT-4o Mini TTS", desc: "OpenAI TTS.", price: "Text In $0.60/1M, Audio Out $12.00/1M" },
                     { id: "gemini-2.5-flash-preview-tts", implementedAt: "2026-02-10", implementedRank: 160, name: "Gemini 2.5 Flash TTS", desc: "Google TTS (Preview).", price: "Text In $0.50/1M, Audio Out $10.00/1M" },
@@ -7339,7 +7341,10 @@
                 icon: "fas fa-headset text-cyan-400",
                 description: "Realtime voice models (audio in / audio out)",
                 items: [
-                    { id: "gpt-realtime-2", implementedAt: "2026-05-11", implementedRank: 5080, name: "OpenAI Realtime 2", desc: "Most capable speech-to-speech reasoning model.", price: "Audio In $32/1M, Audio Out $64/1M" },
+                    { id: "gpt-live-1", implementedAt: "2026-09-29", implementedRank: 10425, quickEmoji: "📞", name: "GPT-Live 1", desc: "Full-duplex voice conversations with smooth interruption handling; reasoning is delegated to GPT-5.6 Luna.", price: "$0.05 / minute + backend usage" },
+                    { id: "gpt-realtime-2.1", implementedAt: "2026-09-29", implementedRank: 10421, quickEmoji: "🎙️", name: "OpenAI Realtime 2.1", desc: "Speech-to-speech reasoning model with improved alphanumeric recognition, noise handling and interruptions.", price: "Audio In $32/1M, Audio Out $64/1M" },
+                    { id: "gpt-realtime-2.1-mini", implementedAt: "2026-09-29", implementedRank: 10422, name: "OpenAI Realtime 2.1 Mini", desc: "Faster, lower-cost realtime voice model.", price: "Audio In $10/1M, Audio Out $20/1M" },
+                    { id: "gpt-realtime-2", implementedAt: "2026-05-11", implementedRank: 5080, name: "OpenAI Realtime 2", desc: "Previous-generation speech-to-speech reasoning model.", price: "Audio In $32/1M, Audio Out $64/1M" },
                     { id: "gpt-realtime-translate", implementedAt: "2026-05-11", implementedRank: 5081, name: "OpenAI Realtime Translate", desc: "Streaming speech-to-speech translation.", price: "$0.034 / minute" },
                     { id: "gpt-realtime-whisper", implementedAt: "2026-05-11", implementedRank: 5082, name: "OpenAI Realtime Whisper", desc: "Streaming speech-to-text (transcription).", price: "$0.017 / minute" },
                     { id: "gpt-realtime-1.5", implementedAt: "2026-02-24", implementedRank: 2530, name: "OpenAI Realtime 1.5", desc: "Latest OpenAI speech-to-speech flagship model.", price: "Audio In $32/1M, Audio Out $64/1M" },
@@ -7719,6 +7724,9 @@
         const STS_MODELS = new Set([
             'gpt-transcribe',
             'gpt-live-transcribe',
+            'gpt-live-1',
+            'gpt-realtime-2.1',
+            'gpt-realtime-2.1-mini',
             'gpt-realtime-2',
             'gpt-realtime-translate',
             'gpt-realtime-whisper',
@@ -7867,6 +7875,11 @@
             'Alnilam','Schedar','Gacrux','Pulcherrima','Achird','Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'
         ];
         const OPENAI_STS_VOICES = ['alloy','ash','ballad','coral','echo','sage','shimmer','verse','marin','cedar'];
+        // GPT-Live adds regional voices to the standard set (default: marin).
+        const OPENAI_LIVE_VOICES = [...OPENAI_STS_VOICES, 'quartz','ripple','vesper','willow','stone','gleam','meridian','bossa','tempo','beacon','delta','cinder'];
+        const OPENAI_LIVE_STS_MODELS = new Set(['gpt-live-1']);
+        const OPENAI_REASONING_STS_MODELS = new Set(['gpt-realtime-2', 'gpt-realtime-2.1', 'gpt-realtime-2.1-mini']);
+        const GEMINI_INTERACTIONS_TTS_MODELS = new Set(['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts']);
         const GROK_STS_VOICES = ['Ara','Rex','Sal','Eve','Leo'];
         const GROK_TTS_VOICES = ['Eve','Ara','Rex','Sal','Leo'];
         const GEMINI_STS_VOICES = [
@@ -7874,7 +7887,7 @@
             'Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome','Algenib','Rasalgethi','Laomedeia','Achernar',
             'Alnilam','Schedar','Gacrux','Pulcherrima','Achird','Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'
         ];
-        const GROK_PCM_RATES = [8000,16000,21050,24000,32000,44100,48000];
+        const GROK_PCM_RATES = [8000,16000,22050,24000,32000,44100,48000];
         const isTtsModel = () => get('model-select').value.includes('tts');
         const isGptImageModel = () => (get('model-select').value || '').includes('gpt-image');
         const isGeminiImageModel = () => isGeminiImageModelKey(get('model-select').value);
@@ -7928,7 +7941,7 @@
         const isStsModel = () => STS_MODELS.has(get('model-select').value);
         const isTranscriptionModel = () => {
             const model = get('model-select') ? get('model-select').value : '';
-            return model === 'gpt-transcribe' || model === 'gpt-live-transcribe';
+            return model === 'gpt-transcribe' || model === 'gpt-live-transcribe' || model === 'gpt-realtime-whisper';
         };
         const isGeminiLiveModel = () => {
             const m = get('model-select').value;
@@ -7952,7 +7965,7 @@
         };
         const getStsProvider = (model) => {
             const m = (model || '').toLowerCase();
-            if (m.includes('gpt-realtime') || m === 'gpt-transcribe' || m === 'gpt-live-transcribe') return 'openai';
+            if (m.includes('gpt-realtime') || OPENAI_LIVE_STS_MODELS.has(m) || m === 'gpt-transcribe' || m === 'gpt-live-transcribe') return 'openai';
             if (m.includes('grok-voice')) return 'xai';
             if (m.includes('gemini') && (m.includes('native-audio') || m.includes('live'))) return 'gemini';
             return null;
@@ -8013,6 +8026,8 @@
             const modeLabel = get('sts-mode-label');
             const transcription = isTranscriptionModel() || isGeminiLiveTranscribeModel() || isXaiLiveTranscribeModel();
             const langWrap = get('sts-lang-wrap');
+            const reasoningWrap = get('sts-reasoning-wrap');
+            if (reasoningWrap) reasoningWrap.classList.toggle('hidden', !OPENAI_REASONING_STS_MODELS.has(model));
 
             if (transcription) {
                 if (modeLabel) modeLabel.textContent = 'Realtime Speech-to-Text';
@@ -8033,6 +8048,8 @@
                             ? 'xAI ストリーミング文字起こし（16kHz PCM）'
                         : model === 'gpt-live-transcribe'
                             ? '低遅延ライブ文字起こし（24kHz PCM）'
+                        : model === 'gpt-realtime-whisper'
+                            ? 'ストリーミング音声認識モデルによる文字起こし（24kHz PCM）'
                             : '高精度なコミット単位の文字起こし（24kHz PCM）';
                 }
             } else if (provider === 'openai') {
@@ -8051,6 +8068,21 @@
                 if (thinkingWrap) thinkingWrap.classList.add('hidden');
                 if (langWrap) langWrap.classList.add('hidden');
                 if (note) note.textContent = 'OpenAI Realtimeは24kHz PCM固定';
+                if (OPENAI_REASONING_STS_MODELS.has(model) && note) {
+                    note.textContent = 'OpenAI Realtimeは24kHz PCM固定（Reasoningで推論の強さを指定）';
+                }
+                if (OPENAI_LIVE_STS_MODELS.has(model)) {
+                    setSelectOptions(voiceSel, OPENAI_LIVE_VOICES, OPENAI_LIVE_VOICES.includes(voiceSel.value) ? voiceSel.value : 'marin');
+                    if (speedWrap) speedWrap.classList.add('hidden');
+                    if (note) note.textContent = 'GPT-Liveは全二重の音声会話（24kHz PCM・速度変更非対応・推論はgpt-5.6-lunaに委任）';
+                }
+                if (model === 'gpt-realtime-translate') {
+                    if (modeLabel) modeLabel.textContent = 'Realtime Translation';
+                    if (voiceWrap) voiceWrap.classList.add('hidden');
+                    if (speedWrap) speedWrap.classList.add('hidden');
+                    if (langWrap) langWrap.classList.remove('hidden');
+                    if (note) note.textContent = '話した内容を選択した言語へリアルタイムで音声翻訳（24kHz PCM・音声選択不可）';
+                }
             } else if (provider === 'xai') {
                 if (modeLabel) modeLabel.textContent = 'Speech-to-Speech Live';
                 if (voiceWrap) voiceWrap.classList.remove('hidden');
@@ -8073,7 +8105,11 @@
                 if (thinkingWrap) thinkingWrap.classList.remove('hidden');
                 if (langWrap) langWrap.classList.add('hidden');
                 if (note) note.textContent = 'Gemini Liveは音声速度変更非対応';
-                if (model === 'gemini-3.8-live') {
+                const thinkingLevelSelect = get('sts-thinking-level');
+                Array.from((thinkingLevelSelect && thinkingLevelSelect.options) || []).forEach(opt => { opt.disabled = false; });
+                if (model === 'gemini-2.5-flash-native-audio-preview-12-2025') {
+                    if (thinkingWrap) thinkingWrap.classList.add('hidden');
+                } else if (model === 'gemini-3.8-live') {
                     if (thinkingWrap) thinkingWrap.classList.add('hidden');
                     if (note) note.textContent = 'Gemini 3.8 Flash Liveは固定レイテンシのLive APIモデル（Thinking level非対応）';
                 } else if (model === 'gemini-3.8-live-extended-thinking') {
@@ -8147,6 +8183,12 @@
             const speedInput = get('tts-speed');
             const speedLabel = get('tts-speed-label');
             const speedNote = get('tts-speed-note');
+            const styleWrap = get('tts-style-wrap');
+            const interactionsTts = provider === 'gemini' && GEMINI_INTERACTIONS_TTS_MODELS.has(model);
+            if (styleWrap) styleWrap.classList.toggle('hidden', !interactionsTts);
+            if (voiceCustom) {
+                voiceCustom.placeholder = interactionsTts ? 'voice_... / voicekey_...' : 'e.g. en-US-Wavenet-D';
+            }
 
             if (provider === 'openai') {
                 setSelectOptions(voiceSel, OPENAI_TTS_VOICES, voiceSel.value || 'alloy');
@@ -8162,10 +8204,14 @@
                 if (speedNote) speedNote.textContent = '';
             } else if (provider === 'gemini') {
                 setSelectOptions(voiceSel, GEMINI_TTS_VOICES, voiceSel.value || 'Kore');
-                voiceCustomWrap.classList.add('hidden');
+                // Gemini 3.8 TTS also accepts Voice design / Voice replication IDs.
+                voiceCustomWrap.classList.toggle('hidden', !interactionsTts);
+                if (!interactionsTts && voiceCustom) voiceCustom.value = '';
                 langWrap.classList.add('hidden');
                 if (speedInput) { speedInput.disabled = true; }
-                if (speedNote) speedNote.textContent = '(Gemini TTSは速度変更非対応)';
+                if (speedNote) speedNote.textContent = interactionsTts
+                    ? '(本文はそのまま読み上げ。話し方はStyleで指定・速度はStyleで調整)'
+                    : '(Gemini TTSは速度変更非対応)';
             } else if (provider === 'google') {
                 setSelectOptions(voiceSel, [
                     { value: 'auto', label: 'Auto (Studio/Neural2)' },
@@ -13520,6 +13566,8 @@
                     this.onError = null;
                     this.setupComplete = false;
                     this.model = null;
+                    this.assistantTurnBreak = false;
+                    this.userTurnBreak = false;
                 }
                 async start(token, url, model, config = {}) {
                     this.model = model;
@@ -13540,10 +13588,11 @@
                                 // Enable transcription at setup level (as per docs)
                                 inputAudioTranscription: isTranscribeMode
                                     ? (config.transcriptionConfig || {})
-                                    : {},
-                                outputAudioTranscription: {}
+                                    : {}
                             }
                         };
+                        // Text-only transcription has no model audio to transcribe.
+                        if (!isTranscribeMode) setupMsg.setup.outputAudioTranscription = {};
 
                         // speechConfig is inside generationConfig
                         if (config.speechConfig) {
@@ -13555,9 +13604,9 @@
                             setupMsg.setup.generationConfig.thinkingConfig = config.thinkingConfig;
                         }
 
-                        // Live Translate uses a top-level translationConfig in the setup message
+                        // Live Translate: translationConfig is a generationConfig field
                         if (config.translationConfig) {
-                            setupMsg.setup.translationConfig = config.translationConfig;
+                            setupMsg.setup.generationConfig.translationConfig = config.translationConfig;
                         }
 
                         console.log("Sending setup:", JSON.stringify(setupMsg));
@@ -13571,12 +13620,14 @@
                     };
                     this.ws.onclose = (e) => {
                         console.log("Gemini Live WebSocket closed:", e.code, e.reason);
+                        this.closedEvent = e;
                         if (this.onClose) this.onClose(e);
                     };
 
-                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-                    this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    const source = this.audioContext.createMediaStreamSource(this.stream);
+                    this.stream = await navigator.mediaDevices.getUserMedia(getMicCaptureConstraints());
+                    const mic = openMicAudioSource(this.stream, 16000);
+                    this.audioContext = mic.ctx;
+                    const source = mic.source;
                     this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
 
                     this.userAudioChunks = [];
@@ -13589,15 +13640,12 @@
 
                     this.processor.onaudioprocess = (e) => {
                         if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.setupComplete) return;
-                        const inputData = e.inputBuffer.getChannelData(0);
-                        const pcmData = new Int16Array(inputData.length);
-                        for (let i = 0; i < inputData.length; i++) {
-                            pcmData[i] = Math.max(-1, Math.min(1, inputData[i])) * 0x7FFF;
-                        }
+                        const pcm = pcm16FromFloat32(e.inputBuffer.getChannelData(0), this.audioContext.sampleRate, 16000);
+                        if (!pcm || !pcm.byteLength) return;
                         this.ws.send(JSON.stringify({
                             realtimeInput: {
                                 audio: {
-                                    data: btoa(String.fromCharCode.apply(null, new Uint8Array(pcmData.buffer))),
+                                    data: btoa(String.fromCharCode.apply(null, new Uint8Array(pcm))),
                                     mimeType: "audio/pcm;rate=16000"
                                 }
                             }
@@ -13607,8 +13655,12 @@
                     this.processor.connect(this.audioContext.destination);
                 }
                 _handleMessage(e) {
-                    const data = JSON.parse(e.data);
-                    console.log("Gemini Live raw message received:", data);
+                    let data = null;
+                    try {
+                        data = JSON.parse(typeof e.data === 'string' ? e.data : new TextDecoder().decode(e.data));
+                    } catch (err) {
+                        return;
+                    }
 
                     if (data.setupComplete) {
                         console.log("Gemini Live setup complete confirmed");
@@ -13622,9 +13674,8 @@
                                     if (p.thought) {
                                         console.log("Gemini thought delta:", p.text);
                                         this.assistantThought += p.text;
-                                    } else {
-                                        console.log("Gemini transcript delta (parts):", p.text);
-                                        this.assistantText += p.text;
+                                    } else if (!(this.model === 'gemini-3.5-transcribe-live')) {
+                                        this._appendAssistantText(p.text);
                                     }
                                 }
                                 if (p.inlineData && p.inlineData.data) {
@@ -13638,24 +13689,32 @@
                                 }
                             });
                         }
-                        if (sc.outputTranscription) {
-                            console.log("Gemini output transcription delta:", sc.outputTranscription.text);
-                            // Some versions send transcript via outputTranscription instead of modelTurn parts
-                            if (!this.assistantText.includes(sc.outputTranscription.text)) {
-                                this.assistantText += sc.outputTranscription.text;
-                            }
+                        // Native-audio models deliver the spoken text only here.
+                        if (sc.outputTranscription && sc.outputTranscription.text) {
+                            this._appendAssistantText(sc.outputTranscription.text);
                         }
-                        if (sc.inputTranscription) {
-                            console.log("User input transcription delta:", sc.inputTranscription.text);
+                        if (sc.inputTranscription && sc.inputTranscription.text) {
+                            if (this.userTurnBreak && this.inputTranscript && !this.inputTranscript.endsWith('\n')) this.inputTranscript += '\n';
+                            this.userTurnBreak = false;
                             this.inputTranscript += sc.inputTranscription.text;
                             this.interimInputTranscript = '';
                         }
                         if (sc.interimInputTranscription) {
-                            console.log("User interim transcription:", sc.interimInputTranscription.text);
-                            this.interimInputTranscript = sc.interimInputTranscription.text;
+                            this.interimInputTranscript = sc.interimInputTranscription.text || '';
+                        }
+                        if (sc.turnComplete) {
+                            this.assistantTurnBreak = true;
+                            if (this.model !== 'gemini-3.5-transcribe-live') this.userTurnBreak = true;
                         }
                     }
+                    if (data.error && this.onError) this.onError(data.error);
                     if (this.onMessage) this.onMessage(data);
+                }
+                _appendAssistantText(text) {
+                    if (!text) return;
+                    if (this.assistantTurnBreak && this.assistantText && !this.assistantText.endsWith('\n')) this.assistantText += '\n';
+                    this.assistantTurnBreak = false;
+                    this.assistantText += text;
                 }
                 stop() {
                     if (this.ws) this.ws.close();
@@ -13757,6 +13816,8 @@
                     this.saved = false;
                     this.saving = false;
                     this.stopping = false;
+                    this.audioQueue = [];
+                    this.audioFlush = null;
                 }
 
                 isActive() {
@@ -13803,7 +13864,8 @@
                         rate_out: get('sts-rate-out') ? get('sts-rate-out').value : '',
                         thinking_level: get('sts-thinking-level') ? get('sts-thinking-level').value : '',
                         include_thoughts: get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false,
-                        target_lang: (isGeminiLiveTranslateModel() && get('sts-target-lang')) ? get('sts-target-lang').value : ''
+                        reasoning_effort: get('sts-reasoning-effort') ? get('sts-reasoning-effort').value : '',
+                        target_lang: ((isGeminiLiveTranslateModel() || model === 'gpt-realtime-translate') && get('sts-target-lang')) ? get('sts-target-lang').value : ''
                     };
                     if (isXaiLiveTranscribeModel() && get('sts-custom-vocab')) payload.custom_vocabulary = get('sts-custom-vocab').value.split(/[,、\n]/);
                     setStsStatus('接続中...', true);
@@ -13828,6 +13890,8 @@
                         this.lastAudioAt = 0;
                         this.streamError = null;
                         this.rtPlayer = null;
+                        this.audioQueue = [];
+                        this.audioFlush = null;
                     } catch (e) {
                         setStsStatus('接続エラー', false);
                         showToast('リアルタイムセッションを開始できませんでした: ' + e.message, 'error', true);
@@ -13950,6 +14014,10 @@
                         case 'status':
                             if (ev.status === 'ready' && this.active) setStsStatus('話してください...', true);
                             break;
+                        case 'notice':
+                            // Recoverable provider error: the session stays open.
+                            if (ev.message) showToast('リアルタイム音声: ' + ev.message, 'warning', true);
+                            break;
                         case 'error':
                             this.streamError = ev.message || 'リアルタイムエラー';
                             setStsStatus('エラー', false);
@@ -13972,13 +14040,12 @@
                 }
 
                 _startCapture() {
-                    const AC = window.AudioContext || window.webkitAudioContext;
-                    if (!AC) throw new Error('AudioContext not supported');
-                    this.audioCtx = new AC({ sampleRate: this.rateIn || 24000 });
                     return navigator.mediaDevices.getUserMedia(getMicCaptureConstraints()).then((stream) => {
                         this.stream = stream;
-                        const source = this.audioCtx.createMediaStreamSource(stream);
                         const targetRate = this.rateIn || 24000;
+                        const mic = openMicAudioSource(stream, targetRate);
+                        this.audioCtx = mic.ctx;
+                        const source = mic.source;
                         const ctxRate = this.audioCtx.sampleRate;
                         const bufSize = 4096;
                         this.processor = this.audioCtx.createScriptProcessor(bufSize, 1, 1);
@@ -13996,17 +14063,35 @@
 
                 _sendAudio(pcmBytes) {
                     if (!this.sessionId || !this.active) return;
-                    const url = '/api/realtime/audio?session_id=' + encodeURIComponent(this.sessionId);
-                    const opts = {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/octet-stream' },
-                        body: pcmBytes
-                    };
-                    const finalOpts = window.ProgressSpinner && typeof window.ProgressSpinner.manualRequestOptions === 'function'
-                        ? window.ProgressSpinner.manualRequestOptions(opts)
-                        : opts;
-                    fetch(url, finalOpts).catch(() => {});
+                    // One request at a time: parallel POSTs can reach the server
+                    // out of order and scramble the audio stream.
+                    this.audioQueue.push(new Uint8Array(pcmBytes));
+                    if (!this.audioFlush) this.audioFlush = this._flushAudio();
+                }
+
+                async _flushAudio() {
+                    try {
+                        while (this.audioQueue.length && this.sessionId) {
+                            const chunks = this.audioQueue.splice(0, this.audioQueue.length);
+                            const total = chunks.reduce((n, c) => n + c.byteLength, 0);
+                            const body = new Uint8Array(total);
+                            let offset = 0;
+                            chunks.forEach((c) => { body.set(c, offset); offset += c.byteLength; });
+                            const url = '/api/realtime/audio?session_id=' + encodeURIComponent(this.sessionId);
+                            const opts = {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { 'X-CSRF-Token': csrfToken, 'Content-Type': 'application/octet-stream' },
+                                body: body.buffer
+                            };
+                            const finalOpts = window.ProgressSpinner && typeof window.ProgressSpinner.manualRequestOptions === 'function'
+                                ? window.ProgressSpinner.manualRequestOptions(opts)
+                                : opts;
+                            try { await fetch(url, finalOpts); } catch (e) {}
+                        }
+                    } finally {
+                        this.audioFlush = null;
+                    }
                 }
 
                 _stopCapture() {
@@ -14024,6 +14109,8 @@
                     this.stopping = true;
                     this._stopCapture();
                     setStsStatus('応答を待っています...', true);
+                    // Deliver the audio still queued before ending the input.
+                    if (this.audioFlush) { try { await this.audioFlush; } catch (e) {} }
                     // Finalize any trailing audio so the last turn is included.
                     try {
                         await apiFetch('/api/realtime/commit', {
@@ -14057,6 +14144,7 @@
                         });
                         const data = await resp.json().catch(() => ({}));
                         if (!resp.ok) throw new Error(data.error || '保存に失敗しました');
+                        if (data.thread_id && !currentThreadId) currentThreadId = String(data.thread_id);
                         if (this.streamError) {
                             setStsStatus('エラー', false);
                             showToast('リアルタイム会話でエラーが発生しました: ' + this.streamError, 'error', true);
@@ -14092,6 +14180,7 @@
                     this.active = false;
                     this.capturing = false;
                     this.stopping = false;
+                    this.audioQueue = [];
                     this._stopCapture();
                     this._stopPlayback();
                     if (this.abortCtrl) { try { this.abortCtrl.abort(); } catch (e) {} this.abortCtrl = null; }
@@ -14102,6 +14191,23 @@
                         micBtn.classList.remove('bg-red-600', 'animate-pulse');
                         micBtn.classList.add('bg-gray-700');
                     }
+                }
+            }
+
+            // Microphone source at the provider rate when the browser allows it.
+            // Firefox cannot connect a mic stream to a context with another
+            // sample rate; fall back to the device rate (callers resample).
+            function openMicAudioSource(stream, targetRate) {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) throw new Error('AudioContext not supported');
+                let ctx = null;
+                try {
+                    ctx = new AC({ sampleRate: targetRate });
+                    return { ctx, source: ctx.createMediaStreamSource(stream) };
+                } catch (e) {
+                    if (ctx) { try { ctx.close(); } catch (err) {} }
+                    ctx = new AC();
+                    return { ctx, source: ctx.createMediaStreamSource(stream) };
                 }
             }
 
@@ -15185,6 +15291,24 @@
                             get('mic-btn').classList.add('bg-red-600', 'animate-pulse');
                             startMicWaveform(currentGeminiLive.stream);
                             startSilenceMonitor(currentGeminiLive.stream);
+
+                            // Provider-side end (setup rejected, session limit, network):
+                            // report it and close out like a manual stop so the
+                            // conversation so far is saved.
+                            const liveClient = currentGeminiLive;
+                            liveClient.onError = (err) => {
+                                const msg = err && err.message ? err.message : (typeof err === 'string' ? err : '');
+                                if (msg) showToast('Gemini Live: ' + msg, 'error', true);
+                            };
+                            liveClient.onClose = (ev) => {
+                                if (currentGeminiLive !== liveClient) return;
+                                if (ev && ev.code && ev.code !== 1000) {
+                                    const reason = ev.reason ? ': ' + ev.reason : ' (code ' + ev.code + ')';
+                                    showToast('Gemini Live の接続が終了しました' + reason, 'error', true);
+                                }
+                                get('mic-btn').click();
+                            };
+                            if (liveClient.closedEvent) liveClient.onClose(liveClient.closedEvent);
                             return;
                         } catch (e) {
                             showToast("Gemini Live connection failed: " + e.message, "error", true);
@@ -15254,6 +15378,7 @@
                                 fd.append('model', get('model-select').value);
                                 fd.append('thread_id', currentThreadId);
                                 if (get('sts-voice')) fd.append('sts_voice', get('sts-voice').value || '');
+                                if (get('sts-reasoning-effort')) fd.append('sts_reasoning_effort', get('sts-reasoning-effort').value || '');
                                 if (get('sts-speed')) fd.append('sts_speed', get('sts-speed').value || '');
                                 if (get('sts-rate-in')) fd.append('sts_rate_in', get('sts-rate-in').value || '');
                                 if (get('sts-rate-out')) fd.append('sts_rate_out', get('sts-rate-out').value || '');
@@ -20889,6 +21014,7 @@
                 tts_voice: isTtsModel() && get('tts-voice') ? get('tts-voice').value : null,
                 tts_voice_custom: isTtsModel() && get('tts-voice-custom') ? get('tts-voice-custom').value : null,
                 tts_language: isTtsModel() && get('tts-language') ? get('tts-language').value : null,
+                tts_style: isTtsModel() && get('tts-style') && get('tts-style-wrap') && !get('tts-style-wrap').classList.contains('hidden') ? get('tts-style').value : null,
                 tts_speed: isTtsModel() && get('tts-speed') ? get('tts-speed').value : null,
                 image_size: isGptImageModel() && get('gpt-image-size') ? get('gpt-image-size').value : null,
                 image_quality: isGptImageModel() && get('gpt-image-quality') ? get('gpt-image-quality').value : null,

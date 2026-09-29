@@ -865,6 +865,8 @@
                 icon: "fas fa-microphone text-red-400",
                 description: "Text-to-Speech models",
                 items: [
+                    { id: "gemini-3.8-flash-tts", implementedAt: "2026-09-29", implementedRank: 10423, quickEmoji: "🗣️", name: "Gemini 3.8 Flash TTS", desc: "Studio-grade expressive Google TTS with long-form multi-speaker stability.", price: "Text In $0.50/1M, Audio Out $9.00/1M" },
+                    { id: "gemini-3.8-flash-lite-tts", implementedAt: "2026-09-29", implementedRank: 10424, name: "Gemini 3.8 Flash-Lite TTS", desc: "Fast, cost-efficient Google TTS for high-volume speech.", price: "Text In $0.50/1M, Audio Out $6.00/1M" },
                     { id: "gemini-3.1-flash-tts-preview", implementedAt: "2026-04-17", implementedRank: 4250, name: "Gemini 3.1 Flash TTS", desc: "Google TTS (Preview).", price: "Text In $1.00/1M, Audio Out $20.00/1M" },
                     { id: "gpt-4o-mini-tts", implementedAt: "2026-03-01", implementedRank: 250, name: "GPT-4o Mini TTS", desc: "OpenAI TTS.", price: "Text In $0.60/1M, Audio Out $12.00/1M" },
                     { id: "gemini-2.5-flash-preview-tts", implementedAt: "2026-02-10", implementedRank: 160, name: "Gemini 2.5 Flash TTS", desc: "Google TTS (Preview).", price: "Text In $0.50/1M, Audio Out $10.00/1M" },
@@ -888,7 +890,10 @@
                 icon: "fas fa-headset text-cyan-400",
                 description: "Realtime voice models (audio in / audio out)",
                 items: [
-                    { id: "gpt-realtime-2", implementedAt: "2026-05-11", implementedRank: 5080, name: "OpenAI Realtime 2", desc: "Most capable speech-to-speech reasoning model.", price: "Audio In $32/1M, Audio Out $64/1M" },
+                    { id: "gpt-live-1", implementedAt: "2026-09-29", implementedRank: 10425, quickEmoji: "📞", name: "GPT-Live 1", desc: "Full-duplex voice conversations with smooth interruption handling; reasoning is delegated to GPT-5.6 Luna.", price: "$0.05 / minute + backend usage" },
+                    { id: "gpt-realtime-2.1", implementedAt: "2026-09-29", implementedRank: 10421, quickEmoji: "🎙️", name: "OpenAI Realtime 2.1", desc: "Speech-to-speech reasoning model with improved alphanumeric recognition, noise handling and interruptions.", price: "Audio In $32/1M, Audio Out $64/1M" },
+                    { id: "gpt-realtime-2.1-mini", implementedAt: "2026-09-29", implementedRank: 10422, name: "OpenAI Realtime 2.1 Mini", desc: "Faster, lower-cost realtime voice model.", price: "Audio In $10/1M, Audio Out $20/1M" },
+                    { id: "gpt-realtime-2", implementedAt: "2026-05-11", implementedRank: 5080, name: "OpenAI Realtime 2", desc: "Previous-generation speech-to-speech reasoning model.", price: "Audio In $32/1M, Audio Out $64/1M" },
                     { id: "gpt-realtime-translate", implementedAt: "2026-05-11", implementedRank: 5081, name: "OpenAI Realtime Translate", desc: "Streaming speech-to-speech translation.", price: "$0.034 / minute" },
                     { id: "gpt-realtime-whisper", implementedAt: "2026-05-11", implementedRank: 5082, name: "OpenAI Realtime Whisper", desc: "Streaming speech-to-text (transcription).", price: "$0.017 / minute" },
                     { id: "gpt-realtime-1.5", implementedAt: "2026-02-24", implementedRank: 2530, name: "OpenAI Realtime 1.5", desc: "Latest OpenAI speech-to-speech flagship model.", price: "Audio In $32/1M, Audio Out $64/1M" },
@@ -1268,6 +1273,9 @@
         const STS_MODELS = new Set([
             'gpt-transcribe',
             'gpt-live-transcribe',
+            'gpt-live-1',
+            'gpt-realtime-2.1',
+            'gpt-realtime-2.1-mini',
             'gpt-realtime-2',
             'gpt-realtime-translate',
             'gpt-realtime-whisper',
@@ -1416,6 +1424,11 @@
             'Alnilam','Schedar','Gacrux','Pulcherrima','Achird','Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'
         ];
         const OPENAI_STS_VOICES = ['alloy','ash','ballad','coral','echo','sage','shimmer','verse','marin','cedar'];
+        // GPT-Live adds regional voices to the standard set (default: marin).
+        const OPENAI_LIVE_VOICES = [...OPENAI_STS_VOICES, 'quartz','ripple','vesper','willow','stone','gleam','meridian','bossa','tempo','beacon','delta','cinder'];
+        const OPENAI_LIVE_STS_MODELS = new Set(['gpt-live-1']);
+        const OPENAI_REASONING_STS_MODELS = new Set(['gpt-realtime-2', 'gpt-realtime-2.1', 'gpt-realtime-2.1-mini']);
+        const GEMINI_INTERACTIONS_TTS_MODELS = new Set(['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts']);
         const GROK_STS_VOICES = ['Ara','Rex','Sal','Eve','Leo'];
         const GROK_TTS_VOICES = ['Eve','Ara','Rex','Sal','Leo'];
         const GEMINI_STS_VOICES = [
@@ -1423,7 +1436,7 @@
             'Enceladus','Iapetus','Umbriel','Algieba','Despina','Erinome','Algenib','Rasalgethi','Laomedeia','Achernar',
             'Alnilam','Schedar','Gacrux','Pulcherrima','Achird','Zubenelgenubi','Vindemiatrix','Sadachbia','Sadaltager','Sulafat'
         ];
-        const GROK_PCM_RATES = [8000,16000,21050,24000,32000,44100,48000];
+        const GROK_PCM_RATES = [8000,16000,22050,24000,32000,44100,48000];
         const isTtsModel = () => get('model-select').value.includes('tts');
         const isGptImageModel = () => (get('model-select').value || '').includes('gpt-image');
         const isGeminiImageModel = () => isGeminiImageModelKey(get('model-select').value);
@@ -1477,7 +1490,7 @@
         const isStsModel = () => STS_MODELS.has(get('model-select').value);
         const isTranscriptionModel = () => {
             const model = get('model-select') ? get('model-select').value : '';
-            return model === 'gpt-transcribe' || model === 'gpt-live-transcribe';
+            return model === 'gpt-transcribe' || model === 'gpt-live-transcribe' || model === 'gpt-realtime-whisper';
         };
         const isGeminiLiveModel = () => {
             const m = get('model-select').value;
@@ -1501,7 +1514,7 @@
         };
         const getStsProvider = (model) => {
             const m = (model || '').toLowerCase();
-            if (m.includes('gpt-realtime') || m === 'gpt-transcribe' || m === 'gpt-live-transcribe') return 'openai';
+            if (m.includes('gpt-realtime') || OPENAI_LIVE_STS_MODELS.has(m) || m === 'gpt-transcribe' || m === 'gpt-live-transcribe') return 'openai';
             if (m.includes('grok-voice')) return 'xai';
             if (m.includes('gemini') && (m.includes('native-audio') || m.includes('live'))) return 'gemini';
             return null;
@@ -1562,6 +1575,8 @@
             const modeLabel = get('sts-mode-label');
             const transcription = isTranscriptionModel() || isGeminiLiveTranscribeModel() || isXaiLiveTranscribeModel();
             const langWrap = get('sts-lang-wrap');
+            const reasoningWrap = get('sts-reasoning-wrap');
+            if (reasoningWrap) reasoningWrap.classList.toggle('hidden', !OPENAI_REASONING_STS_MODELS.has(model));
 
             if (transcription) {
                 if (modeLabel) modeLabel.textContent = 'Realtime Speech-to-Text';
@@ -1582,6 +1597,8 @@
                             ? 'xAI ストリーミング文字起こし（16kHz PCM）'
                         : model === 'gpt-live-transcribe'
                             ? '低遅延ライブ文字起こし（24kHz PCM）'
+                        : model === 'gpt-realtime-whisper'
+                            ? 'ストリーミング音声認識モデルによる文字起こし（24kHz PCM）'
                             : '高精度なコミット単位の文字起こし（24kHz PCM）';
                 }
             } else if (provider === 'openai') {
@@ -1600,6 +1617,21 @@
                 if (thinkingWrap) thinkingWrap.classList.add('hidden');
                 if (langWrap) langWrap.classList.add('hidden');
                 if (note) note.textContent = 'OpenAI Realtimeは24kHz PCM固定';
+                if (OPENAI_REASONING_STS_MODELS.has(model) && note) {
+                    note.textContent = 'OpenAI Realtimeは24kHz PCM固定（Reasoningで推論の強さを指定）';
+                }
+                if (OPENAI_LIVE_STS_MODELS.has(model)) {
+                    setSelectOptions(voiceSel, OPENAI_LIVE_VOICES, OPENAI_LIVE_VOICES.includes(voiceSel.value) ? voiceSel.value : 'marin');
+                    if (speedWrap) speedWrap.classList.add('hidden');
+                    if (note) note.textContent = 'GPT-Liveは全二重の音声会話（24kHz PCM・速度変更非対応・推論はgpt-5.6-lunaに委任）';
+                }
+                if (model === 'gpt-realtime-translate') {
+                    if (modeLabel) modeLabel.textContent = 'Realtime Translation';
+                    if (voiceWrap) voiceWrap.classList.add('hidden');
+                    if (speedWrap) speedWrap.classList.add('hidden');
+                    if (langWrap) langWrap.classList.remove('hidden');
+                    if (note) note.textContent = '話した内容を選択した言語へリアルタイムで音声翻訳（24kHz PCM・音声選択不可）';
+                }
             } else if (provider === 'xai') {
                 if (modeLabel) modeLabel.textContent = 'Speech-to-Speech Live';
                 if (voiceWrap) voiceWrap.classList.remove('hidden');
@@ -1622,7 +1654,11 @@
                 if (thinkingWrap) thinkingWrap.classList.remove('hidden');
                 if (langWrap) langWrap.classList.add('hidden');
                 if (note) note.textContent = 'Gemini Liveは音声速度変更非対応';
-                if (model === 'gemini-3.8-live') {
+                const thinkingLevelSelect = get('sts-thinking-level');
+                Array.from((thinkingLevelSelect && thinkingLevelSelect.options) || []).forEach(opt => { opt.disabled = false; });
+                if (model === 'gemini-2.5-flash-native-audio-preview-12-2025') {
+                    if (thinkingWrap) thinkingWrap.classList.add('hidden');
+                } else if (model === 'gemini-3.8-live') {
                     if (thinkingWrap) thinkingWrap.classList.add('hidden');
                     if (note) note.textContent = 'Gemini 3.8 Flash Liveは固定レイテンシのLive APIモデル（Thinking level非対応）';
                 } else if (model === 'gemini-3.8-live-extended-thinking') {
@@ -1696,6 +1732,12 @@
             const speedInput = get('tts-speed');
             const speedLabel = get('tts-speed-label');
             const speedNote = get('tts-speed-note');
+            const styleWrap = get('tts-style-wrap');
+            const interactionsTts = provider === 'gemini' && GEMINI_INTERACTIONS_TTS_MODELS.has(model);
+            if (styleWrap) styleWrap.classList.toggle('hidden', !interactionsTts);
+            if (voiceCustom) {
+                voiceCustom.placeholder = interactionsTts ? 'voice_... / voicekey_...' : 'e.g. en-US-Wavenet-D';
+            }
 
             if (provider === 'openai') {
                 setSelectOptions(voiceSel, OPENAI_TTS_VOICES, voiceSel.value || 'alloy');
@@ -1711,10 +1753,14 @@
                 if (speedNote) speedNote.textContent = '';
             } else if (provider === 'gemini') {
                 setSelectOptions(voiceSel, GEMINI_TTS_VOICES, voiceSel.value || 'Kore');
-                voiceCustomWrap.classList.add('hidden');
+                // Gemini 3.8 TTS also accepts Voice design / Voice replication IDs.
+                voiceCustomWrap.classList.toggle('hidden', !interactionsTts);
+                if (!interactionsTts && voiceCustom) voiceCustom.value = '';
                 langWrap.classList.add('hidden');
                 if (speedInput) { speedInput.disabled = true; }
-                if (speedNote) speedNote.textContent = '(Gemini TTSは速度変更非対応)';
+                if (speedNote) speedNote.textContent = interactionsTts
+                    ? '(本文はそのまま読み上げ。話し方はStyleで指定・速度はStyleで調整)'
+                    : '(Gemini TTSは速度変更非対応)';
             } else if (provider === 'google') {
                 setSelectOptions(voiceSel, [
                     { value: 'auto', label: 'Auto (Studio/Neural2)' },

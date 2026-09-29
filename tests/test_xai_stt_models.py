@@ -14,7 +14,7 @@ class XaiSttModelRegressionTests(unittest.TestCase):
         self.assertIn('"grok-voice-transcribe-2.0",\n    "grok-voice-transcribe-1.0",\n}', source)
         self.assertIn('XAI_STT_MODELS = {"grok-voice-transcribe-2.0", "grok-voice-transcribe-1.0"}', source)
         self.assertIn('return _transcribe_with_xai_stt(audio_content, fname, model, current_user)', source)
-        self.assertIn('"https://api.x.ai/v1/stt"', source)
+        self.assertIn('f"https://{_XAI_API_HOST}/v1/stt"', source)
         self.assertIn('decrypt_val(user.xai_api_key)', source)
         # Option fields must be sent before the file part.
         self.assertIn('data=[("model", model)],\n        files=[("file",', source)

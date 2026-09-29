@@ -806,6 +806,7 @@ def chat_stream():
         'tts_voice': data.get('tts_voice'),
         'tts_voice_custom': data.get('tts_voice_custom'),
         'tts_language': data.get('tts_language'),
+        'tts_style': data.get('tts_style'),
         'tts_speed': data.get('tts_speed'),
         'image_size': data.get('image_size'),
         'image_quality': data.get('image_quality'),

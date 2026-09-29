@@ -409,6 +409,7 @@ def _gemini_transcribe_rest(api_key, file_uri, mime_type, transcription_config, 
     if data.get("status") not in (None, "completed", "done"):
         raise RuntimeError(f"Gemini Transcribe status: {data.get('status')}")
     texts = []
+    words = []
     for step in data.get("steps") or []:
         contents = step.get("content") if isinstance(step, dict) else getattr(step, "content", None)
         for c in contents or []:
@@ -417,6 +418,10 @@ def _gemini_transcribe_rest(api_key, file_uri, mime_type, transcription_config, 
                     t = c.get("text") or ""
                     if t:
                         texts.append(str(t))
+                    words.extend(
+                        a for a in (c.get("annotations") or [])
+                        if isinstance(a, dict) and a.get("type") == "word_info"
+                    )
             else:
                 t = getattr(c, "text", None)
                 if t:
@@ -432,17 +437,211 @@ def _gemini_transcribe_rest(api_key, file_uri, mime_type, transcription_config, 
                 t = getattr(out, "text", None)
                 if t:
                     texts.append(str(t))
+    mode = (transcription_config or {}).get("mode") or {}
+    with_speaker = isinstance(mode, dict) and bool(mode.get("diarization_mode"))
+    with_time = isinstance(mode, dict) and bool(mode.get("timestamp_granularities"))
+    if words and (with_speaker or with_time):
+        # Speakers and timings are only returned as word_info annotations.
+        formatted = _format_gemini_word_info(words, with_speaker, with_time)
+        if formatted:
+            return formatted
     return "".join(texts)
+
+
+# Gemini 3.8 TTS: turn-level delivery goes in speech_metadata.style (the text is
+# read verbatim) and custom Voice design / Voice replication IDs are accepted.
+GEMINI_INTERACTIONS_TTS_MODELS = {"gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"}
+GEMINI_TTS_STYLE_MAX_CHARS = 500
+_GEMINI_TTS_CUSTOM_VOICE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]{0,255}$")
+
+
+def is_gemini_interactions_tts_model_key(model_key):
+    return str(model_key or "").lower().strip() in GEMINI_INTERACTIONS_TTS_MODELS
+
+
+def _gemini_tts_voice(voice, custom_voice=None):
+    """Prebuilt voice name, or a designed / replicated / library voice ID."""
+    custom = str(custom_voice or "").strip()
+    if custom and _GEMINI_TTS_CUSTOM_VOICE_RE.match(custom):
+        return custom
+    voice = str(voice or "").strip()
+    return voice if voice in GEMINI_TTS_VOICES else "Kore"
+
+
+def _gemini_tts_interactions_rest(api_key, model_key, text, voice, style=None, timeout=300):
+    """Synthesize speech with a Gemini 3.8 TTS model through /v1beta/interactions.
+
+    Returns ``(audio_bytes, mime_type)``. Unary requests return WAV by default.
+    """
+    content = {"type": "text", "text": str(text or "")}
+    style = str(style or "").strip()[:GEMINI_TTS_STYLE_MAX_CHARS]
+    if style:
+        content["annotations"] = [{"type": "speech_metadata", "style": style}]
+    payload = {
+        "model": model_key,
+        "store": False,
+        "input": [{"type": "user_input", "content": [content]}],
+        "response_format": {"type": "audio"},
+        "generation_config": {"speech_config": [{"voice": voice}]},
+    }
+    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+    try:
+        resp = httpx.post("https://generativelanguage.googleapis.com/v1beta/interactions",
+                          json=payload, headers=headers, timeout=timeout)
+    except Exception as exc:
+        raise RuntimeError(f"Gemini TTS request failed: {exc}") from exc
+    if resp.status_code >= 400:
+        try:
+            msg = (resp.json().get("error") or {}).get("message") or resp.text
+        except Exception:
+            msg = resp.text
+        raise RuntimeError(f"Gemini TTS API error ({resp.status_code}): {str(msg)[:500]}")
+    try:
+        data = resp.json()
+    except Exception:
+        raise RuntimeError("Gemini TTS returned non-JSON response")
+    if data.get("status") not in (None, "completed", "done"):
+        raise RuntimeError(f"Gemini TTS status: {data.get('status')}")
+    audio, mime = b"", ""
+    for step in data.get("steps") or []:
+        if not isinstance(step, dict) or step.get("type") not in (None, "model_output"):
+            continue
+        for c in step.get("content") or []:
+            if isinstance(c, dict) and c.get("type") == "audio" and c.get("data"):
+                chunk = base64.b64decode(c["data"])
+                if audio and audio[:4] == b"RIFF" and chunk[:4] == b"RIFF":
+                    chunk = chunk[44:]
+                audio += chunk
+                mime = mime or str(c.get("mime_type") or "")
+    return audio, mime
+
+
+def _gemini_offset_seconds(value):
+    try:
+        return float(str(value or "").strip().rstrip("s") or 0)
+    except ValueError:
+        return None
+
+
+def _format_gemini_word_info(words, with_speaker, with_time):
+    """Group word_info annotations into "[mm:ss.s] spk_1: text" lines."""
+    def join(prev, nxt):
+        if not prev:
+            return nxt
+        if not nxt:
+            return prev
+        if ord(prev[-1]) >= 0x3000 or ord(nxt[0]) >= 0x3000 or nxt[0] in ",.!?;:)":
+            return prev + nxt
+        return prev + " " + nxt
+
+    segments = []
+    current = None
+    last_end = None
+    for word in words:
+        text = str(word.get("text") or "").strip()
+        if not text:
+            continue
+        speaker = str(word.get("speaker") or "") if with_speaker else ""
+        start = _gemini_offset_seconds(word.get("start_offset"))
+        end = _gemini_offset_seconds(word.get("end_offset"))
+        gap = (start - last_end) if (start is not None and last_end is not None) else 0
+        new_segment = (
+            current is None
+            or speaker != current["speaker"]
+            or (not with_speaker and (gap > 1.5 or current["text"][-1:] in "。．.!?！？"))
+        )
+        if new_segment:
+            current = {"speaker": speaker, "start": start, "text": ""}
+            segments.append(current)
+        current["text"] = join(current["text"], text)
+        if end is not None:
+            last_end = end
+    lines = []
+    for seg in segments:
+        prefix = ""
+        if with_time and seg["start"] is not None:
+            minutes, seconds = divmod(seg["start"], 60)
+            prefix += f"[{int(minutes):02d}:{seconds:04.1f}] "
+        if with_speaker and seg["speaker"]:
+            prefix += f"{seg['speaker']}: "
+        lines.append(prefix + seg["text"])
+    return "\n".join(lines)
+
+
+_GEMINI_TRANSCRIBE_MIME_ALIASES = {
+    "audio/x-wav": "audio/wav", "audio/wave": "audio/wav", "audio/vnd.wave": "audio/wav",
+    "audio/mpeg3": "audio/mp3", "audio/x-mpeg": "audio/mpeg",
+    "audio/x-aiff": "audio/aiff",
+    "audio/x-aac": "audio/aac", "audio/aacp": "audio/aac",
+    "audio/oga": "audio/ogg", "audio/x-flac": "audio/flac",
+    "audio/mp4": "audio/m4a", "audio/x-m4a": "audio/m4a",
+}
+_GEMINI_TRANSCRIBE_EXT_MIME = {
+    ".wav": "audio/wav", ".mp3": "audio/mp3", ".aif": "audio/aiff", ".aiff": "audio/aiff",
+    ".aac": "audio/aac", ".ogg": "audio/ogg", ".oga": "audio/ogg", ".flac": "audio/flac",
+    ".m4a": "audio/m4a", ".mp4": "audio/m4a", ".opus": "audio/opus", ".webm": "audio/webm",
+}
+
+
+def _gemini_transcribe_mime(mime_type, filename=None):
+    """MIME type from the Gemini 3.5 Transcribe supported list (codec params removed)."""
+    mime = str(mime_type or "").split(";")[0].strip().lower()
+    mime = _GEMINI_TRANSCRIBE_MIME_ALIASES.get(mime, mime)
+    if mime in set(_GEMINI_TRANSCRIBE_EXT_MIME.values()) | {"audio/mpeg"}:
+        return mime
+    ext = os.path.splitext(str(filename or ""))[1].lower()
+    return _GEMINI_TRANSCRIBE_EXT_MIME.get(ext, mime or "audio/mpeg")
 
 def _chunk_bytes(data, chunk_size=32000):
     for i in range(0, len(data), chunk_size):
         yield data[i:i + chunk_size]
 
-def _convert_audio_to_pcm(audio_bytes, src_suffix=".webm", rate=24000):
+def _audio_ffmpeg_demuxer(data):
+    """ffmpeg input format for an uploaded audio clip, judged from its header.
+
+    ffmpeg must never probe untrusted input by itself: playlist-like formats
+    could make it open local files or URLs (see server/IMAGE_PROCESSING.md).
+    """
+    head = bytes(data[:64]) if data else b""
+    if len(head) < 12:
+        return None
+    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+        return "wav"
+    if head[:4] == b"OggS":
+        return "ogg"
+    if head[:4] == b"fLaC":
+        return "flac"
+    if head[:4] == b"\x1a\x45\xdf\xa3":  # EBML: WebM / Matroska
+        return "matroska"
+    if head[4:8] == b"ftyp":  # MP4 / M4A / 3GP
+        return "mov"
+    if head[:4] == b"FORM" and head[8:12] in (b"AIFF", b"AIFC"):
+        return "aiff"
+    if head[:6] == b"#!AMR\n":
+        return "amr"
+    if head[:3] == b"ID3":
+        return "mp3"
+    if head[0] == 0xFF and (head[1] & 0xF6) == 0xF0:  # ADTS AAC
+        return "aac"
+    if head[0] == 0xFF and (head[1] & 0xE0) == 0xE0:  # MPEG audio frame
+        return "mp3"
+    return None
+
+
+def _convert_audio_to_pcm(audio_bytes, src_suffix=".webm", rate=24000, max_seconds=300, timeout=10):
+    demuxer = _audio_ffmpeg_demuxer(audio_bytes)
+    if not demuxer:
+        raise ValueError("対応していない音声形式です（WAV / MP3 / M4A / OGG / WebM / FLAC / AAC / AIFF）。")
     cmd = [
-        "ffmpeg", "-y",
+        "ffmpeg", "-y", "-nostdin", "-hide_banner", "-loglevel", "error",
+        "-protocol_whitelist", "pipe",
+        "-f", demuxer,
         "-i", "pipe:0",
-        "-t", "300",
+    ]
+    if max_seconds:
+        cmd += ["-t", str(int(max_seconds))]
+    cmd += [
+        "-vn",
         "-threads", "1",
         "-ac", "1",
         "-ar", str(rate),
@@ -451,13 +650,14 @@ def _convert_audio_to_pcm(audio_bytes, src_suffix=".webm", rate=24000):
     ]
     try:
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = proc.communicate(input=audio_bytes, timeout=10)
+        stdout, stderr = proc.communicate(input=audio_bytes, timeout=timeout)
         if proc.returncode != 0:
-            logger.error(f"FFmpeg failed (code {proc.returncode}): {stderr.decode()}")
+            logger.error(f"FFmpeg failed (code {proc.returncode}): {stderr.decode(errors='replace')[-500:]}")
             raise Exception("Audio conversion failed")
         return stdout
     except subprocess.TimeoutExpired:
         proc.kill()
+        proc.communicate()
         raise Exception("Audio conversion timed out")
     except Exception as e:
         logger.error(f"FFmpeg error: {e}")

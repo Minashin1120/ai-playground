@@ -2930,6 +2930,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         rateIn: Int? = null,
         rateOut: Int? = null,
         autoPlay: Boolean = true,
+        reasoningEffort: String? = null,
     ) {
         if (state.value.offline) { notify("オフライン中はRealtimeを開始できません。"); return }
         rtAutoPlay = autoPlay
@@ -2955,6 +2956,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         speed?.let { put("speed", it.toDouble()) }
                         rateIn?.let { put("rate_in", it) }
                         rateOut?.let { put("rate_out", it) }
+                        reasoningEffort?.let { put("reasoning_effort", it) }
                     }, token())
                 val sessionId = started.getString("session_id")
                 val rateOut = started.optInt("rate_out", 24000).coerceIn(8000, 48000)
@@ -3059,6 +3061,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "speech_stopped" -> { rtSpeechActive = false; if (!rtStopping) setRealtimeStatus("応答待ち...") }
             "interrupted" -> realtimeTrack?.let { track -> runCatching { track.pause(); track.flush(); track.play() } }
             "response_done", "turn_complete" -> rtResponseDone += 1
+            // Recoverable provider error: the session stays open (Web shows a warning toast).
+            "notice" -> event.nullableString("message").takeIf { it.isNotBlank() }?.let { notify("リアルタイム音声: $it") }
             "error" -> {
                 rtStreamError = event.nullableString("message").ifBlank { "リアルタイムエラー" }
                 mutable.update { it.copy(realtime = it.realtime.copy(status = "エラー", error = rtStreamError)) }
@@ -3183,7 +3187,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 var firstAudio = true
                 var saved = false
                 try {
-                    val transcription = modelId == "gpt-transcribe" || modelId == "gpt-live-transcribe"
+                    val transcription = modelId == "gpt-transcribe" || modelId == "gpt-live-transcribe" || modelId == "gpt-realtime-whisper"
                     mutable.update { it.copy(realtime = it.realtime.copy(status = if (transcription) "Transcribing..." else "Processing audio...")) }
                     val rate = stsRequest["sts_rate_out"]?.toIntOrNull() ?: 24000
                     withContext(Dispatchers.IO) {
@@ -3671,6 +3675,63 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(uploading = false, uploadSent = 0, uploadTotal = 0, uploadName = "",
                 uploadCompleted = 0, uploadCount = 0) } }
+        }
+    }
+
+    /** 画像分割 (ANDROID_ONLY.md): images waiting in the dialog, from the upload sheet or the share target. */
+    private val imageSplitMutable = MutableStateFlow<ImageSplitRequest?>(null)
+    internal val imageSplit = imageSplitMutable.asStateFlow()
+
+    fun openImageSplit(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        if (uris.size > IMAGE_SPLIT_MAX_IMAGES) notify("画像の分割は一度に${IMAGE_SPLIT_MAX_IMAGES}枚までです。先頭${IMAGE_SPLIT_MAX_IMAGES}枚のみ使います。")
+        imageSplitMutable.value = ImageSplitRequest(uris.take(IMAGE_SPLIT_MAX_IMAGES))
+    }
+
+    fun closeImageSplit() {
+        if (imageSplitMutable.value?.busy != true) imageSplitMutable.value = null
+    }
+
+    /**
+     * Splits every image of the dialog, then attaches the files ([attach]) or only saves them to the
+     * device (Pictures/AI Playground, or [tree] before Android 10). Saving works without an account.
+     */
+    internal fun runImageSplit(options: ImageSplitOptions, attach: Boolean, tree: Uri? = null) {
+        val request = imageSplitMutable.value ?: return
+        if (request.busy) return
+        if (attach && state.value.uploading) { notify("アップロードが終わってから、もう一度お試しください。"); return }
+        imageSplitMutable.value = request.copy(busy = true, error = null)
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            val root = File(app.cacheDir, "shared/image_split")
+            val dir = File(root, UUID.randomUUID().toString())
+            // Earlier batches are no longer read once their upload has finished.
+            val clearEarlier = !state.value.uploading
+            try {
+                val outputs = withContext(Dispatchers.IO) {
+                    if (clearEarlier) root.deleteRecursively()
+                    request.uris.flatMap { renderImageSplit(app, it, options, dir) }
+                }
+                if (attach) {
+                    imageSplitMutable.value = null
+                    upload(outputs.map { it.uploadUri })
+                } else {
+                    val saved = withContext(Dispatchers.IO) {
+                        try { saveSplitOutputs(app, outputs, tree) } finally { dir.deleteRecursively() }
+                    }
+                    imageSplitMutable.value = null
+                    notify(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) "${saved}枚の画像を「Pictures/$IMAGE_SPLIT_SAVE_FOLDER」に保存しました。"
+                        else "${saved}枚の画像を保存しました。")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: OutOfMemoryError) {
+                imageSplitMutable.value = request.copy(busy = false,
+                    error = "画像が大きすぎるため分割できませんでした。分割数を減らすか、小さい画像でお試しください。")
+            } catch (e: Exception) {
+                imageSplitMutable.value = request.copy(busy = false,
+                    error = "画像を分割できませんでした: ${e.message ?: e.javaClass.simpleName}")
+            }
         }
     }
 

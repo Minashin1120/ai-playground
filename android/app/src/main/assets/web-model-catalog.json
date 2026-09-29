@@ -1602,6 +1602,47 @@
     ]
   },
   {
+    "id": "gemini-3.8-flash-tts",
+    "name": "Gemini 3.8 Flash TTS",
+    "description": "Studio-grade expressive Google TTS with long-form multi-speaker stability.",
+    "price": "Text In $0.50/1M, Audio Out $9.00/1M",
+    "category": "Audio (TTS)",
+    "categoryIcon": "fas fa-microphone text-red-400",
+    "categoryDescription": "Text-to-Speech models",
+    "apiId": "gemini-3.8-flash-tts",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10423,
+    "emoji": "🗣️",
+    "deprecated": false,
+    "tags": [
+      "gemini",
+      "audio"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "gemini-3.8-flash-lite-tts",
+    "name": "Gemini 3.8 Flash-Lite TTS",
+    "description": "Fast, cost-efficient Google TTS for high-volume speech.",
+    "price": "Text In $0.50/1M, Audio Out $6.00/1M",
+    "category": "Audio (TTS)",
+    "categoryIcon": "fas fa-microphone text-red-400",
+    "categoryDescription": "Text-to-Speech models",
+    "apiId": "gemini-3.8-flash-lite-tts",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10424,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "gemini",
+      "audio",
+      "fast"
+    ],
+    "searchTerms": []
+  },
+  {
     "id": "gemini-3.1-flash-tts-preview",
     "name": "Gemini 3.1 Flash TTS",
     "description": "Google TTS (Preview).",
@@ -1782,9 +1823,72 @@
     "searchTerms": []
   },
   {
+    "id": "gpt-live-1",
+    "name": "GPT-Live 1",
+    "description": "Full-duplex voice conversations with smooth interruption handling; reasoning is delegated to GPT-5.6 Luna.",
+    "price": "$0.05 / minute + backend usage",
+    "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gpt-live-1",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10425,
+    "emoji": "📞",
+    "deprecated": false,
+    "tags": [
+      "openai",
+      "audio",
+      "reasoning"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "gpt-realtime-2.1",
+    "name": "OpenAI Realtime 2.1",
+    "description": "Speech-to-speech reasoning model with improved alphanumeric recognition, noise handling and interruptions.",
+    "price": "Audio In $32/1M, Audio Out $64/1M",
+    "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gpt-realtime-2.1",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10421,
+    "emoji": "🎙️",
+    "deprecated": false,
+    "tags": [
+      "openai",
+      "audio",
+      "reasoning"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "gpt-realtime-2.1-mini",
+    "name": "OpenAI Realtime 2.1 Mini",
+    "description": "Faster, lower-cost realtime voice model.",
+    "price": "Audio In $10/1M, Audio Out $20/1M",
+    "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "gpt-realtime-2.1-mini",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10422,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "openai",
+      "audio",
+      "fast"
+    ],
+    "searchTerms": []
+  },
+  {
     "id": "gpt-realtime-2",
     "name": "OpenAI Realtime 2",
-    "description": "Most capable speech-to-speech reasoning model.",
+    "description": "Previous-generation speech-to-speech reasoning model.",
     "price": "Audio In $32/1M, Audio Out $64/1M",
     "category": "Realtime Audio (STS)",
     "categoryIcon": "fas fa-headset text-cyan-400",

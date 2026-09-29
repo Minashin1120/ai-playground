@@ -174,9 +174,12 @@ def secure_delete(path):
 STS_MODELS = {
     "gpt-transcribe": {"provider": "openai", "mode": "transcription", "rate_in": 24000, "rate_out": 24000},
     "gpt-live-transcribe": {"provider": "openai", "mode": "transcription", "rate_in": 24000, "rate_out": 24000},
+    "gpt-live-1": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
+    "gpt-realtime-2.1": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
+    "gpt-realtime-2.1-mini": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime-2": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime-translate": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
-    "gpt-realtime-whisper": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
+    "gpt-realtime-whisper": {"provider": "openai", "mode": "transcription", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime-1.5": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
     "gpt-realtime-mini": {"provider": "openai", "rate_in": 24000, "rate_out": 24000},
@@ -197,6 +200,10 @@ XAI_STS_MODEL_ALIASES = {
 }
 OPENAI_STS_VOICES = {
     "alloy","ash","ballad","coral","echo","sage","shimmer","verse","marin","cedar"
+}
+# GPT-Live adds regional voices to the standard set (default: marin).
+OPENAI_LIVE_VOICES = OPENAI_STS_VOICES | {
+    "quartz","ripple","vesper","willow","stone","gleam","meridian","bossa","tempo","beacon","delta","cinder"
 }
 XAI_STS_VOICES = {"ara", "rex", "sal", "eve", "leo"}
 GEMINI_STS_VOICES = {
@@ -240,10 +247,12 @@ ALL_VALID_MODEL_IDS = {
     # Anthropic Claude
     "claude-opus-4-6", "claude-sonnet-4-6",
     # Audio (TTS)
+    "gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts",
     "gemini-3.1-flash-tts-preview", "gpt-4o-mini-tts", "gemini-2.5-flash-preview-tts", "gemini-2.5-pro-preview-tts",
     "google-tts-studio", "google-tts-neural", "grok-tts",
     # Realtime Audio (STS)
     "gpt-transcribe", "gpt-live-transcribe",
+    "gpt-live-1", "gpt-realtime-2.1", "gpt-realtime-2.1-mini",
     "gpt-realtime-2", "gpt-realtime-translate", "gpt-realtime-whisper", "gpt-realtime-1.5",
     "gpt-realtime", "gpt-realtime-mini",
     "gemini-2.5-flash-native-audio-preview-12-2025", "gemini-3.1-flash-live-preview",

@@ -59,8 +59,21 @@ private fun isGeminiExtendedThinking(model: String): Boolean = model == "gemini-
 
 private fun isGrokLiveTranscribe(model: String): Boolean = model == "grok-voice-transcribe-2.0"
 
+/** Realtime translation models: Target Lang instead of Voice (Web `#sts-lang-wrap`). */
+internal fun isRealtimeTranslation(model: String): Boolean =
+    model == "gemini-3.5-live-translate-preview" || model == "gpt-realtime-translate"
+
 // Same voice lists as the Web STS panel (chat_core part05: *_STS_VOICES).
 internal val OPENAI_REALTIME_VOICES = listOf("alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar")
+/** Web `OPENAI_LIVE_VOICES`: GPT-Live adds regional voices (default marin). */
+internal val OPENAI_LIVE_VOICES = OPENAI_REALTIME_VOICES + listOf(
+    "quartz", "ripple", "vesper", "willow", "stone", "gleam", "meridian", "bossa", "tempo", "beacon", "delta", "cinder",
+)
+/** Web `OPENAI_REASONING_STS_MODELS` and the `#sts-reasoning-effort` choices. */
+internal val OPENAI_REASONING_REALTIME_MODELS = setOf("gpt-realtime-2", "gpt-realtime-2.1", "gpt-realtime-2.1-mini")
+internal val REALTIME_REASONING_EFFORTS = listOf("minimal", "low", "medium", "high", "xhigh")
+
+internal fun isOpenAiLive(model: String): Boolean = model == "gpt-live-1"
 internal val GROK_REALTIME_VOICES = listOf("Ara", "Rex", "Sal", "Eve", "Leo")
 internal val GEMINI_REALTIME_VOICES = listOf(
     "Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede", "Callirrhoe", "Autonoe",
@@ -93,13 +106,16 @@ data class RealtimeOptions(
     /** `#sts-rate-in` / `#sts-rate-out` (xAI PCM sample rates). */
     val rateIn: Int = 24000,
     val rateOut: Int = 24000,
+    /** `#sts-reasoning-effort` (reasoning OpenAI Realtime models). */
+    val reasoningEffort: String = "low",
 )
 
 /** Web `GROK_PCM_RATES`. */
-internal val GROK_PCM_RATES = listOf(8000, 16000, 21050, 24000, 32000, 44100, 48000)
+internal val GROK_PCM_RATES = listOf(8000, 16000, 22050, 24000, 32000, 44100, 48000)
 
 internal fun isRealtimeTranscription(model: String): Boolean =
-    model == "gemini-3.5-transcribe-live" || isGrokLiveTranscribe(model) || model.contains("transcribe")
+    model == "gemini-3.5-transcribe-live" || isGrokLiveTranscribe(model) || model.contains("transcribe") ||
+        model == "gpt-realtime-whisper"
 
 /** Web `getStsProvider`. */
 internal fun realtimeProvider(model: String): String = when {
@@ -109,7 +125,8 @@ internal fun realtimeProvider(model: String): String = when {
 }
 
 internal fun realtimeVoices(model: String): List<String> = when {
-    isRealtimeTranscription(model) || model == "gemini-3.5-live-translate-preview" -> emptyList()
+    isRealtimeTranscription(model) || isRealtimeTranslation(model) -> emptyList()
+    isOpenAiLive(model) -> OPENAI_LIVE_VOICES
     model.contains("gpt-realtime") -> OPENAI_REALTIME_VOICES
     model.contains("grok-voice") -> GROK_REALTIME_VOICES
     isGeminiLive(model) || model.startsWith("gemini-") -> GEMINI_REALTIME_VOICES
@@ -119,7 +136,8 @@ internal fun realtimeVoices(model: String): List<String> = when {
 /** Thinking levels the Web panel offers for this model; empty when it has no Thinking control. */
 internal fun realtimeThinkingLevels(model: String): List<String> = when {
     isGeminiExtendedThinking(model) -> listOf("low", "medium", "high")
-    model == "gemini-3.8-live" || model == "gemini-3.5-live-translate-preview" || isRealtimeTranscription(model) -> emptyList()
+    model == "gemini-3.8-live" || model == "gemini-2.5-flash-native-audio-preview-12-2025" ||
+        model == "gemini-3.5-live-translate-preview" || isRealtimeTranscription(model) -> emptyList()
     model.startsWith("gemini-") -> listOf("minimal", "low", "medium", "high")
     else -> emptyList()
 }
@@ -127,7 +145,10 @@ internal fun realtimeThinkingLevels(model: String): List<String> = when {
 /** Web `setSelectOptions(voiceSel, …, value || default)`: alloy, Ara or Kore until a voice is chosen. */
 internal fun resolvedRealtimeVoice(model: String, options: RealtimeOptions): String {
     val voices = realtimeVoices(model)
-    val fallback = when (realtimeProvider(model)) { "openai" -> "alloy"; "xai" -> "Ara"; else -> "Kore" }
+    val fallback = when {
+        isOpenAiLive(model) -> "marin"
+        else -> when (realtimeProvider(model)) { "openai" -> "alloy"; "xai" -> "Ara"; else -> "Kore" }
+    }
     return voices.firstOrNull { it == options.voice } ?: fallback.takeIf { it in voices } ?: voices.firstOrNull() ?: "Kore"
 }
 
@@ -138,6 +159,13 @@ internal fun resolvedRealtimeThinking(model: String, options: RealtimeOptions): 
         isGeminiExtendedThinking(model) -> "medium"
         else -> levels.firstOrNull() ?: "minimal"
     }
+}
+
+/** Reasoning effort sent for reasoning OpenAI Realtime models; null for the others. */
+internal fun resolvedRealtimeReasoning(model: String, options: RealtimeOptions): String? = when {
+    model !in OPENAI_REASONING_REALTIME_MODELS -> null
+    options.reasoningEffort in REALTIME_REASONING_EFFORTS -> options.reasoningEffort
+    else -> "low"
 }
 
 internal fun startRealtimeWith(model: ChatViewModel, modelId: String, options: RealtimeOptions) {
@@ -151,22 +179,24 @@ internal fun startRealtimeWith(model: ChatViewModel, modelId: String, options: R
             "sts_rate_out" to options.rateOut.toString(),
             "sts_thinking_level" to resolvedRealtimeThinking(modelId, options),
             "sts_include_thoughts" to if (options.includeThoughts) "true" else "",
+            "sts_reasoning_effort" to (resolvedRealtimeReasoning(modelId, options) ?: ""),
         ), autoPlay = options.autoPlay, autoRestart = options.autoRestart)
         return
     }
     model.startRealtime(modelId, resolvedRealtimeVoice(modelId, options), options.targetLanguage,
         resolvedRealtimeThinking(modelId, options), options.transcriptionMode, options.customVocabulary,
         includeThoughts = realtimeThinkingLevels(modelId).isNotEmpty() && options.includeThoughts,
-        speed = if (provider == "openai" && !isRealtimeTranscription(modelId)) options.speed else null,
+        speed = if (provider == "openai" && !isRealtimeTranscription(modelId) && !isRealtimeTranslation(modelId) && !isOpenAiLive(modelId)) options.speed else null,
         rateIn = if (provider == "xai" && !isRealtimeTranscription(modelId)) options.rateIn else null,
         rateOut = if (provider == "xai" && !isRealtimeTranscription(modelId)) options.rateOut else null,
-        autoPlay = options.autoPlay)
+        autoPlay = options.autoPlay,
+        reasoningEffort = resolvedRealtimeReasoning(modelId, options))
 }
 
 /** Web `#sts-mode-label`. */
 internal fun realtimeModeLabel(model: String): String = when {
     isRealtimeTranscription(model) -> "Realtime Speech-to-Text"
-    model == "gemini-3.5-live-translate-preview" -> "Realtime Translation"
+    isRealtimeTranslation(model) -> "Realtime Translation"
     else -> "Speech-to-Speech Live"
 }
 
@@ -175,10 +205,14 @@ internal fun realtimeNote(model: String): String = when {
     model == "gemini-3.5-transcribe-live" -> "リアルタイム低遅延文字起こし（16kHz PCM / 最大10分）"
     isGrokLiveTranscribe(model) -> "xAI ストリーミング文字起こし（16kHz PCM）"
     model == "gpt-live-transcribe" -> "低遅延ライブ文字起こし（24kHz PCM）"
+    model == "gpt-realtime-whisper" -> "ストリーミング音声認識モデルによる文字起こし（24kHz PCM）"
     isRealtimeTranscription(model) -> "高精度なコミット単位の文字起こし（24kHz PCM）"
     model == "gemini-3.5-live-translate-preview" -> "70以上の言語に対応するリアルタイム音声翻訳（Think非対応・音声選択不可）"
     model == "gemini-3.8-live" -> "Gemini 3.8 Flash Liveは固定レイテンシのLive APIモデル（Thinking level非対応）"
     isGeminiExtendedThinking(model) -> "Gemini 3.8 Live Extended Thinkingはlow / medium / highのバックグラウンド推論に対応"
+    model == "gpt-realtime-translate" -> "話した内容を選択した言語へリアルタイムで音声翻訳（24kHz PCM・音声選択不可）"
+    isOpenAiLive(model) -> "GPT-Liveは全二重の音声会話（24kHz PCM・速度変更非対応・推論はgpt-5.6-lunaに委任）"
+    model in OPENAI_REASONING_REALTIME_MODELS -> "OpenAI Realtimeは24kHz PCM固定（Reasoningで推論の強さを指定）"
     realtimeProvider(model) == "openai" -> "OpenAI Realtimeは24kHz PCM固定"
     realtimeProvider(model) == "xai" -> "xAIはPCMサンプルレート変更可"
     else -> "Gemini Liveは音声速度変更非対応"
@@ -337,7 +371,7 @@ private fun VoiceSettings(modelId: String, options: RealtimeOptions, onChange: (
             if (voices.isNotEmpty()) VoiceSelect("Voice", resolvedRealtimeVoice(modelId, options), voices.map { WebOption(it, it) }, size) {
                 onChange(options.copy(voice = it))
             }
-            if (modelId == "gemini-3.5-live-translate-preview") VoiceSelect("Target Lang", options.targetLanguage,
+            if (isRealtimeTranslation(modelId)) VoiceSelect("Target Lang", options.targetLanguage,
                 REALTIME_TARGET_LANGUAGES.map { WebOption(it.first, it.second) }, size) { onChange(options.copy(targetLanguage = it)) }
             if (modelId == "gemini-3.5-transcribe-live") VoiceSelect("Mode", options.transcriptionMode,
                 webOptions("VERBATIM" to "Verbatim", "SMART" to "Smart"), size) { onChange(options.copy(transcriptionMode = it)) }
@@ -347,7 +381,7 @@ private fun VoiceSettings(modelId: String, options: RealtimeOptions, onChange: (
                 TwInput(options.customVocabulary, { onChange(options.copy(customVocabulary = it.take(4000))) }, "Gemini, Kubernetes, BigQuery",
                     modifier = Modifier.width(176.dp), fontSize = size, padding = 4.dp, background = Tw.gray800, borderColor = Tw.gray700)
             }
-            if (!transcription && provider == "openai") Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (!transcription && provider == "openai" && !isRealtimeTranslation(modelId) && !isOpenAiLive(modelId)) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Speed", fontSize = size, color = labelColor)
                 Slider(options.speed.coerceIn(0.25f, 1.5f), { onChange(options.copy(speed = (Math.round(it * 20) / 20f))) }, valueRange = 0.25f..1.5f,
                     colors = SliderDefaults.colors(thumbColor = Tw.cyan400, activeTrackColor = Tw.cyan400, inactiveTrackColor = web.twBg(Tw.gray600)),
@@ -367,6 +401,14 @@ private fun VoiceSettings(modelId: String, options: RealtimeOptions, onChange: (
                     { onChange(options.copy(thinkingLevel = it)) }, fontSize = size, background = web.twBg(Tw.gray800), borderColor = web.twBorder(Tw.gray700),
                     disabledValues = setOf("minimal", "low", "medium", "high") - levels.toSet())
                 VoiceCheck("Thoughts", options.includeThoughts, size) { onChange(options.copy(includeThoughts = it)) }
+            }
+            resolvedRealtimeReasoning(modelId, options)?.let { effort ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Reasoning", fontSize = size, color = web.twText(Tw.purple300))
+                    WebSelect(effort,
+                        webOptions("minimal" to "Minimal", "low" to "Low", "medium" to "Medium", "high" to "High", "xhigh" to "XHigh"),
+                        { onChange(options.copy(reasoningEffort = it)) }, fontSize = size, background = web.twBg(Tw.gray800), borderColor = web.twBorder(Tw.gray700))
+                }
             }
             Text(realtimeNote(modelId), fontSize = size, color = web.twText(Tw.gray500))
         }

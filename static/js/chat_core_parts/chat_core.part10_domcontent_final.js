@@ -1060,6 +1060,24 @@
                             get('mic-btn').classList.add('bg-red-600', 'animate-pulse');
                             startMicWaveform(currentGeminiLive.stream);
                             startSilenceMonitor(currentGeminiLive.stream);
+
+                            // Provider-side end (setup rejected, session limit, network):
+                            // report it and close out like a manual stop so the
+                            // conversation so far is saved.
+                            const liveClient = currentGeminiLive;
+                            liveClient.onError = (err) => {
+                                const msg = err && err.message ? err.message : (typeof err === 'string' ? err : '');
+                                if (msg) showToast('Gemini Live: ' + msg, 'error', true);
+                            };
+                            liveClient.onClose = (ev) => {
+                                if (currentGeminiLive !== liveClient) return;
+                                if (ev && ev.code && ev.code !== 1000) {
+                                    const reason = ev.reason ? ': ' + ev.reason : ' (code ' + ev.code + ')';
+                                    showToast('Gemini Live の接続が終了しました' + reason, 'error', true);
+                                }
+                                get('mic-btn').click();
+                            };
+                            if (liveClient.closedEvent) liveClient.onClose(liveClient.closedEvent);
                             return;
                         } catch (e) {
                             showToast("Gemini Live connection failed: " + e.message, "error", true);
@@ -1129,6 +1147,7 @@
                                 fd.append('model', get('model-select').value);
                                 fd.append('thread_id', currentThreadId);
                                 if (get('sts-voice')) fd.append('sts_voice', get('sts-voice').value || '');
+                                if (get('sts-reasoning-effort')) fd.append('sts_reasoning_effort', get('sts-reasoning-effort').value || '');
                                 if (get('sts-speed')) fd.append('sts_speed', get('sts-speed').value || '');
                                 if (get('sts-rate-in')) fd.append('sts_rate_in', get('sts-rate-in').value || '');
                                 if (get('sts-rate-out')) fd.append('sts_rate_out', get('sts-rate-out').value || '');

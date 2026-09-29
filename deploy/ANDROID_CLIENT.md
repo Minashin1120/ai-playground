@@ -35,7 +35,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | ユーザー認証 | アプリ内のユーザー名／パスワード新規登録・ログイン、Google（Credential ManagerでIDトークン取得）・パスキー（Credential Manager）、TOTP／WebAuthn 2FA。MinashinはCustom Tabs＋HTTPS App Links。Google／Minashinの旧ブラウザー方式とブラウザー端末連携も非推奨フォールバックとして維持 |
 | 2FA・パスキー管理 | ネイティブでTOTP登録・有効化・無効化、パスキー登録・削除、既定2FA方式、パスキーのみログイン、Googleログイン時の2FA省略を設定。パスワード変更・アカウント削除はWeb |
 | 通常のチャット | スレッド一覧・検索・作成・取得・削除、ブックマーク、タイトル・スレッド指示、送信、ストリーム再接続、停止、メッセージの編集・再生成・分岐切替・削除、ネイティブPDF出力。Web相当のハートビートでオフライン／不安定／メンテナンス／サーバー停止／復帰を表示 |
-| 添付 | 通常アップロード、大容量チャンクアップロード、進捗表示・キャンセル、Photo Picker・カメラ、他アプリの共有シート（`ACTION_SEND`／`ACTION_SEND_MULTIPLE`、任意のMIMEタイプ）からの添付受信、MIME別プレビュー、画像圧縮設定、本人のファイル・サムネイル取得、容量表示、アプリ内プレビュー（画像・テキスト・PDF・音声・動画。未対応形式は外部アプリ） |
+| 添付 | 通常アップロード、大容量チャンクアップロード、進捗表示・キャンセル、Photo Picker・カメラ、他アプリの共有シート（`ACTION_SEND`／`ACTION_SEND_MULTIPLE`、任意のMIMEタイプ）からの添付受信、画像分割（アップロード画面の「画像を分割」と共有シートの「画像を分割」。指定枚数・重なり付きで分割し、番号・座標・分割線を描き込んで添付、または端末に保存のみ。サーバーの通信仕様は変わらない）、MIME別プレビュー、画像圧縮設定、本人のファイル・サムネイル取得、容量表示、アプリ内プレビュー（画像・テキスト・PDF・音声・動画。未対応形式は外部アプリ） |
 | 一時チャット | 作成・heartbeat。自動削除タイマーをクライアント側でも考慮する |
 | ファイルライブラリ | 一覧・検索・お気に入り・名前変更・削除・チャットへの再利用、アプリ内プレビュー。所有者ディレクトリのみ対象 |
 | Gems | 一覧・作成・編集・削除・チャットへの適用・`@`候補、既定モデル適用、固定プロンプトの編集・送信 |
@@ -296,9 +296,9 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | POST `/chat_stream` | 下の送信JSON | NDJSONストリーム、またはエラーJSON |
 | POST `/chat_stream_resume` | `{"thread_id":"...","job_id":"..."}` | 蓄積内容と継続ストリーム |
 | POST `/api/stop_chat` | `thread_id` と、分かれば `job_id` | `status`, `job_id`, `source`。停止信号の受付であり即時停止完了ではない |
-| POST `/api/realtime/start`、GET `/api/realtime/stream`、POST `/api/realtime/audio` | セッション開始のモデル／voice／thinking_level、SSEの `session_id`、音声PCMチャンク | OpenAI／Grok Realtime／Gemini Liveのサーバーセッション。音声イベントはBase64 PCM、`interaction_status` は `IN_PROGRESS`／`IDLE` を返し、APIキーは返さない |
+| POST `/api/realtime/start`、GET `/api/realtime/stream`、POST `/api/realtime/audio` | セッション開始のモデル／voice／thinking_level／reasoning_effort（gpt-realtime-2・2.1・2.1-mini）、SSEの `session_id`、音声PCMチャンク | OpenAI／Grok Realtime／GPT-Live（`/v1/live/sessions`、推論は gpt-5.6-luna に委任）／Gemini Liveのサーバーセッション。音声イベントはBase64 PCM、`interaction_status` は `IN_PROGRESS`／`IDLE` を返し、APIキーは返さない。`notice` は継続可能な事業者エラー（セッションは続く）、`error` は終了を伴うエラー。gpt-realtime-translate は `target_lang` を翻訳先に使う。同じセッションの各リクエストは別のサーバープロセスに届いてもよい（Redis経由で中継） |
 | POST `/api/realtime/commit`、`/api/realtime/cancel`、`/api/realtime/save` | `session_id`、保存時は任意の `thread_id` | 発話確定、破棄、履歴保存 |
-| POST `/api/gemini/music/start`、GET `/api/gemini/music/stream` | `weighted_prompts`、SSEの `session_id` | LyriaセッションとBase64音声スナップショット |
+| POST `/api/gemini/music/start`、GET `/api/gemini/music/stream` | `weighted_prompts`、SSEの `session_id` | Lyriaセッション。SSEの最初のイベントは `snapshot: true` と `status`（状態のみ。録音全体は送らず、保存はサーバー側の録音を使う）、以降はBase64音声（`audio`）、`error`、`final`。各リクエストは別のサーバープロセスに届いてもよい（Redis経由で中継） |
 | POST `/api/gemini/music/command`、`/cancel`、`/save` | `session_id`、`control`／`action`、保存時は任意の `thread_id` | 一時停止／再開、破棄、履歴保存 |
 | POST `/api/token_estimate` | `model`, `message`, `quote_text`, `image_urls` | 既存のトークン見積応答（`countable`, `tokens_total`, `tokens_prompt`, `tokens_files` など）。入力欄の下にWebと同じ文言で表示する。請求額の確定値ではない |
 | POST `/api/temporary_chat/heartbeat` | `thread_id`, `active` | 一時チャットの状態・期限情報 |
@@ -316,7 +316,7 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | POST `/api/files/delete` | `filenames`（配列） | 本人のファイルを削除 |
 | GET `/api/files/usage` | `filepath` | そのファイルを添付したチャット（最大100件、`chats`, `has_more`） |
 | POST `/transcribe` | `file`（録音）、`llm_model` | マイクの文字起こし（設定の方式に従いSTT APIまたはLLM、`transcript` または `error`） |
-| POST `/sts` | `file`（録音）、`model`、`thread_id`、`sts_voice`、`sts_speed`、`sts_rate_in`、`sts_rate_out`、`sts_thinking_level`、`sts_include_thoughts` | gpt-transcribe／gpt-live-transcribe／Realtime Whisperの音声ドック（Webと同じく録音してから送る）。スレッドの所有者を検証し、NDJSON（`audio_delta`、`input_delta`、`transcript_delta`、`final`）または同期応答のJSONを返す |
+| POST `/sts` | `file`（録音）、`model`、`thread_id`、`sts_voice`、`sts_speed`、`sts_rate_in`、`sts_rate_out`、`sts_thinking_level`、`sts_include_thoughts`、`sts_reasoning_effort` | gpt-transcribe／gpt-live-transcribe／Realtime Whisperの音声ドック（Webと同じく録音してから送る）。スレッドの所有者を検証し、NDJSON（`audio_delta`、`input_delta`、`transcript_delta`、`final`）または同期応答のJSONを返す |
 | POST `/api/settings/apply-ai-prompt` | `prompt`, `model`, `conversation` | `/settings` のAI設定変更（`mode`: inspect／更新、`current` または `applied`） |
 | GET `/api/gems` | なし | 本人のGem配列（トップレベルJSON配列） |
 | POST `/api/gems` | `name`, `description`, `instruction`, `default_model` | 作成したGem |

@@ -627,6 +627,7 @@
                 tts_voice: isTtsModel() && get('tts-voice') ? get('tts-voice').value : null,
                 tts_voice_custom: isTtsModel() && get('tts-voice-custom') ? get('tts-voice-custom').value : null,
                 tts_language: isTtsModel() && get('tts-language') ? get('tts-language').value : null,
+                tts_style: isTtsModel() && get('tts-style') && get('tts-style-wrap') && !get('tts-style-wrap').classList.contains('hidden') ? get('tts-style').value : null,
                 tts_speed: isTtsModel() && get('tts-speed') ? get('tts-speed').value : null,
                 image_size: isGptImageModel() && get('gpt-image-size') ? get('gpt-image-size').value : null,
                 image_quality: isGptImageModel() && get('gpt-image-quality') ? get('gpt-image-quality').value : null,

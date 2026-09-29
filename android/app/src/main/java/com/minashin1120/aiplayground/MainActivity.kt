@@ -17,6 +17,9 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.minashin1120.aiplayground.ui.PlaygroundScreen
 
+/** `<activity-alias>` in the manifest: the 「画像を分割」 entry of the system share sheet. */
+private const val IMAGE_SPLIT_SHARE_ALIAS = "com.minashin1120.aiplayground.ImageSplitShareActivity"
+
 /** Browser flows on servers other than the official host return through this scheme (server `_MOBILE_APP_CALLBACK`). */
 private const val APP_AUTH_SCHEME = "com.minashin1120.aiplayground.auth"
 
@@ -119,7 +122,10 @@ open class MainActivity : ComponentActivity() {
             (data.path == "/callback" || data.schemeSpecificPart.substringBefore('?') == "/callback")
     }
 
-    /** Handles files shared from other apps via the system share sheet (Intent.ACTION_SEND[_MULTIPLE]). */
+    /**
+     * Handles files shared from other apps via the system share sheet (Intent.ACTION_SEND[_MULTIPLE]).
+     * The 「画像を分割」 share target (an activity-alias) opens the 画像分割 dialog instead of attaching.
+     */
     private fun handleShareIntent(intent: Intent?) {
         val uris: List<Uri> = when (intent?.action) {
             Intent.ACTION_SEND -> intent.parcelableExtraCompat<Uri>(Intent.EXTRA_STREAM)?.let { listOf(it) } ?: emptyList()
@@ -129,7 +135,7 @@ open class MainActivity : ComponentActivity() {
         if (uris.isEmpty()) return
         intent?.action = null
         intent?.removeExtra(Intent.EXTRA_STREAM)
-        model.upload(uris)
+        if (intent?.component?.className == IMAGE_SPLIT_SHARE_ALIAS) model.openImageSplit(uris) else model.upload(uris)
     }
 
     private fun openBubble() {

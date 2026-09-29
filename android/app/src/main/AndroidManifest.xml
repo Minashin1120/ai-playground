@@ -49,6 +49,20 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+        <!-- 「画像を分割」 in the system share sheet: opens MainActivity with the 画像分割 dialog. -->
+        <activity-alias android:name=".ImageSplitShareActivity" android:targetActivity=".MainActivity"
+            android:exported="true" android:label="画像を分割" android:icon="@drawable/ic_playground">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+        </activity-alias>
         <!-- Android 10-16 notification bubbles only. documentLaunchMode="always" must stay
              off MainActivity: on the launcher entry it creates a new task on every launch. -->
         <activity android:name=".ChatBubbleActivity" android:exported="true"

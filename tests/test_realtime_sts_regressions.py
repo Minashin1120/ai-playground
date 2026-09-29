@@ -87,15 +87,28 @@ class RealtimeStsRegressionTests(unittest.TestCase):
         p3 = _normalize_rt_params("xai", "grok-voice-think-fast-2.0", {"voice": "eve"})
         self.assertEqual(p3["voice"], "eve")
         p4 = _normalize_rt_params("xai", "grok-voice-think-fast-2.0", {"voice": "bogus"})
-        self.assertEqual(p4["voice"], "Ara")
+        self.assertEqual(p4["voice"], "ara")
+        # The Web / Android selects show "Rex"; xAI voice IDs are lowercase.
+        self.assertEqual(_normalize_rt_params("xai", "grok-voice-think-fast-2.0", {"voice": "Rex"})["voice"], "rex")
+        p4r = _normalize_rt_params("xai", "grok-voice-think-fast-2.0", {"rate_in": "22050", "rate_out": "21050"})
+        self.assertEqual(p4r["rate_in"], 22050)
+        self.assertEqual(p4r["rate_out"], 24000)
+        # OpenAI Realtime is fixed at 24 kHz even if a stale xAI rate is sent.
+        self.assertEqual(_normalize_rt_params("openai", "gpt-realtime-2", {"rate_in": "16000"})["rate_in"], 24000)
 
-        # Gemini native-audio
-        p5 = _normalize_rt_params("google", "gemini-2.5-flash-native-audio-preview-12-2025", {
+        # Gemini Live thinking levels (3.1 Flash Live).
+        p5 = _normalize_rt_params("google", "gemini-3.1-flash-live-preview", {
             "voice": "Kore", "thinking_level": "high", "include_thoughts": True
         })
         self.assertEqual(p5["voice"], "Kore")
         self.assertEqual(p5["thinking_level"], "high")
         self.assertTrue(p5["include_thoughts"])
+        # Gemini 2.5 native audio uses a thinking budget, not thinkingLevel.
+        p5b = _normalize_rt_params("google", "gemini-2.5-flash-native-audio-preview-12-2025", {
+            "thinking_level": "high", "include_thoughts": True
+        })
+        self.assertIsNone(p5b["thinking_level"])
+        self.assertFalse(p5b["include_thoughts"])
 
         # Gemini Live native-client parameters are normalized without
         # exposing provider credentials to the client.

@@ -2513,20 +2513,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         audio_mime = audio_fi.get('mime') or "audio/mpeg"
                         audio_name = audio_fi.get('name') or "audio.mp3"
 
-                        # Normalize WebM/OGG/Opus to 16kHz WAV (Gemini inline audio + model expectations)
-                        m_low = (audio_mime or '').lower()
-                        ext_low = (os.path.splitext(audio_name or '')[1] or '').lower()
-                        if m_low in ("audio/webm", "audio/ogg", "audio/oga", "audio/opus") or ext_low in (".webm", ".ogg", ".oga", ".opus"):
-                            try:
-                                src_suffix = ext_low if ext_low else ".webm"
-                                pcm = _convert_audio_to_pcm(audio_data, src_suffix=src_suffix, rate=16000)
-                                audio_data = _pcm_to_wav_bytes(pcm, rate=16000)
-                                audio_mime = "audio/wav"
-                                audio_name = os.path.splitext(audio_name or "audio")[0] + ".wav"
-                            except Exception as conv_e:
-                                logger.exception("Gemini Transcribe audio conversion failed")
-                                pub("error", f"Gemini 3.5 Transcribe: 音声の変換に失敗しました: {str(conv_e)}")
-                                return
+                        # Gemini 3.5 Transcribe accepts WAV/MP3/AIFF/AAC/OGG/FLAC/M4A/Opus/WebM
+                        # directly (up to 1 hour), so the file is uploaded as is. Only the
+                        # MIME type is normalized to the documented names.
+                        audio_mime = _gemini_transcribe_mime(audio_mime, audio_name)
 
                         # Upload via Gemini Files API (documented path for transcribe input)
                         file_uri = None
@@ -2557,6 +2547,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         up = g_client.files.get(name=up_name)
                                 except Exception:
                                     break
+                            if str(st or "").upper() == "FAILED":
+                                pub("error", "Gemini 3.5 Transcribe: アップロードした音声を処理できませんでした（対応形式か、ファイルが壊れていないか確認してください）。")
+                                return
                             if isinstance(up, dict):
                                 file_uri = up.get("uri") or up.get("file_uri") or up.get("fileUri") or up.get("name")
                             else:
@@ -2582,9 +2575,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             else:
                                 transcription_config['language_codes'] = []
                             custom_vocab = options.get('transcription_custom_vocabulary') or []
+                            wants_word_info = bool(options.get('transcription_diarization') or options.get('transcription_word_timestamps'))
+                            t_mode_opt = str(options.get('transcription_mode') or 'verbatim').lower()
                             if isinstance(custom_vocab, (list, tuple)) and custom_vocab:
-                                transcription_config['custom_vocabulary'] = [str(x) for x in custom_vocab][:1000]
-                            t_mode = str(options.get('transcription_mode') or 'verbatim').lower()
+                                if wants_word_info and t_mode_opt != "smart":
+                                    # The API rejects custom_vocabulary together with
+                                    # diarization or word timestamps.
+                                    pub("status", "カスタム語彙は話者分離・単語タイムスタンプと併用できないため、今回は使用しません。")
+                                else:
+                                    transcription_config['custom_vocabulary'] = [str(x) for x in custom_vocab][:1000]
+                            t_mode = t_mode_opt
                             if t_mode == "smart":
                                 transcription_config['mode'] = {"type": "smart"}
                             else:
@@ -2623,44 +2623,66 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if voice_name not in GEMINI_TTS_VOICES:
                             voice_name = "Kore"
                         tts_lang = (options.get('tts_language') or "").strip() or None
+                        audio_bytes = b""
+                        audio_mime = ""
+                        cand0 = None
                         _mark_provider_request_started()
-                        tts_resp = g_client.models.generate_content(
-                            model=model_key,
-                            contents=final_message_text,
-                            config=types.GenerateContentConfig(
-                                response_modalities=["AUDIO"],
-                                speech_config=types.SpeechConfig(
-                                    voice_config=types.VoiceConfig(
-                                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                                            voice_name=voice_name
-                                        )
+                        if is_gemini_interactions_tts_model_key(model_key) and gemini_backend_mode != "vertex_ai":
+                            # Gemini 3.8 TTS: verbatim text, delivery style in
+                            # speech_metadata, custom voice IDs via Interactions.
+                            # (Vertex AI keeps generateContent with prebuilt voices.)
+                            audio_bytes, audio_mime = _gemini_tts_interactions_rest(
+                                key, model_key, final_message_text,
+                                _gemini_tts_voice(voice_name, options.get('tts_voice_custom')),
+                                style=options.get('tts_style'),
+                            )
+                        else:
+                            tts_resp = g_client.models.generate_content(
+                                model=model_key,
+                                contents=final_message_text,
+                                config=types.GenerateContentConfig(
+                                    response_modalities=["AUDIO"],
+                                    speech_config=types.SpeechConfig(
+                                        voice_config=types.VoiceConfig(
+                                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                                voice_name=voice_name
+                                            )
+                                        ),
+                                        language_code=tts_lang
                                     ),
-                                    language_code=tts_lang
                                 ),
-                            ),
-                        )
-                        audio_bytes = None
-                        cand0 = tts_resp.candidates[0] if tts_resp.candidates else None
-                        parts0 = getattr(getattr(cand0, "content", None), "parts", None) or []
-                        if parts0:
-                            p0 = parts0[0]
-                            if hasattr(p0, 'inline_data') and p0.inline_data:
-                                data = p0.inline_data.data
-                                if isinstance(data, (bytes, bytearray)):
-                                    audio_bytes = bytes(data)
-                                elif isinstance(data, str):
-                                    audio_bytes = base64.b64decode(data)
+                            )
+                            cand0 = tts_resp.candidates[0] if tts_resp.candidates else None
+                            parts0 = getattr(getattr(cand0, "content", None), "parts", None) or []
+                            # Long text can come back as several audio parts; join them all.
+                            for p0 in parts0:
+                                inline = getattr(p0, 'inline_data', None)
+                                if not inline or not inline.data:
+                                    continue
+                                data = inline.data
+                                if isinstance(data, str):
+                                    data = base64.b64decode(data)
+                                audio_bytes += bytes(data)
+                                audio_mime = audio_mime or str(getattr(inline, "mime_type", "") or "")
 
                         if not audio_bytes:
-                            pub("error", "Gemini TTS Error: No audio data returned.")
+                            finish = getattr(cand0, "finish_reason", None) if cand0 else None
+                            pub("error", f"Gemini TTS Error: No audio data returned.{f' (finish_reason: {finish})' if finish else ''}")
                         else:
-                            buf = BytesIO()
-                            with wave.open(buf, 'wb') as wf:
-                                wf.setnchannels(1)
-                                wf.setsampwidth(2)
-                                wf.setframerate(24000)
-                                wf.writeframes(audio_bytes)
-                            wav_bytes = buf.getvalue()
+                            if audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE":
+                                # Already a WAV file (newer TTS responses).
+                                wav_bytes = audio_bytes
+                            else:
+                                # Headerless 16-bit PCM (audio/L16;codec=pcm;rate=24000).
+                                rate_match = re.search(r"rate=(\d+)", audio_mime)
+                                pcm_rate = int(rate_match.group(1)) if rate_match else 24000
+                                buf = BytesIO()
+                                with wave.open(buf, 'wb') as wf:
+                                    wf.setnchannels(1)
+                                    wf.setsampwidth(2)
+                                    wf.setframerate(pcm_rate)
+                                    wf.writeframes(audio_bytes)
+                                wav_bytes = buf.getvalue()
 
                             speech_file_name = f"speech_{int(time.time())}_{os.urandom(4).hex()}.wav"
                             _save_user_generated_bytes(
@@ -5024,10 +5046,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             raise RuntimeError("xAI API Key is not configured for Grok TTS.")
 
                         raw_voice = (options.get('tts_voice') or "eve").strip()
-                        # xAI voices are case-insensitive; use title case as per docs
-                        xai_voice = raw_voice.capitalize()
-                        if xai_voice not in ("Eve", "Ara", "Rex", "Sal", "Leo"):
-                            xai_voice = "Eve"
+                        custom_voice = (options.get('tts_voice_custom') or "").strip()
+                        # xAI voice IDs are case-insensitive; the docs use lowercase.
+                        # A custom voice ID (Custom Voices API) overrides the preset.
+                        # (A leftover Google voice name such as "ja-JP-Neural2-B" is ignored.)
+                        if (custom_voice and re.fullmatch(r"[A-Za-z0-9_\-]{1,128}", custom_voice)
+                                and not re.match(r"[a-z]{2,3}-[A-Za-z]{2,4}-", custom_voice)):
+                            xai_voice = custom_voice
+                        else:
+                            xai_voice = raw_voice.lower()
+                            if xai_voice not in ("eve", "ara", "rex", "sal", "leo"):
+                                xai_voice = "eve"
 
                         tts_lang = (options.get('tts_language') or "ja").strip() or "ja"
                         speed_val = clamp_float(options.get('tts_speed'), 0.7, 1.5)
@@ -5046,7 +5075,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         }
                         tts_url = f"https://{_XAI_API_HOST}/v1/tts"
                         resp = requests.post(tts_url, headers=headers, json=payload, timeout=180, stream=True)
-                        resp.raise_for_status()
+                        if resp.status_code >= 400:
+                            detail = ""
+                            try:
+                                err_body = resp.json()
+                                detail = err_body.get("error") or err_body.get("message") or ""
+                                if isinstance(detail, dict):
+                                    detail = detail.get("message") or ""
+                            except Exception:
+                                detail = (resp.text or "")[:300]
+                            raise RuntimeError(f"xAI TTS error {resp.status_code}: {detail}".strip())
                         audio_buf = bytearray()
                         for audio_chunk in resp.iter_content(chunk_size=64 * 1024):
                             if not audio_chunk:
@@ -5055,6 +5093,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             if len(audio_buf) > _AUDIO_INPUT_MAX_BYTES:
                                 raise ValueError("Generated audio is too large")
                         audio_content = bytes(audio_buf)
+                        if "json" in (resp.headers.get("Content-Type") or "").lower():
+                            # JSON envelope (timestamps mode): base64 audio inside.
+                            audio_content = base64.b64decode(json.loads(audio_content.decode("utf-8")).get("audio") or "")
 
                     else:
                         # OpenAI TTS (default for generic tts models)

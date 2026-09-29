@@ -385,6 +385,15 @@ def _extract_openai_response_text(resp):
         return ""
     return ""
 
+# Chat Completions models that accept input_audio (OpenAI docs: Audio in Chat Completions).
+OPENAI_LLM_TRANSCRIBE_AUDIO_MODEL = "gpt-audio-mini"
+
+
+def _is_openai_audio_input_model(model_key):
+    mk = str(model_key or "").lower()
+    return mk.startswith("gpt-audio") or ("audio-preview" in mk and mk.startswith("gpt-4o"))
+
+
 def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
     no_speech_token = "[[NO_SPEECH]]"
     base_transcription_prompt = get_user_llm_transcribe_prompt(user)
@@ -462,61 +471,63 @@ def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
         raise ValueError("OpenAI API Key not configured")
     client = _get_openai_client(o_key, base_url=None)
     audio_b64 = base64.b64encode(wav_bytes).decode("ascii")
-    resp = client.responses.create(
-        model=model_key,
-        input=[
+    # The Responses API has no audio input, and the GPT text models do not take
+    # audio. Audio goes to an audio-capable model through Chat Completions.
+    audio_model = model_key if _is_openai_audio_input_model(model_key) else OPENAI_LLM_TRANSCRIBE_AUDIO_MODEL
+    resp = client.chat.completions.create(
+        model=audio_model,
+        modalities=["text"],
+        messages=[
             {
                 "role": "user",
                 "content": [
-                    {"type": "input_text", "text": transcription_prompt},
+                    {"type": "text", "text": transcription_prompt},
                     {"type": "input_audio", "input_audio": {"data": audio_b64, "format": "wav"}}
                 ]
             }
         ]
     )
-    text_out = _extract_openai_response_text(resp).strip()
+    choices = getattr(resp, "choices", None) or []
+    message = getattr(choices[0], "message", None) if choices else None
+    text_out = str(getattr(message, "content", "") or "").strip()
     if _llm_transcript_is_no_speech(text_out, no_speech_token):
         raise ValueError("音声を検出できませんでした。マイク入力（ノイズ抑制設定含む）を確認して、もう一度お試しください。")
     return text_out
 
-async def _openai_sts_realtime(pcm_bytes, api_key, model_key, voice="alloy", speed=None, rate=24000):
-    # OpenAI Realtime currently supports 24kHz PCM audio for output; keep session aligned.
+async def _openai_sts_realtime(pcm_bytes, api_key, model_key, voice="alloy", speed=None, rate=24000,
+                               reasoning_effort=None):
+    """One committed turn through an OpenAI Realtime (GA) conversation session."""
+    if model_key in OPENAI_TRANSLATE_MODELS:
+        raise ValueError("gpt-realtime-translate はリアルタイム会話（マイクの連続入力）で利用してください。")
+    if model_key in OPENAI_LIVE_MODELS:
+        raise ValueError("gpt-live-1 はリアルタイム会話（マイクの連続入力）で利用してください。")
+    # OpenAI Realtime accepts 24 kHz PCM only.
     rate = 24000
-    if model_key == "gpt-realtime-translate":
-        url = f"wss://api.openai.com/v1/realtime/translations?model={model_key}"
-    elif model_key == "gpt-realtime-whisper":
-        url = f"wss://api.openai.com/v1/realtime/transcription_sessions?model={model_key}"
-    else:
-        url = f"wss://api.openai.com/v1/realtime?model={model_key}"
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "OpenAI-Beta": "realtime=v1",
-    }
+    url = f"wss://api.openai.com/v1/realtime?model={model_key}"
+    # GA protocol: no OpenAI-Beta header (it selects the beta event shapes).
+    headers = {"Authorization": f"Bearer {api_key}"}
     audio_out = bytearray()
     transcript_out = ""
+    output = {"format": {"type": "audio/pcm", "rate": rate}, "voice": voice}
+    if speed is not None:
+        output["speed"] = speed
     async with websockets.connect(url, additional_headers=headers, max_size=None) as ws:
-        session_update = {
+        await ws.send(json.dumps({
             "type": "session.update",
             "session": {
                 "type": "realtime",
                 "model": model_key,
                 "output_modalities": ["audio"],
-                "voice": voice,
                 "audio": {
                     "input": {
                         "format": {"type": "audio/pcm", "rate": rate},
-                        "turn_detection": None
+                        "turn_detection": None,
                     },
-                    "output": {
-                        "format": {"type": "audio/pcm", "rate": rate}
-                    }
-                }
-            }
-        }
-        if speed is not None:
-            session_update["session"]["speed"] = speed
-        await ws.send(json.dumps(session_update))
+                    "output": output,
+                },
+                **({"reasoning": {"effort": reasoning_effort}} if reasoning_effort else {}),
+            },
+        }))
         await ws.send(json.dumps({"type": "input_audio_buffer.clear"}))
         for chunk in _chunk_bytes(pcm_bytes):
             await ws.send(json.dumps({
@@ -524,36 +535,33 @@ async def _openai_sts_realtime(pcm_bytes, api_key, model_key, voice="alloy", spe
                 "audio": base64.b64encode(chunk).decode('utf-8')
             }))
         await ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
-        resp_cfg = {"voice": voice}
-        if speed is not None:
-            resp_cfg["speed"] = speed
-        await ws.send(json.dumps({"type": "response.create", "response": resp_cfg}))
+        await ws.send(json.dumps({"type": "response.create"}))
         while True:
-            msg = json.loads(await ws.recv())
+            msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=120))
             mtype = msg.get("type")
             if mtype == "error":
-                logger.error(f"OpenAI STS error event: {msg}")
-            elif mtype and mtype.startswith("response."):
-                logger.debug(f"OpenAI STS event: {mtype}")
+                error = msg.get("error") or {}
+                message = error.get("message") if isinstance(error, dict) else str(error)
+                raise RuntimeError(message or "OpenAI Realtime API error")
             if mtype in ("response.output_audio.delta", "response.audio.delta"):
                 delta = msg.get("delta")
                 if delta:
                     audio_out += base64.b64decode(delta)
-            elif mtype in ("response.output_audio", "response.audio"):
-                delta = msg.get("audio") or msg.get("data")
-                if delta:
-                    audio_out += base64.b64decode(delta)
-            elif mtype == "response.output_audio_transcript.delta":
+            elif mtype in ("response.output_audio_transcript.delta", "response.audio_transcript.delta"):
                 delta = msg.get("delta")
                 if delta:
                     transcript_out += delta
-            elif mtype in ("response.output_audio.done", "response.done"):
+            elif mtype == "response.done":
+                response = msg.get("response") or {}
+                if response.get("status") == "failed" and not audio_out:
+                    details = (response.get("status_details") or {}).get("error") or {}
+                    raise RuntimeError(details.get("message") if isinstance(details, dict) else "OpenAI Realtime response failed")
                 break
     return bytes(audio_out), transcript_out
 
 async def _openai_realtime_transcribe(pcm_bytes, api_key, model_key, rate=24000):
     """Transcribe one committed PCM turn through an OpenAI Realtime transcription session."""
-    if model_key not in {"gpt-transcribe", "gpt-live-transcribe"}:
+    if model_key not in {"gpt-transcribe", "gpt-live-transcribe", "gpt-realtime-whisper"}:
         raise ValueError("Unsupported OpenAI transcription model")
 
     rate = 24000
@@ -605,8 +613,9 @@ async def _openai_realtime_transcribe(pcm_bytes, api_key, model_key, rate=24000)
                 message = error.get("message") if isinstance(error, dict) else str(error)
                 raise RuntimeError(message or "OpenAI Realtime API error")
 
-async def _xai_sts_realtime(pcm_bytes, api_key, model_key="grok-voice-agent", voice="Ara", rate_in=24000, rate_out=24000):
+async def _xai_sts_realtime(pcm_bytes, api_key, model_key="grok-voice-agent", voice="ara", rate_in=24000, rate_out=24000):
     model_key = XAI_STS_MODEL_ALIASES.get(model_key, model_key)
+    voice = str(voice or "ara").lower()
     url = f"wss://{_XAI_API_HOST}/v1/realtime?model={model_key}"
     headers = {"Authorization": f"Bearer {api_key}"}
     audio_out = bytearray()
@@ -616,6 +625,7 @@ async def _xai_sts_realtime(pcm_bytes, api_key, model_key="grok-voice-agent", vo
             "type": "session.update",
             "session": {
                 "voice": voice,
+                # Manual turns: commit + response.create below.
                 "turn_detection": {"type": None},
                 "audio": {
                     "input": {"format": {"type": "audio/pcm", "rate": rate_in}},
@@ -637,29 +647,29 @@ async def _xai_sts_realtime(pcm_bytes, api_key, model_key="grok-voice-agent", vo
                 msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=2.0))
                 if msg.get("type") == "input_audio_buffer.committed":
                     break
-        except Exception:
+                if msg.get("type") == "error":
+                    error = msg.get("error") or {}
+                    message = error.get("message") if isinstance(error, dict) else str(error)
+                    raise RuntimeError(message or "xAI Realtime API error")
+        except asyncio.TimeoutError:
             pass
 
-        await ws.send(json.dumps({"type": "response.create", "response": {"modalities": ["audio", "text"]}}))
+        await ws.send(json.dumps({"type": "response.create"}))
         while True:
-            msg = json.loads(await ws.recv())
+            msg = json.loads(await asyncio.wait_for(ws.recv(), timeout=120))
             mtype = msg.get("type")
             if mtype == "error":
-                logger.error(f"xAI STS error event: {msg}")
-            elif mtype and mtype.startswith("response."):
-                logger.debug(f"xAI STS event: {mtype}")
-            if mtype == "response.output_audio.delta":
+                error = msg.get("error") or {}
+                message = error.get("message") if isinstance(error, dict) else str(error)
+                raise RuntimeError(message or "xAI Realtime API error")
+            if mtype in ("response.output_audio.delta", "response.audio.delta"):
                 delta = msg.get("delta")
-                if delta:
-                    audio_out += base64.b64decode(delta)
-            elif mtype == "response.output_audio":
-                delta = msg.get("audio")
                 if delta:
                     audio_out += base64.b64decode(delta)
             elif mtype == "response.output_audio_transcript.delta":
                 delta = msg.get("delta")
                 if delta:
                     transcript_out += delta
-            elif mtype in ("response.output_audio.done", "response.done"):
+            elif mtype == "response.done":
                 break
     return bytes(audio_out), transcript_out

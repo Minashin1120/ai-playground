@@ -646,6 +646,30 @@
   },
   {
    "capabilities": [
+    "tts"
+   ],
+   "deprecated": false,
+   "id": "gemini-3.8-flash-lite-tts",
+   "mode": "tts",
+   "name": "Gemini 3.8 Flash Lite TTS",
+   "provider": "gemini",
+   "provider_label": "Gemini",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "tts"
+   ],
+   "deprecated": false,
+   "id": "gemini-3.8-flash-tts",
+   "mode": "tts",
+   "name": "Gemini 3.8 Flash TTS",
+   "provider": "gemini",
+   "provider_label": "Gemini",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "realtime_audio"
    ],
    "deprecated": false,
@@ -1148,6 +1172,18 @@
   },
   {
    "capabilities": [
+    "realtime_audio"
+   ],
+   "deprecated": false,
+   "id": "gpt-live-1",
+   "mode": "realtime_audio",
+   "name": "GPT Live 1",
+   "provider": "openai",
+   "provider_label": "OpenAI",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "transcription"
    ],
    "deprecated": false,
@@ -1190,6 +1226,30 @@
    "id": "gpt-realtime-2",
    "mode": "realtime_audio",
    "name": "GPT Realtime 2",
+   "provider": "openai",
+   "provider_label": "OpenAI",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "realtime_audio"
+   ],
+   "deprecated": false,
+   "id": "gpt-realtime-2.1",
+   "mode": "realtime_audio",
+   "name": "GPT Realtime 2.1",
+   "provider": "openai",
+   "provider_label": "OpenAI",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "realtime_audio"
+   ],
+   "deprecated": false,
+   "id": "gpt-realtime-2.1-mini",
+   "mode": "realtime_audio",
+   "name": "GPT Realtime 2.1 Mini",
    "provider": "openai",
    "provider_label": "OpenAI",
    "selectable": true

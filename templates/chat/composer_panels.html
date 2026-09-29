@@ -81,6 +81,16 @@
                                     <span>Thoughts</span>
                                 </label>
                             </label>
+                            <label id="sts-reasoning-wrap" class="flex items-center gap-1 hidden" title="推論の強さ（高いほど遅延と出力トークンが増えます）">
+                                <span class="text-purple-300">Reasoning</span>
+                                <select id="sts-reasoning-effort" class="bg-gray-800 border border-gray-700 rounded px-1 py-0.5 text-[10px] text-white outline-none">
+                                    <option value="minimal">Minimal</option>
+                                    <option value="low" selected>Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                    <option value="xhigh">XHigh</option>
+                                </select>
+                            </label>
                             <span id="sts-note" class="text-gray-500"></span>
                         </div>
                     </div>

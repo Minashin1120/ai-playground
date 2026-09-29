@@ -18,8 +18,8 @@
 | `edit_file.py` | チャットの `edit_file` ツール（xlsx/docx/pdf の編集） | ファイル編集ツール |
 | `agentic_media.py` | エージェント画像の SVG サニタイズ、sandbox 画像 URL の書き換え、生成音声の保存 | 画像エージェント、SVG、sandbox 画像 |
 | `settings_ai.py` | 設定モーダルの AI アシスタント、文字起こし設定、Vision 解析、Realtime 音声の補助 | 設定の AI 更新、文字起こしプロンプト |
-| `lyria.py` | Lyria RealTime のサーバー側セッション（Google へ WebSocket、ブラウザへ SSE） | リアルタイム音楽 |
-| `realtime.py` | OpenAI Realtime / Grok Voice / Gemini native-audio のサーバー側 STS セッション | リアルタイム音声会話 |
+| `lyria.py` | Lyria RealTime のサーバー側セッション（Google へ WebSocket、ブラウザへ SSE）、ワーカー間の Redis 中継、保存 | リアルタイム音楽 |
+| `realtime.py` | OpenAI Realtime（会話・翻訳）/ GPT-Live / Grok Voice / Gemini Live のサーバー側 STS セッション、ワーカー間の Redis 中継、会話の保存 | リアルタイム音声会話 |
 | `models.py` | SQLAlchemy モデル（`User`, `Thread`, `Message`, `GeminiBatchJob`、Gemini／OpenAI Batch状態、`Gem`、セッション、BAN 等）。`mcp_service` のモデルもここで `db` に載せる | カラム追加、ユーザー設定、チャット保存形式、Batch状態 |
 | `account_transfer.py` | アカウント輸出入の形式・ジョブ、設定・秘密情報・スレッド・ファイルの移行処理 | エクスポート、インポート、移行アーカイブ |
 | `request_identity.py` | ユーザー読込、CSRFトークン、接続元情報、チャット遅延トレース | ユーザー識別、CSRF取得、レイテンシ計測 |

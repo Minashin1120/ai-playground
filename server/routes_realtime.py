@@ -19,46 +19,57 @@ def gemini_music_start():
         return jsonify({'error': 'プロンプトを入力してください'}), 400
     config = _normalize_lyria_config(data.get("config"))
 
-    session_id = f"lyria_{int(time.time())}_{secrets.token_hex(4)}"
+    session_id = f"lyria_{int(time.time())}_{secrets.token_hex(8)}"
     session = LyriaSession(session_id, current_user.id, key, prompts, config)
-    thread = threading.Thread(target=_lyria_worker, args=(session,), daemon=True, name=f"lyria-{session_id}")
-    session.thread = thread
-    with LYRIA_SESSIONS_LOCK:
-        LYRIA_SESSIONS[session_id] = session
-    thread.start()
+    try:
+        # Later requests may reach another gunicorn worker; they talk to this
+        # worker's session through Redis.
+        _lyria_start_bridged_session(session, current_user.enable_e2ee)
+    except Exception as exc:
+        logger.error(f"Lyria RealTime session start failed: {exc}")
+        with LYRIA_SESSIONS_LOCK:
+            LYRIA_SESSIONS.pop(session_id, None)
+        return jsonify({'error': 'Lyria RealTimeのセッションを開始できませんでした'}), 503
     return jsonify({'session_id': session_id})
 
 
 @app.route('/api/gemini/music/stream')
 @login_required
 def gemini_music_stream():
-    session = _lyria_get_session(request.args.get('session_id'))
-    if not session:
+    meta = _lyria_get_session(request.args.get('session_id'))
+    if not meta:
         return jsonify({'error': 'Session not found'}), 404
+    session_id = meta['session_id']
+    ev_key = _lyria_key("ev", session_id)
+    meta_key = _lyria_key("meta", session_id)
 
     def generate():
         try:
-            # Snapshot the audio accumulated so far so a reconnecting client can
-            # reconstruct the full recording, then stream live deltas only.
-            with session.audio_lock:
-                snapshot_bytes = bytes(session.audio_buffer)
-            with session.pending_cond:
-                session.pending.clear()
-            snapshot_b64 = base64.b64encode(snapshot_bytes).decode('ascii')
-            yield f"data: {json.dumps({'snapshot': snapshot_b64, 'status': session.status})}\n\n"
-            while True:
-                with session.pending_cond:
-                    while not session.pending and not session.stop_event.is_set() and session.status != "error":
-                        session.pending_cond.wait(timeout=1.0)
-                    pending = list(session.pending)
-                    session.pending.clear()
-                for delta in pending:
-                    yield f"data: {json.dumps({'audio': delta})}\n\n"
-                if session.status == "error":
-                    yield f"data: {json.dumps({'error': session.error or 'Unknown error'})}\n\n"
-                    break
-                if session.stop_event.is_set() and not session.pending:
-                    yield f"data: {json.dumps({'final': True, 'status': session.status})}\n\n"
+            # Status only: the server keeps the recording for saving, so a
+            # reconnecting client just resumes the live deltas.
+            yield f"data: {json.dumps({'snapshot': True, 'status': meta.get('status') or 'connecting'})}\n\n"
+            deadline = time.time() + LYRIA_BRIDGE_TTL_SECONDS
+            last_sent = time.time()
+            while time.time() < deadline:
+                item = redis_conn.blpop([ev_key], timeout=1)
+                if not item:
+                    if not redis_conn.exists(meta_key):
+                        yield f"data: {json.dumps({'final': True, 'status': 'closed'})}\n\n"
+                        break
+                    if time.time() - last_sent > 15:
+                        last_sent = time.time()
+                        yield ": keep-alive\n\n"
+                    continue
+                raw = item[1]
+                if isinstance(raw, bytes):
+                    raw = raw.decode("utf-8", "replace")
+                yield f"data: {raw}\n\n"
+                last_sent = time.time()
+                try:
+                    ev = json.loads(raw)
+                except Exception:
+                    ev = {}
+                if ev.get("final") or ev.get("error"):
                     break
         except GeneratorExit:
             pass
@@ -76,15 +87,19 @@ def gemini_music_stream():
 @login_required
 def gemini_music_command():
     data = request.get_json(silent=True) or {}
-    session = _lyria_get_session(data.get('session_id'))
-    if not session:
+    meta = _lyria_get_session(data.get('session_id'))
+    if not meta:
         return jsonify({'error': 'Session not found'}), 404
-    if session.status in ("closed", "error"):
+    if meta.get('status') in ("closed", "error"):
         return jsonify({'error': 'セッションは終了しています'}), 400
     ctype = str(data.get('type') or '')
     if ctype not in ("prompts", "config", "control"):
         return jsonify({'error': 'Invalid command type'}), 400
-    session.cmd_queue.put(data)
+    command = {'type': ctype}
+    for field in ('weighted_prompts', 'config', 'reset_context', 'action'):
+        if field in data:
+            command[field] = data.get(field)
+    _lyria_send_command(meta['session_id'], command)
     return jsonify({'status': 'ok'})
 
 
@@ -92,19 +107,10 @@ def gemini_music_command():
 @login_required
 def gemini_music_cancel():
     data = request.get_json(silent=True) or {}
-    session = _lyria_get_session(data.get('session_id'))
-    if not session:
+    meta = _lyria_get_session(data.get('session_id'))
+    if not meta:
         return jsonify({'error': 'Session not found'}), 404
-    session.stop_event.set()
-    try:
-        if session.loop and session.ws:
-            asyncio.run_coroutine_threadsafe(_lyria_send_control(session, "STOP"), session.loop).result(timeout=3)
-    except Exception:
-        pass
-    if session.thread:
-        session.thread.join(timeout=3)
-    with LYRIA_SESSIONS_LOCK:
-        LYRIA_SESSIONS.pop(session.session_id, None)
+    _lyria_send_command(meta['session_id'], {'type': 'cancel'})
     return jsonify({'status': 'ok'})
 
 
@@ -112,109 +118,24 @@ def gemini_music_cancel():
 @login_required
 def gemini_music_save():
     data = request.get_json(silent=True) or {}
-    session = _lyria_get_session(data.get('session_id'))
-    if not session:
+    meta = _lyria_get_session(data.get('session_id'))
+    if not meta:
         return jsonify({'error': 'Session not found'}), 404
-
-    session.stop_event.set()
+    session_id = meta['session_id']
+    thread_id = data.get('thread_id')
+    # The owning worker holds the audio: it stops the stream, stores the
+    # recording and messages, and hands the result back through Redis.
+    _lyria_send_command(session_id, {'type': 'save', 'thread_id': str(thread_id) if thread_id else None})
+    item = redis_conn.blpop([_lyria_key("res", session_id)], timeout=LYRIA_SAVE_WAIT_SECONDS)
+    if not item:
+        return jsonify({'error': '保存がタイムアウトしました。しばらくしてからもう一度お試しください。'}), 504
     try:
-        if session.loop and session.ws:
-            asyncio.run_coroutine_threadsafe(_lyria_send_control(session, "STOP"), session.loop).result(timeout=3)
+        result = json.loads(item[1])
     except Exception:
-        pass
-    if session.thread:
-        session.thread.join(timeout=5)
-
-    with session.audio_lock:
-        pcm_bytes = bytes(session.audio_buffer)
-    if len(pcm_bytes) < 1024:
-        with LYRIA_SESSIONS_LOCK:
-            LYRIA_SESSIONS.pop(session.session_id, None)
-        return jsonify({'error': 'オーディオデータがありません。再生を少し進めてから保存してください。'}), 400
-
-    wav_bytes = _lyria_pcm_to_wav_stereo(pcm_bytes, rate=48000)
-    try:
-        fname, audio_url = _save_user_generated_bytes_verified(
-            current_user.id,
-            wav_bytes,
-            lambda: f"lyria_realtime_{int(time.time())}_{os.urandom(4).hex()}.wav",
-            current_user.enable_e2ee,
-        )
-    except Exception as exc:
-        logger.exception("Lyria RealTime save error")
-        with LYRIA_SESSIONS_LOCK:
-            LYRIA_SESSIONS.pop(session.session_id, None)
-        return jsonify({'error': f'保存に失敗しました: {exc}'}), 500
-
-    try:
-        thread_id = data.get('thread_id')
-        t = resolve_thread_for_user(thread_id, current_user.id) if thread_id else None
-        if not t:
-            t = Thread(
-                user_id=current_user.id,
-                public_id=generate_thread_public_id(),
-                is_temporary=True,
-            )
-            db.session.add(t)
-            safe_db_commit()
-            thread_id = t.id
-        else:
-            thread_id = t.id
-
-        prompt_lines = []
-        for p in session.prompts:
-            weight = float(p.get('weight', 1.0))
-            prompt_lines.append(f"{p.get('text', '')} (weight: {weight})")
-        prompt_text = "\n".join(prompt_lines) if prompt_lines else "Lyria RealTime 生成"
-        audio_tag = f'\n<audio controls src="{audio_url}" class="w-full mt-2"></audio>\n'
-        assistant_content = f"**Lyria RealTime 生成**\n\n{audio_tag}"
-        if session.filtered_prompt:
-            assistant_content += f"\n\n*プロンプトが安全フィルターにより調整されました。*"
-
-        u_content = encrypt_val(prompt_text) if current_user.enable_e2ee else prompt_text
-        a_content = encrypt_val(assistant_content) if current_user.enable_e2ee else assistant_content
-        user_tokens_in = count_tokens_for_display(prompt_text, LYRIA_REALTIME_MODEL)
-        assistant_tokens_out = count_tokens_for_display("Lyria RealTime 生成", LYRIA_REALTIME_MODEL)
-
-        parent_id = None
-        last_msg = Message.query.filter_by(thread_id=thread_id).order_by(Message.id.desc()).first()
-        if last_msg:
-            parent_id = last_msg.id
-
-        user_msg = Message(
-            thread_id=thread_id,
-            role='user',
-            content=u_content,
-            is_encrypted=current_user.enable_e2ee,
-            parent_id=parent_id,
-            model=LYRIA_REALTIME_MODEL,
-            tokens_in=user_tokens_in,
-            tokens=sum_token_counts(user_tokens_in, None),
-        )
-        db.session.add(user_msg)
-        safe_db_commit()
-
-        assistant_msg = Message(
-            thread_id=thread_id,
-            role='assistant',
-            content=a_content,
-            model=LYRIA_REALTIME_MODEL,
-            is_encrypted=current_user.enable_e2ee,
-            parent_id=user_msg.id,
-            tokens_out=assistant_tokens_out,
-            tokens=sum_token_counts(None, assistant_tokens_out),
-        )
-        db.session.add(assistant_msg)
-        safe_db_commit()
-    except Exception as exc:
-        logger.exception("Lyria RealTime message save error")
-        with LYRIA_SESSIONS_LOCK:
-            LYRIA_SESSIONS.pop(session.session_id, None)
-        return jsonify({'error': f'音声は保存されましたが、メッセージ保存に失敗しました: {exc}', 'audio_url': audio_url}), 500
-
-    with LYRIA_SESSIONS_LOCK:
-        LYRIA_SESSIONS.pop(session.session_id, None)
-    return jsonify({'status': 'ok', 'audio_url': audio_url, 'thread_id': str(thread_id)})
+        return jsonify({'error': '保存結果を読み取れませんでした'}), 500
+    status = int(result.pop('_status', 200) or 200)
+    redis_conn.delete(_lyria_key("res", session_id))
+    return jsonify(result), status
 
 
 # -----------------------------------------------------------------------------
@@ -237,13 +158,17 @@ def realtime_start():
         return jsonify({'error': f'{labels.get(provider, "API")} API Key not configured'}), 400
 
     params = _normalize_rt_params(provider, model_key, data)
-    session_id = f"rt_{int(time.time())}_{secrets.token_hex(4)}"
+    session_id = f"rt_{int(time.time())}_{secrets.token_hex(8)}"
     session = RtSession(session_id, current_user.id, model_key, key, params)
-    thread = threading.Thread(target=_rt_worker, args=(session,), daemon=True, name=f"rt-{session_id}")
-    session.thread = thread
-    with RT_SESSIONS_LOCK:
-        RT_SESSIONS[session_id] = session
-    thread.start()
+    try:
+        # The other requests of this session may be served by another gunicorn
+        # worker; they reach this worker's provider session through Redis.
+        _rt_start_bridged_session(session, current_user.enable_e2ee)
+    except Exception as exc:
+        logger.error(f"Realtime STS session start failed: {exc}")
+        with RT_SESSIONS_LOCK:
+            RT_SESSIONS.pop(session_id, None)
+        return jsonify({'error': 'リアルタイムセッションを開始できませんでした'}), 503
     return jsonify({
         'session_id': session_id,
         'rate_in': session.rate_in,
@@ -255,33 +180,39 @@ def realtime_start():
 @app.route('/api/realtime/stream')
 @login_required
 def realtime_stream():
-    session = _rt_get_session(request.args.get('session_id'))
-    if not session:
+    meta = _rt_get_session(request.args.get('session_id'))
+    if not meta:
         return jsonify({'error': 'Session not found'}), 404
+    session_id = meta['session_id']
+    ev_key = _rt_key("ev", session_id)
+    meta_key = _rt_key("meta", session_id)
 
     def generate():
         try:
-            with session.pending_cond:
-                pending = list(session.pending)
-                session.pending.clear()
-            if pending:
-                for ev in pending:
-                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
-            else:
-                yield f"data: {json.dumps({'type': 'status', 'status': session.status}, ensure_ascii=False)}\n\n"
-            while True:
-                with session.pending_cond:
-                    while not session.pending and not session.stop_event.is_set() and session.status != "error":
-                        session.pending_cond.wait(timeout=1.0)
-                    events = list(session.pending)
-                    session.pending.clear()
-                for ev in events:
-                    yield f"data: {json.dumps(ev, ensure_ascii=False)}\n\n"
-                if session.status == "error":
-                    yield f"data: {json.dumps({'type': 'error', 'message': session.error or 'Unknown error'}, ensure_ascii=False)}\n\n"
-                    break
-                if session.stop_event.is_set() and not session.pending:
-                    yield f"data: {json.dumps({'type': 'final', 'status': session.status}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'status', 'status': meta.get('status') or 'connecting'}, ensure_ascii=False)}\n\n"
+            deadline = time.time() + RT_BRIDGE_TTL_SECONDS
+            last_sent = time.time()
+            while time.time() < deadline:
+                item = redis_conn.blpop([ev_key], timeout=1)
+                if not item:
+                    if not redis_conn.exists(meta_key):
+                        # Session saved / cancelled / expired elsewhere.
+                        yield f"data: {json.dumps({'type': 'final', 'status': 'closed'}, ensure_ascii=False)}\n\n"
+                        break
+                    if time.time() - last_sent > 15:
+                        last_sent = time.time()
+                        yield ": keep-alive\n\n"
+                    continue
+                raw = item[1]
+                if isinstance(raw, bytes):
+                    raw = raw.decode("utf-8", "replace")
+                yield f"data: {raw}\n\n"
+                last_sent = time.time()
+                try:
+                    ev_type = json.loads(raw).get("type")
+                except Exception:
+                    ev_type = None
+                if ev_type == "final":
                     break
         except GeneratorExit:
             pass
@@ -298,18 +229,15 @@ def realtime_stream():
 @app.route('/api/realtime/audio', methods=['POST'])
 @login_required
 def realtime_audio():
-    session = _rt_get_session(request.args.get('session_id'))
-    if not session:
+    meta = _rt_get_session(request.args.get('session_id'))
+    if not meta:
         return jsonify({'error': 'Session not found'}), 404
-    if session.status in ("closed", "error", "stopped"):
+    if meta.get('status') in ("closed", "error", "stopped"):
         return jsonify({'error': 'セッションは終了しています'}), 400
     data = request.get_data(cache=False)
     if not data or len(data) > RT_AUDIO_POST_MAX:
         return jsonify({'error': 'Invalid audio payload'}), 400
-    with session.user_lock:
-        if len(session.user_audio) + len(data) <= RT_PCM_CAP:
-            session.user_audio += data
-    session.audio_in.put(("audio", data))
+    _rt_send_command(meta['session_id'], b"A" + data)
     return jsonify({'status': 'ok'})
 
 
@@ -317,12 +245,12 @@ def realtime_audio():
 @login_required
 def realtime_commit():
     data = request.get_json(silent=True) or {}
-    session = _rt_get_session(data.get('session_id'))
-    if not session:
+    meta = _rt_get_session(data.get('session_id'))
+    if not meta:
         return jsonify({'error': 'Session not found'}), 404
-    if session.status in ("closed", "error", "stopped"):
+    if meta.get('status') in ("closed", "error", "stopped"):
         return jsonify({'error': 'セッションは終了しています'}), 400
-    session.audio_in.put(("commit",))
+    _rt_send_command(meta['session_id'], b"C")
     return jsonify({'status': 'ok'})
 
 
@@ -330,14 +258,10 @@ def realtime_commit():
 @login_required
 def realtime_cancel():
     data = request.get_json(silent=True) or {}
-    session = _rt_get_session(data.get('session_id'))
-    if not session:
+    meta = _rt_get_session(data.get('session_id'))
+    if not meta:
         return jsonify({'error': 'Session not found'}), 404
-    session.stop_event.set()
-    if session.thread:
-        session.thread.join(timeout=3)
-    with RT_SESSIONS_LOCK:
-        RT_SESSIONS.pop(session.session_id, None)
+    _rt_send_command(meta['session_id'], b"X")
     return jsonify({'status': 'ok'})
 
 
@@ -345,123 +269,25 @@ def realtime_cancel():
 @login_required
 def realtime_save():
     data = request.get_json(silent=True) or {}
-    session = _rt_get_session(data.get('session_id'))
-    if not session:
+    meta = _rt_get_session(data.get('session_id'))
+    if not meta:
         return jsonify({'error': 'Session not found'}), 404
-
-    if _rt_is_live_transcription_session(session) and not session.stop_event.is_set():
-        # Flush trailing audio (audio.done) and wait briefly for transcript.done.
-        session.audio_in.put(("commit",))
-        session.stop_event.wait(timeout=8)
-    session.stop_event.set()
-    if session.thread:
-        session.thread.join(timeout=6)
-
-    with session.assistant_lock:
-        assistant_pcm = bytes(session.assistant_audio)
-    with session.user_lock:
-        user_pcm = bytes(session.user_audio)
-    live_transcript = None
-    if _rt_is_live_transcription_session(session):
-        live_transcript = (session.user_transcript or "").strip()
-        if not live_transcript:
-            user_pcm = b""  # nothing recognized: do not keep the recording
-
-    audio_url = None
-    in_fname = None
-    try:
-        if len(assistant_pcm) >= 1024:
-            wav_bytes = _pcm_to_wav_bytes(assistant_pcm, rate=session.rate_out)
-            out_fname, _ = _save_user_audio(current_user.id, wav_bytes, ".wav", current_user.enable_e2ee)
-            audio_url = f"/files/{current_user.id}/{out_fname}"
-        if len(user_pcm) >= 1024:
-            u_wav = _pcm_to_wav_bytes(user_pcm, rate=session.rate_in)
-            in_fname, _ = _save_user_audio(current_user.id, u_wav, ".wav", current_user.enable_e2ee)
-    except Exception as exc:
-        logger.exception("Realtime STS audio save error")
-
-    user_text = (session.user_transcript or "音声メッセージ").strip()
-    assistant_text = (session.assistant_transcript or "").strip()
-    assistant_thought = (session.assistant_thought or "").strip()
-    if live_transcript is not None:
-        # Live transcription: the transcript is the assistant output; the user
-        # message keeps the recorded audio (same layout as Gemini Live transcribe).
-        assistant_text = live_transcript
-        user_text = "音声文字起こし" if live_transcript else ""
-
-    # Nothing was captured — drop the empty session without saving a message.
-    if (not assistant_pcm and not user_pcm
-            and not user_text.strip() and not assistant_text.strip()):
-        with RT_SESSIONS_LOCK:
-            RT_SESSIONS.pop(session.session_id, None)
-        return jsonify({'status': 'empty'})
-
+    session_id = meta['session_id']
     thread_id = data.get('thread_id')
-    t = resolve_thread_for_user(thread_id, current_user.id) if thread_id else None
-    if not t:
-        t = Thread(
-            user_id=current_user.id,
-            public_id=generate_thread_public_id(),
-            is_temporary=True,
-        )
-        db.session.add(t)
-        safe_db_commit()
-        thread_id = t.id
-    else:
-        thread_id = t.id
-
-    thought_tag = f"<thought>\n{assistant_thought}\n</thought>\n" if assistant_thought else ""
-    audio_tag = f'\n<audio controls src="{audio_url}" class="w-full mt-2"></audio>\n' if audio_url else ""
-    assistant_content = thought_tag + (assistant_text + "\n" if assistant_text else "") + audio_tag
-
+    request_payload = json.dumps({'thread_id': str(thread_id) if thread_id else None})
+    # The owning worker holds the audio: it finishes the provider session,
+    # stores the messages and hands the result back through Redis.
+    _rt_send_command(session_id, b"F" + request_payload.encode("utf-8"))
+    item = redis_conn.blpop([_rt_key("res", session_id)], timeout=RT_SAVE_WAIT_SECONDS)
+    if not item:
+        return jsonify({'error': '保存がタイムアウトしました。しばらくしてからもう一度お試しください。'}), 504
     try:
-        u_content = encrypt_val(user_text) if current_user.enable_e2ee else user_text
-        a_content = encrypt_val(assistant_content) if current_user.enable_e2ee else assistant_content
-        user_tokens_in = count_tokens_for_display(user_text, session.model_key)
-        assistant_tokens_out = count_tokens_for_display(assistant_text, session.model_key)
-        if assistant_thought:
-            assistant_tokens_out += count_tokens_for_display(assistant_thought, session.model_key)
-
-        parent_id = None
-        last_msg = Message.query.filter_by(thread_id=thread_id).order_by(Message.id.desc()).first()
-        if last_msg:
-            parent_id = last_msg.id
-
-        user_msg = Message(
-            thread_id=thread_id,
-            role='user',
-            content=u_content,
-            image_url=json.dumps([f"{current_user.id}/{in_fname}"]) if in_fname else None,
-            is_encrypted=current_user.enable_e2ee,
-            parent_id=parent_id,
-            model=session.model_key,
-            tokens_in=user_tokens_in,
-            tokens=sum_token_counts(user_tokens_in, None),
-        )
-        db.session.add(user_msg)
-        safe_db_commit()
-
-        assistant_msg = Message(
-            thread_id=thread_id,
-            role='assistant',
-            content=a_content,
-            model=session.model_key,
-            is_encrypted=current_user.enable_e2ee,
-            parent_id=user_msg.id,
-            tokens_out=assistant_tokens_out,
-            tokens=sum_token_counts(None, assistant_tokens_out),
-        )
-        db.session.add(assistant_msg)
-        safe_db_commit()
-    except Exception as exc:
-        logger.exception("Realtime STS message save error")
-        with RT_SESSIONS_LOCK:
-            RT_SESSIONS.pop(session.session_id, None)
-        return jsonify({'error': f'メッセージ保存に失敗しました: {exc}', 'audio_url': audio_url}), 500
-
-    with RT_SESSIONS_LOCK:
-        RT_SESSIONS.pop(session.session_id, None)
-    return jsonify({'status': 'ok', 'audio_url': audio_url, 'thread_id': str(thread_id)})
+        result = json.loads(item[1])
+    except Exception:
+        return jsonify({'error': '保存結果を読み取れませんでした'}), 500
+    status = int(result.pop('_status', 200) or 200)
+    redis_conn.delete(_rt_key("res", session_id))
+    return jsonify(result), status
 
 
 @app.route('/api/gemini/session', methods=['POST'])
@@ -502,17 +328,18 @@ def gemini_session():
     is_gemini_38_extended = (model_key == "gemini-3.8-live-extended-thinking")
 
     if is_live_transcribe:
-        # Live Transcription: TEXT output. The detailed transcription config
+        # Live Transcription: TEXT output. The transcription config
         # (language_codes / custom_vocabulary / mode) is sent by the client in
-        # the WebSocket setup message; the installed SDK (v1.56.0) rejects those
-        # fields inside the ephemeral token config, so pass an empty object here.
+        # the WebSocket setup message; the installed SDK (v1.56.0) has no such
+        # fields, so inputAudioTranscription stays unlocked (see below).
         generation_config = {
             'response_modalities': ['TEXT'],
-            'input_audio_transcription': {},
         }
     else:
         generation_config = {
             'response_modalities': ['AUDIO'],
+            'input_audio_transcription': {},
+            'output_audio_transcription': {},
         }
         if not is_live_translate and voice and voice in GEMINI_STS_VOICES:
             generation_config['speech_config'] = {
@@ -528,22 +355,15 @@ def gemini_session():
                 'include_thoughts': include_thoughts
             }
         elif (
-            not is_live_translate
-            and model_key != "gemini-3.8-live"
-            and thinking_level
+            model_key not in GEMINI_LIVE_NO_THINKING_LEVEL_MODELS
+            and thinking_level in {'minimal', 'low', 'medium', 'high'}
         ):
-            # Preserve the existing configuration for older Gemini Live
-            # models. Gemini 3.8 Live does not accept thinking_level.
+            # Gemini 3.1 Flash Live. Gemini 3.8 Live, 2.5 native audio and
+            # Live Translate do not accept thinking_level.
             generation_config['thinking_config'] = {
                 'thinking_level': thinking_level,
                 'include_thoughts': include_thoughts
             }
-        if is_live_translate:
-            # The installed SDK rejects `translation_config` inside the ephemeral
-            # token config (no such field in LiveConnectConfig). The client sends
-            # `translationConfig` in the WebSocket setup message instead, so we
-            # intentionally omit it here to avoid a token-creation 400/422 error.
-            pass
 
     config = {
         'live_connect_constraints': {
@@ -551,7 +371,13 @@ def gemini_session():
             'config': generation_config
         }
     }
-    
+    if is_live_translate or is_live_transcribe:
+        # Lock only the fields set above so the client can add
+        # generationConfig.translationConfig (target language chosen by the
+        # user) or the detailed inputAudioTranscription.  Without this the
+        # whole setup is locked and those client fields are not applied.
+        config['lock_additional_fields'] = []
+
     try:
         # Note: auth_tokens.create is experimental in the SDK
         token = client.auth_tokens.create(config=config)

@@ -6,6 +6,14 @@
 # exposing the user's raw Gemini API key, so the server keeps a persistent
 # session (thread + asyncio loop) per active session, streams audio deltas to
 # the client over SSE, and accepts steering commands over HTTP.
+#
+# Like the realtime speech sessions (server/realtime.py), the worker process
+# that handled /start owns the Google WebSocket; the stream / command / save
+# requests may reach another gunicorn worker and are relayed through Redis:
+#   lyria:meta:<sid>  hash  user_id / status
+#   lyria:in:<sid>    list  JSON commands ({"type": prompts|config|control|cancel|save})
+#   lyria:ev:<sid>    list  JSON events for the SSE stream
+#   lyria:res:<sid>   list  JSON result of the save request
 # =============================================================================
 LYRIA_REALTIME_MODEL = "lyria-realtime-exp"
 LYRIA_SESSIONS = {}
@@ -14,6 +22,8 @@ LYRIA_MAX_SESSION_SECONDS = 15 * 60  # auto-stop to bound cost
 LYRIA_MAX_AUDIO_BYTES = 512 * 1024 * 1024  # cap accumulated PCM
 LYRIA_PROMPT_MAX_CHARS = 4000
 LYRIA_SESSION_TTL_SECONDS = 30 * 60  # closed sessions are purged after this
+LYRIA_BRIDGE_TTL_SECONDS = LYRIA_MAX_SESSION_SECONDS + LYRIA_SESSION_TTL_SECONDS
+LYRIA_SAVE_WAIT_SECONDS = 45
 
 LYRIA_SCALES = {
     "C_MAJOR_A_MINOR": "C major / A minor",
@@ -53,6 +63,46 @@ class LyriaSession:
         self.filtered_prompt = None
         self.started_at = time.time()
         self.thread = None
+        self.pump_thread = None
+        self.bridged = False             # True: events/commands go through Redis
+        self.e2ee = False
+        self.cancelled = False
+        self.saved = False
+
+
+def _lyria_key(kind, session_id):
+    return f"lyria:{kind}:{session_id}"
+
+
+def _lyria_push_event(session, event):
+    """Deliver one SSE event ({"audio"}, {"error"} or {"final"}) to the stream."""
+    if session.bridged:
+        try:
+            key = _lyria_key("ev", session.session_id)
+            pipe = redis_conn.pipeline()
+            pipe.rpush(key, json.dumps(event))
+            pipe.expire(key, LYRIA_BRIDGE_TTL_SECONDS)
+            pipe.execute()
+        except Exception as exc:
+            logger.error(f"Lyria RealTime event publish failed: {exc}")
+        return
+    with session.pending_cond:
+        session.pending.append(event)
+        session.pending_cond.notify_all()
+
+
+def _lyria_set_status(session, status):
+    session.status = status
+    if not session.bridged:
+        return
+    try:
+        key = _lyria_key("meta", session.session_id)
+        pipe = redis_conn.pipeline()
+        pipe.hset(key, "status", status)
+        pipe.expire(key, LYRIA_BRIDGE_TTL_SECONDS)
+        pipe.execute()
+    except Exception as exc:
+        logger.error(f"Lyria RealTime status publish failed: {exc}")
 
 
 def _normalize_lyria_config(raw):
@@ -174,9 +224,7 @@ async def _lyria_receive_loop(session, ws):
                         if len(session.audio_buffer) + len(binary) > LYRIA_MAX_AUDIO_BYTES:
                             continue
                         session.audio_buffer += binary
-                    with session.pending_cond:
-                        session.pending.append(data)
-                        session.pending_cond.notify_all()
+                    _lyria_push_event(session, {"audio": data})
             if msg.get("filteredPrompt"):
                 session.filtered_prompt = msg.get("filteredPrompt")
             if msg.get("error"):
@@ -211,11 +259,11 @@ async def _lyria_handle_command(session, ws, cmd):
             return
         await _lyria_send_control(session, action)
         if action == "PAUSE":
-            session.status = "paused"
+            _lyria_set_status(session, "paused")
         elif action == "PLAY":
-            session.status = "streaming"
+            _lyria_set_status(session, "streaming")
         elif action == "STOP":
-            session.status = "stopped"
+            _lyria_set_status(session, "stopped")
 
 
 async def _lyria_worker_async(session):
@@ -242,7 +290,7 @@ async def _lyria_worker_async(session):
         if session.config:
             await ws.send(json.dumps({"musicGenerationConfig": session.config}))
         await ws.send(json.dumps({"playbackControl": "PLAY"}))
-        session.status = "streaming"
+        _lyria_set_status(session, "streaming")
 
         recv_task = asyncio.ensure_future(_lyria_receive_loop(session, ws))
         while not session.stop_event.is_set():
@@ -290,6 +338,12 @@ def _lyria_worker(session):
     finally:
         if session.status not in ("error", "stopped", "paused"):
             session.status = "closed"
+        session.stop_event.set()
+        _lyria_set_status(session, session.status)
+        if session.status == "error":
+            _lyria_push_event(session, {"error": session.error or "Unknown error"})
+        else:
+            _lyria_push_event(session, {"final": True, "status": session.status})
         with session.pending_cond:
             session.pending_cond.notify_all()
         try:
@@ -300,21 +354,231 @@ def _lyria_worker(session):
 
 
 def _lyria_purge_old_sessions():
-    """Remove closed sessions that are past the TTL (run at session start)."""
+    """Stop sessions owned by this worker that outlived the bridge TTL."""
     now = time.time()
     with LYRIA_SESSIONS_LOCK:
         stale = [
             sid for sid, sess in list(LYRIA_SESSIONS.items())
-            if sess.status in ("closed", "error", "stopped")
-            and (now - sess.started_at) > LYRIA_SESSION_TTL_SECONDS
+            if (now - sess.started_at) > LYRIA_BRIDGE_TTL_SECONDS
         ]
         for sid in stale:
-            LYRIA_SESSIONS.pop(sid, None)
+            sess = LYRIA_SESSIONS.pop(sid, None)
+            if sess:
+                sess.cancelled = True
+                sess.stop_event.set()
 
 
 def _lyria_get_session(session_id):
-    session = LYRIA_SESSIONS.get(session_id or "")
-    if not session or session.user_id != current_user.id:
+    """Bridge metadata of a Lyria session owned by the current user (any worker)."""
+    session_id = str(session_id or "")
+    if not session_id.startswith("lyria_"):
         return None
-    return session
+    try:
+        raw = redis_conn.hgetall(_lyria_key("meta", session_id)) or {}
+    except Exception as exc:
+        logger.error(f"Lyria RealTime session lookup failed: {exc}")
+        return None
+    meta = {
+        (k.decode() if isinstance(k, bytes) else str(k)): (v.decode() if isinstance(v, bytes) else str(v))
+        for k, v in raw.items()
+    }
+    if not meta or meta.get("user_id") != str(current_user.id):
+        return None
+    meta["session_id"] = session_id
+    return meta
+
+
+def _lyria_send_command(session_id, command):
+    key = _lyria_key("in", session_id)
+    pipe = redis_conn.pipeline()
+    pipe.rpush(key, json.dumps(command))
+    pipe.expire(key, LYRIA_BRIDGE_TTL_SECONDS)
+    pipe.execute()
+
+
+def _lyria_save_session(session, thread_id):
+    """Store the recording and the prompt/answer messages (owner worker, app context)."""
+    with session.audio_lock:
+        pcm_bytes = bytes(session.audio_buffer)
+    if len(pcm_bytes) < 1024:
+        return {'error': 'オーディオデータがありません。再生を少し進めてから保存してください。'}, 400
+
+    wav_bytes = _lyria_pcm_to_wav_stereo(pcm_bytes, rate=48000)
+    try:
+        fname, audio_url = _save_user_generated_bytes_verified(
+            session.user_id,
+            wav_bytes,
+            lambda: f"lyria_realtime_{int(time.time())}_{os.urandom(4).hex()}.wav",
+            session.e2ee,
+        )
+    except Exception as exc:
+        logger.exception("Lyria RealTime save error")
+        return {'error': f'保存に失敗しました: {exc}'}, 500
+
+    try:
+        t = resolve_thread_for_user(thread_id, session.user_id) if thread_id else None
+        if not t:
+            t = Thread(
+                user_id=session.user_id,
+                public_id=generate_thread_public_id(),
+                is_temporary=True,
+            )
+            db.session.add(t)
+            safe_db_commit()
+        thread_db_id = t.id
+
+        prompt_lines = []
+        for p in session.prompts:
+            weight = float(p.get('weight', 1.0))
+            prompt_lines.append(f"{p.get('text', '')} (weight: {weight})")
+        prompt_text = "\n".join(prompt_lines) if prompt_lines else "Lyria RealTime 生成"
+        audio_tag = f'\n<audio controls src="{audio_url}" class="w-full mt-2"></audio>\n'
+        assistant_content = f"**Lyria RealTime 生成**\n\n{audio_tag}"
+        if session.filtered_prompt:
+            assistant_content += f"\n\n*プロンプトが安全フィルターにより調整されました。*"
+
+        u_content = encrypt_val(prompt_text) if session.e2ee else prompt_text
+        a_content = encrypt_val(assistant_content) if session.e2ee else assistant_content
+        user_tokens_in = count_tokens_for_display(prompt_text, LYRIA_REALTIME_MODEL)
+        assistant_tokens_out = count_tokens_for_display("Lyria RealTime 生成", LYRIA_REALTIME_MODEL)
+
+        parent_id = None
+        last_msg = Message.query.filter_by(thread_id=thread_db_id).order_by(Message.id.desc()).first()
+        if last_msg:
+            parent_id = last_msg.id
+
+        user_msg = Message(
+            thread_id=thread_db_id,
+            role='user',
+            content=u_content,
+            is_encrypted=session.e2ee,
+            parent_id=parent_id,
+            model=LYRIA_REALTIME_MODEL,
+            tokens_in=user_tokens_in,
+            tokens=sum_token_counts(user_tokens_in, None),
+        )
+        db.session.add(user_msg)
+        safe_db_commit()
+
+        assistant_msg = Message(
+            thread_id=thread_db_id,
+            role='assistant',
+            content=a_content,
+            model=LYRIA_REALTIME_MODEL,
+            is_encrypted=session.e2ee,
+            parent_id=user_msg.id,
+            tokens_out=assistant_tokens_out,
+            tokens=sum_token_counts(None, assistant_tokens_out),
+        )
+        db.session.add(assistant_msg)
+        safe_db_commit()
+    except Exception as exc:
+        logger.exception("Lyria RealTime message save error")
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return {'error': f'音声は保存されましたが、メッセージ保存に失敗しました: {exc}', 'audio_url': audio_url}, 500
+    return {'status': 'ok', 'audio_url': audio_url, 'thread_id': str(thread_db_id)}, 200
+
+
+def _lyria_finish_and_save(session, thread_id):
+    session.stop_event.set()
+    if session.thread:
+        session.thread.join(timeout=5)
+    with app.app_context():
+        try:
+            return _lyria_save_session(session, thread_id)
+        finally:
+            try:
+                db.session.remove()
+            except Exception:
+                pass
+
+
+def _lyria_input_pump(session):
+    """Owner-side loop: moves Redis commands into the Lyria session."""
+    in_key = _lyria_key("in", session.session_id)
+    idle_deadline = None
+    try:
+        while True:
+            now = time.time()
+            if session.stop_event.is_set():
+                # Session ended on its own: keep the audio for a while so the
+                # client can still save it.
+                if idle_deadline is None:
+                    idle_deadline = now + LYRIA_SESSION_TTL_SECONDS
+                elif now > idle_deadline:
+                    break
+            if now - session.started_at > LYRIA_BRIDGE_TTL_SECONDS or session.cancelled:
+                break
+            try:
+                item = redis_conn.blpop([in_key], timeout=1)
+            except Exception as exc:
+                logger.error(f"Lyria RealTime input pump error: {exc}")
+                time.sleep(1)
+                continue
+            if not item:
+                continue
+            try:
+                cmd = json.loads(item[1])
+            except Exception:
+                continue
+            ctype = cmd.get("type")
+            if ctype in ("prompts", "config", "control"):
+                if not session.stop_event.is_set():
+                    session.cmd_queue.put(cmd)
+            elif ctype == "cancel":
+                session.cancelled = True
+                session.stop_event.set()
+                break
+            elif ctype == "save":
+                try:
+                    result, status = _lyria_finish_and_save(session, cmd.get("thread_id"))
+                except Exception as exc:
+                    logger.exception("Lyria RealTime save failed")
+                    result, status = {'error': f'保存に失敗しました: {exc}'}, 500
+                result["_status"] = status
+                session.saved = True
+                res_key = _lyria_key("res", session.session_id)
+                pipe = redis_conn.pipeline()
+                pipe.rpush(res_key, json.dumps(result, ensure_ascii=False))
+                pipe.expire(res_key, 120)
+                pipe.execute()
+                break
+    finally:
+        session.stop_event.set()
+        if session.thread and session.thread is not threading.current_thread():
+            session.thread.join(timeout=5)
+        with LYRIA_SESSIONS_LOCK:
+            LYRIA_SESSIONS.pop(session.session_id, None)
+        keys = [_lyria_key("meta", session.session_id), _lyria_key("in", session.session_id),
+                _lyria_key("ev", session.session_id)]
+        if not session.saved:
+            keys.append(_lyria_key("res", session.session_id))
+        try:
+            redis_conn.delete(*keys)
+        except Exception as exc:
+            logger.error(f"Lyria RealTime bridge cleanup failed: {exc}")
+
+
+def _lyria_start_bridged_session(session, e2ee):
+    """Register the session in Redis and start the Lyria + command threads."""
+    session.bridged = True
+    session.e2ee = bool(e2ee)
+    meta_key = _lyria_key("meta", session.session_id)
+    pipe = redis_conn.pipeline()
+    pipe.hset(meta_key, mapping={
+        "user_id": str(session.user_id),
+        "status": session.status,
+        "owner": str(os.getpid()),
+    })
+    pipe.expire(meta_key, LYRIA_BRIDGE_TTL_SECONDS)
+    pipe.execute()
+    with LYRIA_SESSIONS_LOCK:
+        LYRIA_SESSIONS[session.session_id] = session
+    session.thread = threading.Thread(target=_lyria_worker, args=(session,), daemon=True, name=f"lyria-{session.session_id}")
+    session.pump_thread = threading.Thread(target=_lyria_input_pump, args=(session,), daemon=True, name=f"lyria-in-{session.session_id}")
+    session.thread.start()
+    session.pump_thread.start()
 

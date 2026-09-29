@@ -192,10 +192,14 @@ fun generationPanels(modelId: String, values: Map<String, String> = emptyMap()):
         ), "※ 履歴は送信しません"))
     }
     imageInputLimits(m)?.let { (title, lines) -> add(GenPanel("image-input-limits", limitsTitle = title, limits = lines)) }
-    ttsProvider(m)?.let { provider -> add(ttsPanel(provider, values)) }
+    ttsProvider(m)?.let { provider -> add(ttsPanel(m, provider, values)) }
 }
 
-private fun ttsPanel(provider: String, values: Map<String, String>): GenPanel {
+/** Web `GEMINI_INTERACTIONS_TTS_MODELS`: Style and Voice design / replication IDs. */
+val GEMINI_INTERACTIONS_TTS_MODELS = setOf("gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts")
+
+private fun ttsPanel(model: String, provider: String, values: Map<String, String>): GenPanel {
+    val interactions = provider == "gemini" && model.lowercase(Locale.ROOT) in GEMINI_INTERACTIONS_TTS_MODELS
     val (defaultVoice, defaultLanguage) = ttsDefaults(provider)
     val voices = when (provider) {
         "gemini" -> GEMINI_TTS_VOICES.map { it to it }
@@ -203,7 +207,7 @@ private fun ttsPanel(provider: String, values: Map<String, String>): GenPanel {
         "xai" -> GROK_TTS_VOICES.map { it to it }
         else -> OPENAI_TTS_VOICES.map { it to it }
     }
-    val customShown = provider == "xai" || (provider == "google" && values["tts_voice"] == "custom")
+    val customShown = provider == "xai" || interactions || (provider == "google" && values["tts_voice"] == "custom")
     val (min, max) = when (provider) {
         "google" -> 0.25 to 2.0
         "xai" -> 0.7 to 1.5
@@ -211,11 +215,13 @@ private fun ttsPanel(provider: String, values: Map<String, String>): GenPanel {
     }
     return GenPanel("audio-gen", listOf(
         GenField("tts_voice", "Voice", GenField.Kind.Select, defaultVoice, voices),
-        GenField("tts_voice_custom", "Custom Voice", GenField.Kind.Text, placeholder = "e.g. en-US-Wavenet-D", width = 192, hidden = !customShown),
+        GenField("tts_voice_custom", "Custom Voice", GenField.Kind.Text,
+            placeholder = if (interactions) "voice_... / voicekey_..." else "e.g. en-US-Wavenet-D", width = 192, hidden = !customShown),
+        GenField("tts_style", "Style", GenField.Kind.Text, placeholder = "e.g. warm and cheerful", width = 224, hidden = !interactions),
         GenField("tts_language", "Lang", GenField.Kind.Text, defaultLanguage, placeholder = "ja-JP", width = 80, hidden = provider != "google" && provider != "xai"),
         GenField("tts_speed", "Speed", GenField.Kind.Range, "1", min = min, max = max, step = 0.05, enabled = provider != "gemini"),
     ), note = when (provider) {
-        "gemini" -> "(Gemini TTSは速度変更非対応)"
+        "gemini" -> if (interactions) "(本文はそのまま読み上げ。話し方はStyleで指定・速度はStyleで調整)" else "(Gemini TTSは速度変更非対応)"
         "xai" -> "xAI TTS supports speed 0.7–1.5 and speech tags"
         else -> ""
     }, large = true)

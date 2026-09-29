@@ -21,6 +21,8 @@ class PlaygroundApplication : Application() {
         useQuoteSelectionToolbar()
         createBatchNotificationChannel(this)
         createAppUpdateNotificationChannel(this)
+        createToolbarNotificationChannel(this)
+        refreshToolbarNotification(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: Activity) { startedActivities++ }
             override fun onActivityStopped(activity: Activity) { startedActivities = (startedActivities - 1).coerceAtLeast(0) }

@@ -18,6 +18,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
 import com.minashin1120.aiplayground.AppUpdatePhase
 import com.minashin1120.aiplayground.AppUpdateUiState
 import com.minashin1120.aiplayground.BuildConfig
@@ -27,6 +31,8 @@ import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.CacheCategory
 import com.minashin1120.aiplayground.data.HistoryCacheMode
 import com.minashin1120.aiplayground.data.formatByteSize
+import com.minashin1120.aiplayground.isToolbarNotificationEnabled
+import com.minashin1120.aiplayground.setToolbarNotificationEnabled
 
 /** Android-only cards and the tabs whose native implementation follows in a later release. */
 internal class SettingsExtras(
@@ -34,12 +40,13 @@ internal class SettingsExtras(
     val onCheckForUpdate: () -> Unit,
     val onBubble: () -> Unit,
     val onWeb: (String) -> Unit,
+    val onNotify: (String) -> Unit,
     val onConfirmCacheClear: (CacheCategory) -> Unit,
 )
 
 /** ANDROID_ONLY.md: the "Android" card at the end of the General tab (account, app update, bubble). */
 internal fun androidCard(state: ChatState, extras: SettingsExtras): SettingsCardSpec =
-    SettingsCardSpec(SettingsTab.General, "android", "Android", "Android アカウント アプリ更新 更新を確認 バブル") {
+    SettingsCardSpec(SettingsTab.General, "android", "Android", "Android アカウント アプリ更新 更新を確認 バブル ツールバー通知 通知パネル 画像を分割") {
         val update = extras.appUpdate
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsFieldLabel("アカウント")
@@ -63,8 +70,30 @@ internal fun androidCard(state: ChatState, extras: SettingsExtras): SettingsCard
                 if (android.os.Build.VERSION.SDK_INT >= com.minashin1120.aiplayground.ANDROID_17_APP_BUBBLE_API) "バブルに追加する方法" else "バブルで開く",
                 extras.onBubble, fill = true,
             )
+            ToolbarNotificationSetting(extras.onNotify)
         }
     }
+
+/** ANDROID_ONLY.md: the notification-shade toolbar switch (needs the notification permission on Android 13+). */
+@Composable
+private fun ToolbarNotificationSetting(onNotify: (String) -> Unit) {
+    val context = LocalContext.current
+    var enabled by remember { mutableStateOf(isToolbarNotificationEnabled(context)) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted && setToolbarNotificationEnabled(context, true)) enabled = true
+        else onNotify("ツールバー通知を使うには通知権限が必要です。")
+    }
+    SettingsFieldLabel("ツールバー通知", Modifier.padding(top = 4.dp))
+    SettingsCheck("通知パネルにツールバーを表示", enabled, { on ->
+        if (!on) {
+            setToolbarNotificationEnabled(context, false)
+            enabled = false
+        } else if (setToolbarNotificationEnabled(context, true)) {
+            enabled = true
+        } else permission.launch(Manifest.permission.POST_NOTIFICATIONS)
+    })
+    SettingsDesc("通知パネルに常駐する通知から「画像を分割」を開きます。クイック設定の「画像を分割」タイルと同じ機能です。")
+}
 
 internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsForm, extras: SettingsExtras): List<SettingsCardSpec> = listOf(
     // ANDROID_ONLY.md: the device cache card replaces the Web Service Worker cache card.

@@ -107,7 +107,7 @@ fun SettingsDialog(
     val prefs = state.preferences
     val form = remember(if (loaded) "loaded" else prefs) { SettingsForm(prefs) }
     val notify: (String) -> Unit = model::notify
-    val extras = SettingsExtras(appUpdate, onCheckForUpdate, onBubble, onWeb) { confirmCache = it }
+    val extras = SettingsExtras(appUpdate, onCheckForUpdate, onBubble, onWeb, notify) { confirmCache = it }
     val ops = remember(model) { AccountOps(model.viewModelScope, model::accountApi, notify) }
     var confirmRequest by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
     val transfer by model.accountTransfer.state.collectAsState()

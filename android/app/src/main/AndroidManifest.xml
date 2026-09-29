@@ -8,6 +8,7 @@
     <!-- Web `navigator.vibrate` on send and when an answer completes. -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Keeps an update APK download running while the user leaves the app. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -79,6 +80,13 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+        <!-- Re-posts the notification-shade toolbar after a reboot or app update (only when switched on). -->
+        <receiver android:name=".ToolbarBootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <provider android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />

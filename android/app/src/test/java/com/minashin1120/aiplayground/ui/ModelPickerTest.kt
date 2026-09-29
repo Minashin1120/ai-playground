@@ -33,8 +33,9 @@ class ModelPickerTest {
 
     @Test
     fun tagBarKeepsWebOrder() {
-        assertEquals(18, MODEL_TAGS.size)
+        assertEquals(19, MODEL_TAGS.size)
         assertEquals("All", MODEL_TAGS.first())
+        assertEquals("ZAI", MODEL_TAGS[6])
         assertEquals("Agentic View", MODEL_TAGS.last())
     }
 
@@ -54,4 +55,3 @@ class ModelPickerTest {
         assertEquals(listOf("", "gpt-5.5", "retired-1"), gemDefaultModelOptions(models, "retired-1").map { it.value })
     }
 }
-

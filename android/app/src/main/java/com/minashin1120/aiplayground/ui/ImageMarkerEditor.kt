@@ -462,7 +462,12 @@ private fun MarkerToolbar(
             Text("元画像も添付", fontSize = 10.sp, color = Tw.gray400)
         }
         Text(MARKER_TOOL_HINTS[mode].orEmpty(), fontSize = 10.sp, color = Tw.gray500)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Web `ml-auto flex`: wraps on narrow phones so "保存して反映" is never squeezed out of view.
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
             MarkerActionButton("位置/倍率リセット", onClick = onResetView)
             if (mode == MarkerMode.CROP) MarkerActionButton("トリミングリセット", onClick = onResetCrop)
             MarkerActionButton("戻す", onClick = onUndo)

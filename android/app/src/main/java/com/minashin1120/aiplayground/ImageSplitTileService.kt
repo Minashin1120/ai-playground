@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
@@ -12,6 +13,7 @@ class ImageSplitTileService : TileService() {
         if (isLocked) unlockAndRun(::openSplit) else openSplit()
     }
 
+    @SuppressLint("StartActivityAndCollapseDeprecated") // Android 13 and older require the Intent overload.
     private fun openSplit() {
         val intent = Intent(this, ImageSplitOverlayActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

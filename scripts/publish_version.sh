@@ -149,6 +149,10 @@ if [[ "$allowed_count" == "0" ]]; then
     warn "there are no allowlisted changes to record"
     plan_errors=1
 fi
+if ! run_common check-android-notes; then
+    warn "the Android version changed without a matching android/ci/changelogs entry"
+    plan_errors=1
+fi
 if [[ "$TAG_EXISTS_LOCAL" -eq 1 || "$TAG_EXISTS_REMOTE" -eq 1 ]]; then
     warn "tag $TAG already exists; this version was already recorded"
     plan_errors=1

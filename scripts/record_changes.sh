@@ -102,6 +102,10 @@ paths = json.load(sys.stdin).get("allowed") or []
 raise SystemExit(0 if "android/version.properties" in paths else 1)
 ' || die "Android build inputs changed without updating android/version.properties"
 fi
+if [[ "$TARGET" == "android" ]]; then
+    run_common check-android-notes \
+        || die "write android/ci/changelogs/v$VERSION_NAME.md before recording"
+fi
 
 if [[ -z "$CONFIRM" ]]; then
     info "review the plan, then rerun with --confirm $EXPECTED_CONFIRM"

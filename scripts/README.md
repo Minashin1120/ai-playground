@@ -14,6 +14,6 @@
 - `test_landing_demo_dom.js`：軽量DOM shimを用いたランディング画面テスト
 - `measure_landing_cdp.py`／`verify_landing_geometry.js`：ブラウザー上の描画・座標検証
 
-Webの実装を変更した場合だけ `prepare_version.sh` と `publish_version.sh` を使います。Android単独変更は `record_changes.sh --target android`、公開サービスへ影響しない運用スクリプト・Android workflow単独変更は `record_changes.sh --target operations` を使います。どの記録スクリプトも確認なしでは計画だけ表示して終了し、対象外ファイルが混ざっていれば停止します。Android Actionsは配布物に関係するパスが変わった場合だけ起動します。
+Webの実装を変更した場合だけ `prepare_version.sh` と `publish_version.sh` を使います。Android単独変更は `record_changes.sh --target android`、公開サービスへ影響しない運用スクリプト・Android workflow単独変更は `record_changes.sh --target operations` を使います。どの記録スクリプトも確認なしでは計画だけ表示して終了し、対象外ファイルが混ざっていれば停止します。Android Actionsは配布物に関係するパスが変わった場合だけ起動します。`android/version.properties` の `VERSION_NAME` を進めたのに、その版の `android/ci/changelogs/vX.Y.Z.md`（箇条書き1行以上）が同じ変更に無い場合、`record_changes.sh --target android` と `publish_version.sh` は記録前に停止します。
 
 一部のスクリプトは、このリポジトリの参照デプロイ構成に合わせたサービス名やヘルスチェック先を使用しています。セルフホスト環境で利用する前に値を変更してください。これらはアプリの起動に必須ではありません。

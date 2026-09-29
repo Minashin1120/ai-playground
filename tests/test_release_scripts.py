@@ -232,6 +232,49 @@ class ReleaseScriptContractTests(unittest.TestCase):
         )
         self.assertIn("server/models.py", mixed["outside_target"])
 
+    def test_android_version_bump_requires_new_changelog(self):
+        import tempfile
+
+        previous = "VERSION_CODE=1\nVERSION_NAME=1.0.0\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "android" / "ci" / "changelogs").mkdir(parents=True)
+            (root / "android" / "version.properties").write_text(
+                "VERSION_CODE=2\nVERSION_NAME=1.0.1\n", encoding="utf-8"
+            )
+            bump = ["android/version.properties", "android/app/build.gradle.kts"]
+            missing = COMMON.android_release_notes_errors(bump, previous, root)
+            self.assertTrue(any("v1.0.1.md is missing" in e for e in missing))
+
+            notes = root / "android" / "ci" / "changelogs" / "v1.0.1.md"
+            notes.write_text("- 画面表示を修正しました。\n", encoding="utf-8")
+            reused = COMMON.android_release_notes_errors(bump, previous, root)
+            self.assertTrue(any("already existed" in e for e in reused))
+
+            with_notes = bump + ["android/ci/changelogs/v1.0.1.md"]
+            self.assertEqual(
+                COMMON.android_release_notes_errors(with_notes, previous, root), []
+            )
+
+            notes.write_text("# v1.0.1\n", encoding="utf-8")
+            empty = COMMON.android_release_notes_errors(with_notes, previous, root)
+            self.assertTrue(any("bullet" in e for e in empty))
+
+            phrase = COMMON.FORBIDDEN_CHANGELOG_PHRASES[0]
+            notes.write_text(f"- {phrase}修正しました。\n", encoding="utf-8")
+            forbidden = COMMON.android_release_notes_errors(with_notes, previous, root)
+            self.assertTrue(any("forbidden phrase" in e for e in forbidden))
+
+            same = "VERSION_CODE=1\nVERSION_NAME=1.0.1\n"
+            self.assertEqual(COMMON.android_release_notes_errors(bump, same, root), [])
+            self.assertEqual(
+                COMMON.android_release_notes_errors(["server/models.py"], previous, root),
+                [],
+            )
+
+        self.assertIn("check-android-notes", read("record_changes.sh"))
+        self.assertIn("check-android-notes", read("publish_version.sh"))
+
     def test_android_workflow_paths_match_release_classification(self):
         workflow = (ROOT / ".github" / "workflows" / "android.yml").read_text(
             encoding="utf-8"

@@ -342,6 +342,55 @@ def classify_record_target(paths: list[str], target: str) -> dict[str, object]:
     }
 
 
+ANDROID_VERSION_FILE = "android/version.properties"
+ANDROID_CHANGELOG_DIR = "android/ci/changelogs"
+
+
+def android_version_name(properties: str) -> str | None:
+    match = re.search(r"^VERSION_NAME=(\S+)\s*$", properties, re.MULTILINE)
+    return match.group(1) if match else None
+
+
+def git_head_text(path: str, repo: Path | None = None) -> str:
+    result = subprocess.run(
+        ["git", "show", f"HEAD:./{path}"],
+        cwd=repo or ROOT,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout if result.returncode == 0 else ""
+
+
+def android_release_notes_errors(
+    paths: list[str], previous_properties: str, root: Path | None = None
+) -> list[str]:
+    """Require a new versioned changelog whenever the Android VERSION_NAME moves."""
+    root = root or ROOT
+    changed = {normalize_git_path(path) for path in paths}
+    version_file = root / ANDROID_VERSION_FILE
+    if ANDROID_VERSION_FILE not in changed or not version_file.is_file():
+        return []
+    current = android_version_name(read_text(version_file))
+    if not current:
+        return [f"{ANDROID_VERSION_FILE} has an invalid VERSION_NAME"]
+    if current == android_version_name(previous_properties):
+        return []
+    notes_path = f"{ANDROID_CHANGELOG_DIR}/v{current}.md"
+    notes_file = root / notes_path
+    if not notes_file.is_file():
+        return [f"{notes_path} is missing; write the Android changelog for VERSION_NAME {current}"]
+    errors: list[str] = []
+    if notes_path not in changed:
+        errors.append(f"{notes_path} already existed; VERSION_NAME {current} must be an unused version")
+    notes = read_text(notes_file)
+    if not any(line.startswith("- ") and line[2:].strip() for line in notes.splitlines()):
+        errors.append(f"{notes_path} must contain at least one '- ' bullet")
+    forbidden = notes_are_forbidden(notes)
+    if forbidden:
+        errors.append(f"{notes_path} contains a forbidden phrase: {forbidden}")
+    return errors
+
+
 def classify_git_paths(paths: list[str]) -> dict[str, list[str]]:
     allowed: list[str] = []
     blocked: list[str] = []
@@ -726,6 +775,18 @@ def cmd_classify_record(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_check_android_notes(_args: argparse.Namespace) -> int:
+    errors = android_release_notes_errors(
+        git_status_paths(), git_head_text(ANDROID_VERSION_FILE)
+    )
+    for error in errors:
+        print(f"ERROR: {error}", file=sys.stderr)
+    if errors:
+        return 1
+    print("android changelog ok")
+    return 0
+
+
 def cmd_check_notes(args: argparse.Namespace) -> int:
     notes = args.notes
     if args.notes_file:
@@ -758,6 +819,8 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.add_argument("--handoff-notes")
     prepare.add_argument("--dry-run", action="store_true")
     prepare.set_defaults(func=cmd_prepare)
+
+    sub.add_parser("check-android-notes").set_defaults(func=cmd_check_android_notes)
 
     notes = sub.add_parser("check-notes")
     notes.add_argument("--notes", default="")

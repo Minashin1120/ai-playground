@@ -549,6 +549,18 @@
   },
   {
    "capabilities": [
+    "realtime_audio"
+   ],
+   "deprecated": false,
+   "id": "gemini-3.5-live-translate-preview",
+   "mode": "realtime_audio",
+   "name": "Gemini 3.5 Live Translate Preview",
+   "provider": "gemini",
+   "provider_label": "Gemini",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "transcription"
    ],
    "deprecated": false,
@@ -738,6 +750,286 @@
    "name": "Gemini Robotics Er 2 Preview",
    "provider": "gemini",
    "provider_label": "Gemini",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4-32b-0414-128k",
+   "mode": "chat",
+   "name": "GLM 4 32b 0414 128k",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.5",
+   "mode": "chat",
+   "name": "GLM 4.5",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.5-air",
+   "mode": "chat",
+   "name": "GLM 4.5 Air",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.5-airx",
+   "mode": "chat",
+   "name": "GLM 4.5 Airx",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.5-flash",
+   "mode": "chat",
+   "name": "GLM 4.5 Flash",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.5-x",
+   "mode": "chat",
+   "name": "GLM 4.5 X",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.5v",
+   "mode": "chat",
+   "name": "GLM 4.5v",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.6",
+   "mode": "chat",
+   "name": "GLM 4.6",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.6v",
+   "mode": "chat",
+   "name": "GLM 4.6v",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.6v-flash",
+   "mode": "chat",
+   "name": "GLM 4.6v Flash",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.6v-flashx",
+   "mode": "chat",
+   "name": "GLM 4.6v Flashx",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.7",
+   "mode": "chat",
+   "name": "GLM 4.7",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.7-flash",
+   "mode": "chat",
+   "name": "GLM 4.7 Flash",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-4.7-flashx",
+   "mode": "chat",
+   "name": "GLM 4.7 Flashx",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-5",
+   "mode": "chat",
+   "name": "GLM 5",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-5.1",
+   "mode": "chat",
+   "name": "GLM 5.1",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-5.2",
+   "mode": "chat",
+   "name": "GLM 5.2",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-5.3",
+   "mode": "chat",
+   "name": "GLM 5.3",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-5.3-flash",
+   "mode": "chat",
+   "name": "GLM 5.3 Flash",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking"
+   ],
+   "deprecated": false,
+   "id": "glm-5.3-flashx",
+   "mode": "chat",
+   "name": "GLM 5.3 Flashx",
+   "provider": "zai",
+   "provider_label": "Z.AI (GLM)",
    "selectable": true
   },
   {

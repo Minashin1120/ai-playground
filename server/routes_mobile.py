@@ -63,7 +63,7 @@ def _mobile_model_name(model_id):
     words = str(model_id).replace('_', '-').split('-')
     labels = {'gpt': 'GPT', 'tts': 'TTS', 'ocr': 'OCR', 'ai': 'AI', 'xai': 'xAI',
               'gemini': 'Gemini', 'grok': 'Grok', 'claude': 'Claude',
-              'deepseek': 'DeepSeek', 'kimi': 'Kimi', 'mistral': 'Mistral',
+              'deepseek': 'DeepSeek', 'kimi': 'Kimi', 'mistral': 'Mistral', 'glm': 'GLM',
               'veo': 'Veo', 'lyria': 'Lyria'}
     return ' '.join(labels.get(word.lower(), word.capitalize()) for word in words)
 
@@ -76,11 +76,11 @@ def _mobile_model_metadata(model_id):
     capabilities = [mode]
     if mode == 'chat':
         capabilities += ['attachments', 'thinking']
-        if model_id != 'gemini-3.8-flash-cyber':
+        if model_id != 'gemini-3.8-flash-cyber' and provider != 'zai':
             capabilities.append('search')
         if provider in {'gemini', 'openai', 'anthropic'}:
             capabilities.append('prompt_cache')
-        if model_id != 'gemini-3.8-flash-cyber':
+        if model_id != 'gemini-3.8-flash-cyber' and provider != 'zai':
             capabilities += ['python', 'mcp']
     if mode in {'chat', 'image'} and globals().get('_is_batch_model', lambda _model: False)(model_id):
         capabilities.append('batch')
@@ -370,6 +370,7 @@ _MOBILE_SECRET_FIELDS = (
     ('openai_key', 'openai_api_key'), ('gemini_key', 'gemini_api_key'),
     ('anthropic_key', 'anthropic_api_key'), ('deepseek_key', 'deepseek_api_key'),
     ('kimi_key', 'kimi_api_key'), ('mistral_key', 'mistral_api_key'),
+    ('zai_key', 'zai_api_key'),
     ('xai_key', 'xai_api_key'), ('google_key', 'google_api_key'),
 )
 _MOBILE_STT_MODELS = VALID_STT_MODELS

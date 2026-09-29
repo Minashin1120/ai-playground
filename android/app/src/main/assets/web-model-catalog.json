@@ -1513,6 +1513,404 @@
     ]
   },
   {
+    "id": "glm-5.3",
+    "name": "GLM-5.3",
+    "description": "Flagship coding and agent model; 1M context.",
+    "price": "In $1.40/1M, Out $4.40/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-5.3",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10421,
+    "emoji": "🧠",
+    "deprecated": false,
+    "tags": [
+      "zai"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-5.3-flash",
+    "name": "GLM-5.3-Flash",
+    "description": "Fast multimodal model; image input, 1M context.",
+    "price": "In $0.15/1M, Out $0.50/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-5.3-flash",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10422,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai",
+      "image",
+      "fast"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-5.3-flashx",
+    "name": "GLM-5.3-FlashX",
+    "description": "Fast multimodal model; image input, 1M context.",
+    "price": "In $0.37/1M, Out $1.25/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-5.3-flashx",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10423,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai",
+      "image",
+      "fast"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-5.2",
+    "name": "GLM-5.2",
+    "description": "Coding model; 1M context.",
+    "price": "In $1.40/1M, Out $4.40/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-5.2",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10420,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-5.1",
+    "name": "GLM-5.1",
+    "description": "Long-running coding tasks; 200K context.",
+    "price": "In $1.40/1M, Out $4.40/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-5.1",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10419,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-5",
+    "name": "GLM-5",
+    "description": "Reasoning and agentic coding; 200K context.",
+    "price": "In $1.00/1M, Out $3.20/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-5",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10418,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai",
+      "reasoning",
+      "agent"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.7",
+    "name": "GLM-4.7",
+    "description": "Agentic coding; 200K context.",
+    "price": "In $0.60/1M, Out $2.20/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.7",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10417,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai",
+      "agent"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.7-flashx",
+    "name": "GLM-4.7-FlashX",
+    "description": "Fast agentic coding; 200K context.",
+    "price": "In $0.07/1M, Out $0.40/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.7-flashx",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10416,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai",
+      "fast",
+      "agent"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.7-flash",
+    "name": "GLM-4.7-Flash",
+    "description": "Free lightweight model; 200K context.",
+    "price": "Free",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.7-flash",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10415,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.6",
+    "name": "GLM-4.6",
+    "description": "Coding and general use; 200K context.",
+    "price": "In $0.60/1M, Out $2.20/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.6",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10414,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.5",
+    "name": "GLM-4.5",
+    "description": "Reasoning model; 128K context.",
+    "price": "In $0.60/1M, Out $2.20/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.5",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10413,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai",
+      "reasoning"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.5-x",
+    "name": "GLM-4.5-X",
+    "description": "Fast reasoning model; 128K context.",
+    "price": "In $2.20/1M, Out $8.90/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.5-x",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10412,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai",
+      "reasoning",
+      "fast"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.5-air",
+    "name": "GLM-4.5-Air",
+    "description": "Cost-effective model; 128K context.",
+    "price": "In $0.20/1M, Out $1.10/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.5-air",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10411,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.5-airx",
+    "name": "GLM-4.5-AirX",
+    "description": "Fast lightweight model; 128K context.",
+    "price": "In $1.10/1M, Out $4.50/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.5-airx",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10410,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai",
+      "fast"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.5-flash",
+    "name": "GLM-4.5-Flash",
+    "description": "Free lightweight model; 200K context.",
+    "price": "Free",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.5-flash",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10409,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4-32b-0414-128k",
+    "name": "GLM-4-32B-0414-128K",
+    "description": "Compact general model; 128K context.",
+    "price": "In $0.10/1M, Out $0.10/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4-32b-0414-128k",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10408,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.6v",
+    "name": "GLM-4.6V",
+    "description": "Image understanding with tools; 128K context.",
+    "price": "In $0.30/1M, Out $0.90/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.6v",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10407,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai",
+      "image"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.6v-flashx",
+    "name": "GLM-4.6V-FlashX",
+    "description": "Fast image understanding; 128K context.",
+    "price": "In $0.04/1M, Out $0.40/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.6v-flashx",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10406,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai",
+      "image",
+      "fast"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.6v-flash",
+    "name": "GLM-4.6V-Flash",
+    "description": "Free image understanding; 128K context.",
+    "price": "Free",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.6v-flash",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10405,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai",
+      "image"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "glm-4.5v",
+    "name": "GLM-4.5V",
+    "description": "Multimodal reasoning; 64K context.",
+    "price": "In $0.60/1M, Out $1.80/1M",
+    "category": "Z.AI GLM",
+    "categoryIcon": "fas fa-brain text-emerald-400",
+    "categoryDescription": "Z.AI chat and vision models (Chat Completions API)",
+    "apiId": "glm-4.5v",
+    "agenticView": false,
+    "implementedAt": "2026-09-29",
+    "implementedRank": 10404,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "zai",
+      "reasoning"
+    ],
+    "searchTerms": []
+  },
+  {
     "id": "kimi-k3",
     "name": "Kimi K3",
     "description": "Always-reasoning flagship model with 1M context, vision, tool calling.",

@@ -308,13 +308,16 @@ def _analyze_image_with_vision_model(model_id, img_data, img_mime, prompt, api_k
                 pass
             return None
 
-        # --- OpenAI / xAI (Grok) ---
-        if model_l.startswith(("gpt-", "o1-", "o3-", "grok-")):
+        # --- OpenAI / xAI (Grok) / Z.AI (GLM vision) ---
+        if model_l.startswith(("gpt-", "o1-", "o3-", "grok-", "glm-")):
             base_url = None
             oa_key = None
             if model_l.startswith("grok-"):
                 oa_key = api_keys.get("xai")
                 base_url = f"https://{_XAI_API_HOST}/v1"
+            elif model_l.startswith("glm-"):
+                oa_key = api_keys.get("zai")
+                base_url = "https://api.z.ai/api/paas/v4"
             else:
                 oa_key = api_keys.get("openai")
             if not oa_key:

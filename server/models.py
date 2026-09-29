@@ -17,6 +17,7 @@ class User(UserMixin, db.Model):
     gemini_api_key = db.Column(db.Text, nullable=True)
     anthropic_api_key = db.Column(db.Text, nullable=True)
     deepseek_api_key = db.Column(db.Text, nullable=True)
+    zai_api_key = db.Column(db.Text, nullable=True)
     kimi_api_key = db.Column(db.Text, nullable=True)
     mistral_api_key = db.Column(db.Text, nullable=True)
     model_api_keys = db.Column(db.Text, nullable=True)

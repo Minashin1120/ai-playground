@@ -55,6 +55,7 @@ internal fun ImageSplitDialog(
     onDismiss: () -> Unit,
     onAttach: (ImageSplitOptions) -> Unit,
     onSaveOnly: (ImageSplitOptions) -> Unit,
+    attachLabel: String = "分割して添付",
 ) {
     val web = LocalWebPalette.current
     val context = LocalContext.current
@@ -142,7 +143,7 @@ internal fun ImageSplitDialog(
                     Text("保存のみ", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White,
                         modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(web.twBg(Tw.gray700))
                             .clickable(role = Role.Button) { onSaveOnly(options) }.padding(horizontal = 16.dp, vertical = 8.dp))
-                    Text("分割して添付", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    Text(attachLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
                         modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(web.theme.t600)
                             .clickable(role = Role.Button) { onAttach(options) }.padding(horizontal = 16.dp, vertical = 8.dp))
                 }

@@ -556,7 +556,7 @@
                 MODELS.forEach(group => {
                     const visionItems = (group.items || []).filter(m => {
                         const id = (m.id || '').toLowerCase();
-                        return id.startsWith('gemini-') || id.startsWith('gpt-4o') || id.startsWith('claude-') || id.startsWith('grok-3');
+                        return id.startsWith('gemini-') || id.startsWith('gpt-4o') || id.startsWith('claude-') || id.startsWith('grok-3') || ['glm-5.3-flash', 'glm-5.3-flashx', 'glm-4.6v', 'glm-4.6v-flashx', 'glm-4.6v-flash', 'glm-4.5v'].includes(id);
                     });
                     if (visionItems.length === 0) return;
                     const optgroup = document.createElement('optgroup');
@@ -606,6 +606,7 @@
                 if(get('set-openai')) get('set-openai').value = d.openai_key || '';
                 if(get('set-gemini')) get('set-gemini').value = d.gemini_key || '';
                 if(get('set-deepseek')) get('set-deepseek').value = d.deepseek_key || '';
+                if(get('set-zai')) get('set-zai').value = d.zai_key || '';
                 if(get('set-kimi')) get('set-kimi').value = d.kimi_key || '';
                 if(get('set-mistral')) get('set-mistral').value = d.mistral_key || '';
                 if(get('set-anthropic')) get('set-anthropic').value = d.anthropic_key || '';
@@ -987,6 +988,7 @@
                 if (get('set-openai')) b.openai_key = get('set-openai').value;
                 if (get('set-gemini')) b.gemini_key = get('set-gemini').value;
                 if (get('set-deepseek')) b.deepseek_key = get('set-deepseek').value;
+                if (get('set-zai')) b.zai_key = get('set-zai').value;
                 if (get('set-kimi')) b.kimi_key = get('set-kimi').value;
                 if (get('set-mistral')) b.mistral_key = get('set-mistral').value;
                 if (get('set-anthropic')) b.anthropic_key = get('set-anthropic').value;

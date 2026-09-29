@@ -76,7 +76,7 @@ fun isLlmModel(model: String): Boolean {
     if (listOf("tts", "transcribe", "realtime", "voice-agent", "native-audio", "live", "image", "video").any { m.contains(it) } ||
         isGeminiVideoModelKey(m) || isGeminiMusicModelKey(m) || isGeminiEmbeddingModelKey(m)) return false
     if (m.contains("gemini") && (m.contains("image") || m.contains("nano"))) return false
-    return m.contains("gpt") || m.contains("gemini") || m.contains("grok") || m.contains("deepseek") ||
+    return m.contains("gpt") || m.contains("gemini") || m.contains("grok") || m.contains("deepseek") || m.startsWith("glm-") ||
         m.startsWith("deep-research-") || m.startsWith("antigravity-")
 }
 
@@ -93,6 +93,7 @@ fun isBatchModelKey(model: String): Boolean {
 fun mcpModelSupported(model: String): Boolean {
     val m = model.lowercase(Locale.ROOT)
     if (m.isBlank()) return false
+    if (m.startsWith("glm-")) return false
     if (m.contains("claude") || m.startsWith("kimi")) return true
     return isLlmModel(m)
 }
@@ -103,6 +104,7 @@ fun modelApiProvider(model: String): String? {
     if (m.isEmpty()) return null
     if (m.contains("claude")) return "anthropic"
     if (m.contains("deepseek")) return "deepseek"
+    if (m.startsWith("glm-")) return "zai"
     if (m.contains("grok") && !m.contains("gpt")) return "xai"
     if (m.contains("google-tts")) return "google"
     if (m.contains("gemini") || m.startsWith("veo-") || m.startsWith("lyria-") || m.startsWith("deep-research-") || m.startsWith("antigravity-")) return "gemini"
@@ -111,7 +113,7 @@ fun modelApiProvider(model: String): String? {
 
 val PROVIDER_LABELS = mapOf(
     "openai" to "OpenAI", "gemini" to "Gemini", "anthropic" to "Anthropic (Claude)",
-    "xai" to "xAI (Grok)", "deepseek" to "DeepSeek", "google" to "Google Cloud",
+    "xai" to "xAI (Grok)", "deepseek" to "DeepSeek", "zai" to "Z.AI (GLM)", "google" to "Google Cloud",
 )
 
 private class MutableRule(var visible: Boolean = true, var dimmed: Boolean = false, var disabled: Boolean = false, var forced: Boolean? = null) {
@@ -123,6 +125,7 @@ private class MutableRule(var visible: Boolean = true, var dimmed: Boolean = fal
 fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
     val ml = model.lowercase(Locale.ROOT)
     val isDeepSeek = ml.contains("deepseek")
+    val isZai = ml.startsWith("glm-")
     val isSearchModel = model == "gpt-5-search-api"
     val isTts = model.contains("tts")
     val isOcr = isMistralOcrModel(model)
@@ -145,7 +148,7 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
     var fallback: String? = null
     var budget = false
 
-    val promptCacheSupported = llm && !isDeepSeek && !isTts && !ml.contains("realtime") && !ml.contains("native-audio") && !ml.contains("live")
+    val promptCacheSupported = llm && !isDeepSeek && !isZai && !isTts && !ml.contains("realtime") && !ml.contains("native-audio") && !ml.contains("live")
     val promptCache = if (promptCacheSupported) MutableRule() else MutableRule(dimmed = true, disabled = true, forced = false)
 
     when {
@@ -230,6 +233,9 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
         listOf(search, maps, python).forEach { it.off(); it.disabled = true }
         urls.off(); urls.disabled = true
         listOf(search, urls, maps, python).forEach { it.dimmed = true }
+    }
+    if (isZai) {
+        listOf(search, python).forEach { it.off(); it.disabled = true; it.dimmed = true }
     }
 
     val gpt56 = ml == "gpt-5.6" || ml.startsWith("gpt-5.6-")

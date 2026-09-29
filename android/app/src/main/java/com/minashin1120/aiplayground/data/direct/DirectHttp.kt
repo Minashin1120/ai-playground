@@ -125,7 +125,7 @@ class DirectHttp(
         val PROVIDER_HOSTS = setOf(
             "generativelanguage.googleapis.com", "aiplatform.googleapis.com", "oauth2.googleapis.com",
             "texttospeech.googleapis.com", "api.openai.com", "api.anthropic.com", "api.x.ai",
-            "api.deepseek.com", "api.moonshot.ai", "api.mistral.ai",
+            "api.deepseek.com", "api.moonshot.ai", "api.mistral.ai", "api.z.ai",
         )
 
         /** The provider's own error message (`{"error":{"message":…}}` and similar), without echoing request data. */

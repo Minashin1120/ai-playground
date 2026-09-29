@@ -1021,7 +1021,9 @@
                 const uploadModelLower = model.toLowerCase();
                 // V4.1 Flash accepts images natively, so the vision-model notice is not needed.
                 const deepseekNativeVision = uploadModelLower === 'deepseek-v4.1-flash' || uploadModelLower === 'deepseek-v4-flash-vision-exp';
-                const needsVisionNotice = uploadModelLower.includes('deepseek') && !deepseekNativeVision;
+                const glmNativeVision = ['glm-5.3-flash', 'glm-5.3-flashx', 'glm-4.6v', 'glm-4.6v-flashx', 'glm-4.6v-flash', 'glm-4.5v'].includes(uploadModelLower);
+                const needsVisionNotice = (uploadModelLower.includes('deepseek') && !deepseekNativeVision)
+                    || (uploadModelLower.startsWith('glm-') && !glmNativeVision);
                 vmi.classList.toggle('hidden', !needsVisionNotice);
             }
             _syncVisionModelDisplay();

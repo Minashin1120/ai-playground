@@ -1057,6 +1057,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_zai_api_key_column()
+    except Exception:
+        pass
+    try:
         ensure_user_anthropic_api_key_column()
     except Exception:
         pass
@@ -1217,6 +1221,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN mistral_api_key TEXT")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN zai_api_key TEXT")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN admin_api_key_mode VARCHAR(24) DEFAULT 'env_fallback'")

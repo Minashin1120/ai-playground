@@ -75,7 +75,8 @@ internal fun defaultModelOptions(models: List<ModelInfo>): List<WebOption> =
 internal fun visionModelOptions(models: List<ModelInfo>): List<WebOption> =
     models.filter { it.selectable && !it.deprecated }.filter { m ->
         val id = m.id.lowercase()
-        id.startsWith("gemini-") || id.startsWith("gpt-4o") || id.startsWith("claude-") || id.startsWith("grok-3")
+        id.startsWith("gemini-") || id.startsWith("gpt-4o") || id.startsWith("claude-") || id.startsWith("grok-3") ||
+            id in setOf("glm-5.3-flash", "glm-5.3-flashx", "glm-4.6v", "glm-4.6v-flashx", "glm-4.6v-flash", "glm-4.5v")
     }.map { WebOption(it.id, "${it.name} ★", it.category.ifBlank { null }) }
 
 internal fun generalCards(
@@ -211,11 +212,12 @@ private fun DefaultOptionSelects(form: SettingsForm) {
 
 internal fun apiCards(state: ChatState, form: SettingsForm, notify: (String) -> Unit): List<SettingsCardSpec> = listOf(
     SettingsCardSpec(SettingsTab.Api, "api-keys", "APIキー",
-        "APIキー OpenAI API Key Gemini API Key DeepSeek API Key Kimi (Moonshot) API Key Mistral API Key Anthropic API Key Gemini 接続方式 Gemini API API Key で認証 Vertex AI Project/Location + ADC or JSON Vertex AI Project ID Vertex AI Location Vertex Service Account JSON (任意) xAI API Key Google API Key (TTS) Google Cloud Project ID (TTS) モデル別APIキー（特例） 通常のプロバイダーAPIキーより優先して、指定モデルにだけ適用します。 モデル別のAPIキーを設定する") {
+        "APIキー OpenAI API Key Gemini API Key DeepSeek API Key Z.AI API Key Kimi (Moonshot) API Key Mistral API Key Anthropic API Key Gemini 接続方式 Gemini API API Key で認証 Vertex AI Project/Location + ADC or JSON Vertex AI Project ID Vertex AI Location Vertex Service Account JSON (任意) xAI API Key Google API Key (TTS) Google Cloud Project ID (TTS) モデル別APIキー（特例） 通常のプロバイダーAPIキーより優先して、指定モデルにだけ適用します。 モデル別のAPIキーを設定する") {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             KeyField("OpenAI API Key", "openai_key", form)
             KeyField("Gemini API Key", "gemini_key", form)
             KeyField("DeepSeek API Key", "deepseek_key", form)
+            KeyField("Z.AI API Key", "zai_key", form)
             KeyField("Kimi (Moonshot) API Key", "kimi_key", form)
             KeyField("Mistral API Key", "mistral_key", form)
             KeyField("Anthropic API Key", "anthropic_key", form)

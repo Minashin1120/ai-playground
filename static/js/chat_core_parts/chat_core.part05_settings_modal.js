@@ -836,6 +836,33 @@
                 ]
             },
             {
+                category: "Z.AI GLM",
+                icon: "fas fa-brain text-emerald-400",
+                description: "Z.AI chat and vision models (Chat Completions API)",
+                items: [
+                    { id: "glm-5.3", implementedAt: "2026-09-29", implementedRank: 10421, quickEmoji: "🧠", name: "GLM-5.3", desc: "Flagship coding and agent model; 1M context.", price: "In $1.40/1M, Out $4.40/1M" },
+                    { id: "glm-5.3-flash", implementedAt: "2026-09-29", implementedRank: 10422, name: "GLM-5.3-Flash", desc: "Fast multimodal model; image input, 1M context.", price: "In $0.15/1M, Out $0.50/1M" },
+                    { id: "glm-5.3-flashx", implementedAt: "2026-09-29", implementedRank: 10423, name: "GLM-5.3-FlashX", desc: "Fast multimodal model; image input, 1M context.", price: "In $0.37/1M, Out $1.25/1M" },
+                    { id: "glm-5.2", implementedAt: "2026-09-29", implementedRank: 10420, name: "GLM-5.2", desc: "Coding model; 1M context.", price: "In $1.40/1M, Out $4.40/1M" },
+                    { id: "glm-5.1", implementedAt: "2026-09-29", implementedRank: 10419, name: "GLM-5.1", desc: "Long-running coding tasks; 200K context.", price: "In $1.40/1M, Out $4.40/1M" },
+                    { id: "glm-5", implementedAt: "2026-09-29", implementedRank: 10418, name: "GLM-5", desc: "Reasoning and agentic coding; 200K context.", price: "In $1.00/1M, Out $3.20/1M" },
+                    { id: "glm-4.7", implementedAt: "2026-09-29", implementedRank: 10417, name: "GLM-4.7", desc: "Agentic coding; 200K context.", price: "In $0.60/1M, Out $2.20/1M" },
+                    { id: "glm-4.7-flashx", implementedAt: "2026-09-29", implementedRank: 10416, name: "GLM-4.7-FlashX", desc: "Fast agentic coding; 200K context.", price: "In $0.07/1M, Out $0.40/1M" },
+                    { id: "glm-4.7-flash", implementedAt: "2026-09-29", implementedRank: 10415, name: "GLM-4.7-Flash", desc: "Free lightweight model; 200K context.", price: "Free" },
+                    { id: "glm-4.6", implementedAt: "2026-09-29", implementedRank: 10414, name: "GLM-4.6", desc: "Coding and general use; 200K context.", price: "In $0.60/1M, Out $2.20/1M" },
+                    { id: "glm-4.5", implementedAt: "2026-09-29", implementedRank: 10413, name: "GLM-4.5", desc: "Reasoning model; 128K context.", price: "In $0.60/1M, Out $2.20/1M" },
+                    { id: "glm-4.5-x", implementedAt: "2026-09-29", implementedRank: 10412, name: "GLM-4.5-X", desc: "Fast reasoning model; 128K context.", price: "In $2.20/1M, Out $8.90/1M" },
+                    { id: "glm-4.5-air", implementedAt: "2026-09-29", implementedRank: 10411, name: "GLM-4.5-Air", desc: "Cost-effective model; 128K context.", price: "In $0.20/1M, Out $1.10/1M" },
+                    { id: "glm-4.5-airx", implementedAt: "2026-09-29", implementedRank: 10410, name: "GLM-4.5-AirX", desc: "Fast lightweight model; 128K context.", price: "In $1.10/1M, Out $4.50/1M" },
+                    { id: "glm-4.5-flash", implementedAt: "2026-09-29", implementedRank: 10409, name: "GLM-4.5-Flash", desc: "Free lightweight model; 200K context.", price: "Free" },
+                    { id: "glm-4-32b-0414-128k", implementedAt: "2026-09-29", implementedRank: 10408, name: "GLM-4-32B-0414-128K", desc: "Compact general model; 128K context.", price: "In $0.10/1M, Out $0.10/1M" },
+                    { id: "glm-4.6v", implementedAt: "2026-09-29", implementedRank: 10407, name: "GLM-4.6V", desc: "Image understanding with tools; 128K context.", price: "In $0.30/1M, Out $0.90/1M" },
+                    { id: "glm-4.6v-flashx", implementedAt: "2026-09-29", implementedRank: 10406, name: "GLM-4.6V-FlashX", desc: "Fast image understanding; 128K context.", price: "In $0.04/1M, Out $0.40/1M" },
+                    { id: "glm-4.6v-flash", implementedAt: "2026-09-29", implementedRank: 10405, name: "GLM-4.6V-Flash", desc: "Free image understanding; 128K context.", price: "Free" },
+                    { id: "glm-4.5v", implementedAt: "2026-09-29", implementedRank: 10404, name: "GLM-4.5V", desc: "Multimodal reasoning; 64K context.", price: "In $0.60/1M, Out $1.80/1M" }
+                ]
+            },
+            {
                 category: "Kimi K3",
                 icon: "fas fa-brain text-violet-400",
                 description: "Moonshot AI's flagship 2.8T-parameter model with 1M context and always-on thinking",
@@ -1043,6 +1070,7 @@
             if (id.startsWith('gemini') || id.startsWith('veo-') || id.startsWith('lyria-') || id.startsWith('deep-research-') || id.startsWith('antigravity-')) return { provider: 'gemini', keyField: 'gemini_key', inputId: 'set-gemini', label: 'Gemini API Key' };
             if (id.startsWith('gpt') || id.startsWith('o1') || id.startsWith('o3')) return { provider: 'openai', keyField: 'openai_key', inputId: 'set-openai', label: 'OpenAI API Key' };
             if (id.startsWith('deepseek')) return { provider: 'deepseek', keyField: 'deepseek_key', inputId: 'set-deepseek', label: 'DeepSeek API Key' };
+            if (id.startsWith('glm-')) return { provider: 'zai', keyField: 'zai_key', inputId: 'set-zai', label: 'Z.AI API Key' };
             if (id.startsWith('kimi')) return { provider: 'kimi', keyField: 'kimi_key', inputId: 'set-kimi', label: 'Kimi (Moonshot) API Key' };
             if (id.startsWith('mistral')) return { provider: 'mistral', keyField: 'mistral_key', inputId: 'set-mistral', label: 'Mistral API Key' };
             if (id.startsWith('claude')) return { provider: 'anthropic', keyField: 'anthropic_key', inputId: 'set-anthropic', label: 'Anthropic API Key' };
@@ -1176,7 +1204,7 @@
         };
 
         let activeModelTag = 'all';
-        const MODEL_TAGS = ['all','openai','gemini','anthropic','kimi','deepseek','mistral','xai','image','video','audio','music','transcription','ocr','reasoning','fast','agent','agentic view'];
+        const MODEL_TAGS = ['all','openai','gemini','anthropic','kimi','deepseek','zai','mistral','xai','image','video','audio','music','transcription','ocr','reasoning','fast','agent','agentic view'];
 
         // Slash command system (extensible command palette triggered by / in prompt bar)
         const MINIMAL_SLASH_COMMANDS = [
@@ -1344,6 +1372,7 @@
             if (!m) return null;
             if (m.includes('claude')) return 'anthropic';
             if (m.includes('deepseek')) return 'deepseek';
+            if (m.startsWith('glm-')) return 'zai';
             if (m.includes('grok') && !m.includes('gpt')) return 'xai';
             if (m.includes('google-tts')) return 'google';
             if (m.includes('gemini') || m.startsWith('veo-') || m.startsWith('lyria-') || m.startsWith('deep-research-') || m.startsWith('antigravity-')) return 'gemini';
@@ -1355,6 +1384,7 @@
             anthropic: 'Anthropic (Claude)',
             xai: 'xAI (Grok)',
             deepseek: 'DeepSeek',
+            zai: 'Z.AI (GLM)',
             google: 'Google Cloud'
         };
         const isPromptCacheEnabled = () => {
@@ -1461,7 +1491,7 @@
                 isGeminiEmbeddingModelKey(m)
             ) return false;
             if (m.includes('gemini') && (m.includes('image') || m.includes('nano'))) return false;
-            return m.includes('gpt') || m.includes('gemini') || m.includes('grok') || m.includes('deepseek') || m.startsWith('deep-research-') || m.startsWith('antigravity-');
+            return m.includes('gpt') || m.includes('gemini') || m.includes('grok') || m.includes('deepseek') || m.startsWith('glm-') || m.startsWith('deep-research-') || m.startsWith('antigravity-');
         };
         const isGrokImageModel = () => {
             const m = (get('model-select').value || '').toLowerCase();

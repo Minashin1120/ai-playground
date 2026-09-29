@@ -533,12 +533,14 @@ def _call_coding_mode_repair_model(user, model_key, repair_prompt):
     base_url = None
     if provider == "deepseek":
         base_url = "https://api.deepseek.com"
+    elif provider == "zai":
+        base_url = "https://api.z.ai/api/paas/v4"
     elif provider == "kimi":
         base_url = "https://api.moonshot.ai/v1"
     elif provider == "xai":
         base_url = f"https://{_XAI_API_HOST}/v1"
     client = _get_openai_client(api_key, base_url=base_url)
-    if provider in {"deepseek", "kimi", "xai"}:
+    if provider in {"deepseek", "kimi", "xai", "zai"}:
         response = client.chat.completions.create(
             model=_deepseek_api_model_id(model_key) if provider == "deepseek" else model_key,
             messages=[
@@ -1413,6 +1415,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             is_gem = is_gemini_model_key(model_key_l)
             is_claude = is_anthropic_model_key(model_key_l)
             is_deepseek = is_deepseek_model_key(model_key_l)
+            is_zai = model_key_l.startswith("glm-")
             is_kimi = 'kimi' in model_key_l
             is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
             is_mistral_ocr = is_mistral_ocr_model_key(model_key_l)
@@ -1624,6 +1627,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 'anthropic': get_k(user.anthropic_api_key, 'ANTHROPIC_API_KEY'),
                 'xai': get_k(user.xai_api_key, 'XAI_API_KEY'),
                 'deepseek': get_k(user.deepseek_api_key, 'DEEPSEEK_API_KEY'),
+                'zai': get_k(user.zai_api_key, 'ZAI_API_KEY'),
                 'kimi': get_k(user.kimi_api_key, 'MOONSHOT_API_KEY'),
                 'mistral': get_k(user.mistral_api_key, 'MISTRAL_API_KEY'),
             }
@@ -1669,6 +1673,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 o_client = _get_openai_client(key, base_url=f"https://{_XAI_API_HOST}/v1")
             elif is_deepseek:
                 o_client = _get_openai_client(key, base_url="https://api.deepseek.com")
+            elif is_zai:
+                o_client = _get_openai_client(key, base_url="https://api.z.ai/api/paas/v4")
             elif is_kimi:
                 o_client = _get_openai_client(key, base_url="https://api.moonshot.ai/v1")
             elif is_mistral_ocr:
@@ -5941,8 +5947,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 except Exception as e:
                     pub("error", f"DeepSeek Error: {str(e)}")
 
-            elif is_kimi:
-                log_force("Routing: Kimi K3 Branch (Chat Completions)")
+            elif is_kimi or is_zai:
+                log_force(f"Routing: {'Z.AI GLM' if is_zai else 'Kimi K3'} Branch (Chat Completions)")
                 try:
                     if check_stop():
                         return
@@ -5966,8 +5972,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if fi.get('text') and not (fi.get('bytes') and str(fi.get('mime', '')).startswith('image/')):
                             user_text += f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
 
-                    # If images are present, analyze them with a vision model (Kimi K3 supports images directly)
-                    if image_files:
+                    zai_accepts_images = is_zai and (model_key_l in {
+                        "glm-5.3-flash", "glm-5.3-flashx", "glm-4.6v",
+                        "glm-4.6v-flashx", "glm-4.6v-flash", "glm-4.5v",
+                    })
+                    # Text-only models use the configured vision model for image descriptions.
+                    if image_files and not zai_accepts_images:
                         vision_model = (options.get('image_vision_model') or "").strip()
                         analysis_prompt = _auto_notice_text("image_analysis") or DEFAULT_IMAGE_ANALYSIS_PROMPT
                         if not vision_model:
@@ -6004,22 +6014,32 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             pub("error", "画像の解析に失敗しました。Vision Model の API 設定を確認してください。")
                             return
 
-                    if not user_text.strip():
+                    if not user_text.strip() and not (zai_accepts_images and image_files):
                         pub("error", "Kimi K3 request is empty.")
                         return
 
-                    messages.append({"role": "user", "content": user_text})
+                    if zai_accepts_images and image_files:
+                        user_parts = [{"type": "text", "text": user_text}]
+                        for fi in image_files:
+                            user_parts.append({"type": "image_url", "image_url": {
+                                "url": f"data:{fi.get('mime') or 'image/png'};base64,"
+                                + base64.b64encode(fi['bytes']).decode('ascii')
+                            }})
+                        messages.append({"role": "user", "content": user_parts})
+                    else:
+                        messages.append({"role": "user", "content": user_text})
                     kimi_kwargs = {
                         "model": model_key,
                         "messages": messages,
                         "stream": True,
-                        "stream_options": {"include_usage": True},
                     }
+                    if is_kimi:
+                        kimi_kwargs["stream_options"] = {"include_usage": True}
                     # Kimi K3 always thinks; reasoning_effort is top-level (low/high/max, default max)
                     enable_reasoning = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
-                    if enable_reasoning:
+                    if enable_reasoning and is_kimi:
                         kimi_kwargs["reasoning_effort"] = _kimi_reasoning_effort()
-                    if options.get('enable_prompt_caching') and options.get('prompt_cache_key'):
+                    if is_kimi and options.get('enable_prompt_caching') and options.get('prompt_cache_key'):
                         kimi_kwargs["extra_body"] = dict(kimi_kwargs.get("extra_body") or {})
                         kimi_kwargs["extra_body"]["prompt_cache_key"] = options.get('prompt_cache_key')
                         log_force(f"Kimi Prompt Caching key={options.get('prompt_cache_key')}")
@@ -6068,7 +6088,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             full_res += c_content
                             pub("content", c_content)
                 except Exception as e:
-                    pub("error", f"Kimi Error: {str(e)}")
+                    pub("error", f"{'Z.AI' if is_zai else 'Kimi'} Error: {str(e)}")
 
             # --- 4. OpenAI Responses API (or Grok Fallback) ---
             else:

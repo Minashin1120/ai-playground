@@ -310,6 +310,7 @@
                 const model = modelEl.value;
                 const modelLower = String(model || '').toLowerCase();
                 const isDeepSeek = modelLower.includes('deepseek');
+                const isZai = modelLower.startsWith('glm-');
                 const thinkOpts = get('thinking-options');
                 const reasonOpts = get('reasoning-effort-container');
                 const thinkChk = get('enable-thinking');
@@ -332,7 +333,7 @@
                 const isClaude = isClaudeModelKey(model);
                 const isGeminiCyber = modelLower === 'gemini-3.8-flash-cyber';
                 // DeepSeek KV cache is automatic; it does not use an app-supplied prompt_cache_key.
-                const promptCacheSupported = isLlmModel() && !isDeepSeek && !isTts && !modelLower.includes('realtime') && !modelLower.includes('native-audio') && !modelLower.includes('live');
+                const promptCacheSupported = isLlmModel() && !isDeepSeek && !isZai && !isTts && !modelLower.includes('realtime') && !modelLower.includes('native-audio') && !modelLower.includes('live');
                 if (cacheCont) {
                     if (promptCacheSupported) {
                         cacheCont.classList.remove('hidden', 'opacity-50', 'pointer-events-none');
@@ -560,6 +561,11 @@
                     const cyberUrlChk = get('enable-url-context');
                     if (cyberUrlChk) { cyberUrlChk.checked = false; cyberUrlChk.disabled = true; }
                     [searchCont, urlCont, mapsCont, pyCont].forEach(cont => { if (cont) cont.classList.add('opacity-50', 'pointer-events-none'); });
+                }
+                if (isZai) {
+                    if (vmi) vmi.classList.toggle('hidden', ['glm-5.3-flash', 'glm-5.3-flashx', 'glm-4.6v', 'glm-4.6v-flashx', 'glm-4.6v-flash', 'glm-4.5v'].includes(modelLower));
+                    [searchChk, pyChk].forEach(chk => { if (chk) { chk.checked = false; chk.disabled = true; } });
+                    [searchCont, pyCont].forEach(cont => { if (cont) cont.classList.add('opacity-50', 'pointer-events-none'); });
                 }
                 const maskBtn = get('mask-btn');
                 if (maskBtn) {

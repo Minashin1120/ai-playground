@@ -35,7 +35,8 @@ import com.minashin1120.aiplayground.data.isImageReference
 /** Web `#vision-model-info`: DeepSeek models without native image input analyse images with the Vision Model. */
 internal fun needsVisionModelNotice(model: String): Boolean {
     val m = model.lowercase()
-    return m.contains("deepseek") && m != "deepseek-v4.1-flash" && m != "deepseek-v4-flash-vision-exp"
+    return (m.contains("deepseek") && m != "deepseek-v4.1-flash" && m != "deepseek-v4-flash-vision-exp") ||
+        (m.startsWith("glm-") && m !in setOf("glm-5.3-flash", "glm-5.3-flashx", "glm-4.6v", "glm-4.6v-flashx", "glm-4.6v-flash", "glm-4.5v"))
 }
 
 /**

@@ -33,6 +33,8 @@ def get_model_api_provider(model_key):
         return "anthropic"
     if "deepseek" in mk:
         return "deepseek"
+    if mk.startswith("glm-"):
+        return "zai"
     if "grok" in mk and "gpt" not in mk:
         return "xai"
     if "google-tts" in mk:
@@ -51,6 +53,7 @@ _PROVIDER_LABELS = {
     "anthropic": "Anthropic (Claude)",
     "xai": "xAI (Grok)",
     "deepseek": "DeepSeek",
+    "zai": "Z.AI (GLM)",
     "kimi": "Kimi (Moonshot)",
     "google": "Google Cloud",
     "mistral": "Mistral",

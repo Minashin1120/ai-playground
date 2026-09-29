@@ -15,6 +15,7 @@ _MOBILE_SETUP_SECRET_FIELDS = {
     'deepseek_api_key': 'deepseek_api_key',
     'kimi_api_key': 'kimi_api_key',
     'mistral_api_key': 'mistral_api_key',
+    'zai_api_key': 'zai_api_key',
     'xai_api_key': 'xai_api_key',
     'google_api_key': 'google_api_key',
     'google_cloud_project': 'google_cloud_project',

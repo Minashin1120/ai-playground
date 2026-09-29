@@ -114,6 +114,7 @@
             try {
                 const m = String((get('model-select') && get('model-select').value) || '').toLowerCase();
                 if (!m) return false;
+                if (m.startsWith('glm-')) return false;
                 // Claude / Kimi は isLlmModel に含まれないが、バックエンドではMCPを付与する。
                 if (m.includes('claude') || m.startsWith('kimi')) return true;
                 if (typeof isLlmModel === 'function' && isLlmModel()) return true;
@@ -635,6 +636,7 @@
                 name.includes('deepseek') ||
                 desc.includes('deepseek')
             ) tags.push('deepseek');
+            if (id.startsWith('glm-') || cat.includes('z.ai')) tags.push('zai');
             if (
                 cat.includes('mistral') ||
                 id.includes('mistral') ||
@@ -740,7 +742,7 @@
                 || model.includes('image') || model.includes('video') || model.startsWith('veo-')
                 || model.includes('omni-flash') || model.startsWith('lyria-') || model.includes('embedding');
             const isLlm = !isNonTextModel && (
-                model.includes('gpt') || model.includes('gemini') || model.includes('grok') || isDeepSeek
+                model.includes('gpt') || model.includes('gemini') || model.includes('grok') || isDeepSeek || model.startsWith('glm-')
                 || model.startsWith('deep-research-') || model.startsWith('antigravity-')
             );
             const add = (...values) => values.forEach(value => terms.push(value, value.replace(/-/g, ' ')));

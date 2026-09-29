@@ -490,6 +490,9 @@ def _resolve_chat_model_auth(user, model_key):
     elif is_deepseek_model_key(mk_l):
         provider = "deepseek"
         api_key = model_key_override or user_or_admin_env("deepseek_api_key", "DEEPSEEK_API_KEY")
+    elif mk_l.startswith("glm-"):
+        provider = "zai"
+        api_key = model_key_override or user_or_admin_env("zai_api_key", "ZAI_API_KEY")
     elif "kimi" in mk_l:
         provider = "kimi"
         api_key = model_key_override or user_or_admin_env("kimi_api_key", "MOONSHOT_API_KEY")
@@ -513,6 +516,7 @@ def _resolve_chat_model_auth(user, model_key):
             "gemini": "Gemini",
             "anthropic": "Anthropic",
             "deepseek": "DeepSeek",
+            "zai": "Z.AI",
             "kimi": "Kimi",
             "xai": "xAI",
             "google": "Google",
@@ -754,8 +758,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-29-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.1043'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-09-29-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.1044'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

@@ -8,4 +8,9 @@
         <item name="android:colorAccent">#0DD4BF</item>
         <item name="android:windowActionModeOverlay">true</item>
     </style>
+    <style name="ImageSplitOverlayTheme" parent="AppTheme">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
 </resources>

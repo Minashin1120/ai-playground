@@ -15,6 +15,7 @@ _SYNC_SECRET_FIELDS = (
     ('openai_key', 'openai_api_key'), ('gemini_key', 'gemini_api_key'),
     ('anthropic_key', 'anthropic_api_key'), ('deepseek_key', 'deepseek_api_key'),
     ('kimi_key', 'kimi_api_key'), ('mistral_key', 'mistral_api_key'),
+    ('zai_key', 'zai_api_key'),
     ('xai_key', 'xai_api_key'), ('google_key', 'google_api_key'),
 )
 

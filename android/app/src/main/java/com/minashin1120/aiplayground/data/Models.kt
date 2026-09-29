@@ -336,7 +336,7 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
 const val SECRET_MASK = "********"
 
 val PROVIDER_KEY_FIELDS = listOf(
-    "openai_key", "gemini_key", "deepseek_key", "kimi_key", "mistral_key", "anthropic_key", "xai_key", "google_key",
+    "openai_key", "gemini_key", "deepseek_key", "zai_key", "kimi_key", "mistral_key", "anthropic_key", "xai_key", "google_key",
 )
 
 /** One row of the Web "自動注入システムプロンプト" list (`AUTO_SYS_PROMPT_ITEMS`). */

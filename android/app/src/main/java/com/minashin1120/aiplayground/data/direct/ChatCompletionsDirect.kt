@@ -90,7 +90,7 @@ class ChatCompletionsDirect(
             } else messages.put(JSONObject().put("role", "user").put("content", text))
         }
         val payload = JSONObject().put("model", request.model).put("messages", messages).put("stream", true)
-        if (!openAiSearch) payload.put("stream_options", JSONObject().put("include_usage", true))
+        if (!openAiSearch && !request.model.startsWith("glm-")) payload.put("stream_options", JSONObject().put("include_usage", true))
         if (openAiSearch) payload.put("web_search_options", JSONObject())
         return payload
     }

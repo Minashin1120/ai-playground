@@ -46,7 +46,7 @@ import com.minashin1120.aiplayground.data.modelApiProvider
 
 /** Web `#model-tag-bar` in its fixed order; the value is the lower-cased label (`activeModelTag`). */
 internal val MODEL_TAGS = listOf(
-    "All", "OpenAI", "Gemini", "Anthropic", "Kimi", "DeepSeek", "Mistral", "xAI", "Image", "Video", "Audio",
+    "All", "OpenAI", "Gemini", "Anthropic", "Kimi", "DeepSeek", "ZAI", "Mistral", "xAI", "Image", "Video", "Audio",
     "Music", "Transcription", "OCR", "Reasoning", "Fast", "Agent", "Agentic View",
 )
 

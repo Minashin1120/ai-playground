@@ -87,6 +87,7 @@ fun apiKeyInfoFor(model: String): ApiKeyInfo? {
             id.startsWith("antigravity-") -> ApiKeyInfo("gemini", "gemini_key", "Gemini API Key")
         id.startsWith("gpt") || id.startsWith("o1") || id.startsWith("o3") -> ApiKeyInfo("openai", "openai_key", "OpenAI API Key")
         id.startsWith("deepseek") -> ApiKeyInfo("deepseek", "deepseek_key", "DeepSeek API Key")
+        id.startsWith("glm-") -> ApiKeyInfo("zai", "zai_key", "Z.AI API Key")
         id.startsWith("kimi") -> ApiKeyInfo("kimi", "kimi_key", "Kimi (Moonshot) API Key")
         id.startsWith("mistral") -> ApiKeyInfo("mistral", "mistral_key", "Mistral API Key")
         id.startsWith("claude") -> ApiKeyInfo("anthropic", "anthropic_key", "Anthropic API Key")

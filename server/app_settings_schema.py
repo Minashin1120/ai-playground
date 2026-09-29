@@ -451,6 +451,21 @@ def ensure_user_kimi_api_key_column():
     except Exception:
         pass
 
+def ensure_user_zai_api_key_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='user' "
+                "AND COLUMN_NAME='zai_api_key'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN zai_api_key TEXT"))
+    except Exception:
+        pass
+
 def ensure_user_mistral_api_key_column():
     try:
         with db.engine.connect() as conn:

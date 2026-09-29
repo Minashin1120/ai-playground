@@ -47,6 +47,7 @@ def handle_settings():
             'gemini_key': _masked_secret(current_user.gemini_api_key),
             'anthropic_key': _masked_secret(current_user.anthropic_api_key),
             'deepseek_key': _masked_secret(current_user.deepseek_api_key),
+            'zai_key': _masked_secret(current_user.zai_api_key),
             'kimi_key': _masked_secret(current_user.kimi_api_key),
             'mistral_key': _masked_secret(current_user.mistral_api_key),
             'model_api_keys': {
@@ -137,7 +138,7 @@ def handle_settings():
         return jsonify({'error': 'payload_too_large'}), 413
     for secret_key in (
         'openai_key', 'gemini_key', 'anthropic_key', 'deepseek_key', 'xai_key',
-        'kimi_key', 'mistral_key', 'google_key', 'google_project', 'gemini_vertex_project'
+        'kimi_key', 'mistral_key', 'zai_key', 'google_key', 'google_project', 'gemini_vertex_project'
     ):
         if secret_key in d and len(str(d.get(secret_key) or '')) > 4096:
             return jsonify({'error': f'{secret_key}_too_large'}), 400
@@ -168,6 +169,7 @@ def handle_settings():
     if 'gemini_key' in d and d['gemini_key'] != _SECRET_MASK: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
     if 'anthropic_key' in d and d['anthropic_key'] != _SECRET_MASK: current_user.anthropic_api_key = encrypt_val(d['anthropic_key'])
     if 'deepseek_key' in d and d['deepseek_key'] != _SECRET_MASK: current_user.deepseek_api_key = encrypt_val(d['deepseek_key'])
+    if 'zai_key' in d and d['zai_key'] != _SECRET_MASK: current_user.zai_api_key = encrypt_val(d['zai_key'])
     if 'kimi_key' in d and d['kimi_key'] != _SECRET_MASK: current_user.kimi_api_key = encrypt_val(d['kimi_key'])
     if 'mistral_key' in d and d['mistral_key'] != _SECRET_MASK: current_user.mistral_api_key = encrypt_val(d['mistral_key'])
     if 'model_api_keys' in d: _merge_masked_model_api_key_map(current_user, d.get('model_api_keys'))

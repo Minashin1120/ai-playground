@@ -33,6 +33,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/ConnectionStatus.kt` | Web相当のハートビート接続状態・HTTP障害分類・監視間隔 | 接続状態・復帰表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/BatchNotifications.kt` | Batch完了通知チャンネルと安全な通知表示 | Batch通知を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/BubbleNotifications.kt` | ユーザー操作で作成するチャットバブル通知と会話ショートカット、Android 10〜16のバブル専用 `ChatBubbleActivity` | Androidバブル・通知・ショートカットを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ImageSplitTileService.kt`, `ImageSplitOverlayActivity.kt` | クイック設定の「画像を分割」タイルと、背後のアプリを残す透過画面での画像選択・分割・保存・共有 | 通知ツールバーからの画像分割を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTP、NDJSON、APIモデル、Keystore保存、Credential Managerのパスキー手順（`PasskeyClient.kt`） | 認証・通信・保存 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/PlayIntegrityClient.kt` | Play Integrity Standard APIの事前準備・要求内容に結び付いた認証token取得 | Android認証の端末リスク信号 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BrowserLoginPkce.kt` | ブラウザー経由ログインのPKCE（S256）verifier・challenge生成 | Google・MinashinのApp Link復帰を変更するとき |
@@ -71,7 +72,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/CanvasBlocks.kt` | Canvasモードのコードブロック抽出（Web `parseCanvasMarkdown`）、選択、見出し・状態の文言 | Canvasに出すブロックや文言を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMarkerEditor.kt` | Webの「画像編集」（マーカー、モザイク、トリミング、二本指の拡大、保存して反映） | 画像編集の画面や保存を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageMarker.kt` | 画像編集の計算（線の補間、モザイク範囲、トリミングの掴み位置、拡大時の位置制限、保存名） | 画像編集の操作の決まりを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/ImageSplitDialog.kt` | Android版だけの「画像を分割」ダイアログ（プレビュー、分割数、重なり、元画像の扱い、分割して添付／保存のみ） | 画像分割の画面を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ImageSplitDialog.kt` | Android版だけの「画像を分割」ダイアログ（プレビュー、分割数、重なり、元画像の扱い、添付／共有／保存） | 画像分割の画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplit.kt` | 画像分割の計算（行列の決め方、重なり付きの範囲、EXIFの向きの逆変換、ファイル名、座標の帯の文言） | 画像分割の決まりを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplitRenderer.kt` | 画像分割の描画と保存（部分デコード、番号・分割線・重なりの描き込み、添付用URI、Pictures／選択フォルダーへの保存） | 分割画像の見た目や保存先を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MinimalOptions.kt` | ミニマル表示の上部モデルバー、＋の「オプション」ポップアップ、Thinkingのスライドバー | ミニマル表示を変更するとき |

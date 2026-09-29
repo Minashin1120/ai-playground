@@ -38,9 +38,10 @@ class RealtimeStudioTest {
         assertEquals("Speech-to-Speech Live", realtimeModeLabel("gpt-realtime-2"))
         assertEquals("Realtime Speech-to-Text", realtimeModeLabel("gemini-3.5-transcribe-live"))
         assertEquals("Realtime Translation", realtimeModeLabel("gemini-3.5-live-translate-preview"))
-        assertEquals("OpenAI Realtimeは24kHz PCM固定", realtimeNote("gpt-realtime-2"))
+        assertEquals("OpenAI Realtimeは24kHz PCM固定（Reasoningで推論の強さを指定）", realtimeNote("gpt-realtime-2"))
+        assertEquals("OpenAI Realtimeは24kHz PCM固定", realtimeNote("gpt-realtime-1.5"))
         assertEquals("Speech-to-Speech Live", realtimeModeLabel("gpt-realtime-2.1-mini"))
-        assertEquals("OpenAI Realtimeは24kHz PCM固定", realtimeNote("gpt-realtime-2.1"))
+        assertEquals("OpenAI Realtimeは24kHz PCM固定（Reasoningで推論の強さを指定）", realtimeNote("gpt-realtime-2.1"))
         assertEquals("openai", realtimeProvider("gpt-realtime-2.1"))
         assertEquals("openai", realtimeProvider("gpt-live-1"))
     }

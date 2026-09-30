@@ -38,6 +38,13 @@ class ToolbarNotificationTest {
         assertEquals(TOOLBAR_ACTIONS.map { it.label }, notification.actions.map { it.title.toString() })
     }
 
+    @Test fun tappingTheNotificationRunsTheFirstAction() {
+        setToolbarNotificationEnabled(context, true)
+        val notification = shadowOf(manager).getNotification(TOOLBAR_NOTIFICATION_ID)
+        val tapped = shadowOf(notification.contentIntent).savedIntent
+        assertEquals(TOOLBAR_ACTIONS.first().target.name, tapped.component?.className)
+    }
+
     @Test fun switchingOffRemovesTheNotification() {
         setToolbarNotificationEnabled(context, true)
         assertTrue(setToolbarNotificationEnabled(context, false))

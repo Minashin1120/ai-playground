@@ -56,7 +56,15 @@ fun setToolbarNotificationEnabled(context: Context, enabled: Boolean): Boolean {
     return true
 }
 
-/** Posts the toolbar when it is switched on (and permitted), otherwise removes it. Safe to call repeatedly. */
+private fun actionIntent(context: Context, index: Int): PendingIntent {
+    val intent = Intent(context, TOOLBAR_ACTIONS[index].target).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+    return PendingIntent.getActivity(context, 100 + index, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+}
+
+/**
+ * Posts the toolbar when it is switched on (and permitted), otherwise removes it. Safe to call repeatedly.
+ * Tapping the notification body runs the first action, so it works as a button too.
+ */
 fun refreshToolbarNotification(context: Context) {
     val manager = context.getSystemService(NotificationManager::class.java)
     if (!isToolbarNotificationEnabled(context) || !canPostNotifications(context)) {
@@ -64,24 +72,18 @@ fun refreshToolbarNotification(context: Context) {
         return
     }
     createToolbarNotificationChannel(context)
-    val open = PendingIntent.getActivity(context, 0,
-        Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     val builder = NotificationCompat.Builder(context, TOOLBAR_CHANNEL_ID)
         .setSmallIcon(R.drawable.ic_playground)
         .setContentTitle("AI Playground")
-        .setContentText(TOOLBAR_ACTIONS.joinToString(" / ") { it.label })
-        .setContentIntent(open)
+        .setContentText("タップして${TOOLBAR_ACTIONS.first().label}")
+        .setContentIntent(actionIntent(context, 0))
         .setOngoing(true)
         .setOnlyAlertOnce(true)
         .setShowWhen(false)
         .setPriority(NotificationCompat.PRIORITY_LOW)
         .setVisibility(NotificationCompat.VISIBILITY_SECRET)
     TOOLBAR_ACTIONS.forEachIndexed { index, action ->
-        val intent = Intent(context, action.target).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        val pending = PendingIntent.getActivity(context, 100 + index, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        builder.addAction(action.iconRes, action.label, pending)
+        builder.addAction(action.iconRes, action.label, actionIntent(context, index))
     }
     try {
         manager.notify(TOOLBAR_NOTIFICATION_ID, builder.build())

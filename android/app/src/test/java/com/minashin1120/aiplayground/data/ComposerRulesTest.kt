@@ -30,6 +30,15 @@ class ComposerRulesTest {
         assertTrue(rules.mcp.visible)
     }
 
+    @Test fun gpt6EffortOptionsFollowEachModel() {
+        assertEquals(listOf("low", "medium", "high", "xhigh", "max"), composerRules("gpt-6-astra", mcpEnabledServer = false).effortOptions)
+        assertEquals(listOf("low", "medium", "high", "xhigh", "max"), composerRules("gpt-6.1-sol", mcpEnabledServer = false).effortOptions)
+        assertEquals(listOf("none", "low", "medium", "high", "xhigh", "max"), composerRules("gpt-6-luna", mcpEnabledServer = false).effortOptions)
+        assertEquals(listOf("none", "low", "medium", "high", "xhigh", "max"), composerRules("gpt-6-sol", mcpEnabledServer = false).effortOptions)
+        assertTrue(composerRules("gpt-6-astra", mcpEnabledServer = false).batch.visible)
+        assertTrue(showsReasoningProgress("gpt-6.1-sol", false, "high"))
+    }
+
     @Test fun gptModelsShowEffortWithModelSpecificOptions() {
         val rules = composerRules("gpt-5.6", mcpEnabledServer = false)
         assertTrue(rules.effort.visible)

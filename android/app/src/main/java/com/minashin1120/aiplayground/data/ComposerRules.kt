@@ -239,17 +239,19 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
     }
 
     val gpt56 = ml == "gpt-5.6" || ml.startsWith("gpt-5.6-")
+    val gpt6 = ml.startsWith("gpt-6")
+    val gpt6AllowsNone = ml == "gpt-6-sol" || ml == "gpt-6-luna"
     val deepSeekFlash = ml in setOf("deepseek-v4.1-flash", "deepseek-v4-flash-0731", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp")
     val deepSeekPro = ml == "deepseek-v4-pro"
     val grok45 = ml.contains("grok-4.5")
     val grok46 = ml.contains("grok-4.6")
     val effortOptions = EFFORT_LEVELS.filter { value ->
         when (value) {
-            "max" -> gpt56 || deepSeekFlash || deepSeekPro
-            "xhigh" -> grok46 || ml.contains("multi-agent") || gpt56
+            "max" -> gpt56 || gpt6 || deepSeekFlash || deepSeekPro
+            "xhigh" -> grok46 || ml.contains("multi-agent") || gpt56 || gpt6
             "medium" -> ml.contains("grok-4.3") || grok45 || grok46 || ml.contains("grok-4.20-0309-reasoning") ||
-                ml.contains("grok-build") || ml.contains("multi-agent") || ml.contains("gpt-5") || ml.contains("o1") || ml.contains("o3")
-            "none" -> ml.contains("grok-4.3") || ml.contains("grok-build") || ml.contains("gpt-5") || deepSeekFlash || deepSeekPro
+                ml.contains("grok-build") || ml.contains("multi-agent") || ml.contains("gpt-5") || gpt6 || ml.contains("o1") || ml.contains("o3")
+            "none" -> ml.contains("grok-4.3") || ml.contains("grok-build") || ml.contains("gpt-5") || gpt6AllowsNone || deepSeekFlash || deepSeekPro
             "low" -> !deepSeekPro
             else -> true
         }

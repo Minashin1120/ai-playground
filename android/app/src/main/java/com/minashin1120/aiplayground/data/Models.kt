@@ -900,7 +900,7 @@ fun pendingSkeletonKind(model: String): String {
 fun showsReasoningProgress(model: String, enableThinking: Boolean, effort: String): Boolean {
     val m = model.lowercase()
     val requested = enableThinking || (effort.isNotBlank() && effort.lowercase() != "none")
-    val capable = m.contains("gemini") || m.contains("o1") || m.contains("o3") || m.contains("gpt-5") ||
+    val capable = m.contains("gemini") || m.contains("o1") || m.contains("o3") || m.contains("gpt-5") || m.contains("gpt-6") ||
         (m.contains("reasoning") && !m.contains("non-reasoning"))
     return requested && capable
 }

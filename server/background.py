@@ -6269,7 +6269,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                 if is_grok and options.get('enable_thinking') and not grok_reasoning_supported:
                     pub("thought", "APIの仕様により表示されません")
-                is_reasoning_model = (not is_grok) and any(x in model_key.lower() for x in ['o1', 'o3', 'gpt-5.2', 'gpt-5.1', 'gpt-5', 'reasoning'])
+                is_reasoning_model = (not is_grok) and any(x in model_key.lower() for x in ['o1', 'o3', 'gpt-6', 'gpt-5.2', 'gpt-5.1', 'gpt-5', 'reasoning'])
                 req_reasoning_effort = (options.get('reasoning_effort') or "").lower().strip()
                 enable_reasoning = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
 
@@ -6280,6 +6280,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     # Smaller GPT-5 tiers do not accept "none"; use minimal instead.
                     if any(x in model_key_l for x in ("gpt-5-mini", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.5-mini", "gpt-5.5-nano")) and effort == "none":
                         return "minimal"
+                    # Astra and GPT-6.1 Sol reject none and minimal; the API default is medium.
+                    if effort == "none" and any(x in model_key_l for x in ("gpt-6-astra", "gpt-6.1-sol")):
+                        return "medium"
                     return effort
                 if is_grok and enable_reasoning and grok_reasoning_effort_supported:
                     grok_effort = _grok_reasoning_effort()

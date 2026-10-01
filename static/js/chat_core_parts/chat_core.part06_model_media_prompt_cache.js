@@ -784,16 +784,17 @@
             if (supportsReasoningEffort) {
                 add('reasoning', '推論', 'reasoning effort', 'low', 'high');
                 const isGpt56Model = model === 'gpt-5.6' || model.startsWith('gpt-5.6-');
+                const isGpt6Model = model.startsWith('gpt-6');
                 const isGrok46 = model.includes('grok-4.6');
                 const supportsMedium = model.includes('grok-4.3') || model.includes('grok-4.5') || isGrok46
                     || model.includes('grok-4.20-0309-reasoning') || model.includes('grok-build')
-                    || model.includes('multi-agent') || model.includes('gpt-5') || model.includes('o1') || model.includes('o3');
+                    || model.includes('multi-agent') || model.includes('gpt-5') || isGpt6Model || model.includes('o1') || model.includes('o3');
                 const supportsNone = model.includes('grok-4.3') || model.includes('grok-build')
-                    || model.includes('gpt-5') || isDeepSeek;
+                    || model.includes('gpt-5') || model === 'gpt-6-sol' || model === 'gpt-6-luna' || isDeepSeek;
                 if (supportsMedium) add('medium');
                 if (supportsNone) add('none');
-                if (isGpt56Model || isDeepSeek) add('max');
-                if (isGrok46 || model.includes('multi-agent') || isGpt56Model) add('xhigh');
+                if (isGpt56Model || isGpt6Model || isDeepSeek) add('max');
+                if (isGrok46 || model.includes('multi-agent') || isGpt56Model || isGpt6Model) add('xhigh');
             }
 
             if (model.includes('claude')) add('thinking', '思考', 'thinking budget', 'budget');

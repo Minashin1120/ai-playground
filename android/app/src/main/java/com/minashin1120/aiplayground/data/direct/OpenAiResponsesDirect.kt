@@ -114,12 +114,13 @@ class OpenAiResponsesDirect(
         if (tools.length() > 0) payload.put("tools", tools)
         val effortOption = options.optString("reasoning_effort").lowercase().trim()
         val reasoningRequested = options.flag("enable_thinking") || (effortOption.isNotEmpty() && effortOption != "none")
-        val reasoningModel = !xai && listOf("o1", "o3", "o4", "gpt-5", "reasoning").any { model.contains(it) }
+        val reasoningModel = !xai && listOf("o1", "o3", "o4", "gpt-6", "gpt-5", "reasoning").any { model.contains(it) }
         if (reasoningModel && reasoningRequested) {
             var effort = effortOption.ifBlank {
                 when (options.optString("thinking_level").lowercase()) { "low" -> "low"; "high" -> "high"; else -> "medium" }
             }
             if (effort == "none" && listOf("gpt-5-mini", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.5-mini", "gpt-5.5-nano").any { model.contains(it) }) effort = "minimal"
+            if (effort == "none" && (model.contains("gpt-6-astra") || model.contains("gpt-6.1-sol"))) effort = "medium"
             payload.put("reasoning", JSONObject().put("effort", effort).put("summary", "auto"))
         } else if (xai && reasoningRequested && effortOption.isNotEmpty() && effortOption != "none") {
             payload.put("reasoning", JSONObject().put("effort", effortOption))

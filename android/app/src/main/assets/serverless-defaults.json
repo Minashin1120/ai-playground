@@ -1392,6 +1392,82 @@
   },
   {
    "capabilities": [
+    "chat",
+    "attachments",
+    "thinking",
+    "search",
+    "prompt_cache",
+    "python",
+    "mcp",
+    "batch"
+   ],
+   "deprecated": false,
+   "id": "gpt-6-astra",
+   "mode": "chat",
+   "name": "GPT 6 Astra",
+   "provider": "openai",
+   "provider_label": "OpenAI",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking",
+    "search",
+    "prompt_cache",
+    "python",
+    "mcp",
+    "batch"
+   ],
+   "deprecated": false,
+   "id": "gpt-6-luna",
+   "mode": "chat",
+   "name": "GPT 6 Luna",
+   "provider": "openai",
+   "provider_label": "OpenAI",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking",
+    "search",
+    "prompt_cache",
+    "python",
+    "mcp",
+    "batch"
+   ],
+   "deprecated": false,
+   "id": "gpt-6-sol",
+   "mode": "chat",
+   "name": "GPT 6 Sol",
+   "provider": "openai",
+   "provider_label": "OpenAI",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking",
+    "search",
+    "prompt_cache",
+    "python",
+    "mcp",
+    "batch"
+   ],
+   "deprecated": false,
+   "id": "gpt-6.1-sol",
+   "mode": "chat",
+   "name": "GPT 6.1 Sol",
+   "provider": "openai",
+   "provider_label": "OpenAI",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "image"
    ],
    "deprecated": false,

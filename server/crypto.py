@@ -238,6 +238,7 @@ ALL_VALID_MODEL_IDS = {
     "gpt-image-2.5-sunburst", "gpt-image-2.5-flare", "gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini",
     # OpenAI GPT
     "gpt-4o", "gpt-4o-mini",
+    "gpt-6-astra", "gpt-6.1-sol", "gpt-6-luna", "gpt-6-sol",
     "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna",
     "gpt-5.5", "gpt-5.5-mini", "gpt-5.5-nano", "gpt-5.5-pro",
     "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.4-pro",

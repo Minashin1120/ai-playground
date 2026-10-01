@@ -354,19 +354,21 @@
                     if (effortSel) {
                         Array.from(effortSel.options).forEach(opt => {
                             const isGpt56Model = modelLower === 'gpt-5.6' || modelLower.startsWith('gpt-5.6-');
+                            const isGpt6Model = modelLower.startsWith('gpt-6');
+                            const gpt6AllowsNone = modelLower === 'gpt-6-sol' || modelLower === 'gpt-6-luna';
                             // DeepSeek Flash family shares the low/high/max effort mapping.
                             const isDeepSeekFlash = modelLower === 'deepseek-v4.1-flash' || modelLower === 'deepseek-v4-flash-0731' || modelLower === 'deepseek-v4-flash' || modelLower === 'deepseek-v4-flash-vision-exp';
                             const isDeepSeekPro = modelLower === 'deepseek-v4-pro';
                             const isGrok45 = modelLower.includes('grok-4.5');
                             const isGrok46 = modelLower.includes('grok-4.6');
                             if (opt.value === 'max') {
-                                opt.classList.toggle('hidden', !isGpt56Model && !isDeepSeekFlash && !isDeepSeekPro);
+                                opt.classList.toggle('hidden', !isGpt56Model && !isGpt6Model && !isDeepSeekFlash && !isDeepSeekPro);
                             } else if (opt.value === 'xhigh') {
-                                opt.classList.toggle('hidden', !isGrok46 && !modelLower.includes('multi-agent') && !isGpt56Model);
+                                opt.classList.toggle('hidden', !isGrok46 && !modelLower.includes('multi-agent') && !isGpt56Model && !isGpt6Model);
                             } else if (opt.value === 'medium') {
-                                opt.classList.toggle('hidden', !(modelLower.includes('grok-4.3') || isGrok45 || isGrok46 || modelLower.includes('grok-4.20-0309-reasoning') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3')));
+                                opt.classList.toggle('hidden', !(modelLower.includes('grok-4.3') || isGrok45 || isGrok46 || modelLower.includes('grok-4.20-0309-reasoning') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || modelLower.includes('gpt-5') || isGpt6Model || modelLower.includes('o1') || modelLower.includes('o3')));
                             } else if (opt.value === 'none') {
-                                opt.classList.toggle('hidden', !modelLower.includes('grok-4.3') && !modelLower.includes('grok-build') && !modelLower.includes('gpt-5') && !isDeepSeekFlash && !isDeepSeekPro);
+                                opt.classList.toggle('hidden', !modelLower.includes('grok-4.3') && !modelLower.includes('grok-build') && !modelLower.includes('gpt-5') && !gpt6AllowsNone && !isDeepSeekFlash && !isDeepSeekPro);
                             } else if (opt.value === 'low') {
                                 opt.classList.toggle('hidden', isDeepSeekPro);
                             }

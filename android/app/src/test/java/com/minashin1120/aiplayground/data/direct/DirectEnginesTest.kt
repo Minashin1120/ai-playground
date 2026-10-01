@@ -60,6 +60,19 @@ class DirectEnginesTest {
         assertTrue(contents.getJSONObject(2).getJSONArray("parts").getJSONObject(0).getString("text").contains("中身"))
     }
 
+    @Test fun gpt6AstraAndSolMapUnsupportedNoneToMedium() {
+        val engine = OpenAiResponsesDirect(http, baseUrl = "https://api.openai.com")
+        val astra = DirectRequest("gpt-6-astra", "sk-test", "", listOf(DirectTurn("user", "hi")),
+            JSONObject().put("reasoning_effort", "none").put("enable_thinking", true))
+        assertEquals("medium", engine.buildPayload(astra).getJSONObject("reasoning").getString("effort"))
+        val sol = DirectRequest("gpt-6.1-sol", "sk-test", "", listOf(DirectTurn("user", "hi")),
+            JSONObject().put("reasoning_effort", "max").put("enable_thinking", true))
+        assertEquals("max", engine.buildPayload(sol).getJSONObject("reasoning").getString("effort"))
+        val luna = DirectRequest("gpt-6-luna", "sk-test", "", listOf(DirectTurn("user", "hi")),
+            JSONObject().put("reasoning_effort", "none").put("enable_thinking", true))
+        assertEquals("none", engine.buildPayload(luna).getJSONObject("reasoning").getString("effort"))
+    }
+
     @Test fun openAiResponsesStreamsAndBuildsReasoning() {
         MockWebServer().use { server ->
             server.start()

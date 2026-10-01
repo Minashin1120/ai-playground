@@ -33,7 +33,7 @@ def _select_tokenizer_name(model_key):
         return "o200k_base"
     if "grok" in mk or "gemini" in mk or "deepseek" in mk:
         return "o200k_base"
-    if any(x in mk for x in ("gpt-4o", "gpt-4.1", "gpt-5", "o1", "o3", "o4")):
+    if any(x in mk for x in ("gpt-4o", "gpt-4.1", "gpt-5", "gpt-6", "o1", "o3", "o4")):
         return "o200k_base"
     return "cl100k_base"
 

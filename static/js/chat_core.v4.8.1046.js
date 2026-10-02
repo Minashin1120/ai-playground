@@ -537,6 +537,138 @@
                 FORBID_TAGS: ['iframe', 'object', 'embed']
             });
         }
+        // Own audio player: every <audio controls> that enters the page (answers, file viewer) gets the
+        // app's player UI.  The <audio> element stays inside it as the playback engine, so the markup the
+        // server stores in messages does not change.
+        const AUDIO_PLAYER_SPEEDS = [1, 1.25, 1.5, 2, 0.75];
+        const formatAudioPlayerTime = (seconds) => {
+            const total = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
+            return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+        };
+        const upgradeAudioPlayer = (audio) => {
+            if (!audio || audio.dataset.aipReady === '1' || !audio.hasAttribute('controls')) return;
+            const parent = audio.parentNode;
+            if (!parent) return;
+            audio.dataset.aipReady = '1';
+            audio.removeAttribute('controls');
+            if (!audio.getAttribute('preload')) audio.preload = 'metadata';
+
+            const root = document.createElement('div');
+            root.className = 'aip';
+            root.setAttribute('role', 'group');
+            root.setAttribute('aria-label', '音声プレイヤー');
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'aip-toggle';
+            const toggleIcon = document.createElement('i');
+            toggle.appendChild(toggleIcon);
+            const time = document.createElement('span');
+            time.className = 'aip-time';
+            const seek = document.createElement('input');
+            seek.type = 'range';
+            seek.className = 'aip-seek';
+            seek.min = '0';
+            seek.max = '1000';
+            seek.step = '1';
+            seek.value = '0';
+            seek.setAttribute('aria-label', '再生位置');
+            const speed = document.createElement('button');
+            speed.type = 'button';
+            speed.className = 'aip-speed';
+            speed.setAttribute('aria-label', '再生速度');
+            const failed = document.createElement('span');
+            failed.className = 'aip-failed';
+            failed.textContent = '音声を再生できませんでした。';
+            root.append(toggle, time, seek, speed, failed);
+            parent.insertBefore(root, audio);
+            root.appendChild(audio);
+
+            let scrubbing = false;
+            const duration = () => (Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0);
+            const refresh = () => {
+                const total = duration();
+                const position = scrubbing ? (Number(seek.value) / 1000) * total : audio.currentTime;
+                time.textContent = `${formatAudioPlayerTime(position)} / ${formatAudioPlayerTime(total)}`;
+                if (!scrubbing) seek.value = total ? String(Math.min(1000, (audio.currentTime / total) * 1000)) : '0';
+                seek.disabled = !total;
+                seek.style.setProperty('--aip-progress', `${Number(seek.value) / 10}%`);
+            };
+            const syncState = () => {
+                const playing = !audio.paused && !audio.ended;
+                toggleIcon.className = root.classList.contains('is-loading') ? 'fas fa-spinner fa-spin' : (playing ? 'fas fa-pause' : 'fas fa-play');
+                const label = playing ? '一時停止' : '再生';
+                toggle.setAttribute('aria-label', label);
+                toggle.title = label;
+                speed.textContent = `${audio.playbackRate}x`;
+            };
+            const setLoading = (value) => {
+                root.classList.toggle('is-loading', value);
+                syncState();
+            };
+            toggle.addEventListener('click', () => {
+                if (root.classList.contains('is-failed')) {
+                    root.classList.remove('is-failed');
+                    audio.load();
+                }
+                if (audio.paused || audio.ended) {
+                    if (audio.readyState < 3) setLoading(true);
+                    const started = audio.play();
+                    if (started && typeof started.catch === 'function') {
+                        started.catch(() => { setLoading(false); });
+                    }
+                } else {
+                    audio.pause();
+                }
+            });
+            speed.addEventListener('click', () => {
+                const index = AUDIO_PLAYER_SPEEDS.indexOf(audio.playbackRate);
+                audio.playbackRate = AUDIO_PLAYER_SPEEDS[(index + 1) % AUDIO_PLAYER_SPEEDS.length];
+            });
+            seek.addEventListener('input', () => {
+                scrubbing = true;
+                refresh();
+            });
+            seek.addEventListener('change', () => {
+                const total = duration();
+                if (total) audio.currentTime = (Number(seek.value) / 1000) * total;
+                scrubbing = false;
+                refresh();
+            });
+            ['timeupdate', 'durationchange', 'loadedmetadata', 'seeked', 'emptied'].forEach((name) => audio.addEventListener(name, refresh));
+            ['play', 'pause', 'ended', 'ratechange'].forEach((name) => audio.addEventListener(name, syncState));
+            audio.addEventListener('waiting', () => setLoading(true));
+            ['playing', 'pause', 'canplay', 'ended'].forEach((name) => audio.addEventListener(name, () => setLoading(false)));
+            audio.addEventListener('loadeddata', () => root.classList.remove('is-failed'));
+            audio.addEventListener('error', () => {
+                root.classList.add('is-failed');
+                setLoading(false);
+            });
+            refresh();
+            syncState();
+        };
+        const scanAudioPlayers = (node) => {
+            if (!node || node.nodeType !== 1) return;
+            if (node.tagName === 'AUDIO') {
+                upgradeAudioPlayer(node);
+            } else if (node.querySelectorAll) {
+                node.querySelectorAll('audio[controls]').forEach(upgradeAudioPlayer);
+            }
+        };
+        const initAudioPlayers = () => {
+            try {
+                scanAudioPlayers(document.body);
+                new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => mutation.addedNodes.forEach(scanAudioPlayers));
+                }).observe(document.body, { childList: true, subtree: true });
+            } catch (e) {
+                // The browser's own audio controls remain usable if the custom player cannot start.
+            }
+        };
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initAudioPlayers, { once: true });
+        } else {
+            initAudioPlayers();
+        }
         const THEME_DEFAULT = '#0dd4bf';
         const THEME_STORAGE_KEY = 'theme_color';
         const INITIAL_THEME_COLOR = (window.CHAT_CONFIG && window.CHAT_CONFIG.initialThemeColor) || null;

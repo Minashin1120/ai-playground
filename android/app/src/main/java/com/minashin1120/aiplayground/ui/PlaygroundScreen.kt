@@ -172,7 +172,11 @@ fun PlaygroundScreen(
         val reduceMotion = rememberReduceMotion()
         val animationsEnabled = !reduceMotion
         val startupSplashEnabled = playStartupAnimation && !reduceMotion
-        CompositionLocalProvider(LocalContentColor provides colors.onBackground, LocalReduceMotion provides reduceMotion) {
+        CompositionLocalProvider(
+            LocalContentColor provides colors.onBackground,
+            LocalReduceMotion provides reduceMotion,
+            LocalAttachmentDownloader provides model::downloadAttachment,
+        ) {
             BoxWithConstraints(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(listOf(colors.background, colors.surfaceContainerLow))

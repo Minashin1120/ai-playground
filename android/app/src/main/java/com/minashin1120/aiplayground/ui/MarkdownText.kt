@@ -110,6 +110,8 @@ internal sealed interface MarkdownBlock {
     data class Svg(val markup: String) : MarkdownBlock
     /** Raw `<details>`: the browser's disclosure (▶ summary), closed unless it has `open`. */
     data class Details(val summary: String, val blocks: List<MarkdownBlock>, val open: Boolean) : MarkdownBlock
+    /** Raw `<audio controls src>` written by the server for generated speech / music: an inline player. */
+    data class Audio(val src: String) : MarkdownBlock
 }
 
 /** One list item; [checked] is non-null for GFM task items. */
@@ -119,6 +121,8 @@ private val FENCE = Regex("^( {0,3})(`{3,}|~{3,})(.*)$")
 private val SVG_START = Regex("^ {0,3}<svg[\\s>]", RegexOption.IGNORE_CASE)
 private val HTML_RULE = Regex("^ {0,3}<hr\\s*/?>\\s*$", RegexOption.IGNORE_CASE)
 private val DETAILS_START = Regex("^ {0,3}<details(\\s[^>]*)?>", RegexOption.IGNORE_CASE)
+private val AUDIO_START = Regex("^ {0,3}<audio[\\s>]", RegexOption.IGNORE_CASE)
+private val HTML_SRC = Regex("\\bsrc\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)')", RegexOption.IGNORE_CASE)
 private val TABLE_START = Regex("^ {0,3}<table(\\s[^>]*)?>", RegexOption.IGNORE_CASE)
 private val HTML_SUMMARY = Regex("<summary[^>]*>([\\s\\S]*?)</summary\\s*>", RegexOption.IGNORE_CASE)
 private val HTML_ROW = Regex("<tr[^>]*>([\\s\\S]*?)</tr\\s*>", RegexOption.IGNORE_CASE)
@@ -152,6 +156,11 @@ internal fun parseHtmlDetails(markup: String): MarkdownBlock.Details {
     if (summary != null) inner = inner.removeRange(summary.range)
     return MarkdownBlock.Details(title, parseMarkdownBlocks(inner.trim('\n')), Regex("\\bopen\\b", RegexOption.IGNORE_CASE).containsMatchIn(attributes))
 }
+
+/** The file an `<audio>` element plays: its own `src`, else the first `<source src>`; null when it has none. */
+internal fun parseHtmlAudioSource(markup: String): String? =
+    HTML_SRC.find(markup)?.let { m -> m.groupValues.drop(1).firstOrNull { it.isNotEmpty() } }
+        ?.replace("&amp;", "&")?.trim()?.takeIf { it.isNotEmpty() }
 
 /** Web `.prose table` for a raw HTML table: `<th>` cells of the first row become the header. */
 internal fun parseHtmlTable(markup: String): MarkdownBlock.Table {
@@ -195,7 +204,7 @@ private fun splitTableRow(line: String): List<String> {
 /** Lines that end a paragraph (marked's "interrupting" block starts). */
 private fun interruptsParagraph(line: String): Boolean {
     if (line == CANVAS_PLACEHOLDER_LINE) return true
-    if (SVG_START.containsMatchIn(line) || HTML_RULE.matches(line) || DETAILS_START.containsMatchIn(line) || TABLE_START.containsMatchIn(line)) return true
+    if (SVG_START.containsMatchIn(line) || HTML_RULE.matches(line) || DETAILS_START.containsMatchIn(line) || TABLE_START.containsMatchIn(line) || AUDIO_START.containsMatchIn(line)) return true
     if (FENCE.matches(line) || RULE.matches(line) || QUOTE.matches(line)) return true
     if (HEADING.matches(line)) return true
     if (line.trimStart().startsWith("$$") || line.trimStart().startsWith("\\[")) return true
@@ -239,6 +248,13 @@ private fun parseBlocks(lines: List<String>): List<MarkdownBlock> {
                 val body = htmlBlockLines(lines, index, "details")
                 index += body.size
                 result += parseHtmlDetails(body.joinToString("\n"))
+            }
+
+            AUDIO_START.containsMatchIn(line) -> {
+                // `<audio …></audio>` on one line (the server's form); an unclosed tag takes only its own line.
+                val body = htmlBlockLines(lines, index, "audio").takeIf { b -> b.any { it.contains("</audio", ignoreCase = true) } } ?: listOf(line)
+                index += body.size
+                parseHtmlAudioSource(body.joinToString("\n"))?.let { result += MarkdownBlock.Audio(it) }
             }
 
             TABLE_START.containsMatchIn(line) -> {
@@ -602,7 +618,7 @@ private fun MarkdownBlock.marginTop(): Dp = when (this) {
 
 private fun MarkdownBlock.marginBottom(): Dp = when (this) {
     is MarkdownBlock.Paragraph, is MarkdownBlock.ListBlock, is MarkdownBlock.Quote, is MarkdownBlock.Table,
-    is MarkdownBlock.Image, is MarkdownBlock.Math -> ParagraphGap
+    is MarkdownBlock.Image, is MarkdownBlock.Math, is MarkdownBlock.Audio -> ParagraphGap
     is MarkdownBlock.Code -> CodeGap
     MarkdownBlock.Rule -> 24.dp
     is MarkdownBlock.Heading, is MarkdownBlock.ChatError -> 0.dp
@@ -679,6 +695,7 @@ private fun BlockContent(
         MarkdownBlock.CanvasPlaceholder -> CanvasPlaceholderPill(style)
         is MarkdownBlock.Svg -> SvgRenderBox(block.markup, style)
         is MarkdownBlock.Details -> DetailsBlock(block, style, colors, loader, onOpen, startCollapsed)
+        is MarkdownBlock.Audio -> InlineAudioPlayer(block.src, onOpen)
     }
 }
 

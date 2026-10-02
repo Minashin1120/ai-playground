@@ -176,4 +176,21 @@ println("安全")
         assertEquals(200, shrunk.sum())
         assertArrayEquals(intArrayOf(80, 90), tableColumnWidths(intArrayOf(80, 90), intArrayOf(300, 300), 100))
     }
+
+    @Test fun serverAudioTagBecomesAnInlinePlayer() {
+        val blocks = parseMarkdownBlocks("読み上げです。\n\n<audio controls src=\"/files/7/speech_1_ab.wav\" class=\"w-full mt-2\"></audio>\n")
+        assertEquals(MarkdownBlock.Paragraph("読み上げです。"), blocks[0])
+        assertEquals(MarkdownBlock.Audio("/files/7/speech_1_ab.wav"), blocks[1])
+        assertEquals(2, blocks.size)
+        assertEquals("/files/7/a.mp3?x=1&y=2", parseHtmlAudioSource("<audio controls><source src='/files/7/a.mp3?x=1&amp;y=2' type=\"audio/mpeg\"></audio>"))
+        assertNull(parseHtmlAudioSource("<audio controls></audio>"))
+        // An audio tag without a source is dropped; an unclosed one does not swallow the text after it.
+        assertEquals(listOf(MarkdownBlock.Paragraph("後ろ")), parseMarkdownBlocks("<audio controls>\n\n後ろ"))
+    }
+
+    @Test fun audioTimeUsesMinutesAndSeconds() {
+        assertEquals("0:00", formatAudioTime(-5))
+        assertEquals("0:59", formatAudioTime(59_999))
+        assertEquals("2:05", formatAudioTime(125_000))
+    }
 }

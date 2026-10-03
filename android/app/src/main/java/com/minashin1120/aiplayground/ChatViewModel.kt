@@ -1289,10 +1289,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         refreshOfflineCacheStats(account.id)
         return true
     }
+    /**
+     * An answer is being generated on the device (it has no server job to rejoin). Cancelling it drops the
+     * provider request and loses the result, so leaving the app or coming back must not cancel it.
+     */
+    private fun answeringOnDevice(): Boolean = isDeviceAnswer(state.value.streaming, uploadsLocal, state.value.jobId)
+
     fun setForeground(value: Boolean) {
         val returning = value && !foreground
         foreground = value
-        if (!value && state.value.streaming) {
+        if (!value && state.value.streaming && !answeringOnDevice()) {
             streamJob?.cancel()
             mutable.update { it.copy(streaming = false, status = "アプリに戻ると履歴を確認します。") }
         }
@@ -1303,7 +1309,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (value && !state.value.localProfile) startConnectionMonitor() else stopConnectionMonitor()
         if (returning) recomputeLowBandwidth(notify = false)
         if (value && state.value.account != null && !state.value.localProfile) startBatchPolling()
-        if (returning && state.value.account != null && state.value.selected != null && !state.value.busy) refresh()
+        if (returning && state.value.account != null && state.value.selected != null && !state.value.busy && !answeringOnDevice()) refresh()
         if (returning && state.value.account != null) startCacheSyncIfAllowed()
         if (returning && state.value.serverless) scheduleSync()
     }
@@ -4427,3 +4433,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val BROWSER_LOGIN_TTL_MS = 10L * 60 * 1000
     }
 }
+
+/** A running answer that the device itself generates: no server job id, and chats are answered on the device. */
+internal fun isDeviceAnswer(streaming: Boolean, uploadsLocal: Boolean, jobId: String?): Boolean =
+    streaming && uploadsLocal && jobId == null

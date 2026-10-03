@@ -26,7 +26,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/backend/ChatBackend.kt` | 画面が呼ぶJSONエンドポイントの窓口（サーバー送信とローカル応答の切り替え） | 送信先・ローカルモードの経路を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/secure/EncryptedFileStore.kt` | Android KeystoreのAES-GCMによる暗号化ファイル（書き込み途中で壊れない保存） | 端末内の暗号化保存を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/SseReader.kt` | Server-Sent Eventsの読み取り（サーバーのRealtime／Lyriaと事業者APIのストリーム） | SSEの解析を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/direct/` | サーバー不使用モードの直接送信：事業者APIへのHTTP（`DirectHttp.kt`、許可ホストのみ）、モデル別の振り分け（`DirectRouter.kt`）、Gemini／OpenAI Responses（xAI含む）／Anthropic／Chat Completionsの各エンジン、システムプロンプトの組み立て（`SystemPromptBuilder.kt`）、添付のテキスト化（`AttachmentExtractor.kt`） | 端末からの送信・対応モデル・プロンプト組み立てを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/direct/` | サーバー不使用モードの直接送信：事業者APIへのHTTP（`DirectHttp.kt`、許可ホストのみ）、モデル別の振り分け（`DirectRouter.kt`）、Gemini（`GeminiDirect.kt`、Vertex AIは `VertexAuth.kt`）／OpenAI Responses（xAI含む、`OpenAiResponsesDirect.kt`）／Anthropic（`AnthropicDirect.kt`）／Chat Completions（`ChatCompletionsDirect.kt`）／画像生成（OpenAI／xAI／Ideogram）とTTS（`MediaDirect.kt`）の各エンジン（共通の枠は `DirectEngine.kt`）、システムプロンプトの組み立て（`SystemPromptBuilder.kt`）、添付のテキスト化（`AttachmentExtractor.kt`） | 端末からの送信・対応モデル・プロンプト組み立てを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/` | 端末内プロファイル：チャット・添付の暗号化保存とサーバー不使用モードの送信待ち（`LocalChatStore.kt`）、設定・Gem・APIキー（`LocalSettingsStore.kt`）、プロファイルの切り替え（`LocalProfiles.kt`）、サーバーと同じ形で応答する窓口（`LocalChatBackend.kt`）、回答の生成に使うサーバーの履歴・添付の読み込み（`ServerHistory.kt`） | アカウントなし利用・サーバー不使用モードの保存や応答を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/sync/SyncEngine.kt` | サーバー不使用モードの送信待ちの保存（添付の先行アップロード、メッセージの送信、新しいチャットのタイトル、旧版の削除の反映） | 回答をアカウントへ送る手順・失敗時の扱いを変更するとき |
 | `app/src/main/assets/serverless-defaults.json`, `ci/sync-serverless-defaults.py` | サーバーから生成したモデル一覧・自動注入プロンプト・Coding Mode指示（`--check` で差分検査） | サーバーのモデル一覧や自動注入プロンプトを変えたとき |
@@ -36,7 +36,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/BubbleNotifications.kt` | ユーザー操作で作成するチャットバブル通知と会話ショートカット、Android 10〜16のバブル専用 `ChatBubbleActivity` | Androidバブル・通知・ショートカットを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ToolbarNotification.kt` | 通知パネルに常駐するツールバー通知（有効・無効の保存、ボタン一覧 `TOOLBAR_ACTIONS`、再起動後の再表示） | 通知ツールバーのボタンや表示条件を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ImageSplitTileService.kt`, `ImageSplitOverlayActivity.kt` | クイック設定の「画像を分割」タイルと、背後のアプリを残す透過画面での画像選択・分割・保存・共有 | 通知ツールバーからの画像分割を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTP、NDJSON、APIモデル、Keystore保存、Credential Managerのパスキー手順（`PasskeyClient.kt`） | 認証・通信・保存 |
+| `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTPとNDJSON（`PlaygroundApi.kt`）、APIモデル（`Models.kt`、`BatchModels.kt`）、Keystore保存（`TokenStore.kt`）、Credential Managerのパスキー手順（`PasskeyClient.kt`）。通知チャンネルの作成・更新状態の保持・前面判定は `../PlaygroundApplication.kt` | 認証・通信・保存 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/PlayIntegrityClient.kt` | Play Integrity Standard APIの事前準備・要求内容に結び付いた認証token取得 | Android認証の端末リスク信号 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BrowserLoginPkce.kt` | ブラウザー経由ログインのPKCE（S256）verifier・challenge生成 | Google・MinashinのApp Link復帰を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `ChatComponents.kt` | Compose画面の組み立て（ドロワー／タブレット2ペイン、各モーダルの開閉）、メッセージ操作、Coding差分（Live Code Changes）とBatch完了バナー、生成中の回答 | 画面構造と操作を編集するとき |

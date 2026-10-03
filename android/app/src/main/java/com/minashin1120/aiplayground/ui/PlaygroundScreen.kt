@@ -539,7 +539,8 @@ fun PlaygroundScreen(
                     containerColor = Color.Transparent,
                     topBar = {
                         // Web shows `header.main-chrome-header` below the md breakpoint only.
-                        if (showThreads && !wide) MobileChatHeader(state, onMenu = openDrawer, onNewChat = { model.newChat() }, onPdf = sharePdf)
+                        if (showThreads && !wide) MobileChatHeader(state, onMenu = openDrawer, onNewChat = { model.newChat() }, onPdf = sharePdf,
+                            onOpenWeb = { onWeb(webChatPath(state)) })
                     }, snackbarHost = { SnackbarHost(snackbar) },
                     bottomBar = {
                         if (showThreads) CompositionLocalProvider(LocalComposerEstimator provides model::estimatePromptTokens) {

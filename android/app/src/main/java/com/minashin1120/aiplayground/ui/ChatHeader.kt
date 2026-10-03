@@ -32,7 +32,8 @@ import com.minashin1120.aiplayground.R
 
 /**
  * `header.main-chrome-header` of Web (`md:hidden`, phones only): menu, chat title with the temporary
- * label / TTL chip, the "+" new chat button and PDF export.
+ * label / TTL chip, the "+" new chat button and PDF export. Android only: a button that opens the
+ * current chat on the Web version (`ANDROID_ONLY.md` §3).
  */
 @Composable
 internal fun MobileChatHeader(
@@ -40,6 +41,7 @@ internal fun MobileChatHeader(
     onMenu: () -> Unit,
     onNewChat: () -> Unit,
     onPdf: () -> Unit,
+    onOpenWeb: () -> Unit,
 ) {
     val web = LocalWebPalette.current
     val temporary = state.selected?.isTemporary == true || state.newThreadTemporary
@@ -92,6 +94,13 @@ internal fun MobileChatHeader(
                     .graphicsLayer { alpha = if (enabled) 1f else 0.5f },
                 contentAlignment = Alignment.Center,
             ) { Text("+", color = web.theme300, fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold) }
+            Box(
+                Modifier
+                    .size(width = 30.dp, height = 38.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable(onClickLabel = "Web版でチャットを開く", role = Role.Button, onClick = onOpenWeb),
+                contentAlignment = Alignment.Center,
+            ) { FaIcon(R.drawable.fa_solid_globe, "Web版でチャットを開く", size = 14.dp, tint = web.twText(Tw.gray400)) }
             val pdfEnabled = true
             val pdfShape = RoundedCornerShape(4.dp)
             Box(
@@ -117,4 +126,10 @@ internal fun temporaryChatTimeoutLabel(state: ChatState, temporary: Boolean): St
     if (!temporary) return null
     val seconds = state.tempChatTimeoutSeconds ?: state.preferences?.tempChatTimeoutSeconds ?: return null
     return "${seconds}秒"
+}
+
+/** Path of the Web page for the open chat (`/c/<id>`), or the Web top page for a new or device-only chat. */
+internal fun webChatPath(state: ChatState): String {
+    val id = state.selected?.id.orEmpty()
+    return if (id.isNotEmpty() && id.all { it.isLetterOrDigit() || it == '-' || it == '_' }) "/c/$id" else "/"
 }

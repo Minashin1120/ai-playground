@@ -14,6 +14,7 @@
 | `IMAGE_PROCESSING.md` | 画像処理の方針（常駐プロセスでPillowを読み込まない）、処理と形式ごとの経路、安全上の制約、既知の制限、変更時のルール | `image_tools.py` や画像を扱う呼び出し元を変更する前 |
 | `crypto.py` | 暗号化鍵リング、`encrypt_val` / `decrypt_val`、バイト暗号化、TTS 音声選択、`secure_delete` | 暗号化、鍵、削除 |
 | `providers.py` | モデル種別判定、Mistral OCR、Gemini 文字起こし、PCM/WAV 変換、生成バイトの保存 | プロバイダ分岐、OCR、STT、音声形式 |
+| `ideogram.py` | Ideogram 画像生成・Precise Edit のリクエスト組み立て（モデル別のエンドポイント・サイズ・品質）、HTTP呼び出し、エラー文言 | Ideogramモデルの追加・パラメータ変更、生成エラー |
 | `create_file.py` | チャットの `create_file` ツール（txt/md/pdf/docx/xlsx をライブラリへ保存） | ファイル作成ツール |
 | `edit_file.py` | チャットの `edit_file` ツール（xlsx/docx/pdf の編集） | ファイル編集ツール |
 | `agentic_media.py` | エージェント画像の SVG サニタイズ、sandbox 画像 URL の書き換え、生成音声の保存 | 画像エージェント、SVG、sandbox 画像 |

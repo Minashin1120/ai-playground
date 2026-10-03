@@ -212,7 +212,7 @@ private fun DefaultOptionSelects(form: SettingsForm) {
 
 internal fun apiCards(state: ChatState, form: SettingsForm, notify: (String) -> Unit): List<SettingsCardSpec> = listOf(
     SettingsCardSpec(SettingsTab.Api, "api-keys", "APIキー",
-        "APIキー OpenAI API Key Gemini API Key DeepSeek API Key Z.AI API Key Kimi (Moonshot) API Key Mistral API Key Anthropic API Key Gemini 接続方式 Gemini API API Key で認証 Vertex AI Project/Location + ADC or JSON Vertex AI Project ID Vertex AI Location Vertex Service Account JSON (任意) xAI API Key Google API Key (TTS) Google Cloud Project ID (TTS) モデル別APIキー（特例） 通常のプロバイダーAPIキーより優先して、指定モデルにだけ適用します。 モデル別のAPIキーを設定する") {
+        "APIキー OpenAI API Key Gemini API Key DeepSeek API Key Z.AI API Key Kimi (Moonshot) API Key Mistral API Key Ideogram API Key Anthropic API Key Gemini 接続方式 Gemini API API Key で認証 Vertex AI Project/Location + ADC or JSON Vertex AI Project ID Vertex AI Location Vertex Service Account JSON (任意) xAI API Key Google API Key (TTS) Google Cloud Project ID (TTS) モデル別APIキー（特例） 通常のプロバイダーAPIキーより優先して、指定モデルにだけ適用します。 モデル別のAPIキーを設定する") {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             KeyField("OpenAI API Key", "openai_key", form)
             KeyField("Gemini API Key", "gemini_key", form)
@@ -220,6 +220,7 @@ internal fun apiCards(state: ChatState, form: SettingsForm, notify: (String) -> 
             KeyField("Z.AI API Key", "zai_key", form)
             KeyField("Kimi (Moonshot) API Key", "kimi_key", form)
             KeyField("Mistral API Key", "mistral_key", form)
+            KeyField("Ideogram API Key", "ideogram_key", form)
             KeyField("Anthropic API Key", "anthropic_key", form)
             GeminiBackendBox(form)
             if (form.geminiBackend == "vertex_ai") Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

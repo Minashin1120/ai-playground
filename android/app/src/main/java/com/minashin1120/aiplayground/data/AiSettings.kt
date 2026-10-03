@@ -90,6 +90,7 @@ fun apiKeyInfoFor(model: String): ApiKeyInfo? {
         id.startsWith("glm-") -> ApiKeyInfo("zai", "zai_key", "Z.AI API Key")
         id.startsWith("kimi") -> ApiKeyInfo("kimi", "kimi_key", "Kimi (Moonshot) API Key")
         id.startsWith("mistral") -> ApiKeyInfo("mistral", "mistral_key", "Mistral API Key")
+        id.startsWith("ideogram") -> ApiKeyInfo("ideogram", "ideogram_key", "Ideogram API Key")
         id.startsWith("claude") -> ApiKeyInfo("anthropic", "anthropic_key", "Anthropic API Key")
         id.startsWith("grok") -> ApiKeyInfo("xai", "xai_key", "xAI (Grok) API Key")
         id.startsWith("google") -> ApiKeyInfo("google", "google_key", "Google API Key (TTS)")

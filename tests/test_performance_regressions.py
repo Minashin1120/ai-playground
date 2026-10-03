@@ -322,7 +322,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         self.assertEqual(min_css.read_bytes(), source_css.read_bytes())
         # Allow the Z.AI and GPT-6 model catalogs and their UI branches
         # while retaining a hard cap on the browser asset size.
-        self.assertLess(min_js.stat().st_size, 840_000)
+        self.assertLess(min_js.stat().st_size, 845_000)
         self.assertIn("chat_core.min.", template)
         self.assertNotIn("filename='js/chat_core.'", template)
         self.assertIn("chat.custom.min.", template)

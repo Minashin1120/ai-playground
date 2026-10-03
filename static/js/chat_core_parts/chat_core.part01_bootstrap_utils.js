@@ -759,6 +759,7 @@
             sync('grok-image-aspect', 'modal-grok-image-aspect');
             sync('grok-image-resolution', 'modal-grok-image-resolution');
             sync('grok-image-quality', 'modal-grok-image-quality');
+            IDEOGRAM_IMAGE_FIELDS.forEach(f => sync(`ideogram-image-${f}`, `modal-ideogram-image-${f}`));
             sync('ocr-table-format', 'modal-ocr-table-format');
             sync('ocr-pages', 'modal-ocr-pages');
             const syncChk = (srcId, destId) => {
@@ -777,6 +778,8 @@
             if(get('modal-gpt-image-options')) get('modal-gpt-image-options').classList.toggle('hidden', !isGpt);
             if(get('modal-gemini-image-options')) get('modal-gemini-image-options').classList.toggle('hidden', !isGemini);
             if(get('modal-grok-image-options')) get('modal-grok-image-options').classList.toggle('hidden', !isGrok);
+            if(get('modal-ideogram-image-options')) get('modal-ideogram-image-options').classList.toggle('hidden', !isIdeogramModel(model));
+            if (typeof updateIdeogramImageUi === 'function') updateIdeogramImageUi();
             if(get('modal-mistral-ocr-options')) get('modal-mistral-ocr-options').classList.toggle('hidden', !isMistralOcrModel(model));
         };
         const isGeminiLocalPyDialogEnabled = () => {

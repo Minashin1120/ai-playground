@@ -415,6 +415,7 @@
             if (
                 m.includes('gpt-image') ||
                 m.includes('imagine-image') ||
+                m.startsWith('ideogram-') ||
                 (m.includes('image') && !m.includes('vision')) ||
                 (m.includes('gemini') && (m.includes('image') || m.includes('nano')))
             ) return 'image';
@@ -1197,7 +1198,7 @@
         // Minimal mode: plus-button options popup + temporary Thinking slider
         // ------------------------------------------------------------------
         const MINIMAL_MODEL_PANEL_IDS = [
-            'gpt-image-options', 'gemini-image-options', 'grok-image-options',
+            'gpt-image-options', 'gemini-image-options', 'grok-image-options', 'ideogram-image-options',
             'xai-chat-options', 'grok-video-options', 'mistral-ocr-options', 'image-input-limits', 'audio-gen-options'
         ];
         const THINKING_LEVELS = [

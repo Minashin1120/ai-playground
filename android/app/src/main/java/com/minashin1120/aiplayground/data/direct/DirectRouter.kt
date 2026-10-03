@@ -22,6 +22,7 @@ class DirectRouter(private val http: DirectHttp, private val bases: Map<String, 
             // Media models (server image / TTS / transcription / video branches).
             mode == "image" && id.startsWith("gpt-image") -> Route("openai", OpenAiImageDirect(http, base("openai", "https://api.openai.com")))
             mode == "image" && id.startsWith("grok-imagine-image") -> Route("xai", XaiImageDirect(http, base("xai", "https://api.x.ai")))
+            mode == "image" && id.startsWith("ideogram-") -> Route("ideogram", IdeogramImageDirect(http, base("ideogram", "https://api.ideogram.ai")))
             mode == "tts" && id.startsWith("gemini") -> Route("gemini", TtsDirect(http, "gemini", bases["gemini"]))
             mode == "tts" && id.startsWith("google-tts") -> Route("google", TtsDirect(http, "google", bases["google"]))
             mode == "tts" && id.startsWith("grok") -> Route("xai", TtsDirect(http, "xai", bases["xai"]))

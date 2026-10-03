@@ -45,6 +45,8 @@ def get_model_api_provider(model_key):
         return "kimi"
     if is_mistral_ocr_model_key(mk) or mk.startswith("mistral"):
         return "mistral"
+    if mk.startswith("ideogram-"):
+        return "ideogram"
     return "openai"
 
 _PROVIDER_LABELS = {
@@ -57,6 +59,7 @@ _PROVIDER_LABELS = {
     "kimi": "Kimi (Moonshot)",
     "google": "Google Cloud",
     "mistral": "Mistral",
+    "ideogram": "Ideogram",
 }
 
 MISTRAL_API_BASE = "https://api.mistral.ai/v1"

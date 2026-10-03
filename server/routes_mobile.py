@@ -52,7 +52,7 @@ def _mobile_model_mode(model_id):
         return 'music'
     if 'video' in model_id or model_id.startswith('veo-') or model_id.startswith('gemini-omni'):
         return 'video'
-    if 'image' in model_id:
+    if 'image' in model_id or model_id.startswith('ideogram-'):
         return 'image'
     if any(marker in model_id for marker in ('deep-research', 'antigravity', 'computer-use', 'robotics')):
         return 'agent'
@@ -63,7 +63,7 @@ def _mobile_model_name(model_id):
     words = str(model_id).replace('_', '-').split('-')
     labels = {'gpt': 'GPT', 'tts': 'TTS', 'ocr': 'OCR', 'ai': 'AI', 'xai': 'xAI',
               'gemini': 'Gemini', 'grok': 'Grok', 'claude': 'Claude',
-              'deepseek': 'DeepSeek', 'kimi': 'Kimi', 'mistral': 'Mistral', 'glm': 'GLM',
+              'deepseek': 'DeepSeek', 'kimi': 'Kimi', 'mistral': 'Mistral', 'glm': 'GLM', 'ideogram': 'Ideogram',
               'veo': 'Veo', 'lyria': 'Lyria'}
     return ' '.join(labels.get(word.lower(), word.capitalize()) for word in words)
 
@@ -370,6 +370,7 @@ _MOBILE_SECRET_FIELDS = (
     ('openai_key', 'openai_api_key'), ('gemini_key', 'gemini_api_key'),
     ('anthropic_key', 'anthropic_api_key'), ('deepseek_key', 'deepseek_api_key'),
     ('kimi_key', 'kimi_api_key'), ('mistral_key', 'mistral_api_key'),
+    ('ideogram_key', 'ideogram_api_key'),
     ('zai_key', 'zai_api_key'),
     ('xai_key', 'xai_api_key'), ('google_key', 'google_api_key'),
 )

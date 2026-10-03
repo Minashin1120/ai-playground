@@ -54,7 +54,7 @@ AI Playground のAndroid版は、次の3通りの使い方ができます。ど�
 - Anthropic Claude（思考、Web検索、画像・PDFの入力）
 - xAI Grok（Web検索・X検索）
 - DeepSeek、Kimi、Mistral、Z.AI GLM（チャットと画像入力対応モデル）
-- 画像生成（GPT Image、Grok Imagine、Geminiの画像モデル）、音声合成（OpenAI、xAI、Google Cloud、GeminiのTTS）、音声ファイルの文字起こし（OpenAI）、動画生成（Veo、Grok Imagine video。生成中はアプリを開いたままにしてください）
+- 画像生成（GPT Image、Grok Imagine、Ideogram、Geminiの画像モデル）、音声合成（OpenAI、xAI、Google Cloud、GeminiのTTS）、音声ファイルの文字起こし（OpenAI）、動画生成（Veo、Grok Imagine video。生成中はアプリを開いたままにしてください）
 - 音声入力（端末のOpenAI APIキーで文字起こし）
 - 画像・PDFの添付（そのまま送信）、Word（DOCX）・Excel（XLSX）・テキストの添付（端末で文字を取り出して送信）
 - Gem、チャット固有の指示、システムプロンプト、自動注入プロンプト、ブランチ（編集・再生成）、PDF出力

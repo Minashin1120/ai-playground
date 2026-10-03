@@ -85,6 +85,24 @@ fun isGptImageModel(m: String) = m.contains("gpt-image")
 fun isGeminiImageModel(m: String) = m.contains("gemini") && (m.contains("image") || m.contains("nano"))
 fun isGrokImageModel(m: String) = m.contains("grok") && (m.contains("imagine") || m.contains("image")) && !m.contains("video")
 fun isGrokVideoModel(m: String) = m.contains("grok") && m.contains("video")
+fun isIdeogramModel(m: String) = m.startsWith("ideogram-")
+
+/** Web `ideogramModelTraits`: which Ideogram panel fields a model takes. */
+data class IdeogramTraits(
+    val edit: Boolean, val quality: Boolean, val speed: Boolean, val resolution: Boolean,
+    val style: Boolean, val negative: Boolean, val styleOptions: List<String>,
+)
+
+fun ideogramTraits(m: String) = IdeogramTraits(
+    edit = m == "ideogram-4.5",
+    quality = m == "ideogram-4.5",
+    speed = m != "ideogram-4.5",
+    resolution = m == "ideogram-4.5" || m == "ideogram-4.0",
+    style = m == "ideogram-3.0" || m == "ideogram-2a" || m == "ideogram-2.0",
+    negative = m == "ideogram-3.0" || m == "ideogram-2.0",
+    styleOptions = if (m == "ideogram-3.0") listOf("auto", "general", "realistic", "design", "fiction", "stylized")
+    else listOf("auto", "general", "realistic", "design", "render_3d", "anime"),
+)
 fun isGeminiVideoModel(m: String) = m.startsWith("veo-") || m.contains("omni-flash") || m.contains("omni-1.1-flash")
 fun isGeminiMusicModel(m: String) = m.startsWith("lyria-")
 fun isLyriaRealtimeModel(m: String) = m == "lyria-realtime-exp"
@@ -141,6 +159,22 @@ fun generationPanels(modelId: String, values: Map<String, String> = emptyMap()):
             select("grok_image_quality", "Quality", "medium", "medium" to "Medium", "low" to "Low", hidden = m != "grok-imagine-image-2.0"),
             select("grok_image_format", "Format", "url", "url" to "URL", "b64_json" to "Base64"),
         ), "※ Grok Imagine"))
+    }
+    if (isIdeogramModel(m)) {
+        val traits = ideogramTraits(m)
+        add(GenPanel("ideogram-image", listOf(
+            number("ideogram_count", "Count", "1", 1.0, 8.0, width = 48),
+            select("ideogram_aspect", "Aspect", "auto", "auto" to "Auto", "1:1" to "1:1 (Square)", "4:5" to "4:5", "5:4" to "5:4", "3:4" to "3:4", "4:3" to "4:3",
+                "2:3" to "2:3", "3:2" to "3:2", "9:16" to "9:16 (Portrait)", "16:9" to "16:9 (Landscape)", *plain("10:16", "16:10", "1:2", "2:1", "1:3", "3:1")),
+            select("ideogram_resolution", "Res", "1k", "1k" to "1K", "2k" to "2K", hidden = !traits.resolution),
+            select("ideogram_quality", "Quality", "", "" to "Auto", "very_low" to "Very low", "low" to "Low", "medium" to "Medium", "high" to "High", hidden = !traits.quality),
+            select("ideogram_speed", "Speed", "default", "default" to "Default", "turbo" to "Turbo", "quality" to "Quality", hidden = !traits.speed),
+            select("ideogram_magic_prompt", "Magic", "auto", "auto" to "Auto", "on" to "On", "off" to "Off"),
+            select("ideogram_style_type", "Style", "auto", *traits.styleOptions.map { option -> option to (if (option == "auto") "Auto" else option) }.toTypedArray(), hidden = !traits.style),
+            GenField("ideogram_negative_prompt", "Negative", GenField.Kind.Text, placeholder = "除外したい要素", width = 160, hidden = !traits.negative),
+            number("ideogram_seed", "Seed", "", 0.0, 2147483647.0, placeholder = "auto", width = 96),
+        ), if (traits.edit) "※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ"
+        else "※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）"))
     }
     if (m.startsWith("grok-") && !isGrokImageModel(m) && !isGrokVideoModel(m) && !m.contains("voice")) {
         val noLogprobs = m.contains("grok-4.20")
@@ -246,6 +280,10 @@ fun imageInputLimits(model: String): Pair<String, List<String>>? {
         isMistralOcrModel(m) -> "Mistral OCR 4 入力" to listOf(
             "PDF / PNG / JPEG / TIFF / BMP / GIF / WEBP / DOCX / PPTX、または公開URL",
             "最大 512MB / 会話履歴は送信しません / チャット補完・Search・Python・Canvas 非対応")
+        isIdeogramModel(m) -> if (ideogramTraits(m).edit) "Ideogram 4.5 入力制限" to listOf(
+            "編集する画像1枚 + 参考画像は最大4枚 / 1枚あたり25MBまで / PNG・JPEG・WEBP",
+            "画像がない場合は直前の画像を編集します / マスクには対応していません")
+        else "Ideogram 入力" to listOf("テキストからの生成のみです。画像入力は Ideogram 4.5 だけが対応しています")
         m.contains("grok") -> "Grok 画像入力制限" to listOf("最大 20MiB / PNG・JPG のみ / 枚数制限なし")
         else -> null
     }

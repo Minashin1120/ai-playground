@@ -336,7 +336,7 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
 const val SECRET_MASK = "********"
 
 val PROVIDER_KEY_FIELDS = listOf(
-    "openai_key", "gemini_key", "deepseek_key", "zai_key", "kimi_key", "mistral_key", "anthropic_key", "xai_key", "google_key",
+    "openai_key", "gemini_key", "deepseek_key", "zai_key", "kimi_key", "mistral_key", "ideogram_key", "anthropic_key", "xai_key", "google_key",
 )
 
 /** One row of the Web "自動注入システムプロンプト" list (`AUTO_SYS_PROMPT_ITEMS`). */
@@ -888,7 +888,7 @@ fun pendingSkeletonKind(model: String): String {
         m.contains("video") -> "video"
         m.contains("tts") || m.contains("transcribe") || m.contains("realtime") || m.contains("voice") ||
             m.contains("native-audio") || (m.contains("live") && m.contains("gemini")) -> "audio"
-        m.contains("gpt-image") || m.contains("imagine-image") || (m.contains("image") && !m.contains("vision")) ||
+        m.contains("gpt-image") || m.contains("imagine-image") || m.startsWith("ideogram-") || (m.contains("image") && !m.contains("vision")) ||
             (m.contains("gemini") && (m.contains("image") || m.contains("nano"))) -> "image"
         m.contains("ocr") -> "text"
         m.contains("build") || m.contains("code-fast") || m.contains("coding") -> "code"

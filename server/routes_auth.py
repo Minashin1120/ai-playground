@@ -832,6 +832,7 @@ def setup():
             ('deepseek_api_key', request.form.get('deepseek_key')),
             ('kimi_api_key', request.form.get('kimi_key')),
             ('mistral_api_key', request.form.get('mistral_key')),
+            ('ideogram_api_key', request.form.get('ideogram_key')),
             ('zai_api_key', request.form.get('zai_key')),
             ('anthropic_api_key', request.form.get('anthropic_key')),
             ('xai_api_key', request.form.get('xai_key')),

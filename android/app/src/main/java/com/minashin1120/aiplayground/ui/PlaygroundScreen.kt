@@ -1132,6 +1132,7 @@ private fun SetupScreen(state: ChatState, model: ChatViewModel, onWeb: (String) 
     var deepseek by rememberSaveable { mutableStateOf("") }
     var kimi by rememberSaveable { mutableStateOf("") }
     var mistral by rememberSaveable { mutableStateOf("") }
+    var ideogram by rememberSaveable { mutableStateOf("") }
     var zai by rememberSaveable { mutableStateOf("") }
     var xai by rememberSaveable { mutableStateOf("") }
     var google by rememberSaveable { mutableStateOf("") }
@@ -1200,6 +1201,7 @@ private fun SetupScreen(state: ChatState, model: ChatViewModel, onWeb: (String) 
         item { SetupSecretField("DeepSeek", deepseek, { deepseek = it }) }
         item { SetupSecretField("Kimi", kimi, { kimi = it }) }
         item { SetupSecretField("Mistral", mistral, { mistral = it }) }
+        item { SetupSecretField("Ideogram", ideogram, { ideogram = it }) }
         item { SetupSecretField("Z.AI", zai, { zai = it }) }
         item { SetupSecretField("xAI", xai, { xai = it }) }
         item { SetupSecretField("Google API", google, { google = it }) }
@@ -1225,7 +1227,7 @@ private fun SetupScreen(state: ChatState, model: ChatViewModel, onWeb: (String) 
             state.authError?.let { Text(it, color = colors.error) }
             Button(
                 onClick = {
-                    model.finishSetup(selectedModel, openai, gemini, anthropic, deepseek, kimi, mistral, zai, xai,
+                    model.finishSetup(selectedModel, openai, gemini, anthropic, deepseek, kimi, mistral, ideogram, zai, xai,
                         google, googleProject, vertexProject, vertexLocation, vertexJson, e2ee)
                 }, enabled = !state.authBusy, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
             ) { Text(if (state.authBusy) "保存しています…" else "セットアップを完了") }

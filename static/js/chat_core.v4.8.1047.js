@@ -759,6 +759,7 @@
             sync('grok-image-aspect', 'modal-grok-image-aspect');
             sync('grok-image-resolution', 'modal-grok-image-resolution');
             sync('grok-image-quality', 'modal-grok-image-quality');
+            IDEOGRAM_IMAGE_FIELDS.forEach(f => sync(`ideogram-image-${f}`, `modal-ideogram-image-${f}`));
             sync('ocr-table-format', 'modal-ocr-table-format');
             sync('ocr-pages', 'modal-ocr-pages');
             const syncChk = (srcId, destId) => {
@@ -777,6 +778,8 @@
             if(get('modal-gpt-image-options')) get('modal-gpt-image-options').classList.toggle('hidden', !isGpt);
             if(get('modal-gemini-image-options')) get('modal-gemini-image-options').classList.toggle('hidden', !isGemini);
             if(get('modal-grok-image-options')) get('modal-grok-image-options').classList.toggle('hidden', !isGrok);
+            if(get('modal-ideogram-image-options')) get('modal-ideogram-image-options').classList.toggle('hidden', !isIdeogramModel(model));
+            if (typeof updateIdeogramImageUi === 'function') updateIdeogramImageUi();
             if(get('modal-mistral-ocr-options')) get('modal-mistral-ocr-options').classList.toggle('hidden', !isMistralOcrModel(model));
         };
         const isGeminiLocalPyDialogEnabled = () => {
@@ -3830,6 +3833,7 @@
             if (
                 m.includes('gpt-image') ||
                 m.includes('imagine-image') ||
+                m.startsWith('ideogram-') ||
                 (m.includes('image') && !m.includes('vision')) ||
                 (m.includes('gemini') && (m.includes('image') || m.includes('nano')))
             ) return 'image';
@@ -4612,7 +4616,7 @@
         // Minimal mode: plus-button options popup + temporary Thinking slider
         // ------------------------------------------------------------------
         const MINIMAL_MODEL_PANEL_IDS = [
-            'gpt-image-options', 'gemini-image-options', 'grok-image-options',
+            'gpt-image-options', 'gemini-image-options', 'grok-image-options', 'ideogram-image-options',
             'xai-chat-options', 'grok-video-options', 'mistral-ocr-options', 'image-input-limits', 'audio-gen-options'
         ];
         const THINKING_LEVELS = [
@@ -7540,6 +7544,18 @@
                 ]
             },
             {
+                category: "Ideogram",
+                icon: "fas fa-paint-brush text-pink-400",
+                description: "Ideogram image generation with strong text rendering. Ideogram 4.5 also supports multi-turn precise editing.",
+                items: [
+                    { id: "ideogram-4.5", implementedAt: "2026-10-03", implementedRank: 10474, quickEmoji: "🖼️", name: "Ideogram 4.5", desc: "Latest Ideogram model: native 2K generation and precise multi-turn editing that keeps unedited pixels intact.", price: "from $0.008 / image (1K very low) to $0.22 / image (2K high)" },
+                    { id: "ideogram-4.0", implementedAt: "2026-10-03", implementedRank: 10473, name: "Ideogram 4.0", desc: "Previous-generation Ideogram model with up to 2K output and structured prompts. Text-to-image only.", price: "Priced per image by rendering speed" },
+                    { id: "ideogram-3.0", implementedAt: "2026-10-03", implementedRank: 10472, name: "Ideogram 3.0", desc: "Text-to-image with style types and negative prompts. Text-to-image only.", price: "Priced per image by rendering speed" },
+                    { id: "ideogram-2a", implementedAt: "2026-10-03", implementedRank: 10471, name: "Ideogram 2a", desc: "Fast, lower-cost Ideogram 2 model. Text-to-image only.", price: "Priced per image by rendering speed" },
+                    { id: "ideogram-2.0", implementedAt: "2026-10-03", implementedRank: 10470, name: "Ideogram 2.0", desc: "Ideogram 2.0 with style types and negative prompts. Text-to-image only.", price: "Priced per image by rendering speed" }
+                ]
+            },
+            {
                 category: "Grok Imagine",
                 icon: "fas fa-magic text-blue-400",
                 description: "Grok generation models",
@@ -7660,6 +7676,7 @@
             if (id.startsWith('glm-')) return { provider: 'zai', keyField: 'zai_key', inputId: 'set-zai', label: 'Z.AI API Key' };
             if (id.startsWith('kimi')) return { provider: 'kimi', keyField: 'kimi_key', inputId: 'set-kimi', label: 'Kimi (Moonshot) API Key' };
             if (id.startsWith('mistral')) return { provider: 'mistral', keyField: 'mistral_key', inputId: 'set-mistral', label: 'Mistral API Key' };
+            if (id.startsWith('ideogram')) return { provider: 'ideogram', keyField: 'ideogram_key', inputId: 'set-ideogram', label: 'Ideogram API Key' };
             if (id.startsWith('claude')) return { provider: 'anthropic', keyField: 'anthropic_key', inputId: 'set-anthropic', label: 'Anthropic API Key' };
             if (id.startsWith('grok')) return { provider: 'xai', keyField: 'xai_key', inputId: 'set-xai', label: 'xAI (Grok) API Key' };
             if (id.startsWith('google')) return { provider: 'google', keyField: 'google_key', inputId: 'set-google-key', label: 'Google API Key (TTS)' };
@@ -7791,7 +7808,7 @@
         };
 
         let activeModelTag = 'all';
-        const MODEL_TAGS = ['all','openai','gemini','anthropic','kimi','deepseek','zai','mistral','xai','image','video','audio','music','transcription','ocr','reasoning','fast','agent','agentic view'];
+        const MODEL_TAGS = ['all','openai','gemini','anthropic','kimi','deepseek','zai','mistral','ideogram','xai','image','video','audio','music','transcription','ocr','reasoning','fast','agent','agentic view'];
 
         // Slash command system (extensible command palette triggered by / in prompt bar)
         const MINIMAL_SLASH_COMMANDS = [
@@ -8064,6 +8081,7 @@
         const isLlmModel = () => {
             const m = (get('model-select').value || '').toLowerCase();
             if (isMistralOcrModel(m)) return false;
+            if (isIdeogramModelKey(m)) return false;
             if (
                 m.includes('tts') ||
                 m.includes('transcribe') ||
@@ -8083,6 +8101,23 @@
         const isGrokImageModel = () => {
             const m = (get('model-select').value || '').toLowerCase();
             return m.includes('grok') && (m.includes('imagine') || m.includes('image')) && !m.includes('video');
+        };
+        const isIdeogramModelKey = (model) => String(model || '').toLowerCase().startsWith('ideogram-');
+        const isIdeogramModel = (model) => isIdeogramModelKey(model != null ? model : get('model-select').value);
+        const IDEOGRAM_IMAGE_FIELDS = ['count', 'aspect', 'resolution', 'quality', 'speed', 'magic', 'style', 'negative', 'seed'];
+        const ideogramModelTraits = (model) => {
+            const m = String(model || '').toLowerCase();
+            return {
+                edit: m === 'ideogram-4.5',
+                quality: m === 'ideogram-4.5',
+                speed: m !== 'ideogram-4.5',
+                resolution: m === 'ideogram-4.5' || m === 'ideogram-4.0',
+                style: m === 'ideogram-3.0' || m === 'ideogram-2a' || m === 'ideogram-2.0',
+                negative: m === 'ideogram-3.0' || m === 'ideogram-2.0',
+                styleOptions: m === 'ideogram-3.0'
+                    ? ['auto', 'general', 'realistic', 'design', 'fiction', 'stylized']
+                    : ['auto', 'general', 'realistic', 'design', 'render_3d', 'anime']
+            };
         };
         const isGrokVideoModel = () => {
             const m = (get('model-select').value || '').toLowerCase();
@@ -9064,6 +9099,7 @@
                 id.includes('ocr') ||
                 cat.includes('ocr')
             ) tags.push('mistral');
+            if (cat.includes('ideogram') || id.includes('ideogram') || name.includes('ideogram')) tags.push('ideogram');
             if (
                 cat.includes('gpt') ||
                 cat.includes('openai') ||
@@ -9156,7 +9192,7 @@
             const isDeepSeek = model.includes('deepseek');
             const isTts = model.includes('tts');
             const isOcr = model.startsWith('mistral-ocr');
-            const isNonTextModel = isTts || isOcr || model.includes('transcribe') || model.includes('realtime')
+            const isNonTextModel = isTts || isOcr || model.startsWith('ideogram-') || model.includes('transcribe') || model.includes('realtime')
                 || model.includes('voice-agent') || model.includes('native-audio') || model.includes('live')
                 || model.includes('image') || model.includes('video') || model.startsWith('veo-')
                 || model.includes('omni-flash') || model.startsWith('lyria-') || model.includes('embedding');
@@ -9876,6 +9912,46 @@
                 }
             }
         }
+        function updateIdeogramImageUi() {
+            const wrap = get('ideogram-image-options');
+            const modalWrap = get('modal-ideogram-image-options');
+            const model = (get('model-select') && get('model-select').value) || '';
+            const active = isIdeogramModel(model);
+            const traits = ideogramModelTraits(model);
+            const visibleByField = {
+                resolution: traits.resolution, quality: traits.quality, speed: traits.speed,
+                style: traits.style, negative: traits.negative
+            };
+            if (wrap) wrap.classList.toggle('hidden', !active);
+            if (modalWrap) modalWrap.classList.toggle('hidden', !active);
+            if (!active) return;
+            IDEOGRAM_IMAGE_FIELDS.forEach((field) => {
+                const show = visibleByField[field] !== false;
+                ['ideogram-image-', 'modal-ideogram-image-'].forEach((prefix) => {
+                    const el = get(prefix + field);
+                    if (!el || !el.parentElement) return;
+                    // The modal's negative prompt row sits outside the grid, so hide that row itself.
+                    el.parentElement.classList.toggle('hidden', !show);
+                });
+            });
+            ['ideogram-image-style', 'modal-ideogram-image-style'].forEach((id) => {
+                const el = get(id);
+                if (!el) return;
+                const wanted = traits.styleOptions.join('|');
+                if (el.dataset.options !== wanted) {
+                    const prev = el.value;
+                    el.innerHTML = traits.styleOptions.map((v) => `<option value="${v}">${v === 'auto' ? 'Auto' : v}</option>`).join('');
+                    el.dataset.options = wanted;
+                    el.value = traits.styleOptions.includes(prev) ? prev : 'auto';
+                }
+            });
+            const note = get('ideogram-image-note');
+            if (note) {
+                note.textContent = traits.edit
+                    ? '※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ'
+                    : '※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）';
+            }
+        }
         function updateGrokVideoUi() {
             const wrap = get('grok-video-options');
             if (!wrap) return;
@@ -10017,6 +10093,16 @@
                 html = [
                     '<div class="font-bold text-gray-300 mb-1">Grok 画像入力制限</div>',
                     '<div>最大 20MiB / PNG・JPG のみ / 枚数制限なし</div>'
+                ].join('');
+            } else if (isIdeogramModel(model)) {
+                show = true;
+                html = ideogramModelTraits(model).edit ? [
+                    '<div class="font-bold text-gray-300 mb-1">Ideogram 4.5 入力制限</div>',
+                    '<div>編集する画像1枚 + 参考画像は最大4枚 / 1枚あたり25MBまで / PNG・JPEG・WEBP</div>',
+                    '<div>画像がない場合は直前の画像を編集します / マスクには対応していません</div>'
+                ].join('') : [
+                    '<div class="font-bold text-gray-300 mb-1">Ideogram 入力</div>',
+                    '<div>テキストからの生成のみです。画像入力は Ideogram 4.5 だけが対応しています</div>'
                 ].join('');
             } else if (model.includes('grok') && model.includes('video')) {
                 show = true;
@@ -10263,7 +10349,7 @@
                     }
                 }
 
-                if(((isGeminiImage && !isNanoBanana2) || model.includes('gpt-image') || isGrokImageModel() || isGrokVideoModel() || isOcr)) { if (sysChk && sysLbl) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } }
+                if(((isGeminiImage && !isNanoBanana2) || model.includes('gpt-image') || isGrokImageModel() || isIdeogramModel(model) || isGrokVideoModel() || isOcr)) { if (sysChk && sysLbl) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } }
                 if (pyCont) {
                     if (isLlmModel()) {
                         pyCont.classList.remove('hidden');
@@ -10315,6 +10401,7 @@
                 updateGptImageUi();
                 updateGeminiImageUi();
                 updateGrokImageUi();
+                updateIdeogramImageUi();
                 updateGrokVideoUi();
                 updateGeminiVideoUi();
                 updateGeminiMusicUi();
@@ -12091,6 +12178,7 @@
                 if(get('set-zai')) get('set-zai').value = d.zai_key || '';
                 if(get('set-kimi')) get('set-kimi').value = d.kimi_key || '';
                 if(get('set-mistral')) get('set-mistral').value = d.mistral_key || '';
+                if(get('set-ideogram')) get('set-ideogram').value = d.ideogram_key || '';
                 if(get('set-anthropic')) get('set-anthropic').value = d.anthropic_key || '';
                 if(get('set-gemini-backend')) get('set-gemini-backend').value = normalizeGeminiBackend(d.gemini_backend || 'gemini_api');
                 if(get('set-gemini-vertex-project')) get('set-gemini-vertex-project').value = d.gemini_vertex_project || '';
@@ -12473,6 +12561,7 @@
                 if (get('set-zai')) b.zai_key = get('set-zai').value;
                 if (get('set-kimi')) b.kimi_key = get('set-kimi').value;
                 if (get('set-mistral')) b.mistral_key = get('set-mistral').value;
+                if (get('set-ideogram')) b.ideogram_key = get('set-ideogram').value;
                 if (get('set-anthropic')) b.anthropic_key = get('set-anthropic').value;
                 b.model_api_keys = normalizeModelApiKeyMap(modelApiKeyMap);
                 if (get('set-gemini-backend')) b.gemini_backend = normalizeGeminiBackend(get('set-gemini-backend').value);
@@ -21209,6 +21298,15 @@
                 grok_image_quality: isGrokImageModel() && get('grok-image-quality') ? get('grok-image-quality').value : null,
                 grok_image_format: isGrokImageModel() && get('grok-image-format') ? get('grok-image-format').value : null,
                 grok_image_count: isGrokImageModel() && get('grok-image-count') ? get('grok-image-count').value : null,
+                ideogram_aspect: isIdeogramModel() && get('ideogram-image-aspect') ? get('ideogram-image-aspect').value : null,
+                ideogram_resolution: isIdeogramModel() && get('ideogram-image-resolution') ? get('ideogram-image-resolution').value : null,
+                ideogram_quality: isIdeogramModel() && get('ideogram-image-quality') ? get('ideogram-image-quality').value : null,
+                ideogram_speed: isIdeogramModel() && get('ideogram-image-speed') ? get('ideogram-image-speed').value : null,
+                ideogram_magic_prompt: isIdeogramModel() && get('ideogram-image-magic') ? get('ideogram-image-magic').value : null,
+                ideogram_style_type: isIdeogramModel() && get('ideogram-image-style') ? get('ideogram-image-style').value : null,
+                ideogram_negative_prompt: isIdeogramModel() && get('ideogram-image-negative') ? get('ideogram-image-negative').value : null,
+                ideogram_count: isIdeogramModel() && get('ideogram-image-count') ? get('ideogram-image-count').value : null,
+                ideogram_seed: isIdeogramModel() && get('ideogram-image-seed') ? get('ideogram-image-seed').value : null,
                 xai_temperature: get('xai-temperature') ? get('xai-temperature').value : null,
                 xai_top_p: get('xai-top-p') ? get('xai-top-p').value : null,
                 xai_max_completion_tokens: get('xai-max-completion-tokens') ? get('xai-max-completion-tokens').value : null,
@@ -23472,6 +23570,7 @@
             syncBack('modal-grok-image-aspect', 'grok-image-aspect');
             syncBack('modal-grok-image-resolution', 'grok-image-resolution');
             syncBack('modal-grok-image-quality', 'grok-image-quality');
+            IDEOGRAM_IMAGE_FIELDS.forEach(f => syncBack(`modal-ideogram-image-${f}`, `ideogram-image-${f}`));
             syncBack('modal-ocr-table-format', 'ocr-table-format');
             syncBack('modal-ocr-pages', 'ocr-pages');
             const syncBackChk = (modalId, targetId) => {

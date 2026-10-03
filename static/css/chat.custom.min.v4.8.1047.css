@@ -5883,6 +5883,7 @@ body.minimal-prompt-mode #welcome-screen {
 body.minimal-prompt-mode .composer-shell > #gpt-image-options,
 body.minimal-prompt-mode .composer-shell > #gemini-image-options,
 body.minimal-prompt-mode .composer-shell > #grok-image-options,
+body.minimal-prompt-mode .composer-shell > #ideogram-image-options,
 body.minimal-prompt-mode .composer-shell > #grok-video-options,
 body.minimal-prompt-mode .composer-shell > #mistral-ocr-options,
 body.minimal-prompt-mode .composer-shell > #image-input-limits,

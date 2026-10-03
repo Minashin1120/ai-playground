@@ -5,6 +5,7 @@ import com.minashin1120.aiplayground.data.GEMINI_TTS_VOICES
 import kotlinx.coroutines.delay
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
@@ -94,6 +95,183 @@ class XaiImageDirect(private val http: DirectHttp, private val baseUrl: String =
         when (images.size) { 0 -> Unit; 1 -> payload.put("image", images[0]); else -> payload.put("images", JSONArray(images)) }
         return payload
     }
+}
+
+/** One Ideogram request: the endpoint, its body (JSON or multipart) and whether it is a Precise Edit. */
+internal class IdeogramCall(val url: String, val body: RequestBody, val edit: Boolean)
+
+/**
+ * Ideogram images from the device (server `server/ideogram.py`): Ideogram 4.5 generates, or runs Precise Edit
+ * when an image is attached (or an earlier image is in the chat); 4.0 / 3.0 / 2a / 2.0 only generate.
+ */
+class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: String = "https://api.ideogram.ai") : DirectEngine {
+    override suspend fun run(request: DirectRequest, emit: (JSONObject) -> Unit, onProgress: (String, String) -> Unit): DirectResult {
+        val sources = sourceImages(request)
+        emit(event("status", if (sources.isEmpty()) "Ideogram API を呼び出し中..." else "Ideogram API (Precise Edit) を呼び出し中..."))
+        val call = buildCall(request, sources)
+        val headers = mapOf("Api-Key" to request.apiKey, "Accept" to "application/json")
+        val reply = http.execute(http.request(call.url, headers).post(call.body).build()) { response ->
+            val text = response.body.string()
+            if (!response.isSuccessful) throw ideogramError(response.code, text)
+            runCatching { JSONObject(text) }.getOrElse { throw DirectApiException(0, "Ideogram の応答を読み取れませんでした。") }
+        }
+        val data = reply.optJSONArray("data") ?: JSONArray()
+        val files = mutableListOf<DirectOutputFile>()
+        var blocked = 0
+        for (index in 0 until data.length()) {
+            val item = data.optJSONObject(index) ?: continue
+            val url = item.optString("url")
+            if (!item.optBoolean("is_image_safe", true) || url.isBlank() || url == "null") {
+                blocked++
+                continue
+            }
+            val bytes = http.download(url, emptyMap(), 50L * 1024 * 1024)
+            val (extension, mime) = ideogramImageKind(bytes)
+            files += DirectOutputFile("gen_ideogram_${System.currentTimeMillis()}_$index.$extension", mime, bytes)
+        }
+        if (files.isEmpty()) {
+            throw DirectApiException(0, if (blocked > 0) "安全性チェックにより画像が返されませんでした。プロンプトや入力画像の内容を変更して再度お試しください。"
+            else "No data returned.")
+        }
+        emit(event("status", "完了"))
+        return DirectResult(files.indices.joinToString("\n") { "Generated Image ${it + 1} for: ${request.prompt()}" }, files = files)
+    }
+
+    /** The attached images; Ideogram 4.5 without any continues from the newest image in the chat. */
+    private fun sourceImages(request: DirectRequest): List<DirectAttachment> {
+        val attached = request.inputImages()
+        val chosen = when {
+            attached.isNotEmpty() -> attached
+            request.model.lowercase() == "ideogram-4.5" -> listOfNotNull(request.turns.asReversed().firstNotNullOfOrNull { turn ->
+                turn.attachments.lastOrNull { it.bytes != null && it.mime.startsWith("image/") }
+            })
+            else -> emptyList()
+        }
+        chosen.forEach { image ->
+            if (image.mime !in SOURCE_MIMES) throw DirectApiException(0, "入力画像を Ideogram が受け付ける形式（PNG / JPEG / WEBP）へ変換できませんでした。")
+            if (image.bytes!!.size > 25 * 1024 * 1024) throw DirectApiException(0, "Ideogram に送れる入力画像は1枚あたり25MBまでです。")
+        }
+        return chosen
+    }
+
+    internal fun buildCall(request: DirectRequest, sources: List<DirectAttachment>): IdeogramCall {
+        val model = request.model.lowercase()
+        val (path, family) = MODELS[model] ?: throw DirectApiException(0, "未対応の Ideogram モデルです。")
+        if (sources.isNotEmpty() && family != "v45") {
+            throw DirectApiException(0, "画像の編集に対応しているのは Ideogram 4.5 だけです。Ideogram 4.5 を選択するか、添付画像を外してください。")
+        }
+        val options = request.options
+        fun pick(key: String, allowed: Collection<String>) = options.optString(key).trim().lowercase().takeIf { it in allowed }
+        val count = (options.optString("ideogram_count").trim().toIntOrNull() ?: 1).coerceIn(1, 8)
+        val seed = options.optString("ideogram_seed").trim().toLongOrNull()?.coerceIn(0L, 2147483647L)
+        val magic = pick("ideogram_magic_prompt", MAGIC_PROMPTS)
+        val speed = pick("ideogram_speed", SPEEDS)
+        val aspect = pick("ideogram_aspect", SIZE_PRESETS.keys) ?: "auto"
+        val tier = if (options.optString("ideogram_resolution").trim().lowercase() == "2k") 1 else 0
+        val negative = options.optString("ideogram_negative_prompt").trim().takeIf { it != "null" }.orEmpty().take(2000)
+        val prompt = request.prompt()
+        val generateUrl = "$baseUrl/v2/image/generate/$path"
+        fun size(): String? = SIZE_PRESETS[aspect]?.let { if (tier == 1) it.second else it.first }
+        fun legacyAspect(): String = if (aspect in SIZE_PRESETS) aspect.replace(':', 'x') else "auto"
+
+        return when (family) {
+            "v45" -> {
+                val form = MultipartBody.Builder().setType(MultipartBody.FORM)
+                    .addFormDataPart("prompt", prompt).addFormDataPart("num_images", count.toString())
+                seed?.let { form.addFormDataPart("seed", it.toString()) }
+                val quality = pick("ideogram_quality", QUALITIES)
+                if (sources.isNotEmpty()) {
+                    // Precise Edit keeps the source's own size, so no size or aspect is sent.
+                    quality?.let { form.addFormDataPart("quality", it) }
+                    sources.take(5).forEachIndexed { index, image ->
+                        form.addFormDataPart(if (index == 0) "image" else "reference_images", image.name, image.bytes!!.toRequestBody(image.mime.toMediaType()))
+                    }
+                    return IdeogramCall("$baseUrl/v2/image/precise-edit/ideogram-4-5", form.build(), true)
+                }
+                magic?.let { form.addFormDataPart("magic_prompt", it) }
+                if (quality != null && quality != "very_low") form.addFormDataPart("quality", quality)
+                size()?.let { form.addFormDataPart("size", it) }
+                IdeogramCall(generateUrl, form.build(), false)
+            }
+            "v4" -> {
+                val body = JSONObject().put("prompt", prompt).put("num_images", count)
+                seed?.let { body.put("seed", it) }
+                magic?.let { body.put("magic_prompt", it) }
+                speed?.let { body.put("rendering_speed", it) }
+                size()?.let { body.put("resolution", it) }
+                IdeogramCall(generateUrl, http.jsonBody(body), false)
+            }
+            "v3" -> {
+                val form = MultipartBody.Builder().setType(MultipartBody.FORM)
+                    .addFormDataPart("prompt", prompt).addFormDataPart("aspect_ratio", legacyAspect()).addFormDataPart("num_images", count.toString())
+                seed?.let { form.addFormDataPart("seed", it.toString()) }
+                magic?.let { form.addFormDataPart("magic_prompt", it) }
+                speed?.let { form.addFormDataPart("rendering_speed", it) }
+                pick("ideogram_style_type", STYLE_TYPES_V3)?.let { form.addFormDataPart("style_type", it) }
+                if (negative.isNotEmpty()) form.addFormDataPart("negative_prompt", negative)
+                IdeogramCall(generateUrl, form.build(), false)
+            }
+            else -> {
+                val body = JSONObject().put("prompt", prompt).put("aspect_ratio", legacyAspect()).put("num_images", count)
+                seed?.let { body.put("seed", it) }
+                magic?.let { body.put("magic_prompt", it) }
+                speed?.let { body.put("rendering_speed", it) }
+                pick("ideogram_style_type", STYLE_TYPES_V2)?.let { body.put("style_type", it) }
+                // Ideogram 2a has no negative_prompt field.
+                if (negative.isNotEmpty() && model == "ideogram-2.0") body.put("negative_prompt", negative)
+                IdeogramCall(generateUrl, http.jsonBody(body), false)
+            }
+        }
+    }
+
+    private companion object {
+        /** App model id -> (API path segment, request family). */
+        val MODELS = mapOf(
+            "ideogram-4.5" to ("ideogram-4-5" to "v45"),
+            "ideogram-4.0" to ("ideogram-4" to "v4"),
+            "ideogram-3.0" to ("ideogram-3" to "v3"),
+            "ideogram-2a" to ("ideogram-2a" to "v2"),
+            "ideogram-2.0" to ("ideogram-2" to "v2"),
+        )
+        /** Aspect ratio -> (1K tier, 2K tier) exact sizes accepted by Ideogram 4.x. */
+        val SIZE_PRESETS = mapOf(
+            "1:1" to ("1024x1024" to "2048x2048"), "4:5" to ("896x1120" to "1792x2240"), "5:4" to ("1120x896" to "2240x1792"),
+            "3:4" to ("864x1152" to "1728x2304"), "4:3" to ("1152x864" to "2304x1728"), "2:3" to ("832x1248" to "1664x2496"),
+            "3:2" to ("1248x832" to "2496x1664"), "9:16" to ("720x1280" to "1440x2560"), "16:9" to ("1280x720" to "2560x1440"),
+            "10:16" to ("800x1280" to "1600x2560"), "16:10" to ("1280x800" to "2560x1600"), "1:2" to ("720x1440" to "1440x2880"),
+            "2:1" to ("1440x720" to "2880x1440"), "1:3" to ("512x1536" to "1024x3072"), "3:1" to ("1536x512" to "3072x1024"),
+        )
+        val QUALITIES = setOf("very_low", "low", "medium", "high")
+        val SPEEDS = setOf("turbo", "default", "quality")
+        val MAGIC_PROMPTS = setOf("auto", "on", "off")
+        val STYLE_TYPES_V3 = setOf("auto", "general", "realistic", "design", "fiction", "stylized")
+        val STYLE_TYPES_V2 = setOf("auto", "general", "realistic", "design", "render_3d", "anime")
+        val SOURCE_MIMES = setOf("image/png", "image/jpeg", "image/webp")
+    }
+}
+
+/** Ideogram's own error text by status (server `ideogram_error_message`). */
+internal fun ideogramError(status: Int, body: String): DirectApiException {
+    val json = runCatching { JSONObject(body) }.getOrNull()
+    val reason = json?.optString("reject_reason").orEmpty()
+    var detail = listOf("error", "detail", "message").map { json?.optString(it).orEmpty() }.firstOrNull { it.isNotBlank() }.orEmpty()
+    if (reason.isNotBlank() && reason !in detail) detail = "$detail ($reason)".trim()
+    detail = detail.take(400)
+    val message = when (status) {
+        401 -> "Ideogram のAPIキーが無効です。設定で Ideogram API Key を確認してください。"
+        402 -> "Ideogram のクレジットまたは利用枠が不足しています。$detail".trim()
+        422 -> "安全性チェックにより Ideogram が生成を拒否しました。プロンプトや入力画像の内容を変更して再度お試しください。"
+        429 -> "Ideogram のリクエスト制限に達しました。しばらく待ってから再試行してください。$detail".trim()
+        else -> "HTTP $status: ${detail.ifBlank { "Ideogram API request failed" }}"
+    }
+    return DirectApiException(status, message)
+}
+
+/** File extension and MIME type of a generated image from its first bytes (PNG when unknown). */
+internal fun ideogramImageKind(bytes: ByteArray): Pair<String, String> = when {
+    bytes.size > 3 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> "jpg" to "image/jpeg"
+    bytes.size > 12 && String(bytes, 8, 4, Charsets.US_ASCII) == "WEBP" -> "webp" to "image/webp"
+    else -> "png" to "image/png"
 }
 
 /**

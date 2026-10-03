@@ -2080,6 +2080,66 @@
   },
   {
    "capabilities": [
+    "image"
+   ],
+   "deprecated": false,
+   "id": "ideogram-2.0",
+   "mode": "image",
+   "name": "Ideogram 2.0",
+   "provider": "ideogram",
+   "provider_label": "Ideogram",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "image"
+   ],
+   "deprecated": false,
+   "id": "ideogram-2a",
+   "mode": "image",
+   "name": "Ideogram 2a",
+   "provider": "ideogram",
+   "provider_label": "Ideogram",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "image"
+   ],
+   "deprecated": false,
+   "id": "ideogram-3.0",
+   "mode": "image",
+   "name": "Ideogram 3.0",
+   "provider": "ideogram",
+   "provider_label": "Ideogram",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "image"
+   ],
+   "deprecated": false,
+   "id": "ideogram-4.0",
+   "mode": "image",
+   "name": "Ideogram 4.0",
+   "provider": "ideogram",
+   "provider_label": "Ideogram",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "image"
+   ],
+   "deprecated": false,
+   "id": "ideogram-4.5",
+   "mode": "image",
+   "name": "Ideogram 4.5",
+   "provider": "ideogram",
+   "provider_label": "Ideogram",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "chat",
     "attachments",
     "thinking",

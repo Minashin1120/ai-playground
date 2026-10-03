@@ -1419,6 +1419,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             is_kimi = 'kimi' in model_key_l
             is_grok = 'grok' in model_key_l and 'gpt' not in model_key_l
             is_mistral_ocr = is_mistral_ocr_model_key(model_key_l)
+            is_ideogram = is_ideogram_model_key(model_key_l)
             gemini_backend_mode = "gemini_api"
             def _is_non_llm_model(m):
                 mk = str(m or "").lower().strip()
@@ -1427,6 +1428,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if is_mistral_ocr_model_key(mk):
                     return True
                 if "gpt-image" in mk:
+                    return True
+                if is_ideogram_model_key(mk):
                     return True
                 if mk in (
                     "grok-imagine-image-2.0",
@@ -1630,6 +1633,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 'zai': get_k(user.zai_api_key, 'ZAI_API_KEY'),
                 'kimi': get_k(user.kimi_api_key, 'MOONSHOT_API_KEY'),
                 'mistral': get_k(user.mistral_api_key, 'MISTRAL_API_KEY'),
+                'ideogram': get_k(user.ideogram_api_key, 'IDEOGRAM_API_KEY'),
             }
 
             key = resolved_auth.get("api_key")
@@ -1678,6 +1682,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             elif is_kimi:
                 o_client = _get_openai_client(key, base_url="https://api.moonshot.ai/v1")
             elif is_mistral_ocr:
+                o_client = None
+            elif is_ideogram:
                 o_client = None
             else: o_client = _get_openai_client(key, base_url=None)
 
@@ -4281,6 +4287,74 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if not full_res.strip() and last_file_tool_error:
                         full_res = last_file_tool_error
                         pub("content", full_res)
+
+            # --- 1.4 Ideogram Image Generation / Precise Edit ---
+            elif is_ideogram:
+                log_force("Routing: Ideogram Branch")
+                try:
+                    pub("status", "画像生成の準備中...")
+                    _unused_ctx, history_image_parts = _build_non_llm_image_context(final_message_text)
+
+                    def _ideogram_source_entry(raw_bytes, raw_mime, raw_name):
+                        entry_bytes = raw_bytes
+                        entry_mime = raw_mime
+                        if entry_mime not in IDEOGRAM_SOURCE_MIMES:
+                            converted_png = _convert_image_to_png(entry_bytes)
+                            if not converted_png:
+                                raise RuntimeError("入力画像を Ideogram が受け付ける形式（PNG / JPEG / WEBP）へ変換できませんでした。")
+                            entry_bytes = converted_png
+                            entry_mime = "image/png"
+                        if len(entry_bytes) > IDEOGRAM_MAX_IMAGE_BYTES:
+                            raise RuntimeError("Ideogram に送れる入力画像は1枚あたり25MBまでです。")
+                        return (os.path.basename(raw_name or "input.png"), entry_bytes, entry_mime)
+
+                    ideogram_sources = []
+                    for fi in loaded_files:
+                        if not fi.get('bytes') or not str(fi.get('mime', '')).startswith('image/'):
+                            continue
+                        ideogram_sources.append(_ideogram_source_entry(
+                            fi['bytes'], fi['mime'], fi.get('send_name') or fi.get('name') or f"input_{len(ideogram_sources)}.png"
+                        ))
+                    if not ideogram_sources and ideogram_supports_edit(model_key_l) and history_image_parts:
+                        # Multi-turn editing: continue from the newest image in the conversation.
+                        hp = history_image_parts[0]
+                        ideogram_sources.append(_ideogram_source_entry(hp['bytes'], hp['mime'], hp['name']))
+
+                    if ideogram_sources:
+                        pub("status", "Ideogram API (Precise Edit) を呼び出し中...")
+                    else:
+                        pub("status", "Ideogram API を呼び出し中...")
+                    _mark_provider_request_started()
+                    ideogram_items, _ideogram_edit_mode = ideogram_request(
+                        key, model_key_l, final_message_text, options, ideogram_sources
+                    )
+
+                    saved_any = False
+                    blocked_count = 0
+                    for image_index, item in enumerate(ideogram_items):
+                        image_url = item.get("url")
+                        if item.get("is_image_safe") is False or not image_url:
+                            blocked_count += 1
+                            continue
+                        img_bytes = _download_public_https_bytes(image_url, IDEOGRAM_MAX_OUTPUT_BYTES, timeout=120.0)
+                        probed = _probe_image(img_bytes) or {}
+                        ext = {"PNG": "png", "JPEG": "jpg", "WEBP": "webp"}.get(probed.get("format"), "png")
+                        fn2 = f"gen_ideogram_{int(time.time())}_{len(generated_images)}_{image_index}.{ext}"
+                        _save_user_generated_bytes(
+                            user_id, img_bytes, fn2, user_config.get('enable_e2ee')
+                        )
+                        generated_images.append(f"{user_id}/{fn2}")
+                        pub("content", f"\n![Image](/files/{user_id}/{fn2})\n")
+                        full_res += f"Generated Image {image_index + 1} for: {final_message_text}\n"
+                        saved_any = True
+                    if not saved_any:
+                        if blocked_count:
+                            pub("error", "Ideogram Error: 安全性チェックにより画像が返されませんでした。プロンプトや入力画像の内容を変更して再度お試しください。")
+                        else:
+                            pub("error", "Ideogram Error: No data returned.")
+                except Exception as e:
+                    logger.exception("Ideogram Error")
+                    pub("error", f"Ideogram Error: {e}")
 
             # --- 1.5 Grok Imagine Image Generation ---
             elif model_key in (

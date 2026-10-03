@@ -502,6 +502,9 @@ def _resolve_chat_model_auth(user, model_key):
     elif is_mistral_ocr_model_key(mk_l) or mk_l.startswith("mistral"):
         provider = "mistral"
         api_key = model_key_override or user_or_admin_env("mistral_api_key", "MISTRAL_API_KEY")
+    elif mk_l.startswith("ideogram-"):
+        provider = "ideogram"
+        api_key = model_key_override or user_or_admin_env("ideogram_api_key", "IDEOGRAM_API_KEY")
     else:
         api_key = model_key_override or user_or_admin_env("openai_api_key", "OPENAI_API_KEY")
 
@@ -521,6 +524,7 @@ def _resolve_chat_model_auth(user, model_key):
             "xai": "xAI",
             "google": "Google",
             "mistral": "Mistral",
+            "ideogram": "Ideogram",
         }
         error_message = f"{provider_labels.get(provider, provider)} APIキーが設定されていません。"
 
@@ -758,8 +762,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-10-03-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.1046'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-10-03-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.1047'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -923,6 +927,7 @@ _SERVER_PARTS = [
     "image_tools.py",
     "crypto.py",
     "providers.py",
+    "ideogram.py",
     "create_file.py",
     "edit_file.py",
     "agentic_media.py",

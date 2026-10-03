@@ -32,7 +32,7 @@ AI_SAFE_EDITABLE_FIELDS = {
 AI_NEVER_EDITABLE_FIELDS = {
     # Secrets / credentials
     'openai_key', 'gemini_key', 'anthropic_key', 'deepseek_key', 'xai_key', 'kimi_key',
-    'mistral_key', 'google_key',
+    'mistral_key', 'ideogram_key', 'google_key',
     'google_project', 'gemini_vertex_project', 'gemini_vertex_location',
     'gemini_vertex_credentials_json', 'model_api_keys',
     # High impact / special handling

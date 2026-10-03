@@ -33,9 +33,10 @@ class ModelPickerTest {
 
     @Test
     fun tagBarKeepsWebOrder() {
-        assertEquals(19, MODEL_TAGS.size)
+        assertEquals(20, MODEL_TAGS.size)
         assertEquals("All", MODEL_TAGS.first())
         assertEquals("ZAI", MODEL_TAGS[6])
+        assertEquals("Ideogram", MODEL_TAGS[8])
         assertEquals("Agentic View", MODEL_TAGS.last())
     }
 

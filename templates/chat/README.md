@@ -23,7 +23,7 @@
 | `composer_context_bars.html` | 引用バー、Coding対象バー、編集バー | 引用、編集、Coding対象のバー表示 |
 | `composer_controls.html` | モデル選択行と標準オプション行（Gemini／OpenAI Batch / File / MCP 等のチェック） | 送信まわりのオプション、MCPスイッチ |
 | `composer_attachments.html` | 添付ファイル／マスクのプレビュー | 添付、マスク表示 |
-| `composer_gen_image.html` | GPT / Gemini / Grok の画像生成パネル | 画像生成の詳細設定 |
+| `composer_gen_image.html` | GPT / Gemini / Grok / Ideogram の画像生成パネル | 画像生成の詳細設定 |
 | `composer_gen_media.html` | xAI 詳細パネル、動画/音楽/OCR/TTS パネル | メディア生成の詳細設定 |
 | `composer_panels.html` | STS パネル（音声ドック：マイク・文字起こし・折りたたみ設定）、自動検索バナー | STS、音声ドック、自動検索 |
 | `composer_input.html` | 入力欄、送信、スラッシュ/`@` 候補、アップロード状態 | 送信ボタン、入力欄、スラッシュコマンド |

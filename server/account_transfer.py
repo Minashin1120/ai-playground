@@ -28,7 +28,7 @@ ACCOUNT_SETTING_FIELDS = (
 )
 ACCOUNT_SECRET_FIELDS = (
     "openai_api_key", "gemini_api_key", "anthropic_api_key", "deepseek_api_key",
-    "kimi_api_key", "mistral_api_key", "zai_api_key", "model_api_keys", "gemini_vertex_project",
+    "kimi_api_key", "mistral_api_key", "ideogram_api_key", "zai_api_key", "model_api_keys", "gemini_vertex_project",
     "gemini_vertex_credentials_json", "xai_api_key", "google_api_key", "google_cloud_project",
 )
 ACCOUNT_BOOL_SETTING_FIELDS = frozenset({

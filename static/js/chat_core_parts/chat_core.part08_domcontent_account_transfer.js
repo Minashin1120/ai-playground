@@ -609,6 +609,7 @@
                 if(get('set-zai')) get('set-zai').value = d.zai_key || '';
                 if(get('set-kimi')) get('set-kimi').value = d.kimi_key || '';
                 if(get('set-mistral')) get('set-mistral').value = d.mistral_key || '';
+                if(get('set-ideogram')) get('set-ideogram').value = d.ideogram_key || '';
                 if(get('set-anthropic')) get('set-anthropic').value = d.anthropic_key || '';
                 if(get('set-gemini-backend')) get('set-gemini-backend').value = normalizeGeminiBackend(d.gemini_backend || 'gemini_api');
                 if(get('set-gemini-vertex-project')) get('set-gemini-vertex-project').value = d.gemini_vertex_project || '';
@@ -991,6 +992,7 @@
                 if (get('set-zai')) b.zai_key = get('set-zai').value;
                 if (get('set-kimi')) b.kimi_key = get('set-kimi').value;
                 if (get('set-mistral')) b.mistral_key = get('set-mistral').value;
+                if (get('set-ideogram')) b.ideogram_key = get('set-ideogram').value;
                 if (get('set-anthropic')) b.anthropic_key = get('set-anthropic').value;
                 b.model_api_keys = normalizeModelApiKeyMap(modelApiKeyMap);
                 if (get('set-gemini-backend')) b.gemini_backend = normalizeGeminiBackend(get('set-gemini-backend').value);

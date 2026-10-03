@@ -99,6 +99,7 @@ LLM_TOKEN_MARKERS = (
 
 PROMPT_TOKEN_MARKERS = (
     "gpt-image",
+    "ideogram",
     "imagine",
     "image",
     "video",

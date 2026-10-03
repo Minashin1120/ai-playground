@@ -1180,6 +1180,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         deepseekKey: String,
         kimiKey: String,
         mistralKey: String,
+        ideogramKey: String,
         zaiKey: String,
         xaiKey: String,
         googleKey: String,
@@ -1201,6 +1202,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     .put("deepseek_api_key", deepseekKey)
                     .put("kimi_api_key", kimiKey)
                     .put("mistral_api_key", mistralKey)
+                    .put("ideogram_api_key", ideogramKey)
                     .put("zai_api_key", zaiKey)
                     .put("xai_api_key", xaiKey)
                     .put("google_api_key", googleKey)

@@ -898,6 +898,122 @@
     "searchTerms": []
   },
   {
+    "id": "gpt-6-astra",
+    "name": "GPT-6 Astra",
+    "description": "Most capable model for demanding reasoning, coding, and professional work with 1.05M context.",
+    "price": "In $10.00/1M, Cached $1.00/1M, Out $50.00/1M (over 272K: In $20.00, Out $75.00)",
+    "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-6-astra",
+    "agenticView": false,
+    "implementedAt": "2026-10-02",
+    "implementedRank": 10443,
+    "emoji": "🌟",
+    "deprecated": false,
+    "tags": [
+      "openai",
+      "reasoning"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "max",
+      "xhigh"
+    ]
+  },
+  {
+    "id": "gpt-6.1-sol",
+    "name": "GPT-6.1 Sol",
+    "description": "Near-Astra performance for complex work at a lower cost, with 1.05M context.",
+    "price": "In $2.00/1M, Cached $0.10/1M, Out $10.00/1M (over 272K: In $4.00, Out $15.00)",
+    "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-6.1-sol",
+    "agenticView": false,
+    "implementedAt": "2026-10-02",
+    "implementedRank": 10442,
+    "emoji": "🔆",
+    "deprecated": false,
+    "tags": [
+      "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "max",
+      "xhigh"
+    ]
+  },
+  {
+    "id": "gpt-6-luna",
+    "name": "GPT-6 Luna",
+    "description": "Most efficient GPT-6 model for focused, high-volume tasks with 1.05M context.",
+    "price": "In $0.10/1M, Cached $0.01/1M, Out $0.50/1M (over 272K: In $0.20, Out $0.75)",
+    "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-6-luna",
+    "agenticView": false,
+    "implementedAt": "2026-10-02",
+    "implementedRank": 10441,
+    "emoji": "🌕",
+    "deprecated": false,
+    "tags": [
+      "openai"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none",
+      "max",
+      "xhigh"
+    ]
+  },
+  {
+    "id": "gpt-6-sol",
+    "name": "GPT-6 Sol",
+    "description": "GPT-6 model for complex coding and agentic workflows with 1.05M context.",
+    "price": "In $2.00/1M, Cached $0.20/1M, Out $10.00/1M (over 272K: In $4.00, Out $15.00)",
+    "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-6-sol",
+    "agenticView": false,
+    "implementedAt": "2026-10-02",
+    "implementedRank": 10440,
+    "emoji": "☀️",
+    "deprecated": false,
+    "tags": [
+      "openai",
+      "agent"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none",
+      "max",
+      "xhigh"
+    ]
+  },
+  {
     "id": "gpt-5.6-sol",
     "name": "GPT-5.6 Sol",
     "description": "Frontier reasoning model for complex professional work with 1.05M context.",
@@ -2766,6 +2882,106 @@
       "audio",
       "video",
       "agent"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "ideogram-4.5",
+    "name": "Ideogram 4.5",
+    "description": "Latest Ideogram model: native 2K generation and precise multi-turn editing that keeps unedited pixels intact.",
+    "price": "from $0.008 / image (1K very low) to $0.22 / image (2K high)",
+    "category": "Ideogram",
+    "categoryIcon": "fas fa-paint-brush text-pink-400",
+    "categoryDescription": "Ideogram image generation with strong text rendering. Ideogram 4.5 also supports multi-turn precise editing.",
+    "apiId": "ideogram-4.5",
+    "agenticView": false,
+    "implementedAt": "2026-10-03",
+    "implementedRank": 10474,
+    "emoji": "🖼️",
+    "deprecated": false,
+    "tags": [
+      "ideogram"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "ideogram-4.0",
+    "name": "Ideogram 4.0",
+    "description": "Previous-generation Ideogram model with up to 2K output and structured prompts. Text-to-image only.",
+    "price": "Priced per image by rendering speed",
+    "category": "Ideogram",
+    "categoryIcon": "fas fa-paint-brush text-pink-400",
+    "categoryDescription": "Ideogram image generation with strong text rendering. Ideogram 4.5 also supports multi-turn precise editing.",
+    "apiId": "ideogram-4.0",
+    "agenticView": false,
+    "implementedAt": "2026-10-03",
+    "implementedRank": 10473,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "ideogram",
+      "image"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "ideogram-3.0",
+    "name": "Ideogram 3.0",
+    "description": "Text-to-image with style types and negative prompts. Text-to-image only.",
+    "price": "Priced per image by rendering speed",
+    "category": "Ideogram",
+    "categoryIcon": "fas fa-paint-brush text-pink-400",
+    "categoryDescription": "Ideogram image generation with strong text rendering. Ideogram 4.5 also supports multi-turn precise editing.",
+    "apiId": "ideogram-3.0",
+    "agenticView": false,
+    "implementedAt": "2026-10-03",
+    "implementedRank": 10472,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "ideogram",
+      "image"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "ideogram-2a",
+    "name": "Ideogram 2a",
+    "description": "Fast, lower-cost Ideogram 2 model. Text-to-image only.",
+    "price": "Priced per image by rendering speed",
+    "category": "Ideogram",
+    "categoryIcon": "fas fa-paint-brush text-pink-400",
+    "categoryDescription": "Ideogram image generation with strong text rendering. Ideogram 4.5 also supports multi-turn precise editing.",
+    "apiId": "ideogram-2a",
+    "agenticView": false,
+    "implementedAt": "2026-10-03",
+    "implementedRank": 10471,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "ideogram",
+      "image",
+      "fast"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "ideogram-2.0",
+    "name": "Ideogram 2.0",
+    "description": "Ideogram 2.0 with style types and negative prompts. Text-to-image only.",
+    "price": "Priced per image by rendering speed",
+    "category": "Ideogram",
+    "categoryIcon": "fas fa-paint-brush text-pink-400",
+    "categoryDescription": "Ideogram image generation with strong text rendering. Ideogram 4.5 also supports multi-turn precise editing.",
+    "apiId": "ideogram-2.0",
+    "agenticView": false,
+    "implementedAt": "2026-10-03",
+    "implementedRank": 10470,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "ideogram",
+      "image"
     ],
     "searchTerms": []
   },

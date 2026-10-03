@@ -146,6 +146,46 @@
                 }
             }
         }
+        function updateIdeogramImageUi() {
+            const wrap = get('ideogram-image-options');
+            const modalWrap = get('modal-ideogram-image-options');
+            const model = (get('model-select') && get('model-select').value) || '';
+            const active = isIdeogramModel(model);
+            const traits = ideogramModelTraits(model);
+            const visibleByField = {
+                resolution: traits.resolution, quality: traits.quality, speed: traits.speed,
+                style: traits.style, negative: traits.negative
+            };
+            if (wrap) wrap.classList.toggle('hidden', !active);
+            if (modalWrap) modalWrap.classList.toggle('hidden', !active);
+            if (!active) return;
+            IDEOGRAM_IMAGE_FIELDS.forEach((field) => {
+                const show = visibleByField[field] !== false;
+                ['ideogram-image-', 'modal-ideogram-image-'].forEach((prefix) => {
+                    const el = get(prefix + field);
+                    if (!el || !el.parentElement) return;
+                    // The modal's negative prompt row sits outside the grid, so hide that row itself.
+                    el.parentElement.classList.toggle('hidden', !show);
+                });
+            });
+            ['ideogram-image-style', 'modal-ideogram-image-style'].forEach((id) => {
+                const el = get(id);
+                if (!el) return;
+                const wanted = traits.styleOptions.join('|');
+                if (el.dataset.options !== wanted) {
+                    const prev = el.value;
+                    el.innerHTML = traits.styleOptions.map((v) => `<option value="${v}">${v === 'auto' ? 'Auto' : v}</option>`).join('');
+                    el.dataset.options = wanted;
+                    el.value = traits.styleOptions.includes(prev) ? prev : 'auto';
+                }
+            });
+            const note = get('ideogram-image-note');
+            if (note) {
+                note.textContent = traits.edit
+                    ? '※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ'
+                    : '※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）';
+            }
+        }
         function updateGrokVideoUi() {
             const wrap = get('grok-video-options');
             if (!wrap) return;
@@ -287,6 +327,16 @@
                 html = [
                     '<div class="font-bold text-gray-300 mb-1">Grok 画像入力制限</div>',
                     '<div>最大 20MiB / PNG・JPG のみ / 枚数制限なし</div>'
+                ].join('');
+            } else if (isIdeogramModel(model)) {
+                show = true;
+                html = ideogramModelTraits(model).edit ? [
+                    '<div class="font-bold text-gray-300 mb-1">Ideogram 4.5 入力制限</div>',
+                    '<div>編集する画像1枚 + 参考画像は最大4枚 / 1枚あたり25MBまで / PNG・JPEG・WEBP</div>',
+                    '<div>画像がない場合は直前の画像を編集します / マスクには対応していません</div>'
+                ].join('') : [
+                    '<div class="font-bold text-gray-300 mb-1">Ideogram 入力</div>',
+                    '<div>テキストからの生成のみです。画像入力は Ideogram 4.5 だけが対応しています</div>'
                 ].join('');
             } else if (model.includes('grok') && model.includes('video')) {
                 show = true;
@@ -533,7 +583,7 @@
                     }
                 }
 
-                if(((isGeminiImage && !isNanoBanana2) || model.includes('gpt-image') || isGrokImageModel() || isGrokVideoModel() || isOcr)) { if (sysChk && sysLbl) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } }
+                if(((isGeminiImage && !isNanoBanana2) || model.includes('gpt-image') || isGrokImageModel() || isIdeogramModel(model) || isGrokVideoModel() || isOcr)) { if (sysChk && sysLbl) { sysChk.checked = false; sysChk.disabled = true; sysLbl.classList.add('opacity-50'); } }
                 if (pyCont) {
                     if (isLlmModel()) {
                         pyCont.classList.remove('hidden');
@@ -585,6 +635,7 @@
                 updateGptImageUi();
                 updateGeminiImageUi();
                 updateGrokImageUi();
+                updateIdeogramImageUi();
                 updateGrokVideoUi();
                 updateGeminiVideoUi();
                 updateGeminiMusicUi();

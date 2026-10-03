@@ -957,6 +957,18 @@
                 ]
             },
             {
+                category: "Ideogram",
+                icon: "fas fa-paint-brush text-pink-400",
+                description: "Ideogram image generation with strong text rendering. Ideogram 4.5 also supports multi-turn precise editing.",
+                items: [
+                    { id: "ideogram-4.5", implementedAt: "2026-10-03", implementedRank: 10474, quickEmoji: "🖼️", name: "Ideogram 4.5", desc: "Latest Ideogram model: native 2K generation and precise multi-turn editing that keeps unedited pixels intact.", price: "from $0.008 / image (1K very low) to $0.22 / image (2K high)" },
+                    { id: "ideogram-4.0", implementedAt: "2026-10-03", implementedRank: 10473, name: "Ideogram 4.0", desc: "Previous-generation Ideogram model with up to 2K output and structured prompts. Text-to-image only.", price: "Priced per image by rendering speed" },
+                    { id: "ideogram-3.0", implementedAt: "2026-10-03", implementedRank: 10472, name: "Ideogram 3.0", desc: "Text-to-image with style types and negative prompts. Text-to-image only.", price: "Priced per image by rendering speed" },
+                    { id: "ideogram-2a", implementedAt: "2026-10-03", implementedRank: 10471, name: "Ideogram 2a", desc: "Fast, lower-cost Ideogram 2 model. Text-to-image only.", price: "Priced per image by rendering speed" },
+                    { id: "ideogram-2.0", implementedAt: "2026-10-03", implementedRank: 10470, name: "Ideogram 2.0", desc: "Ideogram 2.0 with style types and negative prompts. Text-to-image only.", price: "Priced per image by rendering speed" }
+                ]
+            },
+            {
                 category: "Grok Imagine",
                 icon: "fas fa-magic text-blue-400",
                 description: "Grok generation models",
@@ -1077,6 +1089,7 @@
             if (id.startsWith('glm-')) return { provider: 'zai', keyField: 'zai_key', inputId: 'set-zai', label: 'Z.AI API Key' };
             if (id.startsWith('kimi')) return { provider: 'kimi', keyField: 'kimi_key', inputId: 'set-kimi', label: 'Kimi (Moonshot) API Key' };
             if (id.startsWith('mistral')) return { provider: 'mistral', keyField: 'mistral_key', inputId: 'set-mistral', label: 'Mistral API Key' };
+            if (id.startsWith('ideogram')) return { provider: 'ideogram', keyField: 'ideogram_key', inputId: 'set-ideogram', label: 'Ideogram API Key' };
             if (id.startsWith('claude')) return { provider: 'anthropic', keyField: 'anthropic_key', inputId: 'set-anthropic', label: 'Anthropic API Key' };
             if (id.startsWith('grok')) return { provider: 'xai', keyField: 'xai_key', inputId: 'set-xai', label: 'xAI (Grok) API Key' };
             if (id.startsWith('google')) return { provider: 'google', keyField: 'google_key', inputId: 'set-google-key', label: 'Google API Key (TTS)' };
@@ -1208,7 +1221,7 @@
         };
 
         let activeModelTag = 'all';
-        const MODEL_TAGS = ['all','openai','gemini','anthropic','kimi','deepseek','zai','mistral','xai','image','video','audio','music','transcription','ocr','reasoning','fast','agent','agentic view'];
+        const MODEL_TAGS = ['all','openai','gemini','anthropic','kimi','deepseek','zai','mistral','ideogram','xai','image','video','audio','music','transcription','ocr','reasoning','fast','agent','agentic view'];
 
         // Slash command system (extensible command palette triggered by / in prompt bar)
         const MINIMAL_SLASH_COMMANDS = [
@@ -1481,6 +1494,7 @@
         const isLlmModel = () => {
             const m = (get('model-select').value || '').toLowerCase();
             if (isMistralOcrModel(m)) return false;
+            if (isIdeogramModelKey(m)) return false;
             if (
                 m.includes('tts') ||
                 m.includes('transcribe') ||
@@ -1500,6 +1514,23 @@
         const isGrokImageModel = () => {
             const m = (get('model-select').value || '').toLowerCase();
             return m.includes('grok') && (m.includes('imagine') || m.includes('image')) && !m.includes('video');
+        };
+        const isIdeogramModelKey = (model) => String(model || '').toLowerCase().startsWith('ideogram-');
+        const isIdeogramModel = (model) => isIdeogramModelKey(model != null ? model : get('model-select').value);
+        const IDEOGRAM_IMAGE_FIELDS = ['count', 'aspect', 'resolution', 'quality', 'speed', 'magic', 'style', 'negative', 'seed'];
+        const ideogramModelTraits = (model) => {
+            const m = String(model || '').toLowerCase();
+            return {
+                edit: m === 'ideogram-4.5',
+                quality: m === 'ideogram-4.5',
+                speed: m !== 'ideogram-4.5',
+                resolution: m === 'ideogram-4.5' || m === 'ideogram-4.0',
+                style: m === 'ideogram-3.0' || m === 'ideogram-2a' || m === 'ideogram-2.0',
+                negative: m === 'ideogram-3.0' || m === 'ideogram-2.0',
+                styleOptions: m === 'ideogram-3.0'
+                    ? ['auto', 'general', 'realistic', 'design', 'fiction', 'stylized']
+                    : ['auto', 'general', 'realistic', 'design', 'render_3d', 'anime']
+            };
         };
         const isGrokVideoModel = () => {
             const m = (get('model-select').value || '').toLowerCase();

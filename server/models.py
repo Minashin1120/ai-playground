@@ -20,6 +20,7 @@ class User(UserMixin, db.Model):
     zai_api_key = db.Column(db.Text, nullable=True)
     kimi_api_key = db.Column(db.Text, nullable=True)
     mistral_api_key = db.Column(db.Text, nullable=True)
+    ideogram_api_key = db.Column(db.Text, nullable=True)
     model_api_keys = db.Column(db.Text, nullable=True)
     gemini_backend = db.Column(db.String(24), default="gemini_api")
     gemini_vertex_project = db.Column(db.Text, nullable=True)

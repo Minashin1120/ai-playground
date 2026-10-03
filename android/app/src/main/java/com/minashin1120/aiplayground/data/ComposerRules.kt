@@ -55,6 +55,8 @@ fun isMistralOcrModel(model: String): Boolean {
     return m == "mistral-ocr-4-0" || m == "mistral-ocr-latest" || m.startsWith("mistral-ocr")
 }
 
+fun isIdeogramModelKey(model: String): Boolean = model.lowercase(Locale.ROOT).startsWith("ideogram-")
+
 fun isGeminiImageModelKey(model: String): Boolean {
     val m = model.lowercase(Locale.ROOT)
     return m.contains("gemini") && (m.contains("image") || m.contains("nano"))
@@ -72,7 +74,7 @@ fun isGeminiEmbeddingModelKey(model: String): Boolean = model.lowercase(Locale.R
 /** Web `isLlmModel`. */
 fun isLlmModel(model: String): Boolean {
     val m = model.lowercase(Locale.ROOT)
-    if (isMistralOcrModel(m)) return false
+    if (isMistralOcrModel(m) || isIdeogramModelKey(m)) return false
     if (listOf("tts", "transcribe", "realtime", "voice-agent", "native-audio", "live", "image", "video").any { m.contains(it) } ||
         isGeminiVideoModelKey(m) || isGeminiMusicModelKey(m) || isGeminiEmbeddingModelKey(m)) return false
     if (m.contains("gemini") && (m.contains("image") || m.contains("nano"))) return false
@@ -137,6 +139,7 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
     val isGeminiImage = isGeminiImageModelKey(model)
     val isGrokImage = ml.contains("grok") && (ml.contains("imagine") || ml.contains("image")) && !ml.contains("video")
     val isGrokVideo = ml.contains("grok") && ml.contains("video")
+    val isIdeogram = isIdeogramModelKey(model)
 
     val search = MutableRule()
     val urls = MutableRule(visible = false)
@@ -219,7 +222,7 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
         python.dimmed = false
         if ((!isGeminiImage || isNb2) && !model.contains("gpt-image")) { sys.disabled = false; sys.dimmed = false }
     }
-    if ((isGeminiImage && !isNb2) || model.contains("gpt-image") || isGrokImage || isGrokVideo || isOcr) {
+    if ((isGeminiImage && !isNb2) || model.contains("gpt-image") || isGrokImage || isIdeogram || isGrokVideo || isOcr) {
         sys.off(); sys.disabled = true; sys.dimmed = true
     }
     if (llm) { python.visible = true; python.disabled = false } else { python.off(); python.disabled = true; python.visible = false }

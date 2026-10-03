@@ -645,6 +645,7 @@
                 id.includes('ocr') ||
                 cat.includes('ocr')
             ) tags.push('mistral');
+            if (cat.includes('ideogram') || id.includes('ideogram') || name.includes('ideogram')) tags.push('ideogram');
             if (
                 cat.includes('gpt') ||
                 cat.includes('openai') ||
@@ -737,7 +738,7 @@
             const isDeepSeek = model.includes('deepseek');
             const isTts = model.includes('tts');
             const isOcr = model.startsWith('mistral-ocr');
-            const isNonTextModel = isTts || isOcr || model.includes('transcribe') || model.includes('realtime')
+            const isNonTextModel = isTts || isOcr || model.startsWith('ideogram-') || model.includes('transcribe') || model.includes('realtime')
                 || model.includes('voice-agent') || model.includes('native-audio') || model.includes('live')
                 || model.includes('image') || model.includes('video') || model.startsWith('veo-')
                 || model.includes('omni-flash') || model.startsWith('lyria-') || model.includes('embedding');

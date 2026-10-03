@@ -111,3 +111,76 @@
                     </div>
                     <span class="text-gray-500">※ Grok Imagine</span>
                 </div>
+                <div id="ideogram-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Count</span>
+                        <input id="ideogram-image-count" type="number" min="1" max="8" step="1" value="1" class="w-12 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Aspect</span>
+                        <select id="ideogram-image-aspect" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="auto" selected>Auto</option>
+                            <option value="1:1">1:1 (Square)</option>
+                            <option value="4:5">4:5</option>
+                            <option value="5:4">5:4</option>
+                            <option value="3:4">3:4</option>
+                            <option value="4:3">4:3</option>
+                            <option value="2:3">2:3</option>
+                            <option value="3:2">3:2</option>
+                            <option value="9:16">9:16 (Portrait)</option>
+                            <option value="16:9">16:9 (Landscape)</option>
+                            <option value="10:16">10:16</option>
+                            <option value="16:10">16:10</option>
+                            <option value="1:2">1:2</option>
+                            <option value="2:1">2:1</option>
+                            <option value="1:3">1:3</option>
+                            <option value="3:1">3:1</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Res</span>
+                        <select id="ideogram-image-resolution" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="1k" selected>1K</option>
+                            <option value="2k">2K</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Quality</span>
+                        <select id="ideogram-image-quality" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="" selected>Auto</option>
+                            <option value="very_low">Very low</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Speed</span>
+                        <select id="ideogram-image-speed" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="default" selected>Default</option>
+                            <option value="turbo">Turbo</option>
+                            <option value="quality">Quality</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Magic</span>
+                        <select id="ideogram-image-magic" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="auto" selected>Auto</option>
+                            <option value="on">On</option>
+                            <option value="off">Off</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Style</span>
+                        <select id="ideogram-image-style" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none"></select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Negative</span>
+                        <input id="ideogram-image-negative" type="text" maxlength="2000" placeholder="除外したい要素" class="w-40 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-400">Seed</span>
+                        <input id="ideogram-image-seed" type="number" min="0" max="2147483647" step="1" placeholder="auto" class="w-24 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <span id="ideogram-image-note" class="text-gray-500">※ Ideogram</span>
+                </div>

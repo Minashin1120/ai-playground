@@ -1040,6 +1040,7 @@
             syncBack('modal-grok-image-aspect', 'grok-image-aspect');
             syncBack('modal-grok-image-resolution', 'grok-image-resolution');
             syncBack('modal-grok-image-quality', 'grok-image-quality');
+            IDEOGRAM_IMAGE_FIELDS.forEach(f => syncBack(`modal-ideogram-image-${f}`, `ideogram-image-${f}`));
             syncBack('modal-ocr-table-format', 'ocr-table-format');
             syncBack('modal-ocr-pages', 'ocr-pages');
             const syncBackChk = (modalId, targetId) => {

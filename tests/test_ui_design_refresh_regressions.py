@@ -60,3 +60,28 @@ class UiDesignRefreshRegressionTests(unittest.TestCase):
         custom = _current_asset("css", "chat.custom.v4.8.*.css")
         self.assertIn("#sidebar .sidebar-toolbar .sidebar-icon-btn.hide-compact", custom)
         self.assertIn("display: inline-flex !important;", custom)
+
+    def test_landing_chat_demo_mirrors_real_chat_screen(self):
+        # The landing page demo is a miniature of the real chat screen. It must
+        # keep using the real ids / classes so the shared styles and the light
+        # theme apply, instead of a separately designed look-alike.
+        demo = (ROOT / "static" / "js" / "landing_demo.js").read_text(encoding="utf-8")
+        landing_css = (ROOT / "static" / "css" / "landing.css").read_text(encoding="utf-8")
+        chat = read_chat_markup()
+
+        for dom_id in (
+            "sidebar", "thread-list", "chat-container", "welcome-screen",
+            "model-selector-btn", "prompt-input", "send-btn", "new-chat-btn",
+        ):
+            self.assertIn(f'id="{dom_id}"', chat)
+            self.assertIn(f'id="{dom_id}"', demo)
+        for css_class in (
+            "composer-dock", "composer-input-shell", "message-bubble", "message-group",
+            "thought-container", "skeleton-pending", "sidebar-toolbar",
+        ):
+            self.assertIn(css_class, demo)
+        self.assertIn(".chat-demo #sidebar", landing_css)
+        # The old stand-alone demo classes must not come back.
+        for legacy in ("chat-demo-chrome", "chat-demo-composer", "ld-ai-bubble", "ld-user-bubble"):
+            self.assertNotIn(legacy, demo)
+            self.assertNotIn(legacy, landing_css)

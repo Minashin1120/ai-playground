@@ -74,8 +74,8 @@ MEASURE_JS = r"""
         stats: rect('.hero-bg .mt-10')
     };
     out.demoState = {
-        built: !!document.querySelector('.chat-demo-body'),
-        rows: document.querySelectorAll('.chat-demo-body .ld-row').length,
+        built: !!document.querySelector('.chat-demo #chat-container'),
+        rows: document.querySelectorAll('.chat-demo #chat-container .message-group').length,
         hubCards: document.querySelectorAll('.hub-node-card').length
     };
     return JSON.stringify(out);
@@ -140,7 +140,7 @@ async def main():
             ready = False
             i = -1
             for i in range(80):
-                res, _ = await cdp.cmd("Runtime.evaluate", {"expression": "!!document.querySelector('.chat-demo-body') && !!document.querySelector('.hub-node-card')", "returnByValue": True})
+                res, _ = await cdp.cmd("Runtime.evaluate", {"expression": "!!document.querySelector('.chat-demo #chat-container') && !!document.querySelector('.hub-node-card')", "returnByValue": True})
                 try:
                     ready = bool(res["result"]["value"])
                 except Exception:

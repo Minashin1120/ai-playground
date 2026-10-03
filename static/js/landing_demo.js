@@ -26,12 +26,12 @@
      * 1. Model registry (shared between hub SVG and chat demo)
      * ───────────────────────────────────────────────────────────── */
     var MODELS = [
-        { key: 'gemini', name: 'Gemini 3.6 Flash', short: 'Gemini', color: '#0dd4bf', glyph: '\uF005', faIcon: 'fa-star' },
-        { key: 'gpt', name: 'GPT-5.6 Sol', short: 'GPT-5.6', color: '#34d399', glyph: '\uF5DC', faIcon: 'fa-brain' },
-        { key: 'grok', name: 'Grok 4.3', short: 'Grok', color: '#e2e8f0', glyph: '\uF135', faIcon: 'fa-rocket' },
-        { key: 'claude', name: 'Claude Opus 4.6', short: 'Claude', color: '#f59e0b', glyph: '\uF06D', faIcon: 'fa-fire' },
-        { key: 'deepseek', name: 'DeepSeek V4.1', short: 'DeepSeek', color: '#22d3ee', glyph: '\uF0E7', faIcon: 'fa-bolt' },
-        { key: 'kimi', name: 'Kimi K3', short: 'Kimi', color: '#a78bfa', glyph: '\uF3A5', faIcon: 'fa-gem' }
+        { key: 'gemini', name: 'Gemini 3.6 Flash', short: 'Gemini', color: '#0dd4bf', glyph: '\uF005' },
+        { key: 'gpt', name: 'GPT-5.6 Sol', short: 'GPT-5.6', color: '#34d399', glyph: '\uF5DC' },
+        { key: 'grok', name: 'Grok 4.3', short: 'Grok', color: '#e2e8f0', glyph: '\uF135' },
+        { key: 'claude', name: 'Claude Opus 4.6', short: 'Claude', color: '#f59e0b', glyph: '\uF06D' },
+        { key: 'deepseek', name: 'DeepSeek V4.1', short: 'DeepSeek', color: '#22d3ee', glyph: '\uF0E7' },
+        { key: 'kimi', name: 'Kimi K3', short: 'Kimi', color: '#a78bfa', glyph: '\uF3A5' }
     ];
 
     /* Geometry configuration for the SVG model hub (680 x 420 viewBox).
@@ -257,196 +257,315 @@
         }
     }
 
-    /* ── Chat walkthrough demo ── */
-    var CHAT_SCRIPT = [
-        { key: 'gemini', statuses: ['APIに送信中...', '回答を生成中...'], thinking: true },
-        { key: 'grok', statuses: ['接続完了。モデル応答を待機中...'], thinking: true }
-    ];
-
+    /* ── Chat walkthrough demo ──
+     * A miniature of the real chat screen. Markup, class names and ids follow
+     * templates/chat/*.html and renderMessage() / renderPendingMessage() in
+     * static/js/chat_core_parts, so the shared design tokens and the light theme
+     * apply the same way. Keep this in sync when the real chat UI changes. */
     function modelInfo(key) {
         for (var i = 0; i < MODELS.length; i++) if (MODELS[i].key === key) return MODELS[i];
         return MODELS[0];
     }
 
+    function esc(s) {
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    var DEMO_THREADS = ['Pythonでのデータ分析入門', '週末の京都旅行プラン', '英文メールの添削と言い換え', 'SQLのパフォーマンス改善'];
+    var QUICK_START = [
+        ['⚡', 'Gemini 3.6 Flash'],
+        ['☀️', 'GPT-5.6 Sol'],
+        ['🧠', 'Kimi K3'],
+        ['⚡', 'DeepSeek V4.1 Flash']
+    ];
+    var NEW_THREAD_TITLE = '2026年日本のテックトレンド5選';
+
+    function toolButton(icon) {
+        return '<button type="button" tabindex="-1" class="sidebar-icon-btn text-gray-400 p-1.5 rounded btn-hover"><i class="' + icon + '"></i></button>';
+    }
+
+    function threadRow(title, extraClass) {
+        return '<div class="p-2 rounded cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group' + (extraClass ? ' ' + extraClass : '') + '">' +
+            '<div class="flex items-center gap-1 truncate flex-1">' +
+            '<button type="button" tabindex="-1" class="text-gray-500 px-1"><i class="fas fa-star text-[10px]"></i></button>' +
+            '<span class="truncate">' + esc(title) + '</span></div></div>';
+    }
+
+    function chatOption(label) {
+        return '<label class="composer-opt flex items-center gap-1 select-none">' +
+            '<input type="checkbox" class="accent-blue-500 w-3 h-3"><span>' + label + '</span></label>';
+    }
+
+    function chatChip(id, label, cls, accent) {
+        return '<label id="' + id + '" class="composer-chip flex items-center gap-1 select-none px-2 py-0.5 rounded-full border ' + cls + '">' +
+            '<input type="checkbox" class="' + accent + ' w-3 h-3"><span>' + label + '</span></label>';
+    }
+
+    function sidebarHtml(version) {
+        return '<div id="sidebar" class="sidebar w-64 bg-gray-800 border-r border-gray-700 flex flex-col shrink-0">' +
+            '<div class="sidebar-header p-3 border-b border-gray-700 flex flex-col gap-2.5">' +
+            '<div class="min-w-0"><div class="flex items-center gap-2 min-w-0">' +
+            '<h2 id="sidebar-chat-title" class="font-bold text-base text-gray-200 truncate tracking-tight">AI Chat</h2></div></div>' +
+            '<div class="sidebar-toolbar flex items-center justify-start gap-0.5 flex-wrap">' +
+            toolButton('fab fa-github') +
+            toolButton('fas fa-history text-xs') +
+            toolButton('fas fa-clock-rotate-left text-xs') +
+            toolButton('fas fa-tachometer-alt text-xs') +
+            toolButton('fas fa-cog text-xs') +
+            toolButton('fas fa-folder text-xs') +
+            '<button type="button" id="new-chat-btn" tabindex="-1" class="sidebar-icon-btn text-gray-400 p-1.5 rounded bg-blue-600 btn-hover"><i class="fas fa-plus text-xs"></i></button>' +
+            toolButton('fas fa-sitemap text-xs') +
+            toolButton('fas fa-layer-group text-xs') +
+            toolButton('fas fa-file-pdf text-xs') +
+            '</div>' +
+            '<div class="relative sidebar-search"><input type="search" id="search-box" readonly tabindex="-1" placeholder="チャットを検索..." class="w-full bg-gray-700 rounded-lg px-3 py-1.5 text-sm outline-none">' +
+            '<i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs pointer-events-none"></i></div>' +
+            '</div>' +
+            '<div class="sidebar-gems px-2.5 py-2"><div class="flex justify-between items-center px-1.5 mb-1.5">' +
+            '<span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span>' +
+            '<span class="text-xs text-blue-400"><i class="fas fa-plus"></i> New</span></div></div>' +
+            '<div class="sidebar-divider border-t border-gray-700 mx-2 my-0.5"></div>' +
+            '<div class="flex-1 overflow-y-auto p-2 space-y-0.5" id="thread-list">' +
+            '<div id="ld-new-thread" class="ld-hidden">' + threadRow(NEW_THREAD_TITLE, 'bg-gray-700/60 border-l-2 border-blue-500') + '</div>' +
+            DEMO_THREADS.map(function (t) { return threadRow(t, ''); }).join('') +
+            '</div>' +
+            '<div class="sidebar-footer p-3 border-t border-gray-700 flex flex-col gap-2 text-center text-xs text-gray-500 relative">' +
+            '<div id="version-display">' + esc(version) + ' <span class="text-green-500 font-bold">Stable</span></div>' +
+            '<div class="sidebar-legal flex justify-center gap-2.5"><span>ヘルプ</span><span class="text-gray-500">·</span><span>利用規約</span><span class="text-gray-500">·</span><span>プライバシー</span></div>' +
+            '<div class="w-full block bg-gray-700 py-2 rounded-lg sidebar-logout-btn">ログアウト</div>' +
+            '</div></div>';
+    }
+
+    function mobileHeaderHtml() {
+        return '<header class="main-chrome-header bg-gray-800 border-b border-gray-700 px-3 py-2.5 shadow-md flex justify-between items-center gap-2 shrink-0">' +
+            '<span class="text-gray-300 p-2 shrink-0"><i class="fas fa-bars text-xl"></i></span>' +
+            '<div class="min-w-0 flex-1"><div class="flex items-center gap-1.5 min-w-0"><span id="mobile-chat-title" class="font-bold text-sm truncate">AI Playground</span></div></div>' +
+            '<div class="flex items-center shrink-0"><span class="text-blue-400 font-bold text-xl p-2">+</span>' +
+            '<span class="text-gray-400 p-2 rounded"><i class="fas fa-file-pdf text-xs"></i></span></div></header>';
+    }
+
+    function welcomeHtml() {
+        return '<div id="welcome-screen" class="flex flex-col items-center justify-center text-gray-500 z-10">' +
+            '<div class="flex flex-col items-center justify-center w-full">' +
+            '<h2 class="text-2xl font-bold flex items-center gap-2.5 tracking-tight"><i class="fas fa-gem"></i> AI Gems &amp; Chat</h2>' +
+            '<p class="welcome-subtitle text-sm text-gray-400/90">使いたいモデルを選んで、すぐに会話を始められます</p>' +
+            '<div id="welcome-quick-start" class="welcome-grid grid grid-cols-1 gap-2 w-full px-4">' +
+            QUICK_START.map(function (q) {
+                return '<div class="welcome-btn p-3 rounded text-sm text-left transition btn-hover">' + q[0] + ' ' + esc(q[1]) + '</div>';
+            }).join('') +
+            '</div></div></div>';
+    }
+
+    function composerHtml() {
+        return '<div class="composer-dock bg-gray-800 border-t border-gray-700 px-3 pt-2 pb-2.5 shrink-0 z-10">' +
+            '<div class="composer-shell max-w-3xl mx-auto space-y-1.5 relative">' +
+            '<div id="prompt-controls-row" class="composer-controls flex flex-wrap items-center text-xs text-gray-400 gap-1.5">' +
+            '<div id="prompt-primary-controls" class="flex items-center gap-1.5 min-w-0 flex-wrap">' +
+            '<button type="button" id="model-selector-btn" tabindex="-1" class="bg-gray-700 border border-gray-600 rounded-full px-2.5 py-1 text-white text-xs transition flex items-center gap-1.5 max-w-[180px] truncate">' +
+            '<i class="fas fa-robot text-blue-400"></i><span id="model-selector-text"></span>' +
+            '<i class="fas fa-chevron-down text-[10px] text-gray-400 ml-auto"></i></button>' +
+            chatChip('canvas-mode-container', 'Canvas', 'border-cyan-500/30 bg-cyan-900/15 text-cyan-200', 'accent-cyan-400') +
+            chatChip('coding-mode-container', 'Coding', 'border-emerald-500/30 bg-emerald-900/15 text-emerald-200', 'accent-emerald-400') +
+            chatChip('browser-fast-mode-container', '高速', 'border-amber-500/40 bg-amber-900/20 text-amber-200', 'accent-amber-400') +
+            '<span id="prompt-controls-toggle-btn" class="bg-gray-700 border border-gray-600 rounded-full px-2 py-0.5 text-[10px] text-gray-200 flex items-center gap-1">' +
+            '<span>詳細</span><i class="fas fa-chevron-down text-[10px]"></i></span>' +
+            '</div>' +
+            '<div id="prompt-details-controls"><div class="prompt-details-inner flex items-center gap-1 flex-wrap min-w-0">' +
+            '<div id="standard-chat-controls" class="composer-detail-chips flex gap-1 items-center flex-wrap">' +
+            chatOption('Search') +
+            '<label class="composer-opt flex items-center gap-1 select-none"><input type="checkbox" class="accent-yellow-500 w-3 h-3" checked><span class="text-yellow-200">Python</span></label>' +
+            '<label class="composer-opt flex items-center gap-1 select-none"><input type="checkbox" class="accent-orange-500 w-3 h-3" checked><span class="text-orange-300">File</span></label>' +
+            '<div class="composer-opt flex items-center gap-0.5 select-none"><label class="flex items-center gap-1"><input type="checkbox" class="accent-green-500 w-3 h-3"><span class="text-green-300">SysPrompt</span></label>' +
+            '<span class="text-gray-500 p-1"><i class="fas fa-cog text-[10px]"></i></span></div>' +
+            '<div class="composer-opt composer-opt-group ld-only-gemini flex items-center gap-1.5"><label class="flex items-center gap-1 select-none"><input type="checkbox" class="accent-purple-500 w-3 h-3" checked><span class="text-purple-300">Thinking</span></label>' +
+            '<select class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option>High</option></select>' +
+            '<label class="text-[10px] text-purple-300/80">Budget</label>' +
+            '<input type="number" value="4096" readonly tabindex="-1" class="w-20 bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-[10px] text-white outline-none"></div>' +
+            '<div class="composer-opt composer-opt-group ld-only-grok flex items-center gap-1"><span class="text-gray-400">Effort:</span>' +
+            '<select class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option>Med</option></select></div>' +
+            '<div class="composer-opt composer-opt-group ld-only-gemini flex items-center gap-1"><span class="text-gray-400">Safety:</span>' +
+            '<select class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option>Default</option></select></div>' +
+            '<div class="composer-opt flex items-center gap-0.5 select-none"><label class="flex items-center gap-1"><input type="checkbox" class="accent-teal-500 w-3 h-3"><span class="text-teal-300 text-[10px]">PromptCache</span></label></div>' +
+            '<div class="composer-opt flex items-center gap-0.5 select-none"><label class="flex items-center gap-1"><input type="checkbox" class="accent-blue-500 w-3 h-3" checked><span class="text-gray-400 text-[10px]">Compress</span></label>' +
+            '<span class="text-gray-500 p-1"><i class="fas fa-cog text-[10px]"></i></span></div>' +
+            '</div></div></div></div>' +
+            '<div id="input-container" class="relative"><div id="input-row" class="composer-input-row flex gap-1.5 items-end">' +
+            '<div class="composer-input-shell flex flex-1 items-end gap-1 min-w-0">' +
+            '<span id="upload-btn" class="composer-tool-btn bg-gray-700 p-2.5 rounded-xl text-gray-300 shrink-0"><i class="fas fa-paperclip"></i></span>' +
+            '<span id="rich-paste-btn" class="composer-tool-btn bg-amber-600 p-2.5 rounded-xl text-white shrink-0"><i class="fas fa-paste"></i></span>' +
+            '<span id="mic-btn" class="composer-tool-btn bg-gray-700 p-2.5 rounded-xl text-gray-300 shrink-0"><i class="fas fa-microphone"></i></span>' +
+            '<textarea id="prompt-input" rows="1" readonly tabindex="-1" class="flex-1 bg-transparent border-none rounded-xl px-2.5 py-2.5 outline-none resize-none text-white transition text-sm" placeholder="Ctrl + Enter で送信..."></textarea>' +
+            '<span id="send-btn" class="composer-send-btn bg-blue-600 p-2.5 rounded-xl text-white font-bold shadow-lg w-11 flex justify-center items-center shrink-0"><i class="fas fa-paper-plane"></i></span>' +
+            '</div></div></div>' +
+            '</div></div>';
+    }
+
     function buildChatDemo(root) {
         var systemVersion = (typeof window !== 'undefined' && window.LANDING_SYSTEM_VERSION) || 'V4.8.747';
-        var chrome = document.createElement('div');
-        chrome.className = 'chat-demo-chrome';
-        chrome.innerHTML =
-            '<div class="chat-demo-title">' +
-            '<span class="chat-demo-dots"><i></i><i></i><i></i></span>' +
-            '<span class="chat-demo-title-text">AI Chat Playground</span>' +
-            '</div>' +
-            '<div class="chat-demo-version">' + systemVersion + '</div>';
-
-        var body = document.createElement('div');
-        body.className = 'chat-demo-body';
-        var composer = document.createElement('div');
-        composer.className = 'chat-demo-composer';
-        composer.innerHTML =
-            '<div class="chat-demo-select" id="ld-select">' +
-            '<i class="chat-demo-select-icon"></i>' +
-            '<span class="chat-demo-select-name" id="ld-select-name"></span>' +
-            '<i class="fas fa-chevron-down chat-demo-select-caret"></i>' +
-            '</div>' +
-            '<input class="chat-demo-input" id="ld-input" type="text" autocomplete="off" readonly placeholder="メッセージを入力...">' +
-            '<button class="chat-demo-send" id="ld-send" type="button" aria-label="送信"><i class="fas fa-paper-plane"></i></button>';
-
-        root.appendChild(chrome);
-        root.appendChild(body);
-        root.appendChild(composer);
+        root.innerHTML =
+            sidebarHtml(systemVersion) +
+            '<div class="ld-main">' +
+            mobileHeaderHtml() +
+            '<div class="ld-stage">' +
+            '<div id="chat-stage" class="relative flex-1 min-w-0 overflow-hidden">' +
+            '<div id="chat-container" class="absolute inset-0 overflow-y-auto px-4 py-5"></div>' +
+            welcomeHtml() +
+            '</div></div>' +
+            composerHtml() +
+            '</div>';
 
         var setModel = function (key) {
             var m = modelInfo(key);
-            var icon = composer.querySelector('.chat-demo-select-icon');
-            icon.className = 'chat-demo-select-icon fas ' + m.faIcon;
-            icon.style.color = m.color;
-            composer.querySelector('#ld-select-name').textContent = m.name;
-            composer.querySelector('#ld-select').style.setProperty('--sc', m.color);
+            root.setAttribute('data-model', m.key);
+            var name = root.querySelector('#model-selector-text');
+            if (name) name.textContent = m.name;
             return m;
         };
 
-        return { root: root, body: body, setModel: setModel };
+        return {
+            root: root,
+            body: root.querySelector('#chat-container'),
+            stage: root.querySelector('#chat-stage'),
+            welcome: root.querySelector('#welcome-screen'),
+            input: root.querySelector('#prompt-input'),
+            newThread: root.querySelector('#ld-new-thread'),
+            setModel: setModel
+        };
     }
 
     function chatScroll(body) {
         body.scrollTop = body.scrollHeight;
     }
 
-    function appendUserBubble(body, text) {
+    function appendUserMessage(body, text) {
         var wrap = document.createElement('div');
-        wrap.className = 'ld-row ld-user';
-        var bubble = document.createElement('div');
-        bubble.className = 'ld-bubble ld-user-bubble';
-        bubble.textContent = text;
-        wrap.appendChild(bubble);
+        wrap.className = 'flex justify-end mb-4 fade-in relative message-group group';
+        wrap.innerHTML =
+            '<div class="message-bubble bg-blue-600 text-white p-4 rounded-2xl shadow-md relative">' +
+            '<div class="content-area whitespace-pre-wrap font-sans text-sm break-words">' + esc(text) + '</div></div>';
         body.appendChild(wrap);
         chatScroll(body);
         return { wrap: wrap };
     }
 
+    /* renderPendingMessage() + buildPendingSkeletonHtml() */
     function appendPending(body, status) {
         var wrap = document.createElement('div');
-        wrap.className = 'ld-row ld-ai';
-        var bubble = document.createElement('div');
-        bubble.className = 'ld-bubble ld-ai-bubble';
-        bubble.innerHTML =
-            '<div class="ld-model-badge" style="--mc:#8e9aaf"><span class="ld-model-badge-dot"></span><span>生成中</span></div>' +
-            '<div class="ld-skeleton">' +
-            '<div class="ld-skeleton-line" style="width:88%"></div>' +
-            '<div class="ld-skeleton-line" style="width:72%"></div>' +
-            '<div class="ld-skeleton-line" style="width:94%"></div>' +
-            '<div class="ld-skeleton-line" style="width:58%"></div>' +
-            '</div>' +
-            '<div class="ld-skeleton-status">' + status + '</div>';
-        wrap.appendChild(bubble);
+        wrap.className = 'flex justify-start mb-4 fade-in';
+        wrap.innerHTML =
+            '<div class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">' +
+            '<div class="content-area pending-shimmer skeleton-pending" data-skeleton-kind="text">' +
+            '<div class="skeleton-lines">' +
+            '<div class="skeleton-line" style="width:92%"></div>' +
+            '<div class="skeleton-line" style="width:78%"></div>' +
+            '<div class="skeleton-line" style="width:86%"></div>' +
+            '<div class="skeleton-line" style="width:64%"></div>' +
+            '<div class="skeleton-line" style="width:48%"></div>' +
+            '</div><div class="skeleton-status">' + esc(status) + '</div></div></div>';
         body.appendChild(wrap);
         chatScroll(body);
         return { wrap: wrap, setStatus: function (s) {
-            var el = bubble.querySelector('.ld-skeleton-status');
+            var el = wrap.querySelector('.skeleton-status');
             if (el) el.textContent = s;
         } };
     }
 
-    function appendThinking(body, m, label) {
+    /* renderMessage() for an assistant reply. `opts.thought` is a list of
+     * thought lines streamed into the "Thinking Process" box first (reasoning
+     * models); `opts.blocks` are revealed one by one like streamed markdown. */
+    function appendAIMessage(body, opts, done) {
         var wrap = document.createElement('div');
-        wrap.className = 'ld-row ld-ai';
-        var pill = document.createElement('div');
-        pill.className = 'ld-thinking';
-        pill.style.setProperty('--mc', m.color);
-        pill.innerHTML =
-            '<span class="ld-thinking-label">' + label + '</span>' +
-            '<span class="ld-dots"><i></i><i></i><i></i></span>';
-        wrap.appendChild(pill);
-        body.appendChild(wrap);
-        chatScroll(body);
-        return { wrap: wrap };
-    }
-
-    function appendAIBubble(body, m, blocks, footer, done) {
-        var wrap = document.createElement('div');
-        wrap.className = 'ld-row ld-ai';
+        wrap.className = 'flex justify-start mb-4 fade-in relative message-group group';
         var bubble = document.createElement('div');
-        bubble.className = 'ld-bubble ld-ai-bubble ld-streaming';
-        var badge = document.createElement('div');
-        badge.className = 'ld-model-badge';
-        badge.style.setProperty('--mc', m.color);
-        badge.innerHTML =
-            '<i class="' + ('fas ' + m.faIcon) + '"></i>' +
-            '<span>' + m.name + '</span>' +
-            (m.key === 'gemini' ? '<span class="ld-model-tag">Thinking</span>' : '');
+        bubble.className = 'message-bubble bg-gray-700 text-white p-4 rounded-2xl shadow-md relative';
+        var thoughtEl = null;
+        var thoughtHeader = null;
+        var thoughtBody = null;
+        if (opts.thought && opts.thought.length) {
+            thoughtEl = document.createElement('div');
+            thoughtEl.className = 'thought-container';
+            thoughtEl.innerHTML =
+                '<div class="thought-header thinking-shimmer"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div>' +
+                '<div class="thought-content"></div>';
+            thoughtHeader = thoughtEl.querySelector('.thought-header');
+            thoughtBody = thoughtEl.querySelector('.thought-content');
+            bubble.appendChild(thoughtEl);
+        }
         var content = document.createElement('div');
-        content.className = 'ld-ai-content';
-        bubble.appendChild(badge);
+        content.className = 'content-area prose prose-invert text-sm break-words';
         bubble.appendChild(content);
         wrap.appendChild(bubble);
         body.appendChild(wrap);
+        chatScroll(body);
 
-        /* Flatten blocks into individual reveal units.
-         * A block that is an array of <li> items is rendered into one shared
-         * <ol>/<ul> so numbering stays continuous while items stream in. */
-        var units = [];
-        var listTag = null;
         var currentList = null;
-        for (var bi = 0; bi < blocks.length; bi++) {
-            if (Array.isArray(blocks[bi])) {
-                listTag = /^<ul/i.test(blocks[bi][0]) ? 'ul' : 'ol';
-                for (var li = 0; li < blocks[bi].length; li++) {
-                    units.push({ list: true, html: blocks[bi][li] });
-                }
-            } else {
-                units.push({ list: false, html: blocks[bi] });
-            }
-        }
-
-        var idx = 0;
-        var cursor = document.createElement('span');
-        cursor.className = 'ld-cursor';
-        var footerEl = null;
-
-        function revealUnit(unit) {
-            if (unit.list) {
+        function revealBlock(block) {
+            if (block.li) {
                 if (!currentList) {
-                    currentList = document.createElement(listTag);
+                    currentList = document.createElement('ol');
                     content.appendChild(currentList);
                 }
-                var li = document.createElement('div');
+                var li = document.createElement('li');
                 li.className = 'ld-block';
-                li.innerHTML = unit.html;
+                li.innerHTML = block.li;
                 currentList.appendChild(li);
             } else {
-                var b = document.createElement('div');
-                b.className = 'ld-block';
-                b.innerHTML = unit.html;
-                content.appendChild(b);
+                var p = document.createElement('p');
+                p.className = 'ld-block';
+                p.innerHTML = block.p;
+                content.appendChild(p);
             }
-            if (cursor.parentNode) cursor.parentNode.removeChild(cursor);
-            content.appendChild(cursor);
             chatScroll(body);
         }
 
-        function next() {
-            if (idx < units.length) {
-                revealUnit(units[idx]);
-                idx++;
-                window.setTimeout(next, 420);
-            } else {
-                if (cursor.parentNode) cursor.parentNode.removeChild(cursor);
-                content.classList.remove('ld-streaming-active');
-                bubble.classList.remove('ld-streaming');
-                if (footer) {
-                    footerEl = document.createElement('div');
-                    footerEl.className = 'ld-msg-footer';
-                    footerEl.textContent = footer;
-                    bubble.appendChild(footerEl);
-                }
-                chatScroll(body);
-                done();
-            }
+        function finish() {
+            var footer = document.createElement('div');
+            footer.className = 'text-[10px] text-slate-300/90 mt-2 text-right font-mono message-footer-meta';
+            footer.innerHTML = esc(opts.model) + ' • <span class="underline decoration-dotted">' + esc(opts.tokens) + '</span>';
+            bubble.appendChild(footer);
+            chatScroll(body);
+            done();
         }
-        content.classList.add('ld-streaming-active');
-        next();
+
+        function streamBlocks() {
+            var idx = 0;
+            (function next() {
+                if (idx < opts.blocks.length) {
+                    revealBlock(opts.blocks[idx]);
+                    idx++;
+                    window.setTimeout(next, 420);
+                } else {
+                    finish();
+                }
+            })();
+        }
+
+        if (!thoughtEl) {
+            streamBlocks();
+            return { wrap: wrap };
+        }
+
+        var lineIdx = 0;
+        (function nextThought() {
+            if (lineIdx < opts.thought.length) {
+                thoughtBody.textContent = opts.thought.slice(0, lineIdx + 1).join('\n');
+                chatScroll(body);
+                lineIdx++;
+                window.setTimeout(nextThought, 650);
+            } else {
+                window.setTimeout(function () {
+                    thoughtHeader.classList.remove('thinking-shimmer');
+                    thoughtBody.classList.add('collapsed');
+                    streamBlocks();
+                }, 650);
+            }
+        })();
         return { wrap: wrap };
+    }
+
+    function fitInput(input) {
+        input.style.height = 'auto';
+        input.style.height = Math.min(input.scrollHeight || 0, 150) + 'px';
     }
 
     function typeInto(input, text, per, done) {
@@ -454,6 +573,7 @@
         function tick() {
             if (i <= text.length) {
                 input.value = text.slice(0, i);
+                fitInput(input);
                 i++;
                 window.setTimeout(tick, per);
             } else {
@@ -467,94 +587,115 @@
         var body = api.body;
         var reduced = DEFAULTS.reduced;
 
-        var stage = function (steps, onDone) {
-            var timers = [];
+        function schedule(steps) {
             for (var i = 0; i < steps.length; i++) {
-                (function (s) {
-                    timers.push(window.setTimeout(s.fn, s.t));
-                })(steps[i]);
+                window.setTimeout(steps[i].fn, steps[i].t);
             }
-            timers.push(window.setTimeout(onDone, steps[steps.length - 1].t + 100));
-            return function cancel() { timers.forEach(function (t) { window.clearTimeout(t); }); };
-        };
+        }
 
         function sequence() {
             body.textContent = '';
-            var current = null;
+            api.input.value = '';
+            fitInput(api.input);
+            api.welcome.classList.remove('ld-hidden');
+            api.newThread.classList.add('ld-hidden');
+            api.stage.classList.remove('ld-demo-dimming');
+            api.setModel('gemini');
 
             var steps = [];
-            var ua = '2026年の日本で注目のテックトレンドを、理由付きで5つ教えて';
-            var gm = modelInfo('gemini');
-            var gk = modelInfo('grok');
+            var current = null;
+            var q1 = '2026年の日本で注目のテックトレンドを、理由付きで5つ教えて';
+            var q2 = 'じゃあ2026年のAIエージェント事情は、日本の導入状況を踏まえてまとめて';
+            var typed = false;
             var t = 0;
 
-            steps.push({ t: 0, fn: function () { api.setModel('gemini'); } });
-            t += 450;
-            steps.push({ t: t, fn: function () { current = appendUserBubble(body, ua); } });
-            t += 1300;
+            function typeStep(text, start) {
+                steps.push({ t: start, fn: function () {
+                    typed = false;
+                    root.classList.add('ld-typing');
+                    if (reduced) { api.input.value = text; fitInput(api.input); typed = true; }
+                    else typeInto(api.input, text, 50, function () { typed = true; });
+                } });
+            }
+            function sendStep(text, at) {
+                steps.push({ t: at, fn: function () {
+                    if (!typed) return;
+                    api.input.value = '';
+                    fitInput(api.input);
+                    root.classList.remove('ld-typing');
+                    api.welcome.classList.add('ld-hidden');
+                    api.newThread.classList.remove('ld-hidden');
+                    current = appendUserMessage(body, text);
+                } });
+            }
+            function removeCurrent() {
+                if (current && current.wrap) current.wrap.remove();
+                current = null;
+            }
+
+            /* 1) Gemini 3.6 Flash (Thinking) */
+            t = 900;
+            typeStep(q1, t);
+            t += 2300;
+            sendStep(q1, t);
+            t += 700;
             steps.push({ t: t, fn: function () { current = appendPending(body, 'APIに送信中...'); } });
             t += 1200;
             steps.push({ t: t, fn: function () { if (current && current.setStatus) current.setStatus('回答を生成中...'); } });
             t += 900;
-            steps.push({ t: t, fn: function () { if (current && current.wrap) current.wrap.remove(); current = appendThinking(body, gm, '思考中'); } });
-            t += 1000;
             steps.push({ t: t, fn: function () {
-                if (current && current.wrap) current.wrap.remove();
-                var blocks = [
-                    '<h4>2026年の注目テックトレンド（日本）</h4>',
-                    [
-                        '<li><strong>AIエージェントの実務浸透</strong> — 経理・カスタマーサポートなどの定型業務でエージェント運用が標準化。AI法対応のガバナンスツールも拡大。</li>',
-                        '<li><strong>モバイル型データセンター</strong> — 電力制約への対策として、遊休地を活用したコンパクトDCの建設計画が全国で進行。</li>',
-                        '<li><strong>次世代半導体パッケージング</strong> — 2nm世代で日本勢の後工程受託が拡大し、供給網の再編が加速。</li>',
-                        '<li><strong>AIによる個別最適医療</strong> — 自治体と病院の連携で予防医療のAI診断が拡大し、診療データ連携基盤が整備。</li>',
-                        '<li><strong>クリエイティブ生成の民主化</strong> — 映像・3D・音声の生成コストが大幅低下し、中小企業のプロモーション制作が変革。</li>'
+                removeCurrent();
+                appendAIMessage(body, {
+                    model: 'Gemini 3.6 Flash',
+                    tokens: 'In 2310 / Out 1845 (Thought 612)',
+                    thought: [
+                        '日本の2026年のテックトレンドを5つに絞って整理する。',
+                        'AI、半導体、データセンター、医療、生成コンテンツの5領域を選び、',
+                        'それぞれに理由を添えて日本の事情に沿って説明する。'
+                    ],
+                    blocks: [
+                        { p: '2026年の日本で注目されるテックトレンドを、理由とあわせて5つ挙げます。' },
+                        { li: '<strong>AIエージェントの実務浸透</strong> — 経理・カスタマーサポートなどの定型業務でエージェント運用が標準化。' },
+                        { li: '<strong>モバイル型データセンター</strong> — 電力制約への対策として、遊休地を活用したコンパクトDCの計画が全国で進行。' },
+                        { li: '<strong>次世代半導体パッケージング</strong> — 2nm世代で日本勢の後工程受託が拡大し、供給網の再編が加速。' },
+                        { li: '<strong>AIによる個別最適医療</strong> — 自治体と病院の連携で予防医療のAI診断が拡大。' },
+                        { li: '<strong>クリエイティブ生成の民主化</strong> — 映像・3D・音声の生成コストが大幅に低下。' }
                     ]
-                ];
-                appendAIBubble(body, gm, blocks, 'In 2,310 / Out 1,845', function () {});
+                }, function () {});
             } });
 
-            /* Model switch → Grok 4.3 */
-            t += 4700;
+            /* 2) Switch the model to Grok 4.3 and ask a follow-up */
+            t += 5600;
             steps.push({ t: t, fn: function () { api.setModel('grok'); } });
-            var ub = 'じゃあ2026年のAIエージェント事情は、日本の導入状況を踏まえてまとめて';
-            var typed = false;
-            t += 600;
-            steps.push({ t: t, fn: function () {
-                var input = root.querySelector('#ld-input');
-                if (reduced) { input.value = ub; typed = true; }
-                else typeInto(input, ub, 50, function () { typed = true; });
-            } });
-            t += 2400;
-            steps.push({ t: t, fn: function () { if (!typed) return; var input = root.querySelector('#ld-input'); input.value = ''; current = appendUserBubble(body, ub); } });
-            t += 800;
+            t += 700;
+            typeStep(q2, t);
+            t += 2700;
+            sendStep(q2, t);
+            t += 700;
             steps.push({ t: t, fn: function () { current = appendPending(body, '接続完了。モデル応答を待機中...'); } });
-            t += 1600;
-            steps.push({ t: t, fn: function () { if (current && current.wrap) current.wrap.remove(); current = appendThinking(body, gk, '思考を整理中'); } });
-            t += 1000;
+            t += 1500;
             steps.push({ t: t, fn: function () {
-                if (current && current.wrap) current.wrap.remove();
-                var blocks = [
-                    '<h4>2026年のAIエージェント（概観）</h4>',
-                    [
-                        '<li><strong>MCPなどの標準プロトコル</strong>が普及し、異なるベンダーのエージェントが相互運用できる時代へ。</li>',
-                        '<li>エージェント同士がタスクを委譲する<strong>オーケストレーション</strong>が一般化。企業は人間の承認ワークフローと統合。</li>',
-                        '<li>セキュリティ面では、エージェント専用の監視体制<strong>Agent SOC</strong>という新職種が登場。</li>',
-                        '<li>個人向けには、カレンダー・メール・購買を横断する<strong>パーソナルエージェント</strong>の定額サービスが拡大。</li>'
+                removeCurrent();
+                appendAIMessage(body, {
+                    model: 'Grok 4.3',
+                    tokens: 'In 1020 / Out 3402 (Thought 1104)',
+                    thought: null,
+                    blocks: [
+                        { p: '2026年のAIエージェント動向を、日本の導入状況を踏まえてまとめます。' },
+                        { li: '<strong>MCPなどの標準プロトコル</strong>が普及し、異なるベンダーのエージェントが相互運用できる時代へ。' },
+                        { li: 'エージェント同士がタスクを委譲する<strong>オーケストレーション</strong>が一般化。' },
+                        { li: 'セキュリティ面では、エージェント専用の監視体制<strong>Agent SOC</strong>という新職種が登場。' }
                     ]
-                ];
-                appendAIBubble(body, gk, blocks, 'In 1,020 / Out 3,402 (Thought 1,104)', function () {});
+                }, function () {});
             } });
 
-            t += 4600;
+            t += 3200;
             steps.push({ t: t, fn: function () {
-                body.classList.add('ld-demo-dimming');
-                window.setTimeout(function () {
-                    body.classList.remove('ld-demo-dimming');
-                    sequence();
-                }, 900);
+                api.stage.classList.add('ld-demo-dimming');
+                window.setTimeout(function () { sequence(); }, 900);
             } });
 
-            stage(steps, function () {});
+            schedule(steps);
         }
 
         sequence();

@@ -73,9 +73,15 @@ function appendText(el, text) {
 
 function matchSimple(el, part) {
     if (!el) return false;
-    if (part.startsWith('.')) return el.classList.contains(part.slice(1));
-    if (part.startsWith('#')) return el.attrs.id === part.slice(1);
-    return el.tagName === part.toLowerCase() || el.tagName === part;
+    /* tag, .class, #id and compound forms such as div.a.b or .a#id */
+    const m = /^([a-zA-Z][a-zA-Z0-9]*)?((?:[.#][-\w]+)*)$/.exec(part);
+    if (!m) return false;
+    if (m[1] && el.tagName !== m[1].toLowerCase() && el.tagName !== m[1]) return false;
+    const rest = m[2].match(/[.#][-\w]+/g) || [];
+    for (const r of rest) {
+        if (r[0] === '.' ? !el.classList.contains(r.slice(1)) : el.attrs.id !== r.slice(1)) return false;
+    }
+    return true;
 }
 
 function matches(el, sel) {

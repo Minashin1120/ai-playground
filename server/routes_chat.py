@@ -757,6 +757,7 @@ def chat_stream():
             current_user.last_enable_system_prompt = bool(data.get('enable_system_prompt'))
             current_user.last_enable_mcp = bool(data.get('enable_mcp', True))
             current_user.last_safety_setting = (data.get('safety_setting') or current_user.last_safety_setting or "default")
+        t.last_model = model_key
         t.last_gem_uuid = data.get('gem_uuid')
         safe_db_commit()
         thread_id = t.id

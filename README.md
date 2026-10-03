@@ -10,7 +10,7 @@ AI Chat Playground は、複数の生成AIを1つの画面から利用するた�
 > V4.8.615以前には既知のセキュリティ上の問題があります。新規導入・本番運用には使用しないでください。
 
 > [!IMPORTANT]
-> このアプリは `pip install` だけでは動作しません。MariaDB、Redis、Gunicorn、4つのRQワーカー、Apacheまたは同等のリバースプロキシ、HTTPS、永続ストレージ、秘密情報の設定が必要です。本番導入は本書の「本番環境への導入」を最後まで実施してください。
+> このアプリは `pip install` だけでは動作しません。MariaDB、Redis、Gunicorn、2つのRQワーカー、Apacheまたは同等のリバースプロキシ、HTTPS、永続ストレージ、秘密情報の設定が必要です。本番導入は本書の「本番環境への導入」を最後まで実施してください。
 
 ## 目次
 
@@ -36,6 +36,8 @@ AI Chat Playground は、複数の生成AIを1つの画面から利用するた�
 - チャットとファイルのE2EE、TOTP、WebAuthn Passkey、セッション管理
 - Cloudflare Turnstile、レート制限、管理者向けBAN・診断機能
 - PWA、オフライン画面、テーマ、低帯域・パフォーマンス設定
+- Batch処理（Gemini／OpenAI／xAI）による非同期生成（[Batch処理の機能と実装](static/docs/batch.md)）
+- 公式Androidクライアント（端末連携、ネイティブログイン、サーバー不使用モード。[Androidプロジェクト](android/README.md)）
 - 外部MCP（Model Context Protocol）サーバー連携（Gmail / Google Drive 等のGoogle Workspace プリセットと、URLを登録するカスタムMCPサーバー）。設定はユーザーごとに「設定 → MCP」タブで管理し、チャット中のモデルが登録済みツールを呼び出せます（変更操作は実行前に確認）。
 
 対応モデルは [MODELS.md](MODELS.md) を参照してください。モデル名、提供状況、価格は変わるため、実際の利用前に各プロバイダーの公式情報も確認してください。
@@ -315,7 +317,7 @@ node --check static/js/progress_spinner.js
 node --check static/js/chat_core.v*.js
 ```
 
-画面のJavaScriptとCSSは、読みやすいソースと圧縮済みファイルの両方をリポジトリに含めています。通常の導入や更新では追加のビルドは不要です。ソースを編集したあとに圧縮ファイルを作り直す場合だけ、Node.js 20以降を用意して次を実行します。
+画面のJavaScriptとCSSは、読みやすいソースと圧縮済みファイルの両方をリポジトリに含めています。通常の導入や更新では追加のビルドは不要です。チャットコアの編集用ソースは `static/js/chat_core_parts/` の部品で、結合ソース `chat_core.v*.js` は手で編集しません。ソースを編集したあとに結合ソースと圧縮ファイルを作り直す場合だけ、Node.js 20以降を用意して次を実行します。
 
 ```bash
 ./scripts/build_frontend.sh
@@ -371,6 +373,9 @@ journalctl -u 'ai-chat-worker@1.service' -n 100 --no-pager
 - [templates/README.md](templates/README.md)：Jinjaテンプレート
 - [static/README.md](static/README.md)：静的資産
 - [tests/README.md](tests/README.md)：回帰テスト
+- [scripts/README.md](scripts/README.md)：保守・検証スクリプト
+- [server/README.md](server/README.md)：サーバー側の分割ソースの地図
+- [deploy/KEY_ROTATION.md](deploy/KEY_ROTATION.md)：暗号化鍵のローテーション手順
 
 ## ライセンス
 

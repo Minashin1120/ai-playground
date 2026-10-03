@@ -8,6 +8,8 @@ cd /opt/ai-playground
 venv/bin/python -m pytest -q
 ```
 
+`app_source.py` と `chat_template.py` は、アプリ本体のソースや分割済みテンプレートを読み込むテスト用の共通ヘルパーです。`conftest.py` が共通のフィクスチャを定義します。
+
 個別実行例:
 
 ```bash

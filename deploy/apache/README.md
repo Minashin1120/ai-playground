@@ -1,6 +1,6 @@
 # Apache設定
 
-`ai-playground.conf` はHTTPからHTTPSへの転送と、HTTPSからGunicornへのリバースプロキシ例です。`chat.example.com`、証明書パス、アップロード上限を環境へ合わせて変更します。
+`ai-playground.conf` はHTTPからHTTPSへの転送と、HTTPSからGunicornへのリバースプロキシ例です。`mobile-api.inc.conf` は、元のスキームの通知、JSONエラー応答の保持、ペアリング・認証・ストリーム応答を共有キャッシュへ載せない設定をまとめたもので、HTTPSのVirtualHost内から `Include` します（パスは配置先に合わせて変更）。`chat.example.com`、証明書パス、アップロード上限を環境へ合わせて変更します。
 
 ```bash
 sudo a2enmod proxy proxy_http headers rewrite ssl reqtimeout env alias deflate

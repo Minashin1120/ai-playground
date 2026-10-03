@@ -4,7 +4,7 @@ Issue、ドキュメント修正、バグ修正、テスト追加を歓迎しま
 
 ## 開発環境
 
-Python 3.11、MariaDB、Redis、Node.js（JavaScript構文確認用）、ffmpeg、bubblewrapを用意します。セットアップは [README.md](README.md#開発とテスト) を参照してください。
+Python 3.11、MariaDB、Redis、Node.js（JavaScript構文確認・圧縮用）、ffmpeg、webp（`cwebp`／`dwebp`）、bubblewrapを用意します。セットアップは [README.md](README.md#開発とテスト) を参照してください。
 
 ## 変更時の原則
 
@@ -32,7 +32,7 @@ node --check static/js/progress_spinner.js
 node --check static/js/chat_core.v*.js
 ```
 
-`static/js/chat_core.v*.js` や `static/css/chat.custom.v*.css` を編集した場合は、配信用の圧縮ファイルを更新します。
+チャットコアは `static/js/chat_core_parts/` の部品を編集します（地図は [static/js/chat_core_parts/README.md](static/js/chat_core_parts/README.md)）。結合ソース `static/js/chat_core.v*.js` と圧縮ファイルは手で編集しません。部品や `static/css/chat.custom.v*.css` を編集した場合は、結合ソースと配信用の圧縮ファイルを再生成します。
 
 ```bash
 ./scripts/build_frontend.sh

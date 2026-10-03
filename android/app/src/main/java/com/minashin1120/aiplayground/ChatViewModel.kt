@@ -409,7 +409,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ?: defaults.json.optJSONArray("models")?.let { rows -> (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
                     .firstOrNull { it.optString("id") == id }?.optString("mode") } ?: "chat" },
             onChanged = { if (fallback != null) refreshPendingCount() },
-            remote = remote)
+            remote = remote,
+            keepAlive = GenerationService.keepAlive(getApplication<Application>()))
     }
 
     /** Attachment bytes from the offline cache (serverless mode answering while the server is out of reach). */

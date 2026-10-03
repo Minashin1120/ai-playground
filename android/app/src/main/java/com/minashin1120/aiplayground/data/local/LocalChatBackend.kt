@@ -42,6 +42,8 @@ class LocalChatBackend(
     private val onChanged: () -> Unit = {},
     /** Server history and outbox upload of serverless mode; null in the no-account profile. */
     private val remote: ServerHistory? = null,
+    /** Keeps the app process alive while an image or video is generated (a foreground service on the device). */
+    private val keepAlive: GenerationKeepAlive = GenerationKeepAlive.None,
 ) : ChatBackend {
 
     // Every call runs on the IO dispatcher: the store reads and writes encrypted files.
@@ -223,7 +225,12 @@ class LocalChatBackend(
 
     private suspend fun streamLocal(path: String, payload: JSONObject, token: String, onAccepted: () -> Unit, onEvent: (JSONObject) -> Unit) {
         when {
-            path == "/chat_stream" -> generate(payload, onAccepted, onEvent)
+            path == "/chat_stream" -> {
+                // Image and video answers take minutes; the hold lasts until the answer is saved and uploaded.
+                val mode = modeOf(payload.optString("model"))
+                val hold = if (needsKeepAlive(mode)) keepAlive.begin(mode) else null
+                try { generate(payload, onAccepted, onEvent) } finally { hold?.close() }
+            }
             // An answer running on the server (started on the Web) can be rejoined; device answers never outlive the app.
             fallback != null && !onDevice(store.resolveAlias(payload.optString("thread_id"))) ->
                 fallback.stream(path, payload, token, onAccepted, onEvent)

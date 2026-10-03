@@ -21,6 +21,7 @@ class PlaygroundApplication : Application() {
         useQuoteSelectionToolbar()
         createBatchNotificationChannel(this)
         createAppUpdateNotificationChannel(this)
+        createGenerationNotificationChannel(this)
         createToolbarNotificationChannel(this)
         refreshToolbarNotification(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {

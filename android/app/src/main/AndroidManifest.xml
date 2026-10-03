@@ -93,5 +93,7 @@
         </provider>
         <service android:name=".AppUpdateDownloadService" android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <service android:name=".GenerationService" android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>

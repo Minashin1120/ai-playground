@@ -19,7 +19,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/AppChangelogViewModel.kt` | Android版更新履歴Markdownの取得状態・再試行 | アプリ版更新履歴の取得を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/AppUpdateChecker.kt`, `AppUpdateDownloader.kt` | GitHub Release資産の確認、APK取得、SHA-256検証 | 更新元・資産名・ダウンロードを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/OfflineCacheStore.kt` | アカウント別の暗号化オフライン履歴・ファイル保存、同期設定、カテゴリ削除 | オフライン閲覧・端末保存・キャッシュ管理を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/AppUpdateDialog.kt` | APK更新の確認、進捗、設定案内、再試行ダイアログと、非表示中の画面上部プログレスバー | 更新UI・文言・導線 |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/AppUpdateDialog.kt` | APK更新の確認、進捗、設定案内、再試行ダイアログと、非表示中（ダウンロード中・インストール待ち）の画面上部バー | 更新UI・文言・導線 |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatViewModel.kt` | ネイティブ認証・パスキー／TOTP 2FA・セキュリティ管理・初回セットアップ／ZIP取り込み・旧端末連携・履歴・送信・再接続・アップロード状態 | アプリ操作・通信フロー |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ChatNavigationHistory.kt` | チャットを開いた順序と戻る先（新規チャットを含む） | Androidの戻る操作でチャットを切り替えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ServerOrigin.kt` | 現在の接続先（公式ホスト／セルフホスト）、接続先入力の検証、`/api/mobile/v1/config` からの対応ログイン方法の判定、アプリ固有スキームへの戻り指定 | 接続先の指定・同一オリジン判定を変更するとき |

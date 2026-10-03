@@ -92,17 +92,21 @@ fun AppUpdateDialog(
     )
 }
 
-/** Thin bar over the top edge while the update dialog is hidden; tapping it reopens the dialog. */
+/** Thin bar over the top edge while the update dialog is hidden (download running or APK ready); tapping it reopens the dialog. */
 @Composable
 fun AppUpdateProgressBar(state: AppUpdateUiState, onShow: () -> Unit, modifier: Modifier = Modifier) {
-    if (state.phase != AppUpdatePhase.Downloading || !state.dialogHidden) return
-    val progress = downloadFraction(state)
+    val ready = state.phase == AppUpdatePhase.Ready
+    if ((state.phase != AppUpdatePhase.Downloading && !ready) || !state.dialogHidden) return
+    val progress = if (ready) 1f else downloadFraction(state)
     Box(
         modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .clickable(onClickLabel = "更新の進捗を表示", onClick = onShow)
-            .semantics { contentDescription = "Android版をダウンロード中 ${formatUpdateProgress(state.downloadedBytes, state.totalBytes)}" }
+            .clickable(onClickLabel = if (ready) "更新のインストールを表示" else "更新の進捗を表示", onClick = onShow)
+            .semantics {
+                contentDescription = if (ready) "更新ファイルの準備ができました。タップしてインストール"
+                else "Android版をダウンロード中 ${formatUpdateProgress(state.downloadedBytes, state.totalBytes)}"
+            }
             // Taller transparent touch target around the 3dp bar.
             .height(16.dp),
     ) {

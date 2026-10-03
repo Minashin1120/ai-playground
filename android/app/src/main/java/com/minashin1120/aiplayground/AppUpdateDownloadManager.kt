@@ -122,9 +122,20 @@ class AppUpdateDownloadManager(
         mutable.update { it.copy(dialogHidden = false) }
     }
 
+    /**
+     * Closes the dialog. A verified APK is kept, so "later" never forces a new download:
+     * the update stays [AppUpdatePhase.Ready] and the top bar or settings reopen the dialog.
+     */
     fun dismiss() {
-        if (state.value.phase != AppUpdatePhase.Downloading) {
-            mutable.update { it.copy(update = null, readyFile = null, dialogHidden = false) }
+        mutable.update {
+            when (it.phase) {
+                AppUpdatePhase.Downloading, AppUpdatePhase.Installing -> it
+                // Declining the install permission also returns to Ready, so resuming the app does not start the installer.
+                AppUpdatePhase.Ready, AppUpdatePhase.AwaitingInstallPermission ->
+                    if (it.readyFile != null) it.copy(phase = AppUpdatePhase.Ready, dialogHidden = true)
+                    else it.copy(update = null, dialogHidden = false)
+                else -> it.copy(update = null, readyFile = null, dialogHidden = false)
+            }
         }
     }
 

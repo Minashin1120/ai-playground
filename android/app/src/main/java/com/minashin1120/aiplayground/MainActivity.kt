@@ -51,7 +51,11 @@ open class MainActivity : ComponentActivity() {
                 onShowUpdate = updateModel::showDialog,
                 onRetryUpdate = ::startUpdateDownload,
                 onInstallUpdate = ::installUpdate,
-                onCheckForUpdate = { updateModel.check(BuildConfig.VERSION_NAME) },
+                onCheckForUpdate = {
+                    // A kept APK is installed from the dialog; only otherwise ask the server again.
+                    if (updateModel.state.value.phase == AppUpdatePhase.Ready) updateModel.showDialog()
+                    else updateModel.check(BuildConfig.VERSION_NAME)
+                },
                 onOpenChangelog = changelogModel::load,
                 onRetryChangelog = changelogModel::load,
                 onOpenBubble = { openBubble() },

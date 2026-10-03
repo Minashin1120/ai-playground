@@ -127,6 +127,42 @@ class AppUpdateDownloadManagerTest {
         assertEquals(AppUpdatePhase.Available, manager.state.value.phase)
     }
 
+    @Test fun dismissingReadyDialogKeepsTheDownloadedApk() = runBlocking {
+        val apk = File(cacheDir, "app.apk")
+        val manager = manager { _, _, _ -> apk }
+        manager.startDownload()
+        manager.awaitState { it.phase == AppUpdatePhase.Ready }
+
+        manager.dismiss()
+        val hidden = manager.state.value
+        assertEquals(AppUpdatePhase.Ready, hidden.phase)
+        assertEquals(update, hidden.update)
+        assertEquals(apk, hidden.readyFile)
+        assertTrue(hidden.dialogHidden)
+
+        manager.showDialog()
+        assertFalse(manager.state.value.dialogHidden)
+        assertEquals(apk, manager.state.value.readyFile)
+    }
+
+    @Test fun dismissingInstallPermissionPromptReturnsToReady() = runBlocking {
+        val apk = File(cacheDir, "app.apk")
+        val manager = manager { _, _, _ -> apk }
+        manager.startDownload()
+        manager.awaitState { it.phase == AppUpdatePhase.Ready }
+        manager.updateState { it.copy(phase = AppUpdatePhase.AwaitingInstallPermission) }
+
+        manager.dismiss()
+        assertEquals(AppUpdatePhase.Ready, manager.state.value.phase)
+        assertEquals(apk, manager.state.value.readyFile)
+    }
+
+    @Test fun dismissingAvailableOrErrorForgetsTheUpdate() {
+        val manager = manager { _, _, _ -> error("not started") }
+        manager.dismiss()
+        assertNull(manager.state.value.update)
+    }
+
     @Test fun secondStartWhileRunningIsIgnored() = runBlocking {
         val manager = manager { _, _, _ -> awaitCancellation() }
         assertTrue(manager.startDownload())

@@ -58,13 +58,17 @@ internal fun androidCard(state: ChatState, extras: SettingsExtras): SettingsCard
                 AppUpdatePhase.UpToDate -> SettingsDesc("最新のAndroid版を使用しています。")
                 AppUpdatePhase.Available -> update.update?.let { SettingsDesc("Android版 ${it.versionName} が利用できます。") }
                 AppUpdatePhase.Downloading -> SettingsDesc("更新ファイルをダウンロード中: ${formatUpdateProgress(update.downloadedBytes, update.totalBytes)}")
+                AppUpdatePhase.Ready -> update.update?.let { SettingsDesc("Android版 ${it.versionName} の更新ファイルの準備ができています。") }
                 AppUpdatePhase.Error -> SettingsDesc(update.errorMessage ?: "更新を確認できませんでした。", color = Tw.red300)
                 else -> Unit
             }
-            val busy = update.phase in setOf(AppUpdatePhase.Checking, AppUpdatePhase.Downloading, AppUpdatePhase.Ready,
+            val busy = update.phase in setOf(AppUpdatePhase.Checking, AppUpdatePhase.Downloading,
                 AppUpdatePhase.AwaitingInstallPermission, AppUpdatePhase.Installing)
-            SettingsSmallButton(if (update.phase == AppUpdatePhase.Checking) "確認中…" else "更新を確認", extras.onCheckForUpdate,
-                enabled = !busy, fill = true)
+            // A downloaded APK is kept after closing the dialog; this button reopens it instead of checking again.
+            val ready = update.phase == AppUpdatePhase.Ready
+            SettingsSmallButton(
+                when { ready -> "インストールを開く"; update.phase == AppUpdatePhase.Checking -> "確認中…"; else -> "更新を確認" },
+                extras.onCheckForUpdate, enabled = !busy, fill = true)
             SettingsFieldLabel("バブル", Modifier.padding(top = 4.dp))
             SettingsSmallButton(
                 if (android.os.Build.VERSION.SDK_INT >= com.minashin1120.aiplayground.ANDROID_17_APP_BUBBLE_API) "バブルに追加する方法" else "バブルで開く",

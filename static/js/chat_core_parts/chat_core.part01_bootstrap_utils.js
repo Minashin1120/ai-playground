@@ -1453,6 +1453,31 @@
             }
             return await userSettingsSnapshotPromise;
         };
+        // ユーザーシステムプロンプトは設定モーダルとチャット設定の2か所から保存される。
+        // どちらから保存しても、キャッシュと、プロンプトバーの SysPrompt スイッチを揃える。
+        const isUserSystemPromptActive = (s) => !!(s && String(s.system_prompt || '').trim() && s.system_prompt_enabled !== false);
+        window.applySavedUserSystemPromptSettings = (saved) => {
+            if (!saved) return;
+            const prev = userSettingsSnapshot || null;
+            const next = Object.assign({}, prev || {}, saved);
+            cacheUserSettings(next);
+            try {
+                const chk = document.getElementById('enable-sys-prompt');
+                if (chk && prev && isUserSystemPromptActive(prev) !== isUserSystemPromptActive(next)) {
+                    const active = isUserSystemPromptActive(next);
+                    if (chk.disabled) {
+                        // モデルの都合で一時的に使えない間は、使えるようになった時点で反映する。
+                        if (active) chk.dataset.restoreChecked = '1';
+                        else delete chk.dataset.restoreChecked;
+                    } else if (chk.checked !== active) {
+                        chk.checked = active;
+                        chk.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
+            } catch (e) {}
+            // サーバー側で整えられた値（自動注入の既定文面など）をキャッシュへ取り込む。
+            fetchSettingsSnapshot().catch(() => {});
+        };
         const saveRichPastePromptPreferences = async () => {
             const prompt = getRichPastePrompt();
             const checkbox = getRichPasteUseDefaultCheckbox();

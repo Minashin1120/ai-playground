@@ -107,6 +107,8 @@ data class ChatState(
     val enableThinking: Boolean = false, val enableSearch: Boolean = false,
     val enableUrlContext: Boolean = false, val enableMaps: Boolean = false,
     val enableFileCreation: Boolean = true, val enableSystemPrompt: Boolean = false,
+    /** Web `enable-sys-prompt.dataset.restoreChecked`: the model turned SysPrompt off, [sysPromptRestore] is the choice to bring back. */
+    val sysPromptSuppressed: Boolean = false, val sysPromptRestore: Boolean = false,
     val enablePromptCache: Boolean = false,
     /** Web generation panel inputs, shared across models like the Web DOM (see `generationPanels`). */
     val generationValues: Map<String, String> = emptyMap(),
@@ -1492,6 +1494,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun clearQuote() { mutable.update { it.copy(quote = "") } }
     /**
+     * Web `applySavedUserSystemPromptSettings`: after the user system prompt is saved from Settings or
+     * Chat Instructions, the composer's SysPrompt switch follows it when the prompt turned on or off.
+     */
+    private fun ChatState.withSavedPreferences(saved: Preferences): ChatState {
+        fun active(p: Preferences?) = p != null && p.systemPrompt.isNotBlank() && p.systemPromptEnabled
+        val before = preferences
+        val next = copy(preferences = saved)
+        if (before == null || active(before) == active(saved)) return next
+        val on = active(saved)
+        return if (sysPromptSuppressed) next.copy(sysPromptRestore = on) else next.copy(enableSystemPrompt = on)
+    }
+    /**
      * Web `toggleOptions()` writes the forced checkbox values and moves the Thinking level / Effort
      * selects to an allowed option; the new values stay after switching to another model.
      */
@@ -1501,12 +1515,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val effort = chipValues["reasoning_effort"].orEmpty()
         val nextLevel = if (level !in rules.thinkingLevels && rules.thinkingFallback != null) rules.thinkingFallback else level
         val nextEffort = if (rules.effort.visible && effort !in rules.effortOptions) rules.effortFallback else effort
+        // Web `toggleOptions()` remembers the SysPrompt choice while a model cannot use it and brings it back afterwards.
+        val sysForced = rules.sysPrompt.forced
+        val sysSuppressed = sysForced != null
+        val sysChecked = when {
+            sysForced != null -> sysForced
+            sysPromptSuppressed && sysPromptRestore -> true
+            else -> enableSystemPrompt
+        }
+        val sysRestore = sysSuppressed && (if (sysPromptSuppressed) sysPromptRestore else enableSystemPrompt)
         return copy(
             enableSearch = rules.search.forced ?: enableSearch,
             enableUrlContext = rules.urls.forced ?: enableUrlContext,
             enableMaps = rules.maps.forced ?: enableMaps,
             enablePython = rules.python.forced ?: enablePython,
-            enableSystemPrompt = rules.sysPrompt.forced ?: enableSystemPrompt,
+            enableSystemPrompt = sysChecked,
+            sysPromptSuppressed = sysSuppressed,
+            sysPromptRestore = sysRestore,
             enableThinking = rules.thinking.forced ?: enableThinking,
             enablePromptCache = rules.promptCache.forced ?: enablePromptCache,
             batchMode = batchMode && rules.batch.visible,
@@ -2119,7 +2144,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     else current.copy(customInstruction = instruction, includeGlobalInstruction = includeGlobal)
                 }
                 val reply = backend.put("/api/mobile/v1/preferences", userPrompt, token())
-                mutable.update { it.copy(preferences = parsePreferences(reply), notice = "保存されました") }
+                mutable.update { it.withSavedPreferences(parsePreferences(reply)).copy(notice = "保存されました") }
                 onDone(true)
             } catch (e: Exception) {
                 if (e is ApiException) notify("保存に失敗しました") else notify("エラー: ${e.message}")
@@ -4244,7 +4269,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(prefsBusy = true) }
             try {
                 val reply = backend.put("/api/mobile/v1/preferences", payload, token())
-                mutable.update { it.copy(preferences = parsePreferences(reply), notice = message) }
+                mutable.update { it.withSavedPreferences(parsePreferences(reply)).copy(notice = message) }
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(prefsBusy = false) } }
         }

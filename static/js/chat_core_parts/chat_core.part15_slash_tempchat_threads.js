@@ -918,6 +918,7 @@
                     }
                     if (get('thread-global-sys-prompt')) get('thread-global-sys-prompt').value = d.system_prompt || '';
                     if (get('thread-global-sys-prompt-enabled')) get('thread-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
+                    if (get('thread-apply-global-sys-prompt')) get('thread-apply-global-sys-prompt').checked = d.apply_global_system_prompt !== false;
 
                     window.ensureThreadAutoSystemPromptCard();
                     if (get('thread-apply-auto-sys-prompt-notices')) get('thread-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
@@ -965,6 +966,7 @@
                 userPromptPayload = (globalPromptEl || globalEnabledEl) ? {
                     system_prompt: globalPromptEl ? globalPromptEl.value : '',
                     system_prompt_enabled: globalEnabledEl ? globalEnabledEl.checked : true,
+                    apply_global_system_prompt: get('thread-apply-global-sys-prompt') ? get('thread-apply-global-sys-prompt').checked : true,
                     apply_auto_system_prompt_notices: get('thread-apply-auto-sys-prompt-notices') ? get('thread-apply-auto-sys-prompt-notices').checked : true,
                     auto_system_prompt_notices_config: collectAutoSystemPromptConfigFromForm('thread')
                 } : null;
@@ -989,6 +991,7 @@
                         body: JSON.stringify(userPromptPayload)
                     });
                     userResOk = userRes.ok;
+                    if (userRes.ok) window.applySavedUserSystemPromptSettings(userPromptPayload);
                     sendClientDebugLog('info', "POST request finished, status: " + userRes.status);
                 }
                 if (res.ok && userResOk) {

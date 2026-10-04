@@ -354,7 +354,23 @@
                 el.innerHTML = '';
             }
         }
+            // 画像・OCR などでSysPromptが使えないモデルへ切り替えると、スイッチは強制的にOFFになる。
+            // 使えるモデルへ戻したときに、切り替え前の選択を復元する。
             function toggleOptions() {
+                const sysSwitch = get('enable-sys-prompt');
+                const sysWasDisabled = !!(sysSwitch && sysSwitch.disabled);
+                const sysWasChecked = !!(sysSwitch && sysSwitch.checked);
+                toggleOptionsForModel();
+                if (!sysSwitch) return;
+                if (sysSwitch.disabled) {
+                    if (!sysWasDisabled && sysWasChecked) sysSwitch.dataset.restoreChecked = '1';
+                    else if (!sysWasDisabled) delete sysSwitch.dataset.restoreChecked;
+                } else {
+                    if (sysWasDisabled && sysSwitch.dataset.restoreChecked === '1') sysSwitch.checked = true;
+                    delete sysSwitch.dataset.restoreChecked;
+                }
+            }
+            function toggleOptionsForModel() {
                 const modelEl = get('model-select');
                 if (!modelEl) return;
                 const model = modelEl.value;

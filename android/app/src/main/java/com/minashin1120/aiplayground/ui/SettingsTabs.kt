@@ -369,7 +369,7 @@ internal fun promptCards(state: ChatState, form: SettingsForm): List<SettingsCar
     val autoText = form.autoPrompts.joinToString(" ") { "${it.label} ${it.hint}" }
     return listOf(
         SettingsCardSpec(SettingsTab.Prompt, "system-prompt", "システムプロンプト",
-            "システムプロンプト 全体システムプロンプト（全ユーザーに適用 / 参照のみ） 全体システムプロンプトを適用 使用 SysPromptのON/OFFに関わらず適用されます。 ユーザーシステムプロンプト 有効 リセット この欄を空にして無効化します。 自動注入システムプロンプト（ユーザー単位） 既定に戻す 全体適用 $autoText") {
+            "システムプロンプト 全体システムプロンプト（全ユーザーに適用 / 参照のみ） 全体システムプロンプトを適用 使用 SysPromptのON/OFFに関わらず適用されます。 ユーザーシステムプロンプト 有効 チャット画面の SysPrompt スイッチがONのときに適用されます。チャット設定（歯車）からも同じ内容を編集できます。 リセット この欄を空にして無効化します。 自動注入システムプロンプト（ユーザー単位） 既定に戻す 全体適用 $autoText") {
             val web = LocalWebPalette.current
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Column {
@@ -391,6 +391,7 @@ internal fun promptCards(state: ChatState, form: SettingsForm): List<SettingsCar
                     LabelWithCheck("ユーザーシステムプロンプト", "有効", form.userPromptEnabled) { form.userPromptEnabled = it }
                     SettingsTextField(form.userPrompt, { form.userPrompt = it.take(500_000) }, Modifier.fillMaxWidth(),
                         placeholder = "自分だけに適用するシステムプロンプト", minHeight = 128.dp, singleLine = false)
+                    SettingsDesc("チャット画面の SysPrompt スイッチがONのときに適用されます。チャット設定（歯車）からも同じ内容を編集できます。", Modifier.padding(top = 4.dp))
                     Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SettingsSmallButton("リセット", { form.userPrompt = ""; form.userPromptEnabled = false })
                         SettingsDesc("この欄を空にして無効化します。")

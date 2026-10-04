@@ -844,6 +844,14 @@
                         showToast('ユーザーシステムプロンプトをリセットしました（保存してください）', 'success');
                     };
                 }
+                const resetThreadUserPrompt = get('reset-thread-sys-prompt');
+                if (resetThreadUserPrompt) {
+                    resetThreadUserPrompt.onclick = () => {
+                        if (get('thread-global-sys-prompt')) get('thread-global-sys-prompt').value = '';
+                        if (get('thread-global-sys-prompt-enabled')) get('thread-global-sys-prompt-enabled').checked = false;
+                        showToast('ユーザーシステムプロンプトをリセットしました（保存してください）', 'success');
+                    };
+                }
                 const resetAutoSet = get('reset-set-auto-sys-prompt-defaults');
                 if (resetAutoSet) {
                     resetAutoSet.onclick = () => {
@@ -1024,6 +1032,13 @@
                         light_mode_enabled: !!b.light_mode_enabled,
                         liquid_glass_enabled: !!b.liquid_glass_enabled
                     }));
+                    window.applySavedUserSystemPromptSettings({
+                        system_prompt: b.system_prompt,
+                        system_prompt_enabled: b.system_prompt_enabled,
+                        apply_global_system_prompt: b.apply_global_system_prompt,
+                        apply_auto_system_prompt_notices: b.apply_auto_system_prompt_notices,
+                        auto_system_prompt_notices_config: b.auto_system_prompt_notices_config
+                    });
                     closeSettingsModal();
 
                     const oldUsername = currentUsername;

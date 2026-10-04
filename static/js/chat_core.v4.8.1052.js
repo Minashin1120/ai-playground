@@ -1453,6 +1453,31 @@
             }
             return await userSettingsSnapshotPromise;
         };
+        // ユーザーシステムプロンプトは設定モーダルとチャット設定の2か所から保存される。
+        // どちらから保存しても、キャッシュと、プロンプトバーの SysPrompt スイッチを揃える。
+        const isUserSystemPromptActive = (s) => !!(s && String(s.system_prompt || '').trim() && s.system_prompt_enabled !== false);
+        window.applySavedUserSystemPromptSettings = (saved) => {
+            if (!saved) return;
+            const prev = userSettingsSnapshot || null;
+            const next = Object.assign({}, prev || {}, saved);
+            cacheUserSettings(next);
+            try {
+                const chk = document.getElementById('enable-sys-prompt');
+                if (chk && prev && isUserSystemPromptActive(prev) !== isUserSystemPromptActive(next)) {
+                    const active = isUserSystemPromptActive(next);
+                    if (chk.disabled) {
+                        // モデルの都合で一時的に使えない間は、使えるようになった時点で反映する。
+                        if (active) chk.dataset.restoreChecked = '1';
+                        else delete chk.dataset.restoreChecked;
+                    } else if (chk.checked !== active) {
+                        chk.checked = active;
+                        chk.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
+            } catch (e) {}
+            // サーバー側で整えられた値（自動注入の既定文面など）をキャッシュへ取り込む。
+            fetchSettingsSnapshot().catch(() => {});
+        };
         const saveRichPastePromptPreferences = async () => {
             const prompt = getRichPastePrompt();
             const checkbox = getRichPasteUseDefaultCheckbox();
@@ -10120,7 +10145,23 @@
                 el.innerHTML = '';
             }
         }
+            // 画像・OCR などでSysPromptが使えないモデルへ切り替えると、スイッチは強制的にOFFになる。
+            // 使えるモデルへ戻したときに、切り替え前の選択を復元する。
             function toggleOptions() {
+                const sysSwitch = get('enable-sys-prompt');
+                const sysWasDisabled = !!(sysSwitch && sysSwitch.disabled);
+                const sysWasChecked = !!(sysSwitch && sysSwitch.checked);
+                toggleOptionsForModel();
+                if (!sysSwitch) return;
+                if (sysSwitch.disabled) {
+                    if (!sysWasDisabled && sysWasChecked) sysSwitch.dataset.restoreChecked = '1';
+                    else if (!sysWasDisabled) delete sysSwitch.dataset.restoreChecked;
+                } else {
+                    if (sysWasDisabled && sysSwitch.dataset.restoreChecked === '1') sysSwitch.checked = true;
+                    delete sysSwitch.dataset.restoreChecked;
+                }
+            }
+            function toggleOptionsForModel() {
                 const modelEl = get('model-select');
                 if (!modelEl) return;
                 const model = modelEl.value;
@@ -12413,6 +12454,14 @@
                         showToast('ユーザーシステムプロンプトをリセットしました（保存してください）', 'success');
                     };
                 }
+                const resetThreadUserPrompt = get('reset-thread-sys-prompt');
+                if (resetThreadUserPrompt) {
+                    resetThreadUserPrompt.onclick = () => {
+                        if (get('thread-global-sys-prompt')) get('thread-global-sys-prompt').value = '';
+                        if (get('thread-global-sys-prompt-enabled')) get('thread-global-sys-prompt-enabled').checked = false;
+                        showToast('ユーザーシステムプロンプトをリセットしました（保存してください）', 'success');
+                    };
+                }
                 const resetAutoSet = get('reset-set-auto-sys-prompt-defaults');
                 if (resetAutoSet) {
                     resetAutoSet.onclick = () => {
@@ -12593,6 +12642,13 @@
                         light_mode_enabled: !!b.light_mode_enabled,
                         liquid_glass_enabled: !!b.liquid_glass_enabled
                     }));
+                    window.applySavedUserSystemPromptSettings({
+                        system_prompt: b.system_prompt,
+                        system_prompt_enabled: b.system_prompt_enabled,
+                        apply_global_system_prompt: b.apply_global_system_prompt,
+                        apply_auto_system_prompt_notices: b.apply_auto_system_prompt_notices,
+                        auto_system_prompt_notices_config: b.auto_system_prompt_notices_config
+                    });
                     closeSettingsModal();
 
                     const oldUsername = currentUsername;
@@ -23448,6 +23504,7 @@
                     }
                     if (get('thread-global-sys-prompt')) get('thread-global-sys-prompt').value = d.system_prompt || '';
                     if (get('thread-global-sys-prompt-enabled')) get('thread-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
+                    if (get('thread-apply-global-sys-prompt')) get('thread-apply-global-sys-prompt').checked = d.apply_global_system_prompt !== false;
 
                     window.ensureThreadAutoSystemPromptCard();
                     if (get('thread-apply-auto-sys-prompt-notices')) get('thread-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
@@ -23495,6 +23552,7 @@
                 userPromptPayload = (globalPromptEl || globalEnabledEl) ? {
                     system_prompt: globalPromptEl ? globalPromptEl.value : '',
                     system_prompt_enabled: globalEnabledEl ? globalEnabledEl.checked : true,
+                    apply_global_system_prompt: get('thread-apply-global-sys-prompt') ? get('thread-apply-global-sys-prompt').checked : true,
                     apply_auto_system_prompt_notices: get('thread-apply-auto-sys-prompt-notices') ? get('thread-apply-auto-sys-prompt-notices').checked : true,
                     auto_system_prompt_notices_config: collectAutoSystemPromptConfigFromForm('thread')
                 } : null;
@@ -23519,6 +23577,7 @@
                         body: JSON.stringify(userPromptPayload)
                     });
                     userResOk = userRes.ok;
+                    if (userRes.ok) window.applySavedUserSystemPromptSettings(userPromptPayload);
                     sendClientDebugLog('info', "POST request finished, status: " + userRes.status);
                 }
                 if (res.ok && userResOk) {

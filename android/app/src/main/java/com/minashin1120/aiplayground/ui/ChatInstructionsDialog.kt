@@ -31,6 +31,7 @@ import org.json.JSONObject
 private class ThreadPromptForm(prefs: Preferences?) {
     var userPrompt by mutableStateOf(prefs?.systemPrompt.orEmpty())
     var userPromptEnabled by mutableStateOf(prefs?.systemPromptEnabled ?: true)
+    var applyGlobal by mutableStateOf(prefs?.applyGlobalSystemPrompt ?: true)
     var applyAutoNotices by mutableStateOf(prefs?.applyAutoSystemPromptNotices ?: true)
     val autoPrompts = mutableStateListOf<AutoSystemPrompt>().apply { addAll(prefs?.autoSystemPrompts.orEmpty()) }
 
@@ -52,6 +53,7 @@ private class ThreadPromptForm(prefs: Preferences?) {
     fun payload(): JSONObject = JSONObject()
         .put("system_prompt", userPrompt)
         .put("system_prompt_enabled", userPromptEnabled)
+        .put("apply_global_system_prompt", applyGlobal)
         .put("apply_auto_system_prompt_notices", applyAutoNotices)
         .put("auto_system_prompt_notices_config", JSONObject().apply {
             autoPrompts.forEach { row -> put(row.key, JSONObject().put("enabled", if (row.mcpLocked) true else row.enabled).put("text", row.text)) }
@@ -127,11 +129,26 @@ internal fun ChatInstructionsDialog(
                         )
                         TwLabel("ユーザー設定のシステムプロンプト（この歯車からも編集可能）", Modifier.padding(top = 16.dp, bottom = 8.dp))
                         Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("全体システムプロンプトを適用", fontSize = 11.sp, lineHeight = 16.sp, color = web.twText(Tw.gray500), modifier = Modifier.weight(1f))
+                            TwCheck("使用", form.applyGlobal) { form.applyGlobal = it }
+                        }
+                        Text("SysPromptのON/OFFに関わらず適用されます。OFFにすると全体システムプロンプト（空欄時の時刻プロンプトを含む）を自分のチャットに適用しません。",
+                            fontSize = 10.sp, lineHeight = 15.sp, color = web.twText(Tw.gray500), modifier = Modifier.padding(bottom = 12.dp))
+                        Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("ユーザーシステムプロンプト", fontSize = 11.sp, lineHeight = 16.sp, color = web.twText(Tw.gray500), modifier = Modifier.weight(1f))
                             TwCheck("有効", form.userPromptEnabled) { form.userPromptEnabled = it }
                         }
-                        TwInput(form.userPrompt, { form.userPrompt = it.take(100_000) }, "自分だけに適用する指示", singleLine = false,
+                        TwInput(form.userPrompt, { form.userPrompt = it.take(100_000) }, "自分だけに適用するシステムプロンプト", singleLine = false,
                             height = 96.dp, fontSize = 12.sp)
+                        Text("チャット画面の SysPrompt スイッチがONのときに適用されます。設定画面からも同じ内容を編集できます。",
+                            fontSize = 10.sp, lineHeight = 15.sp, color = web.twText(Tw.gray500), modifier = Modifier.padding(top = 4.dp))
+                        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("リセット", fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = Tw.white,
+                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(web.twBg(Tw.gray700))
+                                    .clickable(role = Role.Button) { form.userPrompt = ""; form.userPromptEnabled = false }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp))
+                            Text("この欄を空にして無効化します。", fontSize = 10.sp, lineHeight = 15.sp, color = web.twText(Tw.gray500))
+                        }
                         if (form.autoPrompts.isNotEmpty()) ThreadAutoPrompts(form)
                     }
                 }

@@ -968,10 +968,17 @@
                     system_prompt_enabled: globalEnabledEl ? globalEnabledEl.checked : true,
                     apply_global_system_prompt: get('thread-apply-global-sys-prompt') ? get('thread-apply-global-sys-prompt').checked : true,
                     apply_auto_system_prompt_notices: get('thread-apply-auto-sys-prompt-notices') ? get('thread-apply-auto-sys-prompt-notices').checked : true,
-                    auto_system_prompt_notices_config: collectAutoSystemPromptConfigFromForm('thread')
+                    auto_system_prompt_notices_config: window.collectAutoSystemPromptConfigFromForm('thread')
                 } : null;
             } catch (payloadErr) {
+                // ユーザーシステムプロンプトを保存できないまま「保存されました」と出さない。
                 sendClientDebugLog('error', "Payload construction failed: " + payloadErr.message);
+                showToast("保存に失敗しました", "error", true);
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalLabel || '保存';
+                }
+                return;
             }
 
             try {

@@ -1495,13 +1495,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun clearQuote() { mutable.update { it.copy(quote = "") } }
     /**
      * Web `applySavedUserSystemPromptSettings`: after the user system prompt is saved from Settings or
-     * Chat Instructions, the composer's SysPrompt switch follows it when the prompt turned on or off.
+     * Chat Instructions, the composer's SysPrompt switch follows it when its text or on/off changed.
      */
     private fun ChatState.withSavedPreferences(saved: Preferences): ChatState {
         fun active(p: Preferences?) = p != null && p.systemPrompt.isNotBlank() && p.systemPromptEnabled
         val before = preferences
         val next = copy(preferences = saved)
-        if (before == null || active(before) == active(saved)) return next
+        val changed = before == null || before.systemPrompt != saved.systemPrompt || before.systemPromptEnabled != saved.systemPromptEnabled
+        if (!changed) return next
         val on = active(saved)
         return if (sysPromptSuppressed) next.copy(sysPromptRestore = on) else next.copy(enableSystemPrompt = on)
     }

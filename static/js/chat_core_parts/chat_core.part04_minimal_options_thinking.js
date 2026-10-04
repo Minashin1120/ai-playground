@@ -216,7 +216,8 @@
             if (get('enable-mcp')) get('enable-mcp').checked = !!s(src.enable_mcp, get('enable-mcp').checked);
             if (get('safety-setting')) get('safety-setting').value = s(src.safety_setting, get('safety-setting').value || "default");
             chatDefaultsLoaded = true;
-            toggleOptions();
+            // toggleOptions は DOMContentLoaded 内（part07）で定義され、window 経由で公開される。
+            if (typeof window.toggleOptions === 'function') window.toggleOptions();
             applyMcpPromptChipUi();
         }
         function setEditUi(active) {

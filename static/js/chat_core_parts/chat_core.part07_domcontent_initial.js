@@ -370,6 +370,8 @@
                     delete sysSwitch.dataset.restoreChecked;
                 }
             }
+            // applyChatDefaults（part04、DOMContentLoaded の外）からも呼ぶため公開する。
+            window.toggleOptions = toggleOptions;
             function toggleOptionsForModel() {
                 const modelEl = get('model-select');
                 if (!modelEl) return;

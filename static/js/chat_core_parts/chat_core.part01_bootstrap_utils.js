@@ -1463,7 +1463,11 @@
             cacheUserSettings(next);
             try {
                 const chk = document.getElementById('enable-sys-prompt');
-                if (chk && prev && isUserSystemPromptActive(prev) !== isUserSystemPromptActive(next)) {
+                // 文面または有効/無効を変えて保存したときは、その内容をすぐ使えるようにスイッチを合わせる。
+                const promptChanged = !prev
+                    || String(prev.system_prompt || '') !== String(next.system_prompt || '')
+                    || (prev.system_prompt_enabled !== false) !== (next.system_prompt_enabled !== false);
+                if (chk && promptChanged) {
                     const active = isUserSystemPromptActive(next);
                     if (chk.disabled) {
                         // モデルの都合で一時的に使えない間は、使えるようになった時点で反映する。

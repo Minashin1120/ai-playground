@@ -481,6 +481,8 @@
                 });
                 return cfg;
             };
+            // チャット設定モーダル（part15、DOMContentLoaded の外）からも使うため公開する。
+            window.collectAutoSystemPromptConfigFromForm = collectAutoSystemPromptConfigFromForm;
             window.ensureAutoSystemPromptSettingsCard = () => {
                 const promptToggle = get('set-global-sys-prompt-enabled');
                 const wrapHost = promptToggle ? promptToggle.closest('.space-y-4') : null;

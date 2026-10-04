@@ -1463,7 +1463,11 @@
             cacheUserSettings(next);
             try {
                 const chk = document.getElementById('enable-sys-prompt');
-                if (chk && prev && isUserSystemPromptActive(prev) !== isUserSystemPromptActive(next)) {
+                // 文面または有効/無効を変えて保存したときは、その内容をすぐ使えるようにスイッチを合わせる。
+                const promptChanged = !prev
+                    || String(prev.system_prompt || '') !== String(next.system_prompt || '')
+                    || (prev.system_prompt_enabled !== false) !== (next.system_prompt_enabled !== false);
+                if (chk && promptChanged) {
                     const active = isUserSystemPromptActive(next);
                     if (chk.disabled) {
                         // モデルの都合で一時的に使えない間は、使えるようになった時点で反映する。
@@ -5238,7 +5242,8 @@
             if (get('enable-mcp')) get('enable-mcp').checked = !!s(src.enable_mcp, get('enable-mcp').checked);
             if (get('safety-setting')) get('safety-setting').value = s(src.safety_setting, get('safety-setting').value || "default");
             chatDefaultsLoaded = true;
-            toggleOptions();
+            // toggleOptions は DOMContentLoaded 内（part07）で定義され、window 経由で公開される。
+            if (typeof window.toggleOptions === 'function') window.toggleOptions();
             applyMcpPromptChipUi();
         }
         function setEditUi(active) {
@@ -10161,6 +10166,8 @@
                     delete sysSwitch.dataset.restoreChecked;
                 }
             }
+            // applyChatDefaults（part04、DOMContentLoaded の外）からも呼ぶため公開する。
+            window.toggleOptions = toggleOptions;
             function toggleOptionsForModel() {
                 const modelEl = get('model-select');
                 if (!modelEl) return;
@@ -12091,6 +12098,8 @@
                 });
                 return cfg;
             };
+            // チャット設定モーダル（part15、DOMContentLoaded の外）からも使うため公開する。
+            window.collectAutoSystemPromptConfigFromForm = collectAutoSystemPromptConfigFromForm;
             window.ensureAutoSystemPromptSettingsCard = () => {
                 const promptToggle = get('set-global-sys-prompt-enabled');
                 const wrapHost = promptToggle ? promptToggle.closest('.space-y-4') : null;
@@ -23554,10 +23563,17 @@
                     system_prompt_enabled: globalEnabledEl ? globalEnabledEl.checked : true,
                     apply_global_system_prompt: get('thread-apply-global-sys-prompt') ? get('thread-apply-global-sys-prompt').checked : true,
                     apply_auto_system_prompt_notices: get('thread-apply-auto-sys-prompt-notices') ? get('thread-apply-auto-sys-prompt-notices').checked : true,
-                    auto_system_prompt_notices_config: collectAutoSystemPromptConfigFromForm('thread')
+                    auto_system_prompt_notices_config: window.collectAutoSystemPromptConfigFromForm('thread')
                 } : null;
             } catch (payloadErr) {
+                // ユーザーシステムプロンプトを保存できないまま「保存されました」と出さない。
                 sendClientDebugLog('error', "Payload construction failed: " + payloadErr.message);
+                showToast("保存に失敗しました", "error", true);
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalLabel || '保存';
+                }
+                return;
             }
 
             try {

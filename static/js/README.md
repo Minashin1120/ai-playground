@@ -9,7 +9,7 @@
 - `progress_spinner.js`：通信中の共通進捗表示
 - `connection_monitor.js`：サーバー接続状態（オフライン・不安定・メンテナンス・復帰）の監視と表示
 - `pwa_install.js`：PWAの導入と表示モード連携
-- `landing.js`／`landing_demo.js`：公開ランディング画面
+- `landing_demo.js`：公開ランディング画面のチャットデモ
 
 `progress_spinner.js`、`pwa_install.js`、`connection_monitor.js`、`landing_demo.js` には、配信用の `*.min.js` が隣にあります（`scripts/build_frontend.sh` が生成します）。
 

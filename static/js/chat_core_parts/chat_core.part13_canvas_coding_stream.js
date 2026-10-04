@@ -764,7 +764,7 @@
             const fadeClass = animate ? 'fade-in' : '';
             const idAttr = pendingId ? ` id="${pendingId}"` : '';
             const skeletonHtml = buildPendingSkeletonHtml(modelId, '回答を生成中...');
-            const html = `<div class="flex justify-start mb-4 ${fadeClass}"><div${idAttr} class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${skeletonHtml}</div></div>`;
+            const html = `<div class="flex justify-start mb-4 ai-pending-row ${fadeClass}"><div${idAttr} class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${skeletonHtml}</div></div>`;
             const container = target || get('chat-container');
             if (!container) return;
             if (typeof container.insertAdjacentHTML === 'function') {
@@ -1386,7 +1386,7 @@
             const pendingId = `settings-pending-${timestamp}`;
             const chat = get('chat-container');
             if (chat) {
-                chat.insertAdjacentHTML('beforeend', `<div id="${pendingId}" class="flex justify-start mb-4 fade-in"><div class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${buildPendingSkeletonHtml(modelId, '設定リクエストを確認しています...')}</div></div>`);
+                chat.insertAdjacentHTML('beforeend', `<div id="${pendingId}" class="flex justify-start mb-4 ai-pending-row fade-in"><div class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${buildPendingSkeletonHtml(modelId, '設定リクエストを確認しています...')}</div></div>`);
                 scrollToBottom();
             }
             try {

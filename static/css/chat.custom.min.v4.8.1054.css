@@ -5441,7 +5441,8 @@ body.liquid-glass-mode #top-model-bar {
     display: none;
 }
 #chat-container > .message-group,
-#chat-container > div.message-group {
+#chat-container > div.message-group,
+#chat-container > .ai-pending-row {
     max-width: 52rem;
     margin-left: auto;
     margin-right: auto;

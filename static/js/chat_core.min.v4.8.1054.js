@@ -6370,18 +6370,18 @@ w.stopImmediatePropagation(),b())}o(y,"onOverlay"),n&&n.addEventListener("click"
 "click",b),a&&a.addEventListener("click",b),e.addEventListener("click",y,!0)})},"confirmGeminiLocalP\
 ythonSwitch");function renderPendingMessage(e=null,t=!0,n=!0,i=null,a=null){const r=t?"fade-in":"",l=i?
 ` id="${i}"`:"",c=buildPendingSkeletonHtml(a,"\u56DE\u7B54\u3092\u751F\u6210\u4E2D..."),u=`<div clas\
-s="flex justify-start mb-4 ${r}"><div${l} class="message-bubble ai-pending-bubble bg-gray-700 text-w\
-hite p-4 rounded-2xl rounded-tl-none shadow-md relative">${c}</div></div>`,f=e||get("chat-container");
-if(f){if(typeof f.insertAdjacentHTML=="function")f.insertAdjacentHTML("beforeend",u);else{const b=document.
-createElement("div");b.innerHTML=u;const y=b.firstElementChild;y&&f.appendChild(y)}n&&scrollToBottom()}}
-o(renderPendingMessage,"renderPendingMessage");function beginPendingToStreamTransition(e){if(!e||e.getAttribute(
-"data-stream-transition")==="1")return;const t=e.querySelector(".content-area");t&&(t.classList.remove(
-"pending-shimmer","skeleton-pending"),t.removeAttribute("data-skeleton-kind")),e.setAttribute("data-\
-stream-transition","1"),e.classList.remove("ai-pending-bubble"),e.classList.add("ai-stream-transitio\
-n"),t&&(t.classList.add("ai-stream-content-transition"),setTimeout(()=>{t&&t.classList.remove("ai-st\
-ream-content-transition")},300)),setTimeout(()=>{e&&e.classList.remove("ai-stream-transition")},320)}
-o(beginPendingToStreamTransition,"beginPendingToStreamTransition");function normalizeJobIdForUi(e){return e==
-null||e===""?null:String(e)}o(normalizeJobIdForUi,"normalizeJobIdForUi");function getActiveStreamingBubbleElement(){
+s="flex justify-start mb-4 ai-pending-row ${r}"><div${l} class="message-bubble ai-pending-bubble bg-\
+gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${c}</div></div>`,f=e||get("\
+chat-container");if(f){if(typeof f.insertAdjacentHTML=="function")f.insertAdjacentHTML("beforeend",u);else{
+const b=document.createElement("div");b.innerHTML=u;const y=b.firstElementChild;y&&f.appendChild(y)}
+n&&scrollToBottom()}}o(renderPendingMessage,"renderPendingMessage");function beginPendingToStreamTransition(e){
+if(!e||e.getAttribute("data-stream-transition")==="1")return;const t=e.querySelector(".content-area");
+t&&(t.classList.remove("pending-shimmer","skeleton-pending"),t.removeAttribute("data-skeleton-kind")),
+e.setAttribute("data-stream-transition","1"),e.classList.remove("ai-pending-bubble"),e.classList.add(
+"ai-stream-transition"),t&&(t.classList.add("ai-stream-content-transition"),setTimeout(()=>{t&&t.classList.
+remove("ai-stream-content-transition")},300)),setTimeout(()=>{e&&e.classList.remove("ai-stream-trans\
+ition")},320)}o(beginPendingToStreamTransition,"beginPendingToStreamTransition");function normalizeJobIdForUi(e){
+return e==null||e===""?null:String(e)}o(normalizeJobIdForUi,"normalizeJobIdForUi");function getActiveStreamingBubbleElement(){
 return activeStreamingBubbleId?get(activeStreamingBubbleId):null}o(getActiveStreamingBubbleElement,"\
 getActiveStreamingBubbleElement");function captureStoppedPartialBubbleSnapshot(e){if(!e)return null;
 const t=Array.from(e.querySelectorAll(".prose")).some(c=>String(c.textContent||"").trim()),n=!!e.querySelector(
@@ -6562,9 +6562,9 @@ rAiSettingsResultBubble");async function runAiSettingsCommand(e,t){pendingSlashC
 "user",e);const n=Date.now(),i=renderMessage(`settings-user-${n}`,"user",`/settings ${e}`,null,null,
 null,null,!0,null,null,null,null,null,null,null,null,!0);removeEphemeralMessageControls(i);const a=get(
 "welcome-screen");a&&a.classList.add("hidden");const r=`settings-pending-${n}`,l=get("chat-container");
-l&&(l.insertAdjacentHTML("beforeend",`<div id="${r}" class="flex justify-start mb-4 fade-in"><div cl\
-ass="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-\
-md relative">${buildPendingSkeletonHtml(t,"\u8A2D\u5B9A\u30EA\u30AF\u30A8\u30B9\u30C8\u3092\u78BA\u8A8D\u3057\u3066\u3044\u307E\u3059...")}\
+l&&(l.insertAdjacentHTML("beforeend",`<div id="${r}" class="flex justify-start mb-4 ai-pending-row f\
+ade-in"><div class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-\
+tl-none shadow-md relative">${buildPendingSkeletonHtml(t,"\u8A2D\u5B9A\u30EA\u30AF\u30A8\u30B9\u30C8\u3092\u78BA\u8A8D\u3057\u3066\u3044\u307E\u3059...")}\
 </div></div>`),scrollToBottom());try{const u=await(await apiFetch("/api/settings/apply-ai-prompt",{method:"\
 POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:e,model:t,conversation:aiSettingsConversation})})).
 json().catch(()=>({})),f=get(r);if(f&&f.remove(),u&&u.status==="ok"&&u.mode==="inspect"&&u.current){
@@ -6676,9 +6676,9 @@ checked)&&(c.tools=[{codeExecution:{}}]),e.trim()&&(promptHistory.length===0||pr
 (promptHistory.unshift(e),promptHistory.length>100&&promptHistory.pop()),historyIndex=-1,tempPrompt=
 "",playSendAnimation(),get("welcome-screen").classList.add("hidden"),renderMessage(Date.now(),"user",
 e,null,null,null,null,!0,null,null,null,null,null,null,null,null,!0);const f=`browser-fast-${Date.now()}`;
-get("chat-container").insertAdjacentHTML("beforeend",`<div class="flex justify-start mb-4 fade-in"><\
-div id="${f}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded\
--tl-none shadow-md relative">${buildPendingSkeletonHtml(t,"Gemini\u3078\u76F4\u63A5\u9001\u4FE1\u4E2D...")}\
+get("chat-container").insertAdjacentHTML("beforeend",`<div class="flex justify-start mb-4 ai-pending\
+-row fade-in"><div id="${f}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 roun\
+ded-2xl rounded-tl-none shadow-md relative">${buildPendingSkeletonHtml(t,"Gemini\u3078\u76F4\u63A5\u9001\u4FE1\u4E2D...")}\
 </div></div>`);const b=get(f);activeStreamingBubbleId=f,setSendBtnToStopMode(),resumeChatAutoScroll(),
 abortController=new AbortController;let y="",w="";const v=[];let k=null,_=null,C=!1;const L={},$=[];
 let F=null,Y="";const X=window.ProgressSpinner?window.ProgressSpinner.startFlow("browserFast"):null;
@@ -6903,15 +6903,15 @@ activeGem.instruction,M.enable_system_prompt=!0,M.gem_uuid=activeGem.uuid):M.gem
 const J="ai-"+Date.now(),Q=String(M.model||"").toLowerCase(),ne=!!M.enable_thinking||!!de&&de!=="non\
 e",Te=Q.includes("gemini")||Q.includes("o1")||Q.includes("o3")||Q.includes("gpt-5")||Q.includes("rea\
 soning")&&!Q.includes("non-reasoning"),ie=ne&&Te;let me=buildPendingSkeletonHtml(M.model,"API\u306B\u9001\u4FE1\u4E2D...");
-get("chat-container").insertAdjacentHTML("beforeend",`<div class="flex justify-start mb-4 fade-in"><\
-div id="${J}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded\
--tl-none shadow-md relative">${me}</div></div>`),resumeChatAutoScroll();const W=get(J);activeStreamingBubbleId=
-J,canvasModeEnabled&&resetCanvasPreviewPanel();let be=null;const dt=o(B=>!ie||!W?null:((!be||!W.contains(
-be))&&(be=W.querySelector(".thought-content")),be||(W.insertAdjacentHTML("afterbegin",'<div class="t\
-hought-container"><div class="thought-header thinking-shimmer" onclick="toggleThinking(this)"><i cla\
-ss="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed" \
-data-placeholder="1"></div></div>'),be=W.querySelector(".thought-content")),be&&(be.setAttribute("da\
-ta-placeholder","1"),be.textContent=B||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
+get("chat-container").insertAdjacentHTML("beforeend",`<div class="flex justify-start mb-4 ai-pending\
+-row fade-in"><div id="${J}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 roun\
+ded-2xl rounded-tl-none shadow-md relative">${me}</div></div>`),resumeChatAutoScroll();const W=get(J);
+activeStreamingBubbleId=J,canvasModeEnabled&&resetCanvasPreviewPanel();let be=null;const dt=o(B=>!ie||
+!W?null:((!be||!W.contains(be))&&(be=W.querySelector(".thought-content")),be||(W.insertAdjacentHTML(
+"afterbegin",'<div class="thought-container"><div class="thought-header thinking-shimmer" onclick="t\
+oggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="\
+thought-content collapsed" data-placeholder="1"></div></div>'),be=W.querySelector(".thought-content")),
+be&&(be.setAttribute("data-placeholder","1"),be.textContent=B||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
 be),"ensureThoughtPlaceholder");ie&&dt("\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
 abortController=new AbortController;const lt=currentThreadId,ut=nowPerfMs(),Ne=Date.now();let Je=!1,
 ht=!1,Tt=!1,vt=null,Ct=null,bt=null,Nt=currentThreadId!=null&&currentThreadId!==""?String(currentThreadId):

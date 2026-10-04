@@ -37,7 +37,7 @@
             get('welcome-screen').classList.add('hidden');
             renderMessage(Date.now(), 'user', rawText, null, null, null, null, true, null, null, null, null, null, null, null, null, true);
             const aid = `browser-fast-${Date.now()}`;
-            get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${buildPendingSkeletonHtml(model, 'Geminiへ直接送信中...')}</div></div>`);
+            get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 ai-pending-row fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${buildPendingSkeletonHtml(model, 'Geminiへ直接送信中...')}</div></div>`);
             const adiv = get(aid);
             activeStreamingBubbleId = aid;
             setSendBtnToStopMode();
@@ -723,7 +723,7 @@
             const shouldShowReasoningProgress = reasoningRequested && reasoningCapableModel;
 
             let initialHtml = buildPendingSkeletonHtml(p.model, 'APIに送信中...');
-            get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`);
+            get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 ai-pending-row fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`);
             resumeChatAutoScroll();
             const adiv = get(aid);
             activeStreamingBubbleId = aid;

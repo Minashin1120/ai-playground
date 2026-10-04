@@ -1053,6 +1053,22 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("filter_by(google_email=email)", source)
         self.assertIn("if '@' in username", source)
 
+    def test_reasoning_text_is_never_written_to_logs(self):
+        # 思考過程（Grok などの reasoning の本文）は debug.log と journald に残さない。
+        import re
+        source = read_app_source()
+        log_call = re.compile(r"(?:log_force|logger\.\w+|logging\.\w+|print)\((.*)")
+        leaking = re.compile(
+            r"\{[^}]*(reasoning_delta|reasoning_text|reasoning_content|r_content|"
+            r"thought_accumulated|thought_text|thinking_text)[^}]*\}"
+        )
+        offenders = [
+            line.strip()
+            for line in source.splitlines()
+            if (m := log_call.search(line)) and leaking.search(m.group(1))
+        ]
+        self.assertEqual(offenders, [])
+
     def test_feedback_rejects_oversized_message(self):
         client = self.authenticated_client()
         response = client.post(

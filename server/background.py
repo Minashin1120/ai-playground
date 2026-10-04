@@ -6624,7 +6624,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     elif event_type in ("response.reasoning_text.delta", "response.reasoning_summary_text.delta"):
                         reasoning_delta = chunk.get('delta') if isinstance(chunk, dict) else getattr(chunk, 'delta', None)
                         if reasoning_delta:
-                            log_force(f"Reasoning Delta: {reasoning_delta[:50]}...")
                             if event_type == "response.reasoning_summary_text.delta":
                                 saw_reasoning_summary_delta = True
                             thought_accumulated += reasoning_delta

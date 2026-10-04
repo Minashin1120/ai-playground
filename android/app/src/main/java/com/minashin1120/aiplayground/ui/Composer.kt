@@ -1,5 +1,7 @@
 package com.minashin1120.aiplayground.ui
 
+import android.content.ContentResolver
+import android.net.Uri
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -11,6 +13,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,9 +25,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.content.consume
+import androidx.compose.foundation.content.contentReceiver
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -1011,6 +1018,7 @@ private fun ToolButton(
 }
 
 /** `#prompt-input`: grows to 150px, then scrolls. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PromptField(
     state: ChatState,
@@ -1033,17 +1041,38 @@ private fun PromptField(
     }
     val textColor = if (web.isLight) web.text else Color(0xFFF4F7FB)
     val style = TextStyle(fontSize = 14.sp, lineHeight = 20.3.sp, letterSpacing = 0.07.sp, color = textColor, fontFamily = WebFonts.sans)
+    // Only the TextFieldState field can receive keyboard/clipboard content, so the draft is mirrored both ways.
+    val field = remember { TextFieldState(model.state.value.draft) }
+    LaunchedEffect(state.draft) {
+        val current = model.state.value.draft
+        if (current != field.text.toString()) field.setTextAndPlaceCursorAtEnd(current)
+    }
+    LaunchedEffect(field) {
+        snapshotFlow { field.text.toString() }.collect { if (it != model.state.value.draft) model.draft(it) }
+    }
     BasicTextField(
-        value = state.draft,
-        onValueChange = model::draft,
+        state = field,
+        // Pushes each typed edit before the next frame so an older draft never overwrites newer input.
+        inputTransformation = remember(model) { InputTransformation { model.draft(asCharSequence().toString()) } },
         textStyle = style,
         cursorBrush = SolidColor(textColor),
         interactionSource = interaction,
         keyboardOptions = KeyboardOptions(imeAction = if (enterToSend) ImeAction.Send else ImeAction.Default),
-        keyboardActions = KeyboardActions(onSend = { onSend() }),
+        onKeyboardAction = { defaultAction -> if (enterToSend) onSend() else defaultAction() },
         modifier = modifier
             .heightIn(min = 37.6.dp, max = 150.dp)
             .focusRequester(focusRequester)
+            // Web `#prompt-input` paste: files (keyboard images, screenshots, copied files) become attachments.
+            .contentReceiver { content ->
+                val uris = mutableListOf<Uri>()
+                val rest = content.consume { item ->
+                    val uri = item.uri?.takeIf { it.scheme == ContentResolver.SCHEME_CONTENT }
+                    if (uri != null) uris += uri
+                    uri != null
+                }
+                if (uris.isNotEmpty()) model.upload(uris)
+                rest
+            }
             .onPreviewKeyEvent { event ->
                 if (onKey(event)) return@onPreviewKeyEvent true
                 val sendKey = event.key == Key.Enter && !event.isShiftPressed && (event.isCtrlPressed || enterToSend)
@@ -1053,9 +1082,9 @@ private fun PromptField(
                 } else false
             }
             .semantics { contentDescription = "メッセージ入力" },
-        decorationBox = { inner ->
+        decorator = { inner ->
             Box(Modifier.padding(horizontal = 6.72.dp, vertical = 7.2.dp), contentAlignment = Alignment.CenterStart) {
-                if (state.draft.isEmpty()) Text(placeholder, style = style.copy(color = if (web.isLight) web.muted else Color(0xFF7F8DA4)),
+                if (field.text.isEmpty()) Text(placeholder, style = style.copy(color = if (web.isLight) web.muted else Color(0xFF7F8DA4)),
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 inner()
             }

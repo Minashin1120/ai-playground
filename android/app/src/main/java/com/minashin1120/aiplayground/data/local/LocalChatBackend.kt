@@ -399,7 +399,8 @@ class LocalChatBackend(
             JSONObject().put("type", "error").put("content", text)
         }
         onChanged()
-        // The finished question and answer go to the server before the screen reloads the chat.
+        // The finished question and answer go to the server before the screen reloads the chat; a server out of
+        // reach does not hold the answer open (the sync continues or is retried in the background).
         remote?.let { history ->
             try { history.afterAnswer() } catch (e: CancellationException) { throw e } catch (_: Exception) {}
         }

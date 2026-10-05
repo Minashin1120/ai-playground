@@ -29,6 +29,8 @@ import com.minashin1120.aiplayground.data.local.LocalChatStore
 import com.minashin1120.aiplayground.data.local.LocalProfiles
 import com.minashin1120.aiplayground.data.local.ServerHistory
 import com.minashin1120.aiplayground.data.sync.SyncEngine
+import com.minashin1120.aiplayground.data.sync.isRetryableSyncFailure
+import com.minashin1120.aiplayground.data.sync.syncRetryDelayMillis
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -210,6 +212,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val syncApi by lazy { PlaygroundApi() }
     private var syncJob: Job? = null
     private var syncScheduleJob: Job? = null
+    /** Automatic retries in a row after syncs that could not reach the server (reset by a successful sync). */
+    private var syncRetryAttempt = 0
     private val store = TokenStore(application)
     private val playIntegrity = PlayIntegrityClient(application)
     private var integrityTurnstileTicket: String? = null
@@ -405,7 +409,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             cachedThread = { id -> state.value.account?.let { account -> offlineCache.loadThread(account.id, id) } },
             cachedFile = { reference, limit -> cachedFileBytes(reference, limit) },
             isOffline = { state.value.offline },
-            afterAnswer = { syncJob?.join(); runSync(manual = false) })
+            afterAnswer = { syncAfterAnswer() })
         localBackend = LocalChatBackend(profile.chats, profile.settings, defaults, DirectRouter(directHttp), accountName, fallback,
             modeOf = { id -> state.value.account?.models?.firstOrNull { it.id == id }?.mode
                 ?: defaults.json.optJSONArray("models")?.let { rows -> (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }
@@ -462,6 +466,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * After an answer on the device: the outbox goes to the server, but the answer is finished without
+     * waiting for a server that is out of reach. A sync still running after [AFTER_ANSWER_SYNC_WAIT_MS]
+     * continues in the background; a failed one is tried again later ([scheduleSyncRetry]).
+     */
+    private suspend fun syncAfterAnswer() {
+        withContext(Dispatchers.Main.immediate) {
+            if (state.value.offline || !hasUsableNetwork()) {
+                scheduleSyncRetry()
+            } else {
+                val job = viewModelScope.launch { syncJob?.join(); runSync(manual = false) }
+                withTimeoutOrNull(AFTER_ANSWER_SYNC_WAIT_MS) { job.join() }
+            }
+        }
+    }
+
+    /** Tries the outbox again later (30 seconds, doubling up to 10 minutes) after a sync that could not reach the server. */
+    private fun scheduleSyncRetry() {
+        if (!state.value.serverless || session == null) return
+        syncRetryAttempt++
+        scheduleSync(syncRetryDelayMillis(syncRetryAttempt))
+    }
+
     /** Settings "今すぐ同期". */
     fun syncNow() { viewModelScope.launch { runSync(manual = true) } }
 
@@ -472,6 +499,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(syncing = true, syncMessage = null) }
             try {
                 val report = SyncEngine(store, syncApi) { token() }.run()
+                syncRetryAttempt = 0
                 val now = System.currentTimeMillis()
                 state.value.account?.let { account -> prefs.edit().putLong("last_sync_" + LocalProfiles.accountKey(account.id), now).apply() }
                 val parts = listOfNotNull(
@@ -490,10 +518,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     e is ApiException && e.code == "turnstile_required" -> "安全性の確認が必要です。送信欄から一度送信するか、しばらく待ってから同期してください。"
                     e is ApiException && e.code == "e2ee_migration_in_progress" -> "暗号化の切り替え中のため、完了後に同期します。"
                     e is ApiException && e.status == 401 -> "ログインの有効期限が切れました。"
-                    else -> "同期できませんでした: " + (e.message ?: e.javaClass.simpleName)
+                    else -> "同期できませんでした: " + (e.message ?: e.javaClass.simpleName) +
+                        (if (isRetryableSyncFailure(e)) "（後で自動的に再試行します）" else "")
                 }
                 val pending = withContext(Dispatchers.IO) { runCatching { store.pendingCount() }.getOrDefault(state.value.pendingCount) }
                 mutable.update { it.copy(syncing = false, pendingCount = pending, syncMessage = message) }
+                if (isRetryableSyncFailure(e)) scheduleSyncRetry()
                 if (manual && e is ApiException && e.code == "turnstile_required") startSessionTurnstile()
                 if (e is ApiException && e.status == 401) report(e)
             }
@@ -4446,6 +4476,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val CHUNK_UPLOAD_THRESHOLD_BYTES = 8L * 1024 * 1024
         /** Web `CONNECTION_RETRY_DELAY_MS`. */
         const val CONNECTION_RETRY_DELAY_MS = 2000L
+        /** Longest wait for the outbox to go up before a device answer is finished (the sync then continues in the background). */
+        const val AFTER_ANSWER_SYNC_WAIT_MS = 3000L
         const val LIB_SORT_KEY = "lib_sort_order"
         const val LIB_FAVORITES_ONLY_KEY = "lib_favorites_only"
         const val MAX_SINGLE_UPLOAD_BYTES = 64L * 1024 * 1024

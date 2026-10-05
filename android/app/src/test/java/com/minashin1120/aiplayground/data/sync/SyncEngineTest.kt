@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.data.sync
 
+import com.minashin1120.aiplayground.data.ApiException
 import com.minashin1120.aiplayground.data.PlaygroundApi
 import com.minashin1120.aiplayground.data.local.LocalChatStore
 import com.minashin1120.aiplayground.data.local.textOf
@@ -11,6 +12,9 @@ import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.json.JSONObject
+import java.io.IOException
+import java.net.SocketTimeoutException
 import javax.crypto.KeyGenerator
 
 class SyncEngineTest {
@@ -124,5 +128,22 @@ class SyncEngineTest {
         assertEquals(2, rows.size)
         assertArrayEquals("x".toByteArray(), store.loadFile(file, 10))
         assertEquals(1, store.pendingPush().size)
+    }
+
+    @Test fun unreachableServerIsRetriedLaterWithGrowingWaits() {
+        assertTrue(isRetryableSyncFailure(SocketTimeoutException()))
+        assertTrue(isRetryableSyncFailure(IOException("connect failed")))
+        assertTrue(isRetryableSyncFailure(ApiException(502, JSONObject())))
+        assertTrue(isRetryableSyncFailure(ApiException(503, JSONObject())))
+        assertTrue(isRetryableSyncFailure(ApiException(429, JSONObject())))
+        assertTrue(isRetryableSyncFailure(ApiException(409, JSONObject().put("code", "e2ee_migration_in_progress"))))
+        assertFalse(isRetryableSyncFailure(ApiException(401, JSONObject())))
+        assertFalse(isRetryableSyncFailure(ApiException(403, JSONObject().put("code", "turnstile_required"))))
+        assertFalse(isRetryableSyncFailure(IllegalStateException()))
+        assertEquals(30_000L, syncRetryDelayMillis(1))
+        assertEquals(60_000L, syncRetryDelayMillis(2))
+        assertEquals(480_000L, syncRetryDelayMillis(5))
+        assertEquals(600_000L, syncRetryDelayMillis(6))
+        assertEquals(600_000L, syncRetryDelayMillis(100))
     }
 }

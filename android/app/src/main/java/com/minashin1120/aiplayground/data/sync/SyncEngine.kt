@@ -10,6 +10,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 
 /** Outcome of one sync run, shown in the settings "接続" card. */
 data class SyncReport(
@@ -19,6 +20,24 @@ data class SyncReport(
     /** Messages still waiting on this device after the run. */
     val pending: Int = 0,
 )
+
+/**
+ * Whether a failed sync is tried again later by itself: the server or the network was out of reach
+ * (connection errors, 5xx, 408, 429) or the account was switching its encryption. Other refusals wait
+ * for the next answer, the app's return or "今すぐ同期".
+ */
+fun isRetryableSyncFailure(e: Throwable): Boolean = when (e) {
+    is ApiException -> e.status >= 500 || e.status == 408 || e.status == 429 || e.code == "e2ee_migration_in_progress"
+    is IOException -> true
+    else -> false
+}
+
+/** Wait before automatic retry number [attempt] (from 1): 30 seconds, doubling up to 10 minutes. */
+fun syncRetryDelayMillis(attempt: Int): Long =
+    (SYNC_RETRY_FIRST_DELAY_MS shl (attempt - 1).coerceIn(0, 5)).coerceAtMost(SYNC_RETRY_MAX_DELAY_MS)
+
+private const val SYNC_RETRY_FIRST_DELAY_MS = 30_000L
+private const val SYNC_RETRY_MAX_DELAY_MS = 10L * 60 * 1000
 
 /**
  * Sends the outbox of serverless mode to the server account (`/api/mobile/v1/sync/push`, server

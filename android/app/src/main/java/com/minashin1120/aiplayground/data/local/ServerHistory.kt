@@ -20,7 +20,7 @@ class ServerHistory(
     private val cachedFile: suspend (String, Long) -> ByteArray?,
     /** True while the app already knows the server is out of reach (no request is tried then). */
     val isOffline: () -> Boolean,
-    /** Sends the outbox after an answer; failures stay in the outbox for the next sync. */
+    /** Sends the outbox after an answer, waiting only briefly; failures stay in the outbox and are retried later. */
     val afterAnswer: suspend () -> Unit,
 ) {
     /** A server chat: its `GET /api/threads/<id>` settings and the messages loaded (enough for the parent's ancestors). */

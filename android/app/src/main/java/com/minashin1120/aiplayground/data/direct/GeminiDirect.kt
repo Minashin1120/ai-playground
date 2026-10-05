@@ -1,14 +1,20 @@
 package com.minashin1120.aiplayground.data.direct
 
 import java.util.Base64
+import java.util.IdentityHashMap
+import kotlinx.coroutines.delay
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 import java.net.URLEncoder
 
 /**
  * Gemini `streamGenerateContent` (SSE) from the device, as the Web browser fast mode and the server's
- * Gemini branch do: history with inline images/PDF, `thinkingConfig`, Google Search / URL context /
- * Maps / code execution tools, thought signatures, and generated images.
+ * Gemini branch do: history with inline images/PDF (videos and large files through the Files API),
+ * `thinkingConfig`, Google Search / URL context / Maps / code execution tools, thought signatures, and
+ * generated images.
  */
 class GeminiDirect(
     private val http: DirectHttp,
@@ -18,7 +24,6 @@ class GeminiDirect(
 ) : DirectEngine {
     override suspend fun run(request: DirectRequest, emit: (JSONObject) -> Unit, onProgress: (String, String) -> Unit): DirectResult {
         val model = request.model
-        val payload = buildPayload(request)
         val content = StringBuilder()
         val thought = StringBuilder()
         val signatures = mutableListOf<String>()
@@ -27,6 +32,7 @@ class GeminiDirect(
         var searching = false
         var pythonId: String? = null
         var pythonCode = ""
+        val payload = buildPayload(request, if (vertex == null) uploadLargeFiles(request, emit) else emptyMap())
         emit(event("status", "Geminiへ直接送信中..."))
         val url = vertex?.modelUrl(URLEncoder.encode(model, "UTF-8"), "streamGenerateContent?alt=sse")
             ?: "$baseUrl/v1beta/models/${URLEncoder.encode(model, "UTF-8")}:streamGenerateContent?alt=sse"
@@ -86,7 +92,57 @@ class GeminiDirect(
         )
     }
 
-    internal fun buildPayload(request: DirectRequest): JSONObject {
+    /**
+     * Server Gemini branch: videos, and other files over [INLINE_LIMIT_BYTES], go through the Files API
+     * (upload, then wait until processed) instead of inline base64, which a large video makes too big to
+     * send. Vertex AI has no Files API, so its requests stay inline. Returns the `fileData` of each upload.
+     */
+    private suspend fun uploadLargeFiles(request: DirectRequest, emit: (JSONObject) -> Unit): Map<DirectAttachment, JSONObject> {
+        val uploads = IdentityHashMap<DirectAttachment, JSONObject>()
+        request.turns.flatMap { it.attachments }.forEach { attachment ->
+            val bytes = attachment.bytes ?: return@forEach
+            val video = attachment.mime.lowercase().startsWith("video/")
+            if (!video && bytes.size <= INLINE_LIMIT_BYTES) return@forEach
+            val label = if (video) "動画" else "ファイル"
+            emit(event("status", "${label}をGeminiへアップロード中..."))
+            val file = try {
+                uploadFile(attachment, bytes, request.apiKey, label, emit)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                throw DirectApiException((e as? DirectApiException)?.status ?: 0,
+                    "${label}(${attachment.name})のアップロードに失敗しました: ${e.message ?: e.javaClass.simpleName}")
+            }
+            uploads[attachment] = file
+        }
+        return uploads
+    }
+
+    /** Files API resumable upload, then `files.get` every 2 seconds for up to 120 seconds until ACTIVE (server `_wait_gemini_file_active`). */
+    private suspend fun uploadFile(attachment: DirectAttachment, bytes: ByteArray, apiKey: String, label: String, emit: (JSONObject) -> Unit): JSONObject {
+        val key = mapOf("x-goog-api-key" to apiKey)
+        val uploadUrl = http.postJsonForHeader("$baseUrl/upload/v1beta/files", key + mapOf(
+            "X-Goog-Upload-Protocol" to "resumable", "X-Goog-Upload-Command" to "start",
+            "X-Goog-Upload-Header-Content-Length" to bytes.size.toString(), "X-Goog-Upload-Header-Content-Type" to attachment.mime,
+        ), JSONObject().put("file", JSONObject().put("display_name", attachment.name)), "X-Goog-Upload-URL")
+        val (reply, _) = http.postBytes(uploadUrl, key + mapOf("X-Goog-Upload-Offset" to "0", "X-Goog-Upload-Command" to "upload, finalize"),
+            bytes.toRequestBody(attachment.mime.toMediaTypeOrNull()), 1024 * 1024)
+        var file = runCatching { JSONObject(String(reply, Charsets.UTF_8)).getJSONObject("file") }
+            .getOrElse { throw IOException("アップロード結果を読み取れませんでした。") }
+        var state = file.optString("state")
+        if (state == "PROCESSING") emit(event("status", "Geminiで${label}を処理中..."))
+        val deadline = System.currentTimeMillis() + FILE_PROCESSING_TIMEOUT_MS
+        while (state == "PROCESSING" && System.currentTimeMillis() < deadline) {
+            delay(FILE_POLL_INTERVAL_MS)
+            file = http.getJson("$baseUrl/v1beta/${file.optString("name")}", key)
+            state = file.optString("state")
+        }
+        if (state.isNotEmpty() && state != "ACTIVE") throw IOException(if (state == "PROCESSING") "処理が時間内に終わりませんでした。" else "state:$state")
+        val uri = file.optString("uri").ifBlank { throw IOException("ファイルのURIを取得できませんでした。") }
+        return JSONObject().put("mimeType", file.optString("mimeType").ifBlank { attachment.mime }).put("fileUri", uri)
+    }
+
+    internal fun buildPayload(request: DirectRequest, uploads: Map<DirectAttachment, JSONObject> = emptyMap()): JSONObject {
         val options = request.options
         val model = request.model.lowercase()
         val contents = JSONArray()
@@ -94,7 +150,9 @@ class GeminiDirect(
             val parts = JSONArray()
             turn.attachments.forEach { attachment ->
                 val bytes = attachment.bytes
+                val uploaded = uploads[attachment]
                 when {
+                    uploaded != null -> parts.put(JSONObject().put("fileData", uploaded))
                     bytes != null -> parts.put(JSONObject().put("inlineData", JSONObject()
                         .put("mimeType", attachment.mime).put("data", Base64.getEncoder().encodeToString(bytes))))
                     attachment.text != null -> parts.put(JSONObject().put("text", attachmentText(attachment)))
@@ -148,6 +206,13 @@ class GeminiDirect(
             listOf("HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH", "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT")
                 .forEach { put(JSONObject().put("category", it).put("threshold", threshold)) }
         }
+    }
+
+    private companion object {
+        /** Server `media_inline_limit`: larger files (and every video) go through the Files API. */
+        const val INLINE_LIMIT_BYTES = 20 * 1024 * 1024
+        const val FILE_POLL_INTERVAL_MS = 2_000L
+        const val FILE_PROCESSING_TIMEOUT_MS = 120_000L
     }
 }
 

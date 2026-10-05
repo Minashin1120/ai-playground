@@ -723,30 +723,34 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
 
     private fun fileRefs(row: JSONObject): List<String> = attachmentRefs(row).filter { isLocalReference(it) }
 
+    // Attachment bodies (a video can be tens of MB) are encrypted and decrypted outside the store lock, so
+    // reading one for an answer or a sync never holds up opening, sending, deleting or syncing chats. Each
+    // body has its own file, written to `.part` and renamed into place, so a reader never sees half of one;
+    // only the `files.enc` index is changed under the lock.
+
     /** Stores attachment bytes; returns the `local/<uuid>.<ext>` reference used in messages. */
-    @Synchronized
     fun saveFile(name: String, mime: String, input: java.io.InputStream, size: Long): String {
         val ext = name.substringAfterLast('.', "").lowercase().filter { it.isLetterOrDigit() }.take(8).ifBlank { "bin" }
         val reference = "$LOCAL_PREFIX${UUID.randomUUID().toString().replace("-", "")}.$ext"
         crypto.writeStream(fileTarget(reference), input)
-        val index = loadFileIndex()
-        index.put(reference, JSONObject().put("name", name).put("mime", mime.ifBlank { "application/octet-stream" })
-            .put("size", size).put("server_ref", JSONObject.NULL))
-        crypto.writeJson(File(root, "files.enc"), index)
+        synchronized(this) {
+            val index = loadFileIndex()
+            index.put(reference, JSONObject().put("name", name).put("mime", mime.ifBlank { "application/octet-stream" })
+                .put("size", size).put("server_ref", JSONObject.NULL))
+            crypto.writeJson(File(root, "files.enc"), index)
+        }
         return reference
     }
 
     @Synchronized
     fun fileInfo(reference: String): JSONObject? = loadFileIndex().optJSONObject(reference)
 
-    @Synchronized
     fun loadFile(reference: String, limit: Long): ByteArray? {
         val target = fileTarget(reference)
         if (!isLocalReference(reference) || !target.isFile) return null
         return runCatching { crypto.readBytes(target, limit) }.getOrNull()
     }
 
-    @Synchronized
     fun materializeFile(reference: String, destination: File): String? {
         val target = fileTarget(reference)
         if (!isLocalReference(reference) || !target.isFile) return null

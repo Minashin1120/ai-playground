@@ -56,7 +56,7 @@ AI Playground のAndroid版は、次の3通りの使い方ができます。ど�
 - DeepSeek、Kimi、Mistral、Z.AI GLM（チャットと画像入力対応モデル）
 - 画像生成（GPT Image、Grok Imagine、Ideogram、Geminiの画像モデル）、音声合成（OpenAI、xAI、Google Cloud、GeminiのTTS）、音声ファイルの文字起こし（OpenAI）、動画生成（Veo、Grok Imagine video）。画像・動画の生成中は、通知を表示してアプリが終了されにくくします。他のアプリを開いても生成は続きますが、最近使ったアプリから消すと中断されます
 - 音声入力（端末のOpenAI APIキーで文字起こし）
-- 画像・PDFの添付（そのまま送信）、Word（DOCX）・Excel（XLSX）・テキストの添付（端末で文字を取り出して送信）
+- 画像・PDFの添付（そのまま送信）、Word（DOCX）・Excel（XLSX）・テキストの添付（端末で文字を取り出して送信）。Geminiでは、動画と20MBを超えるファイルをGeminiのFiles APIへアップロードし、処理が終わってから送信します（Vertex AIではそのまま送信）
 - Gem、チャット固有の指示、システムプロンプト、自動注入プロンプト、ブランチ（編集・再生成）、PDF出力
 
 次の機能は、この版では端末から直接使えません（通常のサーバー経由で使えます）。

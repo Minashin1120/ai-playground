@@ -78,6 +78,14 @@ class DirectHttp(
             runCatching { JSONObject(text) }.getOrElse { throw IOException("事業者APIの応答を読み取れませんでした。") }
         }
 
+    /** POSTs [payload] and returns the response header [name] (the Gemini Files API resumable upload URL). */
+    suspend fun postJsonForHeader(url: String, headers: Map<String, String>, payload: JSONObject, name: String): String =
+        execute(request(url, headers).post(jsonBody(payload)).build()) { response ->
+            val text = response.body.string()
+            if (!response.isSuccessful) throw providerError(response.code, text)
+            response.header(name)?.takeIf { it.isNotBlank() } ?: throw IOException("アップロード先を取得できませんでした。")
+        }
+
     /** POSTs [payload] and hands each Server-Sent Event to [onEvent] until it returns false or the stream ends. */
     suspend fun postSse(url: String, headers: Map<String, String>, payload: JSONObject, onEvent: (SseEvent) -> Boolean) {
         execute(request(url, headers).header("Accept", "text/event-stream").post(jsonBody(payload)).build()) { response ->

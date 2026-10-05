@@ -60,6 +60,34 @@ class DirectEnginesTest {
         assertTrue(contents.getJSONObject(2).getJSONArray("parts").getJSONObject(0).getString("text").contains("中身"))
     }
 
+    @Test fun geminiUploadsVideosThroughFilesApiInsteadOfInline() {
+        MockWebServer().use { server ->
+            server.start()
+            val json = { body: String -> MockResponse.Builder().addHeader("Content-Type", "application/json").body(body).build() }
+            server.enqueue(MockResponse.Builder().addHeader("X-Goog-Upload-URL", server.url("/upload-session?upload_id=1").toString()).body("").build())
+            server.enqueue(json("""{"file":{"name":"files/v1","uri":"https://example.invalid/files/v1","mimeType":"video/mp4","state":"PROCESSING"}}"""))
+            server.enqueue(json("""{"name":"files/v1","uri":"https://example.invalid/files/v1","mimeType":"video/mp4","state":"ACTIVE"}"""))
+            server.enqueue(sse("""{"candidates":[{"content":{"parts":[{"text":"動画の内容"}]}}]}"""))
+            val engine = GeminiDirect(http, server.url("/").toString().trimEnd('/'))
+            val turns = listOf(DirectTurn("user", "これは？", listOf(DirectAttachment("clip.mp4", "video/mp4", bytes = byteArrayOf(9, 8, 7)))))
+            val (result, events) = run(engine, request(turns = turns))
+            assertEquals("動画の内容", result.content)
+            assertTrue(events.any { it.optString("content") == "動画をGeminiへアップロード中..." })
+            val start = server.takeRequest()
+            assertTrue(start.target.startsWith("/upload/v1beta/files"))
+            assertEquals("start", start.headers["X-Goog-Upload-Command"])
+            assertEquals("3", start.headers["X-Goog-Upload-Header-Content-Length"])
+            val upload = server.takeRequest()
+            assertEquals("upload, finalize", upload.headers["X-Goog-Upload-Command"])
+            assertEquals(3L, upload.bodySize)
+            assertTrue(server.takeRequest().target.endsWith("/v1beta/files/v1"))
+            val body = JSONObject(server.takeRequest().body!!.utf8())
+            val parts = body.getJSONArray("contents").getJSONObject(0).getJSONArray("parts")
+            assertEquals("https://example.invalid/files/v1", parts.getJSONObject(0).getJSONObject("fileData").getString("fileUri"))
+            assertFalse(body.toString().contains("inlineData"))
+        }
+    }
+
     @Test fun gpt6AstraAndSolMapUnsupportedNoneToMedium() {
         val engine = OpenAiResponsesDirect(http, baseUrl = "https://api.openai.com")
         val astra = DirectRequest("gpt-6-astra", "sk-test", "", listOf(DirectTurn("user", "hi")),

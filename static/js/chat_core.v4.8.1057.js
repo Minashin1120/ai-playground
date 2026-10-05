@@ -10197,8 +10197,8 @@
                 const isNanoBanana2 = modelLower.includes('gemini-3.1-flash-image') && !isNanoBanana2Lite;
                 const isClaude = isClaudeModelKey(model);
                 const isGeminiCyber = modelLower === 'gemini-3.8-flash-cyber';
-                // DeepSeek KV cache is automatic; it does not use an app-supplied prompt_cache_key.
-                const promptCacheSupported = isLlmModel() && !isDeepSeek && !isZai && !isTts && !modelLower.includes('realtime') && !modelLower.includes('native-audio') && !modelLower.includes('live');
+                // DeepSeek KV cache and Z.AI context caching are automatic; neither uses an app-supplied prompt_cache_key.
+                const promptCacheSupported = isLlmModel() && !isDeepSeek && !isTts && !modelLower.includes('realtime') && !modelLower.includes('native-audio') && !modelLower.includes('live');
                 if (cacheCont) {
                     if (promptCacheSupported) {
                         cacheCont.classList.remove('hidden', 'opacity-50', 'pointer-events-none');

@@ -886,8 +886,10 @@ def chat_stream():
             t.enable_prompt_caching = True
             if provider_for_pc:
                 t.prompt_cache_provider = provider_for_pc
-            cache_id = t.public_id or str(t.id)
-            options['prompt_cache_key'] = f"thread-{cache_id}"
+            # Z.AI GLM uses automatic context caching and does not accept an app-supplied cache key.
+            if provider_for_pc != 'zai':
+                cache_id = t.public_id or str(t.id)
+                options['prompt_cache_key'] = f"thread-{cache_id}"
         else:
             t.enable_prompt_caching = False
             t.prompt_cache_provider = None

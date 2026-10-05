@@ -152,7 +152,7 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
     var fallback: String? = null
     var budget = false
 
-    val promptCacheSupported = llm && !isDeepSeek && !isZai && !isTts && !ml.contains("realtime") && !ml.contains("native-audio") && !ml.contains("live")
+    val promptCacheSupported = llm && !isDeepSeek && !isTts && !ml.contains("realtime") && !ml.contains("native-audio") && !ml.contains("live")
     val promptCache = if (promptCacheSupported) MutableRule() else MutableRule(dimmed = true, disabled = true, forced = false)
 
     when {

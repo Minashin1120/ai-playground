@@ -69,6 +69,7 @@ fun batchProviderLabel(provider: String): String = when (provider.lowercase()) {
     "gemini" -> "Gemini"
     "openai" -> "OpenAI"
     "xai" -> "xAI"
+    "zai" -> "Z.AI"
     else -> provider.ifBlank { "Batch" }
 }
 

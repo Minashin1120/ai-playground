@@ -9682,6 +9682,7 @@
             const m = String(model || '').trim().toLowerCase();
             if (m.startsWith('gpt-')) return !/(image|audio|tts|transcribe|realtime|search)/.test(m);
             if (m.startsWith('grok-')) return !/(image|video|voice|audio|tts|realtime)/.test(m);
+            if (m.startsWith('glm-')) return !/(image|audio|tts|transcribe|realtime|video|embedding|ocr)/.test(m);
             if (!m.startsWith('gemini-')) return false;
             return !/(embedding|video|veo|music|lyria|native-audio|tts|live|transcribe|agent|deep-research|robotics|computer-use)/.test(m);
         }
@@ -24799,7 +24800,7 @@
         let batchListTimer = null;
 
         function batchProviderLabel(provider) {
-            return { gemini: 'Gemini', openai: 'OpenAI', xai: 'xAI' }[String(provider || '').toLowerCase()]
+            return { gemini: 'Gemini', openai: 'OpenAI', xai: 'xAI', zai: 'Z.AI' }[String(provider || '').toLowerCase()]
                 || (provider || 'Batch');
         }
 

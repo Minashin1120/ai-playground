@@ -675,7 +675,7 @@
         let batchListTimer = null;
 
         function batchProviderLabel(provider) {
-            return { gemini: 'Gemini', openai: 'OpenAI', xai: 'xAI' }[String(provider || '').toLowerCase()]
+            return { gemini: 'Gemini', openai: 'OpenAI', xai: 'xAI', zai: 'Z.AI' }[String(provider || '').toLowerCase()]
                 || (provider || 'Batch');
         }
 

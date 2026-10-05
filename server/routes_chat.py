@@ -39,11 +39,22 @@ def _is_xai_batch_model(model_key):
         'image', 'video', 'voice', 'audio', 'tts', 'realtime',
     ))
 
+def _is_zai_batch_model(model_key):
+    """Z.AI GLM chat models that use the Batch Chat Completions endpoint."""
+    model_l = str(model_key or '').strip().lower()
+    if model_key not in ALL_VALID_MODEL_IDS or not model_l.startswith('glm-'):
+        return False
+    return not any(marker in model_l for marker in (
+        'image', 'audio', 'tts', 'transcribe', 'realtime', 'video',
+        'embedding', 'ocr',
+    ))
+
 def _is_batch_model(model_key):
     return (
         _is_gemini_batch_model(model_key)
         or _is_openai_batch_model(model_key)
         or _is_xai_batch_model(model_key)
+        or _is_zai_batch_model(model_key)
     )
 
 def _openai_batch_state_label(raw_status):
@@ -487,7 +498,7 @@ def chat_stream():
     batch_mode = bool(data.get('batch_mode'))
     if batch_mode and not _is_batch_model(model_key):
         return jsonify({
-            'error': 'Batch APIは対応するGemini／OpenAI／xAIのテキストモデル（画像入力を含む）で利用できます。動画・音声・埋め込み・検索専用モデル等では利用できません。'
+            'error': 'Batch APIは対応するGemini／OpenAI／xAI／Z.AIのテキストモデル（画像入力を含む）で利用できます。動画・音声・埋め込み・検索専用モデル等では利用できません。'
         }), 400
     coding_mode = data.get('coding_mode') is True
     coding_target = data.get('coding_target')
@@ -1160,6 +1171,46 @@ def gemini_batch_status_api():
             detail = str(error_text or _batch_state_label(state))[:4000]
             _set_message_payload(message, f'**{_batch_state_label(state)}**\n\n{detail}')
 
+    def _terminal_zai_message(row, state, error_text=None, response_payload=None):
+        message = Message.query.filter_by(
+            id=row.assistant_message_id, thread_id=row.thread_id
+        ).first()
+        if not message:
+            return
+        if state == 'JOB_STATE_SUCCEEDED':
+            response = _batch_field(response_payload, 'response') or response_payload or {}
+            body = _batch_field(response, 'body') or {}
+            choices = _batch_field(body, 'choices') or []
+            choice = choices[0] if choices else {}
+            answer = _batch_field(choice, 'message') or {}
+            content = _batch_field(answer, 'content')
+            if isinstance(content, list):
+                content = ''.join(
+                    str(_batch_field(part, 'text') or '')
+                    for part in content
+                    if isinstance(part, (dict, list)) or hasattr(part, 'text')
+                )
+            content = str(content or '').strip()
+            if not content:
+                content = 'Batch処理が完了しましたが、回答本文はありませんでした。'
+            usage = _batch_field(body, 'usage') or {}
+            tokens_out = _batch_field(usage, 'completion_tokens')
+            tokens_thought = _batch_field(
+                _batch_field(usage, 'completion_tokens_details') or {},
+                'reasoning_tokens',
+            ) or 0
+            thought = _batch_field(answer, 'reasoning_content')
+            _set_message_payload(
+                message,
+                content,
+                str(thought).strip() if thought else None,
+                tokens_out=tokens_out,
+                tokens_thought=tokens_thought,
+            )
+        else:
+            detail = str(error_text or _batch_state_label(state))[:4000]
+            _set_message_payload(message, f'**{_batch_state_label(state)}**\n\n{detail}')
+
     def _terminal_xai_message(row, state, error_text=None, response_payload=None):
         message = Message.query.filter_by(
             id=row.assistant_message_id, thread_id=row.thread_id
@@ -1454,6 +1505,58 @@ def gemini_batch_status_api():
                                 error_obj = _batch_field(error_line, 'error') if error_line else None
                                 detail = _batch_field(error_obj, 'message') or detail
                             _terminal_openai_message(row, state, error_text=detail)
+                elif provider == 'zai':
+                    api_key = resolved.get('api_key')
+                    if not api_key:
+                        raise RuntimeError('Z.AI APIキーを確認してください')
+                    client = _get_openai_client(api_key, base_url='https://api.z.ai/api/paas/v4')
+                    provider_payload = client.batches.retrieve(row.provider_job_name)
+                    state = _openai_batch_state(_batch_field(provider_payload, 'status'))
+                    row.state = state
+                    row.status_text = _batch_state_label(state)
+                    row.output_file_id = _batch_field(provider_payload, 'output_file_id') or row.output_file_id
+                    row.error_file_id = _batch_field(provider_payload, 'error_file_id') or row.error_file_id
+                    if state in terminal_states:
+                        row.completed_at = row.completed_at or datetime.utcnow()
+                        if state == 'JOB_STATE_SUCCEEDED' and row.output_file_id:
+                            result_line = _openai_result_line(_openai_file_text(client, row.output_file_id))
+                            response = _batch_field(result_line, 'response') if result_line else None
+                            request_error = _batch_field(result_line, 'error') if result_line else None
+                            response_error = _batch_field(response, 'error') if response else None
+                            status_code = _batch_field(response, 'status_code') if response else None
+                            status_failed = str(status_code or '').isdigit() and int(status_code) >= 400
+                            if request_error or response_error or status_failed:
+                                detail = (
+                                    _batch_field(request_error, 'message')
+                                    or _batch_field(response_error, 'message')
+                                    or _batch_field(_batch_field(response, 'body') or {}, 'error')
+                                    or f'Z.AI Batchリクエスト HTTP {status_code}'
+                                )
+                                row.state = 'JOB_STATE_FAILED'
+                                row.error = str(detail)
+                                row.status_text = _batch_state_label(row.state)
+                                _terminal_zai_message(row, row.state, error_text=row.error)
+                            elif response:
+                                _terminal_zai_message(row, state, response_payload=result_line)
+                            else:
+                                row.state = 'JOB_STATE_FAILED'
+                                row.error = 'Z.AI Batch APIから回答データが返されませんでした'
+                                row.status_text = _batch_state_label(row.state)
+                                _terminal_zai_message(row, row.state, error_text=row.error)
+                        elif state == 'JOB_STATE_SUCCEEDED':
+                            row.state = 'JOB_STATE_FAILED'
+                            row.error = 'Z.AI Batch APIの結果ファイルが見つかりませんでした'
+                            row.status_text = _batch_state_label(row.state)
+                            _terminal_zai_message(row, row.state, error_text=row.error)
+                        else:
+                            detail = row.status_text
+                            if row.error_file_id:
+                                error_line = _openai_result_line(_openai_file_text(client, row.error_file_id))
+                                error_obj = _batch_field(error_line, 'error') if error_line else None
+                                detail = _batch_field(error_obj, 'message') or detail
+                            if state in {'JOB_STATE_FAILED', 'JOB_STATE_EXPIRED'}:
+                                row.error = str(detail)[:4000]
+                            _terminal_zai_message(row, state, error_text=detail)
                 else:
                     runtime = resolved.get('gemini_runtime') or {}
                     api_key = resolved.get('api_key') or runtime.get('api_key')
@@ -1617,6 +1720,12 @@ def cancel_batch_job_api(job_id):
             if not api_key:
                 raise RuntimeError('OpenAI APIキーを確認してください')
             client = _get_openai_client(api_key, base_url=None)
+            client.batches.cancel(row.provider_job_name)
+        elif provider == 'zai':
+            api_key = resolved.get('api_key')
+            if not api_key:
+                raise RuntimeError('Z.AI APIキーを確認してください')
+            client = _get_openai_client(api_key, base_url='https://api.z.ai/api/paas/v4')
             client.batches.cancel(row.provider_job_name)
         elif provider == 'xai':
             api_key = resolved.get('api_key')

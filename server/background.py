@@ -1021,11 +1021,56 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             pub('done', 'BATCH_ACCEPTED')
             return True
 
+        def _submit_zai_batch(client, request_kwargs):
+            """Upload one Chat Completions request and create a Z.AI Batch job."""
+            row = GeminiBatchJob.query.filter_by(job_id=job_id, user_id=user_id).first()
+            if not row:
+                raise RuntimeError('Batchジョブの記録が見つかりません')
+            row.state = 'JOB_STATE_QUEUED'
+            row.status_text = 'Batch APIへ送信する準備中です'
+            safe_db_commit()
+
+            request_body = dict(request_kwargs or {})
+            request_body.pop('stream', None)
+            request_body.pop('stream_options', None)
+            batch_line = {
+                'custom_id': job_id,
+                'method': 'POST',
+                'url': '/v4/chat/completions',
+                'body': request_body,
+            }
+            jsonl_bytes = (json.dumps(batch_line, ensure_ascii=False, separators=(',', ':')) + '\n').encode('utf-8')
+            if len(jsonl_bytes) > 200 * 1024 * 1024:
+                raise ValueError('Batch APIの入力ファイル上限（200MB）を超えています')
+            batch_file = BytesIO(jsonl_bytes)
+            batch_file.name = f'{job_id}.jsonl'
+            uploaded = client.files.create(file=batch_file, purpose='batch')
+            input_file_id = _batch_field(uploaded, 'id')
+            if not input_file_id:
+                raise RuntimeError('Z.AI Files APIから入力ファイルIDが返されませんでした')
+            provider_batch = client.batches.create(
+                input_file_id=input_file_id,
+                endpoint='/v4/chat/completions',
+                completion_window='24h',
+            )
+            provider_batch_id = _batch_field(provider_batch, 'id')
+            if not provider_batch_id:
+                raise RuntimeError('Z.AI Batch APIからジョブIDが返されませんでした')
+            row.provider = 'zai'
+            row.provider_job_name = str(provider_batch_id)
+            row.state = _openai_batch_state_label(_batch_field(provider_batch, 'status'))
+            row.status_text = _batch_state_label(row.state)
+            db.session.add(row)
+            safe_db_commit()
+            pub('status', row.status_text)
+            pub('done', 'BATCH_ACCEPTED')
+            return True
+
         def _persist_batch_failure(error_text):
             row = GeminiBatchJob.query.filter_by(job_id=job_id, user_id=user_id).first()
             if row:
                 row.state = 'JOB_STATE_FAILED'
-                row.error = str(error_text or 'Gemini Batch APIへの送信に失敗しました')[:4000]
+                row.error = str(error_text or 'Batch APIへの送信に失敗しました')[:4000]
                 row.status_text = _batch_state_label(row.state)
                 row.completed_at = datetime.utcnow()
             assistant = Message.query.filter_by(id=getattr(row, 'assistant_message_id', None)).first() if row else None
@@ -6117,6 +6162,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         kimi_kwargs["extra_body"] = dict(kimi_kwargs.get("extra_body") or {})
                         kimi_kwargs["extra_body"]["prompt_cache_key"] = options.get('prompt_cache_key')
                         log_force(f"Kimi Prompt Caching key={options.get('prompt_cache_key')}")
+
+                    if batch_mode and is_zai:
+                        _mark_provider_request_started()
+                        try:
+                            _submit_zai_batch(client, kimi_kwargs)
+                        except Exception as batch_error:
+                            logger.exception('Z.AI Batch submission failed')
+                            _persist_batch_failure(str(batch_error))
+                        return
 
                     _mark_provider_request_started()
                     final_openai_usage = None

@@ -756,7 +756,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4-32b-0414-128k",
@@ -770,7 +771,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.5",
@@ -784,7 +786,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.5-air",
@@ -798,7 +801,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.5-airx",
@@ -812,7 +816,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.5-flash",
@@ -826,7 +831,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.5-x",
@@ -840,7 +846,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.5v",
@@ -854,7 +861,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.6",
@@ -868,7 +876,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.6v",
@@ -882,7 +891,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.6v-flash",
@@ -896,7 +906,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.6v-flashx",
@@ -910,7 +921,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.7",
@@ -924,7 +936,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.7-flash",
@@ -938,7 +951,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-4.7-flashx",
@@ -952,7 +966,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-5",
@@ -966,7 +981,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-5.1",
@@ -980,7 +996,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-5.2",
@@ -994,7 +1011,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-5.3",
@@ -1008,7 +1026,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-5.3-flash",
@@ -1022,7 +1041,8 @@
    "capabilities": [
     "chat",
     "attachments",
-    "thinking"
+    "thinking",
+    "batch"
    ],
    "deprecated": false,
    "id": "glm-5.3-flashx",

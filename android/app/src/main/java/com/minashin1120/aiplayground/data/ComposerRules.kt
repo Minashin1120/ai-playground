@@ -87,6 +87,7 @@ fun isBatchModelKey(model: String): Boolean {
     val m = model.trim().lowercase(Locale.ROOT)
     if (m.startsWith("gpt-")) return !Regex("(image|audio|tts|transcribe|realtime|search)").containsMatchIn(m)
     if (m.startsWith("grok-")) return !Regex("(image|video|voice|audio|tts|realtime)").containsMatchIn(m)
+    if (m.startsWith("glm-")) return !Regex("(image|audio|tts|transcribe|realtime|video|embedding|ocr)").containsMatchIn(m)
     if (!m.startsWith("gemini-")) return false
     return !Regex("(embedding|video|veo|music|lyria|native-audio|tts|live|transcribe|agent|deep-research|robotics|computer-use)").containsMatchIn(m)
 }

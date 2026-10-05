@@ -1,6 +1,7 @@
 package com.minashin1120.aiplayground.data.sync
 
 import com.minashin1120.aiplayground.data.ApiException
+import com.minashin1120.aiplayground.data.Diagnostics
 import com.minashin1120.aiplayground.data.PlaygroundApi
 import com.minashin1120.aiplayground.data.local.LocalChatStore
 import com.minashin1120.aiplayground.data.local.textOf
@@ -53,15 +54,22 @@ class SyncEngine(
     private val token: () -> String,
 ) {
     suspend fun run(): SyncReport = withContext(Dispatchers.IO) {
+        Diagnostics.log("sync.engine_start")
         store.repairSyncIdentities()
         store.migrateToOutbox()
+        Diagnostics.log("sync.prepared")
         push().copy(pending = store.pendingCount())
     }
 
     private suspend fun uploadAttachment(reference: String): String? {
         store.fileInfo(reference)?.optString("server_ref")?.takeIf { it.isNotBlank() && it != "null" }?.let { return it }
         val info = store.fileInfo(reference) ?: return null
-        val bytes = store.loadFile(reference, MAX_UPLOAD_BYTES) ?: return null
+        val loadStarted = System.currentTimeMillis()
+        val bytes = store.loadFile(reference, MAX_UPLOAD_BYTES)
+        Diagnostics.log("sync.attachment_loaded", "mime" to info.optString("mime"), "bytes" to info.optLong("size"),
+            "loaded" to (bytes != null), "ms" to System.currentTimeMillis() - loadStarted, "memory" to Diagnostics.memory())
+        if (bytes == null) return null
+        val uploadStarted = System.currentTimeMillis()
         val name = info.optString("name").ifBlank { reference.substringAfterLast('/') }
         val serverRef = try {
             if (bytes.size > CHUNK_BYTES) {
@@ -82,6 +90,7 @@ class SyncEngine(
             if (e.status == 413 || e.status == 400 || e.status == 415) return null
             throw e
         }
+        Diagnostics.log("sync.attachment_uploaded", "bytes" to bytes.size, "ms" to System.currentTimeMillis() - uploadStarted)
         store.setServerReference(reference, serverRef)
         return serverRef
     }
@@ -91,6 +100,8 @@ class SyncEngine(
         var skipped = 0
         var rejected = 0
         val pending = store.pendingPush()
+        Diagnostics.log("sync.pending", "threads" to pending.size, "messages" to pending.sumOf { it.messageIds.size },
+            "files" to pending.sumOf { it.localFiles.size })
         for (thread in pending) {
             // Local attachment references become server references before the chat is sent.
             val serverRefs = HashMap<String, String?>()
@@ -115,7 +126,9 @@ class SyncEngine(
             for (batch in batches) {
                 val entry = JSONObject(thread.entry.toString()).put("messages", JSONArray(batch))
                 serverThreadId?.let { entry.put("id", it) }
+                val pushStarted = System.currentTimeMillis()
                 val reply = api.post("/api/mobile/v1/sync/push", JSONObject().put("threads", JSONArray().put(entry)), token())
+                Diagnostics.log("sync.pushed", "messages" to batch.size, "ms" to System.currentTimeMillis() - pushStarted)
                 val result = reply.optJSONArray("threads")?.optJSONObject(0) ?: continue
                 if (result.has("error")) {
                     when (result.textOf("error")) {

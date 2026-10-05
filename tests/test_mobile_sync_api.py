@@ -200,6 +200,35 @@ class MobileSyncApiTests(unittest.TestCase):
         browser = self.browser.get('/api/mobile/v1/sync/changes', base_url='https://localhost')
         self.assertIn(browser.status_code, (401, 403, 404))
 
+    def test_diagnostics_are_accepted_only_from_administrators(self):
+        log_dir = tempfile.TemporaryDirectory(prefix='mobile-diagnostics-')
+        self.addCleanup(log_dir.cleanup)
+        path = os.path.join(log_dir.name, 'logs', 'android-diagnostics.log')
+        patcher = mock.patch.dict(target.app.config, ANDROID_DIAGNOSTICS_LOG=path)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        token = self.token()
+        entries = {'entries': [{'t': 1, 'seq': 1, 'ev': 'gen.start', 'model': 'gemini-3.6-flash'}, 'not an object']}
+        refused = self.call('/api/mobile/v1/diagnostics', token, 'POST', json=entries)
+        self.assertEqual(refused.status_code, 403)
+        self.assertFalse(os.path.exists(path))
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.is_admin = True
+            target.db.session.commit()
+        accepted = self.call('/api/mobile/v1/diagnostics', token, 'POST', json=entries)
+        self.assertEqual(accepted.status_code, 200, accepted.json)
+        self.assertEqual(accepted.json['accepted'], 1)
+        with open(path, encoding='utf-8') as handle:
+            rows = [json.loads(line) for line in handle]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['user_id'], self.user_id)
+        self.assertEqual(rows[0]['entry']['ev'], 'gen.start')
+        invalid = self.call('/api/mobile/v1/diagnostics', token, 'POST', json={'entries': 'x'})
+        self.assertEqual(invalid.status_code, 400)
+        browser = self.browser.post('/api/mobile/v1/diagnostics', base_url='https://localhost', json=entries)
+        self.assertIn(browser.status_code, (400, 401, 403, 404))
+
     def test_secrets_export_needs_reauth_and_returns_only_user_keys(self):
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)

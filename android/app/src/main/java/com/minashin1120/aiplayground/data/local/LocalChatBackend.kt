@@ -1,6 +1,7 @@
 package com.minashin1120.aiplayground.data.local
 
 import com.minashin1120.aiplayground.data.ApiException
+import com.minashin1120.aiplayground.data.Diagnostics
 import com.minashin1120.aiplayground.data.backend.ChatBackend
 import com.minashin1120.aiplayground.data.direct.AttachmentExtractor
 import com.minashin1120.aiplayground.data.direct.DirectApiException
@@ -311,6 +312,9 @@ class LocalChatBackend(
     }
 
     private suspend fun generate(body: JSONObject, onAccepted: () -> Unit, onEvent: (JSONObject) -> Unit) {
+        val started = System.currentTimeMillis()
+        fun elapsed() = System.currentTimeMillis() - started
+        Diagnostics.log("gen.start", "model" to body.optString("model"))
         val threadId = store.resolveAlias(body.optString("thread_id"))
         val model = body.optString("model")
         val message = body.optString("message")
@@ -325,7 +329,9 @@ class LocalChatBackend(
         if (body.has("coding_target")) throw ApiException(400, JSONObject().put("code", "serverless_unsupported")
             .put("error", "Coding Modeはサーバー不使用モードではまだ使えません。"))
         val files = attachmentRefs(body)
+        Diagnostics.log("gen.route", "provider" to route.provider, "vertex" to (vertex != null), "files" to files.size, "ms" to elapsed())
         val chat = conversation(threadId, body)
+        Diagnostics.log("gen.conversation", "server_chat" to (chat.serverId != null), "rows" to chat.rows.size, "ms" to elapsed())
         onAccepted()
         onEvent(JSONObject().put("type", "thread_id").put("content", body.optString("thread_id")))
         val quote = body.optString("quote_text").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
@@ -369,12 +375,16 @@ class LocalChatBackend(
         }
         val assistantId = store.appendMessage(chat.outboxId, LocalChatStore.NewMessage("assistant", "", userId, model = model,
             gemUuid = gemUuid, gemName = gemName, generating = true))
+        Diagnostics.log("gen.saved_question", "ms" to elapsed())
         var partialContent = ""
         var partialThought = ""
         var lastSave = 0L
         val last: JSONObject = try {
             // Attachments that cannot be read (a server file out of reach) end the answer with an error.
             val turns = history(all, userScreenId, preferences, quote)
+            Diagnostics.log("gen.turns", "turns" to turns.size, "attachments" to turns.sumOf { it.attachments.size },
+                "attachment_bytes" to turns.sumOf { turn -> turn.attachments.sumOf { it.bytes?.size?.toLong() ?: 0L } },
+                "ms" to elapsed(), "memory" to Diagnostics.memory())
             val result = route.engine.run(DirectRequest(model, apiKey, system, turns, body), onEvent) { content, thought ->
                 partialContent = content; partialThought = thought
                 val now = System.currentTimeMillis()
@@ -383,13 +393,16 @@ class LocalChatBackend(
             val outputs = result.files.map { file -> store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong()) }
             store.updateMessage(chat.outboxId, assistantId, result.content, result.thought, result.tokensIn, result.tokensOut,
                 files = outputs.takeIf { it.isNotEmpty() }, done = true)
+            Diagnostics.log("gen.done", "content_chars" to result.content.length, "files" to outputs.size, "ms" to elapsed())
             JSONObject().put("type", "done")
         } catch (e: CancellationException) {
+            Diagnostics.log("gen.cancelled", "content_chars" to partialContent.length, "ms" to elapsed())
             // Stopped: what arrived so far is kept; the chat screen asks for the upload.
             withContext(NonCancellable) { store.updateMessage(chat.outboxId, assistantId, partialContent, partialThought, done = true) }
             onChanged()
             throw e
         } catch (e: Exception) {
+            Diagnostics.failure("gen.error", e, "ms" to elapsed())
             val text = when (e) {
                 is DirectApiException -> "API Error${if (e.status > 0) " (${e.status})" else ""}: ${e.message}"
                 is ApiException -> e.payload.optString("error").ifBlank { e.message }
@@ -403,6 +416,7 @@ class LocalChatBackend(
         // reach does not hold the answer open (the sync continues or is retried in the background).
         remote?.let { history ->
             try { history.afterAnswer() } catch (e: CancellationException) { throw e } catch (_: Exception) {}
+            Diagnostics.log("gen.after_answer_sync", "ms" to elapsed())
         }
         onEvent(last)
     }
@@ -442,7 +456,10 @@ class LocalChatBackend(
             val attachments = refs.mapNotNull { ref ->
                 if (!LocalChatStore.isLocalReference(ref)) {
                     // A server attachment (a server chat, or a file sent again): read from the server or the offline cache.
+                    val loadStarted = System.currentTimeMillis()
                     val bytes = remote?.file(ref, if (current) MAX_ATTACHMENT_BYTES else minOf(budget, MAX_ATTACHMENT_BYTES))
+                    Diagnostics.log("gen.attachment_loaded", "source" to "server", "bytes" to (bytes?.size ?: -1), "current" to current,
+                        "ms" to System.currentTimeMillis() - loadStarted)
                     if (bytes == null) {
                         if (current) throw ApiException(400, JSONObject().put("error", "添付ファイルをサーバーから読み込めませんでした。"))
                         return@mapNotNull null
@@ -455,7 +472,12 @@ class LocalChatBackend(
                 val info = store.fileInfo(ref) ?: return@mapNotNull null
                 val size = info.optLong("size")
                 if (!current && size > budget) return@mapNotNull null
-                val bytes = store.loadFile(ref, MAX_ATTACHMENT_BYTES) ?: return@mapNotNull null
+                val loadStarted = System.currentTimeMillis()
+                val bytes = store.loadFile(ref, MAX_ATTACHMENT_BYTES)
+                Diagnostics.log("gen.attachment_loaded", "source" to "device", "mime" to info.optString("mime"), "bytes" to size,
+                    "loaded" to (bytes != null), "current" to current, "ms" to System.currentTimeMillis() - loadStarted,
+                    "memory" to Diagnostics.memory())
+                if (bytes == null) return@mapNotNull null
                 if (!current) budget -= bytes.size
                 AttachmentExtractor.prepare(info.optString("name", ref.substringAfterLast('/')), info.optString("mime"), bytes)
             }

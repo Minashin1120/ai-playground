@@ -65,6 +65,8 @@ MOBILE_ENDPOINT_METHODS = {
     'unlink_google': {'POST'}, 'unlink_minashin': {'POST'}, 'mobile_account_link_start': {'POST'},
     # Serverless mode (routes_mobile_sync.py): chat sync and the user's own API keys.
     'mobile_sync_changes': {'GET'}, 'mobile_sync_push': {'POST'}, 'mobile_secrets_export': {'POST'},
+    # Administrators' serverless-mode diagnostics (no chat text or files).
+    'mobile_diagnostics': {'POST'},
     'export_account_data': {'POST'}, 'get_latest_account_export': {'GET'},
     'download_account_export': {'GET'}, 'get_account_transfer_status': {'GET'},
     'cancel_account_transfer': {'POST'},

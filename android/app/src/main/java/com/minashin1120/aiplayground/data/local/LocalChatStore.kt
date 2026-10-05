@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.data.local
 
+import com.minashin1120.aiplayground.data.Diagnostics
 import com.minashin1120.aiplayground.data.secure.EncryptedFileStore
 import org.json.JSONArray
 import org.json.JSONObject
@@ -732,8 +733,12 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     fun saveFile(name: String, mime: String, input: java.io.InputStream, size: Long): String {
         val ext = name.substringAfterLast('.', "").lowercase().filter { it.isLetterOrDigit() }.take(8).ifBlank { "bin" }
         val reference = "$LOCAL_PREFIX${UUID.randomUUID().toString().replace("-", "")}.$ext"
+        val started = System.currentTimeMillis()
         crypto.writeStream(fileTarget(reference), input)
+        Diagnostics.log("store.file_written", "mime" to mime, "bytes" to size, "ms" to System.currentTimeMillis() - started)
+        val locked = System.currentTimeMillis()
         synchronized(this) {
+            Diagnostics.log("store.lock_wait", "op" to "saveFile", "ms" to System.currentTimeMillis() - locked)
             val index = loadFileIndex()
             index.put(reference, JSONObject().put("name", name).put("mime", mime.ifBlank { "application/octet-stream" })
                 .put("size", size).put("server_ref", JSONObject.NULL))
@@ -748,7 +753,15 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     fun loadFile(reference: String, limit: Long): ByteArray? {
         val target = fileTarget(reference)
         if (!isLocalReference(reference) || !target.isFile) return null
-        return runCatching { crypto.readBytes(target, limit) }.getOrNull()
+        val started = System.currentTimeMillis()
+        val result = runCatching { crypto.readBytes(target, limit) }
+        val ms = System.currentTimeMillis() - started
+        // Only large or slow reads (not every thumbnail).
+        if (target.length() > 1024 * 1024 || ms > 1000 || result.isFailure) {
+            Diagnostics.log("store.file_read", "stored_bytes" to target.length(), "ok" to result.isSuccess,
+                "error" to result.exceptionOrNull()?.javaClass?.name, "ms" to ms)
+        }
+        return result.getOrNull()
     }
 
     fun materializeFile(reference: String, destination: File): String? {

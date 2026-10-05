@@ -34,6 +34,9 @@ import com.minashin1120.aiplayground.data.sync.syncRetryDelayMillis
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
@@ -240,6 +243,54 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             librarySort = prefs.getString(LIB_SORT_KEY, null)?.takeIf { value -> value in LIBRARY_SORTS } ?: "newest",
             libraryFavoritesOnly = prefs.getBoolean(LIB_FAVORITES_ONLY_KEY, false),
         ) }
+        startDiagnostics()
+    }
+
+    /** Separate client for diagnostics, so sending them never shows the global spinner. */
+    private val diagnosticsApi by lazy { PlaygroundApi() }
+
+    /**
+     * Administrator accounts only ([Diagnostics]): follows the account's admin flag once its settings are
+     * known, sends the recorded entries every 10 seconds, and records the app's thread stacks when an
+     * answer, a sync or a chat load has not moved for 20 seconds.
+     */
+    private fun startDiagnostics() {
+        viewModelScope.launch {
+            state.map { current -> if (current.account == null || current.preferences == null) null
+                else !current.localProfile && current.preferences.isAdmin }
+                .filterNotNull().distinctUntilChanged().collect { admin -> Diagnostics.setEnabled(admin) }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            var lastDump = 0L
+            while (isActive) {
+                delay(DIAGNOSTICS_INTERVAL_MS)
+                if (!Diagnostics.enabled) continue
+                val current = state.value
+                val now = System.currentTimeMillis()
+                val working = current.streaming || current.syncing || current.busy || current.uploading
+                if (working && now - Diagnostics.lastEventAt > DIAGNOSTICS_STALL_MS && now - lastDump > DIAGNOSTICS_STACKS_GAP_MS) {
+                    lastDump = now
+                    Diagnostics.stacks("no_progress", "streaming" to current.streaming, "syncing" to current.syncing,
+                        "busy" to current.busy, "uploading" to current.uploading, "serverless" to current.serverless,
+                        "offline" to current.offline, "foreground" to foreground)
+                }
+                val token = session?.token ?: continue
+                if (current.offline) continue
+                val batch = Diagnostics.pending(200, 600_000)
+                if (batch.lines == 0) continue
+                try {
+                    diagnosticsApi.post("/api/mobile/v1/diagnostics", JSONObject().put("entries", JSONArray(batch.entries)), token)
+                    Diagnostics.drop(batch.lines)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: ApiException) {
+                    // Not an administrator any more: stop and delete; a malformed batch is not sent again.
+                    if (e.status == 403) Diagnostics.setEnabled(false)
+                    else if (e.status == 400 || e.status == 413) Diagnostics.drop(batch.lines)
+                } catch (_: Exception) {
+                }
+            }
+        }
     }
     private var session: StoredSession? = null
     private var foreground = false
@@ -494,11 +545,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun runSync(manual: Boolean) {
         val store = localChats ?: return
-        if (!state.value.serverless || session == null || syncJob?.isActive == true) return
+        if (!state.value.serverless || session == null || syncJob?.isActive == true) {
+            Diagnostics.log("sync.skipped", "serverless" to state.value.serverless, "running" to (syncJob?.isActive == true))
+            return
+        }
         val job = viewModelScope.launch {
             mutable.update { it.copy(syncing = true, syncMessage = null) }
+            val started = System.currentTimeMillis()
+            Diagnostics.log("sync.start", "manual" to manual)
             try {
                 val report = SyncEngine(store, syncApi) { token() }.run()
+                Diagnostics.log("sync.done", "ms" to System.currentTimeMillis() - started, "uploaded" to report.uploadedMessages,
+                    "skipped_attachments" to report.skippedAttachments, "rejected" to report.rejected, "pending" to report.pending)
                 syncRetryAttempt = 0
                 val now = System.currentTimeMillis()
                 state.value.account?.let { account -> prefs.edit().putLong("last_sync_" + LocalProfiles.accountKey(account.id), now).apply() }
@@ -512,8 +570,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     runCatching { fetchThreads(false) }
                     state.value.selected?.id?.let { id -> if (!state.value.busy) runCatching { loadMessages(id, autoResume = false) } }
                 }
-            } catch (e: CancellationException) { mutable.update { it.copy(syncing = false) }; throw e }
+            } catch (e: CancellationException) {
+                Diagnostics.log("sync.cancelled", "ms" to System.currentTimeMillis() - started)
+                mutable.update { it.copy(syncing = false) }; throw e
+            }
             catch (e: Exception) {
+                Diagnostics.failure("sync.error", e, "ms" to System.currentTimeMillis() - started)
                 val message = when {
                     e is ApiException && e.code == "turnstile_required" -> "安全性の確認が必要です。送信欄から一度送信するか、しばらく待ってから同期してください。"
                     e is ApiException && e.code == "e2ee_migration_in_progress" -> "暗号化の切り替え中のため、完了後に同期します。"
@@ -629,7 +691,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Stores an attachment on the device while chats are local; null means upload it to the server. */
     private fun storeLocalUpload(name: String, mime: String, size: Long, opener: () -> java.io.InputStream): String? {
         val store = localChats ?: return null
-        return opener().use { input -> store.saveFile(name, mime, input, size) }
+        val started = System.currentTimeMillis()
+        return opener().use { input -> store.saveFile(name, mime, input, size) }.also {
+            Diagnostics.log("attach.stored", "mime" to mime, "bytes" to size, "ms" to System.currentTimeMillis() - started)
+        }
     }
 
     /** Points the app at the server saved with the session (or chosen last on the login screen). */
@@ -1329,6 +1394,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun answeringOnDevice(): Boolean = isDeviceAnswer(state.value.streaming, uploadsLocal, state.value.jobId)
 
     fun setForeground(value: Boolean) {
+        if (value != foreground) Diagnostics.log("app.foreground", "value" to value, "streaming" to state.value.streaming,
+            "syncing" to state.value.syncing)
         val returning = value && !foreground
         foreground = value
         if (!value && state.value.streaming && !answeringOnDevice()) {
@@ -1823,16 +1890,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             chatTransitionKind = ChatTransitionKind.NONE,
             chatNavigationId = transition.first, chatNavigationKind = transition.second) }
         navigationJob = viewModelScope.launch {
+            val started = System.currentTimeMillis()
+            Diagnostics.log("thread.open", "thread" to thread.id)
             try {
                 loadMessages(thread.id)
+                Diagnostics.log("thread.opened", "thread" to thread.id, "ms" to System.currentTimeMillis() - started,
+                    "messages" to state.value.messages.size)
                 if (state.value.selected?.id == thread.id) {
                     mutable.update { it.copy(busy = false, chatTransitionId = transition.first, chatTransitionKind = transition.second) }
                     onLoaded()
                 }
                 if (foreground && state.value.jobId != null) resume()
             }
-            catch (e: CancellationException) { throw e }
-            catch (e: Exception) { report(e, "チャットの読み込みに失敗しました") }
+            catch (e: CancellationException) {
+                Diagnostics.log("thread.open_cancelled", "thread" to thread.id, "ms" to System.currentTimeMillis() - started)
+                throw e
+            }
+            catch (e: Exception) {
+                Diagnostics.failure("thread.open_error", e, "thread" to thread.id, "ms" to System.currentTimeMillis() - started)
+                report(e, "チャットの読み込みに失敗しました")
+            }
             finally { mutable.update { it.copy(busy = false) } }
         }
     }
@@ -1851,6 +1928,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             else -> THREAD_INITIAL_MESSAGE_LIMIT
         }
         val reply = try {
+            Diagnostics.log("thread.fetch", "thread" to id, "older" to older)
             backend.get("/api/threads/$id?limit=$limit$before", token())
         } catch (e: CancellationException) {
             throw e
@@ -1865,6 +1943,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             loadCachedMessages(id, older, cached)
             return
         }
+        Diagnostics.log("thread.fetched", "thread" to id, "rows" to (reply.optJSONArray("messages")?.length() ?: 0),
+            "pending_job" to !reply.isNull("pending_job"))
         if (state.value.selected?.id != id) return
         val parsed = parseMessages(reply)
         val all = if (older) (parsed + state.value.allMessages).distinctBy { m -> m.id } else parsed
@@ -1987,9 +2067,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     /** [onNewChat] runs when the open chat was deleted (Web `startNewChat` also closes the phone sidebar). */
     fun deleteThread(thread: ThreadItem, onNewChat: () -> Unit = {}) { viewModelScope.launch {
+        Diagnostics.log("thread.delete", "thread" to thread.id, "offline" to state.value.offline)
         if (state.value.offline && !deviceChat(thread.id)) { notify("オフライン中は履歴を削除できません。"); return@launch }
         try {
             backend.delete("/api/threads/${thread.id}", token())
+            Diagnostics.log("thread.deleted", "thread" to thread.id)
             state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.deleteThread(account.id, thread.id) } }
             chatHistory.removeThread(thread.id)
             mutable.update { it.copy(canGoBackInChats = chatHistory.canGoBack) }
@@ -2631,6 +2713,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val flow = api.progress.startFlow("chat")
             var id = body.nullableString("thread_id")
             var accepted = false
+            val sendStarted = System.currentTimeMillis()
+            Diagnostics.log("send.start", "model" to modelId, "serverless" to state.value.serverless, "new_thread" to id.isBlank(),
+                "attachments" to submission.files.map { it.mime.ifBlank { "unknown" } }, "text_chars" to body.optString("message").length,
+                "prompt_cache" to body.optBoolean("enable_prompt_caching"), "memory" to Diagnostics.memory())
+            val seenEvents = java.util.Collections.synchronizedSet(HashSet<String>())
             try {
                 if (id.isBlank()) {
                     val created = backend.post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
@@ -2658,6 +2745,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     quote = body.optString("quote_text"), gemName = it.selectedGem?.name.orEmpty())) }
                 val threadId = id
                 val onEvent: (JSONObject) -> Unit = { event ->
+                    val type = event.optString("type")
+                    if (type == "status" || seenEvents.add(type)) {
+                        Diagnostics.log("send.event", "type" to type, "ms" to System.currentTimeMillis() - sendStarted,
+                            "status" to if (type == "status") event.optString("content") else null)
+                    }
                     if (streamJob === owner) {
                         flow.setPhase("receiving")
                         acceptEvent(threadId, event)
@@ -2702,6 +2794,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     delay(CONNECTION_RETRY_DELAY_MS)
                 }
+                Diagnostics.log("send.done", "ms" to System.currentTimeMillis() - sendStarted)
                 vibrate(100, 50, 100)
                 failed = null
                 // The response may add a new leaf even for a normal continuation. Drop the old
@@ -2716,8 +2809,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     fetchBatchJobs(notify = false)
                     startBatchPolling()
                 }
-            } catch (e: CancellationException) { throw e }
+            } catch (e: CancellationException) {
+                Diagnostics.log("send.cancelled", "ms" to System.currentTimeMillis() - sendStarted, "accepted" to accepted)
+                throw e
+            }
             catch (e: Exception) {
+                Diagnostics.failure("send.error", e, "ms" to System.currentTimeMillis() - sendStarted, "accepted" to accepted)
                 // Web: before the server accepted the send, the optimistic rows go away and the input,
                 // attachments and quote stay; the error is shown as "Connection Error: …".
                 val userId = "local-${body.optString("client_request_id")}"
@@ -2856,11 +2953,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun stop() { viewModelScope.launch {
         val id = state.value.selected?.id ?: return@launch
+        Diagnostics.log("send.stop", "thread" to id, "streaming" to state.value.streaming, "job" to (state.value.jobId != null))
         try {
             // The answer is generated on the device (a server job is only rejoined, with its job id):
             // cancelling the request saves what arrived so far, and serverless mode then uploads it.
             if (uploadsLocal && state.value.jobId == null) {
+                val started = System.currentTimeMillis()
                 streamJob?.cancelAndJoin()
+                Diagnostics.log("send.stopped", "thread" to id, "wait_ms" to System.currentTimeMillis() - started)
                 mutable.update { it.copy(streaming = false, status = "停止を要求しました。", live = LiveAnswer()) }
                 loadMessages(id)
                 scheduleSync()
@@ -4478,6 +4578,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val CONNECTION_RETRY_DELAY_MS = 2000L
         /** Longest wait for the outbox to go up before a device answer is finished (the sync then continues in the background). */
         const val AFTER_ANSWER_SYNC_WAIT_MS = 3000L
+        const val DIAGNOSTICS_INTERVAL_MS = 10_000L
+        /** No diagnostics entry for this long while work runs: the thread stacks are recorded. */
+        const val DIAGNOSTICS_STALL_MS = 20_000L
+        const val DIAGNOSTICS_STACKS_GAP_MS = 60_000L
         const val LIB_SORT_KEY = "lib_sort_order"
         const val LIB_FAVORITES_ONLY_KEY = "lib_favorites_only"
         const val MAX_SINGLE_UPLOAD_BYTES = 64L * 1024 * 1024

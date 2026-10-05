@@ -4,12 +4,20 @@ The app answers chats on the device and keeps them in its own store; these endpo
 let it upload those chats (idempotently, by per-record UUIDs) and learn which server
 chats changed or were deleted since the last sync.  Message bodies of changed chats
 are read with the existing ``GET /api/threads/<id>``.
+
+Administrators' apps also send diagnostics of serverless mode here (steps, timings, sizes,
+states and stacks of stalled threads; never chat text or files), appended to
+``logs/android-diagnostics.log`` under the app directory.
 """
 
 _SYNC_PAGE_SIZE = 200
 _SYNC_PUSH_MAX_MESSAGES = 100
 _SYNC_PUSH_MAX_BYTES = 8 * 1024 * 1024
 _SYNC_TOMBSTONE_DAYS = 180
+_DIAGNOSTICS_MAX_BYTES = 1024 * 1024
+_DIAGNOSTICS_MAX_ENTRIES = 500
+_DIAGNOSTICS_MAX_LINE = 256 * 1024
+_DIAGNOSTICS_LOG_MAX_BYTES = 20 * 1024 * 1024
 _SYNC_UUID_RE = re.compile(r'^[0-9a-fA-F-]{16,36}$')
 _SYNC_SECRET_FIELDS = (
     ('openai_key', 'openai_api_key'), ('gemini_key', 'gemini_api_key'),
@@ -327,6 +335,52 @@ def mobile_sync_push():
     safe_db_commit()
     return jsonify({'status': 'ok', 'threads': results, 'deleted_threads': deleted_threads,
                     'deleted_messages': deleted_messages, 'server_time_ms': _sync_to_ms(datetime.utcnow())})
+
+
+def _diagnostics_log_path():
+    return app.config.get('ANDROID_DIAGNOSTICS_LOG') or os.path.join(app.root_path, 'logs', 'android-diagnostics.log')
+
+
+@app.route('/api/mobile/v1/diagnostics', methods=['POST'])
+def mobile_diagnostics():
+    """Administrators only: appends the app's diagnostics entries (one JSON line each) to the log file."""
+    if not getattr(current_user, 'is_admin', False):
+        return _mobile_error('forbidden', 403)
+    if request.content_length and request.content_length > _DIAGNOSTICS_MAX_BYTES:
+        return _mobile_error('payload_too_large', 413)
+    if not rate_limit(f'rl:mobile:diagnostics:{current_user.id}', 60, 60):
+        return _mobile_error('rate_limit', 429)
+    body = request.get_json(silent=True) or {}
+    entries = body.get('entries') if isinstance(body, dict) else None
+    if not isinstance(entries, list) or len(entries) > _DIAGNOSTICS_MAX_ENTRIES:
+        return _mobile_error('invalid_request')
+    received = datetime.utcnow().isoformat(timespec='milliseconds') + 'Z'
+    agent = str(request.headers.get('User-Agent') or '')[:80]
+    session_id = getattr(getattr(g, 'mobile_session', None), 'id', None)
+    lines = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        line = json.dumps({'received_at': received, 'user_id': current_user.id, 'session': session_id,
+                           'agent': agent, 'entry': entry}, ensure_ascii=False, default=str)
+        if len(line) > _DIAGNOSTICS_MAX_LINE:
+            line = json.dumps({'received_at': received, 'user_id': current_user.id, 'session': session_id, 'agent': agent,
+                               'entry': {'ev': 'truncated', 'original_ev': str(entry.get('ev'))[:80], 'size': len(line)}})
+        lines.append(line)
+    if lines:
+        import fcntl
+        path = _diagnostics_log_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        try:
+            if os.path.getsize(path) > _DIAGNOSTICS_LOG_MAX_BYTES:
+                os.replace(path, path + '.1')
+        except OSError:
+            pass
+        with open(path, 'a', encoding='utf-8') as handle:
+            # Two gunicorn workers may append at once; the lock keeps each batch's lines together.
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            handle.write('\n'.join(lines) + '\n')
+    return jsonify({'status': 'ok', 'accepted': len(lines)})
 
 
 @app.route('/api/mobile/v1/secrets/export', methods=['POST'])

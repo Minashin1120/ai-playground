@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.data.direct
 
+import com.minashin1120.aiplayground.data.Diagnostics
 import java.util.Base64
 import java.util.IdentityHashMap
 import kotlinx.coroutines.delay
@@ -32,12 +33,20 @@ class GeminiDirect(
         var searching = false
         var pythonId: String? = null
         var pythonCode = ""
-        val payload = buildPayload(request, if (vertex == null) uploadLargeFiles(request, emit) else emptyMap())
+        val started = System.currentTimeMillis()
+        val uploads = if (vertex == null) uploadLargeFiles(request, emit) else emptyMap()
+        val payload = buildPayload(request, uploads)
+        Diagnostics.log("gemini.payload", "uploaded" to uploads.size, "vertex" to (vertex != null),
+            "inline_bytes" to request.turns.sumOf { turn -> turn.attachments.filter { it !in uploads.keys }.sumOf { it.bytes?.size?.toLong() ?: 0L } },
+            "ms" to System.currentTimeMillis() - started, "memory" to Diagnostics.memory())
         emit(event("status", "Geminiへ直接送信中..."))
+        var chunks = 0
         val url = vertex?.modelUrl(URLEncoder.encode(model, "UTF-8"), "streamGenerateContent?alt=sse")
             ?: "$baseUrl/v1beta/models/${URLEncoder.encode(model, "UTF-8")}:streamGenerateContent?alt=sse"
         val headers = if (vertex != null) mapOf("Authorization" to "Bearer ${vertex.token()}") else mapOf("x-goog-api-key" to request.apiKey)
+        val requestStarted = System.currentTimeMillis()
         http.postSse(url, headers, payload) { sse ->
+            if (chunks++ == 0) Diagnostics.log("gemini.first_chunk", "ms" to System.currentTimeMillis() - requestStarted)
             if (sse.data.isBlank() || sse.data == "[DONE]") return@postSse true
             val chunk = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true
             chunk.optJSONObject("error")?.let { throw DirectApiException(it.optInt("code"), it.optString("message").ifBlank { "Gemini API error" }) }
@@ -81,6 +90,8 @@ class GeminiDirect(
             onProgress(content.toString(), thought.toString())
             true
         }
+        Diagnostics.log("gemini.stream_end", "chunks" to chunks, "content_chars" to content.length,
+            "ms" to System.currentTimeMillis() - requestStarted)
         if (searching) emit(event("search_status", "done"))
         val meta = usage
         return DirectResult(
@@ -105,14 +116,19 @@ class GeminiDirect(
             if (!video && bytes.size <= INLINE_LIMIT_BYTES) return@forEach
             val label = if (video) "動画" else "ファイル"
             emit(event("status", "${label}をGeminiへアップロード中..."))
+            val started = System.currentTimeMillis()
+            Diagnostics.log("gemini.upload_start", "mime" to attachment.mime, "bytes" to bytes.size)
             val file = try {
                 uploadFile(attachment, bytes, request.apiKey, label, emit)
             } catch (e: kotlinx.coroutines.CancellationException) {
+                Diagnostics.log("gemini.upload_cancelled", "ms" to System.currentTimeMillis() - started)
                 throw e
             } catch (e: Exception) {
+                Diagnostics.failure("gemini.upload_error", e, "ms" to System.currentTimeMillis() - started)
                 throw DirectApiException((e as? DirectApiException)?.status ?: 0,
                     "${label}(${attachment.name})のアップロードに失敗しました: ${e.message ?: e.javaClass.simpleName}")
             }
+            Diagnostics.log("gemini.upload_done", "ms" to System.currentTimeMillis() - started)
             uploads[attachment] = file
         }
         return uploads
@@ -125,17 +141,20 @@ class GeminiDirect(
             "X-Goog-Upload-Protocol" to "resumable", "X-Goog-Upload-Command" to "start",
             "X-Goog-Upload-Header-Content-Length" to bytes.size.toString(), "X-Goog-Upload-Header-Content-Type" to attachment.mime,
         ), JSONObject().put("file", JSONObject().put("display_name", attachment.name)), "X-Goog-Upload-URL")
+        Diagnostics.log("gemini.upload_session")
         val (reply, _) = http.postBytes(uploadUrl, key + mapOf("X-Goog-Upload-Offset" to "0", "X-Goog-Upload-Command" to "upload, finalize"),
             bytes.toRequestBody(attachment.mime.toMediaTypeOrNull()), 1024 * 1024)
         var file = runCatching { JSONObject(String(reply, Charsets.UTF_8)).getJSONObject("file") }
             .getOrElse { throw IOException("アップロード結果を読み取れませんでした。") }
         var state = file.optString("state")
+        Diagnostics.log("gemini.upload_sent", "state" to state)
         if (state == "PROCESSING") emit(event("status", "Geminiで${label}を処理中..."))
         val deadline = System.currentTimeMillis() + FILE_PROCESSING_TIMEOUT_MS
         while (state == "PROCESSING" && System.currentTimeMillis() < deadline) {
             delay(FILE_POLL_INTERVAL_MS)
             file = http.getJson("$baseUrl/v1beta/${file.optString("name")}", key)
             state = file.optString("state")
+            Diagnostics.log("gemini.file_state", "state" to state)
         }
         if (state.isNotEmpty() && state != "ACTIVE") throw IOException(if (state == "PROCESSING") "処理が時間内に終わりませんでした。" else "state:$state")
         val uri = file.optString("uri").ifBlank { throw IOException("ファイルのURIを取得できませんでした。") }

@@ -116,7 +116,7 @@ println("安全")
 
     @Test fun formulasBecomeMathJaxPlaceholdersOverTheirApproximation() {
         val colors = markdownColorsFor(webPalette(light = false, themeColor = null))
-        val parsed = parseInlineMarkdown("面積 \\(\\pi r^2\\) と $x_1$ と $$\\int_0^1 x\\,dx$$ と `$y$`", colors)
+        val parsed = parseInlineMarkdown("面積 \\(\\pi r^2\\) と \$x_1\$ と \$\$\\int_0^1 x\\,dx\$\$ と `\$y\$`", colors)
         assertEquals(
             listOf("\\pi r^2" to false, "x_1" to false, "\\int_0^1 x\\,dx" to true),
             parsed.math.map { it.tex to it.display },

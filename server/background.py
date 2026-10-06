@@ -3479,11 +3479,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 with tempfile.NamedTemporaryFile(suffix=suffix or '.bin') as tmp:
                                     tmp.write(data)
                                     tmp.flush()
-                                    config = {"mimeType": mime}
+                                    # UploadFileConfig forbids extra keys: give each field once (an alias
+                                    # next to its field name counts as extra), and leave `name` to the API,
+                                    # which takes it as the `files/<id>` resource name.
+                                    config = {"mime_type": mime}
                                     if display_name:
                                         config["display_name"] = display_name
-                                        config["displayName"] = display_name
-                                        config["name"] = display_name
                                     up = g_client.files.upload(file=tmp.name, config=config)
                                 up, up_state = _wait_gemini_file_active(up, label=label)
                                 if up_state and up_state != "ACTIVE":

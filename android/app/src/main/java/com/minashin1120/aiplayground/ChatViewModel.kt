@@ -2748,9 +2748,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val threadId = id
                 val onEvent: (JSONObject) -> Unit = { event ->
                     val type = event.optString("type")
-                    if (type == "status" || seenEvents.add(type)) {
+                    if (type == "status" || type == "error" || seenEvents.add(type)) {
+                        // Status texts and errors come from the app, the server or the AI provider, never from the user.
                         Diagnostics.log("send.event", "type" to type, "ms" to System.currentTimeMillis() - sendStarted,
-                            "status" to if (type == "status") event.optString("content") else null)
+                            "status" to if (type == "status" || type == "error") event.optString("content").take(1000) else null)
                     }
                     if (streamJob === owner) {
                         flow.setPhase("receiving")

@@ -7,8 +7,9 @@ import java.io.File
 
 /**
  * Administrator-only diagnostics of serverless mode: which step ran when, how long it took, sizes, MIME
- * types, states, exception names, and the stacks of the app's threads when work stalls. Never message
- * text, file names or file contents.
+ * types, states, exception names, the error shown in an answer (the server's or the AI provider's text,
+ * which can name an attachment), and the stacks of the app's threads when work stalls. Never the user's
+ * message text or file contents.
  *
  * Entries go to a file first, so they survive the app being killed; [ChatViewModel] sends them to
  * `/api/mobile/v1/diagnostics` (server `logs/android-diagnostics.log`) and removes what the server took.

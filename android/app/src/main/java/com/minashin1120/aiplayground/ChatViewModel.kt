@@ -294,6 +294,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     private var session: StoredSession? = null
     private var foreground = false
+    private var backgroundedAt = 0L
     private var pairingJob: Job? = null
     private var navigationJob: Job? = null
     private var streamJob: Job? = null
@@ -1400,9 +1401,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "syncing" to state.value.syncing)
         val returning = value && !foreground
         foreground = value
-        if (!value && state.value.streaming && !answeringOnDevice()) {
+        if (!value) backgroundedAt = SystemClock.elapsedRealtime()
+        // Web keeps reading the answer while the tab is hidden. Android can cut an idle connection without
+        // closing it after a while in the background, so after a long absence an answer the server took
+        // (it has a job id) is rejoined instead. A send the server has not taken yet keeps retrying.
+        if (returning && state.value.streaming && !answeringOnDevice() && state.value.jobId != null &&
+            SystemClock.elapsedRealtime() - backgroundedAt >= STREAM_REJOIN_AFTER_MS) {
+            Diagnostics.log("send.rejoin", "away_ms" to SystemClock.elapsedRealtime() - backgroundedAt)
             streamJob?.cancel()
-            mutable.update { it.copy(streaming = false, status = "アプリに戻ると履歴を確認します。") }
+            mutable.update { it.copy(streaming = false, status = "") }
         }
         if (!value && state.value.realtime.active) stopRealtime(save = false)
         if (!value && state.value.lyria.active) stopLyria(save = false)
@@ -1411,7 +1418,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (value && !state.value.localProfile) startConnectionMonitor() else stopConnectionMonitor()
         if (returning) recomputeLowBandwidth(notify = false)
         if (value && state.value.account != null && !state.value.localProfile) startBatchPolling()
-        if (returning && state.value.account != null && state.value.selected != null && !state.value.busy && !answeringOnDevice()) refresh()
+        if (returning && state.value.account != null && state.value.selected != null && !state.value.busy && !state.value.streaming) refresh()
         if (returning && state.value.account != null) startCacheSyncIfAllowed()
         if (returning && state.value.serverless) scheduleSync()
     }
@@ -4579,6 +4586,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val CHUNK_UPLOAD_THRESHOLD_BYTES = 8L * 1024 * 1024
         /** Web `CONNECTION_RETRY_DELAY_MS`. */
         const val CONNECTION_RETRY_DELAY_MS = 2000L
+        /** Away from the app at least this long, a server answer is rejoined rather than read on. */
+        const val STREAM_REJOIN_AFTER_MS = 30_000L
         /** Longest wait for the outbox to go up before a device answer is finished (the sync then continues in the background). */
         const val AFTER_ANSWER_SYNC_WAIT_MS = 3000L
         const val DIAGNOSTICS_INTERVAL_MS = 10_000L

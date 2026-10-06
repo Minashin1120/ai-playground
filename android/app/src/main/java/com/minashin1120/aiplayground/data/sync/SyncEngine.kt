@@ -6,6 +6,8 @@ import com.minashin1120.aiplayground.data.PlaygroundApi
 import com.minashin1120.aiplayground.data.local.LocalChatStore
 import com.minashin1120.aiplayground.data.local.textOf
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -65,7 +67,8 @@ class SyncEngine(
         store.fileInfo(reference)?.optString("server_ref")?.takeIf { it.isNotBlank() && it != "null" }?.let { return it }
         val info = store.fileInfo(reference) ?: return null
         val loadStarted = System.currentTimeMillis()
-        val bytes = store.loadFile(reference, MAX_UPLOAD_BYTES)
+        val job = currentCoroutineContext()[Job]
+        val bytes = store.loadFile(reference, MAX_UPLOAD_BYTES) { job?.isActive == false }
         Diagnostics.log("sync.attachment_loaded", "mime" to info.optString("mime"), "bytes" to info.optLong("size"),
             "loaded" to (bytes != null), "ms" to System.currentTimeMillis() - loadStarted, "memory" to Diagnostics.memory())
         if (bytes == null) return null

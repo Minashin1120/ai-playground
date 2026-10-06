@@ -750,11 +750,12 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     @Synchronized
     fun fileInfo(reference: String): JSONObject? = loadFileIndex().optJSONObject(reference)
 
-    fun loadFile(reference: String, limit: Long): ByteArray? {
+    /** Attachment bytes, or null; [cancelled] lets a stopped answer or sync leave a long read. */
+    fun loadFile(reference: String, limit: Long, cancelled: () -> Boolean = { false }): ByteArray? {
         val target = fileTarget(reference)
         if (!isLocalReference(reference) || !target.isFile) return null
         val started = System.currentTimeMillis()
-        val result = runCatching { crypto.readBytes(target, limit) }
+        val result = runCatching { crypto.readBytes(target, limit, cancelled) }
         val ms = System.currentTimeMillis() - started
         // Only large or slow reads (not every thumbnail).
         if (target.length() > 1024 * 1024 || ms > 1000 || result.isFailure) {

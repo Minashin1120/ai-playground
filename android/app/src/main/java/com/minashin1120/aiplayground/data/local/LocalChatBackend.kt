@@ -12,6 +12,8 @@ import com.minashin1120.aiplayground.data.direct.ServerlessDefaults
 import com.minashin1120.aiplayground.data.direct.SystemPromptBuilder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -473,7 +475,8 @@ class LocalChatBackend(
                 val size = info.optLong("size")
                 if (!current && size > budget) return@mapNotNull null
                 val loadStarted = System.currentTimeMillis()
-                val bytes = store.loadFile(ref, MAX_ATTACHMENT_BYTES)
+                val job = currentCoroutineContext()[Job]
+                val bytes = store.loadFile(ref, MAX_ATTACHMENT_BYTES) { job?.isActive == false }
                 Diagnostics.log("gen.attachment_loaded", "source" to "device", "mime" to info.optString("mime"), "bytes" to size,
                     "loaded" to (bytes != null), "current" to current, "ms" to System.currentTimeMillis() - loadStarted,
                     "memory" to Diagnostics.memory())

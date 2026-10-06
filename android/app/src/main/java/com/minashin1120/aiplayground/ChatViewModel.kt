@@ -545,8 +545,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun runSync(manual: Boolean) {
         val store = localChats ?: return
-        if (!state.value.serverless || session == null || syncJob?.isActive == true) {
-            Diagnostics.log("sync.skipped", "serverless" to state.value.serverless, "running" to (syncJob?.isActive == true))
+        // A cancelled sync still counts until it has really ended (a long file read finishes first), so
+        // syncs never pile up reading the same attachments.
+        if (!state.value.serverless || session == null || syncJob?.isCompleted == false) {
+            Diagnostics.log("sync.skipped", "serverless" to state.value.serverless, "running" to (syncJob?.isCompleted == false))
             return
         }
         val job = viewModelScope.launch {

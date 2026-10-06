@@ -114,6 +114,35 @@ println("安全")
         assertEquals("a $$$$ b", parseInlineMarkdown("a $$$$ b", colors).text.text)
     }
 
+    @Test fun formulasBecomeMathJaxPlaceholdersOverTheirApproximation() {
+        val colors = markdownColorsFor(webPalette(light = false, themeColor = null))
+        val parsed = parseInlineMarkdown("面積 \\(\\pi r^2\\) と $x_1$ と $$\\int_0^1 x\\,dx$$ と `$y$`", colors)
+        assertEquals(
+            listOf("\\pi r^2" to false, "x_1" to false, "\\int_0^1 x\\,dx" to true),
+            parsed.math.map { it.tex to it.display },
+        )
+        assertEquals(parsed.math.map { it.id }.distinct().size, parsed.math.size)
+        // Each placeholder starts where its approximation does, so a failed MathJax shows the text in place.
+        parsed.math.forEach { item ->
+            val approximation = latexToDisplay(item.tex)
+            assertEquals(approximation, parsed.text.text.substring(item.start, item.start + approximation.length))
+        }
+        // Code spans keep their dollar signs as text.
+        assertTrue(parsed.text.text.contains("\$y\$"))
+    }
+
+    @Test fun environmentsOutsideDelimitersAreDisplayMathLikeWeb() {
+        val colors = markdownColorsFor(webPalette(light = false, themeColor = null))
+        val source = "次の式:\n\\begin{align}\na &= b \\\\\nc &= d\n\\end{align}\n以上"
+        val parsed = parseInlineMarkdown(source, colors)
+        val math = parsed.math.single()
+        assertTrue(math.display)
+        assertEquals("\\begin{align}\na &= b \\\\\nc &= d\n\\end{align}", math.tex)
+        assertTrue(parsed.text.text.endsWith("以上"))
+        // An unclosed environment stays text.
+        assertTrue(parseInlineMarkdown("\\begin{align} a", colors).math.isEmpty())
+    }
+
     @Test fun attachmentsAndHttpsImagesBecomeImageBlocks() {
         val blocks = parseMarkdownBlocks("![図](/files/123/pic.png)")
         assertEquals(MarkdownBlock.Image("123/pic.png", "図"), blocks.single())

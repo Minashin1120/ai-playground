@@ -1,10 +1,10 @@
 package com.minashin1120.aiplayground.ui
 
 /**
- * A bounded, native LaTeX-to-text renderer. The Web build typesets with MathJax;
- * the Android client intentionally renders a readable approximation without a WebView
- * or bundled JavaScript. Unsupported commands fall back to their literal form instead
- * of failing, so no markup is ever executed.
+ * A bounded, native LaTeX-to-text renderer. Formulas are typeset with MathJax like Web
+ * ([MathJaxRenderer]); this readable approximation is shown while MathJax loads, if it
+ * cannot set a formula, and as the text a selection copies. Unsupported commands fall back
+ * to their literal form instead of failing, so no markup is ever executed.
  */
 internal fun latexToDisplay(tex: String): String =
     runCatching { renderLatex(tex) }.getOrElse { tex.trim() }

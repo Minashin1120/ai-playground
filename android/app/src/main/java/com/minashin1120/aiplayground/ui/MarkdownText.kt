@@ -47,6 +47,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.takeOrElse
+import androidx.compose.ui.graphics.takeOrElse
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
@@ -757,22 +761,42 @@ private const val CODE_PAD = "codepad"
 private const val MATH_TAG = "math"
 
 /** Inline code spans carry a start/end placeholder so the background gets the Web 6.4px padding. */
-internal data class InlineMarkdown(val text: AnnotatedString, val codeRanges: List<IntRange>)
+internal data class InlineMarkdown(val text: AnnotatedString, val codeRanges: List<IntRange>, val math: List<InlineMath> = emptyList())
+
+/** A formula placeholder at [start] in the text; its alternate text is the [latexToDisplay] approximation. */
+internal data class InlineMath(val id: String, val tex: String, val display: Boolean, val start: Int)
+
+private class InlineParts {
+    val codeRanges = mutableListOf<IntRange>()
+    val math = mutableListOf<InlineMath>()
+}
+
+private const val MATH_PREFIX = "math:"
+private val BEGIN_ENV = Regex("^\\\\begin\\{([a-zA-Z*]+)\\}")
 
 private val AUTOLINK = Regex("^<(https?://[^>\\s]+)>")
 private val BARE_URL = Regex("^(https?://|www\\.)[^\\s<]*[^\\s<?!.,:*_~)\\]]")
 private val ESCAPABLE = "\\`*_{}[]()#+-.!|~<>$"
 
 internal fun parseInlineMarkdown(source: String, colors: MarkdownColors): InlineMarkdown {
-    val codeRanges = mutableListOf<IntRange>()
-    val text = buildAnnotatedString { appendInline(source, colors, codeRanges) }
-    return InlineMarkdown(text, codeRanges)
+    val parts = InlineParts()
+    val text = buildAnnotatedString { appendInline(source, colors, parts) }
+    return InlineMarkdown(text, parts.codeRanges, parts.math)
 }
 
-private fun AnnotatedString.Builder.appendInline(source: String, colors: MarkdownColors, codeRanges: MutableList<IntRange>) {
+private fun AnnotatedString.Builder.appendInline(source: String, colors: MarkdownColors, parts: InlineParts) {
     var i = 0
     val plain = StringBuilder()
     fun flush() { if (plain.isNotEmpty()) { append(plain.toString()); plain.clear() } }
+    // MathJax draws the formula in place of its text approximation (shown while loading or if it fails).
+    fun math(tex: String, display: Boolean) {
+        flush()
+        val id = MATH_PREFIX + parts.math.size
+        parts.math += InlineMath(id, tex, display, length)
+        withStyle(SpanStyle(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)) {
+            appendInlineContent(id, latexToDisplay(tex).ifEmpty { " " })
+        }
+    }
     while (i < source.length) {
         val c = source[i]
         val rest = source.substring(i)
@@ -790,26 +814,35 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
             val end = source.indexOf(closer, i + 2)
             if (end > i + 2 && source.substring(i + 2, end).isNotBlank()) {
                 flush()
-                withStyle(ParagraphStyle(textAlign = TextAlign.Center)) {
-                    withStyle(SpanStyle(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)) { append(latexToDisplay(source.substring(i + 2, end))) }
-                }
+                withStyle(ParagraphStyle(textAlign = TextAlign.Center)) { math(source.substring(i + 2, end), true) }
                 i = end + 2; continue
+            }
+        }
+        // Environments outside delimiters (Web protects `\begin{env}…\end{env}` and MathJax sets them as display math).
+        if (rest.startsWith("\\begin{")) {
+            val env = BEGIN_ENV.find(rest)
+            if (env != null) {
+                val close = "\\end{${env.groupValues[1]}}"
+                val end = source.indexOf(close, i + env.value.length)
+                if (end > i + env.value.length) {
+                    flush()
+                    withStyle(ParagraphStyle(textAlign = TextAlign.Center)) { math(source.substring(i, end + close.length), true) }
+                    i = end + close.length; continue
+                }
             }
         }
         // Inline math \( … \)
         if (rest.startsWith("\\(")) {
             val end = source.indexOf("\\)", i + 2)
             if (end > 0) {
-                flush()
-                withStyle(SpanStyle(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)) { append(latexToDisplay(source.substring(i + 2, end))) }
+                math(source.substring(i + 2, end), false)
                 i = end + 2; continue
             }
         }
         if (c == '$' && i + 1 < source.length && source[i + 1] != ' ' && source[i + 1] != '$') {
             val end = source.indexOf('$', i + 1)
             if (end > i + 1 && source[end - 1] != ' ' && !source.substring(i + 1, end).contains('\n')) {
-                flush()
-                withStyle(SpanStyle(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)) { append(latexToDisplay(source.substring(i + 1, end))) }
+                math(source.substring(i + 1, end), false)
                 i = end + 1; continue
             }
         }
@@ -827,7 +860,7 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
                 appendInlineContent(CODE_PAD, " ")
                 withStyle(SpanStyle(fontFamily = WebFonts.mono, fontSize = InlineCodeSize, color = colors.inlineCode)) { append(code) }
                 appendInlineContent(CODE_PAD, " ")
-                codeRanges += startIndex until length
+                parts.codeRanges += startIndex until length
                 i = end + ticks; continue
             }
         }
@@ -842,9 +875,9 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
             if (match != null) {
                 flush()
                 val url = markdownLinkTarget(match.groupValues[2])
-                if (url == null) appendInline(match.groupValues[1], colors, codeRanges)
+                if (url == null) appendInline(match.groupValues[1], colors, parts)
                 else withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = colors.link, textDecoration = TextDecoration.Underline)))) {
-                    appendInline(match.groupValues[1], colors, codeRanges)
+                    appendInline(match.groupValues[1], colors, parts)
                 }
                 i += match.value.length; continue
             }
@@ -859,7 +892,7 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
             continue
         }
         if (c == '<') {
-            val consumed = appendInlineHtml(rest, colors, codeRanges, ::flush)
+            val consumed = appendInlineHtml(rest, colors, parts, ::flush)
             if (consumed > 0) { i += consumed; continue }
         }
         val previous = if (i > 0) source[i - 1] else ' '
@@ -880,7 +913,7 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
             val end = source.indexOf(marker, i + 2)
             if (end > i + 2 && !source[i + 2].isWhitespace() && !source[end - 1].isWhitespace()) {
                 flush()
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { appendInline(source.substring(i + 2, end), colors, codeRanges) }
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { appendInline(source.substring(i + 2, end), colors, parts) }
                 i = end + 2; continue
             }
         }
@@ -888,7 +921,7 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
             val end = source.indexOf("~~", i + 2)
             if (end > i + 2) {
                 flush()
-                withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { appendInline(source.substring(i + 2, end), colors, codeRanges) }
+                withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { appendInline(source.substring(i + 2, end), colors, parts) }
                 i = end + 2; continue
             }
         }
@@ -897,7 +930,7 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
             while (end > 0 && end + 1 < source.length && source[end + 1] == c) end = source.indexOf(c, end + 2)
             if (end > i + 1 && !source[end - 1].isWhitespace() && (c == '*' || end + 1 >= source.length || !source[end + 1].isLetterOrDigit())) {
                 flush()
-                withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { appendInline(source.substring(i + 1, end), colors, codeRanges) }
+                withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { appendInline(source.substring(i + 1, end), colors, parts) }
                 i = end + 1; continue
             }
         }
@@ -919,7 +952,7 @@ private val HTML_HREF = Regex("href\\s*=\\s*(\"([^\"]*)\"|'([^']*)'|([^\\s>]+))"
  * drawn; script-like elements vanish with their content; other tags are dropped and their text kept.
  * Returns the characters consumed, or 0 when [rest] does not start with a tag.
  */
-private fun AnnotatedString.Builder.appendInlineHtml(rest: String, colors: MarkdownColors, codeRanges: MutableList<IntRange>, flush: () -> Unit): Int {
+private fun AnnotatedString.Builder.appendInlineHtml(rest: String, colors: MarkdownColors, parts: InlineParts, flush: () -> Unit): Int {
     HTML_BREAK.find(rest)?.let { flush(); append("\n"); return it.value.length }
     HTML_COMMENT.find(rest)?.let { flush(); return it.value.length }
     HTML_DROPPED.find(rest)?.let { flush(); return it.value.length }
@@ -946,10 +979,10 @@ private fun AnnotatedString.Builder.appendInlineHtml(rest: String, colors: Markd
                 ?.let(::markdownLinkTarget) else null
             when {
                 href != null -> withLink(LinkAnnotation.Url(href, TextLinkStyles(SpanStyle(color = colors.link, textDecoration = TextDecoration.Underline)))) {
-                    appendInline(inner, colors, codeRanges)
+                    appendInline(inner, colors, parts)
                 }
-                style != null -> withStyle(style) { appendInline(inner, colors, codeRanges) }
-                else -> appendInline(inner, colors, codeRanges)
+                style != null -> withStyle(style) { appendInline(inner, colors, parts) }
+                else -> appendInline(inner, colors, parts)
             }
             return closing.range.last + 1
         }
@@ -979,11 +1012,22 @@ internal fun MessageSelection(content: @Composable () -> Unit) {
 /** Text with Web inline-code chips: rounded 6.4px background, 6.4px side padding, 24px tall. */
 @Composable
 internal fun InlineRichText(parsed: InlineMarkdown, style: TextStyle, codeBackground: Color, modifier: Modifier = Modifier) {
-    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-    val inline = remember {
-        mapOf(CODE_PAD to InlineTextContent(Placeholder(6.4.sp, 1.sp, PlaceholderVerticalAlign.TextCenter)) {})
-    }
+    var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val density = LocalDensity.current
+    val hasDisplayMath = parsed.math.any { it.display }
+    var availableWidth by remember { mutableIntStateOf(Constraints.Infinity) }
+    val mathStates = parsed.math.map { item -> key(item.id, item.tex) { rememberMathState(item.tex, item.display) } }
+    val mathColor = style.color.takeOrElse { LocalContentColor.current }
+    val fontPx = with(density) { style.fontSize.takeOrElse { 16.sp }.toPx() }
+    val inline = remember(parsed.math, mathStates, mathColor, availableWidth, fontPx) {
+        val map = HashMap<String, InlineTextContent>()
+        map[CODE_PAD] = InlineTextContent(Placeholder(6.4.sp, 1.sp, PlaceholderVerticalAlign.TextCenter)) {}
+        parsed.math.forEachIndexed { index, item ->
+            val svg = (mathStates[index] as? MathState.Ready)?.svg ?: return@forEachIndexed
+            map[item.id] = inlineMathContent(item, svg, mathColor, availableWidth, fontPx) { textLayout }
+        }
+        map
+    }
     val chipHeight = with(density) { 24.dp.toPx() }
     val radius = with(density) { 6.4.dp.toPx() }
     MessageSelection {
@@ -991,9 +1035,19 @@ internal fun InlineRichText(parsed: InlineMarkdown, style: TextStyle, codeBackgr
             parsed.text,
             style = style,
             inlineContent = inline,
-            onTextLayout = { layout = it },
-            modifier = modifier.drawBehind {
-                val result = layout ?: return@drawBehind
+            onTextLayout = { textLayout = it },
+            modifier = modifier
+                .then(
+                    if (!hasDisplayMath) Modifier
+                    // Display formulas wider than the bubble shrink to fit, so remember the width they get.
+                    else Modifier.layout { measurable, constraints ->
+                        if (constraints.maxWidth != availableWidth) availableWidth = constraints.maxWidth
+                        val placeable = measurable.measure(constraints)
+                        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                    },
+                )
+                .drawBehind {
+                val result = textLayout ?: return@drawBehind
                 parsed.codeRanges.forEach { range ->
                     if (range.first >= result.layoutInput.text.length) return@forEach
                     val last = range.last.coerceAtMost(result.layoutInput.text.length - 1)
@@ -1202,9 +1256,18 @@ internal fun ChatErrorBlock(text: String) {
 
 @Composable
 private fun MathBlock(block: MarkdownBlock.Math, style: TextStyle) {
-    val rendered = remember(block.tex) { latexToDisplay(block.tex) }
+    val state = rememberMathState(block.tex, true)
+    val color = style.color.takeOrElse { LocalContentColor.current }
+    val svg = (state as? MathState.Ready)?.svg
+    val drawing = svg?.let { rememberMathDrawing(it, color) }
     Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 15.2.dp), contentAlignment = Alignment.Center) {
-        Text(rendered, style = style.copy(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic), textAlign = TextAlign.Center)
+        if (svg != null && drawing != null) {
+            MathDisplayImage(svg, drawing, color, style.fontSize)
+        } else {
+            // While MathJax loads, or if it cannot set the formula: the readable text approximation.
+            val rendered = remember(block.tex) { latexToDisplay(block.tex) }
+            Text(rendered, style = style.copy(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic), textAlign = TextAlign.Center)
+        }
     }
 }
 

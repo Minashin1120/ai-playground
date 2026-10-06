@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script>
+// Off-screen typesetter for MathJaxRenderer.kt: the same MathJax 3 TeX input as Web, with SVG output
+// so the app can draw each formula natively. Nothing here is shown or loaded from the network.
+window.MathJax = {
+  svg: { fontCache: 'local' },
+  startup: {
+    typeset: false,
+    pageReady: function () {
+      return MathJax.startup.defaultPageReady().then(function () { AndroidMathJax.ready(); });
+    }
+  }
+};
+var aipChain = null;
+function aipRender(id, tex, display) {
+  aipChain = (aipChain || MathJax.startup.promise).then(function () {
+    MathJax.texReset();
+    return MathJax.tex2svgPromise(tex, { display: display });
+  }).then(function (node) {
+    var svg = node.querySelector('svg');
+    AndroidMathJax.done(id, svg ? MathJax.startup.adaptor.outerHTML(svg) : '');
+  }, function () {
+    AndroidMathJax.done(id, '');
+  }).catch(function () {});
+}
+</script>
+<script src="tex-svg.js" onerror="AndroidMathJax.broken()"></script>
+</head>
+<body></body>
+</html>

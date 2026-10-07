@@ -52,7 +52,7 @@ def _mobile_model_mode(model_id):
         return 'music'
     if 'video' in model_id or model_id.startswith('veo-') or model_id.startswith('gemini-omni'):
         return 'video'
-    if 'image' in model_id or model_id.startswith('ideogram-'):
+    if 'image' in model_id or model_id == 'gemini-nano-banana-2.1' or model_id.startswith('ideogram-'):
         return 'image'
     if any(marker in model_id for marker in ('deep-research', 'antigravity', 'computer-use', 'robotics')):
         return 'agent'

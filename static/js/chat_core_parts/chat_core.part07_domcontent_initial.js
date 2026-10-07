@@ -299,6 +299,12 @@
                         '<div>画像生成・編集 / 1K出力 / 最大14枚の参照画像に対応</div>',
                         '<div>複数参照や連続編集より、低遅延・大量生成向けです</div>'
                     ].join('');
+                } else if (model === 'gemini-nano-banana-2.1') {
+                    html = [
+                        '<div class="font-bold text-gray-300 mb-1">Nano Banana 2.1 入力目安</div>',
+                        '<div>画像生成・編集 / 1K・2K・4K出力 / 最大14枚の参照画像に対応</div>',
+                        '<div>動画を参考にした画像生成にも対応します</div>'
+                    ].join('');
                 } else if (model.includes('gemini-3.1-flash-image')) {
                     html = [
                         '<div class="font-bold text-gray-300 mb-1">Nano Banana 2 入力目安</div>',
@@ -397,7 +403,8 @@
                 const isTts = model.includes('tts');
                 const isOcr = isMistralOcrModel(model);
                 const isNanoBanana2Lite = modelLower.includes('gemini-3.1-flash-lite-image');
-                const isNanoBanana2 = modelLower.includes('gemini-3.1-flash-image') && !isNanoBanana2Lite;
+                const isNanoBanana21 = modelLower === 'gemini-nano-banana-2.1';
+                const isNanoBanana2 = (modelLower.includes('gemini-3.1-flash-image') && !isNanoBanana2Lite) || isNanoBanana21;
                 const isClaude = isClaudeModelKey(model);
                 const isGeminiCyber = modelLower === 'gemini-3.8-flash-cyber';
                 // DeepSeek KV cache and Z.AI context caching are automatic; neither uses an app-supplied prompt_cache_key.
@@ -468,12 +475,19 @@
                         mapsCont.classList.add('hidden', 'opacity-50', 'pointer-events-none');
                     }
                     thinkOpts.classList.remove('hidden');
-                    Array.from(thinkLvl.options).forEach(opt => {
-                        if (['low', 'medium'].includes(opt.value)) opt.disabled = true;
-                        if (['minimal', 'high'].includes(opt.value)) opt.disabled = false;
-                    });
-                    if (!['minimal', 'high'].includes(thinkLvl.value)) {
-                        thinkLvl.value = isNanoBanana2Lite ? 'minimal' : 'high';
+                    if (isNanoBanana21) {
+                        Array.from(thinkLvl.options).forEach(opt => {
+                            opt.disabled = opt.value === 'low';
+                        });
+                        if (!['minimal', 'medium', 'high'].includes(thinkLvl.value)) thinkLvl.value = 'medium';
+                    } else {
+                        Array.from(thinkLvl.options).forEach(opt => {
+                            if (['low', 'medium'].includes(opt.value)) opt.disabled = true;
+                            if (['minimal', 'high'].includes(opt.value)) opt.disabled = false;
+                        });
+                        if (!['minimal', 'high'].includes(thinkLvl.value)) {
+                            thinkLvl.value = isNanoBanana2Lite ? 'minimal' : 'high';
+                        }
                     }
                     if (thinkChk) thinkChk.disabled = false;
                     if (isNanoBanana2Lite) {

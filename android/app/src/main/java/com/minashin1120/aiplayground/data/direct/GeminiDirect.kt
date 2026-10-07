@@ -24,6 +24,9 @@ class GeminiDirect(
     private val vertex: VertexTarget? = null,
 ) : DirectEngine {
     override suspend fun run(request: DirectRequest, emit: (JSONObject) -> Unit, onProgress: (String, String) -> Unit): DirectResult {
+        if (request.model.equals(NANO_BANANA_21, ignoreCase = true)) {
+            return runNanoBanana21(request, emit, onProgress)
+        }
         val model = request.model
         val content = StringBuilder()
         val thought = StringBuilder()
@@ -100,6 +103,94 @@ class GeminiDirect(
             tokensOut = meta?.let { it.optInt("candidatesTokenCount") + it.optInt("thoughtsTokenCount") }?.takeIf { it > 0 },
             tokensThought = meta?.optInt("thoughtsTokenCount")?.takeIf { it > 0 },
             files = files, thoughtSignatures = signatures,
+        )
+    }
+
+    /** Gemini's latest Nano Banana model uses unary generateContent with its own image/thinking controls. */
+    private suspend fun runNanoBanana21(
+        request: DirectRequest,
+        emit: (JSONObject) -> Unit,
+        onProgress: (String, String) -> Unit,
+    ): DirectResult {
+        val model = request.model
+        val started = System.currentTimeMillis()
+        if (vertex != null) {
+            val attachments = request.turns.flatMap { it.attachments }
+            if (attachments.any { it.mime.startsWith("video/") }) {
+                throw IOException("動画を使ったNano Banana 2.1生成にはGemini APIバックエンドが必要です。")
+            }
+            if (attachments.any { it.mime == "application/pdf" && (it.bytes?.size ?: 0) > INLINE_LIMIT_BYTES }) {
+                throw IOException("大容量PDFを使うにはGemini APIバックエンドが必要です。")
+            }
+        }
+        val uploads = if (vertex == null) uploadLargeFiles(request, emit) else emptyMap()
+        val payload = buildPayload(request, uploads)
+        val url = vertex?.modelUrl(URLEncoder.encode(model, "UTF-8"), "generateContent")
+            ?: "$baseUrl/v1beta/models/${URLEncoder.encode(model, "UTF-8")}:generateContent"
+        val headers = if (vertex != null) mapOf("Authorization" to "Bearer ${vertex.token()}") else mapOf("x-goog-api-key" to request.apiKey)
+        emit(event("status", "Geminiへ直接送信中..."))
+        if (request.options.flag("enable_search")) emit(event("search_status", "searching"))
+        val response = http.postJson(url, headers, payload)
+        response.optJSONObject("error")?.let {
+            throw DirectApiException(it.optInt("code"), it.optString("message").ifBlank { "Gemini API error" })
+        }
+        val content = StringBuilder()
+        val thought = StringBuilder()
+        val files = mutableListOf<DirectOutputFile>()
+        var usage: JSONObject? = null
+
+        fun collect(result: JSONObject, intoContent: StringBuilder, intoFiles: MutableList<DirectOutputFile>) {
+            result.optJSONObject("usageMetadata")?.let { usage = it }
+            val candidates = result.optJSONArray("candidates") ?: JSONArray()
+            for (c in 0 until candidates.length()) {
+                val candidate = candidates.optJSONObject(c) ?: continue
+                val parts = candidate.optJSONObject("content")?.optJSONArray("parts") ?: continue
+                for (p in 0 until parts.length()) {
+                    val part = parts.optJSONObject(p) ?: continue
+                    if (part.optBoolean("thought")) continue
+                    part.optJSONObject("inlineData")?.let { data ->
+                        val mime = data.optString("mimeType").ifBlank { "image/png" }
+                        val bytes = runCatching { Base64.getDecoder().decode(data.optString("data")) }.getOrNull()
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            intoFiles += DirectOutputFile("gemini_${intoFiles.size + 1}.${extensionFor(mime)}", mime, bytes)
+                        }
+                    }
+                    part.optString("text").takeIf { it.isNotEmpty() }?.let { intoContent.append(it) }
+                }
+            }
+        }
+
+        collect(response, content, files)
+        if (files.isEmpty()) {
+            val retry = JSONObject(payload.toString())
+            val turns = retry.optJSONArray("contents")
+            val lastTurn = turns?.optJSONObject(turns.length() - 1)
+            val parts = lastTurn?.optJSONArray("parts")
+            parts?.put(JSONObject().put("text", "Return an image for this request. Do not answer with text only."))
+            val generation = retry.optJSONObject("generationConfig") ?: JSONObject().also { retry.put("generationConfig", it) }
+            generation.put("responseModalities", JSONArray().put("IMAGE"))
+            retry.remove("tools")
+            val retryResponse = http.postJson(url, headers, retry)
+            val retryContent = StringBuilder()
+            val retryFiles = mutableListOf<DirectOutputFile>()
+            collect(retryResponse, retryContent, retryFiles)
+            if (retryFiles.isNotEmpty()) {
+                content.clear().append(retryContent)
+                files += retryFiles
+            }
+        }
+        if (request.options.flag("enable_search")) emit(event("search_status", "done"))
+        onProgress(content.toString(), thought.toString())
+        content.toString().takeIf { it.isNotEmpty() }?.let { emit(event("content", it)) }
+        Diagnostics.log("gemini.image_end", "files" to files.size, "content_chars" to content.length,
+            "ms" to System.currentTimeMillis() - started)
+        val meta = usage
+        return DirectResult(
+            content = content.toString(), thought = thought.toString(),
+            tokensIn = meta?.optInt("promptTokenCount")?.takeIf { it > 0 },
+            tokensOut = meta?.let { it.optInt("candidatesTokenCount") + it.optInt("thoughtsTokenCount") }?.takeIf { it > 0 },
+            tokensThought = meta?.optInt("thoughtsTokenCount")?.takeIf { it > 0 },
+            files = files,
         )
     }
 
@@ -188,10 +279,22 @@ class GeminiDirect(
         if (request.system.isNotBlank()) payload.put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", request.system))))
         val generation = JSONObject()
         thinkingConfig(model, options)?.let { generation.put("thinkingConfig", it) }
-        if (isImageModel(model)) generation.put("responseModalities", JSONArray().put("TEXT").put("IMAGE"))
+        if (isImageModel(model)) {
+            generation.put("responseModalities", JSONArray().put("TEXT").put("IMAGE"))
+            val imageConfig = JSONObject()
+            val aspect = options.optString("gemini_image_aspect").takeIf { it in GEMINI_IMAGE_ASPECTS && it != "auto" }
+            val lite = model.contains("gemini-3.1-flash-lite-image")
+            val size = if (lite) "1K" else options.optString("gemini_image_size")
+            val supportsSize = model == NANO_BANANA_21 || model == "gemini-3.1-flash-image" || model.contains("gemini-3-pro-image")
+            aspect?.let { imageConfig.put("aspectRatio", it) }
+            if (supportsSize) size.takeIf { it in setOf("1K", "2K", "4K") }?.let { imageConfig.put("imageSize", it) }
+            if (imageConfig.length() > 0) generation.put("imageConfig", imageConfig)
+        }
         if (generation.length() > 0) payload.put("generationConfig", generation)
         val tools = JSONArray()
-        if (!isImageModel(model)) {
+        if (model == NANO_BANANA_21 && options.flag("enable_search")) {
+            tools.put(JSONObject().put("google_search", JSONObject()))
+        } else if (!isImageModel(model)) {
             if (options.flag("enable_search")) tools.put(JSONObject().put("google_search", JSONObject()))
             if (options.flag("enable_url_context")) tools.put(JSONObject().put("url_context", JSONObject()))
             if (options.flag("enable_maps")) tools.put(JSONObject().put("google_maps", JSONObject()))
@@ -203,10 +306,14 @@ class GeminiDirect(
         return payload
     }
 
-    private fun isImageModel(model: String) = model.contains("image")
+    private fun isImageModel(model: String) = model.contains("image") || model == NANO_BANANA_21
 
     /** Web `browserFastThinkingConfig`: 2.5 uses a budget, newer models a level. */
     private fun thinkingConfig(model: String, options: JSONObject): JSONObject? {
+        if (model == NANO_BANANA_21) {
+            val level = options.optString("thinking_level").lowercase().takeIf { it in setOf("minimal", "medium", "high") } ?: "medium"
+            return JSONObject().put("includeThoughts", options.flag("enable_thinking")).put("thinkingLevel", level.uppercase())
+        }
         if (!options.flag("enable_thinking") || isImageModel(model)) return null
         if (model.contains("2.5")) {
             val budget = options.optString("thinking_budget").toIntOrNull()?.coerceIn(0, 32768) ?: 4096
@@ -228,6 +335,8 @@ class GeminiDirect(
     }
 
     private companion object {
+        const val NANO_BANANA_21 = "gemini-nano-banana-2.1"
+        val GEMINI_IMAGE_ASPECTS = setOf("1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9")
         /** Server `media_inline_limit`: larger files (and every video) go through the Files API. */
         const val INLINE_LIMIT_BYTES = 20 * 1024 * 1024
         const val FILE_POLL_INTERVAL_MS = 2_000L

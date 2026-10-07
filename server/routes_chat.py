@@ -7,7 +7,7 @@ def _is_browser_fast_mode_model(model_key):
     return (
         model_key in ALL_VALID_MODEL_IDS
         and model_l.startswith('gemini-')
-        and not any(marker in model_l for marker in ('image', 'native-audio', 'tts', 'live'))
+        and not any(marker in model_l for marker in ('image', 'nano', 'native-audio', 'tts', 'live'))
     )
 
 def _is_gemini_batch_model(model_key):

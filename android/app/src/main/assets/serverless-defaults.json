@@ -718,6 +718,19 @@
   },
   {
    "capabilities": [
+    "image",
+    "batch"
+   ],
+   "deprecated": false,
+   "id": "gemini-nano-banana-2.1",
+   "mode": "image",
+   "name": "Gemini Nano Banana 2.1",
+   "provider": "gemini",
+   "provider_label": "Gemini",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "video"
    ],
    "deprecated": false,

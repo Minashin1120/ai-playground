@@ -2813,7 +2813,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             img_prompt = f"{options.get('system_prompt')}\n\n{img_prompt}"
 
                         mk_lower = str(model_key or "").lower()
-                        if "gemini-3.1-flash-lite-image" in mk_lower:
+                        if mk_lower == "gemini-nano-banana-2.1":
+                            img_model = "gemini-nano-banana-2.1"
+                        elif "gemini-3.1-flash-lite-image" in mk_lower:
                             img_model = "gemini-3.1-flash-lite-image"
                         elif "gemini-3.1-flash-image" in mk_lower:
                             img_model = "gemini-3.1-flash-image"
@@ -2844,7 +2846,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             # Nano Banana 2 Lite supports 1K output only.
                             image_cfg_kwargs["image_size"] = "1K"
                         elif size_val and (
-                            "gemini-3-pro-image" in img_model or img_model == "gemini-3.1-flash-image"
+                            "gemini-3-pro-image" in img_model
+                            or img_model in ("gemini-3.1-flash-image", "gemini-nano-banana-2.1")
                         ):
                             image_cfg_kwargs["image_size"] = size_val
                         config_kwargs = {
@@ -2858,16 +2861,22 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE")
                             ]
                         }
-                        if img_model in ("gemini-3.1-flash-image", "gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"):
-                            default_level = "minimal" if img_model == "gemini-3.1-flash-lite-image" else "high"
+                        if img_model in ("gemini-nano-banana-2.1", "gemini-3.1-flash-image", "gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"):
+                            default_level = (
+                                "medium" if img_model == "gemini-nano-banana-2.1"
+                                else "minimal" if img_model == "gemini-3.1-flash-lite-image"
+                                else "high"
+                            )
                             raw_lvl = str(options.get('thinking_level') or default_level).lower()
-                            if raw_lvl in ("low", "minimal"):
+                            if img_model == "gemini-nano-banana-2.1":
+                                nano_banana2_lvl = raw_lvl if raw_lvl in ("minimal", "medium", "high") else default_level
+                            elif raw_lvl in ("low", "minimal"):
                                 nano_banana2_lvl = "minimal"
                             elif raw_lvl in ("medium", "high"):
                                 nano_banana2_lvl = "high"
                             else:
                                 nano_banana2_lvl = default_level
-                            # Both Gemini 3.1 Flash image models support only minimal/high.
+                            # Gemini 3.1 Flash image models support minimal/high; Nano Banana 2.1 also supports medium.
                             # The UI checkbox controls thought output visibility; internal thinking remains model-driven.
                             config_kwargs["thinking_config"] = types.ThinkingConfig(
                                 include_thoughts=bool(options.get('enable_thinking')),
@@ -2883,18 +2892,68 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         _mark_provider_request_started()
                         gemini_image_parts = []
                         history_image_refs_included = set()
+                        def _upload_nano_banana_input_file(fi, mime, label):
+                            data = fi.get('bytes')
+                            if not data:
+                                return None
+                            file_name = os.path.basename(fi.get('send_name') or fi.get('name') or fi.get('path') or label)
+                            suffix = os.path.splitext(file_name)[1] or ('.mp4' if mime.startswith('video/') else '.pdf')
+                            with tempfile.NamedTemporaryFile(suffix=suffix) as tmp:
+                                tmp.write(data)
+                                tmp.flush()
+                                uploaded = g_client.files.upload(
+                                    file=tmp.name,
+                                    config={"mime_type": mime, "display_name": file_name[:128]},
+                                )
+                            uploaded_name = getattr(uploaded, 'name', None)
+                            state_obj = getattr(uploaded, 'state', None)
+                            state = getattr(state_obj, 'name', None) or state_obj
+                            deadline = time.time() + 120
+                            while state == 'PROCESSING' and uploaded_name and time.time() < deadline:
+                                time.sleep(2)
+                                uploaded = g_client.files.get(name=uploaded_name)
+                                state_obj = getattr(uploaded, 'state', None)
+                                state = getattr(state_obj, 'name', None) or state_obj
+                            if state and state != 'ACTIVE':
+                                raise RuntimeError(f"Gemini {label} processing failed: {state}")
+                            uri = getattr(uploaded, 'uri', None) or uploaded_name
+                            if not uri:
+                                raise RuntimeError(f"Gemini {label} upload returned no URI")
+                            return types.Part.from_uri(uri, mime_type=mime)
+
+                        image_reference_count = 0
                         for fi in loaded_files:
-                            if fi.get('bytes') and fi.get('mime', '').startswith('image/'):
-                                if img_model == "gemini-3.1-flash-lite-image" and len(gemini_image_parts) >= 14:
-                                    break
-                                gemini_image_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=fi['mime']))
+                            mime = str(fi.get('mime') or '')
+                            if fi.get('bytes') and mime.startswith('image/'):
+                                if img_model in ("gemini-3.1-flash-lite-image", "gemini-nano-banana-2.1") and image_reference_count >= 14:
+                                    continue
+                                gemini_image_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=mime))
+                                image_reference_count += 1
+                            elif img_model == "gemini-nano-banana-2.1" and fi.get('bytes') and mime.startswith('video/'):
+                                if gemini_backend_mode != "gemini_api":
+                                    raise RuntimeError("動画を使った画像生成にはGemini APIバックエンドが必要です。")
+                                pub("status", "動画をGeminiへアップロード中...")
+                                video_part = _upload_nano_banana_input_file(fi, mime, "video")
+                                if video_part:
+                                    gemini_image_parts.append(video_part)
+                            elif img_model == "gemini-nano-banana-2.1" and fi.get('bytes') and (mime == 'application/pdf' or fi.get('is_pdf')):
+                                if len(fi['bytes']) <= 20 * 1024 * 1024:
+                                    gemini_image_parts.append(types.Part.from_bytes(data=fi['bytes'], mime_type=mime or 'application/pdf'))
+                                else:
+                                    if gemini_backend_mode != "gemini_api":
+                                        raise RuntimeError("大容量PDFを使うにはGemini APIバックエンドが必要です。")
+                                    pub("status", "PDFをGeminiへアップロード中...")
+                                    pdf_part = _upload_nano_banana_input_file(fi, mime or 'application/pdf', "PDF")
+                                    if pdf_part:
+                                        gemini_image_parts.append(pdf_part)
                         for hp in history_image_parts:
-                            if img_model == "gemini-3.1-flash-lite-image" and len(gemini_image_parts) >= 14:
+                            if img_model in ("gemini-3.1-flash-lite-image", "gemini-nano-banana-2.1") and image_reference_count >= 14:
                                 break
                             ref = hp.get("ref")
                             if ref and ref in history_image_refs_included:
                                 continue
                             gemini_image_parts.append(types.Part.from_bytes(data=hp['bytes'], mime_type=hp['mime']))
+                            image_reference_count += 1
                             if ref:
                                 history_image_refs_included.add(ref)
 
@@ -2922,12 +2981,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                         text_outputs, image_outputs = _collect_gemini_image_output_parts(
                             resp,
-                            keep_only_last_image=(img_model in ("gemini-3.1-flash-image", "gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"))
+                            keep_only_last_image=(img_model in ("gemini-nano-banana-2.1", "gemini-3.1-flash-image", "gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"))
                         )
 
-                        if not image_outputs and img_model in ("gemini-3.1-flash-image", "gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"):
+                        if not image_outputs and img_model in ("gemini-nano-banana-2.1", "gemini-3.1-flash-image", "gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"):
                             log_force(
-                                f"Nano Banana 2 returned text-only output; retrying with image-only mode. "
+                                f"Nano Banana returned text-only output; retrying with image-only mode. "
                                 f"thread={thread_id} job={job_id}"
                             )
                             retry_cfg_kwargs = dict(config_kwargs)

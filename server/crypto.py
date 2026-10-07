@@ -225,7 +225,7 @@ ALL_VALID_MODEL_IDS = {
     # Gemini 2.5
     "gemini-2.5-pro", "gemini-2.5-flash-lite", "gemini-2.5-flash",
     # Gemini Image
-    "gemini-2.5-flash-image", "gemini-3.1-flash-image", "gemini-3.1-flash-image-preview",
+    "gemini-2.5-flash-image", "gemini-nano-banana-2.1", "gemini-3.1-flash-image", "gemini-3.1-flash-image-preview",
     "gemini-3.1-flash-lite-image", "gemini-3-pro-image", "gemini-3-pro-image-preview",
     # Gemini Video Generation
     "gemini-omni-1.1-flash", "gemini-omni-flash", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview", "veo-3.1-lite-generate-preview",

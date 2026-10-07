@@ -411,6 +411,37 @@
     ]
   },
   {
+    "id": "gemini-nano-banana-2.1",
+    "name": "Nano Banana 2.1",
+    "description": "High-efficiency image generation and editing with 1K/2K/4K output, video input, and up to 14 reference images.",
+    "price": "In $1.50/1M; Text/Thinking Out $7.50/1M; Image Out $30/1M ($0.0336/1K, $0.0504/2K, $0.113/4K image)",
+    "category": "Gemini Image (Banana)",
+    "categoryIcon": "fas fa-image text-pink-400",
+    "categoryDescription": "Gemini image generation models",
+    "apiId": "gemini-nano-banana-2.1",
+    "agenticView": false,
+    "implementedAt": "2026-10-06",
+    "implementedRank": 9810,
+    "emoji": "🍌",
+    "deprecated": false,
+    "tags": [
+      "gemini",
+      "image",
+      "video"
+    ],
+    "searchTerms": [
+      "image generation",
+      "image editing",
+      "thinking",
+      "思考",
+      "minimal",
+      "medium",
+      "high",
+      "thinking level",
+      "video input"
+    ]
+  },
+  {
     "id": "gemini-3.1-flash-image",
     "name": "Nano Banana 2",
     "description": "High-efficiency image generation and editing (stable).",

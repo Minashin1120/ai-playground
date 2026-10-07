@@ -133,7 +133,8 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
     val isTts = model.contains("tts")
     val isOcr = isMistralOcrModel(model)
     val isNb2Lite = ml.contains("gemini-3.1-flash-lite-image")
-    val isNb2 = ml.contains("gemini-3.1-flash-image") && !isNb2Lite
+    val isNb21 = ml == "gemini-nano-banana-2.1"
+    val isNb2 = (ml.contains("gemini-3.1-flash-image") && !isNb2Lite) || isNb21
     val isClaude = ml.contains("claude")
     val isCyber = ml == "gemini-3.8-flash-cyber"
     val llm = isLlmModel(model)
@@ -166,8 +167,8 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
         isNb2 || isNb2Lite -> {
             maps.off(); maps.visible = false; maps.dimmed = true
             thinking.visible = true
-            levels = mutableSetOf("minimal", "high")
-            fallback = if (isNb2Lite) "minimal" else "high"
+            levels = if (isNb21) mutableSetOf("minimal", "medium", "high") else mutableSetOf("minimal", "high")
+            fallback = if (isNb21) "medium" else if (isNb2Lite) "minimal" else "high"
             thinking.disabled = false
             if (isNb2Lite) { search.off(); search.disabled = true; search.dimmed = true }
         }

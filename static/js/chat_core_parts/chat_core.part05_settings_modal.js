@@ -747,6 +747,7 @@
                 description: "Gemini image generation models",
                 items: [
                     { id: "gemini-2.5-flash-image", implementedAt: "2026-01-20", implementedRank: 120, quickEmoji: "🍌", name: "Nano Banana", desc: "Fast image generation.", price: "In $0.30/1M, Out $0.039/image" },
+                    { id: "gemini-nano-banana-2.1", implementedAt: "2026-10-06", implementedRank: 9810, quickEmoji: "🍌", name: "Nano Banana 2.1", desc: "High-efficiency image generation and editing with 1K/2K/4K output, video input, and up to 14 reference images.", price: "In $1.50/1M; Text/Thinking Out $7.50/1M; Image Out $30/1M ($0.0336/1K, $0.0504/2K, $0.113/4K image)" },
                     { id: "gemini-3.1-flash-image", implementedAt: "2026-08-25", implementedRank: 8526, quickEmoji: "🍌", name: "Nano Banana 2", desc: "High-efficiency image generation and editing (stable).", price: "In $0.50/1M; Text/Thinking Out $3.00/1M; Image Out $60.00/1M ($0.067/1K image)" },
                     { id: "gemini-3.1-flash-image-preview", implementedAt: "2026-02-26", implementedRank: 2860, name: "Nano Banana 2 (Preview)", desc: "Retired preview retained for chat history compatibility. Use gemini-3.1-flash-image.", price: "In $0.50/1M, Out $0.067/1K image ($60/1M img tokens)", deprecated: true },
                     { id: "gemini-3.1-flash-lite-image", implementedAt: "2026-07-01", implementedRank: 6020, quickEmoji: "🍌", name: "Nano Banana 2 Lite", desc: "Low-latency Gemini image generation and editing with 1K output.", price: "In $0.25/1M; Text/Thinking Out $1.50/1M; Image Out $30/1M ($0.0336/1K image)" },
@@ -1451,6 +1452,7 @@
         const getModelMediaSupport = (model) => {
             const m = (model || '').toLowerCase();
             if (!m.includes('gemini')) return { audio: false, video: false };
+            if (m === 'gemini-nano-banana-2.1') return { audio: false, video: true };
             if (m.includes('image') || m.includes('nano') || m.includes('tts') || m.includes('native-audio') || m.includes('live')) {
                 return { audio: false, video: false };
             }

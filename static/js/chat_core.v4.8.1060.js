@@ -7364,6 +7364,7 @@
                 description: "Gemini image generation models",
                 items: [
                     { id: "gemini-2.5-flash-image", implementedAt: "2026-01-20", implementedRank: 120, quickEmoji: "🍌", name: "Nano Banana", desc: "Fast image generation.", price: "In $0.30/1M, Out $0.039/image" },
+                    { id: "gemini-nano-banana-2.1", implementedAt: "2026-10-06", implementedRank: 9810, quickEmoji: "🍌", name: "Nano Banana 2.1", desc: "High-efficiency image generation and editing with 1K/2K/4K output, video input, and up to 14 reference images.", price: "In $1.50/1M; Text/Thinking Out $7.50/1M; Image Out $30/1M ($0.0336/1K, $0.0504/2K, $0.113/4K image)" },
                     { id: "gemini-3.1-flash-image", implementedAt: "2026-08-25", implementedRank: 8526, quickEmoji: "🍌", name: "Nano Banana 2", desc: "High-efficiency image generation and editing (stable).", price: "In $0.50/1M; Text/Thinking Out $3.00/1M; Image Out $60.00/1M ($0.067/1K image)" },
                     { id: "gemini-3.1-flash-image-preview", implementedAt: "2026-02-26", implementedRank: 2860, name: "Nano Banana 2 (Preview)", desc: "Retired preview retained for chat history compatibility. Use gemini-3.1-flash-image.", price: "In $0.50/1M, Out $0.067/1K image ($60/1M img tokens)", deprecated: true },
                     { id: "gemini-3.1-flash-lite-image", implementedAt: "2026-07-01", implementedRank: 6020, quickEmoji: "🍌", name: "Nano Banana 2 Lite", desc: "Low-latency Gemini image generation and editing with 1K output.", price: "In $0.25/1M; Text/Thinking Out $1.50/1M; Image Out $30/1M ($0.0336/1K image)" },
@@ -8068,6 +8069,7 @@
         const getModelMediaSupport = (model) => {
             const m = (model || '').toLowerCase();
             if (!m.includes('gemini')) return { audio: false, video: false };
+            if (m === 'gemini-nano-banana-2.1') return { audio: false, video: true };
             if (m.includes('image') || m.includes('nano') || m.includes('tts') || m.includes('native-audio') || m.includes('live')) {
                 return { audio: false, video: false };
             }
@@ -9224,7 +9226,7 @@
             const isOcr = model.startsWith('mistral-ocr');
             const isNonTextModel = isTts || isOcr || model.startsWith('ideogram-') || model.includes('transcribe') || model.includes('realtime')
                 || model.includes('voice-agent') || model.includes('native-audio') || model.includes('live')
-                || model.includes('image') || model.includes('video') || model.startsWith('veo-')
+                || model.includes('image') || model.includes('video') || (model.includes('gemini') && model.includes('nano')) || model.startsWith('veo-')
                 || model.includes('omni-flash') || model.startsWith('lyria-') || model.includes('embedding');
             const isLlm = !isNonTextModel && (
                 model.includes('gpt') || model.includes('gemini') || model.includes('grok') || isDeepSeek || model.startsWith('glm-')
@@ -9232,10 +9234,12 @@
             );
             const add = (...values) => values.forEach(value => terms.push(value, value.replace(/-/g, ' ')));
 
-            if (model.includes('gemini-3.1-flash-image') || model.includes('gemini-3-pro-image') || model.includes('gemini-2.5-flash-image')) {
+            if (model === 'gemini-nano-banana-2.1' || model.includes('gemini-3.1-flash-image') || model.includes('gemini-3-pro-image') || model.includes('gemini-2.5-flash-image')) {
                 add('image generation', 'image editing');
             }
-            if (model === 'gemini-3.1-flash-lite-image') {
+            if (model === 'gemini-nano-banana-2.1') {
+                add('thinking', '思考', 'minimal', 'medium', 'high', 'thinking level', 'video input');
+            } else if (model === 'gemini-3.1-flash-lite-image') {
                 add('thinking', '思考', 'minimal', 'high', 'thinking level');
             } else if (model === 'gemini-3.1-flash-image') {
                 add('thinking', '思考', 'minimal', 'high', 'thinking level');
@@ -10096,6 +10100,12 @@
                         '<div>画像生成・編集 / 1K出力 / 最大14枚の参照画像に対応</div>',
                         '<div>複数参照や連続編集より、低遅延・大量生成向けです</div>'
                     ].join('');
+                } else if (model === 'gemini-nano-banana-2.1') {
+                    html = [
+                        '<div class="font-bold text-gray-300 mb-1">Nano Banana 2.1 入力目安</div>',
+                        '<div>画像生成・編集 / 1K・2K・4K出力 / 最大14枚の参照画像に対応</div>',
+                        '<div>動画を参考にした画像生成にも対応します</div>'
+                    ].join('');
                 } else if (model.includes('gemini-3.1-flash-image')) {
                     html = [
                         '<div class="font-bold text-gray-300 mb-1">Nano Banana 2 入力目安</div>',
@@ -10194,7 +10204,8 @@
                 const isTts = model.includes('tts');
                 const isOcr = isMistralOcrModel(model);
                 const isNanoBanana2Lite = modelLower.includes('gemini-3.1-flash-lite-image');
-                const isNanoBanana2 = modelLower.includes('gemini-3.1-flash-image') && !isNanoBanana2Lite;
+                const isNanoBanana21 = modelLower === 'gemini-nano-banana-2.1';
+                const isNanoBanana2 = (modelLower.includes('gemini-3.1-flash-image') && !isNanoBanana2Lite) || isNanoBanana21;
                 const isClaude = isClaudeModelKey(model);
                 const isGeminiCyber = modelLower === 'gemini-3.8-flash-cyber';
                 // DeepSeek KV cache and Z.AI context caching are automatic; neither uses an app-supplied prompt_cache_key.
@@ -10265,12 +10276,19 @@
                         mapsCont.classList.add('hidden', 'opacity-50', 'pointer-events-none');
                     }
                     thinkOpts.classList.remove('hidden');
-                    Array.from(thinkLvl.options).forEach(opt => {
-                        if (['low', 'medium'].includes(opt.value)) opt.disabled = true;
-                        if (['minimal', 'high'].includes(opt.value)) opt.disabled = false;
-                    });
-                    if (!['minimal', 'high'].includes(thinkLvl.value)) {
-                        thinkLvl.value = isNanoBanana2Lite ? 'minimal' : 'high';
+                    if (isNanoBanana21) {
+                        Array.from(thinkLvl.options).forEach(opt => {
+                            opt.disabled = opt.value === 'low';
+                        });
+                        if (!['minimal', 'medium', 'high'].includes(thinkLvl.value)) thinkLvl.value = 'medium';
+                    } else {
+                        Array.from(thinkLvl.options).forEach(opt => {
+                            if (['low', 'medium'].includes(opt.value)) opt.disabled = true;
+                            if (['minimal', 'high'].includes(opt.value)) opt.disabled = false;
+                        });
+                        if (!['minimal', 'high'].includes(thinkLvl.value)) {
+                            thinkLvl.value = isNanoBanana2Lite ? 'minimal' : 'high';
+                        }
                     }
                     if (thinkChk) thinkChk.disabled = false;
                     if (isNanoBanana2Lite) {

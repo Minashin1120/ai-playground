@@ -273,6 +273,8 @@ fun imageInputLimits(model: String): Pair<String, List<String>>? {
         isGeminiImageModel(m) -> when {
             m.contains("gemini-3.1-flash-lite-image") -> "Nano Banana 2 Lite 入力目安" to listOf(
                 "画像生成・編集 / 1K出力 / 最大14枚の参照画像に対応", "複数参照や連続編集より、低遅延・大量生成向けです")
+            m == "gemini-nano-banana-2.1" -> "Nano Banana 2.1 入力目安" to listOf(
+                "画像生成・編集 / 1K・2K・4K出力 / 最大14枚の参照画像に対応", "動画を参考にした画像生成にも対応します")
             m.contains("gemini-3.1-flash-image") -> "Nano Banana 2 入力目安" to listOf("画像入力は最大3枚程度を推奨（Gemini 3.1 Flash Image）")
             m.contains("gemini-2.5") && m.contains("image") -> "Nano Banana 入力目安" to listOf("画像入力は最大3枚までが推奨")
             else -> "Nano Banana Pro 入力目安" to listOf("高精度は最大5枚 / 合計14枚まで対応")

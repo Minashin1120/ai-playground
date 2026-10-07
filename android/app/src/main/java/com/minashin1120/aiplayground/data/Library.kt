@@ -21,6 +21,7 @@ fun isVideoPath(path: String) = fileExt(path) in VIDEO_EXTS
 fun modelMediaSupport(model: String): Pair<Boolean, Boolean> {
     val m = model.lowercase(Locale.ROOT)
     if (!m.contains("gemini")) return false to false
+    if (m == "gemini-nano-banana-2.1") return false to true
     if (listOf("image", "nano", "tts", "native-audio", "live").any { m.contains(it) }) return false to false
     if (m.contains("embedding") || m.startsWith("veo-") || m.contains("omni-flash") || m.contains("omni-1.1-flash") || m.startsWith("lyria-")) {
         return false to false

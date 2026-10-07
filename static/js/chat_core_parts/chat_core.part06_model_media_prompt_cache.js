@@ -740,7 +740,7 @@
             const isOcr = model.startsWith('mistral-ocr');
             const isNonTextModel = isTts || isOcr || model.startsWith('ideogram-') || model.includes('transcribe') || model.includes('realtime')
                 || model.includes('voice-agent') || model.includes('native-audio') || model.includes('live')
-                || model.includes('image') || model.includes('video') || model.startsWith('veo-')
+                || model.includes('image') || model.includes('video') || (model.includes('gemini') && model.includes('nano')) || model.startsWith('veo-')
                 || model.includes('omni-flash') || model.startsWith('lyria-') || model.includes('embedding');
             const isLlm = !isNonTextModel && (
                 model.includes('gpt') || model.includes('gemini') || model.includes('grok') || isDeepSeek || model.startsWith('glm-')
@@ -748,10 +748,12 @@
             );
             const add = (...values) => values.forEach(value => terms.push(value, value.replace(/-/g, ' ')));
 
-            if (model.includes('gemini-3.1-flash-image') || model.includes('gemini-3-pro-image') || model.includes('gemini-2.5-flash-image')) {
+            if (model === 'gemini-nano-banana-2.1' || model.includes('gemini-3.1-flash-image') || model.includes('gemini-3-pro-image') || model.includes('gemini-2.5-flash-image')) {
                 add('image generation', 'image editing');
             }
-            if (model === 'gemini-3.1-flash-lite-image') {
+            if (model === 'gemini-nano-banana-2.1') {
+                add('thinking', '思考', 'minimal', 'medium', 'high', 'thinking level', 'video input');
+            } else if (model === 'gemini-3.1-flash-lite-image') {
                 add('thinking', '思考', 'minimal', 'high', 'thinking level');
             } else if (model === 'gemini-3.1-flash-image') {
                 add('thinking', '思考', 'minimal', 'high', 'thinking level');

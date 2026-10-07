@@ -32,7 +32,7 @@ class NanoBanana2LiteRegressionTests(unittest.TestCase):
 
     def test_lite_supports_only_official_thinking_levels(self):
         self.assertIn(
-            'img_model in ("gemini-3.1-flash-image", '
+            'img_model in ("gemini-nano-banana-2.1", "gemini-3.1-flash-image", '
             '"gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image")',
             APP_SOURCE,
         )

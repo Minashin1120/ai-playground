@@ -98,6 +98,7 @@ import com.minashin1120.aiplayground.data.IMAGE_SPLIT_MAX_IMAGES
 import com.minashin1120.aiplayground.data.ImageSplitOptions
 import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Gem
+import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.buildTokenTotals
 import com.minashin1120.aiplayground.data.AI_SETTING_JUMP_TARGETS
@@ -281,6 +282,18 @@ fun PlaygroundScreen(
             var visionPicker by remember { mutableStateOf(false) }
             var cameraOpen by remember { mutableStateOf(false) }
             var bubbleAfterNotificationPermission by remember { mutableStateOf(false) }
+            // ログの収集を強化: which modals and panels are open (names only).
+            val openPanels = listOf(
+                "model_picker" to modelPicker, "thread_settings" to threadSettings, "attach_menu" to attachMenu,
+                "library" to libraryOpen, "file_view" to (viewingFile != null), "gem_editor" to gemEditorOpen,
+                "gem_delete" to (gemDeleting != null), "history" to historyOpen, "branch" to branchOpen, "alpha" to alphaOpen,
+                "legal" to (legalKind != null), "rename" to (renaming != null), "delete_thread" to (deleting != null),
+                "settings" to settingsOpen, "compression" to compressionOpen, "changelog" to changelogOpen,
+                "advanced" to advancedOpen, "realtime" to realtimeOpen, "lyria" to lyriaOpen, "rich_paste" to richPasteOpen,
+                "marker" to (markerTarget != null), "vision_picker" to visionPicker, "camera" to cameraOpen,
+            ).filter { it.second }.joinToString(",") { it.first }
+            LaunchedEffect(openPanels) { ActivityLog.log("ui.panels", "open" to openPanels.ifEmpty { "none" }) }
+            LaunchedEffect(drawer) { snapshotFlow { drawer.isOpen }.collect { ActivityLog.log("ui.drawer", "open" to it) } }
             val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                 if (bubbleAfterNotificationPermission) {
                     bubbleAfterNotificationPermission = false

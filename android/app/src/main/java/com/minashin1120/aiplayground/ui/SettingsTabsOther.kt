@@ -28,10 +28,13 @@ import com.minashin1120.aiplayground.BuildConfig
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.R
+import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.data.CacheCategory
 import com.minashin1120.aiplayground.data.HistoryCacheMode
 import com.minashin1120.aiplayground.data.formatByteSize
 import com.minashin1120.aiplayground.isToolbarNotificationEnabled
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.minashin1120.aiplayground.setToolbarNotificationEnabled
 
 /** Android-only cards and the tabs whose native implementation follows in a later release. */
@@ -101,7 +104,7 @@ private fun ToolbarNotificationSetting(onNotify: (String) -> Unit) {
 
 internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsForm, extras: SettingsExtras): List<SettingsCardSpec> = listOf(
     // ANDROID_ONLY.md: the device cache card replaces the Web Service Worker cache card.
-    SettingsCardSpec(SettingsTab.Data, "device-cache", "端末キャッシュ", "端末キャッシュ 履歴の保存範囲 表示済み部分のみ 全件同期 モバイルデータ通信 削除") {
+    SettingsCardSpec(SettingsTab.Data, "device-cache", "端末キャッシュ", "端末キャッシュ 履歴の保存範囲 表示済み部分のみ 全件同期 モバイルデータ通信 削除 操作ログ ログを削除") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsDesc("表示済みのチャット履歴とファイルは、Androidのシステムキャッシュとは別の暗号化領域に保存されます。")
             SettingsFieldLabel("履歴の保存範囲")
@@ -123,6 +126,7 @@ internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsFor
                 SettingsSmallButton("履歴を削除", { extras.onConfirmCacheClear(CacheCategory.CHAT_HISTORY) }, Modifier.weight(1f), tone = SettingsButtonTone.Orange)
                 SettingsSmallButton("ファイルを削除", { extras.onConfirmCacheClear(CacheCategory.FILES) }, Modifier.weight(1f), tone = SettingsButtonTone.Orange)
             }
+            ActivityLogDeleteBox(extras.onNotify)
         }
     },
     SettingsCardSpec(SettingsTab.Data, "storage", "ストレージ", "ストレージ 更新 アップロード済みファイルの使用量を表示します。") {
@@ -155,6 +159,53 @@ internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsFor
     },
 )
 
+private const val ACTIVITY_LOG_DESCRIPTION = "この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバックの送信時に直近1時間のログを一緒に送信します。チャットで送信した内容、回答、ファイル、入力欄の文字は記録しません。"
+
+/** Web `refreshActivityLogUi`: the switch state and `操作ログ: N件 (x.xMB)`, read again after each change. */
+private class ActivityLogInfo(val enabled: Boolean, val usage: String, val setEnabled: (Boolean) -> Unit, val clear: () -> Unit)
+
+@Composable
+private fun rememberActivityLogInfo(): ActivityLogInfo {
+    var enabled by remember { mutableStateOf(ActivityLog.enabled) }
+    var revision by remember { mutableIntStateOf(0) }
+    var usage by remember { mutableStateOf("操作ログ: 0件 (0.0MB)") }
+    LaunchedEffect(enabled, revision) {
+        val (count, bytes) = withContext(Dispatchers.IO) { ActivityLog.stats() }
+        usage = "操作ログ: ${count}件 (${String.format(java.util.Locale.US, "%.1fMB", bytes / (1024.0 * 1024.0))})"
+    }
+    return ActivityLogInfo(enabled, usage,
+        setEnabled = { value -> ActivityLog.setEnabled(value); enabled = ActivityLog.enabled; revision++ },
+        clear = { ActivityLog.clear(); revision++ })
+}
+
+/** Web `#clear-activity-log-btn` box in the cache card: the log is data, so clearing the cache keeps it. */
+@Composable
+private fun ActivityLogDeleteBox(onNotify: (String) -> Unit) {
+    val web = LocalWebPalette.current
+    val log = rememberActivityLogInfo()
+    var confirm by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(4.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(web.twBg(Tw.gray950).copy(alpha = 0.4f))
+            .border(1.dp, web.twBorder(Tw.gray700), shape).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(log.usage, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Tw.gray200,
+                modifier = Modifier.weight(1f))
+            SettingsSmallButton("ログを削除", { confirm = true }, tone = SettingsButtonTone.Orange)
+        }
+        SettingsDesc("「ログの収集を強化」で記録した操作ログを削除します。キャッシュの削除では消えません。")
+    }
+    if (confirm) BrowserConfirmDialog("操作ログを削除しますか？") { ok ->
+        confirm = false
+        if (ok) {
+            log.clear()
+            onNotify("操作ログを削除しました")
+        }
+    }
+}
+
 @Composable
 private fun UsageBar(fraction: Float) {
     val web = LocalWebPalette.current
@@ -177,6 +228,14 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                 if (message.isBlank()) notify("フィードバック内容を入力してください")
                 else { model.submitFeedback(title.trim(), message.trim()); title = ""; message = "" }
             }, tone = SettingsButtonTone.Blue, enabled = !state.feedbackBusy, fill = true)
+        }
+    },
+    SettingsCardSpec(SettingsTab.Feedback, "activity-log", "ログの収集を強化",
+        "ログの収集を強化 操作ログを記録する $ACTIVITY_LOG_DESCRIPTION", titleIcon = R.drawable.fa_solid_file_lines) {
+        val log = rememberActivityLogInfo()
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsSwitchRow("操作ログを記録する", ACTIVITY_LOG_DESCRIPTION, log.enabled, { log.setEnabled(it) }, accent = Tw.amber600)
+            SettingsDesc(if (log.enabled) "記録中です。フィードバックの送信時に直近1時間のログを送信します。（${log.usage}）" else "記録していません。")
         }
     },
     SettingsCardSpec(SettingsTab.Feedback, "mine", "あなたのフィードバック", "あなたのフィードバック") {

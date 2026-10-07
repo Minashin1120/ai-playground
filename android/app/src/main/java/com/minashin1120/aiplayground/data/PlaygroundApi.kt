@@ -71,13 +71,27 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
     private suspend fun <T> executeUntracked(req: Request, client: OkHttpClient, consume: (Response) -> T): T =
         suspendCancellableCoroutine { continuation ->
             val call = client.newCall(req)
-            continuation.invokeOnCancellation { call.cancel() }
+            val started = System.currentTimeMillis()
+            // ログの収集を強化: method, path (no query), status and time; never the body.
+            val host = if (client === external) req.url.host else null
+            continuation.invokeOnCancellation {
+                call.cancel()
+                ActivityLog.log("http.cancel", "method" to req.method, "host" to host, "path" to req.url.encodedPath,
+                    "ms" to System.currentTimeMillis() - started)
+            }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
+                    ActivityLog.log("http.error", "method" to req.method, "host" to host, "path" to req.url.encodedPath,
+                        "ms" to System.currentTimeMillis() - started, "error" to e.javaClass.simpleName, "message" to e.message)
                     if (continuation.isActive) continuation.resumeWith(Result.failure(e))
                 }
                 override fun onResponse(call: Call, response: Response) {
+                    ActivityLog.log("http", "method" to req.method, "host" to host, "path" to req.url.encodedPath,
+                        "status" to response.code, "ms" to System.currentTimeMillis() - started,
+                        "type" to response.header("Content-Type")?.substringBefore(';'))
                     val result = runCatching { response.use { consume(it) } }
+                    if (result.isFailure) ActivityLog.log("http.read_error", "path" to req.url.encodedPath,
+                        "ms" to System.currentTimeMillis() - started, "error" to result.exceptionOrNull()?.javaClass?.simpleName)
                     if (continuation.isActive) continuation.resumeWith(result)
                 }
             })

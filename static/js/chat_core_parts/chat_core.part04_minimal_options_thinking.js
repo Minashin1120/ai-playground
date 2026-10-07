@@ -1198,6 +1198,8 @@
             body.innerHTML = '';
             viewer.classList.remove('visible');
         }
+        // Hoisted: lets static/js/activity_log.js show and record toasts.
+        window.showToast = showToast;
         function showToast(msg, type = "error", sticky = false, onClick = null) {
             const stack = get('toast-stack');
             if (!stack) return;

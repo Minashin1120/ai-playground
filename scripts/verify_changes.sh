@@ -61,6 +61,7 @@ info "chat_core parts size"
 run_common check-parts || warn "chat_core parts size check failed"
 
 JS_SOURCES=(
+    static/js/activity_log.js
     static/js/progress_spinner.js
     static/js/connection_monitor.js
     static/js/pwa_install.js

@@ -72,6 +72,9 @@ minify_js "$JS_SRC" "$JS_MIN"
 # (especially comma escapes) and drops layout utilities.
 cp "$CSS_SRC" "$CSS_MIN"
 
+if [[ -f static/js/activity_log.js ]]; then
+  minify_js static/js/activity_log.js static/js/activity_log.min.js
+fi
 if [[ -f static/js/progress_spinner.js ]]; then
   minify_js static/js/progress_spinner.js static/js/progress_spinner.min.js
 fi

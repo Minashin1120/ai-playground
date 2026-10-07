@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.os.Build
 import android.os.Parcelable
 import android.provider.Settings
+import android.view.MotionEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -15,6 +16,7 @@ import androidx.activity.viewModels
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.ui.PlaygroundScreen
 
 /** `<activity-alias>` in the manifest: the 「画像を分割」 entry of the system share sheet. */
@@ -78,10 +80,22 @@ open class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        ActivityLog.log("activity.new_intent", "action" to intent.action)
         handleBubbleIntent(intent)
         handleAuthIntent(intent)
         handleShareIntent(intent)
         handleUpdateIntent(intent)
+    }
+
+    /** ログの収集を強化: where the screen was tapped (dp) and how long it was pressed; never what was typed. */
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ActivityLog.enabled && ev.actionMasked == MotionEvent.ACTION_UP) {
+            val density = resources.displayMetrics.density.takeIf { it > 0f } ?: 1f
+            ActivityLog.log("ui.tap", "x" to (ev.x / density).toInt(), "y" to (ev.y / density).toInt(),
+                "press_ms" to ev.eventTime - ev.downTime,
+                "screen" to "${(window.decorView.width / density).toInt()}x${(window.decorView.height / density).toInt()}")
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     /** Update notifications only ask to show the dialog; the APK always comes from the update manager. */

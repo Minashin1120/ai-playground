@@ -74,7 +74,12 @@
                 const title = get('fb-title').value.trim();
                 const message = get('fb-message').value.trim();
                 if(!message) { showToast("フィードバック内容を入力してください", "error", true); return; }
-                await apiFetch("/api/feedback", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title, message})});
+                // ログの収集を強化 (static/js/activity_log.js): the last hour goes with the feedback.
+                const payload = {title, message};
+                const clientLogs = window.ActivityLog ? window.ActivityLog.feedbackPayload() : null;
+                if (clientLogs) payload.client_logs = clientLogs;
+                const res = await apiFetch("/api/feedback", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+                if (clientLogs && !(await window.ActivityLog.reportFeedback(res, clientLogs))) return;
                 get('fb-title').value = '';
                 get('fb-message').value = '';
                 loadFeedback();
@@ -105,6 +110,7 @@
                             <div class="text-[11px] text-gray-400">#${item.id} / user:${item.user_id} / ${item.created_at}</div>
                             <div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div>
                             <div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div>
+                            ${item.log_file ? `<div class="text-[11px] text-amber-300">操作ログ: logs/${escapeHtml(item.log_file)}</div>` : ''}
                             <div class="flex items-center gap-2">
                                 <select class="fb-status bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white">
                                     <option value="new">new</option>

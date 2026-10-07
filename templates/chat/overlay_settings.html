@@ -168,7 +168,7 @@
         </div>
 </div>
 <div class="settings-tab-panel overflow-y-auto hidden animate-fadeIn" id="tab-data">
-<div class="settings-card"><h3 class="settings-card-title">キャッシュ設定</h3><div class="space-y-3"><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-use-sw-cache" class="accent-blue-500 w-3 h-3"><span>高速キャッシュ（Service Worker）を有効化</span></label><button type="button" id="clear-site-cache-btn" data-progress-no-spinner="true" class="w-full bg-orange-700 hover:bg-orange-600 text-white px-3 py-2 rounded text-xs font-bold btn-hover">サイトキャッシュを削除</button><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-clear-cache-on-version-update" class="accent-blue-500 w-3 h-3"><span>バージョン更新時にローカルキャッシュをスキャンして削除してからリロード</span></label><div class="rounded border border-gray-700 bg-gray-950/40 p-3 space-y-1"><div class="flex items-center justify-between gap-3"><div id="site-cache-usage-text" class="text-[11px] font-bold text-gray-200">読み込み中...</div><button id="site-cache-usage-refresh" class="text-[10px] text-gray-400 hover:text-white">更新</button></div><div id="site-cache-usage-detail" class="text-[10px] text-gray-500">ローカルキャッシュの容量を計測します。</div></div><div class="text-[10px] text-gray-500">Service Worker のキャッシュと登録を削除します。Cookie は削除しません。</div></div></div>
+<div class="settings-card"><h3 class="settings-card-title">キャッシュ設定</h3><div class="space-y-3"><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-use-sw-cache" class="accent-blue-500 w-3 h-3"><span>高速キャッシュ（Service Worker）を有効化</span></label><button type="button" id="clear-site-cache-btn" data-progress-no-spinner="true" class="w-full bg-orange-700 hover:bg-orange-600 text-white px-3 py-2 rounded text-xs font-bold btn-hover">サイトキャッシュを削除</button><label class="flex items-center gap-2 text-xs text-gray-300"><input type="checkbox" id="set-clear-cache-on-version-update" class="accent-blue-500 w-3 h-3"><span>バージョン更新時にローカルキャッシュをスキャンして削除してからリロード</span></label><div class="rounded border border-gray-700 bg-gray-950/40 p-3 space-y-1"><div class="flex items-center justify-between gap-3"><div id="site-cache-usage-text" class="text-[11px] font-bold text-gray-200">読み込み中...</div><button id="site-cache-usage-refresh" class="text-[10px] text-gray-400 hover:text-white">更新</button></div><div id="site-cache-usage-detail" class="text-[10px] text-gray-500">ローカルキャッシュの容量を計測します。</div></div><div class="text-[10px] text-gray-500">Service Worker のキャッシュと登録を削除します。Cookie は削除しません。</div><div class="rounded border border-gray-700 bg-gray-950/40 p-3 space-y-2"><div class="flex items-center justify-between gap-3"><div id="activity-log-usage-text" class="text-[11px] font-bold text-gray-200">操作ログ: 0件</div><button type="button" id="clear-activity-log-btn" data-progress-no-spinner="true" class="bg-orange-700 hover:bg-orange-600 text-white px-3 py-1.5 rounded text-xs font-bold btn-hover">ログを削除</button></div><div class="text-[10px] text-gray-500">「ログの収集を強化」で記録した操作ログを削除します。キャッシュの削除では消えません。</div></div></div></div>
 <div class="settings-card"><div class="flex items-center justify-between"><h3 class="settings-card-title">ストレージ</h3><button id="storage-usage-refresh" class="text-[10px] text-gray-400 hover:text-white">更新</button></div><div class="mt-2 text-xs text-gray-300" id="storage-usage-text">読み込み中...</div><div class="mt-2 h-2 rounded bg-gray-800 overflow-hidden border border-gray-700"><div id="storage-usage-bar" class="h-2 bg-blue-500/80" style="width:0%"></div></div><div class="text-[10px] text-gray-500 mt-2">アップロード済みファイルの使用量を表示します。</div></div>
 <div class="settings-card">
     <h3 class="settings-card-title">アカウントデータ</h3>
@@ -369,6 +369,20 @@
                 <textarea id="fb-message" class="w-full h-28 bg-gray-800 border border-gray-600 rounded px-2 py-2 text-sm text-white" placeholder="バグ報告・要望などを入力してください"></textarea>
                 <button id="fb-submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white rounded py-2 text-sm font-bold btn-hover">送信</button>
             </div>
+        </div>
+        <div class="settings-card">
+            <h3 class="settings-card-title"><i class="fas fa-file-lines mr-2"></i>ログの収集を強化</h3>
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <div class="text-xs font-bold text-white">操作ログを記録する</div>
+                    <div class="text-[10px] text-gray-500 mt-1">この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバックの送信時に直近1時間のログを一緒に送信します。チャットで送信した内容、回答、ファイル、入力欄の文字は記録しません。</div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input type="checkbox" id="set-activity-log" class="sr-only peer">
+                    <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
+                </label>
+            </div>
+            <div id="activity-log-feedback-status" class="text-[10px] text-gray-500 mt-2"></div>
         </div>
         <div class="settings-card">
             <h3 class="settings-card-title">あなたのフィードバック</h3>

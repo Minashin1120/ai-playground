@@ -6,12 +6,13 @@
 
 - `chat_core.v*.js`：チャット、モデル、設定、履歴、モーダル（下記の部品から自動生成される結合ソース）
 - `chat_core_parts/`：`chat_core` の編集用ソースを順序付き部品に分割したもの
+- `activity_log.js`：「ログの収集を強化」の操作ログ（ブラウザーのlocalStorageに直近1時間を記録し、フィードバック送信時に添付）
 - `progress_spinner.js`：通信中の共通進捗表示
 - `connection_monitor.js`：サーバー接続状態（オフライン・不安定・メンテナンス・復帰）の監視と表示
 - `pwa_install.js`：PWAの導入と表示モード連携
 - `landing_demo.js`：公開ランディング画面のチャットデモ
 
-`progress_spinner.js`、`pwa_install.js`、`connection_monitor.js`、`landing_demo.js` には、配信用の `*.min.js` が隣にあります（`scripts/build_frontend.sh` が生成します）。
+`activity_log.js`、`progress_spinner.js`、`pwa_install.js`、`connection_monitor.js`、`landing_demo.js` には、配信用の `*.min.js` が隣にあります（`scripts/build_frontend.sh` が生成します）。
 
 チャットコアのファイル名には、ブラウザーキャッシュ更新用のバージョン番号が含まれます。`chat_core.v*.js` は編集・テスト用のソース、`chat_core.min.v*.js` はブラウザーへ配信する圧縮ファイルです。
 

@@ -32,6 +32,7 @@
     <link rel="preload" as="script" href="{{ url_for('static', filename='js/chat_core.min.' ~ (system_version | lower) ~ '.js') }}?v={{ app_version }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <script src="{{ url_for('static', filename='js/activity_log.min.js') }}?v={{ app_version }}" defer></script>
     <script src="{{ url_for('static', filename='vendor/marked-4.3.0.min.js') }}?v={{ app_version }}" integrity="sha384-QsSpx6a0USazT7nK7w8qXDgpSAPhFsb2XtpoLFQ5+X2yFN6hvCKnwEzN8M5FWaJb" defer></script>
     <script src="{{ url_for('static', filename='vendor/dompurify-3.4.11.min.js') }}?v={{ app_version }}" integrity="sha384-o44XUELLEnv/iSlA1NWxBweqbD4TSR0qgq2VzVsxtkHS989JJjGKSE9vkfo5MN4K" defer></script>
     <script>

@@ -47,6 +47,7 @@ import com.minashin1120.aiplayground.AppUpdateUiState
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.R
+import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.data.CacheCategory
 import kotlinx.coroutines.delay
 
@@ -79,6 +80,7 @@ fun SettingsDialog(
     val devicePrefs = remember { context.getSharedPreferences("settings_local", 0) }
     var localPythonDialog by remember { mutableStateOf(devicePrefs.getBoolean(GEMINI_LOCAL_PY_DIALOG_PREF, true)) }
     var tab by remember { mutableStateOf(SettingsTab.entries.firstOrNull { it.label == initialTab || it.id == initialTab } ?: SettingsTab.General) }
+    LaunchedEffect(tab) { ActivityLog.log("ui.settings_tab", "tab" to tab.id) }
     var query by remember { mutableStateOf("") }
     var jumpTarget by remember { mutableStateOf(initialCard) }
     // Search results flash the card they jump to; an opening jump scrolls (and rings the temporary-chat card).

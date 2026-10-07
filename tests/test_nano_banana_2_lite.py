@@ -37,8 +37,8 @@ class NanoBanana2LiteRegressionTests(unittest.TestCase):
             APP_SOURCE,
         )
         self.assertIn(
-            'default_level = "minimal" if img_model == '
-            '"gemini-3.1-flash-lite-image" else "high"',
+            'else "minimal" if img_model == "gemini-3.1-flash-lite-image"\n'
+            '                                else "high"',
             APP_SOURCE,
         )
         self.assertIn("isNanoBanana2Lite", CHAT_JS)

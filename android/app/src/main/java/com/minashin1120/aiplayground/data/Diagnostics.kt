@@ -14,7 +14,8 @@ import java.io.File
  * Entries go to a file first, so they survive the app being killed; [ChatViewModel] sends them to
  * `/api/mobile/v1/diagnostics` (server `logs/android-diagnostics.log`) and removes what the server took.
  * Nothing is recorded until [setEnabled] marks the account as an administrator, and turning it off
- * deletes what was waiting. Without [init] (JVM unit tests) every call does nothing.
+ * deletes what was waiting. When the user turns on [ActivityLog], every entry is copied there as well
+ * (for any account). Without [init] (JVM unit tests) every call does nothing.
  */
 object Diagnostics {
     private const val MAX_FILE_BYTES = 768 * 1024
@@ -41,6 +42,7 @@ object Diagnostics {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
             runCatching { failure("app.crash", error, "thread" to thread.name, "memory" to memory()) }
+            ActivityLog.drain()
             previous?.uncaughtException(thread, error)
         }
         log("app.process_start")
@@ -56,11 +58,16 @@ object Diagnostics {
     }
 
     fun log(event: String, vararg fields: Pair<String, Any?>) {
-        if (!enabled) return
+        // The same steps also go to the user's activity log (ログの収集を強化) when it is on.
+        val activity = ActivityLog.enabled
+        if (!enabled && !activity) return
         val target = file ?: return
         val now = System.currentTimeMillis()
         val entry = JSONObject().put("t", now).put("ev", event).put("pid", pid).put("thread", Thread.currentThread().name)
         fields.forEach { (key, value) -> entry.put(key, sanitize(value)) }
+        if (activity) ActivityLog.logEntry(entry)
+        lastEventAt = now
+        if (!enabled) return
         synchronized(lock) {
             entry.put("seq", ++seq)
             runCatching {
@@ -73,7 +80,6 @@ object Diagnostics {
                 target.appendText(entry.toString() + "\n")
             }
         }
-        lastEventAt = now
     }
 
     /** An exception: its class, message and the app's own frames. */
@@ -84,7 +90,7 @@ object Diagnostics {
 
     /** Stacks of the app's threads (and blocked ones), for work that stopped moving. */
     fun stacks(reason: String, vararg fields: Pair<String, Any?>) {
-        if (!enabled) return
+        if (!enabled && !ActivityLog.enabled) return
         val threads = JSONArray()
         runCatching {
             Thread.getAllStackTraces().entries

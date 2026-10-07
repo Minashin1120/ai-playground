@@ -1,3 +1,94 @@
+# --- Client activity logs attached to feedback ("ログの収集を強化") ---
+# The Web and Android clients record their own operations (never prompts, answers or
+# file contents) while the user enables it, and attach the last hour to a feedback.
+# Each feedback's logs are written to one JSON Lines file under ``logs/``.
+_FEEDBACK_LOG_MAX_ENTRIES = 50_000
+_FEEDBACK_LOG_MAX_BYTES = 3_500_000
+_FEEDBACK_LOG_MAX_LINE = 64 * 1024
+_FEEDBACK_LOG_KEEP_FILES = 500
+_FEEDBACK_LOG_NAME_RE = re.compile(r'^feedback-(\d+)-[a-z]{1,16}-\d{8}T\d{6}Z\.jsonl$')
+
+
+def _feedback_logs_dir():
+    return app.config.get('FEEDBACK_LOGS_DIR') or os.path.join(app.root_path, 'logs')
+
+
+def _feedback_log_file_index():
+    """Feedback id -> name of its log file (administrators' feedback list)."""
+    index = {}
+    try:
+        names = os.listdir(_feedback_logs_dir())
+    except OSError:
+        return index
+    for name in names:
+        match = _FEEDBACK_LOG_NAME_RE.match(name)
+        if match:
+            index[int(match.group(1))] = name
+    return index
+
+
+def _prune_feedback_log_files(directory):
+    try:
+        files = [os.path.join(directory, name) for name in os.listdir(directory) if _FEEDBACK_LOG_NAME_RE.match(name)]
+        if len(files) <= _FEEDBACK_LOG_KEEP_FILES:
+            return
+        files.sort(key=lambda path: os.path.getmtime(path))
+        for path in files[:len(files) - _FEEDBACK_LOG_KEEP_FILES]:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
+def _save_feedback_client_logs(feedback_id, user_id, payload):
+    """Writes the client's activity log entries for ``feedback_id``; returns the file name (None when empty)."""
+    entries = payload.get('entries')
+    if not isinstance(entries, list) or not entries:
+        return None
+    client = str(payload.get('client') or 'unknown').lower()
+    if not re.fullmatch(r'[a-z]{1,16}', client):
+        client = 'unknown'
+    received = datetime.utcnow()
+    lines = []
+    total = 0
+    dropped = 0
+    for entry in entries[-_FEEDBACK_LOG_MAX_ENTRIES:]:
+        if not isinstance(entry, dict):
+            dropped += 1
+            continue
+        line = json.dumps(entry, ensure_ascii=False, default=str, separators=(',', ':'))
+        if len(line) > _FEEDBACK_LOG_MAX_LINE:
+            line = json.dumps({'t': entry.get('t'), 'ev': str(entry.get('ev') or '')[:80], 'truncated': len(line)},
+                              ensure_ascii=False, default=str, separators=(',', ':'))
+        total += len(line) + 1
+        if total > _FEEDBACK_LOG_MAX_BYTES:
+            dropped += 1
+            continue
+        lines.append(line)
+    dropped += max(0, len(entries) - _FEEDBACK_LOG_MAX_ENTRIES)
+    meta = {
+        'kind': 'meta', 'feedback_id': feedback_id, 'user_id': user_id, 'client': client,
+        'client_version': str(payload.get('version') or '')[:64],
+        'server_version': app.config.get('SYSTEM_VERSION'),
+        'user_agent': str(request.headers.get('User-Agent') or '')[:300],
+        'received_at': received.isoformat(timespec='seconds') + 'Z',
+        'window_seconds': payload.get('window_seconds') if isinstance(payload.get('window_seconds'), int) else None,
+        'entries': len(lines), 'dropped': dropped,
+    }
+    directory = _feedback_logs_dir()
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    name = f"feedback-{int(feedback_id)}-{client}-{received.strftime('%Y%m%dT%H%M%SZ')}.jsonl"
+    fd = os.open(os.path.join(directory, name), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+        handle.write(json.dumps(meta, ensure_ascii=False, default=str) + '\n')
+        if lines:
+            handle.write('\n'.join(lines) + '\n')
+    _prune_feedback_log_files(directory)
+    return name
+
+
 @app.route('/api/feedback', methods=['GET', 'POST'])
 @login_required
 def feedback():
@@ -11,10 +102,20 @@ def feedback():
             return jsonify({'error': 'Message is too long'}), 400
         if not rate_limit(f"rl:feedback:user:{current_user.id}", 10, 3600):
             return jsonify({'error': 'rate_limit'}), 429
+        client_logs = data.get('client_logs')
+        if client_logs is not None and not isinstance(client_logs, dict):
+            return jsonify({'error': 'Invalid client logs'}), 400
         fb = Feedback(user_id=current_user.id, title=title, message=message)
         db.session.add(fb)
         safe_db_commit()
-        return jsonify({'status': 'ok'})
+        result = {'status': 'ok'}
+        if client_logs is not None:
+            try:
+                result['logs_saved'] = _save_feedback_client_logs(fb.id, current_user.id, client_logs) is not None
+            except Exception as e:
+                log_force(f"FEEDBACK-LOGS-ERROR: user={current_user.id} feedback={fb.id} err={e}")
+                result['logs_saved'] = False
+        return jsonify(result)
 
     # GET
     is_admin = bool(getattr(current_user, "is_admin", False))
@@ -23,9 +124,11 @@ def feedback():
     else:
         items = Feedback.query.filter_by(user_id=current_user.id).order_by(Feedback.created_at.desc()).all()
 
+    log_files = _feedback_log_file_index() if is_admin else {}
     res = []
     for f in items:
         res.append({
+            'log_file': log_files.get(f.id),
             'id': f.id,
             'user_id': f.user_id,
             'title': f.title or "",

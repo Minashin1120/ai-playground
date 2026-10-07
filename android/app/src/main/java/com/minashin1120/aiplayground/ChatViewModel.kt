@@ -248,6 +248,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             libraryFavoritesOnly = prefs.getBoolean(LIB_FAVORITES_ONLY_KEY, false),
         ) }
         startDiagnostics()
+        startActivityLog()
     }
 
     /** Separate client for diagnostics, so sending them never shows the global spinner. */
@@ -296,6 +297,55 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    /**
+     * ログの収集を強化 ([ActivityLog]): keeps the log to the signed-in account and records which values of
+     * [ChatState] changed (states and counts only, never the user's text or answers).
+     */
+    private fun startActivityLog() {
+        viewModelScope.launch {
+            state.map { current -> current.account?.let { if (current.localProfile) "local" else "${ServerOrigin.current}#${it.id}" } }
+                .filterNotNull().distinctUntilChanged().collect { owner -> ActivityLog.setOwner(owner) }
+        }
+        viewModelScope.launch(Dispatchers.Default) {
+            var previous: Map<String, Any?> = emptyMap()
+            state.collect { current ->
+                if (!ActivityLog.enabled) { previous = emptyMap(); return@collect }
+                val snapshot = activitySnapshot(current)
+                val changed = snapshot.filter { (key, value) -> key !in previous || previous[key] != value }
+                previous = snapshot
+                if (changed.isNotEmpty()) ActivityLog.log("state", *changed.map { (key, value) -> key to (value ?: "null") }.toTypedArray())
+            }
+        }
+    }
+
+    private fun activitySnapshot(s: ChatState): Map<String, Any?> = linkedMapOf(
+        "starting" to s.starting, "signed_in" to (s.account != null), "local_profile" to s.localProfile,
+        "serverless" to s.serverless, "pairing" to s.pairing, "busy" to s.busy, "auth_busy" to s.authBusy,
+        "auth_error" to s.authError, "setup_required" to s.setupRequired, "server_checking" to s.serverChecking,
+        "server_error" to s.serverError, "syncing" to s.syncing, "pending_count" to s.pendingCount, "sync_message" to s.syncMessage,
+        "thread" to s.selected?.id, "threads" to s.threads.size, "messages" to s.messages.size, "has_older" to s.hasOlder,
+        "leaf" to s.leafId, "editing" to (s.editingMessageId != null), "temporary" to s.newThreadTemporary,
+        "draft_empty" to s.draft.isEmpty(), "quote" to s.quote.isNotEmpty(), "model" to s.model, "attachments" to s.attachments.size,
+        "thinking" to s.enableThinking, "search" to s.enableSearch, "url_context" to s.enableUrlContext, "maps" to s.enableMaps,
+        "file_creation" to s.enableFileCreation, "system_prompt" to s.enableSystemPrompt, "prompt_cache" to s.enablePromptCache,
+        "batch" to s.batchMode, "python" to s.enablePython, "mcp" to s.enableMcp, "canvas" to s.canvasMode, "coding" to s.codingMode,
+        "selects" to s.chipValues.toString(), "vision_model" to s.visionModel, "uploading" to s.uploading,
+        "upload_completed" to s.uploadCompleted, "upload_count" to s.uploadCount, "streaming" to s.streaming, "job" to s.jobId,
+        "retry" to s.retryAvailable, "status" to s.status, "live_pending" to s.live.pendingStatus, "live_accepted" to s.live.accepted,
+        "live_search" to s.live.search, "live_error" to s.live.error, "cards" to s.cards.size, "notice" to s.notice,
+        "offline" to s.offline, "connection" to s.connectionStatus.name, "connection_message" to s.connectionMessage,
+        "banned" to s.banned, "locked" to (s.accountLock != null), "mcp_decision" to (s.mcpDecision != null),
+        "api_key_prompt" to s.apiKeyPrompt, "x_link_prompt" to s.xLinkPrompt, "mic" to s.micMode,
+        "realtime" to s.realtime.active, "lyria" to s.lyria.kind, "library_busy" to s.libraryBusy,
+        "library_failed" to s.libraryFailed, "gems_busy" to s.gemsBusy, "gem" to (s.selectedGem != null),
+        "prefs_busy" to s.prefsBusy, "mcp_busy" to s.mcpBusy, "feedback_busy" to s.feedbackBusy, "batch_busy" to s.batchBusy,
+        "cache_syncing" to s.cacheSyncing, "thread_loading" to s.threadLoadingId, "thread_load_failed" to s.threadLoadFailedId,
+        "navigation" to s.chatNavigationKind.name, "low_bandwidth" to s.lowBandwidthMode, "settings_request" to s.settingsRequest,
+        "settings_tab" to s.settingsRequestTab, "slash_command" to s.pendingSlashCommand,
+        "turnstile" to (s.sessionTurnstileUrl != null || s.authTurnstileUrl != null), "batch_banner" to (s.batchBanner != null),
+    )
+
     private var session: StoredSession? = null
     private var foreground = false
     private var backgroundedAt = 0L
@@ -4480,9 +4530,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (state.value.offline) { notify("オフライン中はフィードバックを送信できません。"); return@launch }
             mutable.update { it.copy(feedbackBusy = true) }
             try {
-                backend.post("/api/feedback", JSONObject().put("title", title.trim()).put("message", message.trim()), token())
+                val payload = JSONObject().put("title", title.trim()).put("message", message.trim())
+                // ログの収集を強化: the last hour of the activity log goes with the feedback.
+                val logs = if (ActivityLog.enabled) withContext(Dispatchers.IO) { ActivityLog.recent() } else null
+                if (logs != null) payload.put("client_logs", JSONObject().put("client", "android")
+                    .put("version", BuildConfig.VERSION_NAME).put("window_seconds", ActivityLog.WINDOW_MS / 1000).put("entries", logs))
+                val reply = backend.post("/api/feedback", payload, token())
                 loadFeedback()
-                notify("フィードバックを送信しました。")
+                notify(when {
+                    logs == null -> "フィードバックを送信しました。"
+                    reply.optBoolean("logs_saved", true) -> "フィードバックと直近1時間のログ（${logs.length()}件）を送信しました"
+                    else -> "フィードバックを送信しました（ログは保存できませんでした）"
+                })
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(feedbackBusy = false) } }
         }

@@ -1,6 +1,7 @@
 package com.minashin1120.aiplayground.data.direct
 
 import com.minashin1120.aiplayground.BuildConfig
+import com.minashin1120.aiplayground.data.ActivityLog
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
@@ -22,8 +23,9 @@ class DirectApiException(val status: Int, override val message: String) : IOExce
 
 /**
  * HTTP to AI providers for serverless mode. Only the providers' API hosts are reachable (so a key can
- * never be sent elsewhere), no cookies, no redirects, and requests are never logged. Tests pass their
- * own [allowedHosts] and base URLs.
+ * never be sent elsewhere), no cookies, no redirects, and request headers and bodies are never logged
+ * ([ActivityLog] keeps only the host, the path without its query, the status and the time). Tests pass
+ * their own [allowedHosts] and base URLs.
  */
 class DirectHttp(
     private val allowedHosts: Set<String> = PROVIDER_HOSTS,
@@ -58,14 +60,28 @@ class DirectHttp(
     private suspend fun <T> execute(request: Request, httpClient: OkHttpClient, consume: (Response) -> T): T =
         suspendCancellableCoroutine { continuation ->
             val call = httpClient.newCall(request)
-            continuation.invokeOnCancellation { call.cancel() }
+            val started = System.currentTimeMillis()
+            // ログの収集を強化: provider host, path (no query, so no key), status and time; never headers or bodies.
+            val host = request.url.host
+            val path = request.url.encodedPath
+            continuation.invokeOnCancellation {
+                call.cancel()
+                ActivityLog.log("direct.cancel", "method" to request.method, "host" to host, "path" to path,
+                    "ms" to System.currentTimeMillis() - started)
+            }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
+                    ActivityLog.log("direct.error", "method" to request.method, "host" to host, "path" to path,
+                        "ms" to System.currentTimeMillis() - started, "error" to e.javaClass.simpleName, "message" to e.message)
                     if (continuation.isActive) continuation.resumeWith(Result.failure(e))
                 }
 
                 override fun onResponse(call: Call, response: Response) {
+                    ActivityLog.log("direct", "method" to request.method, "host" to host, "path" to path,
+                        "status" to response.code, "ms" to System.currentTimeMillis() - started)
                     val result = runCatching { response.use { consume(it) } }
+                    if (result.isFailure) ActivityLog.log("direct.read_error", "host" to host, "path" to path,
+                        "ms" to System.currentTimeMillis() - started, "error" to result.exceptionOrNull()?.javaClass?.simpleName)
                     if (continuation.isActive) continuation.resumeWith(result)
                 }
             })

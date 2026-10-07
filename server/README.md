@@ -39,7 +39,7 @@
 | `rich_paste_pdf.py` | スレッドPDFとリッチペーストPDFの組版・サニタイズ・テーマ処理 | PDF出力、リッチペースト印刷 |
 | `routes_threads_library.py` | 暗号化スキャン、管理者スレッド、スレッド設定、ファイルライブラリ操作 | 暗号化、スレッド設定、ライブラリCRUD |
 | `routes_account.py` | アカウント削除、輸出入ジョブ、重複修復、フィードバック、簡易ログイン | アカウント移行 API |
-| `routes_admin.py` | BAN、ボット検知、Turnstile、速度テスト、管理者のユーザー操作 | 管理、BAN、Turnstile |
+| `routes_admin.py` | フィードバックの送信・一覧・返信と、添付された操作ログの `logs/feedback-*.jsonl` への保存、BAN、ボット検知、Turnstile、速度テスト、管理者のユーザー操作 | フィードバック、操作ログ（ログの収集を強化）、管理、BAN、Turnstile |
 | `routes_settings.py` | `/api/settings`、AI 設定プロンプト、セッション、2FA 設定、Gem、メンテナンス | 設定保存、Gem、セッション |
 | `routes_media.py` | TTS / STT / STS、アップロード、容量 API、レイテンシ、クライアントログ | 音声合成、アップロード API |
 | `../mcp_service/` | 外部MCPの接続・OAuth・ツール実行。チャット側は `background.py` と設定ルートで連携 | MCP接続・認証・実行 |

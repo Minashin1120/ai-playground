@@ -516,7 +516,8 @@ fun PlaygroundScreen(
                 onPdf = sharePdf,
                 onExternal = openExternal,
                 onSearch = model::search,
-                onOpenThread = { thread -> historyOpen = false; model.openThread(thread, onLoaded = onNavigate) },
+                // ANDROID_ONLY.md: the Drawer closes on tap and the chat shows its loading skeleton until the history arrives.
+                onOpenThread = { thread -> historyOpen = false; onNavigate(); model.openThread(thread) },
                 onBookmark = model::toggleBookmark,
                 onRenameThread = { renaming = it },
                 onDeleteThread = { deleting = it },
@@ -1342,33 +1343,11 @@ private fun Conversation(
     animationsEnabled: Boolean,
     onSettingJump: (String) -> Unit = {},
 ) {
-    var outgoingState by remember { mutableStateOf<ChatState?>(null) }
-    var keepOutgoingUntilLoaded by remember { mutableStateOf(false) }
-    LaunchedEffect(model) {
-        var previous = model.state.value
-        var pendingOutgoing: ChatState? = null
-        model.state.collect { current ->
-            val selectedChanged = current.selected?.id != previous.selected?.id
-            val navigationStarted = current.chatTransitionKind == com.minashin1120.aiplayground.ChatTransitionKind.NONE &&
-                current.busy &&
-                (selectedChanged || (current.messages.isEmpty() && previous.messages.isNotEmpty()))
-            if (navigationStarted) {
-                pendingOutgoing = previous
-                outgoingState = previous
-                keepOutgoingUntilLoaded = true
-            }
-            if (current.chatTransitionKind != com.minashin1120.aiplayground.ChatTransitionKind.NONE &&
-                current.chatTransitionId != previous.chatTransitionId) {
-                outgoingState = pendingOutgoing ?: previous
-                pendingOutgoing = null
-                keepOutgoingUntilLoaded = false
-            } else if (keepOutgoingUntilLoaded && !current.busy && pendingOutgoing != null) {
-                pendingOutgoing = null
-                keepOutgoingUntilLoaded = false
-            }
-            previous = current
-        }
-    }
+    // What each chat pane last showed, so a leaving pane keeps its own chat while the next one fades in.
+    val shownByTransition = remember { LinkedHashMap<Long, ChatState>() }
+    shownByTransition.remove(state.chatTransitionId)
+    shownByTransition[state.chatTransitionId] = state
+    while (shownByTransition.size > 4) shownByTransition.remove(shownByTransition.keys.first())
     val slideOffsetPx = with(LocalDensity.current) { 22.dp.roundToPx() }
     AnimatedContent(
         targetState = state.chatTransitionId,
@@ -1386,17 +1365,7 @@ private fun Conversation(
         },
         label = "chat conversation transition",
     ) { transitionId ->
-        val showOutgoing = keepOutgoingUntilLoaded || transitionId != state.chatTransitionId
-        // The collector above reacts a frame late; until it does, keep what this pane last showed
-        // instead of flashing the loading thread's empty list and refilling it.
-        val lastShown = remember { arrayOfNulls<ChatState>(1) }
-        val loadingOther = state.busy && state.chatNavigationId != state.chatTransitionId
-        val contentState = when {
-            showOutgoing -> outgoingState ?: state
-            loadingOther -> lastShown[0] ?: state
-            else -> state
-        }
-        lastShown[0] = contentState
+        val contentState = if (transitionId == state.chatTransitionId) state else shownByTransition[transitionId] ?: state
         ProvideQuoteSelection(model::quoteMessage) { ConversationContent(contentState, model, onFile, loader, onSettingJump) }
     }
 }
@@ -1477,7 +1446,9 @@ private fun ConversationContent(
     val scope = rememberCoroutineScope()
     val keys = remember { ConversationKeyTracker() }
     val streamActive = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty() || state.cards.isNotEmpty()
-    keys.update(state.messages, state.streaming, streamActive)
+    // Web `buildChatLoadingSkeletonHtml` in `#chat-container` while an opened chat's history loads.
+    val loadingThread = state.threadLoadingId != 0L && state.threadLoadingId == state.chatTransitionId && state.messages.isEmpty()
+    keys.update(state.messages, state.streaming, streamActive, loadingHistory = loadingThread)
     // Once the stored reply has taken over the streamed row, the placeholder must not reappear.
     val live = streamActive && !keys.liveConsumed
     // Web `part05` auto-scroll, restarted for every opened or new chat (Web `resumeChatAutoScroll` in `loadMessages`).
@@ -1524,6 +1495,8 @@ private fun ConversationContent(
         }
     }
     val temporary = state.selected?.isTemporary == true || (state.selected == null && state.newThreadTemporary)
+    val loadFailed = !loadingThread && state.threadLoadFailedId != null && state.threadLoadFailedId == state.selected?.id &&
+        state.messages.isEmpty() && !live
     // Web shows the hover controls of the bubble the user last tapped.
     var activeMessageId by remember { mutableStateOf<String?>(null) }
     var deletingMessage by remember { mutableStateOf<ChatMessage?>(null) }
@@ -1563,6 +1536,7 @@ private fun ConversationContent(
                 contentPadding = PaddingValues(12.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
+            if (loadingThread) item(key = CHAT_LOAD_SKELETON_KEY) { ChatLoadingSkeleton() }
             if (state.hasOlder) item(key = "older") {
                 Box(Modifier.fillMaxWidth().padding(bottom = 12.dp), contentAlignment = Alignment.Center) {
                     val web = LocalWebPalette.current
@@ -1621,7 +1595,8 @@ private fun ConversationContent(
                     }
                 }
             }
-            val showWelcome = state.messages.isEmpty() && !state.busy && !live && !welcomeDismissed
+            if (loadFailed) ChatLoadError(onRetry = model::retryOpenThread, modifier = Modifier.align(Alignment.TopCenter))
+            val showWelcome = state.messages.isEmpty() && !state.busy && !loadingThread && !loadFailed && !live && !welcomeDismissed
             androidx.compose.animation.AnimatedVisibility(
                 visible = showWelcome,
                 enter = fadeIn(motionTween(reduce)),

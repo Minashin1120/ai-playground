@@ -193,6 +193,7 @@ internal class ConversationKeyTracker {
     private var lastMessages: List<ChatMessage>? = null
     private var lastLiveShown = false
     private var lastStreaming = false
+    private var lastLoadingHistory = false
     private val aliases = HashMap<String, String>()
     private val fresh = HashSet<String>()
     private var liveSerial = 0
@@ -217,14 +218,16 @@ internal class ConversationKeyTracker {
     /** Returns true only the first time a newly added key asks, so re-composition never replays the entry. */
     fun consumeFresh(key: String): Boolean = fresh.remove(key)
 
-    fun update(messages: List<ChatMessage>, streaming: Boolean, liveVisible: Boolean) {
+    /** [loadingHistory]: the opened chat's history is still loading; the rows it brings appear without entry motion. */
+    fun update(messages: List<ChatMessage>, streaming: Boolean, liveVisible: Boolean, loadingHistory: Boolean = false) {
         if (streaming && !lastStreaming) liveConsumed = false
         lastStreaming = streaming
         val previous = lastMessages
         if (previous !== messages) {
             lastMessages = messages
-            if (previous != null) carryOver(previous, messages)
+            if (previous != null && !lastLoadingHistory) carryOver(previous, messages)
         }
+        lastLoadingHistory = loadingHistory
         val shown = liveVisible && !liveConsumed
         if (shown && !lastLiveShown && previous != null) fresh += liveKey
         lastLiveShown = shown
@@ -240,7 +243,7 @@ internal class ConversationKeyTracker {
      */
     private fun uniqueKeys(messages: List<ChatMessage>): List<String> {
         // The list's own rows ("older", "welcome") and the streamed row share the same key space.
-        val used = hashSetOf(liveKey, "older", "welcome")
+        val used = hashSetOf(liveKey, "older", "welcome", CHAT_LOAD_SKELETON_KEY)
         return messages.mapIndexed { index, message ->
             var key = aliasOf(message)
             if (key in used) key = message.id

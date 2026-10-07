@@ -184,6 +184,10 @@ data class ChatState(
     /** Advances the moment a history/new-chat navigation starts, before its content loads. */
     val chatNavigationId: Long = 0L,
     val chatNavigationKind: ChatTransitionKind = ChatTransitionKind.NONE,
+    /** Web `buildChatLoadingSkeletonHtml`: the transition id of the chat whose history is still loading (0 when none). */
+    val threadLoadingId: Long = 0L,
+    /** Web `showChatLoadError`: the opened chat whose history failed to load (its id), until it is opened again. */
+    val threadLoadFailedId: String? = null,
     /** Web low-bandwidth mode: preference (auto/on/off), effective state and the detection reason. */
     val lowBandwidthPreference: String = "auto",
     val lowBandwidthMode: Boolean = false,
@@ -1880,9 +1884,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     /**
      * Web `loadMessages`: the composer is cleared (`cancelEdit`), the branch pinned in ブランチ管理 or else the
-     * latest one is shown, and [onLoaded] runs once the chat is on screen (the phone sidebar closes then).
+     * latest one is shown. The chat transition starts at once and the loading skeleton stays until the history arrives.
      */
-    fun openThread(thread: ThreadItem, onLoaded: () -> Unit = {}, recordHistory: Boolean = true) {
+    fun openThread(thread: ThreadItem, recordHistory: Boolean = true) {
         if (recordHistory) recordChatNavigation(ChatLocation(thread))
         navigationJob?.cancel(); streamJob?.cancel(); heartbeatJob?.cancel(); failed = null
         pendingParentId = null
@@ -1894,9 +1898,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             draft = "", attachments = emptyList(), quote = "",
             liveContent = "", liveThought = "", jobId = null, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null,
-            // Keep the current transition id while the history loads so the AnimatedContent swap
-            // happens exactly once, when the messages arrive, instead of animating to a placeholder first.
-            chatTransitionKind = ChatTransitionKind.NONE,
+            // Web `playChatTransition('history')` + `buildChatLoadingSkeletonHtml`: swap to the new chat now
+            // and show the skeleton there; the messages replace it in place when they arrive.
+            chatTransitionId = transition.first, chatTransitionKind = transition.second,
+            threadLoadingId = transition.first, threadLoadFailedId = null,
             chatNavigationId = transition.first, chatNavigationKind = transition.second) }
         navigationJob = viewModelScope.launch {
             val started = System.currentTimeMillis()
@@ -1905,10 +1910,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 loadMessages(thread.id)
                 Diagnostics.log("thread.opened", "thread" to thread.id, "ms" to System.currentTimeMillis() - started,
                     "messages" to state.value.messages.size)
-                if (state.value.selected?.id == thread.id) {
-                    mutable.update { it.copy(busy = false, chatTransitionId = transition.first, chatTransitionKind = transition.second) }
-                    onLoaded()
-                }
+                mutable.update { it.copy(busy = if (it.selected?.id == thread.id) false else it.busy,
+                    threadLoadingId = if (it.threadLoadingId == transition.first) 0L else it.threadLoadingId) }
                 if (foreground && state.value.jobId != null) resume()
             }
             catch (e: CancellationException) {
@@ -1917,10 +1920,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             catch (e: Exception) {
                 Diagnostics.failure("thread.open_error", e, "thread" to thread.id, "ms" to System.currentTimeMillis() - started)
+                if (state.value.threadLoadingId == transition.first) mutable.update { it.copy(threadLoadFailedId = thread.id) }
                 report(e, "チャットの読み込みに失敗しました")
             }
-            finally { mutable.update { it.copy(busy = false) } }
+            finally {
+                mutable.update { it.copy(busy = false,
+                    threadLoadingId = if (it.threadLoadingId == transition.first) 0L else it.threadLoadingId) }
+            }
         }
+    }
+    /** Web `showChatLoadError` 再試行: loads the chat that failed to open again. */
+    fun retryOpenThread() {
+        state.value.selected?.let { openThread(it, recordHistory = false) }
     }
     /**
      * [inPlace]: the open chat is updated without replacing what is on screen. Messages loaded with

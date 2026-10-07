@@ -18,6 +18,19 @@ class ConversationMotionTest {
     }
 
     @Test
+    fun historyLoadedBehindSkeletonDoesNotPlayEntryMotion() {
+        val keys = ConversationKeyTracker()
+        keys.update(emptyList(), streaming = false, liveVisible = false, loadingHistory = true)
+        keys.update(history, streaming = false, liveVisible = false)
+        assertFalse(keys.consumeFresh("10"))
+        assertFalse(keys.consumeFresh("11"))
+
+        val local = ChatMessage("local-abc", "user", "こんにちは")
+        keys.update(history + local, streaming = true, liveVisible = true)
+        assertTrue(keys.consumeFresh("local-abc"))
+    }
+
+    @Test
     fun storedMessagesTakeOverStreamedRows() {
         val keys = ConversationKeyTracker()
         keys.update(history, streaming = false, liveVisible = false)

@@ -19,6 +19,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -44,15 +48,21 @@ import com.minashin1120.aiplayground.data.CardKind
 import com.minashin1120.aiplayground.data.pendingSkeletonKind
 import kotlinx.coroutines.delay
 
-/** `.skeleton-line` fill: a moving highlight (`skeleton-shimmer`, 1.55s). */
+/**
+ * `.skeleton-line` fill: a moving highlight (`skeleton-shimmer`, 1.55s). [userBubble] is the lighter
+ * `.chat-load-skeleton-user .skeleton-line` fill used inside the loading skeleton's user bubbles.
+ */
 @Composable
-private fun skeletonBrush(): Brush {
+private fun skeletonBrush(userBubble: Boolean = false): Brush {
     val web = LocalWebPalette.current
     val reduce = LocalReduceMotion.current
     val shift = if (reduce) 0.5f else rememberInfiniteTransition(label = "skeleton").animateFloat(
         1f, -1f, infiniteRepeatable(tween(1550, easing = LinearEasing), RepeatMode.Restart), label = "skeleton shift",
     ).value
-    val base = Color(148, 163, 184)
+    val base = if (userBubble) Color(191, 219, 254) else Color(148, 163, 184)
+    val highlight = if (userBubble) Color.White.copy(alpha = 0.38f) else web.theme.rgb(0.28f)
+    val edge = if (userBubble) 0.14f else 0.10f
+    val mid = if (userBubble) 0.28f else 0.18f
     return object : androidx.compose.ui.graphics.ShaderBrush() {
         override fun createShader(size: androidx.compose.ui.geometry.Size): androidx.compose.ui.graphics.Shader {
             val width = size.width * 2.2f
@@ -60,7 +70,7 @@ private fun skeletonBrush(): Brush {
             return androidx.compose.ui.graphics.LinearGradientShader(
                 from = androidx.compose.ui.geometry.Offset(start, 0f),
                 to = androidx.compose.ui.geometry.Offset(start + width, 0f),
-                colors = listOf(base.copy(alpha = 0.10f), base.copy(alpha = 0.18f), web.theme.rgb(0.28f), base.copy(alpha = 0.18f), base.copy(alpha = 0.10f)),
+                colors = listOf(base.copy(alpha = edge), base.copy(alpha = mid), highlight, base.copy(alpha = mid), base.copy(alpha = edge)),
                 colorStops = listOf(0f, 0.35f, 0.5f, 0.65f, 1f),
                 tileMode = androidx.compose.ui.graphics.TileMode.Clamp,
             )
@@ -94,6 +104,129 @@ internal fun PendingSkeleton(model: String, status: String, sub: String) {
         Text(status, fontSize = 11.2.sp, lineHeight = 15.7.sp, letterSpacing = 0.11.sp, color = statusColor, modifier = Modifier.padding(top = 12.dp))
         if (sub.isNotEmpty()) Text(sub, fontSize = 10.4.sp, lineHeight = 14.6.sp, color = Color(148, 163, 184).copy(alpha = 0.65f),
             modifier = Modifier.padding(top = 3.2.dp))
+    }
+}
+
+/** LazyColumn key of [ChatLoadingSkeleton]; kept out of the message keys. */
+internal const val CHAT_LOAD_SKELETON_KEY = "chat-load-skeleton"
+
+/** Web `buildChatLoadingSkeletonHtml`: alternating user / AI rows (line widths in order) and the caption. */
+private val CHAT_LOAD_SKELETON_ROWS = listOf(
+    true to listOf(0.62f, 0.44f),
+    false to listOf(0.88f, 0.76f, 0.92f, 0.58f),
+    true to listOf(0.48f),
+    false to listOf(0.82f, 0.70f, 0.54f),
+)
+
+/**
+ * Web `.chat-load-skeleton`: shown in the chat while an opened chat's history loads. Rows rise in one
+ * after another (`chat-load-row-enter`) and the チャットを読み込み中... caption pulses.
+ */
+@Composable
+internal fun ChatLoadingSkeleton() {
+    val web = LocalWebPalette.current
+    val reduce = LocalReduceMotion.current
+    val brush = skeletonBrush()
+    val userBrush = skeletonBrush(userBubble = true)
+    Column(
+        Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 16.dp)
+            .clearAndSetSemantics {
+                contentDescription = "チャットを読み込み中"
+                liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite
+            },
+    ) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val rowWidth = maxWidth
+            Column(Modifier.fillMaxWidth()) {
+                CHAT_LOAD_SKELETON_ROWS.forEachIndexed { index, (user, widths) ->
+                    val enter = remember { androidx.compose.animation.core.Animatable(if (reduce) 1f else 0f) }
+                    LaunchedEffect(Unit) {
+                        if (!reduce) enter.animateTo(1f, tween(420, delayMillis = index * 70, easing = PlaygroundMotion.WebEaseOut))
+                    }
+                    val shape = if (user) RoundedCornerShape(20.dp, 20.dp, 8.dp, 20.dp) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 8.dp)
+                    val background = when {
+                        user -> Brush.verticalGradient(List(2) { Color(37, 99, 235).copy(alpha = if (web.isLight) 0.14f else 0.42f) })
+                        web.isLight -> Brush.verticalGradient(listOf(Color.White, Color(0xFFF4F7FB)))
+                        else -> Brush.verticalGradient(listOf(Color(16, 22, 40).copy(alpha = 0.82f), Color(10, 14, 26).copy(alpha = 0.86f)))
+                    }
+                    val border = when {
+                        user && web.isLight -> Color(37, 99, 235).copy(alpha = 0.24f)
+                        user -> Color(96, 165, 250).copy(alpha = 0.18f)
+                        web.isLight -> Color(15, 23, 42).copy(alpha = 0.08f)
+                        else -> Color(148, 163, 184).copy(alpha = 0.12f)
+                    }
+                    // `.chat-load-skeleton-user` max min(72%, 360px); `.chat-load-skeleton-ai` up to 520px within the bubble limit.
+                    val bubbleWidth = if (user) minOf(rowWidth * 0.72f, 360.dp)
+                        else minOf(rowWidth * (if (rowWidth >= PlaygroundDimens.breakpoint) 0.8f else 0.9f), 520.dp)
+                    Box(
+                        Modifier.fillMaxWidth().padding(bottom = 16.dp)
+                            .graphicsLayer {
+                                alpha = enter.value
+                                translationY = (1f - enter.value) * 10.dp.toPx()
+                            },
+                        contentAlignment = if (user) Alignment.TopEnd else Alignment.TopStart,
+                    ) {
+                        Box(
+                            Modifier.width(bubbleWidth).alpha(0.92f).clip(shape).background(background)
+                                .border(1.dp, border, shape).padding(16.dp),
+                        ) {
+                            SkeletonLines(if (user) userBrush else brush, widths, 11.5.dp, 8.8.dp, 420.dp, CircleShape)
+                        }
+                    }
+                }
+            }
+        }
+        val pulse = if (reduce) 0.75f else rememberInfiniteTransition(label = "chat load caption").animateFloat(
+            0.55f, 1f, infiniteRepeatable(tween(800, easing = PlaygroundMotion.WebStandard), RepeatMode.Reverse), label = "caption pulse",
+        ).value
+        Row(
+            Modifier.fillMaxWidth().padding(top = 5.6.dp).alpha(pulse),
+            horizontalArrangement = Arrangement.spacedBy(7.2.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // `.chat-load-skeleton-caption-dot`: a theme dot with a 3px soft ring.
+            Box(Modifier.size(12.4.dp).clip(CircleShape).background(web.theme.rgb(0.15f)), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(6.4.dp).clip(CircleShape).background(web.theme.rgb(0.75f)))
+            }
+            Text("チャットを読み込み中...", fontSize = 11.5.sp, lineHeight = 16.sp, letterSpacing = 0.23.sp,
+                color = Color(148, 163, 184).copy(alpha = 0.78f))
+        }
+    }
+}
+
+/** Web `showChatLoadError`: the chat could not be loaded, with 再試行. */
+@Composable
+internal fun ChatLoadError(onRetry: () -> Unit, modifier: Modifier = Modifier) {
+    val web = LocalWebPalette.current
+    val strong = if (web.isLight) Tw.red700 else Tw.red100
+    val soft = if (web.isLight) Tw.red700 else Tw.red200.copy(alpha = 0.8f)
+    val cardShape = RoundedCornerShape(16.dp)
+    val buttonShape = RoundedCornerShape(8.dp)
+    // `min-h-[45vh] flex items-center justify-center px-4`
+    val minHeight = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.45f).dp
+    Box(modifier.fillMaxWidth().heightIn(min = minHeight).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier.widthIn(max = 448.dp).fillMaxWidth().clip(cardShape)
+                .background(if (web.isLight) Color(239, 68, 68).copy(alpha = 0.12f) else Color(0xFF450A0A).copy(alpha = 0.3f))
+                .border(1.dp, Tw.red500.copy(alpha = 0.4f), cardShape)
+                .padding(20.dp)
+                .semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Assertive },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            FaIcon(R.drawable.fa_solid_triangle_exclamation, null, size = 20.dp, tint = if (web.isLight) Tw.red700 else Tw.red300)
+            Text("チャットを読み込めませんでした", fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, color = strong,
+                modifier = Modifier.padding(top = 12.dp))
+            Text("通信状態を確認して、もう一度お試しください。", fontSize = 12.sp, lineHeight = 16.sp, color = soft,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 8.dp))
+            Row(
+                Modifier.padding(top = 16.dp).clip(buttonShape).border(1.dp, Tw.red300.copy(alpha = 0.4f), buttonShape)
+                    .clickable(role = Role.Button, onClick = onRetry).padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FaIcon(R.drawable.fa_solid_rotate_right, null, size = 13.dp, tint = strong, modifier = Modifier.padding(end = 4.dp))
+                Text("再試行", fontSize = 14.sp, lineHeight = 20.sp, color = strong)
+            }
+        }
     }
 }
 

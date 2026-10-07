@@ -15,6 +15,16 @@ class MathJaxRendererTest {
         assertEquals(0.9166f, svg.heightEm, 1e-4f)
     }
 
+    @Test fun drawingFillsTheGivenAreaInTheTextColor() {
+        val markup = """<svg style="vertical-align: -0.025ex;" xmlns="http://www.w3.org/2000/svg" width="2.016ex" height="2.072ex" viewBox="0 -905.6 891 916.6"><g stroke="currentColor" fill="currentColor" stroke-width="0"><rect width="10" height="20"></rect></g></svg>"""
+        val drawn = mathSvgForDrawing(markup, androidx.compose.ui.graphics.Color(0xFF112233))
+        // Only the root size goes: AndroidSVG would size the formula from it instead of the area it is given.
+        assertEquals(
+            """<svg style="vertical-align: -0.025ex;" xmlns="http://www.w3.org/2000/svg" viewBox="0 -905.6 891 916.6"><g stroke="#112233" fill="#112233" stroke-width="0"><rect width="10" height="20"></rect></g></svg>""",
+            drawn,
+        )
+    }
+
     @Test fun unusableOutputFallsBackToTheApproximation() {
         assertNull(parseMathSvg(""))
         assertNull(parseMathSvg("<svg></svg>"))

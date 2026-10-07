@@ -245,11 +245,25 @@ internal fun rememberMathState(tex: String, display: Boolean): MathState {
     return state
 }
 
-/** Parses the SVG once per color; MathJax draws with `currentColor`, which becomes the text color. */
+private val ROOT_SVG_TAG = Regex("""^\s*<svg\b[^>]*>""")
+private val ROOT_SIZE_ATTRIBUTE = Regex("""\s(?:width|height)="[^"]*"""")
+
+/**
+ * The markup AndroidSVG draws: MathJax's `currentColor` becomes the text color, and the root `width`/`height`
+ * (in ex) are dropped. AndroidSVG would otherwise size the drawing from them with its own 12px font,
+ * ignoring the area it is given, so formulas came out a fraction of their size.
+ */
+internal fun mathSvgForDrawing(markup: String, color: Color): String {
+    val hex = String.format(java.util.Locale.ROOT, "#%06X", color.toArgb() and 0xFFFFFF)
+    val root = ROOT_SVG_TAG.find(markup)
+    val sized = if (root == null) markup else root.value.replace(ROOT_SIZE_ATTRIBUTE, "") + markup.substring(root.range.last + 1)
+    return sized.replace("currentColor", hex)
+}
+
+/** Parses the SVG once per color. */
 @Composable
 internal fun rememberMathDrawing(svg: MathSvg, color: Color): SVG? = remember(svg, color) {
-    val hex = String.format(java.util.Locale.ROOT, "#%06X", color.toArgb() and 0xFFFFFF)
-    runCatching { SVG.getFromString(svg.markup.replace("currentColor", hex)) }.getOrNull()
+    runCatching { SVG.getFromString(mathSvgForDrawing(svg.markup, color)) }.getOrNull()
 }
 
 /** Draws [drawing] with its top-left corner at ([left], [top]) and 1em = [emPx] (TeX font em). */

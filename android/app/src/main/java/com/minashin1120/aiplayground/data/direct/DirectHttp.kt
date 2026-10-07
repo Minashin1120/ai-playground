@@ -8,6 +8,7 @@ import okhttp3.CookieJar
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -32,6 +33,9 @@ class DirectHttp(
         .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
         .connectTimeout(20, TimeUnit.SECONDS).readTimeout(660, TimeUnit.SECONDS)
         .writeTimeout(180, TimeUnit.SECONDS).callTimeout(0, TimeUnit.SECONDS).build()
+    // Provider SSE responses can be buffered over HTTP/2 before Android receives their deltas.
+    // Keep ordinary provider requests on the default client and use HTTP/1.1 only for live streams.
+    private val streamingClient = client.newBuilder().protocols(listOf(Protocol.HTTP_1_1)).build()
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
     fun request(url: String, headers: Map<String, String>): Request.Builder {
@@ -49,20 +53,23 @@ class DirectHttp(
     fun jsonBody(payload: JSONObject): RequestBody = payload.toString().toRequestBody(jsonType)
 
     /** Runs the call; [consume] reads the response on OkHttp's thread. Cancelling the coroutine cancels the call. */
-    suspend fun <T> execute(request: Request, consume: (Response) -> T): T = suspendCancellableCoroutine { continuation ->
-        val call = client.newCall(request)
-        continuation.invokeOnCancellation { call.cancel() }
-        call.enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                if (continuation.isActive) continuation.resumeWith(Result.failure(e))
-            }
+    suspend fun <T> execute(request: Request, consume: (Response) -> T): T = execute(request, client, consume)
 
-            override fun onResponse(call: Call, response: Response) {
-                val result = runCatching { response.use { consume(it) } }
-                if (continuation.isActive) continuation.resumeWith(result)
-            }
-        })
-    }
+    private suspend fun <T> execute(request: Request, httpClient: OkHttpClient, consume: (Response) -> T): T =
+        suspendCancellableCoroutine { continuation ->
+            val call = httpClient.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    if (continuation.isActive) continuation.resumeWith(Result.failure(e))
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    val result = runCatching { response.use { consume(it) } }
+                    if (continuation.isActive) continuation.resumeWith(result)
+                }
+            })
+        }
 
     suspend fun postJson(url: String, headers: Map<String, String>, payload: JSONObject): JSONObject =
         execute(request(url, headers).post(jsonBody(payload)).build()) { response ->
@@ -88,7 +95,7 @@ class DirectHttp(
 
     /** POSTs [payload] and hands each Server-Sent Event to [onEvent] until it returns false or the stream ends. */
     suspend fun postSse(url: String, headers: Map<String, String>, payload: JSONObject, onEvent: (SseEvent) -> Boolean) {
-        execute(request(url, headers).header("Accept", "text/event-stream").post(jsonBody(payload)).build()) { response ->
+        execute(request(url, headers).header("Accept", "text/event-stream").post(jsonBody(payload)).build(), streamingClient) { response ->
             if (!response.isSuccessful) throw providerError(response.code, response.body.string())
             readSse(response.body.source(), onEvent = onEvent)
         }

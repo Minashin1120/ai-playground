@@ -92,7 +92,9 @@ ANDROID_RECORD_EXACT = {
 OPERATIONS_RECORD_EXACT = {
     ".github/workflows/android.yml",
     ".github/workflows/release.yml",
+    "tests/conftest.py",
     "tests/test_mcp_release_allowlist.py",
+    "tests/test_production_schema_guard_regressions.py",
     "tests/test_release_scripts.py",
 }
 OPERATIONS_RECORD_PREFIXES = ("scripts/",)

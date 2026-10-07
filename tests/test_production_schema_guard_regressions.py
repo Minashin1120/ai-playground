@@ -61,7 +61,8 @@ class ProductionSchemaGuardRegressionTests(unittest.TestCase):
 
     def test_verify_script_exports_sqlite_database_url(self):
         self.assertIn("export DATABASE_URL=", VERIFY_SCRIPT)
-        self.assertIn("sqlite:////tmp/ai-chat-verify.db", VERIFY_SCRIPT)
+        self.assertIn("sqlite:///$TEST_DB_FILE", VERIFY_SCRIPT)
+        self.assertIn("TEST_DB_DIR=/dev/shm", VERIFY_SCRIPT)
 
 
 if __name__ == "__main__":

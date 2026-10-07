@@ -8,7 +8,9 @@ unconditionally replaces a non-sqlite DATABASE_URL.
 """
 import os
 
-_DEFAULT_TEST_DB = "sqlite:////tmp/ai-chat-pytest-session.db"
+# tmpfs keeps the per-test drop_all()/create_all() resets off the disk.
+_TEST_DB_DIR = "/dev/shm" if os.access("/dev/shm", os.W_OK) else "/tmp"
+_DEFAULT_TEST_DB = f"sqlite:///{_TEST_DB_DIR}/ai-chat-pytest-session.db"
 
 
 def _sqlite_database_uri(uri):

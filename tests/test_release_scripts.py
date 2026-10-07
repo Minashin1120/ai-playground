@@ -221,7 +221,12 @@ class ReleaseScriptContractTests(unittest.TestCase):
         self.assertEqual(docs["android_build"], [])
 
         operations = COMMON.classify_record_target(
-            ["scripts/record_changes.sh", ".github/workflows/android.yml"],
+            [
+                "scripts/record_changes.sh",
+                ".github/workflows/android.yml",
+                "tests/conftest.py",
+                "tests/test_production_schema_guard_regressions.py",
+            ],
             "operations",
         )
         self.assertEqual(operations["outside_target"], [])

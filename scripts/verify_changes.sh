@@ -88,7 +88,17 @@ run_logged "python syntax" "$PYTHON" -m py_compile "${PY_SOURCES[@]}"
 if [[ "$SKIP_TESTS" -eq 0 ]]; then
     # Never inherit a live MySQL URL into pytest. setdefault() in tests cannot
     # override an already-exported DATABASE_URL, and db.drop_all() would wipe it.
-    export DATABASE_URL="${AI_CHAT_TEST_DATABASE_URL:-sqlite:////tmp/ai-chat-verify.db}"
+    # Most tests recreate every table in setUp; on the disk-backed /tmp each
+    # reset costs ~1 s of fsync, so keep the throwaway database on tmpfs.
+    TEST_DB_DIR=/tmp
+    if [[ -d /dev/shm && -w /dev/shm ]]; then
+        TEST_DB_DIR=/dev/shm
+    fi
+    TEST_DB_FILE="$TEST_DB_DIR/ai-chat-verify.db"
+    if [[ -z "${AI_CHAT_TEST_DATABASE_URL:-}" ]]; then
+        trap 'rm -f "$TEST_DB_FILE"' EXIT
+    fi
+    export DATABASE_URL="${AI_CHAT_TEST_DATABASE_URL:-sqlite:///$TEST_DB_FILE}"
     export RUN_SCHEMA_MIGRATIONS="${RUN_SCHEMA_MIGRATIONS:-0}"
     info "running pytest (quiet; full output in $VERIFY_LOG)"
     if ! "$PYTHON" -m pytest -q --tb=line "${PYTEST_ARGS[@]}" >>"$VERIFY_LOG" 2>&1; then

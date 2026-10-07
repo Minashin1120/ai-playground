@@ -11,11 +11,13 @@ import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ZoomState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,13 +26,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.minashin1120.aiplayground.data.normalizeCapturedPhotoOrientation
 import java.io.File
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -67,10 +72,17 @@ internal fun InAppCameraDialog(
         if (permissionGranted) {
             val controller = remember(context) { LifecycleCameraController(context).apply {
                 setEnabledUseCases(CameraController.IMAGE_CAPTURE)
+                isPinchToZoomEnabled = true
             } }
+            var zoomState by remember(controller) { mutableStateOf<ZoomState?>(null) }
             DisposableEffect(controller, lifecycleOwner) {
                 controller.bindToLifecycle(lifecycleOwner)
-                onDispose { controller.unbind() }
+                val zoomObserver = Observer<ZoomState> { zoomState = it }
+                controller.zoomState.observe(lifecycleOwner, zoomObserver)
+                onDispose {
+                    controller.zoomState.removeObserver(zoomObserver)
+                    controller.unbind()
+                }
             }
             Box(Modifier.fillMaxSize().background(Color.Black)) {
                 AndroidView(
@@ -86,6 +98,34 @@ internal fun InAppCameraDialog(
                     "閉じる", color = Color.White, modifier = Modifier.align(Alignment.TopStart)
                         .statusBarsPadding().padding(20.dp).clickable(onClick = onDismiss),
                 )
+                zoomState?.let { state ->
+                    val presets = cameraZoomPresets(state.minZoomRatio, state.maxZoomRatio)
+                    if (presets.size > 1) {
+                        val active = activeCameraZoomPreset(presets, state.zoomRatio)
+                        Row(
+                            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 122.dp)
+                                .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(50)).padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            presets.forEach { preset ->
+                                val selected = preset == active
+                                Box(
+                                    Modifier.size(40.dp)
+                                        .background(if (selected) Color.White.copy(alpha = 0.22f) else Color.Transparent, CircleShape)
+                                        .clickable { controller.setZoomRatio(preset) },
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        formatCameraZoomRatio(if (selected) state.zoomRatio else preset),
+                                        color = if (selected) Color(0xFFFFD54F) else Color.White,
+                                        fontSize = 12.sp,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 Box(
                     Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 28.dp)
                         .size(78.dp).border(4.dp, Color.White, CircleShape)
@@ -127,4 +167,23 @@ internal fun InAppCameraDialog(
             }
         }
     }
+}
+
+private val CAMERA_ZOOM_STEPS = listOf(1f, 2f, 5f)
+
+/** Preset zoom buttons: the ultra-wide end when the camera has one, then 1x, 2x and 5x within range. */
+internal fun cameraZoomPresets(minZoomRatio: Float, maxZoomRatio: Float): List<Float> {
+    val presets = mutableListOf<Float>()
+    if (minZoomRatio < 0.95f) presets += minZoomRatio
+    CAMERA_ZOOM_STEPS.filterTo(presets) { it >= minZoomRatio - 0.01f && it <= maxZoomRatio + 0.01f }
+    return presets
+}
+
+/** The preset the current zoom belongs to: the largest one not above the current ratio. */
+internal fun activeCameraZoomPreset(presets: List<Float>, zoomRatio: Float): Float =
+    presets.lastOrNull { it <= zoomRatio + 0.05f } ?: presets.first()
+
+internal fun formatCameraZoomRatio(zoomRatio: Float): String {
+    val tenths = Math.round(zoomRatio * 10f)
+    return if (tenths % 10 == 0) "${tenths / 10}×" else String.format(Locale.ROOT, "%.1f×", tenths / 10f)
 }

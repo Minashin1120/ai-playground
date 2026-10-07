@@ -1418,7 +1418,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (value && !state.value.localProfile) startConnectionMonitor() else stopConnectionMonitor()
         if (returning) recomputeLowBandwidth(notify = false)
         if (value && state.value.account != null && !state.value.localProfile) startBatchPolling()
-        if (returning && state.value.account != null && state.value.selected != null && !state.value.busy && !state.value.streaming) refresh()
+        if (returning && state.value.account != null && state.value.selected != null && !state.value.busy && !state.value.streaming) refreshInPlace()
         if (returning && state.value.account != null) startCacheSyncIfAllowed()
         if (returning && state.value.serverless) scheduleSync()
     }
@@ -1922,8 +1922,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             finally { mutable.update { it.copy(busy = false) } }
         }
     }
-    private suspend fun loadMessages(requestedId: String, older: Boolean = false, autoResume: Boolean = true) {
+    /**
+     * [inPlace]: the open chat is updated without replacing what is on screen. Messages loaded with
+     * 過去メッセージを読み込む stay, the chosen model and Gem are kept, and a failed request or a send
+     * that started meanwhile leaves the chat as it is.
+     */
+    private suspend fun loadMessages(requestedId: String, older: Boolean = false, autoResume: Boolean = true, inPlace: Boolean = false) {
         val id = serverIdOf(requestedId)
+        if (inPlace && state.value.offline && !deviceChat(id)) return
         if (state.value.offline && !deviceChat(id)) {
             loadCachedMessages(id, older)
             return
@@ -1944,6 +1950,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             val canUseCache = if (e is ApiException) e.status >= 500 else e is IOException
             if (!canUseCache) throw e
+            if (inPlace) return
             val accountId = state.value.account?.id ?: throw e
             val cached = withContext(Dispatchers.IO) { offlineCache.loadThread(accountId, id) } ?: throw e
             setConnectionUnavailable(
@@ -1955,13 +1962,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         Diagnostics.log("thread.fetched", "thread" to id, "rows" to (reply.optJSONArray("messages")?.length() ?: 0),
             "pending_job" to !reply.isNull("pending_job"))
         if (state.value.selected?.id != id) return
+        if (inPlace && (state.value.streaming || state.value.busy)) return
         val parsed = parseMessages(reply)
-        val all = if (older) (parsed + state.value.allMessages).distinctBy { m -> m.id } else parsed
+        val parsedOldest = parsed.mapNotNull { numericId(it) }.filterNot { LocalChatStore.isPendingId(it) }.minOrNull()
+        val earlier = if (inPlace && parsedOldest != null)
+            state.value.allMessages.filter { m -> numericId(m)?.let { n -> n < parsedOldest } == true } else emptyList()
+        val all = if (older) (parsed + state.value.allMessages).distinctBy { m -> m.id } else earlier + parsed
         val leaf = state.value.leafId?.takeIf { candidate -> all.any { numericId(it) == candidate } }
             ?: all.mapNotNull { numericId(it) }.maxOrNull()
         val path = activeBranchPath(all, leaf)
+        val keepsEarlier = earlier.isNotEmpty()
         mutable.update { it.copy(messages = path, allMessages = all, leafId = leaf,
-            hasOlder = reply.optBoolean("has_older_messages"), oldestId = reply.nullableString("oldest_loaded_id"),
+            hasOlder = if (keepsEarlier) it.hasOlder else reply.optBoolean("has_older_messages"),
+            oldestId = if (keepsEarlier) it.oldestId else reply.nullableString("oldest_loaded_id"),
             jobId = if (older) it.jobId else reply.optJSONObject("pending_job")?.nullableString("job_id")?.ifBlank { null },
             selected = it.selected?.let { selected -> selected.copy(
                 title = reply.optString("title", selected.title),
@@ -1977,7 +1990,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 reply.optLong("temp_chat_remaining_seconds").takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 },
             liveContent = if (older) it.liveContent else "", liveThought = if (older) it.liveThought else "",
             cards = if (older) it.cards else emptyList(),
-            selectedGem = if (older) it.selectedGem else {
+            selectedGem = if (older || inPlace) it.selectedGem else {
                 val uuid = reply.nullableString("last_gem_uuid")
                 if (uuid.isBlank()) null else it.gems.firstOrNull { gem -> gem.uuid == uuid }
             }) }
@@ -1985,7 +1998,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Web `loadMessages`: the chat's PromptCache flag and last model come back with it (the flag
             // first, so a PromptCache lock from the previous chat never blocks the switch).
             mutable.update { it.copy(enablePromptCache = reply.optBoolean("enable_prompt_caching")) }
-            reply.nullableString("last_model").takeIf { it.isNotBlank() && it != state.value.model }?.let(::chooseModel)
+            if (!inPlace) reply.nullableString("last_model").takeIf { it.isNotBlank() && it != state.value.model }?.let(::chooseModel)
         }
         if (!deviceChat(id)) state.value.account?.let { account ->
             withContext(Dispatchers.IO) {
@@ -1993,7 +2006,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // Unsent answers of serverless mode are not cached: they are shown from the outbox.
                     account.id, state.value.selected ?: return@withContext,
                     all.filterNot { m -> numericId(m)?.let { n -> state.value.serverless && LocalChatStore.isPendingId(n) } == true },
-                    reply.optBoolean("has_older_messages"), reply.nullableString("oldest_loaded_id").ifBlank { null },
+                    if (keepsEarlier) state.value.hasOlder else reply.optBoolean("has_older_messages"),
+                    (if (keepsEarlier) state.value.oldestId else reply.nullableString("oldest_loaded_id"))?.ifBlank { null },
                     reply.nullableString("custom_instruction"), reply.optBoolean("include_global_instruction", true),
                     reply.optLong("temp_chat_remaining_seconds").takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 },
                     leaf,
@@ -2073,6 +2087,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val thread = state.value.selected
         if (thread != null) openThread(thread)
         else navigationJob = viewModelScope.launch { try { fetchThreads(false) } catch (e: Exception) { report(e) } }
+    }
+    /**
+     * Coming back to the app: the open chat picks up new answers, a server job to rejoin and the temporary
+     * chat heartbeat without reopening it, so the scroll position, draft and loaded history stay. Web does
+     * not reload the chat when the tab becomes visible again.
+     */
+    private fun refreshInPlace() {
+        val thread = state.value.selected ?: return
+        navigationJob?.cancel()
+        navigationJob = viewModelScope.launch {
+            Diagnostics.log("thread.refresh", "thread" to thread.id)
+            try { loadMessages(thread.id, inPlace = true) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { report(e) }
+        }
     }
     /** [onNewChat] runs when the open chat was deleted (Web `startNewChat` also closes the phone sidebar). */
     fun deleteThread(thread: ThreadItem, onNewChat: () -> Unit = {}) { viewModelScope.launch {

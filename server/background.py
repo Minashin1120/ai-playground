@@ -1987,6 +1987,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             agentic_consumed_urls = []
             sandbox_text_buffer = [""]
             agentic_filename_url_map = {}
+            # Sandbox images earlier answers in this thread produced, loaded the
+            # first time this answer cites a bare file name (None = not loaded).
+            prior_sandbox_names = None
             pending_sandbox_filenames = []
             signature_parts = []
 
@@ -4284,6 +4287,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                                     if hasattr(part, 'text') and part.text:
                                         t_delta = part.text
+                                        if prior_sandbox_names is None and _has_bare_sandbox_image_ref(sandbox_text_buffer[0] + t_delta):
+                                            # The model may cite a file an earlier turn's code saved.
+                                            prior_sandbox_names = _prior_sandbox_image_names(thread_id)
+                                            for _prior_name, _prior_url in prior_sandbox_names.items():
+                                                if _prior_url:
+                                                    agentic_filename_url_map.setdefault(_prior_name, _prior_url)
                                         rewritten = _rewrite_streamed_sandbox_refs(
                                             t_delta,
                                             sandbox_text_buffer,
@@ -4313,6 +4322,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             full_res = full_res.replace(
                                 f"![Agentic View]({_consumed_url})", ""
                             )
+
+                    if _has_bare_sandbox_image_ref(full_res):
+                        if prior_sandbox_names is None:
+                            prior_sandbox_names = _prior_sandbox_image_names(thread_id)
+                        full_res = _resolve_prior_sandbox_image_refs(full_res, prior_sandbox_names)
 
                     if grounding_chunks and (options.get('enable_search') or options.get('enable_maps')):
                         if grounding_supports:

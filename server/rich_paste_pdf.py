@@ -112,6 +112,7 @@ def _build_thread_pdf_payload(thread, leaf_id=None):
             "parent_id": m.parent_id,
             "timestamp": m.timestamp.isoformat() if m.timestamp else None
         })
+    _apply_thread_sandbox_image_refs(thread.id, serialized)
 
     return {
         "thread": {

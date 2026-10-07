@@ -233,6 +233,173 @@ def _rewrite_streamed_sandbox_refs(delta, buffer_state, saved_urls, consumed_url
     return "".join(out)
 
 
+_PYEXEC_BLOCK_RE = re.compile(r"```pyexec\n(.*?)\n```", re.S)
+_STORED_AGENTIC_IMAGE_RE = re.compile(
+    r"!\[([^\]]*)\]\((/files/\d+/agentic_(\d+)_[0-9a-f]+\.[A-Za-z0-9]+)\)"
+)
+_PRIOR_SANDBOX_SCAN_LIMIT = 200
+
+
+def _collect_sandbox_image_names(text, names):
+    """
+    Record which saved /files/ image a stored Gemini code-execution answer
+    produced for each sandbox file name (e.g. "result.png").
+
+    The stored answer keeps every executed block as ```pyexec {"code": ...}```
+    followed by the ![Agentic View](/files/...) placeholder of each image that
+    run returned, so the names a block saves pair with the placeholders after
+    it, mirroring the streaming pass.  A placeholder consumed by a reference in
+    the same answer was moved to that reference; leftover names then pair with
+    those images in the order they were saved.  names maps the lower-cased
+    name to its URL, or to None when the code wrote the file but no image came
+    back.  Later answers override earlier ones.
+    """
+    if not text or "```pyexec" not in text:
+        return
+    events = [(m.start(), "code", m) for m in _PYEXEC_BLOCK_RE.finditer(text)]
+    events += [(m.start(), "image", m) for m in _STORED_AGENTIC_IMAGE_RE.finditer(text)]
+    events.sort(key=lambda item: item[0])
+    pending = []
+    unpaired_names = []
+    moved_images = []
+    found = {}
+    for _, kind, match in events:
+        if kind == "code":
+            unpaired_names.extend(pending)
+            try:
+                code = json.loads(match.group(1)).get("code")
+            except Exception:
+                code = None
+            pending = _extract_sandbox_image_filenames(code)
+            continue
+        url = match.group(2)
+        if match.group(1) != "Agentic View":
+            moved_images.append((int(match.group(3)), url))
+        elif pending:
+            found[pending.pop(0).lower()] = url
+    unpaired_names.extend(pending)
+    moved_urls = []
+    earlier_urls = set(url for url in names.values() if url)
+    for _, url in sorted(moved_images):
+        # An image an earlier answer produced may be cited again here.
+        if url not in moved_urls and url not in found.values() and url not in earlier_urls:
+            moved_urls.append(url)
+    for name in unpaired_names:
+        key = name.lower()
+        if key in found:
+            continue
+        found[key] = moved_urls.pop(0) if moved_urls else None
+    for key, url in found.items():
+        if url or not names.get(key):
+            names[key] = url
+
+
+def _resolve_prior_sandbox_image_refs(text, names):
+    """
+    Rewrite bare ![alt](name.png) references to an image an earlier answer
+    produced in the code-execution sandbox (names from
+    _collect_sandbox_image_names).  A name the earlier code wrote without
+    returning an image becomes a short note instead of an unloadable image;
+    names no earlier answer produced are left unchanged.
+    """
+    if not text or not names or "![" not in text:
+        return text
+
+    def _repl(match):
+        basename = _sandbox_ref_basename(match.group(2))
+        key = basename.lower() if basename else None
+        if not key or key not in names:
+            return match.group(0)
+        alt = match.group(1) or ""
+        url = names[key]
+        if url:
+            return f"![{alt}]({url})"
+        return f"（※画像データを取得できませんでした: {alt}）"
+
+    return _SANDBOX_IMG_REF_RE.sub(_repl, text)
+
+
+def _has_bare_sandbox_image_ref(text):
+    return bool(text) and "![" in text and _SANDBOX_IMG_REF_RE.search(text) is not None
+
+
+def _sandbox_history_rows(thread_id, before_id=None):
+    """Earlier answers of the thread that may hold code-execution output, oldest first."""
+    try:
+        query = Message.query.filter(
+            Message.thread_id == thread_id,
+            Message.role == "assistant",
+            db.or_(Message.is_encrypted.is_(True), Message.content.like("%```pyexec%")),
+        )
+        if before_id is not None:
+            query = query.filter(Message.id < before_id)
+        rows = query.order_by(Message.id.desc()).limit(_PRIOR_SANDBOX_SCAN_LIMIT).all()
+    except Exception as exc:
+        log_force(f"Sandbox image history lookup failed for thread {thread_id}: {exc}")
+        return []
+    rows.sort(key=lambda row: row.id)
+    return rows
+
+
+def _collect_sandbox_row_names(row, names):
+    try:
+        content = decrypt_val(row.content) if row.is_encrypted else row.content
+    except Exception:
+        return
+    if isinstance(content, str):
+        _collect_sandbox_image_names(content, names)
+
+
+def _prior_sandbox_image_names(thread_id):
+    """Sandbox file names -> saved /files/ URLs from every stored answer of the thread."""
+    names = {}
+    for row in _sandbox_history_rows(thread_id):
+        _collect_sandbox_row_names(row, names)
+    return names
+
+
+def _resolve_thread_sandbox_image_refs(thread_id, texts):
+    """
+    Resolve bare sandbox image references in stored answers of one thread
+    against the code-execution output of the answers before each of them.
+
+    texts maps a message id to its decrypted content.  Returns
+    {message_id: rewritten text} only for the texts that changed.  The caller
+    must already have checked that the thread belongs to the user.
+    """
+    targets = {mid: text for mid, text in (texts or {}).items() if _has_bare_sandbox_image_ref(text)}
+    if not targets:
+        return {}
+    rows = _sandbox_history_rows(thread_id, before_id=max(targets))
+    names = {}
+    changed = {}
+    index = 0
+    for mid in sorted(targets):
+        while index < len(rows) and rows[index].id < mid:
+            _collect_sandbox_row_names(rows[index], names)
+            index += 1
+        rewritten = _resolve_prior_sandbox_image_refs(targets[mid], names)
+        if rewritten != targets[mid]:
+            changed[mid] = rewritten
+    return changed
+
+
+def _apply_thread_sandbox_image_refs(thread_id, items):
+    """Rewrite, in place, the content of serialized assistant messages ({"id", "role", "content"})."""
+    try:
+        changed = _resolve_thread_sandbox_image_refs(thread_id, {
+            item["id"]: item["content"]
+            for item in items
+            if item.get("role") == "assistant" and isinstance(item.get("content"), str)
+        })
+    except Exception as exc:
+        log_force(f"Sandbox image reference resolution failed for thread {thread_id}: {exc}")
+        return
+    for item in items:
+        if item.get("id") in changed:
+            item["content"] = changed[item["id"]]
+
+
 def _save_user_audio(user_id, data, suffix, encrypt):
     fname = f"audio_{int(time.time())}_{os.urandom(4).hex()}{suffix}"
     fpath = _save_user_generated_bytes(user_id, data, fname, encrypt)

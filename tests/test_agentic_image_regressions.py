@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import tempfile
 import unittest
@@ -241,6 +242,75 @@ class AgenticImageRegressionTests(unittest.TestCase):
         self.assertNotIn("![Agentic View](/files/1/agentic_abc.png)", out)
         self.assertIn("![背景透過ロゴ](/files/1/agentic_abc.png)", out)
         self.assertEqual(consumed, ["/files/1/agentic_abc.png"])
+
+    @staticmethod
+    def _stored_code_execution_answer(code, *image_markdown):
+        payload = json.dumps({"code": code, "output": None})
+        body = f"\n```python\n{code}\n```\n\n```pyexec\n{payload}\n```\n"
+        return body + "".join(f"\n{item}\n" for item in image_markdown)
+
+    def test_later_answer_resolves_image_saved_by_earlier_code_execution(self):
+        earlier = (
+            self._stored_code_execution_answer(
+                "cv2.imwrite('annotated_v1.jpeg', img)",
+                "![Agentic View](/files/1/agentic_1791392271912_a1ae81c3.jpg)",
+            )
+            + self._stored_code_execution_answer(
+                "cv2.imwrite('annotated_v2.jpeg', img)",
+                "![Agentic View](/files/1/agentic_1791392278387_6b52c4a1.jpg)",
+            )
+        )
+        names = {}
+        target._collect_sandbox_image_names(earlier, names)
+        out = target._resolve_prior_sandbox_image_refs(
+            "再度表示します。\n\n![修正箇所](annotated_v2.jpeg)", names
+        )
+        self.assertEqual(
+            out, "再度表示します。\n\n![修正箇所](/files/1/agentic_1791392278387_6b52c4a1.jpg)"
+        )
+
+    def test_image_consumed_in_same_answer_is_still_found_later(self):
+        earlier = (
+            self._stored_code_execution_answer("img.save('first.png')")
+            + self._stored_code_execution_answer(
+                "img.save('second.png')",
+                "![Agentic View](/files/1/agentic_1791392274308_738a46f2.jpg)",
+            )
+            + "結果: ![完成](/files/1/agentic_1791392271912_a1ae81c3.jpg)"
+        )
+        names = {}
+        target._collect_sandbox_image_names(earlier, names)
+        self.assertEqual(names["first.png"], "/files/1/agentic_1791392271912_a1ae81c3.jpg")
+        self.assertEqual(names["second.png"], "/files/1/agentic_1791392274308_738a46f2.jpg")
+
+    def test_name_written_without_returned_image_becomes_note(self):
+        names = {}
+        target._collect_sandbox_image_names(
+            self._stored_code_execution_answer("img.save('lost.png')"), names
+        )
+        out = target._resolve_prior_sandbox_image_refs("![図](lost.png)", names)
+        self.assertNotIn("](lost.png)", out)
+        self.assertIn("画像データを取得できませんでした", out)
+
+    def test_unknown_bare_name_is_left_unchanged_after_history_lookup(self):
+        names = {"result.png": "/files/1/agentic_1_ab.png"}
+        out = target._resolve_prior_sandbox_image_refs("![x](other.png)", names)
+        self.assertEqual(out, "![x](other.png)")
+
+    def test_thread_resolution_only_uses_answers_before_each_message(self):
+        earlier = mock.Mock(
+            id=10,
+            is_encrypted=False,
+            content=self._stored_code_execution_answer(
+                "img.save('result.png')",
+                "![Agentic View](/files/1/agentic_1791392271912_a1ae81c3.jpg)",
+            ),
+        )
+        with mock.patch.object(target, "_sandbox_history_rows", return_value=[earlier]):
+            changed = target._resolve_thread_sandbox_image_refs(
+                5, {5: "![a](result.png)", 12: "![b](result.png)", 13: "画像なし"}
+            )
+        self.assertEqual(changed, {12: "![b](/files/1/agentic_1791392271912_a1ae81c3.jpg)"})
 
     def test_verified_save_returns_url_when_file_lands(self):
         """A successful write that is confirmed on disk must return its URL."""

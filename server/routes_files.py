@@ -285,6 +285,8 @@ def handle_thread_item(thread_id):
                     'provider': batch_row.provider,
                 } if batch_row else None)
             })
+        # Answers that cite a file an earlier turn's code execution saved.
+        _apply_thread_sandbox_image_refs(t.id, res)
         payload = {
             'messages': res,
             'has_older_messages': bool(has_older_messages),

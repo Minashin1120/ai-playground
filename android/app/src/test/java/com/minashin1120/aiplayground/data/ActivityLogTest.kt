@@ -62,4 +62,12 @@ class ActivityLogTest {
         ActivityLog.log("after")
         assertEquals(0, ActivityLog.recent().length())
     }
+
+    @Test fun feedbackSentTextNamesTheLogsAndTheChatCopy() {
+        assertEquals("フィードバックを送信しました", feedbackSentText(null, true, false, false))
+        assertEquals("フィードバックと直近1時間のログ（3件）を送信しました", feedbackSentText(3, true, false, false))
+        assertEquals("フィードバックとチャットのコピーを送信しました", feedbackSentText(null, true, true, true))
+        assertEquals("フィードバック、直近1時間のログ（2件）、チャットのコピーを送信しました", feedbackSentText(2, true, true, true))
+        assertEquals("フィードバックを送信しました（ログとチャットのコピーは保存できませんでした）", feedbackSentText(2, false, true, false))
+    }
 }

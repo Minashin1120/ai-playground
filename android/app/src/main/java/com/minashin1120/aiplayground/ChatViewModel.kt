@@ -24,6 +24,7 @@ import com.minashin1120.aiplayground.data.direct.DirectHttp
 import com.minashin1120.aiplayground.data.direct.DirectRouter
 import com.minashin1120.aiplayground.data.direct.TranscriptionDirect
 import com.minashin1120.aiplayground.data.local.LocalSettingsStore
+import com.minashin1120.aiplayground.data.feedbackSentText
 import com.minashin1120.aiplayground.data.local.LocalChatBackend
 import com.minashin1120.aiplayground.data.local.LocalChatStore
 import com.minashin1120.aiplayground.data.local.LocalProfiles
@@ -4524,7 +4525,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun submitFeedback(title: String, message: String) {
+    /** [chatId] is the open chat whose copy goes with the feedback (null when the box is not ticked). */
+    fun submitFeedback(title: String, message: String, chatId: String? = null) {
         if (message.isBlank()) return
         viewModelScope.launch {
             if (state.value.offline) { notify("オフライン中はフィードバックを送信できません。"); return@launch }
@@ -4535,16 +4537,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val logs = if (ActivityLog.enabled) withContext(Dispatchers.IO) { ActivityLog.recent() } else null
                 if (logs != null) payload.put("client_logs", JSONObject().put("client", "android")
                     .put("version", BuildConfig.VERSION_NAME).put("window_seconds", ActivityLog.WINDOW_MS / 1000).put("entries", logs))
+                val chatCopy = chatId?.let { feedbackChatCopy(it) }
+                if (chatCopy != null) payload.put("chat_copy", chatCopy)
                 val reply = backend.post("/api/feedback", payload, token())
                 loadFeedback()
-                notify(when {
-                    logs == null -> "フィードバックを送信しました。"
-                    reply.optBoolean("logs_saved", true) -> "フィードバックと直近1時間のログ（${logs.length()}件）を送信しました"
-                    else -> "フィードバックを送信しました（ログは保存できませんでした）"
-                })
+                notify(feedbackSentText(logs?.length(), reply.optBoolean("logs_saved", true),
+                    chatCopy != null, reply.optBoolean("chat_copy_saved", false)))
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(feedbackBusy = false) } }
         }
+    }
+
+    /**
+     * Web `chat_copy`: the server decrypts its own chat by id. A chat kept only on the device (serverless
+     * mode) is not on the server, so its decrypted history from the device store goes instead.
+     */
+    private suspend fun feedbackChatCopy(id: String): JSONObject {
+        val resolved = serverIdOf(id)
+        val copy = JSONObject().put("client", "android").put("version", BuildConfig.VERSION_NAME).put("thread_id", resolved)
+        if (deviceChat(resolved)) copy.put("thread", backend.get("/api/threads/$resolved", token()))
+        return copy
     }
 
     fun loadMcpServers() {

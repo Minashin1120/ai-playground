@@ -156,3 +156,21 @@ object ActivityLog {
         else -> value.toString().let { if (it.length > MAX_FIELD_CHARS) it.take(MAX_FIELD_CHARS) + "…(${it.length})" else it }
     }
 }
+
+/**
+ * Web `ActivityLog.reportFeedback`: the message after a feedback was accepted. [logCount] is the number of
+ * log entries sent (null when the log is off); [chatCopy] is true when a copy of the open chat went with it.
+ */
+fun feedbackSentText(logCount: Int?, logsSaved: Boolean, chatCopy: Boolean, chatCopySaved: Boolean): String {
+    val failed = buildList {
+        if (logCount != null && !logsSaved) add("ログ")
+        if (chatCopy && !chatCopySaved) add("チャットのコピー")
+    }
+    if (failed.isNotEmpty()) return "フィードバックを送信しました（${failed.joinToString("と")}は保存できませんでした）"
+    val sent = buildList {
+        add("フィードバック")
+        if (logCount != null) add("直近1時間のログ（${logCount}件）")
+        if (chatCopy) add("チャットのコピー")
+    }
+    return sent.joinToString(if (sent.size > 2) "、" else "と") + "を送信しました"
+}

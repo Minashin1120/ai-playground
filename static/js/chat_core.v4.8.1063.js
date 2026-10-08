@@ -13316,10 +13316,16 @@
                 const payload = {title, message};
                 const clientLogs = window.ActivityLog ? window.ActivityLog.feedbackPayload() : null;
                 if (clientLogs) payload.client_logs = clientLogs;
+                // The server decrypts the open chat and stores a copy next to the logs (server/routes_admin.py).
+                const attachChat = get('fb-attach-chat');
+                const chatCopy = !!(attachChat && attachChat.checked);
+                if (chatCopy && !currentThreadId) { showToast("コピーを送信するチャットが開かれていません", "error", true); return; }
+                if (chatCopy) payload.chat_copy = {client: 'web', thread_id: String(currentThreadId)};
                 const res = await apiFetch("/api/feedback", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-                if (clientLogs && !(await window.ActivityLog.reportFeedback(res, clientLogs))) return;
+                if (!(window.ActivityLog ? await window.ActivityLog.reportFeedback(res, clientLogs, chatCopy) : res.ok)) return;
                 get('fb-title').value = '';
                 get('fb-message').value = '';
+                if (attachChat) attachChat.checked = false;
                 loadFeedback();
             };
 
@@ -13348,7 +13354,7 @@
                             <div class="text-[11px] text-gray-400">#${item.id} / user:${item.user_id} / ${item.created_at}</div>
                             <div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div>
                             <div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div>
-                            ${item.log_file ? `<div class="text-[11px] text-amber-300">操作ログ: logs/${escapeHtml(item.log_file)}</div>` : ''}
+                            ${[item.log_file && `操作ログ: logs/${item.log_file}`, item.chat_file && `チャットのコピー: logs/${item.chat_file}`].filter(Boolean).map(t => `<div class="text-[11px] text-amber-300">${escapeHtml(t)}</div>`).join('')}
                             <div class="flex items-center gap-2">
                                 <select class="fb-status bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white">
                                     <option value="new">new</option>

@@ -159,6 +159,8 @@ internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsFor
     },
 )
 
+private const val FEEDBACK_CHAT_COPY_LABEL = "現在開いているチャットのコピーを送信する"
+private const val FEEDBACK_CHAT_COPY_DESCRIPTION = "開いているチャットのメッセージ、回答、思考過程、チャットの設定を復号して、不具合の調査用に送信します。添付ファイルの中身は含みません。送信したコピーは、チャットを削除しても残ります。"
 private const val ACTIVITY_LOG_DESCRIPTION = "この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバックの送信時に直近1時間のログを一緒に送信します。チャットで送信した内容、回答、ファイル、入力欄の文字は記録しません。"
 
 /** Web `refreshActivityLogUi`: the switch state and `操作ログ: N件 (x.xMB)`, read again after each change. */
@@ -216,17 +218,31 @@ private fun UsageBar(fraction: Float) {
 }
 
 internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (String) -> Unit): List<SettingsCardSpec> = listOf(
-    SettingsCardSpec(SettingsTab.Feedback, "send", "フィードバック送信", "フィードバック送信 タイトル (任意) バグ報告・要望などを入力してください 送信",
+    SettingsCardSpec(SettingsTab.Feedback, "send", "フィードバック送信",
+        "フィードバック送信 タイトル (任意) バグ報告・要望などを入力してください $FEEDBACK_CHAT_COPY_LABEL $FEEDBACK_CHAT_COPY_DESCRIPTION 送信",
         titleIcon = R.drawable.fa_solid_bug) {
+        val web = LocalWebPalette.current
         var title by remember { mutableStateOf("") }
         var message by remember { mutableStateOf("") }
+        var attachChat by remember { mutableStateOf(false) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingsTextField(title, { title = it.take(200) }, Modifier.fillMaxWidth(), placeholder = "タイトル (任意)")
             SettingsTextField(message, { message = it.take(100_000) }, Modifier.fillMaxWidth(), placeholder = "バグ報告・要望などを入力してください",
                 minHeight = 112.dp, singleLine = false)
+            Column {
+                SettingsCheck(FEEDBACK_CHAT_COPY_LABEL, attachChat, { attachChat = it }, boxSize = 14.dp, labelColor = web.text)
+                SettingsDesc(FEEDBACK_CHAT_COPY_DESCRIPTION, Modifier.padding(start = 22.dp, top = 4.dp))
+            }
             SettingsSmallButton("送信", {
-                if (message.isBlank()) notify("フィードバック内容を入力してください")
-                else { model.submitFeedback(title.trim(), message.trim()); title = ""; message = "" }
+                val chatId = state.selected?.id
+                when {
+                    message.isBlank() -> notify("フィードバック内容を入力してください")
+                    attachChat && chatId == null -> notify("コピーを送信するチャットが開かれていません")
+                    else -> {
+                        model.submitFeedback(title.trim(), message.trim(), if (attachChat) chatId else null)
+                        title = ""; message = ""; attachChat = false
+                    }
+                }
             }, tone = SettingsButtonTone.Blue, enabled = !state.feedbackBusy, fill = true)
         }
     },

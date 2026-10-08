@@ -88,6 +88,30 @@ assert.equal(store.get('aip_activity_log_owner'), 'alice');
 """)
 
 
+def test_feedback_report_names_logs_and_chat_copy():
+    _run_node(r"""
+load();
+const toasts = [];
+window.showToast = (text, type) => toasts.push([text, type]);
+const reply = (ok, data) => ({ ok, json: () => Promise.resolve(data) });
+(async () => {
+  const logs = { entries: [1, 2] };
+  assert.equal(await window.ActivityLog.reportFeedback(reply(true, {}), null, false), true);
+  assert.equal(await window.ActivityLog.reportFeedback(reply(true, { logs_saved: true, chat_copy_saved: true }), logs, true), true);
+  assert.equal(await window.ActivityLog.reportFeedback(reply(true, { chat_copy_saved: true }), null, true), true);
+  assert.equal(await window.ActivityLog.reportFeedback(reply(true, { logs_saved: true, chat_copy_saved: false }), logs, true), true);
+  assert.equal(await window.ActivityLog.reportFeedback(reply(false, { error: 'rate_limit' }), null, true), false);
+  assert.deepEqual(toasts.map(t => t[0]), [
+    'フィードバックを送信しました',
+    'フィードバック、直近1時間のログ（2件）、チャットのコピーを送信しました',
+    'フィードバックとチャットのコピーを送信しました',
+    'フィードバックを送信しました（チャットのコピーは保存できませんでした）',
+    'rate_limit',
+  ]);
+})().catch(e => { console.error(e); process.exitCode = 1; });
+""")
+
+
 def test_activity_log_script_loads_before_chat_core():
     template = (APP_ROOT / 'templates' / 'chat.html').read_text(encoding='utf-8')
     scripts = (APP_ROOT / 'templates' / 'chat' / 'scripts.html').read_text(encoding='utf-8')
@@ -157,3 +181,75 @@ class FeedbackClientLogTests(unittest.TestCase):
         with self.target.app.app_context():
             index = self.target._feedback_log_file_index()
         self.assertEqual(list(index.values()), [names[0]])
+
+    def make_thread(self):
+        target = self.target
+        with target.app.app_context():
+            thread = target.Thread(user_id=self.user_id, public_id='feedback-chat-thread', title='T',
+                                   custom_instruction='be brief')
+            target.db.session.add(thread)
+            target.db.session.flush()
+            target.db.session.add(target.Message(thread_id=thread.id, role='user', is_encrypted=True,
+                                                 content=target.encrypt_val('secret question'), image_url='1/a.png'))
+            target.db.session.add(target.Message(thread_id=thread.id, role='assistant', is_encrypted=True,
+                                                 content=target.encrypt_val('secret answer'),
+                                                 thought_data=target.encrypt_val('thinking'), model='m'))
+            target.db.session.commit()
+            return thread.public_id
+
+    def read_chat_copy(self):
+        names = [n for n in os.listdir(self.log_dir) if n.endswith('.chat.jsonl')]
+        self.assertEqual(len(names), 1, os.listdir(self.log_dir))
+        self.assertRegex(names[0], r'^feedback-\d+-web-\d{8}T\d{6}Z\.chat\.jsonl$')
+        path = os.path.join(self.log_dir, names[0])
+        self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+        with open(path, encoding='utf-8') as handle:
+            return names[0], [json.loads(line) for line in handle]
+
+    def test_feedback_stores_decrypted_copy_of_the_open_chat(self):
+        thread_id = self.make_thread()
+        self.assertEqual(self.post({'message': 'm', 'chat_copy': 'x'}).status_code, 400)
+        response = self.post({'message': 'with chat', 'chat_copy': {'client': 'web', 'version': 'V1', 'thread_id': thread_id}})
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertIs(response.get_json()['chat_copy_saved'], True)
+        self.assertNotIn('logs_saved', response.get_json())
+        name, rows = self.read_chat_copy()
+        self.assertEqual((rows[0]['kind'], rows[0]['source'], rows[0]['thread_id'], rows[0]['messages']),
+                         ('meta', 'server', thread_id, 2))
+        self.assertEqual((rows[1]['kind'], rows[1]['custom_instruction']), ('thread', 'be brief'))
+        messages = [row for row in rows if row['kind'] == 'message']
+        self.assertEqual([m['content'] for m in messages], ['secret question', 'secret answer'])
+        self.assertEqual((messages[0]['image_url'], messages[1]['thought_data']), ('1/a.png', 'thinking'))
+        with self.target.app.app_context():
+            self.assertEqual(list(self.target._feedback_chat_file_index().values()), [name])
+            self.assertEqual(self.target._feedback_log_file_index(), {})
+
+    def test_feedback_chat_copy_of_another_user_or_device_chat(self):
+        target = self.target
+        with target.app.app_context():
+            other = target.User(username='feedback-other', is_setup_completed=True)
+            other.set_password('test-password')
+            target.db.session.add(other)
+            target.db.session.flush()
+            target.db.session.add(target.Thread(user_id=other.id, public_id='not-mine', title='X'))
+            target.db.session.commit()
+        response = self.post({'message': 'm', 'chat_copy': {'client': 'web', 'thread_id': 'not-mine'}})
+        self.assertIs(response.get_json()['chat_copy_saved'], False)
+        self.assertEqual(os.listdir(self.log_dir), [])
+        device = {'title': 'On device', 'messages': [{'id': 1, 'role': 'user', 'content': 'hello'}, 'bad']}
+        response = self.post({'message': 'm', 'chat_copy': {'client': 'web', 'thread_id': 'l_1', 'thread': device}})
+        self.assertIs(response.get_json()['chat_copy_saved'], True)
+        _, rows = self.read_chat_copy()
+        self.assertEqual((rows[0]['source'], rows[0]['thread_id'], rows[0]['messages']), ('device', 'l_1', 1))
+        self.assertEqual((rows[1]['kind'], rows[1]['title']), ('thread', 'On device'))
+        self.assertEqual((rows[2]['kind'], rows[2]['content']), ('message', 'hello'))
+
+    def test_account_deletion_removes_feedback_files(self):
+        thread_id = self.make_thread()
+        self.post({'message': 'm', 'chat_copy': {'client': 'web', 'thread_id': thread_id},
+                   'client_logs': {'client': 'web', 'entries': [{'t': 1, 'ev': 'click'}]}})
+        self.assertEqual(len(os.listdir(self.log_dir)), 2)
+        target = self.target
+        with target.app.app_context():
+            target._delete_user_account_immediately(target.db.session.get(target.User, self.user_id))
+        self.assertEqual(os.listdir(self.log_dir), [])

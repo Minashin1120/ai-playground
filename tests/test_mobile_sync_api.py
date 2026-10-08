@@ -203,7 +203,7 @@ class MobileSyncApiTests(unittest.TestCase):
     def test_diagnostics_are_accepted_only_from_administrators(self):
         log_dir = tempfile.TemporaryDirectory(prefix='mobile-diagnostics-')
         self.addCleanup(log_dir.cleanup)
-        path = os.path.join(log_dir.name, 'logs', 'android-diagnostics.log')
+        path = os.path.join(log_dir.name, 'diagnostics', 'android-diagnostics.log')
         patcher = mock.patch.dict(target.app.config, ANDROID_DIAGNOSTICS_LOG=path)
         patcher.start()
         self.addCleanup(patcher.stop)

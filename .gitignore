@@ -30,5 +30,6 @@ android/debug.keystore
 !android/ci/debug.keystore
 引き継ぎ資料.txt
 
-# Server logs (Android diagnostics, feedback activity logs)
-logs/
+# Feedback (information, activity logs, chat copies) and Android diagnostics
+/feedback/
+/diagnostics/

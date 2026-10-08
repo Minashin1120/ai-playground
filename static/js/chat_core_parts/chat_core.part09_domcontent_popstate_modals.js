@@ -116,7 +116,7 @@
                             <div class="text-[11px] text-gray-400">#${item.id} / user:${item.user_id} / ${item.created_at}</div>
                             <div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div>
                             <div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div>
-                            ${[item.log_file && `操作ログ: logs/${item.log_file}`, item.chat_file && `チャットのコピー: logs/${item.chat_file}`].filter(Boolean).map(t => `<div class="text-[11px] text-amber-300">${escapeHtml(t)}</div>`).join('')}
+                            ${[item.log_file && `操作ログ: ${item.log_file}`, item.chat_file && `チャットのコピー: ${item.chat_file}`].filter(Boolean).map(t => `<div class="text-[11px] text-amber-300">${escapeHtml(t)}</div>`).join('')}
                             <div class="flex items-center gap-2">
                                 <select class="fb-status bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white">
                                     <option value="new">new</option>

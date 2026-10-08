@@ -1,49 +1,105 @@
-# --- Client activity logs attached to feedback ("ログの収集を強化") ---
-# The Web and Android clients record their own operations (never prompts, answers or
-# file contents) while the user enables it, and attach the last hour to a feedback.
-# Each feedback's logs are written to one JSON Lines file under ``logs/``.
+# --- Files kept with each feedback ---
+# ``feedback/<id>/`` under the app directory holds what the server keeps about one feedback
+# besides its database row: ``feedback.json`` (title, message, sender, client, status and
+# reply), ``logs/activity.jsonl`` (the client's activity log, below) and the copy of the open
+# chat (``chat.jsonl`` and ``chat.files/``, server/feedback_chat_copy.py).
+#
+# Client activity logs ("ログの収集を強化"): the Web and Android clients record their own
+# operations (never prompts, answers or file contents) while the user enables it, and attach
+# the last hour to a feedback.
 _FEEDBACK_LOG_MAX_ENTRIES = 50_000
 _FEEDBACK_LOG_MAX_BYTES = 3_500_000
 _FEEDBACK_LOG_MAX_LINE = 64 * 1024
 _FEEDBACK_LOG_KEEP_FILES = 500
-_FEEDBACK_LOG_NAME_RE = re.compile(r'^feedback-(\d+)-[a-z]{1,16}-\d{8}T\d{6}Z\.jsonl$')
+_FEEDBACK_INFO_NAME = 'feedback.json'
+_FEEDBACK_ACTIVITY_LOG = os.path.join('logs', 'activity.jsonl')
 
 
-def _feedback_logs_dir():
-    return app.config.get('FEEDBACK_LOGS_DIR') or os.path.join(app.root_path, 'logs')
+def _feedback_root_dir():
+    return app.config.get('FEEDBACK_DIR') or os.path.join(app.root_path, 'feedback')
 
 
-def _feedback_log_file_index():
-    """Feedback id -> name of its log file (administrators' feedback list)."""
-    index = {}
+def _feedback_dir(feedback_id):
+    return os.path.join(_feedback_root_dir(), str(int(feedback_id)))
+
+
+def _feedback_dir_ids():
     try:
-        names = os.listdir(_feedback_logs_dir())
+        return [int(name) for name in os.listdir(_feedback_root_dir()) if name.isdigit()]
     except OSError:
-        return index
-    for name in names:
-        match = _FEEDBACK_LOG_NAME_RE.match(name)
-        if match:
-            index[int(match.group(1))] = name
-    return index
+        return []
 
 
-def _prune_feedback_log_files(directory):
+def _feedback_activity_log_path(feedback_id):
+    return os.path.join(_feedback_dir(feedback_id), _FEEDBACK_ACTIVITY_LOG)
+
+
+def _feedback_display_path(path):
+    """Path shown to administrators (relative to the app directory), or None when it does not exist."""
+    return os.path.relpath(path, app.root_path) if os.path.isfile(path) else None
+
+
+def _reset_feedback_dir(feedback_id):
+    """Starts an empty directory for a new feedback (a reused id never inherits older files)."""
+    path = _feedback_dir(feedback_id)
+    shutil.rmtree(path, ignore_errors=True)
+    os.makedirs(_feedback_root_dir(), mode=0o700, exist_ok=True)
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    return path
+
+
+def _write_feedback_info(fb, **extra):
+    """Writes ``feedback.json`` for ``fb``, keeping what an earlier write recorded about the submission."""
+    directory = _feedback_dir(fb.id)
+    path = os.path.join(directory, _FEEDBACK_INFO_NAME)
+    info = {}
     try:
-        files = [os.path.join(directory, name) for name in os.listdir(directory) if _FEEDBACK_LOG_NAME_RE.match(name)]
-        if len(files) <= _FEEDBACK_LOG_KEEP_FILES:
-            return
-        files.sort(key=lambda path: os.path.getmtime(path))
-        for path in files[:len(files) - _FEEDBACK_LOG_KEEP_FILES]:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-    except OSError:
+        with open(path, encoding='utf-8') as handle:
+            info = json.load(handle)
+    except (OSError, ValueError):
         pass
+    if not isinstance(info, dict):
+        info = {}
+    user = db.session.get(User, fb.user_id)
+    info.update(extra)
+    info.update({
+        'feedback_id': fb.id, 'user_id': fb.user_id, 'username': user.username if user else None,
+        'title': fb.title or '', 'message': fb.message, 'status': fb.status,
+        'admin_reply': fb.admin_reply or '', 'handled_by': fb.handled_by or '',
+        'created_at': fb.created_at.isoformat(timespec='seconds') + 'Z' if fb.created_at else None,
+        'updated_at': fb.updated_at.isoformat(timespec='seconds') + 'Z' if fb.updated_at else None,
+    })
+    os.makedirs(_feedback_root_dir(), mode=0o700, exist_ok=True)
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    temp = f"{path}.{os.getpid()}.tmp"
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w', encoding='utf-8') as handle:
+        json.dump(info, handle, ensure_ascii=False, indent=2, default=str)
+        handle.write('\n')
+    os.replace(temp, path)
+
+
+def _prune_feedback_log_files():
+    paths = [p for p in map(_feedback_activity_log_path, _feedback_dir_ids()) if os.path.isfile(p)]
+    if len(paths) <= _FEEDBACK_LOG_KEEP_FILES:
+        return
+    dated = []
+    for path in paths:
+        try:
+            dated.append((os.path.getmtime(path), path))
+        except OSError:
+            pass
+    dated.sort()
+    for _mtime, path in dated[:len(dated) - _FEEDBACK_LOG_KEEP_FILES]:
+        try:
+            os.remove(path)
+            os.rmdir(os.path.dirname(path))
+        except OSError:
+            pass
 
 
 def _save_feedback_client_logs(feedback_id, user_id, payload):
-    """Writes the client's activity log entries for ``feedback_id``; returns the file name (None when empty)."""
+    """Writes the client's activity log entries for ``feedback_id``; returns the file path (None when empty)."""
     entries = payload.get('entries')
     if not isinstance(entries, list) or not entries:
         return None
@@ -77,16 +133,15 @@ def _save_feedback_client_logs(feedback_id, user_id, payload):
         'window_seconds': payload.get('window_seconds') if isinstance(payload.get('window_seconds'), int) else None,
         'entries': len(lines), 'dropped': dropped,
     }
-    directory = _feedback_logs_dir()
-    os.makedirs(directory, mode=0o700, exist_ok=True)
-    name = f"feedback-{int(feedback_id)}-{client}-{received.strftime('%Y%m%dT%H%M%SZ')}.jsonl"
-    fd = os.open(os.path.join(directory, name), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    path = _feedback_activity_log_path(feedback_id)
+    os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, 'w', encoding='utf-8') as handle:
         handle.write(json.dumps(meta, ensure_ascii=False, default=str) + '\n')
         if lines:
             handle.write('\n'.join(lines) + '\n')
-    _prune_feedback_log_files(directory)
-    return name
+    _prune_feedback_log_files()
+    return path
 
 
 @app.route('/api/feedback', methods=['GET', 'POST'])
@@ -112,6 +167,10 @@ def feedback():
         db.session.add(fb)
         safe_db_commit()
         result = {'status': 'ok', 'feedback_id': fb.id}
+        try:
+            _reset_feedback_dir(fb.id)
+        except OSError as e:
+            log_force(f"FEEDBACK-DIR-ERROR: user={current_user.id} feedback={fb.id} err={e}")
         if client_logs is not None:
             try:
                 result['logs_saved'] = _save_feedback_client_logs(fb.id, current_user.id, client_logs) is not None
@@ -124,6 +183,16 @@ def feedback():
             except Exception as e:
                 log_force(f"FEEDBACK-CHAT-ERROR: user={current_user.id} feedback={fb.id} err={e}")
                 result['chat_copy_saved'] = False
+        sent = next((p for p in (client_logs, chat_copy) if isinstance(p, dict)), {})
+        try:
+            _write_feedback_info(
+                fb, client=str(sent.get('client') or '')[:16] or None,
+                client_version=str(sent.get('version') or '')[:64] or None,
+                server_version=app.config.get('SYSTEM_VERSION'),
+                user_agent=str(request.headers.get('User-Agent') or '')[:300],
+                activity_log_saved=result.get('logs_saved'), chat_copy_saved=result.get('chat_copy_saved'))
+        except Exception as e:
+            log_force(f"FEEDBACK-INFO-ERROR: user={current_user.id} feedback={fb.id} err={e}")
         return jsonify(result)
 
     # GET
@@ -133,13 +202,11 @@ def feedback():
     else:
         items = Feedback.query.filter_by(user_id=current_user.id).order_by(Feedback.created_at.desc()).all()
 
-    log_files = _feedback_log_file_index() if is_admin else {}
-    chat_files = _feedback_chat_file_index() if is_admin else {}
     res = []
     for f in items:
         res.append({
-            'log_file': log_files.get(f.id),
-            'chat_file': chat_files.get(f.id),
+            'log_file': _feedback_display_path(_feedback_activity_log_path(f.id)) if is_admin else None,
+            'chat_file': _feedback_display_path(_feedback_chat_copy_path(f.id)) if is_admin else None,
             'id': f.id,
             'user_id': f.user_id,
             'title': f.title or "",
@@ -198,6 +265,10 @@ def feedback_update(fid):
     fb.handled_by = current_user.username
     fb.updated_at = datetime.utcnow()
     safe_db_commit()
+    try:
+        _write_feedback_info(fb)
+    except Exception as e:
+        log_force(f"FEEDBACK-INFO-ERROR: feedback={fb.id} err={e}")
     return jsonify({'status': 'ok'})
 
 @app.route('/api/ban/appeals/summary', methods=['GET'])

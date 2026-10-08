@@ -7,7 +7,7 @@ are read with the existing ``GET /api/threads/<id>``.
 
 Administrators' apps also send diagnostics of serverless mode here (steps, timings, sizes,
 states and stacks of stalled threads; never chat text or files), appended to
-``logs/android-diagnostics.log`` under the app directory.
+``diagnostics/android-diagnostics.log`` under the app directory.
 """
 
 _SYNC_PAGE_SIZE = 200
@@ -338,7 +338,7 @@ def mobile_sync_push():
 
 
 def _diagnostics_log_path():
-    return app.config.get('ANDROID_DIAGNOSTICS_LOG') or os.path.join(app.root_path, 'logs', 'android-diagnostics.log')
+    return app.config.get('ANDROID_DIAGNOSTICS_LOG') or os.path.join(app.root_path, 'diagnostics', 'android-diagnostics.log')
 
 
 @app.route('/api/mobile/v1/diagnostics', methods=['POST'])

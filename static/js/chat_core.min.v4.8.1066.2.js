@@ -1272,9 +1272,9 @@ is_admin?(b.classList.remove("hidden"),x.innerHTML="",(m.items||[]).forEach(S=>{
 created_at}</div>
                             <div class="font-bold text-sm">${escapeHtml(S.title||"No Title")}</div>
                             <div class="text-sm whitespace-pre-wrap">${escapeHtml(S.message)}</div>
-                            ${[S.log_file&&`\u64CD\u4F5C\u30ED\u30B0: logs/${S.log_file}`,S.chat_file&&
-`\u30C1\u30E3\u30C3\u30C8\u306E\u30B3\u30D4\u30FC: logs/${S.chat_file}`].filter(Boolean).map(M=>`<di\
-v class="text-[11px] text-amber-300">${escapeHtml(M)}</div>`).join("")}
+                            ${[S.log_file&&`\u64CD\u4F5C\u30ED\u30B0: ${S.log_file}`,S.chat_file&&`\u30C1\
+\u30E3\u30C3\u30C8\u306E\u30B3\u30D4\u30FC: ${S.chat_file}`].filter(Boolean).map(M=>`<div class="tex\
+t-[11px] text-amber-300">${escapeHtml(M)}</div>`).join("")}
                             <div class="flex items-center gap-2">
                                 <select class="fb-status bg-gray-900 border border-gray-700 rounded \
 px-2 py-1 text-xs text-white">

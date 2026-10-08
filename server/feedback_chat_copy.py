@@ -1,12 +1,12 @@
 # --- Copy of the open chat attached to feedback ---
 # Sent only when the user ticks the box in the feedback form. Everything the server can find
-# from the chat's id goes into one JSON Lines file next to the activity logs
-# (``logs/feedback-<id>-<client>-<time>.chat.jsonl``): the chat and its messages decrypted, its
+# from the chat's id goes into one JSON Lines file in the feedback's directory
+# (``feedback/<id>/chat.jsonl``, next to ``feedback.json`` and ``logs/``): the chat and its messages decrypted, its
 # Batch jobs, latency traces, sync records, attachment cache state, the Gems it used, the Redis
 # state of its answers, its temporary-chat state, and the server log lines (debug.log,
 # access.log, the service journal, Android diagnostics, activity logs of other feedback) that
 # name the chat or one of its answers. Attachments are decrypted into the sibling
-# ``.chat.files`` directory. Clients add what only they hold: their view of the chat, storage
+# ``chat.files`` directory. Clients add what only they hold: their view of the chat, storage
 # keyed by the chat, and attachments kept only on an Android device (``/api/feedback/<id>/chat_files``).
 _FEEDBACK_CHAT_MAX_BYTES = 256 * 1024 * 1024
 _FEEDBACK_CHAT_FILES_MAX_BYTES = 1024 * 1024 * 1024
@@ -20,23 +20,11 @@ _FEEDBACK_CHAT_REDIS_VALUE_MAX = 8 * 1024 * 1024
 _FEEDBACK_CHAT_DEVICE_FILE_WINDOW = 3600
 _FEEDBACK_CHAT_DEVICE_FILES_MAX = 500
 _FEEDBACK_CHAT_JOURNAL_UNITS = ('ai-chat.service', 'ai-chat-worker@*.service')
-_FEEDBACK_CHAT_NAME_RE = re.compile(r'^feedback-(\d+)-[a-z]{1,16}-\d{8}T\d{6}Z\.chat\.jsonl$')
-_FEEDBACK_CHAT_FILES_RE = re.compile(r'^feedback-(\d+)-[a-z]{1,16}-\d{8}T\d{6}Z\.chat\.files$')
 _FEEDBACK_CHAT_FILE_URL_RE = re.compile(r'/files/(?:thumb/)?([^\s"\'()<>?#\\]+)')
 
 
-def _feedback_chat_file_index():
-    """Feedback id -> name of its chat copy file (administrators' feedback list)."""
-    index = {}
-    try:
-        names = os.listdir(_feedback_logs_dir())
-    except OSError:
-        return index
-    for name in names:
-        match = _FEEDBACK_CHAT_NAME_RE.match(name)
-        if match:
-            index[int(match.group(1))] = name
-    return index
+def _feedback_chat_copy_path(feedback_id):
+    return os.path.join(_feedback_dir(feedback_id), 'chat.jsonl')
 
 
 def _feedback_chat_files_dir(path):
@@ -67,12 +55,9 @@ def _remove_feedback_chat_copy(path):
     shutil.rmtree(_feedback_chat_files_dir(path), ignore_errors=True)
 
 
-def _prune_feedback_chat_files(directory, keep=None):
+def _prune_feedback_chat_files(keep=None):
     """Keeps the newest copies within the count and total size limits (never ``keep``)."""
-    try:
-        paths = [os.path.join(directory, n) for n in os.listdir(directory) if _FEEDBACK_CHAT_NAME_RE.match(n)]
-    except OSError:
-        return
+    paths = [p for p in map(_feedback_chat_copy_path, _feedback_dir_ids()) if os.path.isfile(p)]
     entries = []
     for path in paths:
         try:
@@ -95,28 +80,9 @@ def _prune_feedback_chat_files(directory, keep=None):
 
 
 def _delete_feedback_files(feedback_ids):
-    """Removes the activity logs and chat copies of ``feedback_ids`` (account deletion)."""
-    wanted = {int(fid) for fid in feedback_ids}
-    if not wanted:
-        return
-    directory = _feedback_logs_dir()
-    try:
-        names = os.listdir(directory)
-    except OSError:
-        return
-    for name in names:
-        match = (_FEEDBACK_LOG_NAME_RE.match(name) or _FEEDBACK_CHAT_NAME_RE.match(name)
-                 or _FEEDBACK_CHAT_FILES_RE.match(name))
-        if not match or int(match.group(1)) not in wanted:
-            continue
-        path = os.path.join(directory, name)
-        if os.path.isdir(path):
-            shutil.rmtree(path, ignore_errors=True)
-        else:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
+    """Removes the directories of ``feedback_ids``: information, activity logs and chat copies (account deletion)."""
+    for fid in {int(fid) for fid in feedback_ids}:
+        shutil.rmtree(_feedback_dir(fid), ignore_errors=True)
 
 
 def _feedback_chat_value(value):
@@ -311,17 +277,10 @@ def _feedback_chat_log_root():
 def _feedback_chat_log_files(user_id):
     root = _feedback_chat_log_root()
     paths = sorted(glob.glob(os.path.join(root, 'debug.log*'))) + sorted(glob.glob(os.path.join(root, 'access.log*')))
-    logs_dir = _feedback_logs_dir()
-    try:
-        names = sorted(os.listdir(logs_dir))
-    except OSError:
-        names = []
+    paths += sorted(glob.glob(glob.escape(_diagnostics_log_path()) + '*'))
     # Activity logs record the sender's own operations, so only this user's feedback can name the chat.
-    own = {fid for (fid,) in db.session.query(Feedback.id).filter_by(user_id=user_id).all()}
-    for n in names:
-        match = _FEEDBACK_LOG_NAME_RE.match(n)
-        if n.startswith('android-diagnostics.log') or (match and int(match.group(1)) in own):
-            paths.append(os.path.join(logs_dir, n))
+    own = sorted(fid for (fid,) in db.session.query(Feedback.id).filter_by(user_id=user_id).all())
+    paths += [_feedback_activity_log_path(fid) for fid in own]
     return [p for p in paths if os.path.isfile(p) and not p.endswith('.gz')]
 
 
@@ -470,7 +429,7 @@ def _feedback_chat_client_rows(payload):
 
 
 def _save_feedback_chat_copy(feedback_id, user_id, payload):
-    """Writes the copy of the chat in ``payload``; returns the file name (None when there is no chat)."""
+    """Writes the copy of the chat in ``payload``; returns the file path (None when there is no chat)."""
     client = str(payload.get('client') or 'unknown').lower()
     if not re.fullmatch(r'[a-z]{1,16}', client):
         client = 'unknown'
@@ -480,10 +439,8 @@ def _save_feedback_chat_copy(feedback_id, user_id, payload):
     if not thread and not has_client_thread:
         return None
     received = datetime.utcnow()
-    directory = _feedback_logs_dir()
-    os.makedirs(directory, mode=0o700, exist_ok=True)
-    name = f"feedback-{int(feedback_id)}-{client}-{received.strftime('%Y%m%dT%H%M%SZ')}.chat.jsonl"
-    path = os.path.join(directory, name)
+    path = _feedback_chat_copy_path(feedback_id)
+    os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     files_dir = _feedback_chat_files_dir(path)
     # Rows go to a side file first so a long chat is never held in memory; the meta line needs the counts.
     body_path = path + '.part'
@@ -529,8 +486,8 @@ def _save_feedback_chat_copy(feedback_id, user_id, payload):
             os.remove(body_path)
         except OSError:
             pass
-    _prune_feedback_chat_files(directory, keep=path)
-    return name
+    _prune_feedback_chat_files(keep=path)
+    return path
 
 
 @app.route('/api/feedback/<int:fid>/chat_files', methods=['POST'])
@@ -538,15 +495,14 @@ def _save_feedback_chat_copy(feedback_id, user_id, payload):
 def feedback_chat_file(fid):
     """An attachment kept only on the device, added to the chat copy of the user's feedback ``fid``."""
     fb = Feedback.query.filter_by(id=fid, user_id=current_user.id).first()
-    name = _feedback_chat_file_index().get(fid) if fb else None
-    if not name:
+    path = _feedback_chat_copy_path(fid)
+    if not fb or not os.path.isfile(path):
         return jsonify({'error': 'not_found'}), 404
     if fb.created_at and (datetime.utcnow() - fb.created_at).total_seconds() > _FEEDBACK_CHAT_DEVICE_FILE_WINDOW:
         return jsonify({'error': 'expired'}), 409
     upload = request.files.get('file')
     if upload is None:
         return jsonify({'error': 'file_required'}), 400
-    path = os.path.join(_feedback_logs_dir(), name)
     files_dir = _feedback_chat_files_dir(path)
     try:
         existing = os.listdir(files_dir)
@@ -565,5 +521,5 @@ def feedback_chat_file(fid):
         row['status'] = 'skipped_' + stop.reason
     with open(path, 'a', encoding='utf-8') as handle:
         handle.write(json.dumps(row, ensure_ascii=False, separators=(',', ':')) + '\n')
-    _prune_feedback_chat_files(_feedback_logs_dir(), keep=path)
+    _prune_feedback_chat_files(keep=path)
     return jsonify({'saved': row['status'] == 'copied', 'status': row['status']})

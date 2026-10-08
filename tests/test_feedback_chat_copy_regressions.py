@@ -53,8 +53,9 @@ class FeedbackChatCopyTests(unittest.TestCase):
             mock.patch.object(target, 'redis_conn', self.redis),
             mock.patch.object(target, '_feedback_chat_journal_rows', self.journal),
             mock.patch.object(target, '_FEEDBACK_CHAT_MIN_FREE_BYTES', 0),
-            mock.patch.dict(target.app.config, FEEDBACK_LOGS_DIR=self.log_dir, UPLOAD_FOLDER=self.upload_dir,
-                            FEEDBACK_CHAT_LOG_ROOT=self.root),
+            mock.patch.dict(target.app.config, FEEDBACK_DIR=self.log_dir, UPLOAD_FOLDER=self.upload_dir,
+                            FEEDBACK_CHAT_LOG_ROOT=self.root,
+                            ANDROID_DIAGNOSTICS_LOG=os.path.join(self.root, 'diagnostics', 'android-diagnostics.log')),
         ]:
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -110,20 +111,24 @@ class FeedbackChatCopyTests(unittest.TestCase):
                          f'Sandbox image reference resolution failed for thread {self.thread_db_id}: x\n'
                          f'other thread {self.thread_db_id}9\n')
         # Another user's feedback log never belongs to this chat and is not searched.
-        with open(os.path.join(self.log_dir, 'feedback-424242-web-20261008T000000Z.jsonl'), 'w') as handle:
+        os.makedirs(os.path.join(self.log_dir, '424242', 'logs'))
+        with open(os.path.join(self.log_dir, '424242', 'logs', 'activity.jsonl'), 'w') as handle:
             handle.write('{"kind":"meta"}\n{"ev":"fetch","path":"/c/feedback-chat-thread-public-id"}\n')
         with open(os.path.join(self.root, 'access.log'), 'w') as handle:
             handle.write('GET /c/feedback-chat-thread-public-id 200\nGET /c/other 200\n')
         return 'feedback-chat-thread-public-id'
 
+    def copy_paths(self):
+        return [p for p in (os.path.join(self.log_dir, d, 'chat.jsonl') for d in os.listdir(self.log_dir))
+                if os.path.isfile(p)]
+
     def read_copy(self):
-        names = [n for n in os.listdir(self.log_dir) if n.endswith('.chat.jsonl')]
-        self.assertEqual(len(names), 1, os.listdir(self.log_dir))
-        self.assertRegex(names[0], r'^feedback-\d+-web-\d{8}T\d{6}Z\.chat\.jsonl$')
-        path = os.path.join(self.log_dir, names[0])
+        paths = self.copy_paths()
+        self.assertEqual(len(paths), 1, os.listdir(self.log_dir))
+        path = paths[0]
         self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
         with open(path, encoding='utf-8') as handle:
-            return names[0], [json.loads(line) for line in handle]
+            return path, [json.loads(line) for line in handle]
 
     def test_copy_has_decrypted_chat_attachments_records_and_logs(self):
         thread_id = self.make_thread()
@@ -135,7 +140,8 @@ class FeedbackChatCopyTests(unittest.TestCase):
         body = response.get_json()
         self.assertIs(body['chat_copy_saved'], True)
         self.assertIsInstance(body['feedback_id'], int)
-        name, rows = self.read_copy()
+        path, rows = self.read_copy()
+        self.assertEqual(path, os.path.join(self.log_dir, str(body['feedback_id']), 'chat.jsonl'))
         by_kind = {}
         for row in rows:
             by_kind.setdefault(row['kind'], []).append(row)
@@ -155,7 +161,7 @@ class FeedbackChatCopyTests(unittest.TestCase):
         files = {row['ref']: row for row in by_kind['file']}
         self.assertEqual(set(files), {f'{self.user_id}/photo.png', f'{self.user_id}/gone.png', f'{self.user_id}/report.txt'})
         self.assertEqual(files[f'{self.user_id}/gone.png']['status'], 'missing')
-        files_dir = os.path.join(self.log_dir, name[:-len('.jsonl')] + '.files')
+        files_dir = os.path.join(os.path.dirname(path), 'chat.files')
         for ref, content in ((f'{self.user_id}/photo.png', b'png-bytes'), (f'{self.user_id}/report.txt', b'plain report')):
             self.assertEqual(files[ref]['status'], 'copied')
             with open(os.path.join(files_dir, files[ref]['file']), 'rb') as handle:
@@ -170,9 +176,10 @@ class FeedbackChatCopyTests(unittest.TestCase):
         self.assertEqual(len(logs), 4, logs)
         pattern = self.journal.call_args[0][0]
         self.assertIn('job\\-pending\\-99', pattern)
-        with self.target.app.app_context():
-            self.assertEqual(list(self.target._feedback_chat_file_index().values()), [name])
-            self.assertNotIn(body['feedback_id'], self.target._feedback_log_file_index())
+        self.assertFalse(os.path.exists(os.path.join(os.path.dirname(path), 'logs')))
+        with open(os.path.join(os.path.dirname(path), 'feedback.json'), encoding='utf-8') as handle:
+            info = json.load(handle)
+        self.assertEqual((info['message'], info['client'], info['chat_copy_saved']), ('with chat', 'web', True))
 
     def test_attachment_limit_and_another_users_chat(self):
         thread_id = self.make_thread()
@@ -200,21 +207,21 @@ class FeedbackChatCopyTests(unittest.TestCase):
             'diagnostics': [{'ev': 'chat.load', 'thread': 'l_1'}]}})
         body = response.get_json()
         self.assertIs(body['chat_copy_saved'], True)
-        names = [n for n in os.listdir(self.log_dir) if n.endswith('.chat.jsonl')]
-        self.assertEqual(len(names), 1)
+        paths = self.copy_paths()
+        self.assertEqual(len(paths), 1)
         upload = self.client().post(f"/api/feedback/{body['feedback_id']}/chat_files",
                                     data={'ref': 'local/abc.png', 'file': (io.BytesIO(b'device-bytes'), 'abc.png')},
                                     headers={'X-CSRF-Token': 'csrf-test-token'}, base_url='https://localhost')
         self.assertEqual(upload.status_code, 200, upload.get_json())
         self.assertIs(upload.get_json()['saved'], True)
-        path = os.path.join(self.log_dir, names[0])
+        path = paths[0]
         with open(path, encoding='utf-8') as handle:
             rows = [json.loads(line) for line in handle]
         self.assertEqual((rows[0]['source'], rows[0]['thread_id'], rows[0]['device_files_expected']), ('device', 'l_1', 1))
         self.assertEqual([r['kind'] for r in rows[1:]],
                          ['client_thread', 'client_message', 'client_diagnostics', 'file'])
         self.assertEqual((rows[-1]['source'], rows[-1]['ref'], rows[-1]['status']), ('device', 'local/abc.png', 'copied'))
-        with open(os.path.join(path[:-len('.jsonl')] + '.files', rows[-1]['file']), 'rb') as handle:
+        with open(os.path.join(os.path.dirname(path), 'chat.files', rows[-1]['file']), 'rb') as handle:
             self.assertEqual(handle.read(), b'device-bytes')
         missing = self.client().post('/api/feedback/999999/chat_files', data={'file': (io.BytesIO(b'x'), 'x')},
                                      headers={'X-CSRF-Token': 'csrf-test-token'}, base_url='https://localhost')
@@ -224,24 +231,28 @@ class FeedbackChatCopyTests(unittest.TestCase):
         thread_id = self.make_thread()
         self.post({'message': 'm', 'chat_copy': {'client': 'web', 'thread_id': thread_id},
                    'client_logs': {'client': 'web', 'entries': [{'t': 1, 'ev': 'click'}]}})
-        self.assertEqual(len(os.listdir(self.log_dir)), 4)
+        own = [d for d in os.listdir(self.log_dir) if d != '424242']
+        self.assertEqual(len(own), 1)
+        self.assertEqual(sorted(os.listdir(os.path.join(self.log_dir, own[0]))),
+                         ['chat.files', 'chat.jsonl', 'feedback.json', 'logs'])
         target = self.target
         with target.app.app_context():
             target._delete_user_account_immediately(target.db.session.get(target.User, self.user_id))
-        self.assertEqual(os.listdir(self.log_dir), ['feedback-424242-web-20261008T000000Z.jsonl'])
+        self.assertEqual(os.listdir(self.log_dir), ['424242'])
 
     def test_prune_keeps_the_newest_copies_within_the_size_limit(self):
         target = self.target
         paths = []
         for index in range(3):
-            path = os.path.join(self.log_dir, f'feedback-{index + 1}-web-20261008T00000{index}Z.chat.jsonl')
+            os.makedirs(os.path.join(self.log_dir, str(index + 1)))
+            path = os.path.join(self.log_dir, str(index + 1), 'chat.jsonl')
             with open(path, 'w') as handle:
                 handle.write('x' * 100)
             os.utime(path, (1000 + index, 1000 + index))
             paths.append(path)
         with target.app.app_context(), mock.patch.object(target, '_FEEDBACK_CHAT_TOTAL_MAX_BYTES', 250):
-            target._prune_feedback_chat_files(self.log_dir, keep=paths[0])
-        self.assertEqual(sorted(os.listdir(self.log_dir)), sorted(os.path.basename(p) for p in (paths[0], paths[2])))
+            target._prune_feedback_chat_files(keep=paths[0])
+        self.assertEqual([os.path.isfile(p) for p in paths], [True, False, True])
 
 
 if __name__ == '__main__':

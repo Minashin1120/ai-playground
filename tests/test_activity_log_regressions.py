@@ -157,7 +157,7 @@ class FeedbackClientLogTests(unittest.TestCase):
         for patcher in [
             mock.patch.object(target, '_bot_turnstile_active', return_value=False),
             mock.patch.object(target, 'rate_limit', return_value=True),
-            mock.patch.dict(target.app.config, FEEDBACK_LOGS_DIR=self.log_dir),
+            mock.patch.dict(target.app.config, FEEDBACK_DIR=self.log_dir),
         ]:
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -171,22 +171,33 @@ class FeedbackClientLogTests(unittest.TestCase):
         return client.post('/api/feedback', json=payload, headers={'X-CSRF-Token': 'csrf-test-token'},
                            base_url='https://localhost')
 
-    def test_feedback_stores_client_logs_under_logs_dir(self):
+    def read_info(self, feedback_id):
+        path = os.path.join(self.log_dir, str(feedback_id), 'feedback.json')
+        self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+        with open(path, encoding='utf-8') as handle:
+            return json.load(handle)
+
+    def test_feedback_stores_info_and_client_logs_in_its_directory(self):
         self.assertEqual(self.post({'message': 'm', 'client_logs': 'x'}).status_code, 400)
-        plain = self.post({'message': 'no logs'})
+        plain = self.post({'title': 'Plain', 'message': 'no logs'})
         self.assertEqual(plain.status_code, 200)
         self.assertNotIn('logs_saved', plain.get_json())
-        self.assertEqual(os.listdir(self.log_dir), [])
+        plain_id = plain.get_json()['feedback_id']
+        self.assertEqual(os.listdir(os.path.join(self.log_dir, str(plain_id))), ['feedback.json'])
+        info = self.read_info(plain_id)
+        self.assertEqual((info['feedback_id'], info['user_id'], info['username'], info['title'], info['message'], info['status']),
+                         (plain_id, self.user_id, 'feedback-log-test', 'Plain', 'no logs', 'new'))
+        self.assertIsNone(info['activity_log_saved'])
         entries = [{'t': 1, 'ev': 'click', 'target': 'button#fb-submit'}, 'not an object',
                    {'t': 2, 'ev': 'huge', 'blob': 'x' * 70000}]
-        response = self.post({'message': 'with logs', 'client_logs': {
+        response = self.post({'title': 'Bug', 'message': 'with logs', 'client_logs': {
             'client': 'web', 'version': 'V1', 'window_seconds': 3600, 'entries': entries}})
         self.assertEqual(response.status_code, 200, response.get_json())
         self.assertIs(response.get_json()['logs_saved'], True)
-        names = os.listdir(self.log_dir)
-        self.assertEqual(len(names), 1)
-        self.assertRegex(names[0], r'^feedback-\d+-web-\d{8}T\d{6}Z\.jsonl$')
-        path = os.path.join(self.log_dir, names[0])
+        feedback_id = response.get_json()['feedback_id']
+        directory = os.path.join(self.log_dir, str(feedback_id))
+        self.assertEqual(sorted(os.listdir(directory)), ['feedback.json', 'logs'])
+        path = os.path.join(directory, 'logs', 'activity.jsonl')
         with open(path, encoding='utf-8') as handle:
             rows = [json.loads(line) for line in handle]
         self.assertEqual(rows[0]['kind'], 'meta')
@@ -195,6 +206,14 @@ class FeedbackClientLogTests(unittest.TestCase):
         self.assertEqual(rows[1]['ev'], 'click')
         self.assertEqual(set(rows[2]), {'t', 'ev', 'truncated'})
         self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+        info = self.read_info(feedback_id)
+        self.assertEqual((info['title'], info['message'], info['client'], info['client_version'], info['activity_log_saved']),
+                         ('Bug', 'with logs', 'web', 'V1', True))
         with self.target.app.app_context():
-            index = self.target._feedback_log_file_index()
-        self.assertEqual(list(index.values()), [names[0]])
+            self.assertEqual(self.target._feedback_activity_log_path(feedback_id), path)
+            fb = self.target.db.session.get(self.target.Feedback, feedback_id)
+            fb.status, fb.admin_reply = 'replied', 'thanks'
+            self.target.db.session.commit()
+            self.target._write_feedback_info(fb)
+        info = self.read_info(feedback_id)
+        self.assertEqual((info['status'], info['admin_reply'], info['client']), ('replied', 'thanks', 'web'))

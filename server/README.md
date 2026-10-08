@@ -6,7 +6,7 @@
 | `mobile_auth.py` | Android専用Bearer認証、API許可範囲、HTTPS・Cookie分離、レスポンス保護。全フックより先に読み込む | ネイティブ認証、端末トークン、API権限 |
 | `routes_mobile.py` | Android端末連携、確認コード承認、トークン発行・失効、接続仕様API | Android連携フロー、接続情報 |
 | `routes_mobile_account.py` | Androidの設定用API：再認証、ユーザー名・パスワード変更、アカウント削除、簡易ログイン、ログインセッション、2FAの全体無効化、E2EE切替 | Android設定のアカウント・セキュリティ操作 |
-| `routes_mobile_sync.py` | Androidのサーバー不使用モード：端末チャットの同期（変更一覧・アップロード・削除）、本人確認後のAPIキー取り出し、管理者の診断ログ受信（`logs/android-diagnostics.log`） | 同期API、端末へのキー取り込み、Android診断ログ |
+| `routes_mobile_sync.py` | Androidのサーバー不使用モード：端末チャットの同期（変更一覧・アップロード・削除）、本人確認後のAPIキー取り出し、管理者の診断ログ受信（`diagnostics/android-diagnostics.log`） | 同期API、端末へのキー取り込み、Android診断ログ |
 | `routes_mobile_auth.py` | Androidのネイティブ新規登録・パスワード／パスキーログイン・TOTP／WebAuthn 2FA・セキュリティ管理・初回セットアップとZIP取り込み・旧ブラウザー連携 | アプリ内認証、2FA・パスキー管理、初回設定 |
 | `request_hooks.py` | `@app.before_request`。古いログイン flash の除去、設定保存 flash の掃除、ユーザー別アップロード上限 | リクエスト前処理、flash 漏れ、アップロードサイズ |
 | `storage.py` | 容量制限、アップロードパス、添付の正規化、PDF/DOCX テキスト抽出、チャンクアップロード、サムネイルとメディアのメモリキャッシュ | ファイル保存、容量、添付、チャンク |
@@ -39,8 +39,8 @@
 | `rich_paste_pdf.py` | スレッドPDFとリッチペーストPDFの組版・サニタイズ・テーマ処理 | PDF出力、リッチペースト印刷 |
 | `routes_threads_library.py` | 暗号化スキャン、管理者スレッド、スレッド設定、ファイルライブラリ操作 | 暗号化、スレッド設定、ライブラリCRUD |
 | `routes_account.py` | アカウント削除、輸出入ジョブ、重複修復、フィードバック、簡易ログイン | アカウント移行 API |
-| `routes_admin.py` | フィードバックの送信・一覧・返信と、添付された操作ログ（`logs/feedback-*.jsonl`）の保存、BAN、ボット検知、Turnstile、速度テスト、管理者のユーザー操作 | フィードバック、操作ログ（ログの収集を強化）、管理、BAN、Turnstile |
-| `feedback_chat_copy.py` | フィードバックに添付する「開いているチャットのコピー」：チャットIDから辿れる記録（復号したメッセージ、Batch・遅延計測・同期・添付キャッシュ・Gem・Redis・一時チャットの状態、ログの該当行）と復号した添付ファイルの保存（`logs/feedback-*.chat.jsonl` と `.chat.files/`）、Android端末だけの添付の受信（`/api/feedback/<id>/chat_files`）、保存数・容量の上限、アカウント削除時の削除 | チャットのコピーの内容・保存先・上限 |
+| `routes_admin.py` | フィードバックの送信・一覧・返信と、フィードバックごとのディレクトリ（`feedback/<ID>/`）への情報（`feedback.json`）と操作ログ（`logs/activity.jsonl`）の保存、BAN、ボット検知、Turnstile、速度テスト、管理者のユーザー操作 | フィードバック、操作ログ（ログの収集を強化）、管理、BAN、Turnstile |
+| `feedback_chat_copy.py` | フィードバックに添付する「開いているチャットのコピー」：チャットIDから辿れる記録（復号したメッセージ、Batch・遅延計測・同期・添付キャッシュ・Gem・Redis・一時チャットの状態、ログの該当行）と復号した添付ファイルの保存（`feedback/<ID>/chat.jsonl` と `chat.files/`）、Android端末だけの添付の受信（`/api/feedback/<id>/chat_files`）、保存数・容量の上限、アカウント削除時のフィードバックのディレクトリの削除 | チャットのコピーの内容・保存先・上限 |
 | `routes_settings.py` | `/api/settings`、AI 設定プロンプト、セッション、2FA 設定、Gem、メンテナンス | 設定保存、Gem、セッション |
 | `routes_media.py` | TTS / STT / STS、アップロード、容量 API、レイテンシ、クライアントログ | 音声合成、アップロード API |
 | `../mcp_service/` | 外部MCPの接続・OAuth・ツール実行。チャット側は `background.py` と設定ルートで連携 | MCP接続・認証・実行 |

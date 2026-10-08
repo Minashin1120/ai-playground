@@ -3265,8 +3265,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             ]))
                             # Gemini 3 requires this flag and manual function
                             # responses to circulate code-execution context.
-                            conf['tool_config'] = types.ToolConfig(
-                                include_server_side_tool_invocations=True
+                            # google-genai 1.56 の ToolConfig はこの項目を持たず
+                            # extra="forbid" で拒否されるため、リクエスト本文へ直接足す。
+                            _http_opts = conf.get('http_options') or types.HttpOptions()
+                            _extra_body = dict(getattr(_http_opts, 'extra_body', None) or {})
+                            _tool_cfg_body = dict(_extra_body.get('toolConfig') or {})
+                            _tool_cfg_body['includeServerSideToolInvocations'] = True
+                            _extra_body['toolConfig'] = _tool_cfg_body
+                            conf['http_options'] = _http_opts.model_copy(
+                                update={'extra_body': _extra_body}
                             )
 
                     # MCP外部ツール（google-genai の Automatic Function Calling 用の

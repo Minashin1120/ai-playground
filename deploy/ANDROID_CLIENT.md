@@ -430,6 +430,8 @@ AIが返した外部画像URL、リダイレクト先、任意リンクにはAnd
 
 ストリームには完全なイベント連番・exactly-once保証がありません。競合による重複等があり得るため、完了後のDB履歴を表示の正本にします。アプリ停止中もRQでの生成が続く場合があります。
 
+Android 1.49.0以降、回答の生成・受信中（画面の `streaming` の間）は、接続先やモードに関係なく `GenerationService`（`dataSync` のフォアグラウンドサービス、低重要度の通知「回答を生成中」）と、最長60分の `PARTIAL_WAKE_LOCK` でアプリを動かし続けます。他のアプリへ移る、画面を消すなどでアプリを離れても、受信と端末での生成は止まりません。戻ったときは、離れていたのが30秒以上で、かつ次のどちらかに当たる場合だけ、受付済み（job IDあり）の回答へ `/chat_stream_resume` でつなぎ直します：離れている間にサービスが止まった・拒否された、または最後のイベントから30秒以上なにも届いていない。
+
 ### 5.2 サーバー不使用モード・アカウントなしで開始（Android 1.38.0以降）
 
 端末だけで回答を生成する2つの使い方があります。どちらも画面はサーバー利用時と同じで、`data/local/LocalChatBackend.kt` が `/api/threads`、`/api/threads/<id>`、`/chat_stream` などの同じパスに、サーバーと同じJSON形で端末から応答します。
@@ -444,7 +446,7 @@ AIが返した外部画像URL、リダイレクト先、任意リンクにはAnd
 - システムプロンプトはサーバーの組み立て順（Gemの指示 → 運営の全体指示または現在時刻 → 利用者の指示 → チャット固有の指示 → Coding Mode → 自動注入）を `data/direct/SystemPromptBuilder.kt` に移植しています。
 - 添付は端末に暗号化して保存し、メッセージには `local/<uuid>.<ext>` の参照を記録します（サーバーの `uid/ファイル名` 参照とは重なりません）。画像・PDFはそのまま、DOCX・XLSX・テキストは端末でテキスト化して送ります。
 - 対応するモデル：Gemini（テキスト・画像生成。設定でVertex AIを選び、端末にサービスアカウントJSONがある場合はVertex AIへJWTで認証して送信）、OpenAI（Responses API、検索モデルはChat Completions）、Anthropic、xAI（OpenAI互換Responses）、DeepSeek、Kimi、Mistral、Z.AI GLM（チャット・画像入力対応モデル）。1.40.0以降は、画像生成（GPT Imageは `image_generation` ツール、Grok Imagineは `/v1/images/generations|edits`、Ideogramは `/v2/image/generate/*` と、4.5の画像編集（Precise Edit）に使う `/v2/image/precise-edit/ideogram-4-5`）、音声合成（OpenAI `audio/speech`、xAI `/v1/tts`、Google Cloud Text-to-Speech、Gemini TTSはPCMをWAVに変換）、文字起こしモデル（OpenAI `audio/transcriptions`）、動画生成（Veoは `predictLongRunning` を5秒ごと、Grok Imagine videoは2秒ごとに確認）にも対応します。Gemini APIキーでの送信では、動画と20MBを超える添付をサーバーと同じくFiles APIへアップロードし（2秒ごとに最大120秒、`ACTIVE` になるまで確認）、`fileData` で参照します。生成物は端末に保存し、回答の添付として表示します。動画のダウンロードでは、APIキーを最初の事業者ホストにだけ送り、リダイレクト先には送りません。音声入力は、端末のOpenAI APIキーと設定の文字起こしモデルで文字起こしします。この2つのモードでは、音楽（Lyria）、Realtime、Batch、MCP、ファイル作成ツール、Coding Modeを端末から実行できません（Batch・Coding Modeは送信時に「使えません」と返し、ほかのモデルは選択できません）。Pythonは事業者側の実行環境（Geminiのcode_execution、OpenAIのcode_interpreter）を使います。
-- 画像・動画（カタログのmodeが `image`／`video`）の回答は数分かかるため、生成の間は `GenerationService`（`dataSync` のフォアグラウンドサービス、低重要度の通知「画像を生成中」「動画を生成中」）でプロセスを保護し、他のアプリへ移ってもOSに終了されにくくします。保護は `LocalChatBackend` が `/chat_stream` の開始から回答の保存・アカウントへの送信までの間だけ取り、複数の生成は `GenerationTracker` で数えて最後の1件が終わるとサービスを止めます。Androidがフォアグラウンドサービスを拒否した場合も、アプリが開いている間は生成を続けます。通知権限が未許可でもサービスは動きますが通知は出ません。最近使ったアプリから消した場合は、画面と一緒にViewModelが破棄されるため生成は中断されます。
+- 回答の生成中は `GenerationService`（`dataSync` のフォアグラウンドサービス、低重要度の通知）でプロセスを保護し、他のアプリへ移ってもOSに終了されにくくします（5.1の末尾）。画像・動画（カタログのmodeが `image`／`video`）の回答は数分かかるため、`LocalChatBackend` が `/chat_stream` の開始から回答の保存・アカウントへの送信までの間も保護を取り、通知は「画像を生成中」「動画を生成中」になります。複数の保護は `GenerationTracker` で数えて最後の1件が終わるとサービスを止めます。Androidがフォアグラウンドサービスを拒否した場合も、アプリが開いている間は生成を続けます。通知権限が未許可でもサービスは動きますが通知は出ません。最近使ったアプリから消した場合は、画面と一緒にViewModelが破棄されるため生成は中断されます。
 - 停止は通信の切断で行い、途中までの回答を保存します。生成中は数秒ごとに途中保存します。エラーはサーバーと同じ `chat_error` の囲みで回答として保存します。
 
 #### 同期API（サーバー `server/routes_mobile_sync.py`、`sync_api_version: 1`）

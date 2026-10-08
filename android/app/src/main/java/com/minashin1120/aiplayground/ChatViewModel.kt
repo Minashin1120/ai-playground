@@ -347,6 +347,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var session: StoredSession? = null
     private var foreground = false
     private var backgroundedAt = 0L
+    /** `elapsedRealtime` of the newest event of the answer being received. */
+    @Volatile private var lastStreamEventAt = 0L
+    /** Keeps the app running (foreground service and its notification) while an answer streams. */
+    private val answerKeepAlive by lazy { GenerationService.keepAlive(getApplication<Application>()) }
+    private var answerHold: AutoCloseable? = null
     private var pairingJob: Job? = null
     private var navigationJob: Job? = null
     private var streamJob: Job? = null
@@ -450,6 +455,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(lowBandwidthMode = active, lowBandwidthReason = detection.reason) }
         notify(lowBandwidthToast(active, next, detection.reason))
     }
+
+    init { viewModelScope.launch {
+        // Leaving the app or turning the screen off must not stop the answer being generated or received.
+        state.map { it.streaming }.distinctUntilChanged().collect { streaming ->
+            answerHold?.close()
+            answerHold = if (streaming) answerKeepAlive.begin("chat") else null
+        }
+    } }
 
     init { viewModelScope.launch {
         mutable.update { it.copy(compression = compressionSettingsFrom(prefs),
@@ -1454,12 +1467,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val returning = value && !foreground
         foreground = value
         if (!value) backgroundedAt = SystemClock.elapsedRealtime()
-        // Web keeps reading the answer while the tab is hidden. Android can cut an idle connection without
-        // closing it after a while in the background, so after a long absence an answer the server took
-        // (it has a job id) is rejoined instead. A send the server has not taken yet keeps retrying.
+        // Web keeps reading the answer while the tab is hidden, and the foreground service keeps the app running.
+        // If Android still cut the connection without closing it (the service was refused or stopped, or no
+        // event arrived lately), an answer the server took (it has a job id) is rejoined after a long absence.
+        // A send the server has not taken yet keeps retrying.
+        val now = SystemClock.elapsedRealtime()
         if (returning && state.value.streaming && !answeringOnDevice() && state.value.jobId != null &&
-            SystemClock.elapsedRealtime() - backgroundedAt >= STREAM_REJOIN_AFTER_MS) {
-            Diagnostics.log("send.rejoin", "away_ms" to SystemClock.elapsedRealtime() - backgroundedAt)
+            shouldRejoinStream(awayMs = now - backgroundedAt, keptRunning = GenerationService.keptRunningSince(backgroundedAt),
+                quietMs = now - lastStreamEventAt, afterMs = STREAM_REJOIN_AFTER_MS)) {
+            Diagnostics.log("send.rejoin", "away_ms" to now - backgroundedAt, "quiet_ms" to now - lastStreamEventAt,
+                "kept_running" to GenerationService.keptRunningSince(backgroundedAt))
             streamJob?.cancel()
             mutable.update { it.copy(streaming = false, status = "") }
         }
@@ -1639,6 +1656,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
+        answerHold?.close(); answerHold = null
         stopConnectionMonitor()
         connectionRecoveredHideJob?.cancel()
         super.onCleared()
@@ -2964,6 +2982,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun acceptEvent(threadId: String, event: JSONObject) {
+        lastStreamEventAt = SystemClock.elapsedRealtime()
         if (state.value.selected?.id != threadId) return
         val type = event.optString("type")
         val content = event.opt("content")?.takeIf { it != JSONObject.NULL }?.toString().orEmpty()
@@ -4772,6 +4791,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val BROWSER_LOGIN_TTL_MS = 10L * 60 * 1000
     }
 }
+
+/**
+ * Coming back after [awayMs], a server answer is rejoined unless the app kept running the whole time
+ * and its events were still arriving (quiet for less than [afterMs]).
+ */
+internal fun shouldRejoinStream(awayMs: Long, keptRunning: Boolean, quietMs: Long, afterMs: Long): Boolean =
+    awayMs >= afterMs && (!keptRunning || quietMs >= afterMs)
 
 /** A running answer that the device itself generates: no server job id, and chats are answered on the device. */
 internal fun isDeviceAnswer(streaming: Boolean, uploadsLocal: Boolean, jobId: String?): Boolean =

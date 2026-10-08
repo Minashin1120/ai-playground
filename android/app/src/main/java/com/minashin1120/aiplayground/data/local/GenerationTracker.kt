@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.update
 /** Answers of these catalog modes take minutes, so the process must not be killed while they run. */
 fun needsKeepAlive(mode: String): Boolean = mode == "image" || mode == "video"
 
-/** Held while a long answer is generated on the device; [begin] returns the handle that ends it. */
+/** Held while an answer is generated or received; [begin] returns the handle that ends it. */
 fun interface GenerationKeepAlive {
     fun begin(mode: String): AutoCloseable
 

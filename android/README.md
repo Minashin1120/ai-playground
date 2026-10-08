@@ -17,7 +17,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateViewModel.kt` | 更新検出と画面への状態中継・インストール段階 | アプリ更新フローを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateDownloadManager.kt` | プロセス全体で1つの更新状態・APKダウンロード・キャンセル・ダイアログの非表示／再表示 | 更新ダウンロードの状態遷移を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateDownloadService.kt` | ダウンロード中のフォアグラウンドサービス、進捗・完了通知、更新通知チャンネル | アプリ外でのダウンロード継続・通知を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/GenerationService.kt`, `app/src/main/java/com/minashin1120/aiplayground/data/local/GenerationTracker.kt` | サーバー不使用モードの画像・動画生成中のフォアグラウンドサービスと通知チャンネル、実行中の生成の数え上げ（`needsKeepAlive` で対象のmodeを判定） | 生成中のアプリ保護・通知を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/GenerationService.kt`, `app/src/main/java/com/minashin1120/aiplayground/data/local/GenerationTracker.kt` | 回答の生成・受信中のフォアグラウンドサービス（通知とCPUの保持）と通知チャンネル、実行中の生成の数え上げ（サーバー不使用モードで回答の保存後まで保護する画像・動画のmodeは `needsKeepAlive` で判定） | 生成中のアプリ保護・アプリを離れたときの継続・通知を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppChangelogViewModel.kt` | Android版更新履歴Markdownの取得状態・再試行 | アプリ版更新履歴の取得を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/AppUpdateChecker.kt`, `AppUpdateDownloader.kt` | GitHub Release資産の確認、APK取得、SHA-256検証 | 更新元・資産名・ダウンロードを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/OfflineCacheStore.kt` | アカウント別の暗号化オフライン履歴・ファイル保存、同期設定、カテゴリ削除 | オフライン閲覧・端末保存・キャッシュ管理を変更するとき |

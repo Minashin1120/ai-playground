@@ -1491,6 +1491,85 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     return True
                 return False
             is_llm_model = not _is_non_llm_model(model_key_l)
+
+            def _append_history_document_text():
+                """Give follow-up turns the text of documents from earlier turns.
+
+                Only images from earlier messages are re-sent to the model, so a
+                DOCX/PDF/text file attached or generated earlier in the thread
+                could not be read afterwards. Append its extracted text to that
+                history message (newest first, within a size budget).
+                """
+                max_total_chars = 120000
+                max_file_chars = 60000
+                max_file_bytes = 50 * 1024 * 1024
+                used_chars = 0
+                seen_refs = set()
+                for fn in img_list:
+                    norm_cur = _normalize_upload_ref(fn)
+                    if norm_cur:
+                        seen_refs.add(norm_cur)
+                for m in reversed(history):
+                    raw_urls = m.get('image_url')
+                    if not raw_urls:
+                        continue
+                    try:
+                        ref_list = json.loads(raw_urls)
+                    except Exception:
+                        ref_list = raw_urls
+                    if not isinstance(ref_list, list):
+                        ref_list = [ref_list]
+                    blocks = []
+                    for ref in ref_list:
+                        if used_chars >= max_total_chars:
+                            break
+                        norm_h = _normalize_upload_ref(ref)
+                        if not norm_h or norm_h in seen_refs:
+                            continue
+                        ext_h = os.path.splitext(norm_h)[1].lower()
+                        if ext_h not in ('.docx', '.pdf') and ext_h not in _TEXT_LIKE_UPLOAD_EXTS:
+                            continue
+                        seen_refs.add(norm_h)
+                        try:
+                            info_h = _get_file_disk_info(norm_h)
+                            if not info_h.get("exists"):
+                                continue
+                            if (info_h.get("size") or 0) > max_file_bytes:
+                                continue
+                            data_h = _load_user_file_bytes(norm_h, info_h)
+                            if not data_h:
+                                continue
+                            if ext_h == '.docx':
+                                text_h = _extract_docx_as_numbered(data_h)
+                            elif ext_h == '.pdf':
+                                text_h = _extract_text_from_pdf(data_h)
+                            else:
+                                text_h = data_h.decode('utf-8', errors='replace')
+                        except Exception:
+                            continue
+                        text_h = (text_h or '').strip()
+                        if not text_h:
+                            continue
+                        room = min(max_file_chars, max_total_chars - used_chars)
+                        truncated = len(text_h) > room
+                        text_h = text_h[:room]
+                        used_chars += len(text_h)
+                        name_h = os.path.basename(norm_h)
+                        blocks.append(
+                            f"--- Attached file from earlier in this conversation: {name_h} ---\n"
+                            f"{text_h}\n"
+                            + ("(truncated)\n" if truncated else "")
+                            + f"--- End of {name_h} ---"
+                        )
+                    if blocks:
+                        base_cnt = m.get('content') or ""
+                        m['content'] = (base_cnt + "\n\n" if base_cnt else "") + "\n\n".join(blocks)
+
+            if is_llm_model and not is_mistral_ocr:
+                try:
+                    _append_history_document_text()
+                except Exception as _hist_doc_exc:
+                    log_force(f"History document text failed: {_hist_doc_exc}")
             grok_reasoning_supported = ("grok-4.3" in model_key_l) or ("grok-4.5" in model_key_l) or ("grok-4.6" in model_key_l) or ("grok-build" in model_key_l) or ("grok-3-mini" in model_key_l) or ("reasoning" in model_key_l and "non-reasoning" not in model_key_l) or ("multi-agent" in model_key_l)
             grok_reasoning_effort_supported = ("grok-4.3" in model_key_l) or ("grok-4.5" in model_key_l) or ("grok-4.6" in model_key_l) or ("grok-build" in model_key_l) or ("grok-3-mini" in model_key_l) or ("grok-4.20-0309-reasoning" in model_key_l) or ("multi-agent" in model_key_l)
             req_reasoning_effort = (options.get('reasoning_effort') or "").lower().strip()

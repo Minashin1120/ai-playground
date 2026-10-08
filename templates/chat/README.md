@@ -36,7 +36,7 @@
 | `overlay_dialogs.html` | MCP 変更確認、Gemini ローカル Python、インポート確認 | 確認ダイアログ |
 | `overlay_library.html` | ファイルライブラリ、規約、Alpha 案内、ブランチ管理、管理者の Bot 画面 | ライブラリ、ブランチ |
 | `overlay_version.html` | 新バージョン通知モーダル | 更新通知 |
-| `scripts.html` | `CHAT_CONFIG`、コア JS の読み込み、トークン/Python/暗号化モーダル、サイドバー用インライン JS | 初期 JS 設定、インラインスクリプト |
+| `scripts.html` | `CHAT_CONFIG`、コア JS（`chat_core_bundles` の複数ファイル）の読み込み、トークン/Python/暗号化モーダル、サイドバー用インライン JS | 初期 JS 設定、インラインスクリプト |
 
 `pwa_meta.html`、`web_fonts.html`、`icon_css.html` はチャット専用ではなく、他画面と共有する部品です。`templates/` 直下にあります。
 

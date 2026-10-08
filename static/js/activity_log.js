@@ -508,6 +508,33 @@
         };
     }
 
+    /** Browser storage entries whose key names [threadId] (branch names, the pinned branch, …). */
+    function storageFor(storage, threadId) {
+        var found = {};
+        try {
+            for (var i = 0; i < storage.length; i++) {
+                var key = storage.key(i);
+                if (key && key.indexOf(threadId) !== -1) found[key] = storage.getItem(key);
+            }
+        } catch (e) {}
+        return found;
+    }
+
+    /** `chat_copy` of a feedback: the server decrypts the chat [threadId]; the browser adds its own storage of it. */
+    function chatCopyPayload(threadId) {
+        var id = String(threadId);
+        return {
+            client: 'web',
+            version: (window.CHAT_CONFIG && window.CHAT_CONFIG.appVersion) || '',
+            thread_id: id,
+            client_state: {
+                local_storage: storageFor(window.localStorage || { length: 0 }, id),
+                session_storage: storageFor(window.sessionStorage || { length: 0 }, id),
+                url: String(window.location && window.location.pathname || ''),
+            },
+        };
+    }
+
     /**
      * Shows the result of a feedback sent with [feedbackPayload] (null when the log is off) and, when
      * [chatCopy], a copy of the open chat; false keeps the form (the request failed).
@@ -596,6 +623,7 @@
         flush: flush,
         onChange: onChange,
         feedbackPayload: feedbackPayload,
+        chatCopyPayload: chatCopyPayload,
         reportFeedback: reportFeedback,
         WINDOW_MS: KEEP_MS,
     };

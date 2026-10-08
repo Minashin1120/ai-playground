@@ -1,3 +1,4 @@
+        //! @chat-core-bundle-split: scripts/build_frontend.sh starts the next browser file here (see README.md).
 
         function updateFilePreview() {
             const preview = get('file-preview');

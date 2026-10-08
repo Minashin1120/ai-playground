@@ -7,9 +7,12 @@ APP_ROOT = Path(__file__).resolve().parents[1]
 CHAT_JS_ASSETS = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))
 assert len(CHAT_JS_ASSETS) == 1, "Only the latest versioned chat core asset should remain"
 CHAT_JS = CHAT_JS_ASSETS[0].read_text(encoding="utf-8")
-MIN_JS_ASSETS = list((APP_ROOT / "static/js").glob("chat_core.min.v4.8.*.js"))
-assert len(MIN_JS_ASSETS) == 1, "Only the latest minified chat core asset should remain"
-MIN_JS = MIN_JS_ASSETS[0].read_text(encoding="utf-8")
+# The browser loads chat_core as chat_core.min.<version>.<n>.js in order; read them as one script.
+MIN_JS_ASSETS = sorted((APP_ROOT / "static/js").glob("chat_core.min.v4.8.*.js"),
+                       key=lambda path: int(path.name.rsplit(".", 2)[-2]))
+assert MIN_JS_ASSETS and len({path.name.rsplit(".", 2)[0] for path in MIN_JS_ASSETS}) == 1, \
+    "Only the latest minified chat core files should remain"
+MIN_JS = "\n".join(path.read_text(encoding="utf-8") for path in MIN_JS_ASSETS)
 
 
 def _line_no(src, needle):

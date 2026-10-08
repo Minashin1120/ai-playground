@@ -14,11 +14,11 @@
 
 `activity_log.js`、`progress_spinner.js`、`pwa_install.js`、`connection_monitor.js`、`landing_demo.js` には、配信用の `*.min.js` が隣にあります（`scripts/build_frontend.sh` が生成します）。
 
-チャットコアのファイル名には、ブラウザーキャッシュ更新用のバージョン番号が含まれます。`chat_core.v*.js` は編集・テスト用のソース、`chat_core.min.v*.js` はブラウザーへ配信する圧縮ファイルです。
+チャットコアのファイル名には、ブラウザーキャッシュ更新用のバージョン番号が含まれます。`chat_core.v*.js` は編集・テスト用のソース、`chat_core.min.v*.<n>.js` はブラウザーへ配信する圧縮ファイル（`chat_core_parts/` の `//! @chat-core-bundle-split` 行で分けた複数ファイルを番号順に読み込む）です。単体のスクリプトは、esbuild の補助関数がグローバル変数にならないよう即時関数の形式（`--format=iife`）で圧縮します。
 
 ## chat_core の分割について
 
-`chat_core.v*.js` は1ファイルで約2.5万行あるため、編集は `static/js/chat_core_parts/` 配下の順序付き部品（`chat_core.partNN_名前.js`）に対して行います。`scripts/build_frontend.sh` が部品を順に連結して `chat_core.v*.js`（結合ソース）を再生成し、それを圧縮して `chat_core.min.v*.js` を作ります。
+`chat_core.v*.js` は1ファイルで約2.5万行あるため、編集は `static/js/chat_core_parts/` 配下の順序付き部品（`chat_core.partNN_名前.js`）に対して行います。`scripts/build_frontend.sh` が部品を順に連結して `chat_core.v*.js`（結合ソース）を再生成し、それを圧縮・分割して `chat_core.min.v*.<n>.js` を作ります。
 
 - **編集対象は部品ファイル**。部品を編集したら必ず `scripts/build_frontend.sh` を実行して結合ソースと圧縮ファイルを更新してください（回帰テストと検証は結合ソースを検査します）。
 - 部品は連結順に番号が付いており、**結合ソースは部品の連結とバイト単位で一致**します（検証で確認されます）。

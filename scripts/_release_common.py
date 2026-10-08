@@ -180,10 +180,37 @@ def next_app_version(current: str, today: dt.date | None = None) -> str:
     return f"{today_s}-001"
 
 
+# build_frontend.sh cuts the combined chat_core source before each of these
+# top-level lines (kept through minification as legal comments) and serves the pieces as chat_core.min.<version>.<n>.js.
+CHAT_CORE_BUNDLE_SPLIT_RE = re.compile(r"^[ \t]*//! @chat-core-bundle-split", re.MULTILINE)
+
+
+def chat_core_bundle_paths(system_lower: str) -> list[Path]:
+    """Browser files of chat_core for ``system_lower`` in load order.
+
+    The count follows the split lines of the combined source when it exists,
+    otherwise the files already on disk."""
+    source = JS_DIR / f"chat_core.{system_lower}.js"
+    if source.is_file():
+        count = len(CHAT_CORE_BUNDLE_SPLIT_RE.findall(read_text(source))) + 1
+        return [JS_DIR / f"chat_core.min.{system_lower}.{index}.js" for index in range(1, count + 1)]
+    return existing_chat_core_bundles(system_lower)
+
+
+def existing_chat_core_bundles(system_lower: str) -> list[Path]:
+    """chat_core browser files of ``system_lower`` on disk, including the single-file layout before the split."""
+    pattern = re.compile(rf"chat_core\.min\.{re.escape(system_lower)}(?:\.(\d+))?\.js")
+    found = []
+    for path in JS_DIR.glob(f"chat_core.min.{system_lower}*.js"):
+        match = pattern.fullmatch(path.name)
+        if match:
+            found.append((int(match.group(1) or 0), path))
+    return [path for _index, path in sorted(found)]
+
+
 def versioned_assets(system_lower: str) -> dict[str, Path]:
     return {
         "chat_core_js": JS_DIR / f"chat_core.{system_lower}.js",
-        "chat_core_min_js": JS_DIR / f"chat_core.min.{system_lower}.js",
         "chat_custom_css": CSS_DIR / f"chat.custom.{system_lower}.css",
         "chat_custom_min_css": CSS_DIR / f"chat.custom.min.{system_lower}.css",
         "chat_tailwind_css": CSS_DIR / f"chat.tailwind.{system_lower}.css",
@@ -200,7 +227,7 @@ def required_source_assets(system_lower: str) -> list[Path]:
 
 
 def required_all_assets(system_lower: str) -> list[Path]:
-    return list(versioned_assets(system_lower).values())
+    return list(versioned_assets(system_lower).values()) + chat_core_bundle_paths(system_lower)
 
 
 def list_chat_core_sources() -> list[Path]:
@@ -457,6 +484,10 @@ def check_workspace_assets(versions: dict[str, str] | None = None) -> list[str]:
     for path in required_all_assets(versions["system_lower"]):
         if not path.is_file():
             errors.append(f"missing required asset: {path.relative_to(ROOT)}")
+    expected_bundles = set(chat_core_bundle_paths(versions["system_lower"]))
+    for path in existing_chat_core_bundles(versions["system_lower"]):
+        if path not in expected_bundles:
+            errors.append(f"stale chat_core browser file (run scripts/build_frontend.sh): {path.relative_to(ROOT)}")
     # The combined chat_core source is rebuilt from its ordered parts; a stale
     # combined file would hide edits made to a part, so require them to match.
     parts = list_chat_core_parts()
@@ -576,9 +607,10 @@ def apply_prepare(
     for path in required_source_assets(current["system_lower"]):
         if not path.is_file():
             die(f"missing current source asset: {path.relative_to(ROOT)}")
-    for path in new_assets.values():
+    for path in list(new_assets.values()) + existing_chat_core_bundles(new_versions["system_lower"]):
         if path.exists():
             die(f"refusing to overwrite existing asset: {path.relative_to(ROOT)}")
+    old_paths = list(old_assets.values()) + existing_chat_core_bundles(current["system_lower"])
     if new_changelog.exists():
         die(f"changelog already exists: {new_changelog.name}")
 
@@ -603,7 +635,7 @@ def apply_prepare(
         ],
         "delete": [
             str(path.relative_to(ROOT))
-            for path in old_assets.values()
+            for path in old_paths
             if path.exists()
         ],
         "changelog": str(new_changelog.relative_to(ROOT)),
@@ -648,7 +680,7 @@ def apply_prepare(
 
     write_text(new_changelog, render_changelog(new_system, notes, today))
 
-    for path in old_assets.values():
+    for path in old_paths:
         if path.exists():
             path.unlink()
 
@@ -740,6 +772,14 @@ def cmd_check_parts(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_chat_core_bundles(_args: argparse.Namespace) -> int:
+    """Paths (relative to static/) of the current chat_core browser files, one per line."""
+    versions = parse_versions()
+    for path in chat_core_bundle_paths(versions["system_lower"]):
+        print(path.relative_to(ROOT / "static"))
+    return 0
+
+
 def cmd_prepare(args: argparse.Namespace) -> int:
     notes = args.notes
     if args.notes_file:
@@ -809,6 +849,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("versions").set_defaults(func=cmd_versions)
     sub.add_parser("check-assets").set_defaults(func=cmd_check_assets)
     sub.add_parser("check-parts").set_defaults(func=cmd_check_parts)
+    sub.add_parser("chat-core-bundles").set_defaults(func=cmd_chat_core_bundles)
     sub.add_parser("classify-git").set_defaults(func=cmd_classify_git)
 
     record = sub.add_parser("classify-record")

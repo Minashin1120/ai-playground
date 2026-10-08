@@ -51,6 +51,8 @@ MOBILE_ENDPOINT_METHODS = {
     'mcp_service.add_custom_server': {'POST'}, 'mcp_service.delete_server': {'DELETE'},
     'mcp_service.test_server': {'POST'}, 'mcp_service.list_server_tools': {'GET'},
     'feedback': {'GET', 'POST'},
+    # Attachments kept only on the device, added to the feedback's chat copy (feedback_chat_copy.py).
+    'feedback_chat_file': {'POST'},
     # Native clients use the same authenticated provider sessions as Web for
     # realtime audio/music. These endpoints never return provider API keys.
     # Settings modal parity (routes_mobile_account.py): account, sessions, 2FA and

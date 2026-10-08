@@ -78,11 +78,11 @@
                 const payload = {title, message};
                 const clientLogs = window.ActivityLog ? window.ActivityLog.feedbackPayload() : null;
                 if (clientLogs) payload.client_logs = clientLogs;
-                // The server decrypts the open chat and stores a copy next to the logs (server/routes_admin.py).
+                // The server copies everything it has on the open chat, decrypted, next to the logs (server/feedback_chat_copy.py).
                 const attachChat = get('fb-attach-chat');
                 const chatCopy = !!(attachChat && attachChat.checked);
                 if (chatCopy && !currentThreadId) { showToast("コピーを送信するチャットが開かれていません", "error", true); return; }
-                if (chatCopy) payload.chat_copy = {client: 'web', thread_id: String(currentThreadId)};
+                if (chatCopy) payload.chat_copy = window.ActivityLog ? window.ActivityLog.chatCopyPayload(currentThreadId) : {client: 'web', thread_id: String(currentThreadId)};
                 const res = await apiFetch("/api/feedback", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
                 if (!(window.ActivityLog ? await window.ActivityLog.reportFeedback(res, clientLogs, chatCopy) : res.ok)) return;
                 get('fb-title').value = '';

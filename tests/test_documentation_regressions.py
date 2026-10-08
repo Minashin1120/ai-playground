@@ -52,7 +52,7 @@ class DocumentationRegressionTests(unittest.TestCase):
         self.assertIn(f"V{version}", (ROOT / "README.md").read_text(encoding="utf-8"))
         self.assertIn(f"V{version}", (ROOT / "MODELS.md").read_text(encoding="utf-8"))
         self.assertTrue((ROOT / f"static/js/chat_core.{version_lower}.js").is_file())
-        self.assertTrue((ROOT / f"static/js/chat_core.min.{version_lower}.js").is_file())
+        self.assertTrue((ROOT / f"static/js/chat_core.min.{version_lower}.1.js").is_file())
         self.assertTrue((ROOT / f"static/css/chat.custom.{version_lower}.css").is_file())
         self.assertTrue((ROOT / f"static/css/chat.custom.min.{version_lower}.css").is_file())
         self.assertTrue((ROOT / f"static/css/chat.tailwind.{version_lower}.css").is_file())

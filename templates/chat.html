@@ -29,7 +29,9 @@
     {% include 'pwa_meta.html' %}
     <title>AI Playground ({{ system_version }})</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.tailwind.' ~ (system_version | lower) ~ '.css') }}?v={{ app_version }}">
-    <link rel="preload" as="script" href="{{ url_for('static', filename='js/chat_core.min.' ~ (system_version | lower) ~ '.js') }}?v={{ app_version }}">
+    {% for bundle in chat_core_bundles %}
+    <link rel="preload" as="script" href="{{ url_for('static', filename=bundle) }}?v={{ app_version }}">
+    {% endfor %}
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <script src="{{ url_for('static', filename='js/activity_log.min.js') }}?v={{ app_version }}" defer></script>

@@ -4538,25 +4538,81 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (logs != null) payload.put("client_logs", JSONObject().put("client", "android")
                     .put("version", BuildConfig.VERSION_NAME).put("window_seconds", ActivityLog.WINDOW_MS / 1000).put("entries", logs))
                 val chatCopy = chatId?.let { feedbackChatCopy(it) }
-                if (chatCopy != null) payload.put("chat_copy", chatCopy)
-                val reply = backend.post("/api/feedback", payload, token())
+                if (chatCopy != null) payload.put("chat_copy", chatCopy.payload)
+                // The server gathers the chat's records, logs and attachments before it answers.
+                val reply = if (chatCopy != null) api.postLong("/api/feedback", payload, token()) else backend.post("/api/feedback", payload, token())
+                var chatSaved = reply.optBoolean("chat_copy_saved", false)
+                val feedbackId = reply.optInt("feedback_id", 0)
+                if (chatCopy != null && chatSaved && chatCopy.deviceFiles.isNotEmpty()) {
+                    chatSaved = feedbackId > 0 && uploadFeedbackChatFiles(feedbackId, chatCopy.deviceFiles)
+                }
                 loadFeedback()
-                notify(feedbackSentText(logs?.length(), reply.optBoolean("logs_saved", true),
-                    chatCopy != null, reply.optBoolean("chat_copy_saved", false)))
+                notify(feedbackSentText(logs?.length(), reply.optBoolean("logs_saved", true), chatCopy != null, chatSaved))
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(feedbackBusy = false) } }
         }
     }
 
+    private class FeedbackChatCopy(val payload: JSONObject, val deviceFiles: List<String>)
+
     /**
-     * Web `chat_copy`: the server decrypts its own chat by id. A chat kept only on the device (serverless
-     * mode) is not on the server, so its decrypted history from the device store goes instead.
+     * Web `chat_copy`: the server copies everything it has on the chat, decrypted. The device adds what only
+     * it holds: the chat as it shows it while chats are on the device (a device chat, or unsent messages over
+     * a server chat), its offline cache of the chat, preferences keyed by the chat, diagnostics entries not yet
+     * sent, and the attachments kept only here ([uploadFeedbackChatFiles] after the feedback is accepted).
      */
-    private suspend fun feedbackChatCopy(id: String): JSONObject {
+    private suspend fun feedbackChatCopy(id: String): FeedbackChatCopy {
         val resolved = serverIdOf(id)
+        val ids = setOf(id, resolved)
         val copy = JSONObject().put("client", "android").put("version", BuildConfig.VERSION_NAME).put("thread_id", resolved)
-        if (deviceChat(resolved)) copy.put("thread", backend.get("/api/threads/$resolved", token()))
-        return copy
+        val view = if (localChats != null) runCatching { backend.get("/api/threads/$resolved", token()) }.getOrNull() else null
+        if (view != null) copy.put("thread", view)
+        val accountId = state.value.account?.id
+        withContext(Dispatchers.IO) {
+            accountId?.let { account -> ids.firstNotNullOfOrNull { offlineCache.loadThread(account, it) } }
+                ?.let { copy.put("offline_cache", it) }
+            val app = getApplication<Application>()
+            val stored = JSONObject()
+            listOf("navigation", "branches", "settings_local").forEach { name ->
+                val found = JSONObject()
+                app.getSharedPreferences(name, Context.MODE_PRIVATE).all.forEach { (key, value) ->
+                    if (ids.any { key.contains(it) }) found.put(key, value?.toString() ?: JSONObject.NULL)
+                }
+                if (found.length() > 0) stored.put(name, found)
+            }
+            copy.put("client_state", JSONObject().put("preferences", stored))
+            copy.put("diagnostics", JSONArray(Diagnostics.pendingMentioning(ids)))
+        }
+        val messages = view?.optJSONArray("messages")
+        val files = (0 until (messages?.length() ?: 0)).flatMap { index ->
+            val raw = messages?.optJSONObject(index)?.opt("image_url")?.takeIf { it != JSONObject.NULL }?.toString().orEmpty()
+            if (raw.isBlank()) emptyList()
+            else runCatching { JSONArray(raw).let { refs -> (0 until refs.length()).map { refs.optString(it) } } }.getOrElse { listOf(raw) }
+        }.filter { LocalChatStore.isLocalReference(it) }.distinct()
+        copy.put("device_files", files.size)
+        return FeedbackChatCopy(copy, files)
+    }
+
+    /** Sends the attachments kept only on this device to the chat copy of [feedbackId]; false when one was not saved. */
+    private suspend fun uploadFeedbackChatFiles(feedbackId: Int, references: List<String>): Boolean {
+        val store = localChats ?: return false
+        var saved = true
+        for (reference in references) {
+            val target = File(getApplication<Application>().cacheDir, "feedback-" + java.util.UUID.randomUUID())
+            try {
+                val (mime, name) = withContext(Dispatchers.IO) {
+                    store.materializeFile(reference, target) to store.fileInfo(reference)?.optString("name").orEmpty()
+                }
+                val ok = mime != null && api.uploadFeedbackChatFile(feedbackId, reference,
+                    name.ifBlank { reference.substringAfterLast('/') }, target, mime, token()).optBoolean("saved")
+                if (!ok) saved = false
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                Diagnostics.failure("feedback.chat_file", e)
+                saved = false
+            } finally { target.delete() }
+        }
+        return saved
     }
 
     fun loadMcpServers() {

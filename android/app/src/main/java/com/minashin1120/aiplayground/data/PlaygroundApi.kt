@@ -174,6 +174,14 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
         readBoundedBytes(response.body.byteStream(), limit) to (response.header("X-Rich-Paste-Filename") ?: "clipboard.pdf")
     }
 
+    /** Web `chat_copy`: an attachment kept only on this device, added to the chat copy of feedback [feedbackId]. */
+    suspend fun uploadFeedbackChatFile(feedbackId: Int, reference: String, name: String, file: File, mime: String, token: String): JSONObject {
+        val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("ref", reference)
+            .addFormDataPart("file", name, file.asRequestBody(mime.ifBlank { "application/octet-stream" }.toMediaType())).build()
+        return execute(request("/api/feedback/$feedbackId/chat_files", token).post(multipart).build(), client = streaming, consume = ::jsonResponse)
+    }
+
     suspend fun upload(name: String, body: RequestBody, token: String): JSONObject {
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("file", name, body).build()

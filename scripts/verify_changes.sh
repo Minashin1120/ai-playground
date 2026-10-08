@@ -72,6 +72,11 @@ if [[ ${#CHAT_CORE[@]} -ne 1 ]]; then
     die "expected exactly one chat_core.v4.8.*.js source"
 fi
 JS_SOURCES+=("${CHAT_CORE[0]}")
+# The browser loads chat_core as several files; each must parse on its own.
+mapfile -t CHAT_CORE_BUNDLES < <(run_common chat-core-bundles)
+for bundle in "${CHAT_CORE_BUNDLES[@]}"; do
+    JS_SOURCES+=("static/$bundle")
+done
 
 if ! command -v node >/dev/null 2>&1; then
     die "node is required for JavaScript syntax checks"
@@ -128,7 +133,7 @@ if [[ "$LIVE" -eq 1 ]]; then
     ok "live /api/version $app_version"
     for rel in \
         "js/chat_core.${system_lower}.js" \
-        "js/chat_core.min.${system_lower}.js" \
+        "${CHAT_CORE_BUNDLES[@]}" \
         "css/chat.custom.${system_lower}.css" \
         "css/chat.custom.min.${system_lower}.css" \
         "css/chat.tailwind.${system_lower}.css"

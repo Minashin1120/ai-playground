@@ -57,7 +57,9 @@
         })();
     </script>
     <script src="{{ url_for('static', filename='js/connection_monitor.min.js') }}?v={{ app_version }}" defer></script>
-    <script src="{{ url_for('static', filename='js/chat_core.min.' ~ (system_version | lower) ~ '.js') }}?v={{ app_version }}" defer></script>
+    {% for bundle in chat_core_bundles %}
+    <script src="{{ url_for('static', filename=bundle) }}?v={{ app_version }}" defer></script>
+    {% endfor %}
     <script src="{{ url_for('static', filename='js/pwa_install.min.js') }}?v={{ app_version }}" defer></script>
 
 <div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">

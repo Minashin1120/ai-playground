@@ -1,3 +1,24 @@
+_CHAT_CORE_BUNDLES = {}
+
+
+def chat_core_bundles():
+    """Browser files of chat_core in load order (scripts/build_frontend.sh writes chat_core.min.<version>.<n>.js)."""
+    version = str(app.config.get('SYSTEM_VERSION') or '').lower()
+    cached = _CHAT_CORE_BUNDLES.get(version)
+    if cached:
+        return cached
+    pattern = re.compile(r'^chat_core\.min\.' + re.escape(version) + r'\.(\d+)\.js$')
+    try:
+        names = os.listdir(os.path.join(app.static_folder, 'js'))
+    except OSError:
+        names = []
+    found = sorted((int(match.group(1)), name) for name in names for match in [pattern.match(name)] if match)
+    bundles = [f'js/{name}' for _index, name in found]
+    if bundles:
+        _CHAT_CORE_BUNDLES[version] = bundles
+    return bundles
+
+
 @app.context_processor
 def inject_csrf():
     is_admin = current_user.is_authenticated and bool(getattr(current_user, "is_admin", False))
@@ -8,6 +29,7 @@ def inject_csrf():
         'csrf_token': get_csrf_token(),
         'app_version': app.config.get('APP_VERSION'),
         'system_version': app.config.get('SYSTEM_VERSION'),
+        'chat_core_bundles': chat_core_bundles(),
         'is_admin': is_admin,
         'attachment_max_files': app.config.get('ATTACHMENT_MAX_FILES', 30),
         'upload_concurrency': app.config.get('UPLOAD_CONCURRENCY', 3),

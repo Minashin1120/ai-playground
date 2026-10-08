@@ -160,7 +160,7 @@ internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsFor
 )
 
 private const val FEEDBACK_CHAT_COPY_LABEL = "現在開いているチャットのコピーを送信する"
-private const val FEEDBACK_CHAT_COPY_DESCRIPTION = "開いているチャットのメッセージ、回答、思考過程、チャットの設定を復号して、不具合の調査用に送信します。添付ファイルの中身は含みません。送信したコピーは、チャットを削除しても残ります。"
+private const val FEEDBACK_CHAT_COPY_DESCRIPTION = "開いているチャットのメッセージ、回答、思考過程、添付ファイル、チャットの設定と、そのチャットに関するエラーログなどの記録を復号して、不具合の調査用に送信します。送信したコピーは、チャットを削除しても残ります。"
 private const val ACTIVITY_LOG_DESCRIPTION = "この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバックの送信時に直近1時間のログを一緒に送信します。チャットで送信した内容、回答、ファイル、入力欄の文字は記録しません。"
 
 /** Web `refreshActivityLogUi`: the switch state and `操作ログ: N件 (x.xMB)`, read again after each change. */

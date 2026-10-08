@@ -118,6 +118,14 @@ object Diagnostics {
         Batch(lines.size, lines.mapNotNull { runCatching { JSONObject(it) }.getOrNull() })
     }
 
+    /** Waiting entries (not yet sent) that mention [ids], for the chat copy of a feedback. */
+    fun pendingMentioning(ids: Collection<String>): List<JSONObject> = synchronized(lock) {
+        val target = file ?: return emptyList()
+        val lines = runCatching { if (target.isFile) target.readLines() else emptyList() }.getOrDefault(emptyList())
+        lines.filter { line -> ids.any { it.isNotBlank() && line.contains(it) } }
+            .mapNotNull { runCatching { JSONObject(it) }.getOrNull() }
+    }
+
     /** Removes the first [count] lines after the server accepted them. */
     fun drop(count: Int) = synchronized(lock) {
         val target = file ?: return@synchronized

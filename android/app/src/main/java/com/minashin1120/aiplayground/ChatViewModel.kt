@@ -4553,7 +4553,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (state.value.offline) { notify("オフライン中はフィードバックを削除できません。"); return@launch }
             mutable.update { it.copy(feedbackBusy = true) }
             try {
-                backend.delete("/api/feedback/${item.id}", token())
+                backend.delete("/api/feedback/${item.publicId.ifBlank { item.id.toString() }}", token())
                 mutable.update { it.copy(feedbackItems = it.feedbackItems.filterNot { row -> row.id == item.id }) }
                 notify("フィードバックを削除しました")
             } catch (e: Exception) {
@@ -4579,9 +4579,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 // The server gathers the chat's records, logs and attachments before it answers.
                 val reply = if (chatCopy != null) api.postLong("/api/feedback", payload, token()) else backend.post("/api/feedback", payload, token())
                 var chatSaved = reply.optBoolean("chat_copy_saved", false)
-                val feedbackId = reply.optInt("feedback_id", 0)
+                val feedbackId = reply.optString("public_id", "").ifBlank { reply.optInt("feedback_id", 0).takeIf { it > 0 }?.toString().orEmpty() }
                 if (chatCopy != null && chatSaved && chatCopy.deviceFiles.isNotEmpty()) {
-                    chatSaved = feedbackId > 0 && uploadFeedbackChatFiles(feedbackId, chatCopy.deviceFiles)
+                    chatSaved = feedbackId.isNotBlank() && uploadFeedbackChatFiles(feedbackId, chatCopy.deviceFiles)
                 }
                 loadFeedback()
                 notify(feedbackSentText(logs?.length(), reply.optBoolean("logs_saved", true), chatCopy != null, chatSaved))
@@ -4631,7 +4631,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Sends the attachments kept only on this device to the chat copy of [feedbackId]; false when one was not saved. */
-    private suspend fun uploadFeedbackChatFiles(feedbackId: Int, references: List<String>): Boolean {
+    private suspend fun uploadFeedbackChatFiles(feedbackId: String, references: List<String>): Boolean {
         val store = localChats ?: return false
         var saved = true
         for (reference in references) {

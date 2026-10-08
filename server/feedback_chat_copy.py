@@ -1,7 +1,7 @@
 # --- Copy of the open chat attached to feedback ---
 # Sent only when the user ticks the box in the feedback form. Everything the server can find
 # from the chat's id goes into one JSON Lines file in the feedback's directory
-# (``feedback/<id>/chat.jsonl``, next to ``feedback.json`` and ``logs/``): the chat and its messages decrypted, its
+# (``feedback/<public_id>/chat.jsonl``, next to ``feedback.json`` and ``logs/``): the chat and its messages decrypted, its
 # Batch jobs, latency traces, sync records, attachment cache state, the Gems it used, the Redis
 # state of its answers, its temporary-chat state, and the server log lines (debug.log,
 # access.log, the service journal, Android diagnostics, activity logs of other feedback) that
@@ -81,8 +81,9 @@ def _prune_feedback_chat_files(keep=None):
 
 def _delete_feedback_files(feedback_ids):
     """Removes the directories of ``feedback_ids``: information, activity logs and chat copies (account deletion)."""
-    for fid in {int(fid) for fid in feedback_ids}:
-        shutil.rmtree(_feedback_dir(fid), ignore_errors=True)
+    for fid in {str(fid) for fid in feedback_ids if fid}:
+        if _FEEDBACK_PUBLIC_ID_RE.fullmatch(fid):
+            shutil.rmtree(_feedback_dir(fid), ignore_errors=True)
 
 
 def _feedback_chat_value(value):
@@ -279,7 +280,7 @@ def _feedback_chat_log_files(user_id):
     paths = sorted(glob.glob(os.path.join(root, 'debug.log*'))) + sorted(glob.glob(os.path.join(root, 'access.log*')))
     paths += sorted(glob.glob(glob.escape(_diagnostics_log_path()) + '*'))
     # Activity logs record the sender's own operations, so only this user's feedback can name the chat.
-    own = sorted(fid for (fid,) in db.session.query(Feedback.id).filter_by(user_id=user_id).all())
+    own = sorted(fid for (fid,) in db.session.query(Feedback.public_id).filter_by(user_id=user_id).all() if fid)
     paths += [_feedback_activity_log_path(fid) for fid in own]
     return [p for p in paths if os.path.isfile(p) and not p.endswith('.gz')]
 
@@ -490,13 +491,15 @@ def _save_feedback_chat_copy(feedback_id, user_id, payload):
     return path
 
 
-@app.route('/api/feedback/<int:fid>/chat_files', methods=['POST'])
+@app.route('/api/feedback/<fid>/chat_files', methods=['POST'])
 @login_required
 def feedback_chat_file(fid):
     """An attachment kept only on the device, added to the chat copy of the user's feedback ``fid``."""
-    fb = Feedback.query.filter_by(id=fid, user_id=current_user.id).first()
-    path = _feedback_chat_copy_path(fid)
-    if not fb or not os.path.isfile(path):
+    fb = _feedback_by_ref(fid)
+    if not fb or fb.user_id != current_user.id or not fb.public_id:
+        return jsonify({'error': 'not_found'}), 404
+    path = _feedback_chat_copy_path(fb.public_id)
+    if not os.path.isfile(path):
         return jsonify({'error': 'not_found'}), 404
     if fb.created_at and (datetime.utcnow() - fb.created_at).total_seconds() > _FEEDBACK_CHAT_DEVICE_FILE_WINDOW:
         return jsonify({'error': 'expired'}), 409

@@ -1019,6 +1019,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_feedback_public_ids()
+    except Exception:
+        pass
+    try:
         ensure_user_minashin_columns()
     except Exception:
         pass

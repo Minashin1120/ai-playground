@@ -228,6 +228,8 @@ data class McpServerInfo(
 
 data class FeedbackItem(
     val id: Int,
+    /** Random identifier shown to people and used in the API; empty for answers of an older server. */
+    val publicId: String,
     val title: String,
     val message: String,
     val status: String,
@@ -397,6 +399,7 @@ fun parseFeedbackItems(json: JSONObject): List<FeedbackItem> {
         val row = rows.getJSONObject(index)
         FeedbackItem(
             id = row.optInt("id"),
+            publicId = row.nullableString("public_id"),
             title = row.nullableString("title"),
             message = row.nullableString("message"),
             status = row.nullableString("status"),

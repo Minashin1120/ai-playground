@@ -1,5 +1,5 @@
 # --- Files kept with each feedback ---
-# ``feedback/<id>/`` under the app directory holds what the server keeps about one feedback
+# ``feedback/<public_id>/`` under the app directory holds what the server keeps about one feedback
 # besides its database row: ``feedback.json`` (title, message, sender, client, status and
 # reply), ``logs/activity.jsonl`` (the client's activity log, below) and the copy of the open
 # chat (``chat.jsonl`` and ``chat.files/``, server/feedback_chat_copy.py).
@@ -19,15 +19,52 @@ def _feedback_root_dir():
     return app.config.get('FEEDBACK_DIR') or os.path.join(app.root_path, 'feedback')
 
 
-def _feedback_dir(feedback_id):
-    return os.path.join(_feedback_root_dir(), str(int(feedback_id)))
+# A feedback is identified to people and on disk by ``Feedback.public_id`` (random, 12 lowercase
+# hex characters); the database ``id`` stays internal. Older clients still address a feedback by
+# that number, so the routes accept either (``_feedback_by_ref``).
+_FEEDBACK_PUBLIC_ID_RE = re.compile(r'[0-9a-f]{12}')
+
+
+def _feedback_dir(public_id):
+    public_id = str(public_id or '')
+    if not _FEEDBACK_PUBLIC_ID_RE.fullmatch(public_id):
+        raise ValueError('invalid feedback id')
+    return os.path.join(_feedback_root_dir(), public_id)
 
 
 def _feedback_dir_ids():
     try:
-        return [int(name) for name in os.listdir(_feedback_root_dir()) if name.isdigit()]
+        return [name for name in os.listdir(_feedback_root_dir()) if _FEEDBACK_PUBLIC_ID_RE.fullmatch(name)]
     except OSError:
         return []
+
+
+def _ensure_feedback_public_id(fb):
+    """Gives a feedback created before public ids a random one and renames its old numbered directory."""
+    if fb.public_id:
+        return fb.public_id
+    for _attempt in range(10):
+        candidate = _new_feedback_public_id()
+        if not Feedback.query.filter_by(public_id=candidate).first():
+            break
+    fb.public_id = candidate
+    legacy = os.path.join(_feedback_root_dir(), str(int(fb.id)))
+    try:
+        if os.path.isdir(legacy):
+            os.rename(legacy, _feedback_dir(candidate))
+    except OSError as e:
+        log_force(f"FEEDBACK-DIR-RENAME-ERROR: feedback={fb.id} err={e}")
+    return candidate
+
+
+def _feedback_by_ref(ref):
+    """The feedback named by a public id, or by the old database number (older Android apps)."""
+    ref = str(ref or '')
+    if _FEEDBACK_PUBLIC_ID_RE.fullmatch(ref):
+        return Feedback.query.filter_by(public_id=ref).first()
+    if ref.isdigit() and len(ref) < 12:
+        return db.session.get(Feedback, int(ref))
+    return None
 
 
 def _feedback_activity_log_path(feedback_id):
@@ -50,7 +87,7 @@ def _reset_feedback_dir(feedback_id):
 
 def _write_feedback_info(fb, **extra):
     """Writes ``feedback.json`` for ``fb``, keeping what an earlier write recorded about the submission."""
-    directory = _feedback_dir(fb.id)
+    directory = _feedback_dir(fb.public_id)
     path = os.path.join(directory, _FEEDBACK_INFO_NAME)
     info = {}
     try:
@@ -63,7 +100,7 @@ def _write_feedback_info(fb, **extra):
     user = db.session.get(User, fb.user_id)
     info.update(extra)
     info.update({
-        'feedback_id': fb.id, 'user_id': fb.user_id, 'username': user.username if user else None,
+        'feedback_id': fb.public_id, 'user_id': fb.user_id, 'username': user.username if user else None,
         'title': fb.title or '', 'message': fb.message, 'status': fb.status,
         'admin_reply': fb.admin_reply or '', 'handled_by': fb.handled_by or '',
         'created_at': fb.created_at.isoformat(timespec='seconds') + 'Z' if fb.created_at else None,
@@ -180,22 +217,23 @@ def feedback():
         fb = Feedback(user_id=current_user.id, title=title, message=message)
         db.session.add(fb)
         safe_db_commit()
-        result = {'status': 'ok', 'feedback_id': fb.id}
+        # ``feedback_id`` is the number older apps use for the upload of device files (still accepted).
+        result = {'status': 'ok', 'feedback_id': fb.id, 'public_id': fb.public_id}
         try:
-            _reset_feedback_dir(fb.id)
+            _reset_feedback_dir(fb.public_id)
         except OSError as e:
-            log_force(f"FEEDBACK-DIR-ERROR: user={current_user.id} feedback={fb.id} err={e}")
+            log_force(f"FEEDBACK-DIR-ERROR: user={current_user.id} feedback={fb.public_id} err={e}")
         if client_logs is not None:
             try:
-                result['logs_saved'] = _save_feedback_client_logs(fb.id, current_user.id, client_logs) is not None
+                result['logs_saved'] = _save_feedback_client_logs(fb.public_id, current_user.id, client_logs) is not None
             except Exception as e:
-                log_force(f"FEEDBACK-LOGS-ERROR: user={current_user.id} feedback={fb.id} err={e}")
+                log_force(f"FEEDBACK-LOGS-ERROR: user={current_user.id} feedback={fb.public_id} err={e}")
                 result['logs_saved'] = False
         if chat_copy is not None:
             try:
-                result['chat_copy_saved'] = _save_feedback_chat_copy(fb.id, current_user.id, chat_copy) is not None
+                result['chat_copy_saved'] = _save_feedback_chat_copy(fb.public_id, current_user.id, chat_copy) is not None
             except Exception as e:
-                log_force(f"FEEDBACK-CHAT-ERROR: user={current_user.id} feedback={fb.id} err={e}")
+                log_force(f"FEEDBACK-CHAT-ERROR: user={current_user.id} feedback={fb.public_id} err={e}")
                 result['chat_copy_saved'] = False
         client, client_version = _feedback_client(data, client_logs, chat_copy)
         try:
@@ -205,7 +243,7 @@ def feedback():
                 user_agent=str(request.headers.get('User-Agent') or '')[:300],
                 activity_log_saved=result.get('logs_saved'), chat_copy_saved=result.get('chat_copy_saved'))
         except Exception as e:
-            log_force(f"FEEDBACK-INFO-ERROR: user={current_user.id} feedback={fb.id} err={e}")
+            log_force(f"FEEDBACK-INFO-ERROR: user={current_user.id} feedback={fb.public_id} err={e}")
         return jsonify(result)
 
     # GET
@@ -217,10 +255,12 @@ def feedback():
 
     res = []
     for f in items:
+        _ensure_feedback_public_id(f)
         res.append({
-            'log_file': _feedback_display_path(_feedback_activity_log_path(f.id)) if is_admin else None,
-            'chat_file': _feedback_display_path(_feedback_chat_copy_path(f.id)) if is_admin else None,
+            'log_file': _feedback_display_path(_feedback_activity_log_path(f.public_id)) if is_admin else None,
+            'chat_file': _feedback_display_path(_feedback_chat_copy_path(f.public_id)) if is_admin else None,
             'id': f.id,
+            'public_id': f.public_id,
             'user_id': f.user_id,
             'title': f.title or "",
             'message': f.message,
@@ -230,6 +270,8 @@ def feedback():
             'created_at': f.created_at.isoformat(),
             'updated_at': f.updated_at.isoformat() if f.updated_at else None
         })
+    if db.session.dirty:
+        safe_db_commit()
     return jsonify({'items': res, 'is_admin': is_admin})
 
 @app.route('/api/easy_login', methods=['POST'])
@@ -263,11 +305,14 @@ def create_easy_login():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/feedback/<int:fid>/update', methods=['POST'])
+@app.route('/api/feedback/<fid>/update', methods=['POST'])
 @login_required
 def feedback_update(fid):
     if not getattr(current_user, "is_admin", False): return jsonify({'error': '403'}), 403
-    fb = Feedback.query.get_or_404(fid)
+    fb = _feedback_by_ref(fid)
+    if fb is None:
+        return jsonify({'error': 'not_found'}), 404
+    _ensure_feedback_public_id(fb)
     data = request.json or {}
     status = data.get('status')
     reply = data.get('admin_reply')
@@ -281,23 +326,25 @@ def feedback_update(fid):
     try:
         _write_feedback_info(fb)
     except Exception as e:
-        log_force(f"FEEDBACK-INFO-ERROR: feedback={fb.id} err={e}")
+        log_force(f"FEEDBACK-INFO-ERROR: feedback={fb.public_id} err={e}")
     return jsonify({'status': 'ok'})
 
-@app.route('/api/feedback/<int:fid>', methods=['DELETE'])
+@app.route('/api/feedback/<fid>', methods=['DELETE'])
 @login_required
 def feedback_delete(fid):
     """Deletes a feedback with its directory (information, activity log, chat copy).
 
     The sender deletes their own; administrators delete any from the browser only, since
     administrative rights are not extended to Android tokens (android/ANDROID_ONLY.md)."""
-    fb = db.session.get(Feedback, fid)
+    fb = _feedback_by_ref(fid)
     is_admin = bool(getattr(current_user, 'is_admin', False)) and getattr(g, 'mobile_session', None) is None
     if fb is None or (fb.user_id != current_user.id and not is_admin):
         return jsonify({'error': 'not_found'}), 404
+    _ensure_feedback_public_id(fb)
+    public_id = fb.public_id
     db.session.delete(fb)
     safe_db_commit()
-    _delete_feedback_files([fid])
+    _delete_feedback_files([public_id])
     return jsonify({'status': 'ok'})
 
 @app.route('/api/ban/appeals/summary', methods=['GET'])

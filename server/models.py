@@ -231,8 +231,15 @@ class Gem(db.Model):
     # imports of the same gem can be detected.
     import_signature = db.Column(db.String(64), nullable=True, index=True)
 
+def _new_feedback_public_id():
+    """Random identifier shown to people and used for the feedback's directory (12 lowercase hex characters)."""
+    return secrets.token_hex(6)
+
+
 class Feedback(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    # The identifier people see and quote; ``id`` stays an internal key (see server/routes_admin.py).
+    public_id = db.Column(db.String(16), unique=True, index=True, nullable=True, default=_new_feedback_public_id)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     title = db.Column(db.String(200), default="")
     message = db.Column(db.Text, nullable=False)

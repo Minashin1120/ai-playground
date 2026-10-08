@@ -175,7 +175,7 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
     }
 
     /** Web `chat_copy`: an attachment kept only on this device, added to the chat copy of feedback [feedbackId]. */
-    suspend fun uploadFeedbackChatFile(feedbackId: Int, reference: String, name: String, file: File, mime: String, token: String): JSONObject {
+    suspend fun uploadFeedbackChatFile(feedbackId: String, reference: String, name: String, file: File, mime: String, token: String): JSONObject {
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("ref", reference)
             .addFormDataPart("file", name, file.asRequestBody(mime.ifBlank { "application/octet-stream" }.toMediaType())).build()

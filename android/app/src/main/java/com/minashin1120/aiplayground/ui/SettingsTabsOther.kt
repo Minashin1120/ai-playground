@@ -265,7 +265,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                     Modifier.fillMaxWidth().clip(shape).background(web.twBg(Tw.gray800).copy(alpha = 0.5f))
                         .border(1.dp, web.twBorder(Tw.gray700), shape).padding(8.dp),
                 ) {
-                    Text(item.createdAt, fontSize = 11.sp, color = Tw.gray400)
+                    Text(if (item.publicId.isBlank()) item.createdAt else "ID: ${item.publicId} / ${item.createdAt}", fontSize = 11.sp, color = Tw.gray400)
                     Text(item.title.ifBlank { "No Title" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = web.text)
                     Text(item.message, fontSize = 14.sp, color = web.text)
                     Text("Status: ${item.status}", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))

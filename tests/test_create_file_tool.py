@@ -209,7 +209,9 @@ class CreateFileToolTests(unittest.TestCase):
         self.assertIn("and options.get('enable_file_creation')", app_source)
         self.assertIn("and not is_gemini_3", app_source)
         self.assertIn("_gemini_execute_python_tool.__name__ = \"execute_python\"", app_source)
-        self.assertIn("if _gemini_mcp_callables or options.get('enable_file_creation'):", app_source)
+        # File/MCPのツール併用でも非ストリームのgenerate_contentには切り替えない
+        self.assertIn("def _gemini_manual_function_stream():", app_source)
+        self.assertNotIn("custom-tool AFC request", app_source)
 
     def test_frontend_wires_enable_file_creation(self):
         js_assets = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))

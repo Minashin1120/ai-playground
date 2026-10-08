@@ -229,7 +229,7 @@ def _delete_user_account_immediately(user):
 
     try:
         # Activity logs and decrypted chat copies sent with the user's feedback (server/routes_admin.py).
-        _delete_feedback_files([fid for (fid,) in db.session.query(Feedback.id).filter_by(user_id=user_id).all()])
+        _delete_feedback_files([fid for (fid,) in db.session.query(Feedback.public_id).filter_by(user_id=user_id).all()])
     except Exception:
         pass
     Feedback.query.filter_by(user_id=user_id).delete(synchronize_session=False)

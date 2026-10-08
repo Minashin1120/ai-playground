@@ -228,6 +228,9 @@ class LocalChatBackend(
 
     private suspend fun streamLocal(path: String, payload: JSONObject, token: String, onAccepted: () -> Unit, onEvent: (JSONObject) -> Unit) {
         when {
+            // File creation and MCP run on the server only: with either on, an account's answer comes from the server.
+            path == "/chat_stream" && fallback != null && needsServerTools(payload) ->
+                fallback.stream(path, payload, token, onAccepted, onEvent)
             path == "/chat_stream" -> {
                 // Image and video answers take minutes; the hold lasts until the answer is saved and uploaded.
                 val mode = modeOf(payload.optString("model"))
@@ -239,6 +242,17 @@ class LocalChatBackend(
                 fallback.stream(path, payload, token, onAccepted, onEvent)
             else -> throw ApiException(404, JSONObject().put("error", "not_found"))
         }
+    }
+
+    /**
+     * File creation (`enable_file_creation`) and MCP (`enable_mcp`) have no device implementation. A send with either on
+     * goes to the server, unless the chat only exists on the device or holds answers the server has not received yet.
+     */
+    private fun needsServerTools(payload: JSONObject): Boolean {
+        if (!payload.optBoolean("enable_file_creation") && !payload.optBoolean("enable_mcp")) return false
+        val threadId = store.resolveAlias(payload.optString("thread_id"))
+        if (threadId.isBlank()) return true
+        return !onDevice(threadId) && store.pendingRows(threadId).isEmpty()
     }
 
     /** Server `_build_thread_pdf_payload`: the branch ending at [leafId] (or the newest message). */
@@ -545,7 +559,8 @@ class LocalChatBackend(
             settings.savePreferences(rest)
             return preferences(token)
         }
-        return if (rest.length() > 0) fallback.put("/api/mobile/v1/preferences", rest, token) else JSONObject().put("status", "ok")
+        // Keys-only saves (the API key dialog) still reply with the full preferences, or the screen would reset the theme.
+        return if (rest.length() > 0) fallback.put("/api/mobile/v1/preferences", rest, token) else preferences(token)
     }
 
     private fun overlayKeys(server: JSONObject): JSONObject {

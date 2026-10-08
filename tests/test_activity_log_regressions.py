@@ -193,8 +193,8 @@ class FeedbackClientLogTests(unittest.TestCase):
 
     def test_sender_or_administrator_deletes_feedback_and_its_directory(self):
         logs = {'client': 'web', 'entries': [{'t': 1, 'ev': 'click'}]}
-        first = self.post({'message': 'one', 'client_logs': logs}).get_json()['feedback_id']
-        second = self.post({'message': 'two'}).get_json()['feedback_id']
+        first = self.post({'message': 'one', 'client_logs': logs}).get_json()['public_id']
+        second = self.post({'message': 'two'}).get_json()['public_id']
         self.assertEqual(sorted(os.listdir(os.path.join(self.log_dir, str(first)))), ['feedback.json', 'logs'])
         other = self.add_user('feedback-other')
         self.assertEqual(self.delete(first, other).status_code, 404)
@@ -214,10 +214,46 @@ class FeedbackClientLogTests(unittest.TestCase):
         with open(path, encoding='utf-8') as handle:
             return json.load(handle)
 
+    def test_feedback_id_is_random_and_the_old_number_still_addresses_it(self):
+        reply = self.post({'message': 'one'}).get_json()
+        self.assertRegex(reply['public_id'], r'^[0-9a-f]{12}$')
+        self.assertIsInstance(reply['feedback_id'], int)
+        other = self.post({'message': 'two'}).get_json()
+        self.assertNotEqual(reply['public_id'], other['public_id'])
+        self.assertEqual(self.read_info(reply['public_id'])['feedback_id'], reply['public_id'])
+        with self.target.app.test_client() as client:
+            with client.session_transaction() as session:
+                session['_user_id'] = str(self.user_id)
+                session['_fresh'] = True
+                session['csrf_token'] = 'csrf-test-token'
+            items = client.get('/api/feedback', base_url='https://localhost').get_json()['items']
+        self.assertEqual({item['public_id'] for item in items}, {reply['public_id'], other['public_id']})
+        self.assertEqual(self.delete(reply['feedback_id']).status_code, 200)
+        self.assertFalse(os.path.exists(os.path.join(self.log_dir, reply['public_id'])))
+        self.assertEqual(self.delete(other['public_id']).status_code, 200)
+        self.assertEqual(self.delete('../etc').status_code, 404)
+
+    def test_feedback_created_before_public_ids_gets_one_and_keeps_its_files(self):
+        with self.target.app.app_context():
+            fb = self.target.Feedback(user_id=self.user_id, title='Old', message='old')
+            self.target.db.session.add(fb)
+            self.target.db.session.commit()
+            fb.public_id = None
+            self.target.db.session.commit()
+            legacy = os.path.join(self.log_dir, str(fb.id))
+            os.makedirs(legacy)
+            with open(os.path.join(legacy, 'feedback.json'), 'w', encoding='utf-8') as handle:
+                handle.write('{}')
+            self.target.ensure_feedback_public_ids()
+            fb = self.target.db.session.get(self.target.Feedback, fb.id)
+            self.assertRegex(fb.public_id, r'^[0-9a-f]{12}$')
+            self.assertFalse(os.path.exists(legacy))
+            self.assertTrue(os.path.isfile(os.path.join(self.log_dir, fb.public_id, 'feedback.json')))
+
     def test_feedback_records_its_client_without_logs(self):
-        web = self.post({'message': 'web', 'client': 'web', 'version': 'V4'}).get_json()['feedback_id']
-        android = self.post({'message': 'app'}, user_agent='AIPlayground-Android/1.2.3').get_json()['feedback_id']
-        other = self.post({'message': 'other', 'client': 'not valid!'}).get_json()['feedback_id']
+        web = self.post({'message': 'web', 'client': 'web', 'version': 'V4'}).get_json()['public_id']
+        android = self.post({'message': 'app'}, user_agent='AIPlayground-Android/1.2.3').get_json()['public_id']
+        other = self.post({'message': 'other', 'client': 'not valid!'}).get_json()['public_id']
         self.assertEqual([(info['client'], info['client_version']) for info in map(self.read_info, (web, android, other))],
                          [('web', 'V4'), ('android', '1.2.3'), ('unknown', None)])
 
@@ -226,7 +262,7 @@ class FeedbackClientLogTests(unittest.TestCase):
         plain = self.post({'title': 'Plain', 'message': 'no logs'})
         self.assertEqual(plain.status_code, 200)
         self.assertNotIn('logs_saved', plain.get_json())
-        plain_id = plain.get_json()['feedback_id']
+        plain_id = plain.get_json()['public_id']
         self.assertEqual(os.listdir(os.path.join(self.log_dir, str(plain_id))), ['feedback.json'])
         info = self.read_info(plain_id)
         self.assertEqual((info['feedback_id'], info['user_id'], info['username'], info['title'], info['message'], info['status']),
@@ -238,7 +274,7 @@ class FeedbackClientLogTests(unittest.TestCase):
             'client': 'web', 'version': 'V1', 'window_seconds': 3600, 'entries': entries}})
         self.assertEqual(response.status_code, 200, response.get_json())
         self.assertIs(response.get_json()['logs_saved'], True)
-        feedback_id = response.get_json()['feedback_id']
+        feedback_id = response.get_json()['public_id']
         directory = os.path.join(self.log_dir, str(feedback_id))
         self.assertEqual(sorted(os.listdir(directory)), ['feedback.json', 'logs'])
         path = os.path.join(directory, 'logs', 'activity.jsonl')
@@ -255,7 +291,7 @@ class FeedbackClientLogTests(unittest.TestCase):
                          ('Bug', 'with logs', 'web', 'V1', True))
         with self.target.app.app_context():
             self.assertEqual(self.target._feedback_activity_log_path(feedback_id), path)
-            fb = self.target.db.session.get(self.target.Feedback, feedback_id)
+            fb = self.target.Feedback.query.filter_by(public_id=feedback_id).one()
             fb.status, fb.admin_reply = 'replied', 'thanks'
             self.target.db.session.commit()
             self.target._write_feedback_info(fb)

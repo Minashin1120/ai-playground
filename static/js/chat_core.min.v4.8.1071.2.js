@@ -1267,17 +1267,18 @@ return;if(!(await apiFetch(`/api/feedback/${d}`,{method:"DELETE"})).ok){showToas
 ck?all=1")).json(),g=get("fb-list");g.innerHTML="",(m.items||[]).filter(S=>!m.is_admin||S.user_id===
 void 0||S.user_id===null||!0).forEach(S=>{if(m.is_admin)return;const T=document.createElement("div");
 T.className="p-2 rounded border border-gray-700 bg-gray-800/50",T.innerHTML=`<div class="text-[11px]\
- text-gray-400">${S.created_at}</div><div class="font-bold text-sm">${escapeHtml(S.title||"No Title")}\
-</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(S.message)}</div><div class="text-[11px]\
- text-gray-400 mt-1">Status: ${escapeHtml(S.status)}</div>${S.admin_reply?`<div class="text-[11px] t\
-ext-green-300 mt-1">Reply: ${escapeHtml(S.admin_reply)}</div>`:""}<div class="mt-2"><button type="bu\
-tton" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">\u524A\u9664</but\
-ton></div>`,T.querySelector(".fb-delete").onclick=()=>Xn(S.id),g.appendChild(T)});const b=get("fb-ad\
-min-panel"),x=get("fb-admin-list");m.is_admin?(b.classList.remove("hidden"),x.innerHTML="",(m.items||
-[]).forEach(S=>{const T=document.createElement("div");T.className="p-2 rounded border border-gray-70\
-0 bg-gray-800/50 space-y-2",T.innerHTML=`
-                            <div class="text-[11px] text-gray-400">#${S.id} / user:${S.user_id} / ${S.
-created_at}</div>
+ text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(S.public_id||"")}</span> / ${S.created_at}\
+</div><div class="font-bold text-sm">${escapeHtml(S.title||"No Title")}</div><div class="text-sm whi\
+tespace-pre-wrap">${escapeHtml(S.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(
+S.status)}</div>${S.admin_reply?`<div class="text-[11px] text-green-300 mt-1">Reply: ${escapeHtml(S.
+admin_reply)}</div>`:""}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg\
+-red-600 text-white px-2 py-1 rounded text-[10px]">\u524A\u9664</button></div>`,T.querySelector(".fb\
+-delete").onclick=()=>Xn(S.public_id),g.appendChild(T)});const b=get("fb-admin-panel"),x=get("fb-adm\
+in-list");m.is_admin?(b.classList.remove("hidden"),x.innerHTML="",(m.items||[]).forEach(S=>{const T=document.
+createElement("div");T.className="p-2 rounded border border-gray-700 bg-gray-800/50 space-y-2",T.innerHTML=
+`
+                            <div class="text-[11px] text-gray-400">ID: <span class="select-all font-\
+mono">${escapeHtml(S.public_id||"")}</span> / user:${S.user_id} / ${S.created_at}</div>
                             <div class="font-bold text-sm">${escapeHtml(S.title||"No Title")}</div>
                             <div class="text-sm whitespace-pre-wrap">${escapeHtml(S.message)}</div>
                             ${[S.log_file&&`\u64CD\u4F5C\u30ED\u30B0: ${S.log_file}`,S.chat_file&&`\u30C1\
@@ -1302,19 +1303,19 @@ ded px-2 py-1 text-xs text-white" rows="3" placeholder="\u8FD4\u4FE1\u5185\u5BB9
 "")}</textarea>
                         `,T.querySelector(".fb-status").value=S.status||"new",T.querySelector(".fb-s\
 ave").onclick=async()=>{const M=T.querySelector(".fb-status").value,E=T.querySelector(".fb-reply").value;
-await apiFetch(`/api/feedback/${S.id}/update`,{method:"POST",headers:{"Content-Type":"application/js\
-on"},body:JSON.stringify({status:M,admin_reply:E})}),fn()},T.querySelector(".fb-delete").onclick=()=>Xn(
-S.id),x.appendChild(T)})):b.classList.add("hidden")}if(o(fn,"loadFeedback"),window.setupTOTP=async()=>{
-const m=await(await apiFetch("/api/2fa/totp/setup",{method:"POST"})).json();get("totp-qr").src=m.qr_image,
-get("totp-secret-disp").innerText=m.secret,get("totp-setup-area").classList.remove("hidden")},window.
-enableTOTP=async()=>{const d=get("totp-verify-code").value;if(!d)return;(await apiFetch("/api/2fa/to\
-tp/enable",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code:d})})).
-ok?(showToast("TOTP\u304C\u6709\u52B9\u306B\u306A\u308A\u307E\u3057\u305F","success"),get("totp-setu\
-p-area").classList.add("hidden"),get("totp-verify-code").value="",openSettingsModal()):showToast("\u8A8D\u8A3C\
-\u30B3\u30FC\u30C9\u304C\u6B63\u3057\u304F\u3042\u308A\u307E\u305B\u3093","error",!0)},window.registerWebAuthn=
-async()=>{const d=get("register-webauthn-btn"),m=get("webauthn-name"),g=m?String(m.value||"").trim():
-"";try{d&&(d.disabled=!0);const b=await apiFetch("/api/2fa/webauthn/register/options",{method:"POST"}),
-x=await b.json();if(!b.ok){showToast(x.error||"\u30D1\u30B9\u30AD\u30FC\u767B\u9332\u306E\u6E96\u5099\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
+await apiFetch(`/api/feedback/${S.public_id}/update`,{method:"POST",headers:{"Content-Type":"applica\
+tion/json"},body:JSON.stringify({status:M,admin_reply:E})}),fn()},T.querySelector(".fb-delete").onclick=
+()=>Xn(S.public_id),x.appendChild(T)})):b.classList.add("hidden")}if(o(fn,"loadFeedback"),window.setupTOTP=
+async()=>{const m=await(await apiFetch("/api/2fa/totp/setup",{method:"POST"})).json();get("totp-qr").
+src=m.qr_image,get("totp-secret-disp").innerText=m.secret,get("totp-setup-area").classList.remove("h\
+idden")},window.enableTOTP=async()=>{const d=get("totp-verify-code").value;if(!d)return;(await apiFetch(
+"/api/2fa/totp/enable",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(
+{code:d})})).ok?(showToast("TOTP\u304C\u6709\u52B9\u306B\u306A\u308A\u307E\u3057\u305F","success"),get(
+"totp-setup-area").classList.add("hidden"),get("totp-verify-code").value="",openSettingsModal()):showToast(
+"\u8A8D\u8A3C\u30B3\u30FC\u30C9\u304C\u6B63\u3057\u304F\u3042\u308A\u307E\u305B\u3093","error",!0)},
+window.registerWebAuthn=async()=>{const d=get("register-webauthn-btn"),m=get("webauthn-name"),g=m?String(
+m.value||"").trim():"";try{d&&(d.disabled=!0);const b=await apiFetch("/api/2fa/webauthn/register/opt\
+ions",{method:"POST"}),x=await b.json();if(!b.ok){showToast(x.error||"\u30D1\u30B9\u30AD\u30FC\u767B\u9332\u306E\u6E96\u5099\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0);return}const T=await(await ensureWebAuthnJson()).create({publicKey:x}),M=await apiFetch(
 "/api/2fa/webauthn/register/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.
 stringify(Object.assign({},T,{name:g}))}),E=await M.json().catch(()=>({}));M.ok?(m&&(m.value=""),showToast(

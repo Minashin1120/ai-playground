@@ -13347,8 +13347,8 @@
                     if(data.is_admin) return;
                     const el = document.createElement('div');
                     el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50';
-                    el.innerHTML = `<div class="text-[11px] text-gray-400">${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.admin_reply ? `<div class="text-[11px] text-green-300 mt-1">Reply: ${escapeHtml(item.admin_reply)}</div>` : ''}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>`;
-                    el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.id);
+                    el.innerHTML = `<div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.admin_reply ? `<div class="text-[11px] text-green-300 mt-1">Reply: ${escapeHtml(item.admin_reply)}</div>` : ''}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>`;
+                    el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.public_id);
                     list.appendChild(el);
                 });
 
@@ -13361,7 +13361,7 @@
                         const el = document.createElement('div');
                         el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50 space-y-2';
                         el.innerHTML = `
-                            <div class="text-[11px] text-gray-400">#${item.id} / user:${item.user_id} / ${item.created_at}</div>
+                            <div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / user:${item.user_id} / ${item.created_at}</div>
                             <div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div>
                             <div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div>
                             ${[item.log_file && `操作ログ: ${item.log_file}`, item.chat_file && `チャットのコピー: ${item.chat_file}`].filter(Boolean).map(t => `<div class="text-[11px] text-amber-300">${escapeHtml(t)}</div>`).join('')}
@@ -13382,10 +13382,10 @@
                         el.querySelector('.fb-save').onclick = async () => {
                             const status = el.querySelector('.fb-status').value;
                             const admin_reply = el.querySelector('.fb-reply').value;
-                            await apiFetch(`/api/feedback/${item.id}/update`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status, admin_reply})});
+                            await apiFetch(`/api/feedback/${item.public_id}/update`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status, admin_reply})});
                             loadFeedback();
                         };
-                        el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.id);
+                        el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.public_id);
                         adminList.appendChild(el);
                     });
                 } else {

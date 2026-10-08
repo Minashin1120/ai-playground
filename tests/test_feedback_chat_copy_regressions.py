@@ -139,9 +139,9 @@ class FeedbackChatCopyTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.get_json())
         body = response.get_json()
         self.assertIs(body['chat_copy_saved'], True)
-        self.assertIsInstance(body['feedback_id'], int)
+        self.assertRegex(body['public_id'], r'^[0-9a-f]{12}$')
         path, rows = self.read_copy()
-        self.assertEqual(path, os.path.join(self.log_dir, str(body['feedback_id']), 'chat.jsonl'))
+        self.assertEqual(path, os.path.join(self.log_dir, body['public_id'], 'chat.jsonl'))
         by_kind = {}
         for row in rows:
             by_kind.setdefault(row['kind'], []).append(row)
@@ -209,7 +209,7 @@ class FeedbackChatCopyTests(unittest.TestCase):
         self.assertIs(body['chat_copy_saved'], True)
         paths = self.copy_paths()
         self.assertEqual(len(paths), 1)
-        upload = self.client().post(f"/api/feedback/{body['feedback_id']}/chat_files",
+        upload = self.client().post(f"/api/feedback/{body['public_id']}/chat_files",
                                     data={'ref': 'local/abc.png', 'file': (io.BytesIO(b'device-bytes'), 'abc.png')},
                                     headers={'X-CSRF-Token': 'csrf-test-token'}, base_url='https://localhost')
         self.assertEqual(upload.status_code, 200, upload.get_json())
@@ -244,8 +244,9 @@ class FeedbackChatCopyTests(unittest.TestCase):
         target = self.target
         paths = []
         for index in range(3):
-            os.makedirs(os.path.join(self.log_dir, str(index + 1)))
-            path = os.path.join(self.log_dir, str(index + 1), 'chat.jsonl')
+            name = f'{index + 1:012x}'
+            os.makedirs(os.path.join(self.log_dir, name))
+            path = os.path.join(self.log_dir, name, 'chat.jsonl')
             with open(path, 'w') as handle:
                 handle.write('x' * 100)
             os.utime(path, (1000 + index, 1000 + index))

@@ -4054,51 +4054,46 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             return str(text_val)
                         return ""
 
-                    def _gemini_non_stream_config():
-                        non_stream_conf = dict(conf)
-                        if not _gemini_code_exec_active:
-                            non_stream_conf['http_options'] = types.HttpOptions(
-                                timeout=max(_GEMINI_TIMEOUT_MS, _GEMINI_NON_STREAM_TIMEOUT_MS)
-                            )
-                        return types.GenerateContentConfig(**non_stream_conf)
-
                     def _gemini_manual_function_stream():
-                        """Gemini 3のツール併用でFileのfunction responseを循環させる。"""
+                        """Gemini 3のツール併用でFileのfunction responseを循環させる。
+
+                        各ラウンドをストリームで受け取り、チャンクは届いた順にそのまま
+                        返す。function callはラウンドの終わりにまとめて実行する。
+                        """
                         request_contents = list(contents)
-                        responses = []
                         for _tool_round in range(8):
                             _mark_provider_request_started()
-                            response = g_client.models.generate_content(
+                            model_parts = []
+                            calls = []
+                            for chunk in g_client.models.generate_content_stream(
                                 model=rm,
                                 contents=request_contents,
-                                config=_gemini_non_stream_config(),
-                            )
-                            responses.append(response)
-                            candidates = getattr(response, "candidates", None) or []
-                            model_content = getattr(candidates[0], "content", None) if candidates else None
-                            parts = getattr(model_content, "parts", None) or []
-                            calls = []
-                            for part in parts:
-                                function_call = getattr(part, "function_call", None)
-                                if not function_call and isinstance(part, dict):
-                                    function_call = part.get("function_call") or part.get("functionCall")
-                                if not function_call:
-                                    continue
-                                if isinstance(function_call, dict):
-                                    call_name = function_call.get("name")
-                                    call_args = function_call.get("args") or function_call.get("arguments") or {}
-                                    call_id = function_call.get("id")
-                                else:
-                                    call_name = getattr(function_call, "name", None)
-                                    call_args = getattr(function_call, "args", None) or getattr(function_call, "arguments", None) or {}
-                                    call_id = getattr(function_call, "id", None)
-                                if call_name in ("create_file", "edit_file"):
-                                    calls.append((call_name, call_args, call_id))
+                                config=types.GenerateContentConfig(**conf),
+                            ):
+                                yield chunk
+                                candidates = getattr(chunk, "candidates", None) or []
+                                chunk_content = getattr(candidates[0], "content", None) if candidates else None
+                                for part in (getattr(chunk_content, "parts", None) or []):
+                                    model_parts.append(part)
+                                    function_call = getattr(part, "function_call", None)
+                                    if not function_call and isinstance(part, dict):
+                                        function_call = part.get("function_call") or part.get("functionCall")
+                                    if not function_call:
+                                        continue
+                                    if isinstance(function_call, dict):
+                                        call_name = function_call.get("name")
+                                        call_args = function_call.get("args") or function_call.get("arguments") or {}
+                                        call_id = function_call.get("id")
+                                    else:
+                                        call_name = getattr(function_call, "name", None)
+                                        call_args = getattr(function_call, "args", None) or getattr(function_call, "arguments", None) or {}
+                                        call_id = getattr(function_call, "id", None)
+                                    if call_name in ("create_file", "edit_file"):
+                                        calls.append((call_name, call_args, call_id))
                             if not calls:
                                 break
 
-                            if model_content is not None:
-                                request_contents.append(model_content)
+                            request_contents.append(types.Content(role="model", parts=model_parts))
                             response_parts = []
                             for call_name, call_args, call_id in calls:
                                 try:
@@ -4117,24 +4112,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 )
                                 response_parts.append(types.Part(function_response=function_response))
                             request_contents.append(types.Content(role="user", parts=response_parts))
-                        return iter(responses)
 
-                    # Automatic Function Calling is managed by the Python SDK on the
-                    # non-streaming generate_content path. generate_content_stream
-                    # exposes the function-call part but does not complete the AFC
-                    # request/response cycle, which used to leave MCP/File turns empty.
+                    # MCP/Fileのcallableツールは、SDKのAutomatic Function Calling
+                    # (generate_content_stream)に任せる。function callを含むラウンドは
+                    # SDKがツールを実行して次のリクエストへ進み、それ以外のチャンクは
+                    # 届いた順にストリームされる。
                     def _gemini_mcp_aware_stream():
                         if _gemini_manual_function_tools:
                             return _gemini_manual_function_stream()
-                        if _gemini_mcp_callables or options.get('enable_file_creation'):
-                            _mark_provider_request_started()
-                            log_force(f"STREAM-TRACE: Gemini custom-tool AFC request for {job_id} model={rm}")
-                            response = g_client.models.generate_content(
-                                model=rm,
-                                contents=contents,
-                                config=_gemini_non_stream_config(),
-                            )
-                            return iter((response,))
                         return g_client.models.generate_content_stream(
                             model=rm,
                             contents=contents,

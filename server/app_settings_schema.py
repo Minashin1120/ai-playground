@@ -256,6 +256,28 @@ def ensure_import_signature_columns():
     except Exception:
         pass
 
+def ensure_feedback_public_ids():
+    """Adds ``feedback.public_id`` and gives feedback created earlier a random id (renaming its directory)."""
+    try:
+        inspector = inspect(db.engine)
+        if 'feedback' not in inspector.get_table_names():
+            return
+        if 'public_id' not in {c['name'] for c in inspector.get_columns('feedback')}:
+            with db.engine.connect() as conn:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE feedback ADD COLUMN public_id VARCHAR(16)"))
+                conn.commit()
+        for fb in Feedback.query.filter(Feedback.public_id.is_(None)).all():
+            _ensure_feedback_public_id(fb)
+        safe_db_commit()
+        if 'ix_feedback_public_id' not in {i['name'] for i in inspect(db.engine).get_indexes('feedback')}:
+            with db.engine.connect() as conn:
+                conn.execute(text("CREATE UNIQUE INDEX ix_feedback_public_id ON feedback (public_id)"))
+                conn.commit()
+    except Exception as e:
+        log_force(f"FEEDBACK-PUBLIC-ID-ERROR: {e}")
+
+
 def ensure_message_token_io_columns():
     try:
         with db.engine.connect() as conn:

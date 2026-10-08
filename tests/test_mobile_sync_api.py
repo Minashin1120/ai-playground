@@ -242,13 +242,13 @@ class MobileSyncApiTests(unittest.TestCase):
             theirs = target.Feedback(user_id=self.other_id, message='theirs')
             target.db.session.add_all([mine, theirs])
             target.db.session.commit()
-            mine_id, theirs_id = mine.id, theirs.id
+            mine_id, theirs_id = mine.public_id, theirs.public_id
         for fid in (mine_id, theirs_id):
-            os.makedirs(os.path.join(feedback_dir.name, str(fid)))
+            os.makedirs(os.path.join(feedback_dir.name, fid))
         token = self.token()
         self.assertEqual(self.call(f'/api/feedback/{theirs_id}', token, 'DELETE').status_code, 404)
         self.assertEqual(self.call(f'/api/feedback/{mine_id}', token, 'DELETE').status_code, 200)
-        self.assertEqual(os.listdir(feedback_dir.name), [str(theirs_id)])
+        self.assertEqual(os.listdir(feedback_dir.name), [theirs_id])
 
     def test_secrets_export_needs_reauth_and_returns_only_user_keys(self):
         with target.app.app_context():

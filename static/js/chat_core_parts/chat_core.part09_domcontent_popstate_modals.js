@@ -75,7 +75,7 @@
                 const message = get('fb-message').value.trim();
                 if(!message) { showToast("フィードバック内容を入力してください", "error", true); return; }
                 // ログの収集を強化 (static/js/activity_log.js): the last hour goes with the feedback.
-                const payload = {title, message};
+                const payload = {title, message, client: 'web', version: (window.CHAT_CONFIG && window.CHAT_CONFIG.appVersion) || ''};
                 const clientLogs = window.ActivityLog ? window.ActivityLog.feedbackPayload() : null;
                 if (clientLogs) payload.client_logs = clientLogs;
                 // The server copies everything it has on the open chat, decrypted, next to the logs (server/feedback_chat_copy.py).

@@ -162,14 +162,16 @@ class FeedbackClientLogTests(unittest.TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    def post(self, payload):
+    def post(self, payload, user_agent=None):
         client = self.target.app.test_client()
         with client.session_transaction() as sess:
             sess['_user_id'] = str(self.user_id)
             sess['_fresh'] = True
             sess['csrf_token'] = 'csrf-test-token'
-        return client.post('/api/feedback', json=payload, headers={'X-CSRF-Token': 'csrf-test-token'},
-                           base_url='https://localhost')
+        headers = {'X-CSRF-Token': 'csrf-test-token'}
+        if user_agent:
+            headers['User-Agent'] = user_agent
+        return client.post('/api/feedback', json=payload, headers=headers, base_url='https://localhost')
 
     def delete(self, feedback_id, user_id=None):
         client = self.target.app.test_client()
@@ -211,6 +213,13 @@ class FeedbackClientLogTests(unittest.TestCase):
         self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
         with open(path, encoding='utf-8') as handle:
             return json.load(handle)
+
+    def test_feedback_records_its_client_without_logs(self):
+        web = self.post({'message': 'web', 'client': 'web', 'version': 'V4'}).get_json()['feedback_id']
+        android = self.post({'message': 'app'}, user_agent='AIPlayground-Android/1.2.3').get_json()['feedback_id']
+        other = self.post({'message': 'other', 'client': 'not valid!'}).get_json()['feedback_id']
+        self.assertEqual([(info['client'], info['client_version']) for info in map(self.read_info, (web, android, other))],
+                         [('web', 'V4'), ('android', '1.2.3'), ('unknown', None)])
 
     def test_feedback_stores_info_and_client_logs_in_its_directory(self):
         self.assertEqual(self.post({'message': 'm', 'client_logs': 'x'}).status_code, 400)

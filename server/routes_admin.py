@@ -98,6 +98,20 @@ def _prune_feedback_log_files():
             pass
 
 
+def _feedback_client(data, client_logs, chat_copy):
+    """(client, client_version) of a feedback, also when neither logs nor a chat copy went with it."""
+    sent = next((p for p in (data, client_logs, chat_copy) if isinstance(p, dict) and p.get('client')), {})
+    client = str(sent.get('client') or '').lower()
+    version = str(sent.get('version') or '')[:64] or None
+    if not client:
+        # The Android app names itself in every request's User-Agent (data/PlaygroundApi.kt).
+        android = re.match(r'AIPlayground-Android/(\S+)', str(request.headers.get('User-Agent') or ''))
+        client, version = ('android', android.group(1)[:64]) if android else ('unknown', None)
+    if not re.fullmatch(r'[a-z]{1,16}', client):
+        client = 'unknown'
+    return client, version
+
+
 def _save_feedback_client_logs(feedback_id, user_id, payload):
     """Writes the client's activity log entries for ``feedback_id``; returns the file path (None when empty)."""
     entries = payload.get('entries')
@@ -183,11 +197,10 @@ def feedback():
             except Exception as e:
                 log_force(f"FEEDBACK-CHAT-ERROR: user={current_user.id} feedback={fb.id} err={e}")
                 result['chat_copy_saved'] = False
-        sent = next((p for p in (client_logs, chat_copy) if isinstance(p, dict)), {})
+        client, client_version = _feedback_client(data, client_logs, chat_copy)
         try:
             _write_feedback_info(
-                fb, client=str(sent.get('client') or '')[:16] or None,
-                client_version=str(sent.get('version') or '')[:64] or None,
+                fb, client=client, client_version=client_version,
                 server_version=app.config.get('SYSTEM_VERSION'),
                 user_agent=str(request.headers.get('User-Agent') or '')[:300],
                 activity_log_saved=result.get('logs_saved'), chat_copy_saved=result.get('chat_copy_saved'))

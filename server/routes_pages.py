@@ -136,9 +136,15 @@ def _get_android_changelogs():
                 content = file.read().strip()
         except OSError:
             continue
+        # Files hold bullets only; older ones start with their own title line.
+        # The app splits versions on this heading, so it always comes from the file name.
+        lines = content.splitlines()
+        if lines and lines[0].startswith('# '):
+            content = '\n'.join(lines[1:]).strip()
         if content:
             version = tuple(int(part) for part in match.groups())
-            entries.append((version, content))
+            heading = '# Android版更新履歴 - ' + '.'.join(match.groups())
+            entries.append((version, heading + '\n\n' + content))
 
     entries.sort(key=lambda item: item[0], reverse=True)
     return [content for _, content in entries]

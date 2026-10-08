@@ -5,6 +5,11 @@ on:
       source_sha:
         required: true
         type: string
+      # Android CI already ran the unit tests on this commit in its build job.
+      skip_unit_tests:
+        required: false
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       source_sha:
@@ -66,7 +71,14 @@ jobs:
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;36.0.0"'
       - name: Build and validate release APK
         working-directory: android
-        run: ./gradlew --no-daemon testDebugUnitTest lintRelease assembleRelease --stacktrace
+        env:
+          SKIP_UNIT_TESTS: ${{ inputs.skip_unit_tests && 'true' || 'false' }}
+        run: |
+          tasks="lintRelease assembleRelease"
+          if [ "$SKIP_UNIT_TESTS" != "true" ]; then
+            tasks="testDebugUnitTest $tasks"
+          fi
+          ./gradlew --no-daemon $tasks --stacktrace
       - name: Verify release signature
         run: bash android/ci/verify-apk.sh app/build/outputs/apk/release/app-release.apk
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

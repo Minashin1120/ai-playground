@@ -148,6 +148,7 @@ jobs:
     uses: ./.github/workflows/release.yml
     with:
       source_sha: ${{ needs.build.outputs.sha }}
+      skip_unit_tests: true
 
   # Published APKs live on the GitHub Release, so artifacts from earlier runs only consume Actions storage.
   prune-artifacts:

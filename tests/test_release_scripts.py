@@ -338,6 +338,14 @@ class ReleaseScriptContractTests(unittest.TestCase):
         for prefix in COMMON.ANDROID_BUILD_PREFIXES:
             self.assertIn(f"'{prefix}**'", workflow, prefix)
 
+    def test_android_release_after_ci_skips_the_repeated_unit_tests(self):
+        # The build job already ran them on the same commit; a manual or tag-triggered release still runs them.
+        release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        android = (ROOT / ".github" / "workflows" / "android.yml").read_text(encoding="utf-8")
+        self.assertIn("skip_unit_tests:", release)
+        self.assertIn('tasks="testDebugUnitTest $tasks"', release)
+        self.assertIn("skip_unit_tests: true", android)
+
     def test_android_release_uses_versioned_changelog_notes(self):
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
             encoding="utf-8"

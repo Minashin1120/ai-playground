@@ -634,8 +634,6 @@ def upload():
     ALLOWED_EXTENSIONS = _UPLOAD_ALLOWED_EXTENSIONS
     files = request.files.getlist('file')
     if not files: return jsonify({'error': 'No file'}), 400
-    if len(files) > int(app.config.get('ATTACHMENT_MAX_FILES') or 30):
-        return jsonify({'error': 'Too many files'}), 400
     try:
         # Reclaim abandoned chunk sessions before they are included in the
         # storage-capacity check for a new upload.

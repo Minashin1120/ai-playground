@@ -31,7 +31,6 @@ def inject_csrf():
         'system_version': app.config.get('SYSTEM_VERSION'),
         'chat_core_bundles': chat_core_bundles(),
         'is_admin': is_admin,
-        'attachment_max_files': app.config.get('ATTACHMENT_MAX_FILES', 30),
         'upload_concurrency': app.config.get('UPLOAD_CONCURRENCY', 3),
         'initial_theme_color': initial_theme_color,
         'initial_theme_css': build_theme_css_vars(initial_theme_color),

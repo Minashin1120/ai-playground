@@ -346,7 +346,7 @@ fun PlaygroundScreen(
                     else -> recordPermission.launch(Manifest.permission.RECORD_AUDIO)
                 }
             }
-            val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(30)) { model.upload(it) }
+            val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { model.upload(it) }
             val splitPicker = rememberLauncherForActivityResult(
                 ActivityResultContracts.PickMultipleVisualMedia(IMAGE_SPLIT_MAX_IMAGES),
             ) { model.openImageSplit(it) }

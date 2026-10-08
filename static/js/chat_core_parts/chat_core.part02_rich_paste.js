@@ -1323,7 +1323,6 @@
         if (currentThreadId !== null && currentThreadId !== undefined) {
             currentThreadId = String(currentThreadId);
         }
-        const ATTACHMENT_MAX_FILES = Number(CHAT_CONFIG.attachmentMaxFiles) || 30;
         const UPLOAD_CONCURRENCY = Math.max(1, Number(CHAT_CONFIG.uploadConcurrency) || 3);
         const TEMP_CHAT_TIMEOUT_MIN_SECONDS = 10;
         const TEMP_CHAT_TIMEOUT_MAX_SECONDS = 3600;

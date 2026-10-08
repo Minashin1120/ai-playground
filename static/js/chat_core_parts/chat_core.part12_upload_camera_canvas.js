@@ -887,17 +887,7 @@
             if(!fs || !fs.length) return;
             const incoming = Array.from(fs).filter(Boolean);
             if (!incoming.length) return;
-            const existingAttachments = collectImageUrlsForSend().length + browserFastLocalFiles.size + Math.max(0, Number(uploadProgressState.active) || 0);
-            let allowedIncoming = incoming;
-            if (existingAttachments + incoming.length > ATTACHMENT_MAX_FILES) {
-                const remain = Math.max(0, ATTACHMENT_MAX_FILES - existingAttachments);
-                if (remain <= 0) {
-                    showToast(`添付は最大${ATTACHMENT_MAX_FILES}件です`, "error", true);
-                    return;
-                }
-                allowedIncoming = incoming.slice(0, remain);
-                showToast(`添付は最大${ATTACHMENT_MAX_FILES}件です。先頭${remain}件のみ追加します。`, "warning", true);
-            }
+            const allowedIncoming = incoming;
             if (opts.openModal !== false) {
                 openUploadModal();
             } else {

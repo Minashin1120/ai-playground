@@ -4,7 +4,6 @@
             initialLiquidGlassEnabled: {{ initial_liquid_glass_enabled|tojson }},
             initialLightModeEnabled: {{ initial_light_mode_enabled|tojson }},
             initialThreadId: {{ initial_thread_id|default(none)|tojson }},
-            attachmentMaxFiles: Number({{ attachment_max_files|default(30)|tojson }}) || 30,
             uploadConcurrency: Math.max(1, Number({{ upload_concurrency|default(3)|tojson }}) || 3),
             enterToSend: {{ 'true' if current_user.is_authenticated and current_user.enter_to_send else 'false' }},
             autoSearchOnLinks: {{ 'true' if current_user.is_authenticated and current_user.auto_search_on_links else 'false' }},

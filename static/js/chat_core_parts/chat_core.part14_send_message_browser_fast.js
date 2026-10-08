@@ -396,10 +396,6 @@
             const uploadedImageUrlsToSend = attachmentItemsToSend
                 .filter((it) => normalizeAttachmentSource(it.source) === 'upload')
                 .map((it) => it.path);
-            if (imageUrlsToSend.length > ATTACHMENT_MAX_FILES) {
-                showToast(`添付は最大${ATTACHMENT_MAX_FILES}件です。添付を減らして再送してください。`, "error", true);
-                return;
-            }
             const support = getModelMediaSupport(get('model-select').value);
             const hasAudio = imageUrlsToSend.some((fp) => isAudioPath(fp));
             const hasVideo = imageUrlsToSend.some((fp) => isVideoPath(fp));

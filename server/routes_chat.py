@@ -342,7 +342,7 @@ def save_browser_fast_mode_chat():
     refs = _normalize_attachment_list(raw_refs, current_user.id)
     if len(refs) != len(raw_refs):
         return jsonify({'error': 'One or more browser fast mode image references are invalid'}), 400
-    if len(refs) > min(4, int(app.config.get('ATTACHMENT_MAX_FILES') or 30)):
+    if len(refs) > 4:
         return jsonify({'error': 'Browser fast mode accepts at most 4 images'}), 400
     total_image_bytes = 0
     for ref in refs:
@@ -660,10 +660,6 @@ def chat_stream():
             uploaded_image_refs.extend(explicit_uploaded_refs)
         elif explicit_uploaded_refs:
             uploaded_image_refs.append(explicit_uploaded_refs)
-        max_files = int(app.config.get('ATTACHMENT_MAX_FILES') or 30)
-        if len(norm_image_urls) > max_files:
-            _release_chat_submission(current_user.id, client_request_id)
-            return jsonify({'error': f'Too many attachments. Max {max_files} files per message.'}), 400
         
         parent_id = data.get('parent_id', None)
         parent_explicit = data.get('parent_id_explicit', False)
@@ -1819,9 +1815,6 @@ def estimate_prompt_tokens_api():
         quote_text = str(quote_text)
 
     norm_image_urls = _normalize_attachment_list(raw_image_urls, current_user.id)
-    max_files = int(app.config.get('ATTACHMENT_MAX_FILES') or 30)
-    if len(norm_image_urls) > max_files:
-        norm_image_urls = norm_image_urls[:max_files]
     if quote_text:
         message_for_count = f"Context (User Quote):\n\"\"\"\n{quote_text}\n\"\"\"\n\nUser Message:\n{message_text}"
     else:

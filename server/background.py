@@ -1099,10 +1099,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if not isinstance(img_list, list):
                         img_list = [img_list]
                 except: pass
-            max_files = int(app.config.get('ATTACHMENT_MAX_FILES') or 30)
-            if len(img_list) > max_files:
-                pub("error", f"添付ファイルは最大{max_files}件です。ファイル数を減らして再送してください。")
-                return
             # System Prompt Construction
             base_sys_prompt = options.get('system_prompt')
             if not base_sys_prompt:

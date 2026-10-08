@@ -762,8 +762,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-10-08-005')
-app.config['SYSTEM_VERSION'] = 'V4.8.1064'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-10-08-006')
+app.config['SYSTEM_VERSION'] = 'V4.8.1065'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -783,11 +783,6 @@ os.makedirs(app.config['UPLOAD_FOLDER'], mode=0o700, exist_ok=True)
 os.chmod(app.config['UPLOAD_FOLDER'], 0o700)
 _upload_max_mb = int(os.getenv('UPLOAD_MAX_MB', '512') or '512')
 app.config['MAX_CONTENT_LENGTH'] = _upload_max_mb * 1024 * 1024
-try:
-    _attachment_max_files = int(os.getenv('ATTACHMENT_MAX_FILES', '30') or '30')
-except Exception:
-    _attachment_max_files = 30
-app.config['ATTACHMENT_MAX_FILES'] = max(1, _attachment_max_files)
 try:
     _upload_concurrency = int(os.getenv('UPLOAD_CONCURRENCY', '3') or '3')
 except Exception:

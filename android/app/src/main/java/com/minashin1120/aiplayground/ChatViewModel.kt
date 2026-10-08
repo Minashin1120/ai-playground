@@ -57,9 +57,6 @@ import java.util.UUID
 
 enum class ChatTransitionKind { NONE, OPEN_THREAD, NEW_CHAT }
 
-/** Web `ATTACHMENT_MAX_FILES` (server `ATTACHMENT_MAX_FILES`, 30 by default). */
-private const val ATTACHMENT_MAX_FILES = 30
-
 /** Account export categories imported by the first-run wizard. */
 private const val ACCOUNT_IMPORT_CATEGORIES =
     "settings,api_credentials,chats,gems,files,feedback,diagnostics"
@@ -2417,10 +2414,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // Serverless mode answers on the device, so it can send while the server is out of reach.
         if (current.offline && !uploadsLocal) { mutable.update { it.copy(notice = "オフライン中はメッセージを送信できません。") }; return }
         if (current.busy || (current.draft.isBlank() && current.attachments.isEmpty())) return
-        if (current.attachments.size > ATTACHMENT_MAX_FILES) {
-            notify("添付は最大${ATTACHMENT_MAX_FILES}件です。添付を減らして再送してください。")
-            return
-        }
         if (current.model.isBlank()) { mutable.update { it.copy(notice = "モデルを選択してください。") }; return }
         current.account?.models?.firstOrNull { it.id == current.model && it.selectable } ?: return
         // Web sendMessage checks: audio / video the model cannot take, and what Mistral OCR accepts.
@@ -3914,13 +3907,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (state.value.banned) return
         if (state.value.offline && !uploadsLocal) { mutable.update { it.copy(notice = "オフライン中はファイルをアップロードできません。") }; return }
         if (uris.isEmpty() || state.value.uploading) return
-        // Web `handleFiles`: over the limit only the first files that still fit are added.
-        val remain = ATTACHMENT_MAX_FILES - state.value.attachments.size
-        if (uris.size > remain) {
-            if (remain <= 0) { notify("添付は最大${ATTACHMENT_MAX_FILES}件です"); return }
-            notify("添付は最大${ATTACHMENT_MAX_FILES}件です。先頭${remain}件のみ追加します。")
-            return upload(uris.take(remain))
-        }
         uploadJob = viewModelScope.launch {
             mutable.update { it.copy(uploading = true, uploadSent = 0, uploadTotal = 0, uploadName = "",
                 uploadCompleted = 0, uploadCount = uris.size) }
@@ -4351,10 +4337,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun reuseLibraryFile(file: LibraryFile) {
         if (state.value.attachments.any { it.reference == file.filepath }) {
             mutable.update { it.copy(notice = "この添付はすでに追加されています。") }
-            return
-        }
-        if (state.value.attachments.size >= ATTACHMENT_MAX_FILES) {
-            notify("添付は最大${ATTACHMENT_MAX_FILES}件です")
             return
         }
         mutable.update { it.copy(attachments = it.attachments + Attachment(file.displayName, file.filepath, "", source = "library")) }

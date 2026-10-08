@@ -40,6 +40,9 @@ open class MainActivity : ComponentActivity() {
         handleAuthIntent(intent)
         handleShareIntent(intent)
         handleUpdateIntent(intent)
+        // Only a launch asks GitHub for a new version. Returning to the app (another app, a picker,
+        // a browser sign-in), a rotation or a restored process does not, nor does opening a bubble.
+        if (savedInstanceState == null && this !is ChatBubbleActivity) updateModel.check(BuildConfig.VERSION_NAME)
         setContent {
             val updateState = updateModel.state.collectAsStateWithLifecycle().value
             val changelogState = changelogModel.state.collectAsStateWithLifecycle().value
@@ -217,11 +220,11 @@ open class MainActivity : ComponentActivity() {
         model.setForeground(true)
         // The dialog shows a finished or failed download itself once the app is visible again.
         clearAppUpdateResultNotification(this)
+        clearAnswerNotification(this)
     }
     override fun onStop() { model.setForeground(false); super.onStop() }
     override fun onResume() {
         super.onResume()
-        updateModel.check(BuildConfig.VERSION_NAME)
         if (updateModel.state.value.phase == AppUpdatePhase.AwaitingInstallPermission &&
             (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls())) {
             installUpdate()

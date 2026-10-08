@@ -2802,6 +2802,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         else -> null
     }
 
+    /** An answer ended while the app was away: a notification tells the user (in the app, the vibration does). */
+    private fun notifyAnswerFinishedIfAway(threadId: String, failed: Boolean) {
+        if (foreground) return
+        val title = state.value.threads.firstOrNull { it.id == threadId }?.title
+            ?: state.value.selected?.takeIf { it.id == threadId }?.title.orEmpty()
+        notifyAnswerFinished(getApplication<Application>(), title, failed)
+    }
+
     private fun updateLive(transform: (LiveAnswer) -> LiveAnswer) = mutable.update { it.copy(live = transform(it.live)) }
 
     /** Web `markApiAccepted`: once, the skeleton says the connection is up and the model is being awaited. */
@@ -2906,6 +2914,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     delay(CONNECTION_RETRY_DELAY_MS)
                 }
+                val answerFailed = state.value.live.error != null
                 Diagnostics.log("send.done", "ms" to System.currentTimeMillis() - sendStarted)
                 vibrate(100, 50, 100)
                 failed = null
@@ -2920,7 +2929,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (body.optBoolean("batch_mode")) {
                     fetchBatchJobs(notify = false)
                     startBatchPolling()
-                }
+                } else notifyAnswerFinishedIfAway(id, answerFailed)
             } catch (e: CancellationException) {
                 Diagnostics.log("send.cancelled", "ms" to System.currentTimeMillis() - sendStarted, "accepted" to accepted)
                 throw e
@@ -2952,6 +2961,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     else -> notify("Connection Error: " + (e.message ?: "通信に失敗しました"))
                 }
                 if (id.isNotBlank() && session != null) runCatching { loadMessages(id) }
+                notifyAnswerFinishedIfAway(id, failed = true)
             } finally {
                 flow.finish()
                 if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "", live = LiveAnswer()) }
@@ -3050,18 +3060,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val flow = api.progress.startFlow("chatResume")
             mutable.update { it.copy(streaming = true, liveContent = "", liveThought = "", status = "",
                 live = LiveAnswer(model = it.model, pendingStatus = "回答を生成中...")) }
+            var failed = false
             try {
                 backend.stream("/chat_stream_resume", JSONObject().put("thread_id", id).put("job_id", jobId), token(),
                     onAccepted = { flow.setPhase("waiting") }) { event ->
                     if (streamJob === owner) { flow.setPhase("receiving"); acceptEvent(id, event) }
                 }
+                failed = state.value.live.error != null
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { if (e !is ApiException || e.status != 404) report(e) }
+            catch (e: Exception) { if (e !is ApiException || e.status != 404) { failed = true; report(e) } }
             finally {
                 flow.finish()
                 if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "", live = LiveAnswer()) }
             }
             runCatching { loadMessages(id, autoResume = false) }.onFailure { report(it) }
+            notifyAnswerFinishedIfAway(id, failed)
         }
     }
     fun stop() { viewModelScope.launch {

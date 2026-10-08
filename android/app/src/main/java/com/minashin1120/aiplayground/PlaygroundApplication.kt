@@ -26,6 +26,7 @@ class PlaygroundApplication : Application() {
         createBatchNotificationChannel(this)
         createAppUpdateNotificationChannel(this)
         createGenerationNotificationChannel(this)
+        createAnswerNotificationChannel(this)
         createToolbarNotificationChannel(this)
         refreshToolbarNotification(this)
         ActivityLog.log("app.start", "version" to BuildConfig.VERSION_NAME, "sdk" to android.os.Build.VERSION.SDK_INT,

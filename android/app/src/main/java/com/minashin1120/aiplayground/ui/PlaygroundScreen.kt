@@ -320,8 +320,9 @@ fun PlaygroundScreen(
                     else realtimeOpen = true
                 }
             }
-            LaunchedEffect(state.account?.id) {
-                if (state.account != null && Build.VERSION.SDK_INT >= 33 &&
+            // Batch results and answers finished while the app is away are notified.
+            LaunchedEffect(state.account?.id, state.localProfile) {
+                if ((state.account != null || state.localProfile) && Build.VERSION.SDK_INT >= 33 &&
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                     notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }

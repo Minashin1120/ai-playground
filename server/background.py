@@ -3250,17 +3250,31 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if _gemini_manual_function_tools:
                             create_schema = _build_create_file_tool_schema()['function']
                             edit_schema = _build_edit_file_tool_schema()['function']
+
+                            def _strip_additional_properties(_node):
+                                # Gemini API は additionalProperties を
+                                # additional_properties として送ると 400 で拒否する。
+                                if isinstance(_node, dict):
+                                    return {
+                                        _k: _strip_additional_properties(_v)
+                                        for _k, _v in _node.items()
+                                        if _k not in ("additionalProperties", "additional_properties")
+                                    }
+                                if isinstance(_node, list):
+                                    return [_strip_additional_properties(_v) for _v in _node]
+                                return _node
+
                             if 'tools' not in conf: conf['tools'] = []
                             conf['tools'].append(types.Tool(function_declarations=[
                                 {
                                     "name": create_schema["name"],
                                     "description": create_schema.get("description", ""),
-                                    "parameters": create_schema.get("parameters", {}),
+                                    "parameters": _strip_additional_properties(create_schema.get("parameters", {})),
                                 },
                                 {
                                     "name": edit_schema["name"],
                                     "description": edit_schema.get("description", ""),
-                                    "parameters": edit_schema.get("parameters", {}),
+                                    "parameters": _strip_additional_properties(edit_schema.get("parameters", {})),
                                 },
                             ]))
                             # Gemini 3 requires this flag and manual function

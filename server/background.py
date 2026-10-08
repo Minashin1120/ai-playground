@@ -4054,6 +4054,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             return str(text_val)
                         return ""
 
+                    def _gemini_non_stream_config():
+                        non_stream_conf = dict(conf)
+                        if not _gemini_code_exec_active:
+                            non_stream_conf['http_options'] = types.HttpOptions(
+                                timeout=max(_GEMINI_TIMEOUT_MS, _GEMINI_NON_STREAM_TIMEOUT_MS)
+                            )
+                        return types.GenerateContentConfig(**non_stream_conf)
+
                     def _gemini_manual_function_stream():
                         """Gemini 3のツール併用でFileのfunction responseを循環させる。"""
                         request_contents = list(contents)
@@ -4063,7 +4071,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             response = g_client.models.generate_content(
                                 model=rm,
                                 contents=request_contents,
-                                config=types.GenerateContentConfig(**conf),
+                                config=_gemini_non_stream_config(),
                             )
                             responses.append(response)
                             candidates = getattr(response, "candidates", None) or []
@@ -4124,7 +4132,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             response = g_client.models.generate_content(
                                 model=rm,
                                 contents=contents,
-                                config=types.GenerateContentConfig(**conf),
+                                config=_gemini_non_stream_config(),
                             )
                             return iter((response,))
                         return g_client.models.generate_content_stream(

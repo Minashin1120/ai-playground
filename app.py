@@ -605,6 +605,11 @@ _GEMINI_TIMEOUT_MS = _env_int("GEMINI_TIMEOUT_MS", 120000)
 # so a short value makes the API abort with 504 DEADLINE_EXCEEDED before the
 # sandboxed Python finishes. Use a dedicated, longer deadline for these requests.
 _GEMINI_AGENTIC_TIMEOUT_MS = _env_int("GEMINI_AGENTIC_TIMEOUT_MS", 600000)
+# File creation / MCP turns use non-streaming generate_content, so the read
+# timeout covers the whole generation instead of the gap between chunks. Many
+# attachments or a long created file easily exceed the default 120s. Keep it
+# below the 600s RQ chat job_timeout so the error still reaches the client.
+_GEMINI_NON_STREAM_TIMEOUT_MS = _env_int("GEMINI_NON_STREAM_TIMEOUT_MS", 480000)
 # Google intermittently returns 504 DEADLINE_EXCEEDED on the initial response of
 # code-execution requests before any content is generated. A plain retry usually
 # succeeds, so re-pull the first streaming chunk this many times before failing.
@@ -762,8 +767,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-10-08-008')
-app.config['SYSTEM_VERSION'] = 'V4.8.1067'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-10-08-009')
+app.config['SYSTEM_VERSION'] = 'V4.8.1068'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

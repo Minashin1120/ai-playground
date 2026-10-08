@@ -89,6 +89,20 @@ class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
         self.assertIn("itertools", APP_SOURCE)
         self.assertIn(chain_line, APP_SOURCE)
 
+    def test_non_stream_tool_requests_use_longer_timeout(self):
+        # File creation / MCP turns wait for the whole response in one read, so
+        # the 120s base timeout produced "The read operation timed out".
+        self.assertGreater(target._GEMINI_NON_STREAM_TIMEOUT_MS, target._GEMINI_TIMEOUT_MS)
+        self.assertLess(target._GEMINI_NON_STREAM_TIMEOUT_MS, 600 * 1000)
+        block_start = APP_SOURCE.index("def _gemini_non_stream_config():")
+        block_end = APP_SOURCE.index(
+            "return g_client.models.generate_content_stream(", block_start
+        )
+        block = APP_SOURCE[block_start:block_end]
+        self.assertIn("_GEMINI_NON_STREAM_TIMEOUT_MS", block)
+        self.assertEqual(block.count("config=_gemini_non_stream_config(),"), 2)
+        self.assertNotIn("config=types.GenerateContentConfig(**conf),", block)
+
     def test_stream_deadline_retry_constant_is_defined(self):
         self.assertGreaterEqual(target._GEMINI_STREAM_DEADLINE_RETRIES, 1)
 

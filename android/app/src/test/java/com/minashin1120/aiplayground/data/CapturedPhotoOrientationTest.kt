@@ -71,6 +71,25 @@ class CapturedPhotoOrientationTest {
         assertArrayEquals(original, file.readBytes())
     }
 
+    @Test fun keepsFullResolutionOfHighResolutionPhoto() {
+        val file = temporaryFolder.newFile("camera_large.jpg")
+        val image = Bitmap.createBitmap(4100, 3000, Bitmap.Config.ARGB_8888)
+        image.eraseColor(0xff336699.toInt())
+        file.outputStream().use { assertTrue(image.compress(Bitmap.CompressFormat.JPEG, 90, it)) }
+        image.recycle()
+        ExifInterface(file).apply {
+            setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_ROTATE_90.toString())
+            saveAttributes()
+        }
+
+        normalizeCapturedPhotoOrientation(file)
+
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.path, bounds)
+        assertEquals(3000, bounds.outWidth)
+        assertEquals(4100, bounds.outHeight)
+    }
+
     private fun photo(orientation: Int): File {
         val file = temporaryFolder.newFile("camera_${orientation}.jpg")
         val image = Bitmap.createBitmap(80, 120, Bitmap.Config.ARGB_8888)

@@ -12,6 +12,9 @@ import androidx.camera.view.PreviewView
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ZoomState
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,7 +48,7 @@ import kotlinx.coroutines.withContext
 @Composable
 internal fun InAppCameraDialog(
     onDismiss: () -> Unit,
-    onCaptured: (Uri) -> Unit,
+    onCaptured: (Uri, Boolean) -> Unit,
     onError: (String) -> Unit,
 ) {
     val context = LocalContext.current
@@ -54,6 +58,8 @@ internal fun InAppCameraDialog(
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
     var captureInProgress by remember { mutableStateOf(false) }
+    // 画像分割 (ANDROID_ONLY.md): the shot opens the split dialog instead of being attached as it is.
+    var splitAfterCapture by rememberSaveable { mutableStateOf(false) }
     val permissionRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         permissionGranted = granted
         if (!granted) {
@@ -72,6 +78,12 @@ internal fun InAppCameraDialog(
         if (permissionGranted) {
             val controller = remember(context) { LifecycleCameraController(context).apply {
                 setEnabledUseCases(CameraController.IMAGE_CAPTURE)
+                // The default favours shutter speed (zero-shutter-lag frames, lighter processing); prefer quality.
+                imageCaptureMode = ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
+                imageCaptureResolutionSelector = ResolutionSelector.Builder()
+                    .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                    .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
+                    .build()
                 isPinchToZoomEnabled = true
             } }
             var zoomState by remember(controller) { mutableStateOf<ZoomState?>(null) }
@@ -97,6 +109,15 @@ internal fun InAppCameraDialog(
                 Text(
                     "閉じる", color = Color.White, modifier = Modifier.align(Alignment.TopStart)
                         .statusBarsPadding().padding(20.dp).clickable(onClick = onDismiss),
+                )
+                Text(
+                    (if (splitAfterCapture) "✓ " else "") + "画像を分割",
+                    color = if (splitAfterCapture) Color(0xFFFFD54F) else Color.White,
+                    fontSize = 14.sp,
+                    modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(12.dp)
+                        .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(50))
+                        .clickable { splitAfterCapture = !splitAfterCapture }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
                 )
                 zoomState?.let { state ->
                     val presets = cameraZoomPresets(state.minZoomRatio, state.maxZoomRatio)
@@ -141,7 +162,7 @@ internal fun InAppCameraDialog(
                                             try {
                                                 withContext(Dispatchers.IO) { normalizeCapturedPhotoOrientation(file) }
                                                 val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
-                                                onCaptured(uri)
+                                                onCaptured(uri, splitAfterCapture)
                                             } catch (exception: CancellationException) {
                                                 throw exception
                                             } catch (exception: Exception) {

@@ -811,7 +811,10 @@ fun PlaygroundScreen(
             ModalHost(cameraOpen) {
                 InAppCameraDialog(
                     onDismiss = { cameraOpen = false },
-                    onCaptured = { uri -> cameraOpen = false; model.upload(listOf(uri)) },
+                    onCaptured = { uri, split ->
+                        cameraOpen = false
+                        if (split) model.openImageSplit(listOf(uri)) else model.upload(listOf(uri))
+                    },
                     onError = model::notify,
                 )
             }

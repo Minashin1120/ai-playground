@@ -3936,6 +3936,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     fun upload(uris: List<Uri>) {
+        if (state.value.starting) {
+            // Launched from the share sheet: the saved session is not loaded yet, so wait for startup instead of failing with 「端末連携が必要です。」.
+            viewModelScope.launch {
+                state.first { !it.starting }
+                upload(uris)
+            }
+            return
+        }
         if (state.value.banned) return
         if (state.value.offline && !uploadsLocal) { mutable.update { it.copy(notice = "オフライン中はファイルをアップロードできません。") }; return }
         if (uris.isEmpty() || state.value.uploading) return

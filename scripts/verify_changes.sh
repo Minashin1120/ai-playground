@@ -19,6 +19,7 @@ Checks the current tree:
   - required versioned JS/CSS assets exist and match SYSTEM_VERSION
   - changelog / README / MODELS mention the current version
   - JavaScript and Python syntax
+  - files under static/ are readable by the web server
   - regression tests (unless --skip-tests)
 
 --live also requests the running site after a deploy. Use it only after
@@ -90,6 +91,14 @@ while IFS= read -r -d '' py; do
     PY_SOURCES+=("$py")
 done < <(find server -name '*.py' -print0 | sort -z)
 run_logged "python syntax" "$PYTHON" -m py_compile "${PY_SOURCES[@]}"
+
+# gunicorn can read a private file, but the front web server cannot, so a live check
+# against gunicorn would pass while the public site answers 403.
+unreadable="$(find static \( -type f ! -perm -004 -o -type d ! -perm -005 \) -print | head -n 5 || true)"
+if [[ -n "$unreadable" ]]; then
+    die "static files not readable by the web server (fix with chmod a+r): $(printf '%s' "$unreadable" | tr '\n' ' ')"
+fi
+ok "static files readable by the web server"
 
 if [[ "$SKIP_TESTS" -eq 0 ]]; then
     # Never inherit a live MySQL URL into pytest. setdefault() in tests cannot

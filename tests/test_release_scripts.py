@@ -163,6 +163,12 @@ class ReleaseScriptContractTests(unittest.TestCase):
         self.assertNotIn("purge_cloudflare_cache.sh", source)
         self.assertNotIn("git add", source)
 
+    def test_static_assets_must_be_readable_by_the_web_server(self):
+        # Apache serves /static directly: a private (0600) versioned asset makes the site answer 403
+        # while gunicorn, which owns the file, still passes the live checks.
+        self.assertIn("chmod a+r", read("prepare_version.sh"))
+        self.assertIn("-perm -004", read("verify_changes.sh"))
+
     def test_prepare_requires_notes_and_does_not_publish(self):
         source = read("prepare_version.sh")
         self.assertIn("--notes", source)

@@ -75,6 +75,12 @@ run_common prepare "${COMMON_ARGS[@]}"
 info "building minified frontend assets"
 "$ROOT/scripts/build_frontend.sh"
 
+# The web server (www-data) serves /static directly. A shell with a strict umask would
+# leave the new versioned files unreadable to it, and the site would answer 403.
+info "making static assets readable by the web server"
+find "$ROOT/static" -type f ! -perm -004 -exec chmod a+r {} +
+find "$ROOT/static" -type d ! -perm -005 -exec chmod a+rx {} +
+
 if [[ "$SKIP_VERIFY" -eq 1 ]]; then
     warn "verify skipped"
     exit 0

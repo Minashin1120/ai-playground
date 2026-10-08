@@ -237,6 +237,48 @@ class ReleaseScriptContractTests(unittest.TestCase):
         )
         self.assertIn("server/models.py", mixed["outside_target"])
 
+    def test_deploy_server_restarts_without_version_bump(self):
+        source = read("deploy_server.sh")
+        self.assertIn("classify-record --target server", source)
+        self.assertIn('"$CONFIRM" == "SERVER"', source)
+        self.assertIn("git_in add --", source)
+        self.assertIn("git_in push origin HEAD", source)
+        self.assertNotIn("scripts/prepare_version.sh\"", source)
+        self.assertNotIn("purge_cloudflare_cache.sh", source)
+        self.assertNotIn("tag -a", source)
+        self.assertNotIn("git add -A", source)
+        confirm_at = source.index('"$CONFIRM" == "SERVER"')
+        verify_at = source.index('"$ROOT/scripts/verify_changes.sh"')
+        restart_at = source.index('"$ROOT/scripts/restart_services.sh"')
+        commit_at = source.index("git_in commit")
+        self.assertLess(confirm_at, verify_at)
+        self.assertLess(verify_at, restart_at)
+        self.assertLess(restart_at, commit_at)
+
+    def test_server_target_excludes_web_ui_versions_and_android(self):
+        server = COMMON.classify_record_target(
+            [
+                "server/routes_pages.py",
+                "server/README.md",
+                "tests/test_android_changelog_regressions.py",
+                "worker.py",
+                "deploy/ANDROID_CLIENT.md",
+            ],
+            "server",
+        )
+        self.assertEqual(server["outside_target"], [])
+        for path in (
+            "app.py",
+            "templates/chat.html",
+            "static/js/chat_core.v4.8.1069.js",
+            "android/app/build.gradle.kts",
+            "scripts/deploy_server.sh",
+            "deploy/systemd/ai-chat.service",
+            "requirements.txt",
+        ):
+            mixed = COMMON.classify_record_target(["server/routes_pages.py", path], "server")
+            self.assertIn(path, mixed["outside_target"], path)
+
     def test_android_version_bump_requires_new_changelog(self):
         import tempfile
 
@@ -316,6 +358,7 @@ class ReleaseScriptContractTests(unittest.TestCase):
         self.assertIn("prepare_version.sh", readme)
         self.assertIn("publish_version.sh", readme)
         self.assertIn("record_changes.sh", readme)
+        self.assertIn("deploy_server.sh", readme)
 
 
 if __name__ == "__main__":

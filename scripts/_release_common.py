@@ -98,6 +98,10 @@ OPERATIONS_RECORD_EXACT = {
     "tests/test_release_scripts.py",
 }
 OPERATIONS_RECORD_PREFIXES = ("scripts/",)
+# Server-only fixes deployed without a Web version bump (scripts/deploy_server.sh).
+# app.py (versions, _SERVER_PARTS), templates/, static/ and android/ stay on their own routes.
+SERVER_RECORD_EXACT = {"worker.py"}
+SERVER_RECORD_PREFIXES = ("server/", "tests/")
 BLOCKED_GIT_PATTERNS = (
     re.compile(r"(^|/)引き継ぎ資料\.txt$"),
     re.compile(r"\.bak", re.IGNORECASE),
@@ -351,6 +355,12 @@ def is_record_target_path(path: str, target: str) -> bool:
     if target == "operations":
         return normalized in OPERATIONS_RECORD_EXACT or any(
             normalized.startswith(prefix) for prefix in OPERATIONS_RECORD_PREFIXES
+        )
+    if target == "server":
+        if normalized.startswith("deploy/") and normalized.count("/") == 1:
+            return normalized.endswith(".md")
+        return normalized in SERVER_RECORD_EXACT or any(
+            normalized.startswith(prefix) for prefix in SERVER_RECORD_PREFIXES
         )
     return False
 
@@ -853,7 +863,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("classify-git").set_defaults(func=cmd_classify_git)
 
     record = sub.add_parser("classify-record")
-    record.add_argument("--target", choices=("android", "operations"), required=True)
+    record.add_argument("--target", choices=("android", "operations", "server"), required=True)
     record.set_defaults(func=cmd_classify_record)
 
     prepare = sub.add_parser("prepare")

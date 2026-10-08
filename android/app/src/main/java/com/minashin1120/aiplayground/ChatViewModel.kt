@@ -4507,6 +4507,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Deletes the user's own feedback; the server also removes its activity log and chat copy. */
+    fun deleteFeedback(item: FeedbackItem) {
+        viewModelScope.launch {
+            if (state.value.offline) { notify("オフライン中はフィードバックを削除できません。"); return@launch }
+            mutable.update { it.copy(feedbackBusy = true) }
+            try {
+                backend.delete("/api/feedback/${item.id}", token())
+                mutable.update { it.copy(feedbackItems = it.feedbackItems.filterNot { row -> row.id == item.id }) }
+                notify("フィードバックを削除しました")
+            } catch (e: Exception) {
+                report(e, "フィードバックを削除できませんでした")
+            } finally { mutable.update { it.copy(feedbackBusy = false) } }
+        }
+    }
+
     /** [chatId] is the open chat whose copy goes with the feedback (null when the box is not ticked). */
     fun submitFeedback(title: String, message: String, chatId: String? = null) {
         if (message.isBlank()) return

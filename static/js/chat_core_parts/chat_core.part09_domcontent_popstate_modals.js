@@ -91,6 +91,15 @@
                 loadFeedback();
             };
 
+            // The sender (or an administrator) deletes a feedback; the server removes its directory too.
+            async function deleteFeedback(id) {
+                if (!confirm("このフィードバックを削除しますか？\n一緒に送信した操作ログとチャットのコピーも削除されます。")) return;
+                const res = await apiFetch(`/api/feedback/${id}`, {method:'DELETE'});
+                if (!res.ok) { showToast("フィードバックを削除できませんでした", "error", true); return; }
+                showToast("フィードバックを削除しました", "success");
+                loadFeedback();
+            }
+
             async function loadFeedback() {
                 const res = await apiFetch("/api/feedback?all=1");
                 const data = await res.json();
@@ -100,7 +109,8 @@
                     if(data.is_admin) return;
                     const el = document.createElement('div');
                     el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50';
-                    el.innerHTML = `<div class="text-[11px] text-gray-400">${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.admin_reply ? `<div class="text-[11px] text-green-300 mt-1">Reply: ${escapeHtml(item.admin_reply)}</div>` : ''}`;
+                    el.innerHTML = `<div class="text-[11px] text-gray-400">${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.admin_reply ? `<div class="text-[11px] text-green-300 mt-1">Reply: ${escapeHtml(item.admin_reply)}</div>` : ''}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>`;
+                    el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.id);
                     list.appendChild(el);
                 });
 
@@ -126,6 +136,7 @@
                                     <option value="resolved">resolved</option>
                                 </select>
                                 <button class="fb-save bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">保存</button>
+                                <button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded text-xs">削除</button>
                             </div>
                             <textarea class="fb-reply w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white" rows="3" placeholder="返信内容">${escapeHtml(item.admin_reply||'')}</textarea>
                         `;
@@ -136,6 +147,7 @@
                             await apiFetch(`/api/feedback/${item.id}/update`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status, admin_reply})});
                             loadFeedback();
                         };
+                        el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.id);
                         adminList.appendChild(el);
                     });
                 } else {

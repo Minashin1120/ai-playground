@@ -171,6 +171,41 @@ class FeedbackClientLogTests(unittest.TestCase):
         return client.post('/api/feedback', json=payload, headers={'X-CSRF-Token': 'csrf-test-token'},
                            base_url='https://localhost')
 
+    def delete(self, feedback_id, user_id=None):
+        client = self.target.app.test_client()
+        with client.session_transaction() as sess:
+            sess['_user_id'] = str(user_id or self.user_id)
+            sess['_fresh'] = True
+            sess['csrf_token'] = 'csrf-test-token'
+        return client.delete(f'/api/feedback/{feedback_id}', headers={'X-CSRF-Token': 'csrf-test-token'},
+                             base_url='https://localhost')
+
+    def add_user(self, name, is_admin=False):
+        target = self.target
+        with target.app.app_context():
+            user = target.User(username=name, is_setup_completed=True, is_admin=is_admin)
+            user.set_password('test-password')
+            target.db.session.add(user)
+            target.db.session.commit()
+            return user.id
+
+    def test_sender_or_administrator_deletes_feedback_and_its_directory(self):
+        logs = {'client': 'web', 'entries': [{'t': 1, 'ev': 'click'}]}
+        first = self.post({'message': 'one', 'client_logs': logs}).get_json()['feedback_id']
+        second = self.post({'message': 'two'}).get_json()['feedback_id']
+        self.assertEqual(sorted(os.listdir(os.path.join(self.log_dir, str(first)))), ['feedback.json', 'logs'])
+        other = self.add_user('feedback-other')
+        self.assertEqual(self.delete(first, other).status_code, 404)
+        self.assertTrue(os.path.isdir(os.path.join(self.log_dir, str(first))))
+        self.assertEqual(self.delete(first).status_code, 200)
+        self.assertFalse(os.path.exists(os.path.join(self.log_dir, str(first))))
+        self.assertEqual(self.delete(first).status_code, 404)
+        admin = self.add_user('feedback-admin', is_admin=True)
+        self.assertEqual(self.delete(second, admin).status_code, 200)
+        self.assertEqual(os.listdir(self.log_dir), [])
+        with self.target.app.app_context():
+            self.assertEqual(self.target.Feedback.query.count(), 0)
+
     def read_info(self, feedback_id):
         path = os.path.join(self.log_dir, str(feedback_id), 'feedback.json')
         self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)

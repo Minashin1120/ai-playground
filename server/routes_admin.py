@@ -271,6 +271,22 @@ def feedback_update(fid):
         log_force(f"FEEDBACK-INFO-ERROR: feedback={fb.id} err={e}")
     return jsonify({'status': 'ok'})
 
+@app.route('/api/feedback/<int:fid>', methods=['DELETE'])
+@login_required
+def feedback_delete(fid):
+    """Deletes a feedback with its directory (information, activity log, chat copy).
+
+    The sender deletes their own; administrators delete any from the browser only, since
+    administrative rights are not extended to Android tokens (android/ANDROID_ONLY.md)."""
+    fb = db.session.get(Feedback, fid)
+    is_admin = bool(getattr(current_user, 'is_admin', False)) and getattr(g, 'mobile_session', None) is None
+    if fb is None or (fb.user_id != current_user.id and not is_admin):
+        return jsonify({'error': 'not_found'}), 404
+    db.session.delete(fb)
+    safe_db_commit()
+    _delete_feedback_files([fid])
+    return jsonify({'status': 'ok'})
+
 @app.route('/api/ban/appeals/summary', methods=['GET'])
 @login_required
 def api_ban_appeals_summary():

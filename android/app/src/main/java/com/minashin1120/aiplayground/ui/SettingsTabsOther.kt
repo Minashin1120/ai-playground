@@ -30,6 +30,7 @@ import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.data.CacheCategory
+import com.minashin1120.aiplayground.data.FeedbackItem
 import com.minashin1120.aiplayground.data.HistoryCacheMode
 import com.minashin1120.aiplayground.data.formatByteSize
 import com.minashin1120.aiplayground.isToolbarNotificationEnabled
@@ -256,6 +257,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
     },
     SettingsCardSpec(SettingsTab.Feedback, "mine", "あなたのフィードバック", "あなたのフィードバック") {
         val web = LocalWebPalette.current
+        var deleting by remember { mutableStateOf<FeedbackItem?>(null) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             state.feedbackItems.forEach { item ->
                 val shape = RoundedCornerShape(4.dp)
@@ -269,7 +271,15 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                     Text("Status: ${item.status}", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
                     if (item.adminReply.isNotBlank()) Text("Reply: ${item.adminReply}", fontSize = 11.sp, color = Tw.green300,
                         modifier = Modifier.padding(top = 4.dp))
+                    SettingsSmallButton("削除", { deleting = item }, modifier = Modifier.padding(top = 8.dp),
+                        tone = SettingsButtonTone.Red, fontSize = 10.sp, enabled = !state.feedbackBusy)
                 }
+            }
+        }
+        deleting?.let { item ->
+            BrowserConfirmDialog("このフィードバックを削除しますか？\n一緒に送信した操作ログとチャットのコピーも削除されます。") { ok ->
+                deleting = null
+                if (ok) model.deleteFeedback(item)
             }
         }
     },

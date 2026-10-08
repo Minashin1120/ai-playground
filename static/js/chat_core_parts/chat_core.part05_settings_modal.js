@@ -938,6 +938,7 @@
                     { id: "gemini-3.5-live-translate-preview", implementedAt: "2026-08-25", implementedRank: 8523, quickEmoji: "🌐", name: "Gemini 3.5 Live Translate", desc: "Low-latency real-time speech-to-speech translation supporting 70+ languages.", price: "Audio In $3.50/1M, Audio Out $21.00/1M" },
                     { id: "grok-voice-think-fast-2.0", implementedAt: "2026-08-25", implementedRank: 8502, quickEmoji: "🎤", name: "Grok Voice Think Fast 2.0", desc: "Current xAI speech-to-speech model.", price: "$0.08 / min ($4.80 / hr) audio + $0.004 / text input" },
                     { id: "grok-voice-transcribe-2.0", implementedAt: "2026-09-24", implementedRank: 10261, name: "Grok Voice Transcribe 2.0 (Live)", desc: "xAI streaming speech-to-text.", price: "$0.20 / hr" },
+                    { id: "grok-voice-transcribe-2.0-file", implementedAt: "2026-10-09", implementedRank: 10721, name: "Grok Voice Transcribe 2.0", desc: "xAI speech-to-text for recorded clips and files.", price: "$0.10 / hr" },
                     { id: "grok-voice-latest", implementedAt: "2026-05-27", implementedRank: 5550, name: "Grok Voice Latest", desc: "Alias for the current flagship voice model.", price: "$0.08 / min ($4.80 / hr) audio + $0.004 / text input" },
                     { id: "grok-voice-think-fast-1.0", implementedAt: "2026-05-11", implementedRank: 5140, name: "Grok Voice Think Fast 1.0", desc: "Deprecated xAI realtime voice model retained for history compatibility.", price: "$0.05 / min ($3.00 / hr)", deprecated: true },
                     { id: "grok-voice-fast-1.0", implementedAt: "2026-05-01", implementedRank: 500, name: "Grok Voice Fast 1.0", desc: "Legacy xAI realtime voice model retained for history compatibility.", price: "$0.05 / min ($3.00 / hr)", deprecated: true },
@@ -1339,7 +1340,8 @@
             'grok-voice-think-fast-1.0',
             'grok-voice-fast-1.0',
             'grok-voice-agent',
-            'grok-voice-transcribe-2.0'
+            'grok-voice-transcribe-2.0',
+            'grok-voice-transcribe-2.0-file'
         ]);
         const FILE_BASE_URL = CHAT_CONFIG.urls.serveFileBase;
         const FILE_THUMB_BASE_URL = CHAT_CONFIG.urls.serveFileThumbBase;
@@ -1557,7 +1559,7 @@
         const isStsModel = () => STS_MODELS.has(get('model-select').value);
         const isTranscriptionModel = () => {
             const model = get('model-select') ? get('model-select').value : '';
-            return model === 'gpt-transcribe' || model === 'gpt-live-transcribe' || model === 'gpt-realtime-whisper';
+            return model === 'gpt-transcribe' || model === 'gpt-live-transcribe' || model === 'gpt-realtime-whisper' || model === 'grok-voice-transcribe-2.0-file';
         };
         const isGeminiLiveModel = () => {
             const m = get('model-select').value;
@@ -1662,6 +1664,8 @@
                         ? 'リアルタイム低遅延文字起こし（16kHz PCM / 最大10分）'
                         : isXaiLiveTranscribeModel()
                             ? 'xAI ストリーミング文字起こし（16kHz PCM）'
+                        : model === 'grok-voice-transcribe-2.0-file'
+                            ? 'xAI 音声ファイル文字起こし（録音単位）'
                         : model === 'gpt-live-transcribe'
                             ? '低遅延ライブ文字起こし（24kHz PCM）'
                         : model === 'gpt-realtime-whisper'

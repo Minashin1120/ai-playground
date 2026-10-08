@@ -7556,6 +7556,7 @@
                     { id: "gemini-3.5-live-translate-preview", implementedAt: "2026-08-25", implementedRank: 8523, quickEmoji: "🌐", name: "Gemini 3.5 Live Translate", desc: "Low-latency real-time speech-to-speech translation supporting 70+ languages.", price: "Audio In $3.50/1M, Audio Out $21.00/1M" },
                     { id: "grok-voice-think-fast-2.0", implementedAt: "2026-08-25", implementedRank: 8502, quickEmoji: "🎤", name: "Grok Voice Think Fast 2.0", desc: "Current xAI speech-to-speech model.", price: "$0.08 / min ($4.80 / hr) audio + $0.004 / text input" },
                     { id: "grok-voice-transcribe-2.0", implementedAt: "2026-09-24", implementedRank: 10261, name: "Grok Voice Transcribe 2.0 (Live)", desc: "xAI streaming speech-to-text.", price: "$0.20 / hr" },
+                    { id: "grok-voice-transcribe-2.0-file", implementedAt: "2026-10-09", implementedRank: 10721, name: "Grok Voice Transcribe 2.0", desc: "xAI speech-to-text for recorded clips and files.", price: "$0.10 / hr" },
                     { id: "grok-voice-latest", implementedAt: "2026-05-27", implementedRank: 5550, name: "Grok Voice Latest", desc: "Alias for the current flagship voice model.", price: "$0.08 / min ($4.80 / hr) audio + $0.004 / text input" },
                     { id: "grok-voice-think-fast-1.0", implementedAt: "2026-05-11", implementedRank: 5140, name: "Grok Voice Think Fast 1.0", desc: "Deprecated xAI realtime voice model retained for history compatibility.", price: "$0.05 / min ($3.00 / hr)", deprecated: true },
                     { id: "grok-voice-fast-1.0", implementedAt: "2026-05-01", implementedRank: 500, name: "Grok Voice Fast 1.0", desc: "Legacy xAI realtime voice model retained for history compatibility.", price: "$0.05 / min ($3.00 / hr)", deprecated: true },
@@ -7957,7 +7958,8 @@
             'grok-voice-think-fast-1.0',
             'grok-voice-fast-1.0',
             'grok-voice-agent',
-            'grok-voice-transcribe-2.0'
+            'grok-voice-transcribe-2.0',
+            'grok-voice-transcribe-2.0-file'
         ]);
         const FILE_BASE_URL = CHAT_CONFIG.urls.serveFileBase;
         const FILE_THUMB_BASE_URL = CHAT_CONFIG.urls.serveFileThumbBase;
@@ -8175,7 +8177,7 @@
         const isStsModel = () => STS_MODELS.has(get('model-select').value);
         const isTranscriptionModel = () => {
             const model = get('model-select') ? get('model-select').value : '';
-            return model === 'gpt-transcribe' || model === 'gpt-live-transcribe' || model === 'gpt-realtime-whisper';
+            return model === 'gpt-transcribe' || model === 'gpt-live-transcribe' || model === 'gpt-realtime-whisper' || model === 'grok-voice-transcribe-2.0-file';
         };
         const isGeminiLiveModel = () => {
             const m = get('model-select').value;
@@ -8280,6 +8282,8 @@
                         ? 'リアルタイム低遅延文字起こし（16kHz PCM / 最大10分）'
                         : isXaiLiveTranscribeModel()
                             ? 'xAI ストリーミング文字起こし（16kHz PCM）'
+                        : model === 'grok-voice-transcribe-2.0-file'
+                            ? 'xAI 音声ファイル文字起こし（録音単位）'
                         : model === 'gpt-live-transcribe'
                             ? '低遅延ライブ文字起こし（24kHz PCM）'
                         : model === 'gpt-realtime-whisper'
@@ -13308,6 +13312,53 @@
                     }
                 };
             }
+            // Images attached to a feedback (server/feedback_images.py): up to four, sent after the feedback itself.
+            const FB_IMAGE_MAX_COUNT = 4;
+            const FB_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+            let fbImages = [];
+            const renderFbImages = () => {
+                const box = get('fb-images-list');
+                if (!box) return;
+                box.innerHTML = '';
+                fbImages.forEach((entry, index) => {
+                    const cell = document.createElement('div');
+                    cell.className = 'relative w-16 h-16 rounded border border-gray-600 overflow-hidden';
+                    const img = document.createElement('img');
+                    img.src = entry.url;
+                    img.alt = entry.file.name;
+                    img.className = 'w-full h-full object-cover';
+                    const remove = document.createElement('button');
+                    remove.type = 'button';
+                    remove.className = 'absolute top-0 right-0 bg-black/70 text-white text-[10px] leading-none px-1 py-0.5';
+                    remove.textContent = '×';
+                    remove.onclick = () => {
+                        URL.revokeObjectURL(entry.url);
+                        fbImages.splice(index, 1);
+                        renderFbImages();
+                    };
+                    cell.appendChild(img);
+                    cell.appendChild(remove);
+                    box.appendChild(cell);
+                });
+            };
+            const clearFbImages = () => {
+                fbImages.forEach(entry => URL.revokeObjectURL(entry.url));
+                fbImages = [];
+                renderFbImages();
+            };
+            if (get('fb-images-add') && get('fb-images-input')) {
+                get('fb-images-add').onclick = () => get('fb-images-input').click();
+                get('fb-images-input').onchange = (event) => {
+                    for (const file of Array.from(event.target.files || [])) {
+                        if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) { showToast("PNG・JPEG・WebP・GIF の画像を選択してください", "error", true); continue; }
+                        if (file.size > FB_IMAGE_MAX_BYTES) { showToast("画像は1枚5MBまでです", "error", true); continue; }
+                        if (fbImages.length >= FB_IMAGE_MAX_COUNT) { showToast("添付できる画像は4枚までです", "error", true); break; }
+                        fbImages.push({file, url: URL.createObjectURL(file)});
+                    }
+                    event.target.value = '';
+                    renderFbImages();
+                };
+            }
             get('fb-submit').onclick = async () => {
                 const title = get('fb-title').value.trim();
                 const message = get('fb-message').value.trim();
@@ -13322,9 +13373,21 @@
                 if (chatCopy && !currentThreadId) { showToast("コピーを送信するチャットが開かれていません", "error", true); return; }
                 if (chatCopy) payload.chat_copy = window.ActivityLog ? window.ActivityLog.chatCopyPayload(currentThreadId) : {client: 'web', thread_id: String(currentThreadId)};
                 const res = await apiFetch("/api/feedback", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-                if (!(window.ActivityLog ? await window.ActivityLog.reportFeedback(res, clientLogs, chatCopy) : res.ok)) return;
+                // The feedback's number comes back with the answer; the images follow it.
+                const sent = res.ok ? await res.clone().json().catch(() => ({})) : {};
+                const images = {count: fbImages.length, saved: true};
+                if (res.ok && images.count) {
+                    try {
+                        const form = new FormData();
+                        fbImages.forEach(entry => form.append('images', entry.file, entry.file.name));
+                        const up = await apiFetch(`/api/feedback/${sent.public_id}/images`, {method:'POST', body: form});
+                        images.saved = up.ok;
+                    } catch (e) { images.saved = false; }
+                }
+                if (!(window.ActivityLog ? await window.ActivityLog.reportFeedback(res, clientLogs, chatCopy, images) : res.ok)) return;
                 get('fb-title').value = '';
                 get('fb-message').value = '';
+                clearFbImages();
                 if (attachChat) attachChat.checked = false;
                 loadFeedback();
             };
@@ -13347,7 +13410,7 @@
                     if(data.is_admin) return;
                     const el = document.createElement('div');
                     el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50';
-                    el.innerHTML = `<div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.admin_reply ? `<div class="text-[11px] text-green-300 mt-1">Reply: ${escapeHtml(item.admin_reply)}</div>` : ''}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>`;
+                    el.innerHTML = `<div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.image_count ? `<div class="text-[11px] text-gray-400 mt-1">添付画像: ${item.image_count}枚</div>` : ''}${item.admin_reply ? `<div class="text-[11px] text-green-300 mt-1">Reply: ${escapeHtml(item.admin_reply)}</div>` : ''}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>`;
                     el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.public_id);
                     list.appendChild(el);
                 });
@@ -13364,7 +13427,7 @@
                             <div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / user:${item.user_id} / ${item.created_at}</div>
                             <div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div>
                             <div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div>
-                            ${[item.log_file && `操作ログ: ${item.log_file}`, item.chat_file && `チャットのコピー: ${item.chat_file}`].filter(Boolean).map(t => `<div class="text-[11px] text-amber-300">${escapeHtml(t)}</div>`).join('')}
+                            ${[item.log_file && `操作ログ: ${item.log_file}`, item.chat_file && `チャットのコピー: ${item.chat_file}`, item.image_dir && `添付画像（${item.image_count}枚）: ${item.image_dir}`].filter(Boolean).map(t => `<div class="text-[11px] text-amber-300">${escapeHtml(t)}</div>`).join('')}
                             <div class="flex items-center gap-2">
                                 <select class="fb-status bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white">
                                     <option value="new">new</option>
@@ -15220,7 +15283,7 @@
                     const model = get('model-select') ? get('model-select').value : '';
                     const titleEl = $('voice-studio-title');
                     if (!titleEl) return;
-                    if (model === 'gpt-transcribe' || model === 'gpt-live-transcribe') {
+                    if (model === 'gpt-transcribe' || model === 'gpt-live-transcribe' || model === 'grok-voice-transcribe-2.0-file') {
                         titleEl.textContent = '音声文字起こしスタジオ';
                     } else if (model === 'gemini-3.5-live-translate-preview') {
                         titleEl.textContent = 'リアルタイム音声翻訳スタジオ';
@@ -20757,6 +20820,27 @@
             }
         }
 
+        // 高速モードの保存リクエストに載せる、プロンプトバーの選択内容（歯車から開く項目は含めない）。
+        function collectBrowserFastPromptOptions() {
+            const checked = (id, fallback) => (get(id) ? !!get(id).checked : fallback);
+            const value = (id) => (get(id) ? get(id).value : null);
+            return {
+                canvas_mode: !!canvasModeEnabled,
+                enable_search: checked('enable-search', false),
+                enable_url_context: checked('enable-url-context', false),
+                enable_maps: checked('enable-maps', false),
+                enable_python: checked('enable-python', false),
+                enable_file_creation: checked('enable-file-creation', true),
+                enable_mcp: typeof isMcpEnabledForSend === 'function' ? !!isMcpEnabledForSend() : false,
+                enable_thinking: checked('enable-thinking', false),
+                thinking_level: value('thinking-level'),
+                thinking_budget: value('thinking-budget'),
+                reasoning_effort: value('reasoning-effort'),
+                safety_setting: value('safety-setting'),
+                enable_prompt_caching: checked('enable-prompt-cache', false),
+            };
+        }
+
         async function sendBrowserFastMessage(rawText) {
             const model = String(get('model-select').value || '').trim();
             const bootstrap = await fetchBrowserFastBootstrap(false);
@@ -20935,6 +21019,7 @@
                         thought_content: thought,
                         model,
                         image_urls: refs,
+                        prompt_options: collectBrowserFastPromptOptions(),
                         temporary_chat: temporaryChatEnabled,
                         thread_id: currentThreadId || null,
                         parent_id: bootstrap.parent_id || null,
@@ -20980,6 +21065,7 @@
                                 thought_content: thought || '',
                                 model,
                                 image_urls: refs,
+                                prompt_options: collectBrowserFastPromptOptions(),
                                 temporary_chat: temporaryChatEnabled,
                                 thread_id: currentThreadId || null,
                                 parent_id: bootstrap && bootstrap.parent_id ? bootstrap.parent_id : null,
@@ -21457,7 +21543,8 @@
                     language: candidate.language || 'text',
                     explicit: candidate.explicit === true
                 })) : [],
-                batch_mode: batchModeRequested
+                batch_mode: batchModeRequested,
+                canvas_mode: !!canvasModeEnabled
             };
             if (botTurnstileToken) p.turnstile_token = botTurnstileToken;
             const threadCustomInstructionEl = get('thread-custom-instruction');
@@ -24198,7 +24285,33 @@
             const actions = `<div class="lib-thumb-actions"><button class="lib-favorite-btn lib-action-circle${favoriteClass}" title="${favoriteLabel}" aria-label="${favoriteLabel}" aria-pressed="${f.is_favorite ? 'true' : 'false'}"><i class="${favoriteIcon}"></i></button><button class="lib-open-btn lib-action-circle" title="開く"><i class="fas fa-eye"></i></button><button class="lib-del-btn lib-action-circle lib-del" title="削除"><i class="fas fa-trash"></i></button></div>`;
             const bar = `<div class="lib-thumb-bar"><span class="lib-thumb-name" title="${escapeHtml(f.filename)}">${escapeHtml(f.filename)}</span></div>`;
             el.innerHTML = `<div class="lib-thumb-media-wrap">${media}</div>${overlay}${actions}${bar}`;
-            el.onclick = () => {
+            el.dataset.filepath = f.filepath;
+            el.addEventListener('mousedown', (e) => {
+                if (e.shiftKey) e.preventDefault();
+            });
+            el.onclick = (e) => {
+                if (e && e.shiftKey && lib.anchorPath && lib.anchorPath !== f.filepath) {
+                    const cards = Array.from(el.parentNode ? el.parentNode.querySelectorAll('.library-thumb-card') : []);
+                    const anchorIdx = cards.findIndex((c) => c.dataset.filepath === lib.anchorPath);
+                    const targetIdx = cards.indexOf(el);
+                    if (anchorIdx !== -1 && targetIdx !== -1) {
+                        const from = Math.min(anchorIdx, targetIdx);
+                        const to = Math.max(anchorIdx, targetIdx);
+                        for (let k = from; k <= to; k++) {
+                            const path = cards[k].dataset.filepath;
+                            if (!path) continue;
+                            lib.selected.add(path);
+                            cards[k].classList.add('is-selected');
+                        }
+                        try {
+                            const sel = window.getSelection && window.getSelection();
+                            if (sel) sel.removeAllRanges();
+                        } catch (_) {}
+                        window.updateLibSelectionUi();
+                        return;
+                    }
+                }
+                lib.anchorPath = f.filepath;
                 if (lib.selected.has(f.filepath)) {
                     lib.selected.delete(f.filepath);
                     el.classList.remove('is-selected');

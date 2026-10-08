@@ -42,7 +42,33 @@
             const actions = `<div class="lib-thumb-actions"><button class="lib-favorite-btn lib-action-circle${favoriteClass}" title="${favoriteLabel}" aria-label="${favoriteLabel}" aria-pressed="${f.is_favorite ? 'true' : 'false'}"><i class="${favoriteIcon}"></i></button><button class="lib-open-btn lib-action-circle" title="開く"><i class="fas fa-eye"></i></button><button class="lib-del-btn lib-action-circle lib-del" title="削除"><i class="fas fa-trash"></i></button></div>`;
             const bar = `<div class="lib-thumb-bar"><span class="lib-thumb-name" title="${escapeHtml(f.filename)}">${escapeHtml(f.filename)}</span></div>`;
             el.innerHTML = `<div class="lib-thumb-media-wrap">${media}</div>${overlay}${actions}${bar}`;
-            el.onclick = () => {
+            el.dataset.filepath = f.filepath;
+            el.addEventListener('mousedown', (e) => {
+                if (e.shiftKey) e.preventDefault();
+            });
+            el.onclick = (e) => {
+                if (e && e.shiftKey && lib.anchorPath && lib.anchorPath !== f.filepath) {
+                    const cards = Array.from(el.parentNode ? el.parentNode.querySelectorAll('.library-thumb-card') : []);
+                    const anchorIdx = cards.findIndex((c) => c.dataset.filepath === lib.anchorPath);
+                    const targetIdx = cards.indexOf(el);
+                    if (anchorIdx !== -1 && targetIdx !== -1) {
+                        const from = Math.min(anchorIdx, targetIdx);
+                        const to = Math.max(anchorIdx, targetIdx);
+                        for (let k = from; k <= to; k++) {
+                            const path = cards[k].dataset.filepath;
+                            if (!path) continue;
+                            lib.selected.add(path);
+                            cards[k].classList.add('is-selected');
+                        }
+                        try {
+                            const sel = window.getSelection && window.getSelection();
+                            if (sel) sel.removeAllRanges();
+                        } catch (_) {}
+                        window.updateLibSelectionUi();
+                        return;
+                    }
+                }
+                lib.anchorPath = f.filepath;
                 if (lib.selected.has(f.filepath)) {
                     lib.selected.delete(f.filepath);
                     el.classList.remove('is-selected');

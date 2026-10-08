@@ -39,8 +39,11 @@ import com.minashin1120.aiplayground.data.RealtimeState
 
 private const val REALTIME_AUDIO_MODE = "realtime_audio"
 
+/** Non-live Grok Voice Transcribe 2.0: a recorded clip is transcribed through the batch STT endpoint. */
+internal const val GROK_FILE_TRANSCRIBE_MODEL = "grok-voice-transcribe-2.0-file"
+
 /** Web STS models that are not realtime sessions: recorded, then sent to `/sts` in one request. */
-internal val ONE_SHOT_STS_MODELS = setOf("gpt-transcribe", "gpt-live-transcribe", "gpt-realtime-whisper")
+internal val ONE_SHOT_STS_MODELS = setOf("gpt-transcribe", "gpt-live-transcribe", "gpt-realtime-whisper", GROK_FILE_TRANSCRIBE_MODEL)
 
 /** Web `isStsModel`: the voice dock replaces the text row for these models. */
 internal fun isRealtimeAudioModel(model: ModelInfo?): Boolean =
@@ -204,6 +207,7 @@ internal fun realtimeModeLabel(model: String): String = when {
 internal fun realtimeNote(model: String): String = when {
     model == "gemini-3.5-transcribe-live" -> "リアルタイム低遅延文字起こし（16kHz PCM / 最大10分）"
     isGrokLiveTranscribe(model) -> "xAI ストリーミング文字起こし（16kHz PCM）"
+    model == GROK_FILE_TRANSCRIBE_MODEL -> "xAI 音声ファイル文字起こし（録音単位）"
     model == "gpt-live-transcribe" -> "低遅延ライブ文字起こし（24kHz PCM）"
     model == "gpt-realtime-whisper" -> "ストリーミング音声認識モデルによる文字起こし（24kHz PCM）"
     isRealtimeTranscription(model) -> "高精度なコミット単位の文字起こし（24kHz PCM）"
@@ -220,7 +224,7 @@ internal fun realtimeNote(model: String): String = when {
 
 /** Web voice studio title (`updateTitle`). */
 private fun voiceStudioTitle(model: String): String = when (model) {
-    "gpt-transcribe", "gpt-live-transcribe" -> "音声文字起こしスタジオ"
+    "gpt-transcribe", "gpt-live-transcribe", GROK_FILE_TRANSCRIBE_MODEL -> "音声文字起こしスタジオ"
     "gemini-3.5-live-translate-preview" -> "リアルタイム音声翻訳スタジオ"
     else -> "音声スタジオ"
 }

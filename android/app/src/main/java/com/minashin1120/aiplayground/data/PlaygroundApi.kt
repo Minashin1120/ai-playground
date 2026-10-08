@@ -182,6 +182,14 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
         return execute(request("/api/feedback/$feedbackId/chat_files", token).post(multipart).build(), client = streaming, consume = ::jsonResponse)
     }
 
+    /** Web `/api/feedback/<id>/images`: the images attached to feedback [feedbackId], sent after the feedback itself. */
+    suspend fun uploadFeedbackImages(feedbackId: String, images: List<FeedbackImage>, token: String): JSONObject {
+        val multipart = MultipartBody.Builder().setType(MultipartBody.FORM).apply {
+            images.forEach { addFormDataPart("images", it.name, it.bytes.toRequestBody(it.mime.toMediaType())) }
+        }.build()
+        return execute(request("/api/feedback/$feedbackId/images", token).post(multipart).build(), client = streaming, consume = ::jsonResponse)
+    }
+
     suspend fun upload(name: String, body: RequestBody, token: String): JSONObject {
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("file", name, body).build()
@@ -359,3 +367,6 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
         }
     }
 }
+
+/** An image attached to a feedback: [mime] is one of image/png, image/jpeg, image/webp, image/gif. */
+class FeedbackImage(val name: String, val mime: String, val bytes: ByteArray)

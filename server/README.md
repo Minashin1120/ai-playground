@@ -41,6 +41,7 @@
 | `routes_account.py` | アカウント削除、輸出入ジョブ、重複修復、フィードバック、簡易ログイン | アカウント移行 API |
 | `routes_admin.py` | フィードバックの送信・一覧・返信・削除（送信者本人と管理者。ディレクトリごと削除）と、フィードバックごとのディレクトリ（`feedback/<ID>/`）への情報（`feedback.json`）と操作ログ（`logs/activity.jsonl`）の保存、BAN、ボット検知、Turnstile、速度テスト、管理者のユーザー操作 | フィードバック、操作ログ（ログの収集を強化）、管理、BAN、Turnstile |
 | `feedback_chat_copy.py` | フィードバックに添付する「開いているチャットのコピー」：チャットIDから辿れる記録（復号したメッセージ、Batch・遅延計測・同期・添付キャッシュ・Gem・Redis・一時チャットの状態、ログの該当行）と復号した添付ファイルの保存（`feedback/<ID>/chat.jsonl` と `chat.files/`）、Android端末だけの添付の受信（`/api/feedback/<id>/chat_files`）、保存数・容量の上限、アカウント削除時のフィードバックのディレクトリの削除 | チャットのコピーの内容・保存先・上限 |
+| `feedback_images.py` | フィードバックに添付する画像：送信後の受信（`/api/feedback/<id>/images`）、ファイル先頭による形式判定、枚数・容量の上限、`feedback/<ID>/images/` への保存 | フィードバックの画像添付の上限・保存先 |
 | `routes_settings.py` | `/api/settings`、AI 設定プロンプト、セッション、2FA 設定、Gem、メンテナンス | 設定保存、Gem、セッション |
 | `routes_media.py` | TTS / STT / STS、アップロード、容量 API、レイテンシ、クライアントログ | 音声合成、アップロード API |
 | `../mcp_service/` | 外部MCPの接続・OAuth・ツール実行。チャット側は `background.py` と設定ルートで連携 | MCP接続・認証・実行 |

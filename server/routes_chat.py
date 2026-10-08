@@ -283,6 +283,57 @@ def bootstrap_browser_fast_mode():
     response.headers['Pragma'] = 'no-cache'
     return response
 
+# プロンプトバーで選んだ設定を、プロンプトごとに Message.prompt_options へ記録するための許可リスト。
+# 歯車ボタンから開く項目（SysPrompt・Compress・一時チャットの設定）と、
+# 自由記述の項目（TTSスタイル・ネガティブプロンプト・stop文字列など）は記録しない。
+_PROMPT_OPTION_KEYS = (
+    'canvas_mode', 'coding_mode', 'browser_fast_mode', 'batch_mode',
+    'enable_search', 'enable_url_context', 'enable_maps', 'enable_python',
+    'enable_file_creation', 'enable_mcp', 'enable_thinking', 'thinking_level',
+    'thinking_budget', 'reasoning_effort', 'safety_setting', 'enable_prompt_caching',
+    'image_vision_model',
+    'tts_voice', 'tts_voice_custom', 'tts_language', 'tts_speed',
+    'image_size', 'image_quality', 'image_format', 'image_compression',
+    'gemini_image_aspect', 'gemini_image_size',
+    'grok_image_aspect', 'grok_image_resolution', 'grok_image_quality',
+    'grok_image_format', 'grok_image_count',
+    'ideogram_aspect', 'ideogram_resolution', 'ideogram_quality', 'ideogram_speed',
+    'ideogram_magic_prompt', 'ideogram_style_type', 'ideogram_count', 'ideogram_seed',
+    'xai_temperature', 'xai_top_p', 'xai_max_completion_tokens', 'xai_seed',
+    'xai_presence_penalty', 'xai_frequency_penalty', 'xai_response_format',
+    'xai_tool_choice', 'xai_parallel_tool_calls', 'xai_logprobs', 'xai_top_logprobs',
+    'grok_video_duration', 'grok_video_aspect', 'grok_video_resolution',
+    'gemini_video_duration', 'gemini_video_aspect', 'gemini_video_resolution',
+    'music_instrumental',
+    'ocr_table_format', 'ocr_extract_header', 'ocr_extract_footer',
+    'ocr_include_blocks', 'ocr_include_image_base64', 'ocr_pages',
+)
+
+
+def _build_prompt_options_record(source, overrides=None):
+    """Return the prompt-bar settings of one prompt as a JSON string (None when empty)."""
+    if not isinstance(source, dict):
+        source = {}
+    record = {}
+    for key in _PROMPT_OPTION_KEYS:
+        value = source.get(key)
+        if isinstance(value, str):
+            value = value.strip()[:80]
+            if not value:
+                continue
+        elif value is None or not isinstance(value, (bool, int, float)):
+            continue
+        record[key] = value
+    if overrides:
+        record.update(overrides)
+    if not record:
+        return None
+    try:
+        return json.dumps(record, ensure_ascii=False, separators=(',', ':'))
+    except (TypeError, ValueError):
+        return None
+
+
 @app.route('/api/browser_fast_mode/save', methods=['POST'])
 @login_required
 def save_browser_fast_mode_chat():
@@ -416,6 +467,10 @@ def save_browser_fast_mode_chat():
             model=model_key,
             image_url=json.dumps(refs) if refs else None,
             is_encrypted=is_enc,
+            prompt_options=_build_prompt_options_record(
+                data.get('prompt_options'),
+                {'browser_fast_mode': True, 'batch_mode': False, 'coding_mode': False},
+            ),
             parent_id=parent_message.id if parent_message else None,
             tokens_in=user_tokens,
             tokens=sum_token_counts(user_tokens, None),
@@ -713,7 +768,11 @@ def chat_stream():
             tokens_in=user_tokens_in,
             tokens=sum_token_counts(user_tokens_in, None),
             gem_uuid=gem_uuid_val,
-            gem_name=gem_name_val
+            gem_name=gem_name_val,
+            prompt_options=_build_prompt_options_record(
+                data,
+                {'browser_fast_mode': False, 'batch_mode': batch_mode, 'coding_mode': coding_mode},
+            ),
         )
         db.session.add(user_msg)
         assistant_batch_msg = None

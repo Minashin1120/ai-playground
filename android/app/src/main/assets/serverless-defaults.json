@@ -2113,6 +2113,18 @@
   },
   {
    "capabilities": [
+    "transcription"
+   ],
+   "deprecated": false,
+   "id": "grok-voice-transcribe-2.0-file",
+   "mode": "transcription",
+   "name": "Grok Voice Transcribe 2.0 File",
+   "provider": "xai",
+   "provider_label": "xAI (Grok)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "image"
    ],
    "deprecated": false,

@@ -1663,6 +1663,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun draft(text: String) { mutable.update { it.copy(draft = text) } }
+    /** Text shared from another app's share sheet: appended to the prompt input like the rich-paste insert. */
+    fun insertSharedText(text: String) {
+        if (state.value.starting) {
+            // Launched from the share sheet: the saved session is not loaded yet.
+            viewModelScope.launch {
+                state.first { !it.starting }
+                insertSharedText(text)
+            }
+            return
+        }
+        if (state.value.banned) return
+        mutable.update {
+            it.copy(draft = if (it.draft.isBlank()) text else it.draft.trimEnd() + "\n\n" + text,
+                composerFocusRequest = it.composerFocusRequest + 1)
+        }
+    }
     fun quoteMessage(text: String) {
         val quoted = text.trim()
         if (quoted.isBlank()) return
@@ -3429,7 +3445,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Web `mic-btn` for models that are not realtime sessions (gpt-transcribe, gpt-live-transcribe,
-     * gpt-realtime-whisper): records until the next tap, then sends the clip to `/sts`.
+     * gpt-realtime-whisper, grok-voice-transcribe-2.0-file): records until the next tap, then sends the clip to `/sts`.
      */
     fun startOneShotSts(modelId: String, fields: Map<String, String>, autoPlay: Boolean, autoRestart: Boolean) {
         if (state.value.offline) { notify("オフライン中はRealtimeを開始できません。"); return }
@@ -3480,7 +3496,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 var firstAudio = true
                 var saved = false
                 try {
-                    val transcription = modelId == "gpt-transcribe" || modelId == "gpt-live-transcribe" || modelId == "gpt-realtime-whisper"
+                    val transcription = modelId == "gpt-transcribe" || modelId == "gpt-live-transcribe" || modelId == "gpt-realtime-whisper" || modelId == "grok-voice-transcribe-2.0-file"
                     mutable.update { it.copy(realtime = it.realtime.copy(status = if (transcription) "Transcribing..." else "Processing audio...")) }
                     val rate = stsRequest["sts_rate_out"]?.toIntOrNull() ?: 24000
                     withContext(Dispatchers.IO) {
@@ -4562,8 +4578,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** [chatId] is the open chat whose copy goes with the feedback (null when the box is not ticked). */
-    fun submitFeedback(title: String, message: String, chatId: String? = null) {
+    /** [chatId] is the open chat whose copy goes with the feedback (null when the box is not ticked); [images] are the attached images. */
+    fun submitFeedback(title: String, message: String, chatId: String? = null, images: List<Uri> = emptyList()) {
         if (message.isBlank()) return
         viewModelScope.launch {
             if (state.value.offline) { notify("オフライン中はフィードバックを送信できません。"); return@launch }
@@ -4583,11 +4599,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (chatCopy != null && chatSaved && chatCopy.deviceFiles.isNotEmpty()) {
                     chatSaved = feedbackId.isNotBlank() && uploadFeedbackChatFiles(feedbackId, chatCopy.deviceFiles)
                 }
+                val imagesSaved = images.isEmpty() || (feedbackId.isNotBlank() && uploadFeedbackImages(feedbackId, images))
                 loadFeedback()
-                notify(feedbackSentText(logs?.length(), reply.optBoolean("logs_saved", true), chatCopy != null, chatSaved))
+                notify(feedbackSentText(logs?.length(), reply.optBoolean("logs_saved", true), chatCopy != null, chatSaved, images.size, imagesSaved))
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(feedbackBusy = false) } }
         }
+    }
+
+    /** Web `/api/feedback/<id>/images`: sends the attached images to feedback [feedbackId]; false when they were not saved. */
+    private suspend fun uploadFeedbackImages(feedbackId: String, uris: List<Uri>): Boolean = try {
+        val resolver = getApplication<Application>().contentResolver
+        val files = withContext(Dispatchers.IO) {
+            uris.mapIndexed { index, uri ->
+                val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IOException("画像を読み込めません")
+                FeedbackImage("image-${index + 1}", resolver.getType(uri) ?: "application/octet-stream", bytes)
+            }
+        }
+        api.uploadFeedbackImages(feedbackId, files, token())
+        true
+    } catch (e: Exception) {
+        Diagnostics.failure("feedback.images", e)
+        false
     }
 
     private class FeedbackChatCopy(val payload: JSONObject, val deviceFiles: List<String>)

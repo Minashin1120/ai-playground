@@ -248,6 +248,10 @@ private fun orient(bitmap: Bitmap, source: SplitSource): Bitmap {
 private const val MARK_COLOR = 0xFFFACC15.toInt()
 private const val MARK_SHADOW = 0xB3000000.toInt()
 
+// Cut lines are semi-transparent so the pixels under them stay readable.
+private const val MARK_LINE_COLOR = 0x99FACC15.toInt()
+private const val MARK_LINE_SHADOW = 0x4D000000
+
 /**
  * A piece with a caption strip above the pixels (nothing of the image is covered) and dashed lines at
  * the cut positions, so the parts beyond a line are the overlap shared with the neighbouring piece.
@@ -270,7 +274,7 @@ private fun drawPieceMarks(piece: Bitmap, tile: SplitTile, grid: SplitGrid, sour
     canvas.drawBitmap(piece, 0f, header.toFloat(), null)
     val metrics = text.fontMetrics
     canvas.drawText(caption, piece.width * 0.02f, header / 2f - (metrics.ascent + metrics.descent) / 2f, text)
-    val stroke = (maxOf(piece.width, piece.height) / 400f).coerceIn(2f, 6f)
+    val stroke = (maxOf(piece.width, piece.height) / 500f).coerceIn(1.5f, 4f)
     val lines = mutableListOf<FloatArray>()
     val top = header.toFloat()
     val bottom = top + piece.height
@@ -330,15 +334,15 @@ private fun drawGridOverview(whole: Bitmap, source: SplitSource, grid: SplitGrid
     return out
 }
 
-/** Yellow lines over a dark outline so they stay visible on light and dark images. */
+/** Translucent yellow lines over a faint dark outline: visible on light and dark images without hiding them. */
 private fun drawMarkLines(canvas: Canvas, lines: List<FloatArray>, stroke: Float, dashed: Boolean) {
     if (lines.isEmpty()) return
-    val effect = if (dashed) DashPathEffect(floatArrayOf(stroke * 5, stroke * 3), 0f) else null
+    val effect = if (dashed) DashPathEffect(floatArrayOf(stroke * 4, stroke * 5), 0f) else null
     val shadow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = MARK_SHADOW; strokeWidth = stroke * 2.2f; style = Paint.Style.STROKE; pathEffect = effect
+        color = MARK_LINE_SHADOW; strokeWidth = stroke * 1.8f; style = Paint.Style.STROKE; pathEffect = effect
     }
     val line = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = MARK_COLOR; strokeWidth = stroke; style = Paint.Style.STROKE; pathEffect = effect
+        color = MARK_LINE_COLOR; strokeWidth = stroke; style = Paint.Style.STROKE; pathEffect = effect
     }
     val path = Path()
     for (l in lines) { path.moveTo(l[0], l[1]); path.lineTo(l[2], l[3]) }

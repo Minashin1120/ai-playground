@@ -611,7 +611,7 @@
                     const model = get('model-select') ? get('model-select').value : '';
                     const titleEl = $('voice-studio-title');
                     if (!titleEl) return;
-                    if (model === 'gpt-transcribe' || model === 'gpt-live-transcribe') {
+                    if (model === 'gpt-transcribe' || model === 'gpt-live-transcribe' || model === 'grok-voice-transcribe-2.0-file') {
                         titleEl.textContent = '音声文字起こしスタジオ';
                     } else if (model === 'gemini-3.5-live-translate-preview') {
                         titleEl.textContent = 'リアルタイム音声翻訳スタジオ';

@@ -1,4 +1,25 @@
 
+        // 高速モードの保存リクエストに載せる、プロンプトバーの選択内容（歯車から開く項目は含めない）。
+        function collectBrowserFastPromptOptions() {
+            const checked = (id, fallback) => (get(id) ? !!get(id).checked : fallback);
+            const value = (id) => (get(id) ? get(id).value : null);
+            return {
+                canvas_mode: !!canvasModeEnabled,
+                enable_search: checked('enable-search', false),
+                enable_url_context: checked('enable-url-context', false),
+                enable_maps: checked('enable-maps', false),
+                enable_python: checked('enable-python', false),
+                enable_file_creation: checked('enable-file-creation', true),
+                enable_mcp: typeof isMcpEnabledForSend === 'function' ? !!isMcpEnabledForSend() : false,
+                enable_thinking: checked('enable-thinking', false),
+                thinking_level: value('thinking-level'),
+                thinking_budget: value('thinking-budget'),
+                reasoning_effort: value('reasoning-effort'),
+                safety_setting: value('safety-setting'),
+                enable_prompt_caching: checked('enable-prompt-cache', false),
+            };
+        }
+
         async function sendBrowserFastMessage(rawText) {
             const model = String(get('model-select').value || '').trim();
             const bootstrap = await fetchBrowserFastBootstrap(false);
@@ -177,6 +198,7 @@
                         thought_content: thought,
                         model,
                         image_urls: refs,
+                        prompt_options: collectBrowserFastPromptOptions(),
                         temporary_chat: temporaryChatEnabled,
                         thread_id: currentThreadId || null,
                         parent_id: bootstrap.parent_id || null,
@@ -222,6 +244,7 @@
                                 thought_content: thought || '',
                                 model,
                                 image_urls: refs,
+                                prompt_options: collectBrowserFastPromptOptions(),
                                 temporary_chat: temporaryChatEnabled,
                                 thread_id: currentThreadId || null,
                                 parent_id: bootstrap && bootstrap.parent_id ? bootstrap.parent_id : null,
@@ -699,7 +722,8 @@
                     language: candidate.language || 'text',
                     explicit: candidate.explicit === true
                 })) : [],
-                batch_mode: batchModeRequested
+                batch_mode: batchModeRequested,
+                canvas_mode: !!canvasModeEnabled
             };
             if (botTurnstileToken) p.turnstile_token = botTurnstileToken;
             const threadCustomInstructionEl = get('thread-custom-instruction');

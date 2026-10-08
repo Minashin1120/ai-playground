@@ -55,6 +55,8 @@ MOBILE_ENDPOINT_METHODS = {
     'feedback_delete': {'DELETE'},
     # Attachments kept only on the device, added to the feedback's chat copy (feedback_chat_copy.py).
     'feedback_chat_file': {'POST'},
+    # Images attached to the user's own feedback (feedback_images.py).
+    'feedback_images': {'POST'},
     # Native clients use the same authenticated provider sessions as Web for
     # realtime audio/music. These endpoints never return provider API keys.
     # Settings modal parity (routes_mobile_account.py): account, sessions, 2FA and

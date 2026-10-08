@@ -311,6 +311,22 @@ def ensure_message_token_io_columns():
     except Exception:
         pass
 
+def ensure_message_prompt_options_column():
+    """Add message.prompt_options (prompt-bar settings recorded per user prompt)."""
+    try:
+        with db.engine.connect() as conn:
+            exists = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='message' "
+                "AND COLUMN_NAME='prompt_options'"
+            )).scalar()
+            if not exists:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE message ADD COLUMN prompt_options TEXT NULL"))
+    except Exception:
+        pass
+
 def ensure_message_payload_longtext_columns():
     """Keep large encrypted messages and reasoning payloads above MySQL TEXT's 64 KiB limit."""
     if db.engine.dialect.name not in ('mysql', 'mariadb'):

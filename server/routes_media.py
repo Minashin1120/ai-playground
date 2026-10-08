@@ -64,13 +64,11 @@ def synthesize():
         logger.error(f"TTS Synthesis failed: {e}")
         return jsonify({'error': str(e)}), 500
 
-def _transcribe_with_xai_stt(audio_content, fname, model, user):
-    """Batch transcription via xAI Grok Voice Transcribe (POST /v1/stt)."""
-    key = _get_model_specific_api_key(user, model) or decrypt_val(user.xai_api_key)
-    if not key and _admin_env_fallback_enabled(user):
-        key = os.getenv('XAI_API_KEY')
-    if not key:
-        return jsonify({'error': 'xAI API Key not configured'}), 400
+def _xai_stt_transcript(audio_content, fname, model, key):
+    """Batch transcription via xAI Grok Voice Transcribe (POST /v1/stt).
+
+    Returns (text, None) on success or (None, (message, http_status)).
+    """
     mime = mimetypes.guess_type(fname or "")[0] or "application/octet-stream"
     if _audio_ffmpeg_demuxer(audio_content) in ("matroska", None):
         # Browser recordings are WebM/Opus; xAI's container list covers
@@ -78,7 +76,7 @@ def _transcribe_with_xai_stt(audio_content, fname, model, user):
         try:
             pcm = _convert_audio_to_pcm(audio_content, rate=16000, max_seconds=None, timeout=120)
         except ValueError as exc:
-            return jsonify({'error': str(exc)}), 400
+            return None, (str(exc), 400)
         audio_content = _pcm_to_wav_bytes(pcm, rate=16000)
         fname = os.path.splitext(fname or "audio")[0] + ".wav"
         mime = "audio/wav"
@@ -101,9 +99,20 @@ def _transcribe_with_xai_stt(audio_content, fname, model, user):
             detail = (resp.text or "")[:300]
         logger.error(f"xAI STT failed: status={resp.status_code} {detail}")
         status = resp.status_code if resp.status_code in (400, 401, 413, 429) else 502
-        return jsonify({'error': f"xAI STT error {resp.status_code}: {detail}".strip()}), status
+        return None, (f"xAI STT error {resp.status_code}: {detail}".strip(), status)
     result = resp.json() or {}
-    return jsonify({'transcript': result.get("text") or "", 'mode': 'stt_api'})
+    return result.get("text") or "", None
+
+def _transcribe_with_xai_stt(audio_content, fname, model, user):
+    key = _get_model_specific_api_key(user, model) or decrypt_val(user.xai_api_key)
+    if not key and _admin_env_fallback_enabled(user):
+        key = os.getenv('XAI_API_KEY')
+    if not key:
+        return jsonify({'error': 'xAI API Key not configured'}), 400
+    text, err = _xai_stt_transcript(audio_content, fname, model, key)
+    if err:
+        return jsonify({'error': err[0]}), err[1]
+    return jsonify({'transcript': text, 'mode': 'stt_api'})
 
 @app.route('/transcribe', methods=['POST'])
 @login_required
@@ -422,22 +431,38 @@ def speech_to_speech():
         resp.headers['Cache-Control'] = 'no-cache'
         return resp
 
-    if provider == "openai" and meta.get("mode") == "transcription":
-        key = model_specific_key or decrypt_val(current_user.openai_api_key)
-        if not key and _admin_env_fallback_enabled(current_user):
-            key = os.getenv('OPENAI_API_KEY')
-        if not key:
-            return jsonify({'error': 'OpenAI API Key not configured'}), 400
-
+    if meta.get("mode") == "transcription" and (provider == "openai" or model_key in XAI_STT_FILE_STS_MODELS):
         src_ext = os.path.splitext(secure_filename(f.filename))[1].lower() or ".webm"
-        try:
-            pcm_bytes = _convert_audio_to_pcm(audio_bytes, src_ext, rate=rate_in)
-            transcript = asyncio.run(
-                _openai_realtime_transcribe(pcm_bytes, key, model_key, rate=rate_in)
-            ).strip()
-        except Exception as e:
-            logger.error(f"OpenAI realtime transcription failed: {e}")
-            return jsonify({'error': str(e)}), 500
+        if provider == "openai":
+            key = model_specific_key or decrypt_val(current_user.openai_api_key)
+            if not key and _admin_env_fallback_enabled(current_user):
+                key = os.getenv('OPENAI_API_KEY')
+            if not key:
+                return jsonify({'error': 'OpenAI API Key not configured'}), 400
+            try:
+                pcm_bytes = _convert_audio_to_pcm(audio_bytes, src_ext, rate=rate_in)
+                transcript = asyncio.run(
+                    _openai_realtime_transcribe(pcm_bytes, key, model_key, rate=rate_in)
+                ).strip()
+            except Exception as e:
+                logger.error(f"OpenAI realtime transcription failed: {e}")
+                return jsonify({'error': str(e)}), 500
+        else:
+            key = model_specific_key or decrypt_val(current_user.xai_api_key)
+            if not key and _admin_env_fallback_enabled(current_user):
+                key = os.getenv('XAI_API_KEY')
+            if not key:
+                return jsonify({'error': 'xAI API Key not configured'}), 400
+            try:
+                transcript, stt_err = _xai_stt_transcript(
+                    audio_bytes, secure_filename(f.filename), XAI_STT_FILE_STS_MODELS[model_key], key
+                )
+            except Exception as e:
+                logger.error(f"xAI file transcription failed: {e}")
+                return jsonify({'error': str(e)}), 500
+            if stt_err:
+                return jsonify({'error': stt_err[0]}), stt_err[1]
+            transcript = transcript.strip()
         if not transcript:
             return jsonify({'error': 'No transcript returned'}), 500
 
@@ -1028,6 +1053,10 @@ with app.app_context():
         pass
     try:
         ensure_message_token_io_columns()
+    except Exception:
+        pass
+    try:
+        ensure_message_prompt_options_column()
     except Exception:
         pass
     try:

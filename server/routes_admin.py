@@ -259,6 +259,8 @@ def feedback():
         res.append({
             'log_file': _feedback_display_path(_feedback_activity_log_path(f.public_id)) if is_admin else None,
             'chat_file': _feedback_display_path(_feedback_chat_copy_path(f.public_id)) if is_admin else None,
+            'image_count': len(_feedback_image_names(f.public_id)),
+            'image_dir': os.path.relpath(_feedback_images_path(f.public_id), app.root_path) if is_admin and os.path.isdir(_feedback_images_path(f.public_id)) else None,
             'id': f.id,
             'public_id': f.public_id,
             'user_id': f.user_id,

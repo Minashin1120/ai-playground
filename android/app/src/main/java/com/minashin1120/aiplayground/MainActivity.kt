@@ -144,7 +144,8 @@ open class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Handles files shared from other apps via the system share sheet (Intent.ACTION_SEND[_MULTIPLE]).
+     * Handles files and text shared from other apps via the system share sheet (Intent.ACTION_SEND[_MULTIPLE]).
+     * Shared text (Intent.EXTRA_TEXT) is appended to the prompt input.
      * The 「画像を分割」 share target (an activity-alias) opens the 画像分割 dialog instead of attaching.
      */
     private fun handleShareIntent(intent: Intent?) {
@@ -153,10 +154,17 @@ open class MainActivity : ComponentActivity() {
             Intent.ACTION_SEND_MULTIPLE -> intent.parcelableArrayListExtraCompat<Uri>(Intent.EXTRA_STREAM) ?: emptyList()
             else -> emptyList()
         }
-        if (uris.isEmpty()) return
+        val isSplit = intent?.component?.className == IMAGE_SPLIT_SHARE_ALIAS
+        val text = if (intent?.action == Intent.ACTION_SEND && !isSplit) {
+            runCatching { intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() }.getOrNull()?.trim().orEmpty()
+        } else ""
+        if (uris.isEmpty() && text.isEmpty()) return
         intent?.action = null
         intent?.removeExtra(Intent.EXTRA_STREAM)
-        if (intent?.component?.className == IMAGE_SPLIT_SHARE_ALIAS) model.openImageSplit(uris) else model.upload(uris)
+        intent?.removeExtra(Intent.EXTRA_TEXT)
+        if (text.isNotEmpty()) model.insertSharedText(text)
+        if (uris.isEmpty()) return
+        if (isSplit) model.openImageSplit(uris) else model.upload(uris)
     }
 
     private fun openBubble() {

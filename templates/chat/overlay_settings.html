@@ -374,6 +374,12 @@
                         <span id="fb-attach-chat-note" class="block text-[10px] text-gray-500 mt-1">開いているチャットのメッセージ、回答、思考過程、添付ファイル、チャットの設定と、そのチャットに関するエラーログなどの記録を復号して、不具合の調査用に送信します。送信したコピーは、チャットを削除しても残ります。</span>
                     </span>
                 </label>
+                <div>
+                    <input type="file" id="fb-images-input" accept="image/png,image/jpeg,image/webp,image/gif" multiple class="hidden">
+                    <button type="button" id="fb-images-add" class="bg-gray-700 hover:bg-gray-600 text-white rounded px-3 py-1 text-xs"><i class="fas fa-image mr-1"></i>画像を添付</button>
+                    <span class="text-[10px] text-gray-500 ml-2">PNG・JPEG・WebP・GIF、4枚まで、1枚5MBまで</span>
+                    <div id="fb-images-list" class="flex flex-wrap gap-2 mt-2"></div>
+                </div>
                 <button id="fb-submit" class="w-full bg-blue-600 hover:bg-blue-500 text-white rounded py-2 text-sm font-bold btn-hover">送信</button>
             </div>
         </div>

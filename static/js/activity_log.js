@@ -539,7 +539,7 @@
      * Shows the result of a feedback sent with [feedbackPayload] (null when the log is off) and, when
      * [chatCopy], a copy of the open chat; false keeps the form (the request failed).
      */
-    function reportFeedback(res, payload, chatCopy) {
+    function reportFeedback(res, payload, chatCopy, images) {
         var toast = typeof window.showToast === 'function' ? window.showToast : function () {};
         return res.json().catch(function () { return {}; }).then(function (data) {
             if (!res.ok) {
@@ -549,6 +549,7 @@
             var failed = [];
             if (payload && data.logs_saved === false) failed.push('ログ');
             if (chatCopy && data.chat_copy_saved !== true) failed.push('チャットのコピー');
+            if (images && images.count && !images.saved) failed.push('画像');
             if (failed.length) {
                 toast('フィードバックを送信しました（' + failed.join('と') + 'は保存できませんでした）', 'error', true);
                 return true;
@@ -556,6 +557,7 @@
             var sent = ['フィードバック'];
             if (payload) sent.push('直近1時間のログ（' + payload.entries.length + '件）');
             if (chatCopy) sent.push('チャットのコピー');
+            if (images && images.count) sent.push('画像（' + images.count + '枚）');
             toast(sent.join(sent.length > 2 ? '、' : 'と') + 'を送信しました', 'success');
             return true;
         });

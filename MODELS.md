@@ -1,6 +1,6 @@
-# 対応モデル (V4.8.1071)
+# 対応モデル (V4.8.1072)
 
-全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.1071.js` の `MODELS` 配列です。
+全対応モデルの一覧です。モデル定義の一次ソースは `static/js/chat_core.v4.8.1072.js` の `MODELS` 配列です。
 モデル選択モーダルには各モデルの公式 API 価格（`price` フィールド）が表示されます。
 
 **価格最終確認:** 2026-10-02
@@ -62,6 +62,7 @@
 | xAI Grok | grok-4.3 / grok-4.20 系 | In $1.25/1M, Out $2.50/1M |
 | xAI Grok | grok-build-0.1 | In $1.00/1M, Out $2.00/1M |
 | xAI Voice | grok-voice-* | $0.05 / min |
+| xAI Transcription | grok-voice-transcribe-2.0-file | $0.10 / hr（REST） |
 | xAI TTS | grok-tts | $15.00 / 1M chars |
 | xAI Imagine | grok-imagine-image-2.0 | from $0.04 / image |
 | xAI Imagine | grok-imagine-image | $0.02 / image |
@@ -73,5 +74,5 @@
 
 ---
 
-*最終更新: 2026-10-09 (V4.8.1071)*
-*ソース: `static/js/chat_core.v4.8.1071.js` MODELS配列*
+*最終更新: 2026-10-09 (V4.8.1072)*
+*ソース: `static/js/chat_core.v4.8.1072.js` MODELS配列*

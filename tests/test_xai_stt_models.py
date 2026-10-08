@@ -32,6 +32,39 @@ class XaiSttModelRegressionTests(unittest.TestCase):
         self.assertIn('"grok-voice-transcribe-2.0" to "grok-voice-transcribe-2.0（xAI）"', settings)
         self.assertIn('"grok-voice-transcribe-1.0" to "grok-voice-transcribe-1.0（xAI）"', settings)
 
+    def test_non_live_grok_transcribe_is_an_sts_file_model_using_the_batch_endpoint(self):
+        source = read_app_source()
+
+        self.assertIn('"grok-voice-transcribe-2.0-file": {"provider": "xai", "mode": "transcription"', source)
+        self.assertIn('XAI_STT_FILE_STS_MODELS = {"grok-voice-transcribe-2.0-file": "grok-voice-transcribe-2.0"}', source)
+        self.assertIn('model_key in XAI_STT_FILE_STS_MODELS', source)
+        self.assertIn('XAI_STT_FILE_STS_MODELS[model_key]', source)
+        # The live model keeps its own id and stays a streaming session.
+        self.assertIn('XAI_LIVE_STT_MODELS = {"grok-voice-transcribe-2.0"}', source)
+
+    def test_non_live_grok_transcribe_is_not_a_conversation_model(self):
+        import app as target
+
+        model = "grok-voice-transcribe-2.0-file"
+        self.assertEqual(target.get_sts_provider(model), "xai")
+        self.assertFalse(target._rt_is_conversation_model(model))
+        self.assertEqual(target._mobile_model_mode(model), "transcription")
+        self.assertIn(model, target.XAI_STT_FILE_STS_MODELS)
+        self.assertNotIn(model, target.XAI_LIVE_STT_MODELS)
+
+    def test_web_lists_both_grok_voice_transcribe_2_variants(self):
+        parts = APP_ROOT / "static" / "js" / "chat_core_parts"
+        settings = (parts / "chat_core.part05_settings_modal.js").read_text(encoding="utf-8")
+        self.assertRegex(settings, r'id:\s*"grok-voice-transcribe-2.0-file"[^}]*name:\s*"Grok Voice Transcribe 2.0"')
+        self.assertRegex(settings, r'id:\s*"grok-voice-transcribe-2.0"[^}]*name:\s*"Grok Voice Transcribe 2.0 \(Live\)"')
+        self.assertIn("model === 'grok-voice-transcribe-2.0-file'", settings)
+
+        android = (
+            APP_ROOT / "android" / "app" / "src" / "main" / "java" / "com" / "minashin1120"
+            / "aiplayground" / "ui" / "RealtimeStudio.kt"
+        ).read_text(encoding="utf-8")
+        self.assertIn('GROK_FILE_TRANSCRIBE_MODEL = "grok-voice-transcribe-2.0-file"', android)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -70,6 +70,53 @@
                     }
                 };
             }
+            // Images attached to a feedback (server/feedback_images.py): up to four, sent after the feedback itself.
+            const FB_IMAGE_MAX_COUNT = 4;
+            const FB_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+            let fbImages = [];
+            const renderFbImages = () => {
+                const box = get('fb-images-list');
+                if (!box) return;
+                box.innerHTML = '';
+                fbImages.forEach((entry, index) => {
+                    const cell = document.createElement('div');
+                    cell.className = 'relative w-16 h-16 rounded border border-gray-600 overflow-hidden';
+                    const img = document.createElement('img');
+                    img.src = entry.url;
+                    img.alt = entry.file.name;
+                    img.className = 'w-full h-full object-cover';
+                    const remove = document.createElement('button');
+                    remove.type = 'button';
+                    remove.className = 'absolute top-0 right-0 bg-black/70 text-white text-[10px] leading-none px-1 py-0.5';
+                    remove.textContent = '×';
+                    remove.onclick = () => {
+                        URL.revokeObjectURL(entry.url);
+                        fbImages.splice(index, 1);
+                        renderFbImages();
+                    };
+                    cell.appendChild(img);
+                    cell.appendChild(remove);
+                    box.appendChild(cell);
+                });
+            };
+            const clearFbImages = () => {
+                fbImages.forEach(entry => URL.revokeObjectURL(entry.url));
+                fbImages = [];
+                renderFbImages();
+            };
+            if (get('fb-images-add') && get('fb-images-input')) {
+                get('fb-images-add').onclick = () => get('fb-images-input').click();
+                get('fb-images-input').onchange = (event) => {
+                    for (const file of Array.from(event.target.files || [])) {
+                        if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) { showToast("PNG・JPEG・WebP・GIF の画像を選択してください", "error", true); continue; }
+                        if (file.size > FB_IMAGE_MAX_BYTES) { showToast("画像は1枚5MBまでです", "error", true); continue; }
+                        if (fbImages.length >= FB_IMAGE_MAX_COUNT) { showToast("添付できる画像は4枚までです", "error", true); break; }
+                        fbImages.push({file, url: URL.createObjectURL(file)});
+                    }
+                    event.target.value = '';
+                    renderFbImages();
+                };
+            }
             get('fb-submit').onclick = async () => {
                 const title = get('fb-title').value.trim();
                 const message = get('fb-message').value.trim();
@@ -84,9 +131,21 @@
                 if (chatCopy && !currentThreadId) { showToast("コピーを送信するチャットが開かれていません", "error", true); return; }
                 if (chatCopy) payload.chat_copy = window.ActivityLog ? window.ActivityLog.chatCopyPayload(currentThreadId) : {client: 'web', thread_id: String(currentThreadId)};
                 const res = await apiFetch("/api/feedback", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-                if (!(window.ActivityLog ? await window.ActivityLog.reportFeedback(res, clientLogs, chatCopy) : res.ok)) return;
+                // The feedback's number comes back with the answer; the images follow it.
+                const sent = res.ok ? await res.clone().json().catch(() => ({})) : {};
+                const images = {count: fbImages.length, saved: true};
+                if (res.ok && images.count) {
+                    try {
+                        const form = new FormData();
+                        fbImages.forEach(entry => form.append('images', entry.file, entry.file.name));
+                        const up = await apiFetch(`/api/feedback/${sent.public_id}/images`, {method:'POST', body: form});
+                        images.saved = up.ok;
+                    } catch (e) { images.saved = false; }
+                }
+                if (!(window.ActivityLog ? await window.ActivityLog.reportFeedback(res, clientLogs, chatCopy, images) : res.ok)) return;
                 get('fb-title').value = '';
                 get('fb-message').value = '';
+                clearFbImages();
                 if (attachChat) attachChat.checked = false;
                 loadFeedback();
             };
@@ -109,7 +168,7 @@
                     if(data.is_admin) return;
                     const el = document.createElement('div');
                     el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50';
-                    el.innerHTML = `<div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.admin_reply ? `<div class="text-[11px] text-green-300 mt-1">Reply: ${escapeHtml(item.admin_reply)}</div>` : ''}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>`;
+                    el.innerHTML = `<div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.image_count ? `<div class="text-[11px] text-gray-400 mt-1">添付画像: ${item.image_count}枚</div>` : ''}${item.admin_reply ? `<div class="text-[11px] text-green-300 mt-1">Reply: ${escapeHtml(item.admin_reply)}</div>` : ''}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>`;
                     el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.public_id);
                     list.appendChild(el);
                 });
@@ -126,7 +185,7 @@
                             <div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / user:${item.user_id} / ${item.created_at}</div>
                             <div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div>
                             <div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div>
-                            ${[item.log_file && `操作ログ: ${item.log_file}`, item.chat_file && `チャットのコピー: ${item.chat_file}`].filter(Boolean).map(t => `<div class="text-[11px] text-amber-300">${escapeHtml(t)}</div>`).join('')}
+                            ${[item.log_file && `操作ログ: ${item.log_file}`, item.chat_file && `チャットのコピー: ${item.chat_file}`, item.image_dir && `添付画像（${item.image_count}枚）: ${item.image_dir}`].filter(Boolean).map(t => `<div class="text-[11px] text-amber-300">${escapeHtml(t)}</div>`).join('')}
                             <div class="flex items-center gap-2">
                                 <select class="fb-status bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white">
                                     <option value="new">new</option>

@@ -12,7 +12,7 @@
 | `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties` | Android Gradleプロジェクトのルート設定 | SDK・Kotlin・Gradleを更新するとき |
 | `version.properties` | AndroidのversionCodeとversionName | 新しいAndroid版を配布するとき |
 | `app/build.gradle.kts` | 固定applicationId・共有署名・依存関係 | アプリ構成・署名を確認するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | Custom Tabs・HTTPS App Links・添付共有（送信・他アプリの共有シートからの受信、「画像を分割」の共有先）・APKインストール・Activityライフサイクル | ブラウザー認証からの復帰、ファイル表示、共有シート添付、アプリ更新 |
+| `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | Custom Tabs・HTTPS App Links・添付共有（送信・他アプリの共有シートからの受信（ファイルは添付、テキストは入力欄へ追加）、「画像を分割」の共有先）・APKインストール・Activityライフサイクル | ブラウザー認証からの復帰、ファイル表示、共有シート添付、アプリ更新 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/GoogleAuthClient.kt` | Credential ManagerによるGoogle IDトークン取得 | Googleのネイティブログインを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateViewModel.kt` | 更新検出と画面への状態中継・インストール段階 | アプリ更新フローを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateDownloadManager.kt` | プロセス全体で1つの更新状態・APKダウンロード・キャンセル・ダイアログの非表示／再表示 | 更新ダウンロードの状態遷移を変更するとき |

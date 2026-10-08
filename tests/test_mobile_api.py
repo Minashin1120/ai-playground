@@ -409,6 +409,24 @@ class MobileApiTests(unittest.TestCase):
         self.assertTrue(line['final'])
         self.assertEqual(line['transcript'], 'こんにちは')
 
+        # Non-live Grok Voice Transcribe 2.0 goes through the batch /v1/stt helper.
+        with mock.patch.object(target, '_get_model_specific_api_key', return_value='xai-test'), \
+             mock.patch.object(target, '_xai_stt_transcript', return_value=('おはよう', None)) as stt:
+            response = self.call('/sts', token, 'POST', data={'file': clip(), 'model': 'grok-voice-transcribe-2.0-file', 'thread_id': str(own.json['id'])},
+                                 content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 200)
+        line = json.loads(response.data.decode().splitlines()[0])
+        self.assertTrue(line['final'])
+        self.assertTrue(line['transcription_only'])
+        self.assertEqual(line['transcript'], 'おはよう')
+        self.assertEqual(stt.call_args.args[2], 'grok-voice-transcribe-2.0')
+        self.assertEqual(stt.call_args.args[3], 'xai-test')
+        with mock.patch.object(target, '_get_model_specific_api_key', return_value='xai-test'), \
+             mock.patch.object(target, '_xai_stt_transcript', return_value=(None, ('xAI STT error 429: slow down', 429))):
+            response = self.call('/sts', token, 'POST', data={'file': clip(), 'model': 'grok-voice-transcribe-2.0-file', 'thread_id': str(own.json['id'])},
+                                 content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 429)
+
     def test_native_library_and_gems_are_owner_scoped(self):
         token = self.token()
         response = self.call('/upload', token, 'POST',

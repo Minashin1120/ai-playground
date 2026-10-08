@@ -421,6 +421,9 @@ VALID_STT_MODELS = {
     "grok-voice-transcribe-1.0",
 }
 XAI_STT_MODELS = {"grok-voice-transcribe-2.0", "grok-voice-transcribe-1.0"}
+# Model-list entry for the non-live Grok Voice Transcribe 2.0 (recorded clip sent to /sts,
+# transcribed through the batch /v1/stt endpoint) -> the model name xAI expects.
+XAI_STT_FILE_STS_MODELS = {"grok-voice-transcribe-2.0-file": "grok-voice-transcribe-2.0"}
 
 DEFAULT_LLM_TRANSCRIBE_PROMPT = (
     "この音声を正確に文字起こししてください。"

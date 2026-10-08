@@ -235,6 +235,8 @@ data class FeedbackItem(
     val status: String,
     val adminReply: String,
     val createdAt: String,
+    /** Images attached to the feedback (0 for answers of an older server). */
+    val imageCount: Int = 0,
 )
 
 data class StorageUsage(
@@ -405,6 +407,7 @@ fun parseFeedbackItems(json: JSONObject): List<FeedbackItem> {
             status = row.nullableString("status"),
             adminReply = row.nullableString("admin_reply"),
             createdAt = row.nullableString("created_at"),
+            imageCount = row.optInt("image_count"),
         )
     }
 }

@@ -63,6 +63,8 @@ def _apply_per_user_upload_limits():
             endpoint_limit = 32 * 1024 * 1024
         elif endpoint == 'speedtest_upload':
             endpoint_limit = 33 * 1024 * 1024
+        elif endpoint == 'feedback_images':
+            endpoint_limit = 22 * 1024 * 1024
         request.max_content_length = min(global_limit, endpoint_limit) if global_limit else endpoint_limit
         return
     try:

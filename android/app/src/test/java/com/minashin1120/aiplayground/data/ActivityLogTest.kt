@@ -69,5 +69,7 @@ class ActivityLogTest {
         assertEquals("フィードバックとチャットのコピーを送信しました", feedbackSentText(null, true, true, true))
         assertEquals("フィードバック、直近1時間のログ（2件）、チャットのコピーを送信しました", feedbackSentText(2, true, true, true))
         assertEquals("フィードバックを送信しました（ログとチャットのコピーは保存できませんでした）", feedbackSentText(2, false, true, false))
+        assertEquals("フィードバックと画像（2枚）を送信しました", feedbackSentText(null, true, false, false, 2, true))
+        assertEquals("フィードバックを送信しました（画像は保存できませんでした）", feedbackSentText(null, true, false, false, 2, false))
     }
 }

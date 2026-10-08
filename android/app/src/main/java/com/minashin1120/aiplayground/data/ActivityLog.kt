@@ -159,18 +159,24 @@ object ActivityLog {
 
 /**
  * Web `ActivityLog.reportFeedback`: the message after a feedback was accepted. [logCount] is the number of
- * log entries sent (null when the log is off); [chatCopy] is true when a copy of the open chat went with it.
+ * log entries sent (null when the log is off); [chatCopy] is true when a copy of the open chat went with it;
+ * [imageCount] is the number of attached images.
  */
-fun feedbackSentText(logCount: Int?, logsSaved: Boolean, chatCopy: Boolean, chatCopySaved: Boolean): String {
+fun feedbackSentText(
+    logCount: Int?, logsSaved: Boolean, chatCopy: Boolean, chatCopySaved: Boolean,
+    imageCount: Int = 0, imagesSaved: Boolean = true,
+): String {
     val failed = buildList {
         if (logCount != null && !logsSaved) add("ログ")
         if (chatCopy && !chatCopySaved) add("チャットのコピー")
+        if (imageCount > 0 && !imagesSaved) add("画像")
     }
     if (failed.isNotEmpty()) return "フィードバックを送信しました（${failed.joinToString("と")}は保存できませんでした）"
     val sent = buildList {
         add("フィードバック")
         if (logCount != null) add("直近1時間のログ（${logCount}件）")
         if (chatCopy) add("チャットのコピー")
+        if (imageCount > 0) add("画像（${imageCount}枚）")
     }
     return sent.joinToString(if (sent.size > 2) "、" else "と") + "を送信しました"
 }

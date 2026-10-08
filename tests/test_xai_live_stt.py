@@ -96,7 +96,7 @@ class XaiLiveSttTests(unittest.TestCase):
         self.assertEqual(len(assets), 1)
         js = assets[0].read_text(encoding="utf-8")
         self.assertRegex(js, r'id:\s*"grok-voice-transcribe-2.0"[^}]*name:\s*"Grok Voice Transcribe 2.0 \(Live\)"')
-        self.assertIn("'grok-voice-transcribe-2.0'\n        ]);", js)
+        self.assertIn("'grok-voice-transcribe-2.0',\n            'grok-voice-transcribe-2.0-file'\n        ]);", js)
         self.assertIn("isXaiLiveTranscribeModel()", js)
         self.assertIn("Grok は最大100語", read_chat_markup())
         studio = (APP_ROOT / "android" / "app" / "src" / "main" / "java" / "com" / "minashin1120"

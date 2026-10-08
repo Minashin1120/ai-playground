@@ -19,6 +19,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.Manifest
+import android.content.Context
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
@@ -160,6 +168,10 @@ internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsFor
     },
 )
 
+private const val FEEDBACK_IMAGE_MAX_COUNT = 4
+private const val FEEDBACK_IMAGE_MAX_BYTES = 5L * 1024 * 1024
+private const val FEEDBACK_IMAGES_NOTE = "PNG・JPEG・WebP・GIF、4枚まで、1枚5MBまで"
+private val FEEDBACK_IMAGE_TYPES = setOf("image/png", "image/jpeg", "image/webp", "image/gif")
 private const val FEEDBACK_CHAT_COPY_LABEL = "現在開いているチャットのコピーを送信する"
 private const val FEEDBACK_CHAT_COPY_DESCRIPTION = "開いているチャットのメッセージ、回答、思考過程、添付ファイル、チャットの設定と、そのチャットに関するエラーログなどの記録を復号して、不具合の調査用に送信します。送信したコピーは、チャットを削除しても残ります。"
 private const val ACTIVITY_LOG_DESCRIPTION = "この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバックの送信時に直近1時間のログを一緒に送信します。チャットで送信した内容、回答、ファイル、入力欄の文字は記録しません。"
@@ -218,14 +230,54 @@ private fun UsageBar(fraction: Float) {
     }
 }
 
+/** Web `#fb-images-list`: a 64dp thumbnail of an image about to be attached, with a button that removes it. */
+@Composable
+private fun FeedbackImageThumb(uri: Uri, onRemove: () -> Unit) {
+    val context = LocalContext.current
+    val web = LocalWebPalette.current
+    val shape = RoundedCornerShape(4.dp)
+    val bitmap by produceState<ImageBitmap?>(null, uri) {
+        value = withContext(Dispatchers.IO) { runCatching { decodeFeedbackThumb(context, uri) }.getOrNull() }
+    }
+    Box(Modifier.size(64.dp).clip(shape).border(1.dp, web.twBorder(Tw.gray600), shape)) {
+        bitmap?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        Text("×", Modifier.align(Alignment.TopEnd).background(Color.Black.copy(alpha = 0.7f)).clickable(onClick = onRemove)
+            .padding(horizontal = 4.dp, vertical = 2.dp), fontSize = 10.sp, color = Color.White)
+    }
+}
+
+private fun decodeFeedbackThumb(context: Context, uri: Uri): ImageBitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+    var sample = 1
+    while (bounds.outWidth / sample > 256 || bounds.outHeight / sample > 256) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    return context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }?.asImageBitmap()
+}
+
 internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (String) -> Unit): List<SettingsCardSpec> = listOf(
     SettingsCardSpec(SettingsTab.Feedback, "send", "フィードバック送信",
-        "フィードバック送信 タイトル (任意) バグ報告・要望などを入力してください $FEEDBACK_CHAT_COPY_LABEL $FEEDBACK_CHAT_COPY_DESCRIPTION 送信",
+        "フィードバック送信 タイトル (任意) バグ報告・要望などを入力してください $FEEDBACK_CHAT_COPY_LABEL $FEEDBACK_CHAT_COPY_DESCRIPTION 画像を添付 $FEEDBACK_IMAGES_NOTE 送信",
         titleIcon = R.drawable.fa_solid_bug) {
         val web = LocalWebPalette.current
         var title by remember { mutableStateOf("") }
         var message by remember { mutableStateOf("") }
         var attachChat by remember { mutableStateOf(false) }
+        var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
+        val context = LocalContext.current
+        // Web: the type and size are checked when an image is picked; the server checks them again.
+        val pickImages = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { picked ->
+            var next = images
+            for (uri in picked) {
+                val type = context.contentResolver.getType(uri)
+                val size = runCatching { context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } }.getOrNull() ?: -1L
+                if (type == null || type !in FEEDBACK_IMAGE_TYPES) { notify("PNG・JPEG・WebP・GIF の画像を選択してください"); continue }
+                if (size > FEEDBACK_IMAGE_MAX_BYTES) { notify("画像は1枚5MBまでです"); continue }
+                if (next.size >= FEEDBACK_IMAGE_MAX_COUNT) { notify("添付できる画像は4枚までです"); break }
+                next = next + uri
+            }
+            images = next
+        }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingsTextField(title, { title = it.take(200) }, Modifier.fillMaxWidth(), placeholder = "タイトル (任意)")
             SettingsTextField(message, { message = it.take(100_000) }, Modifier.fillMaxWidth(), placeholder = "バグ報告・要望などを入力してください",
@@ -234,14 +286,23 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                 SettingsCheck(FEEDBACK_CHAT_COPY_LABEL, attachChat, { attachChat = it }, boxSize = 14.dp, labelColor = web.text)
                 SettingsDesc(FEEDBACK_CHAT_COPY_DESCRIPTION, Modifier.padding(start = 22.dp, top = 4.dp))
             }
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SettingsSmallButton("画像を添付", { pickImages.launch("image/*") }, icon = R.drawable.fa_solid_image)
+                    SettingsDesc(FEEDBACK_IMAGES_NOTE, Modifier.weight(1f))
+                }
+                if (images.isNotEmpty()) Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    images.forEach { uri -> FeedbackImageThumb(uri) { images = images - uri } }
+                }
+            }
             SettingsSmallButton("送信", {
                 val chatId = state.selected?.id
                 when {
                     message.isBlank() -> notify("フィードバック内容を入力してください")
                     attachChat && chatId == null -> notify("コピーを送信するチャットが開かれていません")
                     else -> {
-                        model.submitFeedback(title.trim(), message.trim(), if (attachChat) chatId else null)
-                        title = ""; message = ""; attachChat = false
+                        model.submitFeedback(title.trim(), message.trim(), if (attachChat) chatId else null, images)
+                        title = ""; message = ""; attachChat = false; images = emptyList()
                     }
                 }
             }, tone = SettingsButtonTone.Blue, enabled = !state.feedbackBusy, fill = true)
@@ -269,6 +330,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                     Text(item.title.ifBlank { "No Title" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = web.text)
                     Text(item.message, fontSize = 14.sp, color = web.text)
                     Text("Status: ${item.status}", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
+                    if (item.imageCount > 0) Text("添付画像: ${item.imageCount}枚", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
                     if (item.adminReply.isNotBlank()) Text("Reply: ${item.adminReply}", fontSize = 11.sp, color = Tw.green300,
                         modifier = Modifier.padding(top = 4.dp))
                     SettingsSmallButton("削除", { deleting = item }, modifier = Modifier.padding(top = 8.dp),

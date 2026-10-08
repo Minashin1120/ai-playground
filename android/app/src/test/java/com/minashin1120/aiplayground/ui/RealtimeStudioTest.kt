@@ -20,7 +20,16 @@ class RealtimeStudioTest {
     fun transcriptionAndTranslationModelsHaveNoVoiceChoice() {
         assertTrue(realtimeVoices("gemini-3.5-transcribe-live").isEmpty())
         assertTrue(realtimeVoices("grok-voice-transcribe-2.0").isEmpty())
+        assertTrue(realtimeVoices("grok-voice-transcribe-2.0-file").isEmpty())
         assertTrue(realtimeVoices("gemini-3.5-live-translate-preview").isEmpty())
+    }
+
+    @Test
+    fun grokFileTranscribeIsAOneShotModelWithoutStreamingControls() {
+        assertTrue("grok-voice-transcribe-2.0-file" in ONE_SHOT_STS_MODELS)
+        assertTrue("grok-voice-transcribe-2.0" !in ONE_SHOT_STS_MODELS)
+        assertEquals("Realtime Speech-to-Text", realtimeModeLabel("grok-voice-transcribe-2.0-file"))
+        assertEquals("xAI 音声ファイル文字起こし（録音単位）", realtimeNote("grok-voice-transcribe-2.0-file"))
     }
 
     @Test

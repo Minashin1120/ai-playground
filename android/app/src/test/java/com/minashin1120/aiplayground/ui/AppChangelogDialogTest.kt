@@ -1,6 +1,7 @@
 package com.minashin1120.aiplayground.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -43,5 +44,20 @@ class AppChangelogDialogTest {
         assertEquals(listOf("1.13.32"), filterAppChangelogSections(sections, "v1.13.32").map { it.version })
         assertEquals(sections, filterAppChangelogSections(sections, "  "))
         assertTrue(filterAppChangelogSections(sections, "missing").isEmpty())
+    }
+
+    @Test
+    fun splitsFlatBulletListIntoChangeItems() {
+        val items = appChangelogItems("- 検索を追加しました。\n  続きの行です。\n\n* **太字**も使えます。")
+
+        assertEquals(listOf("検索を追加しました。 続きの行です。", "**太字**も使えます。"), items)
+    }
+
+    @Test
+    fun fallsBackToMarkdownWhenSectionIsNotAFlatBulletList() {
+        assertNull(appChangelogItems("# 更新履歴\n\n- 変更点"))
+        assertNull(appChangelogItems("- 親\n  - 子"))
+        assertNull(appChangelogItems("説明の段落です。"))
+        assertNull(appChangelogItems("   "))
     }
 }

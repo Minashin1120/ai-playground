@@ -542,8 +542,8 @@ ui/ChatComponents.kt             入力、メッセージ、添付、コード�
 1. 初回だけ、Actionsが `android/ci/debug.keystore` を生成し、同じファイルと `signing-fingerprint.txt` をmainへ記録・送信します。保存に失敗した場合はAPKを作りません。
 2. 固定鍵を含む確定コミットをcheckoutし、JDK 17とAndroid SDK 36を準備します。
 3. JVM通信テスト、lint、debug APK構築、APK署名検証を行い、`app-debug` artifactを30日保存します。
-4. 同じ確定コミットからrelease APKを構築・検証し、`app-release-signed` artifactを90日保存します。
-5. `android/version.properties` のVERSION_NAMEから `android-vX.Y.Z` タグを作り、APK・APK SHA-256・署名証明書SHA-256をGitHub Releaseに掲載します。Webの `v4.8.xxx` タグとは分離しています。
+4. 3と並列に、同じ確定コミットからrelease APKを構築・検証し、`app-release-signed` artifactを90日保存します。
+5. 3と4の両方が成功した後、`android/version.properties` のVERSION_NAMEから `android-vX.Y.Z` タグを作り、APK・APK SHA-256・署名証明書SHA-256をGitHub Releaseに掲載します。Webの `v4.8.xxx` タグとは分離しています。VERSION_NAMEのタグが既に前のコミットにある場合（版を上げないテスト・ビルド設定だけの変更）は、検証だけで終え、Releaseを作りません。
 
 PRでは書き込み・鍵生成・Release作成をしません。固定鍵がまだmainに無い場合は、先にmainのAndroid CIを完了します。Actionsの標準 `GITHUB_TOKEN` だけを使用し、署名用のカスタムSecretは不要です。リポジトリのActions書き込み設定やブランチ保護によってmainへの記録が拒否される場合は、管理者がその権限を整備してください。スクリプトは保護を迂回しません。
 
@@ -564,7 +564,7 @@ SHA-256: 6FA6AD4EAA885046A12123F72D8699300AB6554E22E9AC2D740FC21553B0ECA0
 
 ### 6.6 更新・再実行・ローカル構築
 
-配布する変更では `VERSION_CODE` を必ず増やし、`VERSION_NAME` も未使用の値に変更します。同一タグが別コミットを指す場合はRelease作成を失敗させ、タグや既存APKを上書きしません。同じコミットの再実行では既存Releaseを保持します。手動 **Android Release** は `source_sha` にmain上の確定コミットを指定でき、任意の `tag_name` を入れる場合もVERSION_NAMEと一致する必要があります。鍵が無い状態でReleaseだけを実行しても生成は行いません。
+アプリ本体（`android/app/src/main/`）を変える変更では `VERSION_CODE` を必ず増やし、`VERSION_NAME` も未使用の値に変更します。記録スクリプトは、これを満たさない変更を記録前に止めます。テストやビルド設定だけの変更では版を上げず、Android CIは検証だけを行って次の版の配布に含めます。同一タグが別コミットを指す場合、Android CIはRelease作成を省き、手動 **Android Release** とタグのpushでは失敗させます。どちらもタグや既存APKを上書きしません。同じコミットの再実行では既存Releaseを保持します。手動 **Android Release** は `source_sha` にmain上の確定コミットを指定でき、任意の `tag_name` を入れる場合もVERSION_NAMEと一致する必要があります。鍵が無い状態でReleaseだけを実行しても生成は行いません。
 
 アプリ内更新は起動時（他のアプリや画面から戻ったとき、画面の回転、バブルを開いたときは除く）または設定の「一般」タブからGitHub APIで安定版と固定名のRelease資産を確認し、一時的な通信失敗時は自動再試行します。`app-release.apk` をアプリ専用cacheへダウンロードし、`app-release.apk.sha256` と一致しないAPKはインストーラーへ渡しません。設定からの手動確認では、最新の場合も結果を表示します。ダウンロードには進捗表示・キャンセル・再試行があり、GitHubのページは開きません。Androidの「このアプリからのインストール」が未許可の場合は専用設定へ案内し、戻ると標準インストーラーを再開します。インストール最終確認はAndroidが表示します。
 

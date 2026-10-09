@@ -172,6 +172,21 @@ println("安全")
         assertEquals(MarkdownBlock.Rule, blocks[3])
     }
 
+    @Test fun closedSvgFencesAreDrawnAboveTheCode() {
+        val svg = "<svg viewBox=\"0 0 10 10\"><rect width=\"10\" height=\"10\"/></svg>"
+        assertEquals(
+            listOf(MarkdownBlock.Svg(svg, fromCode = true), MarkdownBlock.Code("svg", svg)),
+            parseMarkdownBlocks("```svg\n$svg\n```"),
+        )
+        // Still streaming: the open fence stays code only.
+        assertEquals(listOf(MarkdownBlock.Code("svg", svg)), parseMarkdownBlocks("```svg\n$svg"))
+        val prolog = "<?xml version=\"1.0\"?>\n$svg"
+        assertEquals(prolog, renderableSvgCode("xml", prolog))
+        assertEquals(null, renderableSvgCode("xml", "<root/>"))
+        assertEquals(null, renderableSvgCode("python", svg))
+        assertEquals(null, renderableSvgCode("svg", "<svg viewBox=\"0 0 1 1\"><rect"))
+    }
+
     @Test fun rawDetailsAndTablesFollowTheBrowser() {
         assertEquals(
             MarkdownBlock.Details("詳しく", listOf(MarkdownBlock.Paragraph("本文です")), open = false),

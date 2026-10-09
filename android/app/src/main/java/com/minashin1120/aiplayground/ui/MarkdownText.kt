@@ -110,8 +110,8 @@ internal sealed interface MarkdownBlock {
     data object Rule : MarkdownBlock
     /** A fence moved to the Canvas panel (Web `.canvas-code-placeholder`). */
     data object CanvasPlaceholder : MarkdownBlock
-    /** Raw `<svg>` markup in the answer, drawn in Web `.svg-render-box`. */
-    data class Svg(val markup: String) : MarkdownBlock
+    /** Raw `<svg>` markup in the answer, drawn in Web `.svg-render-box`; [fromCode] is the drawing above a closed SVG fence. */
+    data class Svg(val markup: String, val fromCode: Boolean = false) : MarkdownBlock
     /** Raw `<details>`: the browser's disclosure (▶ summary), closed unless it has `open`. */
     data class Details(val summary: String, val blocks: List<MarkdownBlock>, val open: Boolean) : MarkdownBlock
     /** Raw `<audio controls src>` written by the server for generated speech / music: an inline player. */
@@ -123,6 +123,18 @@ internal data class ListItem(val blocks: List<MarkdownBlock>, val checked: Boole
 
 private val FENCE = Regex("^( {0,3})(`{3,}|~{3,})(.*)$")
 private val SVG_START = Regex("^ {0,3}<svg[\\s>]", RegexOption.IGNORE_CASE)
+private val SVG_CODE_PROLOG = Regex("^(?:<\\?xml[\\s\\S]*?\\?>\\s*|<!--[\\s\\S]*?-->\\s*|<!DOCTYPE[^>]*>\\s*)*", RegexOption.IGNORE_CASE)
+private val SVG_CODE_ROOT = Regex("^<svg[\\s>]", RegexOption.IGNORE_CASE)
+private val SVG_CODE_END = Regex("</svg\\s*>$", RegexOption.IGNORE_CASE)
+
+/** Web `getRenderableSvgCode`: a closed ```svg fence (or ```xml holding one `<svg>` document) is also drawn. */
+internal fun renderableSvgCode(language: String, text: String): String? {
+    if (language.lowercase() !in setOf("svg", "xml", "image/svg+xml")) return null
+    val code = text.trim()
+    if (code.isEmpty() || code.length > 300_000) return null
+    val body = SVG_CODE_PROLOG.replaceFirst(code, "")
+    return code.takeIf { SVG_CODE_ROOT.containsMatchIn(body) && SVG_CODE_END.containsMatchIn(body) }
+}
 private val HTML_RULE = Regex("^ {0,3}<hr\\s*/?>\\s*$", RegexOption.IGNORE_CASE)
 private val DETAILS_START = Regex("^ {0,3}<details(\\s[^>]*)?>", RegexOption.IGNORE_CASE)
 private val AUDIO_START = Regex("^ {0,3}<audio[\\s>]", RegexOption.IGNORE_CASE)
@@ -272,10 +284,11 @@ private fun parseBlocks(lines: List<String>): List<MarkdownBlock> {
                 val marker = fence.groupValues[2]
                 val language = fence.groupValues[3].trim().substringBefore(' ').take(32)
                 val body = mutableListOf<String>()
+                var closed = false
                 index++
                 while (index < lines.size) {
                     val candidate = lines[index].trimStart()
-                    if (candidate.startsWith(marker) && candidate.trimEnd().all { it == marker[0] }) { index++; break }
+                    if (candidate.startsWith(marker) && candidate.trimEnd().all { it == marker[0] }) { index++; closed = true; break }
                     body += lines[index].let { l -> var drop = 0; while (drop < indent && drop < l.length && l[drop] == ' ') drop++; l.substring(drop) }
                     index++
                 }
@@ -284,7 +297,11 @@ private fun parseBlocks(lines: List<String>): List<MarkdownBlock> {
                     // Web keeps Python runs out of the answer body (they open from the footer button).
                     "pyexec" -> Unit
                     "chat_error" -> result += MarkdownBlock.ChatError(text)
-                    else -> result += MarkdownBlock.Code(language, text)
+                    else -> {
+                        // A fence still open while the answer streams stays code until it closes.
+                        if (closed) renderableSvgCode(language, text)?.let { result += MarkdownBlock.Svg(it, fromCode = true) }
+                        result += MarkdownBlock.Code(language, text)
+                    }
                 }
             }
 
@@ -632,7 +649,8 @@ private fun MarkdownBlock.marginBottom(): Dp = when (this) {
 }
 
 /** Code blocks come from a custom renderer that does not end with a newline. */
-private fun MarkdownBlock.followedByNewline(): Boolean = this !is MarkdownBlock.Code && this !is MarkdownBlock.ChatError
+private fun MarkdownBlock.followedByNewline(): Boolean =
+    this !is MarkdownBlock.Code && this !is MarkdownBlock.ChatError && !(this is MarkdownBlock.Svg && fromCode)
 
 @Composable
 private fun PreWrapBlocks(
@@ -697,7 +715,7 @@ private fun BlockContent(
         )
         MarkdownBlock.Rule -> Box(Modifier.fillMaxWidth().height(1.dp).background(colors.rule))
         MarkdownBlock.CanvasPlaceholder -> CanvasPlaceholderPill(style)
-        is MarkdownBlock.Svg -> SvgRenderBox(block.markup, style)
+        is MarkdownBlock.Svg -> SvgRenderBox(block.markup, style, block.fromCode)
         is MarkdownBlock.Details -> DetailsBlock(block, style, colors, loader, onOpen, startCollapsed)
         is MarkdownBlock.Audio -> InlineAudioPlayer(block.src, onOpen)
     }
@@ -1431,11 +1449,11 @@ private fun CanvasPlaceholderPill(style: TextStyle) {
 
 /** Web `.svg-render-box`: the drawing on a light, checkered card; it never loads external references. */
 @Composable
-private fun SvgRenderBox(markup: String, style: TextStyle) {
+private fun SvgRenderBox(markup: String, style: TextStyle, fromCode: Boolean = false) {
     val svg = remember(markup) {
         if (markup.length > 300_000) null else runCatching { com.caverock.androidsvg.SVG.getFromString(markup) }.getOrNull()
     }
-    if (svg == null) { Text(markup, style = style); return }
+    if (svg == null && !fromCode) { Text(markup, style = style); return }
     val shape = RoundedCornerShape(12.dp)
     val density = LocalDensity.current.density
     BoxWithConstraints(
@@ -1444,11 +1462,14 @@ private fun SvgRenderBox(markup: String, style: TextStyle) {
     ) {
         val available = constraints.maxWidth.coerceAtLeast(1)
         val bitmap = remember(markup, available) {
+            if (svg == null) return@remember null
             runCatching {
                 val box = svg.documentViewBox
                 val docW = svg.documentWidth.takeIf { it > 0 } ?: box?.width() ?: 300f
                 val docH = svg.documentHeight.takeIf { it > 0 } ?: box?.height() ?: 150f
-                val scale = (available / (docW * density)).coerceAtMost(1f) * density
+                // Web `.svg-code-fill`: a fence's drawing without a fixed width spans the box.
+                val fill = fromCode && svg.documentWidth <= 0f
+                val scale = (available / (docW * density)).let { if (fill) it else it.coerceAtMost(1f) } * density
                 val w = (docW * scale).toInt().coerceIn(1, 4096)
                 val h = (docH * scale).toInt().coerceIn(1, 4096)
                 svg.setDocumentWidth(w.toFloat()); svg.setDocumentHeight(h.toFloat())
@@ -1456,6 +1477,8 @@ private fun SvgRenderBox(markup: String, style: TextStyle) {
             }.getOrNull()
         }
         if (bitmap != null) androidx.compose.foundation.Image(bitmap.asImageBitmap(), contentDescription = null)
+        // Web `.svg-code-render[data-svg-state="error"]`: the code block below still shows the source.
+        else if (fromCode) Text("SVGを描画できませんでした", style = style.copy(fontSize = 12.sp, color = Color(0xFF64748B)), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         else Text(markup, style = style)
     }
 }

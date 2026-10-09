@@ -1045,9 +1045,68 @@
             }
             // marked が \( \[ のバックスラッシュを落とすため、数式を退避してから parse する
             const protectedMath = protectMathSegments(source);
-            const parsed = window.marked.parse(protectedMath.text);
+            // ストリーミング中の閉じていない SVG コードブロックは描画しない（コードの renderer が参照する）
+            markdownOpenFenceBody = /<\/svg/i.test(source) ? findOpenMarkdownFenceBody(source) : null;
+            let parsed = '';
+            try {
+                parsed = window.marked.parse(protectedMath.text);
+            } finally {
+                markdownOpenFenceBody = null;
+            }
             const restored = restoreMathSegments(parsed, protectedMath.blocks, opts);
             return window.DOMPurify.sanitize(restored);
+        }
+        // Body of the fenced block still open at the end of the text (an answer that is streaming), or null.
+        let markdownOpenFenceBody = null;
+        function findOpenMarkdownFenceBody(text) {
+            const lines = String(text || '').split(/\r?\n/);
+            let fence = null;
+            let body = [];
+            for (const line of lines) {
+                if (!fence) {
+                    const match = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
+                    if (match && !(match[1][0] === '`' && match[2].includes('`'))) {
+                        fence = match[1];
+                        body = [];
+                    }
+                    continue;
+                }
+                const trimmed = line.trim();
+                if (trimmed.length >= fence.length && trimmed[0] === fence[0] && /^(`+|~+)$/.test(trimmed)) {
+                    fence = null;
+                    continue;
+                }
+                body.push(line);
+            }
+            return fence ? body.join('\n') : null;
+        }
+        const SVG_CODE_RENDER_MAX_CHARS = 300000;
+        // A closed ```svg (or ```xml holding one <svg> document) fence: the markup to draw, or ''.
+        function getRenderableSvgCode(lang, raw) {
+            const token = String(lang || '').trim().toLowerCase();
+            if (token !== 'svg' && token !== 'xml' && token !== 'image/svg+xml') return '';
+            const code = String(raw || '').trim();
+            if (!code || code.length > SVG_CODE_RENDER_MAX_CHARS) return '';
+            const body = code.replace(/^(?:<\?xml[\s\S]*?\?>\s*|<!--[\s\S]*?-->\s*|<!DOCTYPE[^>]*>\s*)*/i, '');
+            if (!/^<svg[\s>]/i.test(body) || !/<\/svg\s*>$/i.test(body)) return '';
+            if (markdownOpenFenceBody !== null
+                && markdownOpenFenceBody.replace(/\s+/g, '') === code.replace(/\s+/g, '')) return '';
+            return code;
+        }
+        // Drawn through <img>, so scripts, external references, styles and ids stay inside the drawing.
+        function buildSvgCodeRenderHtml(code, key) {
+            let fill = true;
+            const markup = String(code || '').replace(/<svg\b([^>]*)>/i, (tag, attrs) => {
+                let next = attrs;
+                // An <img> parses SVG as XML: the root needs the SVG namespace (and xlink when used).
+                if (!/\sxmlns\s*=/i.test(next)) next = ` xmlns="http://www.w3.org/2000/svg"${next}`;
+                if (/\bxlink:/i.test(code) && !/\sxmlns:xlink\s*=/i.test(next)) next = ` xmlns:xlink="http://www.w3.org/1999/xlink"${next}`;
+                const width = next.match(/\swidth\s*=\s*["']?\s*([\d.]+)\s*(px)?\s*(?:["'\s/]|$)/i);
+                if (width && Number(width[1]) > 0) fill = false;
+                return `<svg${next}>`;
+            });
+            const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+            return `<div class="svg-render-box svg-code-render" data-svg-key="${escapeHtml(String(key || ''))}"><img src="${src}" alt="SVG"${fill ? ' class="svg-code-fill"' : ''} decoding="async"></div>`;
         }
         function getCanvasModeElements() {
             const panel = get('canvas-panel');

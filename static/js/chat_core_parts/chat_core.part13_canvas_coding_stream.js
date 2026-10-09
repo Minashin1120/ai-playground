@@ -345,15 +345,38 @@
                     if (old) fresh.replaceWith(old);
                     else newMathSegments.push(fresh);
                 });
+                restoreSvgCodeRenders(template.content, collectSvgCodeRenders(container));
                 container.replaceChildren(template.content);
                 wrapRenderedSvgBoxes(container);
                 queueHighlight(container, canvasData.renderText);
                 queueIncrementalMathTypeset(newMathSegments);
                 return;
             }
+            const preservedSvgRenders = collectSvgCodeRenders(container);
             container.innerHTML = sanitizeMarkdownHtml(canvasData.renderText);
+            restoreSvgCodeRenders(container, preservedSvgRenders);
             wrapRenderedSvgBoxes(container);
             queueMessageDecorations(container, canvasData.renderText);
+        }
+        // Drawn SVG code blocks keep their <img> across stream re-renders so the drawing does not flicker.
+        function collectSvgCodeRenders(root) {
+            const map = new Map();
+            if (!root || typeof root.querySelectorAll !== 'function') return map;
+            root.querySelectorAll('.svg-code-render[data-svg-key]').forEach((el) => {
+                const key = el.getAttribute('data-svg-key');
+                if (key && !map.has(key)) map.set(key, el);
+            });
+            return map;
+        }
+        function restoreSvgCodeRenders(root, preserved) {
+            if (!root || !preserved || !preserved.size || typeof root.querySelectorAll !== 'function') return;
+            root.querySelectorAll('.svg-code-render[data-svg-key]').forEach((fresh) => {
+                const key = fresh.getAttribute('data-svg-key');
+                const old = key ? preserved.get(key) : null;
+                if (!old) return;
+                preserved.delete(key);
+                fresh.replaceWith(old);
+            });
         }
         function wrapRenderedSvgBoxes(root) {
             if (!root || typeof root.querySelectorAll !== 'function') return;

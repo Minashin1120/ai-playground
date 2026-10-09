@@ -62,6 +62,11 @@
                 if (!el || el.tagName !== 'IMG') return;
                 const src = el.currentSrc || el.src || '';
                 if (!isFileUrl(src)) {
+                    const svgFrame = el.closest && el.closest('.svg-code-render');
+                    if (svgFrame) {
+                        svgFrame.dataset.svgState = 'error';
+                        return;
+                    }
                     const frame = el.closest && el.closest('.chat-image-frame');
                     if (frame) {
                         frame.dataset.chatImageState = 'error';
@@ -10732,7 +10737,9 @@
                             ? ''
                             : `<button class="coding-target-btn" data-code="${enc}" data-code-key="${codeKey}" data-coding-lang="${escapeHtml(l || 'text')}" aria-pressed="false" title="Coding Modeの編集対象に指定" aria-label="編集対象に指定"><i class="fas fa-quote-right"></i></button>`;
                         const langLabel = (l || 'TEXT') + (isSuspicious ? ' <span class="suspicious-badge" title="polyfill.io などの危険スクリプトURLを検出しました">⚠</span>' : '');
-                        return `<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${langLabel}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="展開" aria-label="展開"><i class="fas fa-chevron-down"></i></button>${codingBtn}${previewBtn}${downloadBtn}<button class="copy-btn" data-code="${enc}" title="コピー" aria-label="コピー"><i class="fas fa-copy"></i></button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
+                        const svgCode = getRenderableSvgCode(lowerLang, raw);
+                        const svgRender = svgCode ? buildSvgCodeRenderHtml(svgCode, codeKey) : '';
+                        return `${svgRender}<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${langLabel}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="展開" aria-label="展開"><i class="fas fa-chevron-down"></i></button>${codingBtn}${previewBtn}${downloadBtn}<button class="copy-btn" data-code="${enc}" title="コピー" aria-label="コピー"><i class="fas fa-copy"></i></button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
                     },
                     link(h, t, x) { return `<a href="${h}" title="${t || ''}" target="_blank">${x}</a>`; },
                     image(h, t, x) { return buildChatImageHtml(h, { alt: x, title: t }); }
@@ -18719,9 +18726,68 @@
             }
             // marked が \( \[ のバックスラッシュを落とすため、数式を退避してから parse する
             const protectedMath = protectMathSegments(source);
-            const parsed = window.marked.parse(protectedMath.text);
+            // ストリーミング中の閉じていない SVG コードブロックは描画しない（コードの renderer が参照する）
+            markdownOpenFenceBody = /<\/svg/i.test(source) ? findOpenMarkdownFenceBody(source) : null;
+            let parsed = '';
+            try {
+                parsed = window.marked.parse(protectedMath.text);
+            } finally {
+                markdownOpenFenceBody = null;
+            }
             const restored = restoreMathSegments(parsed, protectedMath.blocks, opts);
             return window.DOMPurify.sanitize(restored);
+        }
+        // Body of the fenced block still open at the end of the text (an answer that is streaming), or null.
+        let markdownOpenFenceBody = null;
+        function findOpenMarkdownFenceBody(text) {
+            const lines = String(text || '').split(/\r?\n/);
+            let fence = null;
+            let body = [];
+            for (const line of lines) {
+                if (!fence) {
+                    const match = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
+                    if (match && !(match[1][0] === '`' && match[2].includes('`'))) {
+                        fence = match[1];
+                        body = [];
+                    }
+                    continue;
+                }
+                const trimmed = line.trim();
+                if (trimmed.length >= fence.length && trimmed[0] === fence[0] && /^(`+|~+)$/.test(trimmed)) {
+                    fence = null;
+                    continue;
+                }
+                body.push(line);
+            }
+            return fence ? body.join('\n') : null;
+        }
+        const SVG_CODE_RENDER_MAX_CHARS = 300000;
+        // A closed ```svg (or ```xml holding one <svg> document) fence: the markup to draw, or ''.
+        function getRenderableSvgCode(lang, raw) {
+            const token = String(lang || '').trim().toLowerCase();
+            if (token !== 'svg' && token !== 'xml' && token !== 'image/svg+xml') return '';
+            const code = String(raw || '').trim();
+            if (!code || code.length > SVG_CODE_RENDER_MAX_CHARS) return '';
+            const body = code.replace(/^(?:<\?xml[\s\S]*?\?>\s*|<!--[\s\S]*?-->\s*|<!DOCTYPE[^>]*>\s*)*/i, '');
+            if (!/^<svg[\s>]/i.test(body) || !/<\/svg\s*>$/i.test(body)) return '';
+            if (markdownOpenFenceBody !== null
+                && markdownOpenFenceBody.replace(/\s+/g, '') === code.replace(/\s+/g, '')) return '';
+            return code;
+        }
+        // Drawn through <img>, so scripts, external references, styles and ids stay inside the drawing.
+        function buildSvgCodeRenderHtml(code, key) {
+            let fill = true;
+            const markup = String(code || '').replace(/<svg\b([^>]*)>/i, (tag, attrs) => {
+                let next = attrs;
+                // An <img> parses SVG as XML: the root needs the SVG namespace (and xlink when used).
+                if (!/\sxmlns\s*=/i.test(next)) next = ` xmlns="http://www.w3.org/2000/svg"${next}`;
+                if (/\bxlink:/i.test(code) && !/\sxmlns:xlink\s*=/i.test(next)) next = ` xmlns:xlink="http://www.w3.org/1999/xlink"${next}`;
+                const width = next.match(/\swidth\s*=\s*["']?\s*([\d.]+)\s*(px)?\s*(?:["'\s/]|$)/i);
+                if (width && Number(width[1]) > 0) fill = false;
+                return `<svg${next}>`;
+            });
+            const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
+            return `<div class="svg-render-box svg-code-render" data-svg-key="${escapeHtml(String(key || ''))}"><img src="${src}" alt="SVG"${fill ? ' class="svg-code-fill"' : ''} decoding="async"></div>`;
         }
         function getCanvasModeElements() {
             const panel = get('canvas-panel');
@@ -19617,15 +19683,38 @@
                     if (old) fresh.replaceWith(old);
                     else newMathSegments.push(fresh);
                 });
+                restoreSvgCodeRenders(template.content, collectSvgCodeRenders(container));
                 container.replaceChildren(template.content);
                 wrapRenderedSvgBoxes(container);
                 queueHighlight(container, canvasData.renderText);
                 queueIncrementalMathTypeset(newMathSegments);
                 return;
             }
+            const preservedSvgRenders = collectSvgCodeRenders(container);
             container.innerHTML = sanitizeMarkdownHtml(canvasData.renderText);
+            restoreSvgCodeRenders(container, preservedSvgRenders);
             wrapRenderedSvgBoxes(container);
             queueMessageDecorations(container, canvasData.renderText);
+        }
+        // Drawn SVG code blocks keep their <img> across stream re-renders so the drawing does not flicker.
+        function collectSvgCodeRenders(root) {
+            const map = new Map();
+            if (!root || typeof root.querySelectorAll !== 'function') return map;
+            root.querySelectorAll('.svg-code-render[data-svg-key]').forEach((el) => {
+                const key = el.getAttribute('data-svg-key');
+                if (key && !map.has(key)) map.set(key, el);
+            });
+            return map;
+        }
+        function restoreSvgCodeRenders(root, preserved) {
+            if (!root || !preserved || !preserved.size || typeof root.querySelectorAll !== 'function') return;
+            root.querySelectorAll('.svg-code-render[data-svg-key]').forEach((fresh) => {
+                const key = fresh.getAttribute('data-svg-key');
+                const old = key ? preserved.get(key) : null;
+                if (!old) return;
+                preserved.delete(key);
+                fresh.replaceWith(old);
+            });
         }
         function wrapRenderedSvgBoxes(root) {
             if (!root || typeof root.querySelectorAll !== 'function') return;

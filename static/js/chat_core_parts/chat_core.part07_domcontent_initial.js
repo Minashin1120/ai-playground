@@ -819,7 +819,9 @@
                             ? ''
                             : `<button class="coding-target-btn" data-code="${enc}" data-code-key="${codeKey}" data-coding-lang="${escapeHtml(l || 'text')}" aria-pressed="false" title="Coding Modeの編集対象に指定" aria-label="編集対象に指定"><i class="fas fa-quote-right"></i></button>`;
                         const langLabel = (l || 'TEXT') + (isSuspicious ? ' <span class="suspicious-badge" title="polyfill.io などの危険スクリプトURLを検出しました">⚠</span>' : '');
-                        return `<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${langLabel}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="展開" aria-label="展開"><i class="fas fa-chevron-down"></i></button>${codingBtn}${previewBtn}${downloadBtn}<button class="copy-btn" data-code="${enc}" title="コピー" aria-label="コピー"><i class="fas fa-copy"></i></button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
+                        const svgCode = getRenderableSvgCode(lowerLang, raw);
+                        const svgRender = svgCode ? buildSvgCodeRenderHtml(svgCode, codeKey) : '';
+                        return `${svgRender}<div class="code-wrapper collapsed" data-collapsed="true" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang">${langLabel}</span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="展開" aria-label="展開"><i class="fas fa-chevron-down"></i></button>${codingBtn}${previewBtn}${downloadBtn}<button class="copy-btn" data-code="${enc}" title="コピー" aria-label="コピー"><i class="fas fa-copy"></i></button></div></div><div class="code-body"><pre><code class="hljs language-${l}">${h}</code></pre></div></div>`;
                     },
                     link(h, t, x) { return `<a href="${h}" title="${t || ''}" target="_blank">${x}</a>`; },
                     image(h, t, x) { return buildChatImageHtml(h, { alt: x, title: t }); }

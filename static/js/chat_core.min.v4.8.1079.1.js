@@ -22,9 +22,10 @@ color:#bfdbfe;font-weight:700;line-height:1.3">\u4E00\u6642\u7684\u306B\u6DF7\u9
 l&&c.setAttribute("data-file-name",String(l)),c},"buildBusyWarning"),r=o(l=>String(l||"").split("?")[0].
 replace("/files/thumb/","/files/"),"fullFileUrl");document.addEventListener("error",l=>{const c=l.target;
 if(!c||c.tagName!=="IMG")return;const m=c.currentSrc||c.src||"";if(!t(m)){const _=c.closest&&c.closest(
-".chat-image-frame");if(_){_.dataset.chatImageState="error",_.removeAttribute("aria-busy");const C=_.
-querySelector(".chat-image-loading"),L=C&&C.querySelector("span");L&&(L.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
-const $=C&&C.querySelector("i");$&&($.className="fas fa-image")}return}l.stopImmediatePropagation(),
+".svg-code-render");if(_){_.dataset.svgState="error";return}const C=c.closest&&c.closest(".chat-imag\
+e-frame");if(C){C.dataset.chatImageState="error",C.removeAttribute("aria-busy");const L=C.querySelector(
+".chat-image-loading"),$=L&&L.querySelector("span");$&&($.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
+const R=L&&L.querySelector("i");R&&(R.className="fas fa-image")}return}l.stopImmediatePropagation(),
 l.preventDefault();const f=String(m).split("?")[0],b=c.getAttribute("data-viewer-filename")||f.split(
 "/").pop(),y=o(_=>{const C=c.closest&&c.closest(".chat-image-frame");C&&(C.dataset.chatImageState="f\
 ailed",C.removeAttribute("aria-busy"));const L=i(b,!!_);try{c.replaceWith(L)}catch{}},"showWarning"),
@@ -518,11 +519,11 @@ ransparent",a.appendChild(i.content.cloneNode(!0)),document.body.appendChild(a);
 from(a.querySelectorAll("*")).slice(0,5e3)],l=[],c=new Map;let m=0;const f=o(k=>Array.from(k.childNodes||
 []).reduce((_,C)=>C&&C.nodeType===Node.TEXT_NODE?_+String(C.textContent||"").replace(/\s+/g," ").trim().
 length:_,0),"directTextLength");r.forEach(k=>{if(!k||k===a||!k.style)return;const _=window.getComputedStyle(
-k),C=f(k);if(C>0){const $=parseRichPasteCssColor(_.color);if($&&$.a>=.5){const F=richPasteColorCss($),
-X=c.get(F)||{color:$,weight:0};X.weight+=C,c.set(F,X),m+=C}}if(!!(String(k.style.backgroundColor||"").
+k),C=f(k);if(C>0){const $=parseRichPasteCssColor(_.color);if($&&$.a>=.5){const R=richPasteColorCss($),
+X=c.get(R)||{color:$,weight:0};X.weight+=C,c.set(R,X),m+=C}}if(!!(String(k.style.backgroundColor||"").
 trim()||String(k.style.background||"").trim())){const $=parseRichPasteCssColor(_.backgroundColor);if($&&
-$.a>=.72){const F=String(k.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:$,weight:Math.
-max(1,F)})}}});const b=Array.from(c.values()).sort((k,_)=>_.weight-k.weight),y=b.length?b[0].color:null,
+$.a>=.72){const R=String(k.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:$,weight:Math.
+max(1,R)})}}});const b=Array.from(c.values()).sort((k,_)=>_.weight-k.weight),y=b.length?b[0].color:null,
 v=b.reduce((k,_)=>k+(richPasteColorLuminance(_.color)>=.6?_.weight:0),0);l.sort((k,_)=>_.weight-k.weight);
 let w=l.length?l[0].color:null;return w||(w=m>0&&v/m>=.55?{r:11,g:11,b:12,a:1}:t),makeRichPasteTheme(
 w,y||n)}catch{return makeRichPasteTheme(t,n)}finally{a.parentNode&&a.parentNode.removeChild(a)}},"de\
@@ -899,16 +900,16 @@ nd); font-weight: bold; }
                 </div>
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const v=new f(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),w=v.internal.pageSize.getWidth(),k=v.internal.
-pageSize.getHeight(),_=794,C=Math.floor(k/w*_),L=y.scrollHeight||y.offsetHeight;let $=0,F=!0;const X=Math.
-ceil(L/C);let U=0;for(;$<L;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const R=Math.min(C,L-$),ee=(await new Promise((Pe,Le)=>{const ge=setTimeout(
-()=>Le(new Error("PDF chunk rendering timed out")),12e4);b(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
-background,logging:!1,imageTimeout:5e3,x:0,y:$,width:_,height:R,windowWidth:_,scrollX:0,scrollY:0,signal:richPasteAbortController?
-richPasteAbortController.signal:void 0,onclone:o(de=>{prepareRichPastePdfClone(de,c);const H=de.querySelector(
-".pdf-root-wrapper");H&&(H.style.position="relative",H.style.left="0",H.style.top="0")},"onclone")}).
-then(de=>{clearTimeout(ge),Pe(de)}).catch(de=>{clearTimeout(ge),Le(de)})})).toDataURL("image/jpeg",.95),
-we=v.getImageProperties(ee),ce=Math.min(k,we.height*w/we.width);F||v.addPage(),v.addImage(ee,"JPEG",
-0,0,w,ce),F=!1,$+=R,U++;const Te=Math.min(100,15+Math.round(U/X*85));i(Te),await new Promise(Pe=>setTimeout(
+pageSize.getHeight(),_=794,C=Math.floor(k/w*_),L=y.scrollHeight||y.offsetHeight;let $=0,R=!0;const X=Math.
+ceil(L/C);let W=0;for(;$<L;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
+"Aborted","AbortError");const B=Math.min(C,L-$),ee=(await new Promise((Pe,Me)=>{const ge=setTimeout(
+()=>Me(new Error("PDF chunk rendering timed out")),12e4);b(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
+background,logging:!1,imageTimeout:5e3,x:0,y:$,width:_,height:B,windowWidth:_,scrollX:0,scrollY:0,signal:richPasteAbortController?
+richPasteAbortController.signal:void 0,onclone:o(de=>{prepareRichPastePdfClone(de,c);const q=de.querySelector(
+".pdf-root-wrapper");q&&(q.style.position="relative",q.style.left="0",q.style.top="0")},"onclone")}).
+then(de=>{clearTimeout(ge),Pe(de)}).catch(de=>{clearTimeout(ge),Me(de)})})).toDataURL("image/jpeg",.95),
+we=v.getImageProperties(ee),ce=Math.min(k,we.height*w/we.width);R||v.addPage(),v.addImage(ee,"JPEG",
+0,0,w,ce),R=!1,$+=B,W++;const Ce=Math.min(100,15+Math.round(W/X*85));i(Ce),await new Promise(Pe=>setTimeout(
 Pe,100))}return i(100),{blob:v.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=o(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -1907,8 +1908,8 @@ ordKey"),l=o(v=>{const w=performance.now();if(!(w-e.lastMoveSample<80)){if(e.las
 sqrt(k*k+_*_)/(C/1e3);e.speedMax=Math.max(e.speedMax,L),e.speedSum+=L,e.speedSamples+=1}}e.lastMove=
 {x:v.clientX,y:v.clientY,t:w}}},"recordMove"),c=o(()=>{const v=Math.max(1,performance.now()-e.windowStart),
 w=e.clickTimes.length,k=e.keyTimes.length,_=e.speedSamples?e.speedSum/e.speedSamples:0;let C=0,L=1;if(e.
-clickIntervals.length>=3){const $=e.clickIntervals.reduce((X,U)=>X+U,0)/e.clickIntervals.length,F=e.
-clickIntervals.reduce((X,U)=>X+Math.pow(U-$,2),0)/e.clickIntervals.length;C=$,L=$>0?Math.sqrt(F)/$:1}
+clickIntervals.length>=3){const $=e.clickIntervals.reduce((X,W)=>X+W,0)/e.clickIntervals.length,R=e.
+clickIntervals.reduce((X,W)=>X+Math.pow(W-$,2),0)/e.clickIntervals.length;C=$,L=$>0?Math.sqrt(R)/$:1}
 return{window_ms:Math.round(v),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
 fastKeys,untrusted_input:!!e.untrustedInput,click_burst:w,key_burst:k,avg_click_ms:C,click_cv:L,event_rate:(e.
 clicks+e.keys+e.moves)/(v/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:_}},"computeStats"),m=o(
@@ -2139,8 +2140,8 @@ hypot(n.clientX-i.clientX,n.clientY-i.clientY)||1,s:z,mx:(n.clientX+i.clientX)/2
 1){s={startX:t.clientX,startY:t.clientY,dx:vX,dy:vY};return}s={startX:t.clientX,startY:t.clientY,lastX:t.
 clientX,dx:0,dy:0,vx:0,dir:0,active:!1,resist:!1,adjacent:null,lastTime:Date.now()}}o(onViewerTouchStart,
 "onViewerTouchStart");function onViewerTouchMove(e){if(e.touches.length>=2){if(!p){const $=e.touches[0],
-F=e.touches[1];p={d:Math.hypot($.clientX-F.clientX,$.clientY-F.clientY)||1,s:z,mx:($.clientX+F.clientX)/
-2,my:($.clientY+F.clientY)/2,x:vX,y:vY},s=null}const v=e.touches[0],w=e.touches[1],k=Math.hypot(v.clientX-
+R=e.touches[1];p={d:Math.hypot($.clientX-R.clientX,$.clientY-R.clientY)||1,s:z,mx:($.clientX+R.clientX)/
+2,my:($.clientY+R.clientY)/2,x:vX,y:vY},s=null}const v=e.touches[0],w=e.touches[1],k=Math.hypot(v.clientX-
 w.clientX,v.clientY-w.clientY)||1,_=(v.clientX+w.clientX)/2,C=(v.clientY+w.clientY)/2;z=Math.min(6,Math.
 max(1,p.s*k/p.d)),z<=1.0001?(z=1,vX=0,vY=0):(vX=p.x+_-p.mx,vY=p.y+C-p.my);const L=get("image-viewer-\
 img");if(!L)return;e.preventDefault(),L.style.transition="none",applyViewerTransform();return}if(p)return;
@@ -2839,7 +2840,7 @@ from(L&&L.options||[]).forEach($=>{$.disabled=!1}),e==="gemini-2.5-flash-native-
 "Gemini 3.8 Flash Live\u306F\u56FA\u5B9A\u30EC\u30A4\u30C6\u30F3\u30B7\u306ELive API\u30E2\u30C7\u30EB\uFF08Thinking level\u975E\u5BFE\u5FDC\uFF09");else if(e===
 "gemini-3.8-live-extended-thinking"){b&&(b.textContent="Gemini 3.8 Live Extended Thinking\u306Flow / medi\
 um / high\u306E\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u63A8\u8AD6\u306B\u5BFE\u5FDC");const $=get(
-"sts-thinking-level");Array.from($&&$.options||[]).forEach(F=>{F.disabled=F.value==="minimal"}),$&&![
+"sts-thinking-level");Array.from($&&$.options||[]).forEach(R=>{R.disabled=R.value==="minimal"}),$&&![
 "low","medium","high"].includes($.value)&&($.value="medium")}e==="gemini-3.5-live-translate-preview"&&
 (w&&(w.textContent="Realtime Translation"),f&&f.classList.add("hidden"),y&&y.classList.add("hidden"),
 _&&_.classList.remove("hidden"),b&&(b.textContent="70\u4EE5\u4E0A\u306E\u8A00\u8A9E\u306B\u5BFE\u5FDC\u3059\u308B\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u97F3\u58F0\u7FFB\u8A33\uFF08Think\u975E\u5BFE\u5FDC\u30FB\u97F3\u58F0\u9078\u629E\u4E0D\u53EF\uFF09"))}

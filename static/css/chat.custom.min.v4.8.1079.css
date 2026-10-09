@@ -128,6 +128,26 @@
             height: auto;
             margin: 0 auto;
         }
+        .prose .svg-code-render > img {
+            display: block;
+            width: auto;
+            max-width: 100%;
+            height: auto;
+            margin: 0 auto;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            cursor: default;
+        }
+        .prose .svg-code-render > img.svg-code-fill { width: 100%; }
+        .prose .svg-code-render[data-svg-state="error"] > img { display: none; }
+        .prose .svg-code-render[data-svg-state="error"]::after {
+            content: "SVGを描画できませんでした";
+            display: block;
+            text-align: center;
+            font-size: 0.75rem;
+            color: #64748b;
+        }
         
         /* Code Wrapper & Compact Icon Actions */
         .code-wrapper { margin: 0.75em 0; border-radius: 0.65rem; border: 1px solid rgba(148,163,184,0.16); background: rgba(10, 16, 40, 0.7); box-shadow: var(--shadow); position: relative; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); overflow: hidden; }

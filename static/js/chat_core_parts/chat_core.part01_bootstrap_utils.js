@@ -62,6 +62,11 @@
                 if (!el || el.tagName !== 'IMG') return;
                 const src = el.currentSrc || el.src || '';
                 if (!isFileUrl(src)) {
+                    const svgFrame = el.closest && el.closest('.svg-code-render');
+                    if (svgFrame) {
+                        svgFrame.dataset.svgState = 'error';
+                        return;
+                    }
                     const frame = el.closest && el.closest('.chat-image-frame');
                     if (frame) {
                         frame.dataset.chatImageState = 'error';

@@ -42,6 +42,8 @@ import com.minashin1120.aiplayground.data.FeedbackItem
 import com.minashin1120.aiplayground.data.HistoryCacheMode
 import com.minashin1120.aiplayground.data.formatByteSize
 import com.minashin1120.aiplayground.isToolbarNotificationEnabled
+import com.minashin1120.aiplayground.isVibrationEnabled
+import com.minashin1120.aiplayground.setVibrationEnabled
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.minashin1120.aiplayground.setToolbarNotificationEnabled
@@ -58,7 +60,7 @@ internal class SettingsExtras(
 
 /** ANDROID_ONLY.md: the "Android" card at the end of the General tab (account, app update, bubble). */
 internal fun androidCard(state: ChatState, extras: SettingsExtras): SettingsCardSpec =
-    SettingsCardSpec(SettingsTab.General, "android", "Android", "Android アカウント アプリ更新 更新を確認 バブル ツールバー通知 通知パネル 画像を分割") {
+    SettingsCardSpec(SettingsTab.General, "android", "Android", "Android アカウント アプリ更新 更新を確認 バブル ツールバー通知 通知パネル 画像を分割 バイブレーション 振動") {
         val update = extras.appUpdate
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsFieldLabel("アカウント")
@@ -87,6 +89,7 @@ internal fun androidCard(state: ChatState, extras: SettingsExtras): SettingsCard
                 extras.onBubble, fill = true,
             )
             ToolbarNotificationSetting(extras.onNotify)
+            VibrationSetting()
         }
     }
 
@@ -109,6 +112,19 @@ private fun ToolbarNotificationSetting(onNotify: (String) -> Unit) {
         } else permission.launch(Manifest.permission.POST_NOTIFICATIONS)
     })
     SettingsDesc("通知パネルに常駐する通知から「画像を分割」を開きます。クイック設定の「画像を分割」タイルと同じ機能です。")
+}
+
+/** ANDROID_ONLY.md: the vibration switch (send and answer-complete pulses; saved on the device at once). */
+@Composable
+private fun VibrationSetting() {
+    val context = LocalContext.current
+    var enabled by remember { mutableStateOf(isVibrationEnabled(context)) }
+    SettingsFieldLabel("バイブレーション", Modifier.padding(top = 4.dp))
+    SettingsCheck("送信時と回答完了時に振動する", enabled, { on ->
+        setVibrationEnabled(context, on)
+        enabled = on
+    })
+    SettingsDesc("オフにすると、メッセージの送信時と回答の完了時に端末を振動させません。")
 }
 
 internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsForm, extras: SettingsExtras): List<SettingsCardSpec> = listOf(

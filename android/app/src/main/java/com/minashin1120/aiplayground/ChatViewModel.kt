@@ -357,6 +357,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var pairingJob: Job? = null
     private var navigationJob: Job? = null
     private var streamJob: Job? = null
+    /** Web `suppressedPendingJobIds`: jobs the user stopped are not rejoined while the server winds them down. */
+    private val suppressedPendingJobIds = mutableSetOf<String>()
+    private var stoppedJobStillRunning = false
     private var uploadJob: Job? = null
     private var heartbeatJob: Job? = null
     private var connectionMonitorJob: Job? = null
@@ -2059,6 +2062,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "pending_job" to !reply.isNull("pending_job"))
         if (state.value.selected?.id != id) return
         if (inPlace && (state.value.streaming || state.value.busy)) return
+        val pendingJobId = reply.optJSONObject("pending_job")?.nullableString("job_id")?.ifBlank { null }
+        val pendingJobStopped = pendingJobId != null && pendingJobId in suppressedPendingJobIds
+        if (!older) stoppedJobStillRunning = pendingJobStopped
         val parsed = parseMessages(reply)
         val parsedOldest = parsed.mapNotNull { numericId(it) }.filterNot { LocalChatStore.isPendingId(it) }.minOrNull()
         val earlier = if (inPlace && parsedOldest != null)
@@ -2071,7 +2077,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(messages = path, allMessages = all, leafId = leaf,
             hasOlder = if (keepsEarlier) it.hasOlder else reply.optBoolean("has_older_messages"),
             oldestId = if (keepsEarlier) it.oldestId else reply.nullableString("oldest_loaded_id"),
-            jobId = if (older) it.jobId else reply.optJSONObject("pending_job")?.nullableString("job_id")?.ifBlank { null },
+            jobId = if (older) it.jobId else pendingJobId.takeUnless { pendingJobStopped },
             selected = it.selected?.let { selected -> selected.copy(
                 title = reply.optString("title", selected.title),
                 model = reply.nullableString("last_model").ifBlank { selected.model },
@@ -2628,6 +2634,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun vibrate(vararg timings: Long) {
         runCatching {
             val context = getApplication<Application>()
+            if (!isVibrationEnabled(context)) return
             val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 context.getSystemService(android.os.VibratorManager::class.java)?.defaultVibrator
             } else {
@@ -3178,15 +3185,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 scheduleSync()
                 return@launch
             }
+            // Web `stopGeneration`: the stopped job is never rejoined, even while the server still lists it as running.
+            state.value.jobId?.let { suppressedPendingJobIds.add(it) }
             try {
-                backend.post("/api/stop_chat", JSONObject().put("thread_id", id).apply { state.value.jobId?.let { put("job_id", it) } }, token())
+                val stopped = backend.post("/api/stop_chat", JSONObject().put("thread_id", id).apply { state.value.jobId?.let { put("job_id", it) } }, token())
+                stopped.optString("job_id").takeIf { it.isNotBlank() }?.let { suppressedPendingJobIds.add(it) }
             } catch (e: ApiException) {
                 // Web ignores the answer to the stop request: 404 means the job already ended on the server.
                 if (e.status != 404) throw e
             }
             streamJob?.cancelAndJoin()
-            mutable.update { it.copy(streaming = false, status = "停止を要求しました。") }
-            delay(1000); loadMessages(id)
+            mutable.update { it.copy(streaming = false, status = "停止を要求しました。", jobId = null) }
+            // The server saves the partial answer once the worker notices the stop; reload until the job is gone.
+            repeat(STOP_RELOAD_ATTEMPTS) {
+                delay(1000)
+                if (state.value.selected?.id != id || state.value.streaming) return@launch
+                loadMessages(id)
+                if (!stoppedJobStillRunning) return@launch
+            }
         } catch (e: Exception) { report(e) }
     } }
 
@@ -4898,6 +4914,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         const val CHUNK_UPLOAD_THRESHOLD_BYTES = 8L * 1024 * 1024
         /** Web `CONNECTION_RETRY_DELAY_MS`. */
         const val CONNECTION_RETRY_DELAY_MS = 2000L
+        const val STOP_RELOAD_ATTEMPTS = 8
         /** Away from the app at least this long, a server answer is rejoined rather than read on. */
         const val STREAM_REJOIN_AFTER_MS = 30_000L
         /** Longest wait for the outbox to go up before a device answer is finished (the sync then continues in the background). */

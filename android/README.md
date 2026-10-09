@@ -37,6 +37,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/BatchNotifications.kt` | Batch完了通知チャンネルと安全な通知表示 | Batch通知を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AnswerNotifications.kt` | アプリを離れている間に回答が終わったときの完了通知と通知チャンネル、戻ったときの消去 | 回答完了通知を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/BubbleNotifications.kt` | ユーザー操作で作成するチャットバブル通知と会話ショートカット、Android 10〜16のバブル専用 `ChatBubbleActivity` | Androidバブル・通知・ショートカットを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/VibrationSetting.kt` | 送信時・回答完了時の振動のオン/オフ（端末に保存。「Android」カードのスイッチ、`ChatViewModel.vibrate` が参照） | 振動の設定を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ToolbarNotification.kt` | 通知パネルに常駐するツールバー通知（有効・無効の保存、ボタン一覧 `TOOLBAR_ACTIONS`、再起動後の再表示） | 通知ツールバーのボタンや表示条件を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ImageSplitTileService.kt`, `ImageSplitOverlayActivity.kt` | クイック設定の「画像を分割」タイルと、背後のアプリを残す透過画面での画像選択・分割・保存・共有 | 通知ツールバーからの画像分割を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTPとNDJSON（`PlaygroundApi.kt`）、APIモデル（`Models.kt`、`BatchModels.kt`）、Keystore保存（`TokenStore.kt`）、Credential Managerのパスキー手順（`PasskeyClient.kt`）。通知チャンネルの作成・更新状態の保持・前面判定は `../PlaygroundApplication.kt` | 認証・通信・保存 |

@@ -533,7 +533,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     .firstOrNull { it.optString("id") == id }?.optString("mode") } ?: "chat" },
             onChanged = { if (fallback != null) refreshPendingCount() },
             remote = remote,
-            keepAlive = GenerationService.keepAlive(getApplication<Application>()))
+            keepAlive = GenerationService.keepAlive(getApplication<Application>()),
+            uploadAttachment = { reference -> SyncEngine(profile.chats, syncApi) { token() }.uploadAttachment(reference) })
     }
 
     /** Attachment bytes from the offline cache (serverless mode answering while the server is out of reach). */
@@ -3152,7 +3153,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 scheduleSync()
                 return@launch
             }
-            backend.post("/api/stop_chat", JSONObject().put("thread_id", id).apply { state.value.jobId?.let { put("job_id", it) } }, token())
+            try {
+                backend.post("/api/stop_chat", JSONObject().put("thread_id", id).apply { state.value.jobId?.let { put("job_id", it) } }, token())
+            } catch (e: ApiException) {
+                // Web ignores the answer to the stop request: 404 means the job already ended on the server.
+                if (e.status != 404) throw e
+            }
             streamJob?.cancelAndJoin()
             mutable.update { it.copy(streaming = false, status = "停止を要求しました。") }
             delay(1000); loadMessages(id)

@@ -525,6 +525,41 @@ def save_browser_fast_mode_chat():
         return jsonify({'error': 'Failed to save browser fast mode chat'}), 500
 
 
+def _replay_finished_stream_events(job_id):
+    """Replays what a job already published when it ended before the stream subscribed.
+
+    The worker publishes to a Redis channel that keeps nothing for late subscribers, so a job that
+    finishes right after it is queued (for example a failed attachment check) would leave the client
+    waiting for an event that never arrives. Returns True once the job's final event was replayed.
+    """
+    final_raw = redis_conn.get(f"stream_acc:{job_id}:final")
+    if not final_raw:
+        return False
+    cached_thought = redis_conn.get(f"stream_acc:{job_id}:thought")
+    if cached_thought:
+        yield json.dumps({"type": "thought", "content": cached_thought.decode("utf-8", "ignore")}) + "\n"
+    cached_content = redis_conn.get(f"stream_acc:{job_id}:content")
+    if cached_content:
+        yield json.dumps({"type": "content", "content": cached_content.decode("utf-8", "ignore")}) + "\n"
+    cached_search = redis_conn.get(f"stream_acc:{job_id}:search")
+    if cached_search:
+        yield json.dumps({"type": "search_status", "content": cached_search.decode("utf-8", "ignore")}) + "\n"
+    for _, raw in (redis_conn.hgetall(f"stream_acc:{job_id}:python") or {}).items():
+        try:
+            yield json.dumps({"type": "python", "content": json.loads(raw)}) + "\n"
+        except Exception:
+            continue
+    if final_raw.decode("utf-8", "ignore").strip().lower() == "error":
+        cached_error = redis_conn.get(f"stream_acc:{job_id}:error")
+        if cached_error:
+            yield cached_error.decode("utf-8", "ignore") + "\n"
+        else:
+            yield json.dumps({"type": "error", "content": "The job has ended with an error. Please reload."}) + "\n"
+    else:
+        yield json.dumps({"type": "done", "content": "OK"}) + "\n"
+    return True
+
+
 @app.route('/chat_stream', methods=['POST'])
 @login_required
 def chat_stream():
@@ -1054,6 +1089,7 @@ def chat_stream():
         if thread_stream_id:
             yield json.dumps({"type": "thread_id", "content": thread_stream_id}) + "\n"
         yield json.dumps({"type": "job_id", "content": job_id}) + "\n"
+        replayed_final = False
         try:
             cached_status = redis_conn.get(f"stream_acc:{job_id}:status")
             if cached_status:
@@ -1076,11 +1112,13 @@ def chat_stream():
                         yield json.dumps(entry, ensure_ascii=False) + "\n"
                 except Exception:
                     continue
+            # The job may have ended before this stream subscribed; its events are not on the channel any more.
+            replayed_final = bool((yield from _replay_finished_stream_events(job_id)))
         except Exception:
             pass
         try:
             refresh_count = 0
-            for message in pubsub.listen():
+            for message in (() if replayed_final else pubsub.listen()):
                 if time.time() - start_time > 600: break
                 refresh_count += 1
                 if refresh_count % 20 == 0:

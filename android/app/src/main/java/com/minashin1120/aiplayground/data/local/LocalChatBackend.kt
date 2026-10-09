@@ -47,6 +47,8 @@ class LocalChatBackend(
     private val remote: ServerHistory? = null,
     /** Keeps the app process alive while an image or video is generated (a foreground service on the device). */
     private val keepAlive: GenerationKeepAlive = GenerationKeepAlive.None,
+    /** Uploads a device attachment to the account and returns its server reference (null: the server cannot take it). */
+    private val uploadAttachment: suspend (String) -> String? = { null },
 ) : ChatBackend {
 
     // Every call runs on the IO dispatcher: the store reads and writes encrypted files.
@@ -230,7 +232,7 @@ class LocalChatBackend(
         when {
             // File creation and MCP run on the server only: with either on, an account's answer comes from the server.
             path == "/chat_stream" && fallback != null && needsServerTools(payload) ->
-                fallback.stream(path, payload, token, onAccepted, onEvent)
+                fallback.stream(path, withServerAttachments(payload), token, onAccepted, onEvent)
             path == "/chat_stream" -> {
                 // Image and video answers take minutes; the hold lasts until the answer is saved and uploaded.
                 val mode = modeOf(payload.optString("model"))
@@ -253,6 +255,37 @@ class LocalChatBackend(
         val threadId = store.resolveAlias(payload.optString("thread_id"))
         if (threadId.isBlank()) return true
         return !onDevice(threadId) && store.pendingRows(threadId).isEmpty()
+    }
+
+    /**
+     * Attachments chosen while chats are local exist only on the device (`local/…`). The server reads them by its own
+     * file name, so a send that goes to the server uploads them first and carries the server references instead.
+     */
+    private suspend fun withServerAttachments(payload: JSONObject): JSONObject {
+        val refs = LinkedHashSet<String>()
+        fun collect(ref: String?) { if (!ref.isNullOrBlank() && LocalChatStore.isLocalReference(ref)) refs += ref }
+        payload.optJSONArray("image_urls")?.let { rows -> for (i in 0 until rows.length()) collect(rows.optString(i)) }
+        payload.optJSONArray("image_items")?.let { rows -> for (i in 0 until rows.length()) collect(rows.optJSONObject(i)?.optString("path")) }
+        payload.optJSONArray("uploaded_image_urls")?.let { rows -> for (i in 0 until rows.length()) collect(rows.optString(i)) }
+        collect(payload.optString("image_mask"))
+        if (refs.isEmpty()) return payload
+        val serverRefs = HashMap<String, String>()
+        refs.forEach { ref ->
+            serverRefs[ref] = uploadAttachment(ref)
+                ?: throw ApiException(400, JSONObject().put("error", "添付ファイルをサーバーへ送信できませんでした。"))
+        }
+        fun mapped(ref: String) = serverRefs[ref] ?: ref
+        val result = JSONObject(payload.toString())
+        fun remap(key: String) = result.optJSONArray(key)?.let { rows ->
+            result.put(key, JSONArray((0 until rows.length()).map { mapped(rows.optString(it)) }))
+        }
+        remap("image_urls")
+        remap("uploaded_image_urls")
+        result.optJSONArray("image_items")?.let { rows ->
+            for (i in 0 until rows.length()) rows.optJSONObject(i)?.let { it.put("path", mapped(it.optString("path"))) }
+        }
+        if (result.has("image_mask") && !result.isNull("image_mask")) result.put("image_mask", mapped(result.optString("image_mask")))
+        return result
     }
 
     /** Server `_build_thread_pdf_payload`: the branch ending at [leafId] (or the newest message). */

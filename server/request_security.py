@@ -21,6 +21,13 @@ GEMINI_CODE_EXECUTION_GUIDANCE = (
     "If the image is very large, resize it before applying heavy filters. "
     "Do not embed the input image as base64 data in your code."
 )
+GEMINI_CODE_EXECUTION_FILE_GUIDANCE = (
+    "Files written inside the Python sandbox are discarded after the run and are never saved for the user, "
+    "and files from earlier messages are not present in it. To give the user a new file, call the "
+    "create_file tool; to change a file that is already in the user's library or attached, call the "
+    "edit_file tool with its file name. Only tell the user a file was created or updated, and only link it, "
+    "after create_file or edit_file has returned its URL."
+)
 AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON = (
     "Python execution is available locally. To run code, include a python fenced block "
     "that starts with '# EXECUTE' on the first line."

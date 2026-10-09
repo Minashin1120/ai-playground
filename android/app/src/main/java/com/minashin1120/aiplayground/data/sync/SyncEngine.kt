@@ -63,7 +63,8 @@ class SyncEngine(
         push().copy(pending = store.pendingCount())
     }
 
-    private suspend fun uploadAttachment(reference: String): String? {
+    /** Uploads one device attachment (once: a recorded server reference is reused); null when the server cannot take it. */
+    suspend fun uploadAttachment(reference: String): String? {
         store.fileInfo(reference)?.optString("server_ref")?.takeIf { it.isNotBlank() && it != "null" }?.let { return it }
         val info = store.fileInfo(reference) ?: return null
         val loadStarted = System.currentTimeMillis()

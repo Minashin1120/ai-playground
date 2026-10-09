@@ -3217,12 +3217,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             # The sandbox still has its own hard runtime limit (~30s) that
                             # the request timeout cannot extend, so also guide the model to
                             # write code that finishes within it (especially for image edits).
+                            code_exec_guidance = GEMINI_CODE_EXECUTION_GUIDANCE
+                            if options.get('enable_file_creation'):
+                                code_exec_guidance = f"{code_exec_guidance}\n\n{GEMINI_CODE_EXECUTION_FILE_GUIDANCE}"
                             if options.get('system_prompt'):
                                 conf['system_instruction'] = (
-                                    f"{options.get('system_prompt')}\n\n{GEMINI_CODE_EXECUTION_GUIDANCE}"
+                                    f"{options.get('system_prompt')}\n\n{code_exec_guidance}"
                                 )
                             else:
-                                conf['system_instruction'] = GEMINI_CODE_EXECUTION_GUIDANCE
+                                conf['system_instruction'] = code_exec_guidance
                     last_file_tool_error = None
                     if _gemini_python_function_active:
                         def _gemini_execute_python_tool(code: str) -> str:

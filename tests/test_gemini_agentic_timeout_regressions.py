@@ -63,6 +63,16 @@ class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
         self.assertIn("GEMINI_CODE_EXECUTION_GUIDANCE", block)
         self.assertIn("system_instruction", block)
 
+    def test_file_guidance_added_only_when_file_creation_is_enabled(self):
+        guidance = target.GEMINI_CODE_EXECUTION_FILE_GUIDANCE
+        self.assertIn("create_file", guidance)
+        self.assertIn("edit_file", guidance)
+        self.assertIn("never saved", guidance)
+        block_start = APP_SOURCE.index("code_exec_guidance = GEMINI_CODE_EXECUTION_GUIDANCE")
+        block = APP_SOURCE[block_start:block_start + 600]
+        self.assertIn("if options.get('enable_file_creation'):", block)
+        self.assertIn("GEMINI_CODE_EXECUTION_FILE_GUIDANCE", block)
+
     def test_base_system_prompt_still_applied_when_python_off(self):
         self.assertIn(
             "if options.get('system_prompt') and 'system_instruction' not in conf:",

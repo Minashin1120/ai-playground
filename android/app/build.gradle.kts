@@ -44,7 +44,8 @@ android {
     }
     buildFeatures { compose = true; buildConfig = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
-    lint { abortOnError = true; checkReleaseBuilds = true }
+    // CI runs the full lintRelease, so assembleRelease does not repeat its vital subset.
+    lint { abortOnError = true; checkReleaseBuilds = false }
     // Robolectric screenshot tests (Roborazzi) render Compose with the app resources on the JVM.
     testOptions { unitTests { isIncludeAndroidResources = true } }
 }

@@ -346,6 +346,29 @@ class ReleaseScriptContractTests(unittest.TestCase):
         self.assertIn('tasks="testDebugUnitTest $tasks"', release)
         self.assertIn("skip_unit_tests: true", android)
 
+    def test_android_release_builds_alongside_ci_and_publishes_after_both(self):
+        # The release APK no longer waits for the debug build, but the GitHub Release still does.
+        def job(path, name):
+            text = (ROOT / ".github" / "workflows" / path).read_text(encoding="utf-8")
+            body = text.split(f"\n  {name}:\n", 1)[1]
+            return body.split("\n\n  ", 1)[0] + "\n"
+
+        release = job("android.yml", "release")
+        self.assertIn("    needs: bootstrap\n", release)
+        self.assertIn("      stage: build\n", release)
+        publish = job("android.yml", "publish")
+        self.assertIn("    needs: [build, release]\n", publish)
+        self.assertIn("      stage: publish\n", publish)
+        self.assertIn("    needs: [publish]\n", job("android.yml", "prune-artifacts"))
+
+        build_stage = job("release.yml", "release")
+        publish_stage = job("release.yml", "publish")
+        self.assertIn("if: inputs.stage != 'publish'", build_stage)
+        self.assertNotIn("gh release create", build_stage)
+        self.assertIn("    needs: release\n", publish_stage)
+        self.assertIn("inputs.stage != 'build'", publish_stage)
+        self.assertIn("gh release create", publish_stage)
+
     def test_android_release_uses_versioned_changelog_notes(self):
         workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
             encoding="utf-8"

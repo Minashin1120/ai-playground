@@ -140,19 +140,31 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  # The release APK builds alongside the debug build; it is published only after both succeed.
   release:
-    needs: [bootstrap, build]
+    needs: bootstrap
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      source_sha: ${{ needs.bootstrap.outputs.sha }}
+      skip_unit_tests: true
+      stage: build
+
+  publish:
+    needs: [build, release]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
     uses: ./.github/workflows/release.yml
     with:
       source_sha: ${{ needs.build.outputs.sha }}
-      skip_unit_tests: true
+      stage: publish
 
   # Published APKs live on the GitHub Release, so artifacts from earlier runs only consume Actions storage.
   prune-artifacts:
-    needs: [release]
+    needs: [publish]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10

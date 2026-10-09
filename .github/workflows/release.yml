@@ -5,11 +5,17 @@ on:
       source_sha:
         required: true
         type: string
-      # Android CI already ran the unit tests on this commit in its build job.
+      # Android CI runs the unit tests on this commit in its build job, which publishing waits for.
       skip_unit_tests:
         required: false
         default: false
         type: boolean
+      # Android CI builds the release APK alongside its debug build ('build') and publishes it
+      # in a second call ('publish') only after both jobs succeed. Other triggers run both stages.
+      stage:
+        required: false
+        default: all
+        type: string
   workflow_dispatch:
     inputs:
       source_sha:
@@ -27,20 +33,20 @@ on:
 
 permissions:
   contents: write
-concurrency:
-  group: android-release
-  cancel-in-progress: false
 
 jobs:
   release:
+    if: inputs.stage != 'publish'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - &checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ inputs.source_sha || github.ref }}
           fetch-depth: 0
-      - name: Validate source and release version
+      - &validate
+        name: Validate source and release version
         id: version
         env:
           INPUT_TAG: ${{ inputs.tag_name }}
@@ -90,6 +96,27 @@ jobs:
             android/ci/signing-fingerprint.txt
           if-no-files-found: error
           retention-days: 90
+
+  publish:
+    needs: release
+    if: ${{ !cancelled() && inputs.stage != 'build' && (needs.release.result == 'success' || inputs.stage == 'publish') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: android-release
+      cancel-in-progress: false
+    steps:
+      - *checkout
+      - *validate
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: app-release-signed
+          path: ${{ runner.temp }}/release
+      - name: Check the downloaded APK
+        working-directory: ${{ runner.temp }}/release
+        run: |
+          sha256sum -c app/build/outputs/apk/release/app-release.apk.sha256
+          cmp ci/signing-fingerprint.txt "$GITHUB_WORKSPACE/android/ci/signing-fingerprint.txt"
       - name: Publish the verified APK
         env:
           GH_TOKEN: ${{ github.token }}
@@ -113,7 +140,7 @@ jobs:
           else
             gh release create "$TAG" --verify-tag --title "AI Playground Android ${TAG#android-v}" \
               --notes-file "$NOTES_FILE" \
-              android/app/build/outputs/apk/release/app-release.apk \
-              android/app/build/outputs/apk/release/app-release.apk.sha256 \
+              "$RUNNER_TEMP/release/app/build/outputs/apk/release/app-release.apk" \
+              "$RUNNER_TEMP/release/app/build/outputs/apk/release/app-release.apk.sha256" \
               android/ci/signing-fingerprint.txt
           fi

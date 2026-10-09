@@ -18,6 +18,6 @@
 - `measure_landing_cdp.py`／`verify_landing_geometry.js`：ブラウザー上の描画・座標検証
 - `_release_lib.sh`／`_release_common.py`／`_dom_shim.js`：リリース系スクリプトとランディングテストが共有する内部ヘルパ（単独では実行しない）
 
-Webの画面（`templates/`・`static/`）や `app.py` を変更した場合は `prepare_version.sh` と `publish_version.sh` を使います。サーバーのPythonだけの変更は `deploy_server.sh` を使います。Android単独変更は `record_changes.sh --target android`、公開サービスへ影響しない運用スクリプト・Android workflow単独変更は `record_changes.sh --target operations` を使います。どの記録スクリプトも確認なしでは計画だけ表示して終了し、対象外ファイルが混ざっていれば停止します。Android Actionsは配布物に関係するパスが変わった場合だけ起動します。`android/version.properties` の `VERSION_NAME` を進めたのに、その版の `android/ci/changelogs/vX.Y.Z.md`（箇条書き1行以上）が同じ変更に無い場合、`record_changes.sh --target android` と `publish_version.sh` は記録前に停止します。
+Webの画面（`templates/`・`static/`）や `app.py` を変更した場合は `prepare_version.sh` と `publish_version.sh` を使います。サーバーのPythonだけの変更は `deploy_server.sh` を使います。Android単独変更は `record_changes.sh --target android`、公開サービスへ影響しない運用スクリプト・Android workflow単独変更は `record_changes.sh --target operations` を使います。どの記録スクリプトも確認なしでは計画だけ表示して終了し、対象外ファイルが混ざっていれば停止します。Android Actionsは配布物に関係するパスが変わった場合だけ起動します。`android/version.properties` の `VERSION_NAME` を進めたのに、その版の `android/ci/changelogs/vX.Y.Z.md`（箇条書き1行以上）が同じ変更に無い場合、`record_changes.sh --target android` と `publish_version.sh` は記録前に停止します。`android/app/src/main/` を変えたのに `VERSION_NAME` を進めていない場合も停止します。テストやビルド設定だけの変更は版を上げずに記録でき、Android CIは検証だけを行い、GitHub Releaseを作りません（`record_changes.sh` の計画に `Android Release: none` と表示されます）。
 
 一部のスクリプトは、このリポジトリの参照デプロイ構成に合わせたサービス名やヘルスチェック先を使用しています。セルフホスト環境で利用する前に値を変更してください。これらはアプリの起動に必須ではありません。

@@ -50,6 +50,7 @@ jobs:
         id: version
         env:
           INPUT_TAG: ${{ inputs.tag_name }}
+          STAGE: ${{ inputs.stage || 'all' }}
         run: |
           git fetch origin main
           git merge-base --is-ancestor HEAD origin/main
@@ -60,6 +61,19 @@ jobs:
           TAG="android-v$VERSION"
           [[ -z "$INPUT_TAG" || "$INPUT_TAG" == "$TAG" ]]
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then [[ "${GITHUB_REF#refs/tags/}" == "$TAG" ]]; fi
+          # Android CI verifies every build input change, but only a new VERSION_NAME is released.
+          PUBLISH=true
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            git fetch origin "refs/tags/$TAG:refs/tags/$TAG"
+            if [[ "$(git rev-parse "$TAG^{commit}")" != "$(git rev-parse HEAD)" ]]; then
+              [[ "$STAGE" != all ]] || {
+                echo 'Version already belongs to another commit. Increment Android version.properties.' >&2; exit 1;
+              }
+              echo "::notice title=No Android release::$TAG belongs to an earlier commit; VERSION_NAME is unchanged, so this commit is only verified."
+              PUBLISH=false
+            fi
+          fi
+          echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
@@ -109,15 +123,18 @@ jobs:
       - *checkout
       - *validate
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        if: steps.version.outputs.publish == 'true'
         with:
           name: app-release-signed
           path: ${{ runner.temp }}/release
       - name: Check the downloaded APK
+        if: steps.version.outputs.publish == 'true'
         working-directory: ${{ runner.temp }}/release
         run: |
           sha256sum -c app/build/outputs/apk/release/app-release.apk.sha256
           cmp ci/signing-fingerprint.txt "$GITHUB_WORKSPACE/android/ci/signing-fingerprint.txt"
       - name: Publish the verified APK
+        if: steps.version.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}

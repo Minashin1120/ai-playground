@@ -328,6 +328,51 @@ class ReleaseScriptContractTests(unittest.TestCase):
         self.assertIn("check-android-notes", read("record_changes.sh"))
         self.assertIn("check-android-notes", read("publish_version.sh"))
 
+    def test_android_app_changes_require_a_new_version_but_build_settings_do_not(self):
+        import tempfile
+
+        previous = "VERSION_CODE=1\nVERSION_NAME=1.0.0\n"
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "android" / "ci" / "changelogs").mkdir(parents=True)
+            version = root / "android" / "version.properties"
+            version.write_text(previous, encoding="utf-8")
+            app_change = ["android/app/src/main/java/com/example/Main.kt"]
+            errors = COMMON.android_release_notes_errors(app_change, previous, root)
+            self.assertTrue(any("advance VERSION_CODE and VERSION_NAME" in e for e in errors))
+            # Only VERSION_CODE moved: the release tag would still collide.
+            version.write_text("VERSION_CODE=2\nVERSION_NAME=1.0.0\n", encoding="utf-8")
+            self.assertTrue(COMMON.android_release_notes_errors(
+                app_change + ["android/version.properties"], previous, root))
+            version.write_text(previous, encoding="utf-8")
+            for path in (
+                "android/app/build.gradle.kts",
+                "android/gradle.properties",
+                "android/app/src/test/java/com/example/MainTest.kt",
+                "android/ci/verify-apk.sh",
+            ):
+                self.assertEqual(COMMON.android_release_notes_errors([path], previous, root), [], path)
+
+            version.write_text("VERSION_CODE=2\nVERSION_NAME=1.0.1\n", encoding="utf-8")
+            (root / "android" / "ci" / "changelogs" / "v1.0.1.md").write_text(
+                "- 画面表示を修正しました。\n", encoding="utf-8"
+            )
+            bumped = app_change + ["android/version.properties", "android/ci/changelogs/v1.0.1.md"]
+            self.assertEqual(COMMON.android_release_notes_errors(bumped, previous, root), [])
+
+        record = read("record_changes.sh")
+        self.assertNotIn("Android build inputs changed without updating", record)
+        self.assertIn("Android Release: none (VERSION_NAME unchanged", record)
+
+    def test_android_ci_publishes_only_a_new_version(self):
+        # Build-setting commits keep the version; CI verifies them and skips the Release instead of failing.
+        release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        validate = release.split("      - &validate\n", 1)[1].split("\n      - ", 1)[0]
+        self.assertIn('echo "publish=$PUBLISH" >> "$GITHUB_OUTPUT"', validate)
+        self.assertIn('[[ "$STAGE" != all ]]', validate)
+        publish = release.split("\n  publish:\n", 1)[1]
+        self.assertEqual(publish.count("if: steps.version.outputs.publish == 'true'"), 3)
+
     def test_android_workflow_paths_match_release_classification(self):
         workflow = (ROOT / ".github" / "workflows" / "android.yml").read_text(
             encoding="utf-8"

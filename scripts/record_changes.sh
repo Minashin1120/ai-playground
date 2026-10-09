@@ -92,19 +92,21 @@ print("  Android Actions: " + ("will run" if build else "will not run"))
 blocked_count="$(printf '%s' "$STATUS_JSON" | "$PYTHON" -c 'import json,sys; d=json.load(sys.stdin); print(len(d.get("blocked") or []) + len(d.get("unknown") or []) + len(d.get("outside_target") or []))')"
 allowed_count="$(printf '%s' "$STATUS_JSON" | "$PYTHON" -c 'import json,sys; print(len(json.load(sys.stdin).get("allowed") or []))')"
 android_build_count="$(printf '%s' "$STATUS_JSON" | "$PYTHON" -c 'import json,sys; print(len(json.load(sys.stdin).get("android_build") or []))')"
+if [[ "$TARGET" == "android" && "$android_build_count" != "0" ]]; then
+    # Android CI publishes a GitHub Release only for a new VERSION_NAME; otherwise it just verifies.
+    HEAD_VERSION_NAME="$(git_in show HEAD:android/version.properties 2>/dev/null | sed -n 's/^VERSION_NAME=//p')"
+    if [[ "$VERSION_NAME" != "$HEAD_VERSION_NAME" ]]; then
+        echo "  Android Release: android-v$VERSION_NAME will be published"
+    else
+        echo "  Android Release: none (VERSION_NAME unchanged; Actions only verify the build)"
+    fi
+fi
 [[ "$blocked_count" == "0" ]] || die "the tree contains changes outside the selected target"
 [[ "$allowed_count" != "0" ]] || die "there are no changes for target '$TARGET'"
 
-if [[ "$TARGET" == "android" && "$android_build_count" != "0" ]]; then
-    printf '%s' "$STATUS_JSON" | "$PYTHON" -c '
-import json, sys
-paths = json.load(sys.stdin).get("allowed") or []
-raise SystemExit(0 if "android/version.properties" in paths else 1)
-' || die "Android build inputs changed without updating android/version.properties"
-fi
 if [[ "$TARGET" == "android" ]]; then
     run_common check-android-notes \
-        || die "write android/ci/changelogs/v$VERSION_NAME.md before recording"
+        || die "fix the Android version and android/ci/changelogs/v$VERSION_NAME.md before recording"
 fi
 
 if [[ -z "$CONFIRM" ]]; then

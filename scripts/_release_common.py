@@ -383,6 +383,9 @@ def classify_record_target(paths: list[str], target: str) -> dict[str, object]:
 
 ANDROID_VERSION_FILE = "android/version.properties"
 ANDROID_CHANGELOG_DIR = "android/ci/changelogs"
+# The APK's own code and resources. Changing them must ship as a new release; other build
+# inputs (tests, Gradle and CI settings) are verified by Android CI and ride along with the next one.
+ANDROID_RELEASED_PREFIXES = ("android/app/src/main/",)
 
 
 def android_version_name(properties: str) -> str | None:
@@ -403,10 +406,18 @@ def git_head_text(path: str, repo: Path | None = None) -> str:
 def android_release_notes_errors(
     paths: list[str], previous_properties: str, root: Path | None = None
 ) -> list[str]:
-    """Require a new versioned changelog whenever the Android VERSION_NAME moves."""
+    """Require a new VERSION_NAME for app changes and a new changelog whenever it moves."""
     root = root or ROOT
     changed = {normalize_git_path(path) for path in paths}
     version_file = root / ANDROID_VERSION_FILE
+    released = sorted(path for path in changed if path.startswith(ANDROID_RELEASED_PREFIXES))
+    if released:
+        current = android_version_name(read_text(version_file)) if version_file.is_file() else None
+        if current == android_version_name(previous_properties):
+            return [
+                f"{released[0]} changes the released app; advance VERSION_CODE and "
+                f"VERSION_NAME in {ANDROID_VERSION_FILE}"
+            ]
     if ANDROID_VERSION_FILE not in changed or not version_file.is_file():
         return []
     current = android_version_name(read_text(version_file))

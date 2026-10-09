@@ -2654,6 +2654,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val app = getApplication<Application>()
         val file = File(app.cacheDir, "recording.m4a")
         try {
+            // MediaRecorder can only be pinned to a device on API 28+; below that, refuse rather than risk a headset mic.
+            if (Build.VERSION.SDK_INT < 28) throw IOException("cannot pin recording to the built-in microphone")
             val audioManager = app.getSystemService(android.media.AudioManager::class.java)
             val builtInMic = audioManager
                 ?.getDevices(android.media.AudioManager.GET_DEVICES_INPUTS)

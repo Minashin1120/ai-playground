@@ -484,6 +484,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(starting = false) }
             return@launch
         }
+        session = withContext(Dispatchers.IO) { store.load() }
+        // A signed-in account is shown from the device cache at once; the server refreshes it in the background,
+        // so the startup spinner never waits for the sequential requests below.
+        if (session != null && restoreOfflineAccount(asOffline = false)) mutable.update { it.copy(starting = false) }
         runCatching { api.get("/api/mobile/v1/config") }.getOrNull()?.let { config ->
             val info = parseServerInfo(ServerOrigin.current, config)
             if (info != null) applyServerInfo(info) else mutable.update { it.copy(
@@ -491,7 +495,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 integrityProjectNumber = config.optString("play_integrity_cloud_project_number"),
             ) }
         }
-        session = withContext(Dispatchers.IO) { store.load() }
         if (session != null) {
             runCatching {
                 loadAccount()
@@ -1431,8 +1434,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         applyWebModelCatalog(serverModels, json)
     }.getOrDefault(serverModels)
 
-    /** Restores the last account and locally stored data when the server cannot be reached. */
-    private suspend fun restoreOfflineAccount(): Boolean {
+    /**
+     * Restores the last account and locally stored data when the server cannot be reached.
+     * [asOffline] false shows the same data as an online account (startup, before the server answers).
+     */
+    private suspend fun restoreOfflineAccount(asOffline: Boolean = true): Boolean {
         val accountId = prefs.getString("offline_cache_account_id", null)?.toIntOrNull() ?: return false
         val me = withContext(Dispatchers.IO) { offlineCache.loadAccount(accountId) } ?: return false
         val account = Account(
@@ -1445,6 +1451,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             ?: account.models.firstOrNull { it.selectable }?.id.orEmpty()
         val cachedPrefs = withContext(Dispatchers.IO) { offlineCache.loadPreferences(account.id) }
         val cachedThreads = withContext(Dispatchers.IO) { offlineCache.loadThreads(account.id) }
+        if (!asOffline) applyServerlessMode(account)
         mutable.update { current -> current.copy(
             account = account,
             canGoBackInChats = chatHistory.canGoBack,
@@ -1452,12 +1459,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             preferences = cachedPrefs?.let { parsePreferences(it) } ?: current.preferences,
             threads = cachedThreads,
             nextPage = null,
-            offline = true,
-            connectionStatus = ConnectionStatus.OFFLINE,
-            connectionMessage = ConnectionStatus.OFFLINE.defaultMessage(),
-            connectionBannerVisible = true,
             pairing = false,
-        ) }
+        ).let { restored ->
+            if (!asOffline) restored else restored.copy(
+                offline = true,
+                connectionStatus = ConnectionStatus.OFFLINE,
+                connectionMessage = ConnectionStatus.OFFLINE.defaultMessage(),
+                connectionBannerVisible = true,
+            )
+        } }
         refreshOfflineCacheStats(account.id)
         return true
     }

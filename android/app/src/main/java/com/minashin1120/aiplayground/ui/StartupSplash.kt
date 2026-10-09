@@ -1,5 +1,8 @@
 package com.minashin1120.aiplayground.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -13,12 +16,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
@@ -34,6 +39,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalView
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -50,6 +56,17 @@ private const val SPARKLE_START = 380f
 private const val SPARKLE_END = 1_380f
 private const val ZOOM_START = 1_050f
 private const val ZOOM_END = 1_800f
+
+// The animation is drawn at 60 Hz even on 120 Hz panels: three full-screen layers plus blur do not fit in an 8 ms frame on mid-range GPUs.
+private const val SPLASH_REFRESH_RATE = 60f
+// Frames slower than this (after the warm-up) count as dropped; a few of them switch the blur off for the rest of the animation.
+private const val WARMUP_FRAMES = 6
+private const val SLOW_FRAME_NANOS = 26_000_000L
+private const val SLOW_FRAME_LIMIT = 3
+
+private const val BLOOM_STEPS = 5
+private const val BLOOM_SPREAD = 0.045f
+private const val BLOOM_ALPHA = 0.2f
 
 private val Backdrop = Color(0xFF05070F)
 private val Indigo = Color(0xFF5356D8)
@@ -116,9 +133,9 @@ private class SplashLayout(width: Float, height: Float) {
 private fun phase(t: Float, from: Float, to: Float, easing: Easing = LinearEasing): Float =
     easing.transform(((t - from) / (to - from)).coerceIn(0f, 1f))
 
-/** Blur is a RenderEffect (API 31+); older devices simply skip it and keep the rest of the motion. */
-private fun GraphicsLayerScope.blurEffect(radiusDp: Float): RenderEffect? =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && radiusDp > 0.5f) {
+/** Blur is a RenderEffect (API 31+); older devices, and devices that cannot keep up (`lowQuality`), skip it and keep the rest of the motion. */
+private fun GraphicsLayerScope.blurEffect(radiusDp: Float, lowQuality: Boolean): RenderEffect? =
+    if (!lowQuality && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && radiusDp > 0.5f) {
         val radius = radiusDp * density
         BlurEffect(radius, radius, TileMode.Decal)
     } else {
@@ -147,6 +164,29 @@ private fun DrawScope.drawSparkle(layout: SplashLayout, zoom: Float, rotation: F
     }
 }
 
+private fun Context.findHostActivity(): Activity? {
+    var current: Context? = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
+}
+
+/** Asks the window for [SPLASH_REFRESH_RATE] while the splash is on screen and gives the previous request back afterwards. */
+@Composable
+private fun CapRefreshRate() {
+    val view = LocalView.current
+    DisposableEffect(view) {
+        val window = view.context.findHostActivity()?.window
+        val previous = window?.attributes?.preferredRefreshRate ?: 0f
+        window?.let { it.attributes = it.attributes.apply { preferredRefreshRate = SPLASH_REFRESH_RATE } }
+        onDispose {
+            window?.let { it.attributes = it.attributes.apply { preferredRefreshRate = previous } }
+        }
+    }
+}
+
 private fun DrawScope.drawOrb(color: Color, center: Offset, radius: Float, alpha: Float) {
     if (alpha <= 0.001f) return
     drawCircle(
@@ -159,7 +199,8 @@ private fun DrawScope.drawOrb(color: Color, center: Offset, radius: Float, alpha
 /**
  * Startup animation: soft light blooms drift behind the logo while it blurs into focus, the sparkle spins,
  * then the camera dives through the speech bubble (the bubble opens into a window onto the app) with a
- * shock ring. Blur is used for the arrival, the glow around the logo, the dive and the ring.
+ * shock ring. Blur is used for the arrival and the dive; the glow and the ring are layered shapes because a
+ * full-screen blur per frame is what made the animation stutter on 120 Hz devices.
  */
 @Composable
 internal fun StartupSplash(enabled: Boolean) {
@@ -169,9 +210,23 @@ internal fun StartupSplash(enabled: Boolean) {
     if (!visible) return
 
     val clock = remember { Animatable(0f) }
+    var lowQuality by remember { mutableStateOf(false) }
+    CapRefreshRate()
     LaunchedEffect(Unit) {
         clock.animateTo(1f, tween(durationMillis = TOTAL_MS, easing = LinearEasing))
         visible = false
+    }
+    LaunchedEffect(Unit) {
+        var previous = 0L
+        var frames = 0
+        var slow = 0
+        while (!lowQuality) {
+            val now = withFrameNanos { it }
+            if (previous != 0L && ++frames > WARMUP_FRAMES && now - previous > SLOW_FRAME_NANOS && ++slow >= SLOW_FRAME_LIMIT) {
+                lowQuality = true
+            }
+            previous = now
+        }
     }
 
     Box(
@@ -223,22 +278,20 @@ internal fun StartupSplash(enabled: Boolean) {
             }
         }
 
-        // 2. Bloom: the bubble silhouette, heavily blurred, glowing around the sharp logo.
-        Canvas(
-            Modifier
-                .fillMaxSize()
-                .graphicsLayer { renderEffect = blurEffect(34f) },
-        ) {
+        // 2. Bloom: the bubble silhouette, stacked in growing copies, glowing around the sharp logo (no blur: it is drawn every frame).
+        Canvas(Modifier.fillMaxSize()) {
             val t = clock.value * TOTAL_MS
             val layout = SplashLayout(size.width, size.height)
             val arrive = phase(t, LOGO_IN_START, LOGO_IN_END, EaseOutBack)
             val zoom = phase(t, ZOOM_START, ZOOM_END, EaseIn)
             val breathe = 0.85f + 0.15f * sin(t / 1_000f * 4f)
-            drawBubble(
-                layout,
-                (0.55f + 0.45f * arrive) * layout.maxScale.pow(zoom) * 1.1f,
-                Indigo.copy(alpha = 0.85f * phase(t, 120f, 800f, EaseOut) * breathe),
-            )
+            val strength = 0.85f * phase(t, 120f, 800f, EaseOut) * breathe * (1f - phase(t, ZOOM_START, ZOOM_START + 400f))
+            if (strength > 0.001f) {
+                val scale = (0.55f + 0.45f * arrive) * layout.maxScale.pow(zoom)
+                for (i in 0 until BLOOM_STEPS) {
+                    drawBubble(layout, scale * (1.04f + BLOOM_SPREAD * i), Indigo.copy(alpha = strength * BLOOM_ALPHA))
+                }
+            }
         }
 
         // 3. Logo: blurs into focus with a springy scale, spins its sparkle, then blurs out as the camera dives through.
@@ -249,7 +302,7 @@ internal fun StartupSplash(enabled: Boolean) {
                     val t = clock.value * TOTAL_MS
                     val arrivalBlur = (1f - phase(t, LOGO_IN_START, LOGO_IN_END, EaseOut)) * 28f
                     val diveBlur = phase(t, ZOOM_START, ZOOM_END, EaseIn) * 14f
-                    renderEffect = blurEffect(arrivalBlur + diveBlur)
+                    renderEffect = blurEffect(arrivalBlur + diveBlur, lowQuality)
                 },
         ) {
             val t = clock.value * TOTAL_MS
@@ -279,22 +332,16 @@ internal fun StartupSplash(enabled: Boolean) {
             }
         }
 
-        // 5. Shock ring: a blurred ring racing outwards when the dive begins.
-        Canvas(
-            Modifier
-                .fillMaxSize()
-                .graphicsLayer { renderEffect = blurEffect(4f) },
-        ) {
+        // 5. Shock ring: a soft ring (a wide faint stroke under a narrow one) racing outwards when the dive begins.
+        Canvas(Modifier.fillMaxSize()) {
             val t = clock.value * TOTAL_MS
             val layout = SplashLayout(size.width, size.height)
             val ring = phase(t, ZOOM_START, ZOOM_END + 150f, EaseOut)
             if (ring > 0f && ring < 1f) {
-                drawCircle(
-                    color = Teal.copy(alpha = 0.6f * (1f - ring)),
-                    radius = layout.logoPx * 0.3f + layout.diagonal * 0.8f * ring,
-                    center = layout.pivot,
-                    style = Stroke(width = layout.unit * (6f - 4f * ring)),
-                )
+                val radius = layout.logoPx * 0.3f + layout.diagonal * 0.8f * ring
+                val width = layout.unit * (6f - 4f * ring)
+                drawCircle(color = Teal.copy(alpha = 0.2f * (1f - ring)), radius = radius, center = layout.pivot, style = Stroke(width = width * 2.5f))
+                drawCircle(color = Teal.copy(alpha = 0.5f * (1f - ring)), radius = radius, center = layout.pivot, style = Stroke(width = width))
             }
         }
     }

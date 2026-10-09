@@ -8,25 +8,27 @@ def get_bot_detection_global_enabled():
     return get_bool_app_setting("bot_detection_global_enabled", True)
 
 AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = "Python execution is available; you can run Python code when needed."
+# Added with the Gemini code-execution guidance when File creation is on as well: the sandbox
+# keeps nothing, so a file the model only wrote there was never saved for the user.
+AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_FILE_CREATION = (
+    "Files written inside the Python sandbox are discarded after the run and are never saved for the user, "
+    "and files from earlier messages are not present in it. To give the user a new file, call the "
+    "create_file tool; to change a file that is already in the user's library or attached, call the "
+    "edit_file tool with its file name. Only tell the user a file was created or updated, and only link it, "
+    "after create_file or edit_file has returned its URL."
+)
 # Google's code-execution sandbox enforces a hard runtime limit (~30 seconds) that
 # the request timeout (X-Server-Timeout) cannot extend. When the model writes slow
 # code for heavy tasks (e.g. image mosaic/blur on large photos), the API returns
 # 504 DEADLINE_EXCEEDED before the code finishes. This guidance is appended to the
-# system instruction so the model keeps its code inside the sandbox deadline.
-GEMINI_CODE_EXECUTION_GUIDANCE = (
+# system instruction (a user-editable auto notice) so the model keeps its code inside the sandbox deadline.
+AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_CODE_EXECUTION = (
     "The Python code execution sandbox has a maximum runtime of about 30 seconds per "
     "execution, and this limit cannot be extended. Write code that finishes quickly. "
     "For image processing: downscale or crop the image first, use vectorized "
     "PIL/NumPy/OpenCV operations, and avoid slow per-pixel Python loops. "
     "If the image is very large, resize it before applying heavy filters. "
     "Do not embed the input image as base64 data in your code."
-)
-GEMINI_CODE_EXECUTION_FILE_GUIDANCE = (
-    "Files written inside the Python sandbox are discarded after the run and are never saved for the user, "
-    "and files from earlier messages are not present in it. To give the user a new file, call the "
-    "create_file tool; to change a file that is already in the user's library or attached, call the "
-    "edit_file tool with its file name. Only tell the user a file was created or updated, and only link it, "
-    "after create_file or edit_file has returned its URL."
 )
 AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON = (
     "Python execution is available locally. To run code, include a python fenced block "
@@ -68,6 +70,8 @@ AUTO_SYSTEM_PROMPT_NOTICE_MCP = (
 
 AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "python",
+    "gemini_code_execution",
+    "python_file_creation",
     "gemini_local_python",
     "grok_search",
     "openai_search",
@@ -80,6 +84,8 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
 
 AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
     "python": "Python",
+    "gemini_code_execution": "Gemini コード実行 (サンドボックスの実行時間制限)",
+    "python_file_creation": "Python + ファイル作成 (Gemini コード実行時)",
     "gemini_local_python": "Gemini 音声/動画/PDF/DOCX + Python (ローカル実行時)",
     "grok_search": "Search補助 (Grok)",
     "openai_search": "Search補助 (OpenAI/xAI Responses)",
@@ -92,6 +98,8 @@ AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
 
 AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
     "python": AUTO_SYSTEM_PROMPT_NOTICE_PYTHON,
+    "gemini_code_execution": AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_CODE_EXECUTION,
+    "python_file_creation": AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_FILE_CREATION,
     "gemini_local_python": AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON,
     "grok_search": AUTO_SYSTEM_PROMPT_NOTICE_GROK_SEARCH,
     "openai_search": AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH,

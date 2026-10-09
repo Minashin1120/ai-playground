@@ -12117,6 +12117,8 @@
             };
             const AUTO_SYS_PROMPT_ITEMS = [
                 { key: 'python', label: 'Python 実行案内' },
+                { key: 'gemini_code_execution', label: 'Gemini コード実行（サンドボックスの実行時間制限）' },
+                { key: 'python_file_creation', label: 'Python + ファイル作成（Gemini コード実行時）' },
                 { key: 'gemini_local_python', label: 'Gemini 音声/動画/PDF/DOCX + Python（ローカル実行）' },
                 { key: 'grok_search', label: 'Search補助（Grok）' },
                 { key: 'openai_search', label: 'Search補助（OpenAI/xAI Responses）' },

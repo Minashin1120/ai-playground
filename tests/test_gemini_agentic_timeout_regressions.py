@@ -46,9 +46,11 @@ class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
         self.assertIn("時間を超えました", formatted)
 
     def test_code_execution_guidance_mentions_sandbox_runtime_limit(self):
-        self.assertIn("30 seconds", target.GEMINI_CODE_EXECUTION_GUIDANCE)
-        self.assertIn("downscale", target.GEMINI_CODE_EXECUTION_GUIDANCE.lower())
-        self.assertIn("per-pixel", target.GEMINI_CODE_EXECUTION_GUIDANCE.lower())
+        guidance = target._build_default_auto_system_prompt_notices_config()["gemini_code_execution"]["text"]
+        self.assertFalse(hasattr(target, "GEMINI_CODE_EXECUTION_GUIDANCE"))
+        self.assertIn("30 seconds", guidance)
+        self.assertIn("downscale", guidance.lower())
+        self.assertIn("per-pixel", guidance.lower())
 
     def test_guidance_appended_when_code_execution_tool_enabled(self):
         block_start = APP_SOURCE.index(
@@ -60,18 +62,25 @@ class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
         )
         block = APP_SOURCE[block_start:block_end]
         self.assertIn("conf['http_options'] = types.HttpOptions(timeout=_GEMINI_AGENTIC_TIMEOUT_MS)", block)
-        self.assertIn("GEMINI_CODE_EXECUTION_GUIDANCE", block)
+        self.assertIn('_auto_notice_enabled("gemini_code_execution")', block)
+        self.assertIn('_auto_notice_text("gemini_code_execution")', block)
         self.assertIn("system_instruction", block)
 
-    def test_file_guidance_added_only_when_file_creation_is_enabled(self):
-        guidance = target.GEMINI_CODE_EXECUTION_FILE_GUIDANCE
-        self.assertIn("create_file", guidance)
-        self.assertIn("edit_file", guidance)
-        self.assertIn("never saved", guidance)
-        block_start = APP_SOURCE.index("code_exec_guidance = GEMINI_CODE_EXECUTION_GUIDANCE")
-        block = APP_SOURCE[block_start:block_start + 600]
-        self.assertIn("if options.get('enable_file_creation'):", block)
-        self.assertIn("GEMINI_CODE_EXECUTION_FILE_GUIDANCE", block)
+    def test_file_guidance_is_a_user_editable_auto_notice(self):
+        notices = target._build_default_auto_system_prompt_notices_config()
+        notice = notices["python_file_creation"]
+        self.assertTrue(notice["enabled"])
+        self.assertIn("create_file", notice["text"])
+        self.assertIn("edit_file", notice["text"])
+        self.assertIn("never saved", notice["text"])
+        self.assertFalse(hasattr(target, "GEMINI_CODE_EXECUTION_FILE_GUIDANCE"))
+
+    def test_file_guidance_added_only_when_file_creation_and_notice_are_enabled(self):
+        block_start = APP_SOURCE.index("code_exec_notices = []")
+        block = APP_SOURCE[block_start:block_start + 700]
+        self.assertIn("options.get('enable_file_creation')", block)
+        self.assertIn('_auto_notice_enabled("python_file_creation")', block)
+        self.assertIn('_auto_notice_text("python_file_creation")', block)
 
     def test_base_system_prompt_still_applied_when_python_off(self):
         self.assertIn(

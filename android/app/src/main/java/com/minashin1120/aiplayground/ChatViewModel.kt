@@ -2654,19 +2654,36 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val app = getApplication<Application>()
         val file = File(app.cacheDir, "recording.m4a")
         try {
+            val audioManager = app.getSystemService(android.media.AudioManager::class.java)
+            val builtInMic = audioManager
+                ?.getDevices(android.media.AudioManager.GET_DEVICES_INPUTS)
+                ?.firstOrNull { it.type == android.media.AudioDeviceInfo.TYPE_BUILTIN_MIC }
+                ?: throw IOException("built-in microphone not available")
+            // Bluetooth / USB / wired headset mics are never used: pin the input to the built-in mic.
+            val unprocessed = audioManager.getProperty(android.media.AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED) == "true"
             val recorder = if (Build.VERSION.SDK_INT >= 31) android.media.MediaRecorder(app) else android.media.MediaRecorder()
-            recorder.setAudioSource(android.media.MediaRecorder.AudioSource.MIC)
+            micRecorder = recorder
+            // UNPROCESSED turns off noise suppression / AGC so that quiet speech is kept; devices without it fall back to VOICE_RECOGNITION (least processing).
+            recorder.setAudioSource(
+                if (unprocessed) android.media.MediaRecorder.AudioSource.UNPROCESSED
+                else android.media.MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            )
+            if (!recorder.setPreferredDevice(builtInMic)) throw IOException("cannot route to built-in microphone")
             recorder.setOutputFormat(android.media.MediaRecorder.OutputFormat.MPEG_4)
             recorder.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AAC)
+            recorder.setAudioChannels(2)
             recorder.setAudioSamplingRate(44_100)
-            recorder.setAudioEncodingBitRate(96_000)
+            recorder.setAudioEncodingBitRate(128_000)
             recorder.setOutputFile(file.absolutePath)
             recorder.prepare()
             recorder.start()
-            micRecorder = recorder
+            val routed = recorder.routedDevice
+            if (routed != null && routed.type != android.media.AudioDeviceInfo.TYPE_BUILTIN_MIC) {
+                throw IOException("recording was routed to a non built-in microphone")
+            }
             micFile = file
         } catch (e: Exception) {
-            micRecorder?.release()
+            micRecorder?.let { runCatching { it.stop() }; it.release() }
             micRecorder = null
             mutable.update { it.copy(micMode = "", micLevels = emptyList()) }
             notify("Microphone access denied or not available.")

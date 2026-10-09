@@ -700,6 +700,7 @@
                 transcription_diarization: false,
                 transcription_word_timestamps: false,
                 quote_text: currentQuote,
+                quote_message_id: currentQuote ? currentQuoteMessageId : null,
                 parent_id: capturedParentId,
                 parent_id_explicit: parentIdExplicit,
                 disable_auto_search: disableAutoSearch,

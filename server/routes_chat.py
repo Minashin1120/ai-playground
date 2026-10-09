@@ -2,6 +2,39 @@
 # API Routes
 # -----------------------------------------------------------
 
+def _resolve_quote_source(thread_id, parent_id, quote_message_id):
+    """Return {"role", "number"} for the message a quote was taken from, or None.
+
+    `number` is the 1-based position on the path from the thread root to the new
+    message's parent (what the model sees as history); None when the quoted
+    message is in the thread but on another branch.
+    """
+    try:
+        quoted_id = int(quote_message_id)
+    except (TypeError, ValueError):
+        return None
+    try:
+        rows = db.session.query(Message.id, Message.parent_id, Message.role).filter(
+            Message.thread_id == thread_id
+        ).all()
+    except Exception:
+        return None
+    by_id = {row.id: row for row in rows}
+    quoted = by_id.get(quoted_id)
+    if quoted is None or quoted.role not in ('user', 'assistant'):
+        return None
+    chain = []
+    seen = set()
+    cursor = parent_id
+    while cursor is not None and cursor in by_id and cursor not in seen:
+        seen.add(cursor)
+        chain.append(cursor)
+        cursor = by_id[cursor].parent_id
+    chain.reverse()
+    number = chain.index(quoted_id) + 1 if quoted_id in seen else None
+    return {'role': quoted.role, 'number': number}
+
+
 def _is_browser_fast_mode_model(model_key):
     model_l = str(model_key or '').strip().lower()
     return (
@@ -882,6 +915,11 @@ def chat_stream():
         try:
             redis_conn.setex(f"quote:{job_id}", 600, quote_text)
         except: pass
+        quote_source = _resolve_quote_source(thread_id, parent_id, data.get('quote_message_id'))
+        if quote_source:
+            try:
+                redis_conn.setex(f"quote_source:{job_id}", 600, json.dumps(quote_source))
+            except: pass
 
     sys_prompt = data.get('system_prompt')
     if sys_prompt:

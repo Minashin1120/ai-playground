@@ -359,6 +359,7 @@ val AUTO_SYSTEM_PROMPT_ITEMS = listOf(
     Triple("openai_search", "Search補助（OpenAI/xAI Responses）", ""),
     Triple("marker", "Marker編集時", ""),
     Triple("attachment_names", "添付ファイル名（LLM入力時）", "利用可能変数: {{attachment_names}} / {{attachment_count}}"),
+    Triple("quote_source", "引用元（引用して送信時）", "利用可能変数: {{quote_source}}（引用元の発言者と会話内の番号が入ります）"),
     Triple("mathjax", "MathJax（LaTeX数式）", ""),
     Triple("image_analysis", "画像解析（Vision Model指示文）", ""),
     Triple("mcp", "MCP（外部ツール接続）", "利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）"),

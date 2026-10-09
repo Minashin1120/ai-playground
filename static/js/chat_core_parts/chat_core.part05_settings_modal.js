@@ -610,14 +610,34 @@
         // Quote Reply Logic
         const isQuoteMobileLayout = () => window.matchMedia('(max-width: 768px)').matches;
         let quotePreviewText = "";
+        let quotePreviewMessageId = null;
+
+        // The id of the message the current text selection sits in (`msg-<id>`), or
+        // null when it is not a saved message. Sent so the server can say whom and
+        // where the quote came from.
+        function getSelectionMessageId() {
+            try {
+                const sel = window.getSelection();
+                let node = sel && sel.anchorNode;
+                if (node && node.nodeType !== 1) node = node.parentElement;
+                while (node) {
+                    const m = /^msg-(\d+)$/.exec(node.id || '');
+                    if (m) return Number(m[1]);
+                    node = node.parentElement;
+                }
+            } catch (e) {}
+            return null;
+        }
 
         function showQuotePreview(text) {
             const bar = get('quote-bar');
             quotePreviewText = text;
+            quotePreviewMessageId = getSelectionMessageId();
             // A new pending quote supersedes any already-applied quote so the
             // bar always reflects what the next message would quote.
             if (!bar.classList.contains('preview')) {
                 currentQuote = "";
+                currentQuoteMessageId = null;
                 bar.classList.add('preview');
             }
             get('quote-text-display').innerText = text;
@@ -671,6 +691,7 @@
 
         get('quote-popover').onclick = () => {
             currentQuote = window.getSelection().toString().trim();
+            currentQuoteMessageId = currentQuote ? getSelectionMessageId() : null;
             if(currentQuote) {
                 get('quote-text-display').innerText = currentQuote;
                 get('quote-bar').classList.add('visible');
@@ -688,7 +709,9 @@
         get('quote-confirm-btn').onclick = () => {
             if (!quotePreviewText) return;
             currentQuote = quotePreviewText;
+            currentQuoteMessageId = quotePreviewMessageId;
             quotePreviewText = "";
+            quotePreviewMessageId = null;
             const bar = get('quote-bar');
             bar.classList.remove('preview');
             get('prompt-input').focus();
@@ -697,7 +720,9 @@
 
         window.clearQuote = () => {
             currentQuote = "";
+            currentQuoteMessageId = null;
             quotePreviewText = "";
+            quotePreviewMessageId = null;
             const bar = get('quote-bar');
             bar.classList.remove('preview');
             bar.classList.remove('visible');

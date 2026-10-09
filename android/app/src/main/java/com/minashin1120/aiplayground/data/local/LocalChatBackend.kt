@@ -430,7 +430,7 @@ class LocalChatBackend(
         var lastSave = 0L
         val last: JSONObject = try {
             // Attachments that cannot be read (a server file out of reach) end the answer with an error.
-            val turns = history(all, userScreenId, preferences, quote)
+            val turns = history(all, userScreenId, preferences, quote, body.optInt("quote_message_id", -1).takeIf { it > 0 })
             Diagnostics.log("gen.turns", "turns" to turns.size, "attachments" to turns.sumOf { it.attachments.size },
                 "attachment_bytes" to turns.sumOf { turn -> turn.attachments.sumOf { it.bytes?.size?.toLong() ?: 0L } },
                 "ms" to elapsed(), "memory" to Diagnostics.memory())
@@ -487,7 +487,7 @@ class LocalChatBackend(
     }
 
     /** Ancestors of the new message (server `_iter_chat_history_ancestors`), oldest first, with attachments. */
-    private suspend fun history(all: List<JSONObject>, userId: Int, preferences: JSONObject, quote: String): List<DirectTurn> {
+    private suspend fun history(all: List<JSONObject>, userId: Int, preferences: JSONObject, quote: String, quoteMessageId: Int? = null): List<DirectTurn> {
         val byId = all.associateBy { it.optInt("id") }
         val chain = ArrayList<JSONObject>()
         var cursor: JSONObject? = byId[userId]
@@ -497,6 +497,12 @@ class LocalChatBackend(
             cursor = if (cursor.isNull("parent_id")) null else byId[cursor.optInt("parent_id")]
         }
         chain.reverse()
+        // Server `_resolve_quote_source`: whose message was quoted and its 1-based place on this conversation path.
+        val quotedRow = quoteMessageId?.let { byId[it] }
+        val quoteSource = quotedRow?.takeIf { it.optString("role") == "assistant" || it.optString("role") == "user" }?.let { row ->
+            val position = chain.indexOfFirst { it.optInt("id") == row.optInt("id") }
+            SystemPromptBuilder.quoteSourceBlock(row.optString("role"), if (position in 0 until chain.lastIndex) position + 1 else null, preferences, defaults)
+        }.orEmpty()
         var budget = HISTORY_ATTACHMENT_BYTES
         return chain.mapIndexed { index, row ->
             val role = if (row.optString("role") == "assistant") "assistant" else "user"
@@ -533,7 +539,10 @@ class LocalChatBackend(
             }
             var text = row.optString("content")
             if (role == "user") {
-                if (current && quote.isNotEmpty()) text = "Context (User Quote):\n\"\"\"\n$quote\n\"\"\"\n\nUser Message:\n$text"
+                if (current && quote.isNotEmpty()) {
+                    val quoted = if (quoteSource.isEmpty()) quote else "$quoteSource\n\n$quote"
+                    text = "Context (User Quote):\n\"\"\"\n$quoted\n\"\"\"\n\nUser Message:\n$text"
+                }
                 val names = attachments.filter { it.mime.startsWith("image/") }.map { it.name }
                 val block = if (current) SystemPromptBuilder.attachmentNamesBlock(names, preferences, defaults) else ""
                 if (block.isNotEmpty()) text = "$text\n\n$block"

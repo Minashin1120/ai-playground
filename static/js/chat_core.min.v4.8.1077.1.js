@@ -1055,23 +1055,24 @@ manualStopSeq=0,isStopMode=!1;const suppressedPendingJobIds=new Set,pendingStrea
 let editingMessageId=null;const messageStore={},lib={modal:get("lib-modal"),grid:get("lib-grid"),files:[],
 selected:new Set,attachMode:!1,searchQuery:"",favoritesOnly:!1,totalCount:0,hasMore:!1,loading:!1,nextOffset:0},
 LIBRARY_PAGE_SIZE=40,LIB_SORT_KEY="lib_sort_order",LIB_FAVORITES_ONLY_KEY="lib_favorites_only";let threadPage=1,
-threadLoading=!1,hasMoreThreads=!0,threadObserver=null,currentQuote="",currentThreadTitle=null,temporaryChatEnabled=!1,
-temporaryChatTimeoutSeconds=TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS,tempChatExpiresAtMs=null,tempChatHeartbeatTimer=null,
-tempChatHeartbeatIntervalMs=0,tempChatHeartbeatInFlight=!1,tempChatHeaderTicker=null,enterToSend=CHAT_CONFIG.
-enterToSend,autoSearchOnLinks=CHAT_CONFIG.autoSearchOnLinks,useSwCache=CHAT_CONFIG.useSwCache,compactPromptMode=CHAT_CONFIG.
-compactPromptMode,minimalPromptMode=!!CHAT_CONFIG.minimalPromptMode,voiceStudioUiEnabled=!0;const CANVAS_MODE_STORAGE_KEY="\
-canvas_mode_enabled_v1",CODING_MODE_STORAGE_KEY="coding_mode_enabled_v1";let canvasModeEnabled=!1,codingModeEnabled=!1,
-codingModeEffective=!1,codingTargetSelection=null;const canvasPreviewState={blocks:[],rawText:"",renderText:"",
-selectedIndex:-1,selectedKey:"",selectionMode:"auto",mobileView:"preview",sourceScrollTop:0,sourceScrollLeft:0,
-frameScrollX:0,frameScrollY:0,frameRenderToken:0,panelAnimationToken:0,panelHideTimer:null,viewAnimationToken:0,
-viewAnimationTimer:null,lastCanvasData:null};try{canvasModeEnabled=localStorage.getItem(CANVAS_MODE_STORAGE_KEY)===
-"true"}catch{canvasModeEnabled=!1}try{codingModeEnabled=localStorage.getItem(CODING_MODE_STORAGE_KEY)===
-"true"}catch{codingModeEnabled=!1}let enableLatencyMetrics=CHAT_CONFIG.enableLatencyMetrics,promptControlsExpanded=!1;
-const appVersion=CHAT_CONFIG.appVersion,botConfig=CHAT_CONFIG.botConfig,isAdminUser=botConfig&&botConfig.
-isAdmin,currentUsername=CHAT_CONFIG.currentUsername;let turnstileWidgetId=null,turnstileToken=null,turnstilePending=!1,
-botDetectionVerified=!1,botDetectionGatePromise=null,botDetectionOverlayShown=!1,botDetectionDialogWidgetId=null,
-sendButtonSpamTimestamps=[],chatDefaultsLoaded=!1,modelApiKeyMap={};const THREAD_INITIAL_MESSAGE_LIMIT=50,
-THREAD_OLDER_PAGE_SIZE=50,LOW_BANDWIDTH_INITIAL_MESSAGE_LIMIT=40,LOW_BANDWIDTH_OLDER_PAGE_SIZE=60,LOW_BANDWIDTH_MODE_STORAGE_KEY="\
+threadLoading=!1,hasMoreThreads=!0,threadObserver=null,currentQuote="",currentQuoteMessageId=null,currentThreadTitle=null,
+temporaryChatEnabled=!1,temporaryChatTimeoutSeconds=TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS,tempChatExpiresAtMs=null,
+tempChatHeartbeatTimer=null,tempChatHeartbeatIntervalMs=0,tempChatHeartbeatInFlight=!1,tempChatHeaderTicker=null,
+enterToSend=CHAT_CONFIG.enterToSend,autoSearchOnLinks=CHAT_CONFIG.autoSearchOnLinks,useSwCache=CHAT_CONFIG.
+useSwCache,compactPromptMode=CHAT_CONFIG.compactPromptMode,minimalPromptMode=!!CHAT_CONFIG.minimalPromptMode,
+voiceStudioUiEnabled=!0;const CANVAS_MODE_STORAGE_KEY="canvas_mode_enabled_v1",CODING_MODE_STORAGE_KEY="\
+coding_mode_enabled_v1";let canvasModeEnabled=!1,codingModeEnabled=!1,codingModeEffective=!1,codingTargetSelection=null;
+const canvasPreviewState={blocks:[],rawText:"",renderText:"",selectedIndex:-1,selectedKey:"",selectionMode:"\
+auto",mobileView:"preview",sourceScrollTop:0,sourceScrollLeft:0,frameScrollX:0,frameScrollY:0,frameRenderToken:0,
+panelAnimationToken:0,panelHideTimer:null,viewAnimationToken:0,viewAnimationTimer:null,lastCanvasData:null};
+try{canvasModeEnabled=localStorage.getItem(CANVAS_MODE_STORAGE_KEY)==="true"}catch{canvasModeEnabled=
+!1}try{codingModeEnabled=localStorage.getItem(CODING_MODE_STORAGE_KEY)==="true"}catch{codingModeEnabled=
+!1}let enableLatencyMetrics=CHAT_CONFIG.enableLatencyMetrics,promptControlsExpanded=!1;const appVersion=CHAT_CONFIG.
+appVersion,botConfig=CHAT_CONFIG.botConfig,isAdminUser=botConfig&&botConfig.isAdmin,currentUsername=CHAT_CONFIG.
+currentUsername;let turnstileWidgetId=null,turnstileToken=null,turnstilePending=!1,botDetectionVerified=!1,
+botDetectionGatePromise=null,botDetectionOverlayShown=!1,botDetectionDialogWidgetId=null,sendButtonSpamTimestamps=[],
+chatDefaultsLoaded=!1,modelApiKeyMap={};const THREAD_INITIAL_MESSAGE_LIMIT=50,THREAD_OLDER_PAGE_SIZE=50,
+LOW_BANDWIDTH_INITIAL_MESSAGE_LIMIT=40,LOW_BANDWIDTH_OLDER_PAGE_SIZE=60,LOW_BANDWIDTH_MODE_STORAGE_KEY="\
 low_bandwidth_mode_pref_v1",LOW_BANDWIDTH_DECORATION_VISIBILITY_THRESHOLD=.02,MATHJAX_SRC="https://c\
 dn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js",HLJS_JS_SRC="https://cdnjs.cloudflare.com/ajax/libs/\
 highlight.js/11.9.0/highlight.min.js",HLJS_CSS_SRC="https://cdnjs.cloudflare.com/ajax/libs/highlight\
@@ -1718,42 +1719,42 @@ y);return v&&setAttachmentSourceForPath(v,b),v}).filter(Boolean),get("file-previ
 get("file-preview").classList.add("hidden"),get("file-input").value="")}catch{currentImageUrls=[],get(
 "file-preview").classList.add("hidden"),get("file-input").value=""}else currentImageUrls=[],get("fil\
 e-preview").classList.add("hidden"),get("file-input").value="";const c=a?a.quote_text:r.quote_text;c?
-(currentQuote=c,get("quote-text-display").innerText=currentQuote,get("quote-bar").classList.add("vis\
-ible")):clearQuote(),schedulePromptTokenEstimate(!0),t&&sendMessage()}o(beginEditMessage,"beginEditM\
-essage");function playSendAnimation(){const e=get("send-btn");e&&(e.classList.remove("fly"),e.offsetWidth,
-e.classList.add("fly"))}o(playSendAnimation,"playSendAnimation");function setSendBtnToStopMode(){const e=get(
-"send-btn");if(!e)return;e.onclick=stopGeneration,isStopMode=!0,e.disabled=!1;const t=o(()=>{!e||!isStopMode||
-(e.classList.add("stop-mode"),e.innerHTML='<span style="font-size:20px;line-height:1;color:#fff;">\u25A0<\
-/span>',e.classList.add("btn-swap"),setTimeout(()=>e.classList.remove("btn-swap"),300))},"applyStopU\
-i");if(e.classList.contains("fly")){const n=o(i=>{i.animationName==="sendBtnPop"&&(e.removeEventListener(
-"animationend",n),t())},"onEnd");e.addEventListener("animationend",n),setTimeout(t,700)}else t()}o(setSendBtnToStopMode,
-"setSendBtnToStopMode");function setSendBtnToSendMode(){const e=get("send-btn");e&&(e.classList.remove(
-"stop-mode","fly","btn-swap"),e.innerHTML='<i class="fas fa-paper-plane"></i>',e.classList.add("btn-\
-swap"),setTimeout(()=>e.classList.remove("btn-swap"),300),e.onclick=sendMessage,isStopMode=!1)}o(setSendBtnToSendMode,
-"setSendBtnToSendMode");async function stopGeneration(){const e=currentThreadId!=null&&currentThreadId!==
-""?String(currentThreadId):null,t=normalizeJobIdForUi(currentJobId),n=++manualStopSeq,i=captureStoppedPartialBubbleSnapshot(
-getActiveStreamingBubbleElement());manualStopContext={seq:n,threadId:e,jobId:t,partialSnapshot:i},t&&
-suppressPendingJob(t),abortController&&abortController.abort();try{if(t||e){const a={};t&&(a.job_id=
-t),e&&(a.thread_id=e);const l=await(await apiFetch("/api/stop_chat",{method:"POST",headers:{"Content\
--Type":"application/json"},body:JSON.stringify(a)})).json().catch(()=>({})),c=normalizeJobIdForUi(l&&
-l.job_id);c&&(suppressPendingJob(c),manualStopContext&&manualStopContext.seq===n&&(manualStopContext.
-jobId=c))}manualStopContext&&manualStopContext.seq===n&&await syncThreadAfterAbortedStream(e,{retries:2,
-retryDelayMs:180,notifyOnFailure:!0})&&manualStopContext.partialSnapshot&&appendStoppedPartialBubbleSnapshot(
-manualStopContext.partialSnapshot,e)}finally{manualStopContext&&manualStopContext.seq===n&&(manualStopContext=
-null),setSendBtnToSendMode(),updateFilePreview()}}o(stopGeneration,"stopGeneration");async function purgeCaches(){
-if("caches"in window){const e=await caches.keys();await Promise.all(e.map(t=>caches.delete(t)))}if(navigator.
-serviceWorker){const e=await navigator.serviceWorker.getRegistrations();await Promise.all(e.map(t=>t.
-unregister()))}}o(purgeCaches,"purgeCaches");const SW_CACHE_MODE_STORAGE_KEY="ai_sw_cache_mode_v2";async function applyCacheMode(e,t={}){
-if("serviceWorker"in navigator)if(e)try{await navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(
-appVersion)}`),localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY,"enabled")}catch{}else{const n=localStorage.
-getItem(SW_CACHE_MODE_STORAGE_KEY);(!!t.forceCleanup||n!=="disabled")&&await purgeCaches(),localStorage.
-setItem(SW_CACHE_MODE_STORAGE_KEY,"disabled")}}o(applyCacheMode,"applyCacheMode");function checkAndNotifyVersion(e){
-!e||!appVersion||e===appVersion||(localStorage.getItem("version_notified")||"")===e||(localStorage.setItem(
-"app_version",e),syncVersionUpdateCachePreferenceUi(),showModal("version-update-modal"))}o(checkAndNotifyVersion,
-"checkAndNotifyVersion");async function checkVersion(){try{const e=await fetch("/api/version",{cache:"\
-no-store"});if(!e.ok)return;const n=(await e.json()).version||"",i=localStorage.getItem("app_version")||
-"";n&&!i&&localStorage.setItem("app_version",n),n&&i&&n!==i&&(await purgeCaches(),checkAndNotifyVersion(
-n))}catch{}}o(checkVersion,"checkVersion");async function fetchChatStreamWithUnavailableRetry(e,t,n){
+(currentQuote=c,currentQuoteMessageId=null,get("quote-text-display").innerText=currentQuote,get("quo\
+te-bar").classList.add("visible")):clearQuote(),schedulePromptTokenEstimate(!0),t&&sendMessage()}o(beginEditMessage,
+"beginEditMessage");function playSendAnimation(){const e=get("send-btn");e&&(e.classList.remove("fly"),
+e.offsetWidth,e.classList.add("fly"))}o(playSendAnimation,"playSendAnimation");function setSendBtnToStopMode(){
+const e=get("send-btn");if(!e)return;e.onclick=stopGeneration,isStopMode=!0,e.disabled=!1;const t=o(
+()=>{!e||!isStopMode||(e.classList.add("stop-mode"),e.innerHTML='<span style="font-size:20px;line-he\
+ight:1;color:#fff;">\u25A0</span>',e.classList.add("btn-swap"),setTimeout(()=>e.classList.remove("bt\
+n-swap"),300))},"applyStopUi");if(e.classList.contains("fly")){const n=o(i=>{i.animationName==="send\
+BtnPop"&&(e.removeEventListener("animationend",n),t())},"onEnd");e.addEventListener("animationend",n),
+setTimeout(t,700)}else t()}o(setSendBtnToStopMode,"setSendBtnToStopMode");function setSendBtnToSendMode(){
+const e=get("send-btn");e&&(e.classList.remove("stop-mode","fly","btn-swap"),e.innerHTML='<i class="\
+fas fa-paper-plane"></i>',e.classList.add("btn-swap"),setTimeout(()=>e.classList.remove("btn-swap"),
+300),e.onclick=sendMessage,isStopMode=!1)}o(setSendBtnToSendMode,"setSendBtnToSendMode");async function stopGeneration(){
+const e=currentThreadId!=null&&currentThreadId!==""?String(currentThreadId):null,t=normalizeJobIdForUi(
+currentJobId),n=++manualStopSeq,i=captureStoppedPartialBubbleSnapshot(getActiveStreamingBubbleElement());
+manualStopContext={seq:n,threadId:e,jobId:t,partialSnapshot:i},t&&suppressPendingJob(t),abortController&&
+abortController.abort();try{if(t||e){const a={};t&&(a.job_id=t),e&&(a.thread_id=e);const l=await(await apiFetch(
+"/api/stop_chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(a)})).
+json().catch(()=>({})),c=normalizeJobIdForUi(l&&l.job_id);c&&(suppressPendingJob(c),manualStopContext&&
+manualStopContext.seq===n&&(manualStopContext.jobId=c))}manualStopContext&&manualStopContext.seq===n&&
+await syncThreadAfterAbortedStream(e,{retries:2,retryDelayMs:180,notifyOnFailure:!0})&&manualStopContext.
+partialSnapshot&&appendStoppedPartialBubbleSnapshot(manualStopContext.partialSnapshot,e)}finally{manualStopContext&&
+manualStopContext.seq===n&&(manualStopContext=null),setSendBtnToSendMode(),updateFilePreview()}}o(stopGeneration,
+"stopGeneration");async function purgeCaches(){if("caches"in window){const e=await caches.keys();await Promise.
+all(e.map(t=>caches.delete(t)))}if(navigator.serviceWorker){const e=await navigator.serviceWorker.getRegistrations();
+await Promise.all(e.map(t=>t.unregister()))}}o(purgeCaches,"purgeCaches");const SW_CACHE_MODE_STORAGE_KEY="\
+ai_sw_cache_mode_v2";async function applyCacheMode(e,t={}){if("serviceWorker"in navigator)if(e)try{await navigator.
+serviceWorker.register(`/sw.js?v=${encodeURIComponent(appVersion)}`),localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY,
+"enabled")}catch{}else{const n=localStorage.getItem(SW_CACHE_MODE_STORAGE_KEY);(!!t.forceCleanup||n!==
+"disabled")&&await purgeCaches(),localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY,"disabled")}}o(applyCacheMode,
+"applyCacheMode");function checkAndNotifyVersion(e){!e||!appVersion||e===appVersion||(localStorage.getItem(
+"version_notified")||"")===e||(localStorage.setItem("app_version",e),syncVersionUpdateCachePreferenceUi(),
+showModal("version-update-modal"))}o(checkAndNotifyVersion,"checkAndNotifyVersion");async function checkVersion(){
+try{const e=await fetch("/api/version",{cache:"no-store"});if(!e.ok)return;const n=(await e.json()).
+version||"",i=localStorage.getItem("app_version")||"";n&&!i&&localStorage.setItem("app_version",n),n&&
+i&&n!==i&&(await purgeCaches(),checkAndNotifyVersion(n))}catch{}}o(checkVersion,"checkVersion");async function fetchChatStreamWithUnavailableRetry(e,t,n){
 let i=0;for(;;){if(t.signal&&t.signal.aborted)throw new DOMException("Aborted","AbortError");try{const a=await apiFetch(
 e,t),r=window.ConnectionMonitor.retryModeForResponse(a);let l=!1;if(a.status===425&&(l=(await a.clone().
 json().catch(()=>({}))).code==="submission_in_progress"),!r&&!l)return window.ConnectionMonitor.markReachable(),
@@ -2190,177 +2191,182 @@ t();else throw new Error("Clipboard API unavailable")}catch(i){try{const a=docum
 extarea");a.value=e,a.style.position="fixed",a.style.left="-9999px",document.body.appendChild(a),a.focus(),
 a.select();const r=document.execCommand("copy");document.body.removeChild(a),r?t&&t():n&&n(i)}catch(a){
 n&&n(a)}}}o(copyToClipboard,"copyToClipboard");const isQuoteMobileLayout=o(()=>window.matchMedia("(m\
-ax-width: 768px)").matches,"isQuoteMobileLayout");let quotePreviewText="";function showQuotePreview(e){
-const t=get("quote-bar");quotePreviewText=e,t.classList.contains("preview")||(currentQuote="",t.classList.
-add("preview")),get("quote-text-display").innerText=e,t.classList.add("visible"),schedulePromptTokenEstimate()}
-o(showQuotePreview,"showQuotePreview");function handleQuotePopover(){const e=window.getSelection(),t=get(
-"quote-popover");if(!t)return;const n=isQuoteMobileLayout();if(!e||e.rangeCount===0){t.style.display=
-"none",t.classList.remove("show");return}const i=e.toString().trim();if(i.length>0&&get("chat-contai\
-ner").contains(e.anchorNode)){if(n){showQuotePreview(i);return}const r=e.getRangeAt(0).getBoundingClientRect(),
-l=t.style.display==="none"||!t.style.display||getComputedStyle(t).display==="none";t.style.display="\
-block",t.style.top=r.top-40+"px",t.style.left=r.left+"px",l&&(t.classList.remove("show"),t.offsetWidth,
-t.classList.add("show"))}else t.style.display="none",t.classList.remove("show")}o(handleQuotePopover,
-"handleQuotePopover"),document.addEventListener("mouseup",handleQuotePopover),document.addEventListener(
-"touchend",()=>setTimeout(handleQuotePopover,0),{passive:!0}),document.addEventListener("selectionch\
-ange",()=>{window.getSelection&&window.getSelection().type==="Range"&&handleQuotePopover()}),get("qu\
-ote-popover").onclick=()=>{currentQuote=window.getSelection().toString().trim(),currentQuote&&(get("\
-quote-text-display").innerText=currentQuote,get("quote-bar").classList.add("visible"),get("prompt-in\
-put").focus()),schedulePromptTokenEstimate();const e=get("quote-popover");e&&(e.style.display="none",
-e.classList.remove("show"))},get("quote-confirm-btn").onclick=()=>{if(!quotePreviewText)return;currentQuote=
-quotePreviewText,quotePreviewText="",get("quote-bar").classList.remove("preview"),get("prompt-input").
-focus(),schedulePromptTokenEstimate()},window.clearQuote=()=>{currentQuote="",quotePreviewText="";const e=get(
-"quote-bar");e.classList.remove("preview"),e.classList.remove("visible"),get("quote-text-display").innerText=
-"",schedulePromptTokenEstimate()};const MODELS=[{category:"Gemini 3.8 / 3.7 / 3.6 / 3.5",icon:"fas f\
-a-star text-yellow-400",description:"Google's latest multimodal models",items:[{id:"gemini-3.8-flash",
-implementedAt:"2026-09-05",implementedRank:9160,quickEmoji:"\u26A1",name:"Gemini 3.8 Flash",desc:"Mo\
-st intelligent Flash model for long-horizon software engineering, autonomous agents, and complex ent\
-erprise workflows.",price:"In $0.75/1M, Out $3.75/1M (through 2026-12-31)",agenticView:!0},{id:"gemi\
-ni-3.8-flash-cyber",implementedAt:"2026-09-20",implementedRank:9180,quickEmoji:"\u{1F6E1}\uFE0F",name:"\
-Gemini 3.8 Flash Cyber",desc:"Gemini 3.8 Flash post-trained for cybersecurity workflows. Vertex AI o\
-nly; access is allowlisted by Google.",price:"Google Cloud Standard PayGo / Flex PayGo / Priority Pa\
-yGo",agenticView:!0},{id:"gemini-3.7-flash",implementedAt:"2026-08-14",implementedRank:8e3,quickEmoji:"\
-\u26A1",name:"Gemini 3.7 Flash",desc:"Most capable Flash model for complex coding, agentic workflows\
-, and multimodal tasks.",price:"In $0.75/1M, Out $3.75/1M (introductory)",agenticView:!0},{id:"gemin\
-i-3.6-flash",implementedAt:"2026-07-30",implementedRank:6411,quickEmoji:"\u26A1",name:"Gemini 3.6 Fl\
-ash",desc:"Latest Flash model for agentic, coding, and multimodal tasks.",price:"In $1.50/1M, Out $7\
-.50/1M",agenticView:!0},{id:"gemini-3.5-flash",implementedAt:"2026-06-13",implementedRank:5900,quickEmoji:"\
-\u2728",name:"Gemini 3.5 Flash",desc:"Most intelligent Gemini 3.5 model built for speed.",price:"In \
-$1.50/1M, Out $9.00/1M",agenticView:!0},{id:"gemini-3.5-flash-lite",implementedAt:"2026-07-30",implementedRank:6410,
-quickEmoji:"\u{1F680}",name:"Gemini 3.5 Flash-Lite",desc:"Fastest, lowest-cost Gemini 3.5 model for \
-high-throughput execution.",price:"In $0.30/1M, Out $2.50/1M",agenticView:!0}]},{category:"Gemini 3.\
-1 / Previous",icon:"fas fa-star text-yellow-400",description:"Previous Gemini 3.x generation models",
-items:[{id:"gemini-3.1-flash-lite",implementedAt:"2026-07-30",implementedRank:6440,quickEmoji:"\u{1F4A8}",
-name:"Gemini 3.1 Flash-Lite",desc:"Stable, cost-efficient model for high-volume lightweight tasks.",
-price:"In $0.25/1M, Out $1.50/1M",agenticView:!0},{id:"gemini-3.1-pro-preview",implementedAt:"2026-0\
-2-20",implementedRank:2430,name:"Gemini 3.1 Pro",desc:"Next-gen native multimodal model.",price:"In \
-$2.00/1M, Out $12.00/1M (\u2264200k)"},{id:"gemini-3.1-flash-lite-preview",implementedAt:"2026-03-04",
-implementedRank:3e3,name:"Gemini 3.1 Flash-Lite Preview",desc:"Retired preview model retained for ch\
-at history compatibility.",price:"In $0.25/1M, Out $1.50/1M",deprecated:!0},{id:"gemini-3-flash-prev\
-iew",implementedAt:"2026-06-13",implementedRank:5930,name:"Gemini 3.0 Flash",desc:"Fastest and most \
-cost-efficient.",price:"In $0.50/1M, Out $3.00/1M"},{id:"gemini-3-pro-preview",implementedAt:"2026-0\
-1-15",implementedRank:100,name:"Gemini 3.0 Pro",desc:"Shut down by Google (March 2026). Retained for\
- chat history compatibility.",price:"In $2.00/1M, Out $12.00/1M (\u2264200k)",deprecated:!0}]},{category:"\
-Gemini 2.5",icon:"fas fa-history text-gray-400",description:"Gemini 2.5 generation models",items:[{id:"\
-gemini-2.5-pro",implementedAt:"2026-08-25",implementedRank:8524,quickEmoji:"\u{1F9E0}",name:"Gemini \
-2.5 Pro",desc:"Most advanced Gemini 2.5 model for complex reasoning, coding, and long-context analys\
-is.",price:"In $1.25/1M (\u2264200k), Out $10.00/1M (\u2264200k)"},{id:"gemini-2.5-flash-lite",implementedAt:"\
-2026-02-07",implementedRank:1530,name:"Gemini 2.5 Flash-Lite",desc:"Fastest and most cost-efficient \
-Gemini 2.5 model.",price:"In $0.10/1M, Out $0.40/1M"},{id:"gemini-2.5-flash",implementedAt:"2026-02-\
-07",implementedRank:1531,name:"Gemini 2.5 Flash",desc:"Balanced performance.",price:"In $0.30/1M, Ou\
-t $2.50/1M"}]},{category:"Gemini Image (Banana)",icon:"fas fa-image text-pink-400",description:"Gemi\
-ni image generation models",items:[{id:"gemini-2.5-flash-image",implementedAt:"2026-01-20",implementedRank:120,
-quickEmoji:"\u{1F34C}",name:"Nano Banana",desc:"Fast image generation.",price:"In $0.30/1M, Out $0.0\
-39/image"},{id:"gemini-nano-banana-2.1",implementedAt:"2026-10-06",implementedRank:9810,quickEmoji:"\
-\u{1F34C}",name:"Nano Banana 2.1",desc:"High-efficiency image generation and editing with 1K/2K/4K o\
-utput, video input, and up to 14 reference images.",price:"In $1.50/1M; Text/Thinking Out $7.50/1M; \
-Image Out $30/1M ($0.0336/1K, $0.0504/2K, $0.113/4K image)"},{id:"gemini-3.1-flash-image",implementedAt:"\
-2026-08-25",implementedRank:8526,quickEmoji:"\u{1F34C}",name:"Nano Banana 2",desc:"High-efficiency i\
-mage generation and editing (stable).",price:"In $0.50/1M; Text/Thinking Out $3.00/1M; Image Out $60\
-.00/1M ($0.067/1K image)"},{id:"gemini-3.1-flash-image-preview",implementedAt:"2026-02-26",implementedRank:2860,
-name:"Nano Banana 2 (Preview)",desc:"Retired preview retained for chat history compatibility. Use ge\
-mini-3.1-flash-image.",price:"In $0.50/1M, Out $0.067/1K image ($60/1M img tokens)",deprecated:!0},{
-id:"gemini-3.1-flash-lite-image",implementedAt:"2026-07-01",implementedRank:6020,quickEmoji:"\u{1F34C}",
-name:"Nano Banana 2 Lite",desc:"Low-latency Gemini image generation and editing with 1K output.",price:"\
-In $0.25/1M; Text/Thinking Out $1.50/1M; Image Out $30/1M ($0.0336/1K image)"},{id:"gemini-3-pro-ima\
-ge",implementedAt:"2026-08-25",implementedRank:8525,quickEmoji:"\u{1F34C}",name:"Nano Banana Pro",desc:"\
-Professional image generation and editing with 4K output (stable).",price:"In $2.00/1M; Text/Thinkin\
-g Out $12.00/1M; Image Out $120.00/1M ($0.134/1K-2K, $0.24/4K)"},{id:"gemini-3-pro-image-preview",implementedAt:"\
-2026-01-25",implementedRank:130,name:"Nano Banana Pro (Preview)",desc:"Retired preview retained for \
-chat history compatibility. Use gemini-3-pro-image.",price:"In $2.00/1M, Out $0.134 (1K/2K) or $0.24\
- (4K)",deprecated:!0}]},{category:"Gemini Video Generation",icon:"fas fa-clapperboard text-cyan-400",
-description:"Gemini video generation models (Veo 3.1 / Omni Flash)",items:[{id:"gemini-omni-1.1-flas\
-h",implementedAt:"2026-09-02",implementedRank:9010,quickEmoji:"\u{1F3AC}",name:"Gemini Omni 1.1 Flas\
-h",desc:"Fastest multimodal video generation and conversational editing from text, images, video, an\
-d audio (native audio in output).",price:"In $1.50/1M (text/image/video/audio); Text Out $9.00/1M; V\
-ideo $17.50/1M (\u2248$0.10/sec)"},{id:"gemini-omni-flash",implementedAt:"2026-08-25",implementedRank:8522,
-quickEmoji:"\u{1F3AC}",name:"Gemini Omni Flash",desc:"Fast conversational video generation and editi\
-ng from text and images.",price:"In $1.50/1M; Text Out $9.00/1M; Video \u2248$0.10/sec"},{id:"veo-3.\
-1-generate-preview",implementedAt:"2026-08-25",implementedRank:8521,quickEmoji:"\u{1F3A5}",name:"Veo\
- 3.1",desc:"Cinematic video generation with native audio and 4K output.",price:"$0.40/sec (720p/1080\
-p), $0.60/sec (4K)"},{id:"veo-3.1-fast-generate-preview",implementedAt:"2026-08-25",implementedRank:8520,
-name:"Veo 3.1 Fast",desc:"Low-cost, fast video generation from the Veo 3.1 family.",price:"$0.10/sec\
- (720p), $0.12/sec (1080p)"},{id:"veo-3.1-lite-generate-preview",implementedAt:"2026-08-25",implementedRank:8519,
-name:"Veo 3.1 Lite",desc:"High-efficiency, developer-first video generation (no 4K).",price:"$0.05/s\
-ec (720p), $0.08/sec (1080p)"}]},{category:"Gemini Music Generation",icon:"fas fa-music text-fuchsia\
--400",description:"Lyria music generation models",items:[{id:"lyria-3.5",implementedAt:"2026-09-05",
-implementedRank:9050,quickEmoji:"\u{1F3BC}",name:"Lyria 3.5",desc:"Full-length song generation from \
-text or images with vocals, lyrics, and structured arrangements.",price:"See Google AI pricing"},{id:"\
-lyria-3-pro-preview",implementedAt:"2026-08-25",implementedRank:8518,quickEmoji:"\u{1F3B5}",name:"Ly\
-ria 3 Pro",desc:"Flagship music generation for full-length songs with structural coherence.",price:"\
-$0.08 / song"},{id:"lyria-3-clip-preview",implementedAt:"2026-08-25",implementedRank:8517,quickEmoji:"\
-\u{1F3B6}",name:"Lyria 3 Clip",desc:"Short musical clips, loops, and previews (30 seconds).",price:"\
-$0.04 / song"},{id:"lyria-realtime-exp",implementedAt:"2026-08-25",implementedRank:8516,name:"Lyria \
-RealTime",desc:"Experimental realtime music generation with deep melodic control.",price:"Experiment\
-al (no vocals)"}]},{category:"Gemini Transcription",icon:"fas fa-microphone text-teal-400",description:"\
-Gemini speech-to-text transcription models",items:[{id:"gemini-3.5-transcribe",implementedAt:"2026-0\
-8-27",implementedRank:8621,quickEmoji:"\u{1F399}\uFE0F",name:"Gemini 3.5 Transcribe",desc:"Audio-fil\
-e speech-to-text with language detection, speaker diarization, word timestamps, and smart formatting\
- (audio file up to 1 hour).",price:"In $2.00/1M (audio), Out $12.00/1M (text)"},{id:"gemini-3.5-tran\
-scribe-live",implementedAt:"2026-08-27",implementedRank:8622,quickEmoji:"\u{1F534}",name:"Gemini 3.5\
- Transcribe Live",desc:"Real-time low-latency streaming speech-to-text over the Live API (microphone\
- input, sessions up to 10 minutes).",price:"In $3.50/1M (audio), Out $21.00/1M (text)"}]},{category:"\
-OpenAI Image Gen",icon:"fas fa-paint-brush text-purple-400",description:"GPT Image models",items:[{id:"\
-gpt-image-2.5-sunburst",implementedAt:"2026-09-09",implementedRank:9320,quickEmoji:"\u{1F31E}",name:"\
-GPT-Image-2.5 Sunburst",desc:"Most capable image generation and editing with precision-focused quali\
-ty.",price:"Text In $5/1M; Image In $8/1M; Image Out $30/1M"},{id:"gpt-image-2.5-flare",implementedAt:"\
-2026-09-09",implementedRank:9321,quickEmoji:"\u{1F525}",name:"GPT-Image-2.5 Flare",desc:"Fast, high-\
-quality everyday image generation and editing.",price:"Text In $5/1M; Image In $8/1M; Image Out $30/\
-1M"},{id:"gpt-image-2",implementedAt:"2026-04-30",implementedRank:4680,name:"GPT Image 2",desc:"Stat\
-e-of-the-art image generation and editing.",price:"Text In $5/1M; Image In $8/1M; Image Out $30/1M"},
-{id:"gpt-image-1.5",implementedAt:"2026-03-13",implementedRank:3410,name:"GPT Image 1.5",desc:"Previ\
-ous-generation flagship image model.",price:"Text In $5/1M, Text Out $10/1M; Image Out $32/1M"},{id:"\
-gpt-image-1",implementedAt:"2026-03-13",implementedRank:3411,name:"GPT Image 1",desc:"Standard quali\
-ty.",price:"Text In $5/1M; Image Out $40/1M"},{id:"gpt-image-1-mini",implementedAt:"2026-03-13",implementedRank:3412,
-name:"GPT Image 1 Mini",desc:"Faster, lower resolution.",price:"Text In $2/1M; Image In $2.50/1M; Im\
-age Out $8/1M"}]},{category:"OpenAI GPT",icon:"fas fa-brain text-green-400",description:"OpenAI's fl\
-agship models",items:[{id:"gpt-6-astra",implementedAt:"2026-10-02",implementedRank:10443,quickEmoji:"\
-\u{1F31F}",name:"GPT-6 Astra",desc:"Most capable model for demanding reasoning, coding, and professi\
-onal work with 1.05M context.",price:"In $10.00/1M, Cached $1.00/1M, Out $50.00/1M (over 272K: In $2\
-0.00, Out $75.00)"},{id:"gpt-6.1-sol",implementedAt:"2026-10-02",implementedRank:10442,quickEmoji:"\u{1F506}",
-name:"GPT-6.1 Sol",desc:"Near-Astra performance for complex work at a lower cost, with 1.05M context\
-.",price:"In $2.00/1M, Cached $0.10/1M, Out $10.00/1M (over 272K: In $4.00, Out $15.00)"},{id:"gpt-6\
--luna",implementedAt:"2026-10-02",implementedRank:10441,quickEmoji:"\u{1F315}",name:"GPT-6 Luna",desc:"\
-Most efficient GPT-6 model for focused, high-volume tasks with 1.05M context.",price:"In $0.10/1M, C\
-ached $0.01/1M, Out $0.50/1M (over 272K: In $0.20, Out $0.75)"},{id:"gpt-6-sol",implementedAt:"2026-\
-10-02",implementedRank:10440,quickEmoji:"\u2600\uFE0F",name:"GPT-6 Sol",desc:"GPT-6 model for comple\
-x coding and agentic workflows with 1.05M context.",price:"In $2.00/1M, Cached $0.20/1M, Out $10.00/\
-1M (over 272K: In $4.00, Out $15.00)"},{id:"gpt-5.6-sol",implementedAt:"2026-07-31",implementedRank:6550,
-quickEmoji:"\u2600\uFE0F",name:"GPT-5.6 Sol",desc:"Frontier reasoning model for complex professional\
- work with 1.05M context.",price:"In $5.00/1M, Cached $0.50/1M, Out $30.00/1M (over 272K: In $10.00,\
- Out $45.00)"},{id:"gpt-5.6-terra",implementedAt:"2026-07-31",implementedRank:6560,quickEmoji:"\u{1F30D}",
-name:"GPT-5.6 Terra",desc:"Balanced intelligence and cost for everyday work with 1.05M context.",price:"\
-In $2.00/1M, Cached $0.20/1M, Out $12.00/1M (over 272K: In $4.00, Out $18.00)"},{id:"gpt-5.6-luna",implementedAt:"\
-2026-07-31",implementedRank:6561,quickEmoji:"\u{1F319}",name:"GPT-5.6 Luna",desc:"Cost-efficient mod\
-el for high-volume workloads with 1.05M context.",price:"In $0.20/1M, Cached $0.02/1M, Out $1.20/1M \
-(over 272K: In $0.40, Out $1.80)"},{id:"gpt-4o",implementedAt:"2026-06-04",implementedRank:5820,name:"\
-GPT-4o",desc:"Multimodal flagship model.",price:"In $2.50/1M, Out $10.00/1M"},{id:"gpt-4o-mini",implementedAt:"\
-2026-06-04",implementedRank:5821,name:"GPT-4o mini",desc:"Fast, low-cost model.",price:"In $0.15/1M,\
- Out $0.60/1M"},{id:"gpt-5.5",implementedAt:"2026-04-26",implementedRank:4500,name:"GPT-5.5",desc:"E\
-xperimental OpenAI model ID for accounts with access.",price:"In $5.00/1M, Out $30.00/1M"},{id:"gpt-\
-5.5-mini",implementedAt:"2026-04-26",implementedRank:4501,name:"GPT-5.5 mini",desc:"Smaller and more\
- cost-efficient GPT-5.5 tier.",price:"Pricing not publicly listed"},{id:"gpt-5.5-nano",implementedAt:"\
-2026-04-26",implementedRank:4502,name:"GPT-5.5 nano",desc:"Smallest and fastest GPT-5.5 tier.",price:"\
-Pricing not publicly listed"},{id:"gpt-5.5-pro",implementedAt:"2026-04-26",implementedRank:4503,name:"\
-GPT-5.5 Pro",desc:"Higher-capacity GPT-5.5 tier for accounts with access.",price:"In $30.00/1M, Out \
-$180.00/1M"},{id:"gpt-5.4",implementedAt:"2026-03-08",implementedRank:3150,name:"GPT-5.4",desc:"Expe\
-rimental OpenAI model ID for accounts with access.",price:"In $2.50/1M, Out $15.00/1M"},{id:"gpt-5.4\
--mini",implementedAt:"2026-03-08",implementedRank:3151,name:"GPT-5.4 mini",desc:"Smaller and more co\
-st-efficient GPT-5.4 tier.",price:"In $0.75/1M, Out $4.50/1M"},{id:"gpt-5.4-nano",implementedAt:"202\
-6-03-08",implementedRank:3152,name:"GPT-5.4 nano",desc:"Smallest and fastest GPT-5.4 tier.",price:"I\
-n $0.20/1M, Out $1.25/1M"},{id:"gpt-5.4-pro",implementedAt:"2026-03-08",implementedRank:3153,name:"G\
-PT-5.4 Pro",desc:"Higher-capacity GPT-5.4 tier for accounts with access.",price:"In $30.00/1M, Out $\
-180.00/1M"},{id:"gpt-5.2",implementedAt:"2026-02-15",implementedRank:200,name:"GPT-5.2 (Responses AP\
-I)",desc:"Most capable reasoning model.",price:"In $1.75/1M, Out $14.00/1M"},{id:"gpt-5-search-api",
-implementedAt:"2026-02-02",implementedRank:740,name:"GPT-5 Search (API)",desc:"Search-optimized mode\
-l (Chat Completions).",price:"Model rates + Web search $10/1k calls"},{id:"gpt-5.1",implementedAt:"2\
-026-02-05",implementedRank:200,name:"GPT-5.1",desc:"High intelligence.",price:"In $1.25/1M, Out $10.\
-00/1M"},{id:"gpt-5-mini",implementedAt:"2026-02-02",implementedRank:770,name:"GPT-5 mini",desc:"Smal\
-l and efficient.",price:"In $0.25/1M, Out $2.00/1M"}]},{category:"DeepSeek V4.1 / V4",icon:"fas fa-b\
-olt text-cyan-400",description:"DeepSeek's OpenAI-compatible V4.1 Flash and V4 Pro models",items:[{id:"\
-deepseek-v4.1-flash",implementedAt:"2026-09-13",implementedRank:9600,quickEmoji:"\u26A1",apiId:"deep\
-seek-flash",name:"DeepSeek V4.1 Flash",desc:"V4.1 Flash with Vision, 1M context, 384K output, thinki\
-ng, tools, and JSON.",price:"In $0.003 hit/$0.15 miss, Out $0.60 off-peak"},{id:"deepseek-v4-flash-v\
-ision-exp",implementedAt:"2026-08-23",implementedRank:8260,name:"DeepSeek V4 Flash Vision Exp",desc:"\
+ax-width: 768px)").matches,"isQuoteMobileLayout");let quotePreviewText="",quotePreviewMessageId=null;
+function getSelectionMessageId(){try{const e=window.getSelection();let t=e&&e.anchorNode;for(t&&t.nodeType!==
+1&&(t=t.parentElement);t;){const n=/^msg-(\d+)$/.exec(t.id||"");if(n)return Number(n[1]);t=t.parentElement}}catch{}
+return null}o(getSelectionMessageId,"getSelectionMessageId");function showQuotePreview(e){const t=get(
+"quote-bar");quotePreviewText=e,quotePreviewMessageId=getSelectionMessageId(),t.classList.contains("\
+preview")||(currentQuote="",currentQuoteMessageId=null,t.classList.add("preview")),get("quote-text-d\
+isplay").innerText=e,t.classList.add("visible"),schedulePromptTokenEstimate()}o(showQuotePreview,"sh\
+owQuotePreview");function handleQuotePopover(){const e=window.getSelection(),t=get("quote-popover");
+if(!t)return;const n=isQuoteMobileLayout();if(!e||e.rangeCount===0){t.style.display="none",t.classList.
+remove("show");return}const i=e.toString().trim();if(i.length>0&&get("chat-container").contains(e.anchorNode)){
+if(n){showQuotePreview(i);return}const r=e.getRangeAt(0).getBoundingClientRect(),l=t.style.display===
+"none"||!t.style.display||getComputedStyle(t).display==="none";t.style.display="block",t.style.top=r.
+top-40+"px",t.style.left=r.left+"px",l&&(t.classList.remove("show"),t.offsetWidth,t.classList.add("s\
+how"))}else t.style.display="none",t.classList.remove("show")}o(handleQuotePopover,"handleQuotePopov\
+er"),document.addEventListener("mouseup",handleQuotePopover),document.addEventListener("touchend",()=>setTimeout(
+handleQuotePopover,0),{passive:!0}),document.addEventListener("selectionchange",()=>{window.getSelection&&
+window.getSelection().type==="Range"&&handleQuotePopover()}),get("quote-popover").onclick=()=>{currentQuote=
+window.getSelection().toString().trim(),currentQuoteMessageId=currentQuote?getSelectionMessageId():null,
+currentQuote&&(get("quote-text-display").innerText=currentQuote,get("quote-bar").classList.add("visi\
+ble"),get("prompt-input").focus()),schedulePromptTokenEstimate();const e=get("quote-popover");e&&(e.
+style.display="none",e.classList.remove("show"))},get("quote-confirm-btn").onclick=()=>{if(!quotePreviewText)
+return;currentQuote=quotePreviewText,currentQuoteMessageId=quotePreviewMessageId,quotePreviewText="",
+quotePreviewMessageId=null,get("quote-bar").classList.remove("preview"),get("prompt-input").focus(),
+schedulePromptTokenEstimate()},window.clearQuote=()=>{currentQuote="",currentQuoteMessageId=null,quotePreviewText=
+"",quotePreviewMessageId=null;const e=get("quote-bar");e.classList.remove("preview"),e.classList.remove(
+"visible"),get("quote-text-display").innerText="",schedulePromptTokenEstimate()};const MODELS=[{category:"\
+Gemini 3.8 / 3.7 / 3.6 / 3.5",icon:"fas fa-star text-yellow-400",description:"Google's latest multim\
+odal models",items:[{id:"gemini-3.8-flash",implementedAt:"2026-09-05",implementedRank:9160,quickEmoji:"\
+\u26A1",name:"Gemini 3.8 Flash",desc:"Most intelligent Flash model for long-horizon software enginee\
+ring, autonomous agents, and complex enterprise workflows.",price:"In $0.75/1M, Out $3.75/1M (throug\
+h 2026-12-31)",agenticView:!0},{id:"gemini-3.8-flash-cyber",implementedAt:"2026-09-20",implementedRank:9180,
+quickEmoji:"\u{1F6E1}\uFE0F",name:"Gemini 3.8 Flash Cyber",desc:"Gemini 3.8 Flash post-trained for c\
+ybersecurity workflows. Vertex AI only; access is allowlisted by Google.",price:"Google Cloud Standa\
+rd PayGo / Flex PayGo / Priority PayGo",agenticView:!0},{id:"gemini-3.7-flash",implementedAt:"2026-0\
+8-14",implementedRank:8e3,quickEmoji:"\u26A1",name:"Gemini 3.7 Flash",desc:"Most capable Flash model\
+ for complex coding, agentic workflows, and multimodal tasks.",price:"In $0.75/1M, Out $3.75/1M (int\
+roductory)",agenticView:!0},{id:"gemini-3.6-flash",implementedAt:"2026-07-30",implementedRank:6411,quickEmoji:"\
+\u26A1",name:"Gemini 3.6 Flash",desc:"Latest Flash model for agentic, coding, and multimodal tasks.",
+price:"In $1.50/1M, Out $7.50/1M",agenticView:!0},{id:"gemini-3.5-flash",implementedAt:"2026-06-13",
+implementedRank:5900,quickEmoji:"\u2728",name:"Gemini 3.5 Flash",desc:"Most intelligent Gemini 3.5 m\
+odel built for speed.",price:"In $1.50/1M, Out $9.00/1M",agenticView:!0},{id:"gemini-3.5-flash-lite",
+implementedAt:"2026-07-30",implementedRank:6410,quickEmoji:"\u{1F680}",name:"Gemini 3.5 Flash-Lite",
+desc:"Fastest, lowest-cost Gemini 3.5 model for high-throughput execution.",price:"In $0.30/1M, Out \
+$2.50/1M",agenticView:!0}]},{category:"Gemini 3.1 / Previous",icon:"fas fa-star text-yellow-400",description:"\
+Previous Gemini 3.x generation models",items:[{id:"gemini-3.1-flash-lite",implementedAt:"2026-07-30",
+implementedRank:6440,quickEmoji:"\u{1F4A8}",name:"Gemini 3.1 Flash-Lite",desc:"Stable, cost-efficien\
+t model for high-volume lightweight tasks.",price:"In $0.25/1M, Out $1.50/1M",agenticView:!0},{id:"g\
+emini-3.1-pro-preview",implementedAt:"2026-02-20",implementedRank:2430,name:"Gemini 3.1 Pro",desc:"N\
+ext-gen native multimodal model.",price:"In $2.00/1M, Out $12.00/1M (\u2264200k)"},{id:"gemini-3.1-f\
+lash-lite-preview",implementedAt:"2026-03-04",implementedRank:3e3,name:"Gemini 3.1 Flash-Lite Previe\
+w",desc:"Retired preview model retained for chat history compatibility.",price:"In $0.25/1M, Out $1.\
+50/1M",deprecated:!0},{id:"gemini-3-flash-preview",implementedAt:"2026-06-13",implementedRank:5930,name:"\
+Gemini 3.0 Flash",desc:"Fastest and most cost-efficient.",price:"In $0.50/1M, Out $3.00/1M"},{id:"ge\
+mini-3-pro-preview",implementedAt:"2026-01-15",implementedRank:100,name:"Gemini 3.0 Pro",desc:"Shut \
+down by Google (March 2026). Retained for chat history compatibility.",price:"In $2.00/1M, Out $12.0\
+0/1M (\u2264200k)",deprecated:!0}]},{category:"Gemini 2.5",icon:"fas fa-history text-gray-400",description:"\
+Gemini 2.5 generation models",items:[{id:"gemini-2.5-pro",implementedAt:"2026-08-25",implementedRank:8524,
+quickEmoji:"\u{1F9E0}",name:"Gemini 2.5 Pro",desc:"Most advanced Gemini 2.5 model for complex reason\
+ing, coding, and long-context analysis.",price:"In $1.25/1M (\u2264200k), Out $10.00/1M (\u2264200k)"},
+{id:"gemini-2.5-flash-lite",implementedAt:"2026-02-07",implementedRank:1530,name:"Gemini 2.5 Flash-L\
+ite",desc:"Fastest and most cost-efficient Gemini 2.5 model.",price:"In $0.10/1M, Out $0.40/1M"},{id:"\
+gemini-2.5-flash",implementedAt:"2026-02-07",implementedRank:1531,name:"Gemini 2.5 Flash",desc:"Bala\
+nced performance.",price:"In $0.30/1M, Out $2.50/1M"}]},{category:"Gemini Image (Banana)",icon:"fas \
+fa-image text-pink-400",description:"Gemini image generation models",items:[{id:"gemini-2.5-flash-im\
+age",implementedAt:"2026-01-20",implementedRank:120,quickEmoji:"\u{1F34C}",name:"Nano Banana",desc:"\
+Fast image generation.",price:"In $0.30/1M, Out $0.039/image"},{id:"gemini-nano-banana-2.1",implementedAt:"\
+2026-10-06",implementedRank:9810,quickEmoji:"\u{1F34C}",name:"Nano Banana 2.1",desc:"High-efficiency\
+ image generation and editing with 1K/2K/4K output, video input, and up to 14 reference images.",price:"\
+In $1.50/1M; Text/Thinking Out $7.50/1M; Image Out $30/1M ($0.0336/1K, $0.0504/2K, $0.113/4K image)"},
+{id:"gemini-3.1-flash-image",implementedAt:"2026-08-25",implementedRank:8526,quickEmoji:"\u{1F34C}",
+name:"Nano Banana 2",desc:"High-efficiency image generation and editing (stable).",price:"In $0.50/1\
+M; Text/Thinking Out $3.00/1M; Image Out $60.00/1M ($0.067/1K image)"},{id:"gemini-3.1-flash-image-p\
+review",implementedAt:"2026-02-26",implementedRank:2860,name:"Nano Banana 2 (Preview)",desc:"Retired\
+ preview retained for chat history compatibility. Use gemini-3.1-flash-image.",price:"In $0.50/1M, O\
+ut $0.067/1K image ($60/1M img tokens)",deprecated:!0},{id:"gemini-3.1-flash-lite-image",implementedAt:"\
+2026-07-01",implementedRank:6020,quickEmoji:"\u{1F34C}",name:"Nano Banana 2 Lite",desc:"Low-latency \
+Gemini image generation and editing with 1K output.",price:"In $0.25/1M; Text/Thinking Out $1.50/1M;\
+ Image Out $30/1M ($0.0336/1K image)"},{id:"gemini-3-pro-image",implementedAt:"2026-08-25",implementedRank:8525,
+quickEmoji:"\u{1F34C}",name:"Nano Banana Pro",desc:"Professional image generation and editing with 4\
+K output (stable).",price:"In $2.00/1M; Text/Thinking Out $12.00/1M; Image Out $120.00/1M ($0.134/1K\
+-2K, $0.24/4K)"},{id:"gemini-3-pro-image-preview",implementedAt:"2026-01-25",implementedRank:130,name:"\
+Nano Banana Pro (Preview)",desc:"Retired preview retained for chat history compatibility. Use gemini\
+-3-pro-image.",price:"In $2.00/1M, Out $0.134 (1K/2K) or $0.24 (4K)",deprecated:!0}]},{category:"Gem\
+ini Video Generation",icon:"fas fa-clapperboard text-cyan-400",description:"Gemini video generation \
+models (Veo 3.1 / Omni Flash)",items:[{id:"gemini-omni-1.1-flash",implementedAt:"2026-09-02",implementedRank:9010,
+quickEmoji:"\u{1F3AC}",name:"Gemini Omni 1.1 Flash",desc:"Fastest multimodal video generation and co\
+nversational editing from text, images, video, and audio (native audio in output).",price:"In $1.50/\
+1M (text/image/video/audio); Text Out $9.00/1M; Video $17.50/1M (\u2248$0.10/sec)"},{id:"gemini-omni\
+-flash",implementedAt:"2026-08-25",implementedRank:8522,quickEmoji:"\u{1F3AC}",name:"Gemini Omni Fla\
+sh",desc:"Fast conversational video generation and editing from text and images.",price:"In $1.50/1M\
+; Text Out $9.00/1M; Video \u2248$0.10/sec"},{id:"veo-3.1-generate-preview",implementedAt:"2026-08-2\
+5",implementedRank:8521,quickEmoji:"\u{1F3A5}",name:"Veo 3.1",desc:"Cinematic video generation with \
+native audio and 4K output.",price:"$0.40/sec (720p/1080p), $0.60/sec (4K)"},{id:"veo-3.1-fast-gener\
+ate-preview",implementedAt:"2026-08-25",implementedRank:8520,name:"Veo 3.1 Fast",desc:"Low-cost, fas\
+t video generation from the Veo 3.1 family.",price:"$0.10/sec (720p), $0.12/sec (1080p)"},{id:"veo-3\
+.1-lite-generate-preview",implementedAt:"2026-08-25",implementedRank:8519,name:"Veo 3.1 Lite",desc:"\
+High-efficiency, developer-first video generation (no 4K).",price:"$0.05/sec (720p), $0.08/sec (1080\
+p)"}]},{category:"Gemini Music Generation",icon:"fas fa-music text-fuchsia-400",description:"Lyria m\
+usic generation models",items:[{id:"lyria-3.5",implementedAt:"2026-09-05",implementedRank:9050,quickEmoji:"\
+\u{1F3BC}",name:"Lyria 3.5",desc:"Full-length song generation from text or images with vocals, lyric\
+s, and structured arrangements.",price:"See Google AI pricing"},{id:"lyria-3-pro-preview",implementedAt:"\
+2026-08-25",implementedRank:8518,quickEmoji:"\u{1F3B5}",name:"Lyria 3 Pro",desc:"Flagship music gene\
+ration for full-length songs with structural coherence.",price:"$0.08 / song"},{id:"lyria-3-clip-pre\
+view",implementedAt:"2026-08-25",implementedRank:8517,quickEmoji:"\u{1F3B6}",name:"Lyria 3 Clip",desc:"\
+Short musical clips, loops, and previews (30 seconds).",price:"$0.04 / song"},{id:"lyria-realtime-ex\
+p",implementedAt:"2026-08-25",implementedRank:8516,name:"Lyria RealTime",desc:"Experimental realtime\
+ music generation with deep melodic control.",price:"Experimental (no vocals)"}]},{category:"Gemini \
+Transcription",icon:"fas fa-microphone text-teal-400",description:"Gemini speech-to-text transcripti\
+on models",items:[{id:"gemini-3.5-transcribe",implementedAt:"2026-08-27",implementedRank:8621,quickEmoji:"\
+\u{1F399}\uFE0F",name:"Gemini 3.5 Transcribe",desc:"Audio-file speech-to-text with language detectio\
+n, speaker diarization, word timestamps, and smart formatting (audio file up to 1 hour).",price:"In \
+$2.00/1M (audio), Out $12.00/1M (text)"},{id:"gemini-3.5-transcribe-live",implementedAt:"2026-08-27",
+implementedRank:8622,quickEmoji:"\u{1F534}",name:"Gemini 3.5 Transcribe Live",desc:"Real-time low-la\
+tency streaming speech-to-text over the Live API (microphone input, sessions up to 10 minutes).",price:"\
+In $3.50/1M (audio), Out $21.00/1M (text)"}]},{category:"OpenAI Image Gen",icon:"fas fa-paint-brush \
+text-purple-400",description:"GPT Image models",items:[{id:"gpt-image-2.5-sunburst",implementedAt:"2\
+026-09-09",implementedRank:9320,quickEmoji:"\u{1F31E}",name:"GPT-Image-2.5 Sunburst",desc:"Most capa\
+ble image generation and editing with precision-focused quality.",price:"Text In $5/1M; Image In $8/\
+1M; Image Out $30/1M"},{id:"gpt-image-2.5-flare",implementedAt:"2026-09-09",implementedRank:9321,quickEmoji:"\
+\u{1F525}",name:"GPT-Image-2.5 Flare",desc:"Fast, high-quality everyday image generation and editing\
+.",price:"Text In $5/1M; Image In $8/1M; Image Out $30/1M"},{id:"gpt-image-2",implementedAt:"2026-04\
+-30",implementedRank:4680,name:"GPT Image 2",desc:"State-of-the-art image generation and editing.",price:"\
+Text In $5/1M; Image In $8/1M; Image Out $30/1M"},{id:"gpt-image-1.5",implementedAt:"2026-03-13",implementedRank:3410,
+name:"GPT Image 1.5",desc:"Previous-generation flagship image model.",price:"Text In $5/1M, Text Out\
+ $10/1M; Image Out $32/1M"},{id:"gpt-image-1",implementedAt:"2026-03-13",implementedRank:3411,name:"\
+GPT Image 1",desc:"Standard quality.",price:"Text In $5/1M; Image Out $40/1M"},{id:"gpt-image-1-mini",
+implementedAt:"2026-03-13",implementedRank:3412,name:"GPT Image 1 Mini",desc:"Faster, lower resoluti\
+on.",price:"Text In $2/1M; Image In $2.50/1M; Image Out $8/1M"}]},{category:"OpenAI GPT",icon:"fas f\
+a-brain text-green-400",description:"OpenAI's flagship models",items:[{id:"gpt-6-astra",implementedAt:"\
+2026-10-02",implementedRank:10443,quickEmoji:"\u{1F31F}",name:"GPT-6 Astra",desc:"Most capable model\
+ for demanding reasoning, coding, and professional work with 1.05M context.",price:"In $10.00/1M, Ca\
+ched $1.00/1M, Out $50.00/1M (over 272K: In $20.00, Out $75.00)"},{id:"gpt-6.1-sol",implementedAt:"2\
+026-10-02",implementedRank:10442,quickEmoji:"\u{1F506}",name:"GPT-6.1 Sol",desc:"Near-Astra performa\
+nce for complex work at a lower cost, with 1.05M context.",price:"In $2.00/1M, Cached $0.10/1M, Out \
+$10.00/1M (over 272K: In $4.00, Out $15.00)"},{id:"gpt-6-luna",implementedAt:"2026-10-02",implementedRank:10441,
+quickEmoji:"\u{1F315}",name:"GPT-6 Luna",desc:"Most efficient GPT-6 model for focused, high-volume t\
+asks with 1.05M context.",price:"In $0.10/1M, Cached $0.01/1M, Out $0.50/1M (over 272K: In $0.20, Ou\
+t $0.75)"},{id:"gpt-6-sol",implementedAt:"2026-10-02",implementedRank:10440,quickEmoji:"\u2600\uFE0F",
+name:"GPT-6 Sol",desc:"GPT-6 model for complex coding and agentic workflows with 1.05M context.",price:"\
+In $2.00/1M, Cached $0.20/1M, Out $10.00/1M (over 272K: In $4.00, Out $15.00)"},{id:"gpt-5.6-sol",implementedAt:"\
+2026-07-31",implementedRank:6550,quickEmoji:"\u2600\uFE0F",name:"GPT-5.6 Sol",desc:"Frontier reasoni\
+ng model for complex professional work with 1.05M context.",price:"In $5.00/1M, Cached $0.50/1M, Out\
+ $30.00/1M (over 272K: In $10.00, Out $45.00)"},{id:"gpt-5.6-terra",implementedAt:"2026-07-31",implementedRank:6560,
+quickEmoji:"\u{1F30D}",name:"GPT-5.6 Terra",desc:"Balanced intelligence and cost for everyday work w\
+ith 1.05M context.",price:"In $2.00/1M, Cached $0.20/1M, Out $12.00/1M (over 272K: In $4.00, Out $18\
+.00)"},{id:"gpt-5.6-luna",implementedAt:"2026-07-31",implementedRank:6561,quickEmoji:"\u{1F319}",name:"\
+GPT-5.6 Luna",desc:"Cost-efficient model for high-volume workloads with 1.05M context.",price:"In $0\
+.20/1M, Cached $0.02/1M, Out $1.20/1M (over 272K: In $0.40, Out $1.80)"},{id:"gpt-4o",implementedAt:"\
+2026-06-04",implementedRank:5820,name:"GPT-4o",desc:"Multimodal flagship model.",price:"In $2.50/1M,\
+ Out $10.00/1M"},{id:"gpt-4o-mini",implementedAt:"2026-06-04",implementedRank:5821,name:"GPT-4o mini",
+desc:"Fast, low-cost model.",price:"In $0.15/1M, Out $0.60/1M"},{id:"gpt-5.5",implementedAt:"2026-04\
+-26",implementedRank:4500,name:"GPT-5.5",desc:"Experimental OpenAI model ID for accounts with access\
+.",price:"In $5.00/1M, Out $30.00/1M"},{id:"gpt-5.5-mini",implementedAt:"2026-04-26",implementedRank:4501,
+name:"GPT-5.5 mini",desc:"Smaller and more cost-efficient GPT-5.5 tier.",price:"Pricing not publicly\
+ listed"},{id:"gpt-5.5-nano",implementedAt:"2026-04-26",implementedRank:4502,name:"GPT-5.5 nano",desc:"\
+Smallest and fastest GPT-5.5 tier.",price:"Pricing not publicly listed"},{id:"gpt-5.5-pro",implementedAt:"\
+2026-04-26",implementedRank:4503,name:"GPT-5.5 Pro",desc:"Higher-capacity GPT-5.5 tier for accounts \
+with access.",price:"In $30.00/1M, Out $180.00/1M"},{id:"gpt-5.4",implementedAt:"2026-03-08",implementedRank:3150,
+name:"GPT-5.4",desc:"Experimental OpenAI model ID for accounts with access.",price:"In $2.50/1M, Out\
+ $15.00/1M"},{id:"gpt-5.4-mini",implementedAt:"2026-03-08",implementedRank:3151,name:"GPT-5.4 mini",
+desc:"Smaller and more cost-efficient GPT-5.4 tier.",price:"In $0.75/1M, Out $4.50/1M"},{id:"gpt-5.4\
+-nano",implementedAt:"2026-03-08",implementedRank:3152,name:"GPT-5.4 nano",desc:"Smallest and fastes\
+t GPT-5.4 tier.",price:"In $0.20/1M, Out $1.25/1M"},{id:"gpt-5.4-pro",implementedAt:"2026-03-08",implementedRank:3153,
+name:"GPT-5.4 Pro",desc:"Higher-capacity GPT-5.4 tier for accounts with access.",price:"In $30.00/1M\
+, Out $180.00/1M"},{id:"gpt-5.2",implementedAt:"2026-02-15",implementedRank:200,name:"GPT-5.2 (Respo\
+nses API)",desc:"Most capable reasoning model.",price:"In $1.75/1M, Out $14.00/1M"},{id:"gpt-5-searc\
+h-api",implementedAt:"2026-02-02",implementedRank:740,name:"GPT-5 Search (API)",desc:"Search-optimiz\
+ed model (Chat Completions).",price:"Model rates + Web search $10/1k calls"},{id:"gpt-5.1",implementedAt:"\
+2026-02-05",implementedRank:200,name:"GPT-5.1",desc:"High intelligence.",price:"In $1.25/1M, Out $10\
+.00/1M"},{id:"gpt-5-mini",implementedAt:"2026-02-02",implementedRank:770,name:"GPT-5 mini",desc:"Sma\
+ll and efficient.",price:"In $0.25/1M, Out $2.00/1M"}]},{category:"DeepSeek V4.1 / V4",icon:"fas fa-\
+bolt text-cyan-400",description:"DeepSeek's OpenAI-compatible V4.1 Flash and V4 Pro models",items:[{
+id:"deepseek-v4.1-flash",implementedAt:"2026-09-13",implementedRank:9600,quickEmoji:"\u26A1",apiId:"\
+deepseek-flash",name:"DeepSeek V4.1 Flash",desc:"V4.1 Flash with Vision, 1M context, 384K output, th\
+inking, tools, and JSON.",price:"In $0.003 hit/$0.15 miss, Out $0.60 off-peak"},{id:"deepseek-v4-fla\
+sh-vision-exp",implementedAt:"2026-08-23",implementedRank:8260,name:"DeepSeek V4 Flash Vision Exp",desc:"\
 Retired; retained for history.",price:"Retired",deprecated:!0},{id:"deepseek-v4-flash-0731",implementedAt:"\
 2026-07-31",implementedRank:6610,name:"DeepSeek V4 Flash",desc:"Retired; retained for history.",price:"\
 Retired",deprecated:!0},{id:"deepseek-v4-flash",implementedAt:"2026-04-26",implementedRank:4510,name:"\

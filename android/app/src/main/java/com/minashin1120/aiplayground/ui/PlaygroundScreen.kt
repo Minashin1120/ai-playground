@@ -1383,7 +1383,7 @@ private fun Conversation(
         label = "chat conversation transition",
     ) { transitionId ->
         val contentState = if (transitionId == state.chatTransitionId) state else shownByTransition[transitionId] ?: state
-        ProvideQuoteSelection(model::quoteMessage) { ConversationContent(contentState, model, onFile, loader, onSettingJump) }
+        ProvideQuoteSelection({ quoted -> model.quoteMessage(quoted) }) { ConversationContent(contentState, model, onFile, loader, onSettingJump) }
     }
 }
 
@@ -1579,6 +1579,8 @@ private fun ConversationContent(
                 val index = siblings.indexOfFirst { it.id == message.id }
                 Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
                     StaggerIn(0, animate = entering) {
+                        // Web sends `quote_message_id`: a selection inside this bubble remembers which message it came from.
+                        ProvideQuoteSelection({ quoted -> model.quoteMessage(quoted, numericId(message)) }) {
                         MessageBubble(
                             message = message,
                             onFile = onFile,
@@ -1595,6 +1597,7 @@ private fun ConversationContent(
                             branchIndex = if (index < 0) 0 else index,
                             branchCount = if (numericId(message) != null) siblings.size else 0,
                         )
+                        }
                     }
                 }
             }
@@ -1602,7 +1605,7 @@ private fun ConversationContent(
                     val entering = remember { keys.consumeFresh(keys.liveKey) }
                     Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
                         StaggerIn(0, animate = entering) {
-                            LiveMessage(state, onFile, model::quoteMessage, loader, model::resolveMcpDecision)
+                            LiveMessage(state, onFile, { quoted -> model.quoteMessage(quoted) }, loader, model::resolveMcpDecision)
                         }
                     }
                 }

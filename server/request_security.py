@@ -43,6 +43,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH = (
 )
 AUTO_SYSTEM_PROMPT_NOTICE_MARKER = "編集済みの画像を見てください。"
 AUTO_SYSTEM_PROMPT_NOTICE_ATTACHMENT_NAMES = "添付ファイル名:\n{{attachment_names}}"
+AUTO_SYSTEM_PROMPT_NOTICE_QUOTE_SOURCE = "引用元: {{quote_source}}"
 
 AUTO_SYSTEM_PROMPT_NOTICE_MATHJAX = (
     "Mathematical formulas should be output in MathJax (LaTeX) format. "
@@ -77,6 +78,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "openai_search",
     "marker",
     "attachment_names",
+    "quote_source",
     "mathjax",
     "image_analysis",
     "mcp",
@@ -91,6 +93,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
     "openai_search": "Search補助 (OpenAI/xAI Responses)",
     "marker": "Marker編集時",
     "attachment_names": "添付ファイル名 (LLM入力時)",
+    "quote_source": "引用元 (引用して送信時)",
     "mathjax": "MathJax (LaTeX数式)",
     "image_analysis": "画像解析 (Vision Model指示文)",
     "mcp": "MCP (外部ツール接続)",
@@ -105,6 +108,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
     "openai_search": AUTO_SYSTEM_PROMPT_NOTICE_OPENAI_SEARCH,
     "marker": AUTO_SYSTEM_PROMPT_NOTICE_MARKER,
     "attachment_names": AUTO_SYSTEM_PROMPT_NOTICE_ATTACHMENT_NAMES,
+    "quote_source": AUTO_SYSTEM_PROMPT_NOTICE_QUOTE_SOURCE,
     "mathjax": AUTO_SYSTEM_PROMPT_NOTICE_MATHJAX,
     "image_analysis": AUTO_SYSTEM_PROMPT_NOTICE_IMAGE_ANALYSIS,
     "mcp": AUTO_SYSTEM_PROMPT_NOTICE_MCP,
@@ -185,6 +189,25 @@ def _render_attachment_names_notice(template_text, names):
             rendered = f"{rendered}:\n{names_block}"
 
     return rendered.strip()
+
+
+def _render_quote_source_notice(template_text, role, number=None):
+    """Fill {{quote_source}} with whose message was quoted and its position.
+
+    `role` is "user" or "assistant"; `number` is the 1-based position of the
+    quoted message in the conversation path, or None when it is not on that path.
+    """
+    role = str(role or "").strip().lower()
+    if role not in ("user", "assistant"):
+        return ""
+    source = role if not number else f"{role} (message #{int(number)})"
+    rendered = str(template_text or "").replace("\r\n", "\n").strip()
+    if not rendered:
+        rendered = AUTO_SYSTEM_PROMPT_NOTICE_QUOTE_SOURCE
+    replaced = re.sub(r"\{\{\s*quote_source\s*\}\}|\{quote_source\}", lambda _m: source, rendered)
+    if replaced == rendered:
+        replaced = f"{rendered} {source}"
+    return replaced.strip()
 
 
 def _build_default_auto_system_prompt_notices_config():

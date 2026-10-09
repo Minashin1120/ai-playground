@@ -192,6 +192,8 @@ data class ChatState(
     val lowBandwidthReason: String = "",
     /** Web `currentQuote`: text quoted from a message, sent as `quote_text` with the next message. */
     val quote: String = "",
+    /** Id of the message [quote] was selected from (Web `currentQuoteMessageId`), sent as `quote_message_id`. */
+    val quoteMessageId: Int? = null,
     /** Incremented to ask the screen to open the settings modal (e.g. from the encryption status dialog). */
     val settingsRequest: Long = 0L,
     /** Tab (id or label) and card key the latest [settingsRequest] opens at; null keeps the last tab. */
@@ -1680,12 +1682,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 composerFocusRequest = it.composerFocusRequest + 1)
         }
     }
-    fun quoteMessage(text: String) {
+    fun quoteMessage(text: String, sourceMessageId: Int? = null) {
         val quoted = text.trim()
         if (quoted.isBlank()) return
-        mutable.update { it.copy(quote = quoted, composerFocusRequest = it.composerFocusRequest + 1) }
+        mutable.update { it.copy(quote = quoted, quoteMessageId = sourceMessageId, composerFocusRequest = it.composerFocusRequest + 1) }
     }
-    fun clearQuote() { mutable.update { it.copy(quote = "") } }
+    fun clearQuote() { mutable.update { it.copy(quote = "", quoteMessageId = null) } }
     /**
      * Web `applySavedUserSystemPromptSettings`: after the user system prompt is saved from Settings or
      * Chat Instructions, the composer's SysPrompt switch follows it when its text or on/off changed.
@@ -2449,6 +2451,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             draft = message.content,
             attachments = message.files.map { reference -> Attachment(reference.substringAfterLast('/'), reference) },
             quote = message.quote,
+            quoteMessageId = null,
             composerFocusRequest = it.composerFocusRequest + 1,
         ) }
     }
@@ -2561,7 +2564,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .put("temporary_chat", current.selected?.isTemporary ?: current.newThreadTemporary)
             .put("disable_auto_search", disableAutoSearch)
         current.imageMask?.let { body.put("image_mask", it) }
-        if (current.quote.isNotBlank()) body.put("quote_text", current.quote)
+        if (current.quote.isNotBlank()) {
+            body.put("quote_text", current.quote)
+            current.quoteMessageId?.let { body.put("quote_message_id", it) }
+        }
         if (current.codingMode) {
             val plan = planCodingSend(current.draft, historyCodingTargets(current.messages), current.codingTarget, current.model)
             plan.error?.let { notify(it); return }

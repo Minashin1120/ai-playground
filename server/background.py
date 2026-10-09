@@ -1226,6 +1226,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             finally:
                 try: r.delete(f"quote:{job_id}")
                 except: pass
+            quote_source = None
+            try:
+                qsv = r.get(f"quote_source:{job_id}")
+                if qsv: quote_source = json.loads(qsv.decode('utf-8'))
+            except Exception:
+                quote_source = None
+            finally:
+                try: r.delete(f"quote_source:{job_id}")
+                except: pass
 
             # Reconstruct history by traversing UP the tree (parent_id)
             # The current message (msg) is the User's new prompt. We need its ancestors.
@@ -2069,6 +2078,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             signature_parts = []
 
             original_quote_text = quote_text
+            if quote_text and isinstance(quote_source, dict) and is_llm_model and _auto_notice_enabled("quote_source"):
+                quote_source_notice = _render_quote_source_notice(
+                    _auto_notice_text("quote_source"), quote_source.get("role"), quote_source.get("number")
+                )
+                if quote_source_notice:
+                    quote_text = f"{quote_source_notice}\n\n{quote_text}"
             if options.get("coding_mode"):
                 coding_target = options.get("coding_target") or {}
                 coding_candidates = options.get("coding_candidates") or []

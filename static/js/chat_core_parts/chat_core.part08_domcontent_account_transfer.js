@@ -401,6 +401,7 @@
                 { key: 'openai_search', label: 'Search補助（OpenAI/xAI Responses）' },
                 { key: 'marker', label: 'Marker編集時' },
                 { key: 'attachment_names', label: '添付ファイル名（LLM入力時）', hint: '利用可能変数: {{attachment_names}} / {{attachment_count}}' },
+                { key: 'quote_source', label: '引用元（引用して送信時）', hint: '利用可能変数: {{quote_source}}（引用元の発言者と会話内の番号が入ります）' },
                 { key: 'mathjax', label: 'MathJax（LaTeX数式）' },
                 { key: 'image_analysis', label: '画像解析（Vision Model指示文）' },
                 { key: 'mcp', label: 'MCP（外部ツール接続）', hint: '利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）', mcpLocked: true }

@@ -13,7 +13,8 @@ class SystemPromptBuilderTest {
             .put("python", JSONObject().put("text", "PYTHON NOTICE"))
             .put("mathjax", JSONObject().put("text", "Use MathJax"))
             .put("openai_search", JSONObject().put("text", "SEARCH NOTICE"))
-            .put("attachment_names", JSONObject().put("text", "添付: {{attachment_names}}"))))
+            .put("attachment_names", JSONObject().put("text", "添付: {{attachment_names}}"))
+            .put("quote_source", JSONObject().put("text", "引用元: {{quote_source}}"))))
     private val now = ZonedDateTime.of(2026, 9, 27, 10, 0, 0, 0, ZoneId.of("Asia/Tokyo"))
     private val thread = SystemPromptBuilder.ThreadSettings("このチャットでは短く", true)
 
@@ -48,5 +49,13 @@ class SystemPromptBuilderTest {
         assertEquals("添付: 画像1: a.png\n画像2: b.jpg",
             SystemPromptBuilder.attachmentNamesBlock(listOf("local/a.png", "b.jpg"), JSONObject(), defaults))
         assertEquals("", SystemPromptBuilder.attachmentNamesBlock(emptyList(), JSONObject(), defaults))
+    }
+
+    @Test fun quoteSourceNamesTheSpeakerAndPosition() {
+        assertEquals("引用元: assistant (message #5)", SystemPromptBuilder.quoteSourceBlock("assistant", 5, JSONObject(), defaults))
+        assertEquals("引用元: user", SystemPromptBuilder.quoteSourceBlock("user", null, JSONObject(), defaults))
+        assertEquals("", SystemPromptBuilder.quoteSourceBlock("system", 1, JSONObject(), defaults))
+        val off = JSONObject().put("auto_system_prompt_notices_config", JSONObject().put("quote_source", JSONObject().put("enabled", false)))
+        assertEquals("", SystemPromptBuilder.quoteSourceBlock("assistant", 5, off, defaults))
     }
 }

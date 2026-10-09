@@ -365,6 +365,8 @@ IDは文字列として扱います。古い履歴の数値IDを受け取る場�
 }
 ```
 
+引用して送るときは `quote_text` に選択した文字列を入れ、引用元が保存済みのメッセージならそのIDを `quote_message_id` に入れます。サーバーはそのメッセージの発言者と、会話の経路上の通し番号を、自動注入システムプロンプトの項目 `quote_source`（Web・Androidの設定で確認・オフ・編集できる）に従って引用の先頭へ付けてモデルへ渡します。IDが不明・別スレッドのときは何も付けません（任意のフィールドで、省略しても従来どおり動作します）。
+
 `model` は省略できません。`/me` の `models` から `selectable: true` のモデルだけを選び、`mode` に応じた入力と `capabilities` に含まれる設定だけを表示します。ネイティブ対象は `chat`、`image`、`video`、`ocr`、`tts`、`transcription`、`agent`、`embedding`、会話型の `realtime_audio` とLyriaの `music` です（Lyria 3とEmbeddingは `/chat_stream`、Lyria RealTimeは音楽セッションAPI）。`realtime_audio` は認証済みサーバーセッションを介してOpenAI／Grok／Gemini Liveを入力欄の音声ドックまたはRealtimeスタジオで利用します。gpt-transcribe／gpt-live-transcribe／Realtime WhisperはWebと同じく、音声ドックで録音してから `/sts` へ送ります。既存のモデル用APIキーがない場合は400と `code: api_key_missing` 等が返るため、Webの設定を案内します。
 
 `gem_uuid` を付けると、そのGemの指示が回答生成に適用されます。`/api/gems` が返す本人の `uuid` だけを使い、他ユーザーのGemを指定しないでください。現在のスレッドの最後に使ったGemは、スレッド取得応答の `last_gem_uuid` で確認できます。

@@ -98,6 +98,16 @@ object SystemPromptBuilder {
         return rendered.trim()
     }
 
+    /** Server `_render_quote_source_notice`: whose message a quote came from and its position in the conversation. */
+    fun quoteSourceBlock(role: String, number: Int?, preferences: JSONObject, defaults: ServerlessDefaults): String {
+        val notices = Notices(preferences, defaults)
+        if ((role != "user" && role != "assistant") || !notices.enabled("quote_source")) return ""
+        val source = if (number == null || number <= 0) role else "$role (message #$number)"
+        val rendered = notices.text("quote_source").replace("\r\n", "\n").trim()
+        val regex = Regex("\\{\\{\\s*quote_source\\s*\\}\\}|\\{quote_source\\}")
+        return (if (regex.containsMatchIn(rendered)) regex.replace(rendered, Regex.escapeReplacement(source)) else "$rendered $source").trim()
+    }
+
     /** Server `build_global_system_prompt`. */
     fun timeNotice(now: ZonedDateTime): String =
         "Current time: ${now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss zzz"))} (UTC${now.format(DateTimeFormatter.ofPattern("xx"))})"

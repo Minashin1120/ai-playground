@@ -386,6 +386,7 @@
             const quoteText = msg ? msg.quote_text : meta.quote_text;
             if (quoteText) {
                 currentQuote = quoteText;
+                currentQuoteMessageId = null;
                 get('quote-text-display').innerText = currentQuote;
                 get('quote-bar').classList.add('visible');
             } else {

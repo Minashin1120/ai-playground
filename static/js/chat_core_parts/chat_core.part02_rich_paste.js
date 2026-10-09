@@ -1396,6 +1396,7 @@
         let threadPage = 1, threadLoading = false, hasMoreThreads = true;
         let threadObserver = null;
         let currentQuote = "";
+        let currentQuoteMessageId = null;
         let currentThreadTitle = null;
         let temporaryChatEnabled = false;
         let temporaryChatTimeoutSeconds = TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS;

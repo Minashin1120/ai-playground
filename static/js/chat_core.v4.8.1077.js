@@ -3221,6 +3221,7 @@
         let threadPage = 1, threadLoading = false, hasMoreThreads = true;
         let threadObserver = null;
         let currentQuote = "";
+        let currentQuoteMessageId = null;
         let currentThreadTitle = null;
         let temporaryChatEnabled = false;
         let temporaryChatTimeoutSeconds = TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS;
@@ -5411,6 +5412,7 @@
             const quoteText = msg ? msg.quote_text : meta.quote_text;
             if (quoteText) {
                 currentQuote = quoteText;
+                currentQuoteMessageId = null;
                 get('quote-text-display').innerText = currentQuote;
                 get('quote-bar').classList.add('visible');
             } else {
@@ -7309,14 +7311,34 @@
         // Quote Reply Logic
         const isQuoteMobileLayout = () => window.matchMedia('(max-width: 768px)').matches;
         let quotePreviewText = "";
+        let quotePreviewMessageId = null;
+
+        // The id of the message the current text selection sits in (`msg-<id>`), or
+        // null when it is not a saved message. Sent so the server can say whom and
+        // where the quote came from.
+        function getSelectionMessageId() {
+            try {
+                const sel = window.getSelection();
+                let node = sel && sel.anchorNode;
+                if (node && node.nodeType !== 1) node = node.parentElement;
+                while (node) {
+                    const m = /^msg-(\d+)$/.exec(node.id || '');
+                    if (m) return Number(m[1]);
+                    node = node.parentElement;
+                }
+            } catch (e) {}
+            return null;
+        }
 
         function showQuotePreview(text) {
             const bar = get('quote-bar');
             quotePreviewText = text;
+            quotePreviewMessageId = getSelectionMessageId();
             // A new pending quote supersedes any already-applied quote so the
             // bar always reflects what the next message would quote.
             if (!bar.classList.contains('preview')) {
                 currentQuote = "";
+                currentQuoteMessageId = null;
                 bar.classList.add('preview');
             }
             get('quote-text-display').innerText = text;
@@ -7370,6 +7392,7 @@
 
         get('quote-popover').onclick = () => {
             currentQuote = window.getSelection().toString().trim();
+            currentQuoteMessageId = currentQuote ? getSelectionMessageId() : null;
             if(currentQuote) {
                 get('quote-text-display').innerText = currentQuote;
                 get('quote-bar').classList.add('visible');
@@ -7387,7 +7410,9 @@
         get('quote-confirm-btn').onclick = () => {
             if (!quotePreviewText) return;
             currentQuote = quotePreviewText;
+            currentQuoteMessageId = quotePreviewMessageId;
             quotePreviewText = "";
+            quotePreviewMessageId = null;
             const bar = get('quote-bar');
             bar.classList.remove('preview');
             get('prompt-input').focus();
@@ -7396,7 +7421,9 @@
 
         window.clearQuote = () => {
             currentQuote = "";
+            currentQuoteMessageId = null;
             quotePreviewText = "";
+            quotePreviewMessageId = null;
             const bar = get('quote-bar');
             bar.classList.remove('preview');
             bar.classList.remove('visible');
@@ -12124,6 +12151,7 @@
                 { key: 'openai_search', label: 'Search補助（OpenAI/xAI Responses）' },
                 { key: 'marker', label: 'Marker編集時' },
                 { key: 'attachment_names', label: '添付ファイル名（LLM入力時）', hint: '利用可能変数: {{attachment_names}} / {{attachment_count}}' },
+                { key: 'quote_source', label: '引用元（引用して送信時）', hint: '利用可能変数: {{quote_source}}（引用元の発言者と会話内の番号が入ります）' },
                 { key: 'mathjax', label: 'MathJax（LaTeX数式）' },
                 { key: 'image_analysis', label: '画像解析（Vision Model指示文）' },
                 { key: 'mcp', label: 'MCP（外部ツール接続）', hint: '利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）', mcpLocked: true }
@@ -21604,6 +21632,7 @@
                 transcription_diarization: false,
                 transcription_word_timestamps: false,
                 quote_text: currentQuote,
+                quote_message_id: currentQuote ? currentQuoteMessageId : null,
                 parent_id: capturedParentId,
                 parent_id_explicit: parentIdExplicit,
                 disable_auto_search: disableAutoSearch,

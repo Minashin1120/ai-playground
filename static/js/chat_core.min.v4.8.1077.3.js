@@ -1631,26 +1631,27 @@ get("ocr-table-format")?get("ocr-table-format").value:null,ocr_extract_header:is
 get("ocr-include-images")?get("ocr-include-images").checked:!0,ocr_pages:isMistralOcrModel()&&get("o\
 cr-pages")?get("ocr-pages").value:null,transcription_language_codes:[],transcription_custom_vocabulary:[],
 transcription_mode:"verbatim",transcription_diarization:!1,transcription_word_timestamps:!1,quote_text:currentQuote,
-parent_id:X,parent_id_explicit:U,disable_auto_search:ce,image_vision_model:currentVisionModel||null,
-coding_mode:C,coding_target:C?{id:k.candidate_id,code:k.prompt_source?null:k.code,language:k.language||
-"text",key:k.key||null,message_id:k.message_id||null,source:k.prompt_source?"prompt":"history",explicit:k.
-explicit===!0}:null,coding_candidates:C?_.map(B=>({id:B.candidate_id,source:B.prompt_source?"prompt":
-"history",prompt_index:B.prompt_source?B.prompt_index:null,code:B.prompt_source?null:B.code,language:B.
-language||"text",explicit:B.explicit===!0})):[],batch_mode:i,canvas_mode:!!canvasModeEnabled};e&&(A.
-turnstile_token=e);const j=get("thread-custom-instruction");j&&(A.thread_custom_instruction=j.value||
-""),activeGem?(A.system_prompt=activeGem.instruction,A.enable_system_prompt=!0,A.gem_uuid=activeGem.
-uuid):A.gem_uuid=null,setSendBtnToStopMode();const J="ai-"+Date.now(),Z=String(A.model||"").toLowerCase(),
-ne=!!A.enable_thinking||!!de&&de!=="none",Ce=Z.includes("gemini")||Z.includes("o1")||Z.includes("o3")||
-Z.includes("gpt-5")||Z.includes("reasoning")&&!Z.includes("non-reasoning"),ie=ne&&Ce;let pe=buildPendingSkeletonHtml(
-A.model,"API\u306B\u9001\u4FE1\u4E2D...");get("chat-container").insertAdjacentHTML("beforeend",`<div\
- class="flex justify-start mb-4 ai-pending-row fade-in"><div id="${J}" class="message-bubble ai-pend\
-ing-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${pe}</div></d\
-iv>`),resumeChatAutoScroll();const V=get(J);activeStreamingBubbleId=J,canvasModeEnabled&&resetCanvasPreviewPanel();
-let he=null;const pt=o(B=>!ie||!V?null:((!he||!V.contains(he))&&(he=V.querySelector(".thought-conten\
-t")),he||(V.insertAdjacentHTML("afterbegin",'<div class="thought-container"><div class="thought-head\
-er thinking-shimmer" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thi\
-nking Process</div><div class="thought-content collapsed" data-placeholder="1"></div></div>'),he=V.querySelector(
-".thought-content")),he&&(he.setAttribute("data-placeholder","1"),he.textContent=B||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
+quote_message_id:currentQuote?currentQuoteMessageId:null,parent_id:X,parent_id_explicit:U,disable_auto_search:ce,
+image_vision_model:currentVisionModel||null,coding_mode:C,coding_target:C?{id:k.candidate_id,code:k.
+prompt_source?null:k.code,language:k.language||"text",key:k.key||null,message_id:k.message_id||null,
+source:k.prompt_source?"prompt":"history",explicit:k.explicit===!0}:null,coding_candidates:C?_.map(B=>({
+id:B.candidate_id,source:B.prompt_source?"prompt":"history",prompt_index:B.prompt_source?B.prompt_index:
+null,code:B.prompt_source?null:B.code,language:B.language||"text",explicit:B.explicit===!0})):[],batch_mode:i,
+canvas_mode:!!canvasModeEnabled};e&&(A.turnstile_token=e);const j=get("thread-custom-instruction");j&&
+(A.thread_custom_instruction=j.value||""),activeGem?(A.system_prompt=activeGem.instruction,A.enable_system_prompt=
+!0,A.gem_uuid=activeGem.uuid):A.gem_uuid=null,setSendBtnToStopMode();const J="ai-"+Date.now(),Z=String(
+A.model||"").toLowerCase(),ne=!!A.enable_thinking||!!de&&de!=="none",Ce=Z.includes("gemini")||Z.includes(
+"o1")||Z.includes("o3")||Z.includes("gpt-5")||Z.includes("reasoning")&&!Z.includes("non-reasoning"),
+ie=ne&&Ce;let pe=buildPendingSkeletonHtml(A.model,"API\u306B\u9001\u4FE1\u4E2D...");get("chat-contai\
+ner").insertAdjacentHTML("beforeend",`<div class="flex justify-start mb-4 ai-pending-row fade-in"><d\
+iv id="${J}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-\
+tl-none shadow-md relative">${pe}</div></div>`),resumeChatAutoScroll();const V=get(J);activeStreamingBubbleId=
+J,canvasModeEnabled&&resetCanvasPreviewPanel();let he=null;const pt=o(B=>!ie||!V?null:((!he||!V.contains(
+he))&&(he=V.querySelector(".thought-content")),he||(V.insertAdjacentHTML("afterbegin",'<div class="t\
+hought-container"><div class="thought-header thinking-shimmer" onclick="toggleThinking(this)"><i cla\
+ss="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed" \
+data-placeholder="1"></div></div>'),he=V.querySelector(".thought-content")),he&&(he.setAttribute("da\
+ta-placeholder","1"),he.textContent=B||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
 he),"ensureThoughtPlaceholder");ie&&pt("\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
 abortController=new AbortController;const ct=currentThreadId,mt=nowPerfMs(),Ne=Date.now();let Ve=!1,
 bt=!1,Mt=!1,wt=null,At=null,yt=null,Rt=currentThreadId!=null&&currentThreadId!==""?String(currentThreadId):

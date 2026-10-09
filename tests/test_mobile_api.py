@@ -729,8 +729,22 @@ class MobileApiTests(unittest.TestCase):
         path = started.json['path']
         self.assertTrue(path.startswith('/android/link/google?grant='))
         browser = target.app.test_client()
+        grant = path.split('grant=', 1)[1]
         with mock.patch.object(target.oauth.google, 'authorize_redirect', return_value=target.redirect('https://accounts.google.com/o/oauth2')) as authorize:
+            # Opening the link only shows which account will be linked.
             opened = browser.get(path, base_url='https://localhost')
+            self.assertEqual(opened.status_code, 200)
+            self.assertFalse(authorize.called)
+            page = opened.get_data(as_text=True)
+            self.assertIn('android-owner', page)
+            with browser.session_transaction() as sess:
+                self.assertNotIn('mobile_native_link_user', sess)
+                csrf_token = sess['csrf_token']
+            # Without the CSRF token the confirmation is rejected.
+            self.assertEqual(browser.post('/android/link/google', data={'grant': grant},
+                                          base_url='https://localhost').status_code, 403)
+            opened = browser.post('/android/link/google', data={'grant': grant, 'csrf_token': csrf_token},
+                                  base_url='https://localhost')
         self.assertEqual(opened.status_code, 302)
         self.assertTrue(authorize.called)
         with browser.session_transaction() as sess:

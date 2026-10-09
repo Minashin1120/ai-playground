@@ -134,6 +134,15 @@ def safe_execute_python(code):
             "--nofile=64",
             "--",
             bwrap,
+            # Never expose the service environment (.env secrets such as the
+            # Flask session key and provider API keys) to model-written code.
+            "--clearenv",
+            "--setenv", "PATH", "/usr/bin:/bin",
+            "--setenv", "HOME", "/tmp",  # nosec B108 - private path inside the bwrap mount namespace
+            "--setenv", "LANG", "C.UTF-8",
+            "--setenv", "PYTHONIOENCODING", "utf-8",
+            "--setenv", "PYTHONDONTWRITEBYTECODE", "1",
+            "--new-session",
             "--unshare-net",
             "--unshare-uts",
             "--unshare-pid",
@@ -151,7 +160,10 @@ def safe_execute_python(code):
         cmd.extend(["--bind", td, "/work", py_path, "/work/code.py"])
         try:
             with tempfile.TemporaryFile(mode="w+b") as output:
-                subprocess.run(cmd, stdout=output, stderr=subprocess.STDOUT, timeout=30, check=False)
+                subprocess.run(
+                    cmd, stdout=output, stderr=subprocess.STDOUT, timeout=30, check=False,
+                    env={"PATH": "/usr/bin:/bin"},
+                )
                 output.seek(0)
                 raw = output.read(2 * 1024 * 1024 + 1)
             truncated = len(raw) > 2 * 1024 * 1024

@@ -42,14 +42,13 @@ def _redis():
 
 
 def _http_get_json(url, *, headers=None, timeout=15.0, extra_query=None):
-    import httpx
     security.validate_mcp_url(url, resolve=True)
     params = None
     if extra_query:
         params = extra_query
     try:
-        resp = httpx.get(url, params=params, headers=headers or {"Accept": "application/json"},
-                         timeout=timeout, follow_redirects=False)
+        with security.build_sync_client(timeout=timeout) as client:
+            resp = client.get(url, params=params, headers=headers or {"Accept": "application/json"})
     except Exception as e:
         raise MCPConnectionError(f"Discovery request failed: {e}")
     if resp.status_code >= 400:
@@ -79,13 +78,12 @@ def _discover_protected_resource(server_url):
         pass
     # サーバー自身へのプローブ（401 の WWW-Authenticate に resource_metadata が載る場合）
     try:
-        import httpx
-        probe = httpx.get(
-            server_url,
-            headers={"Accept": "application/json, text/event-stream"},
-            timeout=config.MCP_CONNECT_TIMEOUT_SECONDS,
-            follow_redirects=False,
-        )
+        security.validate_mcp_url(server_url, resolve=True)
+        with security.build_sync_client(timeout=config.MCP_CONNECT_TIMEOUT_SECONDS) as client:
+            probe = client.get(
+                server_url,
+                headers={"Accept": "application/json, text/event-stream"},
+            )
         if probe.status_code == 401:
             www = probe.headers.get("www-authenticate") or ""
             if 'resource_metadata="' in www or "resource_metadata=" in www:
@@ -287,10 +285,11 @@ def _auth_header_for_oauth_client(client_id, client_secret):
 
 
 def _token_request(state_data, grant_params, use_basic=True):
-    import httpx
     url = state_data.get("token_endpoint")
     if not url:
         raise MCPAuthRequiredError("Token endpoint is missing.")
+    # token_endpoint は外部サーバーのメタデータ由来のため、接続先を必ず検査する
+    security.validate_mcp_url(url, resolve=True)
     headers = {"Accept": "application/json"}
     if use_basic and state_data.get("client_secret"):
         headers.update(_auth_header_for_oauth_client(state_data["client_id"], state_data["client_secret"]))
@@ -300,8 +299,8 @@ def _token_request(state_data, grant_params, use_basic=True):
         # 公開クライアント（secretなし）
         grant_params["client_id"] = state_data.get("client_id")
     try:
-        resp = httpx.post(url, data=grant_params, headers=headers,
-                          timeout=config.MCP_CONNECT_TIMEOUT_SECONDS, follow_redirects=False)
+        with security.build_sync_client(timeout=config.MCP_CONNECT_TIMEOUT_SECONDS) as client:
+            resp = client.post(url, data=grant_params, headers=headers)
     except Exception as e:
         raise MCPConnectionError(f"Token request failed: {e}")
     if resp.status_code >= 400:

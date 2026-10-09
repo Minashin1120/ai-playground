@@ -621,11 +621,10 @@
             const shell = `<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><style>html,body,iframe{width:100%;height:100%;margin:0;border:0;background:#fff}body{overflow:hidden}</style></head><body><iframe id="preview" sandbox="allow-scripts allow-forms allow-modals allow-popups" referrerpolicy="no-referrer"></iframe><script>document.getElementById('preview').srcdoc=${frameHtml};<\/script></body></html>`;
             const blob = new Blob([shell], { type: 'text/html;charset=utf-8' });
             const url = URL.createObjectURL(blob);
-            const tab = window.open(url, '_blank', 'noopener,noreferrer');
-            if (!tab) {
-                URL.revokeObjectURL(url);
-                return false;
-            }
+            // With "noopener" window.open() always returns null, so the result
+            // cannot tell success from a blocked popup. Keep the Blob URL alive
+            // long enough for the new tab to load it.
+            window.open(url, '_blank', 'noopener,noreferrer');
             setTimeout(() => URL.revokeObjectURL(url), 60000);
             return true;
         };

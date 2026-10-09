@@ -77,6 +77,47 @@ class McpUrlSecurityTests(unittest.TestCase):
         self.assertFalse(security.is_redirect_allowed("http://127.0.0.1/"))
         self.assertFalse(security.is_redirect_allowed("ftp://x/"))
 
+    def test_blocks_non_global_ip_literals(self):
+        # CGNAT（100.64.0.0/10）など private 以外の非公開アドレスも拒否する
+        for ip in ("100.64.0.1", "100.127.255.254"):
+            with self.subTest(ip=ip):
+                with self.assertRaises(MCPSecurityError):
+                    security.validate_mcp_url(f"https://{ip}/mcp", resolve=False)
+
+    def test_sync_client_rechecks_resolution_at_connect_time(self):
+        # 事前検査の後でDNSの応答が内部IPに変わっても、接続時の検査で止める
+        client = security.build_sync_client(timeout=2)
+        try:
+            with mock.patch("mcp_service.security.socket.getaddrinfo",
+                            side_effect=_fake_resolve(["127.0.0.1"])):
+                with self.assertRaises(MCPSecurityError):
+                    client.get("http://rebind.example.com/mcp")
+        finally:
+            client.close()
+
+    def test_async_transport_rechecks_resolution_at_connect_time(self):
+        import asyncio
+        import httpx2
+
+        async def _fake_anyio_getaddrinfo(host, port, **kwargs):
+            return _fake_resolve(["169.254.169.254"])(host, port)
+
+        async def _request():
+            async with httpx2.AsyncClient(transport=security.build_async_transport(verify=True)) as client:
+                await client.get("http://rebind.example.com/mcp")
+
+        with mock.patch("anyio.getaddrinfo", side_effect=_fake_anyio_getaddrinfo):
+            with self.assertRaises(MCPSecurityError):
+                asyncio.run(_request())
+
+    def test_token_request_validates_metadata_endpoint(self):
+        from mcp_service import auth as mcp_auth
+        state = {"token_endpoint": "http://127.0.0.1:6379/", "client_id": "c"}
+        with mock.patch.object(security, "build_sync_client") as build:
+            with self.assertRaises(MCPSecurityError):
+                mcp_auth._token_request(state, {"grant_type": "authorization_code"})
+        build.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

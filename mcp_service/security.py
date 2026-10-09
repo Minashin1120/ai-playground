@@ -45,6 +45,9 @@ def _classify_ip(ip):
         return "multicast"
     if ip_obj.is_unspecified:
         return "unspecified"
+    if not ip_obj.is_global:
+        # 100.64.0.0/10（CGNAT）など、上の分類に入らない非公開アドレス
+        return "non-global"
     return None
 
 
@@ -152,3 +155,89 @@ def normalize_redirect_location(base_url, location):
     """Location ヘッダー値を絶対URLへ解決する。"""
     from urllib.parse import urljoin
     return urljoin(base_url, location)
+
+
+def _checked_connect_addresses(host, infos):
+    """getaddrinfo の結果を検査し、接続してよいIPの一覧を返す。
+
+    1つでもブロック対象が含まれれば拒否する（validate_mcp_url と同じ基準）。
+    """
+    ips = []
+    for info in infos or []:
+        addr = info[4][0]
+        if addr not in ips:
+            ips.append(addr)
+    if not ips:
+        raise MCPSecurityError("Could not resolve MCP URL host.")
+    for ip in ips:
+        reason = _classify_ip(ip)
+        if reason:
+            raise MCPSecurityError(f"MCP URL host resolves to a blocked address ({reason}).")
+    return ips
+
+
+def _pin_network_backend(transport, backend):
+    pool = getattr(transport, "_pool", None)
+    if pool is None or not hasattr(pool, "_network_backend"):
+        # 検査付きの接続に差し替えられない場合は接続させない
+        raise MCPSecurityError("MCP connection guard is unavailable.")
+    pool._network_backend = backend
+    return transport
+
+
+def build_async_transport(**kwargs):
+    """接続の直前に解決したIPを検査し、そのIPへ接続する httpx2 トランスポート。
+
+    URLの事前検査と接続時の名前解決の間でDNSの応答を変える攻撃（DNSリバインディング）を防ぐ。
+    TLSのSNI・証明書検証は元のホスト名で行われる。
+    """
+    import anyio
+    import httpx2
+    from httpcore2 import AsyncNetworkBackend
+    from httpcore2._backends.auto import AutoBackend
+
+    class _GuardedAsyncBackend(AsyncNetworkBackend):
+        def __init__(self):
+            self._inner = AutoBackend()
+
+        async def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+            infos = await anyio.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+            ips = _checked_connect_addresses(host, infos)
+            return await self._inner.connect_tcp(
+                ips[0], port, timeout=timeout, local_address=local_address, socket_options=socket_options,
+            )
+
+        async def connect_unix_socket(self, path, timeout=None, socket_options=None):
+            raise MCPSecurityError("Unix sockets are not allowed for MCP connections.")
+
+        async def sleep(self, seconds):
+            await self._inner.sleep(seconds)
+
+    return _pin_network_backend(httpx2.AsyncHTTPTransport(**kwargs), _GuardedAsyncBackend())
+
+
+def build_sync_client(**kwargs):
+    """build_async_transport と同じ検査を行う同期の httpx.Client（OAuthの発見・トークン取得用）。"""
+    import httpx
+    from httpcore import NetworkBackend, SyncBackend
+
+    class _GuardedSyncBackend(NetworkBackend):
+        def __init__(self):
+            self._inner = SyncBackend()
+
+        def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+            infos = socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)
+            ips = _checked_connect_addresses(host, infos)
+            return self._inner.connect_tcp(
+                ips[0], port, timeout=timeout, local_address=local_address, socket_options=socket_options,
+            )
+
+        def connect_unix_socket(self, path, timeout=None, socket_options=None):
+            raise MCPSecurityError("Unix sockets are not allowed for MCP connections.")
+
+        def sleep(self, seconds):
+            self._inner.sleep(seconds)
+
+    transport = _pin_network_backend(httpx.HTTPTransport(verify=True), _GuardedSyncBackend())
+    kwargs.setdefault("follow_redirects", False)
+    return httpx.Client(transport=transport, **kwargs)

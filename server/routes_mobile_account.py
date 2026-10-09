@@ -274,18 +274,51 @@ def mobile_account_link_start(provider):
                     'expires_in': _MOBILE_LINK_TTL})
 
 
-@app.route('/android/link/<provider>', methods=['GET'])
+_MOBILE_LINK_PROVIDER_LABELS = {'google': 'Google', 'minashin': 'Minashin'}
+
+
+def _mobile_account_link_confirm_page(provider, grant, return_mode, user):
+    """Shows which account the provider will be linked to before the grant is used.
+
+    Without this step, a link created by someone else's app would attach the
+    visitor's Google / Minashin identity to that other account.
+    """
+    label = html.escape(_MOBILE_LINK_PROVIDER_LABELS.get(provider, provider))
+    username = html.escape(str(getattr(user, 'username', '') or ''))
+    action = html.escape(url_for('mobile_account_link_open', provider=provider), quote=True)
+    csrf_token = html.escape(get_csrf_token(), quote=True)
+    return_field = '<input type="hidden" name="return" value="app">' if return_mode else ''
+    body = f'''<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>アカウント連携の確認</title>
+<h1>アカウント連携の確認</h1><p>AI Playground のアカウント「<strong>{username}</strong>」に {label} を連携します。</p>
+<p>このアプリで自分が連携を始めた場合だけ続行してください。心当たりがない場合は、このページを閉じてください。</p>
+<form method="post" action="{action}"><input type="hidden" name="csrf_token" value="{csrf_token}"><input type="hidden" name="grant" value="{html.escape(grant, quote=True)}">{return_field}
+<button type="submit">{label} を連携する</button></form>'''
+    return Response(body, mimetype='text/html', headers={'Cache-Control': 'no-store'})
+
+
+@app.route('/android/link/<provider>', methods=['GET', 'POST'])
 def mobile_account_link_open(provider):
-    grant = str(request.args.get('grant') or '')
+    source = request.form if request.method == 'POST' else request.args
+    grant = str(source.get('grant') or '')
+    return_mode = _mobile_return_mode(source.get('return'))
     # The link grant is bound to the signed-in account, so the app scheme needs no PKCE here.
-    session['mobile_native_return'] = _mobile_return_mode(request.args.get('return'))
+    session['mobile_native_return'] = return_mode
     if provider not in _MOBILE_LINK_PROVIDERS or not re.fullmatch(r'[A-Za-z0-9_-]{43}', grant):
         return _mobile_native_redirect(error='link_invalid')
     key = _mobile_link_grant_key(grant)
     payload = _mobile_redis_json(key)
-    redis_conn.delete(key)
     if not payload or payload.get('provider') != provider:
+        redis_conn.delete(key)
         return _mobile_native_redirect(error='link_expired')
+    if request.method != 'POST':
+        # Opening the link alone never links anything; the grant stays valid until confirmed.
+        session.pop('mobile_native_return', None)
+        user = db.session.get(User, int(payload.get('user_id') or 0))
+        if user is None:
+            redis_conn.delete(key)
+            return _mobile_native_redirect(error='link_expired')
+        return _mobile_account_link_confirm_page(provider, grant, return_mode, user)
+    redis_conn.delete(key)
     for stale in ('mobile_native_google', 'mobile_native_auth', 'mobile_native_device_name', 'mobile_native_code_challenge'):
         session.pop(stale, None)
     session['mobile_native_link_user'] = int(payload.get('user_id') or 0)

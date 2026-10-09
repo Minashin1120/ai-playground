@@ -511,7 +511,11 @@ def _add_file_privacy_headers(resp):
 # rendered inline.  They are now uploadable (the create_file tool can produce
 # them), but serving them as their native MIME would let a browser execute any
 # embedded script, so /files/ forces them to download instead of rendering.
-_FILE_FORCE_DOWNLOAD_EXTS = {'.html', '.htm', '.xhtml', '.svg'}
+# XML is included because browsers run XHTML-namespaced <script> in XML documents.
+_FILE_FORCE_DOWNLOAD_EXTS = {
+    '.html', '.htm', '.xhtml', '.xht', '.shtml', '.svg', '.svgz',
+    '.xml', '.xsl', '.xslt', '.mht', '.mhtml',
+}
 
 def _add_thumb_cache_headers(resp, etag=None):
     resp.headers["X-Robots-Tag"] = "noindex, nofollow"

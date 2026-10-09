@@ -79,7 +79,8 @@ def _build_httpx_client(headers, read_timeout, call=False):
             pool=config.MCP_POOL_TIMEOUT_SECONDS,
         ),
         follow_redirects=False,
-        verify=True,
+        # 接続直前に解決したIPを検査して、そのIPへ接続する（DNSリバインディング対策）
+        transport=security.build_async_transport(verify=True),
     )
 
 

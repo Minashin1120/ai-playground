@@ -82,6 +82,20 @@ class DeepSeekPythonToolTests(unittest.TestCase):
         self.assertIn("--nproc=256", command)
         self.assertNotIn("--nproc=64", command)
 
+    def test_python_sandbox_does_not_inherit_service_environment(self):
+        with patch.dict(os.environ, {"SANDBOX_LEAK_CHECK_SECRET": "must-not-leak"}), \
+                patch("subprocess.run") as run:
+            target.safe_execute_python("print(1)")
+
+        command = run.call_args.args[0]
+        self.assertIn("--clearenv", command)
+        self.assertLess(command.index("--clearenv"), command.index("/usr/bin/python3"))
+        env = run.call_args.kwargs.get("env")
+        self.assertIsInstance(env, dict)
+        self.assertNotIn("SANDBOX_LEAK_CHECK_SECRET", env)
+        self.assertNotIn("FLASK_SECRET_KEY", env)
+        self.assertNotIn("must-not-leak", " ".join(command))
+
     def test_python_sandbox_redacts_host_paths_from_execution_output(self):
         def emit_host_path_error(*args, **kwargs):
             kwargs["stdout"].write(

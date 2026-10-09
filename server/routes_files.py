@@ -90,10 +90,15 @@ def serve_file(filename):
         range_header = request.headers.get('Range')
         if range_header:
             m = re.match(r"bytes=(\d*)-(\d*)", range_header)
-            if m:
+            if m and (m.group(1) or m.group(2)):
                 size = len(data)
-                start = int(m.group(1)) if m.group(1) else 0
-                end = int(m.group(2)) if m.group(2) else size - 1
+                if m.group(1):
+                    start = int(m.group(1))
+                    end = int(m.group(2)) if m.group(2) else size - 1
+                else:
+                    # Suffix range ("bytes=-N"): the last N bytes.
+                    start = max(0, size - int(m.group(2)))
+                    end = size - 1
                 end = min(end, size - 1)
                 if start > end or start >= size:
                     return Response(status=416, headers={"Content-Range": f"bytes */{size}"})

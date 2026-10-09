@@ -212,6 +212,34 @@ class UploadFileTypesRegressionTests(unittest.TestCase):
         self.assertEqual(resp.mimetype, "application/octet-stream")
         self.assertIn("attachment", resp.headers.get("Content-Disposition", ""))
 
+    def test_files_route_forces_download_for_xml(self):
+        """XML can run XHTML-namespaced scripts, so it must not render inline."""
+        ud = os.path.join(self.temp_dir.name, str(self.user_id))
+        os.makedirs(ud, mode=0o700)
+        rel = f"{self.user_id}/data.xml"
+        with open(os.path.join(ud, "data.xml"), "wb") as handle:
+            handle.write(b'<?xml version="1.0"?><root/>\n')
+        client = self.client_for()
+        resp = client.get(f"/files/{rel}")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.mimetype, "application/octet-stream")
+        self.assertIn("attachment", resp.headers.get("Content-Disposition", ""))
+
+    def test_encrypted_file_suffix_range_returns_last_bytes(self):
+        ud = os.path.join(self.temp_dir.name, str(self.user_id))
+        os.makedirs(ud, mode=0o700)
+        payload = bytes(range(200))
+        with open(os.path.join(ud, "clip.mp4.enc"), "wb") as handle:
+            handle.write(target.encrypt_bytes(payload))
+        client = self.client_for()
+        resp = client.get(f"/files/{self.user_id}/clip.mp4", headers={"Range": "bytes=-50"})
+        self.assertEqual(resp.status_code, 206)
+        self.assertEqual(resp.headers.get("Content-Range"), "bytes 150-199/200")
+        self.assertEqual(resp.get_data(), payload[150:])
+        resp = client.get(f"/files/{self.user_id}/clip.mp4", headers={"Range": "bytes=10-19"})
+        self.assertEqual(resp.status_code, 206)
+        self.assertEqual(resp.get_data(), payload[10:20])
+
 
 if __name__ == "__main__":
     unittest.main()

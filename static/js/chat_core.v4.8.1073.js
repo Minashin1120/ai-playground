@@ -5271,6 +5271,75 @@
             clearQuote();
             setEditUi(false);
         }
+        function restorePromptOptionsForEdit(message) {
+            const options = message && message.prompt_options;
+            // The message model belongs to this prompt; the thread's last model may differ.
+            if (message.model && get('model-select') && get('model-select').value !== message.model) {
+                const cache = get('enable-prompt-cache');
+                if (cache) cache.checked = false;
+                selectModelById(message.model);
+            }
+            if (!options || typeof options !== 'object' || Array.isArray(options)) return;
+            const ids = {
+                enable_search: 'enable-search', enable_url_context: 'enable-url-context',
+                enable_maps: 'enable-maps', enable_python: 'enable-python',
+                enable_file_creation: 'enable-file-creation', enable_mcp: 'enable-mcp',
+                enable_thinking: 'enable-thinking', thinking_level: 'thinking-level',
+                thinking_budget: 'thinking-budget', reasoning_effort: 'reasoning-effort',
+                safety_setting: 'safety-setting', enable_prompt_caching: 'enable-prompt-cache',
+                image_vision_model: 'image-vision-model',
+                tts_voice: 'tts-voice', tts_voice_custom: 'tts-voice-custom',
+                tts_language: 'tts-language', tts_speed: 'tts-speed',
+                image_size: 'gpt-image-size', image_quality: 'gpt-image-quality',
+                image_format: 'gpt-image-format', image_compression: 'gpt-image-compression',
+                gemini_image_aspect: 'gemini-image-aspect', gemini_image_size: 'gemini-image-size',
+                grok_image_aspect: 'grok-image-aspect', grok_image_resolution: 'grok-image-resolution',
+                grok_image_quality: 'grok-image-quality', grok_image_format: 'grok-image-format',
+                grok_image_count: 'grok-image-count', ideogram_aspect: 'ideogram-image-aspect',
+                ideogram_resolution: 'ideogram-image-resolution', ideogram_quality: 'ideogram-image-quality',
+                ideogram_speed: 'ideogram-image-speed', ideogram_magic_prompt: 'ideogram-image-magic',
+                ideogram_style_type: 'ideogram-image-style', ideogram_count: 'ideogram-image-count',
+                ideogram_seed: 'ideogram-image-seed', xai_temperature: 'xai-temperature',
+                xai_top_p: 'xai-top-p', xai_max_completion_tokens: 'xai-max-completion-tokens',
+                xai_seed: 'xai-seed', xai_presence_penalty: 'xai-presence-penalty',
+                xai_frequency_penalty: 'xai-frequency-penalty', xai_response_format: 'xai-response-format',
+                xai_tool_choice: 'xai-tool-choice', xai_parallel_tool_calls: 'xai-parallel-tool-calls',
+                xai_logprobs: 'xai-logprobs', xai_top_logprobs: 'xai-top-logprobs',
+                grok_video_duration: 'grok-video-duration', grok_video_aspect: 'grok-video-aspect',
+                grok_video_resolution: 'grok-video-resolution', gemini_video_duration: 'gemini-video-duration',
+                gemini_video_aspect: 'gemini-video-aspect', gemini_video_resolution: 'gemini-video-resolution',
+                music_instrumental: 'music-instrumental', ocr_table_format: 'ocr-table-format',
+                ocr_extract_header: 'ocr-extract-header', ocr_extract_footer: 'ocr-extract-footer',
+                ocr_include_blocks: 'ocr-include-blocks', ocr_include_image_base64: 'ocr-include-images',
+                ocr_pages: 'ocr-pages'
+            };
+            for (const [key, id] of Object.entries(ids)) {
+                if (!Object.prototype.hasOwnProperty.call(options, key)) continue;
+                const el = get(id);
+                if (!el) continue;
+                if (el.type === 'checkbox') el.checked = !!options[key];
+                else el.value = String(options[key]);
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (Object.prototype.hasOwnProperty.call(options, 'image_vision_model')) {
+                currentVisionModel = options.image_vision_model;
+            }
+            if (Object.prototype.hasOwnProperty.call(options, 'canvas_mode')) {
+                syncCanvasModeUi(!!options.canvas_mode, { persist: false });
+            }
+            if (Object.prototype.hasOwnProperty.call(options, 'coding_mode')) {
+                syncCodingModeUi(!!options.coding_mode, { persist: false });
+            }
+            if (Object.prototype.hasOwnProperty.call(options, 'browser_fast_mode')) {
+                setBrowserFastModeEnabled(!!options.browser_fast_mode);
+            }
+            if (Object.prototype.hasOwnProperty.call(options, 'batch_mode')) {
+                const batch = get('enable-batch-mode');
+                if (batch) { batch.checked = !!options.batch_mode; batch.dispatchEvent(new Event('change', { bubbles: true })); }
+            }
+            if (typeof window.toggleOptions === 'function') window.toggleOptions();
+            applyMcpPromptChipUi();
+        }
         function beginEditMessage(id, autoSend = false) {
             const text = messageStore[id];
             if (text === undefined || text === null) return;
@@ -5282,6 +5351,7 @@
 
             const msg = allMessages.find(m => m.id == id);
             const meta = messageMeta[id] || {};
+            restorePromptOptionsForEdit(msg);
 
             // Set parent_id for branching
             if (msg) {

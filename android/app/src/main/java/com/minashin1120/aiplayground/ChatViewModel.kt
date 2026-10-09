@@ -2400,14 +2400,43 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun beginEdit(message: ChatMessage) {
         if (message.role != "user") return
         pendingParentId = message.parentId
+        val options = message.promptOptions
+        val modelId = message.model.takeIf { id ->
+            state.value.account?.models?.any { it.id == id && it.selectable } == true
+        } ?: state.value.model
+        val selects = COMPOSER_SELECT_DEFAULTS.mapValues { (key, fallback) ->
+            if (options?.has(key) == true && !options.isNull(key)) options.optString(key) else state.value.chipValues[key] ?: fallback
+        }
+        val generation = state.value.generationValues.toMutableMap()
+        generationPanels(modelId, generation).flatMap { it.fields }.forEach { field ->
+            if (options?.has(field.key) == true && !options.isNull(field.key)) {
+                generation[field.key] = options.opt(field.key).toString()
+            }
+        }
+        fun savedBoolean(key: String, current: Boolean): Boolean =
+            if (options?.has(key) == true && !options.isNull(key)) options.optBoolean(key) else current
         // Web `beginEditMessage`: the message's own quote comes back (or the quote bar clears) and the input gets focus.
         mutable.update { it.copy(
             editingMessageId = message.id,
+            model = modelId,
+            enableSearch = savedBoolean("enable_search", it.enableSearch),
+            enableUrlContext = savedBoolean("enable_url_context", it.enableUrlContext),
+            enableMaps = savedBoolean("enable_maps", it.enableMaps),
+            enablePython = savedBoolean("enable_python", it.enablePython),
+            enableFileCreation = savedBoolean("enable_file_creation", it.enableFileCreation),
+            enableMcp = savedBoolean("enable_mcp", it.enableMcp),
+            enableThinking = savedBoolean("enable_thinking", it.enableThinking),
+            enablePromptCache = savedBoolean("enable_prompt_caching", it.enablePromptCache),
+            batchMode = savedBoolean("batch_mode", it.batchMode),
+            canvasMode = savedBoolean("canvas_mode", it.canvasMode),
+            codingMode = savedBoolean("coding_mode", it.codingMode),
+            visionModel = options?.optString("image_vision_model")?.takeIf { it.isNotBlank() } ?: it.visionModel,
+            chipValues = selects, generationValues = generation,
             draft = message.content,
             attachments = message.files.map { reference -> Attachment(reference.substringAfterLast('/'), reference) },
             quote = message.quote,
             composerFocusRequest = it.composerFocusRequest + 1,
-        ) }
+        ).withModelRules() }
     }
 
     /** Re-sends the user message that produced an assistant reply, creating a sibling branch. */

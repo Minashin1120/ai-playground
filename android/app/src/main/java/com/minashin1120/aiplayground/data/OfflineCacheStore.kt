@@ -267,6 +267,7 @@ class OfflineCacheStore(private val context: Context) {
         .put("tokens_thought", message.tokensThought ?: JSONObject.NULL)
         .put("is_encrypted", message.encrypted ?: JSONObject.NULL)
         .put("quote_text", message.quote).put("gem_name", message.gemName).put("created_at", message.createdAt)
+        .put("prompt_options", message.promptOptions ?: JSONObject.NULL)
 
     private fun parseMessage(row: JSONObject): ChatMessage {
         val files = row.optJSONArray("files")?.let { values ->
@@ -282,7 +283,8 @@ class OfflineCacheStore(private val context: Context) {
             tokensOut = row.nullableInt("tokens_out"), tokensContent = row.nullableInt("tokens_content"),
             tokensThought = row.nullableInt("tokens_thought"),
             encrypted = if (row.has("is_encrypted") && !row.isNull("is_encrypted")) row.optBoolean("is_encrypted") else null,
-            quote = row.optString("quote_text"), gemName = row.optString("gem_name"), createdAt = row.optString("created_at"))
+            quote = row.optString("quote_text"), gemName = row.optString("gem_name"),
+            createdAt = row.optString("created_at"), promptOptions = row.optJSONObject("prompt_options"))
     }
 
     private fun libraryJson(file: LibraryFile): JSONObject = JSONObject()

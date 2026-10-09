@@ -223,6 +223,10 @@ def handle_thread_item(thread_id):
         res = []
         for m in ms:
             cnt = decrypt_val(m.content) if m.is_encrypted else m.content
+            try:
+                prompt_options = json.loads(m.prompt_options) if m.prompt_options else None
+            except (TypeError, ValueError):
+                prompt_options = None
             tht = decrypt_val(m.thought_data) if (m.is_encrypted and m.thought_data) else m.thought_data
             thought_text = extract_reasoning_text(tht)
             token_in = None
@@ -264,6 +268,7 @@ def handle_thread_item(thread_id):
                 'content': cnt, 
                 'image_url': m.image_url, 
                 'model': m.model, 
+                'prompt_options': prompt_options if isinstance(prompt_options, dict) else None,
                 'thought_data': tht,
                 'tokens': token_total,
                 'tokens_in': token_in,

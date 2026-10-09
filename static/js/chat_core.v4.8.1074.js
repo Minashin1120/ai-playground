@@ -5258,6 +5258,7 @@
             updatePromptPlaceholder();
         }
         function cancelEdit() {
+            const wasEditing = !!editingMessageId;
             editingMessageId = null;
             currentParentId = currentLeafId || null;
             const input = get('prompt-input');
@@ -5270,6 +5271,16 @@
             get('file-input').value = '';
             clearQuote();
             setEditUi(false);
+            if (wasEditing) restoreLatestPromptOptions();
+        }
+        function restoreLatestPromptOptions() {
+            if (editingMessageId || !currentLeafId || !allMessages.length) return;
+            const byId = new Map(allMessages.map(message => [String(message.id), message]));
+            let message = byId.get(String(currentLeafId));
+            while (message && message.role !== 'user') {
+                message = byId.get(String(message.parent_id));
+            }
+            if (message && message.prompt_options) restorePromptOptionsForEdit(message);
         }
         function restorePromptOptionsForEdit(message) {
             const options = message && message.prompt_options;
@@ -22976,6 +22987,7 @@
             } else {
                 renderThreadTree({ silent, keepScroll: silent, animate: true });
             }
+            if (!preserveDraft) restoreLatestPromptOptions();
             if (silent && codeState) {
                 applyCodeCollapseByMessage(get('chat-container'), codeState, true);
             } else if (!silent) {
@@ -23223,6 +23235,7 @@
             if (!msgMap[currId]) {
                 currentLeafId = allMessages.length > 0 ? allMessages[allMessages.length - 1].id : null;
                 renderThreadTree({ animate: true });
+                restoreLatestPromptOptions();
                 return;
             }
             while (msgMap[currId] && msgMap[currId].childrenIds.length > 0) {
@@ -23232,6 +23245,7 @@
             }
             currentLeafId = currId;
             renderThreadTree({ animate: true });
+            restoreLatestPromptOptions();
         }
         async function loadGems() {
             try {
@@ -23608,6 +23622,7 @@
             threadLoadSequence++;
             if(abortController) abortController.abort();
             cancelEdit();
+            restoreLatestPromptOptions();
             resetUploadState();
             stopTemporaryChatHeartbeat();
             setTemporaryChatUiState(false);

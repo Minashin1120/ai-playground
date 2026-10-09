@@ -1953,7 +1953,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         heartbeatJob?.cancel()
         pendingParentId = null
         val transition = nextChatTransition(ChatTransitionKind.NEW_CHAT)
-        mutable.update { it.copy(selected = null, messages = emptyList(), allMessages = emptyList(), leafId = null, settingsBubbles = emptyList(),
+        mutable.update { it.withLatestPromptOptions().copy(selected = null, messages = emptyList(), allMessages = emptyList(), leafId = null, settingsBubbles = emptyList(),
             editingMessageId = null, jobId = null, streaming = false,
             liveContent = "", liveThought = "", status = "", busy = false, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null, customInstruction = "",
@@ -2092,6 +2092,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // first, so a PromptCache lock from the previous chat never blocks the switch).
             mutable.update { it.copy(enablePromptCache = reply.optBoolean("enable_prompt_caching")) }
             if (!inPlace) reply.nullableString("last_model").takeIf { it.isNotBlank() && it != state.value.model }?.let(::chooseModel)
+            if (!inPlace && autoResume) mutable.update { it.withLatestPromptOptions() }
         }
         if (!deviceChat(id)) state.value.account?.let { account ->
             withContext(Dispatchers.IO) {
@@ -2143,6 +2144,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 .takeIf { value -> !cached.isNull("temp_chat_remaining_seconds") && value >= 0 },
             offline = true,
         ) }
+        if (!older) mutable.update { it.withLatestPromptOptions() }
     }
 
     private fun syncHeartbeat() {
@@ -2396,18 +2398,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-    /** Prepares the composer to edit a user message, branching from its parent. */
-    fun beginEdit(message: ChatMessage) {
-        if (message.role != "user") return
-        pendingParentId = message.parentId
+    private fun ChatState.withPromptOptionsFrom(message: ChatMessage): ChatState {
         val options = message.promptOptions
         val modelId = message.model.takeIf { id ->
-            state.value.account?.models?.any { it.id == id && it.selectable } == true
-        } ?: state.value.model
+            account?.models?.any { it.id == id && it.selectable } == true
+        } ?: model
         val selects = COMPOSER_SELECT_DEFAULTS.mapValues { (key, fallback) ->
-            if (options?.has(key) == true && !options.isNull(key)) options.optString(key) else state.value.chipValues[key] ?: fallback
+            if (options?.has(key) == true && !options.isNull(key)) options.optString(key) else chipValues[key] ?: fallback
         }
-        val generation = state.value.generationValues.toMutableMap()
+        val generation = generationValues.toMutableMap()
         generationPanels(modelId, generation).flatMap { it.fields }.forEach { field ->
             if (options?.has(field.key) == true && !options.isNull(field.key)) {
                 generation[field.key] = options.opt(field.key).toString()
@@ -2415,28 +2414,42 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         fun savedBoolean(key: String, current: Boolean): Boolean =
             if (options?.has(key) == true && !options.isNull(key)) options.optBoolean(key) else current
-        // Web `beginEditMessage`: the message's own quote comes back (or the quote bar clears) and the input gets focus.
-        mutable.update { it.copy(
-            editingMessageId = message.id,
+        return copy(
             model = modelId,
-            enableSearch = savedBoolean("enable_search", it.enableSearch),
-            enableUrlContext = savedBoolean("enable_url_context", it.enableUrlContext),
-            enableMaps = savedBoolean("enable_maps", it.enableMaps),
-            enablePython = savedBoolean("enable_python", it.enablePython),
-            enableFileCreation = savedBoolean("enable_file_creation", it.enableFileCreation),
-            enableMcp = savedBoolean("enable_mcp", it.enableMcp),
-            enableThinking = savedBoolean("enable_thinking", it.enableThinking),
-            enablePromptCache = savedBoolean("enable_prompt_caching", it.enablePromptCache),
-            batchMode = savedBoolean("batch_mode", it.batchMode),
-            canvasMode = savedBoolean("canvas_mode", it.canvasMode),
-            codingMode = savedBoolean("coding_mode", it.codingMode),
-            visionModel = options?.optString("image_vision_model")?.takeIf { it.isNotBlank() } ?: it.visionModel,
+            enableSearch = savedBoolean("enable_search", enableSearch),
+            enableUrlContext = savedBoolean("enable_url_context", enableUrlContext),
+            enableMaps = savedBoolean("enable_maps", enableMaps),
+            enablePython = savedBoolean("enable_python", enablePython),
+            enableFileCreation = savedBoolean("enable_file_creation", enableFileCreation),
+            enableMcp = savedBoolean("enable_mcp", enableMcp),
+            enableThinking = savedBoolean("enable_thinking", enableThinking),
+            enablePromptCache = savedBoolean("enable_prompt_caching", enablePromptCache),
+            batchMode = savedBoolean("batch_mode", batchMode),
+            canvasMode = savedBoolean("canvas_mode", canvasMode),
+            codingMode = savedBoolean("coding_mode", codingMode),
+            visionModel = options?.optString("image_vision_model")?.takeIf { it.isNotBlank() } ?: visionModel,
             chipValues = selects, generationValues = generation,
+        ).withModelRules()
+    }
+
+    private fun ChatState.withLatestPromptOptions(): ChatState {
+        if (editingMessageId != null) return this
+        val latest = messages.lastOrNull { it.role == "user" }?.takeIf { it.promptOptions != null } ?: return this
+        return withPromptOptionsFrom(latest)
+    }
+
+    /** Prepares the composer to edit a user message, branching from its parent. */
+    fun beginEdit(message: ChatMessage) {
+        if (message.role != "user") return
+        pendingParentId = message.parentId
+        // Web `beginEditMessage`: the message's own quote comes back (or the quote bar clears) and the input gets focus.
+        mutable.update { it.withPromptOptionsFrom(message).copy(
+            editingMessageId = message.id,
             draft = message.content,
             attachments = message.files.map { reference -> Attachment(reference.substringAfterLast('/'), reference) },
             quote = message.quote,
             composerFocusRequest = it.composerFocusRequest + 1,
-        ).withModelRules() }
+        ) }
     }
 
     /** Re-sends the user message that produced an assistant reply, creating a sibling branch. */
@@ -2451,7 +2464,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun cancelEdit() {
         pendingParentId = null
-        mutable.update { it.copy(editingMessageId = null, draft = "", attachments = emptyList(), quote = "") }
+        mutable.update { it.copy(editingMessageId = null, draft = "", attachments = emptyList(), quote = "")
+            .withLatestPromptOptions() }
     }
 
     /** Switches the active path to the branch that contains [targetMessageId]. */
@@ -2459,7 +2473,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val all = state.value.allMessages
         val leaf = latestLeafId(all, targetMessageId)
         // Web keeps ‹ › choices for this visit only; reopening shows the pinned or the latest branch.
-        mutable.update { it.copy(leafId = leaf, messages = activeBranchPath(all, leaf)) }
+        mutable.update { it.copy(leafId = leaf, messages = activeBranchPath(all, leaf))
+            .withLatestPromptOptions() }
     }
 
     fun switchBranchByIndex(siblings: List<ChatMessage>, index: Int) {

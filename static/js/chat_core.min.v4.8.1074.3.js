@@ -2013,8 +2013,8 @@ y.last_model),y.last_gem_uuid&&loadedGems.length>0){const k=loadedGems.find(_=>_
 k&&(threadGemMap[currentThreadId]=k,applyActiveGem(k))}const w=t.forceLatestLeaf?null:localStorage.getItem(
 `fixed_branch_${currentThreadId}`);if(w&&allMessages.find(k=>String(k.id)===String(w))?currentLeafId=
 w:allMessages.length>0?currentLeafId=allMessages[allMessages.length-1].id:currentLeafId=null,renderThreadTree(
-a?{silent:a,keepScroll:a}:{silent:a,keepScroll:a,animate:!0}),a&&r?applyCodeCollapseByMessage(get("c\
-hat-container"),r,!0):a||applyCodeCollapseByMessage(get("chat-container"),null,!0),currentThreadPending&&
+a?{silent:a,keepScroll:a}:{silent:a,keepScroll:a,animate:!0}),i||restoreLatestPromptOptions(),a&&r?applyCodeCollapseByMessage(
+get("chat-container"),r,!0):a||applyCodeCollapseByMessage(get("chat-container"),null,!0),currentThreadPending&&
 !a&&!isPendingJobSuppressed(currentThreadPending.job_id)&&resumePendingStream(currentThreadPending),
 i){const k=get("prompt-input");k&&(k.value=l||"",c?k.style.height=c:k.style.height="auto"),currentImageUrls=
 m,currentImageUrls&&currentImageUrls.length?(get("file-preview").classList.remove("hidden"),get("fil\
@@ -2062,59 +2062,60 @@ Tree");function restoreThreadTreeScroll(e,t){if(!e)return;const n=e.scrollHeight
 e.scrollTop,syncScrollToBottomButton()}o(restoreThreadTreeScroll,"restoreThreadTreeScroll");function switchVersion(e){
 currentLeafId=e;const t={};allMessages.forEach(i=>{t[i.id]=i,i.childrenIds=[]}),allMessages.forEach(
 i=>{i.parent_id&&t[i.parent_id]&&t[i.parent_id].childrenIds.push(i.id)});let n=e;if(!t[n]){currentLeafId=
-allMessages.length>0?allMessages[allMessages.length-1].id:null,renderThreadTree({animate:!0});return}
-for(;t[n]&&t[n].childrenIds.length>0;){const i=t[n].childrenIds;n=Math.max(...i)}currentLeafId=n,renderThreadTree(
-{animate:!0})}o(switchVersion,"switchVersion");async function loadGems(){try{const t=await(await apiFetch(
-CHAT_CONFIG.urls.handleGems)).json();loadedGems=t;const n=get("gem-list");if(!n)return;n.innerHTML='\
-<div id="gem-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-do\
-wn ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-l\
-abel"></span></div>',Array.isArray(t)&&t.forEach(i=>{const a=document.createElement("div");a.className=
-"gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between it\
-ems-center group",a.innerHTML=`<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa\
--gem text-blue-500"></i><span class="truncate">${escapeHtml(i.name)}</span></div><div class="flex it\
-ems-center gap-1"><button class="text-gray-400 hover:text-blue-400 opacity-100 md:opacity-0 md:group\
--hover:opacity-100 px-2 transition" onclick="openEditGemModal(event,'${i.uuid}')"><i class="fas fa-p\
-encil-alt text-[10px]"></i></button><button class="text-gray-400 hover:text-red-400 opacity-100 md:o\
-pacity-0 md:group-hover:opacity-100 px-2 transition" onclick="deleteGem(event,'${i.uuid}')"><i class\
-="fas fa-trash text-[10px]"></i></button></div>`,a.onclick=r=>{r.target.closest("button")||activateGem(
-i)},n.appendChild(a)})}catch(e){console.error("Failed to load gems:",e)}}o(loadGems,"loadGems");function setGemDefaultModelSelect(e){
-const t=get("gem-default-model");if(!t)return;t.innerHTML="";const n=document.createElement("option");
-n.value="",n.textContent="Use current model",t.appendChild(n),MODELS.forEach(a=>{const r=(a.items||[]).
-filter(c=>!c.deprecated);if(!r.length)return;const l=document.createElement("optgroup");l.label=a.category,
-r.forEach(c=>{const m=document.createElement("option");m.value=c.id,m.textContent=c.name,l.appendChild(
-m)}),t.appendChild(l)});const i=e||"";if(i&&!Array.from(t.options).some(a=>a.value===i)){const a=document.
-createElement("option");a.value=i,a.textContent=MODEL_NAME_BY_ID[i]||i,t.appendChild(a)}t.value=i}o(
-setGemDefaultModelSelect,"setGemDefaultModelSelect");async function openEditGemModal(e,t){e.stopPropagation(),
-editingGemUuid=t;try{const i=await(await apiFetch(`/api/gems/${t}`)).json();get("gem-name").value=i.
-name,get("gem-desc").value=i.description||"",get("gem-inst").value=i.instruction,setGemDefaultModelSelect(
-i.default_model),renderGemFixedPromptsForEdit(i.fixed_prompts),get("gem-modal-title").innerHTML='<i \
-class="fas fa-gem text-blue-500 mr-2"></i>Edit Gem',get("save-gem-btn").innerText="Save Changes",showModal(
-"gem-modal"),location.pathname!=="/gem"&&history.pushState({modal:"gem"},"","/gem")}catch{showToast(
-"Gem\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error",!0)}}o(openEditGemModal,"o\
-penEditGemModal");async function createGem(e,t){await apiFetch(CHAT_CONFIG.urls.handleGems,{method:"\
-POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:e,instruction:t})}),loadGems()}
-o(createGem,"createGem");function applyActiveGem(e){activeGem=e||null;const t=get("fixed-prompts-bar");
-if(activeGem){if(activeGem.default_model&&selectModelById(activeGem.default_model),get("active-gem-n\
-ame").innerText=activeGem.name,get("gem-active-indicator").classList.remove("hidden"),t){t.innerHTML=
-"";let n=[];try{activeGem.fixed_prompts&&(n=JSON.parse(activeGem.fixed_prompts))}catch{}n.length>0?(t.
-classList.remove("hidden"),n.forEach((i,a)=>{const r=document.createElement("button");r.className="f\
-ixed-prompt-chip whitespace-nowrap px-4 py-1.5 text-[11px] font-bold bg-gray-700 hover:bg-gray-600 t\
-ext-gray-100 rounded-full transition-all shadow-md border border-gray-600/50 flex items-center",r.style.
-animationDelay=`${a*40}ms`,r.textContent=String(i.name||""),r.onclick=()=>{const l=get("prompt-input");
-l&&(l.value=i.content,l.dispatchEvent(new Event("input")),sendMessage())},t.appendChild(r)})):t.classList.
-add("hidden")}}else get("gem-active-indicator").classList.add("hidden"),t&&(t.innerHTML="",t.classList.
-add("hidden"));get("sys-prompt-option").style.opacity="1"}o(applyActiveGem,"applyActiveGem");function syncActiveGemForThread(e){
-const t=e&&threadGemMap[e]?threadGemMap[e]:null;applyActiveGem(t)}o(syncActiveGemForThread,"syncActi\
-veGemForThread");async function saveThreadGemUuid(e,t){try{await apiFetch(CHAT_CONFIG.urls.handleSettings,
-{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({last_gem_uuid:t,thread_id:e})})}catch{}}
-o(saveThreadGemUuid,"saveThreadGemUuid");function activateGem(e,t){currentThreadId?(threadGemMap[currentThreadId]=
-e,applyActiveGem(e),showToast(`Gem "${e.name}" \u3092\u3053\u306E\u30C1\u30E3\u30C3\u30C8\u306B\u9069\u7528\u3057\u307E\u3057\u305F`,
-"success"),t||saveThreadGemUuid(currentThreadId,e?e.uuid:null)):(pendingGemForNewThread=e,applyActiveGem(
-e),allMessages&&allMessages.length>0&&startNewChat({preserveGem:!0}))}o(activateGem,"activateGem");function clearActiveGem(){
-currentThreadId&&(delete threadGemMap[currentThreadId],saveThreadGemUuid(currentThreadId,null)),pendingGemForNewThread=
-null,applyActiveGem(null)}o(clearActiveGem,"clearActiveGem");function addGemFixedPromptRow(e="",t=""){
-const n=get("gem-fixed-prompts-container");if(!n)return;const i=document.createElement("div");i.className=
-"flex gap-2 items-start gem-fixed-prompt-row ui-enter",i.innerHTML=`
+allMessages.length>0?allMessages[allMessages.length-1].id:null,renderThreadTree({animate:!0}),restoreLatestPromptOptions();
+return}for(;t[n]&&t[n].childrenIds.length>0;){const i=t[n].childrenIds;n=Math.max(...i)}currentLeafId=
+n,renderThreadTree({animate:!0}),restoreLatestPromptOptions()}o(switchVersion,"switchVersion");async function loadGems(){
+try{const t=await(await apiFetch(CHAT_CONFIG.urls.handleGems)).json();loadedGems=t;const n=get("gem-\
+list");if(!n)return;n.innerHTML='<div id="gem-pull-indicator" class="ptr-pull-indicator" aria-hidden\
+="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spi\
+nner"></i><span class="ptr-pull-label"></span></div>',Array.isArray(t)&&t.forEach(i=>{const a=document.
+createElement("div");a.className="gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text\
+-gray-300 flex justify-between items-center group",a.innerHTML=`<div class="flex items-center gap-2 \
+overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${escapeHtml(i.name)}\
+</span></div><div class="flex items-center gap-1"><button class="text-gray-400 hover:text-blue-400 o\
+pacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="openEditGemModal(event,\
+'${i.uuid}')"><i class="fas fa-pencil-alt text-[10px]"></i></button><button class="text-gray-400 hov\
+er:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="delete\
+Gem(event,'${i.uuid}')"><i class="fas fa-trash text-[10px]"></i></button></div>`,a.onclick=r=>{r.target.
+closest("button")||activateGem(i)},n.appendChild(a)})}catch(e){console.error("Failed to load gems:",
+e)}}o(loadGems,"loadGems");function setGemDefaultModelSelect(e){const t=get("gem-default-model");if(!t)
+return;t.innerHTML="";const n=document.createElement("option");n.value="",n.textContent="Use current\
+ model",t.appendChild(n),MODELS.forEach(a=>{const r=(a.items||[]).filter(c=>!c.deprecated);if(!r.length)
+return;const l=document.createElement("optgroup");l.label=a.category,r.forEach(c=>{const m=document.
+createElement("option");m.value=c.id,m.textContent=c.name,l.appendChild(m)}),t.appendChild(l)});const i=e||
+"";if(i&&!Array.from(t.options).some(a=>a.value===i)){const a=document.createElement("option");a.value=
+i,a.textContent=MODEL_NAME_BY_ID[i]||i,t.appendChild(a)}t.value=i}o(setGemDefaultModelSelect,"setGem\
+DefaultModelSelect");async function openEditGemModal(e,t){e.stopPropagation(),editingGemUuid=t;try{const i=await(await apiFetch(
+`/api/gems/${t}`)).json();get("gem-name").value=i.name,get("gem-desc").value=i.description||"",get("\
+gem-inst").value=i.instruction,setGemDefaultModelSelect(i.default_model),renderGemFixedPromptsForEdit(
+i.fixed_prompts),get("gem-modal-title").innerHTML='<i class="fas fa-gem text-blue-500 mr-2"></i>Edit\
+ Gem',get("save-gem-btn").innerText="Save Changes",showModal("gem-modal"),location.pathname!=="/gem"&&
+history.pushState({modal:"gem"},"","/gem")}catch{showToast("Gem\u306E\u53D6\u5F97\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
+"error",!0)}}o(openEditGemModal,"openEditGemModal");async function createGem(e,t){await apiFetch(CHAT_CONFIG.
+urls.handleGems,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:e,
+instruction:t})}),loadGems()}o(createGem,"createGem");function applyActiveGem(e){activeGem=e||null;const t=get(
+"fixed-prompts-bar");if(activeGem){if(activeGem.default_model&&selectModelById(activeGem.default_model),
+get("active-gem-name").innerText=activeGem.name,get("gem-active-indicator").classList.remove("hidden"),
+t){t.innerHTML="";let n=[];try{activeGem.fixed_prompts&&(n=JSON.parse(activeGem.fixed_prompts))}catch{}
+n.length>0?(t.classList.remove("hidden"),n.forEach((i,a)=>{const r=document.createElement("button");
+r.className="fixed-prompt-chip whitespace-nowrap px-4 py-1.5 text-[11px] font-bold bg-gray-700 hover\
+:bg-gray-600 text-gray-100 rounded-full transition-all shadow-md border border-gray-600/50 flex item\
+s-center",r.style.animationDelay=`${a*40}ms`,r.textContent=String(i.name||""),r.onclick=()=>{const l=get(
+"prompt-input");l&&(l.value=i.content,l.dispatchEvent(new Event("input")),sendMessage())},t.appendChild(
+r)})):t.classList.add("hidden")}}else get("gem-active-indicator").classList.add("hidden"),t&&(t.innerHTML=
+"",t.classList.add("hidden"));get("sys-prompt-option").style.opacity="1"}o(applyActiveGem,"applyActi\
+veGem");function syncActiveGemForThread(e){const t=e&&threadGemMap[e]?threadGemMap[e]:null;applyActiveGem(
+t)}o(syncActiveGemForThread,"syncActiveGemForThread");async function saveThreadGemUuid(e,t){try{await apiFetch(
+CHAT_CONFIG.urls.handleSettings,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.
+stringify({last_gem_uuid:t,thread_id:e})})}catch{}}o(saveThreadGemUuid,"saveThreadGemUuid");function activateGem(e,t){
+currentThreadId?(threadGemMap[currentThreadId]=e,applyActiveGem(e),showToast(`Gem "${e.name}" \u3092\u3053\u306E\u30C1\u30E3\u30C3\
+\u30C8\u306B\u9069\u7528\u3057\u307E\u3057\u305F`,"success"),t||saveThreadGemUuid(currentThreadId,e?
+e.uuid:null)):(pendingGemForNewThread=e,applyActiveGem(e),allMessages&&allMessages.length>0&&startNewChat(
+{preserveGem:!0}))}o(activateGem,"activateGem");function clearActiveGem(){currentThreadId&&(delete threadGemMap[currentThreadId],
+saveThreadGemUuid(currentThreadId,null)),pendingGemForNewThread=null,applyActiveGem(null)}o(clearActiveGem,
+"clearActiveGem");function addGemFixedPromptRow(e="",t=""){const n=get("gem-fixed-prompts-container");
+if(!n)return;const i=document.createElement("div");i.className="flex gap-2 items-start gem-fixed-pro\
+mpt-row ui-enter",i.innerHTML=`
                 <input type="text" class="gem-fp-name bg-gray-900 border border-gray-600 rounded p-1\
 .5 text-white text-[10px] w-24" placeholder="\u540D\u524D" value="${escapeHtml(e)}" autocomplete="of\
 f" spellcheck="false">
@@ -2191,21 +2192,21 @@ stringify({is_temporary:t})}),i=await n.json().catch(()=>({}));if(!n.ok)throw ne
 return showToast("\u4E00\u6642\u30C1\u30E3\u30C3\u30C8\u8A2D\u5B9A\u306E\u66F4\u65B0\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0),!1}}o(applyTemporaryChatSetting,"applyTemporaryChatSetting");function startNewChat(e={}){
 if(playChatTransition("new"),threadLoadSequence++,abortController&&abortController.abort(),cancelEdit(),
-resetUploadState(),stopTemporaryChatHeartbeat(),setTemporaryChatUiState(!1),currentThreadTitle=null,
-tempChatExpiresAtMs=null,currentThreadId=null,allMessages=[],promptHistory=[],historyIndex=-1,tempPrompt=
-"",threadHasOlderMessages=!1,oldestLoadedMessageId=null,loadingOlderMessages=!1,currentLeafId=null,currentParentId=
-null,currentThreadPending=null,updateTotalTokenBar(0),typeof window.__refreshAdminThreadEncState=="f\
-unction")try{window.__refreshAdminThreadEncState()}catch{}e.skipHistory||history.pushState({},"","/"),
-get("chat-container").innerHTML="",get("welcome-screen").classList.remove("hidden"),updateCurrentChatHeaderUi(),
-get("thread-custom-instruction")&&(get("thread-custom-instruction").value=""),get("enable-prompt-cac\
-he")&&(get("enable-prompt-cache").checked=!1,updatePromptCacheUi()),e.preserveGem?activeGem&&applyActiveGem(
-activeGem):applyActiveGem(null),loadThreads(),window.innerWidth<768&&get("overlay").click()}o(startNewChat,
-"startNewChat");let threadModalLoadSeq=0;window.openThreadModal=async()=>{if(!currentThreadId)try{const i=await(await apiFetch(
-CHAT_CONFIG.urls.handleThreads,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.
-stringify({is_temporary:temporaryChatEnabled})})).json();currentThreadId=i.id!==null&&i.id!==void 0?
-String(i.id):i.id,setTemporaryChatUiState(!!(i&&i.is_temporary)),setCurrentChatHeaderTitle(i&&i.title),
-applyTemporaryChatRuntimeMeta(i||{}),ensureTemporaryChatHeartbeat(!0),history.pushState({},"","/c/"+
-i.id),loadThreads()}catch{showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u4F5C\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
+restoreLatestPromptOptions(),resetUploadState(),stopTemporaryChatHeartbeat(),setTemporaryChatUiState(
+!1),currentThreadTitle=null,tempChatExpiresAtMs=null,currentThreadId=null,allMessages=[],promptHistory=
+[],historyIndex=-1,tempPrompt="",threadHasOlderMessages=!1,oldestLoadedMessageId=null,loadingOlderMessages=
+!1,currentLeafId=null,currentParentId=null,currentThreadPending=null,updateTotalTokenBar(0),typeof window.
+__refreshAdminThreadEncState=="function")try{window.__refreshAdminThreadEncState()}catch{}e.skipHistory||
+history.pushState({},"","/"),get("chat-container").innerHTML="",get("welcome-screen").classList.remove(
+"hidden"),updateCurrentChatHeaderUi(),get("thread-custom-instruction")&&(get("thread-custom-instruct\
+ion").value=""),get("enable-prompt-cache")&&(get("enable-prompt-cache").checked=!1,updatePromptCacheUi()),
+e.preserveGem?activeGem&&applyActiveGem(activeGem):applyActiveGem(null),loadThreads(),window.innerWidth<
+768&&get("overlay").click()}o(startNewChat,"startNewChat");let threadModalLoadSeq=0;window.openThreadModal=
+async()=>{if(!currentThreadId)try{const i=await(await apiFetch(CHAT_CONFIG.urls.handleThreads,{method:"\
+POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({is_temporary:temporaryChatEnabled})})).
+json();currentThreadId=i.id!==null&&i.id!==void 0?String(i.id):i.id,setTemporaryChatUiState(!!(i&&i.
+is_temporary)),setCurrentChatHeaderTitle(i&&i.title),applyTemporaryChatRuntimeMeta(i||{}),ensureTemporaryChatHeartbeat(
+!0),history.pushState({},"","/c/"+i.id),loadThreads()}catch{showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u4F5C\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0);return}const e=++threadModalLoadSeq,t=String(currentThreadId);modalThreadId=t,showModal(
 "thread-modal"),location.pathname!=="/chat-settings"&&history.pushState({modal:"thread"},"","/chat-s\
 ettings");try{const[n,i]=await Promise.all([apiFetch(CHAT_CONFIG.urls.handleSettingsQuery),apiFetch(

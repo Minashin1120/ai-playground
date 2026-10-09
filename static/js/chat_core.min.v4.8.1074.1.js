@@ -1667,21 +1667,24 @@ ty-setting")&&(get("safety-setting").value=i(n.safety_setting,get("safety-settin
 chatDefaultsLoaded=!0,typeof window.toggleOptions=="function"&&window.toggleOptions(),applyMcpPromptChipUi()}
 o(applyChatDefaults,"applyChatDefaults");function setEditUi(e){const t=get("edit-bar");t&&(e?(t.classList.
 remove("hidden"),t.classList.add("flex")):(t.classList.add("hidden"),t.classList.remove("flex")),updatePromptPlaceholder())}
-o(setEditUi,"setEditUi");function cancelEdit(){editingMessageId=null,currentParentId=currentLeafId||
-null;const e=get("prompt-input");e&&(e.value="",e.style.height="auto"),currentImageUrls=[],get("file\
--preview").classList.add("hidden"),get("file-input").value="",clearQuote(),setEditUi(!1)}o(cancelEdit,
-"cancelEdit");function restorePromptOptionsForEdit(e){const t=e&&e.prompt_options;if(e.model&&get("m\
-odel-select")&&get("model-select").value!==e.model){const i=get("enable-prompt-cache");i&&(i.checked=
-!1),selectModelById(e.model)}if(!t||typeof t!="object"||Array.isArray(t))return;const n={enable_search:"\
-enable-search",enable_url_context:"enable-url-context",enable_maps:"enable-maps",enable_python:"enab\
-le-python",enable_file_creation:"enable-file-creation",enable_mcp:"enable-mcp",enable_thinking:"enab\
-le-thinking",thinking_level:"thinking-level",thinking_budget:"thinking-budget",reasoning_effort:"rea\
-soning-effort",safety_setting:"safety-setting",enable_prompt_caching:"enable-prompt-cache",image_vision_model:"\
-image-vision-model",tts_voice:"tts-voice",tts_voice_custom:"tts-voice-custom",tts_language:"tts-lang\
-uage",tts_speed:"tts-speed",image_size:"gpt-image-size",image_quality:"gpt-image-quality",image_format:"\
-gpt-image-format",image_compression:"gpt-image-compression",gemini_image_aspect:"gemini-image-aspect",
-gemini_image_size:"gemini-image-size",grok_image_aspect:"grok-image-aspect",grok_image_resolution:"g\
-rok-image-resolution",grok_image_quality:"grok-image-quality",grok_image_format:"grok-image-format",
+o(setEditUi,"setEditUi");function cancelEdit(){const e=!!editingMessageId;editingMessageId=null,currentParentId=
+currentLeafId||null;const t=get("prompt-input");t&&(t.value="",t.style.height="auto"),currentImageUrls=
+[],get("file-preview").classList.add("hidden"),get("file-input").value="",clearQuote(),setEditUi(!1),
+e&&restoreLatestPromptOptions()}o(cancelEdit,"cancelEdit");function restoreLatestPromptOptions(){if(editingMessageId||
+!currentLeafId||!allMessages.length)return;const e=new Map(allMessages.map(n=>[String(n.id),n]));let t=e.
+get(String(currentLeafId));for(;t&&t.role!=="user";)t=e.get(String(t.parent_id));t&&t.prompt_options&&
+restorePromptOptionsForEdit(t)}o(restoreLatestPromptOptions,"restoreLatestPromptOptions");function restorePromptOptionsForEdit(e){
+const t=e&&e.prompt_options;if(e.model&&get("model-select")&&get("model-select").value!==e.model){const i=get(
+"enable-prompt-cache");i&&(i.checked=!1),selectModelById(e.model)}if(!t||typeof t!="object"||Array.isArray(
+t))return;const n={enable_search:"enable-search",enable_url_context:"enable-url-context",enable_maps:"\
+enable-maps",enable_python:"enable-python",enable_file_creation:"enable-file-creation",enable_mcp:"e\
+nable-mcp",enable_thinking:"enable-thinking",thinking_level:"thinking-level",thinking_budget:"thinki\
+ng-budget",reasoning_effort:"reasoning-effort",safety_setting:"safety-setting",enable_prompt_caching:"\
+enable-prompt-cache",image_vision_model:"image-vision-model",tts_voice:"tts-voice",tts_voice_custom:"\
+tts-voice-custom",tts_language:"tts-language",tts_speed:"tts-speed",image_size:"gpt-image-size",image_quality:"\
+gpt-image-quality",image_format:"gpt-image-format",image_compression:"gpt-image-compression",gemini_image_aspect:"\
+gemini-image-aspect",gemini_image_size:"gemini-image-size",grok_image_aspect:"grok-image-aspect",grok_image_resolution:"\
+grok-image-resolution",grok_image_quality:"grok-image-quality",grok_image_format:"grok-image-format",
 grok_image_count:"grok-image-count",ideogram_aspect:"ideogram-image-aspect",ideogram_resolution:"ide\
 ogram-image-resolution",ideogram_quality:"ideogram-image-quality",ideogram_speed:"ideogram-image-spe\
 ed",ideogram_magic_prompt:"ideogram-image-magic",ideogram_style_type:"ideogram-image-style",ideogram_count:"\

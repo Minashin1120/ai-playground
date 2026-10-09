@@ -192,6 +192,7 @@
             } else {
                 renderThreadTree({ silent, keepScroll: silent, animate: true });
             }
+            if (!preserveDraft) restoreLatestPromptOptions();
             if (silent && codeState) {
                 applyCodeCollapseByMessage(get('chat-container'), codeState, true);
             } else if (!silent) {
@@ -439,6 +440,7 @@
             if (!msgMap[currId]) {
                 currentLeafId = allMessages.length > 0 ? allMessages[allMessages.length - 1].id : null;
                 renderThreadTree({ animate: true });
+                restoreLatestPromptOptions();
                 return;
             }
             while (msgMap[currId] && msgMap[currId].childrenIds.length > 0) {
@@ -448,6 +450,7 @@
             }
             currentLeafId = currId;
             renderThreadTree({ animate: true });
+            restoreLatestPromptOptions();
         }
         async function loadGems() {
             try {
@@ -824,6 +827,7 @@
             threadLoadSequence++;
             if(abortController) abortController.abort();
             cancelEdit();
+            restoreLatestPromptOptions();
             resetUploadState();
             stopTemporaryChatHeartbeat();
             setTemporaryChatUiState(false);

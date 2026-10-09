@@ -37,7 +37,8 @@ class DirectRouter(private val http: DirectHttp, private val bases: Map<String, 
                 ChatCompletionsDirect(http, base("openai", "https://api.openai.com") + "/v1", acceptsImages = false, openAiSearch = true))
             (id.startsWith("gpt") || id.startsWith("o1") || id.startsWith("o3") || id.startsWith("o4") || id.startsWith("chatgpt")) && mode == "chat" ->
                 Route("openai", OpenAiResponsesDirect(http, baseUrl = base("openai", "https://api.openai.com")))
-            id.startsWith("deepseek") && mode == "chat" -> Route("deepseek", ChatCompletionsDirect(http, base("deepseek", "https://api.deepseek.com"), acceptsImages = false))
+            id.startsWith("deepseek") && mode == "chat" -> Route("deepseek", ChatCompletionsDirect(http, base("deepseek", "https://api.deepseek.com"),
+                acceptsImages = id in setOf("deepseek-v4.1-flash", "deepseek-v4-flash-vision-exp")))
             id.startsWith("glm-") && mode == "chat" -> Route("zai", ChatCompletionsDirect(http,
                 base("zai", "https://api.z.ai") + "/api/paas/v4",
                 acceptsImages = id in setOf("glm-5.3-flash", "glm-5.3-flashx", "glm-4.6v", "glm-4.6v-flashx", "glm-4.6v-flash", "glm-4.5v")))

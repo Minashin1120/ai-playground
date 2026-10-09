@@ -184,6 +184,17 @@ class DirectEnginesTest {
         }
     }
 
+    @Test fun deepSeekFlashSendsTheApiAliasAndImages() {
+        val engine = DirectRouter(http).route("deepseek-v4.1-flash", "chat")!!.engine as ChatCompletionsDirect
+        val turns = listOf(DirectTurn("user", "画像", listOf(DirectAttachment("x.png", "image/png", bytes = byteArrayOf(1)))))
+        val body = engine.buildPayload(DirectRequest("deepseek-v4.1-flash", "secret-key", "", turns, JSONObject()))
+        assertEquals("deepseek-flash", body.getString("model"))
+        val parts = body.getJSONArray("messages").getJSONObject(0).getJSONArray("content")
+        assertEquals("image_url", parts.getJSONObject(0).getString("type"))
+        assertEquals("deepseek-v4-flash", ChatCompletionsDirect.apiModelId("deepseek-v4-flash-0731"))
+        assertEquals("deepseek-v4-pro", ChatCompletionsDirect.apiModelId("deepseek-v4-pro"))
+    }
+
     @Test fun onlyProviderHostsAreReachable() {
         val strict = DirectHttp()
         assertTrue(runCatching { strict.request("https://evil.example/v1", emptyMap()) }.isFailure)

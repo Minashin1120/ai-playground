@@ -89,9 +89,18 @@ class ChatCompletionsDirect(
                 messages.put(JSONObject().put("role", "user").put("content", parts))
             } else messages.put(JSONObject().put("role", "user").put("content", text))
         }
-        val payload = JSONObject().put("model", request.model).put("messages", messages).put("stream", true)
+        val payload = JSONObject().put("model", apiModelId(request.model)).put("messages", messages).put("stream", true)
         if (!openAiSearch && !request.model.startsWith("glm-")) payload.put("stream_options", JSONObject().put("include_usage", true))
         if (openAiSearch) payload.put("web_search_options", JSONObject())
         return payload
+    }
+
+    companion object {
+        /** App-facing DeepSeek release IDs sent as the official API alias (server `_deepseek_api_model_id`). */
+        fun apiModelId(model: String): String = when (model.trim().lowercase()) {
+            "deepseek-v4.1-flash" -> "deepseek-flash"
+            "deepseek-v4-flash-0731" -> "deepseek-v4-flash"
+            else -> model
+        }
     }
 }

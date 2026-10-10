@@ -52,12 +52,12 @@ class BotTelemetryTest {
     @Test fun checksAreSpacedUnlessForced() {
         val telemetry = BotTelemetry()
         for (i in 0 until 9) telemetry.recordTap(1_000L + i * 200L)
+        // Within 3 s of the first input: not checked yet (the window keeps counting).
         assertNull(telemetry.takeReport(2_700L, force = false))
-        assertNull(telemetry.takeReport(4_100L, force = false))
-        assertNotNull(telemetry.takeReport(5_700L, force = false))
-        for (i in 0 until 9) telemetry.recordTap(5_800L + i * 200L)
-        assertNull(telemetry.takeReport(7_600L, force = false))
-        assertNotNull(telemetry.takeReport(8_700L, force = false))
+        assertNotNull(telemetry.takeReport(4_100L, force = false))
+        for (i in 0 until 9) telemetry.recordTap(4_200L + i * 200L)
+        assertNull(telemetry.takeReport(6_000L, force = false))
+        assertNotNull(telemetry.takeReport(7_200L, force = false))
     }
 
     @Test fun eightSendsWithinThreeSecondsReachTheLockThreshold() {

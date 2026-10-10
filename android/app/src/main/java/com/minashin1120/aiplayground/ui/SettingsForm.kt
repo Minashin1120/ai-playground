@@ -81,6 +81,17 @@ internal class SettingsForm(prefs: Preferences?) {
     var default2fa by mutableStateOf(prefs?.default2faMethod ?: "totp")
     var passkeyOnly by mutableStateOf(prefs?.passkeyOnlyLogin ?: false)
 
+    /**
+     * Serverless "サーバーのAPIキーを端末へ取り込む": the import overwrites the device keys, so the open form
+     * takes the new masks. Otherwise the fields stay empty and 保存 would clear the imported keys.
+     */
+    fun reloadKeys(prefs: Preferences?) {
+        if (prefs == null) return
+        PROVIDER_KEY_FIELDS.forEach { field -> prefs.providerKeys[field]?.takeIf { it.isNotBlank() }?.let { providerKeys[field] = it } }
+        prefs.modelApiKeys.forEach { modelKeys[it] = SECRET_MASK }
+        if (prefs.geminiVertexCredentialsSet) vertexJson = SECRET_MASK
+    }
+
     fun updateAutoPrompt(key: String, transform: (AutoSystemPrompt) -> AutoSystemPrompt) {
         val index = autoPrompts.indexOfFirst { it.key == key }
         if (index >= 0) autoPrompts[index] = transform(autoPrompts[index])

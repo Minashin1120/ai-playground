@@ -201,6 +201,8 @@ data class ChatState(
     val settingsRequestCard: String? = null,
     /** Incremented to move the focus into the prompt input (Web `input.focus()` after edit / quote). */
     val composerFocusRequest: Long = 0L,
+    /** Incremented after server keys are imported to the device, so an open settings form reloads its key fields. */
+    val importedSecretsRevision: Long = 0L,
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
@@ -682,6 +684,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
             notify(if (count > 0) "APIキーを${count}件、端末に取り込みました" else "サーバーに保存されたAPIキーはありません")
             runCatching { fetchPreferences() }
+            mutable.update { it.copy(importedSecretsRevision = it.importedSecretsRevision + 1) }
         }
     }
 

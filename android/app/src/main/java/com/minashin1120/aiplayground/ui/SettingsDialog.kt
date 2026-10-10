@@ -108,6 +108,10 @@ fun SettingsDialog(
     LaunchedEffect(Unit) { delay(4000); loaded = true }
     val prefs = state.preferences
     val form = remember(if (loaded) "loaded" else prefs) { SettingsForm(prefs) }
+    val importedSecrets = remember { state.importedSecretsRevision }
+    LaunchedEffect(state.importedSecretsRevision) {
+        if (state.importedSecretsRevision != importedSecrets) form.reloadKeys(state.preferences)
+    }
     val notify: (String) -> Unit = model::notify
     val extras = SettingsExtras(appUpdate, onCheckForUpdate, onBubble, onWeb, notify) { confirmCache = it }
     val ops = remember(model) { AccountOps(model.viewModelScope, model::accountApi, notify) }

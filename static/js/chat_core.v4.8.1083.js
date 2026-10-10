@@ -13168,26 +13168,15 @@
                 handleFiles(e.dataTransfer.files);
             });
             const botAdminModal = get('bot-admin-modal');
-            const formatBotLogTime = (iso) => {
-                if (!iso) return '';
-                const d = new Date(iso);
-                return isNaN(d.getTime()) ? '' : d.toLocaleString('ja-JP');
-            };
-            const renderBotUsers = (users, deletedUsers = []) => {
+            const renderBotUsers = (users) => {
                 const list = get('bot-admin-list');
                 if (!list) return;
                 list.innerHTML = '';
-                if ((!users || !users.length) && (!deletedUsers || !deletedUsers.length)) {
+                if (!users || !users.length) {
                     list.innerHTML = '<div class="text-xs text-gray-400">該当ユーザーがいません。</div>';
                     return;
                 }
-                const logSummary = (u) => {
-                    const count = Number(u.evidence_count) || 0;
-                    if (!count) return '記録なし';
-                    const last = formatBotLogTime(u.last_event_at);
-                    return `記録 ${count}件${last ? '・最終 ' + escapeHtml(last) : ''}`;
-                };
-                (users || []).forEach((u, idx) => {
+                users.forEach((u, idx) => {
                     const isBanned = !!u.is_bot_banned;
                     const detOn = u.bot_detection_enabled !== false;
                     const lockRemaining = Number(u.lock_remaining_seconds) || 0;
@@ -13198,33 +13187,13 @@
                         <div class="flex-1 min-w-0">
                             <div class="text-gray-200 font-bold bot-log-wrap">${escapeHtml(u.username)}</div>
                             <div class="text-[10px] text-gray-500">${isBanned ? 'BAN中' : '正常'}${lockRemaining ? `・ロック中（残り${Math.ceil(lockRemaining / 60)}分）` : ''} ${u.bot_ban_reason ? ' / ' + escapeHtml(u.bot_ban_reason) : ''}</div>
-                            <div class="text-[10px] text-gray-500">${logSummary(u)}</div>
                         </div>
-                        <button class="bot-open-log bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded" data-user-id="${escapeHtml(String(u.user_id || ''))}" data-username="${escapeHtml(u.username)}">ログ</button>
                         <button class="bot-toggle-detect bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded" data-user="${escapeHtml(u.username)}" data-enabled="${detOn ? '1' : '0'}">${detOn ? '検出ON' : '検出OFF'}</button>
                         <button class="bot-toggle-ban ${isBanned ? 'bg-green-600 hover:bg-green-500' : 'bg-red-600 hover:bg-red-500'} text-white px-2 py-1 rounded" data-user="${escapeHtml(u.username)}" data-banned="${isBanned ? '1' : '0'}">${isBanned ? '単独解除' : 'BAN'}</button>                        ${isBanned ? `<button class=\"bot-toggle-unban-linked bg-rose-600 hover:bg-rose-500 text-white px-2 py-1 rounded\" data-user=\"${escapeHtml(u.username)}\">連鎖解除</button>` : ''}
                         <button class="bot-delete-account bg-red-800 hover:bg-red-700 text-white px-2 py-1 rounded" data-progress-expected-slow="true" data-user="${escapeHtml(u.username)}">削除</button>
                     `;
                     list.appendChild(row);
                 });
-                if (deletedUsers && deletedUsers.length) {
-                    const heading = document.createElement('div');
-                    heading.className = 'text-xs font-bold text-gray-300 pt-3';
-                    heading.textContent = '削除済みアカウントの記録';
-                    list.appendChild(heading);
-                    deletedUsers.forEach((u) => {
-                        const row = document.createElement('div');
-                        row.className = 'flex items-center gap-2 bg-gray-900 border border-gray-700 rounded p-2 text-xs';
-                        row.innerHTML = `
-                            <div class="flex-1 min-w-0">
-                                <div class="text-gray-400 font-bold bot-log-wrap">${escapeHtml(u.username || ('ID ' + u.user_id))}</div>
-                                <div class="text-[10px] text-gray-500">削除済み・${logSummary(u)}</div>
-                            </div>
-                            <button class="bot-open-log bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded" data-user-id="${escapeHtml(String(u.user_id || ''))}" data-username="${escapeHtml(u.username || '')}">ログ</button>
-                        `;
-                        list.appendChild(row);
-                    });
-                }
             };
             const loadBotUsers = async (q = '') => {
                 const list = get('bot-admin-list');
@@ -13234,7 +13203,7 @@
                 try {
                     const res = await apiFetch(`/api/bot/users?q=${encodeURIComponent(q)}`);
                     const data = await res.json();
-                    if (res.ok && data && data.users) renderBotUsers(data.users, data.deleted_users || []);
+                    if (res.ok && data && data.users) renderBotUsers(data.users);
                     else {
                         if (list) list.innerHTML = '<div class="text-xs text-red-400">ユーザー一覧の取得に失敗しました。</div>';
                         showToast('ユーザー一覧取得に失敗しました', 'error', true);
@@ -13254,10 +13223,6 @@
                 if (settingsEl && (settingsEl.classList.contains('modal-open') || settingsEl.classList.contains('modal-prep'))) {
                     hideModal('settings-modal');
                 }
-                if (window.BotAdminLog) {
-                    window.BotAdminLog.bind();
-                    window.BotAdminLog.showList();
-                }
                 showModal('bot-admin-modal');
                 if (location.pathname !== '/admin-bots') {
                     history.pushState({ modal: 'admin-bots' }, '', '/admin-bots');
@@ -13265,7 +13230,33 @@
                 await loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
             };
             window.openBotAdminModal = openBotAdminModal;
-            window.reloadBotAdminUsers = () => loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
+            // Bot検出ログ（記録の確認・削除）はアカウント管理と別の画面。本体は part16 の BotAdminLog。
+            const openBotLogModal = async () => {
+                if (!isAdminUser || !get('bot-log-modal') || !window.BotAdminLog) return;
+                const settingsEl = get('settings-modal');
+                if (settingsEl && (settingsEl.classList.contains('modal-open') || settingsEl.classList.contains('modal-prep'))) {
+                    hideModal('settings-modal');
+                }
+                showModal('bot-log-modal');
+                if (location.pathname !== '/admin-bot-logs') {
+                    history.pushState({ modal: 'admin-bot-logs' }, '', '/admin-bot-logs');
+                }
+                window.BotAdminLog.bind();
+                await window.BotAdminLog.openList();
+            };
+            window.openBotLogModal = openBotLogModal;
+            window.closeBotLogModal = (skipHistory = false) => {
+                if (get('bot-log-modal')) hideModal('bot-log-modal');
+                if (!skipHistory && location.pathname === '/admin-bot-logs') {
+                    history.back();
+                }
+            };
+            if (get('bot-log-open')) {
+                get('bot-log-open').onclick = () => { openBotLogModal(); };
+            }
+            if (get('bot-log-close')) {
+                get('bot-log-close').onclick = () => window.closeBotLogModal();
+            }
             window.closeBotAdminModal = (skipHistory = false) => {
                 const modal = get('bot-admin-modal') || botAdminModal;
                 if (modal) hideModal('bot-admin-modal');
@@ -13296,11 +13287,6 @@
                 get('bot-admin-list').onclick = async (e) => {
                     const btn = e.target.closest('button');
                     if (!btn) return;
-                    if (btn.classList.contains('bot-open-log')) {
-                        const userId = Number(btn.getAttribute('data-user-id'));
-                        if (userId && window.BotAdminLog) await window.BotAdminLog.open(userId, btn.getAttribute('data-username') || '');
-                        return;
-                    }
                     const username = btn.getAttribute('data-user');
                     if (!username) return;
 
@@ -13359,7 +13345,8 @@
                 '/python-execution': { id: 'python-exec-modal', open: () => showPythonExecDetailModal() },
                 '/gem': { id: 'gem-modal', open: () => { editingGemUuid = null; get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`; showModal('gem-modal'); } },
                 '/compression': { id: 'compression-modal', open: () => window.openCompressionModal() },
-                '/admin-bots': { id: 'bot-admin-modal', open: () => openBotAdminModal() }
+                '/admin-bots': { id: 'bot-admin-modal', open: () => openBotAdminModal() },
+                '/admin-bot-logs': { id: 'bot-log-modal', open: () => openBotLogModal() }
             };
 
             const closeModalById = (id, skipHistory = false) => {
@@ -13381,6 +13368,7 @@
                     case 'gem-modal': if (window.closeGemModal) window.closeGemModal(skipHistory); break;
                     case 'compression-modal': if (window.closeCompressionModal) window.closeCompressionModal(skipHistory); break;
                     case 'bot-admin-modal': if (window.closeBotAdminModal) window.closeBotAdminModal(skipHistory); break;
+                    case 'bot-log-modal': if (window.closeBotLogModal) window.closeBotLogModal(skipHistory); break;
                     case 'mcp-decision-modal':
                         if (typeof submitMcpDecision === 'function') submitMcpDecision('deny'); else hideModal(id);
                         break;
@@ -25509,8 +25497,9 @@
             }, 3000);
         })();
 
-        // 管理者のアカウント管理: アカウントごとのボット検出の記録（状態・履歴の表示と削除）。
-        // 記録はアカウントを削除しても残るため、削除済みアカウントの記録も user_id で開ける。
+        // 管理者のBot検出ログ画面（#bot-log-modal）: 記録のあるアカウントの一覧と、アカウントごとの状態・記録。
+        // 記録はアカウントを削除しても残るため、削除済みアカウントも user_id で開ける。
+        // 開閉と URL（/admin-bot-logs）は part08 の openBotLogModal / closeBotLogModal。
         const BotAdminLog = (() => {
             const PAGE_SIZE = 50;
             const EVENT_LABELS = {
@@ -25533,18 +25522,19 @@
                 origin_username: 'ロックをかけたアカウント', origin_user_id: 'ロックをかけたアカウントID', origin_client: 'ロックをかけた端末',
                 lock_seconds: 'ロック時間', applied_to: 'ロックの範囲', lock_count: 'ロック回数（1時間）', ban_at_count: 'BANになる回数',
                 source_username: 'BANの起点', source_user_id: '起点のアカウントID',
-                action: '操作', admin: '管理者', enabled: '検出', by: '実行した人',
+                action: '操作', admin: '管理者', enabled: '検出', by: '実行した人', count: '件数',
                 previous_reason: '解除前のBANの理由', linked_from: '連鎖解除の起点'
             };
             const SOURCE_LABELS = { account: 'アカウント', ip: 'IPアドレス', cookie: '端末（Cookie）' };
             const ACTION_LABELS = {
                 toggle_detection: '検出の切り替え', ban: 'BAN', unban: 'BAN解除（単独）',
-                unban_linked: 'BAN解除（連鎖）', unlock: 'ロック解除'
+                unban_linked: 'BAN解除（連鎖）', unlock: 'ロック解除', unblock_identifiers: 'IP・端末のBAN解除'
             };
             const state = { userId: 0, username: '', exists: false, type: '', items: [], hasMore: false, selected: new Set(), counts: {}, total: 0, data: null };
+            const listState = { accounts: [], selected: new Set() };
 
-            const view = () => get('bot-admin-detail');
-            const listView = () => get('bot-admin-list-view');
+            const view = () => get('bot-log-detail');
+            const listView = () => get('bot-log-list-view');
             const formatTime = (iso) => {
                 if (!iso) return '-';
                 const d = new Date(iso);
@@ -25591,43 +25581,117 @@
                     ? `<details class="mt-1"><summary class="cursor-pointer text-gray-400">詳細を表示</summary><pre class="bot-log-pre">${escapeHtml(text)}</pre></details>`
                     : `<div class="mt-1 text-gray-400 bot-log-wrap">${escapeHtml(text)}</div>`;
             };
+            const postJson = async (url, body) => {
+                const res = await apiFetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || String(res.status));
+                return data;
+            };
+            const badge = (text, cls) => `<span class="${cls} text-white px-2 py-0.5 rounded">${escapeHtml(text)}</span>`;
 
-            const renderState = (st) => {
-                if (!st) {
-                    return `<div class="bg-gray-900 border border-gray-700 rounded p-2 text-xs text-gray-400">このアカウントは削除されています。記録だけが残っています。</div>`;
+            // ---- アカウント一覧 ----
+            const renderAccounts = () => {
+                const list = get('bot-log-account-list');
+                if (!list) return;
+                const accounts = listState.accounts;
+                const allChecked = accounts.length && accounts.every(a => listState.selected.has(a.user_id));
+                const toolbar = get('bot-log-list-toolbar');
+                if (toolbar) {
+                    toolbar.innerHTML = `
+                        <label class="flex items-center gap-1 text-gray-300"><input type="checkbox" class="bot-log-account-select-all" aria-label="表示中のアカウントをすべて選択" ${allChecked ? 'checked' : ''}>表示中をすべて選択</label>
+                        <button class="bot-log-delete-accounts bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded" ${listState.selected.size ? '' : 'disabled'}>選択したアカウントの記録を一括削除${listState.selected.size ? `（${listState.selected.size}件）` : ''}</button>`;
                 }
-                const badge = (text, cls) => `<span class="${cls} text-white px-2 py-0.5 rounded">${escapeHtml(text)}</span>`;
-                const badges = [
-                    badge(st.detection_enabled ? '検出ON' : '検出OFF', st.detection_enabled ? 'bg-gray-600' : 'bg-gray-700'),
-                    badge(st.is_bot_banned ? 'BAN中' : 'BANなし', st.is_bot_banned ? 'bg-red-600' : 'bg-gray-600'),
-                    badge(st.locks && st.locks.length ? 'ロック中' : 'ロックなし', st.locks && st.locks.length ? 'bg-yellow-600' : 'bg-gray-600')
-                ];
+                if (!accounts.length) {
+                    list.innerHTML = '<div class="text-xs text-gray-400">記録のあるアカウントはありません。</div>';
+                    return;
+                }
+                list.innerHTML = accounts.map((a) => {
+                    const badges = [];
+                    if (!a.exists) badges.push(badge('削除済み', 'bg-gray-600'));
+                    if (a.is_bot_banned) badges.push(badge('BAN中', 'bg-red-600'));
+                    if (a.lock_remaining_seconds > 0) badges.push(badge(`ロック中（残り${Math.ceil(a.lock_remaining_seconds / 60)}分）`, 'bg-yellow-600'));
+                    const summary = a.evidence_count
+                        ? `記録 ${a.evidence_count}件・最終 ${escapeHtml(formatTime(a.last_event_at))}`
+                        : '記録なし';
+                    return `
+                        <div class="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded p-2 text-xs">
+                            <input type="checkbox" class="bot-log-account-select" data-user-id="${a.user_id}" ${listState.selected.has(a.user_id) ? 'checked' : ''} aria-label="${escapeHtml(a.username || ('ID ' + a.user_id))} を選択">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex flex-wrap items-center gap-1"><span class="${a.exists ? 'text-gray-200' : 'text-gray-400'} font-bold bot-log-wrap">${escapeHtml(a.username || ('ID ' + a.user_id))}</span>${badges.join('')}</div>
+                                <div class="text-[10px] text-gray-500">${summary}</div>
+                            </div>
+                            <button class="bot-log-open-account shrink-0 whitespace-nowrap bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded" data-user-id="${a.user_id}" data-username="${escapeHtml(a.username || '')}">記録を見る</button>
+                        </div>`;
+                }).join('');
+            };
+            const loadAccounts = async () => {
+                const list = get('bot-log-account-list');
+                if (!list) return;
+                list.innerHTML = '<div class="text-xs text-gray-400 py-2"><i class="fas fa-spinner fa-spin mr-1"></i>読み込み中...</div>';
+                const search = get('bot-log-search');
+                const q = search ? search.value.trim() : '';
+                try {
+                    const res = await apiFetch(`/api/bot/evidence/accounts?q=${encodeURIComponent(q)}`, { cache: 'no-store' });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) throw new Error(data.error || String(res.status));
+                    listState.accounts = data.accounts || [];
+                    const visible = new Set(listState.accounts.map(a => a.user_id));
+                    Array.from(listState.selected).forEach((id) => { if (!visible.has(id)) listState.selected.delete(id); });
+                    renderAccounts();
+                } catch (err) {
+                    list.innerHTML = '<div class="text-xs text-red-400">アカウント一覧を取得できませんでした。</div>';
+                    showToast('Bot検出ログの一覧を取得できませんでした', 'error', true);
+                }
+            };
+
+            // ---- アカウントごとの状態と記録 ----
+            const renderState = (st) => {
+                if (!st) return '';
+                const locks = st.locks || [];
+                const idents = st.banned_identifiers || [];
+                const badges = [];
+                if (!st.exists) badges.push(badge('削除済み', 'bg-gray-600'));
+                if (st.exists) {
+                    badges.push(badge(st.detection_enabled ? '検出ON' : '検出OFF', st.detection_enabled ? 'bg-gray-600' : 'bg-gray-700'));
+                    badges.push(badge(st.is_bot_banned ? 'BAN中' : 'BANなし', st.is_bot_banned ? 'bg-red-600' : 'bg-gray-600'));
+                }
+                badges.push(badge(locks.length ? 'ロック中' : 'ロックなし', locks.length ? 'bg-yellow-600' : 'bg-gray-600'));
+                if (idents.length) badges.push(badge(`IP・端末のBAN ${idents.length}件`, 'bg-red-600'));
                 if (st.is_admin) badges.push(badge('管理者（監視の対象外）', 'bg-blue-600'));
-                const locks = (st.locks || []).map((lock) => {
+                const hasBanRecord = !!(state.counts.ban || state.counts.related_ban);
+                const banLine = st.is_bot_banned
+                    ? `<div class="text-gray-300">BANの理由: ${escapeHtml(st.bot_ban_reason || '-')}（${escapeHtml(formatTime(st.bot_banned_at))}）</div>${hasBanRecord ? '' : '<div class="text-gray-400">このBANの記録はありません（記録を始める前のBANか、記録が削除されています）。</div>'}`
+                    : '';
+                const lockLines = locks.map((lock) => {
                     const target = SOURCE_LABELS[lock.source] || lock.source;
                     const ident = lock.identifier ? ` ${escapeHtml(lock.identifier)}${lock.source === 'cookie' ? '…' : ''}` : '';
                     const origin = lock.origin
                         ? `・かけたアカウント: ${escapeHtml(lock.origin.username || String(lock.origin.user_id || '-'))}（${escapeHtml(CLIENT_LABELS[lock.origin.client] || lock.origin.client || '-')}）`
                         : '';
-                    return `<div class="text-gray-300">${escapeHtml(target)}${ident}・残り${escapeHtml(formatDuration(lock.remaining_seconds))}・${escapeHtml(lock.reason || '')}${origin}</div>`;
+                    return `<div class="text-gray-300">ロック: ${escapeHtml(target)}${ident}・残り${escapeHtml(formatDuration(lock.remaining_seconds))}・${escapeHtml(lock.reason || '')}${origin}</div>`;
                 }).join('');
-                const hasBanRecord = !!(state.counts.ban || state.counts.related_ban);
-                const banLine = st.is_bot_banned
-                    ? `<div class="text-gray-300">BANの理由: ${escapeHtml(st.bot_ban_reason || '-')}（${escapeHtml(formatTime(st.bot_banned_at))}）</div>${hasBanRecord ? '' : '<div class="text-gray-400">このBANの記録はありません（記録を始める前のBANか、記録が削除されています）。</div>'}`
-                    : '';
+                const identLines = idents.map((row) => `<div class="text-gray-300">IP・端末のBAN: ${escapeHtml(SOURCE_LABELS[row.kind] || row.kind)} ${escapeHtml(row.identifier)}${row.kind === 'cookie' ? '…' : ''}・${escapeHtml(row.reason || '-')}（${escapeHtml(formatTime(row.created_at))}）</div>`).join('');
+                const identNote = idents.length ? '<div class="text-gray-400">IP・端末のBANがあると、同じIPアドレスや端末からは新しいアカウントを作れません。</div>' : '';
                 const verified = st.turnstile_verified_seconds > 0
                     ? `確認済み（残り${formatDuration(st.turnstile_verified_seconds)}）`
                     : '未確認';
-                const unlockBtn = st.locks && st.locks.length
-                    ? `<button class="bot-log-unlock bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded">ロックを解除</button>`
-                    : '';
+                const appeals = st.appeal_count ? `・異議申し立て ${escapeHtml(String(st.appeal_count))}件` : '';
+                const actions = [];
+                if (locks.length) actions.push('<button class="bot-log-unlock bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded">ロックを解除</button>');
+                if (idents.length) actions.push('<button class="bot-log-unblock bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded">IP・端末のBANを解除</button>');
                 return `
                     <div class="bg-gray-900 border border-gray-700 rounded p-2 text-xs space-y-1">
                         <div class="flex flex-wrap items-center gap-1">${badges.join('')}</div>
                         ${banLine}
-                        ${locks}
-                        <div class="text-gray-400">ロック回数（1時間）: ${escapeHtml(String(st.lock_count))} / ${escapeHtml(String(st.lock_count_limit))}・Turnstile: ${escapeHtml(verified)}・失敗 ${escapeHtml(String(st.turnstile_fail_count))} / ${escapeHtml(String(st.turnstile_fail_limit))}・判定スコア ${escapeHtml(String(Math.round((st.score || 0) * 10) / 10))}（操作 ${escapeHtml(String(Math.round((st.behavior_score || 0) * 10) / 10))}）</div>
-                        ${unlockBtn ? `<div class="pt-1">${unlockBtn}</div>` : ''}
+                        ${lockLines}
+                        ${identLines}
+                        ${identNote}
+                        <div class="text-gray-400">ロック回数（1時間）: ${escapeHtml(String(st.lock_count))} / ${escapeHtml(String(st.lock_count_limit))}・Turnstile: ${escapeHtml(verified)}・失敗 ${escapeHtml(String(st.turnstile_fail_count))} / ${escapeHtml(String(st.turnstile_fail_limit))}・判定スコア ${escapeHtml(String(Math.round((st.score || 0) * 10) / 10))}（操作 ${escapeHtml(String(Math.round((st.behavior_score || 0) * 10) / 10))}）${appeals}</div>
+                        ${actions.length ? `<div class="flex flex-wrap gap-2 pt-1">${actions.join('')}</div>` : ''}
                     </div>`;
             };
 
@@ -25673,23 +25737,21 @@
             const render = () => {
                 const el = view();
                 if (!el) return;
-                const deletedBadge = state.exists ? '' : '<span class="bg-gray-600 text-white px-2 py-0.5 rounded text-xs">削除済み</span>';
                 const items = state.items.length
                     ? state.items.map(renderItem).join('')
                     : '<div class="text-xs text-gray-400 py-2">記録はありません。</div>';
+                const allChecked = state.items.length && state.items.every(item => state.selected.has(item.id));
                 el.innerHTML = `
                     <div class="flex flex-wrap items-center gap-2 mb-2">
                         <button class="bot-log-back bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs"><i class="fas fa-arrow-left mr-1"></i>一覧に戻る</button>
                         <div class="text-sm font-bold text-white bot-log-wrap">${escapeHtml(state.username || ('ID ' + state.userId))}</div>
-                        ${deletedBadge}
                         <button class="bot-log-reload ml-auto bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-xs">更新</button>
                     </div>
                     <div class="flex-1 overflow-y-auto space-y-2">
                         ${renderState(state.data && state.data.state)}
-                        <div class="text-[11px] text-gray-400">ボット検出の記録は、アカウントを削除しても残ります。同じ通信先への拒否は1分に1件まで記録します。</div>
                         <div class="flex flex-wrap gap-1 text-xs">${renderFilters()}</div>
                         <div class="flex flex-wrap items-center gap-2 text-xs">
-                            <label class="flex items-center gap-1 text-gray-300"><input type="checkbox" class="bot-log-select-all" aria-label="表示中の記録をすべて選択" ${state.items.length && state.items.every(item => state.selected.has(item.id)) ? 'checked' : ''}>表示中をすべて選択</label>
+                            <label class="flex items-center gap-1 text-gray-300"><input type="checkbox" class="bot-log-select-all" aria-label="表示中の記録をすべて選択" ${allChecked ? 'checked' : ''}>表示中をすべて選択</label>
                             <button class="bot-log-delete-selected bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded" ${state.selected.size ? '' : 'disabled'}>選択した記録を削除${state.selected.size ? `（${state.selected.size}件）` : ''}</button>
                             <button class="bot-log-delete-all bg-red-800 hover:bg-red-700 text-white px-2 py-1 rounded" ${state.total ? '' : 'disabled'}>すべての記録を削除</button>
                         </div>
@@ -25734,13 +25796,7 @@
             const deleteLogs = async (payload, confirmText) => {
                 if (!confirm(confirmText)) return;
                 try {
-                    const res = await apiFetch('/api/bot/evidence/delete', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(Object.assign({ user_id: state.userId }, payload))
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(data.error || String(res.status));
+                    const data = await postJson('/api/bot/evidence/delete', Object.assign({ user_id: state.userId }, payload));
                     showToast(`${data.deleted || 0}件の記録を削除しました`, 'success');
                     state.selected.clear();
                     await load(false);
@@ -25749,20 +25805,14 @@
                 }
             };
 
-            const unlock = async () => {
-                if (!state.username || !confirm(`${state.username} のロックを解除しますか？\nこのアカウントのIPアドレスと端末にかかっているロックも解除します。`)) return;
+            const runAccountAction = async (url, confirmText, doneText) => {
+                if (!confirm(confirmText)) return;
                 try {
-                    const res = await apiFetch('/api/bot/update', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username: state.username, action: 'unlock' })
-                    });
-                    const data = await res.json().catch(() => ({}));
-                    if (!res.ok) throw new Error(data.error || String(res.status));
-                    showToast('ロックを解除しました', 'success');
+                    await postJson(url, { user_id: state.userId });
+                    showToast(doneText, 'success');
                     await load(false);
                 } catch (err) {
-                    showToast('ロックを解除できませんでした', 'error', true);
+                    showToast('操作に失敗しました', 'error', true);
                 }
             };
 
@@ -25772,6 +25822,11 @@
                 const lv = listView();
                 if (lv) { lv.classList.remove('hidden'); lv.classList.add('flex'); }
                 state.userId = 0;
+            };
+
+            const openList = async () => {
+                showList();
+                await loadAccounts();
             };
 
             const open = async (userId, username = '') => {
@@ -25787,10 +25842,12 @@
             };
 
             const bind = () => {
-                const el = view();
-                if (!el || el.dataset.bound === '1') return;
-                el.dataset.bound = '1';
-                el.addEventListener('change', (e) => {
+                const modal = get('bot-log-modal');
+                if (!modal || modal.dataset.bound === '1') return;
+                modal.dataset.bound = '1';
+                const search = get('bot-log-search');
+                if (search) search.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadAccounts(); });
+                modal.addEventListener('change', (e) => {
                     const target = e.target;
                     if (!target || !target.classList) return;
                     if (target.classList.contains('bot-log-select')) {
@@ -25800,14 +25857,37 @@
                     } else if (target.classList.contains('bot-log-select-all')) {
                         state.items.forEach((item) => { if (target.checked) state.selected.add(item.id); else state.selected.delete(item.id); });
                         render();
+                    } else if (target.classList.contains('bot-log-account-select')) {
+                        const id = Number(target.getAttribute('data-user-id'));
+                        if (target.checked) listState.selected.add(id); else listState.selected.delete(id);
+                        renderAccounts();
+                    } else if (target.classList.contains('bot-log-account-select-all')) {
+                        listState.accounts.forEach((a) => { if (target.checked) listState.selected.add(a.user_id); else listState.selected.delete(a.user_id); });
+                        renderAccounts();
                     }
                 });
-                el.addEventListener('click', async (e) => {
+                modal.addEventListener('click', async (e) => {
                     const btn = e.target.closest('button');
                     if (!btn || btn.disabled) return;
-                    if (btn.classList.contains('bot-log-back')) {
-                        showList();
-                        if (window.reloadBotAdminUsers) await window.reloadBotAdminUsers();
+                    if (btn.id === 'bot-log-search-btn' || btn.id === 'bot-log-refresh-btn') {
+                        if (btn.id === 'bot-log-refresh-btn' && search) search.value = '';
+                        await loadAccounts();
+                    } else if (btn.classList.contains('bot-log-open-account')) {
+                        const id = Number(btn.getAttribute('data-user-id'));
+                        if (id) await open(id, btn.getAttribute('data-username') || '');
+                    } else if (btn.classList.contains('bot-log-delete-accounts')) {
+                        const ids = Array.from(listState.selected);
+                        if (!ids.length || !confirm(`選択した${ids.length}件のアカウントの記録をすべて削除しますか？この操作は取り消せません。`)) return;
+                        try {
+                            const data = await postJson('/api/bot/evidence/delete', { user_ids: ids });
+                            showToast(`${data.deleted || 0}件の記録を削除しました`, 'success');
+                            listState.selected.clear();
+                            await loadAccounts();
+                        } catch (err) {
+                            showToast('記録を削除できませんでした', 'error', true);
+                        }
+                    } else if (btn.classList.contains('bot-log-back')) {
+                        await openList();
                     } else if (btn.classList.contains('bot-log-reload')) {
                         await load(false);
                     } else if (btn.classList.contains('bot-log-more')) {
@@ -25824,11 +25904,17 @@
                     } else if (btn.classList.contains('bot-log-delete-all')) {
                         await deleteLogs({ all: true }, `${state.username || 'このアカウント'} のボット検出の記録をすべて（${state.total}件）削除しますか？この操作は取り消せません。`);
                     } else if (btn.classList.contains('bot-log-unlock')) {
-                        await unlock();
+                        await runAccountAction('/api/bot/account/clear-lock',
+                            `${state.username || 'このアカウント'} のロックを解除しますか？\nこのアカウントのIPアドレスと端末にかかっているロックも解除します。`,
+                            'ロックを解除しました');
+                    } else if (btn.classList.contains('bot-log-unblock')) {
+                        await runAccountAction('/api/bot/account/clear-identifiers',
+                            `${state.username || 'このアカウント'} が起点のIP・端末のBANを解除しますか？\n解除すると、そのIPアドレスや端末から新しいアカウントを作れるようになります。`,
+                            'IP・端末のBANを解除しました');
                     }
                 });
             };
 
-            return { open, showList, bind };
+            return { open, openList, showList, bind };
         })();
         window.BotAdminLog = BotAdminLog;

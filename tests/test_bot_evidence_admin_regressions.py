@@ -106,30 +106,76 @@ class BotEvidenceAdminRegressionTests(unittest.TestCase):
     def test_records_outlive_account_deletion_and_stay_viewable(self):
         locker = self.client_for("locker")
         self.post_json(locker, "/api/bot/lock", {"reason": "連打検出"})
+        self.fake.set(f"bot:score:{self.ids['locker']}", "3.5")
+        with target.app.app_context():
+            target.db.session.add(target.BanAppeal(user_id=self.ids["locker"], username="locker", message="appeal"))
+            target.db.session.add(target.BannedIdentifier(
+                kind="ip", value="198.51.100.9", reason="Linked ban",
+                source_user_id=self.ids["locker"], source_username="locker",
+            ))
+            target.db.session.commit()
         res = self.post_json(locker, "/api/account/delete", {})
         self.assertEqual(res.status_code, 200)
         types = [t for t, _ in self.events("locker")]
         self.assertIn("lock", types)
         self.assertEqual(types[-1], "account_deleted")
         self.assertEqual(self.events("locker")[-1][1], {"by": "self"})
-        # The IP lock stays after the account is gone.
-        self.assertTrue(any(
-            (k if isinstance(k, str) else k.decode()).startswith("bot:lock:ip:") for k in self.fake._d
-        ))
+        # Locks, the score, ban appeals and IP/device bans all stay after the account is gone.
+        keys = [(k if isinstance(k, str) else k.decode()) for k in self.fake._d]
+        self.assertTrue(any(k.startswith("bot:lock:ip:") for k in keys))
+        self.assertEqual(self.fake.get(f"bot:score:{self.ids['locker']}"), "3.5")
+        with target.app.app_context():
+            self.assertIsNone(target.db.session.get(target.User, self.ids["locker"]))
+            self.assertEqual(target.BanAppeal.query.filter_by(user_id=self.ids["locker"]).count(), 1)
+            self.assertEqual(target.BannedIdentifier.query.filter_by(source_user_id=self.ids["locker"]).count(), 1)
 
         admin = self.client_for("site-admin")
-        listing = admin.get("/api/bot/users").get_json()
-        deleted = {d["user_id"]: d for d in listing["deleted_users"]}
-        self.assertIn(self.ids["locker"], deleted)
-        self.assertEqual(deleted[self.ids["locker"]]["username"], "locker")
-        self.assertEqual(deleted[self.ids["locker"]]["evidence_count"], 2)
+        accounts = {a["user_id"]: a for a in admin.get("/api/bot/evidence/accounts").get_json()["accounts"]}
+        self.assertIn(self.ids["locker"], accounts)
+        self.assertFalse(accounts[self.ids["locker"]]["exists"])
+        self.assertEqual(accounts[self.ids["locker"]]["username"], "locker")
+        self.assertEqual(accounts[self.ids["locker"]]["evidence_count"], 2)
 
         detail = admin.get(f"/api/bot/evidence?user_id={self.ids['locker']}").get_json()
         self.assertFalse(detail["user"]["exists"])
         self.assertEqual(detail["user"]["username"], "locker")
         self.assertEqual(detail["total"], 2)
-        self.assertNotIn("state", detail)
         self.assertEqual(detail["items"][0]["event_type"], "account_deleted")
+        state = detail["state"]
+        self.assertFalse(state["exists"])
+        self.assertEqual(state["appeal_count"], 1)
+        self.assertEqual([i["identifier"] for i in state["banned_identifiers"]], ["198.51.100.9"])
+        self.assertIn("ip", {lock["source"] for lock in state["locks"]})
+
+        # The deleted account's locks and IP/device bans can still be lifted.
+        res = self.post_json(admin, "/api/bot/account/clear-lock", {"user_id": self.ids["locker"]})
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(any((k if isinstance(k, str) else k.decode()).startswith("bot:lock:") for k in self.fake._d))
+        res = self.post_json(admin, "/api/bot/account/clear-identifiers", {"user_id": self.ids["locker"]})
+        self.assertEqual(res.get_json()["removed"], 1)
+        with target.app.app_context():
+            self.assertEqual(target.BannedIdentifier.query.filter_by(source_user_id=self.ids["locker"]).count(), 0)
+        actions = [d["action"] for t, d in self.events("locker") if t == "admin_action"]
+        self.assertEqual(actions, ["unlock", "unblock_identifiers"])
+        self.assertTrue(all(r.username == "locker" for r in self._rows("locker")))
+
+    def _rows(self, name):
+        with target.app.app_context():
+            return target.BotEvidenceLog.query.filter_by(user_id=self.ids[name]).all()
+
+    def test_admin_bulk_deletes_records_of_several_accounts(self):
+        for name in ("locker", "newcomer"):
+            self.post_json(self.client_for(name), "/api/bot/lock", {"reason": "連打検出"})
+        admin = self.client_for("site-admin")
+        self.post_json(admin, "/api/bot/update", {"username": "locker", "action": "toggle_detection", "enabled": True})
+        res = self.post_json(admin, "/api/bot/evidence/delete", {"user_ids": [self.ids["locker"], self.ids["newcomer"]]})
+        self.assertEqual(res.get_json()["deleted"], 3)
+        self.assertEqual(self.events("locker"), [])
+        self.assertEqual(self.events("newcomer"), [])
+        self.assertEqual(admin.get("/api/bot/evidence/accounts").get_json()["accounts"], [])
+        normal = self.client_for("newcomer")
+        res = self.post_json(normal, "/api/bot/evidence/delete", {"user_ids": [self.ids["locker"]]})
+        self.assertEqual(res.status_code, 403)
 
     def test_admin_deletes_selected_and_all_records(self):
         locker = self.client_for("locker")
@@ -215,15 +261,23 @@ class BotEvidenceAdminRegressionTests(unittest.TestCase):
 
     def test_admin_ui_wires_log_view(self):
         markup = read_chat_markup()
-        self.assertIn('id="bot-admin-list-view"', markup)
-        self.assertIn('id="bot-admin-detail"', markup)
+        # The log screen is separate from account management, with its own button and URL.
+        self.assertIn('id="bot-log-open"', markup)
+        self.assertIn('id="bot-log-modal"', markup)
+        self.assertIn('id="bot-log-account-list"', markup)
+        self.assertIn('id="bot-log-detail"', markup)
         part08 = (PARTS / "chat_core.part08_domcontent_account_transfer.js").read_text(encoding="utf-8")
         part16 = (PARTS / "chat_core.part16_gems_branch_debug.js").read_text(encoding="utf-8")
-        self.assertIn("bot-open-log", part08)
-        self.assertIn("data.deleted_users", part08)
+        self.assertIn("'/admin-bot-logs': { id: 'bot-log-modal'", part08)
+        self.assertIn("case 'bot-log-modal'", part08)
+        self.assertNotIn("bot-open-log", part08)
         self.assertIn("window.BotAdminLog = BotAdminLog", part16)
-        self.assertIn("/api/bot/evidence/delete", part16)
-        self.assertIn("action: 'unlock'", part16)
+        self.assertIn("/api/bot/evidence/accounts", part16)
+        self.assertIn("user_ids: ids", part16)
+        self.assertIn("/api/bot/account/clear-lock", part16)
+        self.assertIn("/api/bot/account/clear-identifiers", part16)
+        page = self.client_for("site-admin").get("/admin-bot-logs")
+        self.assertEqual(page.status_code, 200)
 
 
 if __name__ == "__main__":

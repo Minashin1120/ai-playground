@@ -256,6 +256,37 @@ def ensure_import_signature_columns():
     except Exception:
         pass
 
+def ensure_ban_appeal_outlives_account():
+    """Drop ``ban_appeal``'s foreign key to ``user`` so appeals survive account deletion.
+
+    Bot-detection records (appeals included) are kept after the account is
+    deleted; with the constraint in place deleting the user would fail. Applied
+    unconditionally at startup like the other correctness-critical ensure_* steps.
+    """
+    try:
+        if db.engine.dialect.name != 'mysql':
+            return
+        with db.engine.connect() as conn:
+            names = [row[0] for row in conn.execute(text(
+                "SELECT CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE "
+                "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ban_appeal' "
+                "AND COLUMN_NAME='user_id' AND REFERENCED_TABLE_NAME='user'"
+            )).fetchall()]
+            for name in names:
+                if not re.fullmatch(r'[A-Za-z0-9_]+', str(name or '')):
+                    continue
+                try:
+                    conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                    conn.execute(text(f"ALTER TABLE ban_appeal DROP FOREIGN KEY `{name}`"))
+                    conn.commit()
+                except Exception:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
 def ensure_feedback_public_ids():
     """Adds ``feedback.public_id`` and gives feedback created earlier a random id (renaming its directory)."""
     try:

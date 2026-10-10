@@ -797,23 +797,41 @@ def _apply_bot_lock(reason):
 def _bot_lock_identifiers_key(user_id):
     return f"bot:lock:ids:{user_id}"
 
-def _bot_lock_user_identifiers(user):
-    """IPs and cookie tokens of the account, plus those its own lock was applied to."""
-    ips, tokens = _get_user_identifiers(user)
-    ips, tokens = set(ips), set(tokens)
+def _bot_account_identifiers(user_id, user=None):
+    """IPs and cookie tokens tied to an account, also after it was deleted.
+
+    Combines the account's sessions/devices (while it exists), the identifiers
+    its own lock was applied to, and the IP/cookie bans it is the source of.
+    """
+    ips, tokens = set(), set()
+    if user is not None:
+        try:
+            found_ips, found_tokens = _get_user_identifiers(user)
+            ips.update(found_ips)
+            tokens.update(found_tokens)
+        except Exception:
+            pass
     try:
-        raw = redis_conn.get(_bot_lock_identifiers_key(user.id))
+        raw = redis_conn.get(_bot_lock_identifiers_key(user_id))
         applied = json.loads(raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else raw) if raw else []
         for kind, value in applied:
             (ips if kind == 'ip' else tokens).add(str(value))
     except Exception:
         pass
+    try:
+        for row in BannedIdentifier.query.filter_by(source_user_id=user_id).all():
+            (ips if row.kind == 'ip' else tokens).add(str(row.value))
+    except Exception:
+        pass
     return ips, tokens
 
-def _clear_bot_lock_for_user(user):
+def _bot_lock_user_identifiers(user):
+    return _bot_account_identifiers(user.id, user)
+
+def _clear_bot_lock(user_id, user=None):
     """Remove the account's lock, its lock count, and the IP/cookie locks on its identifiers."""
-    ips, tokens = _bot_lock_user_identifiers(user)
-    keys = [f"bot:lock:{user.id}", f"bot:lock:count:{user.id}", _bot_lock_identifiers_key(user.id)]
+    ips, tokens = _bot_account_identifiers(user_id, user)
+    keys = [f"bot:lock:{user_id}", f"bot:lock:count:{user_id}", _bot_lock_identifiers_key(user_id)]
     for kind, values in (('ip', ips), ('cookie', tokens)):
         for value in values:
             key = f"bot:lock:{kind}:{value}"
@@ -823,8 +841,16 @@ def _clear_bot_lock_for_user(user):
     except Exception:
         pass
 
-def _bot_admin_state(user):
-    """Current bot-detection state of an account for the admin screen."""
+def _clear_bot_lock_for_user(user):
+    _clear_bot_lock(user.id, user)
+
+def _bot_mask_identifier(kind, value):
+    """Cookie tokens are device identifiers: show only a short prefix."""
+    value = str(value or '')
+    return value if kind == 'ip' else value[:8]
+
+def _bot_admin_state(user_id, user=None):
+    """Current bot-detection state of an account (existing or deleted) for the admin screen."""
     def _int(key):
         try:
             return int(redis_conn.get(key) or 0)
@@ -842,40 +868,60 @@ def _bot_admin_state(user):
             return 0
     locks = []
     try:
-        ips, tokens = _bot_lock_user_identifiers(user)
-        candidates = [('account', None, f"bot:lock:{user.id}")]
+        ips, tokens = _bot_account_identifiers(user_id, user)
+        candidates = [('account', None, f"bot:lock:{user_id}")]
         candidates += [('ip', ip, f"bot:lock:ip:{ip}") for ip in sorted(ips)[:50]]
-        # Cookie tokens are device identifiers: show only a short prefix.
-        candidates += [('cookie', token[:8], f"bot:lock:cookie:{token}") for token in sorted(tokens)[:50]]
-        for source, label, key in candidates:
+        candidates += [('cookie', token, f"bot:lock:cookie:{token}") for token in sorted(tokens)[:50]]
+        for source, value, key in candidates:
             raw = redis_conn.get(key)
             if not raw:
                 continue
             locks.append({
                 'source': source,
-                'identifier': label,
+                'identifier': _bot_mask_identifier(source, value) if value else None,
                 'reason': raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else str(raw),
                 'remaining_seconds': _ttl(key),
                 'origin': _bot_lock_origin(key) if source != 'account' else None,
             })
     except Exception:
         pass
-    return {
-        'is_admin': bool(_is_admin_exempt(user)),
-        'detection_enabled': user.bot_detection_enabled if user.bot_detection_enabled is not None else True,
-        'is_bot_banned': bool(user.is_bot_banned),
-        'bot_ban_reason': user.bot_ban_reason or '',
-        'bot_banned_at': user.bot_banned_at.isoformat() + "Z" if user.bot_banned_at else None,
+    banned_identifiers = []
+    appeal_count = 0
+    try:
+        for row in BannedIdentifier.query.filter_by(source_user_id=user_id)\
+                .order_by(BannedIdentifier.id.desc()).limit(100).all():
+            banned_identifiers.append({
+                'kind': row.kind,
+                'identifier': _bot_mask_identifier(row.kind, row.value),
+                'reason': row.reason or '',
+                'created_at': row.created_at.isoformat() + "Z" if row.created_at else None,
+            })
+        appeal_count = BanAppeal.query.filter_by(user_id=user_id).count()
+    except Exception:
+        pass
+    state = {
+        'exists': user is not None,
         'locks': locks,
-        'lock_count': _int(f"bot:lock:count:{user.id}"),
+        'banned_identifiers': banned_identifiers,
+        'appeal_count': appeal_count,
+        'lock_count': _int(f"bot:lock:count:{user_id}"),
         'lock_count_limit': _BOT_LOCK_COUNT_LIMIT,
-        'turnstile_verified_seconds': _ttl(f"bot:tst:v:{user.id}"),
-        'turnstile_fail_count': _int(f"bot:tst:fail:{user.id}"),
+        'turnstile_verified_seconds': _ttl(f"bot:tst:v:{user_id}"),
+        'turnstile_fail_count': _int(f"bot:tst:fail:{user_id}"),
         'turnstile_fail_limit': _BOT_TURNSTILE_FAIL_LIMIT,
-        'turnstile_cycle_count': _int(f"bot:tst:cycle:{user.id}"),
-        'score': _float(f"bot:score:{user.id}"),
-        'behavior_score': _float(f"bot:behavior:{user.id}"),
+        'turnstile_cycle_count': _int(f"bot:tst:cycle:{user_id}"),
+        'score': _float(f"bot:score:{user_id}"),
+        'behavior_score': _float(f"bot:behavior:{user_id}"),
     }
+    if user is not None:
+        state.update({
+            'is_admin': bool(_is_admin_exempt(user)),
+            'detection_enabled': user.bot_detection_enabled if user.bot_detection_enabled is not None else True,
+            'is_bot_banned': bool(user.is_bot_banned),
+            'bot_ban_reason': user.bot_ban_reason or '',
+            'bot_banned_at': user.bot_banned_at.isoformat() + "Z" if user.bot_banned_at else None,
+        })
+    return state
 
 def _bot_lock_gate():
     """before_request guard: block most communication while the account is locked.

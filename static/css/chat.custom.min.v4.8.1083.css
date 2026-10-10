@@ -6810,7 +6810,7 @@ body:not(.minimal-prompt-mode).liquid-glass-mode .composer-input-shell {
     }
 }
 
-/* Admin bot-detection log (bot-admin-detail): long IDs/User-Agents wrap, JSON snapshots scroll. */
+/* Admin bot-detection log (bot-log-modal): long IDs/User-Agents wrap, JSON snapshots scroll. */
 .bot-log-wrap { overflow-wrap: anywhere; word-break: break-word; }
 .bot-log-pre {
     margin: 0.25rem 0 0;
@@ -6827,4 +6827,4 @@ body:not(.minimal-prompt-mode).liquid-glass-mode .composer-input-shell {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
-#bot-admin-detail button:disabled { opacity: 0.5; cursor: not-allowed; }
+#bot-log-modal button:disabled { opacity: 0.5; cursor: not-allowed; }

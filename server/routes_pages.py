@@ -32,6 +32,7 @@ def index():
 @app.route('/gem')
 @app.route('/compression')
 @app.route('/admin-bots')
+@app.route('/admin-bot-logs')
 @login_required
 def modal_pages():
     if not current_user.is_setup_completed:

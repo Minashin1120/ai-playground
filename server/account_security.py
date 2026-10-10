@@ -238,14 +238,29 @@ def _secure_delete_tree(path):
     except Exception:
         pass
 
+def _ban_appeal_user_fk_present():
+    """True while ``ban_appeal.user_id`` still references ``user`` (MySQL only)."""
+    try:
+        if db.engine.dialect.name != 'mysql':
+            return False
+        ensure_ban_appeal_outlives_account()
+        return bool(db.session.execute(text(
+            "SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE "
+            "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='ban_appeal' "
+            "AND COLUMN_NAME='user_id' AND REFERENCED_TABLE_NAME='user'"
+        )).scalar())
+    except Exception:
+        return True
+
 def _delete_user_account_immediately(user):
     if not user:
         raise ValueError("user_required")
     user_id = int(user.id)
 
-    # Bot-detection records (BotEvidenceLog, Redis locks) outlive the account so
-    # re-registering from the same environment cannot erase them; note the deletion
-    # in that history. Only the admin bot screen deletes these records.
+    # Bot-detection records outlive the account so re-registering from the same
+    # environment cannot erase them: BotEvidenceLog, ban appeals, IP/cookie bans
+    # (BannedIdentifier) and the Redis lock/score keys. Note the deletion in that
+    # history. Only the admin bot screens delete these records.
     try:
         by_self = bool(current_user.is_authenticated and current_user.id == user_id)
         details = {'by': 'self'} if by_self else {'by': 'admin', 'admin': getattr(current_user, 'username', None)}
@@ -254,27 +269,23 @@ def _delete_user_account_immediately(user):
         pass
 
     try:
-        ips, tokens = _get_user_identifiers(user)
-    except Exception:
-        ips, tokens = set(), set()
-
-    try:
         # Activity logs and decrypted chat copies sent with the user's feedback (server/routes_admin.py).
         _delete_feedback_files([fid for (fid,) in db.session.query(Feedback.public_id).filter_by(user_id=user_id).all()])
     except Exception:
         pass
     Feedback.query.filter_by(user_id=user_id).delete(synchronize_session=False)
-    BanAppeal.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+    if _ban_appeal_user_fk_present():
+        # The startup step could not drop the constraint yet; deleting the account
+        # must still succeed.
+        BanAppeal.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     UserClientToken.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     UserSession.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     FileCache.query.filter_by(user_id=user_id).delete(synchronize_session=False)
-    BannedIdentifier.query.filter_by(source_user_id=user_id).delete(synchronize_session=False)
     ChatLatencyTrace.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     FirstTokenLatencyMetric.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     SyncThreadState.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     SyncMessageRef.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     SyncTombstone.query.filter_by(user_id=user_id).delete(synchronize_session=False)
-    _unblock_identifiers(ips, tokens)
 
     user_dir = os.path.join(app.config['UPLOAD_FOLDER'], str(user_id))
     _secure_delete_tree(user_dir)
@@ -284,7 +295,6 @@ def _delete_user_account_immediately(user):
     try:
         redis_conn.delete(f"migration_status:{user_id}")
         redis_conn.delete(f"migration_progress:{user_id}")
-        redis_conn.delete(f"bot:score:{user_id}")
     except Exception:
         pass
 

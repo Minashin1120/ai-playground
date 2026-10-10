@@ -256,7 +256,9 @@ class Feedback(db.Model):
 
 class BanAppeal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # No foreign key: appeals are bot-detection records and outlive the account
+    # (ensure_ban_appeal_outlives_account drops the constraint on existing databases).
+    user_id = db.Column(db.Integer, nullable=False, index=True)
     username = db.Column(db.String(80), nullable=False)
     message = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(20), default="new")  # new, in_review, replied, resolved, rejected

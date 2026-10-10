@@ -190,6 +190,28 @@ class BotEvidenceAdminRegressionTests(unittest.TestCase):
         self.post_json(admin, "/api/bot/update", {"username": "locker", "action": "ban", "reason": "Admin ban"})
         related = [d for t, d in self.events("newcomer") if t == "related_ban"]
         self.assertEqual(related, [{"source_user_id": self.ids["locker"], "source_username": "locker"}])
+        # A manual ban is a BAN event on the account itself, attributed to the admin.
+        self.assertEqual(
+            [d for t, d in self.events("locker") if t == "ban"],
+            [{"by": "admin", "admin": "site-admin"}],
+        )
+        detail = admin.get(f"/api/bot/evidence?user_id={self.ids['locker']}").get_json()
+        self.assertEqual(detail["items"][0]["event_type"], "ban")
+        self.assertEqual(detail["items"][0]["client"], "admin")
+
+        # Lifting the linked ban records an unban on every account it released.
+        self.post_json(admin, "/api/bot/update", {"username": "locker", "action": "unban_linked"})
+        self.assertEqual(
+            [d for t, d in self.events("locker") if t == "unban"],
+            [{"by": "admin", "admin": "site-admin", "previous_reason": "Admin ban"}],
+        )
+        self.assertEqual(
+            [d for t, d in self.events("newcomer") if t == "unban"],
+            [{"by": "admin", "admin": "site-admin", "previous_reason": "Admin ban", "linked_from": "locker"}],
+        )
+        # Unbanning an account that is not banned records nothing.
+        self.post_json(admin, "/api/bot/unban", {"username": "locker"})
+        self.assertEqual(len([t for t, _ in self.events("locker") if t == "unban"]), 1)
 
     def test_admin_ui_wires_log_view(self):
         markup = read_chat_markup()

@@ -825,7 +825,7 @@ def _bot_evidence_item(row):
     # server itself (a ban that spread from a linked account).
     if row.event_type == 'related_ban':
         client = 'server'
-    elif row.event_type == 'admin_action' or (row.event_type == 'account_deleted' and not row.user_agent):
+    elif not row.user_agent and row.event_type in ('admin_action', 'ban', 'unban', 'account_deleted'):
         client = 'admin'
     else:
         client = _bot_client_from_user_agent(row.user_agent)
@@ -949,11 +949,15 @@ def bot_update():
         user.bot_banned_at = datetime.utcnow()
         user.bot_ban_reason = data.get('reason') or "Manual ban"
         user.bot_unban_notice = False
+        safe_db_commit()
+        _log_bot_evidence('ban', reasons=user.bot_ban_reason, details={
+            'by': 'admin', 'admin': current_user.username,
+        }, user=user, from_request=False)
         ban_related_accounts(user, user.bot_ban_reason)
     elif action == 'unban':
-        unban_single_account(user)
+        unban_single_account(user)  # records an 'unban' event
     elif action == 'unban_linked':
-        unban_linked_accounts(user)
+        unban_linked_accounts(user)  # records an 'unban' event per account
     elif action == 'unlock':
         _clear_bot_lock_for_user(user)
     elif action == 'delete_account':
@@ -963,7 +967,8 @@ def bot_update():
         return jsonify({'error': 'bad_action'}), 400
     
     safe_db_commit()
-    _log_bot_evidence('admin_action', details=details, user=user, from_request=False)
+    if action in ('toggle_detection', 'unlock'):
+        _log_bot_evidence('admin_action', details=details, user=user, from_request=False)
     return jsonify({'status': 'ok', 'username': username, 'action': action})
 
 def normalize_theme_color(value):

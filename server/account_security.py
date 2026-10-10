@@ -156,14 +156,27 @@ def _get_user_identifiers(user):
             pass
     return ips, tokens
 
-def _unban_user(user):
+def _bot_admin_actor():
+    try:
+        return current_user.username if current_user.is_authenticated else None
+    except Exception:
+        return None
+
+def _unban_user(user, linked_from=None):
     if not user:
         return
+    was_banned = bool(user.is_bot_banned)
+    previous_reason = user.bot_ban_reason
     user.is_bot_banned = False
     user.bot_ban_reason = None
     user.bot_banned_at = None
     user.bot_unbanned_at = datetime.utcnow()
     user.bot_unban_notice = True
+    if was_banned:
+        details = {'by': 'admin', 'admin': _bot_admin_actor(), 'previous_reason': previous_reason}
+        if linked_from is not None and linked_from.id != user.id:
+            details['linked_from'] = linked_from.username
+        _log_bot_evidence('unban', details=details, user=user, from_request=False)
 
 def _unblock_identifiers(ips, tokens):
     if not ips and not tokens:
@@ -202,7 +215,7 @@ def unban_linked_accounts(user):
         u = User.query.get(uid)
         if not u or _is_admin_exempt(u):
             continue
-        _unban_user(u)
+        _unban_user(u, linked_from=user)
     _unblock_identifiers(ips, tokens)
     safe_db_commit()
 

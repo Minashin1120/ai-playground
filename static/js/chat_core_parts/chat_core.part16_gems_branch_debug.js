@@ -1033,6 +1033,7 @@
                 lock_blocked: { label: 'ロック中のため拒否', cls: 'bg-yellow-600' },
                 ban: { label: 'BAN', cls: 'bg-red-600' },
                 related_ban: { label: '関連アカウントからのBAN', cls: 'bg-red-600' },
+                unban: { label: 'BAN解除', cls: 'bg-green-600' },
                 admin_action: { label: '管理者の操作', cls: 'bg-blue-600' },
                 account_deleted: { label: 'アカウント削除', cls: 'bg-gray-600' }
             };
@@ -1043,7 +1044,8 @@
                 origin_username: 'ロックをかけたアカウント', origin_user_id: 'ロックをかけたアカウントID', origin_client: 'ロックをかけた端末',
                 lock_seconds: 'ロック時間', applied_to: 'ロックの範囲', lock_count: 'ロック回数（1時間）', ban_at_count: 'BANになる回数',
                 source_username: 'BANの起点', source_user_id: '起点のアカウントID',
-                action: '操作', admin: '管理者', enabled: '検出', by: '削除した人'
+                action: '操作', admin: '管理者', enabled: '検出', by: '実行した人',
+                previous_reason: '解除前のBANの理由', linked_from: '連鎖解除の起点'
             };
             const SOURCE_LABELS = { account: 'アカウント', ip: 'IPアドレス', cookie: '端末（Cookie）' };
             const ACTION_LABELS = {
@@ -1120,8 +1122,9 @@
                         : '';
                     return `<div class="text-gray-300">${escapeHtml(target)}${ident}・残り${escapeHtml(formatDuration(lock.remaining_seconds))}・${escapeHtml(lock.reason || '')}${origin}</div>`;
                 }).join('');
+                const hasBanRecord = !!(state.counts.ban || state.counts.related_ban);
                 const banLine = st.is_bot_banned
-                    ? `<div class="text-gray-300">BANの理由: ${escapeHtml(st.bot_ban_reason || '-')}（${escapeHtml(formatTime(st.bot_banned_at))}）</div>`
+                    ? `<div class="text-gray-300">BANの理由: ${escapeHtml(st.bot_ban_reason || '-')}（${escapeHtml(formatTime(st.bot_banned_at))}）</div>${hasBanRecord ? '' : '<div class="text-gray-400">このBANの記録はありません（記録を始める前のBANか、記録が削除されています）。</div>'}`
                     : '';
                 const verified = st.turnstile_verified_seconds > 0
                     ? `確認済み（残り${formatDuration(st.turnstile_verified_seconds)}）`

@@ -478,7 +478,12 @@ def bot_telemetry():
     if data.get('untrusted_input'):
         _apply_bot_ban("Synthetic (script-injected) input events detected")
         return jsonify({'error': 'banned', 'reasons': ['untrusted_input']}), 403
-    if not verify_turnstile(data.get('turnstile_token')):
+    # The Android app has no in-page Turnstile widget; its bearer token already passed
+    # Play Integrity or Turnstile, and the chat Turnstile gate still applies to it.
+    if getattr(g, 'mobile_bearer_request', False):
+        data.pop('turnstile_failed', None)
+        data.pop('challenged', None)
+    elif not verify_turnstile(data.get('turnstile_token')):
         if not data.get('turnstile_failed'):
             return jsonify({'error': 'turnstile_failed'}), 403
         # A Turnstile failure is only counted toward a ban when the client was

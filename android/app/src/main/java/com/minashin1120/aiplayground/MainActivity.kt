@@ -90,8 +90,12 @@ open class MainActivity : ComponentActivity() {
         handleUpdateIntent(intent)
     }
 
-    /** ログの収集を強化: where the screen was tapped (dp) and how long it was pressed; never what was typed. */
+    /**
+     * Bot detection counts taps and moves (no positions); ログの収集を強化 records where the screen was
+     * tapped (dp) and how long it was pressed. Neither sees what was typed.
+     */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        model.recordBotTouch(ev.actionMasked, ev.eventTime)
         if (ActivityLog.enabled && ev.actionMasked == MotionEvent.ACTION_UP) {
             val density = resources.displayMetrics.density.takeIf { it > 0f } ?: 1f
             ActivityLog.log("ui.tap", "x" to (ev.x / density).toInt(), "y" to (ev.y / density).toInt(),

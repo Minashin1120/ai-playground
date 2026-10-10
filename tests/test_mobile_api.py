@@ -309,6 +309,37 @@ class MobileApiTests(unittest.TestCase):
         self.assertIn(self.browser.post('/api/mobile/v1/security/turnstile', base_url='https://localhost',
                                         json={}).status_code, (400, 401))
 
+    def test_app_reports_rapid_sends_and_taps_to_the_web_bot_detection(self):
+        token = self.token()
+        with mock.patch.object(target, '_bot_turnstile_active', return_value=False):
+            self.assertFalse(self.call('/api/mobile/v1/preferences', token).json['bot_detection_active'])
+        with mock.patch.object(target, '_bot_turnstile_active', return_value=True), \
+             mock.patch.object(target, '_bot_turnstile_verified', return_value=True), \
+             mock.patch.object(target, 'get_bot_detection_global_enabled', return_value=True), \
+             mock.patch.object(target, 'verify_turnstile', return_value=False) as verify:
+            self.assertTrue(self.call('/api/mobile/v1/preferences', token).json['bot_detection_active'])
+            locked = self.call('/api/bot/lock', token, 'POST', json={'reason': 'rapid'})
+            self.assertEqual(locked.status_code, 200)
+            self.assertEqual(locked.json['status'], 'locked')
+            self.assertIn('remaining_seconds', locked.json)
+            # setUp stubs the lock lookup; the lock itself is the Web one with its timeout.
+            self.assertEqual(self.redis.get(f'bot:lock:{self.user_id}'), b'rapid')
+            self.assertGreater(self.redis.ttl(f'bot:lock:{self.user_id}'), 0)
+            # The app has no Turnstile token: its reports are scored without one,
+            # and it cannot add a Turnstile failure to its own score.
+            calm = self.call('/api/bot-telemetry', token, 'POST', json={'clicks': 3, 'window_ms': 4000,
+                                                                      'turnstile_failed': True, 'challenged': True})
+            self.assertEqual(calm.status_code, 200)
+            self.assertEqual(calm.json['score'], 0)
+            rapid = self.call('/api/bot-telemetry', token, 'POST', json={
+                'window_ms': 400, 'clicks': 13, 'fast_clicks': 12, 'click_burst': 13,
+                'avg_click_ms': 30, 'click_cv': 0.01, 'event_rate': 32})
+            self.assertEqual(rapid.status_code, 403)
+            self.assertEqual(rapid.json['error'], 'banned')
+            verify.assert_not_called()
+        with target.app.app_context():
+            self.assertTrue(target.db.session.get(target.User, self.user_id).is_bot_banned)
+
     def test_native_upload_download_and_foreign_file_denial(self):
         token = self.token()
         response = self.call('/upload', token, 'POST', data={'file': (io.BytesIO(b'android attachment'), 'note.txt')},

@@ -195,6 +195,8 @@ data class Preferences(
     val geminiVertexCredentialsSet: Boolean = false,
     val googleProject: String = "",
     val isAdmin: Boolean = false,
+    /** Web `isBotDetectionActive`: rapid sends lock the account and suspicious taps are reported. */
+    val botDetectionActive: Boolean = false,
     val googleLinked: Boolean = false,
     val minashinLinked: Boolean = false,
     /** Web `migration_status` / `migration_progress` of the E2EE switch. */
@@ -330,6 +332,7 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
     geminiVertexCredentialsSet = json.nullableString("gemini_vertex_credentials_json").isNotBlank(),
     googleProject = json.nullableString("google_project"),
     isAdmin = json.optBoolean("is_admin"),
+    botDetectionActive = json.optBoolean("bot_detection_active"),
     googleLinked = json.optBoolean("google_linked", json.nullableString("google_email").isNotBlank()),
     minashinLinked = json.optBoolean("minashin_linked", json.nullableString("minashin_email").isNotBlank()),
     migrationStatus = json.nullableString("migration_status").ifBlank { "idle" },

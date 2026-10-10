@@ -2638,9 +2638,66 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         when {
             state.value.streaming -> notify("回答生成中です。完了までお待ちいただくか、停止してください。")
             state.value.uploading -> notify("ファイルの送信・処理中です。しばらくお待ちください。")
+            sendSpamLocked() -> notify("送信操作が速すぎるため、確認後に再度お試しください。")
             else -> return true
         }
         return false
+    }
+
+    private val botTelemetry = BotTelemetry()
+    private val sendSpam = SendSpamCounter()
+
+    /** Web `isBotDetectionActive` (the server's `bot_detection_active`); the no-account profile has no server account. */
+    private val botDetectionActive: Boolean get() {
+        val current = state.value
+        val preferences = current.preferences ?: return false
+        return session != null && !current.localProfile && !current.banned && preferences.botDetectionActive && !preferences.isAdmin
+    }
+
+    /**
+     * Web `sendMessage` + `applyBotLockFromServer`: 8 sends within 3 s ask the server to lock the
+     * account for a while (repeated locks end in a BAN), then show the lock overlay.
+     */
+    private fun sendSpamLocked(): Boolean {
+        if (!botDetectionActive) return false
+        if (sendSpam.register(SystemClock.uptimeMillis()) < SendSpamCounter.LOCK_THRESHOLD) return false
+        val reason = "送信操作が速すぎるため、一時的にロックしています。"
+        viewModelScope.launch {
+            var remaining = 600L
+            try {
+                val reply = api.post("/api/bot/lock", JSONObject().put("reason", reason), token())
+                if (reply.optString("status") == "skipped" || reply.optBoolean("skipped")) return@launch
+                if (reply.has("remaining_seconds")) remaining = reply.optLong("remaining_seconds", remaining)
+            } catch (e: CancellationException) { throw e }
+            catch (e: ApiException) { if (e.code == "banned") { enterBannedState(e); return@launch } }
+            catch (e: Exception) {}
+            sendSpam.reset()
+            mutable.update { current ->
+                if (current.accountLock != null) current
+                else current.copy(accountLock = AccountLock(reason, System.currentTimeMillis() + remaining.coerceAtLeast(0) * 1000))
+            }
+        }
+        return true
+    }
+
+    /**
+     * Web `botTelemetry` for touch input, fed by `MainActivity.dispatchTouchEvent`: a suspicious
+     * window of taps is reported to `/api/bot-telemetry`, which may BAN the account.
+     */
+    fun recordBotTouch(action: Int, eventTime: Long) {
+        if (!botDetectionActive) return
+        val force = when (action) {
+            android.view.MotionEvent.ACTION_DOWN -> botTelemetry.recordTap(eventTime)
+            android.view.MotionEvent.ACTION_MOVE -> { botTelemetry.recordMove(eventTime); false }
+            else -> return
+        }
+        val payload = botTelemetry.takeReport(eventTime, force) ?: return
+        viewModelScope.launch {
+            try { api.post("/api/bot-telemetry", payload, token()) }
+            catch (e: CancellationException) { throw e }
+            catch (e: ApiException) { if (e.code == "banned") enterBannedState(e) }
+            catch (e: Exception) {}
+        }
     }
 
     /** Web `vibrateHelper` (`navigator.vibrate`): one pulse of [timings] ms, or on/off/on… pulses. */

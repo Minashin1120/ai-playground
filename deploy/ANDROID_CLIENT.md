@@ -294,6 +294,8 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | DELETE `/api/messages/<id>` | 本文不要 | `{"status":"ok"}`。指定メッセージ以降の履歴と、その添付を削除する（Webと同じ `confirm` 相当の確認後）。本人のスレッドのみ |
 | POST `/api/admin/threads/<thread_id>/encryption` | `{"enable": false}`（復号化）または `true`（再暗号化） | チャット画面の鍵マークから、管理者が自分のスレッド全体を変換する（Webの `encryption-status-modal` と同じ）。本人確認が必要。管理者以外は403、本人以外のスレッドは404。ほかの管理者APIはBearerの許可リスト外 |
 | POST `/chat_stream` | 下の送信JSON | NDJSONストリーム、またはエラーJSON |
+| POST `/api/bot/lock` | `reason` | Bot対策が有効（設定の `bot_detection_active`）なとき、3秒以内に8回送信するとWebと同じ一時ロックを掛け、`status`（`locked`／`skipped`／`disabled`）と `remaining_seconds` を返す。繰り返すと403 `banned` |
+| POST `/api/bot-telemetry` | Webと同じ項目（`clicks`, `fast_clicks`, `click_burst`, `avg_click_ms`, `click_cv`, `event_rate` など。タップを `clicks` として数え、キー・ポインター速度は0） | Bot対策が有効で、タップが自動操作らしいときだけ送る。Bearerではアプリ内にTurnstileがないため `turnstile_token` を求めず、`turnstile_failed` も加点しない。点数の基準とBANはWebと同じ |
 | POST `/chat_stream_resume` | `{"thread_id":"...","job_id":"..."}` | 蓄積内容と継続ストリーム |
 | POST `/api/stop_chat` | `thread_id` と、分かれば `job_id` | `status`, `job_id`, `source`。停止信号の受付であり即時停止完了ではない |
 | POST `/api/realtime/start`、GET `/api/realtime/stream`、POST `/api/realtime/audio` | セッション開始のモデル／voice／thinking_level／reasoning_effort（gpt-realtime-2・2.1・2.1-mini）、SSEの `session_id`、音声PCMチャンク | OpenAI／Grok Realtime／GPT-Live（`/v1/live/sessions`、推論は gpt-5.6-luna に委任）／Gemini Liveのサーバーセッション。音声イベントはBase64 PCM、`interaction_status` は `IN_PROGRESS`／`IDLE` を返し、APIキーは返さない。`notice` は継続可能な事業者エラー（セッションは続く）、`error` は終了を伴うエラー。gpt-realtime-translate は `target_lang` を翻訳先に使う。同じセッションの各リクエストは別のサーバープロセスに届いてもよい（Redis経由で中継） |
@@ -867,7 +869,7 @@ configは200 JSON、未認証meは401 JSONが期待値です。テスト出力�
 | 生成中に切断 | CDN/Gunicorn/Apache/端末の待機時間、回線変更、アプリのライフサイクル |
 | 再接続後に本文が重複 | 再接続前の仮表示バッファをクリアしているか、最後にDB履歴へ置き換えているか |
 
-Turnstileの確認は、認証要求でPlay Integrityの判定が高リスクまたは不能の場合にCustom Tabを開く一回限りの確認を用意しています。Play Integrityは補助的な端末信号で、認証拒否には使いません。Bot対策対象アカウントがチャットで `turnstile_required` を受けた場合は、Web版の確認画面と同じ文言を表示し、`/api/mobile/v1/security/turnstile` の確認ページをCustom Tabで開きます。確認後はApp Linkの一回限りのticketをBearerで引き換え、「安全性の確認を完了しました。もう一度送信してください。」と表示します。確認ページの送信先はTurnstileの関門の対象外です。
+Turnstileの確認は、認証要求でPlay Integrityの判定が高リスクまたは不能の場合にCustom Tabを開く一回限りの確認を用意しています。Play Integrityは補助的な端末信号で、認証拒否には使いません。Bot対策対象アカウントがチャットで `turnstile_required` を受けた場合は、Web版の確認画面と同じ文言を表示し、`/api/mobile/v1/security/turnstile` の確認ページをCustom Tabで開きます。確認後はApp Linkの一回限りのticketをBearerで引き換え、「安全性の確認を完了しました。もう一度送信してください。」と表示します。確認ページの送信先はTurnstileの関門の対象外です。また、`/api/mobile/v1/preferences` の `bot_detection_active`（Webの `isBotDetectionActive` と同じ条件）が真のとき、送信の連打を `/api/bot/lock`、自動操作らしいタップを `/api/bot-telemetry` へ報告します。
 
 今後の拡張候補は、refresh tokenのローテーション、端末間E2EEの新しい設計、Webと説明・価格まで共有するモデルカタログ、イベント連番による再開です。Play IntegrityとTurnstileの認証フォールバックは実装済みですが、Play services搭載端末での実機確認が必要です。認可コード＋PKCEとHTTPS App Linksによるブラウザー認証からの復帰、パスキー、TOTP／WebAuthn 2FA、2FA・パスキー管理、アカウントZIPのチャンク取り込み（設定変更確認を含む）も実装済みです。
 

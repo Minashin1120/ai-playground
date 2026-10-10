@@ -488,6 +488,8 @@ def _mobile_preferences_payload():
         'gemini_vertex_credentials_json': _masked_secret(user.gemini_vertex_credentials_json),
         'google_project': decrypt_val(user.google_cloud_project) or "",
         'is_admin': bool(getattr(user, 'is_admin', False)),
+        # Web `isBotDetectionActive`: the app reports rapid sends and suspicious taps only while true.
+        'bot_detection_active': bool(_bot_turnstile_active()),
         'google_linked': bool(user.google_id),
         'minashin_linked': bool(user.minashin_sub),
     }

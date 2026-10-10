@@ -42,6 +42,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ImageSplitTileService.kt`, `ImageSplitOverlayActivity.kt` | クイック設定の「画像を分割」タイルと、背後のアプリを残す透過画面での画像選択・分割・保存・共有 | 通知ツールバーからの画像分割を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/` | CookieなしHTTPとNDJSON（`PlaygroundApi.kt`）、APIモデル（`Models.kt`、`BatchModels.kt`）、Keystore保存（`TokenStore.kt`）、Credential Managerのパスキー手順（`PasskeyClient.kt`）。通知チャンネルの作成・更新状態の保持・前面判定は `../PlaygroundApplication.kt` | 認証・通信・保存 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/PlayIntegrityClient.kt` | Play Integrity Standard APIの事前準備・要求内容に結び付いた認証token取得 | Android認証の端末リスク信号 |
+| `app/src/main/java/com/minashin1120/aiplayground/data/BotTelemetry.kt` | Web版のBot判定に合わせたタップの集計（`/api/bot-telemetry`）と、送信の連打の回数（`/api/bot/lock`） | Bot判定の基準・送信条件を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BrowserLoginPkce.kt` | ブラウザー経由ログインのPKCE（S256）verifier・challenge生成 | Google・MinashinのApp Link復帰を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `ChatComponents.kt` | Compose画面の組み立て（ドロワー／タブレット2ペイン、各モーダルの開閉）、メッセージ操作、Coding差分（Live Code Changes）とBatch完了バナー、生成中の回答 | 画面構造と操作を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InAppCameraDialog.kt` | CameraXを使うアプリ内カメラのプレビュー、権限、ズーム、無音撮影、画質優先の撮影設定、撮影後に画像分割へ渡す切り替え | カメラ撮影を変更するとき |

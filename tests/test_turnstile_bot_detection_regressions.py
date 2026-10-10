@@ -1064,6 +1064,45 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
                     admin_body = admin_post.get_json() or {}
                     self.assertNotEqual(admin_body.get("error"), "account_locked")
 
+    def test_setup_not_blocked_by_inherited_ip_cookie_lock(self):
+        # 同一IP/クッキーのロックを引き継いだ新規アカウントでも、
+        # 初期セットアップの完了は 403 account_locked にならない。
+        # セットアップ完了後は通常どおりロックが適用される。
+        fake = _FakeRedis()
+        with target.app.app_context():
+            fresh = target.User(username="setup-under-lock", is_setup_completed=False)
+            fresh.set_password("test-password")
+            target.db.session.add(fresh)
+            target.db.session.commit()
+            fresh_id = fresh.id
+        with mock.patch.object(target, "verify_turnstile", return_value=True):
+            with mock.patch.object(target, "redis_conn", fake):
+                with self.turnstile_env():
+                    normal = self.authenticated_client()
+                    res = self.post_bot_lock(normal, {"reason": "連打検出"})
+                    self.assertEqual(res.get_json().get("status"), "locked")
+                    fresh_client = target.app.test_client()
+                    with fresh_client.session_transaction() as sess:
+                        sess["_user_id"] = str(fresh_id)
+                        sess["_fresh"] = True
+                        sess["csrf_token"] = "csrf-test-token"
+                    setup_res = fresh_client.post(
+                        "/setup",
+                        data={"csrf_token": "csrf-test-token", "default_model": "gemini-3.6-flash"},
+                    )
+                    self.assertEqual(setup_res.status_code, 302)
+                    self.assertEqual(setup_res.headers["Location"], "/")
+                    with target.app.app_context():
+                        self.assertTrue(target.db.session.get(target.User, fresh_id).is_setup_completed)
+                    blocked = fresh_client.post(
+                        "/chat_stream",
+                        data=target.json.dumps({"message": "hello", "turnstile_token": "valid"}),
+                        content_type="application/json",
+                        headers={"X-CSRF-Token": "csrf-test-token"},
+                    )
+                    self.assertEqual(blocked.status_code, 403)
+                    self.assertEqual(blocked.get_json().get("error"), "account_locked")
+
     def test_js_admin_skips_lock_overlay(self):
         # 管理者はロック画面を出さない（bootstrap / apiFetch / applyBotLockFromServer）
         assets = sorted((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))

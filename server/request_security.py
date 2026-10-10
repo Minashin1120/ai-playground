@@ -748,6 +748,11 @@ def _bot_lock_gate():
         return
     if _is_admin_exempt(current_user):
         return
+    if not getattr(current_user, "is_setup_completed", False):
+        # Setup-stage users cannot send chats yet. A lock inherited via shared
+        # IP/cookie would otherwise reject the setup form with raw JSON; the
+        # lock still applies once the chat page loads after setup.
+        return
     if current_user.is_bot_banned:
         return  # handled by check_bot_ban
     active, reason, remaining = _bot_lock_info()

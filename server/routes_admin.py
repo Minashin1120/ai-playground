@@ -774,6 +774,7 @@ def bot_users():
         res.append({
             'user_id': u.id,
             'username': u.username,
+            'is_admin': bool(_is_admin_exempt(u)),
             'bot_detection_enabled': u.bot_detection_enabled if u.bot_detection_enabled is not None else True,
             'is_bot_banned': bool(u.is_bot_banned),
             'bot_ban_reason': u.bot_ban_reason,
@@ -1030,6 +1031,9 @@ def bot_update():
     elif action == 'unlock':
         _clear_bot_lock_for_user(user)
     elif action == 'delete_account':
+        # Administrator accounts cannot be deleted from the account management screen.
+        if _is_admin_exempt(user):
+            return jsonify({'error': 'admin_account'}), 403
         _delete_user_account_immediately(user)
         return jsonify({'status': 'ok', 'username': username, 'action': action})
     else:

@@ -1434,7 +1434,7 @@
                         </div>
                         <button class="bot-toggle-detect bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded" data-user="${escapeHtml(u.username)}" data-enabled="${detOn ? '1' : '0'}">${detOn ? '検出ON' : '検出OFF'}</button>
                         <button class="bot-toggle-ban ${isBanned ? 'bg-green-600 hover:bg-green-500' : 'bg-red-600 hover:bg-red-500'} text-white px-2 py-1 rounded" data-user="${escapeHtml(u.username)}" data-banned="${isBanned ? '1' : '0'}">${isBanned ? '単独解除' : 'BAN'}</button>                        ${isBanned ? `<button class=\"bot-toggle-unban-linked bg-rose-600 hover:bg-rose-500 text-white px-2 py-1 rounded\" data-user=\"${escapeHtml(u.username)}\">連鎖解除</button>` : ''}
-                        <button class="bot-delete-account bg-red-800 hover:bg-red-700 text-white px-2 py-1 rounded" data-progress-expected-slow="true" data-user="${escapeHtml(u.username)}">削除</button>
+                        ${u.is_admin ? '' : `<button class="bot-delete-account bg-red-800 hover:bg-red-700 text-white px-2 py-1 rounded" data-progress-expected-slow="true" data-user="${escapeHtml(u.username)}">削除</button>`}
                     `;
                     list.appendChild(row);
                 });
@@ -1560,7 +1560,7 @@
                         } else if (!res.ok) {
                             let d = {};
                             try { d = await res.json(); } catch (e) {}
-                            showToast(d.error || 'エラーが発生しました', 'error', true);
+                            showToast(d.error === 'admin_account' ? '管理者アカウントは削除できません' : (d.error || 'エラーが発生しました'), 'error', true);
                         } else if (btn.classList.contains('bot-delete-account')) {
                             showToast(`ユーザー ${username} を削除しました`, 'success');
                             if (username === currentUsername) {

@@ -259,6 +259,30 @@ class BotEvidenceAdminRegressionTests(unittest.TestCase):
         self.post_json(admin, "/api/bot/unban", {"username": "locker"})
         self.assertEqual(len([t for t, _ in self.events("locker") if t == "unban"]), 1)
 
+    def test_account_management_cannot_delete_admin_accounts(self):
+        with target.app.app_context():
+            other = target.User(username="other-admin", is_setup_completed=True, is_admin=True)
+            other.set_password("test-password")
+            target.db.session.add(other)
+            target.db.session.commit()
+            other_id = other.id
+        admin = self.client_for("site-admin")
+        users = {u["username"]: u for u in admin.get("/api/bot/users").get_json()["users"]}
+        self.assertTrue(users["other-admin"]["is_admin"])
+        self.assertFalse(users["locker"]["is_admin"])
+        for name in ("other-admin", "site-admin"):
+            res = self.post_json(admin, "/api/bot/update", {"username": name, "action": "delete_account"})
+            self.assertEqual(res.status_code, 403)
+            self.assertEqual(res.get_json()["error"], "admin_account")
+        res = self.post_json(admin, "/api/bot/update", {"username": "locker", "action": "delete_account"})
+        self.assertEqual(res.status_code, 200)
+        with target.app.app_context():
+            self.assertIsNotNone(target.db.session.get(target.User, other_id))
+            self.assertIsNotNone(target.db.session.get(target.User, self.ids["site-admin"]))
+            self.assertIsNone(target.db.session.get(target.User, self.ids["locker"]))
+        part08 = (PARTS / "chat_core.part08_domcontent_account_transfer.js").read_text(encoding="utf-8")
+        self.assertIn("${u.is_admin ? '' : `<button class=\"bot-delete-account", part08)
+
     def test_admin_ui_wires_log_view(self):
         markup = read_chat_markup()
         # The log screen is separate from account management, with its own button and URL.

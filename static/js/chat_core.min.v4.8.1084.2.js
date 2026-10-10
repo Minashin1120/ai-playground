@@ -1163,9 +1163,9 @@ s`,A.innerHTML=`
 ed="${x?"1":"0"}">${x?"\u5358\u72EC\u89E3\u9664":"BAN"}</button>                        ${x?`<button\
  class="bot-toggle-unban-linked bg-rose-600 hover:bg-rose-500 text-white px-2 py-1 rounded" data-use\
 r="${escapeHtml(g.username)}">\u9023\u9396\u89E3\u9664</button>`:""}
-                        <button class="bot-delete-account bg-red-800 hover:bg-red-700 text-white px-\
-2 py-1 rounded" data-progress-expected-slow="true" data-user="${escapeHtml(g.username)}">\u524A\u9664</button>\
-
+                        ${g.is_admin?"":`<button class="bot-delete-account bg-red-800 hover:bg-red-7\
+00 text-white px-2 py-1 rounded" data-progress-expected-slow="true" data-user="${escapeHtml(g.username)}\
+">\u524A\u9664</button>`}
                     `,m.appendChild(A)})}},"renderBotUsers"),en=o(async(d="")=>{const m=get("bot-adm\
 in-list");m&&(m.innerHTML='<div class="text-xs text-gray-400 py-2"><i class="fas fa-spinner fa-spin \
 mr-1"></i>\u8AAD\u307F\u8FBC\u307F\u4E2D...</div>');try{const g=await apiFetch(`/api/bot/users?q=${encodeURIComponent(
@@ -1212,53 +1212,54 @@ body:JSON.stringify({username:g,action:"delete_account"})})}if(b){if(b.status===
  \u306F\u65E2\u306B\u898B\u3064\u304B\u308A\u307E\u305B\u3093\uFF08\u524A\u9664\u3055\u308C\u305F\u53EF\u80FD\u6027\u304C\u3042\u308A\u307E\u3059\uFF09`,
 "error",!0);else if(b.ok){if(m.classList.contains("bot-delete-account")&&(showToast(`\u30E6\u30FC\u30B6\u30FC ${g}\
  \u3092\u524A\u9664\u3057\u307E\u3057\u305F`,"success"),g===currentUsername)){location.href="/";return}}else{
-let x={};try{x=await b.json()}catch{}showToast(x.error||"\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F",
-"error",!0)}await en(get("bot-admin-search")?get("bot-admin-search").value.trim():"")}});const Gt={"\
-/settings":{id:"settings-modal",open:o(()=>window.openSettingsModal(),"open")},"/upload":{id:"upload\
--modal",open:o(()=>openUploadModal(),"open")},"/library":{id:"lib-modal",open:o(()=>{li(!1),showModal(
-"lib-modal"),loadLibraryFiles()},"open")},"/history":{id:"history-modal",open:o(()=>window.showHistoryModal(),
-"open")},"/branch":{id:"branch-modal",open:o(()=>window.showBranchModal(),"open")},"/batch":{id:"bat\
-ch-modal",open:o(()=>window.showBatchModal(),"open")},"/paste":{id:"rich-paste-modal",open:o(()=>openRichPasteModal(),
-"open")},"/camera":{id:"camera-capture-modal",open:o(()=>openCameraCaptureModal(),"open")},"/edit-im\
-age":{id:"marker-modal",open:o(()=>{},"open")},"/chat-settings":{id:"thread-modal",open:o(()=>window.
-openThreadModal(),"open")},"/model":{id:"model-modal",open:o(()=>openModelModal(),"open")},"/token-d\
-etails":{id:"token-detail-modal",open:o(()=>showTokenDetailModal(),"open")},"/encryption-status":{id:"\
-encryption-status-modal",open:o(()=>showEncryptionStatusModal(),"open")},"/python-execution":{id:"py\
-thon-exec-modal",open:o(()=>showPythonExecDetailModal(),"open")},"/gem":{id:"gem-modal",open:o(()=>{
-editingGemUuid=null,get("gem-modal-title").innerHTML='<i class="fas fa-gem text-blue-500 mr-2"></i>C\
-reate New Gem',showModal("gem-modal")},"open")},"/compression":{id:"compression-modal",open:o(()=>window.
-openCompressionModal(),"open")},"/admin-bots":{id:"bot-admin-modal",open:o(()=>Mn(),"open")},"/admin\
--bot-logs":{id:"bot-log-modal",open:o(()=>An(),"open")}},Yn=o((d,m=!1)=>{switch(d){case"settings-mod\
-al":Dt(m);break;case"upload-modal":closeUploadModal(m);break;case"camera-capture-modal":closeCameraCaptureModal(
-m?{skipHistory:!0}:{});break;case"history-modal":window.closeHistoryModal&&window.closeHistoryModal(
-m);break;case"lib-modal":window.closeLibModal&&window.closeLibModal(m);break;case"branch-modal":window.
-closeBranchModal&&window.closeBranchModal(m);break;case"batch-modal":window.closeBatchModal&&window.
-closeBatchModal(m);break;case"rich-paste-modal":window.closeRichPasteModal&&window.closeRichPasteModal(
-m);break;case"marker-modal":window.closeMarkerModal&&window.closeMarkerModal(m);break;case"thread-mo\
-dal":window.closeThreadModal&&window.closeThreadModal(m);break;case"model-modal":window.closeModelModal&&
-window.closeModelModal(m);break;case"token-detail-modal":closeTokenDetail(m);break;case"encryption-s\
-tatus-modal":closeEncryptionModal(m);break;case"python-exec-modal":closePythonExecDetail(m);break;case"\
-gem-modal":window.closeGemModal&&window.closeGemModal(m);break;case"compression-modal":window.closeCompressionModal&&
-window.closeCompressionModal(m);break;case"bot-admin-modal":window.closeBotAdminModal&&window.closeBotAdminModal(
-m);break;case"bot-log-modal":window.closeBotLogModal&&window.closeBotLogModal(m);break;case"mcp-deci\
-sion-modal":typeof submitMcpDecision=="function"?submitMcpDecision("deny"):hideModal(d);break;case"a\
-pi-key-required-modal":{const b=get("api-key-modal-cancel-btn");b&&typeof b.onclick=="function"?b.click():
-hideModal(d);break}case"lyria-studio-modal":window.closeLyriaStudio?window.closeLyriaStudio():hideModal(
-d);break;case"voice-studio-modal":window.VoiceStudio?window.VoiceStudio.close():hideModal(d);break;case"\
-version-update-modal":const g=localStorage.getItem("app_version")||"";g&&localStorage.setItem("versi\
-on_notified",g),hideModal(d);break;default:hideModal(d);break}},"closeModalById");window.addEventListener(
-"popstate",d=>{let m=!1;Object.values(Gt).forEach(x=>{const S=get(x.id);S&&S.classList.contains("mod\
-al-open")&&location.pathname!==Object.keys(Gt).find(L=>Gt[L].id===x.id)&&(Yn(x.id,!0),m=!0)});const g=location.
-pathname.match(/^\/c\/(.+)$/);if(g){const x=decodeURIComponent(g[1]);String(currentThreadId)!==String(
-x)&&loadMessages(x,{skipHistory:!0})}else location.pathname==="/"&&currentThreadId&&startNewChat({skipHistory:!0});
-const b=Gt[location.pathname];if(b){const x=get(b.id);x&&!x.classList.contains("modal-open")&&b.open()}});
-const Qn=location.pathname;Gt[Qn]&&(history.replaceState({},"","/"),setTimeout(()=>Gt[Qn].open(),500)),
-get("easy-login-generate")&&(get("easy-login-generate").onclick=async()=>{const d=get("easy-login-mi\
-ns"),m=d?parseInt(d.value||"5",10):5;if(!confirm(`\u7C21\u6613\u30ED\u30B0\u30A4\u30F3\u3092${m}\u5206\u9593\u6709\u52B9\
-\u306B\u3057\u307E\u3059\u304B\uFF1F`))return;const b=await(await apiFetch("/api/easy_login",{method:"\
-POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({minutes:m})})).json();b&&b.temp_password?
-(get("easy-login-code").textContent=b.temp_password,get("easy-login-exp").textContent=b.expires_at||
-"",get("easy-login-result").classList.remove("hidden")):showToast("\u7C21\u6613\u30ED\u30B0\u30A4\u30F3\u306E\u767A\u884C\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
+let x={};try{x=await b.json()}catch{}showToast(x.error==="admin_account"?"\u7BA1\u7406\u8005\u30A2\u30AB\u30A6\u30F3\u30C8\u306F\u524A\u9664\u3067\u304D\u307E\u305B\u3093":
+x.error||"\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u307E\u3057\u305F","error",!0)}await en(get("bo\
+t-admin-search")?get("bot-admin-search").value.trim():"")}});const Gt={"/settings":{id:"settings-mod\
+al",open:o(()=>window.openSettingsModal(),"open")},"/upload":{id:"upload-modal",open:o(()=>openUploadModal(),
+"open")},"/library":{id:"lib-modal",open:o(()=>{li(!1),showModal("lib-modal"),loadLibraryFiles()},"o\
+pen")},"/history":{id:"history-modal",open:o(()=>window.showHistoryModal(),"open")},"/branch":{id:"b\
+ranch-modal",open:o(()=>window.showBranchModal(),"open")},"/batch":{id:"batch-modal",open:o(()=>window.
+showBatchModal(),"open")},"/paste":{id:"rich-paste-modal",open:o(()=>openRichPasteModal(),"open")},"\
+/camera":{id:"camera-capture-modal",open:o(()=>openCameraCaptureModal(),"open")},"/edit-image":{id:"\
+marker-modal",open:o(()=>{},"open")},"/chat-settings":{id:"thread-modal",open:o(()=>window.openThreadModal(),
+"open")},"/model":{id:"model-modal",open:o(()=>openModelModal(),"open")},"/token-details":{id:"token\
+-detail-modal",open:o(()=>showTokenDetailModal(),"open")},"/encryption-status":{id:"encryption-statu\
+s-modal",open:o(()=>showEncryptionStatusModal(),"open")},"/python-execution":{id:"python-exec-modal",
+open:o(()=>showPythonExecDetailModal(),"open")},"/gem":{id:"gem-modal",open:o(()=>{editingGemUuid=null,
+get("gem-modal-title").innerHTML='<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem',showModal(
+"gem-modal")},"open")},"/compression":{id:"compression-modal",open:o(()=>window.openCompressionModal(),
+"open")},"/admin-bots":{id:"bot-admin-modal",open:o(()=>Mn(),"open")},"/admin-bot-logs":{id:"bot-log\
+-modal",open:o(()=>An(),"open")}},Yn=o((d,m=!1)=>{switch(d){case"settings-modal":Dt(m);break;case"up\
+load-modal":closeUploadModal(m);break;case"camera-capture-modal":closeCameraCaptureModal(m?{skipHistory:!0}:
+{});break;case"history-modal":window.closeHistoryModal&&window.closeHistoryModal(m);break;case"lib-m\
+odal":window.closeLibModal&&window.closeLibModal(m);break;case"branch-modal":window.closeBranchModal&&
+window.closeBranchModal(m);break;case"batch-modal":window.closeBatchModal&&window.closeBatchModal(m);
+break;case"rich-paste-modal":window.closeRichPasteModal&&window.closeRichPasteModal(m);break;case"ma\
+rker-modal":window.closeMarkerModal&&window.closeMarkerModal(m);break;case"thread-modal":window.closeThreadModal&&
+window.closeThreadModal(m);break;case"model-modal":window.closeModelModal&&window.closeModelModal(m);
+break;case"token-detail-modal":closeTokenDetail(m);break;case"encryption-status-modal":closeEncryptionModal(
+m);break;case"python-exec-modal":closePythonExecDetail(m);break;case"gem-modal":window.closeGemModal&&
+window.closeGemModal(m);break;case"compression-modal":window.closeCompressionModal&&window.closeCompressionModal(
+m);break;case"bot-admin-modal":window.closeBotAdminModal&&window.closeBotAdminModal(m);break;case"bo\
+t-log-modal":window.closeBotLogModal&&window.closeBotLogModal(m);break;case"mcp-decision-modal":typeof submitMcpDecision==
+"function"?submitMcpDecision("deny"):hideModal(d);break;case"api-key-required-modal":{const b=get("a\
+pi-key-modal-cancel-btn");b&&typeof b.onclick=="function"?b.click():hideModal(d);break}case"lyria-st\
+udio-modal":window.closeLyriaStudio?window.closeLyriaStudio():hideModal(d);break;case"voice-studio-m\
+odal":window.VoiceStudio?window.VoiceStudio.close():hideModal(d);break;case"version-update-modal":const g=localStorage.
+getItem("app_version")||"";g&&localStorage.setItem("version_notified",g),hideModal(d);break;default:
+hideModal(d);break}},"closeModalById");window.addEventListener("popstate",d=>{let m=!1;Object.values(
+Gt).forEach(x=>{const S=get(x.id);S&&S.classList.contains("modal-open")&&location.pathname!==Object.
+keys(Gt).find(L=>Gt[L].id===x.id)&&(Yn(x.id,!0),m=!0)});const g=location.pathname.match(/^\/c\/(.+)$/);
+if(g){const x=decodeURIComponent(g[1]);String(currentThreadId)!==String(x)&&loadMessages(x,{skipHistory:!0})}else
+location.pathname==="/"&&currentThreadId&&startNewChat({skipHistory:!0});const b=Gt[location.pathname];
+if(b){const x=get(b.id);x&&!x.classList.contains("modal-open")&&b.open()}});const Qn=location.pathname;
+Gt[Qn]&&(history.replaceState({},"","/"),setTimeout(()=>Gt[Qn].open(),500)),get("easy-login-generate")&&
+(get("easy-login-generate").onclick=async()=>{const d=get("easy-login-mins"),m=d?parseInt(d.value||"\
+5",10):5;if(!confirm(`\u7C21\u6613\u30ED\u30B0\u30A4\u30F3\u3092${m}\u5206\u9593\u6709\u52B9\u306B\u3057\u307E\u3059\u304B\uFF1F`))
+return;const b=await(await apiFetch("/api/easy_login",{method:"POST",headers:{"Content-Type":"applic\
+ation/json"},body:JSON.stringify({minutes:m})})).json();b&&b.temp_password?(get("easy-login-code").textContent=
+b.temp_password,get("easy-login-exp").textContent=b.expires_at||"",get("easy-login-result").classList.
+remove("hidden")):showToast("\u7C21\u6613\u30ED\u30B0\u30A4\u30F3\u306E\u767A\u884C\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0)}),get("easy-login-cancel")&&(get("easy-login-cancel").onclick=async()=>{if(!confirm("\u73FE\u5728\u306E\
 \u4E00\u6642\u30D1\u30B9\u30EF\u30FC\u30C9\u767A\u884C\u3092\u30AD\u30E3\u30F3\u30BB\u30EB\u3057\u307E\u3059\u304B\uFF1F"))
 return;const m=await(await apiFetch("/api/easy_login",{method:"POST",headers:{"Content-Type":"applic\

@@ -1032,7 +1032,7 @@ internal fun MessageSelection(content: @Composable () -> Unit) {
 internal fun InlineRichText(parsed: InlineMarkdown, style: TextStyle, codeBackground: Color, modifier: Modifier = Modifier) {
     var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val density = LocalDensity.current
-    val hasDisplayMath = parsed.math.any { it.display }
+    val hasMath = parsed.math.isNotEmpty()
     var availableWidth by remember { mutableIntStateOf(Constraints.Infinity) }
     val mathStates = parsed.math.map { item -> key(item.id, item.tex) { rememberMathState(item.tex, item.display) } }
     val mathColor = style.color.takeOrElse { LocalContentColor.current }
@@ -1056,8 +1056,8 @@ internal fun InlineRichText(parsed: InlineMarkdown, style: TextStyle, codeBackgr
             onTextLayout = { textLayout = it },
             modifier = modifier
                 .then(
-                    if (!hasDisplayMath) Modifier
-                    // Display formulas wider than the bubble shrink to fit, so remember the width they get.
+                    if (!hasMath) Modifier
+                    // Formulas wider than the bubble shrink to fit, so remember the width they get.
                     else Modifier.layout { measurable, constraints ->
                         if (constraints.maxWidth != availableWidth) availableWidth = constraints.maxWidth
                         val placeable = measurable.measure(constraints)

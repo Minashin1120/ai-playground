@@ -37,4 +37,14 @@ class MathJaxRendererTest {
         assertEquals(1.2285f, WEB_MATH_SCALE, 1e-3f)
         assertEquals(0.436f, TEXT_CENTER_EM, 1e-4f)
     }
+
+    @Test fun formulasWiderThanTheTextShrinkToFitIt() {
+        // 10em of TeX at 16px is about 197px, so a 300px line keeps Web's scale.
+        assertEquals(WEB_MATH_SCALE, fittedMathScale(10f, 300, 16f), 1e-6f)
+        // On a 101px line it shrinks to 100px: one pixel of slack for the rounded-up placeholder.
+        val scale = fittedMathScale(10f, 101, 16f)
+        assertEquals(100f, 10f * scale * 16f, 1e-3f)
+        // Before the width is known the formula keeps its natural size.
+        assertEquals(WEB_MATH_SCALE, fittedMathScale(10f, androidx.compose.ui.unit.Constraints.Infinity, 16f), 1e-6f)
+    }
 }

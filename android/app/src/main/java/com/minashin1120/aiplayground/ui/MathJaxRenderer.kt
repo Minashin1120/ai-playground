@@ -290,6 +290,19 @@ internal fun MathDisplayImage(svg: MathSvg, drawing: SVG, color: Color, fontSize
 }
 
 /**
+ * The em scale of a formula inside text: Web's [WEB_MATH_SCALE], reduced so a formula wider than the text
+ * shrinks to fit instead of running off the bubble. This covers inline formulas too: a formula cannot wrap,
+ * so one wider than the line was cut off at the edge and the next line was drawn over it.
+ */
+internal fun fittedMathScale(widthEm: Float, availableWidth: Int, fontPx: Float): Float {
+    if (availableWidth == Constraints.Infinity || availableWidth <= 1 || widthEm <= 0f || fontPx <= 0f) return WEB_MATH_SCALE
+    // One pixel of slack, since the placeholder's width is rounded up and must still fit the line.
+    val limit = (availableWidth - 1).toFloat()
+    val natural = widthEm * WEB_MATH_SCALE * fontPx
+    return if (natural > limit) WEB_MATH_SCALE * limit / natural else WEB_MATH_SCALE
+}
+
+/**
  * The placeholder for one formula inside text. Compose can only center a placeholder on the text, so the
  * box is tall enough around that center and the drawing is then moved onto the line's baseline.
  */
@@ -301,11 +314,7 @@ internal fun inlineMathContent(
     fontPx: Float,
     textLayout: () -> TextLayoutResult?,
 ): InlineTextContent {
-    // A display formula wider than the text shrinks to fit instead of running off the bubble.
-    val natural = svg.widthEm * WEB_MATH_SCALE * fontPx
-    val scale = if (item.display && availableWidth != Constraints.Infinity && natural > availableWidth) {
-        WEB_MATH_SCALE * availableWidth / natural
-    } else WEB_MATH_SCALE
+    val scale = fittedMathScale(svg.widthEm, availableWidth, fontPx)
     val half = maxOf(svg.ascentEm * scale - TEXT_CENTER_EM, svg.depthEm * scale + TEXT_CENTER_EM)
     // Web `mjx-container[display]` keeps 1em above and below a display formula.
     val margin = if (item.display) 1f else 0f

@@ -111,6 +111,7 @@ def ban_related_accounts(user, reason):
             if t.user_id:
                 user_ids.add(t.user_id)
     now = datetime.utcnow()
+    newly_banned = []
     for uid in user_ids:
         u = User.query.get(uid)
         if not u or _is_admin_exempt(u):
@@ -118,9 +119,16 @@ def ban_related_accounts(user, reason):
         if not u.is_bot_banned:
             u.is_bot_banned = True
             u.bot_banned_at = now
+            if u.id != user.id:
+                newly_banned.append(u)
         if not u.bot_ban_reason:
             u.bot_ban_reason = ban_reason
     safe_db_commit()
+    for u in newly_banned:
+        _log_bot_evidence('related_ban', reasons=ban_reason, details={
+            'source_user_id': user.id,
+            'source_username': user.username,
+        }, user=u, from_request=False)
 
 def _get_user_identifiers(user):
     ips = set()
@@ -221,6 +229,16 @@ def _delete_user_account_immediately(user):
     if not user:
         raise ValueError("user_required")
     user_id = int(user.id)
+
+    # Bot-detection records (BotEvidenceLog, Redis locks) outlive the account so
+    # re-registering from the same environment cannot erase them; note the deletion
+    # in that history. Only the admin bot screen deletes these records.
+    try:
+        by_self = bool(current_user.is_authenticated and current_user.id == user_id)
+        details = {'by': 'self'} if by_self else {'by': 'admin', 'admin': getattr(current_user, 'username', None)}
+        _log_bot_evidence('account_deleted', details=details, user=user, from_request=by_self)
+    except Exception:
+        pass
 
     try:
         ips, tokens = _get_user_identifiers(user)

@@ -647,6 +647,58 @@ def _bot_lock_identifiers():
         pass
     return ip, token
 
+def _bot_lock_origin_key(lock_key):
+    """Redis key holding who applied an IP/cookie lock (``bot:lock:ip:x`` -> ``bot:lock:src:ip:x``)."""
+    return "bot:lock:src:" + lock_key[len("bot:lock:"):]
+
+def _bot_lock_origin(lock_key):
+    try:
+        raw = redis_conn.get(_bot_lock_origin_key(lock_key))
+        if not raw:
+            return None
+        data = json.loads(raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else str(raw))
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+def _bot_lock_lookup(user_id, ip=None, token=None):
+    """Return the lock that applies to the account / IP / cookie token, or None.
+
+    The result is {'source': 'account'|'ip'|'cookie', 'reason', 'remaining',
+    'origin'}. 'origin' names the account that applied an IP/cookie lock, so a
+    lock inherited by another account on the same network/device can be traced.
+    """
+    candidates = [('account', f"bot:lock:{user_id}")]
+    if ip:
+        candidates.append(('ip', f"bot:lock:ip:{ip}"))
+    if token:
+        candidates.append(('cookie', f"bot:lock:cookie:{token}"))
+    for source, key in candidates:
+        raw = redis_conn.get(key)
+        if not raw:
+            continue
+        reason = raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else str(raw)
+        return {
+            'source': source,
+            'reason': reason,
+            'remaining': max(0, redis_conn.ttl(key) or 0),
+            'origin': _bot_lock_origin(key) if source != 'account' else None,
+        }
+    return None
+
+def _bot_lock_match():
+    """The lock applying to the current user and request, or None."""
+    try:
+        if not current_user.is_authenticated:
+            return None
+        # Admins are outside bot-detection monitoring (ban and temporary lock).
+        if _is_admin_exempt(current_user):
+            return None
+        ip, token = _bot_lock_identifiers()
+        return _bot_lock_lookup(current_user.id, ip, token)
+    except Exception:
+        return None
+
 def _bot_lock_info():
     """Return (active, reason, remaining_seconds) for the current user's lock.
 
@@ -658,32 +710,10 @@ def _bot_lock_info():
     bot-ban related-account cascade, which leaves admin accounts untouched even
     when a linked non-admin is locked via shared IP/cookie.
     """
-    try:
-        if not current_user.is_authenticated:
-            return False, None, 0
-        # Admins are outside bot-detection monitoring (ban and temporary lock).
-        if _is_admin_exempt(current_user):
-            return False, None, 0
-        raw = redis_conn.get(f"bot:lock:{current_user.id}")
-        if not raw:
-            ip, token = _bot_lock_identifiers()
-            candidates = []
-            if ip:
-                candidates.append(f"bot:lock:ip:{ip}")
-            if token:
-                candidates.append(f"bot:lock:cookie:{token}")
-            for ck in candidates:
-                raw = redis_conn.get(ck)
-                if raw:
-                    ttl = redis_conn.ttl(ck)
-                    reason = raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else str(raw)
-                    return True, reason, max(0, ttl)
-            return False, None, 0
-        ttl = redis_conn.ttl(f"bot:lock:{current_user.id}")
-        reason = raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else str(raw)
-        return True, reason, max(0, ttl)
-    except Exception:
+    match = _bot_lock_match()
+    if not match:
         return False, None, 0
+    return True, match['reason'], match['remaining']
 
 def _bot_lock_config():
     """Lock state to embed in the chat page bootstrap (None if not locked)."""
@@ -695,6 +725,18 @@ def _bot_lock_config():
         'message': reason or '送信操作が速すぎるため、一時的にロックしています。',
         'remaining_seconds': remaining,
     }
+
+def _bot_request_client():
+    """'android' for the app's bearer requests, otherwise 'web'."""
+    if getattr(g, 'mobile_session', None) is not None or getattr(g, 'mobile_bearer_request', False):
+        return 'android'
+    return 'web'
+
+def _bot_client_from_user_agent(user_agent):
+    ua = str(user_agent or '')
+    if not ua:
+        return None
+    return 'android' if 'AIPlayground-Android' in ua else 'web'
 
 def _apply_bot_lock(reason):
     """Lock the current user for _BOT_LOCK_TTL seconds with a visible reason.
@@ -718,20 +760,122 @@ def _apply_bot_lock(reason):
         reason_str = str(reason or '送信操作が速すぎるため、一時的にロックしています。')
         redis_conn.set(lock_key, reason_str, ex=_BOT_LOCK_TTL)
         ip, token = _bot_lock_identifiers()
-        if ip:
-            redis_conn.set(f"bot:lock:ip:{ip}", reason_str, ex=_BOT_LOCK_TTL)
-        if token:
-            redis_conn.set(f"bot:lock:cookie:{token}", reason_str, ex=_BOT_LOCK_TTL)
+        origin = json.dumps({
+            'user_id': current_user.id,
+            'username': current_user.username,
+            'client': _bot_request_client(),
+        }, ensure_ascii=False)
+        applied_to = ['account']
+        applied_identifiers = []
+        for kind, value in (('ip', ip), ('cookie', token)):
+            if not value:
+                continue
+            key = f"bot:lock:{kind}:{value}"
+            redis_conn.set(key, reason_str, ex=_BOT_LOCK_TTL)
+            redis_conn.set(_bot_lock_origin_key(key), origin, ex=_BOT_LOCK_TTL)
+            applied_to.append(kind)
+            applied_identifiers.append([kind, value])
+        # The device token may not be recorded for the account yet; remember the
+        # identifiers so the admin screen can show and clear this lock.
+        redis_conn.set(_bot_lock_identifiers_key(current_user.id), json.dumps(applied_identifiers), ex=_BOT_LOCK_TTL)
         count_key = f"bot:lock:count:{current_user.id}"
         count = redis_conn.incr(count_key)
         redis_conn.expire(count_key, _BOT_LOCK_COUNT_TTL)
-        _log_bot_evidence('lock', reasons=reason or 'rapid_send')
+        _log_bot_evidence('lock', reasons=reason or 'rapid_send', details={
+            'lock_seconds': _BOT_LOCK_TTL,
+            'applied_to': applied_to,
+            'lock_count': count,
+            'ban_at_count': _BOT_LOCK_COUNT_LIMIT,
+        })
         if count >= _BOT_LOCK_COUNT_LIMIT:
             _apply_bot_ban("Repeated rapid-operation lock (bot-like behavior)")
             return {'status': 'banned'}
         return {'status': 'locked'}
     except Exception:
         return {'status': 'locked'}
+
+def _bot_lock_identifiers_key(user_id):
+    return f"bot:lock:ids:{user_id}"
+
+def _bot_lock_user_identifiers(user):
+    """IPs and cookie tokens of the account, plus those its own lock was applied to."""
+    ips, tokens = _get_user_identifiers(user)
+    ips, tokens = set(ips), set(tokens)
+    try:
+        raw = redis_conn.get(_bot_lock_identifiers_key(user.id))
+        applied = json.loads(raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else raw) if raw else []
+        for kind, value in applied:
+            (ips if kind == 'ip' else tokens).add(str(value))
+    except Exception:
+        pass
+    return ips, tokens
+
+def _clear_bot_lock_for_user(user):
+    """Remove the account's lock, its lock count, and the IP/cookie locks on its identifiers."""
+    ips, tokens = _bot_lock_user_identifiers(user)
+    keys = [f"bot:lock:{user.id}", f"bot:lock:count:{user.id}", _bot_lock_identifiers_key(user.id)]
+    for kind, values in (('ip', ips), ('cookie', tokens)):
+        for value in values:
+            key = f"bot:lock:{kind}:{value}"
+            keys.extend([key, _bot_lock_origin_key(key)])
+    try:
+        redis_conn.delete(*keys)
+    except Exception:
+        pass
+
+def _bot_admin_state(user):
+    """Current bot-detection state of an account for the admin screen."""
+    def _int(key):
+        try:
+            return int(redis_conn.get(key) or 0)
+        except Exception:
+            return 0
+    def _float(key):
+        try:
+            return float(redis_conn.get(key) or 0)
+        except Exception:
+            return 0.0
+    def _ttl(key):
+        try:
+            return max(0, redis_conn.ttl(key) or 0)
+        except Exception:
+            return 0
+    locks = []
+    try:
+        ips, tokens = _bot_lock_user_identifiers(user)
+        candidates = [('account', None, f"bot:lock:{user.id}")]
+        candidates += [('ip', ip, f"bot:lock:ip:{ip}") for ip in sorted(ips)[:50]]
+        # Cookie tokens are device identifiers: show only a short prefix.
+        candidates += [('cookie', token[:8], f"bot:lock:cookie:{token}") for token in sorted(tokens)[:50]]
+        for source, label, key in candidates:
+            raw = redis_conn.get(key)
+            if not raw:
+                continue
+            locks.append({
+                'source': source,
+                'identifier': label,
+                'reason': raw.decode('utf-8', 'replace') if isinstance(raw, bytes) else str(raw),
+                'remaining_seconds': _ttl(key),
+                'origin': _bot_lock_origin(key) if source != 'account' else None,
+            })
+    except Exception:
+        pass
+    return {
+        'is_admin': bool(_is_admin_exempt(user)),
+        'detection_enabled': user.bot_detection_enabled if user.bot_detection_enabled is not None else True,
+        'is_bot_banned': bool(user.is_bot_banned),
+        'bot_ban_reason': user.bot_ban_reason or '',
+        'bot_banned_at': user.bot_banned_at.isoformat() + "Z" if user.bot_banned_at else None,
+        'locks': locks,
+        'lock_count': _int(f"bot:lock:count:{user.id}"),
+        'lock_count_limit': _BOT_LOCK_COUNT_LIMIT,
+        'turnstile_verified_seconds': _ttl(f"bot:tst:v:{user.id}"),
+        'turnstile_fail_count': _int(f"bot:tst:fail:{user.id}"),
+        'turnstile_fail_limit': _BOT_TURNSTILE_FAIL_LIMIT,
+        'turnstile_cycle_count': _int(f"bot:tst:cycle:{user.id}"),
+        'score': _float(f"bot:score:{user.id}"),
+        'behavior_score': _float(f"bot:behavior:{user.id}"),
+    }
 
 def _bot_lock_gate():
     """before_request guard: block most communication while the account is locked.
@@ -755,36 +899,75 @@ def _bot_lock_gate():
         return
     if current_user.is_bot_banned:
         return  # handled by check_bot_ban
-    active, reason, remaining = _bot_lock_info()
-    if not active:
+    match = _bot_lock_match()
+    if not match:
         return
     if request.endpoint in _BOT_LOCK_GATE_WHITELIST:
         return
     # Allow page rendering GETs so the user can see the lock screen/reason.
     if request.method == 'GET':
         return
+    blocked = {
+        'lock_source': match['source'],
+        'lock_reason': match['reason'],
+        'remaining_seconds': match['remaining'],
+    }
+    origin = match.get('origin') or {}
+    if origin:
+        blocked.update({
+            'origin_user_id': origin.get('user_id'),
+            'origin_username': origin.get('username'),
+            'origin_client': origin.get('client'),
+        })
+    _log_bot_gate_block('lock_blocked', blocked)
     return jsonify({
         'error': 'account_locked',
-        'message': reason or '送信操作が速すぎるため、一時的にロックしています。',
-        'remaining_seconds': remaining,
+        'message': match['reason'] or '送信操作が速すぎるため、一時的にロックしています。',
+        'remaining_seconds': match['remaining'],
     }), 403
 
-def _log_bot_evidence(event_type, score=None, behavior_score=None, reasons=None, details=None):
-    """Persist a bot-detection event for moderation and ban appeal review."""
+def _log_bot_evidence(event_type, score=None, behavior_score=None, reasons=None, details=None,
+                      user=None, from_request=True):
+    """Persist a bot-detection event for moderation and ban appeal review.
+
+    Rows are kept when the account is deleted and are removed only from the
+    admin bot screen. ``user`` records the event against another account
+    (related bans, admin actions); ``from_request=False`` leaves out the
+    request's IP/User-Agent when they belong to someone else (the admin).
+    """
     try:
+        target = user if user is not None else current_user
+        if isinstance(details, (dict, list)):
+            details = json.dumps(details, ensure_ascii=False)
         entry = BotEvidenceLog(
-            user_id=current_user.id,
-            username=getattr(current_user, 'username', None),
+            user_id=target.id,
+            username=getattr(target, 'username', None),
             event_type=event_type,
             score=score,
             behavior_score=behavior_score,
             reasons=reasons,
             details=details,
-            ip_address=get_client_ip(),
-            user_agent=get_request_user_agent()
+            ip_address=get_client_ip() if from_request else None,
+            user_agent=get_request_user_agent() if from_request else None
         )
         db.session.add(entry)
         safe_db_commit()
+    except Exception:
+        pass
+
+def _log_bot_gate_block(event_type, details=None):
+    """Record a request a bot gate rejected, at most once a minute per account and endpoint."""
+    try:
+        if not rate_limit(f"rl:bot_ev_gate:{event_type}:{current_user.id}:{request.endpoint}", 1, 60):
+            return
+        payload = {
+            'endpoint': request.endpoint or '',
+            'method': request.method,
+            'path': (request.path or '')[:200],
+            'client': _bot_request_client(),
+        }
+        payload.update(details or {})
+        _log_bot_evidence(event_type, details=payload)
     except Exception:
         pass
 
@@ -932,6 +1115,7 @@ def _bot_turnstile_gate(token=None):
     if token and verify_turnstile(token):
         _bot_turnstile_mark_verified()
         return None
+    _log_bot_gate_block('turnstile_blocked')
     return jsonify({
         'error': 'turnstile_required',
         'message': '安全性の確認が完了するまでご利用いただけません。しばらく待ってから再度お試しください。',
@@ -968,6 +1152,7 @@ def gate_bot_detection_unverified():
     if body and isinstance(body, dict) and verify_turnstile(body.get('turnstile_token')):
         _bot_turnstile_mark_verified()
         return
+    _log_bot_gate_block('turnstile_blocked')
     return jsonify({
         'error': 'turnstile_required',
         'message': '安全性の確認が完了するまでご利用いただけません。',

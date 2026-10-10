@@ -746,6 +746,19 @@ def speedtest_upload():
     })
     return _mark_speedtest_no_store(resp)
 
+def _is_browser_admin():
+    """Administrative rights are not extended to Android tokens (android/ANDROID_ONLY.md)."""
+    return bool(getattr(current_user, "is_admin", False)) and getattr(g, 'mobile_session', None) is None
+
+def _bot_evidence_summary(user_ids):
+    """{user_id: (count, last_event_at)} for the given accounts."""
+    if not user_ids:
+        return {}
+    rows = db.session.query(
+        BotEvidenceLog.user_id, func.count(BotEvidenceLog.id), func.max(BotEvidenceLog.created_at)
+    ).filter(BotEvidenceLog.user_id.in_(list(user_ids))).group_by(BotEvidenceLog.user_id).all()
+    return {uid: (int(count or 0), last) for uid, count, last in rows}
+
 @app.route('/api/bot/users', methods=['GET'])
 @login_required
 def bot_users():
@@ -761,16 +774,154 @@ def bot_users():
     if q:
         query = query.filter(User.username.like(f"%{q}%"))
     users = query.order_by(User.id.desc()).limit(limit).all()
+    try:
+        summary = _bot_evidence_summary([u.id for u in users])
+    except Exception:
+        summary = {}
     res = []
     for u in users:
+        count, last = summary.get(u.id, (0, None))
+        try:
+            lock_remaining = max(0, redis_conn.ttl(f"bot:lock:{u.id}") or 0)
+        except Exception:
+            lock_remaining = 0
         res.append({
+            'user_id': u.id,
             'username': u.username,
             'bot_detection_enabled': u.bot_detection_enabled if u.bot_detection_enabled is not None else True,
             'is_bot_banned': bool(u.is_bot_banned),
             'bot_ban_reason': u.bot_ban_reason,
-            'bot_banned_at': u.bot_banned_at.isoformat() + "Z" if u.bot_banned_at else None
+            'bot_banned_at': u.bot_banned_at.isoformat() + "Z" if u.bot_banned_at else None,
+            'evidence_count': count,
+            'last_event_at': last.isoformat() + "Z" if last else None,
+            'lock_remaining_seconds': lock_remaining,
         })
-    return jsonify({'users': res})
+    # Bot-detection records outlive deleted accounts; list those accounts separately.
+    deleted = []
+    try:
+        deleted_query = db.session.query(
+            BotEvidenceLog.user_id,
+            func.max(BotEvidenceLog.username),
+            func.count(BotEvidenceLog.id),
+            func.max(BotEvidenceLog.created_at),
+        ).filter(~BotEvidenceLog.user_id.in_(db.session.query(User.id)))
+        if q:
+            deleted_query = deleted_query.filter(BotEvidenceLog.username.like(f"%{q}%"))
+        rows = deleted_query.group_by(BotEvidenceLog.user_id)\
+            .order_by(func.max(BotEvidenceLog.created_at).desc()).limit(limit).all()
+        for uid, username, count, last in rows:
+            deleted.append({
+                'user_id': uid,
+                'username': username or '',
+                'evidence_count': int(count or 0),
+                'last_event_at': last.isoformat() + "Z" if last else None,
+            })
+    except Exception:
+        deleted = []
+    return jsonify({'users': res, 'deleted_users': deleted})
+
+def _bot_evidence_item(row):
+    # Where the event came from: the user's browser/app, an administrator, or the
+    # server itself (a ban that spread from a linked account).
+    if row.event_type == 'related_ban':
+        client = 'server'
+    elif row.event_type == 'admin_action' or (row.event_type == 'account_deleted' and not row.user_agent):
+        client = 'admin'
+    else:
+        client = _bot_client_from_user_agent(row.user_agent)
+    return {
+        'id': row.id,
+        'event_type': row.event_type,
+        'created_at': row.created_at.isoformat() + "Z" if row.created_at else None,
+        'score': row.score,
+        'behavior_score': row.behavior_score,
+        'reasons': row.reasons or '',
+        'details': row.details or '',
+        'ip_address': row.ip_address or '',
+        'user_agent': row.user_agent or '',
+        'client': client,
+    }
+
+@app.route('/api/bot/evidence', methods=['GET'])
+@login_required
+def bot_evidence():
+    """Bot-detection history of one account (also after the account was deleted)."""
+    if not _is_browser_admin():
+        return jsonify({'error': '403'}), 403
+    try:
+        user_id = int(request.args.get('user_id') or 0)
+    except Exception:
+        user_id = 0
+    if user_id <= 0:
+        return jsonify({'error': 'user_id_required'}), 400
+    try:
+        limit = max(1, min(200, int(request.args.get('limit') or 50)))
+    except Exception:
+        limit = 50
+    try:
+        before_id = int(request.args.get('before_id') or 0)
+    except Exception:
+        before_id = 0
+    event_type = (request.args.get('type') or '').strip()[:32]
+    base = BotEvidenceLog.query.filter(BotEvidenceLog.user_id == user_id)
+    counts = {
+        etype: int(count or 0)
+        for etype, count in db.session.query(BotEvidenceLog.event_type, func.count(BotEvidenceLog.id))
+        .filter(BotEvidenceLog.user_id == user_id).group_by(BotEvidenceLog.event_type).all()
+    }
+    query = base
+    if event_type:
+        query = query.filter(BotEvidenceLog.event_type == event_type)
+    if before_id > 0:
+        query = query.filter(BotEvidenceLog.id < before_id)
+    rows = query.order_by(BotEvidenceLog.id.desc()).limit(limit + 1).all()
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    user = db.session.get(User, user_id)
+    if user is not None:
+        username = user.username
+    else:
+        latest = base.order_by(BotEvidenceLog.id.desc()).first()
+        username = latest.username if latest else ''
+    payload = {
+        'user': {'user_id': user_id, 'username': username or '', 'exists': user is not None},
+        'counts': counts,
+        'total': sum(counts.values()),
+        'items': [_bot_evidence_item(r) for r in rows],
+        'has_more': has_more,
+    }
+    if user is not None and before_id <= 0:
+        payload['state'] = _bot_admin_state(user)
+    response = jsonify(payload)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+@app.route('/api/bot/evidence/delete', methods=['POST'])
+@login_required
+def bot_evidence_delete():
+    """Delete selected (``ids``) or all (``all``) bot-detection records of one account."""
+    if not _is_browser_admin():
+        return jsonify({'error': '403'}), 403
+    data = request.get_json(silent=True) or {}
+    try:
+        user_id = int(data.get('user_id') or 0)
+    except Exception:
+        user_id = 0
+    if user_id <= 0:
+        return jsonify({'error': 'user_id_required'}), 400
+    query = BotEvidenceLog.query.filter(BotEvidenceLog.user_id == user_id)
+    if not data.get('all'):
+        ids = data.get('ids')
+        if not isinstance(ids, list) or not ids:
+            return jsonify({'error': 'ids_required'}), 400
+        try:
+            ids = [int(i) for i in ids][:1000]
+        except Exception:
+            return jsonify({'error': 'bad_ids'}), 400
+        query = query.filter(BotEvidenceLog.id.in_(ids))
+    deleted = query.delete(synchronize_session=False)
+    safe_db_commit()
+    return jsonify({'status': 'ok', 'deleted': int(deleted or 0)})
 
 @app.route('/api/bot/update', methods=['POST'])
 @login_required
@@ -788,9 +939,11 @@ def bot_update():
     if not user:
         return jsonify({'error': 'not_found'}), 404
     
+    details = {'action': action, 'admin': current_user.username}
     if action == 'toggle_detection':
         enabled = bool(data.get('enabled'))
         user.bot_detection_enabled = enabled
+        details['enabled'] = enabled
     elif action == 'ban':
         user.is_bot_banned = True
         user.bot_banned_at = datetime.utcnow()
@@ -801,6 +954,8 @@ def bot_update():
         unban_single_account(user)
     elif action == 'unban_linked':
         unban_linked_accounts(user)
+    elif action == 'unlock':
+        _clear_bot_lock_for_user(user)
     elif action == 'delete_account':
         _delete_user_account_immediately(user)
         return jsonify({'status': 'ok', 'username': username, 'action': action})
@@ -808,6 +963,7 @@ def bot_update():
         return jsonify({'error': 'bad_action'}), 400
     
     safe_db_commit()
+    _log_bot_evidence('admin_action', details=details, user=user, from_request=False)
     return jsonify({'status': 'ok', 'username': username, 'action': action})
 
 def normalize_theme_color(value):

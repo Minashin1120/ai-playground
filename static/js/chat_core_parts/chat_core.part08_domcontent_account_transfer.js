@@ -1412,31 +1412,63 @@
                 handleFiles(e.dataTransfer.files);
             });
             const botAdminModal = get('bot-admin-modal');
-            const renderBotUsers = (users) => {
+            const formatBotLogTime = (iso) => {
+                if (!iso) return '';
+                const d = new Date(iso);
+                return isNaN(d.getTime()) ? '' : d.toLocaleString('ja-JP');
+            };
+            const renderBotUsers = (users, deletedUsers = []) => {
                 const list = get('bot-admin-list');
                 if (!list) return;
                 list.innerHTML = '';
-                if (!users || !users.length) {
+                if ((!users || !users.length) && (!deletedUsers || !deletedUsers.length)) {
                     list.innerHTML = '<div class="text-xs text-gray-400">該当ユーザーがいません。</div>';
                     return;
                 }
-                users.forEach((u, idx) => {
+                const logSummary = (u) => {
+                    const count = Number(u.evidence_count) || 0;
+                    if (!count) return '記録なし';
+                    const last = formatBotLogTime(u.last_event_at);
+                    return `記録 ${count}件${last ? '・最終 ' + escapeHtml(last) : ''}`;
+                };
+                (users || []).forEach((u, idx) => {
                     const isBanned = !!u.is_bot_banned;
                     const detOn = u.bot_detection_enabled !== false;
+                    const lockRemaining = Number(u.lock_remaining_seconds) || 0;
                     const row = document.createElement('div');
-                    row.className = 'flex items-center gap-2 bg-gray-900 border border-gray-700 rounded p-2 text-xs model-list-animate';
+                    row.className = 'flex flex-wrap items-center gap-2 bg-gray-900 border border-gray-700 rounded p-2 text-xs model-list-animate';
                     row.style.animationDelay = `${Math.min(idx, 12) * 0.02}s`;
                     row.innerHTML = `
-                        <div class="flex-1">
-                            <div class="text-gray-200 font-bold">${escapeHtml(u.username)}</div>
-                            <div class="text-[10px] text-gray-500">${isBanned ? 'BAN中' : '正常'} ${u.bot_ban_reason ? ' / ' + escapeHtml(u.bot_ban_reason) : ''}</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-gray-200 font-bold bot-log-wrap">${escapeHtml(u.username)}</div>
+                            <div class="text-[10px] text-gray-500">${isBanned ? 'BAN中' : '正常'}${lockRemaining ? `・ロック中（残り${Math.ceil(lockRemaining / 60)}分）` : ''} ${u.bot_ban_reason ? ' / ' + escapeHtml(u.bot_ban_reason) : ''}</div>
+                            <div class="text-[10px] text-gray-500">${logSummary(u)}</div>
                         </div>
+                        <button class="bot-open-log bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded" data-user-id="${escapeHtml(String(u.user_id || ''))}" data-username="${escapeHtml(u.username)}">ログ</button>
                         <button class="bot-toggle-detect bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded" data-user="${escapeHtml(u.username)}" data-enabled="${detOn ? '1' : '0'}">${detOn ? '検出ON' : '検出OFF'}</button>
                         <button class="bot-toggle-ban ${isBanned ? 'bg-green-600 hover:bg-green-500' : 'bg-red-600 hover:bg-red-500'} text-white px-2 py-1 rounded" data-user="${escapeHtml(u.username)}" data-banned="${isBanned ? '1' : '0'}">${isBanned ? '単独解除' : 'BAN'}</button>                        ${isBanned ? `<button class=\"bot-toggle-unban-linked bg-rose-600 hover:bg-rose-500 text-white px-2 py-1 rounded\" data-user=\"${escapeHtml(u.username)}\">連鎖解除</button>` : ''}
                         <button class="bot-delete-account bg-red-800 hover:bg-red-700 text-white px-2 py-1 rounded" data-progress-expected-slow="true" data-user="${escapeHtml(u.username)}">削除</button>
                     `;
                     list.appendChild(row);
                 });
+                if (deletedUsers && deletedUsers.length) {
+                    const heading = document.createElement('div');
+                    heading.className = 'text-xs font-bold text-gray-300 pt-3';
+                    heading.textContent = '削除済みアカウントの記録';
+                    list.appendChild(heading);
+                    deletedUsers.forEach((u) => {
+                        const row = document.createElement('div');
+                        row.className = 'flex items-center gap-2 bg-gray-900 border border-gray-700 rounded p-2 text-xs';
+                        row.innerHTML = `
+                            <div class="flex-1 min-w-0">
+                                <div class="text-gray-400 font-bold bot-log-wrap">${escapeHtml(u.username || ('ID ' + u.user_id))}</div>
+                                <div class="text-[10px] text-gray-500">削除済み・${logSummary(u)}</div>
+                            </div>
+                            <button class="bot-open-log bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded" data-user-id="${escapeHtml(String(u.user_id || ''))}" data-username="${escapeHtml(u.username || '')}">ログ</button>
+                        `;
+                        list.appendChild(row);
+                    });
+                }
             };
             const loadBotUsers = async (q = '') => {
                 const list = get('bot-admin-list');
@@ -1446,7 +1478,7 @@
                 try {
                     const res = await apiFetch(`/api/bot/users?q=${encodeURIComponent(q)}`);
                     const data = await res.json();
-                    if (res.ok && data && data.users) renderBotUsers(data.users);
+                    if (res.ok && data && data.users) renderBotUsers(data.users, data.deleted_users || []);
                     else {
                         if (list) list.innerHTML = '<div class="text-xs text-red-400">ユーザー一覧の取得に失敗しました。</div>';
                         showToast('ユーザー一覧取得に失敗しました', 'error', true);
@@ -1466,6 +1498,10 @@
                 if (settingsEl && (settingsEl.classList.contains('modal-open') || settingsEl.classList.contains('modal-prep'))) {
                     hideModal('settings-modal');
                 }
+                if (window.BotAdminLog) {
+                    window.BotAdminLog.bind();
+                    window.BotAdminLog.showList();
+                }
                 showModal('bot-admin-modal');
                 if (location.pathname !== '/admin-bots') {
                     history.pushState({ modal: 'admin-bots' }, '', '/admin-bots');
@@ -1473,6 +1509,7 @@
                 await loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
             };
             window.openBotAdminModal = openBotAdminModal;
+            window.reloadBotAdminUsers = () => loadBotUsers(get('bot-admin-search') ? get('bot-admin-search').value.trim() : '');
             window.closeBotAdminModal = (skipHistory = false) => {
                 const modal = get('bot-admin-modal') || botAdminModal;
                 if (modal) hideModal('bot-admin-modal');
@@ -1503,6 +1540,11 @@
                 get('bot-admin-list').onclick = async (e) => {
                     const btn = e.target.closest('button');
                     if (!btn) return;
+                    if (btn.classList.contains('bot-open-log')) {
+                        const userId = Number(btn.getAttribute('data-user-id'));
+                        if (userId && window.BotAdminLog) await window.BotAdminLog.open(userId, btn.getAttribute('data-username') || '');
+                        return;
+                    }
                     const username = btn.getAttribute('data-user');
                     if (!username) return;
 

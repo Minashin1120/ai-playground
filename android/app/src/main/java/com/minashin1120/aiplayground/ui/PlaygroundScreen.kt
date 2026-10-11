@@ -46,11 +46,13 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -58,6 +60,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.ui.geometry.Offset
@@ -75,6 +79,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -1006,18 +1011,23 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
                     Text(if (signup) "アカウントを作成" else "ログイン", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     OutlinedTextField(
                         value = username, onValueChange = { username = it }, label = { Text("ユーザー名") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !state.authBusy,
+                        singleLine = true, enabled = !state.authBusy,
+                        modifier = Modifier.fillMaxWidth().semantics { contentType = if (signup) ContentType.NewUsername else ContentType.Username },
                     )
                     OutlinedTextField(
                         value = password, onValueChange = { password = it }, label = { Text("パスワード") },
                         singleLine = true, visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(), enabled = !state.authBusy,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth().secretField(if (signup) ContentType.NewPassword else ContentType.Password),
+                        enabled = !state.authBusy,
                     )
                     if (signup) {
                         OutlinedTextField(
                             value = confirmation, onValueChange = { confirmation = it }, label = { Text("パスワード（確認）") },
                             singleLine = true, visualTransformation = PasswordVisualTransformation(),
-                            modifier = Modifier.fillMaxWidth(), enabled = !state.authBusy,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth().secretField(ContentType.NewPassword),
+                            enabled = !state.authBusy,
                         )
                     }
                     state.authError?.let { Text(it, color = colors.error) }
@@ -1309,7 +1319,8 @@ private fun shortImportValue(value: String): String {
 private fun SetupSecretField(label: String, value: String, onValueChange: (String) -> Unit) {
     OutlinedTextField(
         value = value, onValueChange = onValueChange, label = { Text(label) },
-        singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+        singleLine = true, visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth().secretField(),
     )
 }
 

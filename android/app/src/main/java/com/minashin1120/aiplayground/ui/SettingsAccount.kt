@@ -73,7 +73,8 @@ internal fun accountCards(state: ChatState, form: SettingsForm, ctx: AccountSett
                 }
                 Column {
                     SettingsFieldLabel("パスワード変更")
-                    SettingsTextField(form.newPassword, { form.newPassword = it.take(256) }, Modifier.fillMaxWidth(), placeholder = "変更しない場合は空欄", password = true)
+                    SettingsTextField(form.newPassword, { form.newPassword = it.take(256) }, Modifier.fillMaxWidth(), placeholder = "変更しない場合は空欄", password = true,
+                        autofill = androidx.compose.ui.autofill.ContentType.NewPassword)
                 }
             }
         },

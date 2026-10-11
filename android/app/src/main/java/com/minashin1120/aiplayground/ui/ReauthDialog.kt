@@ -109,7 +109,8 @@ internal fun ReauthDialog(api: () -> AccountApi, onDismiss: () -> Unit, onConfir
                 }
                 if ("password" in methods) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     SettingsFieldLabel("現在のパスワード")
-                    SettingsTextField(password, { password = it.take(256) }, Modifier.fillMaxWidth(), password = true)
+                    SettingsTextField(password, { password = it.take(256) }, Modifier.fillMaxWidth(), password = true,
+                        autofill = androidx.compose.ui.autofill.ContentType.Password)
                     SettingsSmallButton("パスワードで確認", { attempt { reauthPassword(password) } }, enabled = password.isNotEmpty() && !busy,
                         tone = SettingsButtonTone.Blue, fill = true)
                 }

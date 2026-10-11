@@ -263,7 +263,7 @@ internal fun ApiKeyRequiredDialog(
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
                 imeAction = androidx.compose.ui.text.input.ImeAction.Send),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { onSave(key) }),
-            modifier = Modifier.fillMaxWidth().clip(shape).background(web.twBg(Tw.gray800)).border(1.dp, web.twBorder(Tw.gray600), shape),
+            modifier = Modifier.fillMaxWidth().secretField().clip(shape).background(web.twBg(Tw.gray800)).border(1.dp, web.twBorder(Tw.gray600), shape),
             decorationBox = { inner ->
                 Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                     if (key.isEmpty()) Text("APIキーを入力", style = style.copy(color = Tw.gray500))

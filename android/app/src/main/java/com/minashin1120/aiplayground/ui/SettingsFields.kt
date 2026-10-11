@@ -15,12 +15,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.sensitiveContent
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -148,6 +152,13 @@ internal fun SettingsSelect(
     )
 }
 
+/**
+ * Marks a password / API key field as sensitive (hidden during screen sharing) and, with [autofill],
+ * tells autofill services what it holds. Pair it with `KeyboardType.Password` so the IME treats it as a password.
+ */
+internal fun Modifier.secretField(autofill: ContentType? = null): Modifier =
+    then(if (autofill == null) Modifier else Modifier.semantics { contentType = autofill }).sensitiveContent()
+
 /** `<input>` / `<textarea>` in a settings card. */
 @Composable
 internal fun SettingsTextField(
@@ -156,6 +167,7 @@ internal fun SettingsTextField(
     modifier: Modifier = Modifier,
     placeholder: String = "",
     password: Boolean = false,
+    autofill: ContentType? = null,
     number: Boolean = false,
     minHeight: Dp = 0.dp,
     singleLine: Boolean = true,
@@ -184,7 +196,7 @@ internal fun SettingsTextField(
             number -> KeyboardType.Number
             else -> KeyboardType.Text
         }),
-        modifier = modifier.heightIn(min = minHeight).clip(shape).background(colors.background).border(1.dp, colors.border, shape),
+        modifier = (if (password) modifier.secretField(autofill) else modifier).heightIn(min = minHeight).clip(shape).background(colors.background).border(1.dp, colors.border, shape),
         decorationBox = { inner ->
             Box(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 if (value.isEmpty() && placeholder.isNotEmpty()) Text(placeholder, style = style.copy(color = colors.placeholder))

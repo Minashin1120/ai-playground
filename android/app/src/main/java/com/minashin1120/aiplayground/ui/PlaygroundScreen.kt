@@ -170,6 +170,7 @@ fun PlaygroundScreen(
 ) {
     val state by model.state.collectAsStateWithLifecycle()
     val imageSplit by model.imageSplit.collectAsStateWithLifecycle()
+    val sharedTextPreview by model.sharedTextPreview.collectAsStateWithLifecycle()
     // Web applies the light theme for a light system setting (theme-light.css) or manual light mode.
     PlaygroundTheme(darkTheme = isSystemInDarkTheme() && state.preferences?.lightModeEnabled != true,
         themeColor = state.preferences?.themeColor, liquidGlass = state.preferences?.liquidGlassEnabled == true) {
@@ -801,6 +802,10 @@ fun PlaygroundScreen(
                 onOpenFile = openInApp,
                 onEditImage = { markerTarget = it },
             )
+            ModalValueHost(sharedTextPreview) { text ->
+                SharedTextPreviewDialog(text, loader, openInApp, onDismiss = model::closeSharedTextPreview,
+                    onInsert = { model.closeSharedTextPreview(); model.insertSharedText(text.trim()) })
+            }
             ModalValueHost(imageSplit) { request ->
                 ImageSplitDialog(request, onDismiss = model::closeImageSplit,
                     onAttach = { options -> model.runImageSplit(options, attach = true) },

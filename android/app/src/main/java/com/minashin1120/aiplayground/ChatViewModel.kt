@@ -4149,6 +4149,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** メッセージとしてプレビュー (ANDROID_ONLY.md): text from the share target, drawn as a message bubble. */
+    private val sharedTextPreviewMutable = MutableStateFlow<String?>(null)
+    internal val sharedTextPreview = sharedTextPreviewMutable.asStateFlow()
+
+    fun openSharedTextPreview(text: String) {
+        if (text.isBlank()) notify("プレビューできるテキストがありません。")
+        else sharedTextPreviewMutable.value = text
+    }
+
+    fun closeSharedTextPreview() { sharedTextPreviewMutable.value = null }
+
     /** 画像分割 (ANDROID_ONLY.md): images waiting in the dialog, from the upload sheet or the share target. */
     private val imageSplitMutable = MutableStateFlow<ImageSplitRequest?>(null)
     internal val imageSplit = imageSplitMutable.asStateFlow()

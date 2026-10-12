@@ -66,6 +66,15 @@
                 <data android:mimeType="image/*" />
             </intent-filter>
         </activity-alias>
+        <!-- 「メッセージとしてプレビュー」 in the system share sheet: shows the shared text as a message bubble. -->
+        <activity-alias android:name=".TextPreviewShareActivity" android:targetActivity=".MainActivity"
+            android:exported="true" android:label="メッセージとしてプレビュー" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
         <!-- Android 10-16 notification bubbles only. documentLaunchMode="always" must stay
              off MainActivity: on the launcher entry it creates a new task on every launch. -->
         <activity android:name=".ChatBubbleActivity" android:exported="true"

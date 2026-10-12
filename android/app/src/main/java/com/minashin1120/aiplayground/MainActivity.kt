@@ -22,6 +22,9 @@ import com.minashin1120.aiplayground.ui.PlaygroundScreen
 /** `<activity-alias>` in the manifest: the 「画像を分割」 entry of the system share sheet. */
 private const val IMAGE_SPLIT_SHARE_ALIAS = "com.minashin1120.aiplayground.ImageSplitShareActivity"
 
+/** `<activity-alias>` in the manifest: the 「メッセージとしてプレビュー」 entry of the system share sheet. */
+private const val TEXT_PREVIEW_SHARE_ALIAS = "com.minashin1120.aiplayground.TextPreviewShareActivity"
+
 /** Browser flows on servers other than the official host return through this scheme (server `_MOBILE_APP_CALLBACK`). */
 private const val APP_AUTH_SCHEME = "com.minashin1120.aiplayground.auth"
 
@@ -150,9 +153,19 @@ open class MainActivity : ComponentActivity() {
     /**
      * Handles files and text shared from other apps via the system share sheet (Intent.ACTION_SEND[_MULTIPLE]).
      * Shared text (Intent.EXTRA_TEXT) is appended to the prompt input.
-     * The 「画像を分割」 share target (an activity-alias) opens the 画像分割 dialog instead of attaching.
+     * The 「画像を分割」 share target (an activity-alias) opens the 画像分割 dialog instead of attaching, and
+     * the 「メッセージとしてプレビュー」 target shows the shared text as a message bubble.
      */
     private fun handleShareIntent(intent: Intent?) {
+        if (intent?.component?.className == TEXT_PREVIEW_SHARE_ALIAS) {
+            if (intent.action != Intent.ACTION_SEND) return
+            val text = runCatching { intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() }.getOrNull().orEmpty()
+            intent.action = null
+            intent.removeExtra(Intent.EXTRA_STREAM)
+            intent.removeExtra(Intent.EXTRA_TEXT)
+            model.openSharedTextPreview(text.trim('\n', '\r'))
+            return
+        }
         val uris: List<Uri> = when (intent?.action) {
             Intent.ACTION_SEND -> intent.parcelableExtraCompat<Uri>(Intent.EXTRA_STREAM)?.let { listOf(it) } ?: emptyList()
             Intent.ACTION_SEND_MULTIPLE -> intent.parcelableArrayListExtraCompat<Uri>(Intent.EXTRA_STREAM) ?: emptyList()

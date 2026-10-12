@@ -12,7 +12,7 @@
 | `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties` | Android Gradleプロジェクトのルート設定 | SDK・Kotlin・Gradleを更新するとき |
 | `version.properties` | AndroidのversionCodeとversionName | 新しいAndroid版を配布するとき |
 | `app/build.gradle.kts` | 固定applicationId・共有署名・依存関係 | アプリ構成・署名を確認するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | Custom Tabs・HTTPS App Links・添付共有（送信・他アプリの共有シートからの受信（ファイルは添付、テキストは入力欄へ追加）、「画像を分割」の共有先）・APKインストール・Activityライフサイクル | ブラウザー認証からの復帰、ファイル表示、共有シート添付、アプリ更新 |
+| `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | Custom Tabs・HTTPS App Links・添付共有（送信・他アプリの共有シートからの受信（ファイルは添付、テキストは入力欄へ追加）、「画像を分割」と「メッセージとしてプレビュー」の共有先）・APKインストール・Activityライフサイクル | ブラウザー認証からの復帰、ファイル表示、共有シート添付、アプリ更新 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/GoogleAuthClient.kt` | Credential ManagerによるGoogle IDトークン取得 | Googleのネイティブログインを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateViewModel.kt` | 更新検出と画面への状態中継・インストール段階 | アプリ更新フローを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateDownloadManager.kt` | プロセス全体で1つの更新状態・APKダウンロード・キャンセル・ダイアログの非表示／再表示 | 更新ダウンロードの状態遷移を変更するとき |
@@ -83,6 +83,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMarkerEditor.kt` | Webの「画像編集」（マーカー、モザイク、トリミング、二本指の拡大、保存して反映） | 画像編集の画面や保存を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageMarker.kt` | 画像編集の計算（線の補間、モザイク範囲、トリミングの掴み位置、拡大時の位置制限、保存名） | 画像編集の操作の決まりを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageSplitDialog.kt` | Android版だけの「画像を分割」ダイアログ（プレビュー、分割数、重なり、元画像の扱い、添付／共有／保存） | 画像分割の画面を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/SharedTextPreviewDialog.kt` | Android版だけの「メッセージとしてプレビュー」ダイアログ（共有されたテキストを `MessageBubble` で表示、AIの回答／自分のメッセージの切替、入力欄に入れる） | 共有テキストのプレビューを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplit.kt` | 画像分割の計算（行列の決め方、重なり付きの範囲、EXIFの向きの逆変換、ファイル名、座標の帯の文言） | 画像分割の決まりを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplitRenderer.kt` | 画像分割の描画と保存（部分デコード、番号・分割線・重なりの描き込み、添付用URI、Pictures／選択フォルダーへの保存） | 分割画像の見た目や保存先を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MinimalOptions.kt` | ミニマル表示の上部モデルバー、＋の「オプション」ポップアップ、Thinkingのスライドバー | ミニマル表示を変更するとき |

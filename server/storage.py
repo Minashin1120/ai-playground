@@ -612,17 +612,174 @@ def _decode_text_bytes_for_prompt(raw):
         return sample.decode('utf-8', errors='replace')
 
 
+def _iter_isobmff_boxes(data, start, end):
+    pos = start
+    while pos + 8 <= end:
+        size = int.from_bytes(data[pos:pos + 4], "big")
+        box_type = bytes(data[pos + 4:pos + 8])
+        header = 8
+        if size == 1:
+            if pos + 16 > end:
+                return
+            size = int.from_bytes(data[pos + 8:pos + 16], "big")
+            header = 16
+        elif size == 0:
+            size = end - pos
+        if size < header or pos + size > end:
+            return
+        yield box_type, pos + header, pos + size
+        pos += size
+
+
+def _probe_isobmff_media(data):
+    """Duration and track kinds of MP4 / MOV / M4A / 3GP read from the moov box."""
+    moov = next((b for b in _iter_isobmff_boxes(data, 0, len(data)) if b[0] == b"moov"), None)
+    if not moov:
+        return None
+    duration = None
+    kinds = set()
+    for box_type, start, end in _iter_isobmff_boxes(data, moov[1], moov[2]):
+        if box_type == b"mvhd" and end - start >= 32:
+            if data[start] == 1:
+                timescale = int.from_bytes(data[start + 20:start + 24], "big")
+                units = int.from_bytes(data[start + 24:start + 32], "big")
+                unknown = units == 0xFFFFFFFFFFFFFFFF
+            else:
+                timescale = int.from_bytes(data[start + 12:start + 16], "big")
+                units = int.from_bytes(data[start + 16:start + 20], "big")
+                unknown = units == 0xFFFFFFFF
+            if timescale and units and not unknown:
+                duration = units / float(timescale)
+        elif box_type == b"trak":
+            for t_type, t_start, t_end in _iter_isobmff_boxes(data, start, end):
+                if t_type != b"mdia":
+                    continue
+                for m_type, m_start, m_end in _iter_isobmff_boxes(data, t_start, t_end):
+                    if m_type == b"hdlr" and m_end - m_start >= 12:
+                        handler = bytes(data[m_start + 8:m_start + 12])
+                        if handler == b"soun":
+                            kinds.add("audio")
+                        elif handler == b"vide":
+                            kinds.add("video")
+    if not duration:
+        return None
+    return {"duration": duration, "kinds": kinds}
+
+
+def _media_ffmpeg_demuxer(data):
+    head = bytes(data[:16]) if data else b""
+    if head[:4] == b"RIFF" and head[8:12] == b"AVI ":
+        return "avi"
+    return _audio_ffmpeg_demuxer(data)
+
+
+def _probe_media_with_ffmpeg(data, demuxer, timeout=15, trust_header_duration=True):
+    """Duration and track kinds via ffprobe; the input format is fixed (see IMAGE_PROCESSING.md)."""
+    base = ["-protocol_whitelist", "pipe", "-f", demuxer, "-i", "pipe:0"]
+    duration = None
+    kinds = set()
+    try:
+        proc = subprocess.run(
+            ["ffprobe", "-v", "error", *base,
+             "-show_entries", "format=duration:stream=codec_type", "-of", "json"],
+            input=data, capture_output=True, timeout=timeout,
+        )
+        if proc.returncode == 0:
+            info = json.loads(proc.stdout.decode("utf-8", errors="replace") or "{}")
+            for stream in info.get("streams") or []:
+                if stream.get("codec_type") in ("audio", "video"):
+                    kinds.add(stream["codec_type"])
+            try:
+                if trust_header_duration:
+                    duration = float((info.get("format") or {}).get("duration"))
+            except (TypeError, ValueError):
+                duration = None
+    except Exception:
+        return None
+    if not duration:
+        # Recorded WebM and fragmented MP4 carry no total duration in the header
+        # (piped ffprobe sees only the first fragment); read the stream through once.
+        try:
+            proc = subprocess.run(
+                ["ffmpeg", "-nostdin", "-hide_banner", *base, "-map", "0", "-c", "copy", "-f", "null", "-"],
+                input=data, capture_output=True, timeout=timeout,
+            )
+            stamps = re.findall(r"time=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)", proc.stderr.decode("utf-8", errors="replace"))
+            if proc.returncode == 0 and stamps:
+                h, m, s = stamps[-1]
+                duration = int(h) * 3600 + int(m) * 60 + float(s)
+        except Exception:
+            return None
+    if not duration or duration <= 0:
+        return None
+    return {"duration": duration, "kinds": kinds}
+
+
+def _probe_media_duration(data):
+    if not data:
+        return None
+    if bytes(data[4:8]) == b"ftyp":
+        probed = _probe_isobmff_media(data)
+        if probed:
+            return probed
+        return _probe_media_with_ffmpeg(data, "mov", trust_header_duration=False)
+    demuxer = _media_ffmpeg_demuxer(data)
+    if not demuxer:
+        return None
+    return _probe_media_with_ffmpeg(data, demuxer)
+
+
+def _count_pdf_pages(data):
+    if not data or len(data) > 100 * 1024 * 1024:
+        return None
+    try:
+        return len(pypdf.PdfReader(BytesIO(data), strict=False).pages)
+    except Exception:
+        return None
+
+
+def _estimate_gemini_media_tokens(data, mime, is_pdf, profile):
+    """Tokens Gemini charges for a natively sent image / PDF / audio / video, or None."""
+    mime = (mime or "").lower()
+    if is_pdf:
+        pages = _count_pdf_pages(data)
+        if not pages:
+            return {"tokens": 0, "countable": False, "reason": "media_unknown"}
+        return {"tokens": gemini_pdf_tokens(profile, pages), "countable": True, "reason": "ok"}
+    if mime.startswith("image/"):
+        probed = _probe_image(data) or {}
+        return {
+            "tokens": gemini_image_tokens(profile, probed.get("width"), probed.get("height")),
+            "countable": True,
+            "reason": "ok",
+        }
+    if mime.startswith("audio/") or mime.startswith("video/"):
+        probed = _probe_media_duration(data)
+        if not probed:
+            return {"tokens": 0, "countable": False, "reason": "media_unknown"}
+        kinds = probed.get("kinds") or set()
+        is_video = "video" in kinds if kinds else mime.startswith("video/")
+        if is_video:
+            tokens = gemini_video_tokens(profile, probed["duration"], has_audio=("audio" in kinds) if kinds else True)
+        else:
+            tokens = gemini_audio_tokens(profile, probed["duration"])
+        return {"tokens": tokens, "countable": True, "reason": "ok"}
+    return None
+
+
 def _estimate_attachment_prompt_tokens(rel_path, model_key=None):
     info = _get_file_disk_info(rel_path)
     if not info.get("exists"):
         return {"tokens": 0, "countable": False, "reason": "missing"}
     tokenizer_name = _select_tokenizer_name(model_key)
+    media_profile = gemini_media_token_profile(model_key)
     cache_key = (
         rel_path,
         info.get("mtime"),
         info.get("size"),
         1 if info.get("is_encrypted") else 0,
-        tokenizer_name
+        tokenizer_name,
+        media_profile
     )
     cached = _token_file_tokens_cache_get(cache_key)
     if cached is not None:
@@ -641,6 +798,13 @@ def _estimate_attachment_prompt_tokens(rel_path, model_key=None):
     is_docx = clean_fn.lower().endswith('.docx')
     clean_ext = os.path.splitext(clean_fn)[1].lower()
     is_text = (mime or '').startswith('text/') or clean_ext in _TEXT_LIKE_UPLOAD_EXTS
+
+    if media_profile and not is_docx and not is_text:
+        # Gemini receives images, PDFs, audio and video as media, not as text.
+        media_result = _estimate_gemini_media_tokens(data, mime, is_pdf, media_profile)
+        if media_result is not None:
+            _token_file_tokens_cache_put(cache_key, media_result)
+            return media_result
 
     extracted = None
     if is_pdf:

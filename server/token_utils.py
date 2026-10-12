@@ -127,6 +127,56 @@ def is_token_countable_model(model_key):
 def should_count_tokens_for_display(model_key):
     return is_token_countable_model(model_key)
 
+# Gemini converts attached media to tokens at fixed rates instead of tokenizing
+# text. Gemini 3 and later use the media_resolution defaults (unspecified);
+# earlier generations use the legacy per-image tile / per-second rates.
+# https://ai.google.dev/gemini-api/docs/media-resolution
+# https://ai.google.dev/gemini-api/docs/tokens
+GEMINI_MEDIA_TOKEN_RATES = {
+    "gemini3": {"image": 1120, "pdf_page": 560, "video_frame": 70, "audio_second": 25},
+    "legacy": {"image_tile": 258, "pdf_page": 258, "video_second": 263, "audio_second": 32},
+}
+
+def gemini_media_token_profile(model_key):
+    """Media token profile for a Gemini model, or None for other providers."""
+    mk = str(model_key or "").strip().lower()
+    if "gemini" not in mk:
+        return None
+    m = re.search(r"gemini-(\d+)(?:[.-]|$)", mk)
+    if m and int(m.group(1)) < 3:
+        return "legacy"
+    return "gemini3"
+
+def gemini_image_tokens(profile, width=None, height=None):
+    if profile == "gemini3":
+        return GEMINI_MEDIA_TOKEN_RATES["gemini3"]["image"]
+    per_tile = GEMINI_MEDIA_TOKEN_RATES["legacy"]["image_tile"]
+    try:
+        width, height = int(width or 0), int(height or 0)
+    except (TypeError, ValueError):
+        width = height = 0
+    if width <= 384 and height <= 384:
+        return per_tile
+    return per_tile * math.ceil(width / 768) * math.ceil(height / 768)
+
+def gemini_pdf_tokens(profile, pages):
+    # Gemini 3 does not charge the native text extracted from PDFs.
+    return GEMINI_MEDIA_TOKEN_RATES[profile]["pdf_page"] * max(0, int(pages or 0))
+
+def gemini_audio_tokens(profile, seconds):
+    return math.ceil(max(0.0, float(seconds or 0)) * GEMINI_MEDIA_TOKEN_RATES[profile]["audio_second"])
+
+def gemini_video_tokens(profile, seconds, has_audio=True):
+    seconds = max(0.0, float(seconds or 0))
+    if profile == "legacy":
+        return math.ceil(seconds * GEMINI_MEDIA_TOKEN_RATES["legacy"]["video_second"])
+    # Frames are sampled at 1 fps; the audio track is counted separately.
+    frames = max(1, math.ceil(seconds))
+    tokens = frames * GEMINI_MEDIA_TOKEN_RATES["gemini3"]["video_frame"]
+    if has_audio:
+        tokens += gemini_audio_tokens(profile, seconds)
+    return tokens
+
 def extract_reasoning_text(thought_data):
     if not thought_data:
         return ""

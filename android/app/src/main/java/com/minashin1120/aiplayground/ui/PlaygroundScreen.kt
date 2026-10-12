@@ -804,7 +804,10 @@ fun PlaygroundScreen(
                 onEditImage = { markerTarget = it },
             )
             ModalValueHost(sharedTextPreview) { text ->
-                SharedTextPreviewDialog(text, loader, openInApp, onDismiss = model::closeSharedTextPreview)
+                // The chat's code-block actions, so code blocks get the same buttons as in an answer.
+                ProvideMarkdownCodeActions(codeActions) {
+                    SharedTextPreviewDialog(text, loader, openInApp, onDismiss = model::closeSharedTextPreview)
+                }
             }
             ModalValueHost(imageSplit) { request ->
                 ImageSplitDialog(request, onDismiss = model::closeImageSplit,

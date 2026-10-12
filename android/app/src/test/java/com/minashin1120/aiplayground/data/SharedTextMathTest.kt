@@ -1,6 +1,7 @@
 package com.minashin1120.aiplayground.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SharedTextMathTest {
@@ -36,5 +37,15 @@ class SharedTextMathTest {
         assertEquals("`\\alpha` は \$\\beta\$", wrap("`\\alpha` は \\beta"))
         val aligned = "\\begin{aligned}\na &= \\frac{1}{2} \\\\\n\\end{aligned}"
         assertEquals(aligned, wrap(aligned))
+    }
+
+    // Android's ICU regex engine throws on a bare brace that the JVM accepts (the share preview crashed on
+    // opening), so the JVM test run cannot catch it by compiling the patterns; check the source form instead.
+    @Test fun patternsEscapeEveryBraceForIcu() {
+        SharedTextMath.PATTERNS.forEach { regex ->
+            val source = regex.pattern.replace("\\\\", "").replace(Regex("""\{\d+(?:,\d*)?\}"""), "")
+            val bare = Regex("""(?<!\\)[{}]""").find(source)
+            assertTrue("bare brace in ${regex.pattern}", bare == null)
+        }
     }
 }

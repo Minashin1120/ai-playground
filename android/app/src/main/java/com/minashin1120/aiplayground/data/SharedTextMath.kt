@@ -132,7 +132,7 @@ object SharedTextMath {
     private fun Char.isAsciiLetter() = this in 'a'..'z' || this in 'A'..'Z'
 
     private val COMMAND = Regex("""\\([A-Za-z]+)""")
-    private val BEGIN = Regex("""\\begin\{([A-Za-z*]+)}""")
+    private val BEGIN = Regex("""\\begin\{([A-Za-z*]+)\}""")
     /** A Markdown list, quote or heading marker kept outside the math. */
     private val PREFIX = Regex("""^\s*(?:[-*+]\s+|\d+[.)]\s+|>\s?|#{1,6}\s+)""")
     private const val OPERATORS = "+-=<>/*^_()[]|,.!':;~&"
@@ -142,6 +142,9 @@ object SharedTextMath {
     private const val STOP_WORDS = "is|of|to|in|at|be|as|by|on|or|an|if|it|we|so"
     private val STOP_WORD_START = Regex("""^(?i:$STOP_WORDS)(?=\s)""")
     private val STOP_WORD_END = Regex("""(?<=\s)(?i:$STOP_WORDS)$""")
+
+    // Android's ICU regex engine throws on a bare brace that the JVM accepts; SharedTextMathTest checks these.
+    internal val PATTERNS: List<Regex> get() = listOf(COMMAND, BEGIN, PREFIX, STOP_WORD_START, STOP_WORD_END)
 
     /** Commands that only appear in formulas, so a Windows path or an escaped `\n` is not taken for math. */
     private val MATH_COMMANDS = setOf(

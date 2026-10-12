@@ -760,10 +760,18 @@ def _apply_bot_lock(reason):
         return {'status': 'banned'}
     try:
         lock_key = f"bot:lock:{current_user.id}"
-        if redis_conn.exists(lock_key):
-            return {'status': 'already_locked'}
         reason_str = str(reason or '送信操作が速すぎるため、一時的にロックしています。')
-        redis_conn.set(lock_key, reason_str, ex=_BOT_LOCK_TTL)
+        # NX: concurrent reports of the same burst must count as one lock.
+        if not redis_conn.set(lock_key, reason_str, ex=_BOT_LOCK_TTL, nx=True):
+            # Still record that the client hit the lock again, so the admin log
+            # shows it even after earlier records were deleted.
+            active, active_reason, remaining = _bot_lock_info()
+            _log_bot_gate_block('lock_blocked', {
+                'lock_source': 'account',
+                'lock_reason': active_reason or reason_str,
+                'remaining_seconds': remaining,
+            })
+            return {'status': 'already_locked'}
         ip, token = _bot_lock_identifiers()
         origin = json.dumps({
             'user_id': current_user.id,

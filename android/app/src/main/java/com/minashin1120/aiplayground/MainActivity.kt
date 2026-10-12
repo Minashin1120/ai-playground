@@ -164,6 +164,9 @@ open class MainActivity : ComponentActivity() {
             intent.action = null
             intent.removeExtra(Intent.EXTRA_STREAM)
             intent.removeExtra(Intent.EXTRA_TEXT)
+            // Reopening an earlier preview from Recents after the process ended hands back the share
+            // intent without its text: open the app as usual instead of reporting an empty share.
+            if (text.isBlank() && intent.isLaunchedFromHistory()) return
             model.openSharedTextPreview(text.trim('\n', '\r'))
             return
         }
@@ -198,6 +201,7 @@ open class MainActivity : ComponentActivity() {
             val clip = intent.clipData
             ActivityLog.log("share.text_shape",
                 "type" to intent.type,
+                "from_history" to intent.isLaunchedFromHistory(),
                 "extras" to extras?.keySet()?.sorted().orEmpty(),
                 "text_len" to plain.length,
                 "text_class" to text?.javaClass?.simpleName,
@@ -213,6 +217,9 @@ open class MainActivity : ComponentActivity() {
             )
         }
     }
+
+    private fun Intent.isLaunchedFromHistory(): Boolean =
+        flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
 
     private fun openBubble() {
         when (createChatBubble(this, model.state.value.selected)) {

@@ -103,6 +103,23 @@ class BotEvidenceAdminRegressionTests(unittest.TestCase):
         self.assertEqual(blocks[0]["origin_client"], "web")
         self.assertEqual(blocks[0]["endpoint"], "chat_stream")
 
+    def test_lock_report_while_locked_is_logged_after_records_are_deleted(self):
+        locker = self.client_for("locker")
+        self.post_json(locker, "/api/bot/lock", {"reason": "連打検出"})
+        admin = self.client_for("site-admin")
+        res = self.post_json(admin, "/api/bot/evidence/delete", {"user_id": self.ids["locker"], "all": True})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(self.events("locker"), [])
+
+        res = self.post_json(locker, "/api/bot/lock", {"reason": "連打検出"})
+        self.assertEqual(res.get_json().get("status"), "locked")
+        events = self.events("locker")
+        self.assertEqual([t for t, _ in events], ["lock_blocked"])
+        self.assertEqual(events[0][1]["lock_source"], "account")
+        self.assertEqual(events[0][1]["endpoint"], "bot_lock")
+        # A report during the lock is not a new lock and does not count toward a ban.
+        self.assertEqual(self.fake.get(f"bot:lock:count:{self.ids['locker']}"), 1)
+
     def test_records_outlive_account_deletion_and_stay_viewable(self):
         locker = self.client_for("locker")
         self.post_json(locker, "/api/bot/lock", {"reason": "連打検出"})

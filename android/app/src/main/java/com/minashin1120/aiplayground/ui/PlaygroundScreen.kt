@@ -804,8 +804,7 @@ fun PlaygroundScreen(
                 onEditImage = { markerTarget = it },
             )
             ModalValueHost(sharedTextPreview) { text ->
-                SharedTextPreviewDialog(text, loader, openInApp, onDismiss = model::closeSharedTextPreview,
-                    onInsert = { model.closeSharedTextPreview(); model.insertSharedText(text.trim()) })
+                SharedTextPreviewDialog(text, loader, openInApp, onDismiss = model::closeSharedTextPreview)
             }
             ModalValueHost(imageSplit) { request ->
                 ImageSplitDialog(request, onDismiss = model::closeImageSplit,

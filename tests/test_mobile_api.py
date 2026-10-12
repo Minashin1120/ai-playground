@@ -48,13 +48,17 @@ class MobileApiTests(unittest.TestCase):
         self.redis.flushdb()  # Only this test's Unix-socket Redis, never configured REDIS_URL.
         upload_dir = tempfile.TemporaryDirectory(prefix='mobile-api-uploads-')
         self.addCleanup(upload_dir.cleanup)
+        # Feedback posted by these tests must not land in the real app/feedback/ directory.
+        feedback_dir = tempfile.TemporaryDirectory(prefix='mobile-api-feedback-')
+        self.addCleanup(feedback_dir.cleanup)
         for patcher in [
             mock.patch.object(target, 'redis_conn', self.redis),
             mock.patch.object(target, '_ensure_temp_chat_monitor_running'),
             mock.patch.object(target, '_bot_turnstile_active', return_value=False),
             mock.patch.object(target, '_bot_lock_info', return_value=(False, '', 0)),
             mock.patch.dict(target.app.config, TESTING=True, MOBILE_API_ENABLED=True,
-                            MAINTENANCE_MODE=False, TRUSTED_HOSTS=['localhost'], UPLOAD_FOLDER=upload_dir.name),
+                            MAINTENANCE_MODE=False, TRUSTED_HOSTS=['localhost'], UPLOAD_FOLDER=upload_dir.name,
+                            FEEDBACK_DIR=feedback_dir.name),
         ]:
             patcher.start()
             self.addCleanup(patcher.stop)

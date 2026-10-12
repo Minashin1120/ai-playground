@@ -605,6 +605,39 @@ def _iter_chat_history_ancestors(thread_id, parent_id, user_id, max_messages=0):
         del batch
 
 
+_GEMINI_BUILTIN_TOOL_FIELDS = (
+    "google_search",
+    "google_search_retrieval",
+    "url_context",
+    "google_maps",
+    "code_execution",
+    "file_search",
+    "enterprise_web_search",
+)
+
+
+def _gemini_combines_builtin_and_function_tools(tools):
+    """Geminiのツール一覧が、組み込みツールと関数ツールの両方を含むか。"""
+    has_builtin = False
+    has_function = False
+    for tool in tools or []:
+        if callable(tool):
+            has_function = True
+            continue
+        if isinstance(tool, dict):
+            fields = {key: value for key, value in tool.items() if value is not None}
+        else:
+            fields = {
+                name: getattr(tool, name, None)
+                for name in _GEMINI_BUILTIN_TOOL_FIELDS + ("function_declarations",)
+            }
+        if fields.get("function_declarations") or fields.get("functionDeclarations"):
+            has_function = True
+        if any(fields.get(name) is not None for name in _GEMINI_BUILTIN_TOOL_FIELDS):
+            has_builtin = True
+    return has_builtin and has_function
+
+
 def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):
     with app.app_context():
         channel = f"ai_chat:channel:{job_id}"
@@ -3391,18 +3424,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     "parameters": _strip_additional_properties(edit_schema.get("parameters", {})),
                                 },
                             ]))
-                            # Gemini 3 requires this flag and manual function
-                            # responses to circulate code-execution context.
-                            # google-genai 1.56 の ToolConfig はこの項目を持たず
-                            # extra="forbid" で拒否されるため、リクエスト本文へ直接足す。
-                            _http_opts = conf.get('http_options') or types.HttpOptions()
-                            _extra_body = dict(getattr(_http_opts, 'extra_body', None) or {})
-                            _tool_cfg_body = dict(_extra_body.get('toolConfig') or {})
-                            _tool_cfg_body['includeServerSideToolInvocations'] = True
-                            _extra_body['toolConfig'] = _tool_cfg_body
-                            conf['http_options'] = _http_opts.model_copy(
-                                update={'extra_body': _extra_body}
-                            )
 
                     # MCP外部ツール（google-genai の Automatic Function Calling 用の
                     # callable として追加。function_declarations は AFC を無効化するため使わない）
@@ -3438,6 +3459,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 log_force(f"Gemini MCP tools attached: {len(_gemini_mcp_callables)}")
                         except Exception as _mcp_e:
                             log_force(f"Gemini MCP tool attach failed: {_mcp_e}")
+                    # Gemini 3 は、組み込みツール（検索・URL Context・マップ・コード実行）と
+                    # 関数ツール（File・MCP）を同時に渡すとき、この指定がないと 400 を返す。
+                    # 応答の toolCall / toolResponse パートは、SDK の自動関数呼び出しと
+                    # _gemini_manual_function_stream が次のラウンドへそのまま返す。
+                    if is_gemini_3 and _gemini_combines_builtin_and_function_tools(conf.get('tools')):
+                        conf['tool_config'] = types.ToolConfig(include_server_side_tool_invocations=True)
                     if options.get('system_prompt') and 'system_instruction' not in conf:
                         conf['system_instruction'] = options.get('system_prompt')
                     

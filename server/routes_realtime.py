@@ -330,7 +330,7 @@ def gemini_session():
     if is_live_transcribe:
         # Live Transcription: TEXT output. The transcription config
         # (language_codes / custom_vocabulary / mode) is sent by the client in
-        # the WebSocket setup message; the installed SDK (v1.56.0) has no such
+        # the WebSocket setup message; the installed SDK (v1.75.0) lacks custom_vocabulary / mode
         # fields, so inputAudioTranscription stays unlocked (see below).
         generation_config = {
             'response_modalities': ['TEXT'],

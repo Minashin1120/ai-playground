@@ -60,11 +60,31 @@ class DirectEnginesTest {
             assertEquals(
                 "Tokyo is big.[1](https://a.example/)[2](https://b.example/) It rains." +
                     "\n\n**Sources:**\n- [1] [A](https://a.example/)\n- [2] [https://b.example/](https://b.example/)\n" +
-                    "\n\n**URL Context:**\n- [https://c.example/](https://c.example/) (UrlRetrievalStatus.URL_RETRIEVAL_STATUS_SUCCESS)\n",
+                    "\n\n**URL Context:**\n- [https://c.example/](https://c.example/)\n",
                 result.content,
             )
             assertTrue(events.any { it.optString("type") == "content" && it.optString("content").startsWith("\n\n**Sources:**") })
             assertEquals("done", events.last { it.optString("type") == "search_status" }.optString("content"))
+        }
+    }
+
+    @Test fun geminiCitesByUtf8ByteOffsetAndShowsOnlyFailedUrlStatus() {
+        MockWebServer().use { server ->
+            server.start()
+            val end = "東京は大きい。".toByteArray(Charsets.UTF_8).size
+            server.enqueue(sse(
+                """{"candidates":[{"content":{"parts":[{"executableCode":{"code":"print(1)"}}]}}]}""",
+                """{"candidates":[{"content":{"parts":[{"text":"東京は大きい。雨が降る。"}]},"groundingMetadata":{"groundingChunks":[{"web":{"uri":"https://a.example/","title":"A"}}],"groundingSupports":[{"segment":{"endIndex":$end,"text":"東京は大きい。"},"groundingChunkIndices":[0]}]},"urlContextMetadata":{"urlMetadata":[{"retrievedUrl":"https://c.example/","urlRetrievalStatus":"URL_RETRIEVAL_STATUS_ERROR"}]}}]}""",
+            ))
+            val engine = GeminiDirect(http, server.url("/").toString().trimEnd('/'))
+            val options = JSONObject().put("enable_search", true).put("enable_url_context", true)
+            val (result, _) = run(engine, request(options))
+            assertEquals(
+                "\n```python\nprint(1)\n```\n東京は大きい。[1](https://a.example/)雨が降る。" +
+                    "\n\n**Sources:**\n- [1] [A](https://a.example/)\n" +
+                    "\n\n**URL Context:**\n- [https://c.example/](https://c.example/) (URL_RETRIEVAL_STATUS_ERROR)\n",
+                result.content,
+            )
         }
     }
 

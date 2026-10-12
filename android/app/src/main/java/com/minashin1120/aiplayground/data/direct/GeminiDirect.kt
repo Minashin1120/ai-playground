@@ -10,6 +10,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.net.URLEncoder
+import kotlin.math.abs
 
 /**
  * Gemini `streamGenerateContent` (SSE) from the device, as the Web browser fast mode and the server's
@@ -35,6 +36,7 @@ class GeminiDirect(
         var usage: JSONObject? = null
         var searching = false
         val grounding = GeminiGrounding()
+        val modelText = StringBuilder()
         var pythonId: String? = null
         var pythonCode = ""
         val started = System.currentTimeMillis()
@@ -88,7 +90,7 @@ class GeminiDirect(
                     val text = part.optString("text")
                     if (text.isNotEmpty()) {
                         if (part.optBoolean("thought")) { thought.append(text); emit(event("thought", text)) }
-                        else { content.append(text); emit(event("content", text)) }
+                        else { content.append(text); modelText.append(text); emit(event("content", text)) }
                     }
                 }
             }
@@ -97,7 +99,7 @@ class GeminiDirect(
         }
         Diagnostics.log("gemini.stream_end", "chunks" to chunks, "content_chars" to content.length,
             "ms" to System.currentTimeMillis() - requestStarted)
-        val answer = grounding.finish(content.toString(), request.options) { emit(event("content", it)) }
+        val answer = grounding.finish(content.toString(), request.options, modelText.toString()) { emit(event("content", it)) }
         if (searching) emit(event("search_status", "done"))
         val meta = usage
         return DirectResult(
@@ -367,12 +369,15 @@ internal class GeminiGrounding {
         }
     }
 
-    /** The answer with citations and lists added; [emitAppended] gets each appended list, as the server streams it. */
-    fun finish(text: String, options: JSONObject, emitAppended: (String) -> Unit): String {
+    /**
+     * The answer with citations and lists added; [emitAppended] gets each appended list, as the server streams it.
+     * [modelText] is the model's text parts only (the answer also holds code blocks), which `endIndex` counts in.
+     */
+    fun finish(text: String, options: JSONObject, modelText: String = text, emitAppended: (String) -> Unit): String {
         var result = text
         val chunks = chunks
         if (chunks != null && (options.flag("enable_search") || options.flag("enable_maps"))) {
-            supports?.let { result = addCitations(result, it, chunks) }
+            supports?.let { result = addCitations(result, it, chunks, modelText) }
             var hasSources = false
             val lines = (0 until chunks.length()).map { i ->
                 val (title, uri) = chunkInfo(chunks.optJSONObject(i))
@@ -394,8 +399,9 @@ internal class GeminiGrounding {
             val lines = (0 until urls.length()).mapNotNull { i ->
                 val item = urls.optJSONObject(i) ?: return@mapNotNull null
                 val uri = item.text("retrievedUrl") ?: return@mapNotNull null
-                // The server prints the SDK enum (`UrlRetrievalStatus.…`).
-                val status = item.text("urlRetrievalStatus")?.takeIf { it != "ACTIVE" }?.let { " (UrlRetrievalStatus.$it)" }.orEmpty()
+                // Server `_url_retrieval_status_label`: a successful or unknown retrieval shows nothing.
+                val status = item.text("urlRetrievalStatus")?.removePrefix("UrlRetrievalStatus.")
+                    ?.takeIf { it !in HIDDEN_URL_STATUSES }?.let { " ($it)" }.orEmpty()
                 "- [$uri]($uri)$status"
             }
             if (lines.isNotEmpty()) {
@@ -407,29 +413,71 @@ internal class GeminiGrounding {
         return result
     }
 
-    /** `segment.endIndex` is used as a character offset, as the server does; later segments go in first. */
-    private fun addCitations(text: String, supports: JSONArray, chunks: JSONArray): String {
-        var result = text
-        val sorted = (0 until supports.length()).mapNotNull { supports.optJSONObject(it) }
-            .sortedByDescending { endIndex(it) ?: 0 }
-        for (support in sorted) {
-            val end = endIndex(support) ?: continue
-            val length = result.codePointCount(0, result.length)
-            if (end < 0 || end > length) continue
-            val indices = support.optJSONArray("groundingChunkIndices") ?: continue
+    /** Server `_add_gemini_citations`: each support goes at [citationPosition]; later positions go in first. */
+    private fun addCitations(text: String, supports: JSONArray, chunks: JSONArray, modelText: String): String {
+        val insertions = (0 until supports.length()).mapNotNull { order ->
+            val support = supports.optJSONObject(order) ?: return@mapNotNull null
+            val indices = support.optJSONArray("groundingChunkIndices") ?: return@mapNotNull null
             val links = (0 until indices.length()).mapNotNull { n ->
                 val idx = (indices.opt(n) as? Number)?.toInt() ?: return@mapNotNull null
                 if (idx < 0 || idx >= chunks.length()) return@mapNotNull null
                 chunkInfo(chunks.optJSONObject(idx)).second?.let { "[${idx + 1}]($it)" }
             }
-            if (links.isEmpty()) continue
-            val at = result.offsetByCodePoints(0, end)
-            result = result.substring(0, at) + links.joinToString("") + result.substring(at)
+            if (links.isEmpty()) return@mapNotNull null
+            val at = citationPosition(text, modelText, support.optJSONObject("segment")) ?: return@mapNotNull null
+            Triple(at, order, links.joinToString(""))
+        }
+        var result = text
+        // Same position: the later support goes in first, so the links keep their original order.
+        for ((at, _, links) in insertions.sortedWith(compareByDescending<Triple<Int, Int, String>> { it.first }.thenByDescending { it.second })) {
+            result = result.substring(0, at) + links + result.substring(at)
         }
         return result
     }
 
-    private fun endIndex(support: JSONObject): Int? = (support.optJSONObject("segment")?.opt("endIndex") as? Number)?.toInt()
+    /**
+     * Server `_gemini_citation_position`: `endIndex` is a UTF-8 byte offset into [modelText]. The answer also
+     * holds code blocks, so `segment.text` (or the text just before) is looked up in it, nearest the estimate.
+     */
+    private fun citationPosition(text: String, modelText: String, segment: JSONObject?): Int? {
+        val endByte = (segment?.opt("endIndex") as? Number)?.toInt()
+        val estimate = endByte?.takeIf { it > 0 }?.let { utf8OffsetToIndex(modelText, it) }?.takeIf { it > 0 }
+        val anchors = buildList {
+            segment?.text("text")?.let { add(it) }
+            if (estimate != null) modelText.substring(maxOf(0, estimate - 40), estimate).takeIf { it.isNotBlank() }?.let { add(it) }
+        }
+        for (anchor in anchors) {
+            var best: Int? = null
+            var start = text.indexOf(anchor)
+            while (start != -1) {
+                val end = start + anchor.length
+                if (estimate == null) { best = end; break }
+                if (best == null || abs(end - estimate) < abs(best - estimate)) best = end
+                start = text.indexOf(anchor, start + 1)
+            }
+            if (best != null) return best
+        }
+        return null
+    }
+
+    /** The string index at [bytes] UTF-8 bytes into [s] (a split character counts before it); null past the end. */
+    private fun utf8OffsetToIndex(s: String, bytes: Int): Int? {
+        var used = 0
+        var i = 0
+        while (i < s.length) {
+            val cp = s.codePointAt(i)
+            val size = when {
+                cp < 0x80 -> 1
+                cp < 0x800 -> 2
+                cp < 0x10000 -> 3
+                else -> 4
+            }
+            if (used + size > bytes) return i
+            used += size
+            i += Character.charCount(cp)
+        }
+        return if (used >= bytes) i else null
+    }
 
     /** Server `_chunk_grounding_info`: the chunk, then its `web` and `maps` entries; a Maps place id as the last title. */
     private fun chunkInfo(chunk: JSONObject?): Pair<String?, String?> {
@@ -443,6 +491,10 @@ internal class GeminiGrounding {
     }
 
     private fun JSONObject.text(name: String): String? = (opt(name) as? String)?.takeIf { it.isNotEmpty() }
+
+    private companion object {
+        val HIDDEN_URL_STATUSES = setOf("ACTIVE", "URL_RETRIEVAL_STATUS_SUCCESS", "URL_RETRIEVAL_STATUS_UNSPECIFIED")
+    }
 }
 
 internal fun attachmentText(attachment: DirectAttachment): String =

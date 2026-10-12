@@ -4072,6 +4072,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     grounding_chunks = None
                     grounding_supports = None
                     url_context_chunks = None
+                    # 出典の位置（UTF-8バイト）を求めるための、モデルが返したテキストだけの本文
+                    grounding_model_text = []
 
                     def _collect_grounding(gm):
                         nonlocal grounding_chunks, grounding_supports
@@ -4135,22 +4137,59 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             end_index = getattr(segment, 'endIndex', None)
                         return end_index
 
-                    def _add_gemini_citations(text, supports, chunks):
+                    def _segment_text(segment):
+                        if segment is None:
+                            return None
+                        seg_text = getattr(segment, 'text', None)
+                        return seg_text if isinstance(seg_text, str) and seg_text else None
+
+                    def _gemini_citation_position(text, model_text, segment):
+                        """本文中で出典を差し込む文字位置を返す（見つからなければ None）。
+
+                        segment.endIndex は UTF-8 のバイト位置で、モデルが返した本文
+                        （テキストのパートだけを連結したもの）に対する値。保存する本文には
+                        コードブロックなどが挟まるため、segment.text（無ければ直前の文脈）
+                        を本文から探し、推定位置に最も近い出現の末尾を使う。
+                        """
+                        model = model_text if model_text is not None else text
+                        end_index = _segment_end_index(segment)
+                        estimate = None
+                        try:
+                            end_byte = int(end_index) if end_index is not None else None
+                        except Exception:
+                            end_byte = None
+                        model_bytes = model.encode('utf-8')
+                        if end_byte is not None and 0 < end_byte <= len(model_bytes):
+                            estimate = len(model_bytes[:end_byte].decode('utf-8', 'ignore')) or None
+                        anchors = []
+                        seg_text = _segment_text(segment)
+                        if seg_text:
+                            anchors.append(seg_text)
+                        if estimate:
+                            context = model[max(0, estimate - 40):estimate]
+                            if context.strip():
+                                anchors.append(context)
+                        for anchor in anchors:
+                            best = None
+                            start = text.find(anchor)
+                            while start != -1:
+                                end = start + len(anchor)
+                                if estimate is None:
+                                    best = end
+                                    break
+                                if best is None or abs(end - estimate) < abs(best - estimate):
+                                    best = end
+                                start = text.find(anchor, start + 1)
+                            if best is not None:
+                                return best
+                        return None
+
+                    def _add_gemini_citations(text, supports, chunks, model_text=None):
                         if not text or not supports or not chunks:
                             return text
-                        try:
-                            sorted_supports = sorted(
-                                supports,
-                                key=lambda s: _segment_end_index(getattr(s, 'segment', None)) or 0,
-                                reverse=True
-                            )
-                        except Exception:
-                            sorted_supports = supports
-                        for support in sorted_supports:
+                        insertions = []
+                        for order, support in enumerate(supports):
                             segment = getattr(support, 'segment', None)
-                            end_index = _segment_end_index(segment)
-                            if end_index is None or end_index > len(text):
-                                continue
                             idxs = getattr(support, 'grounding_chunk_indices', None) or getattr(support, 'groundingChunkIndices', None) or []
                             if not idxs:
                                 continue
@@ -4165,9 +4204,32 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 _, uri = _chunk_grounding_info(chunks[idx])
                                 if uri:
                                     citation_links.append(f"[{idx + 1}]({uri})")
-                            if citation_links:
-                                text = text[:end_index] + "".join(citation_links) + text[end_index:]
+                            if not citation_links:
+                                continue
+                            position = _gemini_citation_position(text, model_text, segment)
+                            if position is None:
+                                continue
+                            insertions.append((position, order, "".join(citation_links)))
+                        # 後ろから差し込む。同じ位置では元の順に並ぶよう、後のものから入れる。
+                        for position, _order, links in sorted(insertions, reverse=True):
+                            text = text[:position] + links + text[position:]
                         return text
+
+                    def _url_retrieval_status_label(status):
+                        """URL Context の取得状態を表示用の文字列にする（成功・不明なら空）。"""
+                        if status is None:
+                            return ""
+                        value = getattr(status, 'value', None)
+                        if not isinstance(value, str) or not value:
+                            value = getattr(status, 'name', None)
+                        if not isinstance(value, str) or not value:
+                            value = str(status)
+                        value = value.strip()
+                        if value.startswith('UrlRetrievalStatus.'):
+                            value = value[len('UrlRetrievalStatus.'):]
+                        if value in ('', 'ACTIVE', 'URL_RETRIEVAL_STATUS_SUCCESS', 'URL_RETRIEVAL_STATUS_UNSPECIFIED'):
+                            return ""
+                        return value
 
                     def _extract_gemini_thought_text(part):
                         if not part:
@@ -4411,6 +4473,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                                     if hasattr(part, 'text') and part.text:
                                         t_delta = part.text
+                                        grounding_model_text.append(t_delta)
                                         if prior_sandbox_names is None and _has_bare_sandbox_image_ref(sandbox_text_buffer[0] + t_delta):
                                             # The model may cite a file an earlier turn's code saved.
                                             prior_sandbox_names = _prior_sandbox_image_names(thread_id)
@@ -4454,7 +4517,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                     if grounding_chunks and (options.get('enable_search') or options.get('enable_maps')):
                         if grounding_supports:
-                            full_res = _add_gemini_citations(full_res, grounding_supports, grounding_chunks)
+                            full_res = _add_gemini_citations(
+                                full_res, grounding_supports, grounding_chunks, "".join(grounding_model_text)
+                            )
                         sources_lines = []
                         has_sources = False
                         for i, chunk in enumerate(grounding_chunks):
@@ -4487,7 +4552,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 status = getattr(chunk, 'url_retrieval_status', None) or getattr(chunk, 'urlRetrievalStatus', None)
                             if uri:
                                 has_url_sources = True
-                                st_str = f" ({status})" if status and str(status) != "ACTIVE" else ""
+                                st_label = _url_retrieval_status_label(status)
+                                st_str = f" ({st_label})" if st_label else ""
                                 url_sources.append(f"- [{uri}]({uri}){st_str}")
                         if has_url_sources:
                             url_sources_text = "\n\n**URL Context:**\n" + "\n".join(url_sources) + "\n"

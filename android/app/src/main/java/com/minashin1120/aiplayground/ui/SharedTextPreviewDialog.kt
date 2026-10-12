@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ChatMessage
+import com.minashin1120.aiplayground.data.SharedTextMath
 
 /**
  * メッセージとしてプレビュー (ANDROID_ONLY.md): text shared to the 「メッセージとしてプレビュー」 share target,
@@ -46,7 +47,8 @@ internal fun SharedTextPreviewDialog(
 ) {
     val web = LocalWebPalette.current
     val colors = MaterialTheme.colorScheme
-    val message = remember(text) { ChatMessage("shared-preview", "assistant", text) }
+    // Formulas whose sender dropped the `$` delimiters are drawn as math too (SharedTextMath).
+    val message = remember(text) { ChatMessage("shared-preview", "assistant", SharedTextMath.addMissingDelimiters(text)) }
     WebOverlayModal(onDismiss, colors.background, 4.dp, dismissOnOutsideTap = false) { _ ->
         Column(
             Modifier.fillMaxSize().modalPanelTaps()

@@ -47,6 +47,39 @@ class DirectEnginesTest {
         }
     }
 
+    @Test fun geminiKeepsSearchSourcesAndCitationsInTheAnswer() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(sse(
+                """{"candidates":[{"content":{"parts":[{"text":"Tokyo is big."}]}}]}""",
+                """{"candidates":[{"content":{"parts":[{"text":" It rains."}]},"groundingMetadata":{"groundingChunks":[{"web":{"uri":"https://a.example/","title":"A"}},{"web":{"uri":"https://b.example/"}}],"groundingSupports":[{"segment":{"endIndex":13},"groundingChunkIndices":[0,1]},{"segment":{"endIndex":99},"groundingChunkIndices":[0]}]},"urlContextMetadata":{"urlMetadata":[{"retrievedUrl":"https://c.example/","urlRetrievalStatus":"URL_RETRIEVAL_STATUS_SUCCESS"}]}}]}""",
+            ))
+            val engine = GeminiDirect(http, server.url("/").toString().trimEnd('/'))
+            val options = JSONObject().put("enable_search", true).put("enable_url_context", true)
+            val (result, events) = run(engine, request(options))
+            assertEquals(
+                "Tokyo is big.[1](https://a.example/)[2](https://b.example/) It rains." +
+                    "\n\n**Sources:**\n- [1] [A](https://a.example/)\n- [2] [https://b.example/](https://b.example/)\n" +
+                    "\n\n**URL Context:**\n- [https://c.example/](https://c.example/) (UrlRetrievalStatus.URL_RETRIEVAL_STATUS_SUCCESS)\n",
+                result.content,
+            )
+            assertTrue(events.any { it.optString("type") == "content" && it.optString("content").startsWith("\n\n**Sources:**") })
+            assertEquals("done", events.last { it.optString("type") == "search_status" }.optString("content"))
+        }
+    }
+
+    @Test fun geminiLeavesSourcesOutWhenSearchIsOff() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(sse(
+                """{"candidates":[{"content":{"parts":[{"text":"答え"}]},"groundingMetadata":{"groundingChunks":[{"web":{"uri":"https://a.example/","title":"A"}}]}}]}""",
+            ))
+            val engine = GeminiDirect(http, server.url("/").toString().trimEnd('/'))
+            val (result, _) = run(engine, request())
+            assertEquals("答え", result.content)
+        }
+    }
+
     @Test fun geminiSendsImagesInlineAndHistoryRoles() {
         val turns = listOf(
             DirectTurn("user", "前", listOf(DirectAttachment("a.png", "image/png", bytes = byteArrayOf(1, 2)))),

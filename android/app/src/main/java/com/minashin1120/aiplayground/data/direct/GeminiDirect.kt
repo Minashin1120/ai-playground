@@ -34,6 +34,7 @@ class GeminiDirect(
         val files = mutableListOf<DirectOutputFile>()
         var usage: JSONObject? = null
         var searching = false
+        val grounding = GeminiGrounding()
         var pythonId: String? = null
         var pythonCode = ""
         val started = System.currentTimeMillis()
@@ -61,6 +62,7 @@ class GeminiDirect(
                     searching = true
                     emit(event("search_status", "searching"))
                 }
+                grounding.collect(candidate)
                 val parts = candidate.optJSONObject("content")?.optJSONArray("parts") ?: continue
                 for (p in 0 until parts.length()) {
                     val part = parts.optJSONObject(p) ?: continue
@@ -95,10 +97,11 @@ class GeminiDirect(
         }
         Diagnostics.log("gemini.stream_end", "chunks" to chunks, "content_chars" to content.length,
             "ms" to System.currentTimeMillis() - requestStarted)
+        val answer = grounding.finish(content.toString(), request.options) { emit(event("content", it)) }
         if (searching) emit(event("search_status", "done"))
         val meta = usage
         return DirectResult(
-            content = content.toString(), thought = thought.toString(),
+            content = answer, thought = thought.toString(),
             tokensIn = meta?.optInt("promptTokenCount")?.takeIf { it > 0 },
             tokensOut = meta?.let { it.optInt("candidatesTokenCount") + it.optInt("thoughtsTokenCount") }?.takeIf { it > 0 },
             tokensThought = meta?.optInt("thoughtsTokenCount")?.takeIf { it > 0 },
@@ -342,6 +345,104 @@ class GeminiDirect(
         const val FILE_POLL_INTERVAL_MS = 2_000L
         const val FILE_PROCESSING_TIMEOUT_MS = 120_000L
     }
+}
+
+/**
+ * Server Gemini branch (`_collect_grounding` / `_add_gemini_citations`): inline `[n](uri)` citations and the
+ * **Sources:** list for Google Search / Maps, and the **URL Context:** list, kept in the saved answer.
+ */
+internal class GeminiGrounding {
+    private var chunks: JSONArray? = null
+    private var supports: JSONArray? = null
+    private var urlMetadata: JSONArray? = null
+
+    /** The first non-empty metadata of the stream wins, as on the server. */
+    fun collect(candidate: JSONObject) {
+        candidate.optJSONObject("groundingMetadata")?.let { gm ->
+            if (chunks == null) chunks = gm.optJSONArray("groundingChunks")?.takeIf { it.length() > 0 }
+            if (supports == null) supports = gm.optJSONArray("groundingSupports")?.takeIf { it.length() > 0 }
+        }
+        if (urlMetadata == null) {
+            urlMetadata = candidate.optJSONObject("urlContextMetadata")?.optJSONArray("urlMetadata")?.takeIf { it.length() > 0 }
+        }
+    }
+
+    /** The answer with citations and lists added; [emitAppended] gets each appended list, as the server streams it. */
+    fun finish(text: String, options: JSONObject, emitAppended: (String) -> Unit): String {
+        var result = text
+        val chunks = chunks
+        if (chunks != null && (options.flag("enable_search") || options.flag("enable_maps"))) {
+            supports?.let { result = addCitations(result, it, chunks) }
+            var hasSources = false
+            val lines = (0 until chunks.length()).map { i ->
+                val (title, uri) = chunkInfo(chunks.optJSONObject(i))
+                if (title != null || uri != null) hasSources = true
+                when {
+                    uri != null -> "- [${i + 1}] [${title ?: uri}]($uri)"
+                    title != null -> "- [${i + 1}] $title"
+                    else -> "- [${i + 1}] (source unavailable)"
+                }
+            }
+            if (hasSources) {
+                val sources = "\n\n**Sources:**\n" + lines.joinToString("\n") + "\n"
+                result += sources
+                emitAppended(sources)
+            }
+        }
+        val urls = urlMetadata
+        if (urls != null && options.flag("enable_url_context")) {
+            val lines = (0 until urls.length()).mapNotNull { i ->
+                val item = urls.optJSONObject(i) ?: return@mapNotNull null
+                val uri = item.text("retrievedUrl") ?: return@mapNotNull null
+                // The server prints the SDK enum (`UrlRetrievalStatus.…`).
+                val status = item.text("urlRetrievalStatus")?.takeIf { it != "ACTIVE" }?.let { " (UrlRetrievalStatus.$it)" }.orEmpty()
+                "- [$uri]($uri)$status"
+            }
+            if (lines.isNotEmpty()) {
+                val list = "\n\n**URL Context:**\n" + lines.joinToString("\n") + "\n"
+                result += list
+                emitAppended(list)
+            }
+        }
+        return result
+    }
+
+    /** `segment.endIndex` is used as a character offset, as the server does; later segments go in first. */
+    private fun addCitations(text: String, supports: JSONArray, chunks: JSONArray): String {
+        var result = text
+        val sorted = (0 until supports.length()).mapNotNull { supports.optJSONObject(it) }
+            .sortedByDescending { endIndex(it) ?: 0 }
+        for (support in sorted) {
+            val end = endIndex(support) ?: continue
+            val length = result.codePointCount(0, result.length)
+            if (end < 0 || end > length) continue
+            val indices = support.optJSONArray("groundingChunkIndices") ?: continue
+            val links = (0 until indices.length()).mapNotNull { n ->
+                val idx = (indices.opt(n) as? Number)?.toInt() ?: return@mapNotNull null
+                if (idx < 0 || idx >= chunks.length()) return@mapNotNull null
+                chunkInfo(chunks.optJSONObject(idx)).second?.let { "[${idx + 1}]($it)" }
+            }
+            if (links.isEmpty()) continue
+            val at = result.offsetByCodePoints(0, end)
+            result = result.substring(0, at) + links.joinToString("") + result.substring(at)
+        }
+        return result
+    }
+
+    private fun endIndex(support: JSONObject): Int? = (support.optJSONObject("segment")?.opt("endIndex") as? Number)?.toInt()
+
+    /** Server `_chunk_grounding_info`: the chunk, then its `web` and `maps` entries; a Maps place id as the last title. */
+    private fun chunkInfo(chunk: JSONObject?): Pair<String?, String?> {
+        if (chunk == null) return null to null
+        for (entry in listOfNotNull(chunk, chunk.optJSONObject("web"), chunk.optJSONObject("maps"))) {
+            val title = entry.text("title") ?: entry.text("name") ?: entry.text("text")
+            val uri = entry.text("uri") ?: entry.text("url")
+            if (title != null || uri != null) return title to uri
+        }
+        return chunk.text("placeId") to null
+    }
+
+    private fun JSONObject.text(name: String): String? = (opt(name) as? String)?.takeIf { it.isNotEmpty() }
 }
 
 internal fun attachmentText(attachment: DirectAttachment): String =

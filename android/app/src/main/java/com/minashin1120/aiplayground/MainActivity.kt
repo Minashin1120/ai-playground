@@ -159,6 +159,7 @@ open class MainActivity : ComponentActivity() {
     private fun handleShareIntent(intent: Intent?) {
         if (intent?.component?.className == TEXT_PREVIEW_SHARE_ALIAS) {
             if (intent.action != Intent.ACTION_SEND) return
+            logSharedTextShape(intent)
             val text = runCatching { intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() }.getOrNull().orEmpty()
             intent.action = null
             intent.removeExtra(Intent.EXTRA_STREAM)
@@ -182,6 +183,35 @@ open class MainActivity : ComponentActivity() {
         if (text.isNotEmpty()) model.insertSharedText(text)
         if (uris.isEmpty()) return
         if (isSplit) model.openImageSplit(uris) else model.upload(uris)
+    }
+
+    /**
+     * 操作ログ (ログの収集を強化): the shape of text shared to 「メッセージとしてプレビュー」, so a sender app that
+     * drops Markdown and formula delimiters can be told apart. Only types, lengths and counts, never the text.
+     */
+    private fun logSharedTextShape(intent: Intent) {
+        if (!ActivityLog.enabled) return
+        runCatching {
+            val extras = intent.extras
+            val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)
+            val plain = text?.toString().orEmpty()
+            val clip = intent.clipData
+            ActivityLog.log("share.text_shape",
+                "type" to intent.type,
+                "extras" to extras?.keySet()?.sorted().orEmpty(),
+                "text_len" to plain.length,
+                "text_class" to text?.javaClass?.simpleName,
+                "html_len" to intent.getStringExtra(Intent.EXTRA_HTML_TEXT)?.length,
+                "clip_items" to clip?.itemCount,
+                "clip_types" to clip?.description?.let { d -> (0 until d.mimeTypeCount).map { d.getMimeType(it) } },
+                "clip_html_len" to clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.htmlText?.length,
+                "dollars" to plain.count { it == '$' },
+                "tex_parens" to Regex("""\\[(\[]""").findAll(plain).count(),
+                "tex_commands" to Regex("""\\[A-Za-z]+""").findAll(plain).count(),
+                "heading_lines" to plain.lineSequence().count { it.trimStart().startsWith("#") },
+                "bold_marks" to Regex("""\*\*""").findAll(plain).count(),
+            )
+        }
     }
 
     private fun openBubble() {

@@ -69,6 +69,8 @@ MOBILE_ENDPOINT_METHODS = {
     'mobile_sessions': {'GET'}, 'mobile_sessions_revoke': {'POST'},
     'mobile_sessions_revoke_others': {'POST'}, 'mobile_sessions_revoke_all': {'POST'},
     'mobile_security_disable_2fa': {'POST'}, 'mobile_security_e2ee': {'POST'},
+    # BAN screen details and the appeal form (routes_mobile_account.py), open during a BAN.
+    'mobile_ban_status': {'GET'}, 'mobile_ban_appeal': {'POST'},
     'encryption_scan': {'GET'},
     'unlink_google': {'POST'}, 'unlink_minashin': {'POST'}, 'mobile_account_link_start': {'POST'},
     # Serverless mode (routes_mobile_sync.py): chat sync and the user's own API keys.

@@ -96,6 +96,7 @@ import com.minashin1120.aiplayground.ImportSettingChange
 import com.minashin1120.aiplayground.AppChangelogUiState
 import com.minashin1120.aiplayground.AppUpdateUiState
 import com.minashin1120.aiplayground.data.ThreadItem
+import com.minashin1120.aiplayground.data.BanAppealState
 import com.minashin1120.aiplayground.data.ChatAutoScroll
 import com.minashin1120.aiplayground.data.Attachment
 import com.minashin1120.aiplayground.data.isImageReference
@@ -848,7 +849,8 @@ fun PlaygroundScreen(
             if (state.banned) BannedScreen(
                 reason = state.banReason,
                 bannedAt = state.banAt,
-                onWeb = { onWeb("/banned") },
+                appeal = state.banAppeal,
+                onSubmitAppeal = model::submitBanAppeal,
                 onLogout = model::logout,
             )
             if (!state.banned) appUpdate?.let { update ->
@@ -873,17 +875,22 @@ fun PlaygroundScreen(
 /** Top-level screens swapped with a shared cross-fade. */
 private enum class PlaygroundScreenKind { Starting, Setup, Auth, Chat }
 
+/** Web `banned.html`: the BAN notice, the appeal box and the logout button. */
 @Composable
 private fun BannedScreen(
     reason: String,
     bannedAt: String,
-    onWeb: () -> Unit,
+    appeal: BanAppealState,
+    onSubmitAppeal: suspend (String) -> Boolean,
     onLogout: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
+    val scope = rememberCoroutineScope()
+    var message by rememberSaveable { mutableStateOf("") }
+    val success = Color(34, 197, 94)
     Surface(color = colors.background, contentColor = colors.onBackground, modifier = Modifier.fillMaxSize()) {
         Box(
-            Modifier.fillMaxSize().padding(24.dp),
+            Modifier.fillMaxSize().imePadding().padding(24.dp),
             contentAlignment = Alignment.Center,
         ) {
             Card(
@@ -898,13 +905,43 @@ private fun BannedScreen(
                     Text("アカウントはBANされています", style = MaterialTheme.typography.headlineSmall,
                         color = colors.error, fontWeight = FontWeight.Bold)
                     Text("ボット検出により、このアカウントは停止中です。", color = colors.onSurfaceVariant)
-                    Text("解除できるのは管理者のみです。通常のチャットや設定操作は利用できません。",
-                        color = colors.onSurfaceVariant)
+                    Text("解除できるのは管理者のみです。", color = colors.onSurfaceVariant)
                     if (reason.isNotBlank()) Text("理由: $reason", style = MaterialTheme.typography.bodySmall)
                     if (bannedAt.isNotBlank()) Text("日時: $bannedAt", style = MaterialTheme.typography.bodySmall)
-                    Spacer(Modifier.height(4.dp))
-                    Button(onClick = onWeb, modifier = Modifier.fillMaxWidth()) {
-                        Text("Web版で詳細・異議申し立てを確認")
+                    HorizontalDivider(Modifier.padding(top = 8.dp), color = colors.outlineVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("異議申し立て", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        Text("管理者に通知されます", fontSize = 11.sp, color = colors.primary,
+                            modifier = Modifier.clip(CircleShape).background(colors.primary.copy(alpha = 0.14f))
+                                .border(1.dp, colors.primary.copy(alpha = 0.35f), CircleShape).padding(horizontal = 6.dp, vertical = 2.dp))
+                    }
+                    Text("誤判定の可能性がある場合は、状況を詳しく記入してください。", color = colors.onSurfaceVariant)
+                    if (appeal.latestAt.isNotBlank() || appeal.latestStatus.isNotBlank()) {
+                        Text("最新の申し立て: ${appeal.latestAt} / 状態: ${appeal.latestStatus}", style = MaterialTheme.typography.bodySmall)
+                        if (appeal.adminReply.isNotBlank()) BanAlert("管理者からの返信: ${appeal.adminReply}", success)
+                    }
+                    if (appeal.submitted) BanAlert("申し立てを送信しました。管理者が確認します。", success)
+                    if (appeal.error.isNotBlank()) BanAlert(appeal.error, colors.error)
+                    if (appeal.blocked) {
+                        BanAlert("異議申し立てはブロックされています。" +
+                            (if (appeal.blockReason.isNotBlank()) "理由: ${appeal.blockReason}" else ""), colors.error)
+                    } else {
+                        OutlinedTextField(
+                            value = message,
+                            onValueChange = { message = it },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
+                            placeholder = { Text("例: 利用環境や操作内容、誤判定の可能性について記載してください。") },
+                            enabled = !appeal.sending,
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text("10〜3000文字で入力してください。", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                        Button(
+                            onClick = { scope.launch { if (onSubmitAppeal(message)) message = "" } },
+                            enabled = !appeal.sending,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("異議申し立てを送信")
+                        }
                     }
                     OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
                         Text("ログアウト")
@@ -913,6 +950,14 @@ private fun BannedScreen(
             }
         }
     }
+}
+
+/** Web `banned.html` `.alert.success` / `.alert.error`. */
+@Composable
+private fun BanAlert(text: String, tint: Color) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = tint,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(tint.copy(alpha = 0.15f))
+            .border(1.dp, tint.copy(alpha = 0.35f), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 8.dp))
 }
 
 /**

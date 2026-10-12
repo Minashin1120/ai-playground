@@ -176,6 +176,7 @@ data class ChatState(
     val banned: Boolean = false,
     val banReason: String = "",
     val banAt: String = "",
+    val banAppeal: BanAppealState = BanAppealState(),
     val jobId: String? = null, val retryAvailable: Boolean = false, val notice: String? = null,
     val chatTransitionId: Long = 0L,
     val chatTransitionKind: ChatTransitionKind = ChatTransitionKind.NONE,
@@ -392,6 +393,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Stops account work at the same BAN boundary enforced by the Web server. */
     private fun enterBannedState(error: ApiException) {
+        val alreadyBanned = state.value.banned
         listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, cacheSyncJob, batchPollJob,
             realtimeStreamJob, realtimeCaptureJob, lyriaStreamJob, importJob).forEach { it?.cancel() }
         realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
@@ -412,6 +414,60 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mcpDecision = null,
             status = "",
         ) }
+        if (!alreadyBanned) loadBanDetails()
+    }
+
+    /** Web `/banned`: the reason, date and appeal box come from `/api/mobile/v1/ban`. */
+    private fun loadBanDetails() { viewModelScope.launch {
+        try { applyBanDetails(backend.get("/api/mobile/v1/ban", token())) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { /* Keep the reason from the BAN response; the form still works. */ }
+    } }
+
+    private fun applyBanDetails(json: JSONObject, submitted: Boolean = false, error: String = "") {
+        if (!json.optBoolean("banned", true)) {
+            // Web `/banned` redirects to the chat once the BAN is lifted.
+            mutable.update { it.copy(banned = false, banReason = "", banAt = "", banAppeal = BanAppealState()) }
+            viewModelScope.launch { runCatching { loadAccount() }.onFailure { report(it) } }
+            return
+        }
+        val latest = json.optJSONObject("latest_appeal")
+        mutable.update { current -> current.copy(
+            banReason = json.nullableString("reason").ifBlank { current.banReason },
+            banAt = json.nullableString("banned_at").ifBlank { current.banAt },
+            banAppeal = BanAppealState(
+                latestAt = latest?.nullableString("created_at").orEmpty(),
+                latestStatus = latest?.nullableString("status").orEmpty(),
+                adminReply = latest?.nullableString("admin_reply").orEmpty(),
+                blocked = json.optBoolean("appeal_blocked"),
+                blockReason = json.nullableString("appeal_block_reason"),
+                submitted = submitted,
+                error = error,
+            ),
+        ) }
+    }
+
+    /** Web `submit_ban_appeal`; returns true when the appeal was stored (the form is cleared). */
+    suspend fun submitBanAppeal(message: String): Boolean {
+        if (!state.value.banned || state.value.banAppeal.sending) return false
+        mutable.update { it.copy(banAppeal = it.banAppeal.copy(sending = true, submitted = false, error = "")) }
+        return try {
+            applyBanDetails(backend.post("/api/mobile/v1/ban/appeal", JSONObject().put("message", message), token()), submitted = true)
+            true
+        } catch (e: CancellationException) {
+            mutable.update { it.copy(banAppeal = it.banAppeal.copy(sending = false)) }
+            throw e
+        } catch (e: Exception) {
+            val payload = (e as? ApiException)?.payload
+            when {
+                e is ApiException && e.code == "not_banned" -> applyBanDetails(JSONObject().put("banned", false))
+                payload != null && payload.has("banned") ->
+                    applyBanDetails(payload, error = payload.optString("message").ifBlank { e.message.orEmpty() })
+                else -> mutable.update { it.copy(banAppeal = it.banAppeal.copy(sending = false,
+                    error = (e as? ApiException)?.message ?: "異議申し立てを送信できませんでした。通信状態を確認してください。")) }
+            }
+            false
+        }
     }
 
     private fun nextChatTransition(kind: ChatTransitionKind): Pair<Long, ChatTransitionKind> {

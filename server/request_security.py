@@ -511,7 +511,8 @@ def check_bot_ban():
         current_user.bot_unban_notice = False
         safe_db_commit()
     if current_user.is_bot_banned:
-        if request.endpoint in ['logout', 'mobile_revoke', 'static', 'banned', 'submit_ban_appeal', 'api_ban_appeal_status']:
+        if request.endpoint in ['logout', 'mobile_revoke', 'static', 'banned', 'submit_ban_appeal', 'api_ban_appeal_status',
+                                'mobile_ban_status', 'mobile_ban_appeal']:
             return
         if request.endpoint in ['api_ban_appeal', 'api_ban_appeals_summary']:
             return
@@ -593,6 +594,8 @@ _BOT_TURNSTILE_GATE_WHITELIST = {
     'bot_lock_status',
     'logout',
     'submit_ban_appeal',
+    'mobile_ban_status',
+    'mobile_ban_appeal',
     'api_ban_appeal',
     'api_ban_appeal_status',
     'api_ban_appeals_summary',
@@ -618,6 +621,8 @@ _BOT_LOCK_GATE_WHITELIST = {
     'logout',
     'banned',
     'submit_ban_appeal',
+    'mobile_ban_status',
+    'mobile_ban_appeal',
     'api_ban_appeal',
     'api_ban_appeal_status',
     'api_ban_appeals_summary',

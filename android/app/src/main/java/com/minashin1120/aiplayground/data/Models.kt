@@ -486,6 +486,18 @@ data class McpDecision(
     val argsPreview: String,
 )
 
+/** Web `/banned` appeal box: the latest appeal, the block state and the form's result. */
+data class BanAppealState(
+    val latestAt: String = "",
+    val latestStatus: String = "",
+    val adminReply: String = "",
+    val blocked: Boolean = false,
+    val blockReason: String = "",
+    val sending: Boolean = false,
+    val submitted: Boolean = false,
+    val error: String = "",
+)
+
 /** Web `showBotLockOverlay` state. */
 data class AccountLock(val message: String, val untilMillis: Long)
 

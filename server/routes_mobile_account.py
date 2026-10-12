@@ -249,6 +249,52 @@ def mobile_security_e2ee():
     return jsonify({'status': 'ok', 'message': '暗号化設定の変更処理を開始しました。完了までしばらくお待ちください。'})
 
 
+# --- BAN screen: the /banned page's details and appeal form -------------------
+# The BAN gate (request_security.py) lets these through like `banned` and
+# `submit_ban_appeal`. Dates and status are the strings the Web page renders.
+
+def _mobile_ban_payload(user):
+    latest = BanAppeal.query.filter_by(user_id=user.id).order_by(BanAppeal.created_at.desc()).first()
+    return {
+        'banned': bool(user.is_bot_banned),
+        'reason': user.bot_ban_reason or '',
+        'banned_at': str(user.bot_banned_at) if user.bot_banned_at else '',
+        'appeal_blocked': bool(getattr(user, 'appeal_blocked', False)),
+        'appeal_block_reason': getattr(user, 'appeal_block_reason', None) or '',
+        'latest_appeal': {
+            'created_at': str(latest.created_at) if latest.created_at else '',
+            'status': latest.status or '',
+            'admin_reply': latest.admin_reply or '',
+        } if latest else None,
+    }
+
+
+@app.route('/api/mobile/v1/ban', methods=['GET'])
+def mobile_ban_status():
+    if getattr(current_user, 'is_admin', False):
+        return _mobile_error('admin_not_allowed', 403)
+    return jsonify(_mobile_ban_payload(current_user))
+
+
+@app.route('/api/mobile/v1/ban/appeal', methods=['POST'])
+def mobile_ban_appeal():
+    """Web `submit_ban_appeal`: same checks and messages, answered as JSON."""
+    if getattr(current_user, 'is_admin', False):
+        return _mobile_error('admin_not_allowed', 403)
+    if not current_user.is_bot_banned:
+        return _mobile_error('not_banned', 409)
+    body = request.get_json(silent=True) or {}
+    message = body.get('message') if isinstance(body, dict) else None
+    message = message.strip() if isinstance(message, str) else ''
+    error = ban_appeal_error(current_user, message)
+    if error:
+        response = jsonify({'error': 'appeal_rejected', 'message': error, **_mobile_ban_payload(current_user)})
+        response.status_code = 400
+        return response
+    create_ban_appeal(current_user, message)
+    return jsonify({'status': 'ok', **_mobile_ban_payload(current_user)})
+
+
 # --- Google / Minashin linking from the settings Account tab ------------------
 # The provider sign-in runs in a browser tab without the app's bearer token, so
 # the app first obtains a one-time grant (after a re-authentication) and opens

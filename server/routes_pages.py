@@ -255,30 +255,40 @@ def submit_ban_appeal():
         return redirect(url_for('index'))
     if not current_user.is_bot_banned:
         return redirect(url_for('index'))
-    if getattr(current_user, "appeal_blocked", False):
-        session['appeal_error'] = current_user.appeal_block_reason or "異議申し立てはブロックされています。"
-        return redirect(url_for('banned'))
     message = (request.form.get('message') or '').strip()
+    error = ban_appeal_error(current_user, message)
+    if error:
+        session['appeal_error'] = error
+        return redirect(url_for('banned'))
+    create_ban_appeal(current_user, message)
+    session['appeal_submitted'] = True
+    return redirect(url_for('banned'))
+
+def ban_appeal_error(user, message):
+    """Return the /banned page's error text for an appeal, or None when it can be sent."""
+    if getattr(user, "appeal_blocked", False):
+        return user.appeal_block_reason or "異議申し立てはブロックされています。"
     if not message or len(message) < 10:
-        session['appeal_error'] = "内容は10文字以上で入力してください。"
-        return redirect(url_for('banned'))
+        return "内容は10文字以上で入力してください。"
     if len(message) > 3000:
-        session['appeal_error'] = "内容は3000文字以内で入力してください。"
-        return redirect(url_for('banned'))
+        return "内容は3000文字以内で入力してください。"
+    return None
+
+def create_ban_appeal(user, message):
+    """Store a ban appeal for the admin review list (shared by Web and Android)."""
     appeal = BanAppeal(
-        user_id=current_user.id,
-        username=current_user.username,
+        user_id=user.id,
+        username=user.username,
         message=message,
-        ban_reason=current_user.bot_ban_reason,
-        ban_at=current_user.bot_banned_at,
+        ban_reason=user.bot_ban_reason,
+        ban_at=user.bot_banned_at,
         ip_address=get_client_ip(),
         user_agent=get_request_user_agent(),
-        evidence=current_user.bot_evidence
+        evidence=user.bot_evidence
     )
     db.session.add(appeal)
     safe_db_commit()
-    session['appeal_submitted'] = True
-    return redirect(url_for('banned'))
+    return appeal
 
 @app.route('/api/ban/appeal/status')
 @login_required

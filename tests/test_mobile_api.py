@@ -1246,6 +1246,47 @@ class MobileApiTests(unittest.TestCase):
             target.db.session.commit()
         self.assertEqual(self.call('/api/mobile/v1/me', token).status_code, 401)
 
+    def test_banned_user_sees_ban_details_and_sends_appeal_like_web(self):
+        token = self.token()
+        self.assertEqual(self.call('/api/mobile/v1/ban/appeal', token, 'POST', json={'message': 'x' * 20}).status_code, 409)
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.is_bot_banned = True
+            user.bot_ban_reason = 'rapid_send'
+            user.bot_banned_at = datetime(2026, 10, 12, 1, 2, 3)
+            target.db.session.commit()
+        self.assertEqual(self.call('/api/threads', token).json['error'], 'banned')
+        status = self.call('/api/mobile/v1/ban', token)
+        self.assertEqual(status.status_code, 200)
+        self.assertEqual(status.json['reason'], 'rapid_send')
+        self.assertEqual(status.json['banned_at'], '2026-10-12 01:02:03')
+        self.assertIsNone(status.json['latest_appeal'])
+        short = self.call('/api/mobile/v1/ban/appeal', token, 'POST', json={'message': '  short  '})
+        self.assertEqual(short.status_code, 400)
+        self.assertEqual(short.json['message'], '内容は10文字以上で入力してください。')
+        long = self.call('/api/mobile/v1/ban/appeal', token, 'POST', json={'message': 'x' * 3001})
+        self.assertEqual(long.json['message'], '内容は3000文字以内で入力してください。')
+        sent = self.call('/api/mobile/v1/ban/appeal', token, 'POST', json={'message': '  誤判定だと思います。確認をお願いします。  '})
+        self.assertEqual(sent.status_code, 200)
+        self.assertEqual(sent.json['latest_appeal']['status'], 'new')
+        with target.app.app_context():
+            appeal = target.BanAppeal.query.filter_by(user_id=self.user_id).one()
+            self.assertEqual(appeal.message, '誤判定だと思います。確認をお願いします。')
+            self.assertEqual(appeal.ban_reason, 'rapid_send')
+            appeal.admin_reply = '確認しました。'
+            user = target.db.session.get(target.User, self.user_id)
+            user.appeal_blocked = True
+            user.appeal_block_reason = '繰り返しの申し立て'
+            target.db.session.commit()
+        self.assertEqual(self.call('/api/mobile/v1/ban', token).json['latest_appeal']['admin_reply'], '確認しました。')
+        blocked = self.call('/api/mobile/v1/ban/appeal', token, 'POST', json={'message': 'x' * 20})
+        self.assertEqual(blocked.status_code, 400)
+        self.assertEqual(blocked.json['message'], '繰り返しの申し立て')
+        self.assertTrue(blocked.json['appeal_blocked'])
+        with mock.patch.object(target, '_bot_lock_info', return_value=(True, '', 300)):
+            self.assertEqual(self.call('/api/mobile/v1/ban', token).status_code, 200)
+        self.assertEqual(self.call('/api/mobile/v1/ban', token, 'DELETE').json['error'], 'insufficient_scope')
+
     def test_web_revoke_all_revokes_native_token(self):
         token = self.token()
         with target.app.app_context():

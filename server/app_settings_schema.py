@@ -256,6 +256,22 @@ def ensure_import_signature_columns():
     except Exception:
         pass
 
+def ensure_feedback_agent_column():
+    """Add ``feedback.agent_name`` (the AI agent that sent a feedback) before any feedback query selects it."""
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='feedback' "
+                "AND COLUMN_NAME='agent_name'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE feedback ADD COLUMN agent_name VARCHAR(40)"))
+    except Exception:
+        pass
+
 def ensure_ban_appeal_outlives_account():
     """Drop ``ban_appeal``'s foreign key to ``user`` so appeals survive account deletion.
 

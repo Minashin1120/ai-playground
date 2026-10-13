@@ -12,6 +12,8 @@ _FEEDBACK_LOG_MAX_BYTES = 3_500_000
 _FEEDBACK_LOG_MAX_LINE = 64 * 1024
 _FEEDBACK_LOG_KEEP_FILES = 500
 _FEEDBACK_INFO_NAME = 'feedback.json'
+# WSGI environ key through which scripts/update_feedback_status.py names the agent recorded in ``handled_by``.
+FEEDBACK_AGENT_ENVIRON = 'aiplayground.feedback_agent'
 _FEEDBACK_ACTIVITY_LOG = os.path.join('logs', 'activity.jsonl')
 
 
@@ -102,7 +104,7 @@ def _write_feedback_info(fb, **extra):
     info.update({
         'feedback_id': fb.public_id, 'user_id': fb.user_id, 'username': user.username if user else None,
         'title': fb.title or '', 'message': fb.message, 'status': fb.status,
-        'admin_reply': fb.admin_reply or '', 'handled_by': fb.handled_by or '',
+        'admin_reply': fb.admin_reply or '', 'handled_by': fb.handled_by or '', 'agent_name': fb.agent_name or '',
         'created_at': fb.created_at.isoformat(timespec='seconds') + 'Z' if fb.created_at else None,
         'updated_at': fb.updated_at.isoformat(timespec='seconds') + 'Z' if fb.updated_at else None,
     })
@@ -269,6 +271,7 @@ def feedback():
             'status': f.status,
             'admin_reply': f.admin_reply or "",
             'handled_by': f.handled_by or "",
+            'agent_name': f.agent_name or "",
             'created_at': f.created_at.isoformat(),
             'updated_at': f.updated_at.isoformat() if f.updated_at else None
         })
@@ -307,6 +310,14 @@ def create_easy_login():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def _feedback_agent_name():
+    """The AI agent named by scripts/update_feedback_status.py, which calls this API in-process.
+
+    It travels in a WSGI environ key that an HTTP request cannot set (headers arrive as ``HTTP_*``).
+    """
+    name = str(request.environ.get(FEEDBACK_AGENT_ENVIRON) or '').strip()
+    return name[:40] if name else None
+
 @app.route('/api/feedback/<fid>/update', methods=['POST'])
 @login_required
 def feedback_update(fid):
@@ -322,7 +333,7 @@ def feedback_update(fid):
         fb.status = status
     if reply is not None:
         fb.admin_reply = reply
-    fb.handled_by = current_user.username
+    fb.handled_by = _feedback_agent_name() or current_user.username
     fb.updated_at = datetime.utcnow()
     safe_db_commit()
     try:

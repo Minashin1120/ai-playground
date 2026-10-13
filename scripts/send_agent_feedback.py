@@ -2,13 +2,14 @@
 """Send a feedback as the administrator, for a problem an AI agent found but did not fix.
 
 The feedback is stored exactly like one sent from the app (database row, ``feedback/<ID>/feedback.json``),
-with ``client`` set to ``claude-code``. Nothing is restarted or committed.
+with ``client`` set to ``agent`` and the agent's own name (``--agent``) in ``agent_name``, which the admin
+screen shows instead of the administrator account. Nothing is restarted or committed.
 
 Usage (from the app directory)
 ------------------------------
-    venv/bin/python scripts/send_agent_feedback.py --title "〇〇の不具合" --message-file body.txt
-    venv/bin/python scripts/send_agent_feedback.py --title "〇〇の不具合" --message-file - < body.txt
-    venv/bin/python scripts/send_agent_feedback.py --title "〇〇の不具合" --message-file body.txt --dry-run
+    venv/bin/python scripts/send_agent_feedback.py --agent "Claude Code" --title "〇〇の不具合" --message-file body.txt
+    venv/bin/python scripts/send_agent_feedback.py --agent "Claude Code" --title "〇〇の不具合" --message-file - < body.txt
+    venv/bin/python scripts/send_agent_feedback.py --agent "Claude Code" --title "〇〇の不具合" --message-file body.txt --dry-run
 
 The title gets 「（エージェント調査）」 at the end when it is missing. A feedback with the same title stops
 the run (``--allow-duplicate`` sends it anyway). A body that looks like it holds a key or a password stops it.
@@ -23,6 +24,7 @@ import sys
 
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TITLE_SUFFIX = "（エージェント調査）"
+AGENT_PATTERN = re.compile(r"^[0-9A-Za-z][0-9A-Za-z .()_-]{0,39}$")
 TITLE_LIMIT = 200
 MESSAGE_LIMIT = 100_000
 SECRET_PATTERNS = [
@@ -64,6 +66,7 @@ def _existing_titles(feedback_root):
 
 def main():
     parser = argparse.ArgumentParser(description="Send a feedback for a problem an AI agent found.")
+    parser.add_argument("--agent", required=True, help="送るエージェント自身の名前（例: Claude Code）。管理画面に表示される")
     parser.add_argument("--title", required=True, help="件名（末尾に「（エージェント調査）」を自動で付ける）")
     body = parser.add_mutually_exclusive_group(required=True)
     body.add_argument("--message", help="本文")
@@ -72,6 +75,9 @@ def main():
     parser.add_argument("--allow-duplicate", action="store_true", help="同じ件名があっても送る")
     args = parser.parse_args()
 
+    agent = args.agent.strip()
+    if not AGENT_PATTERN.match(agent):
+        _fail("--agent must be 1-40 letters, digits, spaces or . ( ) _ - (for example: Claude Code)")
     title = args.title.strip()
     if not title.endswith(TITLE_SUFFIX):
         title += TITLE_SUFFIX
@@ -100,6 +106,7 @@ def main():
         if user is None:
             _fail("no administrator account")
 
+        print(f"agent:   {agent}")
         print(f"title:   {title}")
         print(f"account: id={user.id}")
         print(f"message: {len(message)} characters")
@@ -107,18 +114,18 @@ def main():
             print("[dry-run] not sent")
             return 0
 
-        fb = target.Feedback(user_id=user.id, title=title, message=message)
+        fb = target.Feedback(user_id=user.id, title=title, message=message, agent_name=agent)
         db.session.add(fb)
         db.session.commit()
         target._reset_feedback_dir(fb.public_id)
         target._write_feedback_info(
-            fb, client="claude-code", client_version=None,
+            fb, client="agent", client_version=None,
             server_version=app.config.get("SYSTEM_VERSION"),
-            user_agent="Claude Code (AI agent)", activity_log_saved=None, chat_copy_saved=None)
+            user_agent=f"{agent} (AI agent)", activity_log_saved=None, chat_copy_saved=None)
 
         with open(os.path.join(target._feedback_dir(fb.public_id), "feedback.json"), encoding="utf-8") as handle:
             saved = json.load(handle)
-        if saved.get("title") != title or saved.get("client") != "claude-code":
+        if saved.get("title") != title or saved.get("client") != "agent" or saved.get("agent_name") != agent:
             _fail(f"feedback {fb.public_id} was created but feedback.json does not match", code=2)
         print(f"[ok] created feedback {fb.public_id} (status: {saved.get('status')})")
     return 0

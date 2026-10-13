@@ -13571,7 +13571,7 @@
                         const el = document.createElement('div');
                         el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50 space-y-2';
                         el.innerHTML = `
-                            <div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / user:${item.user_id} / ${item.created_at}</div>
+                            <div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.agent_name ? `agent:${escapeHtml(item.agent_name)}` : `user:${item.user_id}`} / ${item.created_at}${item.handled_by ? ` / 対応: ${escapeHtml(item.handled_by)}` : ''}</div>
                             <div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div>
                             <div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div>
                             ${[item.log_file && `操作ログ: ${item.log_file}`, item.chat_file && `チャットのコピー: ${item.chat_file}`, item.image_dir && `添付画像（${item.image_count}枚）: ${item.image_dir}`].filter(Boolean).map(t => `<div class="text-[11px] text-amber-300">${escapeHtml(t)}</div>`).join('')}

@@ -248,6 +248,8 @@ class Feedback(db.Model):
     status = db.Column(db.String(20), default="new")  # new, in_review, replied, rejected, resolved
     admin_reply = db.Column(db.Text, nullable=True)
     handled_by = db.Column(db.String(80), nullable=True)
+    # Name of the AI agent that sent the feedback through scripts/send_agent_feedback.py (shown instead of the account).
+    agent_name = db.Column(db.String(40), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     # Stable identity of the imported feedback row so repeat imports can be

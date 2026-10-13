@@ -1044,6 +1044,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_feedback_agent_column()
+    except Exception:
+        pass
+    try:
         ensure_ban_appeal_outlives_account()
     except Exception:
         pass

@@ -1312,7 +1312,9 @@ dmin-list");m.is_admin?(b.classList.remove("hidden"),x.innerHTML="",(m.items||[]
 createElement("div");L.className="p-2 rounded border border-gray-700 bg-gray-800/50 space-y-2",L.innerHTML=
 `
                             <div class="text-[11px] text-gray-400">ID: <span class="select-all font-\
-mono">${escapeHtml(S.public_id||"")}</span> / user:${S.user_id} / ${S.created_at}</div>
+mono">${escapeHtml(S.public_id||"")}</span> / ${S.agent_name?`agent:${escapeHtml(S.agent_name)}`:`us\
+er:${S.user_id}`} / ${S.created_at}${S.handled_by?` / \u5BFE\u5FDC: ${escapeHtml(S.handled_by)}`:""}\
+</div>
                             <div class="font-bold text-sm">${escapeHtml(S.title||"No Title")}</div>
                             <div class="text-sm whitespace-pre-wrap">${escapeHtml(S.message)}</div>
                             ${[S.log_file&&`\u64CD\u4F5C\u30ED\u30B0: ${S.log_file}`,S.chat_file&&`\u30C1\

@@ -13,8 +13,8 @@
 - `build_frontend.sh`：バージョン付きチャットJS/CSSと補助スクリプトを圧縮する
 - `rebuild_chat_core_parts.sh`（`_rebuild_chat_core_parts.js`）：`verify_changes.sh` がチャットコア部品の行数超過を警告したときに、部品を再分割して `static/js/chat_core_parts/README.md` の表を作り直す（概要は手で確認して直す）
 - `rotate_encryption_key.py`：`secret.key` の安全なローテーション（手順は [../deploy/KEY_ROTATION.md](../deploy/KEY_ROTATION.md)）
-- `send_agent_feedback.py`：開発作業中に見つけて、その作業では直さなかった問題を、管理者アカウントのフィードバックとして登録する（同じ件名と、キー・パスワードらしき文字列があれば停止。`--dry-run` で確認だけ）
-- `update_feedback_status.py`：フィードバックの状態（と返信）を、管理画面と同じ `/api/feedback/<ID>/update` を管理者アカウントで呼んで変更する（状態は管理画面の5つだけ。`--dry-run` で現在の状態の確認だけ）
+- `send_agent_feedback.py`：開発作業中に見つけて、その作業では直さなかった問題を、管理者アカウントのフィードバックとして、`--agent` のエージェント名を付けて登録する（同じ件名と、キー・パスワードらしき文字列があれば停止。`--dry-run` で確認だけ）
+- `update_feedback_status.py`：フィードバックの状態（と返信）を、管理画面と同じ `/api/feedback/<ID>/update` を管理者アカウントで呼んで変更し、対応者に `--agent` のエージェント名を記録する（状態は管理画面の5つだけ。`--dry-run` で現在の状態の確認だけ）
 - `build_icon_subset.py`：使用中のFont Awesomeアイコンだけを同梱する
 - `test_landing_demo_dom.js`：軽量DOM shimを用いたランディング画面テスト
 - `measure_landing_cdp.py`／`verify_landing_geometry.js`：ブラウザー上の描画・座標検証

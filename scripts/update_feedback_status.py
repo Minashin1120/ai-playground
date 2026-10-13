@@ -2,14 +2,15 @@
 """Change the status of feedbacks through the same API the admin screen uses.
 
 Each change is a POST to ``/api/feedback/<ID>/update`` as the administrator account with the smallest ID,
-so the database row, ``handled_by``, ``updated_at`` and ``feedback/<ID>/feedback.json`` are written exactly
-as when the 「保存」 button is pressed. Nothing is restarted or committed.
+so the database row, ``updated_at`` and ``feedback/<ID>/feedback.json`` are written exactly as when the
+「保存」 button is pressed. ``handled_by`` gets the agent's own name (``--agent``) instead of the account's,
+passed in a WSGI environ key that an HTTP request cannot set. Nothing is restarted or committed.
 
 Usage (from the app directory)
 ------------------------------
-    venv/bin/python scripts/update_feedback_status.py --set 1d933dc9c016=resolved --set 391cc54136ea=in_review
-    venv/bin/python scripts/update_feedback_status.py --set 1d933dc9c016=resolved --dry-run
-    venv/bin/python scripts/update_feedback_status.py --set 391cc54136ea=replied --reply-file reply.txt
+    venv/bin/python scripts/update_feedback_status.py --agent "Claude Code" --set 1d933dc9c016=resolved --set 391cc54136ea=in_review
+    venv/bin/python scripts/update_feedback_status.py --agent "Claude Code" --set 1d933dc9c016=resolved --dry-run
+    venv/bin/python scripts/update_feedback_status.py --agent "Claude Code" --set 391cc54136ea=replied --reply-file reply.txt
 
 The status must be one the admin screen offers. A reply is sent to the person who wrote the feedback,
 so it is accepted only with a single ``--set``. The message body of a feedback is never printed.
@@ -25,6 +26,7 @@ import sys
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATUSES = ("new", "in_review", "replied", "rejected", "resolved")
 ID_PATTERN = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
+AGENT_PATTERN = re.compile(r"^[0-9A-Za-z][0-9A-Za-z .()_-]{0,39}$")
 REPLY_LIMIT = 20_000
 TITLE_PREVIEW = 40
 
@@ -70,6 +72,7 @@ def _saved_info(target, public_id):
 
 def main():
     parser = argparse.ArgumentParser(description="Change the status of feedbacks as the administrator.")
+    parser.add_argument("--agent", required=True, help="変更するエージェント自身の名前（例: Claude Code）。対応者として記録される")
     parser.add_argument("--set", action="append", required=True, metavar="ID=STATUS",
                         help=f"変更するフィードバックと状態（{' / '.join(STATUSES)}）。複数指定できる")
     reply = parser.add_mutually_exclusive_group()
@@ -78,6 +81,9 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="現在の状態を表示するだけで変更しない")
     args = parser.parse_args()
 
+    agent = args.agent.strip()
+    if not AGENT_PATTERN.match(agent):
+        _fail("--agent must be 1-40 letters, digits, spaces or . ( ) _ - (for example: Claude Code)")
     changes = _parse_changes(args.set)
     reply_text = _read_reply(args)
     if reply_text is not None:
@@ -105,6 +111,7 @@ def main():
         if admin is None:
             _fail("no administrator account")
 
+        print(f"agent:   {agent}")
         print(f"account: id={admin.id}")
         for fid, status in changes:
             public_id, current, title = found[fid]
@@ -132,11 +139,12 @@ def main():
                 payload["admin_reply"] = reply_text
             response = client.post(
                 f"/api/feedback/{public_id}/update", json=payload, base_url=base_url,
-                headers={"X-CSRF-Token": csrf_token}, environ_base={"REMOTE_ADDR": "127.0.0.1"})
+                headers={"X-CSRF-Token": csrf_token},
+                environ_base={"REMOTE_ADDR": "127.0.0.1", target.FEEDBACK_AGENT_ENVIRON: agent})
             body = response.get_json(silent=True) or {}
             saved = _saved_info(target, public_id)
             ok = (response.status_code == 200 and body.get("status") == "ok" and saved.get("status") == status
-                  and (reply_text is None or saved.get("admin_reply") == reply_text))
+                  and saved.get("handled_by") == agent and (reply_text is None or saved.get("admin_reply") == reply_text))
             if ok:
                 print(f"[ok] {public_id}: {status}")
             else:

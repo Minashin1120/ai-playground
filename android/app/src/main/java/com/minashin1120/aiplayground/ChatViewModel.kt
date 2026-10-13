@@ -155,6 +155,8 @@ data class ChatState(
     val compression: CompressionSettings = CompressionSettings(),
     val mcpServers: List<McpServerInfo> = emptyList(), val mcpBusy: Boolean = false,
     val feedbackItems: List<FeedbackItem> = emptyList(), val feedbackBusy: Boolean = false,
+    /** The server answered that this account is an administrator: [feedbackItems] then holds every feedback. */
+    val feedbackAdmin: Boolean = false,
     val storage: StorageUsage? = null,
     val historyCacheMode: HistoryCacheMode = HistoryCacheMode.VIEWED,
     val cacheMobileDataAllowed: Boolean = false,
@@ -4785,13 +4787,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (state.value.offline) return@launch
             mutable.update { it.copy(feedbackBusy = true) }
-            try { mutable.update { it.copy(feedbackItems = parseFeedbackItems(backend.get("/api/feedback", token()))) } }
+            // Web `loadFeedback`: `all=1` returns every feedback to an administrator, otherwise the user's own.
+            try {
+                val list = parseFeedbackList(backend.get("/api/feedback?all=1", token()))
+                mutable.update { it.copy(feedbackItems = list.items, feedbackAdmin = list.isAdmin) }
+            }
             catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(feedbackBusy = false) } }
         }
     }
 
-    /** Deletes the user's own feedback; the server also removes its activity log and chat copy. */
+    /** Web `.fb-save` in `#fb-admin-list`: an administrator sets the status and the reply, then the list is read again. */
+    fun updateFeedback(item: FeedbackItem, status: String, reply: String) {
+        viewModelScope.launch {
+            if (state.value.offline) return@launch
+            mutable.update { it.copy(feedbackBusy = true) }
+            try {
+                backend.post("/api/feedback/${item.publicId.ifBlank { item.id.toString() }}/update",
+                    JSONObject().put("status", status).put("admin_reply", reply), token())
+            } catch (e: Exception) {
+                report(e)
+            } finally { mutable.update { it.copy(feedbackBusy = false) } }
+            loadFeedback()
+        }
+    }
+
+    /** Deletes a feedback (the user's own, or any for an administrator); the server also removes its activity log and chat copy. */
     fun deleteFeedback(item: FeedbackItem) {
         viewModelScope.launch {
             if (state.value.offline) { notify("オフライン中はフィードバックを削除できません。"); return@launch }

@@ -239,7 +239,17 @@ data class FeedbackItem(
     val createdAt: String,
     /** Images attached to the feedback (0 for answers of an older server). */
     val imageCount: Int = 0,
+    // Shown to administrators only (Web `#fb-admin-list`); the server sends the paths to administrators only.
+    val userId: Int? = null,
+    val agentName: String = "",
+    val handledBy: String = "",
+    val logFile: String = "",
+    val chatFile: String = "",
+    val imageDir: String = "",
 )
+
+/** GET `/api/feedback?all=1`: every feedback for an administrator, otherwise the user's own. */
+data class FeedbackList(val items: List<FeedbackItem>, val isAdmin: Boolean)
 
 data class StorageUsage(
     val usedBytes: Long,
@@ -414,9 +424,17 @@ fun parseFeedbackItems(json: JSONObject): List<FeedbackItem> {
             adminReply = row.nullableString("admin_reply"),
             createdAt = row.nullableString("created_at"),
             imageCount = row.optInt("image_count"),
+            userId = if (row.isNull("user_id")) null else row.optInt("user_id"),
+            agentName = row.nullableString("agent_name"),
+            handledBy = row.nullableString("handled_by"),
+            logFile = row.nullableString("log_file"),
+            chatFile = row.nullableString("chat_file"),
+            imageDir = row.nullableString("image_dir"),
         )
     }
 }
+
+fun parseFeedbackList(json: JSONObject): FeedbackList = FeedbackList(parseFeedbackItems(json), json.optBoolean("is_admin"))
 
 fun parseStorageUsage(json: JSONObject): StorageUsage = StorageUsage(
     usedBytes = json.optLong("used_bytes"),

@@ -229,24 +229,43 @@ class MobileSyncApiTests(unittest.TestCase):
         browser = self.browser.post('/api/mobile/v1/diagnostics', base_url='https://localhost', json=entries)
         self.assertIn(browser.status_code, (400, 401, 403, 404))
 
-    def test_feedback_delete_is_owner_only_even_for_administrators(self):
+    def test_feedback_management_is_owner_only_except_for_administrators(self):
+        # Administrators manage all feedback (status, reply, delete) in the app as on Web.
         feedback_dir = tempfile.TemporaryDirectory(prefix='mobile-feedback-')
         self.addCleanup(feedback_dir.cleanup)
         patcher = mock.patch.dict(target.app.config, FEEDBACK_DIR=feedback_dir.name)
         patcher.start()
         self.addCleanup(patcher.stop)
         with target.app.app_context():
-            user = target.db.session.get(target.User, self.user_id)
-            user.is_admin = True
             mine = target.Feedback(user_id=self.user_id, message='mine')
             theirs = target.Feedback(user_id=self.other_id, message='theirs')
-            target.db.session.add_all([mine, theirs])
+            other = target.Feedback(user_id=self.other_id, message='other')
+            target.db.session.add_all([mine, theirs, other])
             target.db.session.commit()
-            mine_id, theirs_id = mine.public_id, theirs.public_id
-        for fid in (mine_id, theirs_id):
+            mine_id, theirs_id, other_id = mine.public_id, theirs.public_id, other.public_id
+        for fid in (mine_id, theirs_id, other_id):
             os.makedirs(os.path.join(feedback_dir.name, fid))
         token = self.token()
+        # A user sees and deletes only their own, and cannot answer feedback.
+        listed = self.call('/api/feedback?all=1', token).json
+        self.assertFalse(listed['is_admin'])
+        self.assertEqual([item['public_id'] for item in listed['items']], [mine_id])
         self.assertEqual(self.call(f'/api/feedback/{theirs_id}', token, 'DELETE').status_code, 404)
+        self.assertEqual(self.call(f'/api/feedback/{theirs_id}/update', token, 'POST',
+                                   json={'status': 'resolved'}).status_code, 403)
+        with target.app.app_context():
+            target.db.session.get(target.User, self.user_id).is_admin = True
+            target.db.session.commit()
+        listed = self.call('/api/feedback?all=1', token).json
+        self.assertTrue(listed['is_admin'])
+        self.assertEqual({item['public_id'] for item in listed['items']}, {mine_id, theirs_id, other_id})
+        updated = self.call(f'/api/feedback/{theirs_id}/update', token, 'POST',
+                            json={'status': 'replied', 'admin_reply': '確認しました。'})
+        self.assertEqual(updated.status_code, 200)
+        with target.app.app_context():
+            row = target.Feedback.query.filter_by(public_id=theirs_id).one()
+            self.assertEqual((row.status, row.admin_reply, row.handled_by), ('replied', '確認しました。', 'sync-owner'))
+        self.assertEqual(self.call(f'/api/feedback/{other_id}', token, 'DELETE').status_code, 200)
         self.assertEqual(self.call(f'/api/feedback/{mine_id}', token, 'DELETE').status_code, 200)
         self.assertEqual(os.listdir(feedback_dir.name), [theirs_id])
 

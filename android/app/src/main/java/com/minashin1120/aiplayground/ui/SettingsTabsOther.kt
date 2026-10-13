@@ -271,7 +271,13 @@ private fun decodeFeedbackThumb(context: Context, uri: Uri): ImageBitmap? {
     return context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }?.asImageBitmap()
 }
 
-internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (String) -> Unit): List<SettingsCardSpec> = listOf(
+/** Web `.fb-status` in `#fb-admin-list`. */
+private val FEEDBACK_STATUS_OPTIONS = webOptions(
+    "new" to "new", "in_review" to "in_review", "replied" to "replied", "rejected" to "rejected", "resolved" to "resolved",
+)
+private const val FEEDBACK_DELETE_CONFIRM = "このフィードバックを削除しますか？\n一緒に送信した操作ログとチャットのコピーも削除されます。"
+
+internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (String) -> Unit): List<SettingsCardSpec> = listOfNotNull(
     SettingsCardSpec(SettingsTab.Feedback, "send", "フィードバック送信",
         "フィードバック送信 タイトル (任意) バグ報告・要望などを入力してください $FEEDBACK_CHAT_COPY_LABEL $FEEDBACK_CHAT_COPY_DESCRIPTION 画像を添付 $FEEDBACK_IMAGES_NOTE 送信",
         titleIcon = R.drawable.fa_solid_bug) {
@@ -336,7 +342,8 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
         val web = LocalWebPalette.current
         var deleting by remember { mutableStateOf<FeedbackItem?>(null) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            state.feedbackItems.forEach { item ->
+            // Web `loadFeedback`: an administrator's feedback is listed in the administrator card only.
+            if (!state.feedbackAdmin) state.feedbackItems.forEach { item ->
                 val shape = RoundedCornerShape(4.dp)
                 Column(
                     Modifier.fillMaxWidth().clip(shape).background(web.twBg(Tw.gray800).copy(alpha = 0.5f))
@@ -355,13 +362,61 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
             }
         }
         deleting?.let { item ->
-            BrowserConfirmDialog("このフィードバックを削除しますか？\n一緒に送信した操作ログとチャットのコピーも削除されます。") { ok ->
+            BrowserConfirmDialog(FEEDBACK_DELETE_CONFIRM) { ok ->
+                deleting = null
+                if (ok) model.deleteFeedback(item)
+            }
+        }
+    },
+    if (!state.feedbackAdmin) null else SettingsCardSpec(SettingsTab.Feedback, "admin", "管理者: すべてのフィードバック",
+        "管理者: すべてのフィードバック 返信内容 保存 削除") {
+        var deleting by remember { mutableStateOf<FeedbackItem?>(null) }
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            state.feedbackItems.forEach { item ->
+                key(item.id) { AdminFeedbackRow(item, !state.feedbackBusy, { status, reply -> model.updateFeedback(item, status, reply) }) { deleting = item } }
+            }
+        }
+        deleting?.let { item ->
+            BrowserConfirmDialog(FEEDBACK_DELETE_CONFIRM) { ok ->
                 deleting = null
                 if (ok) model.deleteFeedback(item)
             }
         }
     },
 )
+
+/** Web `#fb-admin-list` item: who sent it, the saved files, the status, the reply, 保存 and 削除. */
+@Composable
+private fun AdminFeedbackRow(item: FeedbackItem, enabled: Boolean, onSave: (String, String) -> Unit, onDelete: () -> Unit) {
+    val web = LocalWebPalette.current
+    val shape = RoundedCornerShape(4.dp)
+    var status by remember(item.status) { mutableStateOf(item.status.ifBlank { "new" }) }
+    var reply by remember(item.adminReply) { mutableStateOf(item.adminReply) }
+    val sender = if (item.agentName.isNotBlank()) "agent:${item.agentName}" else "user:${item.userId ?: ""}"
+    val handled = if (item.handledBy.isNotBlank()) " / 対応: ${item.handledBy}" else ""
+    val files = listOfNotNull(
+        item.logFile.takeIf { it.isNotBlank() }?.let { "操作ログ: $it" },
+        item.chatFile.takeIf { it.isNotBlank() }?.let { "チャットのコピー: $it" },
+        item.imageDir.takeIf { it.isNotBlank() }?.let { "添付画像（${item.imageCount}枚）: $it" },
+    )
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(web.twBg(Tw.gray800).copy(alpha = 0.5f))
+            .border(1.dp, web.twBorder(Tw.gray700), shape).padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("ID: ${item.publicId} / $sender / ${item.createdAt}$handled", fontSize = 11.sp, color = Tw.gray400)
+        Text(item.title.ifBlank { "No Title" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = web.text)
+        Text(item.message, fontSize = 14.sp, color = web.text)
+        files.forEach { Text(it, fontSize = 11.sp, color = Tw.amber300) }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsSelect(status, FEEDBACK_STATUS_OPTIONS, { status = it }, fillWidth = false, fontSize = 12.sp)
+            SettingsSmallButton("保存", { onSave(status, reply) }, tone = SettingsButtonTone.Blue, enabled = enabled)
+            SettingsSmallButton("削除", onDelete, tone = SettingsButtonTone.Red, enabled = enabled)
+        }
+        SettingsTextField(reply, { reply = it }, Modifier.fillMaxWidth(), placeholder = "返信内容",
+            minHeight = 64.dp, singleLine = false, fontSize = 12.sp)
+    }
+}
 
 internal fun mcpCards(state: ChatState, model: ChatViewModel, extras: SettingsExtras, ops: AccountOps): List<SettingsCardSpec> {
     return listOf(

@@ -347,10 +347,9 @@ def feedback_update(fid):
 def feedback_delete(fid):
     """Deletes a feedback with its directory (information, activity log, chat copy).
 
-    The sender deletes their own; administrators delete any from the browser only, since
-    administrative rights are not extended to Android tokens (android/ANDROID_ONLY.md)."""
+    The sender deletes their own; administrators delete any, on Web and in the Android app."""
     fb = _feedback_by_ref(fid)
-    is_admin = bool(getattr(current_user, 'is_admin', False)) and getattr(g, 'mobile_session', None) is None
+    is_admin = bool(getattr(current_user, 'is_admin', False))
     if fb is None or (fb.user_id != current_user.id and not is_admin):
         return jsonify({'error': 'not_found'}), 404
     _ensure_feedback_public_id(fb)

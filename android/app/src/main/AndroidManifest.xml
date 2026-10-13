@@ -87,6 +87,18 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
+        <!-- 「AIで翻訳」 in the system text-selection menu: a translucent modal over the source app. -->
+        <activity android:name=".TranslateOverlayActivity" android:exported="true"
+            android:label="AIで翻訳"
+            android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"
+            android:theme="@style/ImageSplitOverlayTheme" android:taskAffinity=""
+            android:excludeFromRecents="true" android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
         <!-- Android 10-16 notification bubbles only. documentLaunchMode="always" must stay
              off MainActivity: on the launcher entry it creates a new task on every launch. -->
         <activity android:name=".ChatBubbleActivity" android:exported="true"

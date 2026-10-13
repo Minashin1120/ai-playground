@@ -14,6 +14,7 @@
 | `app/build.gradle.kts` | 固定applicationId・共有署名・依存関係 | アプリ構成・署名を確認するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | Custom Tabs・HTTPS App Links・添付共有（送信・他アプリの共有シートからの受信（ファイルは添付、テキストは入力欄へ追加）、「画像を分割」と「メッセージとしてプレビュー」の共有先）・APKインストール・Activityライフサイクル | ブラウザー認証からの復帰、ファイル表示、共有シート添付、アプリ更新 |
 | `app/src/main/java/com/minashin1120/aiplayground/ProcessTextActivity.kt` | 他アプリのテキスト選択メニュー「プロンプトとして添付」（`ACTION_PROCESS_TEXT`）。選択した文字を共有シートと同じ経路で入力欄へ追加し、選択元は置き換えない | テキスト選択メニューからの入力を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/TranslateOverlayActivity.kt`, `ui/SelectionTranslationDialog.kt`, `data/SelectionTranslator.kt`, `TranslationSetting.kt` | 他アプリのテキスト選択メニュー「AIで翻訳」（`ACTION_PROCESS_TEXT`）。選択元のアプリを背後に残す透過画面で、設定の「Android」カードで選んだモデル・言語の翻訳を表示する。サーバー経由は一時チャットを作って回答後に削除し、サーバー不使用モードとアカウントなしは端末から直接送る | テキスト選択からの翻訳を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/GoogleAuthClient.kt` | Credential ManagerによるGoogle IDトークン取得 | Googleのネイティブログインを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateViewModel.kt` | 更新検出と画面への状態中継・インストール段階 | アプリ更新フローを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateDownloadManager.kt` | プロセス全体で1つの更新状態・APKダウンロード・キャンセル・ダイアログの非表示／再表示 | 更新ダウンロードの状態遷移を変更するとき |

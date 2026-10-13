@@ -470,6 +470,25 @@ class LocalChatBackend(
         onEvent(last)
     }
 
+    /**
+     * ANDROID_ONLY.md 「AIで翻訳」: one answer to [message] without history, the user's own prompt or
+     * chat instructions, saved nowhere. [onContent] gets each piece of text as it arrives.
+     */
+    suspend fun answerOnce(model: String, message: String, onContent: (String) -> Unit): String = withContext(Dispatchers.IO) {
+        val found = router.route(model, modeOf(model)) ?: throw ApiException(400, JSONObject().put("code", "serverless_unsupported")
+            .put("error", "このモデルはサーバー不使用モードでは使えません。"))
+        val vertex = if (found.provider == "gemini" && found.engine is com.minashin1120.aiplayground.data.direct.GeminiDirect) vertexTarget() else null
+        val route = if (vertex != null) DirectRouter.Route("gemini", router.vertexGemini(vertex)) else found
+        val apiKey = if (vertex != null) "" else settings.apiKeyFor(model) ?: throw ApiException(400, JSONObject().put("code", "api_key_missing")
+            .put("error", "このモデルのAPIキーが端末に設定されていません。").put("model", model))
+        val body = JSONObject().put("model", model).put("message", message).put("enable_system_prompt", false)
+        val system = SystemPromptBuilder.build(body, promptPreferences(), SystemPromptBuilder.ThreadSettings("", false), defaults, route.provider)
+        val result = route.engine.run(DirectRequest(model, apiKey, system, listOf(DirectTurn("user", message)), body), { event ->
+            if (event.optString("type") == "content") onContent(event.optString("content"))
+        }) { _, _ -> }
+        result.content
+    }
+
     private var vertexAuth: com.minashin1120.aiplayground.data.direct.VertexAuth? = null
     private var vertexCredentials: String? = null
 

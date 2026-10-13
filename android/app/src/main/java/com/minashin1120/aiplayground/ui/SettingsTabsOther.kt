@@ -44,6 +44,10 @@ import com.minashin1120.aiplayground.data.formatByteSize
 import com.minashin1120.aiplayground.isToolbarNotificationEnabled
 import com.minashin1120.aiplayground.isVibrationEnabled
 import com.minashin1120.aiplayground.setVibrationEnabled
+import com.minashin1120.aiplayground.DEFAULT_TRANSLATION_LANGUAGE
+import com.minashin1120.aiplayground.loadTranslationSetting
+import com.minashin1120.aiplayground.setTranslationLanguage
+import com.minashin1120.aiplayground.setTranslationModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.minashin1120.aiplayground.setToolbarNotificationEnabled
@@ -60,7 +64,7 @@ internal class SettingsExtras(
 
 /** ANDROID_ONLY.md: the "Android" card at the end of the General tab (account, app update, bubble). */
 internal fun androidCard(state: ChatState, extras: SettingsExtras): SettingsCardSpec =
-    SettingsCardSpec(SettingsTab.General, "android", "Android", "Android アカウント アプリ更新 更新を確認 バブル ツールバー通知 通知パネル 画像を分割 バイブレーション 振動") {
+    SettingsCardSpec(SettingsTab.General, "android", "Android", "Android アカウント アプリ更新 更新を確認 バブル ツールバー通知 通知パネル 画像を分割 バイブレーション 振動 翻訳 AIで翻訳 テキスト選択 翻訳先の言語") {
         val update = extras.appUpdate
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsFieldLabel("アカウント")
@@ -90,6 +94,7 @@ internal fun androidCard(state: ChatState, extras: SettingsExtras): SettingsCard
             )
             ToolbarNotificationSetting(extras.onNotify)
             VibrationSetting()
+            TranslationSettingFields(state)
         }
     }
 
@@ -125,6 +130,53 @@ private fun VibrationSetting() {
         enabled = on
     })
     SettingsDesc("オフにすると、メッセージの送信時と回答の完了時に端末を振動させません。")
+}
+
+/**
+ * ANDROID_ONLY.md: model and target language of 「AIで翻訳」 in the text-selection menu (saved on the device at
+ * once). The model is chosen in the same Select Model modal as the chat, limited to text chat models.
+ */
+@Composable
+private fun TranslationSettingFields(state: ChatState) {
+    val context = LocalContext.current
+    var setting by remember { mutableStateOf(loadTranslationSetting(context)) }
+    var picking by remember { mutableStateOf(false) }
+    var language by remember { mutableStateOf(setting.language) }
+    val chatModels = state.account?.models.orEmpty().filter { it.mode == "chat" }
+    val current = chatModels.firstOrNull { it.id == setting.model }
+    SettingsFieldLabel("AIで翻訳", Modifier.padding(top = 4.dp))
+    SettingsDesc("他のアプリで文字を選択し、メニューの「AIで翻訳」を選ぶと、開いているアプリの上に翻訳を表示します。")
+    SettingsFieldLabel("翻訳に使うモデル")
+    SettingsSmallButton(
+        when {
+            setting.model.isBlank() -> "モデルを選択"
+            else -> current?.name ?: setting.modelName.ifBlank { setting.model }
+        },
+        { picking = true }, icon = R.drawable.fa_solid_robot, fill = true, enabled = chatModels.isNotEmpty(),
+    )
+    if (setting.model.isNotBlank() && chatModels.isNotEmpty() && current?.selectable != true) {
+        SettingsDesc("選択中のモデルは現在使えません。別のモデルを選択してください。", color = Tw.red300)
+    }
+    SettingsFieldLabel("翻訳先の言語")
+    SettingsTextField(language, { value ->
+        language = value.take(40)
+        setTranslationLanguage(context, language)
+        setting = setting.copy(language = language.trim().ifBlank { DEFAULT_TRANSLATION_LANGUAGE })
+    }, Modifier.fillMaxWidth(), placeholder = DEFAULT_TRANSLATION_LANGUAGE)
+    ModalHost(picking) {
+        val account = state.account
+        ModelPicker(
+            if (account == null) state else state.copy(account = account.copy(models = chatModels)),
+            onDismiss = { picking = false },
+            onSelect = { id ->
+                val name = chatModels.firstOrNull { it.id == id }?.name.orEmpty()
+                setTranslationModel(context, id, name)
+                setting = setting.copy(model = id, modelName = name)
+                picking = false
+            },
+            selectedId = setting.model, lockToPromptCache = false,
+        )
+    }
 }
 
 internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsForm, extras: SettingsExtras): List<SettingsCardSpec> = listOf(

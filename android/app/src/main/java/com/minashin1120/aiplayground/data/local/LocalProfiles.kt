@@ -51,5 +51,8 @@ class LocalProfiles(private val context: Context) {
         private val MAGIC = byteArrayOf('L'.code.toByte(), 'C'.code.toByte(), 'S'.code.toByte(), 1)
 
         fun accountKey(accountId: Int): String = "server:${originLabel(ServerOrigin.current)}#$accountId"
+
+        /** `navigation` preference that turns serverless mode on for [accountId] on the active server. */
+        fun serverlessPrefKey(accountId: Int): String = "serverless_" + accountKey(accountId)
     }
 }

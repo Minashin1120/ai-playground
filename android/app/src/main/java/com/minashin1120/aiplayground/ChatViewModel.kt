@@ -805,7 +805,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun serverlessPrefKey(accountId: Int) = "serverless_" + LocalProfiles.accountKey(accountId)
+    private fun serverlessPrefKey(accountId: Int) = LocalProfiles.serverlessPrefKey(accountId)
 
     /** Applies the saved serverless choice of [account] (called after the account loads). */
     private fun applyServerlessMode(account: Account) {
@@ -5101,7 +5101,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private companion object {
+    internal companion object {
         const val CHUNK_UPLOAD_THRESHOLD_BYTES = 8L * 1024 * 1024
         /** Web `CONNECTION_RETRY_DELAY_MS`. */
         const val CONNECTION_RETRY_DELAY_MS = 2000L

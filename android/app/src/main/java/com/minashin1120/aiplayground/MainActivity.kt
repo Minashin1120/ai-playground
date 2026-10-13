@@ -43,6 +43,7 @@ open class MainActivity : ComponentActivity() {
         handleAuthIntent(intent)
         handleShareIntent(intent)
         handleUpdateIntent(intent)
+        handleSettingsIntent(intent)
         // A fresh launch asks GitHub for a new version. Returning to the app (another app, a picker,
         // a browser sign-in) or a rotation does not, nor does opening a bubble. A restored process
         // has a new ViewModel whose phase is still Checking and no request in flight, so ask again
@@ -96,6 +97,7 @@ open class MainActivity : ComponentActivity() {
         handleAuthIntent(intent)
         handleShareIntent(intent)
         handleUpdateIntent(intent)
+        handleSettingsIntent(intent)
     }
 
     /**
@@ -118,6 +120,13 @@ open class MainActivity : ComponentActivity() {
         if (intent == null || !intent.getBooleanExtra(EXTRA_SHOW_APP_UPDATE, false)) return
         intent.removeExtra(EXTRA_SHOW_APP_UPDATE)
         updateModel.showDialog()
+    }
+
+    /** 「AIで翻訳」 without a model opens the settings at the Android card. */
+    private fun handleSettingsIntent(intent: Intent?) {
+        val card = intent?.getStringExtra(EXTRA_OPEN_SETTINGS_CARD) ?: return
+        intent.removeExtra(EXTRA_OPEN_SETTINGS_CARD)
+        model.requestSettings(com.minashin1120.aiplayground.ui.SettingsTab.General.id, card)
     }
 
     private fun handleBubbleIntent(intent: Intent?) {

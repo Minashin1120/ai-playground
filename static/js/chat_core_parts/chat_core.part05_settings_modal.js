@@ -1463,18 +1463,50 @@
                 }
             }
         };
+        const clearPromptCache = async (restoreOnFailure = false) => {
+            const cacheChk = get('enable-prompt-cache');
+            const wasOn = restoreOnFailure || !!(cacheChk && cacheChk.checked);
+            if (cacheChk) cacheChk.checked = false;
+            updatePromptCacheUi();
+            if (typeof currentThreadId !== 'undefined' && currentThreadId) {
+                try {
+                    const response = await apiFetch('/api/threads/' + encodeURIComponent(currentThreadId) + '/settings', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enable_prompt_caching: false })
+                    });
+                    if (!response.ok) throw new Error('failed');
+                } catch (e) {
+                    if (wasOn && cacheChk) {
+                        cacheChk.checked = true;
+                        updatePromptCacheUi();
+                    }
+                    showToast('プロンプトキャッシュを解除できませんでした', 'error', true);
+                    return;
+                }
+            }
+            showToast('プロンプトキャッシュを解除しました。', 'info', true);
+        };
         const bindPromptCacheControls = () => {
             const cacheChk = get('enable-prompt-cache');
-            if (!cacheChk || cacheChk.dataset.bound === '1') return;
-            cacheChk.dataset.bound = '1';
-            cacheChk.addEventListener('change', () => {
-                updatePromptCacheUi();
-                if (cacheChk.checked) {
-                    const prov = getModelApiProvider(get('model-select') ? get('model-select').value : '');
-                    const label = PROVIDER_LABELS[prov] || prov || '現在のAPI';
-                    showToast(`PromptCache を有効化しました。以降は ${label} 以外のモデルに変更できません。`, 'info', true);
-                }
-            });
+            if (cacheChk && cacheChk.dataset.bound !== '1') {
+                cacheChk.dataset.bound = '1';
+                cacheChk.addEventListener('change', () => {
+                    updatePromptCacheUi();
+                    if (cacheChk.checked) {
+                        const prov = getModelApiProvider(get('model-select') ? get('model-select').value : '');
+                        const label = PROVIDER_LABELS[prov] || prov || '現在のAPI';
+                        showToast(`PromptCache を有効化しました。以降は ${label} 以外のモデルに変更できません。`, 'info', true);
+                    } else {
+                        clearPromptCache(true);
+                    }
+                });
+            }
+            const clearBtn = get('clear-prompt-cache-btn');
+            if (clearBtn && clearBtn.dataset.bound !== '1') {
+                clearBtn.dataset.bound = '1';
+                clearBtn.addEventListener('click', () => { clearPromptCache(); });
+            }
         };
         const getModelMediaSupport = (model) => {
             const m = (model || '').toLowerCase();

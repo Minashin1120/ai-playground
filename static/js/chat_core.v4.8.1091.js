@@ -8168,18 +8168,50 @@
                 }
             }
         };
+        const clearPromptCache = async (restoreOnFailure = false) => {
+            const cacheChk = get('enable-prompt-cache');
+            const wasOn = restoreOnFailure || !!(cacheChk && cacheChk.checked);
+            if (cacheChk) cacheChk.checked = false;
+            updatePromptCacheUi();
+            if (typeof currentThreadId !== 'undefined' && currentThreadId) {
+                try {
+                    const response = await apiFetch('/api/threads/' + encodeURIComponent(currentThreadId) + '/settings', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ enable_prompt_caching: false })
+                    });
+                    if (!response.ok) throw new Error('failed');
+                } catch (e) {
+                    if (wasOn && cacheChk) {
+                        cacheChk.checked = true;
+                        updatePromptCacheUi();
+                    }
+                    showToast('プロンプトキャッシュを解除できませんでした', 'error', true);
+                    return;
+                }
+            }
+            showToast('プロンプトキャッシュを解除しました。', 'info', true);
+        };
         const bindPromptCacheControls = () => {
             const cacheChk = get('enable-prompt-cache');
-            if (!cacheChk || cacheChk.dataset.bound === '1') return;
-            cacheChk.dataset.bound = '1';
-            cacheChk.addEventListener('change', () => {
-                updatePromptCacheUi();
-                if (cacheChk.checked) {
-                    const prov = getModelApiProvider(get('model-select') ? get('model-select').value : '');
-                    const label = PROVIDER_LABELS[prov] || prov || '現在のAPI';
-                    showToast(`PromptCache を有効化しました。以降は ${label} 以外のモデルに変更できません。`, 'info', true);
-                }
-            });
+            if (cacheChk && cacheChk.dataset.bound !== '1') {
+                cacheChk.dataset.bound = '1';
+                cacheChk.addEventListener('change', () => {
+                    updatePromptCacheUi();
+                    if (cacheChk.checked) {
+                        const prov = getModelApiProvider(get('model-select') ? get('model-select').value : '');
+                        const label = PROVIDER_LABELS[prov] || prov || '現在のAPI';
+                        showToast(`PromptCache を有効化しました。以降は ${label} 以外のモデルに変更できません。`, 'info', true);
+                    } else {
+                        clearPromptCache(true);
+                    }
+                });
+            }
+            const clearBtn = get('clear-prompt-cache-btn');
+            if (clearBtn && clearBtn.dataset.bound !== '1') {
+                clearBtn.dataset.bound = '1';
+                clearBtn.addEventListener('click', () => { clearPromptCache(); });
+            }
         };
         const getModelMediaSupport = (model) => {
             const m = (model || '').toLowerCase();
@@ -14157,9 +14189,9 @@
                     this.assistantTurnBreak = false;
                     this.userTurnBreak = false;
                 }
-                async start(token, url, model, config = {}) {
+                async start(token, url, model, config = {}, prepared = null) {
                     this.model = model;
-                    this.ws = new WebSocket(`${url}?access_token=${token}`);
+                    this.ws = new WebSocket(`${url}?access_token=${encodeURIComponent(token)}`);
                     this.ws.binaryType = 'arraybuffer';
 
                     this.ws.onopen = () => {
@@ -14212,10 +14244,19 @@
                         if (this.onClose) this.onClose(e);
                     };
 
-                    this.stream = await navigator.mediaDevices.getUserMedia(getMicCaptureConstraints());
-                    const mic = openMicAudioSource(this.stream, 16000);
-                    this.audioContext = mic.ctx;
-                    const source = mic.source;
+                    if (prepared && prepared.stream && prepared.ctx && prepared.source) {
+                        this.stream = prepared.stream;
+                        this.audioContext = prepared.ctx;
+                        var source = prepared.source;
+                    } else {
+                        this.stream = await navigator.mediaDevices.getUserMedia(getMicCaptureConstraints());
+                        const mic = openMicAudioSource(this.stream, 16000);
+                        this.audioContext = mic.ctx;
+                        var source = mic.source;
+                    }
+                    if (this.audioContext.state === 'suspended') {
+                        try { await this.audioContext.resume(); } catch (e) {}
+                    }
                     this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
 
                     this.userAudioChunks = [];
@@ -14305,13 +14346,28 @@
                     this.assistantText += text;
                 }
                 stop() {
-                    if (this.ws) this.ws.close();
-                    if (this.processor) this.processor.disconnect();
-                    if (this.audioContext) this.audioContext.close();
-                    if (this.stream) this.stream.getTracks().forEach(t => t.stop());
-                    if (this.backupRecorder) this.backupRecorder.stop();
+                    // Stop the recorder before the mic tracks. Stopping the tracks first drops
+                    // the buffered recording, and getFinalData used to read it before `stop` fired.
+                    const recorder = this.backupRecorder;
+                    this.backupRecorder = null;
+                    this._stopped = new Promise((resolve) => {
+                        let settled = false;
+                        const finish = () => { if (!settled) { settled = true; resolve(); } };
+                        if (!recorder || recorder.state === 'inactive') { finish(); return; }
+                        recorder.addEventListener('stop', finish, { once: true });
+                        try { recorder.stop(); } catch (e) { finish(); }
+                        setTimeout(finish, 1500);
+                    });
+                    if (this.ws) { try { this.ws.close(); } catch (e) {} }
+                    if (this.processor) { try { this.processor.disconnect(); } catch (e) {} }
+                    const release = () => {
+                        if (this.stream) this.stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
+                        if (this.audioContext) { try { this.audioContext.close(); } catch (e) {} }
+                    };
+                    this._stopped.then(release);
                 }
                 async getFinalData() {
+                    if (this._stopped) await this._stopped;
                     const assistantAudioBlob = new Blob(this.assistantAudioChunks);
                     const assistantAudioBase64 = await this._blobToBase64(assistantAudioBlob);
                     const userAudioBlob = new Blob(this.userAudioChunks);
@@ -15643,6 +15699,36 @@
                 if (supported.autoGainControl) audio.autoGainControl = false;
                 return { audio };
             }
+            // Open the mic during the click. A later await (the session token)
+            // drops mobile Chrome's user activation, and an AudioContext created
+            // after that stays suspended, so Live never receives PCM.
+            function beginGeminiLiveMic() {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('マイクを利用できません');
+                }
+                let ctx = null;
+                try {
+                    ctx = new AC({ sampleRate: 16000 });
+                } catch (e) {
+                    if (ctx) { try { ctx.close(); } catch (err) {} ctx = null; }
+                    ctx = new AC();
+                }
+                const resumePromise = ctx.resume();
+                const streamPromise = navigator.mediaDevices.getUserMedia(getMicCaptureConstraints());
+                return { ctx, resumePromise, streamPromise };
+            }
+            function releaseGeminiLiveMic(prepared) {
+                if (!prepared) return;
+                if (prepared.streamPromise) {
+                    prepared.streamPromise.then(stream => {
+                        try { stream.getTracks().forEach(track => track.stop()); } catch (e) {}
+                    }).catch(() => {});
+                } else if (prepared.stream) {
+                    try { prepared.stream.getTracks().forEach(track => track.stop()); } catch (e) {}
+                }
+                if (prepared.ctx) { try { prepared.ctx.close(); } catch (e) {} }
+            }
             get('mic-btn').onclick = async () => {
                 if (abortController) {
                     showToast("回答生成中です。完了までお待ちいただくか、停止してください。", "warning", true);
@@ -15675,6 +15761,17 @@
                                 setTimeout(() => setStsStatus('Tap to speak', false), 1000);
                                 return;
                             }
+                        }
+
+                        const hasLiveText = (finalData.user_text || '').trim()
+                            || (finalData.assistant_text || '').trim()
+                            || (finalData.assistant_thought || '').trim();
+                        const hasLiveAudio = !!(finalData.audio_base64 || finalData.user_audio_base64);
+                        if (!hasLiveText && !hasLiveAudio) {
+                            setStsStatus('Error', false);
+                            showToast('Gemini Live の音声を取得できませんでした。もう一度お試しください。', 'error', true);
+                            setTimeout(() => setStsStatus('Tap to speak', false), 1000);
+                            return;
                         }
 
                         if (!currentThreadId) {
@@ -15733,7 +15830,9 @@
 
                     if (isGeminiLiveModel()) {
                         setStsStatus('Connecting...', true);
+                        let liveMic = null;
                         try {
+                            liveMic = beginGeminiLiveMic();
                             const modelKeyForSession = get('model-select').value;
                             const sessionBody = {
                                 model: modelKeyForSession
@@ -15754,6 +15853,13 @@
                                     sessionBody.target_lang = get('sts-target-lang').value;
                                 }
                             }
+                            const micStream = await liveMic.streamPromise;
+                            try { await liveMic.resumePromise; } catch (e) {}
+                            liveMic = {
+                                stream: micStream,
+                                ctx: liveMic.ctx,
+                                source: liveMic.ctx.createMediaStreamSource(micStream)
+                            };
                             const res = await apiFetch('/api/gemini/session', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -15782,12 +15888,12 @@
                                 }
                                 await currentGeminiLive.start(token, url, modelKey, {
                                     transcriptionConfig
-                                });
+                                }, liveMic);
                             } else if (isGeminiLiveTranslateModel()) {
                                 const targetLang = get('sts-target-lang') ? get('sts-target-lang').value : 'ja';
                                 await currentGeminiLive.start(token, url, modelKey, {
                                     translationConfig: { targetLanguageCode: targetLang, echoTargetLanguage: true }
-                                });
+                                }, liveMic);
                             } else {
                                 const liveConfig = {
                                     speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
@@ -15795,8 +15901,9 @@
                                 if (isGeminiLiveExtendedThinkingModel()) {
                                     liveConfig.thinkingConfig = { thinkingLevel: thinking_level, includeThoughts: include_thoughts };
                                 }
-                                await currentGeminiLive.start(token, url, modelKey, liveConfig);
+                                await currentGeminiLive.start(token, url, modelKey, liveConfig, liveMic);
                             }
+                            liveMic = null;
                             mediaRecorder = currentGeminiLive.backupRecorder; // For silence monitor
 
                             // Bind onstop to trigger the save logic (clicking mic-btn again)
@@ -15899,6 +16006,11 @@
                             if (liveClient.closedEvent) liveClient.onClose(liveClient.closedEvent);
                             return;
                         } catch (e) {
+                            releaseGeminiLiveMic(liveMic);
+                            if (currentGeminiLive) {
+                                try { currentGeminiLive.stop(); } catch (err) {}
+                                currentGeminiLive = null;
+                            }
                             showToast("Gemini Live connection failed: " + e.message, "error", true);
                             setStsStatus('Error', false);
                             return;

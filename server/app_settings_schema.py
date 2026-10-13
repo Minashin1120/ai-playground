@@ -208,6 +208,15 @@ def ensure_thread_prompt_caching_columns():
             if not res2:
                 conn.execute(text("SET SESSION lock_wait_timeout=1"))
                 conn.execute(text("ALTER TABLE thread ADD COLUMN prompt_cache_provider VARCHAR(32)"))
+            res3 = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='thread' "
+                "AND COLUMN_NAME='prompt_cache_nonce'"
+            )).scalar()
+            if not res3:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE thread ADD COLUMN prompt_cache_nonce VARCHAR(32)"))
     except Exception:
         pass
 

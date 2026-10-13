@@ -145,6 +145,8 @@ class Thread(db.Model):
     last_gem_uuid = db.Column(db.String(36), nullable=True)
     enable_prompt_caching = db.Column(db.Boolean, default=False)
     prompt_cache_provider = db.Column(db.String(32), nullable=True)
+    # Set when the user clears the cache so the next enable uses a new provider cache key.
+    prompt_cache_nonce = db.Column(db.String(32), nullable=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     # Stable per-user identity of the source record this thread was imported
     # from (e.g. "thread:<source-public-id>").  Used to detect duplicate

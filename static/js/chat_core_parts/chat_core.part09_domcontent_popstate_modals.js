@@ -768,9 +768,9 @@
                     this.assistantTurnBreak = false;
                     this.userTurnBreak = false;
                 }
-                async start(token, url, model, config = {}) {
+                async start(token, url, model, config = {}, prepared = null) {
                     this.model = model;
-                    this.ws = new WebSocket(`${url}?access_token=${token}`);
+                    this.ws = new WebSocket(`${url}?access_token=${encodeURIComponent(token)}`);
                     this.ws.binaryType = 'arraybuffer';
 
                     this.ws.onopen = () => {
@@ -823,10 +823,19 @@
                         if (this.onClose) this.onClose(e);
                     };
 
-                    this.stream = await navigator.mediaDevices.getUserMedia(getMicCaptureConstraints());
-                    const mic = openMicAudioSource(this.stream, 16000);
-                    this.audioContext = mic.ctx;
-                    const source = mic.source;
+                    if (prepared && prepared.stream && prepared.ctx && prepared.source) {
+                        this.stream = prepared.stream;
+                        this.audioContext = prepared.ctx;
+                        var source = prepared.source;
+                    } else {
+                        this.stream = await navigator.mediaDevices.getUserMedia(getMicCaptureConstraints());
+                        const mic = openMicAudioSource(this.stream, 16000);
+                        this.audioContext = mic.ctx;
+                        var source = mic.source;
+                    }
+                    if (this.audioContext.state === 'suspended') {
+                        try { await this.audioContext.resume(); } catch (e) {}
+                    }
                     this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
 
                     this.userAudioChunks = [];
@@ -916,13 +925,28 @@
                     this.assistantText += text;
                 }
                 stop() {
-                    if (this.ws) this.ws.close();
-                    if (this.processor) this.processor.disconnect();
-                    if (this.audioContext) this.audioContext.close();
-                    if (this.stream) this.stream.getTracks().forEach(t => t.stop());
-                    if (this.backupRecorder) this.backupRecorder.stop();
+                    // Stop the recorder before the mic tracks. Stopping the tracks first drops
+                    // the buffered recording, and getFinalData used to read it before `stop` fired.
+                    const recorder = this.backupRecorder;
+                    this.backupRecorder = null;
+                    this._stopped = new Promise((resolve) => {
+                        let settled = false;
+                        const finish = () => { if (!settled) { settled = true; resolve(); } };
+                        if (!recorder || recorder.state === 'inactive') { finish(); return; }
+                        recorder.addEventListener('stop', finish, { once: true });
+                        try { recorder.stop(); } catch (e) { finish(); }
+                        setTimeout(finish, 1500);
+                    });
+                    if (this.ws) { try { this.ws.close(); } catch (e) {} }
+                    if (this.processor) { try { this.processor.disconnect(); } catch (e) {} }
+                    const release = () => {
+                        if (this.stream) this.stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
+                        if (this.audioContext) { try { this.audioContext.close(); } catch (e) {} }
+                    };
+                    this._stopped.then(release);
                 }
                 async getFinalData() {
+                    if (this._stopped) await this._stopped;
                     const assistantAudioBlob = new Blob(this.assistantAudioChunks);
                     const assistantAudioBase64 = await this._blobToBase64(assistantAudioBlob);
                     const userAudioBlob = new Blob(this.userAudioChunks);

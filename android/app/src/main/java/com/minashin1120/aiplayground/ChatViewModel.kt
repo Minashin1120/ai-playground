@@ -1740,7 +1740,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun draft(text: String) { mutable.update { it.copy(draft = text) } }
-    /** Text shared from another app's share sheet: appended to the prompt input like the rich-paste insert. */
+    /**
+     * Text shared from another app: appended to the prompt input like the rich-paste insert.
+     * Used by the share sheet and by 「プロンプトとして添付」 in the text-selection menu.
+     */
     fun insertSharedText(text: String) {
         if (state.value.starting) {
             // Launched from the share sheet: the saved session is not loaded yet.
@@ -1838,11 +1841,41 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleFileCreation() { mutable.update { it.copy(enableFileCreation = !it.enableFileCreation) } }
     fun toggleSystemPrompt() { mutable.update { it.copy(enableSystemPrompt = !it.enableSystemPrompt) } }
     fun togglePromptCache() {
-        mutable.update { it.copy(enablePromptCache = !it.enablePromptCache) }
         if (state.value.enablePromptCache) {
-            val provider = modelApiProvider(state.value.model)
-            val label = PROVIDER_LABELS[provider] ?: provider ?: "現在のAPI"
-            notify("PromptCache を有効化しました。以降は $label 以外のモデルに変更できません。")
+            clearPromptCache()
+            return
+        }
+        mutable.update { it.copy(enablePromptCache = true) }
+        val provider = modelApiProvider(state.value.model)
+        val label = PROVIDER_LABELS[provider] ?: provider ?: "現在のAPI"
+        notify("PromptCache を有効化しました。以降は $label 以外のモデルに変更できません。")
+    }
+
+    /** Turns PromptCache off and drops the saved provider lock for the open chat. */
+    fun clearPromptCache() {
+        val thread = state.value.selected
+        val wasOn = state.value.enablePromptCache
+        mutable.update { it.copy(enablePromptCache = false) }
+        viewModelScope.launch {
+            if (thread != null && state.value.offline && !deviceChat(thread.id)) {
+                mutable.update { it.copy(enablePromptCache = wasOn) }
+                notify("オフライン中はチャット設定を変更できません。")
+                return@launch
+            }
+            if (thread != null) {
+                try {
+                    backend.put(
+                        "/api/threads/${thread.id}/settings",
+                        JSONObject().put("enable_prompt_caching", false),
+                        token(),
+                    )
+                } catch (e: Exception) {
+                    mutable.update { it.copy(enablePromptCache = wasOn) }
+                    report(e)
+                    return@launch
+                }
+            }
+            notify("プロンプトキャッシュを解除しました。")
         }
     }
     /** Web `enable-batch-mode` change: turning Batch on releases Coding, which Batch cannot run. */

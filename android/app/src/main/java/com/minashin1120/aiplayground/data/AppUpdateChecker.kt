@@ -7,6 +7,7 @@ import okhttp3.Request
 import okhttp3.Response
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 data class AppUpdate(
     val versionName: String,
@@ -86,13 +87,17 @@ class AppUpdateChecker(
         .readTimeout(10, TimeUnit.SECONDS)
         .callTimeout(15, TimeUnit.SECONDS)
         .build(),
+    private val releasesUrl: String = RELEASES_API_URL,
 ) {
     private var call: Call? = null
+    /** Bumped when a newer check replaces this one, or when the caller cancels it. */
+    private val generation = AtomicInteger()
 
     fun check(currentVersion: String, onResult: (AppUpdateCheckResult) -> Unit) {
+        val ticket = generation.incrementAndGet()
         call?.cancel()
         val request = Request.Builder()
-            .url(RELEASES_API_URL)
+            .url(releasesUrl)
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
             .header("User-Agent", "AIPlayground-Android/$currentVersion")
@@ -101,10 +106,17 @@ class AppUpdateChecker(
         call = client.newCall(request).also { pending ->
             pending.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    if (!call.isCanceled()) onResult(AppUpdateCheckResult.Failed("更新情報を取得できませんでした。通信状態を確認してください。"))
+                    // A call that hits callTimeout is already canceled. Ignoring that used to leave
+                    // the settings row on 「確認中…」 with the button disabled.
+                    if (ticket != generation.get()) return
+                    onResult(AppUpdateCheckResult.Failed("更新情報を取得できませんでした。通信状態を確認してください。"))
                 }
 
                 override fun onResponse(call: Call, response: Response) {
+                    if (ticket != generation.get()) {
+                        response.close()
+                        return
+                    }
                     val result = runCatching {
                         response.use {
                             if (!it.isSuccessful) {
@@ -118,13 +130,14 @@ class AppUpdateChecker(
                             }
                         }
                     }.getOrElse { AppUpdateCheckResult.Failed("更新情報を解釈できませんでした。") }
-                    if (!call.isCanceled()) onResult(result)
+                    if (ticket == generation.get()) onResult(result)
                 }
             })
         }
     }
 
     fun cancel() {
+        generation.incrementAndGet()
         call?.cancel()
         call = null
     }

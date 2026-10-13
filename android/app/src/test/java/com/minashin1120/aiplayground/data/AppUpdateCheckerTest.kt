@@ -1,8 +1,14 @@
 package com.minashin1120.aiplayground.data
 
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
+import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class AppUpdateCheckerTest {
     @Test fun onlyNewestStableAndroidReleaseIsSelected() {
@@ -62,5 +68,47 @@ class AppUpdateCheckerTest {
         """.trimIndent()
 
         assertEquals("1.19.0", latestAndroidUpdateFromJson(payload, "1.13.4")?.versionName)
+    }
+
+    @Test fun timedOutReleaseLookupStillFinishes() {
+        MockWebServer().use { server ->
+            server.start()
+            val checker = AppUpdateChecker(
+                client = OkHttpClient.Builder()
+                    .callTimeout(1, TimeUnit.SECONDS)
+                    .connectTimeout(1, TimeUnit.SECONDS)
+                    .readTimeout(1, TimeUnit.SECONDS)
+                    .build(),
+                releasesUrl = server.url("/releases").toString(),
+            )
+            val done = CountDownLatch(1)
+            var result: AppUpdateCheckResult? = null
+            checker.check("1.0.0") {
+                result = it
+                done.countDown()
+            }
+            assertTrue(done.await(5, TimeUnit.SECONDS))
+            assertTrue(result is AppUpdateCheckResult.Failed)
+        }
+    }
+
+    @Test fun emptyReleaseListIsUpToDate() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder()
+                .addHeader("Content-Type", "application/json")
+                .body("[]").build())
+            val checker = AppUpdateChecker(
+                releasesUrl = server.url("/releases").toString(),
+            )
+            val done = CountDownLatch(1)
+            var result: AppUpdateCheckResult? = null
+            checker.check("1.0.0") {
+                result = it
+                done.countDown()
+            }
+            assertTrue(done.await(5, TimeUnit.SECONDS))
+            assertTrue(result is AppUpdateCheckResult.UpToDate)
+        }
     }
 }

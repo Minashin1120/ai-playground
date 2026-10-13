@@ -129,7 +129,7 @@ private fun VibrationSetting() {
 
 internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsForm, extras: SettingsExtras): List<SettingsCardSpec> = listOf(
     // ANDROID_ONLY.md: the device cache card replaces the Web Service Worker cache card.
-    SettingsCardSpec(SettingsTab.Data, "device-cache", "端末キャッシュ", "端末キャッシュ 履歴の保存範囲 表示済み部分のみ 全件同期 モバイルデータ通信 削除 操作ログ ログを削除") {
+    SettingsCardSpec(SettingsTab.Data, "device-cache", "端末キャッシュ", "端末キャッシュ 履歴の保存範囲 表示済み部分のみ 全件同期 モバイルデータ通信 削除 プロンプトキャッシュ 操作ログ ログを削除") {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsDesc("表示済みのチャット履歴とファイルは、Androidのシステムキャッシュとは別の暗号化領域に保存されます。")
             SettingsFieldLabel("履歴の保存範囲")
@@ -151,6 +151,8 @@ internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsFor
                 SettingsSmallButton("履歴を削除", { extras.onConfirmCacheClear(CacheCategory.CHAT_HISTORY) }, Modifier.weight(1f), tone = SettingsButtonTone.Orange)
                 SettingsSmallButton("ファイルを削除", { extras.onConfirmCacheClear(CacheCategory.FILES) }, Modifier.weight(1f), tone = SettingsButtonTone.Orange)
             }
+            SettingsSmallButton("プロンプトキャッシュを解除", model::clearPromptCache, fill = true, tone = SettingsButtonTone.Orange)
+            SettingsDesc("開いているチャットのPromptCacheをオフにし、保存済みのキャッシュを次回から使いません。")
             ActivityLogDeleteBox(extras.onNotify)
         }
     },

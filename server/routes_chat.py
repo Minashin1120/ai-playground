@@ -593,6 +593,22 @@ def _replay_finished_stream_events(job_id):
     return True
 
 
+def _thread_prompt_cache_key(thread):
+    """Provider cache key for this thread. A nonce is added after the user clears the cache."""
+    cache_id = thread.public_id or str(thread.id)
+    nonce = (getattr(thread, "prompt_cache_nonce", None) or "").strip()
+    if nonce:
+        return f"thread-{cache_id}-{nonce}"
+    return f"thread-{cache_id}"
+
+
+def _forget_prompt_cache(thread):
+    """Drop the saved PromptCache lock and abandon the provider cache key."""
+    thread.enable_prompt_caching = False
+    thread.prompt_cache_provider = None
+    thread.prompt_cache_nonce = secrets.token_hex(8)
+
+
 @app.route('/chat_stream', methods=['POST'])
 @login_required
 def chat_stream():
@@ -1016,8 +1032,9 @@ def chat_stream():
                 t.prompt_cache_provider = provider_for_pc
             # Z.AI GLM uses automatic context caching and does not accept an app-supplied cache key.
             if provider_for_pc != 'zai':
-                cache_id = t.public_id or str(t.id)
-                options['prompt_cache_key'] = f"thread-{cache_id}"
+                options['prompt_cache_key'] = _thread_prompt_cache_key(t)
+        elif getattr(t, 'enable_prompt_caching', False) or getattr(t, 'prompt_cache_provider', None):
+            _forget_prompt_cache(t)
         else:
             t.enable_prompt_caching = False
             t.prompt_cache_provider = None

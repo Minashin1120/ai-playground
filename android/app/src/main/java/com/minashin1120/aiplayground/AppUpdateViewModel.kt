@@ -8,9 +8,12 @@ import com.minashin1120.aiplayground.data.AppUpdateChecker
 import com.minashin1120.aiplayground.data.AppUpdateCheckResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 import java.io.File
 
@@ -80,17 +83,34 @@ class AppUpdateViewModel(application: Application) : AndroidViewModel(applicatio
                         else current
                 } }
             } finally {
+                val finished = isActive
                 checkJob = null
+                if (finished) {
+                    downloads.updateState { current ->
+                        if (current.phase == AppUpdatePhase.Checking) {
+                            AppUpdateUiState(
+                                phase = AppUpdatePhase.Error,
+                                errorMessage = "更新情報を取得できませんでした。通信状態を確認してください。",
+                            )
+                        } else current
+                    }
+                }
             }
         }
     }
 
     private suspend fun checkOnce(currentVersion: String): AppUpdateCheckResult =
-        suspendCancellableCoroutine { continuation ->
-            checker.check(currentVersion) { result ->
-                if (continuation.isActive) continuation.resume(result)
+        try {
+            withTimeout(20_000) {
+                suspendCancellableCoroutine { continuation ->
+                    checker.check(currentVersion) { result ->
+                        if (continuation.isActive) continuation.resume(result)
+                    }
+                    continuation.invokeOnCancellation { checker.cancel() }
+                }
             }
-            continuation.invokeOnCancellation { checker.cancel() }
+        } catch (_: TimeoutCancellationException) {
+            AppUpdateCheckResult.Failed("更新情報を取得できませんでした。通信状態を確認してください。")
         }
 
     fun startDownload(): Boolean = downloads.startDownload()

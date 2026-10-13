@@ -75,6 +75,18 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity-alias>
+        <!-- 「プロンプトとして添付」 in the system text-selection menu. Forwards into the prompt input. -->
+        <activity android:name=".ProcessTextActivity" android:exported="true"
+            android:label="プロンプトとして添付"
+            android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"
+            android:excludeFromRecents="true" android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
         <!-- Android 10-16 notification bubbles only. documentLaunchMode="always" must stay
              off MainActivity: on the launcher entry it creates a new task on every launch. -->
         <activity android:name=".ChatBubbleActivity" android:exported="true"

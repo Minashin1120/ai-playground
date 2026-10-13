@@ -43,9 +43,14 @@ open class MainActivity : ComponentActivity() {
         handleAuthIntent(intent)
         handleShareIntent(intent)
         handleUpdateIntent(intent)
-        // Only a launch asks GitHub for a new version. Returning to the app (another app, a picker,
-        // a browser sign-in), a rotation or a restored process does not, nor does opening a bubble.
-        if (savedInstanceState == null && this !is ChatBubbleActivity) updateModel.check(BuildConfig.VERSION_NAME)
+        // A fresh launch asks GitHub for a new version. Returning to the app (another app, a picker,
+        // a browser sign-in) or a rotation does not, nor does opening a bubble. A restored process
+        // has a new ViewModel whose phase is still Checking and no request in flight, so ask again
+        // instead of leaving 「確認中…」 on the disabled button.
+        if (this !is ChatBubbleActivity && (savedInstanceState == null ||
+                updateModel.state.value.phase == AppUpdatePhase.Checking)) {
+            updateModel.check(BuildConfig.VERSION_NAME)
+        }
         setContent {
             val updateState = updateModel.state.collectAsStateWithLifecycle().value
             val changelogState = changelogModel.state.collectAsStateWithLifecycle().value
@@ -157,7 +162,11 @@ open class MainActivity : ComponentActivity() {
      * the 「メッセージとしてプレビュー」 target shows the shared text as a message bubble.
      */
     private fun handleShareIntent(intent: Intent?) {
-        if (intent?.component?.className == TEXT_PREVIEW_SHARE_ALIAS) {
+        // Recents restores the original share Intent. Handling it again attaches the same files
+        // and text a second time. The in-memory action is cleared after the first handling, but
+        // the system keeps the original Intent for the task.
+        if (intent == null || intent.isLaunchedFromHistory()) return
+        if (intent.component?.className == TEXT_PREVIEW_SHARE_ALIAS) {
             if (intent.action != Intent.ACTION_SEND) return
             logSharedTextShape(intent)
             val text = runCatching { intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() }.getOrNull().orEmpty()

@@ -1496,6 +1496,9 @@ with app.app_context():
         try:
             try_alter("ALTER TABLE thread ADD COLUMN prompt_cache_provider VARCHAR(32)")
         except: pass
+        try:
+            try_alter("ALTER TABLE thread ADD COLUMN prompt_cache_nonce VARCHAR(32)")
+        except: pass
 
 @app.route('/api/metrics/first_token', methods=['POST'])
 @login_required

@@ -438,6 +438,7 @@ def _account_export_threads(user_id):
             "last_gem_uuid": thread.last_gem_uuid,
             "enable_prompt_caching": bool(thread.enable_prompt_caching),
             "prompt_cache_provider": thread.prompt_cache_provider,
+            "prompt_cache_nonce": thread.prompt_cache_nonce,
             "updated_at": _portable_datetime(thread.updated_at),
             "messages": messages,
         })

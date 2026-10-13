@@ -35,7 +35,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | ユーザー認証 | アプリ内のユーザー名／パスワード新規登録・ログイン、Google（Credential ManagerでIDトークン取得）・パスキー（Credential Manager）、TOTP／WebAuthn 2FA。MinashinはCustom Tabs＋HTTPS App Links。Google／Minashinの旧ブラウザー方式とブラウザー端末連携も非推奨フォールバックとして維持 |
 | 2FA・パスキー管理 | ネイティブでTOTP登録・有効化・無効化、パスキー登録・削除、既定2FA方式、パスキーのみログイン、Googleログイン時の2FA省略を設定。パスワード変更・アカウント削除はWeb |
 | 通常のチャット | スレッド一覧・検索・作成・取得・削除、ブックマーク、タイトル・スレッド指示、送信、ストリーム再接続、停止、メッセージの編集・再生成・分岐切替・削除、ネイティブPDF出力。Web相当のハートビートでオフライン／不安定／メンテナンス／サーバー停止／復帰を表示 |
-| 添付 | 通常アップロード、大容量チャンクアップロード、進捗表示・キャンセル、Photo Picker・カメラ、他アプリの共有シート（`ACTION_SEND`／`ACTION_SEND_MULTIPLE`、任意のMIMEタイプ）からの添付受信と、共有したテキストの入力欄への追加、共有シートの「メッセージとしてプレビュー」で共有したテキストをAIの回答のメッセージバブルと同じ描画で全画面に確認（送信しない）、画像分割（アップロード画面、カメラ撮影時の「画像を分割」切り替え、共有シートからは分割して添付・端末に保存。クイック設定タイルからは現在のアプリを背後に残して分割・保存・共有。指定枚数・重なり付きで分割し、番号・座標・分割線を描き込む。サーバーの通信仕様は変わらない）、MIME別プレビュー、画像圧縮設定、本人のファイル・サムネイル取得、容量表示、アプリ内プレビュー（画像・テキスト・PDF・音声・動画。未対応形式は外部アプリ） |
+| 添付 | 通常アップロード、大容量チャンクアップロード、進捗表示・キャンセル、Photo Picker・カメラ、他アプリの共有シート（`ACTION_SEND`／`ACTION_SEND_MULTIPLE`、任意のMIMEタイプ）からの添付受信と、共有したテキストの入力欄への追加、他アプリのテキスト選択メニューの「プロンプトとして添付」（`ACTION_PROCESS_TEXT`。選択元の文字は置き換えない）、共有シートの「メッセージとしてプレビュー」で共有したテキストをAIの回答のメッセージバブルと同じ描画で全画面に確認（送信しない）、画像分割（アップロード画面、カメラ撮影時の「画像を分割」切り替え、共有シートからは分割して添付・端末に保存。クイック設定タイルからは現在のアプリを背後に残して分割・保存・共有。指定枚数・重なり付きで分割し、番号・座標・分割線を描き込む。サーバーの通信仕様は変わらない）、MIME別プレビュー、画像圧縮設定、本人のファイル・サムネイル取得、容量表示、アプリ内プレビュー（画像・テキスト・PDF・音声・動画。未対応形式は外部アプリ） |
 | 一時チャット | 作成・heartbeat。自動削除タイマーをクライアント側でも考慮する |
 | ファイルライブラリ | 一覧・検索・お気に入り・名前変更・削除・チャットへの再利用、アプリ内プレビュー。所有者ディレクトリのみ対象 |
 | Gems | 一覧・作成・編集・削除・チャットへの適用・`@`候補、既定モデル適用、固定プロンプトの編集・送信 |
@@ -294,7 +294,7 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | GET `/api/threads/<id>` | `limit=50&before_id=<最古ID>&include_meta=1` | `messages`（各メッセージの `created_at` はUTCのISO形式。ブランチ管理の「作成」に表示）, `has_older_messages`, `oldest_loaded_id`, `pending_job` 等 |
 | DELETE `/api/threads/<id>` | 本文不要 | `{"status":"deleted"}`。履歴・紐付く添付を削除する（Webと同じ `confirm("Delete?")` 相当の確認後） |
 | GET `/api/threads/<id>/settings` | なし | スレッド指示、共通指示の有無、一時チャットの期限情報 |
-| PUT `/api/threads/<id>/settings` | `custom_instruction`, `include_global_instruction`, `is_temporary` | 更新後の一時チャット状態。指示は100,000文字以下 |
+| PUT `/api/threads/<id>/settings` | `custom_instruction`, `include_global_instruction`, `is_temporary`, `enable_prompt_caching` | 更新後の一時チャット状態。`enable_prompt_caching: false` は保存済みのPromptCacheを解除し、次回有効化では別のキャッシュキーを使う。指示は100,000文字以下 |
 | PUT `/api/threads/<id>/title` | `title` | 正規化後のタイトル。最大200文字 |
 | POST `/api/threads/<id>/bookmark` | `{}` | 切り替え後の `is_bookmarked` |
 | DELETE `/api/messages/<id>` | 本文不要 | `{"status":"ok"}`。指定メッセージ以降の履歴と、その添付を削除する（Webと同じ `confirm` 相当の確認後）。本人のスレッドのみ |
@@ -534,6 +534,7 @@ Googleログインは通常、Android Credential ManagerでGoogle IDトークン
 
 ```text
 MainActivity.kt                  ブラウザー・App Links・添付の起動と共有シート受信、画面ライフサイクル
+ProcessTextActivity.kt           テキスト選択メニューの「プロンプトとして添付」（選択した文字を入力欄へ追加）
 ChatViewModel.kt                 ネイティブ認証・初回設定・端末連携、履歴、送信、再接続、添付、失効
 data/PlaygroundApi.kt            選択中の接続先（data/ServerOrigin.kt）、CookieなしHTTP、JSON/NDJSON、キャンセル
 data/TokenStore.kt               Keystoreによるトークン暗号化保存

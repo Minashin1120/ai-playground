@@ -689,6 +689,7 @@ def import_account_data():
                         last_gem_uuid=gem_uuid_map.get(str(item.get("last_gem_uuid") or "")),
                         enable_prompt_caching=bool(item.get("enable_prompt_caching")),
                         prompt_cache_provider=_safe_account_import_text(item.get("prompt_cache_provider"), 32) if item.get("prompt_cache_provider") else None,
+                        prompt_cache_nonce=_safe_account_import_text(item.get("prompt_cache_nonce"), 32) if item.get("prompt_cache_nonce") else None,
                         updated_at=_parse_portable_datetime(item.get("updated_at")) or datetime.utcnow(),
                         import_signature=thread_sig,
                     )

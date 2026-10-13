@@ -196,7 +196,12 @@ def update_thread_settings(thread_id):
     if 'is_temporary' in d:
         requested_temp = _coerce_bool_or_none(d.get('is_temporary'))
         t.is_temporary = bool(requested_temp)
-    
+    if 'enable_prompt_caching' in d:
+        if bool(d.get('enable_prompt_caching')):
+            t.enable_prompt_caching = True
+        else:
+            _forget_prompt_cache(t)
+
     t.updated_at = datetime.utcnow()
     db.session.add(t)
     log_force(f"DEBUG: calling safe_db_commit")
@@ -215,6 +220,7 @@ def update_thread_settings(thread_id):
     return jsonify({
         'status': 'ok',
         'is_temporary': bool(getattr(t, "is_temporary", False)),
+        'enable_prompt_caching': bool(getattr(t, "enable_prompt_caching", False)),
         'timeout_seconds': temp_meta.get('timeout_seconds'),
         'temp_chat_expires_at': temp_meta.get('temp_chat_expires_at'),
         'temp_chat_remaining_seconds': temp_meta.get('temp_chat_remaining_seconds')

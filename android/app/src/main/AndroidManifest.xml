@@ -87,7 +87,7 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
-        <!-- 「AIで翻訳」 in the system text-selection menu: a translucent modal over the source app. -->
+        <!-- 「AIで翻訳」 in the system text-selection menu and share sheet: a translucent modal over the source app. -->
         <activity android:name=".TranslateOverlayActivity" android:exported="true"
             android:label="AIで翻訳"
             android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"
@@ -95,6 +95,11 @@
             android:excludeFromRecents="true" android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>

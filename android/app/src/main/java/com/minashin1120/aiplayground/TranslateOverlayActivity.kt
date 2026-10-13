@@ -84,9 +84,9 @@ class SelectionTranslationViewModel(application: Application) : AndroidViewModel
 }
 
 /**
- * ANDROID_ONLY.md 「AIで翻訳」 in the system text-selection menu (`Intent.ACTION_PROCESS_TEXT`): a translucent
- * activity over the app the text was selected in, so that app stays open behind the translation. The
- * selection is never replaced.
+ * ANDROID_ONLY.md 「AIで翻訳」 in the system text-selection menu (`Intent.ACTION_PROCESS_TEXT`) and share sheet
+ * (`Intent.ACTION_SEND` of text): a translucent activity over the app the text came from, so that app stays open
+ * behind the translation. The selection is never replaced.
  */
 class TranslateOverlayActivity : ComponentActivity() {
     private val model: SelectionTranslationViewModel by viewModels()
@@ -94,8 +94,9 @@ class TranslateOverlayActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setResult(RESULT_CANCELED)
+        val extra = if (intent?.action == Intent.ACTION_SEND) Intent.EXTRA_TEXT else Intent.EXTRA_PROCESS_TEXT
         val text = runCatching {
-            intent?.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()
+            intent?.getCharSequenceExtra(extra)?.toString()
         }.getOrNull()?.trim().orEmpty().take(MAX_TRANSLATION_CHARS)
         if (text.isEmpty() && model.state.value.source.isEmpty()) { finish(); return }
         model.start(text)

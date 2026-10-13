@@ -3,8 +3,10 @@ package com.minashin1120.aiplayground
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import androidx.activity.viewModels
 import com.minashin1120.aiplayground.data.SelectionTranslator
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,6 +26,30 @@ class TranslateOverlayActivityTest {
             .filter { it.activityInfo.name == TranslateOverlayActivity::class.java.name }
         assertEquals(1, ours.size)
         assertEquals("AIで翻訳", ours.single().loadLabel(pm).toString())
+    }
+
+    @Test fun shareSheetOffersTranslationForText() {
+        val pm = RuntimeEnvironment.getApplication().packageManager
+        val intent = Intent(Intent.ACTION_SEND).setType("text/plain").addCategory(Intent.CATEGORY_DEFAULT)
+        val ours = pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            .filter { it.activityInfo.name == TranslateOverlayActivity::class.java.name }
+        assertEquals(1, ours.size)
+        assertEquals("AIで翻訳", ours.single().loadLabel(pm).toString())
+        val images = Intent(Intent.ACTION_SEND).setType("image/png").addCategory(Intent.CATEGORY_DEFAULT)
+        assertTrue(pm.queryIntentActivities(images, PackageManager.MATCH_DEFAULT_ONLY)
+            .none { it.activityInfo.name == TranslateOverlayActivity::class.java.name })
+    }
+
+    @Test fun sharedTextIsTranslated() {
+        val intent = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, " Hello ")
+        val activity = Robolectric.buildActivity(TranslateOverlayActivity::class.java, intent).create().get()
+        assertFalse(activity.isFinishing)
+        assertEquals("Hello", activity.viewModels<SelectionTranslationViewModel>().value.state.value.source)
+    }
+
+    @Test fun blankShareCloses() {
+        val intent = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, " ")
+        assertTrue(Robolectric.buildActivity(TranslateOverlayActivity::class.java, intent).create().get().isFinishing)
     }
 
     @Test fun blankSelectionClosesWithoutReplacingIt() {

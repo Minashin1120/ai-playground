@@ -64,17 +64,20 @@ def mobile_reauth():
     method = str(body.get('method') or '')
     if method not in _mobile_reauth_methods(current_user):
         return _mobile_error('invalid_method')
+    # A stolen device token must not be usable to guess the password or TOTP code.
+    failure_kind = method if method in AUTH_FAILURE_LIMITS else None
+    if failure_kind and auth_failures_exceeded(failure_kind, current_user.id):
+        return _mobile_error('rate_limited', 429, 300)
     ok = False
     if method == 'password':
         password = str(body.get('password') or '')
         ok = bool(password) and len(password) <= 256 and current_user.check_password(password)
     elif method == 'totp':
-        code = re.sub(r'\s+', '', str(body.get('code') or ''))
         try:
             secret = decrypt_val(current_user.totp_secret)
         except Exception:
             secret = None
-        ok = bool(secret) and bool(re.fullmatch(r'\d{6,8}', code)) and pyotp.TOTP(secret).verify(code)
+        ok = verify_totp_code(current_user.id, secret, body.get('code'))
     elif method == 'passkey':
         credential = body.get('credential')
         stored = _mobile_redis_json(_mobile_reauth_passkey_key())
@@ -102,7 +105,11 @@ def mobile_reauth():
                 ok = False
         redis_conn.delete(_mobile_reauth_passkey_key())
     if not ok:
+        if failure_kind:
+            record_auth_failure(failure_kind, current_user.id)
         return _mobile_error('invalid_credentials', 401)
+    if failure_kind:
+        clear_auth_failures(failure_kind, current_user.id)
     _mobile_mark_reauthenticated()
     return jsonify({'status': 'ok', 'expires_in': MOBILE_REAUTH_TTL})
 

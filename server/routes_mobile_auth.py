@@ -7,6 +7,7 @@ deprecated compatibility path.
 """
 
 _MOBILE_AUTH_TX_TTL = 300
+_MOBILE_AUTH_TX_MAX_FAILURES = 5
 _MOBILE_NATIVE_CODE_TTL = 300
 _MOBILE_SETUP_SECRET_FIELDS = {
     'openai_api_key': 'openai_api_key',
@@ -449,10 +450,14 @@ def mobile_auth_login():
     if not username or not password or device_name is None:
         return _mobile_error('invalid_credentials', 401)
     user = User.query.filter_by(username=username).first()
-    if user and not rate_limit(f'rl:mobile:login:user:{user.id}', 10, 300):
+    if user and (not rate_limit(f'rl:mobile:login:user:{user.id}', 10, 300)
+                 or auth_failures_exceeded('password', user.id)):
         return _mobile_error('rate_limited', 429, 300)
     if not user or not user.password_hash or not user.check_password(password):
+        if user and user.password_hash:
+            record_auth_failure('password', user.id)
         return _mobile_error('invalid_credentials', 401)
+    clear_auth_failures('password', user.id)
     if user.is_2fa_enabled:
         transaction_id = _mobile_auth_transaction(user, device_name)
         return jsonify({
@@ -520,15 +525,24 @@ def mobile_auth_totp():
     user, payload = _mobile_auth_transaction_user(transaction_id)
     if not user or not re.fullmatch(r'\d{6,8}', code):
         return _mobile_error('invalid_2fa', 401)
-    if not rate_limit(f'rl:mobile:totp:user:{user.id}', 8, 300):
+    if not rate_limit(f'rl:mobile:totp:user:{user.id}', 8, 300) or auth_failures_exceeded('totp', user.id):
         return _mobile_error('rate_limited', 429, 300)
     try:
         secret = decrypt_val(user.totp_secret) if user.totp_secret else None
     except Exception:
         secret = None
-    if not secret or not pyotp.TOTP(secret).verify(code):
+    if not verify_totp_code(user.id, secret, code):
+        record_auth_failure('totp', user.id)
+        # A sign-in transaction allows only a few wrong codes; then the password is needed again.
+        fail_key = _mobile_auth_tx_key(transaction_id) + ':fail'
+        failures = redis_conn.incr(fail_key)
+        if failures == 1:
+            redis_conn.expire(fail_key, _MOBILE_AUTH_TX_TTL)
+        if failures >= _MOBILE_AUTH_TX_MAX_FAILURES:
+            redis_conn.delete(_mobile_auth_tx_key(transaction_id), fail_key)
         return _mobile_error('invalid_2fa', 401)
-    redis_conn.delete(_mobile_auth_tx_key(transaction_id))
+    clear_auth_failures('totp', user.id)
+    redis_conn.delete(_mobile_auth_tx_key(transaction_id), _mobile_auth_tx_key(transaction_id) + ':fail')
     device_name = _mobile_validate_device_name(payload.get('device_name')) or 'Android'
     return _mobile_auth_response(user, _mobile_issue_token(user, device_name), device_name)
 
@@ -985,7 +999,7 @@ def mobile_security_totp_enable():
     secret = (stored or {}).get('secret')
     if not secret or not re.fullmatch(r'\d{6,8}', code):
         return _mobile_error('totp_setup_required', 400)
-    if not pyotp.TOTP(secret).verify(code):
+    if not verify_totp_code(current_user.id, secret, code):
         return _mobile_error('invalid_code', 401)
     current_user.totp_secret = encrypt_val(secret)
     current_user.is_2fa_enabled = True
@@ -1000,14 +1014,18 @@ def mobile_security_totp_enable():
 def mobile_security_totp_disable():
     if not current_user.totp_secret:
         return _mobile_error('totp_not_registered', 400)
+    if (not rate_limit(f'rl:mobile:totp_disable:user:{current_user.id}', 8, 300)
+            or auth_failures_exceeded('totp', current_user.id)):
+        return _mobile_error('rate_limited', 429, 300)
     body = request.get_json(silent=True) or {}
-    code = re.sub(r'\s+', '', str(body.get('code') or ''))
     try:
         secret = decrypt_val(current_user.totp_secret)
     except Exception:
         secret = None
-    if not secret or not re.fullmatch(r'\d{6,8}', code) or not pyotp.TOTP(secret).verify(code):
+    if not verify_totp_code(current_user.id, secret, body.get('code')):
+        record_auth_failure('totp', current_user.id)
         return _mobile_error('invalid_code', 401)
+    clear_auth_failures('totp', current_user.id)
     current_user.totp_secret = None
     _refresh_user_2fa_state(current_user)
     safe_db_commit()

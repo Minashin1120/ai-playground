@@ -23,6 +23,52 @@ def rate_limit(key, limit, window_seconds):
     except Exception:
         return _local_rate_limit(key, limit, window_seconds)
 
+# Failed sign-in proofs per account, shared by Web and Android (login, 2FA and
+# re-authentication). The per-IP/per-request limits above reset every few
+# minutes; these stop slow, distributed guessing against one account.
+AUTH_FAILURE_LIMITS = {'password': (20, 3600), 'totp': (10, 3600)}
+TOTP_REPLAY_TTL = 120
+
+def _auth_failure_key(kind, user_id):
+    return f"authfail:{kind}:{user_id}"
+
+def auth_failures_exceeded(kind, user_id):
+    limit, _ = AUTH_FAILURE_LIMITS[kind]
+    try:
+        return int(redis_conn.get(_auth_failure_key(kind, user_id)) or 0) >= limit
+    except Exception:
+        return False
+
+def record_auth_failure(kind, user_id):
+    _, window = AUTH_FAILURE_LIMITS[kind]
+    key = _auth_failure_key(kind, user_id)
+    try:
+        if redis_conn.incr(key) == 1:
+            redis_conn.expire(key, window)
+    except Exception:
+        pass
+
+def clear_auth_failures(kind, user_id):
+    try:
+        redis_conn.delete(_auth_failure_key(kind, user_id))
+    except Exception:
+        pass
+
+def verify_totp_code(user_id, secret, code):
+    """Check a TOTP code once: an accepted code cannot be replayed for the same account."""
+    code = re.sub(r'\s+', '', str(code or ''))
+    if not secret or not re.fullmatch(r'\d{6,8}', code):
+        return False
+    try:
+        if not pyotp.TOTP(secret).verify(code):
+            return False
+    except Exception:
+        return False
+    try:
+        return bool(redis_conn.set(f"totp:used:{user_id}:{code}", '1', ex=TOTP_REPLAY_TTL, nx=True))
+    except Exception:
+        return True
+
 _TOKEN_ENCODER_BY_NAME = {}
 _TOKEN_ENCODER_BY_MODEL = {}
 _TOKEN_ENCODER_LOCK = threading.Lock()

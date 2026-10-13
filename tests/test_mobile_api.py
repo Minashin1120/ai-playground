@@ -991,6 +991,95 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(verified.status_code, 200)
         self.assertTrue(verified.json['access_token'].startswith(target.MOBILE_TOKEN_PREFIX))
 
+    def _totp_user(self, username):
+        secret = target.pyotp.random_base32()
+        with target.app.app_context():
+            user = target.User(username=username, is_setup_completed=True,
+                               is_2fa_enabled=True, default_2fa_method='totp')
+            user.set_password('correct-password')
+            user.totp_secret = target.encrypt_val(secret)
+            target.db.session.add(user)
+            target.db.session.commit()
+            return user.id, secret
+
+    def _native_login(self, username, password='correct-password'):
+        return self.native.post('/api/mobile/v1/auth/login', base_url='https://localhost', json={
+            'username': username, 'password': password, 'device_name': 'Pixel test',
+        })
+
+    def _native_totp(self, transaction_id, code):
+        return self.native.post('/api/mobile/v1/auth/totp', base_url='https://localhost', json={
+            'transaction_id': transaction_id, 'code': code,
+        })
+
+    def test_native_totp_code_cannot_be_replayed(self):
+        self.pass_integrity_gate()
+        _, secret = self._totp_user('native-replay')
+        code = target.pyotp.TOTP(secret).now()
+        first = self._native_login('native-replay')
+        self.assertEqual(self._native_totp(first.json['transaction_id'], code).status_code, 200)
+        second = self._native_login('native-replay')
+        replayed = self._native_totp(second.json['transaction_id'], code)
+        self.assertEqual(replayed.status_code, 401)
+        self.assertEqual(replayed.json['error'], 'invalid_2fa')
+
+    def test_native_2fa_transaction_ends_after_repeated_wrong_codes(self):
+        self.pass_integrity_gate()
+        _, secret = self._totp_user('native-tx-fail')
+        transaction_id = self._native_login('native-tx-fail').json['transaction_id']
+        good = target.pyotp.TOTP(secret).now()
+        wrong = '000000' if good != '000000' else '111111'
+        for _ in range(target._MOBILE_AUTH_TX_MAX_FAILURES):
+            self.assertEqual(self._native_totp(transaction_id, wrong).status_code, 401)
+        # The password step must be repeated; the correct code no longer completes this sign-in.
+        self.assertEqual(self._native_totp(transaction_id, good).status_code, 401)
+        self.assertEqual(self._native_totp(self._native_login('native-tx-fail').json['transaction_id'], good).status_code, 200)
+
+    def test_account_failure_limits_are_shared_and_reset_on_success(self):
+        self.pass_integrity_gate()
+        user_id, secret = self._totp_user('native-guess')
+        self.assertEqual(self._native_login('native-guess', 'wrong-password').status_code, 401)
+        self.assertEqual(int(self.redis.get(f'authfail:password:{user_id}')), 1)
+        self.assertEqual(self._native_login('native-guess').status_code, 200)
+        self.assertIsNone(self.redis.get(f'authfail:password:{user_id}'))
+        # Failures from other devices or Web count toward the same account limit.
+        self.redis.set(f'authfail:password:{user_id}', target.AUTH_FAILURE_LIMITS['password'][0])
+        self.assertEqual(self._native_login('native-guess').status_code, 429)
+        self.redis.delete(f'authfail:password:{user_id}')
+        transaction_id = self._native_login('native-guess').json['transaction_id']
+        self.redis.set(f'authfail:totp:{user_id}', target.AUTH_FAILURE_LIMITS['totp'][0])
+        self.assertEqual(self._native_totp(transaction_id, target.pyotp.TOTP(secret).now()).status_code, 429)
+
+    def test_native_totp_disable_limits_guessing(self):
+        token = self.token()
+        secret = target.pyotp.random_base32()
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.totp_secret = target.encrypt_val(secret)
+            user.is_2fa_enabled = True
+            target.db.session.commit()
+        good = target.pyotp.TOTP(secret).now()
+        wrong = '000000' if good != '000000' else '111111'
+        for _ in range(8):
+            self.assertEqual(self.call('/api/mobile/v1/security/totp/disable', token, 'POST', json={'code': wrong}).status_code, 401)
+        self.assertEqual(int(self.redis.get(f'authfail:totp:{self.user_id}')), 8)
+        blocked = self.call('/api/mobile/v1/security/totp/disable', token, 'POST', json={'code': good})
+        self.assertEqual(blocked.status_code, 429)
+        with target.app.app_context():
+            self.assertTrue(target.db.session.get(target.User, self.user_id).totp_secret)
+
+    def test_native_reauth_counts_password_failures_per_account(self):
+        password = self.set_password()
+        token = self.token()
+        self.redis.set(f'authfail:password:{self.user_id}', target.AUTH_FAILURE_LIMITS['password'][0])
+        blocked = self.call('/api/mobile/v1/reauth', token, 'POST', json={'method': 'password', 'password': password})
+        self.assertEqual(blocked.status_code, 429)
+        self.redis.delete(f'authfail:password:{self.user_id}')
+        self.assertEqual(self.call('/api/mobile/v1/reauth', token, 'POST', json={'method': 'password', 'password': 'wrong'}).status_code, 401)
+        self.assertEqual(int(self.redis.get(f'authfail:password:{self.user_id}')), 1)
+        self.assertEqual(self.call('/api/mobile/v1/reauth', token, 'POST', json={'method': 'password', 'password': password}).status_code, 200)
+        self.assertIsNone(self.redis.get(f'authfail:password:{self.user_id}'))
+
     def test_integrity_verdict_and_turnstile_ticket_are_bound_and_one_time(self):
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)
@@ -1415,6 +1504,11 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(enabled.status_code, 200)
         self.assertTrue(enabled.json['has_totp'])
         self.assertTrue(enabled.json['is_2fa_enabled'])
+        # The enabling code is spent; a code from a later 30-second step disables.
+        replayed = self.call('/api/mobile/v1/security/totp/disable', token, 'POST',
+                             json={'code': target.pyotp.TOTP(secret).now()})
+        self.assertEqual(replayed.status_code, 401)
+        self.redis.delete(*self.redis.keys('totp:used:*'))
         disabled = self.call('/api/mobile/v1/security/totp/disable', token, 'POST',
                              json={'code': target.pyotp.TOTP(secret).now()})
         self.assertEqual(disabled.status_code, 200)

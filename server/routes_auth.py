@@ -47,7 +47,7 @@ def login():
         user = User.query.filter_by(username=username).first()
         # Allow login even if IP/Cookie is banned; ban screen will handle after login.
         if user:
-            if not rate_limit(f"rl:login:user:{user.id}", 10, 300):
+            if not rate_limit(f"rl:login:user:{user.id}", 10, 300) or auth_failures_exceeded('password', user.id):
                 if is_ajax: return jsonify({'error': "Too many attempts. Try again later."}), 429
                 return render_template('login.html', site_key=os.getenv('TURNSTILE_SITE_KEY'), error="Too many attempts. Try again later.")
             
@@ -79,6 +79,7 @@ def login():
                 safe_db_commit()
                 
             if user.check_password(pw):
+                clear_auth_failures('password', user.id)
                 if user.is_2fa_enabled:
                     session['remember_me'] = bool(form_data.get('remember'))
                     session['pre_2fa_user_id'] = user.id
@@ -95,6 +96,7 @@ def login():
                 record_user_client_token(user)
                 if is_ajax: return jsonify({'status': 'ok', 'redirect': url_for('index')})
                 return redirect(url_for('index'))
+            record_auth_failure('password', user.id)
                 
         if is_ajax: return jsonify({'error': "ユーザー名またはパスワードが正しくありません"}), 401
         g_client_id = os.getenv('GOOGLE_CLIENT_ID', '')
@@ -641,7 +643,7 @@ def verify_2fa():
         is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' or \
                   'application/json' in request.headers.get('Accept', '')
         
-        if not rate_limit(f"rl:2fa:user:{user.id}", 8, 300):
+        if not rate_limit(f"rl:2fa:user:{user.id}", 8, 300) or auth_failures_exceeded('totp', user.id):
             if is_ajax: return jsonify({'error': "Too many attempts. Try again later."}), 429
             return render_template('verify_2fa.html', error="Too many attempts. Try again later.")
             
@@ -655,7 +657,8 @@ def verify_2fa():
             
         if code:
             secret = decrypt_val(user.totp_secret)
-            if secret and pyotp.TOTP(secret).verify(code):
+            if verify_totp_code(user.id, secret, code):
+                clear_auth_failures('totp', user.id)
                 session.pop('pre_2fa_user_id', None)
                 session.pop('_flashes', None)
                 remember = bool(session.pop('remember_me', False))
@@ -665,6 +668,7 @@ def verify_2fa():
                 if is_ajax: return jsonify({'status': 'ok', 'redirect': url_for('index')})
                 return redirect(url_for('index'))
             
+            record_auth_failure('totp', user.id)
             if is_ajax: return jsonify({'error': "Invalid Code"}), 400
             return render_template('verify_2fa.html', error="Invalid Code")
         

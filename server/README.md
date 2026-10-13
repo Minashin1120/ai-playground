@@ -29,7 +29,7 @@
 | `app_settings_schema.py` | CSRFコンテキスト、アプリ設定、DBカラム・インデックスの互換更新 | 起動時スキーマ補完、AppSetting、DBインデックス |
 | `temp_chat.py` | 添付参照の正規化・削除、一時チャットの在席・期限切れ監視 | 一時チャット、アップロード追跡、自動削除 |
 | `request_security.py` | 自動システム通知、レスポンスキャッシュ・gzip、メンテナンス、Bot検知・Turnstile | リクエストフック、Bot対策、キャッシュヘッダー |
-| `token_utils.py` | レート制限、モデル別トークン計測、Thinking集計、チャットエラー整形 | トークン数、レート制限、Botスコア評価 |
+| `token_utils.py` | レート制限、アカウント単位の認証失敗制限（Web・Android共通）とTOTPコードの再利用防止、モデル別トークン計測、Thinking集計、チャットエラー整形 | トークン数、レート制限、ログイン・2FAの総当たり対策、Botスコア評価 |
 | `background.py` | RQ のチャット生成本体、Gemini／OpenAI／xAI／Z.AI Batch送信、E2EE 移行、Coding Mode、ストリームの Redis 蓄積 | 生成ジョブ、Batch送信、ストリーム、コーディングモード |
 | `routes_pages.py` | `/`, `/c/<id>`, help, changelog, `/api/version`, `sw.js` などページと入口 | 画面ルート、版 API、PWA |
 | `routes_auth.py` | ログイン、Google / Minashin / Passkey、2FA、signup、setup、logout | 認証、SSO、新規登録 |

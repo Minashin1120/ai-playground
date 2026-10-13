@@ -832,7 +832,7 @@ def totp_enable():
     secret = session.get('temp_totp_secret')
     if not secret: return jsonify({'error': 'Setup session expired'}), 400
     
-    if pyotp.TOTP(secret).verify(code):
+    if verify_totp_code(current_user.id, secret, code):
         current_user.totp_secret = encrypt_val(secret)
         current_user.is_2fa_enabled = True
         session.pop('temp_totp_secret', None)

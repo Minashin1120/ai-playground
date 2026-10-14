@@ -868,7 +868,7 @@ fun PlaygroundScreen(
                 // ANDROID_ONLY.md: a hidden update download stays visible as a bar over the top edge.
                 AppUpdateProgressBar(update, onShowUpdate, Modifier.align(Alignment.TopCenter))
             }
-            StartupSplash(startupSplashEnabled)
+            StartupSplash(startupSplashEnabled, ready = !state.starting)
             }
         }
     }

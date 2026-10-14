@@ -4,14 +4,12 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.os.Build
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.EaseIn
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,8 +17,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -40,6 +40,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.sp
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -48,14 +53,18 @@ import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.sin
 
-// Timeline (ms). Everything is derived from one linear clock so the layers never drift apart.
-private const val TOTAL_MS = 2_000
+// Timeline (ms). Everything is derived from one frame clock so the layers never drift apart. The intro plays from the
+// first frame; the logo then idles until startup has finished, and only then does the dive start.
 private const val LOGO_IN_START = 60f
 private const val LOGO_IN_END = 960f
+private const val TITLE_IN_END = 800f
 private const val SPARKLE_START = 380f
 private const val SPARKLE_END = 1_380f
-private const val ZOOM_START = 1_050f
-private const val ZOOM_END = 1_800f
+private const val DIVE_EARLIEST = 1_050f
+private const val DIVE_MS = 450f
+private const val FADE_TAIL_MS = 150f
+
+private const val TITLE = "AI Playground"
 
 // The animation is drawn at 60 Hz even on 120 Hz panels: three full-screen layers plus blur do not fit in an 8 ms frame on mid-range GPUs.
 private const val SPLASH_REFRESH_RATE = 60f
@@ -103,6 +112,13 @@ private val SparklePath = Path().apply {
 
 /** Overshooting ease-out used for the logo arrival. */
 private val EaseOutBack: Easing = CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f)
+
+/** One frame of the timeline: [t] is the time since the first frame, [diveAt] when the dive began (NaN until startup has finished). */
+private class SplashTime(val t: Float, val diveAt: Float) {
+    /** Progress of a dive phase that starts [offset] ms into the dive and lasts [length] ms; 0 while the logo is still waiting. */
+    fun dive(offset: Float = 0f, length: Float = DIVE_MS, easing: Easing = LinearEasing): Float =
+        if (diveAt.isNaN()) 0f else phase(t, diveAt + offset, diveAt + offset + length, easing)
+}
 
 private class Twinkle(val angle: Float, val distance: Float, val size: Float, val phase: Float, val color: Color)
 
@@ -197,36 +213,44 @@ private fun DrawScope.drawOrb(color: Color, center: Offset, radius: Float, alpha
 }
 
 /**
- * Startup animation: soft light blooms drift behind the logo while it blurs into focus, the sparkle spins,
- * then the camera dives through the speech bubble (the bubble opens into a window onto the app) with a
- * shock ring. Blur is used for the arrival and the dive; the glow and the ring are layered shapes because a
- * full-screen blur per frame is what made the animation stutter on 120 Hz devices.
+ * Startup animation: soft light blooms drift behind the logo while it blurs into focus, the title slides up
+ * under it and the sparkle spins; the logo keeps idling until [ready] (startup has finished), then the camera
+ * dives through the speech bubble (the bubble opens into a window onto the app) with a shock ring. Blur is used
+ * for the arrival and the dive; the glow and the ring are layered shapes because a full-screen blur per frame is
+ * what made the animation stutter on 120 Hz devices.
  */
 @Composable
-internal fun StartupSplash(enabled: Boolean) {
+internal fun StartupSplash(enabled: Boolean, ready: Boolean) {
     if (!enabled) return
 
     var visible by rememberSaveable { mutableStateOf(true) }
     if (!visible) return
 
-    val clock = remember { Animatable(0f) }
+    var elapsed by remember { mutableFloatStateOf(0f) }
+    var diveAt by remember { mutableFloatStateOf(Float.NaN) }
     var lowQuality by remember { mutableStateOf(false) }
+    val currentReady by rememberUpdatedState(ready)
+    val textMeasurer = rememberTextMeasurer()
+    val titleStyle = TextStyle(fontFamily = WebFonts.sans, fontWeight = FontWeight.Bold, fontSize = 28.sp, color = Color.White)
     CapRefreshRate()
     LaunchedEffect(Unit) {
-        clock.animateTo(1f, tween(durationMillis = TOTAL_MS, easing = LinearEasing))
-        visible = false
-    }
-    LaunchedEffect(Unit) {
+        var start = 0L
         var previous = 0L
         var frames = 0
         var slow = 0
-        while (!lowQuality) {
+        while (true) {
             val now = withFrameNanos { it }
-            if (previous != 0L && ++frames > WARMUP_FRAMES && now - previous > SLOW_FRAME_NANOS && ++slow >= SLOW_FRAME_LIMIT) {
+            if (start == 0L) start = now
+            if (!lowQuality && previous != 0L && ++frames > WARMUP_FRAMES && now - previous > SLOW_FRAME_NANOS && ++slow >= SLOW_FRAME_LIMIT) {
                 lowQuality = true
             }
             previous = now
+            val t = (now - start) / 1_000_000f
+            elapsed = t
+            if (diveAt.isNaN() && currentReady && t >= DIVE_EARLIEST) diveAt = t
+            if (!diveAt.isNaN() && t >= diveAt + DIVE_MS + FADE_TAIL_MS) break
         }
+        visible = false
     }
 
     Box(
@@ -234,15 +258,16 @@ internal fun StartupSplash(enabled: Boolean) {
             .fillMaxSize()
             .graphicsLayer {
                 compositingStrategy = CompositingStrategy.Offscreen
-                alpha = 1f - phase(clock.value * TOTAL_MS, ZOOM_END - 100f, TOTAL_MS.toFloat(), EaseOut)
+                alpha = 1f - SplashTime(elapsed, diveAt).dive(DIVE_MS - 100f, 100f + FADE_TAIL_MS, EaseOut)
             },
     ) {
         // 1. Backdrop: dark base, drifting light blooms and twinkling stars.
         Canvas(Modifier.fillMaxSize()) {
-            val t = clock.value * TOTAL_MS
+            val time = SplashTime(elapsed, diveAt)
+            val t = time.t
             val layout = SplashLayout(size.width, size.height)
             val glow = phase(t, 0f, 900f, EaseOut)
-            val zoom = phase(t, ZOOM_START, ZOOM_END, EaseIn)
+            val zoom = time.dive(easing = EaseIn)
             val drift = t / 1_000f * 2.2f
             val reach = max(size.width, size.height)
             drawRect(Backdrop)
@@ -280,12 +305,13 @@ internal fun StartupSplash(enabled: Boolean) {
 
         // 2. Bloom: the bubble silhouette, stacked in growing copies, glowing around the sharp logo (no blur: it is drawn every frame).
         Canvas(Modifier.fillMaxSize()) {
-            val t = clock.value * TOTAL_MS
+            val time = SplashTime(elapsed, diveAt)
+            val t = time.t
             val layout = SplashLayout(size.width, size.height)
             val arrive = phase(t, LOGO_IN_START, LOGO_IN_END, EaseOutBack)
-            val zoom = phase(t, ZOOM_START, ZOOM_END, EaseIn)
+            val zoom = time.dive(easing = EaseIn)
             val breathe = 0.85f + 0.15f * sin(t / 1_000f * 4f)
-            val strength = 0.85f * phase(t, 120f, 800f, EaseOut) * breathe * (1f - phase(t, ZOOM_START, ZOOM_START + 400f))
+            val strength = 0.85f * phase(t, 120f, 800f, EaseOut) * breathe * (1f - time.dive(length = 250f))
             if (strength > 0.001f) {
                 val scale = (0.55f + 0.45f * arrive) * layout.maxScale.pow(zoom)
                 for (i in 0 until BLOOM_STEPS) {
@@ -299,16 +325,18 @@ internal fun StartupSplash(enabled: Boolean) {
             Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    val t = clock.value * TOTAL_MS
+                    val time = SplashTime(elapsed, diveAt)
+                    val t = time.t
                     val arrivalBlur = (1f - phase(t, LOGO_IN_START, LOGO_IN_END, EaseOut)) * 28f
-                    val diveBlur = phase(t, ZOOM_START, ZOOM_END, EaseIn) * 14f
+                    val diveBlur = time.dive(easing = EaseIn) * 14f
                     renderEffect = blurEffect(arrivalBlur + diveBlur, lowQuality)
                 },
         ) {
-            val t = clock.value * TOTAL_MS
+            val time = SplashTime(elapsed, diveAt)
+            val t = time.t
             val layout = SplashLayout(size.width, size.height)
             val arrive = phase(t, LOGO_IN_START, LOGO_IN_END, EaseOutBack)
-            val zoom = layout.maxScale.pow(phase(t, ZOOM_START, ZOOM_END, EaseIn))
+            val zoom = layout.maxScale.pow(time.dive(easing = EaseIn))
             val total = (0.55f + 0.45f * arrive) * zoom
             val appear = phase(t, LOGO_IN_START, 520f, EaseOut)
             val spin = phase(t, SPARKLE_START, SPARKLE_END, FastOutSlowInEasing)
@@ -317,11 +345,30 @@ internal fun StartupSplash(enabled: Boolean) {
             drawSparkle(layout, total, 180f * spin, pulse, Indigo.copy(alpha = appear))
         }
 
-        // 4. Window: cuts the bubble out of everything above so the app shows through the zooming bubble.
+        // 4. Title: slides up from below from the first frame, then fades as the dive begins.
         Canvas(Modifier.fillMaxSize()) {
-            val t = clock.value * TOTAL_MS
+            val time = SplashTime(elapsed, diveAt)
+            val t = time.t
             val layout = SplashLayout(size.width, size.height)
-            val dive = phase(t, ZOOM_START, ZOOM_END, EaseIn)
+            val alpha = phase(t, 0f, 500f, EaseOut) * (1f - time.dive(length = 200f, easing = EaseOut))
+            if (alpha > 0.001f) {
+                // Measured every frame (the measurer caches it) so the Web font replaces the fallback once it has loaded.
+                val title = textMeasurer.measure(TITLE, titleStyle)
+                val rise = (1f - phase(t, 0f, TITLE_IN_END, FastOutSlowInEasing)) * 56f * density
+                val sink = time.dive(easing = EaseIn) * 24f * density
+                drawText(
+                    title,
+                    topLeft = Offset((size.width - title.size.width) / 2f, layout.top + 92f * layout.unit + rise + sink),
+                    alpha = alpha,
+                )
+            }
+        }
+
+        // 5. Window: cuts the bubble out of everything above so the app shows through the zooming bubble.
+        Canvas(Modifier.fillMaxSize()) {
+            val time = SplashTime(elapsed, diveAt)
+            val layout = SplashLayout(size.width, size.height)
+            val dive = time.dive(easing = EaseIn)
             val open = (dive / 0.25f).coerceIn(0f, 1f)
             if (open > 0f) {
                 val zoom = layout.maxScale.pow(dive)
@@ -332,11 +379,11 @@ internal fun StartupSplash(enabled: Boolean) {
             }
         }
 
-        // 5. Shock ring: a soft ring (a wide faint stroke under a narrow one) racing outwards when the dive begins.
+        // 6. Shock ring: a soft ring (a wide faint stroke under a narrow one) racing outwards when the dive begins.
         Canvas(Modifier.fillMaxSize()) {
-            val t = clock.value * TOTAL_MS
+            val time = SplashTime(elapsed, diveAt)
             val layout = SplashLayout(size.width, size.height)
-            val ring = phase(t, ZOOM_START, ZOOM_END + 150f, EaseOut)
+            val ring = time.dive(length = DIVE_MS + FADE_TAIL_MS, easing = EaseOut)
             if (ring > 0f && ring < 1f) {
                 val radius = layout.logoPx * 0.3f + layout.diagonal * 0.8f * ring
                 val width = layout.unit * (6f - 4f * ring)

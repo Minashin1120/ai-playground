@@ -48,6 +48,13 @@ import com.minashin1120.aiplayground.DEFAULT_TRANSLATION_LANGUAGE
 import com.minashin1120.aiplayground.loadTranslationSetting
 import com.minashin1120.aiplayground.setTranslationLanguage
 import com.minashin1120.aiplayground.setTranslationModel
+import com.minashin1120.aiplayground.setTranslationOption
+import com.minashin1120.aiplayground.setTranslationThinking
+import com.minashin1120.aiplayground.TranslationSetting
+import com.minashin1120.aiplayground.data.COMPOSER_SELECT_DEFAULTS
+import com.minashin1120.aiplayground.data.SelectionTranslator
+import com.minashin1120.aiplayground.data.THINKING_LEVELS
+import com.minashin1120.aiplayground.data.composerRules
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.minashin1120.aiplayground.setToolbarNotificationEnabled
@@ -64,7 +71,7 @@ internal class SettingsExtras(
 
 /** ANDROID_ONLY.md: the "Android" card at the end of the General tab (account, app update, bubble). */
 internal fun androidCard(state: ChatState, extras: SettingsExtras): SettingsCardSpec =
-    SettingsCardSpec(SettingsTab.General, "android", "Android", "Android アカウント アプリ更新 更新を確認 バブル ツールバー通知 通知パネル 画像を分割 バイブレーション 振動 翻訳 AIで翻訳 テキスト選択 翻訳先の言語") {
+    SettingsCardSpec(SettingsTab.General, "android", "Android", "Android アカウント アプリ更新 更新を確認 バブル ツールバー通知 通知パネル 画像を分割 バイブレーション 振動 翻訳 AIで翻訳 テキスト選択 共有 翻訳先の言語 Thinking Level Thinking Budget Reasoning Effort") {
         val update = extras.appUpdate
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsFieldLabel("アカウント")
@@ -133,7 +140,7 @@ private fun VibrationSetting() {
 }
 
 /**
- * ANDROID_ONLY.md: model and target language of 「AIで翻訳」 in the text-selection menu (saved on the device at
+ * ANDROID_ONLY.md: model, target language and reasoning options of 「AIで翻訳」 (saved on the device at
  * once). The model is chosen in the same Select Model modal as the chat, limited to text chat models.
  */
 @Composable
@@ -145,7 +152,7 @@ private fun TranslationSettingFields(state: ChatState) {
     val chatModels = state.account?.models.orEmpty().filter { it.mode == "chat" }
     val current = chatModels.firstOrNull { it.id == setting.model }
     SettingsFieldLabel("AIで翻訳", Modifier.padding(top = 4.dp))
-    SettingsDesc("他のアプリで文字を選択し、メニューの「AIで翻訳」を選ぶと、開いているアプリの上に翻訳を表示します。")
+    SettingsDesc("他のアプリで文字を選択してメニューの「AIで翻訳」を選ぶか、共有メニューで「AIで翻訳」に共有すると、開いているアプリの上に翻訳を表示します。")
     SettingsFieldLabel("翻訳に使うモデル")
     SettingsSmallButton(
         when {
@@ -163,6 +170,7 @@ private fun TranslationSettingFields(state: ChatState) {
         setTranslationLanguage(context, language)
         setting = setting.copy(language = language.trim().ifBlank { DEFAULT_TRANSLATION_LANGUAGE })
     }, Modifier.fillMaxWidth(), placeholder = DEFAULT_TRANSLATION_LANGUAGE)
+    if (setting.model.isNotBlank()) TranslationReasoningFields(setting) { setting = it }
     ModalHost(picking) {
         val account = state.account
         ModelPicker(
@@ -176,6 +184,47 @@ private fun TranslationSettingFields(state: ChatState) {
             },
             selectedId = setting.model, lockToPromptCache = false,
         )
+    }
+}
+
+/** Thinking, Thinking Level / Budget and Reasoning Effort of the translation, shown as the composer shows them for the model. */
+@Composable
+private fun TranslationReasoningFields(setting: TranslationSetting, onChange: (TranslationSetting) -> Unit) {
+    val context = LocalContext.current
+    val rules = remember(setting.model) { composerRules(setting.model, false) }
+    // The values the translation sends: a level or effort the model lacks shows its fallback.
+    val sent = SelectionTranslator.requestOptions(setting)
+    var budget by remember(setting.model) { mutableStateOf(setting.thinkingBudget) }
+    if (rules.thinking.visible) {
+        SettingsCheck("Thinking", sent.optBoolean("enable_thinking"), { on ->
+            setTranslationThinking(context, on)
+            onChange(setting.copy(thinking = on))
+        }, enabled = rules.thinking.forced == null && !rules.thinking.disabled)
+        val levels = THINKING_LEVELS.filter { it in rules.thinkingLevels }
+        if (levels.isNotEmpty()) {
+            SettingsFieldLabel("Thinking Level")
+            SettingsSelect(sent.optString("thinking_level"), levels.map { WebOption(it, THINKING_LABELS.getValue(it)) }, { level ->
+                setTranslationOption(context, "thinking_level", level)
+                onChange(setting.copy(thinkingLevel = level))
+            })
+        }
+        if (rules.budgetEnabled) {
+            SettingsFieldLabel("Thinking Budget")
+            SettingsTextField(budget, { next ->
+                if (next.length <= 5 && next.all(Char::isDigit)) {
+                    budget = next
+                    setTranslationOption(context, "thinking_budget", next)
+                    onChange(setting.copy(thinkingBudget = next))
+                }
+            }, Modifier.fillMaxWidth(), placeholder = COMPOSER_SELECT_DEFAULTS.getValue("thinking_budget"), number = true)
+        }
+    }
+    if (rules.effort.visible && rules.effortOptions.isNotEmpty()) {
+        SettingsFieldLabel("Reasoning Effort")
+        SettingsSelect(sent.optString("reasoning_effort"), rules.effortOptions.map { WebOption(it, EFFORT_LABELS.getValue(it)) }, { effort ->
+            setTranslationOption(context, "reasoning_effort", effort)
+            onChange(setting.copy(reasoningEffort = effort))
+        })
     }
 }
 

@@ -37,9 +37,10 @@ class SelectionTranslator(context: Context) {
     suspend fun translate(text: String, setting: TranslationSetting, onContent: (String) -> Unit): String {
         if (setting.model.isBlank()) throw Unavailable(MODEL_MISSING, openApp = true)
         val prompt = translationPrompt(text, setting.language)
+        val options = requestOptions(setting)
         val profiles = LocalProfiles(app)
         if (prefs.getString(ChatViewModel.PREF_PROFILE_MODE, ChatViewModel.PROFILE_SERVER) == ChatViewModel.PROFILE_LOCAL) {
-            return onDevice(profiles, profiles.local(), ChatViewModel.LOCAL_PROFILE_NAME, null).answerOnce(setting.model, prompt, onContent)
+            return onDevice(profiles, profiles.local(), ChatViewModel.LOCAL_PROFILE_NAME, null).answerOnce(setting.model, prompt, options, onContent)
         }
         val session = withContext(Dispatchers.IO) { TokenStore(app).load() }
             ?: throw Unavailable("AI Playground にログインしてからお使いください。", openApp = true)
@@ -47,9 +48,9 @@ class SelectionTranslator(context: Context) {
         val api = PlaygroundApi()
         val accountId = prefs.getString("offline_cache_account_id", null)?.toIntOrNull()
         if (accountId != null && prefs.getBoolean(LocalProfiles.serverlessPrefKey(accountId), false)) {
-            return onDevice(profiles, profiles.account(accountId), "", ServerChatBackend(api)).answerOnce(setting.model, prompt, onContent)
+            return onDevice(profiles, profiles.account(accountId), "", ServerChatBackend(api)).answerOnce(setting.model, prompt, options, onContent)
         }
-        return throughServer(api, session.token, setting.model, prompt, onContent)
+        return throughServer(api, session.token, setting.model, prompt, options, onContent)
     }
 
     private suspend fun onDevice(profiles: LocalProfiles, profile: LocalProfiles.Profile, accountName: String, fallback: ChatBackend?): LocalChatBackend =
@@ -61,7 +62,7 @@ class SelectionTranslator(context: Context) {
         }
 
     /** A temporary chat on the server, deleted once the answer has arrived (or failed). */
-    private suspend fun throughServer(api: PlaygroundApi, token: String, model: String, prompt: String, onContent: (String) -> Unit): String {
+    private suspend fun throughServer(api: PlaygroundApi, token: String, model: String, prompt: String, options: JSONObject, onContent: (String) -> Unit): String {
         val created = api.post("/api/threads", JSONObject().put("is_temporary", true), token)
         val id = created.get("id").toString()
         try {
@@ -70,19 +71,13 @@ class SelectionTranslator(context: Context) {
             val body = JSONObject().put("model", model).put("message", prompt)
                 .put("client_request_id", UUID.randomUUID().toString()).put("thread_id", id)
                 .put("image_urls", JSONArray()).put("image_items", JSONArray()).put("uploaded_image_urls", JSONArray())
-                .put("enable_thinking", off(rules.thinking)).put("enable_search", off(rules.search))
+                .put("enable_search", off(rules.search))
                 .put("enable_url_context", off(rules.urls)).put("enable_maps", off(rules.maps))
                 .put("enable_file_creation", off(rules.file)).put("enable_system_prompt", off(rules.sysPrompt))
                 .put("enable_prompt_caching", false).put("batch_mode", false).put("enable_python", off(rules.python))
                 .put("enable_mcp", false).put("coding_mode", false).put("canvas_mode", false)
                 .put("temporary_chat", true).put("disable_auto_search", true)
-            COMPOSER_SELECT_DEFAULTS.forEach { (key, fallback) -> body.put(key, fallback) }
-            if (rules.thinkingLevels.isNotEmpty() && body.optString("thinking_level") !in rules.thinkingLevels) {
-                rules.thinkingFallback?.let { body.put("thinking_level", it) }
-            }
-            if (rules.effortOptions.isNotEmpty() && body.optString("reasoning_effort") !in rules.effortOptions) {
-                body.put("reasoning_effort", rules.effortFallback)
-            }
+            options.keys().forEach { key -> body.put(key, options.get(key)) }
             val answer = StringBuilder()
             var error: String? = null
             api.stream("/chat_stream", body, token) { event ->
@@ -100,6 +95,28 @@ class SelectionTranslator(context: Context) {
     }
 
     companion object {
+        /**
+         * Thinking and the composer selects from the setting, as the composer would send them for the model:
+         * a forced Thinking stays forced, a hidden one is off, and a level or effort the model lacks moves to
+         * the composer's fallback (`ChatViewModel.withModelRules`).
+         */
+        fun requestOptions(setting: TranslationSetting): JSONObject {
+            val rules = composerRules(setting.model, false)
+            val body = JSONObject()
+            COMPOSER_SELECT_DEFAULTS.forEach { (key, fallback) -> body.put(key, fallback) }
+            body.put("enable_thinking", rules.thinking.forced ?: (rules.thinking.visible && setting.thinking))
+            body.put("thinking_level", setting.thinkingLevel)
+            body.put("thinking_budget", (setting.thinkingBudget.toIntOrNull()?.coerceIn(0, 32768) ?: 4096).toString())
+            body.put("reasoning_effort", setting.reasoningEffort)
+            if (rules.thinkingLevels.isNotEmpty() && body.optString("thinking_level") !in rules.thinkingLevels) {
+                rules.thinkingFallback?.let { body.put("thinking_level", it) }
+            }
+            if (rules.effortOptions.isNotEmpty() && body.optString("reasoning_effort") !in rules.effortOptions) {
+                body.put("reasoning_effort", rules.effortFallback)
+            }
+            return body
+        }
+
         const val MODEL_MISSING = "翻訳に使うモデルが設定されていません。設定の「Android」カードで選択してください。"
 
         /** The request sent to the model; the selected text is fenced off so instructions inside it are only translated. */

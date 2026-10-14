@@ -135,7 +135,7 @@ class TranslateOverlayActivity : ComponentActivity() {
         }
     }
 
-    /** Images shared to 「AIで翻訳」 (the share sheet offers it only for `image/*`). */
+    /** Images shared to 「AIで翻訳」 (the share sheet offers it only for images). */
     @Suppress("DEPRECATION")
     private fun sharedImages(intent: Intent?): List<Uri> {
         if (intent?.type?.startsWith("image/") != true) return emptyList()

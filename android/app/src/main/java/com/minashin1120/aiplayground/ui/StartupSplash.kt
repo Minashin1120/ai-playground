@@ -61,7 +61,9 @@ private const val TITLE_IN_END = 800f
 private const val SPARKLE_START = 380f
 private const val SPARKLE_END = 1_380f
 private const val DIVE_EARLIEST = 1_050f
-private const val DIVE_MS = 450f
+// The zoom is exponential in time (maxScale^progress with linear progress): every frame multiplies the scale by
+// the same factor, so the dive starts at once and keeps accelerating on screen.
+private const val DIVE_MS = 300f
 private const val FADE_TAIL_MS = 150f
 
 private const val TITLE = "AI Playground"
@@ -267,7 +269,7 @@ internal fun StartupSplash(enabled: Boolean, ready: Boolean) {
             val t = time.t
             val layout = SplashLayout(size.width, size.height)
             val glow = phase(t, 0f, 900f, EaseOut)
-            val zoom = time.dive(easing = EaseIn)
+            val zoom = time.dive()
             val drift = t / 1_000f * 2.2f
             val reach = max(size.width, size.height)
             drawRect(Backdrop)
@@ -309,9 +311,9 @@ internal fun StartupSplash(enabled: Boolean, ready: Boolean) {
             val t = time.t
             val layout = SplashLayout(size.width, size.height)
             val arrive = phase(t, LOGO_IN_START, LOGO_IN_END, EaseOutBack)
-            val zoom = time.dive(easing = EaseIn)
+            val zoom = time.dive()
             val breathe = 0.85f + 0.15f * sin(t / 1_000f * 4f)
-            val strength = 0.85f * phase(t, 120f, 800f, EaseOut) * breathe * (1f - time.dive(length = 250f))
+            val strength = 0.85f * phase(t, 120f, 800f, EaseOut) * breathe * (1f - time.dive(length = 200f))
             if (strength > 0.001f) {
                 val scale = (0.55f + 0.45f * arrive) * layout.maxScale.pow(zoom)
                 for (i in 0 until BLOOM_STEPS) {
@@ -336,7 +338,7 @@ internal fun StartupSplash(enabled: Boolean, ready: Boolean) {
             val t = time.t
             val layout = SplashLayout(size.width, size.height)
             val arrive = phase(t, LOGO_IN_START, LOGO_IN_END, EaseOutBack)
-            val zoom = layout.maxScale.pow(time.dive(easing = EaseIn))
+            val zoom = layout.maxScale.pow(time.dive())
             val total = (0.55f + 0.45f * arrive) * zoom
             val appear = phase(t, LOGO_IN_START, 520f, EaseOut)
             val spin = phase(t, SPARKLE_START, SPARKLE_END, FastOutSlowInEasing)
@@ -350,7 +352,7 @@ internal fun StartupSplash(enabled: Boolean, ready: Boolean) {
             val time = SplashTime(elapsed, diveAt)
             val t = time.t
             val layout = SplashLayout(size.width, size.height)
-            val alpha = phase(t, 0f, 500f, EaseOut) * (1f - time.dive(length = 200f, easing = EaseOut))
+            val alpha = phase(t, 0f, 500f, EaseOut) * (1f - time.dive(length = 150f, easing = EaseOut))
             if (alpha > 0.001f) {
                 // Measured every frame (the measurer caches it) so the Web font replaces the fallback once it has loaded.
                 val title = textMeasurer.measure(TITLE, titleStyle)
@@ -368,7 +370,7 @@ internal fun StartupSplash(enabled: Boolean, ready: Boolean) {
         Canvas(Modifier.fillMaxSize()) {
             val time = SplashTime(elapsed, diveAt)
             val layout = SplashLayout(size.width, size.height)
-            val dive = time.dive(easing = EaseIn)
+            val dive = time.dive()
             val open = (dive / 0.25f).coerceIn(0f, 1f)
             if (open > 0f) {
                 val zoom = layout.maxScale.pow(dive)

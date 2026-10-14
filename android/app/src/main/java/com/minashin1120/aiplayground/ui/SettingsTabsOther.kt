@@ -71,7 +71,7 @@ internal class SettingsExtras(
 
 /** ANDROID_ONLY.md: the "Android" card at the end of the General tab (account, app update, bubble). */
 internal fun androidCard(state: ChatState, extras: SettingsExtras): SettingsCardSpec =
-    SettingsCardSpec(SettingsTab.General, "android", "Android", "Android アカウント アプリ更新 更新を確認 バブル ツールバー通知 通知パネル 画像を分割 バイブレーション 振動 翻訳 AIで翻訳 テキスト選択 共有 翻訳先の言語 Thinking Level Thinking Budget Reasoning Effort") {
+    SettingsCardSpec(SettingsTab.General, "android", "Android", "Android アカウント アプリ更新 更新を確認 バブル ツールバー通知 通知パネル 画像を分割 バイブレーション 振動 翻訳 AIで翻訳 テキスト選択 共有 画像 翻訳先の言語 Thinking Level Thinking Budget Reasoning Effort") {
         val update = extras.appUpdate
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsFieldLabel("アカウント")
@@ -152,7 +152,7 @@ private fun TranslationSettingFields(state: ChatState) {
     val chatModels = state.account?.models.orEmpty().filter { it.mode == "chat" }
     val current = chatModels.firstOrNull { it.id == setting.model }
     SettingsFieldLabel("AIで翻訳", Modifier.padding(top = 4.dp))
-    SettingsDesc("他のアプリで文字を選択してメニューの「AIで翻訳」を選ぶか、共有メニューで「AIで翻訳」に共有すると、開いているアプリの上に翻訳を表示します。")
+    SettingsDesc("他のアプリで文字を選択してメニューの「AIで翻訳」を選ぶか、共有メニューで文字や画像を「AIで翻訳」に共有すると、開いているアプリの上に翻訳を表示します。画像は写っている文字を翻訳します。")
     SettingsFieldLabel("翻訳に使うモデル")
     SettingsSmallButton(
         when {

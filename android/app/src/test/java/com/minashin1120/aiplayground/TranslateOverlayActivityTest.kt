@@ -35,9 +35,36 @@ class TranslateOverlayActivityTest {
             .filter { it.activityInfo.name == TranslateOverlayActivity::class.java.name }
         assertEquals(1, ours.size)
         assertEquals("AIで翻訳", ours.single().loadLabel(pm).toString())
-        val images = Intent(Intent.ACTION_SEND).setType("image/png").addCategory(Intent.CATEGORY_DEFAULT)
-        assertTrue(pm.queryIntentActivities(images, PackageManager.MATCH_DEFAULT_ONLY)
+        val video = Intent(Intent.ACTION_SEND).setType("video/mp4").addCategory(Intent.CATEGORY_DEFAULT)
+        assertTrue(pm.queryIntentActivities(video, PackageManager.MATCH_DEFAULT_ONLY)
             .none { it.activityInfo.name == TranslateOverlayActivity::class.java.name })
+    }
+
+    @Test fun shareSheetOffersTranslationForImages() {
+        val pm = RuntimeEnvironment.getApplication().packageManager
+        listOf(Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE).forEach { action ->
+            val intent = Intent(action).setType("image/png").addCategory(Intent.CATEGORY_DEFAULT)
+            val ours = pm.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+                .filter { it.activityInfo.name == TranslateOverlayActivity::class.java.name }
+            assertEquals(action, 1, ours.size)
+        }
+    }
+
+    @Test fun sharedImagesAreTranslatedInsteadOfTheirCaption() {
+        val uris = arrayListOf(android.net.Uri.parse("content://example/1.png"), android.net.Uri.parse("content://example/2.png"))
+        val intent = Intent(Intent.ACTION_SEND_MULTIPLE).setType("image/png")
+            .putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris).putExtra(Intent.EXTRA_TEXT, "caption")
+        val activity = Robolectric.buildActivity(TranslateOverlayActivity::class.java, intent).create().get()
+        assertFalse(activity.isFinishing)
+        val state = activity.viewModels<SelectionTranslationViewModel>().value.state.value
+        assertEquals(2, state.imageCount)
+        assertEquals("", state.source)
+    }
+
+    @Test fun imagePromptAsksForTheTranslationOnly() {
+        val prompt = SelectionTranslator.imageTranslationPrompt("English")
+        assertTrue(prompt.contains("画像内の文字をEnglishに翻訳"))
+        assertTrue(prompt.contains("翻訳した文章だけを出力"))
     }
 
     @Test fun sharedTextIsTranslated() {

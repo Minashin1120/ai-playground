@@ -4,8 +4,10 @@ import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Parcelable
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,14 +19,17 @@ import androidx.lifecycle.viewModelScope
 import com.minashin1120.aiplayground.data.ApiException
 import com.minashin1120.aiplayground.data.SelectionTranslator
 import com.minashin1120.aiplayground.data.direct.DirectApiException
+import com.minashin1120.aiplayground.data.loadTranslationImage
 import com.minashin1120.aiplayground.ui.PlaygroundTheme
 import com.minashin1120.aiplayground.ui.SelectionTranslationDialog
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Asks [MainActivity] to open the settings at this card (the 「AIで翻訳」 model when none is chosen). */
 const val EXTRA_OPEN_SETTINGS_CARD = "com.minashin1120.aiplayground.OPEN_SETTINGS_CARD"
@@ -34,6 +39,9 @@ private const val MAX_TRANSLATION_CHARS = 20_000
 
 data class SelectionTranslationState(
     val source: String = "",
+    /** Images shared to be translated (the text in them), once read; [imageCount] were shared. */
+    val images: List<SelectionTranslator.Image> = emptyList(),
+    val imageCount: Int = 0,
     val setting: TranslationSetting? = null,
     val result: String = "",
     val running: Boolean = false,
@@ -46,11 +54,20 @@ class SelectionTranslationViewModel(application: Application) : AndroidViewModel
     private val mutable = MutableStateFlow(SelectionTranslationState())
     val state = mutable.asStateFlow()
     private var job: Job? = null
+    private var uris: List<Uri> = emptyList()
+    var started = false
+        private set
 
-    /** Translates [text] once; a recreated activity (rotation) keeps the running translation. */
-    fun start(text: String) {
-        if (state.value.source.isNotEmpty()) return
-        mutable.value = SelectionTranslationState(source = text)
+    /**
+     * Translates [text], or the text in the images at [uris] when there are any, once; a recreated activity
+     * (rotation) keeps the running translation. The images are read while the activity holds the share's
+     * read permission.
+     */
+    fun start(text: String, uris: List<Uri> = emptyList()) {
+        if (started) return
+        started = true
+        this.uris = uris.take(SelectionTranslator.MAX_IMAGES)
+        mutable.value = SelectionTranslationState(source = if (uris.isEmpty()) text else "", imageCount = this.uris.size)
         run()
     }
 
@@ -62,7 +79,15 @@ class SelectionTranslationViewModel(application: Application) : AndroidViewModel
         mutable.update { it.copy(setting = setting, result = "", running = true, error = null, openApp = false) }
         job = viewModelScope.launch {
             try {
-                val answer = SelectionTranslator(getApplication()).translate(state.value.source, setting) { piece ->
+                if (uris.isNotEmpty() && state.value.images.isEmpty()) {
+                    val images = withContext(Dispatchers.IO) {
+                        uris.mapIndexedNotNull { index, uri -> loadTranslationImage(getApplication(), uri, index) }
+                    }
+                    if (images.isEmpty()) throw SelectionTranslator.Unavailable("画像を読み込めませんでした。", openApp = false)
+                    mutable.update { it.copy(images = images) }
+                }
+                val current = state.value
+                val answer = SelectionTranslator(getApplication()).translate(current.source, current.images, setting) { piece ->
                     mutable.update { it.copy(result = it.result + piece) }
                 }
                 mutable.update { it.copy(result = answer.ifBlank { it.result }.trim(), running = false) }
@@ -85,8 +110,8 @@ class SelectionTranslationViewModel(application: Application) : AndroidViewModel
 
 /**
  * ANDROID_ONLY.md 「AIで翻訳」 in the system text-selection menu (`Intent.ACTION_PROCESS_TEXT`) and share sheet
- * (`Intent.ACTION_SEND` of text): a translucent activity over the app the text came from, so that app stays open
- * behind the translation. The selection is never replaced.
+ * (`Intent.ACTION_SEND` of text, `ACTION_SEND`/`ACTION_SEND_MULTIPLE` of images): a translucent activity over the
+ * app the text came from, so that app stays open behind the translation. The selection is never replaced.
  */
 class TranslateOverlayActivity : ComponentActivity() {
     private val model: SelectionTranslationViewModel by viewModels()
@@ -98,8 +123,9 @@ class TranslateOverlayActivity : ComponentActivity() {
         val text = runCatching {
             intent?.getCharSequenceExtra(extra)?.toString()
         }.getOrNull()?.trim().orEmpty().take(MAX_TRANSLATION_CHARS)
-        if (text.isEmpty() && model.state.value.source.isEmpty()) { finish(); return }
-        model.start(text)
+        val images = runCatching { sharedImages(intent) }.getOrDefault(emptyList())
+        if (text.isEmpty() && images.isEmpty() && !model.started) { finish(); return }
+        model.start(text, images)
         setContent {
             PlaygroundTheme {
                 val state by model.state.collectAsStateWithLifecycle()
@@ -107,6 +133,18 @@ class TranslateOverlayActivity : ComponentActivity() {
                     onRetry = model::retry, onOpenApp = { openApp(state.setting?.model.isNullOrBlank()) })
             }
         }
+    }
+
+    /** Images shared to 「AIで翻訳」 (the share sheet offers it only for `image/*`). */
+    @Suppress("DEPRECATION")
+    private fun sharedImages(intent: Intent?): List<Uri> {
+        if (intent?.type?.startsWith("image/") != true) return emptyList()
+        val streams: List<Parcelable?> = when (intent.action) {
+            Intent.ACTION_SEND -> listOf(intent.getParcelableExtra<Parcelable>(Intent.EXTRA_STREAM))
+            Intent.ACTION_SEND_MULTIPLE -> intent.getParcelableArrayListExtra<Parcelable>(Intent.EXTRA_STREAM).orEmpty()
+            else -> emptyList()
+        }
+        return streams.filterIsInstance<Uri>()
     }
 
     private fun copy(text: String) {

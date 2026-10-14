@@ -14,7 +14,7 @@
 | `app/build.gradle.kts` | 固定applicationId・共有署名・依存関係 | アプリ構成・署名を確認するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/MainActivity.kt` | Custom Tabs・HTTPS App Links・添付共有（送信・他アプリの共有シートからの受信（ファイルは添付、テキストは入力欄へ追加）、「画像を分割」と「メッセージとしてプレビュー」の共有先）・APKインストール・Activityライフサイクル | ブラウザー認証からの復帰、ファイル表示、共有シート添付、アプリ更新 |
 | `app/src/main/java/com/minashin1120/aiplayground/ProcessTextActivity.kt` | 他アプリのテキスト選択メニュー「プロンプトとして添付」（`ACTION_PROCESS_TEXT`）。選択した文字を共有シートと同じ経路で入力欄へ追加し、選択元は置き換えない | テキスト選択メニューからの入力を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/TranslateOverlayActivity.kt`, `ui/SelectionTranslationDialog.kt`, `data/SelectionTranslator.kt`, `TranslationSetting.kt` | 他アプリのテキスト選択メニューと共有シートの「AIで翻訳」（`ACTION_PROCESS_TEXT`、テキストと画像の `ACTION_SEND`、画像の `ACTION_SEND_MULTIPLE`）。画像は写っている文字を翻訳する。選択元・共有元のアプリを背後に残す透過画面で、設定の「Android」カードで選んだモデル・言語・Thinking・Effortの翻訳を表示する。サーバー経由は一時チャットを作って回答後に削除し、サーバー不使用モードとアカウントなしは端末から直接送る | テキスト選択からの翻訳を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/TranslateOverlayActivity.kt`, `ui/SelectionTranslationDialog.kt`, `data/SelectionTranslator.kt`, `TranslationSetting.kt` | 他アプリのテキスト選択メニューと共有シートの「AIで翻訳」（`ACTION_PROCESS_TEXT`、テキストと画像の `ACTION_SEND`、画像の `ACTION_SEND_MULTIPLE`）。画像は写っている文字を翻訳し、プロンプトバーと同じ圧縮を翻訳用の別の値で行う。選択元・共有元のアプリを背後に残す透過画面で、設定の「Android」カードで選んだモデル・言語・Thinking・Effortの翻訳を表示する。サーバー経由は一時チャットを作って回答後に削除し、サーバー不使用モードとアカウントなしは端末から直接送る | テキスト選択からの翻訳を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/GoogleAuthClient.kt` | Credential ManagerによるGoogle IDトークン取得 | Googleのネイティブログインを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateViewModel.kt` | 更新検出と画面への状態中継・インストール段階 | アプリ更新フローを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateDownloadManager.kt` | プロセス全体で1つの更新状態・APKダウンロード・キャンセル・ダイアログの非表示／再表示 | 更新ダウンロードの状態遷移を変更するとき |
@@ -70,7 +70,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsForm.kt` | 設定の編集中の値と保存時の送信内容 | 設定項目を追加するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsFields.kt` | 設定カード内の入力部品（チェックボックス、ラジオ、select、入力欄、小ボタン、スイッチ行） | 設定の部品の見た目を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ColorPickerDialog.kt` | テーマ色の選択（Webの `input[type=color]` 相当） | 色選択を変えるとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/CompressionDialog.kt` | 「画像・圧縮詳細設定」モーダル（圧縮と画像・OCRの生成設定） | 圧縮設定を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/CompressionDialog.kt` | 「画像・圧縮詳細設定」モーダル（圧縮と画像・OCRの生成設定）。圧縮の部分（`CompressionModal`）は「AIで翻訳」の画像の圧縮設定でも使う | 圧縮設定を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsAccount.kt` | アカウント・セキュリティ・2要素認証タブのカードとデータタブの「アカウントデータ」カード | アカウント操作やデータ移行の画面を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ReauthDialog.kt` | 重要な操作の前の本人確認（ANDROID_ONLY.md）と、設定の操作を実行する `AccountOps` | 本人確認の流れを変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImportDialogs.kt` | インポート時の設定変更の確認と、容量超過時のファイル選択 | インポートの確認画面を変えるとき |
@@ -124,7 +124,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RemoteImage.kt` | 同一originの添付画像をBearer付きで取得し、キャッシュしてプレビュー | 添付・画像プレビューを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/FileViewer.kt` | Webの画像ビューアー（件数・前後移動・Download／Copy URL／Reuse／Close）とファイル表示パネル（テキスト・PDF・音声・動画） | ファイルや画像の表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ThreadPdf.kt` | スレッドのネイティブA4 PDF出力（WebView不使用） | PDF出力を編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/ImageCompression.kt` | Web相当の画像圧縮設定と、アップロード前の縮小・再エンコード | 画像圧縮を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/ImageCompression.kt` | Web相当の画像圧縮設定（保存・読み込み）と、アップロード前の縮小・再エンコード。プロンプトバーと「AIで翻訳」が、それぞれの保存先で同じ処理を使う | 画像圧縮を編集するとき |
 | `app/src/main/res/` | アイコン、HTTPS設定、バックアップ除外、添付共有範囲 | Androidリソース・保護設定 |
 | `ci/changelogs/` | Android版のバージョンごとの公開更新履歴Markdown | アプリ版の更新履歴を追加・修正するとき |
 | `app/src/test/` | HTTP認証境界・ストリーム・データ解析・Markdown・数式のテスト | 通信・表示実装を変更するとき |

@@ -80,8 +80,12 @@ class SelectionTranslationViewModel(application: Application) : AndroidViewModel
         job = viewModelScope.launch {
             try {
                 if (uris.isNotEmpty() && state.value.images.isEmpty()) {
-                    val images = withContext(Dispatchers.IO) {
-                        uris.mapIndexedNotNull { index, uri -> loadTranslationImage(getApplication(), uri, index) }
+                    val images = try {
+                        withContext(Dispatchers.IO) {
+                            uris.mapIndexedNotNull { index, uri -> loadTranslationImage(getApplication(), uri, index, setting.compression) }
+                        }
+                    } catch (e: java.io.IOException) {
+                        throw SelectionTranslator.Unavailable(e.message ?: "画像を読み込めませんでした。", openApp = false)
                     }
                     if (images.isEmpty()) throw SelectionTranslator.Unavailable("画像を読み込めませんでした。", openApp = false)
                     mutable.update { it.copy(images = images) }

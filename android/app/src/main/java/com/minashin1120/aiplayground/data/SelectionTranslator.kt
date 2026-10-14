@@ -162,22 +162,40 @@ class SelectionTranslator(context: Context) {
     }
 }
 
+/** Largest shared image kept in memory when it is sent as it is (compression off, or an animated GIF). */
+const val MAX_TRANSLATION_IMAGE_BYTES = 20 * 1024 * 1024
+
 /**
- * Reads a shared image and resizes it so that small text stays legible and every provider accepts it
- * (at most 2560 px and 3.5 MiB; Claude refuses images over 5 MB of base64). Null when it cannot be read.
+ * Reads a shared image, compressed with the translation's [settings] exactly as the prompt bar compresses
+ * attachments ([compressImage]). Null when it cannot be read; throws [IOException] when it is too large to send
+ * as it is.
  */
-fun loadTranslationImage(context: Context, uri: Uri, index: Int): SelectionTranslator.Image? = runCatching {
+fun loadTranslationImage(context: Context, uri: Uri, index: Int, settings: CompressionSettings): SelectionTranslator.Image? {
     val resolver = context.contentResolver
-    val mime = resolver.getType(uri).orEmpty().ifBlank { "image/jpeg" }
+    val mime = runCatching { resolver.getType(uri) }.getOrNull().orEmpty().ifBlank { "image/jpeg" }
+    if (!mime.startsWith("image/")) return null
     val stem = "translate_${index}_${UUID.randomUUID().toString().take(8)}"
-    val compressed = compressImage(context, uri, stem, mime, CompressionSettings(maxSizeMB = 3.5f, maxDimension = 2560))
+    val compressed = compressImage(context, uri, stem, mime, settings)
     if (compressed != null) {
-        try { SelectionTranslator.Image(compressed.name, compressed.mime, compressed.file.readBytes()) }
+        return try { SelectionTranslator.Image(compressed.name, compressed.mime, compressed.file.readBytes()) }
+        catch (e: IOException) { null }
         finally { compressed.file.delete() }
-    } else {
-        // An animated GIF is sent as it is.
-        val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
-        if (!mime.startsWith("image/") || bytes.isEmpty() || bytes.size > 3_500_000) null
-        else SelectionTranslator.Image("$stem.${mime.substringAfter('/')}", mime, bytes)
     }
-}.getOrNull()
+    val bytes = runCatching {
+        resolver.openInputStream(uri)?.use { input ->
+            val buffer = java.io.ByteArrayOutputStream()
+            val chunk = ByteArray(64 * 1024)
+            while (true) {
+                val count = input.read(chunk)
+                if (count < 0) break
+                buffer.write(chunk, 0, count)
+                if (buffer.size() > MAX_TRANSLATION_IMAGE_BYTES) throw TooLarge()
+            }
+            buffer.toByteArray()
+        }
+    }.getOrElse { if (it is TooLarge) throw IOException("圧縮しない画像は1枚20MBまでです。") else null }
+    if (bytes == null || bytes.isEmpty()) return null
+    return SelectionTranslator.Image("$stem.${mime.substringAfter('/').substringBefore('+')}", mime, bytes)
+}
+
+private class TooLarge : IOException()

@@ -4322,13 +4322,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Persists the local image-compression settings used before image uploads. */
     fun saveCompressionSettings(settings: CompressionSettings) {
-        prefs.edit()
-            .putBoolean("compression_enabled", settings.enabled)
-            .putFloat("compression_max_size_mb", settings.maxSizeMB)
-            .putInt("compression_max_dim", settings.maxDimension)
-            .putString("compression_output_type", settings.outputType)
-            .putBoolean("compression_format_only", settings.formatOnly)
-            .apply()
+        com.minashin1120.aiplayground.data.saveCompressionSettings(prefs, settings)
         mutable.update { it.copy(compression = settings) }
     }
 

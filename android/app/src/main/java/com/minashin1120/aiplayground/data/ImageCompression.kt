@@ -30,6 +30,20 @@ fun compressionSettingsFrom(prefs: SharedPreferences): CompressionSettings = Com
 )
 
 /**
+ * Persists [settings] under the keys [compressionSettingsFrom] reads. The prompt bar keeps them in its own
+ * preferences and 「AIで翻訳」 in its own (`TranslationSetting.kt`).
+ */
+fun saveCompressionSettings(prefs: SharedPreferences, settings: CompressionSettings) {
+    prefs.edit()
+        .putBoolean("compression_enabled", settings.enabled)
+        .putFloat("compression_max_size_mb", settings.maxSizeMB)
+        .putInt("compression_max_dim", settings.maxDimension)
+        .putString("compression_output_type", settings.outputType)
+        .putBoolean("compression_format_only", settings.formatOnly)
+        .apply()
+}
+
+/**
  * Resizes and re-encodes a picked image so its dimensions and byte size fit the
  * user's settings. Returns null for non-images, animated GIFs, or files that
  * need no work, so the original upload path is used unchanged.

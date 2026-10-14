@@ -48,6 +48,7 @@ import com.minashin1120.aiplayground.DEFAULT_TRANSLATION_LANGUAGE
 import com.minashin1120.aiplayground.loadTranslationSetting
 import com.minashin1120.aiplayground.setTranslationLanguage
 import com.minashin1120.aiplayground.setTranslationModel
+import com.minashin1120.aiplayground.setTranslationCompression
 import com.minashin1120.aiplayground.setTranslationOption
 import com.minashin1120.aiplayground.setTranslationThinking
 import com.minashin1120.aiplayground.TranslationSetting
@@ -71,7 +72,7 @@ internal class SettingsExtras(
 
 /** ANDROID_ONLY.md: the "Android" card at the end of the General tab (account, app update, bubble). */
 internal fun androidCard(state: ChatState, extras: SettingsExtras): SettingsCardSpec =
-    SettingsCardSpec(SettingsTab.General, "android", "Android", "Android アカウント アプリ更新 更新を確認 バブル ツールバー通知 通知パネル 画像を分割 バイブレーション 振動 翻訳 AIで翻訳 テキスト選択 共有 画像 翻訳先の言語 Thinking Level Thinking Budget Reasoning Effort") {
+    SettingsCardSpec(SettingsTab.General, "android", "Android", "Android アカウント アプリ更新 更新を確認 バブル ツールバー通知 通知パネル 画像を分割 バイブレーション 振動 翻訳 AIで翻訳 テキスト選択 共有 画像 圧縮 画像・圧縮詳細設定 翻訳先の言語 Thinking Level Thinking Budget Reasoning Effort") {
         val update = extras.appUpdate
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsFieldLabel("アカウント")
@@ -101,7 +102,7 @@ internal fun androidCard(state: ChatState, extras: SettingsExtras): SettingsCard
             )
             ToolbarNotificationSetting(extras.onNotify)
             VibrationSetting()
-            TranslationSettingFields(state)
+            TranslationSettingFields(state, extras.onNotify)
         }
     }
 
@@ -144,7 +145,7 @@ private fun VibrationSetting() {
  * once). The model is chosen in the same Select Model modal as the chat, limited to text chat models.
  */
 @Composable
-private fun TranslationSettingFields(state: ChatState) {
+private fun TranslationSettingFields(state: ChatState, onNotify: (String) -> Unit) {
     val context = LocalContext.current
     var setting by remember { mutableStateOf(loadTranslationSetting(context)) }
     var picking by remember { mutableStateOf(false) }
@@ -171,6 +172,22 @@ private fun TranslationSettingFields(state: ChatState) {
         setting = setting.copy(language = language.trim().ifBlank { DEFAULT_TRANSLATION_LANGUAGE })
     }, Modifier.fillMaxWidth(), placeholder = DEFAULT_TRANSLATION_LANGUAGE)
     if (setting.model.isNotBlank()) TranslationReasoningFields(setting) { setting = it }
+    // The prompt bar's Compress chip and 画像・圧縮詳細設定 modal, with the translation's own values.
+    var compressionOpen by remember { mutableStateOf(false) }
+    SettingsFieldLabel("共有した画像の圧縮")
+    SettingsCheck("圧縮する", setting.compression.enabled, { on ->
+        val next = setting.compression.copy(enabled = on)
+        setTranslationCompression(context, next)
+        setting = setting.copy(compression = next)
+    })
+    SettingsSmallButton("画像・圧縮詳細設定", { compressionOpen = true }, icon = R.drawable.fa_solid_compress_alt, fill = true)
+    ModalHost(compressionOpen) {
+        CompressionModal(setting.compression, "共有した画像のクライアント側圧縮", { compressionOpen = false }, onSave = { next ->
+            setTranslationCompression(context, next)
+            setting = setting.copy(compression = next)
+            onNotify("設定を保存しました")
+        })
+    }
     ModalHost(picking) {
         val account = state.account
         ModelPicker(

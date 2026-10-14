@@ -33,15 +33,75 @@ import com.minashin1120.aiplayground.data.isMistralOcrModel
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CompressionDialog(state: ChatState, model: ChatViewModel, onDismiss: () -> Unit) {
+    val modelId = state.model.lowercase()
+    val values = remember { mutableStateMapOf<String, String>().apply { putAll(state.generationValues) } }
+    fun v(key: String, default: String) = values[key] ?: default
+    CompressionModal(state.compression, "添付画像のクライアント側圧縮", onDismiss, onSave = { settings ->
+        model.saveCompressionSettings(settings)
+        values.forEach { (key, value) -> model.generationOption(key, value) }
+        model.notify("設定を保存しました")
+    }) {
+        val web = LocalWebPalette.current
+        when {
+            modelId.contains("gpt-image") -> RuledSection("GPT Image 生成設定", Tw.green300, Tw.green500) {
+                TwoColumns(
+                    { ModalField("Size") { ModalSelect(v("image_size", "1024x1024"), webOptions("1024x1024" to "1024x1024", "1536x1024" to "1536x1024", "1024x1536" to "1024x1536", "auto" to "Auto")) { values["image_size"] = it } } },
+                    { ModalField("Quality") { ModalSelect(v("image_quality", "medium"), webOptions("low" to "Low", "medium" to "Medium", "high" to "High", "xhigh" to "X-High", "max" to "Max", "auto" to "Auto")) { values["image_quality"] = it } } },
+                )
+                TwoColumns(
+                    { ModalField("Format") { ModalSelect(v("image_format", "jpeg"), webOptions("jpeg" to "JPEG", "png" to "PNG", "webp" to "WebP")) { values["image_format"] = it } } },
+                    { ModalField("Compression (%)") { SettingsTextField(v("image_compression", "85"), { values["image_compression"] = it.filter(Char::isDigit).take(3) }, Modifier.fillMaxWidth(), number = true, deep = true) } },
+                )
+            }
+            isGeminiImageModelKey(modelId) -> RuledSection("Gemini (Nano Banana) 生成設定", web.theme300, web.theme.t500) {
+                TwoColumns(
+                    { ModalField("Aspect") { ModalSelect(v("gemini_image_aspect", "1:1"), listOf("1:1", "auto", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9").map { WebOption(it, if (it == "auto") "Auto" else it) }) { values["gemini_image_aspect"] = it } } },
+                    { ModalField("Size") { ModalSelect(v("gemini_image_size", "1K"), webOptions("1K" to "1K", "2K" to "2K", "4K" to "4K")) { values["gemini_image_size"] = it } } },
+                )
+            }
+            modelId.contains("grok") && (modelId.contains("imagine") || modelId.contains("image")) && !modelId.contains("video") ->
+                RuledSection("Grok (Imagine) 生成設定", Tw.orange400, Tw.orange500) {
+                    TwoColumns(
+                        { ModalField("Aspect") { ModalSelect(v("grok_image_aspect", "1:1"), webOptions("auto" to "Auto", "1:1" to "1:1 (Square)", "16:9" to "16:9 (Landscape)", "9:16" to "9:16 (Portrait)", "4:3" to "4:3", "3:4" to "3:4", "3:2" to "3:2", "2:3" to "2:3", "2:1" to "2:1", "1:2" to "1:2", "19.5:9" to "19.5:9", "9:19.5" to "9:19.5", "20:9" to "20:9", "9:20" to "9:20")) { values["grok_image_aspect"] = it } } },
+                        { ModalField("Resolution") { ModalSelect(v("grok_image_resolution", "1k"), webOptions("1k" to "1K", "2k" to "2K")) { values["grok_image_resolution"] = it } } },
+                    )
+                }
+            isMistralOcrModel(modelId) -> RuledSection("Mistral OCR 4 設定", Tw.orange300, Tw.orange400) {
+                Text("会話履歴・Search・Python・Canvas は使いません。添付した文書または公開URLだけを OCR します。", fontSize = 11.sp, color = Tw.gray400)
+                TwoColumns(
+                    { ModalField("Table format") { ModalSelect(v("ocr_table_format", ""), webOptions("" to "本文内 Markdown", "markdown" to "Markdown（別フィールド）", "html" to "HTML（別フィールド）")) { values["ocr_table_format"] = it } } },
+                    { ModalField("Pages（0始まり）") { SettingsTextField(v("ocr_pages", ""), { values["ocr_pages"] = it.take(200) }, Modifier.fillMaxWidth(), placeholder = "0-2 または 0,2-4", deep = true) } },
+                )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("ocr_extract_header" to "ヘッダー抽出", "ocr_extract_footer" to "フッター抽出",
+                        "ocr_include_blocks" to "構造ブロック", "ocr_include_image_base64" to "画像抽出").forEach { (key, label) ->
+                        val default = if (key == "ocr_include_image_base64") "true" else "false"
+                        SettingsCheck(label, v(key, default) == "true", { values[key] = it.toString() }, boxSize = 14.dp,
+                            labelColor = if (web.isLight) web.text else Tw.gray300)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The 画像・圧縮詳細設定 modal: the client-side compression fields of [current] under [sectionTitle], then
+ * [extra]. 「保存」 passes the edited settings to [onSave]; the prompt bar and 「AIで翻訳」 keep their own.
+ */
+@Composable
+internal fun CompressionModal(
+    current: CompressionSettings,
+    sectionTitle: String,
+    onDismiss: () -> Unit,
+    onSave: (CompressionSettings) -> Unit,
+    extra: @Composable ColumnScope.() -> Unit = {},
+) {
     val web = LocalWebPalette.current
-    val current = state.compression
     var outputType by remember { mutableStateOf(current.outputType) }
     var formatOnly by remember { mutableStateOf(current.formatOnly) }
     var maxSize by remember { mutableStateOf(current.maxSizeMB.toString()) }
     var maxDim by remember { mutableStateOf(current.maxDimension.toString()) }
-    val modelId = state.model.lowercase()
-    val values = remember { mutableStateMapOf<String, String>().apply { putAll(state.generationValues) } }
-    fun v(key: String, default: String) = values[key] ?: default
     WebOverlayModal(onDismiss, grayOverlay(), 4.dp, alignment = Alignment.Center) { _ ->
         val shape = RoundedCornerShape(8.dp)
         Column(
@@ -53,7 +113,7 @@ internal fun CompressionDialog(state: ChatState, model: ChatViewModel, onDismiss
                 Text("画像・圧縮詳細設定", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White)
             }
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                Section("添付画像のクライアント側圧縮", web.theme300, web.theme.t500) {
+                Section(sectionTitle, web.theme300, web.theme.t500) {
                     ModalField("出力形式 (変換)") {
                         ModalSelect(outputType, webOptions("original" to "元形式を維持 (自動)", "image/jpeg" to "JPEG に変換",
                             "image/png" to "PNG に変換", "image/webp" to "WebP に変換 (推奨)")) { outputType = it }
@@ -73,46 +133,7 @@ internal fun CompressionDialog(state: ChatState, model: ChatViewModel, onDismiss
                         }
                     }
                 }
-                when {
-                    modelId.contains("gpt-image") -> RuledSection("GPT Image 生成設定", Tw.green300, Tw.green500) {
-                        TwoColumns(
-                            { ModalField("Size") { ModalSelect(v("image_size", "1024x1024"), webOptions("1024x1024" to "1024x1024", "1536x1024" to "1536x1024", "1024x1536" to "1024x1536", "auto" to "Auto")) { values["image_size"] = it } } },
-                            { ModalField("Quality") { ModalSelect(v("image_quality", "medium"), webOptions("low" to "Low", "medium" to "Medium", "high" to "High", "xhigh" to "X-High", "max" to "Max", "auto" to "Auto")) { values["image_quality"] = it } } },
-                        )
-                        TwoColumns(
-                            { ModalField("Format") { ModalSelect(v("image_format", "jpeg"), webOptions("jpeg" to "JPEG", "png" to "PNG", "webp" to "WebP")) { values["image_format"] = it } } },
-                            { ModalField("Compression (%)") { SettingsTextField(v("image_compression", "85"), { values["image_compression"] = it.filter(Char::isDigit).take(3) }, Modifier.fillMaxWidth(), number = true, deep = true) } },
-                        )
-                    }
-                    isGeminiImageModelKey(modelId) -> RuledSection("Gemini (Nano Banana) 生成設定", web.theme300, web.theme.t500) {
-                        TwoColumns(
-                            { ModalField("Aspect") { ModalSelect(v("gemini_image_aspect", "1:1"), listOf("1:1", "auto", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9").map { WebOption(it, if (it == "auto") "Auto" else it) }) { values["gemini_image_aspect"] = it } } },
-                            { ModalField("Size") { ModalSelect(v("gemini_image_size", "1K"), webOptions("1K" to "1K", "2K" to "2K", "4K" to "4K")) { values["gemini_image_size"] = it } } },
-                        )
-                    }
-                    modelId.contains("grok") && (modelId.contains("imagine") || modelId.contains("image")) && !modelId.contains("video") ->
-                        RuledSection("Grok (Imagine) 生成設定", Tw.orange400, Tw.orange500) {
-                            TwoColumns(
-                                { ModalField("Aspect") { ModalSelect(v("grok_image_aspect", "1:1"), webOptions("auto" to "Auto", "1:1" to "1:1 (Square)", "16:9" to "16:9 (Landscape)", "9:16" to "9:16 (Portrait)", "4:3" to "4:3", "3:4" to "3:4", "3:2" to "3:2", "2:3" to "2:3", "2:1" to "2:1", "1:2" to "1:2", "19.5:9" to "19.5:9", "9:19.5" to "9:19.5", "20:9" to "20:9", "9:20" to "9:20")) { values["grok_image_aspect"] = it } } },
-                                { ModalField("Resolution") { ModalSelect(v("grok_image_resolution", "1k"), webOptions("1k" to "1K", "2k" to "2K")) { values["grok_image_resolution"] = it } } },
-                            )
-                        }
-                    isMistralOcrModel(modelId) -> RuledSection("Mistral OCR 4 設定", Tw.orange300, Tw.orange400) {
-                        Text("会話履歴・Search・Python・Canvas は使いません。添付した文書または公開URLだけを OCR します。", fontSize = 11.sp, color = Tw.gray400)
-                        TwoColumns(
-                            { ModalField("Table format") { ModalSelect(v("ocr_table_format", ""), webOptions("" to "本文内 Markdown", "markdown" to "Markdown（別フィールド）", "html" to "HTML（別フィールド）")) { values["ocr_table_format"] = it } } },
-                            { ModalField("Pages（0始まり）") { SettingsTextField(v("ocr_pages", ""), { values["ocr_pages"] = it.take(200) }, Modifier.fillMaxWidth(), placeholder = "0-2 または 0,2-4", deep = true) } },
-                        )
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("ocr_extract_header" to "ヘッダー抽出", "ocr_extract_footer" to "フッター抽出",
-                                "ocr_include_blocks" to "構造ブロック", "ocr_include_image_base64" to "画像抽出").forEach { (key, label) ->
-                                val default = if (key == "ocr_include_image_base64") "true" else "false"
-                                SettingsCheck(label, v(key, default) == "true", { values[key] = it.toString() }, boxSize = 14.dp,
-                                    labelColor = if (web.isLight) web.text else Tw.gray300)
-                            }
-                        }
-                    }
-                }
+                extra()
             }
             Row(
                 Modifier.fillMaxWidth().padding(top = 24.dp).drawBehind {
@@ -126,15 +147,13 @@ internal fun CompressionDialog(state: ChatState, model: ChatViewModel, onDismiss
                 Text("保存", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
                     modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(web.theme.t600)
                         .clickable(role = Role.Button) {
-                            model.saveCompressionSettings(CompressionSettings(
+                            onSave(CompressionSettings(
                                 enabled = current.enabled,
                                 maxSizeMB = maxSize.toFloatOrNull()?.coerceIn(0.1f, 10f) ?: 1.0f,
                                 maxDimension = maxDim.toIntOrNull()?.coerceIn(256, 8192) ?: 1920,
                                 outputType = outputType,
                                 formatOnly = formatOnly,
                             ))
-                            values.forEach { (key, value) -> model.generationOption(key, value) }
-                            model.notify("設定を保存しました")
                             onDismiss()
                         }
                         .padding(horizontal = 24.dp, vertical = 8.dp))

@@ -2,6 +2,9 @@ package com.minashin1120.aiplayground
 
 import android.content.Context
 import com.minashin1120.aiplayground.data.COMPOSER_SELECT_DEFAULTS
+import com.minashin1120.aiplayground.data.CompressionSettings
+import com.minashin1120.aiplayground.data.compressionSettingsFrom
+import com.minashin1120.aiplayground.data.saveCompressionSettings
 
 private const val TRANSLATION_PREFS = "selection_translation"
 private const val TRANSLATION_MODEL_KEY = "model"
@@ -23,6 +26,8 @@ data class TranslationSetting(
     val thinkingLevel: String = COMPOSER_SELECT_DEFAULTS.getValue("thinking_level"),
     val thinkingBudget: String = COMPOSER_SELECT_DEFAULTS.getValue("thinking_budget"),
     val reasoningEffort: String = COMPOSER_SELECT_DEFAULTS.getValue("reasoning_effort"),
+    /** Compression of shared images: the prompt bar's settings and defaults, kept separately. */
+    val compression: CompressionSettings = CompressionSettings(),
 )
 
 /** Composer select keys (`thinking_level`, `thinking_budget`, `reasoning_effort`) stored for the translation. */
@@ -38,7 +43,12 @@ fun loadTranslationSetting(context: Context): TranslationSetting {
         thinkingLevel = prefs.getString("thinking_level", null) ?: COMPOSER_SELECT_DEFAULTS.getValue("thinking_level"),
         thinkingBudget = prefs.getString("thinking_budget", null) ?: COMPOSER_SELECT_DEFAULTS.getValue("thinking_budget"),
         reasoningEffort = prefs.getString("reasoning_effort", null) ?: COMPOSER_SELECT_DEFAULTS.getValue("reasoning_effort"),
+        compression = compressionSettingsFrom(prefs),
     )
+}
+
+fun setTranslationCompression(context: Context, settings: CompressionSettings) {
+    saveCompressionSettings(context.getSharedPreferences(TRANSLATION_PREFS, Context.MODE_PRIVATE), settings)
 }
 
 fun setTranslationThinking(context: Context, on: Boolean) {

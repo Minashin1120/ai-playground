@@ -4,7 +4,9 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.activity.viewModels
+import com.minashin1120.aiplayground.data.CompressionSettings
 import com.minashin1120.aiplayground.data.SelectionTranslator
+import com.minashin1120.aiplayground.data.compressionSettingsFrom
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -59,6 +61,15 @@ class TranslateOverlayActivityTest {
         val state = activity.viewModels<SelectionTranslationViewModel>().value.state.value
         assertEquals(2, state.imageCount)
         assertEquals("", state.source)
+    }
+
+    @Test fun imageCompressionIsKeptApartFromThePromptBar() {
+        val context = RuntimeEnvironment.getApplication()
+        assertEquals(CompressionSettings(), loadTranslationSetting(context).compression)
+        val custom = CompressionSettings(enabled = false, maxSizeMB = 3f, maxDimension = 2560, outputType = "image/webp")
+        setTranslationCompression(context, custom)
+        assertEquals(custom, loadTranslationSetting(context).compression)
+        assertEquals(CompressionSettings(), compressionSettingsFrom(context.getSharedPreferences("navigation", 0)))
     }
 
     @Test fun imagePromptAsksForTheTranslationOnly() {

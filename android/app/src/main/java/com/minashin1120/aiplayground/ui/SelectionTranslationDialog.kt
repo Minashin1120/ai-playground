@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,7 +57,7 @@ internal fun SelectionTranslationDialog(
         subtitle = setting?.takeIf { it.model.isNotBlank() }?.let { "${it.modelName.ifBlank { it.model }} → ${it.language}" },
         panelMaxWidth = 640.dp,
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (state.imageCount > 0) {
                     SettingsFieldLabel("画像")
                     SourceImages(state.images)

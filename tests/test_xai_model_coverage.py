@@ -18,6 +18,7 @@ class XaiModelCoverageRegressionTests(unittest.TestCase):
             "grok-4.20-0309-non-reasoning",
             "grok-4.20-multi-agent-0309",
             "grok-imagine-video-1.5",
+            "grok-voice-3.0",
             "grok-voice-think-fast-2.0",
         )
         for model_id in current:
@@ -51,7 +52,7 @@ class XaiModelCoverageRegressionTests(unittest.TestCase):
         self.assertIn('value="1080p"', HTML)
 
     def test_voice_alias_is_normalized_to_current_model(self):
-        self.assertIn('"grok-voice-latest": "grok-voice-think-fast-2.0"', APP)
+        self.assertIn('"grok-voice-latest": "grok-voice-3.0"', APP)
         self.assertIn('XAI_STS_MODEL_ALIASES.get(model_key, model_key)', APP)
 
 

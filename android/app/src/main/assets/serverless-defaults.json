@@ -2058,6 +2058,18 @@
    "capabilities": [
     "realtime_audio"
    ],
+   "deprecated": false,
+   "id": "grok-voice-3.0",
+   "mode": "realtime_audio",
+   "name": "Grok Voice 3.0",
+   "provider": "xai",
+   "provider_label": "xAI (Grok)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "realtime_audio"
+   ],
    "deprecated": true,
    "id": "grok-voice-agent",
    "mode": "realtime_audio",

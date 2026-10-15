@@ -2474,23 +2474,25 @@ Gemini 3.8 Live Extended Thinking",desc:"Live audio-to-audio model with configur
 oning for complex multi-step interactions.",price:"See Gemini API pricing"},{id:"gemini-3.5-live-tra\
 nslate-preview",implementedAt:"2026-08-25",implementedRank:8523,quickEmoji:"\u{1F310}",name:"Gemini \
 3.5 Live Translate",desc:"Low-latency real-time speech-to-speech translation supporting 70+ language\
-s.",price:"Audio In $3.50/1M, Audio Out $21.00/1M"},{id:"grok-voice-think-fast-2.0",implementedAt:"2\
-026-08-25",implementedRank:8502,quickEmoji:"\u{1F3A4}",name:"Grok Voice Think Fast 2.0",desc:"Curren\
-t xAI speech-to-speech model.",price:"$0.08 / min ($4.80 / hr) audio + $0.004 / text input"},{id:"gr\
-ok-voice-transcribe-2.0",implementedAt:"2026-09-24",implementedRank:10261,name:"Grok Voice Transcrib\
-e 2.0 (Live)",desc:"xAI streaming speech-to-text.",price:"$0.20 / hr"},{id:"grok-voice-transcribe-2.\
-0-file",implementedAt:"2026-10-09",implementedRank:10721,name:"Grok Voice Transcribe 2.0",desc:"xAI \
-speech-to-text for recorded clips and files.",price:"$0.10 / hr"},{id:"grok-voice-latest",implementedAt:"\
-2026-05-27",implementedRank:5550,name:"Grok Voice Latest",desc:"Alias for the current flagship voice\
- model.",price:"$0.08 / min ($4.80 / hr) audio + $0.004 / text input"},{id:"grok-voice-think-fast-1.\
-0",implementedAt:"2026-05-11",implementedRank:5140,name:"Grok Voice Think Fast 1.0",desc:"Deprecated\
- xAI realtime voice model retained for history compatibility.",price:"$0.05 / min ($3.00 / hr)",deprecated:!0},
-{id:"grok-voice-fast-1.0",implementedAt:"2026-05-01",implementedRank:500,name:"Grok Voice Fast 1.0",
-desc:"Legacy xAI realtime voice model retained for history compatibility.",price:"$0.05 / min ($3.00\
- / hr)",deprecated:!0},{id:"grok-voice-agent",implementedAt:"2026-04-01",implementedRank:380,name:"G\
-rok Voice Agent",desc:"xAI realtime voice agent API.",price:"$0.05 / min (Realtime)",deprecated:!0}]},
-{category:"Gemini Agent / Specialized",icon:"fas fa-robot text-indigo-400",description:"Gemini agent\
- and specialized models",items:[{id:"gemini-robotics-er-2-preview",implementedAt:"2026-08-25",implementedRank:8515,
+s.",price:"Audio In $3.50/1M, Audio Out $21.00/1M"},{id:"grok-voice-3.0",implementedAt:"2026-10-15",
+implementedRank:10911,quickEmoji:"\u{1F3A4}",name:"Grok Voice 3.0",desc:"Current xAI speech-to-speec\
+h model.",price:"$0.08 / min ($4.80 / hr) audio + $0.004 / text input"},{id:"grok-voice-think-fast-2\
+.0",implementedAt:"2026-08-25",implementedRank:8502,name:"Grok Voice Think Fast 2.0",desc:"Previous \
+xAI speech-to-speech model.",price:"$0.08 / min ($4.80 / hr) audio + $0.004 / text input"},{id:"grok\
+-voice-transcribe-2.0",implementedAt:"2026-09-24",implementedRank:10261,name:"Grok Voice Transcribe \
+2.0 (Live)",desc:"xAI streaming speech-to-text.",price:"$0.20 / hr"},{id:"grok-voice-transcribe-2.0-\
+file",implementedAt:"2026-10-09",implementedRank:10721,name:"Grok Voice Transcribe 2.0",desc:"xAI sp\
+eech-to-text for recorded clips and files.",price:"$0.10 / hr"},{id:"grok-voice-latest",implementedAt:"\
+2026-05-27",implementedRank:5550,name:"Grok Voice Latest",desc:"Alias for Grok Voice 3.0.",price:"$0\
+.08 / min ($4.80 / hr) audio + $0.004 / text input"},{id:"grok-voice-think-fast-1.0",implementedAt:"\
+2026-05-11",implementedRank:5140,name:"Grok Voice Think Fast 1.0",desc:"Deprecated xAI realtime voic\
+e model retained for history compatibility.",price:"$0.05 / min ($3.00 / hr)",deprecated:!0},{id:"gr\
+ok-voice-fast-1.0",implementedAt:"2026-05-01",implementedRank:500,name:"Grok Voice Fast 1.0",desc:"L\
+egacy xAI realtime voice model retained for history compatibility.",price:"$0.05 / min ($3.00 / hr)",
+deprecated:!0},{id:"grok-voice-agent",implementedAt:"2026-04-01",implementedRank:380,name:"Grok Voic\
+e Agent",desc:"xAI realtime voice agent API.",price:"$0.05 / min (Realtime)",deprecated:!0}]},{category:"\
+Gemini Agent / Specialized",icon:"fas fa-robot text-indigo-400",description:"Gemini agent and specia\
+lized models",items:[{id:"gemini-robotics-er-2-preview",implementedAt:"2026-08-25",implementedRank:8515,
 name:"Gemini Robotics ER 2",desc:"Embodied reasoning model for robots with advanced video understand\
 ing.",price:"In $2.00/1M, Out $8.00/1M"},{id:"deep-research-preview-04-2026",implementedAt:"2026-08-\
 25",implementedRank:8514,quickEmoji:"\u{1F50E}",name:"Gemini Deep Research",desc:"Agentic multi-step\
@@ -2690,9 +2692,9 @@ t-live-transcribe","gpt-live-1","gpt-realtime-2.1","gpt-realtime-2.1-mini","gpt-
 ltime-translate","gpt-realtime-whisper","gpt-realtime-1.5","gpt-realtime","gpt-realtime-mini","gemin\
 i-2.5-flash-native-audio-preview-12-2025","gemini-3.1-flash-live-preview","gemini-3.8-live","gemini-\
 3.8-live-extended-thinking","gemini-3.5-live-translate-preview","gemini-3.5-transcribe-live","grok-v\
-oice-think-fast-2.0","grok-voice-latest","grok-voice-think-fast-1.0","grok-voice-fast-1.0","grok-voi\
-ce-agent","grok-voice-transcribe-2.0","grok-voice-transcribe-2.0-file"]),FILE_BASE_URL=CHAT_CONFIG.urls.
-serveFileBase,FILE_THUMB_BASE_URL=CHAT_CONFIG.urls.serveFileThumbBase,RICH_PASTE_PDF_SERVER_ROUTE=CHAT_CONFIG.
+oice-3.0","grok-voice-think-fast-2.0","grok-voice-latest","grok-voice-think-fast-1.0","grok-voice-fa\
+st-1.0","grok-voice-agent","grok-voice-transcribe-2.0","grok-voice-transcribe-2.0-file"]),FILE_BASE_URL=CHAT_CONFIG.
+urls.serveFileBase,FILE_THUMB_BASE_URL=CHAT_CONFIG.urls.serveFileThumbBase,RICH_PASTE_PDF_SERVER_ROUTE=CHAT_CONFIG.
 urls.richPastePdfServer,IMAGE_EXTS=["png","jpg","jpeg","webp","gif","bmp","avif","heic","heif"],AUDIO_EXTS=[
 "mp3","wav","aac","ogg","flac","aiff","aif","m4a","opus","oga","weba","webm"],VIDEO_EXTS=["mp4","mov",
 "avi","mkv","m4v","webm","mpg","mpeg","wmv","3gp","3gpp","flv"],getFileExt=o(e=>{const t=typeof e=="\

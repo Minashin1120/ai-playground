@@ -2655,9 +2655,29 @@
     "searchTerms": []
   },
   {
+    "id": "grok-voice-3.0",
+    "name": "Grok Voice 3.0",
+    "description": "Current xAI speech-to-speech model.",
+    "price": "$0.08 / min ($4.80 / hr) audio + $0.004 / text input",
+    "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "grok-voice-3.0",
+    "agenticView": false,
+    "implementedAt": "2026-10-15",
+    "implementedRank": 10911,
+    "emoji": "🎤",
+    "deprecated": false,
+    "tags": [
+      "xai",
+      "audio"
+    ],
+    "searchTerms": []
+  },
+  {
     "id": "grok-voice-think-fast-2.0",
     "name": "Grok Voice Think Fast 2.0",
-    "description": "Current xAI speech-to-speech model.",
+    "description": "Previous xAI speech-to-speech model.",
     "price": "$0.08 / min ($4.80 / hr) audio + $0.004 / text input",
     "category": "Realtime Audio (STS)",
     "categoryIcon": "fas fa-headset text-cyan-400",
@@ -2666,7 +2686,7 @@
     "agenticView": false,
     "implementedAt": "2026-08-25",
     "implementedRank": 8502,
-    "emoji": "🎤",
+    "emoji": "",
     "deprecated": false,
     "tags": [
       "xai",
@@ -2697,9 +2717,30 @@
     "searchTerms": []
   },
   {
+    "id": "grok-voice-transcribe-2.0-file",
+    "name": "Grok Voice Transcribe 2.0",
+    "description": "xAI speech-to-text for recorded clips and files.",
+    "price": "$0.10 / hr",
+    "category": "Realtime Audio (STS)",
+    "categoryIcon": "fas fa-headset text-cyan-400",
+    "categoryDescription": "Realtime voice models (audio in / audio out)",
+    "apiId": "grok-voice-transcribe-2.0-file",
+    "agenticView": false,
+    "implementedAt": "2026-10-09",
+    "implementedRank": 10721,
+    "emoji": "",
+    "deprecated": false,
+    "tags": [
+      "xai",
+      "audio",
+      "transcription"
+    ],
+    "searchTerms": []
+  },
+  {
     "id": "grok-voice-latest",
     "name": "Grok Voice Latest",
-    "description": "Alias for the current flagship voice model.",
+    "description": "Alias for Grok Voice 3.0.",
     "price": "$0.08 / min ($4.80 / hr) audio + $0.004 / text input",
     "category": "Realtime Audio (STS)",
     "categoryIcon": "fas fa-headset text-cyan-400",

@@ -2172,7 +2172,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             auto_enable_search = options.get('enable_search')
             auto_enable_url_context = options.get('enable_url_context')
-            is_gemini_3 = "gemini-3" in model_key or "gemini-3.1" in model_key
+            is_gemini_3 = "gemini-3" in model_key or "gemini-3.1" in model_key or "gemini-4" in model_key
             auto_enable_maps = bool(options.get('enable_maps')) and is_gemini_3
             grok_enable_search = auto_enable_search
             user_auto_search = True
@@ -3169,6 +3169,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     rm = model_key
                     if model_key == "gemini-3.8-flash-cyber":
                         rm = "gemini-3.8-flash-cyber"
+                    elif "gemini-4-argon" in model_key:
+                        rm = "gemini-4-argon"
                     elif "gemini-3.8-flash" in model_key:
                         rm = "gemini-3.8-flash"
                     elif "gemini-3.7-flash" in model_key:
@@ -3196,8 +3198,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     elif "gemini-2.5" in model_key:
                         rm = "gemini-2.5-flash"
 
-                    is_latest_flash = rm in ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")
-                    # Gemini 3.8/3.7/3.6 Flash and 3.5 Flash-Lite deprecate sampling
+                    is_latest_flash = rm in ("gemini-4-argon", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")
+                    # Gemini 4 Argon, 3.8/3.7/3.6 Flash and 3.5 Flash-Lite deprecate sampling
                     # parameters. Omit them so future API generations do not
                     # reject otherwise valid requests.
                     conf = {} if is_latest_flash else {'temperature': 0.7}
@@ -3207,7 +3209,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if options.get('enable_thinking'):
                         raw_lvl = (options.get('thinking_level') or 'high').lower()
                         lvl = raw_lvl if raw_lvl in ("minimal", "low", "medium", "high") else "high"
-                        if rm == "gemini-3.8-flash" and lvl not in ("low", "medium", "high"):
+                        if rm == "gemini-4-argon" and lvl not in ("low", "medium", "high"):
+                            lvl = "medium"
+                        elif rm == "gemini-3.8-flash" and lvl not in ("low", "medium", "high"):
                             lvl = "medium"
                         elif rm == "gemini-3.7-flash" and lvl not in ("low", "medium", "high"):
                             lvl = "medium"

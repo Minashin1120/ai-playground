@@ -732,10 +732,11 @@
 
         const MODELS = [
             {
-                category: "Gemini 3.8 / 3.7 / 3.6 / 3.5",
+                category: "Gemini 4 / 3.8 / 3.7 / 3.6 / 3.5",
                 icon: "fas fa-star text-yellow-400",
                 description: "Google's latest multimodal models",
                 items: [
+                    { id: "gemini-4-argon", implementedAt: "2026-10-16", implementedRank: 10921, quickEmoji: "⚛️", name: "Gemini 4 Argon", desc: "Flagship reasoning model for complex coding, agentic workflows, and multimodal tasks, with a 1M-token context window and long decodes.", price: "In $2.00/1M, Out $10.00/1M (through 2026-11-30)", agenticView: true },
                     { id: "gemini-3.8-flash", implementedAt: "2026-09-05", implementedRank: 9160, quickEmoji: "⚡", name: "Gemini 3.8 Flash", desc: "Most intelligent Flash model for long-horizon software engineering, autonomous agents, and complex enterprise workflows.", price: "In $0.75/1M, Out $3.75/1M (through 2026-12-31)", agenticView: true },
                     { id: "gemini-3.8-flash-cyber", implementedAt: "2026-09-20", implementedRank: 9180, quickEmoji: "🛡️", name: "Gemini 3.8 Flash Cyber", desc: "Gemini 3.8 Flash post-trained for cybersecurity workflows. Vertex AI only; access is allowlisted by Google.", price: "Google Cloud Standard PayGo / Flex PayGo / Priority PayGo", agenticView: true },
                     { id: "gemini-3.7-flash", implementedAt: "2026-08-14", implementedRank: 8000, quickEmoji: "⚡", name: "Gemini 3.7 Flash", desc: "Most capable Flash model for complex coding, agentic workflows, and multimodal tasks.", price: "In $0.75/1M, Out $3.75/1M (introductory)", agenticView: true },

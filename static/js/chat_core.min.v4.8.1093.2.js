@@ -157,45 +157,45 @@ value="medium"),[V,fe,K,W].forEach(Pe=>{Pe&&Pe.classList.add("opacity-50","point
 B,re,ue].forEach(Pe=>{Pe&&(Pe.checked=!1,Pe.disabled=!0)});const ve=get("enable-url-context");ve&&(ve.
 checked=!1,ve.disabled=!0),ge&&G&&(ge.disabled=!1,G.classList.remove("opacity-50"))}else if(u.includes(
 "gemini")&&!Be){_.classList.remove("hidden"),fe&&fe.classList.remove("hidden","opacity-50","pointer-\
-events-none");const ve=u.includes("gemini-3");K&&(ve?K.classList.remove("hidden","opacity-50","point\
-er-events-none"):(re&&(re.checked=!1),K.classList.add("hidden","opacity-50","pointer-events-none")));
-const Pe=u.includes("flash");Array.from(E.options).forEach(He=>{u==="gemini-3.8-flash"||u==="gemini-\
-3.7-flash"?He.disabled=!["low","medium","high"].includes(He.value):u==="gemini-3.6-flash"?He.disabled=
-!["medium","high"].includes(He.value):u==="gemini-3.5-flash-lite"?He.disabled=!["minimal","medium","\
-high"].includes(He.value):["minimal","medium"].includes(He.value)?He.disabled=!Pe:He.disabled=!1}),(u===
-"gemini-3.8-flash"||u==="gemini-3.7-flash")&&!["low","medium","high"].includes(E.value)||u==="gemini\
--3.6-flash"&&!["medium","high"].includes(E.value)?E.value="medium":u==="gemini-3.5-flash-lite"&&!["m\
-inimal","medium","high"].includes(E.value)?E.value="minimal":!Pe&&["minimal","medium"].includes(E.value)&&
-(E.value="high"),ve?A&&(A.checked=!0,A.disabled=!0):A&&(A.disabled=!1),j&&u.includes("gemini-2.5")&&
-(j.disabled=!1,j.classList.remove("opacity-50")),j&&!u.includes("gemini-2.5")&&(j.disabled=!0,j.classList.
-add("opacity-50"))}if(isLlmModel()&&(g.includes("gpt-5")||g.includes("o1")||g.includes("o3")||g.includes(
-"grok-4.3")||g.includes("grok-4.5")||g.includes("grok-4.6")||g.includes("grok-4.20-0309-reasoning")||
-g.includes("grok-build")||g.includes("multi-agent")||g.includes("gpt")&&!g.includes("tts")))L.classList.
-remove("hidden"),V&&V.classList.remove("opacity-50","pointer-events-none");else if(h){L.classList.remove(
-"hidden");const ve=get("vision-model-info");if(ve&&ve.classList.toggle("hidden",g==="deepseek-v4.1-f\
-lash"||g==="deepseek-v4-flash-vision-exp"),B&&(B.checked=!1,B.disabled=!0),V&&V.classList.add("opaci\
-ty-50","pointer-events-none"),fe){const Pe=get("enable-url-context");Pe&&(Pe.checked=!1),fe.classList.
-add("opacity-50","pointer-events-none")}K&&re&&(re.checked=!1,K.classList.add("opacity-50","pointer-\
-events-none"))}else Ee||(V&&V.classList.remove("opacity-50","pointer-events-none"),K&&re&&(re.checked=
-!1,K.classList.add("hidden","opacity-50","pointer-events-none")));if(pe?W&&W.classList.add("opacity-\
-50","pointer-events-none"):(W&&W.classList.remove("opacity-50","pointer-events-none"),(!Be||Ue)&&!u.
-includes("gpt-image")&&(ge.disabled=!1,G.classList.remove("opacity-50"))),(Be&&!Ue||u.includes("gpt-\
-image")||isGrokImageModel()||isIdeogramModel(u)||isGrokVideoModel()||Ee)&&ge&&G&&(ge.checked=!1,ge.disabled=
-!0,G.classList.add("opacity-50")),W&&(isLlmModel()?(W.classList.remove("hidden"),ue.disabled=!1):(ue.
-checked=!1,ue.disabled=!0,W.classList.add("hidden"))),ee?(B&&(B.checked=!0,B.disabled=!0),V&&V.classList.
-add("opacity-50","pointer-events-none"),W&&(ue.checked=!1,ue.disabled=!0,W.classList.add("opacity-50",
-"pointer-events-none"))):B&&!u.includes("tts")&&!Ee&&!h&&!$e&&(B.disabled=!1),Ct){[B,re,ue].forEach(
-Pe=>{Pe&&(Pe.checked=!1,Pe.disabled=!0)});const ve=get("enable-url-context");ve&&(ve.checked=!1,ve.disabled=
-!0),[V,fe,K,W].forEach(Pe=>{Pe&&Pe.classList.add("opacity-50","pointer-events-none")})}x&&(be&&be.classList.
-toggle("hidden",["glm-5.3-flash","glm-5.3-flashx","glm-4.6v","glm-4.6v-flashx","glm-4.6v-flash","glm\
--4.5v"].includes(g)),[B,ue].forEach(ve=>{ve&&(ve.checked=!1,ve.disabled=!0)}),[V,W].forEach(ve=>{ve&&
-ve.classList.add("opacity-50","pointer-events-none")}));const at=get("mask-btn");at&&(isGptImageModel()?
-at.classList.remove("hidden"):(at.classList.add("hidden"),currentMaskImage=null,updateMaskPreview())),
-updateTtsUi(),updateStsUi(),updateStsOptions(),l(),c(),m(),f(),b(),y(),v(),updateBatchUi(u),w(),k(),
-S(),purgeUnsupportedAttachments(!0),refreshMinimalOptionsIfOpen(),applyMcpPromptChipUi()}o(M,"toggle\
-OptionsForModel"),get("model-select")&&(get("model-select").addEventListener("change",T),get("model-\
-select").addEventListener("change",()=>schedulePromptTokenEstimate(!0))),bindPromptCacheControls(),T(),
-minimalPromptMode?setMinimalPromptMode(!0):setCompactPromptMode(compactPromptMode,!0),renderWelcomeQuickStart();
+events-none");const ve=u.includes("gemini-3")||u.includes("gemini-4");K&&(ve?K.classList.remove("hid\
+den","opacity-50","pointer-events-none"):(re&&(re.checked=!1),K.classList.add("hidden","opacity-50",
+"pointer-events-none")));const Pe=u.includes("flash");Array.from(E.options).forEach(He=>{u==="gemini\
+-4-argon"||u==="gemini-3.8-flash"||u==="gemini-3.7-flash"?He.disabled=!["low","medium","high"].includes(
+He.value):u==="gemini-3.6-flash"?He.disabled=!["medium","high"].includes(He.value):u==="gemini-3.5-f\
+lash-lite"?He.disabled=!["minimal","medium","high"].includes(He.value):["minimal","medium"].includes(
+He.value)?He.disabled=!Pe:He.disabled=!1}),(u==="gemini-4-argon"||u==="gemini-3.8-flash"||u==="gemin\
+i-3.7-flash")&&!["low","medium","high"].includes(E.value)||u==="gemini-3.6-flash"&&!["medium","high"].
+includes(E.value)?E.value="medium":u==="gemini-3.5-flash-lite"&&!["minimal","medium","high"].includes(
+E.value)?E.value="minimal":!Pe&&["minimal","medium"].includes(E.value)&&(E.value="high"),ve?A&&(A.checked=
+!0,A.disabled=!0):A&&(A.disabled=!1),j&&u.includes("gemini-2.5")&&(j.disabled=!1,j.classList.remove(
+"opacity-50")),j&&!u.includes("gemini-2.5")&&(j.disabled=!0,j.classList.add("opacity-50"))}if(isLlmModel()&&
+(g.includes("gpt-5")||g.includes("o1")||g.includes("o3")||g.includes("grok-4.3")||g.includes("grok-4\
+.5")||g.includes("grok-4.6")||g.includes("grok-4.20-0309-reasoning")||g.includes("grok-build")||g.includes(
+"multi-agent")||g.includes("gpt")&&!g.includes("tts")))L.classList.remove("hidden"),V&&V.classList.remove(
+"opacity-50","pointer-events-none");else if(h){L.classList.remove("hidden");const ve=get("vision-mod\
+el-info");if(ve&&ve.classList.toggle("hidden",g==="deepseek-v4.1-flash"||g==="deepseek-v4-flash-visi\
+on-exp"),B&&(B.checked=!1,B.disabled=!0),V&&V.classList.add("opacity-50","pointer-events-none"),fe){
+const Pe=get("enable-url-context");Pe&&(Pe.checked=!1),fe.classList.add("opacity-50","pointer-events\
+-none")}K&&re&&(re.checked=!1,K.classList.add("opacity-50","pointer-events-none"))}else Ee||(V&&V.classList.
+remove("opacity-50","pointer-events-none"),K&&re&&(re.checked=!1,K.classList.add("hidden","opacity-5\
+0","pointer-events-none")));if(pe?W&&W.classList.add("opacity-50","pointer-events-none"):(W&&W.classList.
+remove("opacity-50","pointer-events-none"),(!Be||Ue)&&!u.includes("gpt-image")&&(ge.disabled=!1,G.classList.
+remove("opacity-50"))),(Be&&!Ue||u.includes("gpt-image")||isGrokImageModel()||isIdeogramModel(u)||isGrokVideoModel()||
+Ee)&&ge&&G&&(ge.checked=!1,ge.disabled=!0,G.classList.add("opacity-50")),W&&(isLlmModel()?(W.classList.
+remove("hidden"),ue.disabled=!1):(ue.checked=!1,ue.disabled=!0,W.classList.add("hidden"))),ee?(B&&(B.
+checked=!0,B.disabled=!0),V&&V.classList.add("opacity-50","pointer-events-none"),W&&(ue.checked=!1,ue.
+disabled=!0,W.classList.add("opacity-50","pointer-events-none"))):B&&!u.includes("tts")&&!Ee&&!h&&!$e&&
+(B.disabled=!1),Ct){[B,re,ue].forEach(Pe=>{Pe&&(Pe.checked=!1,Pe.disabled=!0)});const ve=get("enable\
+-url-context");ve&&(ve.checked=!1,ve.disabled=!0),[V,fe,K,W].forEach(Pe=>{Pe&&Pe.classList.add("opac\
+ity-50","pointer-events-none")})}x&&(be&&be.classList.toggle("hidden",["glm-5.3-flash","glm-5.3-flas\
+hx","glm-4.6v","glm-4.6v-flashx","glm-4.6v-flash","glm-4.5v"].includes(g)),[B,ue].forEach(ve=>{ve&&(ve.
+checked=!1,ve.disabled=!0)}),[V,W].forEach(ve=>{ve&&ve.classList.add("opacity-50","pointer-events-no\
+ne")}));const at=get("mask-btn");at&&(isGptImageModel()?at.classList.remove("hidden"):(at.classList.
+add("hidden"),currentMaskImage=null,updateMaskPreview())),updateTtsUi(),updateStsUi(),updateStsOptions(),
+l(),c(),m(),f(),b(),y(),v(),updateBatchUi(u),w(),k(),S(),purgeUnsupportedAttachments(!0),refreshMinimalOptionsIfOpen(),
+applyMcpPromptChipUi()}o(M,"toggleOptionsForModel"),get("model-select")&&(get("model-select").addEventListener(
+"change",T),get("model-select").addEventListener("change",()=>schedulePromptTokenEstimate(!0))),bindPromptCacheControls(),
+T(),minimalPromptMode?setMinimalPromptMode(!0):setCompactPromptMode(compactPromptMode,!0),renderWelcomeQuickStart();
 const P=get("enable-canvas-mode");P&&(P.checked=canvasModeEnabled,P.addEventListener("change",()=>syncCanvasModeUi(
 P.checked))),syncCanvasModeUi(canvasModeEnabled,{persist:!1,skipReset:!1});const q=get("enable-codin\
 g-mode");q&&(q.checked=codingModeEnabled,q.addEventListener("change",()=>syncCodingModeUi(q.checked))),

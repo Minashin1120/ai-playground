@@ -17,6 +17,7 @@ class GeminiLatestModelsRegressionTests(unittest.TestCase):
     def test_latest_gemini_models_are_registered_across_ui_and_backend(self):
         self.assertIn('id="welcome-quick-start"', CHAT_HTML)
         for model_id in (
+            "gemini-4-argon",
             "gemini-3.8-flash",
             "gemini-3.7-flash",
             "gemini-3.6-flash",
@@ -27,6 +28,11 @@ class GeminiLatestModelsRegressionTests(unittest.TestCase):
             self.assertIn(model_id, CHAT_JS)
             self.assertIn(model_id, SETUP_HTML)
             self.assertIn(f'implementedAt:', CHAT_JS[CHAT_JS.index(f'id: "{model_id}"'): CHAT_JS.index(f'id: "{model_id}"') + 120])
+
+    def test_gemini_4_argon_is_treated_as_gemini_3_or_later(self):
+        self.assertIn('or "gemini-4" in model_key', APP_SOURCE)
+        self.assertIn("model.includes('gemini-4')", CHAT_JS)
+        self.assertIn('elif "gemini-4-argon" in model_key', APP_SOURCE)
 
     def test_latest_gemini_routing_precedes_flash_substring_match(self):
         self.assertIn('if "gemini-3.8-flash" in model_key', APP_SOURCE)
@@ -50,11 +56,16 @@ class GeminiLatestModelsRegressionTests(unittest.TestCase):
             APP_SOURCE,
         )
         self.assertIn(
-            'rm in ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")',
+            'rm in ("gemini-4-argon", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")',
             APP_SOURCE,
         )
 
     def test_thinking_levels_follow_official_model_constraints(self):
+        self.assertIn(
+            'rm == "gemini-4-argon" and lvl not in ("low", "medium", "high")',
+            APP_SOURCE,
+        )
+        self.assertIn("model === 'gemini-4-argon'", CHAT_JS)
         self.assertIn(
             'rm == "gemini-3.8-flash" and lvl not in ("low", "medium", "high")',
             APP_SOURCE,
@@ -114,6 +125,7 @@ class GeminiLatestModelsRegressionTests(unittest.TestCase):
 
     def test_verified_models_show_agentic_view_badge(self):
         for model_id in (
+            "gemini-4-argon",
             "gemini-3.8-flash",
             "gemini-3.7-flash",
             "gemini-3.6-flash",

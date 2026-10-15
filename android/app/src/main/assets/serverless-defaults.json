@@ -721,6 +721,25 @@
   },
   {
    "capabilities": [
+    "chat",
+    "attachments",
+    "thinking",
+    "search",
+    "prompt_cache",
+    "python",
+    "mcp",
+    "batch"
+   ],
+   "deprecated": false,
+   "id": "gemini-4-argon",
+   "mode": "chat",
+   "name": "Gemini 4 Argon",
+   "provider": "gemini",
+   "provider_label": "Gemini",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "embedding"
    ],
    "deprecated": false,

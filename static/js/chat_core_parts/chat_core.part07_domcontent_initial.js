@@ -528,7 +528,7 @@
                     if(urlCont) {
                         urlCont.classList.remove('hidden', 'opacity-50', 'pointer-events-none');
                     }
-                    const isGemini3 = model.includes('gemini-3');
+                    const isGemini3 = model.includes('gemini-3') || model.includes('gemini-4');
                     if (mapsCont) {
                         if (isGemini3) {
                             mapsCont.classList.remove('hidden', 'opacity-50', 'pointer-events-none');
@@ -539,7 +539,7 @@
                     }
                     const isFlash = model.includes('flash');
                     Array.from(thinkLvl.options).forEach(opt => {
-                        if (model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') {
+                        if (model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') {
                             opt.disabled = !['low', 'medium', 'high'].includes(opt.value);
                         } else if (model === 'gemini-3.6-flash') {
                             opt.disabled = !['medium', 'high'].includes(opt.value);
@@ -551,7 +551,7 @@
                             opt.disabled = false;
                         }
                     });
-                    if ((model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') && !['low', 'medium', 'high'].includes(thinkLvl.value)) {
+                    if ((model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') && !['low', 'medium', 'high'].includes(thinkLvl.value)) {
                         thinkLvl.value = 'medium';
                     } else if (model === 'gemini-3.6-flash' && !['medium', 'high'].includes(thinkLvl.value)) {
                         thinkLvl.value = 'medium';

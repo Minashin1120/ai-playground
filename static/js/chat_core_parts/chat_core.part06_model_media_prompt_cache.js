@@ -759,7 +759,7 @@
                 add('thinking', '思考', 'minimal', 'high', 'thinking level');
             } else if (model.includes('gemini') && !isNonTextModel) {
                 add('thinking', '思考', 'thinking level');
-                if (model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') {
+                if (model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') {
                     add('low', 'medium', 'high');
                 } else if (model === 'gemini-3.6-flash') {
                     add('medium', 'high');

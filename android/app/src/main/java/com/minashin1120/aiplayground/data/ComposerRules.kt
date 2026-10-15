@@ -191,11 +191,11 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
         model.contains("gemini") && !isGeminiImage -> {
             thinking.visible = true
             urls.visible = true; urls.dimmed = false
-            val gemini3 = model.contains("gemini-3")
+            val gemini3 = model.contains("gemini-3") || model.contains("gemini-4")
             if (gemini3) { maps.visible = true; maps.dimmed = false } else { maps.off(); maps.visible = false; maps.dimmed = true }
             val flash = model.contains("flash")
             when (model) {
-                "gemini-3.8-flash", "gemini-3.7-flash" -> { levels = mutableSetOf("low", "medium", "high"); fallback = "medium" }
+                "gemini-4-argon", "gemini-3.8-flash", "gemini-3.7-flash" -> { levels = mutableSetOf("low", "medium", "high"); fallback = "medium" }
                 "gemini-3.6-flash" -> { levels = mutableSetOf("medium", "high"); fallback = "medium" }
                 "gemini-3.5-flash-lite" -> { levels = mutableSetOf("minimal", "medium", "high"); fallback = "minimal" }
                 else -> { levels = if (flash) THINKING_LEVELS.toMutableSet() else mutableSetOf("low", "high"); fallback = if (flash) null else "high" }

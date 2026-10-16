@@ -391,6 +391,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     )
     private var failed: Submission? = null
     private var pendingParentId: Int? = null
+    /** Web `modelChosenManually`: a model the user picked in this chat survives edit/regenerate/branch restores. */
+    private var modelChosenManually = false
     private var chatTransitionSequence = 0L
 
     /** Stops account work at the same BAN boundary enforced by the Web server. */
@@ -1834,6 +1836,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             imageMask = if (info.id.contains("gpt-image")) it.imageMask else null).withModelRules() }
         state.value.account?.let { prefs.edit().putString("model_${it.id}", model).apply() }
     }
+
+    /** Web `selectModelByUser`: a pick from the model list or welcome screen; PromptCache may refuse it. */
+    fun chooseModelByUser(model: String) {
+        chooseModel(model)
+        if (state.value.model == model) modelChosenManually = true
+    }
     fun toggleThinking() { mutable.update { it.copy(enableThinking = !it.enableThinking) } }
     fun toggleSearch() { mutable.update { it.copy(enableSearch = !it.enableSearch) } }
     fun toggleUrlContext() { mutable.update { it.copy(enableUrlContext = !it.enableUrlContext) } }
@@ -2062,6 +2070,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         navigationJob?.cancel(); streamJob?.cancel(); failed = null
         heartbeatJob?.cancel()
         pendingParentId = null
+        modelChosenManually = false
         val transition = nextChatTransition(ChatTransitionKind.NEW_CHAT)
         mutable.update { it.withLatestPromptOptions().copy(selected = null, messages = emptyList(), allMessages = emptyList(), leafId = null, settingsBubbles = emptyList(),
             editingMessageId = null, jobId = null, streaming = false,
@@ -2082,6 +2091,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (recordHistory) recordChatNavigation(ChatLocation(thread))
         navigationJob?.cancel(); streamJob?.cancel(); heartbeatJob?.cancel(); failed = null
         pendingParentId = null
+        if (state.value.selected?.id != thread.id) modelChosenManually = false
         val transition = nextChatTransition(ChatTransitionKind.OPEN_THREAD)
         val pinnedLeaf = getApplication<Application>().getSharedPreferences("branches", Context.MODE_PRIVATE)
             .getString("fixed_branch_${thread.id}", null)?.toIntOrNull()
@@ -2204,7 +2214,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Web `loadMessages`: the chat's PromptCache flag and last model come back with it (the flag
             // first, so a PromptCache lock from the previous chat never blocks the switch).
             mutable.update { it.copy(enablePromptCache = reply.optBoolean("enable_prompt_caching")) }
-            if (!inPlace) reply.nullableString("last_model").takeIf { it.isNotBlank() && it != state.value.model }?.let(::chooseModel)
+            if (!inPlace && !modelChosenManually) reply.nullableString("last_model").takeIf { it.isNotBlank() && it != state.value.model }?.let(::chooseModel)
             if (!inPlace && autoResume) mutable.update { it.withLatestPromptOptions() }
         }
         if (!deviceChat(id)) state.value.account?.let { account ->
@@ -2513,7 +2523,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     private fun ChatState.withPromptOptionsFrom(message: ChatMessage): ChatState {
         val options = message.promptOptions
-        val modelId = message.model.takeIf { id ->
+        // Web `restorePromptOptionsForEdit`: a model the user picked stays; the prompt's options still come back.
+        val modelId = if (modelChosenManually) model else message.model.takeIf { id ->
             account?.models?.any { it.id == id && it.selectable } == true
         } ?: model
         val selects = COMPOSER_SELECT_DEFAULTS.mapValues { (key, fallback) ->
@@ -2536,7 +2547,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             enableFileCreation = savedBoolean("enable_file_creation", enableFileCreation),
             enableMcp = savedBoolean("enable_mcp", enableMcp),
             enableThinking = savedBoolean("enable_thinking", enableThinking),
-            enablePromptCache = savedBoolean("enable_prompt_caching", enablePromptCache),
+            enablePromptCache = if (modelChosenManually) enablePromptCache else savedBoolean("enable_prompt_caching", enablePromptCache),
             batchMode = savedBoolean("batch_mode", batchMode),
             canvasMode = savedBoolean("canvas_mode", canvasMode),
             codingMode = savedBoolean("coding_mode", codingMode),

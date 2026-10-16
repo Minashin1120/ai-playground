@@ -260,7 +260,8 @@
         function restorePromptOptionsForEdit(message) {
             const options = message && message.prompt_options;
             // The message model belongs to this prompt; the thread's last model may differ.
-            if (message.model && get('model-select') && get('model-select').value !== message.model) {
+            // A model the user picked in this chat stays selected; the prompt's options still come back.
+            if (!modelChosenManually && message.model && get('model-select') && get('model-select').value !== message.model) {
                 const cache = get('enable-prompt-cache');
                 if (cache) cache.checked = false;
                 selectModelById(message.model);
@@ -301,6 +302,8 @@
             };
             for (const [key, id] of Object.entries(ids)) {
                 if (!Object.prototype.hasOwnProperty.call(options, key)) continue;
+                // PromptCache follows the model's provider, so it stays as is with a kept model.
+                if (key === 'enable_prompt_caching' && modelChosenManually) continue;
                 const el = get(id);
                 if (!el) continue;
                 if (el.type === 'checkbox') el.checked = !!options[key];

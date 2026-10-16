@@ -844,7 +844,7 @@
                     item.type = 'button';
                     item.className = 'model-card';
                     item.dataset.selected = '0';
-                    item.onclick = () => selectModel(m.id, m.name);
+                    item.onclick = () => selectModelByUser(m.id, m.name);
                     item.innerHTML = `
                         <div class="flex justify-between items-start gap-2 w-full mb-1">
                             <div class="flex flex-wrap items-center gap-2 min-w-0">
@@ -1043,6 +1043,13 @@
             }
             selectModel(id, name);
         }
+        function selectModelByUser(id, name) {
+            const forVision = !!window._visionPickerActive;
+            selectModel(id, name);
+            const el = get('model-select');
+            // PromptCache can refuse a switch to another provider; only a real change counts.
+            if (!forVision && el && el.value === id) modelChosenManually = true;
+        }
 
         function populateAiSafeFormFields(d) {
             // Mirror a subset of the population in openSettingsModal for live update after AI apply
@@ -1131,7 +1138,8 @@
         }
 
         window.quickStart = (m) => {
-            selectModelById(m);
+            const found = MODELS.flatMap(g => g.items).find(i => i.id === m);
+            selectModelByUser(m, found ? found.name : m);
             get('welcome-screen').classList.add('hidden');
         };
 

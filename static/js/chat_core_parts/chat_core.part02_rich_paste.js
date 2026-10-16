@@ -1388,6 +1388,9 @@
         const suppressedPendingJobIds = new Set();
         const pendingStreamReconnectJobs = new Set();
         let editingMessageId = null; // Track message being edited
+        // True once the user picks a model in this chat; editing, regenerating and branch/cancel
+        // restores then keep it instead of switching to the prompt's own model.
+        let modelChosenManually = false;
         const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false, searchQuery: '', favoritesOnly: false, totalCount: 0, hasMore: false, loading: false, nextOffset: 0 };
         const LIBRARY_PAGE_SIZE = 40;
         const LIB_SORT_KEY = 'lib_sort_order';

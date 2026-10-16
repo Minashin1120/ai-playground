@@ -693,7 +693,7 @@ fun PlaygroundScreen(
                 }
             }
 
-            ModalHost(modelPicker) { ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModel(it); modelPicker = false }) }
+            ModalHost(modelPicker) { ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModelByUser(it); modelPicker = false }) }
             ModalHost(libraryOpen) { LibraryDialog(state, model, onOpenFile = { viewingFile = it }, onDismiss = { libraryOpen = false }) }
             ModalValueHost(viewingFile) { request ->
                 FileViewerDialog(
@@ -1690,7 +1690,7 @@ private fun ConversationContent(
                     onSettings = { model.requestSettings(SettingsTab.General.id, "temp-chat") })
                 else WelcomeScreen(
                     recentWebModels(state.account?.models.orEmpty()).map { info -> info.id to "${info.emoji} ${info.name}".trim() },
-                    onChoose = { id -> model.chooseModel(id); welcomeDismissed = true },
+                    onChoose = { id -> model.chooseModelByUser(id); welcomeDismissed = true },
                 )
             }
             // Qualified so the outer Column's scoped overload is not picked inside this Box.

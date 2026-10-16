@@ -3218,6 +3218,9 @@
         const suppressedPendingJobIds = new Set();
         const pendingStreamReconnectJobs = new Set();
         let editingMessageId = null; // Track message being edited
+        // True once the user picks a model in this chat; editing, regenerating and branch/cancel
+        // restores then keep it instead of switching to the prompt's own model.
+        let modelChosenManually = false;
         const messageStore = {}, lib = { modal: get('lib-modal'), grid: get('lib-grid'), files: [], selected: new Set(), attachMode: false, searchQuery: '', favoritesOnly: false, totalCount: 0, hasMore: false, loading: false, nextOffset: 0 };
         const LIBRARY_PAGE_SIZE = 40;
         const LIB_SORT_KEY = 'lib_sort_order';
@@ -5290,7 +5293,8 @@
         function restorePromptOptionsForEdit(message) {
             const options = message && message.prompt_options;
             // The message model belongs to this prompt; the thread's last model may differ.
-            if (message.model && get('model-select') && get('model-select').value !== message.model) {
+            // A model the user picked in this chat stays selected; the prompt's options still come back.
+            if (!modelChosenManually && message.model && get('model-select') && get('model-select').value !== message.model) {
                 const cache = get('enable-prompt-cache');
                 if (cache) cache.checked = false;
                 selectModelById(message.model);
@@ -5331,6 +5335,8 @@
             };
             for (const [key, id] of Object.entries(ids)) {
                 if (!Object.prototype.hasOwnProperty.call(options, key)) continue;
+                // PromptCache follows the model's provider, so it stays as is with a kept model.
+                if (key === 'enable_prompt_caching' && modelChosenManually) continue;
                 const el = get(id);
                 if (!el) continue;
                 if (el.type === 'checkbox') el.checked = !!options[key];
@@ -9482,7 +9488,7 @@
                     item.type = 'button';
                     item.className = 'model-card';
                     item.dataset.selected = '0';
-                    item.onclick = () => selectModel(m.id, m.name);
+                    item.onclick = () => selectModelByUser(m.id, m.name);
                     item.innerHTML = `
                         <div class="flex justify-between items-start gap-2 w-full mb-1">
                             <div class="flex flex-wrap items-center gap-2 min-w-0">
@@ -9681,6 +9687,13 @@
             }
             selectModel(id, name);
         }
+        function selectModelByUser(id, name) {
+            const forVision = !!window._visionPickerActive;
+            selectModel(id, name);
+            const el = get('model-select');
+            // PromptCache can refuse a switch to another provider; only a real change counts.
+            if (!forVision && el && el.value === id) modelChosenManually = true;
+        }
 
         function populateAiSafeFormFields(d) {
             // Mirror a subset of the population in openSettingsModal for live update after AI apply
@@ -9769,7 +9782,8 @@
         }
 
         window.quickStart = (m) => {
-            selectModelById(m);
+            const found = MODELS.flatMap(g => g.items).find(i => i.id === m);
+            selectModelByUser(m, found ? found.name : m);
             get('welcome-screen').classList.add('hidden');
         };
 
@@ -23176,7 +23190,9 @@
                 cancelEdit();
             }
             if (!silent) playChatTransition('history');
-            currentThreadId = tid !== null && tid !== undefined ? String(tid) : tid;
+            const nextThreadId = tid !== null && tid !== undefined ? String(tid) : tid;
+            if (nextThreadId !== currentThreadId) modelChosenManually = false;
+            currentThreadId = nextThreadId;
             if (!opts.skipHistory) history.pushState({}, '', '/c/' + tid);
             updateThreadHighlighting();
             syncActiveGemForThread(currentThreadId);
@@ -23223,7 +23239,7 @@
                 get('enable-prompt-cache').checked = !!threadData.enable_prompt_caching;
                 updatePromptCacheUi();
             }
-            if (threadData.last_model) {
+            if (threadData.last_model && !modelChosenManually) {
                 selectModelById(threadData.last_model);
             }
             if (threadData.last_gem_uuid && loadedGems.length > 0) {
@@ -23885,6 +23901,7 @@
             playChatTransition('new');
             threadLoadSequence++;
             if(abortController) abortController.abort();
+            modelChosenManually = false;
             cancelEdit();
             restoreLatestPromptOptions();
             resetUploadState();

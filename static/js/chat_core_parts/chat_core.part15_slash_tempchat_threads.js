@@ -117,7 +117,9 @@
                 cancelEdit();
             }
             if (!silent) playChatTransition('history');
-            currentThreadId = tid !== null && tid !== undefined ? String(tid) : tid;
+            const nextThreadId = tid !== null && tid !== undefined ? String(tid) : tid;
+            if (nextThreadId !== currentThreadId) modelChosenManually = false;
+            currentThreadId = nextThreadId;
             if (!opts.skipHistory) history.pushState({}, '', '/c/' + tid);
             updateThreadHighlighting();
             syncActiveGemForThread(currentThreadId);
@@ -164,7 +166,7 @@
                 get('enable-prompt-cache').checked = !!threadData.enable_prompt_caching;
                 updatePromptCacheUi();
             }
-            if (threadData.last_model) {
+            if (threadData.last_model && !modelChosenManually) {
                 selectModelById(threadData.last_model);
             }
             if (threadData.last_gem_uuid && loadedGems.length > 0) {
@@ -826,6 +828,7 @@
             playChatTransition('new');
             threadLoadSequence++;
             if(abortController) abortController.abort();
+            modelChosenManually = false;
             cancelEdit();
             restoreLatestPromptOptions();
             resetUploadState();

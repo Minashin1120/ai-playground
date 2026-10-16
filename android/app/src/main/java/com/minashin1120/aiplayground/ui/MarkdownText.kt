@@ -1278,12 +1278,12 @@ private fun MathBlock(block: MarkdownBlock.Math, style: TextStyle) {
     val color = style.color.takeOrElse { LocalContentColor.current }
     val svg = (state as? MathState.Ready)?.svg
     val drawing = svg?.let { rememberMathDrawing(it, color) }
+    // The readable text approximation: shown while MathJax loads or if it cannot set the formula, and copied otherwise.
+    val rendered = remember(block.tex) { latexToDisplay(block.tex) }
     Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 15.2.dp), contentAlignment = Alignment.Center) {
         if (svg != null && drawing != null) {
-            MathDisplayImage(svg, drawing, color, style.fontSize)
+            MathDisplayText(svg, drawing, rendered, color, style)
         } else {
-            // While MathJax loads, or if it cannot set the formula: the readable text approximation.
-            val rendered = remember(block.tex) { latexToDisplay(block.tex) }
             Text(rendered, style = style.copy(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic), textAlign = TextAlign.Center)
         }
     }

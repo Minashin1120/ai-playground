@@ -47,4 +47,15 @@ class MathJaxRendererTest {
         // Before the width is known the formula keeps its natural size.
         assertEquals(WEB_MATH_SCALE, fittedMathScale(10f, androidx.compose.ui.unit.Constraints.Infinity, 16f), 1e-6f)
     }
+
+    @Test fun displayFormulasAreOneSelectablePlaceholderOverTheirApproximation() {
+        // The rendered formula stays text, so a selection includes it and copies the approximation.
+        val text = displayMathText(latexToDisplay("\\begin{aligned} a &= 1 \\\\ b &= 2 \\end{aligned}"))
+        assertEquals(false, text.text.contains('\n'))
+        val placeholders = text.getStringAnnotations(0, text.length)
+        assertEquals(1, placeholders.size)
+        assertEquals(0, placeholders[0].start)
+        assertEquals(text.length, placeholders[0].end)
+        assertEquals(" ", displayMathText("").text)
+    }
 }

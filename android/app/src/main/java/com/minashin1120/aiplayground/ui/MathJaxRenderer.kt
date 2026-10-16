@@ -13,8 +13,9 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -23,18 +24,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
@@ -44,6 +49,8 @@ import com.caverock.androidsvg.SVG
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
 
 /**
  * One formula typeset by MathJax as SVG. Sizes are in em of MathJax's TeX font (its viewBox is in
@@ -279,15 +286,59 @@ internal fun DrawScope.drawMath(drawing: SVG, svg: MathSvg, emPx: Float, left: F
     }
 }
 
-/** A display formula as its own box (Web `mjx-container[display]`), sized from the text's font size. */
-@Composable
-internal fun MathDisplayImage(svg: MathSvg, drawing: SVG, color: Color, fontSize: TextUnit, modifier: Modifier = Modifier) {
-    val density = LocalDensity.current
-    val emPx = with(density) { fontSize.takeOrElse { 16.sp }.toPx() } * WEB_MATH_SCALE
-    val width = with(density) { (svg.widthEm * emPx).toDp() }
-    val height = with(density) { (svg.heightEm * emPx).toDp() }
-    Canvas(modifier.size(width, height)) { drawMath(drawing, svg, emPx, 0f, 0f, color.alpha) }
+private const val DISPLAY_MATH_ID = "display-math"
+
+/** Where the formula's placeholder landed in the last text layout. */
+private class PlaceholderSpot {
+    var rect: Rect? = null
 }
+
+/**
+ * A display formula on its own line (Web `mjx-container[display]`), sized from the text's font size. It is a
+ * text whose only content is the formula's placeholder, so it joins the message selection like inline formulas:
+ * a long-press or a selection across it selects it, and copying gives the [latexToDisplay] approximation
+ * ([alternate]). The line is cut to the formula's own height, so the font's line box adds no space around it.
+ */
+@Composable
+internal fun MathDisplayText(svg: MathSvg, drawing: SVG, alternate: String, color: Color, style: TextStyle, modifier: Modifier = Modifier) {
+    val text = remember(alternate) { displayMathText(alternate) }
+    val inline = remember(svg, drawing, color) {
+        val placeholder = Placeholder((svg.widthEm * WEB_MATH_SCALE).em, (svg.heightEm * WEB_MATH_SCALE).em, PlaceholderVerticalAlign.TextCenter)
+        mapOf(
+            DISPLAY_MATH_ID to InlineTextContent(placeholder) {
+                Canvas(Modifier.fillMaxSize()) { drawMath(drawing, svg, size.width / svg.widthEm, 0f, 0f, color.alpha) }
+            },
+        )
+    }
+    val spot = remember { PlaceholderSpot() }
+    BasicText(
+        text,
+        modifier.layout { measurable, constraints ->
+            val placeable = measurable.measure(constraints)
+            val rect = spot.rect
+            if (rect == null) {
+                layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+            } else {
+                val top = floor(rect.top).toInt().coerceIn(0, placeable.height)
+                val bottom = ceil(rect.bottom).toInt().coerceIn(top, placeable.height)
+                layout(placeable.width, bottom - top) { placeable.place(0, -top) }
+            }
+        },
+        style = style.copy(color = color, fontSize = style.fontSize.takeOrElse { 16.sp }, lineHeight = TextUnit.Unspecified),
+        onTextLayout = { spot.rect = it.placeholderRects.firstOrNull() },
+        softWrap = false,
+        inlineContent = inline,
+    )
+}
+
+private val LINE_BREAKS = Regex("""\s*\n\s*""")
+
+/**
+ * The text of a display formula: one placeholder whose alternate text is the approximation, on one line, since a
+ * placeholder over a line break would take space on both lines.
+ */
+internal fun displayMathText(alternate: String): AnnotatedString =
+    buildAnnotatedString { appendInlineContent(DISPLAY_MATH_ID, alternate.replace(LINE_BREAKS, " ").trim().ifEmpty { " " }) }
 
 /**
  * The em scale of a formula inside text: Web's [WEB_MATH_SCALE], reduced so a formula wider than the text

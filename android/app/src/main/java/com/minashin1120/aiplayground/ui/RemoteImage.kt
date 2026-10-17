@@ -97,6 +97,8 @@ fun ProtectedImage(
     fitToImage: Boolean = false,
     fitMaxWidth: Dp = Dp.Infinity,
     fitMaxHeight: Dp = Dp.Infinity,
+    /** Where the fitted frame sits in the available width (Web `object-fit: contain` centers it). */
+    fitAlignment: Alignment = Alignment.TopStart,
 ) {
     val key = "$reference|${if (thumbnail) "t" else "f"}|$maxDecodeWidth"
     var bitmap by remember(key) { mutableStateOf(ProtectedImageCache.get(key)) }
@@ -115,7 +117,7 @@ fun ProtectedImage(
     }
     val click = if (onOpen != null) Modifier.clickable { onOpen(reference) } else Modifier
     if (fitToImage) {
-        BoxWithConstraints(modifier) {
+        BoxWithConstraints(modifier, contentAlignment = fitAlignment) {
             val width = min(maxWidth, fitMaxWidth).takeIf { it != Dp.Infinity } ?: 320.dp
             // Web leaves the height to the image; the finite cap only keeps extreme panoramas within layout limits.
             val height = min(min(maxHeight, fitMaxHeight), MAX_FITTED_HEIGHT)

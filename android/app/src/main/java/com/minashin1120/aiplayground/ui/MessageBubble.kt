@@ -363,13 +363,15 @@ private fun AttachmentCell(
     val web = LocalWebPalette.current
     val shape = if (corner > 0) RoundedCornerShape(corner.dp) else RectangleShape
     if (isImageReference(file)) {
+        // A single image is narrower than the grid, so it carries the grid's 14px corners itself.
+        val imageShape = if (single) RoundedCornerShape(14.dp) else shape
         ProtectedImage(
             file, loader, onFile, modifier = modifier, thumbnail = true, compact = single,
-            contentDescription = file.substringAfterLast('/'), shape = shape,
+            contentDescription = file.substringAfterLast('/'), shape = imageShape,
             contentScale = if (single) ContentScale.Fit else ContentScale.Crop,
             background = if (single) Color.Transparent else Color(0xFF111111),
             // `.grid-1`: up to the grid width and 400px tall, framed to the image so the margin does not open it.
-            fitToImage = single, fitMaxHeight = 400.dp,
+            fitToImage = single, fitMaxHeight = 400.dp, fitAlignment = Alignment.TopCenter,
         )
     } else {
         // `.file-thumb`: file glyph and a truncated name on a gray tile.

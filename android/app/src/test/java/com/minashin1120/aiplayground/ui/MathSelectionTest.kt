@@ -1,6 +1,7 @@
 package com.minashin1120.aiplayground.ui
 
 import android.util.LruCache
+import android.widget.Magnifier
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,6 +35,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.annotation.Implementation
+import org.robolectric.annotation.Implements
 
 /**
  * Diagnostic: long-presses a grid over an answer laid out like a graded math worksheet (headings, nested
@@ -41,8 +44,17 @@ import org.robolectric.annotation.GraphicsMode
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [27], qualifiers = "w411dp-h4000dp-xxhdpi")
+@Config(sdk = [35], qualifiers = "w411dp-h4000dp-xxhdpi", shadows = [MathSelectionTest.NoMagnifier::class])
 class MathSelectionTest {
+    /** Robolectric has no surface for the selection magnifier; the gesture only needs it to do nothing. */
+    @Implements(Magnifier::class)
+    class NoMagnifier {
+        @Implementation fun show(sourceCenterX: Float, sourceCenterY: Float) = Unit
+        @Implementation fun show(sourceCenterX: Float, sourceCenterY: Float, magnifierCenterX: Float, magnifierCenterY: Float) = Unit
+        @Implementation fun update() = Unit
+        @Implementation fun dismiss() = Unit
+    }
+
     @get:Rule val rule = createComposeRule()
 
     private class Signals {
@@ -52,7 +64,7 @@ class MathSelectionTest {
     }
 
     private fun svg(width: Int, ascent: Int, depth: Int) =
-        """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -$ascent $width ${ascent + depth}"><g stroke="currentColor" fill="currentColor" stroke-width="0"><rect width="$width" height="${ascent + depth}"></rect></g></svg>"""
+        """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -$ascent $width ${ascent + depth}"><g stroke="currentColor" fill="currentColor" stroke-width="0"><rect y="-$ascent" width="$width" height="${ascent + depth}"></rect></g></svg>"""
 
     private fun <T> field(name: String): T {
         @Suppress("UNCHECKED_CAST")
@@ -140,7 +152,7 @@ class MathSelectionTest {
 
     @Test fun worksheetTypeset() = scan("typeset", WORKSHEET, typeset = true)
 
-    @Test fun worksheetLoading() = scan("loading", WORKSHEET, typeset = false)
+    @Test fun worksheetWithoutFormulas() = scan("plain", WORKSHEET.replace(Regex("""\$[^$]+\$|\\\(.+?\\\)"""), "AB"), typeset = false)
 
     private companion object {
         // "¤" stands for "$", which a raw string would read as a template.

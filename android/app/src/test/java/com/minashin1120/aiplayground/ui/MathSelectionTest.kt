@@ -21,7 +21,8 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
-import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.minashin1120.aiplayground.data.ChatMessage
@@ -62,6 +63,9 @@ class MathSelectionTest {
         cache.put("D:\\int_0^1 x^2\\,dx = \\frac{1}{3}", parseMathSvg(svg(7000, 1600, 900))!!)
     }
 
+    /** The window holding the conversation; message controls add popup roots. */
+    private fun main() = rule.onAllNodes(isRoot()).onFirst()
+
     private fun scan(name: String, content: String) {
         val signals = Signals()
         val toolbar = object : TextToolbar {
@@ -94,17 +98,17 @@ class MathSelectionTest {
             val text = node.config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }.orEmpty()
             out.append("text ${node.boundsInRoot} ${text.take(24).replace('\n', ' ')}\n")
         }
-        val root = rule.onRoot().fetchSemanticsNode().size
+        val root = main().fetchSemanticsNode().size
         for (y in 30 until minOf(root.height, 1500) step 36) {
             out.append(String.format("%4d ", y))
             for (x in 60 until root.width - 30 step 60) {
                 val before = signals.total
-                rule.onRoot().performTouchInput { longClick(Offset(x.toFloat(), y.toFloat())) }
+                main().performTouchInput { longClick(Offset(x.toFloat(), y.toFloat())) }
                 rule.waitForIdle()
                 val selected = signals.total > before
                 out.append(if (selected) 'S' else '.')
                 if (selected) {
-                    rule.onRoot().performTouchInput { click(Offset(x.toFloat(), y.toFloat())) }
+                    main().performTouchInput { click(Offset(x.toFloat(), y.toFloat())) }
                     rule.mainClock.advanceTimeBy(400)
                     rule.waitForIdle()
                 }

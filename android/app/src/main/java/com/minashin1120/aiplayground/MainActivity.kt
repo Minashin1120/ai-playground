@@ -18,6 +18,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.ui.PlaygroundScreen
+import com.minashin1120.aiplayground.ui.shouldPlayStartupAnimation
 
 /** `<activity-alias>` in the manifest: the 「画像を分割」 entry of the system share sheet. */
 private const val IMAGE_SPLIT_SHARE_ALIAS = "com.minashin1120.aiplayground.ImageSplitShareActivity"
@@ -27,6 +28,13 @@ private const val TEXT_PREVIEW_SHARE_ALIAS = "com.minashin1120.aiplayground.Text
 
 /** Browser flows on servers other than the official host return through this scheme (server `_MOBILE_APP_CALLBACK`). */
 private const val APP_AUTH_SCHEME = "com.minashin1120.aiplayground.auth"
+
+/**
+ * Activity classes that have already had the chance to show the startup intro in this process. A configuration change
+ * recreates the activity in the same process and must not replay it; a task restored after the system killed the
+ * process starts with an empty set and therefore plays it again.
+ */
+private val startupAnimationShownActivities = mutableSetOf<String>()
 
 open class MainActivity : ComponentActivity() {
     private val model: ChatViewModel by viewModels()
@@ -52,12 +60,18 @@ open class MainActivity : ComponentActivity() {
                 updateModel.state.value.phase == AppUpdatePhase.Checking)) {
             updateModel.check(BuildConfig.VERSION_NAME)
         }
+        val startupAnimationKey = javaClass.name
+        val playStartupAnimation = shouldPlayStartupAnimation(
+            hasSavedState = savedInstanceState != null,
+            shownInProcess = startupAnimationKey in startupAnimationShownActivities,
+        )
+        startupAnimationShownActivities.add(startupAnimationKey)
         setContent {
             val updateState = updateModel.state.collectAsStateWithLifecycle().value
             val changelogState = changelogModel.state.collectAsStateWithLifecycle().value
             PlaygroundScreen(model, appUpdate = updateState,
                 appChangelog = changelogState,
-                playStartupAnimation = savedInstanceState == null,
+                playStartupAnimation = playStartupAnimation,
                 onDismissUpdate = updateModel::dismiss,
                 onDownloadUpdate = ::startUpdateDownload,
                 onCancelDownload = updateModel::cancelDownload,

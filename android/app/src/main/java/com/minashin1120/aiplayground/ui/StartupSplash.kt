@@ -21,7 +21,6 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
@@ -222,16 +221,23 @@ private fun DrawScope.drawOrb(color: Color, center: Offset, radius: Float, alpha
  * what made the animation stutter on 120 Hz devices.
  */
 @Composable
-internal fun StartupSplash(enabled: Boolean, ready: Boolean) {
-    if (!enabled) return
+internal fun StartupSplash(enabled: Boolean, ready: Boolean, onFinished: () -> Unit = {}) {
+    if (!enabled) {
+        val currentOnFinished by rememberUpdatedState(onFinished)
+        LaunchedEffect(Unit) { currentOnFinished() }
+        return
+    }
 
-    var visible by rememberSaveable { mutableStateOf(true) }
+    // Not saveable: a process-restored cold start must play the intro even though the previous
+    // activity had already finished it (rememberSaveable would restore `false` and skip it).
+    var visible by remember { mutableStateOf(true) }
     if (!visible) return
 
     var elapsed by remember { mutableFloatStateOf(0f) }
     var diveAt by remember { mutableFloatStateOf(Float.NaN) }
     var lowQuality by remember { mutableStateOf(false) }
     val currentReady by rememberUpdatedState(ready)
+    val currentOnFinished by rememberUpdatedState(onFinished)
     val textMeasurer = rememberTextMeasurer()
     val titleStyle = TextStyle(fontFamily = WebFonts.sans, fontWeight = FontWeight.Bold, fontSize = 28.sp, color = Color.White)
     CapRefreshRate()
@@ -253,6 +259,7 @@ internal fun StartupSplash(enabled: Boolean, ready: Boolean) {
             if (!diveAt.isNaN() && t >= diveAt + DIVE_MS + FADE_TAIL_MS) break
         }
         visible = false
+        currentOnFinished()
     }
 
     Box(

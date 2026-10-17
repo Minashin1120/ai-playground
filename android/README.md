@@ -62,7 +62,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ChatHeader.kt` | スマートフォン用の上部バー（Webの `header.main-chrome-header`） | 上部バーを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/WebDialogs.kt` | Webの `confirm()`／`prompt()` 相当、チャット履歴・アルファ版・利用規約のモーダル、共通オーバーレイ | 確認ダイアログや小さなモーダルを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/LowBandwidth.kt` | Web相当の低速回線モードの判定・設定の切り替え・表示文言 | 低速回線モードを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/StartupSplash.kt`, `app/src/main/res/drawable/ic_playground_mark.xml` | 起動時のぼかし・光・ロゴと「AI Playground」の表示、起動完了後のロゴのズームによる画面リビールとアクセシビリティ対応（ロゴはベクターのパスで描画。図形は `ic_playground_mark.xml` と同じ） | 起動アニメーション・ロゴ素材を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/StartupSplash.kt`, `app/src/main/java/com/minashin1120/aiplayground/ui/StartupSplashPolicy.kt`, `app/src/main/res/drawable/ic_playground_mark.xml` | 起動時のぼかし・光・ロゴと「AI Playground」の表示、起動完了後のロゴのズームによる画面リビールとアクセシビリティ対応（ロゴはベクターのパスで描画。図形は `ic_playground_mark.xml` と同じ）。`StartupSplashPolicy.kt` は、画面回転などの同一プロセス内の再生成では再生せず、プロセス終了後のタスク復元では再生する判定 | 起動アニメーション・ロゴ素材を編集するとき |
 | `app/src/main/res/mipmap-anydpi-v26/ic_launcher*.xml`, `app/src/main/res/drawable/ic_launcher_{background,foreground,monochrome}.xml` | ランチャーアイコン（ベクターのアダプティブアイコン。テーマアイコン用の単色版を含む）。通知の小アイコンは `ic_playground.xml` | ランチャーアイコンを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsDialog.kt` | Web設定モーダルの枠（見出し、検索と結果一覧、10タブ、キャンセル／保存） | 設定画面の枠や検索を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsTabs.kt` | 設定のタブ定義と一般・APIキー・プロンプト・表示タブのカード | これらのタブの項目を変えるとき |

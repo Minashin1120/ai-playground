@@ -180,6 +180,9 @@ fun PlaygroundScreen(
         val reduceMotion = rememberReduceMotion()
         val animationsEnabled = !reduceMotion
         val startupSplashEnabled = playStartupAnimation && !reduceMotion
+        // The message preview opens as a separate full-screen dialog window, which would hide the intro.
+        // Keep it closed until the intro has finished (or immediately when the intro is disabled).
+        var startupSplashFinished by remember(startupSplashEnabled) { mutableStateOf(!startupSplashEnabled) }
         CompositionLocalProvider(
             LocalContentColor provides colors.onBackground,
             LocalReduceMotion provides reduceMotion,
@@ -803,7 +806,7 @@ fun PlaygroundScreen(
                 onOpenFile = openInApp,
                 onEditImage = { markerTarget = it },
             )
-            ModalValueHost(sharedTextPreview) { text ->
+            ModalValueHost(sharedTextPreview.takeIf { startupSplashFinished }) { text ->
                 // The chat's code-block actions, so code blocks get the same buttons as in an answer.
                 ProvideMarkdownCodeActions(codeActions) {
                     SharedTextPreviewDialog(text, loader, openInApp, onDismiss = model::closeSharedTextPreview)
@@ -868,7 +871,7 @@ fun PlaygroundScreen(
                 // ANDROID_ONLY.md: a hidden update download stays visible as a bar over the top edge.
                 AppUpdateProgressBar(update, onShowUpdate, Modifier.align(Alignment.TopCenter))
             }
-            StartupSplash(startupSplashEnabled, ready = !state.starting)
+            StartupSplash(startupSplashEnabled, ready = !state.starting, onFinished = { startupSplashFinished = true })
             }
         }
     }

@@ -5,6 +5,9 @@ import android.widget.Magnifier
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
+import kotlinx.coroutines.runBlocking
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -44,7 +47,7 @@ import org.robolectric.annotation.Implements
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35], qualifiers = "w411dp-h4000dp-xxhdpi", shadows = [MathSelectionTest.NoMagnifier::class])
+@Config(sdk = [35], qualifiers = "w411dp-h923dp-xxhdpi", shadows = [MathSelectionTest.NoMagnifier::class])
 class MathSelectionTest {
     /** Robolectric has no surface for the selection magnifier; the gesture only needs it to do nothing. */
     @Implements(Magnifier::class)
@@ -102,11 +105,13 @@ class MathSelectionTest {
             override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) { signals.haptics++ }
         }
         var generation by mutableIntStateOf(0)
+        lateinit var list: LazyListState
         rule.setContent {
+            list = rememberLazyListState()
             PlaygroundTheme(darkTheme = true) {
                 CompositionLocalProvider(LocalTextToolbar provides toolbar, LocalHapticFeedback provides haptic) {
                     Box(Modifier.width(411.dp)) {
-                        LazyColumn {
+                        LazyColumn(state = list) {
                             item { key(generation) { Answer(content) } }
                         }
                     }
@@ -122,24 +127,28 @@ class MathSelectionTest {
         }
         rule.mainClock.advanceTimeBy(2_000)
         rule.waitForIdle()
-        main().captureRoboImage("build/outputs/roborazzi/math_selection_$name.png")
-        val size = main().fetchSemanticsNode().size
-        out.append("root ${size.width}x${size.height}\n")
-        for (y in 20 until size.height step 30) {
-            out.append(String.format("%5d ", y))
-            for (x in 60 until size.width - 30 step 70) {
-                val before = signals.total
-                main().performTouchInput { longClick(Offset(x.toFloat(), y.toFloat())) }
-                rule.waitForIdle()
-                val selected = signals.total > before
-                out.append(if (selected) 'S' else '.')
-                if (selected) {
-                    main().performTouchInput { click(Offset(x.toFloat(), y.toFloat())) }
-                    rule.mainClock.advanceTimeBy(400)
+        for (offset in listOf(0, 1400, 2800)) {
+            rule.runOnIdle { runBlocking { list.scrollToItem(0, offset) } }
+            rule.waitForIdle()
+            main().captureRoboImage("build/outputs/roborazzi/math_selection_${name}_$offset.png")
+            val size = main().fetchSemanticsNode().size
+            out.append("-- scrolled $offset, window ${size.width}x${size.height}\n")
+            for (y in 20 until size.height step 30) {
+                out.append(String.format("%5d ", y))
+                for (x in 60 until size.width - 30 step 70) {
+                    val before = signals.total
+                    main().performTouchInput { longClick(Offset(x.toFloat(), y.toFloat())) }
                     rule.waitForIdle()
+                    val selected = signals.total > before
+                    out.append(if (selected) 'S' else '.')
+                    if (selected) {
+                        main().performTouchInput { click(Offset(x.toFloat(), y.toFloat())) }
+                        rule.mainClock.advanceTimeBy(400)
+                        rule.waitForIdle()
+                    }
                 }
+                out.append(" first=${list.firstVisibleItemScrollOffset}\n")
             }
-            out.append('\n')
         }
         println(out)
     }

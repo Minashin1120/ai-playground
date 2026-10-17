@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -15,16 +19,14 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
-import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
-import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import com.github.takahirom.roborazzi.captureRoboImage
 import com.minashin1120.aiplayground.data.ChatMessage
 import org.junit.Rule
 import org.junit.Test
@@ -34,39 +36,46 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Diagnostic: long-presses a grid over an answer with formulas and prints where a selection starts
- * ("S") and where it does not ("."), next to the same answer without formulas.
+ * Diagnostic: long-presses a grid over an answer laid out like a graded math worksheet (headings, nested
+ * lists, bold formulas) and prints where a selection starts ("S") and where it does not (".").
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [27], qualifiers = "w360dp-h2400dp-xxhdpi")
+@Config(sdk = [27], qualifiers = "w411dp-h4000dp-xxhdpi")
 class MathSelectionTest {
     @get:Rule val rule = createComposeRule()
 
     private class Signals {
         var menus = 0
         var haptics = 0
-        var hides = 0
         val total get() = menus + haptics
     }
 
     private fun svg(width: Int, ascent: Int, depth: Int) =
         """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -$ascent $width ${ascent + depth}"><g stroke="currentColor" fill="currentColor" stroke-width="0"><rect width="$width" height="${ascent + depth}"></rect></g></svg>"""
 
-    @Suppress("UNCHECKED_CAST")
-    private fun typeset() {
-        val field = MathJaxRenderer::class.java.getDeclaredField("cache").apply { isAccessible = true }
-        val cache = field.get(null) as LruCache<String, MathSvg>
-        cache.put("I:ax^2+bx+c=0", parseMathSvg(svg(6200, 750, 250))!!)
-        cache.put("I:x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}", parseMathSvg(svg(9000, 1500, 900))!!)
-        cache.put("I:x", parseMathSvg(svg(600, 450, 10))!!)
-        cache.put("D:\\int_0^1 x^2\\,dx = \\frac{1}{3}", parseMathSvg(svg(7000, 1600, 900))!!)
+    private fun <T> field(name: String): T {
+        @Suppress("UNCHECKED_CAST")
+        return MathJaxRenderer::class.java.getDeclaredField(name).apply { isAccessible = true }.get(null) as T
+    }
+
+    /** Typesets every formula the composition asked MathJax for, with a size from its source. */
+    private fun typesetPending(): Int {
+        val waiting = field<HashMap<String, *>>("waiting")
+        val cache = field<LruCache<String, MathSvg>>("cache")
+        val ids = waiting.keys.toList()
+        ids.forEach { id ->
+            val tall = id.contains("frac") || id.contains("left")
+            cache.put(id, parseMathSvg(svg(400 + 260 * id.length, if (tall) 1450 else 800, if (tall) 900 else 250))!!)
+        }
+        waiting.clear()
+        return ids.size
     }
 
     /** The window holding the conversation; message controls add popup roots. */
     private fun main() = rule.onAllNodes(isRoot()).onFirst()
 
-    private fun scan(name: String, content: String) {
+    private fun scan(name: String, content: String, typeset: Boolean) {
         val signals = Signals()
         val toolbar = object : TextToolbar {
             override var status = TextToolbarStatus.Hidden
@@ -75,33 +84,38 @@ class MathSelectionTest {
                 signals.menus++
                 status = TextToolbarStatus.Shown
             }
-            override fun hide() { signals.hides++; status = TextToolbarStatus.Hidden }
+            override fun hide() { status = TextToolbarStatus.Hidden }
         }
         val haptic = object : HapticFeedback {
             override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) { signals.haptics++ }
         }
+        var generation by mutableIntStateOf(0)
         rule.setContent {
             PlaygroundTheme(darkTheme = true) {
                 CompositionLocalProvider(LocalTextToolbar provides toolbar, LocalHapticFeedback provides haptic) {
-                    Box(Modifier.width(360.dp)) {
+                    Box(Modifier.width(411.dp)) {
                         LazyColumn {
-                            item { Answer(content) }
+                            item { key(generation) { Answer(content) } }
                         }
                     }
                 }
             }
         }
         rule.waitForIdle()
-        rule.mainClock.advanceTimeBy(2_000)
         val out = StringBuilder("==== $name\n")
-        rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.Text)).fetchSemanticsNodes().forEach { node ->
-            val text = node.config.getOrNull(SemanticsProperties.Text)?.joinToString("") { it.text }.orEmpty()
-            out.append("text ${node.boundsInRoot} ${text.take(24).replace('\n', ' ')}\n")
+        if (typeset) {
+            out.append("typeset ${typesetPending()} formulas\n")
+            generation++
+            rule.waitForIdle()
         }
-        val root = main().fetchSemanticsNode().size
-        for (y in 30 until minOf(root.height, 1500) step 36) {
-            out.append(String.format("%4d ", y))
-            for (x in 60 until root.width - 30 step 60) {
+        rule.mainClock.advanceTimeBy(2_000)
+        rule.waitForIdle()
+        main().captureRoboImage("build/outputs/roborazzi/math_selection_$name.png")
+        val size = main().fetchSemanticsNode().size
+        out.append("root ${size.width}x${size.height}\n")
+        for (y in 20 until size.height step 30) {
+            out.append(String.format("%5d ", y))
+            for (x in 60 until size.width - 30 step 70) {
                 val before = signals.total
                 main().performTouchInput { longClick(Offset(x.toFloat(), y.toFloat())) }
                 rule.waitForIdle()
@@ -124,34 +138,49 @@ class MathSelectionTest {
             actions = MessageActions(), controlsVisible = false, onToggleControls = {})
     }
 
-    @Test fun withFormulas() {
-        typeset()
-        scan("with formulas", WITH_MATH)
-    }
+    @Test fun worksheetTypeset() = scan("typeset", WORKSHEET, typeset = true)
 
-    @Test fun withoutFormulas() = scan("without formulas", WITHOUT_MATH)
+    @Test fun worksheetLoading() = scan("loading", WORKSHEET, typeset = false)
 
     private companion object {
-        val WITH_MATH = """最初の段落には数式がありません。普通の文字だけです。
+        // "¤" stands for "$", which a raw string would read as a template.
+        val WORKSHEET = """採点結果と、それぞれのアドバイスをまとめました。
 
-二次方程式 \(ax^2+bx+c=0\) の解は \(x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}\) です。ここは普通の文字が続く文章です。
+---
 
-$$
-\int_0^1 x^2\,dx = \frac{1}{3}
-$$
+### 📄 1枚目（複素数の練習）
 
-変数 \(x\) を使った短い段落です。
+#### 1. 次の数を極形式で表しなさい。
+* **(1) ¤1 - i¤**
+  * **判定：惜しい**
+  * **解説：** 絶対値（¤r = \sqrt{1^2 + (-1)^2} = \sqrt{2}¤）が書かれていません。
+    正しくは **\(\sqrt{2}\left(\cos\frac{7}{4}\pi + i\sin\frac{7}{4}\pi\right)\)** となります。
+* **(2) ¤\sqrt{3} + i¤**
+  * **判定：正解 🎉**
+  * **解説：** よくできています。
 
-最後の段落は数式を含みません。長押しで選択できるはずです。"""
+#### 2. 2つの複素数 ¤\alpha, \beta¤ について、¤\alpha\beta, \frac{\alpha}{\beta}¤ を求めなさい。
+* **判定：途中まで**
+* **解説：** 「¤\alpha\beta¤」と「¤\frac{\alpha}{\beta}¤」の計算がまだ書かれていません。
 
-        val WITHOUT_MATH = """最初の段落には数式がありません。普通の文字だけです。
+#### 3. 点 ¤z¤ をどのように移動した点か。
+* **(1) \(\frac{1+\sqrt{3}i}{2}z\)**
+  * **判定：正解 🎉**
+  * **解説：** 「原点のまわりに \(\frac{\pi}{3}\) 回転した点」—— 説明も含めて十分です。
 
-二次方程式 AAAAAAAA の解は BBBBBBBBBBBB です。ここは普通の文字が続く文章です。
+---
 
-CCCCCCCCCC
+### 📄 2枚目（ド・モアブルの定理）
 
-変数 D を使った短い段落です。
+* **(1) \(\left(\cos\frac{\pi}{3} + i\sin\frac{\pi}{3}\right)^6\)**
+  * **判定：正解 🎉**
+  * **解説：** 定理を使って正しく計算できています（答え: ¤1¤）。
+* **(2) \((1-i)^{8}\)**
+  * **判定：間違い ❌**
+  * **解説：** 途中の偏角に誤りがあり、答えが ¤4¤ になっていますが、正しくは ¤16¤ です。
 
-最後の段落は数式を含みません。長押しで選択できるはずです。"""
+#### 3. 方程式 ¤z^3 = i¤ を解きなさい。
+* **判定：未解答**
+* **解説：** 解答が書かれていません。""".replace('¤', '$')
     }
 }

@@ -11,11 +11,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.Clipboard
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.TextToolbar
@@ -37,6 +40,26 @@ import androidx.compose.ui.text.AnnotatedString
 @OptIn(ExperimentalFoundationApi::class)
 internal fun useQuoteSelectionToolbar() {
     ComposeFoundationFlags.isNewContextMenuEnabled = false
+}
+
+/**
+ * Counts what the conversation's text selections did, for the `ui.press` entry of ログの収集を強化: Compose
+ * plays [HapticFeedbackType.TextHandleMove] whenever a touch selection changes, and shows the toolbar after it.
+ */
+internal object SelectionSignals {
+    @Volatile private var changes = 0
+    @Volatile private var menus = 0
+
+    fun snapshot(): Pair<Int, Int> = changes to menus
+    fun changed() { changes++ }
+    fun menuShown() { menus++ }
+}
+
+private class SelectionHaptics(private val base: HapticFeedback) : HapticFeedback {
+    override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
+        if (hapticFeedbackType == HapticFeedbackType.TextHandleMove) SelectionSignals.changed()
+        base.performHapticFeedback(hapticFeedbackType)
+    }
 }
 
 private class QuoteCapture {
@@ -131,6 +154,7 @@ private class QuoteTextToolbar(private val view: View, private val capture: Quot
     ) {
         contentRect = rect
         capture.armed = false
+        SelectionSignals.menuShown()
         onCopy = onCopyRequested
         onSelectAll = onSelectAllRequested
         val mode = actionMode
@@ -166,12 +190,15 @@ internal fun ProvideQuoteSelection(onQuote: (String) -> Unit, content: @Composab
     val toolbar = remember(view) { QuoteTextToolbar(view, capture) }
     val baseManager = LocalClipboardManager.current
     val baseClipboard = LocalClipboard.current
+    val baseHaptics = LocalHapticFeedback.current
+    val haptics = remember(baseHaptics) { SelectionHaptics(baseHaptics) }
     val manager = remember(baseManager) { QuoteClipboardManager(baseManager, capture) { text -> latest.value(text.trim()) } }
     val clipboard = remember(baseClipboard) { QuoteClipboard(baseClipboard, capture) { text -> latest.value(text.trim()) } }
     CompositionLocalProvider(
         LocalTextToolbar provides toolbar,
         LocalClipboardManager provides manager,
         LocalClipboard provides clipboard,
+        LocalHapticFeedback provides haptics,
         content = content,
     )
 }

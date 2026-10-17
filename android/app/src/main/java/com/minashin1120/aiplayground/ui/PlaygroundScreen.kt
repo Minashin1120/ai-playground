@@ -1608,7 +1608,8 @@ private fun ConversationContent(
         val sideCanvas = state.canvasMode && screenWidth >= CANVAS_SIDE_PANEL_MIN_WIDTH
         Row(Modifier.weight(1f).fillMaxWidth()) {
         val focusManager = LocalFocusManager.current
-        Box(Modifier.weight(1f).fillMaxHeight().onBackgroundTap(onTap = { focusManager.clearFocus() }, onUnhandledTap = { activeMessageId = null })) {
+        Box(Modifier.weight(1f).fillMaxHeight().onBackgroundTap(onTap = { focusManager.clearFocus() }, onUnhandledTap = { activeMessageId = null },
+            listPosition = { scroll.firstVisibleItemIndex to scroll.firstVisibleItemScrollOffset })) {
             LazyColumn(
                 state = scroll,
                 modifier = Modifier.fillMaxSize().widthIn(max = 832.dp).align(Alignment.TopCenter).nestedScroll(followConnection),
@@ -1793,16 +1794,46 @@ private fun TemporaryChatWelcome(timeoutSeconds: Int, onSettings: () -> Unit) {
 /**
  * Web on a phone: a tap outside the textarea blurs it (closing the keyboard and the `/`・`@` palettes) and a
  * tap that no control handles drops the bubble's tap-hover. Scrolling is not a tap.
+ *
+ * With ログの収集を強化, a press held for a long press (or cancelled) is recorded as `ui.press`: how far the
+ * finger moved, whether another handler consumed the pointer, whether the list scrolled under it and whether a
+ * text selection started. It records no text.
  */
-private fun Modifier.onBackgroundTap(onTap: () -> Unit, onUnhandledTap: () -> Unit): Modifier = pointerInput(Unit) {
+private fun Modifier.onBackgroundTap(onTap: () -> Unit, onUnhandledTap: () -> Unit, listPosition: () -> Pair<Int, Int>): Modifier = pointerInput(Unit) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        val startList = listPosition()
+        val startSelection = SelectionSignals.snapshot()
         var moved = false
+        var maxDistance = 0f
+        var downConsumed: Boolean? = null
+        var firstConsumedMs: Long? = null
         var up: PointerInputChange? = null
         while (true) {
             val change = awaitPointerEvent(PointerEventPass.Final).changes.firstOrNull { it.id == down.id } ?: break
-            if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+            val distance = (change.position - down.position).getDistance()
+            maxDistance = maxOf(maxDistance, distance)
+            if (distance > viewConfiguration.touchSlop) moved = true
+            if (downConsumed == null) downConsumed = change.isConsumed
+            else if (change.isConsumed && firstConsumedMs == null) firstConsumedMs = change.uptimeMillis - down.uptimeMillis
             if (!change.pressed) { up = change; break }
+        }
+        val held = (up?.uptimeMillis ?: currentEvent.changes.firstOrNull()?.uptimeMillis ?: down.uptimeMillis) - down.uptimeMillis
+        if (ActivityLog.enabled && (up == null || held >= viewConfiguration.longPressTimeoutMillis)) {
+            val endList = listPosition()
+            val selection = SelectionSignals.snapshot()
+            ActivityLog.log(
+                "ui.press",
+                "x" to down.position.x.toDp().value.toInt(), "y" to down.position.y.toDp().value.toInt(),
+                "ms" to held, "cancelled" to (up == null),
+                "moved_dp" to maxDistance.toDp().value.toInt(), "slop_dp" to viewConfiguration.touchSlop.toDp().value.toInt(),
+                "long_press_ms" to viewConfiguration.longPressTimeoutMillis,
+                "down_consumed" to downConsumed, "consumed_after_ms" to firstConsumedMs,
+                "scrolled_px" to (if (endList.first == startList.first) endList.second - startList.second else null),
+                "item_changed" to (endList.first != startList.first),
+                "selection_changes" to selection.first - startSelection.first,
+                "selection_menus" to selection.second - startSelection.second,
+            )
         }
         val released = up ?: return@awaitEachGesture
         // A selection long press also ends with an unmoved pointer-up. Treating that as a

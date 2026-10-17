@@ -317,7 +317,7 @@ private fun AttachmentGrid(files: List<String>, loader: FileBytesLoader?, onFile
             .background(if (count in 2..4) Color.Black else Color.Transparent),
     ) {
         when {
-            count == 1 -> AttachmentCell(files[0], loader, onFile, Modifier.fillMaxWidth().heightIn(max = 400.dp), single = true)
+            count == 1 -> AttachmentCell(files[0], loader, onFile, Modifier.fillMaxWidth(), single = true)
             count == 2 -> Row(Modifier.fillMaxWidth().aspectRatio(2f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 files.forEach { AttachmentCell(it, loader, onFile, Modifier.weight(1f).fillMaxHeight()) }
             }
@@ -368,6 +368,8 @@ private fun AttachmentCell(
             contentDescription = file.substringAfterLast('/'), shape = shape,
             contentScale = if (single) ContentScale.Fit else ContentScale.Crop,
             background = if (single) Color.Transparent else Color(0xFF111111),
+            // `.grid-1`: up to the grid width and 400px tall, framed to the image so the margin does not open it.
+            fitToImage = single, fitMaxHeight = 400.dp,
         )
     } else {
         // `.file-thumb`: file glyph and a truncated name on a gray tile.

@@ -712,6 +712,8 @@ private fun BlockContent(
             block.reference, loader, onOpen,
             modifier = Modifier.fillMaxWidth(), thumbnail = true,
             contentDescription = block.alt.ifBlank { null },
+            // `.chat-image-frame`: up to 320px wide with the image's own height.
+            fitToImage = true, fitMaxWidth = 320.dp,
         )
         MarkdownBlock.Rule -> Box(Modifier.fillMaxWidth().height(1.dp).background(colors.rule))
         MarkdownBlock.CanvasPlaceholder -> CanvasPlaceholderPill(style)

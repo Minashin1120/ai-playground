@@ -13,11 +13,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -36,8 +39,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.min
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -85,6 +90,13 @@ fun ProtectedImage(
     background: Color? = null,
     /** Pixel size of the decoded image once it is available (the viewer uses it to find the drawn area). */
     onImageSize: ((IntSize) -> Unit)? = null,
+    /**
+     * Sizes the frame to the image's aspect ratio (Web `.chat-image` with `height: auto`) within [fitMaxWidth]
+     * and [fitMaxHeight], so no letterbox is left around the image and only the image itself opens the viewer.
+     */
+    fitToImage: Boolean = false,
+    fitMaxWidth: Dp = Dp.Infinity,
+    fitMaxHeight: Dp = Dp.Infinity,
 ) {
     val key = "$reference|${if (thumbnail) "t" else "f"}|$maxDecodeWidth"
     var bitmap by remember(key) { mutableStateOf(ProtectedImageCache.get(key)) }
@@ -102,17 +114,68 @@ fun ProtectedImage(
         }
     }
     val click = if (onOpen != null) Modifier.clickable { onOpen(reference) } else Modifier
+    if (fitToImage) {
+        BoxWithConstraints(modifier) {
+            val width = min(maxWidth, fitMaxWidth).takeIf { it != Dp.Infinity } ?: 320.dp
+            // Web leaves the height to the image; the finite cap only keeps extreme panoramas within layout limits.
+            val height = min(min(maxHeight, fitMaxHeight), MAX_FITTED_HEIGHT)
+            val image = bitmap
+            val frame = if (image != null && image.width > 0 && image.height > 0) {
+                val (w, h) = fittedImageSize(image.width, image.height, width, height)
+                Modifier.size(w, h)
+            } else {
+                Modifier.width(width).heightIn(min = 120.dp)
+            }
+            ImageFrame(
+                frame.clip(shape).then(click), shape, background, image, failed, contentDescription,
+                inner = Modifier.fillMaxSize(), imageModifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
+                loadingModifier = Modifier.fillMaxWidth().height(120.dp),
+            )
+        }
+    } else {
+        ImageFrame(
+            modifier.clip(shape).then(click), shape, background, bitmap, failed, contentDescription,
+            inner = if (compact) Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 320.dp) else Modifier.fillMaxSize(),
+            imageModifier = if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxSize(),
+            contentScale = contentScale,
+            loadingModifier = if (compact) Modifier.fillMaxWidth().height(120.dp) else Modifier.fillMaxSize(),
+        )
+    }
+}
+
+private val MAX_FITTED_HEIGHT = 4000.dp
+
+/** Largest size with the image's aspect ratio that fits in [maxWidth] × [maxHeight] (the width is filled first). */
+internal fun fittedImageSize(imageWidth: Int, imageHeight: Int, maxWidth: Dp, maxHeight: Dp): Pair<Dp, Dp> {
+    val aspect = imageWidth.toFloat() / imageHeight
+    var width = maxWidth
+    var height = width / aspect
+    if (height > maxHeight) {
+        height = maxHeight
+        width = height * aspect
+    }
+    return width to height
+}
+
+@Composable
+private fun ImageFrame(
+    modifier: Modifier,
+    shape: androidx.compose.ui.graphics.Shape,
+    background: Color?,
+    image: Bitmap?,
+    failed: Boolean,
+    contentDescription: String?,
+    inner: Modifier,
+    imageModifier: Modifier,
+    contentScale: ContentScale,
+    loadingModifier: Modifier,
+) {
     Surface(
         shape = shape,
         color = background ?: MaterialTheme.colorScheme.surfaceVariant,
-        modifier = modifier.clip(shape).then(click),
+        modifier = modifier,
     ) {
-        Box(
-            if (compact) Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 320.dp)
-            else Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
-            val image = bitmap
+        Box(inner, contentAlignment = Alignment.Center) {
             val phase = when {
                 image != null -> ImageLoadPhase.Loaded
                 failed -> ImageLoadPhase.Failed
@@ -122,18 +185,13 @@ fun ProtectedImage(
             Crossfade(phase, animationSpec = motionTween(LocalReduceMotion.current), label = "protected image") { shown ->
                 when (shown) {
                     ImageLoadPhase.Loaded -> image?.let {
-                        Image(
-                            it.asImageBitmap(), contentDescription,
-                            modifier = if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxSize(), contentScale = contentScale,
-                        )
+                        Image(it.asImageBitmap(), contentDescription, modifier = imageModifier, contentScale = contentScale)
                     }
                     ImageLoadPhase.Failed -> Text(
                         "画像を読み込めませんでした", style = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.padding(16.dp),
                     )
-                    ImageLoadPhase.Loading -> LoadingShimmer(
-                        if (compact) Modifier.fillMaxWidth().height(120.dp) else Modifier.fillMaxSize(),
-                    )
+                    ImageLoadPhase.Loading -> LoadingShimmer(loadingModifier)
                 }
             }
         }

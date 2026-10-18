@@ -34,6 +34,8 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -296,8 +298,9 @@ private class PlaceholderSpot {
 /**
  * A display formula on its own line (Web `mjx-container[display]`), sized from the text's font size. It is a
  * text whose only content is the formula's placeholder, so it joins the message selection like inline formulas:
- * a long-press or a selection across it selects it, and copying gives the [latexToDisplay] approximation
- * ([alternate]). The line is cut to the formula's own height, so the font's line box adds no space around it.
+ * a long-press or a selection across it selects it whole, and copying gives the [latexToDisplay] approximation
+ * ([alternate]) through [MathCopyText]. The line is cut to the formula's own height, so the font's line box adds
+ * no space around it.
  */
 @Composable
 internal fun MathDisplayText(svg: MathSvg, drawing: SVG, alternate: String, color: Color, style: TextStyle, modifier: Modifier = Modifier) {
@@ -313,7 +316,7 @@ internal fun MathDisplayText(svg: MathSvg, drawing: SVG, alternate: String, colo
     val spot = remember { PlaceholderSpot() }
     BasicText(
         text,
-        modifier.layout { measurable, constraints ->
+        modifier.semantics { contentDescription = MathCopyText.restore(text.text) }.layout { measurable, constraints ->
             val placeable = measurable.measure(constraints)
             val rect = spot.rect
             if (rect == null) {
@@ -334,11 +337,50 @@ internal fun MathDisplayText(svg: MathSvg, drawing: SVG, alternate: String, colo
 private val LINE_BREAKS = Regex("""\s*\n\s*""")
 
 /**
- * The text of a display formula: one placeholder whose alternate text is the approximation, on one line, since a
- * placeholder over a line break would take space on both lines.
+ * The text of a display formula: one placeholder whose alternate text is the [MathCopyText] token of the
+ * approximation on one line (a placeholder over a line break would take space on both lines).
  */
 internal fun displayMathText(alternate: String): AnnotatedString =
-    buildAnnotatedString { appendInlineContent(DISPLAY_MATH_ID, alternate.replace(LINE_BREAKS, " ").trim().ifEmpty { " " }) }
+    buildAnnotatedString { appendInlineContent(DISPLAY_MATH_ID, MathCopyText.token(alternate.replace(LINE_BREAKS, " ").trim().ifEmpty { " " })) }
+
+/**
+ * The alternate text of a typeset formula. A placeholder gives all its width to the first character of its
+ * alternate text, so a long press that selected a word inside a longer approximation got a zero-width
+ * selection: no highlight, both handles on the formula's end. Each distinct approximation is therefore stood
+ * in for by one private-use character, which a long press selects whole, and [restore] puts the approximation
+ * back when the selection is copied or quoted ([ProvideMathCopy]).
+ */
+internal object MathCopyText {
+    private const val FIRST = 0xF0000
+    private const val LAST = 0xFFFFD
+    private val tokens = HashMap<String, String>()
+    private val texts = HashMap<Int, String>()
+
+    /** The token for [alternate], or [alternate] itself once the private-use plane is used up. */
+    @Synchronized fun token(alternate: String): String {
+        tokens[alternate]?.let { return it }
+        val code = FIRST + texts.size
+        if (code > LAST) return alternate
+        val token = String(Character.toChars(code))
+        tokens[alternate] = token
+        texts[code] = alternate
+        return token
+    }
+
+    /** [text] with every token replaced by its approximation. */
+    @Synchronized fun restore(text: String): String {
+        if (texts.isEmpty() || text.none { Character.isSurrogate(it) }) return text
+        val out = StringBuilder(text.length)
+        var i = 0
+        while (i < text.length) {
+            val code = text.codePointAt(i)
+            val approximation = texts[code]
+            if (approximation != null) out.append(approximation) else out.appendCodePoint(code)
+            i += Character.charCount(code)
+        }
+        return out.toString()
+    }
+}
 
 /**
  * The em scale of a formula inside text: Web's [WEB_MATH_SCALE], reduced so a formula wider than the text

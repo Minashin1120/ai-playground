@@ -131,6 +131,28 @@ println("安全")
         assertTrue(parsed.text.text.contains("\$y\$"))
     }
 
+    @Test fun typesetFormulasBecomeOneTokenThatCopiesTheApproximation() {
+        val colors = markdownColorsFor(webPalette(light = false, themeColor = null))
+        val parsed = parseInlineMarkdown("項 \\(a_{n+1}\\) に `code` と **\\(6n^2\\)** を足す", colors)
+        val (first, second) = parsed.math
+        val tokens = parsed.withMathTokens(setOf(first.id, second.id))
+        // Each typeset formula is one character, still under its placeholder, and copying restores the text.
+        assertEquals(parsed.text.text, MathCopyText.restore(tokens.text.text))
+        tokens.math.forEach { item ->
+            val annotation = tokens.text.getStringAnnotations(item.start, item.start + 1).single()
+            assertEquals(item.id, annotation.item)
+            assertEquals(1, tokens.text.text.codePointCount(annotation.start, annotation.end))
+        }
+        // The code chip moves with the text before it.
+        fun chip(markdown: InlineMarkdown) = markdown.codeRanges.single().let { markdown.text.text.substring(it.first, it.last + 1) }
+        assertEquals(" code ", chip(parsed))
+        assertEquals(chip(parsed), chip(tokens))
+        // A formula still loading keeps its approximation as text.
+        val partial = parsed.withMathTokens(setOf(second.id))
+        assertEquals(first.alternate, partial.text.text.substring(partial.math[0].start, partial.math[0].start + first.alternate.length))
+        assertEquals(parsed, parsed.withMathTokens(emptySet()))
+    }
+
     @Test fun environmentsOutsideDelimitersAreDisplayMathLikeWeb() {
         val colors = markdownColorsFor(webPalette(light = false, themeColor = null))
         val source = "次の式:\n\\begin{align}\na &= b \\\\\nc &= d\n\\end{align}\n以上"

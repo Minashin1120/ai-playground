@@ -56,6 +56,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.Placeholder
@@ -783,8 +785,45 @@ private const val MATH_TAG = "math"
 /** Inline code spans carry a start/end placeholder so the background gets the Web 6.4px padding. */
 internal data class InlineMarkdown(val text: AnnotatedString, val codeRanges: List<IntRange>, val math: List<InlineMath> = emptyList())
 
-/** A formula placeholder at [start] in the text; its alternate text is the [latexToDisplay] approximation. */
-internal data class InlineMath(val id: String, val tex: String, val display: Boolean, val start: Int)
+/** A formula placeholder at [start] in the text; its alternate text is the [latexToDisplay] approximation ([alternate]). */
+internal data class InlineMath(val id: String, val tex: String, val display: Boolean, val start: Int, val alternate: String = "")
+
+/**
+ * [InlineMarkdown] with each typeset formula ([ready] ids) reduced to its [MathCopyText] token, so a long press
+ * selects the formula whole. Formulas still loading keep their approximation as text.
+ */
+internal fun InlineMarkdown.withMathTokens(ready: Set<String>): InlineMarkdown {
+    if (math.none { it.id in ready && it.alternate.isNotEmpty() }) return this
+    val source = text
+    val formulas = math
+    var cursor = 0
+    var shift = 0
+    // Original end offset of each swapped formula and the total shift from there on.
+    val shifts = mutableListOf<Pair<Int, Int>>()
+    val moved = mutableListOf<InlineMath>()
+    val built = buildAnnotatedString {
+        formulas.forEach { item ->
+            val placed = item.copy(start = item.start + shift)
+            if (item.id !in ready || item.alternate.isEmpty()) { moved += placed; return@forEach }
+            val end = item.start + item.alternate.length
+            append(source.subSequence(cursor, item.start))
+            // The styles over the whole formula (its serif italic, an enclosing bold or heading size) size the placeholder.
+            val piece = source.subSequence(item.start, end)
+            val styles = piece.spanStyles.filter { it.start == 0 && it.end == piece.length }
+            styles.forEach { pushStyle(it.item) }
+            val token = MathCopyText.token(item.alternate)
+            appendInlineContent(item.id, token)
+            repeat(styles.size) { pop() }
+            moved += placed
+            shift += token.length - item.alternate.length
+            shifts += end to shift
+            cursor = end
+        }
+        append(source.subSequence(cursor, source.length))
+    }
+    fun shiftAt(offset: Int) = shifts.lastOrNull { it.first <= offset }?.second ?: 0
+    return InlineMarkdown(built, codeRanges.map { (it.first + shiftAt(it.first))..(it.last + shiftAt(it.first)) }, moved)
+}
 
 private class InlineParts {
     val codeRanges = mutableListOf<IntRange>()
@@ -812,9 +851,10 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
     fun math(tex: String, display: Boolean) {
         flush()
         val id = MATH_PREFIX + parts.math.size
-        parts.math += InlineMath(id, tex, display, length)
+        val alternate = latexToDisplay(tex).ifEmpty { " " }
+        parts.math += InlineMath(id, tex, display, length, alternate)
         withStyle(SpanStyle(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)) {
-            appendInlineContent(id, latexToDisplay(tex).ifEmpty { " " })
+            appendInlineContent(id, alternate)
         }
     }
     while (i < source.length) {
@@ -1026,17 +1066,19 @@ private val LocalMessageSelection = staticCompositionLocalOf { false }
 @Composable
 internal fun MessageSelection(content: @Composable () -> Unit) {
     if (LocalMessageSelection.current) content()
-    else SelectionContainer { CompositionLocalProvider(LocalMessageSelection provides true, content = content) }
+    else ProvideMathCopy { SelectionContainer { CompositionLocalProvider(LocalMessageSelection provides true, content = content) } }
 }
 
 /** Text with Web inline-code chips: rounded 6.4px background, 6.4px side padding, 24px tall. */
 @Composable
-internal fun InlineRichText(parsed: InlineMarkdown, style: TextStyle, codeBackground: Color, modifier: Modifier = Modifier) {
+internal fun InlineRichText(source: InlineMarkdown, style: TextStyle, codeBackground: Color, modifier: Modifier = Modifier) {
     var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val density = LocalDensity.current
-    val hasMath = parsed.math.isNotEmpty()
+    val hasMath = source.math.isNotEmpty()
     var availableWidth by remember { mutableIntStateOf(Constraints.Infinity) }
-    val mathStates = parsed.math.map { item -> key(item.id, item.tex) { rememberMathState(item.tex, item.display) } }
+    val mathStates = source.math.map { item -> key(item.id, item.tex) { rememberMathState(item.tex, item.display) } }
+    val ready = source.math.filterIndexed { index, _ -> mathStates[index] is MathState.Ready }.map { it.id }.toSet()
+    val parsed = remember(source, ready) { source.withMathTokens(ready) }
     val mathColor = style.color.takeOrElse { LocalContentColor.current }
     val fontPx = with(density) { style.fontSize.takeOrElse { 16.sp }.toPx() }
     val inline = remember(parsed.math, mathStates, mathColor, availableWidth, fontPx) {
@@ -1057,6 +1099,8 @@ internal fun InlineRichText(parsed: InlineMarkdown, style: TextStyle, codeBackgr
             inlineContent = inline,
             onTextLayout = { textLayout = it },
             modifier = modifier
+                // Screen readers get the approximations, not the formula tokens.
+                .then(if (parsed === source) Modifier else Modifier.semantics { contentDescription = source.text.text })
                 .then(
                     if (!hasMath) Modifier
                     // Formulas wider than the bubble shrink to fit, so remember the width they get.

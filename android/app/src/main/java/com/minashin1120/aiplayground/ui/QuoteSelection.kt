@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.ui
 
+import android.content.ClipData
 import android.os.Build
 import android.view.ActionMode
 import android.view.Menu
@@ -232,4 +233,32 @@ internal fun ProvideQuoteSelection(onQuote: (String) -> Unit, content: @Composab
         LocalHapticFeedback provides haptics,
         content = content,
     )
+}
+
+private class MathCopyClipboardManager(private val base: ClipboardManager) : ClipboardManager by base {
+    override fun setText(annotatedString: AnnotatedString) {
+        val text = MathCopyText.restore(annotatedString.text)
+        base.setText(if (text == annotatedString.text) annotatedString else AnnotatedString(text))
+    }
+}
+
+private class MathCopyClipboard(private val base: Clipboard) : Clipboard by base {
+    override suspend fun setClipEntry(clipEntry: ClipEntry?) {
+        val data = clipEntry?.clipData
+        val text = data?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.text?.toString()
+        val restored = text?.let(MathCopyText::restore)
+        if (data == null || restored == null || restored == text) base.setClipEntry(clipEntry)
+        else base.setClipEntry(ClipEntry(ClipData.newPlainText(data.description?.label ?: "text", restored)))
+    }
+}
+
+/** Copying or quoting a selection gives the formula approximations back in place of their [MathCopyText] tokens. */
+@Suppress("DEPRECATION")
+@Composable
+internal fun ProvideMathCopy(content: @Composable () -> Unit) {
+    val baseManager = LocalClipboardManager.current
+    val baseClipboard = LocalClipboard.current
+    val manager = remember(baseManager) { MathCopyClipboardManager(baseManager) }
+    val clipboard = remember(baseClipboard) { MathCopyClipboard(baseClipboard) }
+    CompositionLocalProvider(LocalClipboardManager provides manager, LocalClipboard provides clipboard, content = content)
 }

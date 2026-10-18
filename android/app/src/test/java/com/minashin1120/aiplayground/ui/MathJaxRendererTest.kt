@@ -50,12 +50,25 @@ class MathJaxRendererTest {
 
     @Test fun displayFormulasAreOneSelectablePlaceholderOverTheirApproximation() {
         // The rendered formula stays text, so a selection includes it and copies the approximation.
-        val text = displayMathText(latexToDisplay("\\begin{aligned} a &= 1 \\\\ b &= 2 \\end{aligned}"))
-        assertEquals(false, text.text.contains('\n'))
+        val approximation = latexToDisplay("\\begin{aligned} a &= 1 \\\\ b &= 2 \\end{aligned}")
+        val text = displayMathText(approximation)
+        val copied = MathCopyText.restore(text.text)
+        assertEquals(false, copied.contains('\n'))
+        assertEquals(approximation.replace(Regex("""\s*\n\s*"""), " ").trim(), copied)
+        // One character under the placeholder: a long press cannot select a zero-width word inside it.
+        assertEquals(1, text.text.codePointCount(0, text.length))
         val placeholders = text.getStringAnnotations(0, text.length)
         assertEquals(1, placeholders.size)
         assertEquals(0, placeholders[0].start)
         assertEquals(text.length, placeholders[0].end)
-        assertEquals(" ", displayMathText("").text)
+        assertEquals(" ", MathCopyText.restore(displayMathText("").text))
+    }
+
+    @Test fun formulaTokensRestoreToTheirApproximationsInsideText() {
+        val a = MathCopyText.token("a² + b²")
+        val b = MathCopyText.token("x₁")
+        assertEquals(a, MathCopyText.token("a² + b²"))
+        assertEquals("式 a² + b² と x₁ 😀", MathCopyText.restore("式 $a と $b 😀"))
+        assertEquals("plain", MathCopyText.restore("plain"))
     }
 }

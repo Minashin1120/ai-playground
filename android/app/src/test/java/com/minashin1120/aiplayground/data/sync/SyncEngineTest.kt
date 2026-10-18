@@ -42,10 +42,15 @@ class SyncEngineTest {
             // Nothing is downloaded: chats are read from the server itself.
             assertEquals(2, server.requestCount)
         }
-        // The answer still being generated waits on the device, under the question's server id.
-        val left = store.messages(thread).single()
-        assertTrue(left.getBoolean("generating"))
+        // Accepted messages remain until a server fetch observes them. The generating answer
+        // stays unsent, and still points at the question when the accepted rows are pruned.
+        val left = store.messages(thread).single { it.optBoolean("generating") }
         assertEquals(11, left.getInt("parent_server_id"))
+        assertNotNull(store.loadFile(file, 10))
+        val payload = JSONObject("""{"messages":[{"id":11},{"id":12}]}""")
+        store.overlayPending("srv1", payload)
+        assertEquals(left.getInt("id"), store.messages(thread).single().getInt("id"))
+        assertEquals(3, payload.getJSONArray("messages").length())
         assertNull(store.loadFile(file, 10))
         assertEquals("srv1", store.resolveAlias(thread))
     }

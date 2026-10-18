@@ -413,7 +413,7 @@ def feedback_update(fid):
         log_force(f"FEEDBACK-INFO-ERROR: feedback={fb.public_id} err={e}")
     return jsonify({'status': 'ok'})
 
-_FEEDBACK_SENDER_REOPENS = ('replied', 'resolved', 'rejected')
+_FEEDBACK_SENDER_REOPENS = ('replied', 'resolved', 'resolved_unreleased', 'rejected')
 
 
 @app.route('/api/feedback/<fid>/replies', methods=['POST'])

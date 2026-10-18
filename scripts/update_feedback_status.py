@@ -24,7 +24,7 @@ import secrets
 import sys
 
 APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STATUSES = ("new", "in_review", "replied", "rejected", "resolved")
+STATUSES = ("new", "in_review", "replied", "rejected", "resolved", "resolved_unreleased")
 ID_PATTERN = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
 AGENT_PATTERN = re.compile(r"^[0-9A-Za-z][0-9A-Za-z .()_-]{0,39}$")
 REPLY_LIMIT = 20_000

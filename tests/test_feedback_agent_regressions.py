@@ -73,6 +73,17 @@ class FeedbackAgentTests(unittest.TestCase):
         self.assertEqual((saved['status'], saved['handled_by'], saved['agent_name']),
                          ('in_review', 'feedback-admin', ''))
 
+    def test_fixed_feedback_can_wait_for_release_then_be_resolved(self):
+        for status in ('resolved_unreleased', 'resolved'):
+            with self.subTest(status=status):
+                res = self.update(self.agent_id, status,
+                                  environ_base={self.target.FEEDBACK_AGENT_ENVIRON: 'Codex'})
+                self.assertEqual(res.status_code, 200)
+                self.assertEqual(self.saved(self.agent_id)['status'], status)
+                listed = self.client.get('/api/feedback?all=1', base_url='https://localhost').get_json()['items']
+                item = next(item for item in listed if item['public_id'] == self.agent_id)
+                self.assertEqual((item['status'], item['handled_by']), (status, 'Codex'))
+
 
 if __name__ == '__main__':
     unittest.main()

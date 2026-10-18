@@ -154,7 +154,7 @@ class AccountPortabilityTests(unittest.TestCase):
                 user_id=source.id,
                 title="Portable feedback",
                 message="Feedback body",
-                status="replied",
+                status="resolved_unreleased",
                 admin_reply="Reply body",
                 handled_by="private-admin-name",
             )
@@ -320,6 +320,7 @@ class AccountPortabilityTests(unittest.TestCase):
             self.assertTrue(info["is_encrypted"])
             self.assertEqual(target._load_user_file_bytes(imported_ref, info), b"portable file body")
             feedback = target.Feedback.query.filter_by(user_id=destination.id).one()
+            self.assertEqual(feedback.status, "resolved_unreleased")
             self.assertIsNone(feedback.handled_by)
             self.assertEqual(
                 [(r.role, r.message) for r in target.FeedbackReply.query.filter_by(feedback_id=feedback.id).order_by(target.FeedbackReply.id)],

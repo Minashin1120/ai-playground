@@ -247,7 +247,7 @@ class Feedback(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     title = db.Column(db.String(200), default="")
     message = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(20), default="new")  # new, in_review, replied, rejected, resolved
+    status = db.Column(db.String(20), default="new")  # new, in_review, replied, rejected, resolved, resolved_unreleased
     admin_reply = db.Column(db.Text, nullable=True)
     handled_by = db.Column(db.String(80), nullable=True)
     # Name of the AI agent that sent the feedback through scripts/send_agent_feedback.py (shown instead of the account).

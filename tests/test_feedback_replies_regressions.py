@@ -84,6 +84,17 @@ class FeedbackRepliesTests(unittest.TestCase):
         self.assertEqual(self.listed(admin, public_id)['replies'][0]['author'], 'fb-reply-admin')
         self.assertEqual([r['message'] for r in self.info(public_id)['replies']], ['first', 'still broken', 'second'])
 
+    def test_sender_reply_reopens_a_fix_waiting_for_release(self):
+        sender, admin = self.client(self.sender_id), self.client(self.admin_id)
+        public_id = self.send_feedback(sender)
+        self.assertEqual(admin.post(f'/api/feedback/{public_id}/update',
+                                    json={'status': 'resolved_unreleased'}, headers=CSRF,
+                                    base_url=BASE).status_code, 200)
+        res = self.reply(sender, public_id, {'message': 'more information'})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.get_json()['feedback_status'], 'new')
+        self.assertEqual(self.info(public_id)['status'], 'new')
+
     def test_only_the_sender_and_administrators_can_reply(self):
         public_id = self.send_feedback(self.client(self.sender_id))
         self.assertEqual(self.reply(self.client(self.other_id), public_id, {'message': 'x'}).status_code, 404)

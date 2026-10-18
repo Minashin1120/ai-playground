@@ -404,6 +404,7 @@ private fun decodeFeedbackThumb(context: Context, uri: Uri): ImageBitmap? {
 /** Web `.fb-status` in `#fb-admin-list`. */
 private val FEEDBACK_STATUS_OPTIONS = webOptions(
     "new" to "new", "in_review" to "in_review", "replied" to "replied", "rejected" to "rejected", "resolved" to "resolved",
+    "resolved_unreleased" to "resolved（non-released）",
 )
 private const val FEEDBACK_DELETE_CONFIRM = "このフィードバックを削除しますか？\n一緒に送信した操作ログとチャットのコピーも削除されます。"
 private const val FEEDBACK_REPLY_LOGS_LABEL = "直近1時間の操作ログを一緒に送信する"
@@ -463,7 +464,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                     Text(if (item.publicId.isBlank()) item.createdAt else "ID: ${item.publicId} / ${item.createdAt}", fontSize = 11.sp, color = Tw.gray400)
                     Text(item.title.ifBlank { "No Title" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = web.text)
                     Text(item.message, fontSize = 14.sp, color = web.text)
-                    Text("Status: ${item.status}", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
+                    Text("Status: ${if (item.status == "resolved_unreleased") "resolved（non-released）" else item.status}", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
                     if (item.imageCount > 0) Text("添付画像: ${item.imageCount}枚", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
                     FeedbackReplies(item, admin = false)
                     key(item.id) {

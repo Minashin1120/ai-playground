@@ -1365,13 +1365,14 @@ _.user_id===void 0||_.user_id===null||!0).forEach(_=>{if(u.is_admin)return;const
 -[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(_.public_id||"")}</span> \
 / ${_.created_at}</div><div class="font-bold text-sm">${escapeHtml(_.title||"No Title")}</div><div c\
 lass="text-sm whitespace-pre-wrap">${escapeHtml(_.message)}</div><div class="text-[11px] text-gray-4\
-00 mt-1">Status: ${escapeHtml(_.status)}</div>${_.image_count?`<div class="text-[11px] text-gray-400\
- mt-1">\u6DFB\u4ED8\u753B\u50CF: ${_.image_count}\u679A</div>`:""}${ii(_,!1)}${si()}<div class="mt-2\
-"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded te\
-xt-[10px]">\u524A\u9664</button></div>`,L.querySelector(".fb-delete").onclick=()=>ni(_.public_id),ai(
-_,L),g.appendChild(L)});const h=get("fb-admin-panel"),w=get("fb-admin-list");u.is_admin?(h.classList.
-remove("hidden"),w.innerHTML="",(u.items||[]).forEach(_=>{const L=document.createElement("div");L.className=
-"p-2 rounded border border-gray-700 bg-gray-800/50 space-y-2",L.innerHTML=`
+00 mt-1">Status: ${escapeHtml(_.status==="resolved_unreleased"?"resolved\uFF08non-released\uFF09":_.
+status)}</div>${_.image_count?`<div class="text-[11px] text-gray-400 mt-1">\u6DFB\u4ED8\u753B\u50CF: ${_.
+image_count}\u679A</div>`:""}${ii(_,!1)}${si()}<div class="mt-2"><button type="button" class="fb-del\
+ete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">\u524A\u9664</button></div>`,
+L.querySelector(".fb-delete").onclick=()=>ni(_.public_id),ai(_,L),g.appendChild(L)});const h=get("fb\
+-admin-panel"),w=get("fb-admin-list");u.is_admin?(h.classList.remove("hidden"),w.innerHTML="",(u.items||
+[]).forEach(_=>{const L=document.createElement("div");L.className="p-2 rounded border border-gray-70\
+0 bg-gray-800/50 space-y-2",L.innerHTML=`
                             <div class="text-[11px] text-gray-400">ID: <span class="select-all font-\
 mono">${escapeHtml(_.public_id||"")}</span> / ${_.agent_name?`agent:${escapeHtml(_.agent_name)}`:`us\
 er:${_.user_id}`} / ${_.created_at}${_.handled_by?` / \u5BFE\u5FDC: ${escapeHtml(_.handled_by)}`:""}\
@@ -1390,6 +1391,8 @@ px-2 py-1 text-xs text-white">
                                     <option value="replied">replied</option>
                                     <option value="rejected">rejected</option>
                                     <option value="resolved">resolved</option>
+                                    <option value="resolved_unreleased">resolved\uFF08non-released\uFF09</opti\
+on>
                                 </select>
                                 <button class="fb-save bg-blue-600 hover:bg-blue-500 text-white px-3\
  py-1 rounded text-xs">\u72B6\u614B\u3092\u4FDD\u5B58</button>

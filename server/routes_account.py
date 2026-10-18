@@ -750,7 +750,7 @@ def import_account_data():
                     if not isinstance(item, dict):
                         raise ValueError("invalid_feedback")
                     status = str(item.get("status") or "new")
-                    if status not in {"new", "in_review", "replied", "rejected", "resolved"}:
+                    if status not in {"new", "in_review", "replied", "rejected", "resolved", "resolved_unreleased"}:
                         status = "new"
                     fb_title = _safe_account_import_text(item.get("title"), 200)[:200]
                     fb_message = _safe_account_import_text(item.get("message"), 500_000)

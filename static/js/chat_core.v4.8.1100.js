@@ -13821,7 +13821,7 @@
                     if(data.is_admin) return;
                     const el = document.createElement('div');
                     el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50';
-                    el.innerHTML = `<div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.image_count ? `<div class="text-[11px] text-gray-400 mt-1">添付画像: ${item.image_count}枚</div>` : ''}${feedbackRepliesHtml(item, false)}${feedbackReplyFormHtml()}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>`;
+                    el.innerHTML = `<div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status === "resolved_unreleased" ? "resolved（non-released）" : item.status)}</div>${item.image_count ? `<div class="text-[11px] text-gray-400 mt-1">添付画像: ${item.image_count}枚</div>` : ''}${feedbackRepliesHtml(item, false)}${feedbackReplyFormHtml()}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>`;
                     el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.public_id);
                     bindFeedbackReply(item, el);
                     list.appendChild(el);
@@ -13847,6 +13847,7 @@
                                     <option value="replied">replied</option>
                                     <option value="rejected">rejected</option>
                                     <option value="resolved">resolved</option>
+                                    <option value="resolved_unreleased">resolved（non-released）</option>
                                 </select>
                                 <button class="fb-save bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">状態を保存</button>
                                 <button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded text-xs">削除</button>

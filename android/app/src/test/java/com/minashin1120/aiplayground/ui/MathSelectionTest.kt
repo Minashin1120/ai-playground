@@ -14,6 +14,15 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.TouchInjectionScope
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.onNodeWithText
+import org.junit.Assert.assertTrue
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
@@ -30,7 +39,6 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.minashin1120.aiplayground.data.ChatMessage
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -96,20 +104,26 @@ class MathSelectionTest {
     }
 
     @Test fun longPressOnADisplayFormulaSelectsAndCopiesTheWholeFormula() {
+        var menus = 0
+        var haptics = 0
         var copy: (() -> Unit)? = null
         val toolbar = object : TextToolbar {
             override var status = TextToolbarStatus.Hidden
             override fun showMenu(rect: Rect, onCopyRequested: (() -> Unit)?, onPasteRequested: (() -> Unit)?,
                 onCutRequested: (() -> Unit)?, onSelectAllRequested: (() -> Unit)?) {
+                menus++
                 copy = onCopyRequested
                 status = TextToolbarStatus.Shown
             }
             override fun hide() { status = TextToolbarStatus.Hidden }
         }
+        val haptic = object : HapticFeedback {
+            override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) { haptics++ }
+        }
         var generation by mutableIntStateOf(0)
         rule.setContent {
             PlaygroundTheme(darkTheme = true) {
-                CompositionLocalProvider(LocalTextToolbar provides toolbar) {
+                CompositionLocalProvider(LocalTextToolbar provides toolbar, LocalHapticFeedback provides haptic) {
                     Box(Modifier.width(411.dp)) {
                         LazyColumn {
                             item {
@@ -126,17 +140,34 @@ class MathSelectionTest {
         rule.waitForIdle()
         typesetPending()
         generation++
-        rule.waitForIdle()
-        val approximation = latexToDisplay("6(3)^2 = 54")
-        // The right end of the formula, where a word of the approximation ("54") used to be selected on its own.
-        rule.onNodeWithContentDescription(approximation).performTouchInput { longClick(centerRight.copy(x = centerRight.x - 4f)) }
-        rule.mainClock.advanceTimeBy(600)
-        rule.waitForIdle()
-        rule.onAllNodes(isRoot()).onFirst().captureRoboImage("build/outputs/roborazzi/math_selection_long_press.png")
-        assertNotNull("a long press on the formula offers Copy", copy)
-        copy!!.invoke()
+        rule.mainClock.advanceTimeBy(1_000)
         rule.waitForIdle()
         val clipboard = RuntimeEnvironment.getApplication().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        assertEquals(approximation, clipboard.primaryClip?.getItemAt(0)?.text?.toString())
+
+        /** Long-presses [at] in [node], copies the selection and returns what was copied with the counts seen. */
+        fun pressAndCopy(name: String, node: SemanticsNodeInteraction, at: TouchInjectionScope.() -> Offset): String {
+            menus = 0; haptics = 0; copy = null
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("", ""))
+            node.performTouchInput { longClick(at()) }
+            rule.mainClock.advanceTimeBy(600)
+            rule.waitForIdle()
+            rule.onAllNodes(isRoot()).onFirst().captureRoboImage("build/outputs/roborazzi/math_selection_$name.png")
+            copy?.invoke()
+            rule.waitForIdle()
+            val copied = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
+            println("==== $name: haptics=$haptics menus=$menus copy=${copy != null} copied=[$copied]")
+            node.performTouchInput { click(at()) }
+            rule.mainClock.advanceTimeBy(600)
+            rule.waitForIdle()
+            return copied.orEmpty()
+        }
+
+        val approximation = latexToDisplay("6(3)^2 = 54")
+        // A control: plain text in the same bubble.
+        val plain = pressAndCopy("text", rule.onNodeWithText("前の項に足す数", useUnmergedTree = true)) { centerLeft.copy(x = centerLeft.x + 20f) }
+        // The right end of the formula, where a word of the approximation ("54") used to be selected on its own.
+        val formula = pressAndCopy("formula", rule.onNodeWithContentDescription(approximation, useUnmergedTree = true)) { centerRight.copy(x = centerRight.x - 4f) }
+        assertTrue("the control selects text: [$plain]", plain.isNotEmpty())
+        assertEquals(approximation, formula)
     }
 }

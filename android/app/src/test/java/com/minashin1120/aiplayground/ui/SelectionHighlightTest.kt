@@ -6,6 +6,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.ui.draw.blur
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,22 +71,28 @@ class SelectionHighlightTest {
 
     private fun main() = rule.onAllNodes(isRoot()).onFirst()
 
-    private fun capture(name: String, content: String, dark: Boolean) {
+    private fun capture(name: String, content: String, dark: Boolean, screen: Boolean = false) {
         var generation by mutableIntStateOf(0)
         rule.setContent {
             PlaygroundTheme(darkTheme = dark) {
-                Box(Modifier.fillMaxSize()) {
-                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp)) {
-                        item {
-                            key(generation) {
-                                ProvideQuoteSelection({}) {
-                                    MessageBubble(ChatMessage("1", "assistant", content, model = "test-model", encrypted = false),
-                                        onFile = {}, loader = null, actions = MessageActions(), controlsVisible = false, onToggleControls = {})
+                val list = @androidx.compose.runtime.Composable {
+                    Box(Modifier.fillMaxSize()) {
+                        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp)) {
+                            item {
+                                key(generation) {
+                                    ProvideQuoteSelection({}) {
+                                        MessageBubble(ChatMessage("1", "assistant", content, model = "test-model", encrypted = false),
+                                            onFile = {}, loader = null, actions = MessageActions(), controlsVisible = false, onToggleControls = {})
+                                    }
                                 }
                             }
                         }
                     }
                 }
+                // The phone layout: the history drawer around the conversation, which is blurred (0dp when closed).
+                if (screen) ModalNavigationDrawer(drawerState = rememberDrawerState(DrawerValue.Closed), gesturesEnabled = true,
+                    drawerContent = { ModalDrawerSheet { } }) { Box(Modifier.blur(0.dp)) { list() } }
+                else list()
             }
         }
         rule.waitForIdle()
@@ -100,6 +111,11 @@ class SelectionHighlightTest {
             rule.mainClock.advanceTimeBy(600)
             rule.waitForIdle()
             main().captureRoboImage("build/outputs/roborazzi/selection_highlight_${name}_${index}_${x}x$y.png")
+            if (index == 0) {
+                rule.mainClock.advanceTimeBy(3_000)
+                rule.waitForIdle()
+                main().captureRoboImage("build/outputs/roborazzi/selection_highlight_${name}_${index}_${x}x${y}_later.png")
+            }
             main().performTouchInput { click(at) }
             rule.mainClock.advanceTimeBy(400)
             rule.waitForIdle()
@@ -111,6 +127,9 @@ class SelectionHighlightTest {
     @Test fun plainLight() = capture("plain_light", PLAIN, dark = false)
     @Test fun mathDark() = capture("math_dark", MATH, dark = true)
     @Test fun codeAndMathDark() = capture("code_math_dark", CODE + MATH, dark = true)
+    @Test fun screenDark() = capture("screen_dark", PLAIN, dark = true, screen = true)
+    @Config(sdk = [36]) @Test fun plainDarkSdk36() = capture("plain_dark_sdk36", PLAIN, dark = true)
+    @Config(sdk = [36]) @Test fun screenDarkSdk36() = capture("screen_dark_sdk36", PLAIN, dark = true, screen = true)
 
     private companion object {
         val PLAIN = "結論から言うと、計算はすべて正しいです。\n\nこのまま次の行の計算へ進めて問題ありません。カッコの中をまとめると答えが出ます。"

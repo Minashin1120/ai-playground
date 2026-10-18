@@ -82,6 +82,10 @@ class SyncEngineTest {
             assertEquals("PUT", title.method)
             assertEquals("/api/threads/srvT/title", title.target)
         }
+        assertNotNull(store.outboxIdFor("srvT"))
+        assertEquals(0, store.pendingCount())
+        assertTrue(store.pendingPush().isEmpty())
+        store.overlayPending("srvT", JSONObject("""{"messages":[{"id":30}]}"""))
         assertNull(store.outboxIdFor("srvT"))
     }
 

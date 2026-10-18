@@ -16,6 +16,28 @@ class CodingTargetsTest {
         assertEquals("2", history.first().messageId)
     }
 
+    @Test fun editingTheFirstPromptHasNoHistoryCodeAndStartsNewGeneration() {
+        val messages = listOf(
+            ChatMessage("10505", "user", "Create HTML"),
+            ChatMessage("10506", "assistant", "```html\n<body>old branch</body>\n```"),
+        )
+        val candidates = historyCodingTargets(messages, "10505")
+        assertTrue(candidates.isEmpty())
+        assertFalse(planCodingSend("Create a new animation", candidates, null, "gpt-5.6").active)
+    }
+
+    @Test fun editingLaterPromptKeepsOnlyEarlierCode() {
+        val messages = listOf(
+            ChatMessage("1", "user", "Create HTML"),
+            ChatMessage("2", "assistant", "```html\n<body>ancestor</body>\n```"),
+            ChatMessage("3", "user", "Change it"),
+            ChatMessage("4", "assistant", "```html\n<body>old descendant</body>\n```"),
+        )
+        assertEquals(listOf("2"), historyCodingTargets(messages, "3").map { it.messageId })
+        assertTrue(historyCodingTargets(messages, "missing").isEmpty())
+        assertEquals(listOf("2", "4"), historyCodingTargets(messages).map { it.messageId })
+    }
+
     @Test fun promptFencesNeedAClosingMarkerAndKeepTheLanguage() {
         val targets = extractPromptCodingTargets("直して\n~~~js\nlet x\n~~~\n```py\nunfinished")
         assertEquals(1, targets.size)

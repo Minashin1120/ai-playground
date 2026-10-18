@@ -3982,13 +3982,30 @@
                 thread_id: currentThreadId ? String(currentThreadId) : null
             };
         }
+        function codingBranchAllowsTarget(target) {
+            if (editingMessageId === null || editingMessageId === undefined) return true;
+            // The edited prompt and its descendants belong to the old branch.
+            // Only ancestors of the new prompt's parent may supply edit targets.
+            const byId = new Map(allMessages.map(message => [String(message.id), message]));
+            const visited = new Set();
+            let id = currentParentId;
+            while (id !== null && id !== undefined && !visited.has(String(id))) {
+                const key = String(id);
+                if (target && String(target.message_id) === key) return true;
+                visited.add(key);
+                const message = byId.get(key) || messageMeta[key];
+                if (!message) break;
+                id = message.parent_id;
+            }
+            return false;
+        }
         function findLatestCodingTarget() {
             const root = get('chat-container');
             if (!root) return null;
             const buttons = Array.from(root.querySelectorAll('.message-group .coding-target-btn'));
             for (let i = buttons.length - 1; i >= 0; i--) {
                 const target = getCodingTargetFromButton(buttons[i]);
-                if (target) return target;
+                if (target && codingBranchAllowsTarget(target)) return target;
             }
             return null;
         }
@@ -4039,7 +4056,8 @@
         function collectCodingCandidates(promptText) {
             if (codingTargetSelection) {
                 const selectedThread = codingTargetSelection.thread_id;
-                if (!selectedThread || !currentThreadId || String(selectedThread) === String(currentThreadId)) {
+                if ((!selectedThread || !currentThreadId || String(selectedThread) === String(currentThreadId))
+                    && codingBranchAllowsTarget(codingTargetSelection)) {
                     return [{
                         ...codingTargetSelection,
                         candidate_id: 'selected-1',
@@ -4056,7 +4074,7 @@
             if (root) {
                 Array.from(root.querySelectorAll('.message-group .coding-target-btn')).forEach((btn) => {
                     const target = getCodingTargetFromButton(btn);
-                    if (!target) return;
+                    if (!target || !codingBranchAllowsTarget(target)) return;
                     const signature = `${target.language}\n${target.code}`;
                     if (seen.has(signature)) return;
                     seen.add(signature);
@@ -4079,7 +4097,8 @@
                 : String(promptText || '');
             if (codingTargetSelection) {
                 const selectedThread = codingTargetSelection.thread_id;
-                if (!selectedThread || !currentThreadId || String(selectedThread) === String(currentThreadId)) {
+                if ((!selectedThread || !currentThreadId || String(selectedThread) === String(currentThreadId))
+                    && codingBranchAllowsTarget(codingTargetSelection)) {
                     return { ...codingTargetSelection, explicit: true };
                 }
                 codingTargetSelection = null;
@@ -4860,6 +4879,12 @@
                 return;
             }
             if (item.special === 'thinking') {
+                if (get('thinking-options')?.dataset.thinkingMode === 'effort') {
+                    // Effort (including None) is selected directly in the slider.
+                    closeMinimalOptions();
+                    showThinkingSlider();
+                    return;
+                }
                 // Thinking needs special handling: for models where thinking is
                 // forced on (e.g. Gemini 3.x) the checkbox is disabled, but the
                 // row must still open the level slider.
@@ -5331,6 +5356,7 @@
                 bar.classList.remove('flex');
             }
             updatePromptPlaceholder();
+            syncCodingModeUi(codingModeEnabled, { persist: false });
         }
         function cancelEdit() {
             const wasEditing = !!editingMessageId;

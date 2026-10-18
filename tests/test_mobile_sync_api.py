@@ -79,14 +79,9 @@ class MobileSyncApiTests(unittest.TestCase):
             target.db.session.remove()
 
     def token(self):
-        grant = self.native.post('/api/mobile/v1/device', base_url='https://localhost',
-                                 json={'client_id': 'official-android', 'device_name': 'Sync Android'}).json
-        self.browser.post('/android/connect', base_url='https://localhost', data={
-            'csrf_token': 'browser-csrf', 'user_code': grant['user_code'], 'decision': 'approve'})
-        response = self.native.post('/api/mobile/v1/token', base_url='https://localhost',
-                                    json={'client_id': 'official-android', 'device_code': grant['device_code']})
-        self.assertEqual(response.status_code, 200)
-        return response.json['access_token']
+        with target.app.test_request_context(base_url='https://localhost'):
+            user = target.db.session.get(target.User, self.user_id)
+            return target._mobile_issue_token(user, 'Sync Android')
 
     def call(self, path, token, method='GET', **kwargs):
         return self.native.open(path, method=method, base_url='https://localhost',

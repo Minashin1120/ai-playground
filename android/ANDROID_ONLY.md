@@ -64,7 +64,7 @@
 
 | 分野 | Web版 | Android版 | 理由 | 代替導線 |
 |---|---|---|---|---|
-| ログイン | Cookieセッション、各ログイン画面、Turnstile | ネイティブのログイン・登録・2FA画面、Bearerトークン（Android Keystoreで保存）、Play Integrity、判定できない場合のTurnstile代替経路。チャット中のTurnstile再確認はWebの確認画面と同じ文言のカードからCustom Tabの確認ページを開き、App Linkで戻る。Google／MinashinはCredential ManagerまたはCustom Tabs＋App Links | CookieとBearerの認証境界を分離するため（`../deploy/ANDROID_CLIENT.md`） | — |
+| ログイン | Cookieセッション、各ログイン画面、Turnstile | ネイティブのログイン・登録・2FA画面、Bearerトークン（Android Keystoreで保存）、Play Integrity、判定できない場合のTurnstile代替経路。チャット中のTurnstile再確認はWebの確認画面と同じ文言のカードからCustom Tabの確認ページを開き、App Linkで戻る。Google／MinashinはCredential ManagerまたはCustom Tabs＋App Links。確認コードによる旧ブラウザー端末連携は廃止し、アプリ内ログインまたはGoogle／Minashinを使う | CookieとBearerの認証境界を分離するため（`../deploy/ANDROID_CLIENT.md`） | — |
 | 接続先 | 開いているサイト（ブラウザーのURL）がそのまま接続先 | ログイン画面の「接続先」で、公式ホスト（既定）か本OSSをセルフホストした別のサーバー（httpsのみ）を選ぶ（`data/ServerOrigin.kt`）。公式ホスト以外では、Googleのネイティブログインと Play Integrity を使わず、ブラウザー方式のログイン・連携・Turnstile確認はアプリ固有スキーム（`com.minashin1120.aiplayground.auth:/callback`、PKCE必須）で戻る | アプリにはURL欄がない。App Link・Android OAuthクライアント・Integrityの検証は公式ホストに固定されているため | — |
 | セッション切れ | ログイン画面へ遷移 | 端末のトークンを消去して、ネイティブのログイン画面へ戻る | 同上 | — |
 | ログアウト | Cookieセッションを終了 | この端末のトークンを失効させる | 同上 | — |

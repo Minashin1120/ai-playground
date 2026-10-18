@@ -329,7 +329,8 @@ class LocalChatBackend(
 
     private suspend fun conversation(threadId: String, body: JSONObject): Conversation {
         val explicit = body.optBoolean("parent_id_explicit")
-        val requested: Int? = if (body.has("parent_id") && !body.isNull("parent_id")) body.optInt("parent_id") else null
+        val requested: Int? = if (body.has("parent_id") && !body.isNull("parent_id"))
+            store.resolveMessageId(threadId, body.optInt("parent_id")) else null
         val history = remote
         if (history == null || store.isDeviceThread(threadId)) {
             val thread = store.threadRow(threadId)?.takeIf { !it.optBoolean("deleted") }
@@ -352,12 +353,15 @@ class LocalChatBackend(
             serverParent = if (row.isNull("parent_id")) null else row.optInt("parent_id")
         }
         val snapshot = history.thread(threadId, serverParent?.takeIf { !LocalChatStore.isPendingId(it) })
-        val rows = snapshot.messages + pending
+        // Sync can finish while the server history is being fetched. Resolve both ends again.
+        val rows = (snapshot.messages + store.pendingRows(threadId)).distinctBy { it.optInt("id") }
+        val resolvedParent = requested?.let { store.resolveMessageId(threadId, it) }
         val parent = when {
-            requested != null -> requested
+            resolvedParent != null -> resolvedParent
             explicit -> null
             else -> rows.maxOfOrNull { it.optInt("id") }
         }
+        require(parent == null || rows.any { it.optInt("id") == parent }) { "会話の同期中です。チャットを更新してから再試行してください。" }
         return Conversation(store.ensureOutboxThread(threadId), threadId, snapshot.thread, rows, parent)
     }
 

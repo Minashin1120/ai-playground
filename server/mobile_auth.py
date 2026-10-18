@@ -176,13 +176,6 @@ def mobile_request_guard():
         header[7:].startswith(MOBILE_TOKEN_PREFIX) or endpoint in MOBILE_ENDPOINT_METHODS or is_mobile_path
     )
     if not is_mobile_path and not is_bearer:
-        # Login providers/2FA return to the usual index. Resume the connection
-        # page only after authentication, without changing any provider flow.
-        if endpoint == 'index' and request.method == 'GET' and session.get('mobile_connect_pending') and current_user.is_authenticated:
-            session.pop('mobile_connect_pending', None)
-            code = session.pop('mobile_connect_code', None)
-            target = url_for('mobile_connect', code=code) if code else url_for('mobile_connect')
-            return redirect(target)
         return
     g.mobile_request = True
     if not _mobile_enabled():

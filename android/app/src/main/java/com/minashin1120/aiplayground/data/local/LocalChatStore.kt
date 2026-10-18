@@ -200,13 +200,18 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         index.put("next_message_id", id + 1)
         val rows = loadMessages(threadId)
         val stamp = message.createdMs ?: maxOf(now(), (rows.maxOfOrNull { it.optLong("created_ms") } ?: 0L) + 1)
+        // Sync may accept and prune the parent between building a request and appending its child.
+        val serverThread = findThread(index, threadId)?.opt("server_id")?.takeIf { it != JSONObject.NULL }?.toString()
+        val serverParent = message.parentServerId ?: message.parentId?.takeIf { serverThread != null }?.let { parent ->
+            resolveMessageId(serverThread!!, PENDING_ID_BASE + parent).takeUnless { isPendingId(it) }
+        }
         rows += JSONObject().put("id", id).put("uuid", message.uuid ?: UUID.randomUUID().toString())
             .put("role", message.role).put("content", message.content)
             .put("thought_data", if (message.thought.isBlank()) JSONObject.NULL else JSONObject().put("text", message.thought).toString())
             .put("model", message.model.ifBlank { null } ?: JSONObject.NULL)
             .put("image_url", if (message.files.isEmpty()) JSONObject.NULL else JSONArray(message.files).toString())
-            .put("parent_id", message.parentId ?: JSONObject.NULL)
-            .put("parent_server_id", message.parentServerId ?: JSONObject.NULL)
+            .put("parent_id", message.parentId?.takeIf { serverParent == null } ?: JSONObject.NULL)
+            .put("parent_server_id", serverParent ?: JSONObject.NULL)
             .put("quote_text", message.quote.ifBlank { null } ?: JSONObject.NULL)
             .put("gem_uuid", message.gemUuid.ifBlank { null } ?: JSONObject.NULL)
             .put("gem_name", message.gemName.ifBlank { null } ?: JSONObject.NULL)
@@ -391,24 +396,46 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
      * server or the offline cache), under pending ids so they keep their place in the branch tree.
      */
     @Synchronized
-    fun overlayPending(serverId: String, payload: JSONObject): JSONObject {
+    fun overlayPending(serverId: String, payload: JSONObject, observedOnServer: Boolean = true): JSONObject {
         val localId = outboxIdFor(serverId) ?: return payload
         val rows = loadMessages(localId)
         if (rows.isEmpty()) return payload
         val messages = payload.optJSONArray("messages") ?: JSONArray().also { payload.put("messages", it) }
-        rows.sortedWith(compareBy<JSONObject> { it.optLong("created_ms") }.thenBy { it.optInt("id") })
-            .forEach { row -> messages.put(publicMessage(pendingView(row))) }
+        val visibleIds = (0 until messages.length()).map { messages.getJSONObject(it).optInt("id") }.toSet()
+        // A fetch can start before a push completes. Keep accepted rows (and their files)
+        // until a server response actually contains them, so that snapshot cannot lose a turn.
+        val kept = rows.filterNot { observedOnServer && !it.isNull("server_id") && it.optInt("server_id") in visibleIds }
+        val keptRefs = kept.flatMap(::fileRefs).toSet()
+        rows.filter { it !in kept }.flatMap(::fileRefs).filter { it !in keptRefs }.forEach(::deleteFile)
+        saveMessages(localId, kept)
+        kept.sortedWith(compareBy<JSONObject> { it.optLong("created_ms") }.thenBy { it.optInt("id") })
+            .forEach { row -> pendingView(row).takeIf { it.optInt("id") !in visibleIds }?.let { messages.put(publicMessage(it)) } }
+        pruneOutboxRow(localId)
         return payload
     }
 
-    /** Unsent messages of server chat [serverId] as raw rows with the screen's ids (pending ids, parents mapped). */
+    /** Unsent or not yet observed messages, under ids shared with the server once accepted. */
     @Synchronized
     fun pendingRows(serverId: String): List<JSONObject> {
         val localId = outboxIdFor(serverId) ?: return emptyList()
         return loadMessages(localId).map { pendingView(it) }
     }
 
-    private fun pendingView(row: JSONObject): JSONObject = JSONObject(row.toString()).put("id", PENDING_ID_BASE + row.getInt("id"))
+    /** A displayed pending id can still be in a draft or selected branch after its push completed. */
+    @Synchronized
+    fun resolveMessageId(serverId: String, id: Int): Int {
+        if (!isPendingId(id)) return id
+        val aliases = loadIndex().optJSONArray("message_aliases") ?: return id
+        for (i in aliases.length() - 1 downTo 0) {
+            val alias = aliases.getJSONObject(i)
+            if (alias.optString("thread") == serverId && alias.optInt("local") == id - PENDING_ID_BASE)
+                return alias.getInt("server")
+        }
+        return id
+    }
+
+    private fun pendingView(row: JSONObject): JSONObject = JSONObject(row.toString())
+        .put("id", if (!row.isNull("server_id")) row.optInt("server_id") else PENDING_ID_BASE + row.getInt("id"))
         .put("parent_id", when {
             !row.isNull("parent_server_id") -> row.optInt("parent_server_id")
             !row.isNull("parent_id") -> PENDING_ID_BASE + row.optInt("parent_id")
@@ -544,8 +571,8 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     }
 
     /**
-     * Records what the server accepted for [localId] and removes it here: accepted messages (and their
-     * device files) are dropped, unsent children of an accepted message point at its server id, and a
+     * Records what the server accepted for [localId]. Accepted messages and files wait until a
+     * subsequent server fetch observes them; children point at the accepted server id, and a
      * device chat now on the server is remembered as an alias of its server id. The row goes away when
      * nothing is left to send.
      */
@@ -554,14 +581,16 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         val rows = loadMessages(localId)
         val serverOf = HashMap<Int, Int>()
         rows.forEach { row -> accepted[row.optString("uuid")]?.let { serverOf[row.getInt("id")] = it } }
-        val kept = rows.filter { it.getInt("id") !in serverOf }
-        kept.forEach { row ->
+        rows.forEach { row ->
+            serverOf[row.getInt("id")]?.let { row.put("server_id", it).put("synced", true) }
             if (!row.isNull("parent_id")) serverOf[row.optInt("parent_id")]?.let { row.put("parent_server_id", it).put("parent_id", JSONObject.NULL) }
         }
-        val keptRefs = kept.flatMap(::fileRefs).toSet()
-        rows.filter { it.getInt("id") in serverOf }.flatMap(::fileRefs).filter { it !in keptRefs }.forEach(::deleteFile)
-        saveMessages(localId, kept)
+        saveMessages(localId, rows)
         val index = loadIndex()
+        val aliases = index.optJSONArray("message_aliases") ?: JSONArray()
+        serverOf.forEach { (local, server) -> aliases.put(JSONObject().put("thread", serverThreadId).put("local", local).put("server", server)) }
+        // Local ids are monotonic per profile. Bound the conversion history independently of files.
+        index.put("message_aliases", JSONArray(((aliases.length() - 4096).coerceAtLeast(0) until aliases.length()).map { aliases.getJSONObject(it) }))
         val threadRows = threads(index)
         threadRows.firstOrNull { it.optString("id") == localId }?.let { thread ->
             if (thread.isNull("server_id")) addAlias(index, localId, serverThreadId)
@@ -595,10 +624,17 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
      */
     @Synchronized
     fun detachFromServer(localId: String) {
-        val rows = loadMessages(localId)
+        val previous = loadMessages(localId)
+        val rows = previous.filter { it.isNull("server_id") }
+        val keptRefs = rows.flatMap(::fileRefs).toSet()
+        previous.filter { !it.isNull("server_id") }.flatMap(::fileRefs).filter { it !in keptRefs }.forEach(::deleteFile)
         rows.forEach { row -> if (!row.isNull("parent_server_id")) row.put("parent_server_id", JSONObject.NULL) }
         saveMessages(localId, rows)
         val index = loadIndex()
+        index.optJSONArray("aliases")?.let { aliases ->
+            index.put("aliases", JSONArray((0 until aliases.length()).map { aliases.getJSONObject(it) }
+                .filterNot { it.optString("id") == localId }))
+        }
         val threadRows = threads(index)
         val thread = threadRows.firstOrNull { it.optString("id") == localId } ?: return
         thread.textOf("title_pending").takeIf { it.isNotBlank() }?.let { thread.put("title", it) }

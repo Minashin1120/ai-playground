@@ -103,30 +103,13 @@
     <div class="brand">
       <div class="brand-mark" aria-hidden="true">✦</div>
       <div class="brand-name">AI Playground</div>
-      <div class="brand-user">ログイン中: {{ current_user.username }}</div>
+      {% if current_user.is_authenticated %}<div class="brand-user">ログイン中: {{ current_user.username }}</div>{% endif %}
     </div>
     <section class="card">
       <p class="eyebrow">Secure device link</p>
       <h1>Android端末を連携</h1>
-    {% if completed %}
-      <p class="lead" role="status">{{ '連携を許可しました。Androidアプリに戻ってください。' if approved else '連携を拒否しました。' }}</p>
-    {% else %}
-      <p class="lead">Androidアプリから開いた確認リンクです。内容を確認して、この端末のアクセスを許可してください。</p>
-      {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
-      <form method="post" action="{{ url_for('mobile_connect') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        {% if device_name %}
-          <div class="device"><div class="device-icon" aria-hidden="true">⌁</div><div><div class="device-label">申請元の端末</div><div class="device-name">{{ device_name }}</div></div></div>
-          <div class="code-box"><div class="code-label">確認コード</div><div class="code">{{ user_code }}</div></div>
-          <div class="alert">ご自身のAndroidアプリに今表示されている確認コードと一致する場合だけ許可してください。他の人から届いたリンクやコードを許可すると、その人があなたのアカウントを利用できるようになります。</div>
-          <div class="permission">この端末に、チャットの閲覧・送信・削除とファイルのアップロード・閲覧を30日間許可します。連携後は設定のセッション管理からいつでも取り消せます。</div>
-          <input type="hidden" name="user_code" value="{{ user_code }}">
-          <div class="actions"><button class="primary" type="submit" name="decision" value="approve">この端末を許可</button><button class="secondary" type="submit" name="decision" value="deny">拒否</button></div>
-        {% else %}
-          <div class="manual"><label for="user-code">アプリに表示された12文字の確認コード</label><input id="user-code" name="user_code" required maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false"><p class="hint">確認リンクが使えない場合のみ入力してください。</p><div class="actions"><button class="primary" type="submit" name="decision" value="review">連携内容を確認</button></div></div>
-        {% endif %}
-      </form>
-    {% endif %}
+      <p class="lead" role="status">確認コードによるブラウザー連携は終了しました。Androidアプリを最新版に更新し、アプリ内のログイン、GoogleまたはMinashinでログインしてください。</p>
+      <p class="alert">他の人から届いた連携リンクや確認コードでは、端末を許可できません。</p>
     </section>
     <footer><a href="/">Webアプリへ戻る</a></footer>
   </main>

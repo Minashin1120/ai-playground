@@ -231,19 +231,13 @@ internal fun MinimalOptionsPopup(
                                                 is MinimalAction.Run -> close(action.run)
                                                 is MinimalAction.Toggle -> if (action.rule?.interactive != false) action.toggle()
                                                 is MinimalAction.Thinking -> {
-                                                    // Web: a forced checkbox still opens the slider so the level can change.
-                                                    if (!action.rule.disabled && !action.rule.dimmed) {
-                                                        if (rules.effortAsThinking) {
-                                                            val levels = EFFORT_LEVELS.filter { it in rules.thinkingLevels }
-                                                            val next = if (action.checked) "none"
-                                                            else levels.firstOrNull { it != "none" } ?: rules.effortFallback
-                                                            model.generationOption("reasoning_effort", next)
-                                                            if (next != "none") close(onShowThinkingSlider)
-                                                        } else {
-                                                            model.toggleThinking()
-                                                            if (!action.checked) close(onShowThinkingSlider)
-                                                        }
-                                                    } else close(onShowThinkingSlider)
+                                                    if (rules.effortAsThinking) {
+                                                        // Select Effort, including None, directly in the slider.
+                                                        close(onShowThinkingSlider)
+                                                    } else if (!action.rule.disabled && !action.rule.dimmed) {
+                                                        model.toggleThinking()
+                                                        if (!action.checked) close(onShowThinkingSlider)
+                                                    } else close(onShowThinkingSlider) // Forced Thinking still allows level changes.
                                                 }
                                                 is MinimalAction.Select -> Unit
                                             }

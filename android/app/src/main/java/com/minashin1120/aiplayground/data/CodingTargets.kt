@@ -54,12 +54,17 @@ fun extractPromptCodingTargets(prompt: String): List<CodingCandidate> {
 }
 
 /** Code blocks of assistant answers that show the Web "編集対象に指定" button (not `diff`). */
-fun historyCodingTargets(messages: List<ChatMessage>): List<CodingCandidate> =
-    messages.filter { it.role != "user" }.flatMap { message ->
+fun historyCodingTargets(messages: List<ChatMessage>, editingMessageId: String? = null): List<CodingCandidate> {
+    // The current rendered path still includes the edited prompt's old answers.
+    // They are not ancestors of the new branch and cannot be edit targets.
+    val editIndex = editingMessageId?.let { id -> messages.indexOfFirst { it.id == id } }
+    val history = if (editIndex == null) messages else messages.take(editIndex.coerceAtLeast(0))
+    return history.filter { it.role != "user" }.flatMap { message ->
         extractPromptCodingTargets(message.content)
             .filter { it.language.lowercase() !in setOf("diff", "pyexec", "chat_error") }
             .map { it.copy(key = codingTargetKey(it.language, it.code), messageId = message.id, promptSource = false, promptIndex = null) }
     }
+}
 
 fun codingTargetKey(language: String, code: String): String = "$language:${code.hashCode()}"
 

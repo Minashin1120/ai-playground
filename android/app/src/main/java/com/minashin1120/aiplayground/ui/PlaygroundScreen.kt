@@ -1019,10 +1019,6 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
     LaunchedEffect(state.authTurnstileUrl) {
         state.authTurnstileUrl?.let { path -> onWeb(path) }
     }
-    if (state.pairing) {
-        PairingScreen(state, model, onWeb)
-        return
-    }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(24.dp),
@@ -1142,9 +1138,7 @@ private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -
         item {
             HorizontalDivider()
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("既存のブラウザー連携", style = MaterialTheme.typography.titleMedium)
-                Text("旧方式です。現在も利用できますが、アプリ内ログインを推奨します。", color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                OutlinedButton(onClick = model::pair, modifier = Modifier.fillMaxWidth()) { Text("ブラウザーで連携（旧方式）") }
+                Text("ブラウザーでログイン", style = MaterialTheme.typography.titleMedium)
                 if (state.serverInfo?.googleBrowser ?: ServerOrigin.isOfficial) {
                     OutlinedButton(onClick = { onWeb(model.browserLoginPath("google")) }, modifier = Modifier.fillMaxWidth()) { Text("Google（ブラウザー・旧方式）") }
                 }
@@ -1379,44 +1373,7 @@ private fun SetupSecretField(label: String, value: String, onValueChange: (Strin
     )
 }
 
-@Composable
-private fun PairingScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        item {
-            Surface(shape = RoundedCornerShape(28.dp), color = colors.primaryContainer, contentColor = colors.onPrimaryContainer) {
-                Column(Modifier.fillMaxWidth().padding(28.dp)) {
-                    Text("✦", fontSize = 48.sp, color = colors.primary)
-                    Text("ひとつの場所で、\nいろいろなAIと。", color = colors.onPrimaryContainer, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(16.dp))
-                    Text("いつものアカウントとチャット履歴を、そのままAndroidで。", color = colors.onPrimaryContainer)
-                }
-            }
-        }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (state.userCode.isNotBlank() && state.pairing) {
-                    Text("1. この確認コードを確認してください", color = colors.onSurface, fontWeight = FontWeight.SemiBold)
-                    SelectionContainer { Text(state.userCode.chunked(4).joinToString(" − "), color = colors.primary, fontSize = 28.sp, fontWeight = FontWeight.Bold) }
-                    Text("2. ブラウザーでログインすると、コードが自動入力された連携画面が開きます。", color = colors.onSurfaceVariant)
-                    Button(onClick = { onWeb("/android/connect?code=${Uri.encode(state.userCode)}") }, modifier = Modifier.fillMaxWidth()) { Text("ブラウザーで連携を許可") }
-                    Text("3. このアプリに戻ると連携を確認します。コードの有効期限は10分です。", color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-                    LinearProgressIndicator(Modifier.fillMaxWidth())
-                    TextButton(onClick = model::cancelPairing) { Text("連携をキャンセル", color = colors.onSurfaceVariant) }
-                } else {
-                    Text("ブラウザーでいつものログイン方法を使えます。パスワードやAPIキーを、このアプリに入力する必要はありません。", color = colors.onSurface)
-                    Button(onClick = model::pair, enabled = !state.pairing, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
-                        Text(if (state.pairing) "連携を準備しています…" else "アカウントを連携")
-                    }
-                }
-                Text("接続先: " + com.minashin1120.aiplayground.data.originLabel(com.minashin1120.aiplayground.data.ServerOrigin.current), color = colors.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
-                TextButton(onClick = { onWeb("/") }) { Text("アカウント作成・Webアプリを開く", color = colors.primary) }
-            }
-        }
-    }
-}
 
-@OptIn(androidx.compose.animation.ExperimentalAnimationApi::class)
 @Composable
 private fun Conversation(
     state: ChatState,

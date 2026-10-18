@@ -4,7 +4,7 @@
 |---|---|---|
 | `../app.py` | 起動・版番号と `_SERVER_PARTS`。部品は定義順に `exec()` され `app` の名前空間を共有するため、通常の `import server.*` にはしない | 版番号と部品の読み込み順だけを確認するとき |
 | `mobile_auth.py` | Android専用Bearer認証、API許可範囲、HTTPS・Cookie分離、レスポンス保護。全フックより先に読み込む | ネイティブ認証、端末トークン、API権限 |
-| `routes_mobile.py` | Android端末連携、確認コード承認、トークン発行・失効、接続仕様API | Android連携フロー、接続情報 |
+| `routes_mobile.py` | Android接続仕様API、アカウント情報・失効、廃止済み端末連携の終了応答 | Android接続情報・旧連携リンクの扱い |
 | `routes_mobile_account.py` | Androidの設定用API：再認証、ユーザー名・パスワード変更、アカウント削除、簡易ログイン、ログインセッション、2FAの全体無効化、E2EE切替 | Android設定のアカウント・セキュリティ操作 |
 | `routes_mobile_sync.py` | Androidのサーバー不使用モード：端末チャットの同期（変更一覧・アップロード・削除）、本人確認後のAPIキー取り出し、管理者の診断ログ受信（`diagnostics/android-diagnostics.log`） | 同期API、端末へのキー取り込み、Android診断ログ |
 | `routes_mobile_auth.py` | Androidのネイティブ新規登録・パスワード／パスキーログイン・TOTP／WebAuthn 2FA・セキュリティ管理・初回セットアップとZIP取り込み・旧ブラウザー連携 | アプリ内認証、2FA・パスキー管理、初回設定 |

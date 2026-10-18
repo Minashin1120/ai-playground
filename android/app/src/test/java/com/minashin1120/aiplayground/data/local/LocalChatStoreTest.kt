@@ -119,13 +119,54 @@ class LocalChatStoreTest {
         store.markPushed(device, "srvB", mapOf(uuids.getValue(user) to 7), allAccepted = false)
         assertEquals("srvB", store.resolveAlias(device))
         assertFalse(store.isDeviceThread(device))
-        assertNull(store.loadFile(file, 10))
-        assertEquals(7, store.messages(device).single().getInt("parent_server_id"))
+        assertNotNull(store.loadFile(file, 10))
+        assertEquals(7, store.messages(device).first { it.getInt("id") == answer }.getInt("parent_server_id"))
         store.markPushed(device, "srvB", mapOf(uuids.getValue(answer) to 8), allAccepted = true)
-        assertNull(store.threadRow(device))
+        assertNotNull(store.threadRow(device))
         assertEquals(0, store.pendingCount())
+        val stale = JSONObject().put("messages", org.json.JSONArray())
+        val visible = store.overlayPending("srvB", stale).getJSONArray("messages")
+        assertEquals(listOf(7, 8), (0 until visible.length()).map { visible.getJSONObject(it).getInt("id") })
+        assertEquals(7, visible.getJSONObject(1).getInt("parent_id"))
+        assertNotNull(store.loadFile(file, 10))
+        assertEquals(8, store.resolveMessageId("srvB", LocalChatStore.PENDING_ID_BASE + answer))
+        val observed = JSONObject().put("messages", visible)
+        store.overlayPending("srvB", JSONObject(observed.toString()), observedOnServer = false)
+        assertNotNull(store.loadFile(file, 10))
+        store.overlayPending("srvB", observed)
+        assertEquals(2, observed.getJSONArray("messages").length())
+        assertNull(store.threadRow(device))
+        assertNull(store.loadFile(file, 10))
+        // The selected branch and a draft can still carry the previous pending id after cleanup.
+        assertEquals(8, store.resolveMessageId("srvB", LocalChatStore.PENDING_ID_BASE + answer))
         assertEquals("srvB", store.resolveAlias(device))
         assertFalse(LocalChatStore.isDeviceThreadId("srvB"))
+    }
+
+    @Test fun aChildAppendedAfterItsParentIsAcceptedStillUsesTheServerParent() {
+        val outbox = store.ensureOutboxThread("srvRace")
+        val question = store.appendMessage(outbox, LocalChatStore.NewMessage("user", "q", null, parentServerId = 41))
+        val uuid = store.messages(outbox).single().getString("uuid")
+        store.markPushed(outbox, "srvRace", mapOf(uuid to 42), allAccepted = true)
+        val answer = store.appendMessage(outbox, LocalChatStore.NewMessage("assistant", "a", question))
+        val row = store.pendingRows("srvRace").first { it.getInt("id") == LocalChatStore.PENDING_ID_BASE + answer }
+        assertEquals(42, row.getInt("parent_id"))
+        val pushed = store.pendingPush().single().entry.getJSONArray("messages").getJSONObject(0)
+        assertEquals(42, pushed.getJSONObject("parent").getInt("id"))
+    }
+
+    @Test fun deletingAServerChatDoesNotReuploadAcceptedMessagesStillWaitingForObservation() {
+        val device = store.createThread(false).getString("id")
+        val question = store.appendMessage(device, LocalChatStore.NewMessage("user", "q", null))
+        val uuid = store.messages(device).single().getString("uuid")
+        store.markPushed(device, "srvGone", mapOf(uuid to 42), allAccepted = true)
+        store.appendMessage(device, LocalChatStore.NewMessage("assistant", "a", question))
+        store.detachFromServer(device)
+        assertEquals(device, store.resolveAlias(device))
+        assertEquals(listOf("a"), store.messages(device).map { it.getString("content") })
+        val messages = store.pendingPush().single().entry.getJSONArray("messages")
+        assertEquals(1, messages.length())
+        assertFalse(messages.getJSONObject(0).has("parent"))
     }
 
     @Test fun deviceChatsOfServerlessModeUseThePendingRange() {

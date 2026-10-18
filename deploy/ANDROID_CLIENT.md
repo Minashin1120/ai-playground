@@ -2,7 +2,7 @@
 
 この文書は、AI Chat Playgroundの公式Androidクライアントの通信仕様、実装構成、APKの構築・配布、サーバー設定をまとめたものです。Androidプロジェクトは同じリポジトリの `android/` にあり、モジュールは `android/app/` です。GitHub Actionsで署名付きdebug/release APKを構築し、GitHub Releaseへ配布します。Google Playへの登録とAAB配布は対象外です。
 
-既定の接続先は `https://ai.minashin1120.com` です。Android 1.37.0以降は、ログイン画面の「接続先」で本OSSをセルフホストした別のサーバー（httpsのみ）を指定できます（§3.2の `auth_methods` などで対応機能を判定）。接続仕様の版は `api_version: 1` です。標準認証は `native_credentials_v1`（ユーザー名／パスワード、Google IDトークン、TOTP）です。Minashinと旧Googleブラウザー認証コード引き渡し、旧 `device_pairing_v1` は非推奨のフォールバックとして残します。Webのリリース番号とAndroidのversionCodeは別々に管理します。
+既定の接続先は `https://ai.minashin1120.com` です。Android 1.37.0以降は、ログイン画面の「接続先」で本OSSをセルフホストした別のサーバー（httpsのみ）を指定できます（§3.2の `auth_methods` などで対応機能を判定）。接続仕様の版は `api_version: 1` です。標準認証は `native_credentials_v1`（ユーザー名／パスワード、Google IDトークン、TOTP）です。Google／Minashinのブラウザー認証コード引き渡しはPKCEで保護します。確認コードによる旧 `device_pairing_v1` は廃止しました。Webのリリース番号とAndroidのversionCodeは別々に管理します。
 
 ## 目次
 
@@ -32,7 +32,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 
 | 機能 | このAPIでの扱い |
 |---|---|
-| ユーザー認証 | アプリ内のユーザー名／パスワード新規登録・ログイン、Google（Credential ManagerでIDトークン取得）・パスキー（Credential Manager）、TOTP／WebAuthn 2FA。MinashinはCustom Tabs＋HTTPS App Links。Google／Minashinの旧ブラウザー方式とブラウザー端末連携も非推奨フォールバックとして維持 |
+| ユーザー認証 | アプリ内のユーザー名／パスワード新規登録・ログイン、Google（Credential ManagerでIDトークン取得）・パスキー（Credential Manager）、TOTP／WebAuthn 2FA。MinashinはCustom Tabs＋HTTPS App Links。Google／Minashinのブラウザー方式はPKCE付きで利用可能。確認コードによるブラウザー端末連携は廃止 |
 | 2FA・パスキー管理 | ネイティブでTOTP登録・有効化・無効化、パスキー登録・削除、既定2FA方式、パスキーのみログイン、Googleログイン時の2FA省略を設定。パスワード変更・アカウント削除はWeb |
 | 通常のチャット | スレッド一覧・検索・作成・取得・削除、ブックマーク、タイトル・スレッド指示、送信、ストリーム再接続、停止、メッセージの編集・再生成・分岐切替・削除、ネイティブPDF出力。Web相当のハートビートでオフライン／不安定／メンテナンス／サーバー停止／復帰を表示 |
 | 添付 | 通常アップロード、大容量チャンクアップロード、進捗表示・キャンセル、Photo Picker・カメラ、他アプリの共有シート（`ACTION_SEND`／`ACTION_SEND_MULTIPLE`、任意のMIMEタイプ）からの添付受信と、共有したテキストの入力欄への追加、他アプリのテキスト選択メニューの「プロンプトとして添付」（`ACTION_PROCESS_TEXT`。選択元の文字は置き換えない）、共有シートの「メッセージとしてプレビュー」で共有したテキストをAIの回答のメッセージバブルと同じ描画で全画面に確認（送信しない）、画像分割（アップロード画面、カメラ撮影時の「画像を分割」切り替え、共有シートからは分割して添付・端末に保存。クイック設定タイルからは現在のアプリを背後に残して分割・保存・共有。指定枚数・重なり付きで分割し、番号・座標・分割線を描き込む。サーバーの通信仕様は変わらない）、MIME別プレビュー、画像圧縮設定、本人のファイル・サムネイル取得、容量表示、アプリ内プレビュー（画像・テキスト・PDF・音声・動画。未対応形式は外部アプリ） |
@@ -59,27 +59,18 @@ Android版は通常チャット、メタデータ付きモデル選択、Thinkin
 
 ## 2. 認証と端末連携
 
-### 2.1 連携の流れ
+### 2.1 ログインの流れ
 
-1. Androidが `POST /api/mobile/v1/device` を送信する。
-2. サーバーがアプリ用の `device_code` と、人が入力する `user_code` を返す。有効期限は10分。
-3. アプリ画面に確認コードを表示し、Custom Tabsで `/android/connect?code=<user_code>` を開く。`user_code` は12文字の確認コードだけを含み、`device_code` やアクセストークンはURLに含めない。
-4. ブラウザーで未ログインなら通常のログインを完了する。SSOや2FAの終了後、連携画面へ戻る。
-5. URLの確認コードが有効なら連携画面に申請内容が自動表示される。利用者はコード入力なしで端末名・権限を確認して「この端末を許可」を押す。「拒否」も可能。手動入力はリンクが使えない場合のフォールバック。
-6. アプリは5秒以上の間隔で `POST /api/mobile/v1/token` を送る。ブラウザーからアプリへ戻ったときに再開してよい。
-7. 承認後、一度だけ `access_token` が返る。アプリは保存後に `GET /api/mobile/v1/me` を呼んでアカウントを確認する。
-8. 以後は `Authorization: Bearer <access_token>` で許可されたAPIを呼ぶ。
+アプリ内のユーザー名／パスワード、パスキー、Googleのネイティブログイン、またはGoogle／MinashinのPKCE付きブラウザーログインで認証します。2FAがあるアカウントは確認後にAndroid専用トークンを発行し、以後は `Authorization: Bearer <access_token>` を使います。
 
-確認コードは人がアプリとブラウザーを照合するためのものです。承認画面には、他人から届いたリンクやコードを許可しないよう注意を表示します。`device_code` やアクセストークンをURL、ディープリンク、クリップボード、ログに載せないでください。
-
-この方式は端末認可の考え方を参考にした独自プロトコルです。[RFC 8628](https://www.rfc-editor.org/rfc/rfc8628.html)準拠のOAuthサーバーではありません。JSON形式、固定client_id、エラーとポーリングの仕様は本書に従い、一般的なOAuth SDKへそのまま設定しないでください。
+確認コードによる旧 `device_pairing_v1` は廃止しました。`/api/mobile/v1/device` と `/api/mobile/v1/token` は410（`legacy_pairing_disabled`）を返し、以前に発行したコードでも新規承認・トークン取得はできません。`/android/connect` も410で終了案内だけを表示します。既存のログイン済み端末のトークンはそのまま有効です。
 
 ### 2.2 認証境界
 
 | 通信 | 認証 | CSRF | Cookie |
 |---|---|---|---|
-| ブラウザーのログイン・連携承認 | 既存のWebセッション | POSTに既存CSRFトークンが必須 | ブラウザーが管理 |
-| device/token | 短期device_codeによる連携プロトコル | CookieとOriginを拒否しJSON POSTだけを受理 | 送信禁止 |
+| Google／Minashinのブラウザーログイン | プロバイダー認証とPKCE | 既存のWeb保護を維持 | ブラウザーが管理 |
+| 旧device/token | 廃止済み（410） | CookieとOriginを拒否しJSON POSTだけを受理 | 送信禁止 |
 | Androidのチャット等 | 有効なAndroid専用Bearer | 専用Bearerを検証したリクエストだけ免除 | 送信禁止 |
 
 通常のWebリクエストのCSRF対策を解除していません。APIというURLだけでCSRF免除になることもありません。Androidは独立したCookieなしHTTPクライアントを使います。`Origin`、`Referer`、`X-CSRF-Token` を追加する必要はありません。
@@ -89,11 +80,8 @@ Android版は通常チャット、メタデータ付きモデル選択、Thinkin
 ### 2.3 トークンの性質と失効
 
 - トークンは `aip_android_` で始まる不透明な文字列。JWTとして解析しない。
-- 有効期限は承認から30日。アクセスのたびに延長しない。refresh_tokenはない。
+- 有効期限は発行から30日。アクセスのたびに延長しない。refresh_tokenはない。
 - DBには `UserSession.session_id = android:<SHA-256>` を保存し、生トークンを保存しない。
-- 承認から引き換えまでの短時間だけ、既存の暗号化処理で暗号化したトークンをRedisに保持する。Redisの期限は申請開始から最大10分。
-- 承認と引き換えはRedisのLuaで原子的に判定し、同時リクエストで二重承認・二重引き換えを防ぐ。
-- 引き換え成功応答を通信障害で受け取れなかった場合、同じtoken APIでは回収できない。新しい端末連携を開始する。
 - Webの設定 → セッション管理に `Official Android: <端末名>` が表示される。個別失効・他のセッション失効・全失効がAndroidにも適用される。
 - アプリからのログアウトは `POST /api/mobile/v1/revoke` 後に端末保存を消す。オフライン時のローカル削除だけではサーバー側失効は成立しない。
 - ブラウザーの通常ログアウトはそのブラウザーのセッションを失効する操作。別のAndroidセッションを終了したい場合はセッション管理を使う。
@@ -116,7 +104,8 @@ HTTPS必須。JSONはUTF-8。APIレスポンスと認証ページは `Cache-Cont
   "api_version": 1,
   "client_id": "official-android",
   "auth_flow": "native_credentials_v1",
-  "legacy_auth_flow": "device_pairing_v1",
+  "legacy_auth_flow": null,
+  "legacy_auth_enabled": false,
   "legacy_auth_deprecated": true,
   "native_signup_endpoint": "/api/mobile/v1/auth/signup",
   "native_login_endpoint": "/api/mobile/v1/auth/login",
@@ -174,66 +163,13 @@ Google Cloudの同じプロジェクトには、サーバーで使うWeb OAuth�
 
 Android 17（API 37）のCredential Manager挙動に合わせ、アプリは `compileSdk` / `targetSdk` 37で構築します。診断ログの `sdk` が37以上の場合は `targetSdk=37` も確認します。Android 17 SDKに対応するため、ビルド環境はAGP 9.1.1とGradle 9.3.1を使用します。
 
-### 3.3 端末連携の開始
+### 3.3 旧端末連携の開始（廃止）
 
-`POST /api/mobile/v1/device`
+`POST /api/mobile/v1/device` は410と `{"error":"legacy_pairing_disabled"}` を返します。アプリを更新して通常のログインを使ってください。
 
-```json
-{"client_id":"official-android","device_name":"Pixel — 個人用"}
-```
+### 3.4 旧承認の確認・トークン取得（廃止）
 
-`device_name` は任意、既定 `Android`、前後空白を除いて1〜80文字。制御文字は禁止。IMEI、Android ID、シリアル番号などを端末名として集める必要はありません。
-
-成功は200。応答例のコードは説明用です。
-
-```json
-{
-  "device_code":"<43文字の秘密コード>",
-  "user_code":"8A63D240C17F",
-  "verification_uri":"/android/connect",
-  "expires_in":600,
-  "interval":5
-}
-```
-
-IPごとに10分で10申請まで。共有ネットワークでは複数利用者が合算されます。device/tokenのJSON本文は最大4KiBです。
-
-### 3.4 承認の確認・トークン取得
-
-`POST /api/mobile/v1/token`
-
-```json
-{"client_id":"official-android","device_code":"<deviceの応答をそのまま使用>"}
-```
-
-成功200：
-
-```json
-{
-  "access_token":"aip_android_<不透明な文字列>",
-  "token_type":"Bearer",
-  "expires_in":2591988,
-  "scope":"chat files",
-  "api_version":1
-}
-```
-
-ポーリングは同一device_codeで最短5秒、IP単位では1分120回まで。`interval` と `Retry-After` を尊重します。10分を超えたら再申請します。ネットワーク障害では待機時間を延ばし、同時に複数のポーリング処理を作らないでください。
-
-| HTTP | error | クライアントの動作 |
-|---|---|---|
-| 400 | `authorization_pending` | 5秒以上待って再確認 |
-| 429 | `slow_down` / `rate_limited` | Retry-After以上待ち、バックオフする |
-| 400 | `access_denied` | 連携を終了し拒否を表示 |
-| 400 | `expired_token` | 期限切れまたは引き換え済み。新しく連携を開始 |
-| 400 | `invalid_client` / `invalid_grant` / `invalid_request` | 送信内容を修正 |
-| 400 | `cookies_or_origin_not_allowed` | ネイティブ側のCookie・Originを除去 |
-| 400 | `authorization_not_allowed` | device/tokenにAuthorizationを付けない |
-| 400 | `https_required` | HTTPS接続とプロキシの転送情報を確認 |
-| 415 | `json_post_required` | JSON POSTへ修正 |
-| 413 | フレームワークのサイズエラー | 本文を4KiB以下にする。HTMLの場合もJSON解析を強行しない |
-| 503 | `temporarily_unavailable` | Redis等の障害。時間を置いて再試行 |
-| 503 | `mobile_api_disabled` | サーバー管理者がAndroid接続を停止中 |
+`POST /api/mobile/v1/token` は、過去の承認状態に関わらず410と `{"error":"legacy_pairing_disabled"}` を返します。
 
 ### 3.5 アカウント確認・ログアウト
 
@@ -693,25 +629,15 @@ import androidx.browser.customtabs.CustomTabsIntent
 
 CustomTabsIntent.Builder().build().launchUrl(
     activity,
-    Uri.parse("https://ai.minashin1120.com/android/connect")
+    Uri.parse(browserLoginPath) // アプリがPKCEと戻り先を付けて生成したログインURL
 )
 ```
 
 Custom Tabsは既存ブラウザーのログインを利用できます。対応ブラウザーがない場合は通常のブラウザーIntentへフォールバックし、それも使えなければ利用者へ説明します。埋め込みWebViewでパスワードやWeb Cookieを回収する実装は不要です。[Custom Tabsの公式説明](https://developer.android.com/develop/ui/views/layout/webapps/overview-of-android-custom-tabs)を参照してください。
 
-### 7.3 ポーリングの状態管理
+### 7.3 ブラウザーログインからの復帰
 
-```text
-未連携 → device発行 → コード表示／ブラウザー承認待ち
-                     ├─ authorization_pending → 待機 → token確認
-                     ├─ 429 → Retry-After＋バックオフ → token確認
-                     ├─ 承認 → トークン保存 → me検証 → ログイン済み
-                     └─ 拒否・期限切れ → 未連携
-```
-
-タイマーは単調増加時計（Androidの `SystemClock.elapsedRealtime()`）を使い、端末の時計変更で無限に待たないようにします。アプリがバックグラウンドの間にポーリングを続ける必然性はありません。ブラウザーから戻った `onStart` 相当で、残り期限と前回問い合わせ時刻を確認して再開します。
-
-アプリプロセスが終了した場合の初期実装は、新規device発行からやり直して構いません。device_codeを永続化するならアクセストークンと同等に保護し、期限切れ時に必ず削除します。
+ブラウザーの認証後は、アプリが保存したPKCE verifierと受け取った一回限りの認可コードを交換してトークンを保存します。自分で開始していない認証のコードは交換しません。旧確認コードのポーリングは行いません。
 
 ## 8. 端末保存・画面・ライフサイクル
 
@@ -757,7 +683,7 @@ MOBILE_API_ENABLED=1
 
 今回、DBへのカラム・テーブル追加はありません。既存の `UserSession` を使うため、Android対応を理由に `RUN_SCHEMA_MIGRATIONS=1` に変更する必要はありません。Redisには `mobile:` 名前空間の短期データを追加します。新しいポートや別の認証サービスも不要です。
 
-GunicornとRQは既存の暗号化鍵設定・DB・Redisを共有します。Redisが停止した場合、device/tokenは503を返して発行を止めます。既発行トークンの検証自体はDBを参照しますが、チャット生成等のRedis依存機能は影響を受けます。
+GunicornとRQは既存の暗号化鍵設定・DB・Redisを共有します。Redisが停止した場合、一回限りの認証コードや確認チケットを使う処理は発行・交換を止めます。既発行トークンの検証自体はDBを参照しますが、チャット生成等のRedis依存機能は影響を受けます。
 
 ### 9.2 Apache
 
@@ -821,9 +747,9 @@ scripts/publish_version.sh --message "Add Android pairing and scoped native API 
 
 ### 10.1 サーバーの自動試験
 
-`tests/test_mobile_api.py` は分離SQLiteとUnixソケットの一時Redisを使い、実際のLuaを含めて検証します。redis-serverがない環境ではこのテスト群はskipされるため、公開確認ではskipを成功と取り違えないでください。
+`tests/test_mobile_api.py` は分離SQLiteとUnixソケットの一時Redisを使って検証します。redis-serverがない環境ではこのテスト群はskipされるため、公開確認ではskipを成功と取り違えないでください。
 
-対象は、承認・拒否・期限切れ・二重引き換え防止・並列競合・ポーリング制限・Redis障害・HTTPS・停止スイッチ・Cookie/Origin混在拒否・WebのCSRF維持・失効・BAN・E2EE・Turnstile・ネイティブ登録／ログイン／TOTP・TOTPの登録／有効化／無効化・セキュリティ設定の入力検証とパスキーのみログインガード・パスキー開始時の存在秘匿・Android origin導出・セットアップ未完了時のセキュリティ／取り込み許可と通常API拒否・Android認証許可リストへの取り込みAPI登録・スレッド所有者・タイトル・スレッド指示・ブックマーク・一時チャット・添付所有者・チャンクアップロードの確定と順序検証・ファイルライブラリの所有者境界・Gemの所有者境界とCRUD・一般設定の許可項目と秘密鍵の拒否・PDF出力の所有者境界・モデルメタデータと選択可否です。取り込み本体はアプリの取り込みディレクトリへ書き込むため、自動試験では許可リスト登録と未認証拒否だけを確認します。
+対象は、旧連携の新規申請・承認・過去のコード交換の拒否・HTTPS・停止スイッチ・Cookie/Origin混在拒否・WebのCSRF維持・失効・BAN・E2EE・Turnstile・ネイティブ登録／ログイン／TOTP・TOTPの登録／有効化／無効化・セキュリティ設定の入力検証とパスキーのみログインガード・パスキー開始時の存在秘匿・Android origin導出・セットアップ未完了時のセキュリティ／取り込み許可と通常API拒否・Android認証許可リストへの取り込みAPI登録・スレッド所有者・タイトル・スレッド指示・ブックマーク・一時チャット・添付所有者・チャンクアップロードの確定と順序検証・ファイルライブラリの所有者境界・Gemの所有者境界とCRUD・一般設定の許可項目と秘密鍵の拒否・PDF出力の所有者境界・モデルメタデータと選択可否です。取り込み本体はアプリの取り込みディレクトリへ書き込むため、自動試験では許可リスト登録と未認証拒否だけを確認します。
 
 既存の全体回帰テストはprepareの内部で実行します。実際のAI事業者への有料生成、Android UI、署名APKのインストールはサーバー単体テストでは検証しません。
 
@@ -888,7 +814,7 @@ Turnstileの確認は、認証要求でPlay Integrityの判定が高リスクま
 
 数式はWeb版と同じMathJax 3で組版します（Webは画面上のHTML出力、AndroidはSVG出力）。メッセージの編集・再生成・分岐切替とネイティブPDF出力は実装済みです。画像の圧縮設定（最大サイズ・最大辺・形式・形式のみ変換）も実装済みで、GIFは対象外です。PDFは本文をA4へ再構成する簡易出力で、Webの印刷レイアウトとは体裁が異なります。
 
-`official-android` という公開client_idを知っていれば、他のクライアントも連携申請自体は作れます。利用者のブラウザー認証と明示承認が権限の根拠です。「公式APKからの通信だけを許可する」要件がある場合は、正式な署名・配布基盤とアプリ検証を別途設計します。
+公開client_idを送るだけでトークンが発行されることはありません。旧確認コードによる連携は終了し、新しいログインではアカウント認証と必要な2FAを完了します。
 
 ## 12. 実装ファイル・公式資料
 

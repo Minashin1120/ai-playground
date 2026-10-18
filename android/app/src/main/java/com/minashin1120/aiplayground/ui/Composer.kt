@@ -256,7 +256,10 @@ fun Composer(
             else -> false
         }
     }
-    val history = remember(state.messages) { historyCodingTargets(state.messages) }
+    val history = remember(state.messages, state.editingMessageId) {
+        historyCodingTargets(state.messages, state.editingMessageId)
+    }
+    val codingSelection = state.codingTarget?.takeIf { selected -> history.any { it.messageId == selected.messageId } }
 
     Box(Modifier.fillMaxWidth().composerDock(web, minimal, phone).onSizeChanged { dockHeight = it.height; onDockHeight(it.height) }) {
         if (minimalOptionsOpen) MinimalOptionsPopup(
@@ -284,8 +287,8 @@ fun Composer(
             }
             AnimatedVisibility(state.codingMode, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                 CodingTargetBar(
-                    text = codingBarText(state.draft, history, state.codingTarget),
-                    showClear = state.codingTarget != null,
+                    text = codingBarText(state.draft, history, codingSelection),
+                    showClear = codingSelection != null,
                     onClear = { model.selectCodingTarget(null) },
                 )
             }

@@ -361,6 +361,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val answerKeepAlive by lazy { GenerationService.keepAlive(getApplication<Application>()) }
     private var answerHold: AutoCloseable? = null
     private var pairingJob: Job? = null
+    private var messageFetchGeneration = 0L
     private var navigationJob: Job? = null
     private var streamJob: Job? = null
     /** Web `suppressedPendingJobIds`: jobs the user stopped are not rejoined while the server winds them down. */
@@ -708,7 +709,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 mutable.update { it.copy(syncing = false, lastSyncAt = now, pendingCount = report.pending, syncMessage = parts.joinToString("、")) }
                 if (report.uploadedMessages > 0 && !state.value.streaming) {
                     runCatching { fetchThreads(false) }
-                    state.value.selected?.id?.let { id -> if (!state.value.busy) runCatching { loadMessages(id, autoResume = false) } }
+                    state.value.selected?.id?.let { id -> if (!state.value.busy) runCatching { loadMessages(id, autoResume = false, inPlace = true) } }
                 }
             } catch (e: CancellationException) {
                 Diagnostics.log("sync.cancelled", "ms" to System.currentTimeMillis() - started)
@@ -1483,7 +1484,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         fetchThreads(false)
         runCatching { fetchGems() }.onFailure { report(it) }
         runCatching { fetchPreferences(applyDefaults = true) }.onFailure { report(it) }
-        runCatching { fetchBatchJobs(notify = false) }.onFailure { report(it) }
+        runCatching { fetchBatchJobs(notify = false) }.onFailure { if (it is CancellationException) throw it }
         // The composer shows the MCP chip only when a server is enabled (Web `applyMcpPromptChipUi`).
         loadMcpServers()
         if (state.value.localProfile) return
@@ -1570,52 +1571,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (returning && state.value.account != null && state.value.selected != null && !state.value.busy && !state.value.streaming) refreshInPlace()
         if (returning && state.value.account != null) startCacheSyncIfAllowed()
         if (returning && state.value.serverless) scheduleSync()
-    }
-    fun pair() {
-        if (state.value.pairing) return
-        pairingJob = viewModelScope.launch {
-            mutable.update { it.copy(pairing = true, userCode = "", notice = null) }
-            try {
-                // Retry a saved login after a temporary network error without issuing another grant.
-                if (session != null) { loadAccount(); return@launch }
-                val config = api.get("/api/mobile/v1/config")
-                require(config.getInt("api_version") == 1) { "このサーバーの接続方式には未対応です。" }
-                val grant = backend.post("/api/mobile/v1/device", JSONObject().put("client_id", "official-android")
-                    .put("device_name", "${Build.MANUFACTURER} ${Build.MODEL}".take(80)))
-                mutable.update { it.copy(userCode = grant.getString("user_code")) }
-                val deadline = SystemClock.elapsedRealtime() + grant.getLong("expires_in") * 1000
-                var interval = grant.optLong("interval", 5).coerceAtLeast(5)
-                while (SystemClock.elapsedRealtime() < deadline) {
-                    delay(interval * 1000)
-                    if (!foreground) continue
-                    try {
-                        val reply = backend.post("/api/mobile/v1/token", JSONObject().put("client_id", "official-android")
-                            .put("device_code", grant.getString("device_code")))
-                        val linked = StoredSession(reply.getString("access_token"), System.currentTimeMillis() + reply.getLong("expires_in") * 1000,
-                            ServerOrigin.current.toString())
-                        withContext(Dispatchers.IO) { store.save(linked) }
-                        session = linked
-                        // The grant is already consumed. Never poll it again if /me or history fails.
-                        try { loadAccount() } catch (e: Exception) { report(e) }
-                        return@launch
-                    } catch (e: ApiException) {
-                        when (e.code) {
-                            "authorization_pending" -> Unit
-                            "slow_down", "rate_limited" -> interval = maxOf(interval + 5, e.retryAfter)
-                            "access_denied" -> throw IOException("端末連携が拒否されました。")
-                            "expired_token" -> throw IOException("確認コードが期限切れです。新しく連携を開始してください。")
-                            else -> if (e.status >= 500) interval = minOf(60, interval * 2) else throw e
-                        }
-                    } catch (e: IOException) {
-                        if (e is ApiException || e.message?.startsWith("端末連携") == true || e.message?.startsWith("確認コード") == true) throw e
-                        interval = minOf(60, interval * 2)
-                    }
-                }
-                throw IOException("確認コードが期限切れです。新しく連携を開始してください。")
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { report(e) }
-            finally { mutable.update { it.copy(pairing = false) } }
-        }
     }
     fun cancelPairing() { pairingJob?.cancel(); mutable.update { it.copy(pairing = false, userCode = "") } }
     fun dismissNotice() { mutable.update { it.copy(notice = null) } }
@@ -2146,10 +2101,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * that started meanwhile leaves the chat as it is.
      */
     private suspend fun loadMessages(requestedId: String, older: Boolean = false, autoResume: Boolean = true, inPlace: Boolean = false) {
+        if (inPlace && (state.value.streaming || state.value.busy)) return
+        val fetchGeneration = if (older) messageFetchGeneration else ++messageFetchGeneration
         val id = serverIdOf(requestedId)
         if (inPlace && state.value.offline && !deviceChat(id)) return
         if (state.value.offline && !deviceChat(id)) {
-            loadCachedMessages(id, older)
+            loadCachedMessages(id, older, fetchGeneration = fetchGeneration)
             return
         }
         val before = if (older) "&before_id=${state.value.oldestId ?: return}" else ""
@@ -2174,12 +2131,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             setConnectionUnavailable(
                 if (e is ApiException) ConnectionStatus.SERVER_DOWN else ConnectionStatus.OFFLINE,
             )
-            loadCachedMessages(id, older, cached)
+            loadCachedMessages(id, older, cached, fetchGeneration)
             return
         }
         Diagnostics.log("thread.fetched", "thread" to id, "rows" to (reply.optJSONArray("messages")?.length() ?: 0),
             "pending_job" to !reply.isNull("pending_job"))
-        if (state.value.selected?.id != id) return
+        if (state.value.selected?.id != id || fetchGeneration != messageFetchGeneration) return
         if (inPlace && (state.value.streaming || state.value.busy)) return
         val pendingJobId = reply.optJSONObject("pending_job")?.nullableString("job_id")?.ifBlank { null }
         val pendingJobStopped = pendingJobId != null && pendingJobId in suppressedPendingJobIds
@@ -2189,10 +2146,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val earlier = if (inPlace && parsedOldest != null)
             state.value.allMessages.filter { m -> numericId(m)?.let { n -> n < parsedOldest } == true } else emptyList()
         val all = if (older) (parsed + state.value.allMessages).distinctBy { m -> m.id } else earlier + parsed
-        val leaf = state.value.leafId?.takeIf { candidate -> all.any { numericId(it) == candidate } }
+        val selectedLeaf = state.value.leafId?.let { candidate ->
+            withContext(Dispatchers.IO) { localChats?.resolveMessageId(id, candidate) ?: candidate }
+        }
+        val leaf = selectedLeaf?.takeIf { candidate -> all.any { numericId(it) == candidate } }
             ?: all.mapNotNull { numericId(it) }.maxOrNull()
         val path = activeBranchPath(all, leaf)
         val keepsEarlier = earlier.isNotEmpty()
+        if (state.value.selected?.id != id || fetchGeneration != messageFetchGeneration ||
+            (inPlace && (state.value.streaming || state.value.busy))) return
         mutable.update { it.copy(messages = path, allMessages = all, leafId = leaf,
             hasOlder = if (keepsEarlier) it.hasOlder else reply.optBoolean("has_older_messages"),
             oldestId = if (keepsEarlier) it.oldestId else reply.nullableString("oldest_loaded_id"),
@@ -2227,7 +2189,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 offlineCache.saveThread(
                     // Unsent answers of serverless mode are not cached: they are shown from the outbox.
                     account.id, state.value.selected ?: return@withContext,
-                    all.filterNot { m -> numericId(m)?.let { n -> state.value.serverless && LocalChatStore.isPendingId(n) } == true },
+                    all.filterNot { m -> state.value.serverless &&
+                        (numericId(m)?.let { LocalChatStore.isPendingId(it) } == true || m.files.any { LocalChatStore.isLocalReference(it) }) },
                     if (keepsEarlier) state.value.hasOlder else reply.optBoolean("has_older_messages"),
                     (if (keepsEarlier) state.value.oldestId else reply.nullableString("oldest_loaded_id"))?.ifBlank { null },
                     reply.nullableString("custom_instruction"), reply.optBoolean("include_global_instruction", true),
@@ -2242,7 +2205,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (!older && autoResume && state.value.jobId != null && !state.value.streaming) resume()
     }
 
-    private suspend fun loadCachedMessages(id: String, older: Boolean, cachedPayload: JSONObject? = null) {
+    private suspend fun loadCachedMessages(id: String, older: Boolean, cachedPayload: JSONObject? = null, fetchGeneration: Long) {
         val accountId = state.value.account?.id ?: return
         val outbox = localChats?.takeIf { state.value.serverless }
         val stored = cachedPayload ?: withContext(Dispatchers.IO) { offlineCache.loadThread(accountId, id) }
@@ -2250,15 +2213,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val cached = if (outbox == null) stored ?: return else withContext(Dispatchers.IO) {
             val base = stored?.let { JSONObject(it.toString()) }
                 ?: JSONObject().put("messages", JSONArray()).takeIf { outbox.outboxIdFor(id) != null }
-            base?.let { outbox.overlayPending(id, it) }
+            base?.let { outbox.overlayPending(id, it, observedOnServer = false) }
         } ?: return
         val parsed = parseMessages(cached)
         val all = if (older) (parsed + state.value.allMessages).distinctBy { it.id } else parsed
-        val leaf = state.value.leafId?.takeIf { candidate -> all.any { numericId(it) == candidate } }
+        val selectedLeaf = state.value.leafId?.let { candidate ->
+            withContext(Dispatchers.IO) { localChats?.resolveMessageId(id, candidate) ?: candidate }
+        }
+        val leaf = selectedLeaf?.takeIf { candidate -> all.any { numericId(it) == candidate } }
             ?: all.mapNotNull { numericId(it) }.filter { outbox != null && LocalChatStore.isPendingId(it) }.maxOrNull()
             ?: cached.optInt("leaf_id").takeIf { it > 0 }
             ?: all.mapNotNull { numericId(it) }.maxOrNull()
         val path = activeBranchPath(all, leaf)
+        if (state.value.selected?.id != id || fetchGeneration != messageFetchGeneration) return
         mutable.update { it.copy(
             messages = path,
             allMessages = all,
@@ -2697,7 +2664,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             current.quoteMessageId?.let { body.put("quote_message_id", it) }
         }
         if (current.codingMode) {
-            val plan = planCodingSend(current.draft, historyCodingTargets(current.messages), current.codingTarget, current.model)
+            val history = historyCodingTargets(current.messages, current.editingMessageId)
+            val selection = current.codingTarget?.takeIf { selected -> history.any { it.messageId == selected.messageId } }
+            val plan = planCodingSend(current.draft, history, selection, current.model)
             plan.error?.let { notify(it); return }
             val target = plan.target
             if (plan.active && target != null) {
@@ -3091,6 +3060,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun submit(submission: Submission) {
+        ++messageFetchGeneration
         streamJob?.cancel()
         streamJob = viewModelScope.launch {
             val owner = currentCoroutineContext().job
@@ -4052,7 +4022,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 setConnectionUnavailable(if (hasUsableNetwork()) ConnectionStatus.UNSTABLE else ConnectionStatus.OFFLINE)
         }
         mutable.update { it.copy(
-            notice = message ?: error.message?.take(500) ?: "通信に失敗しました。再試行してください。",
+            notice = message ?: if (networkFailure) "通信が途切れました。接続を確認して再試行してください。"
+                else error.message?.take(500) ?: "通信に失敗しました。再試行してください。",
         ) }
     }
 

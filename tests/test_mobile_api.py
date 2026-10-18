@@ -82,27 +82,10 @@ class MobileApiTests(unittest.TestCase):
         with target.app.app_context():
             target.db.session.remove()
 
-    def device(self):
-        response = self.native.post('/api/mobile/v1/device', base_url='https://localhost',
-                                    json={'client_id': 'official-android', 'device_name': 'Test Android'})
-        self.assertEqual(response.status_code, 200)
-        return response.json
-
-    def approve(self, grant, decision='approve'):
-        return self.browser.post('/android/connect', base_url='https://localhost', data={
-            'csrf_token': 'browser-csrf', 'user_code': grant['user_code'], 'decision': decision,
-        })
-
-    def poll(self, grant):
-        return self.native.post('/api/mobile/v1/token', base_url='https://localhost',
-                                json={'client_id': 'official-android', 'device_code': grant['device_code']})
-
     def token(self):
-        grant = self.device()
-        self.assertEqual(self.approve(grant).status_code, 200)
-        response = self.poll(grant)
-        self.assertEqual(response.status_code, 200)
-        return response.json['access_token']
+        with target.app.test_request_context(base_url='https://localhost'):
+            user = target.db.session.get(target.User, self.user_id)
+            return target._mobile_issue_token(user, 'Test Android')
 
     def call(self, path, token, method='GET', **kwargs):
         return self.native.open(path, method=method, base_url='https://localhost',
@@ -251,11 +234,9 @@ class MobileApiTests(unittest.TestCase):
             self.assertEqual(response.status_code, 403, (path, method))
 
     def test_browser_csrf_is_preserved(self):
-        grant = self.device()
-        bad = self.browser.post('/android/connect', base_url='https://localhost', data={'user_code': grant['user_code'], 'decision': 'approve'})
+        bad = self.browser.post('/android/connect', base_url='https://localhost', data={'user_code': 'ABCDEF012345', 'decision': 'approve'})
         self.assertEqual(bad.status_code, 403)
         self.assertEqual(self.browser.post('/api/threads', base_url='https://localhost', json={}).status_code, 403)
-        self.assertEqual(self.poll(grant).json['error'], 'authorization_pending')
 
     def test_chat_validation_and_turnstile_still_apply(self):
         token = self.token()
@@ -1406,85 +1387,31 @@ class MobileApiTests(unittest.TestCase):
                 user.is_setup_completed = True
                 target.db.session.commit()
 
-    def test_pending_poll_rate_limit_and_expiry(self):
-        grant = self.device()
-        self.assertEqual(self.poll(grant).json['error'], 'authorization_pending')
-        self.assertEqual(self.poll(grant).json['error'], 'slow_down')
-        digest = target._mobile_digest(grant['device_code'])
-        self.redis.delete('mobile:poll:' + digest, 'mobile:grant:' + digest)
-        self.assertEqual(self.poll(grant).json['error'], 'expired_token')
-
-    def test_denial_and_one_time_redemption(self):
-        grant = self.device()
-        self.assertEqual(self.approve(grant, 'deny').status_code, 200)
-        self.assertEqual(self.poll(grant).json['error'], 'access_denied')
-        granted = self.device()
-        self.assertEqual(self.approve(granted).status_code, 200)
-        self.assertEqual(self.approve(granted).status_code, 400)
-        self.assertEqual(self.poll(granted).status_code, 200)
-        self.redis.delete('mobile:poll:' + target._mobile_digest(granted['device_code']))
-        self.assertEqual(self.poll(granted).json['error'], 'expired_token')
-
-    def test_atomic_scripts_allow_only_one_approval_and_redemption(self):
-        from concurrent.futures import ThreadPoolExecutor
-        key = 'mobile:test:race'
-        self.redis.set(key, json.dumps({'status': 'pending'}), ex=60)
-        def approve(_):
-            return self.redis.eval(target._MOBILE_APPROVE_SCRIPT, 1, key, json.dumps({'status': 'approved'}))
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            self.assertEqual(sum(executor.map(approve, range(8))), 1)
-            results = list(executor.map(lambda _: self.redis.eval(target._MOBILE_REDEEM_SCRIPT, 1, key), range(8)))
-        self.assertEqual(sum(bool(value) for value in results), 1)
-
-    def test_redis_failure_fails_closed(self):
-        with mock.patch.object(target, 'redis_conn') as failed:
-            failed.incr.side_effect = redis.ConnectionError('test offline')
-            response = self.native.post('/api/mobile/v1/device', base_url='https://localhost', json={'client_id': 'official-android'})
-            self.assertEqual(response.status_code, 503)
-
-    def test_device_rate_limit_and_safe_name_rendering(self):
-        grant = self.device()
-        key = 'mobile:grant:' + target._mobile_digest(grant['device_code'])
-        self.redis.set(key, json.dumps({'status': 'pending', 'device_name': '<script>unsafe</script>'}), ex=60)
-        response = self.approve(grant, 'review')
-        self.assertIn('&lt;script&gt;', response.get_data(as_text=True))
-        self.assertNotIn('<script>unsafe', response.get_data(as_text=True))
-        for _ in range(9):
-            self.device()
-        response = self.native.post('/api/mobile/v1/device', base_url='https://localhost', json={'client_id': 'official-android'})
-        self.assertEqual(response.status_code, 429)
-
-    def test_login_returns_to_connect_and_get_never_approves(self):
-        anonymous = target.app.test_client()
-        response = anonymous.get('/android/connect', base_url='https://localhost')
-        self.assertEqual(response.status_code, 302)
-        with anonymous.session_transaction() as sess:
-            self.assertTrue(sess['mobile_connect_pending'])
-            sess['_user_id'] = str(self.user_id)
-        response = anonymous.get('/', base_url='https://localhost')
-        self.assertEqual(response.headers['Location'], '/android/connect')
-        self.assertEqual(self.browser.get('/android/connect', base_url='https://localhost').status_code, 200)
+    def test_retired_pairing_rejects_requests_and_existing_grants(self):
+        device_code = 'A' * 43
+        grant_key = 'mobile:grant:' + target._mobile_digest(device_code)
+        self.redis.set(grant_key, json.dumps({'status': 'approved', 'encrypted_token': 'old'}), ex=60)
+        for endpoint, body in [
+            ('device', {'client_id': 'official-android', 'device_name': 'Test Android'}),
+            ('token', {'client_id': 'official-android', 'device_code': device_code}),
+        ]:
+            response = self.native.post('/api/mobile/v1/' + endpoint, base_url='https://localhost', json=body)
+            self.assertEqual(response.status_code, 410)
+            self.assertEqual(response.json['error'], 'legacy_pairing_disabled')
+        for client in [self.browser, target.app.test_client()]:
+            page = client.get('/android/connect?code=ABCDEF012345', base_url='https://localhost')
+            self.assertEqual(page.status_code, 410)
+            self.assertIn('連携は終了しました', page.get_data(as_text=True))
+            self.assertNotIn('<form', page.get_data(as_text=True))
+        response = self.browser.post('/android/connect', base_url='https://localhost', data={
+            'csrf_token': 'browser-csrf', 'user_code': 'ABCDEF012345', 'decision': 'approve',
+        })
+        self.assertEqual(response.status_code, 410)
         with target.app.app_context():
             self.assertEqual(target.UserSession.query.filter(target.UserSession.session_id.startswith('android:')).count(), 0)
-
-    def test_login_preserves_url_code_and_renders_review_without_manual_input(self):
-        grant = self.device()
-        anonymous = target.app.test_client()
-        response = anonymous.get('/android/connect?code=' + grant['user_code'], base_url='https://localhost')
-        self.assertEqual(response.status_code, 302)
-        with anonymous.session_transaction() as sess:
-            self.assertEqual(sess['mobile_connect_code'], grant['user_code'])
-            sess['_user_id'] = str(self.user_id)
-            sess['_fresh'] = True
-        response = anonymous.get('/', base_url='https://localhost')
-        self.assertEqual(response.headers['Location'], '/android/connect?code=' + grant['user_code'])
-        response = anonymous.get(response.headers['Location'], base_url='https://localhost')
-        body = response.get_data(as_text=True)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn('Test Android', body)
-        self.assertIn(grant['user_code'], body)
-        self.assertNotIn('id="user-code"', body)
-        self.assertEqual(self.poll(grant).json['error'], 'authorization_pending')
+        config = self.native.get('/api/mobile/v1/config', base_url='https://localhost').json
+        self.assertFalse(config['legacy_auth_enabled'])
+        self.assertIsNone(config['legacy_auth_flow'])
 
     def test_native_security_totp_passkey_and_import_scope(self):
         self.pass_integrity_gate()
@@ -1658,9 +1585,3 @@ class MobileApiTests(unittest.TestCase):
         self.assertEqual(self.call('/api/account/export/latest', token).status_code, 200)
         replay = self.call('/api/mobile/v1/setup', token, 'PUT', json={'default_model': 'gemini-3.6-flash'})
         self.assertEqual(replay.status_code, 409)
-
-    def test_pairing_review_warns_against_forwarded_codes(self):
-        grant = self.device()
-        page = self.browser.get('/android/connect?code=' + grant['user_code'], base_url='https://localhost')
-        self.assertEqual(page.status_code, 200)
-        self.assertIn('他の人から届いたリンクやコードを許可すると', page.get_data(as_text=True))

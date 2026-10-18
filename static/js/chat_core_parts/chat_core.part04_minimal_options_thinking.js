@@ -268,6 +268,7 @@
                 bar.classList.remove('flex');
             }
             updatePromptPlaceholder();
+            syncCodingModeUi(codingModeEnabled, { persist: false });
         }
         function cancelEdit() {
             const wasEditing = !!editingMessageId;

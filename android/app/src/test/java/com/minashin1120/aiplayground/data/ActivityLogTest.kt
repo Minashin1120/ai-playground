@@ -72,4 +72,10 @@ class ActivityLogTest {
         assertEquals("フィードバックと画像（2枚）を送信しました", feedbackSentText(null, true, false, false, 2, true))
         assertEquals("フィードバックを送信しました（画像は保存できませんでした）", feedbackSentText(null, true, false, false, 2, false))
     }
+
+    @Test fun feedbackReplySentTextNamesTheLogsOnlyWhenTheyWentWithIt() {
+        assertEquals("返信を送信しました", feedbackReplySentText(null, true))
+        assertEquals("返信と直近1時間のログ（4件）を送信しました", feedbackReplySentText(4, true))
+        assertEquals("返信を送信しました（ログは保存できませんでした）", feedbackReplySentText(4, false))
+    }
 }

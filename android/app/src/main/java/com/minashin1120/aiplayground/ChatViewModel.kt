@@ -25,6 +25,7 @@ import com.minashin1120.aiplayground.data.direct.DirectRouter
 import com.minashin1120.aiplayground.data.direct.TranscriptionDirect
 import com.minashin1120.aiplayground.data.local.LocalSettingsStore
 import com.minashin1120.aiplayground.data.feedbackSentText
+import com.minashin1120.aiplayground.data.feedbackReplySentText
 import com.minashin1120.aiplayground.data.local.LocalChatBackend
 import com.minashin1120.aiplayground.data.local.LocalChatStore
 import com.minashin1120.aiplayground.data.local.LocalProfiles
@@ -4835,18 +4836,40 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Web `.fb-save` in `#fb-admin-list`: an administrator sets the status and the reply, then the list is read again. */
-    fun updateFeedback(item: FeedbackItem, status: String, reply: String) {
+    /** Web `.fb-save` in `#fb-admin-list`: an administrator sets the status, then the list is read again. */
+    fun updateFeedback(item: FeedbackItem, status: String) {
         viewModelScope.launch {
             if (state.value.offline) return@launch
             mutable.update { it.copy(feedbackBusy = true) }
             try {
                 backend.post("/api/feedback/${item.publicId.ifBlank { item.id.toString() }}/update",
-                    JSONObject().put("status", status).put("admin_reply", reply), token())
+                    JSONObject().put("status", status), token())
             } catch (e: Exception) {
                 report(e)
             } finally { mutable.update { it.copy(feedbackBusy = false) } }
             loadFeedback()
+        }
+    }
+
+    /**
+     * Web `.fb-reply-send`: the sender (on their own feedback) or an administrator adds a reply. [withLogs] is the
+     * ticked box: the last hour of the activity log goes with the reply (only while ログの収集を強化 is on).
+     */
+    fun replyFeedback(item: FeedbackItem, message: String, withLogs: Boolean) {
+        if (message.isBlank()) return
+        viewModelScope.launch {
+            if (state.value.offline) { notify("オフライン中はフィードバックに返信できません。"); return@launch }
+            mutable.update { it.copy(feedbackBusy = true) }
+            try {
+                val payload = JSONObject().put("message", message.trim()).put("client", "android").put("version", BuildConfig.VERSION_NAME)
+                val logs = if (withLogs && ActivityLog.enabled) withContext(Dispatchers.IO) { ActivityLog.recent() } else null
+                if (logs != null) payload.put("client_logs", JSONObject().put("client", "android")
+                    .put("version", BuildConfig.VERSION_NAME).put("window_seconds", ActivityLog.WINDOW_MS / 1000).put("entries", logs))
+                val reply = backend.post("/api/feedback/${item.publicId.ifBlank { item.id.toString() }}/replies", payload, token())
+                loadFeedback()
+                notify(feedbackReplySentText(logs?.length(), reply.optBoolean("logs_saved", true)))
+            } catch (e: Exception) { report(e, "返信を送信できませんでした") }
+            finally { mutable.update { it.copy(feedbackBusy = false) } }
         }
     }
 

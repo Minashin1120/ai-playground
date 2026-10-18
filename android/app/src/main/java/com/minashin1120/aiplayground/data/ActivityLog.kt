@@ -180,3 +180,10 @@ fun feedbackSentText(
     }
     return sent.joinToString(if (sent.size > 2) "、" else "と") + "を送信しました"
 }
+
+/** Web `.fb-reply-send`: the message after a reply was accepted; [logCount] is null when no log went with it. */
+fun feedbackReplySentText(logCount: Int?, logsSaved: Boolean): String = when {
+    logCount != null && !logsSaved -> "返信を送信しました（ログは保存できませんでした）"
+    logCount != null -> "返信と直近1時間のログ（${logCount}件）を送信しました"
+    else -> "返信を送信しました"
+}

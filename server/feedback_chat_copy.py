@@ -280,8 +280,15 @@ def _feedback_chat_log_files(user_id):
     paths = sorted(glob.glob(os.path.join(root, 'debug.log*'))) + sorted(glob.glob(os.path.join(root, 'access.log*')))
     paths += sorted(glob.glob(glob.escape(_diagnostics_log_path()) + '*'))
     # Activity logs record the sender's own operations, so only this user's feedback can name the chat.
-    own = sorted(fid for (fid,) in db.session.query(Feedback.public_id).filter_by(user_id=user_id).all() if fid)
-    paths += [_feedback_activity_log_path(fid) for fid in own]
+    own = db.session.query(Feedback.id, Feedback.public_id).filter_by(user_id=user_id).all()
+    paths += [_feedback_activity_log_path(fid) for (_id, fid) in sorted(own, key=lambda row: row[1] or '') if fid]
+    # Logs the user sent with their own replies (an administrator's reply logs record the administrator).
+    names = dict((rid, fid) for (rid, fid) in own if fid)
+    if names:
+        for (feedback_id, reply_id) in db.session.query(FeedbackReply.feedback_id, FeedbackReply.id).filter(
+                FeedbackReply.feedback_id.in_(list(names)), FeedbackReply.user_id == user_id,
+                FeedbackReply.activity_log_saved.is_(True)).order_by(FeedbackReply.id.asc()).all():
+            paths.append(_feedback_reply_log_path(names[feedback_id], reply_id))
     return [p for p in paths if os.path.isfile(p) and not p.endswith('.gz')]
 
 

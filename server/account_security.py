@@ -273,6 +273,8 @@ def _delete_user_account_immediately(user):
         _delete_feedback_files([fid for (fid,) in db.session.query(Feedback.public_id).filter_by(user_id=user_id).all()])
     except Exception:
         pass
+    FeedbackReply.query.filter(FeedbackReply.feedback_id.in_(
+        db.session.query(Feedback.id).filter_by(user_id=user_id))).delete(synchronize_session=False)
     Feedback.query.filter_by(user_id=user_id).delete(synchronize_session=False)
     if _ban_appeal_user_fk_present():
         # The startup step could not drop the constraint yet; deleting the account

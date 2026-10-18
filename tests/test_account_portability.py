@@ -150,14 +150,20 @@ class AccountPortabilityTests(unittest.TestCase):
                 parent_id=first.id,
                 model="gemini-2.5-flash",
             ))
-            target.db.session.add(target.Feedback(
+            portable_feedback = target.Feedback(
                 user_id=source.id,
                 title="Portable feedback",
                 message="Feedback body",
                 status="replied",
                 admin_reply="Reply body",
                 handled_by="private-admin-name",
-            ))
+            )
+            target.db.session.add(portable_feedback)
+            target.db.session.flush()
+            for role, body in (("admin", "Reply body"), ("user", "Sender answer")):
+                target.db.session.add(target.FeedbackReply(
+                    feedback_id=portable_feedback.id, role=role, message=body,
+                    author="private-admin-name" if role == "admin" else "source"))
             target.db.session.add(target.FirstTokenLatencyMetric(
                 user_id=source.id,
                 job_id="source-job",
@@ -315,6 +321,9 @@ class AccountPortabilityTests(unittest.TestCase):
             self.assertEqual(target._load_user_file_bytes(imported_ref, info), b"portable file body")
             feedback = target.Feedback.query.filter_by(user_id=destination.id).one()
             self.assertIsNone(feedback.handled_by)
+            self.assertEqual(
+                [(r.role, r.message) for r in target.FeedbackReply.query.filter_by(feedback_id=feedback.id).order_by(target.FeedbackReply.id)],
+                [("admin", "Reply body"), ("user", "Sender answer")])
             self.assertEqual(target.FirstTokenLatencyMetric.query.filter_by(user_id=destination.id).count(), 1)
 
     def test_settings_and_credentials_can_be_imported_without_authentication_state(self):

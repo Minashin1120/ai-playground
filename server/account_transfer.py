@@ -458,14 +458,26 @@ def _account_export_gems(user_id):
 
 
 def _account_export_feedback(user_id):
+    rows = Feedback.query.filter_by(user_id=user_id).order_by(Feedback.id.asc()).all()
+    replies = {}
+    if rows:
+        for reply in FeedbackReply.query.filter(FeedbackReply.feedback_id.in_([row.id for row in rows])).order_by(
+                FeedbackReply.created_at.asc(), FeedbackReply.id.asc()).all():
+            # Who answered is not exported (like ``handled_by``).
+            replies.setdefault(reply.feedback_id, []).append({
+                "role": reply.role,
+                "message": reply.message,
+                "created_at": _portable_datetime(reply.created_at),
+            })
     return [{
         "title": row.title,
         "message": row.message,
         "status": row.status,
         "admin_reply": row.admin_reply,
+        "replies": replies.get(row.id, []),
         "created_at": _portable_datetime(row.created_at),
         "updated_at": _portable_datetime(row.updated_at),
-    } for row in Feedback.query.filter_by(user_id=user_id).order_by(Feedback.id.asc()).all()]
+    } for row in rows]
 
 
 def _account_export_diagnostics(user_id):

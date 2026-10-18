@@ -396,6 +396,9 @@ private val FEEDBACK_STATUS_OPTIONS = webOptions(
     "new" to "new", "in_review" to "in_review", "replied" to "replied", "rejected" to "rejected", "resolved" to "resolved",
 )
 private const val FEEDBACK_DELETE_CONFIRM = "このフィードバックを削除しますか？\n一緒に送信した操作ログとチャットのコピーも削除されます。"
+private const val FEEDBACK_REPLY_LOGS_LABEL = "直近1時間の操作ログを一緒に送信する"
+private const val FEEDBACK_REPLY_LOGS_ON = "チェックしたときだけ、「ログの収集を強化」で記録した直近1時間のログを返信と一緒に送信します。"
+private const val FEEDBACK_REPLY_LOGS_OFF = "「ログの収集を強化」がオフのため、ログは送信できません。"
 
 internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (String) -> Unit): List<SettingsCardSpec> = listOfNotNull(
     SettingsCardSpec(SettingsTab.Feedback, "send", "フィードバック送信",
@@ -461,6 +464,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
     SettingsCardSpec(SettingsTab.Feedback, "mine", "あなたのフィードバック", "あなたのフィードバック") {
         val web = LocalWebPalette.current
         var deleting by remember { mutableStateOf<FeedbackItem?>(null) }
+        var replying by remember { mutableStateOf<Int?>(null) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Web `loadFeedback`: an administrator's feedback is listed in the administrator card only.
             if (!state.feedbackAdmin) state.feedbackItems.forEach { item ->
@@ -474,10 +478,15 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                     Text(item.message, fontSize = 14.sp, color = web.text)
                     Text("Status: ${item.status}", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
                     if (item.imageCount > 0) Text("添付画像: ${item.imageCount}枚", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
-                    if (item.adminReply.isNotBlank()) Text("Reply: ${item.adminReply}", fontSize = 11.sp, color = Tw.green300,
-                        modifier = Modifier.padding(top = 4.dp))
-                    SettingsSmallButton("削除", { deleting = item }, modifier = Modifier.padding(top = 8.dp),
-                        tone = SettingsButtonTone.Red, fontSize = 10.sp, enabled = !state.feedbackBusy)
+                    FeedbackReplies(item, admin = false)
+                    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SettingsSmallButton("返信", { replying = if (replying == item.id) null else item.id }, fontSize = 10.sp)
+                        SettingsSmallButton("削除", { deleting = item }, tone = SettingsButtonTone.Red, fontSize = 10.sp, enabled = !state.feedbackBusy)
+                    }
+                    if (replying == item.id) FeedbackReplyForm(!state.feedbackBusy, notify) { message, withLogs ->
+                        model.replyFeedback(item, message, withLogs)
+                        replying = null
+                    }
                 }
             }
         }
@@ -489,11 +498,14 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
         }
     },
     if (!state.feedbackAdmin) null else SettingsCardSpec(SettingsTab.Feedback, "admin", "管理者: すべてのフィードバック",
-        "管理者: すべてのフィードバック 返信内容 保存 削除") {
+        "管理者: すべてのフィードバック 保存 返信 返信内容 $FEEDBACK_REPLY_LOGS_LABEL 削除") {
         var deleting by remember { mutableStateOf<FeedbackItem?>(null) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             state.feedbackItems.forEach { item ->
-                key(item.id) { AdminFeedbackRow(item, !state.feedbackBusy, { status, reply -> model.updateFeedback(item, status, reply) }) { deleting = item } }
+                key(item.id) {
+                    AdminFeedbackRow(item, !state.feedbackBusy, notify, { status -> model.updateFeedback(item, status) },
+                        { message, withLogs -> model.replyFeedback(item, message, withLogs) }) { deleting = item }
+                }
             }
         }
         deleting?.let { item ->
@@ -505,13 +517,61 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
     },
 )
 
-/** Web `#fb-admin-list` item: who sent it, the saved files, the status, the reply, 保存 and 削除. */
+/** Web `feedbackRepliesHtml`: the replies of a feedback, oldest first; [admin] shows who answered and the logs. */
 @Composable
-private fun AdminFeedbackRow(item: FeedbackItem, enabled: Boolean, onSave: (String, String) -> Unit, onDelete: () -> Unit) {
+private fun FeedbackReplies(item: FeedbackItem, admin: Boolean) {
+    if (item.replies.isEmpty()) return
+    val web = LocalWebPalette.current
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp).height(IntrinsicSize.Min)) {
+        Box(Modifier.width(2.dp).fillMaxHeight().background(web.twBorder(Tw.gray700)))
+        Column(Modifier.padding(start = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            item.replies.forEach { reply ->
+                val who = when {
+                    reply.role == "admin" -> if (admin && reply.author.isNotBlank()) "管理者 (${reply.author})" else "管理者"
+                    admin -> "送信者"
+                    else -> "あなた"
+                }
+                Column {
+                    Text("$who / ${reply.createdAt}", fontSize = 11.sp, color = Tw.gray400)
+                    Text(reply.message, fontSize = 14.sp, color = if (reply.role == "admin") Tw.green300 else web.twText(Tw.gray200))
+                    if (reply.logFile.isNotBlank()) Text("操作ログ: ${reply.logFile}", fontSize = 11.sp, color = Tw.amber300)
+                }
+            }
+        }
+    }
+}
+
+/** Web `feedbackReplyFormHtml`: the reply and the opt-in box for the activity log (needs ログの収集を強化). */
+@Composable
+private fun FeedbackReplyForm(enabled: Boolean, notify: (String) -> Unit, onSend: (String, Boolean) -> Unit) {
+    val web = LocalWebPalette.current
+    var message by remember { mutableStateOf("") }
+    var withLogs by remember { mutableStateOf(false) }
+    val logsOn = ActivityLog.enabled
+    Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SettingsTextField(message, { message = it.take(100_000) }, Modifier.fillMaxWidth(), placeholder = "返信内容",
+            minHeight = 64.dp, singleLine = false, fontSize = 12.sp)
+        Column {
+            SettingsCheck(FEEDBACK_REPLY_LOGS_LABEL, withLogs && logsOn, { withLogs = it }, enabled = logsOn, boxSize = 14.dp, labelColor = web.text)
+            SettingsDesc(if (logsOn) FEEDBACK_REPLY_LOGS_ON else FEEDBACK_REPLY_LOGS_OFF, Modifier.padding(start = 22.dp, top = 4.dp))
+        }
+        SettingsSmallButton("返信を送信", {
+            if (message.isBlank()) notify("返信内容を入力してください")
+            else { onSend(message.trim(), withLogs && logsOn); message = ""; withLogs = false }
+        }, tone = SettingsButtonTone.Blue, enabled = enabled)
+    }
+}
+
+/** Web `#fb-admin-list` item: who sent it, the saved files, the status, 保存, 返信, 削除 and the replies. */
+@Composable
+private fun AdminFeedbackRow(
+    item: FeedbackItem, enabled: Boolean, notify: (String) -> Unit, onSave: (String) -> Unit,
+    onReply: (String, Boolean) -> Unit, onDelete: () -> Unit,
+) {
     val web = LocalWebPalette.current
     val shape = RoundedCornerShape(4.dp)
     var status by remember(item.status) { mutableStateOf(item.status.ifBlank { "new" }) }
-    var reply by remember(item.adminReply) { mutableStateOf(item.adminReply) }
+    var replying by remember { mutableStateOf(false) }
     val sender = if (item.agentName.isNotBlank()) "agent:${item.agentName}" else "user:${item.userId ?: ""}"
     val handled = if (item.handledBy.isNotBlank()) " / 対応: ${item.handledBy}" else ""
     val files = listOfNotNull(
@@ -530,11 +590,12 @@ private fun AdminFeedbackRow(item: FeedbackItem, enabled: Boolean, onSave: (Stri
         files.forEach { Text(it, fontSize = 11.sp, color = Tw.amber300) }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsSelect(status, FEEDBACK_STATUS_OPTIONS, { status = it }, fillWidth = false, fontSize = 12.sp)
-            SettingsSmallButton("保存", { onSave(status, reply) }, tone = SettingsButtonTone.Blue, enabled = enabled)
+            SettingsSmallButton("保存", { onSave(status) }, tone = SettingsButtonTone.Blue, enabled = enabled)
+            SettingsSmallButton("返信", { replying = !replying })
             SettingsSmallButton("削除", onDelete, tone = SettingsButtonTone.Red, enabled = enabled)
         }
-        SettingsTextField(reply, { reply = it }, Modifier.fillMaxWidth(), placeholder = "返信内容",
-            minHeight = 64.dp, singleLine = false, fontSize = 12.sp)
+        FeedbackReplies(item, admin = true)
+        if (replying) FeedbackReplyForm(enabled, notify) { message, withLogs -> onReply(message, withLogs); replying = false }
     }
 }
 

@@ -246,6 +246,19 @@ data class FeedbackItem(
     val logFile: String = "",
     val chatFile: String = "",
     val imageDir: String = "",
+    /** Web `.fb-replies`: replies by administrators and the sender, oldest first. */
+    val replies: List<FeedbackReply> = emptyList(),
+)
+
+/** One reply of a feedback (Web `feedbackRepliesHtml`); [author] and [logFile] are sent to administrators only. */
+data class FeedbackReply(
+    val id: Int,
+    /** `admin` or `user` (the sender). */
+    val role: String,
+    val message: String,
+    val createdAt: String,
+    val author: String = "",
+    val logFile: String = "",
 )
 
 /** GET `/api/feedback?all=1`: every feedback for an administrator, otherwise the user's own. */
@@ -430,6 +443,23 @@ fun parseFeedbackItems(json: JSONObject): List<FeedbackItem> {
             logFile = row.nullableString("log_file"),
             chatFile = row.nullableString("chat_file"),
             imageDir = row.nullableString("image_dir"),
+            replies = parseFeedbackReplies(row),
+        )
+    }
+}
+
+/** `replies` of a feedback; an older server sends only the latest administrator reply (`admin_reply`). */
+private fun parseFeedbackReplies(row: JSONObject): List<FeedbackReply> {
+    val rows = row.optJSONArray("replies") ?: return row.nullableString("admin_reply").takeIf { it.isNotBlank() }
+        ?.let { listOf(FeedbackReply(0, "admin", it, row.nullableString("updated_at"))) }.orEmpty()
+    return (0 until rows.length()).mapNotNull { index -> rows.optJSONObject(index) }.map { reply ->
+        FeedbackReply(
+            id = reply.optInt("id"),
+            role = reply.nullableString("role").ifBlank { "user" },
+            message = reply.nullableString("message"),
+            createdAt = reply.nullableString("created_at"),
+            author = reply.nullableString("author"),
+            logFile = reply.nullableString("log_file"),
         )
     }
 }

@@ -56,6 +56,8 @@ MOBILE_ENDPOINT_METHODS = {
     # The sender deletes their own feedback and its files; administrators manage all feedback
     # (status, reply, delete) as on Web. Both are checked in the routes.
     'feedback_delete': {'DELETE'}, 'feedback_update': {'POST'},
+    # Replies by the sender (their own feedback) or an administrator, checked in the route.
+    'feedback_reply': {'POST'},
     # Attachments kept only on the device, added to the feedback's chat copy (feedback_chat_copy.py).
     'feedback_chat_file': {'POST'},
     # Images attached to the user's own feedback (feedback_images.py).

@@ -25,6 +25,31 @@ class FeedbackListTest {
     }
 
     @Test
+    fun parsesTheReplyHistory() {
+        val list = parseFeedbackList(JSONObject("""{"is_admin":true,"items":[
+            {"id":3,"public_id":"0123456789ab","title":"","message":"m","status":"new","admin_reply":"ok","created_at":"c",
+             "replies":[
+               {"id":1,"role":"admin","author":"admin","message":"ok","created_at":"r1","log_file":null},
+               {"id":2,"role":"user","author":"","message":"still broken","created_at":"r2","log_file":"feedback/0123456789ab/logs/reply-2.jsonl"}
+             ]}
+        ]}"""))
+        val replies = list.items.single().replies
+        assertEquals(listOf("admin", "user"), replies.map { it.role })
+        assertEquals("admin", replies[0].author)
+        assertEquals("", replies[0].logFile)
+        assertEquals("still broken", replies[1].message)
+        assertEquals("feedback/0123456789ab/logs/reply-2.jsonl", replies[1].logFile)
+    }
+
+    @Test
+    fun anOlderServerShowsTheLatestAdministratorReplyAsTheHistory() {
+        val item = parseFeedbackList(JSONObject("""{"items":[{"id":1,"title":"t","message":"m","status":"replied","admin_reply":"thanks","created_at":"c","updated_at":"u"}]}""")).items.single()
+        assertEquals(listOf(FeedbackReply(0, "admin", "thanks", "u")), item.replies)
+        val empty = parseFeedbackList(JSONObject("""{"items":[{"id":1,"title":"t","message":"m","status":"new","admin_reply":"","created_at":"c"}]}""")).items.single()
+        assertTrue(empty.replies.isEmpty())
+    }
+
+    @Test
     fun ownListOfAnOlderServerHasNoAdministratorFields() {
         val list = parseFeedbackList(JSONObject("""{"items":[{"id":1,"title":"t","message":"m","status":"new","admin_reply":"","created_at":"c"}]}"""))
         assertFalse(list.isAdmin)

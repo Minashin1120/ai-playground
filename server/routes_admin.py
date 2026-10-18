@@ -1,7 +1,8 @@
 # --- Files kept with each feedback ---
 # ``feedback/<public_id>/`` under the app directory holds what the server keeps about one feedback
 # besides its database row: ``feedback.json`` (title, message, sender, client, status and
-# reply), ``logs/activity.jsonl`` (the client's activity log, below) and the copy of the open
+# replies), ``logs/activity.jsonl`` (the client's activity log, below), ``logs/reply-<id>.jsonl``
+# (the activity log sent with a reply, when the person ticked the box) and the copy of the open
 # chat (``chat.jsonl`` and ``chat.files/``, server/feedback_chat_copy.py).
 #
 # Client activity logs ("ログの収集を強化"): the Web and Android clients record their own
@@ -73,6 +74,50 @@ def _feedback_activity_log_path(feedback_id):
     return os.path.join(_feedback_dir(feedback_id), _FEEDBACK_ACTIVITY_LOG)
 
 
+def _feedback_reply_log_path(feedback_id, reply_id):
+    return os.path.join(_feedback_dir(feedback_id), 'logs', f'reply-{int(reply_id)}.jsonl')
+
+
+def _feedback_log_files(feedback_id):
+    """The activity logs kept with a feedback: the one sent with it and those sent with replies."""
+    directory = os.path.dirname(_feedback_activity_log_path(feedback_id))
+    try:
+        names = sorted(n for n in os.listdir(directory) if n.endswith('.jsonl'))
+    except OSError:
+        return []
+    return [os.path.join(directory, n) for n in names if os.path.isfile(os.path.join(directory, n))]
+
+
+def _feedback_replies(feedbacks):
+    """{feedback id: replies, oldest first}. A reply saved before the history existed (only
+    ``Feedback.admin_reply``) becomes the first entry; the caller commits it."""
+    feedbacks = list(feedbacks)
+    groups = {fb.id: [] for fb in feedbacks}
+    if groups:
+        rows = FeedbackReply.query.filter(FeedbackReply.feedback_id.in_(list(groups))).order_by(
+            FeedbackReply.created_at.asc(), FeedbackReply.id.asc()).all()
+        for row in rows:
+            groups[row.feedback_id].append(row)
+    for fb in feedbacks:
+        if not groups[fb.id] and (fb.admin_reply or '').strip():
+            legacy = FeedbackReply(feedback_id=fb.id, role='admin', author=fb.handled_by, message=fb.admin_reply,
+                                   created_at=fb.updated_at or fb.created_at)
+            db.session.add(legacy)
+            groups[fb.id].append(legacy)
+    return groups
+
+
+def _feedback_reply_json(reply, public_id, is_admin):
+    log_path = _feedback_reply_log_path(public_id, reply.id) if is_admin and reply.id else None
+    return {
+        'id': reply.id, 'role': reply.role, 'message': reply.message,
+        # The administrator's name is shown to administrators only, like ``log_file``.
+        'author': (reply.author or '') if is_admin else '',
+        'created_at': reply.created_at.isoformat() if reply.created_at else None,
+        'log_file': _feedback_display_path(log_path) if log_path else None,
+    }
+
+
 def _feedback_display_path(path):
     """Path shown to administrators (relative to the app directory), or None when it does not exist."""
     return os.path.relpath(path, app.root_path) if os.path.isfile(path) else None
@@ -100,6 +145,9 @@ def _write_feedback_info(fb, **extra):
     if not isinstance(info, dict):
         info = {}
     user = db.session.get(User, fb.user_id)
+    replies = _feedback_replies([fb])[fb.id]
+    if db.session.new:
+        safe_db_commit()
     info.update(extra)
     info.update({
         'feedback_id': fb.public_id, 'user_id': fb.user_id, 'username': user.username if user else None,
@@ -107,6 +155,11 @@ def _write_feedback_info(fb, **extra):
         'admin_reply': fb.admin_reply or '', 'handled_by': fb.handled_by or '', 'agent_name': fb.agent_name or '',
         'created_at': fb.created_at.isoformat(timespec='seconds') + 'Z' if fb.created_at else None,
         'updated_at': fb.updated_at.isoformat(timespec='seconds') + 'Z' if fb.updated_at else None,
+        'replies': [{
+            'id': r.id, 'role': r.role, 'user_id': r.user_id, 'author': r.author or '', 'message': r.message,
+            'created_at': r.created_at.isoformat(timespec='seconds') + 'Z' if r.created_at else None,
+            'activity_log': f'logs/reply-{r.id}.jsonl' if r.activity_log_saved else None,
+        } for r in replies],
     })
     os.makedirs(_feedback_root_dir(), mode=0o700, exist_ok=True)
     os.makedirs(directory, mode=0o700, exist_ok=True)
@@ -119,7 +172,7 @@ def _write_feedback_info(fb, **extra):
 
 
 def _prune_feedback_log_files():
-    paths = [p for p in map(_feedback_activity_log_path, _feedback_dir_ids()) if os.path.isfile(p)]
+    paths = [p for fid in _feedback_dir_ids() for p in _feedback_log_files(fid)]
     if len(paths) <= _FEEDBACK_LOG_KEEP_FILES:
         return
     dated = []
@@ -151,8 +204,8 @@ def _feedback_client(data, client_logs, chat_copy):
     return client, version
 
 
-def _save_feedback_client_logs(feedback_id, user_id, payload):
-    """Writes the client's activity log entries for ``feedback_id``; returns the file path (None when empty)."""
+def _save_feedback_client_logs(feedback_id, user_id, payload, reply_id=None):
+    """Writes the client's activity log entries for ``feedback_id`` (or its reply ``reply_id``); returns the file path (None when empty)."""
     entries = payload.get('entries')
     if not isinstance(entries, list) or not entries:
         return None
@@ -186,7 +239,9 @@ def _save_feedback_client_logs(feedback_id, user_id, payload):
         'window_seconds': payload.get('window_seconds') if isinstance(payload.get('window_seconds'), int) else None,
         'entries': len(lines), 'dropped': dropped,
     }
-    path = _feedback_activity_log_path(feedback_id)
+    if reply_id is not None:
+        meta['reply_id'] = reply_id
+    path = _feedback_activity_log_path(feedback_id) if reply_id is None else _feedback_reply_log_path(feedback_id, reply_id)
     os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, 'w', encoding='utf-8') as handle:
@@ -255,9 +310,13 @@ def feedback():
     else:
         items = Feedback.query.filter_by(user_id=current_user.id).order_by(Feedback.created_at.desc()).all()
 
-    res = []
     for f in items:
         _ensure_feedback_public_id(f)
+    replies = _feedback_replies(items)
+    if db.session.new or db.session.dirty:
+        safe_db_commit()
+    res = []
+    for f in items:
         res.append({
             'log_file': _feedback_display_path(_feedback_activity_log_path(f.public_id)) if is_admin else None,
             'chat_file': _feedback_display_path(_feedback_chat_copy_path(f.public_id)) if is_admin else None,
@@ -270,13 +329,12 @@ def feedback():
             'message': f.message,
             'status': f.status,
             'admin_reply': f.admin_reply or "",
+            'replies': [_feedback_reply_json(r, f.public_id, is_admin) for r in replies[f.id]],
             'handled_by': f.handled_by or "",
             'agent_name': f.agent_name or "",
             'created_at': f.created_at.isoformat(),
             'updated_at': f.updated_at.isoformat() if f.updated_at else None
         })
-    if db.session.dirty:
-        safe_db_commit()
     return jsonify({'items': res, 'is_admin': is_admin})
 
 @app.route('/api/easy_login', methods=['POST'])
@@ -329,18 +387,81 @@ def feedback_update(fid):
     data = request.json or {}
     status = data.get('status')
     reply = data.get('admin_reply')
+    handler = _feedback_agent_name() or current_user.username
+    now = datetime.utcnow()
     if status:
         fb.status = status
     if reply is not None:
+        # A changed reply is added to the history too (older apps and scripts/update_feedback_status.py).
+        if isinstance(reply, str) and reply.strip() and reply != (fb.admin_reply or ''):
+            _feedback_replies([fb])
+            db.session.add(FeedbackReply(feedback_id=fb.id, user_id=current_user.id, role='admin', author=handler,
+                                         message=reply.strip(), created_at=now))
         fb.admin_reply = reply
-    fb.handled_by = _feedback_agent_name() or current_user.username
-    fb.updated_at = datetime.utcnow()
+    fb.handled_by = handler
+    fb.updated_at = now
     safe_db_commit()
     try:
         _write_feedback_info(fb)
     except Exception as e:
         log_force(f"FEEDBACK-INFO-ERROR: feedback={fb.public_id} err={e}")
     return jsonify({'status': 'ok'})
+
+_FEEDBACK_SENDER_REOPENS = ('replied', 'resolved', 'rejected')
+
+
+@app.route('/api/feedback/<fid>/replies', methods=['POST'])
+@login_required
+def feedback_reply(fid):
+    """Adds a reply to a feedback: the sender on their own feedback, administrators on any.
+
+    ``client_logs`` (the last hour of the activity log) goes with it only when the person ticked the box.
+    A reply by the sender puts a feedback that was replied to or closed back to ``new``."""
+    fb = _feedback_by_ref(fid)
+    is_admin = bool(getattr(current_user, 'is_admin', False))
+    if fb is None or (fb.user_id != current_user.id and not is_admin):
+        return jsonify({'error': 'not_found'}), 404
+    data = request.json or {}
+    message = (data.get('message') or '').replace('\x00', '').strip()
+    if not message:
+        return jsonify({'error': 'Message is required'}), 400
+    if len(message) > 100_000:
+        return jsonify({'error': 'Message is too long'}), 400
+    client_logs = data.get('client_logs')
+    if client_logs is not None and not isinstance(client_logs, dict):
+        return jsonify({'error': 'Invalid client logs'}), 400
+    if not rate_limit(f"rl:feedback_reply:user:{current_user.id}", 30, 3600):
+        return jsonify({'error': 'rate_limit'}), 429
+    _ensure_feedback_public_id(fb)
+    # The reply saved before the history existed stays before this one.
+    _feedback_replies([fb])
+    # An administrator answers as the sender on their own feedback, except on one an AI agent sent.
+    as_admin = is_admin and (fb.user_id != current_user.id or bool(fb.agent_name))
+    now = datetime.utcnow()
+    reply = FeedbackReply(feedback_id=fb.id, user_id=current_user.id, role='admin' if as_admin else 'user',
+                          author=current_user.username, message=message, created_at=now)
+    db.session.add(reply)
+    if as_admin:
+        fb.admin_reply = message
+        fb.handled_by = _feedback_agent_name() or current_user.username
+    elif fb.status in _FEEDBACK_SENDER_REOPENS:
+        fb.status = 'new'
+    fb.updated_at = now
+    safe_db_commit()
+    result = {'status': 'ok', 'reply_id': reply.id, 'feedback_status': fb.status}
+    if client_logs is not None:
+        try:
+            result['logs_saved'] = _save_feedback_client_logs(fb.public_id, current_user.id, client_logs, reply_id=reply.id) is not None
+        except Exception as e:
+            log_force(f"FEEDBACK-LOGS-ERROR: user={current_user.id} feedback={fb.public_id} reply={reply.id} err={e}")
+            result['logs_saved'] = False
+        reply.activity_log_saved = result['logs_saved']
+        safe_db_commit()
+    try:
+        _write_feedback_info(fb)
+    except Exception as e:
+        log_force(f"FEEDBACK-INFO-ERROR: feedback={fb.public_id} err={e}")
+    return jsonify(result)
 
 @app.route('/api/feedback/<fid>', methods=['DELETE'])
 @login_required
@@ -354,6 +475,7 @@ def feedback_delete(fid):
         return jsonify({'error': 'not_found'}), 404
     _ensure_feedback_public_id(fb)
     public_id = fb.public_id
+    FeedbackReply.query.filter_by(feedback_id=fb.id).delete(synchronize_session=False)
     db.session.delete(fb)
     safe_db_commit()
     _delete_feedback_files([public_id])

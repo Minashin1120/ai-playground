@@ -159,6 +159,70 @@
                 loadFeedback();
             }
 
+            // Reply history of a feedback and the form to add a reply (the sender on their own feedback, administrators on any).
+            // The activity log goes with a reply only when its box is ticked; it needs ログの収集を強化 to be on.
+            const FB_REPLY_LOGS_LABEL = '直近1時間の操作ログを一緒に送信する';
+            function feedbackRepliesHtml(item, isAdmin) {
+                const replies = item.replies || [];
+                if (!replies.length) return '';
+                return `<div class="fb-replies mt-2 space-y-2 border-l-2 border-gray-700 pl-2">${replies.map(r => {
+                    const who = r.role === 'admin' ? (isAdmin && r.author ? `管理者 (${r.author})` : '管理者') : (isAdmin ? '送信者' : 'あなた');
+                    return `<div class="text-[11px]"><div class="text-gray-400">${escapeHtml(who)} / ${escapeHtml(r.created_at || '')}</div><div class="text-sm whitespace-pre-wrap ${r.role === 'admin' ? 'text-green-300' : 'text-gray-200'}">${escapeHtml(r.message)}</div>${r.log_file ? `<div class="text-amber-300">操作ログ: ${escapeHtml(r.log_file)}</div>` : ''}</div>`;
+                }).join('')}</div>`;
+            }
+            function feedbackReplyFormHtml() {
+                return `<div class="fb-reply-form hidden mt-2 space-y-2">
+                    <textarea class="fb-reply-message w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white" rows="3" placeholder="返信内容"></textarea>
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" class="fb-reply-logs accent-amber-500 mt-0.5 shrink-0">
+                        <span>
+                            <span class="block text-xs font-bold text-white">${FB_REPLY_LOGS_LABEL}</span>
+                            <span class="fb-reply-logs-note block text-[10px] text-gray-500 mt-1"></span>
+                        </span>
+                    </label>
+                    <button type="button" class="fb-reply-send bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">返信を送信</button>
+                </div>`;
+            }
+            function bindFeedbackReply(item, el) {
+                const form = el.querySelector('.fb-reply-form');
+                const toggle = el.querySelector('.fb-reply-toggle');
+                if (!form || !toggle) return;
+                const logs = form.querySelector('.fb-reply-logs');
+                const note = form.querySelector('.fb-reply-logs-note');
+                const refreshLogs = () => {
+                    const on = !!(window.ActivityLog && window.ActivityLog.isEnabled());
+                    logs.disabled = !on;
+                    if (!on) logs.checked = false;
+                    note.textContent = on
+                        ? 'チェックしたときだけ、「ログの収集を強化」で記録した直近1時間のログを返信と一緒に送信します。'
+                        : '「ログの収集を強化」がオフのため、ログは送信できません。';
+                };
+                toggle.onclick = () => {
+                    form.classList.toggle('hidden');
+                    refreshLogs();
+                    if (!form.classList.contains('hidden')) form.querySelector('.fb-reply-message').focus();
+                };
+                const send = form.querySelector('.fb-reply-send');
+                send.onclick = async () => {
+                    const message = form.querySelector('.fb-reply-message').value.trim();
+                    if (!message) { showToast("返信内容を入力してください", "error", true); return; }
+                    const payload = {message, client: 'web', version: (window.CHAT_CONFIG && window.CHAT_CONFIG.appVersion) || ''};
+                    const clientLogs = logs.checked && window.ActivityLog ? window.ActivityLog.feedbackPayload() : null;
+                    if (clientLogs) payload.client_logs = clientLogs;
+                    send.disabled = true;
+                    try {
+                        const res = await apiFetch(`/api/feedback/${item.public_id}/replies`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) { showToast(data.error || "返信を送信できませんでした", "error", true); return; }
+                        if (clientLogs && data.logs_saved === false) showToast("返信を送信しました（ログは保存できませんでした）", "error", true);
+                        else showToast(clientLogs ? `返信と直近1時間のログ（${clientLogs.entries.length}件）を送信しました` : "返信を送信しました", "success");
+                        loadFeedback();
+                    } finally {
+                        send.disabled = false;
+                    }
+                };
+            }
+
             async function loadFeedback() {
                 const res = await apiFetch("/api/feedback?all=1");
                 const data = await res.json();
@@ -168,8 +232,9 @@
                     if(data.is_admin) return;
                     const el = document.createElement('div');
                     el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50';
-                    el.innerHTML = `<div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.image_count ? `<div class="text-[11px] text-gray-400 mt-1">添付画像: ${item.image_count}枚</div>` : ''}${item.admin_reply ? `<div class="text-[11px] text-green-300 mt-1">Reply: ${escapeHtml(item.admin_reply)}</div>` : ''}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>`;
+                    el.innerHTML = `<div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.image_count ? `<div class="text-[11px] text-gray-400 mt-1">添付画像: ${item.image_count}枚</div>` : ''}${feedbackRepliesHtml(item, false)}<div class="mt-2 flex items-center gap-2"><button type="button" class="fb-reply-toggle bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[10px]">返信</button><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>${feedbackReplyFormHtml()}`;
                     el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.public_id);
+                    bindFeedbackReply(item, el);
                     list.appendChild(el);
                 });
 
@@ -195,18 +260,20 @@
                                     <option value="resolved">resolved</option>
                                 </select>
                                 <button class="fb-save bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">保存</button>
+                                <button type="button" class="fb-reply-toggle bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded text-xs">返信</button>
                                 <button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded text-xs">削除</button>
                             </div>
-                            <textarea class="fb-reply w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white" rows="3" placeholder="返信内容">${escapeHtml(item.admin_reply||'')}</textarea>
+                            ${feedbackRepliesHtml(item, true)}
+                            ${feedbackReplyFormHtml()}
                         `;
                         el.querySelector('.fb-status').value = item.status || 'new';
                         el.querySelector('.fb-save').onclick = async () => {
                             const status = el.querySelector('.fb-status').value;
-                            const admin_reply = el.querySelector('.fb-reply').value;
-                            await apiFetch(`/api/feedback/${item.public_id}/update`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status, admin_reply})});
+                            await apiFetch(`/api/feedback/${item.public_id}/update`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})});
                             loadFeedback();
                         };
                         el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.public_id);
+                        bindFeedbackReply(item, el);
                         adminList.appendChild(el);
                     });
                 } else {

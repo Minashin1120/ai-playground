@@ -763,7 +763,7 @@ def import_account_data():
                     if fb_sig in existing_feedback_sigs:
                         duplicates["feedback"] += 1
                         continue
-                    db.session.add(Feedback(
+                    imported_feedback = Feedback(
                         user_id=current_user.id,
                         title=fb_title,
                         message=fb_message,
@@ -772,7 +772,20 @@ def import_account_data():
                         created_at=fb_created,
                         updated_at=_parse_portable_datetime(item.get("updated_at")) or datetime.utcnow(),
                         import_signature=fb_sig,
-                    ))
+                    )
+                    db.session.add(imported_feedback)
+                    # Reply history (exports made before it existed have none).
+                    fb_replies = [r for r in (item.get("replies") or [])[:1000] if isinstance(r, dict) and r.get("message")] \
+                        if isinstance(item.get("replies"), list) else []
+                    if fb_replies:
+                        db.session.flush()
+                        for reply in fb_replies:
+                            db.session.add(FeedbackReply(
+                                feedback_id=imported_feedback.id,
+                                role="admin" if reply.get("role") == "admin" else "user",
+                                message=_safe_account_import_text(reply.get("message"), 500_000),
+                                created_at=_parse_portable_datetime(reply.get("created_at")) or fb_created,
+                            ))
                     existing_feedback_sigs.add(fb_sig)
                     counts["feedback"] += 1
 
@@ -1261,6 +1274,7 @@ def account_dedupe_execute():
             for feedback_id in removed["feedback"]:
                 feedback = db.session.get(Feedback, feedback_id)
                 if feedback:
+                    FeedbackReply.query.filter_by(feedback_id=feedback.id).delete(synchronize_session=False)
                     db.session.delete(feedback)
         if removed["metrics"]:
             for start in range(0, len(removed["metrics"]), 500):

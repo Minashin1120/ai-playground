@@ -258,6 +258,19 @@ class Feedback(db.Model):
     # detected (feedback has no natural key of its own).
     import_signature = db.Column(db.String(64), nullable=True, index=True)
 
+class FeedbackReply(db.Model):
+    """One reply in a feedback's history, by an administrator or by the sender (server/routes_admin.py)."""
+    id = db.Column(db.Integer, primary_key=True)
+    feedback_id = db.Column(db.Integer, db.ForeignKey('feedback.id', ondelete='CASCADE'), nullable=False, index=True)
+    # Who wrote it. No foreign key: an administrator's reply stays after their account is deleted.
+    user_id = db.Column(db.Integer, nullable=True)
+    role = db.Column(db.String(10), nullable=False, default='user')  # admin, user (the sender)
+    author = db.Column(db.String(80), nullable=True)
+    message = db.Column(db.Text, nullable=False)
+    # True/False when the activity log was sent with the reply (``feedback/<ID>/logs/reply-<id>.jsonl``).
+    activity_log_saved = db.Column(db.Boolean, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 class BanAppeal(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     # No foreign key: appeals are bot-detection records and outlive the account

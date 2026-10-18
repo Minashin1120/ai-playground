@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,6 +91,8 @@ fun ProtectedImage(
     background: Color? = null,
     /** Pixel size of the decoded image once it is available (the viewer uses it to find the drawn area). */
     onImageSize: ((IntSize) -> Unit)? = null,
+    /** The image could not be loaded (the viewer stops ignoring taps for its loading state). */
+    onLoadFailed: (() -> Unit)? = null,
     /**
      * Sizes the frame to the image's aspect ratio (Web `.chat-image` with `height: auto`) within [fitMaxWidth]
      * and [fitMaxHeight], so no letterbox is left around the image and only the image itself opens the viewer.
@@ -104,8 +107,14 @@ fun ProtectedImage(
     var bitmap by remember(key) { mutableStateOf(ProtectedImageCache.get(key)) }
     LaunchedEffect(bitmap) { bitmap?.let { onImageSize?.invoke(IntSize(it.width, it.height)) } }
     var failed by remember(key) { mutableStateOf(false) }
+    val loadFailed = rememberUpdatedState(onLoadFailed)
     LaunchedEffect(key) {
-        if (bitmap != null || loader == null) return@LaunchedEffect
+        if (bitmap != null) return@LaunchedEffect
+        if (loader == null) {
+            failed = true
+            loadFailed.value?.invoke()
+            return@LaunchedEffect
+        }
         val bytes = runCatching { loader(reference, thumbnail, limitBytes) }.getOrNull()
         val decoded = bytes?.let { data -> withContext(Dispatchers.Default) { decodeScaled(data, maxDecodeWidth) } }
         if (decoded != null) {
@@ -113,6 +122,7 @@ fun ProtectedImage(
             bitmap = decoded
         } else {
             failed = true
+            loadFailed.value?.invoke()
         }
     }
     val click = if (onOpen != null) Modifier.clickable { onOpen(reference) } else Modifier

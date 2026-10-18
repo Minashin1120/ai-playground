@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
 import android.media.MediaPlayer
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.MediaController
@@ -54,11 +55,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.data.AttachmentKind
 import com.minashin1120.aiplayground.data.attachmentKind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.nio.charset.Charset
@@ -195,14 +198,31 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
     // Web: while zoomed, one finger pans the image instead of swiping.
     var zoomed by remember { mutableStateOf(false) }
     LaunchedEffect(pager.settledPage) { zoomed = false }
+    // ログの収集を強化: when the viewer opened, what it showed, and how long each image took to arrive.
+    var lastPage by remember(request.reference) { mutableIntStateOf(index) }
+    LaunchedEffect(pager.currentPage) { lastPage = pager.currentPage }
+    val openedAt = remember(request.reference) { SystemClock.elapsedRealtime() }
+    val closeLogged = remember(request.reference) { mutableStateOf(false) }
+    fun logClose(reason: String) {
+        if (closeLogged.value) return
+        closeLogged.value = true
+        ActivityLog.log("ui.viewer", "state" to "close", "images" to items.size,
+            "index" to (lastPage + 1), "ms" to (SystemClock.elapsedRealtime() - openedAt), "reason" to reason)
+    }
+    DisposableEffect(request.reference) {
+        ActivityLog.log("ui.viewer", "state" to "open", "images" to items.size, "index" to (index + 1),
+            "reference" to request.reference)
+        onDispose { logClose("dispose") }
+    }
+    val dismissOnce: () -> Unit = { logClose("dismiss"); onDismiss() }
     val glass = androidx.compose.ui.graphics.Color(13, 21, 40).copy(alpha = 0.45f)
     val edge = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f)
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+    Dialog(onDismissRequest = dismissOnce, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         WebModalWindow(0.dp)
         // Web `#image-viewer` / `.viewer-content` click: a tap anywhere but the image or the controls closes.
         Box(
             Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(2, 6, 16).copy(alpha = 0.96f))
-                .pointerInput(Unit) { detectTapGestures { onDismiss() } }.safeDrawingPadding(),
+                .pointerInput(Unit) { detectTapGestures { dismissOnce() } }.safeDrawingPadding(),
         ) {
             HorizontalPager(
                 pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed, key = { items[it] },
@@ -222,7 +242,7 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
                         }
                     },
                 ) {
-                    ImagePreview(items[page], loader, onDismiss, onZoomed = { if (page == pager.currentPage) zoomed = it })
+                    ImagePreview(items[page], loader, dismissOnce, onZoomed = { if (page == pager.currentPage) zoomed = it })
                 }
             }
             Text(
@@ -252,8 +272,8 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
                 listOf<Triple<Int, String, () -> Unit>>(
                     Triple(R.drawable.fa_solid_download, "Download", { actions.onDownload(current) }),
                     Triple(R.drawable.fa_solid_link, "Copy URL", { actions.onCopyUrl(current) }),
-                    Triple(R.drawable.fa_solid_reply, "Reuse as Attachment", { if (actions.onReuse(current)) onDismiss() }),
-                    Triple(R.drawable.fa_solid_times, "Close", onDismiss),
+                    Triple(R.drawable.fa_solid_reply, "Reuse as Attachment", { if (actions.onReuse(current)) dismissOnce() }),
+                    Triple(R.drawable.fa_solid_times, "Close", dismissOnce),
                 ).forEach { (icon, label, action) ->
                     Box(Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = label, onClick = action),
                         contentAlignment = Alignment.Center) { FaIcon(icon, label, size = 16.dp, tint = androidx.compose.ui.graphics.Color(0xFFF1F5F9)) }
@@ -269,17 +289,33 @@ private fun ImagePreview(reference: String, loader: FileBytesLoader, onBackdropT
     var offset by remember(reference) { mutableStateOf(Offset.Zero) }
     var viewport by remember(reference) { mutableStateOf(IntSize.Zero) }
     var imageSize by remember(reference) { mutableStateOf<IntSize?>(null) }
+    var imageReady by remember(reference) { mutableStateOf(false) }
+    var imageFailed by remember(reference) { mutableStateOf(false) }
+    val loadStartedAt = remember(reference) { SystemClock.elapsedRealtime() }
     LaunchedEffect(scale > 1f) { onZoomed(scale > 1f) }
     Box(
         Modifier.fillMaxSize().onSizeChanged { viewport = it }.pointerInput(reference) {
-            detectTapGestures { tap -> if (!isOnFittedImage(tap, viewport, imageSize, scale, offset)) onBackdropTap() }
+            detectTapGestures { tap ->
+                val onImage = isOnFittedImage(tap, viewport, imageSize, scale, offset)
+                val closes = viewerTapCloses(tap, viewport, imageSize, scale, offset, imageReady, imageFailed)
+                // ログの収集を強化: why a tap did or did not close the viewer (never any image content).
+                ActivityLog.log("ui.viewer.tap", "reference" to reference,
+                    "x" to (tap.x / density).toInt(), "y" to (tap.y / density).toInt(),
+                    "on_image" to onImage, "closes" to closes, "ready" to imageReady, "failed" to imageFailed,
+                    "scale" to (scale * 100).roundToInt() / 100f)
+                if (closes) onBackdropTap()
+            }
         }.pointerInput(reference) {
             // Pinch zooms and a zoomed image pans; one finger at 1× is left to the pager's swipe.
             awaitEachGesture {
+                val scaleAtStart = scale
+                val gestureStartedAt = SystemClock.elapsedRealtime()
+                var pinched = false
                 awaitFirstDown(requireUnconsumed = false)
                 while (true) {
                     val event = awaitPointerEvent()
                     if (event.changes.none { it.pressed }) break
+                    if (event.changes.count { it.pressed } >= 2) pinched = true
                     if (event.changes.count { it.pressed } < 2 && scale <= 1f) continue
                     val oldScale = scale
                     val nextScale = (oldScale * event.calculateZoom()).coerceIn(1f, 6f)
@@ -291,6 +327,13 @@ private fun ImagePreview(reference: String, loader: FileBytesLoader, onBackdropT
                     offset = if (nextScale == 1f) Offset.Zero
                     else clampImagePreviewOffset(nextOffset, nextScale, viewport)
                     event.changes.forEach { if (it.positionChanged()) it.consume() }
+                }
+                // ログの収集を強化: whether a two-finger pinch reached the viewer and how far it zoomed.
+                if (pinched) {
+                    ActivityLog.log("ui.viewer.zoom", "reference" to reference,
+                        "from" to (scaleAtStart * 100).roundToInt() / 100f,
+                        "to" to (scale * 100).roundToInt() / 100f,
+                        "ms" to (SystemClock.elapsedRealtime() - gestureStartedAt))
                 }
             }
         },
@@ -309,10 +352,48 @@ private fun ImagePreview(reference: String, loader: FileBytesLoader, onBackdropT
             maxDecodeWidth = 2048,
             limitBytes = 24L * 1024 * 1024,
             contentDescription = "画像プレビュー",
-            onImageSize = { imageSize = it },
+            onImageSize = {
+                imageSize = it
+                imageReady = it.width > 0 && it.height > 0
+                // ログの収集を強化: the full image arrived (reference and size only, never its content).
+                if (imageReady) {
+                    ActivityLog.log("ui.viewer.image", "state" to "loaded", "reference" to reference,
+                        "w" to it.width, "h" to it.height,
+                        "ms" to (SystemClock.elapsedRealtime() - loadStartedAt))
+                }
+            },
+            onLoadFailed = {
+                imageFailed = true
+                ActivityLog.log("ui.viewer.image", "state" to "failed", "reference" to reference,
+                    "ms" to (SystemClock.elapsedRealtime() - loadStartedAt))
+            },
         )
+        // The full image comes from the server and can take a moment; show that the viewer is working
+        // instead of leaving only the shimmer, which reads as an image that failed to open.
+        if (!imageReady && !imageFailed) {
+            CircularProgressIndicator(
+                Modifier.align(Alignment.Center).size(28.dp), strokeWidth = 2.dp,
+                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.8f),
+            )
+        }
     }
 }
+
+/**
+ * Whether a tap on the viewer closes it. While the full image is still loading ([ready] and [failed] both
+ * false), a tap does nothing: the server can take seconds to deliver the image, and a second tap on the
+ * still-empty viewer used to close it before the user could see or zoom the image. After a failure the
+ * backdrop still closes the viewer, so an image that never loads cannot trap the user.
+ */
+internal fun viewerTapCloses(
+    tap: Offset,
+    viewport: IntSize,
+    image: IntSize?,
+    scale: Float,
+    offset: Offset,
+    ready: Boolean,
+    failed: Boolean,
+): Boolean = (ready || failed) && !isOnFittedImage(tap, viewport, image, scale, offset)
 
 /**
  * Whether [tap] lands on the image as drawn: fitted (ContentScale.Fit) and centered in [viewport], then

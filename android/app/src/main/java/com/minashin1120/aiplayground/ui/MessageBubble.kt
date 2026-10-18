@@ -365,14 +365,29 @@ private fun AttachmentCell(
     if (isImageReference(file)) {
         // A single image is narrower than the grid, so it carries the grid's 14px corners itself.
         val imageShape = if (single) RoundedCornerShape(14.dp) else shape
-        ProtectedImage(
-            file, loader, onFile, modifier = modifier, thumbnail = true, compact = single,
-            contentDescription = file.substringAfterLast('/'), shape = imageShape,
-            contentScale = if (single) ContentScale.Fit else ContentScale.Crop,
-            background = if (single) Color.Transparent else Color(0xFF111111),
-            // `.grid-1`: up to the grid width and 400px tall, framed to the image so the margin does not open it.
-            fitToImage = single, fitMaxHeight = 400.dp, fitAlignment = Alignment.TopCenter,
-        )
+        if (single) {
+            ProtectedImage(
+                file, loader, onFile, modifier = modifier, thumbnail = true, compact = true,
+                contentDescription = file.substringAfterLast('/'), shape = imageShape,
+                contentScale = ContentScale.Fit,
+                background = Color.Transparent,
+                // `.grid-1`: up to the grid width and 400px tall, framed to the image so the margin does not open it.
+                fitToImage = true, fitMaxHeight = 400.dp, fitAlignment = Alignment.TopCenter,
+            )
+        } else {
+            // A multi-image cell is exactly the image, so the whole cell opens the viewer. Keeping the
+            // click on the cell (not only on the decoded bitmap) also covers the loading placeholder.
+            Box(
+                modifier.clip(imageShape)
+                    .clickable(role = Role.Button, onClickLabel = file.substringAfterLast('/')) { onFile(file) },
+            ) {
+                ProtectedImage(
+                    file, loader, null, modifier = Modifier.fillMaxSize(), thumbnail = true, compact = false,
+                    contentDescription = file.substringAfterLast('/'), shape = imageShape,
+                    contentScale = ContentScale.Crop, background = Color(0xFF111111),
+                )
+            }
+        }
     } else {
         // `.file-thumb`: file glyph and a truncated name on a gray tile.
         Column(

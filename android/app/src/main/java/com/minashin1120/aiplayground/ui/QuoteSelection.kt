@@ -1,9 +1,12 @@
 package com.minashin1120.aiplayground.ui
 
+import android.os.Build
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.inspector.WindowInspector
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.ComposeFoundationFlags
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
@@ -45,15 +48,43 @@ internal fun useQuoteSelectionToolbar() {
 /**
  * Counts what the conversation's text selections did, for the `ui.press` entry of ログの収集を強化: Compose
  * plays [HapticFeedbackType.TextHandleMove] whenever a touch selection changes, and shows the toolbar after it.
+ * A change while no finger is down on the conversation can only come from dragging a selection handle, whose
+ * popup window takes that touch.
  */
 internal object SelectionSignals {
     @Volatile private var changes = 0
     @Volatile private var menus = 0
+    @Volatile private var pressing = false
+    @Volatile private var handleChanges = 0
 
     fun snapshot(): Pair<Int, Int> = changes to menus
-    fun changed() { changes++ }
+    fun changed() {
+        changes++
+        if (!pressing) handleChanges++
+    }
     fun menuShown() { menus++ }
+    fun pressStarted() { pressing = true }
+    fun pressEnded() { pressing = false }
+    /** Handle-drag changes since the last call. */
+    fun takeHandleChanges(): Int = handleChanges.also { handleChanges = 0 }
 }
+
+/**
+ * The app's shown windows in screen dp, as "class x,y wxh" (Compose popups such as the selection handles are
+ * `PopupLayout`, the floating toolbar is `PopupDecorView`), so a log shows whether the handles appeared and where.
+ */
+internal fun visibleWindows(density: Float): List<String> =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && density > 0f) runCatching { shownWindows(density) }.getOrDefault(emptyList())
+    else emptyList()
+
+@RequiresApi(Build.VERSION_CODES.Q)
+private fun shownWindows(density: Float): List<String> =
+    WindowInspector.getGlobalWindowViews().filter { it.isShown }.map { view ->
+        val at = IntArray(2)
+        view.getLocationOnScreen(at)
+        fun dp(px: Int) = (px / density).toInt()
+        "${view.javaClass.simpleName} ${dp(at[0])},${dp(at[1])} ${dp(view.width)}x${dp(view.height)}"
+    }
 
 private class SelectionHaptics(private val base: HapticFeedback) : HapticFeedback {
     override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {

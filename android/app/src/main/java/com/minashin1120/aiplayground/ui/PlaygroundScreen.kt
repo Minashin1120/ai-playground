@@ -1799,8 +1799,10 @@ private fun TemporaryChatWelcome(timeoutSeconds: Int, onSettings: () -> Unit) {
  * tap that no control handles drops the bubble's tap-hover. Scrolling is not a tap.
  *
  * With ログの収集を強化, a press held for a long press (or cancelled) is recorded as `ui.press`: how far the
- * finger moved, whether another handler consumed the pointer, whether the list scrolled under it and whether a
- * text selection started. It records no text.
+ * finger moved, whether another handler consumed the pointer, whether the list scrolled under it, whether a
+ * text selection started and how often a handle drag changed the selection since the last entry. When the press
+ * touched the selection, `ui.selection_windows` follows with the windows shown shortly after release (the
+ * selection handles and the toolbar are windows of their own). It records no text.
  */
 private fun Modifier.onBackgroundTap(onTap: () -> Unit, onUnhandledTap: () -> Unit, listPosition: () -> Pair<Int, Int>): Modifier = pointerInput(Unit) {
     awaitEachGesture {
@@ -1812,14 +1814,19 @@ private fun Modifier.onBackgroundTap(onTap: () -> Unit, onUnhandledTap: () -> Un
         var downConsumed: Boolean? = null
         var firstConsumedMs: Long? = null
         var up: PointerInputChange? = null
-        while (true) {
-            val change = awaitPointerEvent(PointerEventPass.Final).changes.firstOrNull { it.id == down.id } ?: break
-            val distance = (change.position - down.position).getDistance()
-            maxDistance = maxOf(maxDistance, distance)
-            if (distance > viewConfiguration.touchSlop) moved = true
-            if (downConsumed == null) downConsumed = change.isConsumed
-            else if (change.isConsumed && firstConsumedMs == null) firstConsumedMs = change.uptimeMillis - down.uptimeMillis
-            if (!change.pressed) { up = change; break }
+        SelectionSignals.pressStarted()
+        try {
+            while (true) {
+                val change = awaitPointerEvent(PointerEventPass.Final).changes.firstOrNull { it.id == down.id } ?: break
+                val distance = (change.position - down.position).getDistance()
+                maxDistance = maxOf(maxDistance, distance)
+                if (distance > viewConfiguration.touchSlop) moved = true
+                if (downConsumed == null) downConsumed = change.isConsumed
+                else if (change.isConsumed && firstConsumedMs == null) firstConsumedMs = change.uptimeMillis - down.uptimeMillis
+                if (!change.pressed) { up = change; break }
+            }
+        } finally {
+            SelectionSignals.pressEnded()
         }
         val held = (up?.uptimeMillis ?: currentEvent.changes.firstOrNull()?.uptimeMillis ?: down.uptimeMillis) - down.uptimeMillis
         if (ActivityLog.enabled && (up == null || held >= viewConfiguration.longPressTimeoutMillis)) {
@@ -1836,7 +1843,15 @@ private fun Modifier.onBackgroundTap(onTap: () -> Unit, onUnhandledTap: () -> Un
                 "item_changed" to (endList.first != startList.first),
                 "selection_changes" to selection.first - startSelection.first,
                 "selection_menus" to selection.second - startSelection.second,
+                "handle_changes" to SelectionSignals.takeHandleChanges(),
             )
+            if (selection != startSelection) {
+                val density = 1.dp.toPx()
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    ActivityLog.log("ui.selection_windows", "after_ms" to SELECTION_WINDOWS_DELAY_MS,
+                        "windows" to visibleWindows(density))
+                }, SELECTION_WINDOWS_DELAY_MS)
+            }
         }
         val released = up ?: return@awaitEachGesture
         // A selection long press also ends with an unmoved pointer-up. Treating that as a
@@ -1846,3 +1861,6 @@ private fun Modifier.onBackgroundTap(onTap: () -> Unit, onUnhandledTap: () -> Un
         if (!released.isConsumed) onUnhandledTap()
     }
 }
+
+/** Long enough after release for Compose to show the selection toolbar, which follows the handles. */
+private const val SELECTION_WINDOWS_DELAY_MS = 400L

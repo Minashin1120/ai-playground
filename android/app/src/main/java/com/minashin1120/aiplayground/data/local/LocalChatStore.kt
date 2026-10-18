@@ -42,8 +42,12 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         return (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }.toMutableList()
     }
 
-    private fun saveMessages(id: String, rows: List<JSONObject>) =
+    private fun saveMessages(id: String, rows: List<JSONObject>) {
+        val previous = loadMessages(id).flatMap(::fileRefs).toSet()
         crypto.writeJson(threadFile(id), JSONObject().put("messages", JSONArray(rows)))
+        val retained = rows.flatMap(::fileRefs).toSet()
+        (previous - retained).forEach(::deleteFile)
+    }
 
     private fun now(): Long = System.currentTimeMillis()
 
@@ -93,6 +97,71 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         return JSONObject().put("id", id).put("title", title).put("is_temporary", temporary)
     }
 
+    /** Copy every route up to the selected message; attachment bodies stay shared. */
+    @Synchronized
+    fun branchThread(id: String, selectedId: Int, requestId: String, confirmed: Boolean, external: JSONObject? = null): JSONObject {
+        val index = loadIndex()
+        val source = external ?: findThread(index, id) ?: error("チャットがありません")
+        if (source.optBoolean("is_temporary") && !confirmed) error(com.minashin1120.aiplayground.data.BRANCH_SAVE_WARNING)
+        threads(index).firstOrNull { it.optString("branch_request_id") == requestId }?.let {
+            return JSONObject().put("id", it.getString("id")).put("title", it.getString("title")).put("leaf_id", it.getInt("branch_leaf_id"))
+        }
+        val originalRows = if (external == null) loadMessages(id) else external.getJSONArray("messages").let { array ->
+            (0 until array.length()).map { index -> JSONObject(array.getJSONObject(index).toString()).also { row ->
+                if (!row.has("created_ms")) row.put("created_ms", runCatching { Instant.parse(row.getString("created_at")).toEpochMilli() }.getOrDefault(0L))
+            } }
+        }
+        val snapshot = com.minashin1120.aiplayground.data.branchSnapshot(originalRows, selectedId)
+        val selected = snapshot.first { it.getInt("id") == selectedId }
+        val newId = "l_" + UUID.randomUUID().toString().replace("-", "")
+        val origin = JSONObject().put("thread_id", id)
+        if (external == null) origin.put("thread_client_uuid", source.getString("uuid"))
+            .put("message_client_uuid", selected.getString("uuid")).put("local_message_id", selectedId)
+        else if (isPendingId(selectedId)) origin.put("message_client_uuid", selected.getString("client_uuid"))
+        else origin.put("message_id", selectedId)
+        val clonedThread = JSONObject(source.toString()).put("id", newId).put("uuid", UUID.randomUUID().toString())
+            .put("title", source.optString("title", "New Chat").take(196) + "（分岐）")
+            .put("is_temporary", false).put("is_bookmarked", false).put("bookmarked_at", 0L)
+            .put("server_id", JSONObject.NULL).put("outbox", false).put("dirty", true)
+            .put("created_at", now()).put("updated_at", now()).put("meta_changed_at", now())
+            .put("branch_origin", origin).put("branch_request_id", requestId)
+        val mapping = HashMap<Int, Int>()
+        var next = index.optInt("next_message_id", 1)
+        val copies = snapshot.map { row ->
+            val newMessageId = next++
+            mapping[row.getInt("id")] = newMessageId
+            JSONObject(row.toString()).put("id", newMessageId).put("uuid", UUID.randomUUID().toString())
+                .put("parent_id", if (row.isNull("parent_id")) JSONObject.NULL else mapping.getValue(row.getInt("parent_id")))
+                .put("parent_server_id", JSONObject.NULL).put("server_id", JSONObject.NULL).put("synced", false).put("generating", false)
+        }
+        clonedThread.remove("messages")
+        clonedThread.remove("pending_job")
+        clonedThread.put("branch_leaf_id", mapping.getValue(selectedId))
+        saveMessages(newId, copies)
+        putThreads(index, threads(index) + clonedThread)
+        index.put("next_message_id", next)
+        saveIndex(index)
+        return JSONObject().put("id", newId).put("title", clonedThread.getString("title")).put("leaf_id", mapping.getValue(selectedId))
+    }
+
+    private fun branchOrigin(thread: JSONObject): JSONObject? {
+        val origin = thread.optJSONObject("branch_origin") ?: return null
+        val result = JSONObject(origin.toString())
+        val sourceId = resolveAlias(origin.optString("thread_id"))
+        val source = findThread(loadIndex(), sourceId)
+        val isLocal = isDeviceThreadId(sourceId)
+        val available = if (isLocal) source != null else sourceId.isNotBlank()
+        if (isLocal && source != null) {
+            val message = loadMessages(sourceId).firstOrNull { it.optString("uuid") == origin.optString("message_client_uuid") }
+            result.put("message_id", message?.optInt("id") ?: JSONObject.NULL).put("available", message != null)
+        } else {
+            val localMessageId = origin.optInt("local_message_id")
+            val messageId = if (localMessageId > 0) resolveMessageId(sourceId, PENDING_ID_BASE + localMessageId) else origin.optInt("message_id")
+            result.put("message_id", messageId).put("available", available && messageId > 0 && !isPendingId(messageId))
+        }
+        return result.put("thread_id", sourceId)
+    }
+
     @Synchronized
     fun threadExists(id: String): Boolean = findThread(loadIndex(), id)?.optBoolean("deleted") == false
 
@@ -116,6 +185,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         return JSONObject().put("messages", rows).put("has_older_messages", hasOlder)
             .put("oldest_loaded_id", messages.firstOrNull()?.optInt("id")?.plus(idOffset) ?: JSONObject.NULL)
             .put("loaded_count", messages.size).put("total_messages", JSONObject.NULL)
+            .put("branch_origin", branchOrigin(thread) ?: JSONObject.NULL)
             .put("title", thread.optString("title", "New Chat"))
             .put("custom_instruction", thread.optString("custom_instruction"))
             .put("include_global_instruction", thread.optBoolean("include_global_instruction", true))
@@ -127,6 +197,10 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     }
 
     private fun publicMessage(row: JSONObject): JSONObject = JSONObject()
+        .put("client_uuid", row.opt("uuid") ?: JSONObject.NULL)
+        .put("missing_files", JSONArray((row.optJSONArray("missing_files")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty()
+            + fileRefs(row).filter { !fileTarget(it).isFile }).distinct()))
+        .put("prompt_options", row.opt("prompt_options") ?: JSONObject.NULL)
         .put("id", row.getInt("id")).put("role", row.optString("role")).put("content", row.optString("content"))
         .put("image_url", row.opt("image_url") ?: JSONObject.NULL).put("model", row.opt("model") ?: JSONObject.NULL)
         .put("thought_data", row.opt("thought_data") ?: JSONObject.NULL)
@@ -485,6 +559,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         val index = loadIndex()
         if (index.optInt("outbox_version") >= OUTBOX_VERSION) return false
         val keep = ArrayList<JSONObject>()
+        val migratedFiles = LinkedHashSet<String>()
         for (thread in threads(index)) {
             val id = thread.getString("id")
             if (thread.isNull("server_id")) { keep += thread; continue }
@@ -498,7 +573,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
                 }
             }
             val unsentRefs = unsent.flatMap(::fileRefs).toSet()
-            synced.flatMap(::fileRefs).filter { it !in unsentRefs }.forEach(::deleteFile)
+            migratedFiles += synced.flatMap(::fileRefs).filter { it !in unsentRefs }
             if (unsent.isEmpty() && !thread.optBoolean("dirty")) { threadFile(id).delete(); continue }
             saveMessages(id, unsent)
             keep += thread
@@ -507,6 +582,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         index.remove("sync_since")
         index.put("outbox_version", OUTBOX_VERSION)
         saveIndex(index)
+        migratedFiles.forEach(::deleteFile)
         return true
     }
 
@@ -551,7 +627,9 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
                         else JSONObject().put("client_uuid", parent.getString("uuid")))
                 }
                 val refs = attachmentRefs(row)
-                files += refs.filter { isLocalReference(it) }
+                files += com.minashin1120.aiplayground.data.messageFileReferences(row).filter { isLocalReference(it) }
+                item.put("missing_files", row.optJSONArray("missing_files") ?: JSONArray(refs.filterNot { isLocalReference(it) }))
+                item.put("prompt_options", row.opt("prompt_options") ?: JSONObject.NULL)
                 item.put("files", JSONArray(refs))
                 messages.put(item)
                 ids[row.getString("uuid")] = row.getInt("id")
@@ -562,6 +640,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
                     .put("is_bookmarked", thread.optBoolean("is_bookmarked")).put("custom_instruction", thread.optString("custom_instruction"))
                     .put("include_global_instruction", thread.optBoolean("include_global_instruction", true))
                     .put("last_gem_uuid", thread.opt("last_gem_uuid") ?: JSONObject.NULL)
+                    .put("branch_origin", thread.opt("branch_origin") ?: JSONObject.NULL)
                     .put("meta_changed_at_ms", thread.optLong("meta_changed_at"))
             }
             thread.opt("server_id")?.takeIf { it != JSONObject.NULL }?.let { entry.put("id", it.toString()) }
@@ -649,11 +728,12 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     @Synchronized
     fun dropOutbox(serverId: String) {
         val localId = outboxIdFor(serverId) ?: return
-        loadMessages(localId).flatMap(::fileRefs).forEach(::deleteFile)
+        val refs = loadMessages(localId).flatMap(::fileRefs)
         val index = loadIndex()
         putThreads(index, threads(index).filterNot { it.optString("id") == localId })
         saveIndex(index)
         threadFile(localId).delete()
+        refs.forEach(::deleteFile)
     }
 
     private fun pruneOutboxRow(localId: String) {
@@ -708,6 +788,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
             val newId = created.getString("id")
             updateThread(newId) { row ->
                 row.put("uuid", source.optString("uuid")).put("is_bookmarked", source.optBoolean("is_bookmarked"))
+                    .put("branch_origin", source.opt("branch_origin") ?: JSONObject.NULL)
                     .put("custom_instruction", source.optString("custom_instruction"))
                     .put("include_global_instruction", source.optBoolean("include_global_instruction", true))
                     .put("last_model", source.opt("last_model") ?: JSONObject.NULL)
@@ -715,7 +796,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
             val mapping = HashMap<Int, Int>()
             other.messages(source.getString("id")).sortedWith(compareBy<JSONObject> { it.optLong("created_ms") }.thenBy { it.optInt("id") })
                 .forEach { message ->
-                    val files = fileRefs(message).mapNotNull { ref -> copyFileFrom(other, ref) }
+                    val files = attachmentRefs(message).map { ref -> if (isLocalReference(ref)) copyFileFrom(other, ref) ?: ref else ref }
                     val thought = message.opt("thought_data")?.takeIf { it != JSONObject.NULL }?.toString()
                         ?.let { raw -> runCatching { JSONObject(raw).optString("text") }.getOrDefault(raw) }.orEmpty()
                     val parent = if (message.isNull("parent_id")) null else mapping[message.optInt("parent_id")]
@@ -758,7 +839,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         return runCatching { JSONArray(raw).let { a -> (0 until a.length()).map { a.getString(it) } } }.getOrElse { listOf(raw) }
     }
 
-    private fun fileRefs(row: JSONObject): List<String> = attachmentRefs(row).filter { isLocalReference(it) }
+    private fun fileRefs(row: JSONObject): List<String> = com.minashin1120.aiplayground.data.messageFileReferences(row).filter { isLocalReference(it) }
 
     // Attachment bodies (a video can be tens of MB) are encrypted and decrypted outside the store lock, so
     // reading one for an answer or a sync never holds up opening, sending, deleting or syncing chats. Each
@@ -782,6 +863,9 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         }
         return reference
     }
+
+    @Synchronized
+    fun fileExists(reference: String): Boolean = fileTarget(reference).isFile
 
     @Synchronized
     fun fileInfo(reference: String): JSONObject? = loadFileIndex().optJSONObject(reference)
@@ -820,6 +904,8 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
 
     @Synchronized
     private fun deleteFile(reference: String) {
+        // A sync prune and an expiring temporary chat must also respect branches.
+        if (threads(loadIndex()).any { thread -> loadMessages(thread.getString("id")).any { reference in fileRefs(it) } }) return
         fileTarget(reference).delete()
         val index = loadFileIndex()
         if (index.has(reference)) { index.remove(reference); crypto.writeJson(File(root, "files.enc"), index) }

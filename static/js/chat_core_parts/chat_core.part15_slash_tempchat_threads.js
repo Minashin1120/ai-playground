@@ -98,6 +98,7 @@
 
         async function loadMessages(tid, opts = {}) {
             const loadSequence = ++threadLoadSequence;
+            const targetMessageId = opts.targetMessageId || new URLSearchParams(location.search).get('message');
             if (window.closeHistoryModal) window.closeHistoryModal();
             const preserveDraft = !!opts.preserveDraft;
             const silent = !!opts.silent;
@@ -131,6 +132,8 @@
             try {
                 const threadUrl = new URL(CHAT_CONFIG.urls.handleThreadItem.replace('0', tid), window.location.origin);
                 threadUrl.searchParams.set('limit', String(getEffectiveThreadInitialMessageLimit()));
+                const focusId = targetMessageId;
+                if (focusId && /^\d+$/.test(String(focusId))) threadUrl.searchParams.set('before_id', String(Number(focusId) + 1));
                 const r = await apiFetch(threadUrl.toString());
                 if (!r.ok) throw new Error(`thread request failed (${r.status})`);
                 const threadData = await r.json();
@@ -138,6 +141,7 @@
                 if (loadSequence !== threadLoadSequence) return false;
             setCurrentChatHeaderTitle(threadData && threadData.title);
             allMessages = threadData.messages;
+            renderBranchOrigin(threadData.branch_origin);
             threadHasOlderMessages = !!threadData.has_older_messages;
             oldestLoadedMessageId = threadData.oldest_loaded_id || (allMessages.length ? allMessages[0].id : null);
 
@@ -181,7 +185,10 @@
             // edit/regenerate send (forceLatestLeaf) must show the branch just created,
             // not snap back to a branch the user pinned earlier in this thread.
             const storedFixedId = opts.forceLatestLeaf ? null : localStorage.getItem(`fixed_branch_${currentThreadId}`);
-            if (storedFixedId && allMessages.find(m => String(m.id) === String(storedFixedId))) {
+            const focusLeaf = targetMessageId;
+            if (focusLeaf && allMessages.some(m => String(m.id) === String(focusLeaf))) {
+                currentLeafId = Number(focusLeaf);
+            } else if (storedFixedId && allMessages.find(m => String(m.id) === String(storedFixedId))) {
                 currentLeafId = storedFixedId;
             } else if (allMessages.length > 0) {
                 currentLeafId = allMessages[allMessages.length - 1].id;
@@ -219,6 +226,7 @@
                 }
                 schedulePromptTokenEstimate(true);
             }
+            if (targetMessageId && new URLSearchParams(location.search).has('message')) history.replaceState({}, '', location.pathname);
             if (!preserveDraft) schedulePromptTokenEstimate(true);
             if(window.innerWidth < 768) get('overlay').click();
             if (typeof window.__refreshAdminThreadEncState === 'function') {
@@ -386,6 +394,7 @@
             }
 
             container.appendChild(fragment);
+            displayMissingMessageFiles(container, path);
 
             updateTotalTokenBar(pathTotals.tokens_total, pathTotals, allBranchTotals);
             currentParentId = currentLeafId;
@@ -837,6 +846,7 @@
             currentThreadTitle = null;
             tempChatExpiresAtMs = null;
             currentThreadId = null;
+            renderBranchOrigin(null);
             allMessages = [];
             promptHistory = [];
             historyIndex = -1;

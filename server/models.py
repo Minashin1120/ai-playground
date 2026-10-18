@@ -178,6 +178,17 @@ class Message(db.Model):
     parent_id = db.Column(db.Integer, db.ForeignKey('message.id'), nullable=True)
     children = db.relationship('Message', backref=db.backref('parent', remote_side=[id]), lazy=True)
 
+class ThreadBranch(db.Model):
+    """A branch owns its origin metadata; deleting the source never cascades."""
+    thread_id = db.Column(db.Integer, db.ForeignKey('thread.id'), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    request_id = db.Column(db.String(80), nullable=True)
+    origin = db.Column(db.Text, nullable=False)
+    selected_message_id = db.Column(db.Integer, nullable=True)
+    thread = db.relationship('Thread', backref=db.backref('branch_record', uselist=False, cascade='all, delete-orphan'))
+    __table_args__ = (db.UniqueConstraint('user_id', 'request_id'),)
+
+
 class GeminiBatchJob(db.Model):
     """Application state for an asynchronous provider Batch API request."""
     __tablename__ = 'gemini_batch_job'

@@ -20191,7 +20191,7 @@
             }
 
             const regenBtn = !isUser ? `<button class="ctrl-btn" onclick="regenerateMessage('${id}')"><i class="fas fa-rotate-right"></i></button>` : '';
-            const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button>`:''}${regenBtn}<button class="ctrl-btn" onclick="deleteMessage('${id}')"><i class="fas fa-trash"></i></button></div>`;
+            const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button>`:''}${regenBtn}${/^\d+$/.test(String(id)) ? `<button class="ctrl-btn" title="新しいチャットに分岐" aria-label="新しいチャットに分岐" onclick="branchChatMessage('${id}', this)"><i class="fas fa-code-branch"></i></button>` : ''}<button class="ctrl-btn" onclick="deleteMessage('${id}')"><i class="fas fa-trash"></i></button></div>`;
             const footerParts = [];
             if (!isUser && modelName) footerParts.push(escapeHtml(modelName));
             if (gemName) {
@@ -23416,6 +23416,7 @@
 
         async function loadMessages(tid, opts = {}) {
             const loadSequence = ++threadLoadSequence;
+            const targetMessageId = opts.targetMessageId || new URLSearchParams(location.search).get('message');
             if (window.closeHistoryModal) window.closeHistoryModal();
             const preserveDraft = !!opts.preserveDraft;
             const silent = !!opts.silent;
@@ -23449,6 +23450,8 @@
             try {
                 const threadUrl = new URL(CHAT_CONFIG.urls.handleThreadItem.replace('0', tid), window.location.origin);
                 threadUrl.searchParams.set('limit', String(getEffectiveThreadInitialMessageLimit()));
+                const focusId = targetMessageId;
+                if (focusId && /^\d+$/.test(String(focusId))) threadUrl.searchParams.set('before_id', String(Number(focusId) + 1));
                 const r = await apiFetch(threadUrl.toString());
                 if (!r.ok) throw new Error(`thread request failed (${r.status})`);
                 const threadData = await r.json();
@@ -23456,6 +23459,7 @@
                 if (loadSequence !== threadLoadSequence) return false;
             setCurrentChatHeaderTitle(threadData && threadData.title);
             allMessages = threadData.messages;
+            renderBranchOrigin(threadData.branch_origin);
             threadHasOlderMessages = !!threadData.has_older_messages;
             oldestLoadedMessageId = threadData.oldest_loaded_id || (allMessages.length ? allMessages[0].id : null);
 
@@ -23499,7 +23503,10 @@
             // edit/regenerate send (forceLatestLeaf) must show the branch just created,
             // not snap back to a branch the user pinned earlier in this thread.
             const storedFixedId = opts.forceLatestLeaf ? null : localStorage.getItem(`fixed_branch_${currentThreadId}`);
-            if (storedFixedId && allMessages.find(m => String(m.id) === String(storedFixedId))) {
+            const focusLeaf = targetMessageId;
+            if (focusLeaf && allMessages.some(m => String(m.id) === String(focusLeaf))) {
+                currentLeafId = Number(focusLeaf);
+            } else if (storedFixedId && allMessages.find(m => String(m.id) === String(storedFixedId))) {
                 currentLeafId = storedFixedId;
             } else if (allMessages.length > 0) {
                 currentLeafId = allMessages[allMessages.length - 1].id;
@@ -23537,6 +23544,7 @@
                 }
                 schedulePromptTokenEstimate(true);
             }
+            if (targetMessageId && new URLSearchParams(location.search).has('message')) history.replaceState({}, '', location.pathname);
             if (!preserveDraft) schedulePromptTokenEstimate(true);
             if(window.innerWidth < 768) get('overlay').click();
             if (typeof window.__refreshAdminThreadEncState === 'function') {
@@ -23704,6 +23712,7 @@
             }
 
             container.appendChild(fragment);
+            displayMissingMessageFiles(container, path);
 
             updateTotalTokenBar(pathTotals.tokens_total, pathTotals, allBranchTotals);
             currentParentId = currentLeafId;
@@ -24155,6 +24164,7 @@
             currentThreadTitle = null;
             tempChatExpiresAtMs = null;
             currentThreadId = null;
+            renderBranchOrigin(null);
             allMessages = [];
             promptHistory = [];
             historyIndex = -1;
@@ -26295,3 +26305,115 @@
             return { open, openList, showList, bind };
         })();
         window.BotAdminLog = BotAdminLog;
+        // A branch is a snapshot of every route up to the chosen message.
+        let branchCreating = false;
+        const branchRequests = new Map();
+        const BRANCH_SAVE_WARNING = '分岐先は通常のチャットとして保存され、自動削除されません。コピー対象の添付・生成ファイルも保存対象になります。';
+
+        function confirmBranchSave() {
+            return new Promise((resolve) => {
+                const dialog = document.createElement('dialog');
+                dialog.className = 'rounded-xl bg-gray-800 text-gray-100 p-6 max-w-lg border border-gray-600';
+                dialog.setAttribute('aria-label', '新しいチャットに分岐');
+                const message = document.createElement('p');
+                message.textContent = BRANCH_SAVE_WARNING;
+                dialog.appendChild(message);
+                const form = document.createElement('form');
+                form.method = 'dialog';
+                form.className = 'flex justify-end gap-3 mt-4';
+                for (const [value, label] of [['cancel', 'キャンセル'], ['save', '保存して分岐']]) {
+                    const button = document.createElement('button');
+                    button.value = value;
+                    button.textContent = label;
+                    button.className = 'rounded px-3 py-2 border border-gray-600';
+                    form.appendChild(button);
+                }
+                dialog.appendChild(form);
+                dialog.addEventListener('close', () => { const saved = dialog.returnValue === 'save'; dialog.remove(); resolve(saved); }, { once: true });
+                document.body.appendChild(dialog);
+                dialog.showModal();
+            });
+        }
+
+        async function branchChatMessage(id, button) {
+            if (branchCreating || abortController || !currentThreadId || !/^\d+$/.test(String(id))) return;
+            if (temporaryChatEnabled && !await confirmBranchSave()) return;
+            const source = String(currentThreadId);
+            const requestKey = source + ':' + id;
+            if (!branchRequests.has(requestKey)) branchRequests.set(requestKey, crypto.randomUUID().replace(/-/g, ''));
+            branchCreating = true;
+            if (button) button.disabled = true;
+            try {
+                const response = await apiFetch(`/api/threads/${encodeURIComponent(source)}/branch`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message_id: Number(id), request_id: branchRequests.get(requestKey),
+                        confirm_persist_temporary: !!temporaryChatEnabled })
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || '分岐を作成できませんでした');
+                branchRequests.delete(requestKey);
+                await loadMessages(data.id, { targetMessageId: data.leaf_id });
+                await loadThreads();
+                showToast('新しいチャットに分岐しました');
+            } catch (error) {
+                showToast(error.message || '分岐を作成できませんでした', 'error', true);
+            } finally {
+                branchCreating = false;
+                if (button) button.disabled = false;
+            }
+        }
+
+        function renderBranchOrigin(origin) {
+            let banner = get('branch-origin-banner');
+            if (!banner) {
+                const chat = get('chat-container');
+                if (!chat) return;
+                banner = document.createElement('div');
+                banner.id = 'branch-origin-banner';
+                banner.className = 'px-4 py-2 text-xs text-gray-400 border-b border-gray-700';
+                chat.parentNode.insertBefore(banner, chat);
+            }
+            banner.replaceChildren();
+            banner.hidden = !origin;
+            if (!origin) return;
+            if (origin.available && origin.thread_id && origin.message_id) {
+                const link = document.createElement('a');
+                link.textContent = '分岐元のチャットを開く';
+                link.className = 'text-blue-400 hover:underline';
+                link.href = '/c/' + encodeURIComponent(origin.thread_id) + '?message=' + Number(origin.message_id);
+                link.onclick = (event) => {
+                    event.preventDefault();
+                    loadMessages(origin.thread_id, { targetMessageId: origin.message_id });
+                };
+                banner.appendChild(link);
+            } else {
+                banner.textContent = '分岐元のチャットは利用できません';
+            }
+        }
+
+        function displayMissingMessageFiles(container, messages) {
+            const normalize = (value) => {
+                try { const url = new URL(value, location.origin); return url.origin === location.origin ? decodeURIComponent(url.pathname).replace(/^\/files\/(thumb\/)?/, '') : ''; }
+                catch (_) { return String(value); }
+            };
+            for (const message of messages) {
+                if (!message.missing_files || !message.missing_files.length) continue;
+                const element = container.querySelector('#msg-' + Number(message.id));
+                if (!element) continue;
+                const missing = new Set(message.missing_files.flatMap((ref) => { const value = String(ref).replace(/^\/files\//, ''); return [value, value.replace(/^\d+\//, '')]; }));
+                element.querySelectorAll('img[src], a[href], audio[src], video[src], source[src], .file-thumb[onclick]').forEach((node) => {
+                    let ref = normalize(node.getAttribute('src') || node.getAttribute('href') || '');
+                    if (node.classList.contains('file-thumb')) {
+                        const match = (node.getAttribute('onclick') || '').match(/window.open\('([^']+)'/);
+                        if (match) ref = normalize(match[1]);
+                    }
+                    if (!missing.has(ref)) return;
+                    const warning = document.createElement('span');
+                    warning.className = 'inline-block rounded bg-gray-800 p-3 text-xs text-gray-400';
+                    warning.textContent = 'ファイルがありません';
+                    warning.title = ref.split('/').pop();
+                    const target = node.closest('.chat-image-frame') || (node.tagName === 'SOURCE' ? node.parentNode : node);
+                    if (target && element.contains(target)) target.replaceWith(warning);
+                });
+            }
+        }

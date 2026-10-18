@@ -180,6 +180,8 @@ def handle_threads():
 @app.route('/api/threads/<thread_id>', methods=['GET', 'DELETE'])
 @login_required
 def handle_thread_item(thread_id):
+    if request.method == 'DELETE':
+        _lock_chat_files(current_user.id)
     t = resolve_thread_for_user(thread_id, current_user.id)
     if not t: return jsonify({'error': '403'}), 403
     if request.method == 'GET':
@@ -268,6 +270,7 @@ def handle_thread_item(thread_id):
                 token_total = legacy_token_total
             batch_row = batch_by_assistant.get(m.id)
             res.append({
+                'missing_files': _missing_message_files(m, current_user.id),
                 'id': m.id, 
                 'role': m.role, 
                 'content': cnt, 
@@ -324,19 +327,17 @@ def handle_thread_item(thread_id):
                 'enable_prompt_caching': bool(getattr(t, "enable_prompt_caching", False)),
                 'prompt_cache_provider': getattr(t, "prompt_cache_provider", None),
                 'is_temporary': bool(getattr(t, "is_temporary", False)),
+                'branch_origin': _branch_origin(t),
                 'pending_job': pending_job
             })
             payload.update(_get_temp_chat_runtime_meta(t, user=current_user))
         return jsonify(payload)
 
     temp_member = _temp_chat_member(t)
+    refs = set()
     for m in t.messages:
-        if m.image_url:
-            try:
-                for p in _iter_message_attachment_refs(m.image_url):
-                    _delete_user_upload_ref(current_user.id, p)
-            except Exception:
-                pass
+        refs.update(_message_file_refs(m, current_user.id))
+    _delete_unreferenced_upload_refs(current_user.id, refs, exclude_threads=[t.id])
 
     db.session.delete(t)
     safe_db_commit()

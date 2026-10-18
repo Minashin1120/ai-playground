@@ -249,6 +249,7 @@ def toggle_bookmark(thread_id):
 @app.route('/api/messages/<int:mid>', methods=['DELETE'])
 @login_required
 def delete_message(mid):
+    _lock_chat_files(current_user.id)
     msg = Message.query.get_or_404(mid)
     if msg.thread.user_id != current_user.id: return jsonify({'error': '403'}), 403
     _delete_message_and_following(msg, current_user.id)
@@ -259,14 +260,11 @@ def delete_message(mid):
 def _delete_message_and_following(msg, user_id):
     """Deletes [msg] and every message created at or after it in the same chat (all branches)."""
     msgs_to_delete = Message.query.filter(Message.thread_id == msg.thread_id, Message.timestamp >= msg.timestamp).all()
-    for m in msgs_to_delete:
-        if m.image_url:
-            try:
-                for p in _iter_message_attachment_refs(m.image_url):
-                    _delete_user_upload_ref(user_id, p)
-            except Exception:
-                pass
     deleted_ids = [m.id for m in msgs_to_delete]
+    refs = set()
+    for m in msgs_to_delete:
+        refs.update(_message_file_refs(m, user_id))
+    _delete_unreferenced_upload_refs(user_id, refs, exclude_messages=deleted_ids)
     Message.query.filter(Message.thread_id == msg.thread_id, Message.timestamp >= msg.timestamp).delete()
     # The bulk delete skips ORM events, so the Android sync bookkeeping is updated here.
     if deleted_ids:

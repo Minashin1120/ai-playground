@@ -236,6 +236,7 @@ def _cleanup_temp_chat_member(member, now_ts=None, force=False):
             return False
 
     user_id = thread.user_id
+    _lock_chat_files(user_id)
     uploaded_paths = []
     try:
         raw_paths = redis_conn.smembers(_temp_chat_uploads_key(member)) or set()
@@ -246,8 +247,7 @@ def _cleanup_temp_chat_member(member, now_ts=None, force=False):
     except Exception:
         uploaded_paths = []
 
-    for p in uploaded_paths:
-        _delete_user_upload_ref(user_id, p)
+    _delete_unreferenced_upload_refs(user_id, uploaded_paths, exclude_threads=[thread.id])
 
     try:
         redis_conn.delete(f"pending_job:{user_id}:{thread.id}")

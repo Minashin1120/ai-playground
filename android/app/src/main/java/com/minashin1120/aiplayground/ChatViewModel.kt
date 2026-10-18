@@ -100,6 +100,7 @@ data class ChatState(
     val setupDefaultModel: String = "gemini-3.6-flash",
     val threads: List<ThreadItem> = emptyList(), val nextPage: Int? = null, val search: String = "",
     val selected: ThreadItem? = null, val canGoBackInChats: Boolean = false,
+    val branchOrigin: JSONObject? = null, val branchBusy: Boolean = false,
     val messages: List<ChatMessage> = emptyList(),
     val hasOlder: Boolean = false, val oldestId: String? = null,
     val allMessages: List<ChatMessage> = emptyList(), val leafId: Int? = null, val editingMessageId: String? = null,
@@ -2035,7 +2036,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.withLatestPromptOptions().copy(selected = null, messages = emptyList(), allMessages = emptyList(), leafId = null, settingsBubbles = emptyList(),
             editingMessageId = null, jobId = null, streaming = false,
             liveContent = "", liveThought = "", status = "", busy = false, retryAvailable = false,
-            cards = emptyList(), hasOlder = false, oldestId = null, customInstruction = "",
+            cards = emptyList(), branchOrigin = null, hasOlder = false, oldestId = null, customInstruction = "",
             includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null, tempChatTimeoutSeconds = null,
             selectedGem = null, codingTarget = null, imageMask = null,
             // Web `startNewChat`: cancelEdit + resetUploadState, and PromptCache starts off.
@@ -2047,7 +2048,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * Web `loadMessages`: the composer is cleared (`cancelEdit`), the branch pinned in ブランチ管理 or else the
      * latest one is shown. The chat transition starts at once and the loading skeleton stays until the history arrives.
      */
-    fun openThread(thread: ThreadItem, recordHistory: Boolean = true) {
+    fun openThread(thread: ThreadItem, recordHistory: Boolean = true, focusMessageId: Int? = null) {
         if (recordHistory) recordChatNavigation(ChatLocation(thread))
         navigationJob?.cancel(); streamJob?.cancel(); heartbeatJob?.cancel(); failed = null
         pendingParentId = null
@@ -2056,7 +2057,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val pinnedLeaf = getApplication<Application>().getSharedPreferences("branches", Context.MODE_PRIVATE)
             .getString("fixed_branch_${thread.id}", null)?.toIntOrNull()
         mutable.update { it.copy(selected = thread, messages = emptyList(), allMessages = emptyList(), settingsBubbles = emptyList(),
-            leafId = pinnedLeaf, editingMessageId = null, streaming = false, busy = true,
+            branchOrigin = null, leafId = focusMessageId ?: pinnedLeaf, editingMessageId = null, streaming = false, busy = true,
             draft = "", attachments = emptyList(), quote = "",
             liveContent = "", liveThought = "", jobId = null, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null,
@@ -2109,7 +2110,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             loadCachedMessages(id, older, fetchGeneration = fetchGeneration)
             return
         }
-        val before = if (older) "&before_id=${state.value.oldestId ?: return}" else ""
+        val before = if (older) "&before_id=${state.value.oldestId ?: return}" else
+            state.value.leafId?.takeIf { state.value.allMessages.isEmpty() }?.let { "&before_id=${it.toLong() + 1}" }.orEmpty()
         val low = state.value.lowBandwidthMode
         val limit = when {
             older && low -> LOW_BANDWIDTH_OLDER_PAGE_SIZE
@@ -2164,6 +2166,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 model = reply.nullableString("last_model").ifBlank { selected.model },
                 isTemporary = reply.optBoolean("is_temporary", selected.isTemporary),
             ) },
+            branchOrigin = if (older) it.branchOrigin else reply.optJSONObject("branch_origin"),
             customInstruction = if (older) it.customInstruction else reply.nullableString("custom_instruction"),
             includeGlobalInstruction = if (older) it.includeGlobalInstruction else reply.optBoolean("include_global_instruction", true),
             newThreadTemporary = if (older) it.newThreadTemporary else false,
@@ -2233,6 +2236,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             hasOlder = false,
             oldestId = cached.nullableString("oldest_loaded_id").ifBlank { null },
             jobId = null,
+            branchOrigin = cached.optJSONObject("branch_origin"),
             customInstruction = cached.nullableString("custom_instruction"),
             includeGlobalInstruction = cached.optBoolean("include_global_instruction", true),
             tempChatRemainingSeconds = cached.optLong("temp_chat_remaining_seconds")
@@ -2323,6 +2327,39 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun requestSettings(tab: String? = null, card: String? = null) {
         mutable.update { it.copy(settingsRequest = it.settingsRequest + 1, settingsRequestTab = tab, settingsRequestCard = card) }
+    }
+
+    private val branchRequestIds = HashMap<String, String>()
+
+    fun branchChat(message: ChatMessage, confirmed: Boolean = false) {
+        val current = state.value
+        val source = current.selected ?: return
+        val id = numericId(message) ?: return
+        if (current.branchBusy || current.streaming || current.busy) return
+        if (source.isTemporary && !confirmed) return
+        val key = source.id + ":" + id
+        val requestId = branchRequestIds.getOrPut(key) { java.util.UUID.randomUUID().toString().replace("-", "") }
+        mutable.update { it.copy(branchBusy = true) }
+        viewModelScope.launch {
+            try {
+                val reply = backend.post("/api/threads/${source.id}/branch", JSONObject()
+                    .put("message_id", id).put("request_id", requestId).put("confirm_persist_temporary", confirmed), token())
+                branchRequestIds.remove(key)
+                openThread(ThreadItem(id = reply.getString("id"), title = reply.getString("title"), model = source.model), focusMessageId = reply.getInt("leaf_id"))
+                fetchThreads(false)
+                if (state.value.serverless && !state.value.localProfile) syncAfterAnswer()
+                notify("新しいチャットに分岐しました")
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { report(e) }
+            finally { mutable.update { it.copy(branchBusy = false) } }
+        }
+    }
+
+    fun openBranchOrigin() {
+        val origin = state.value.branchOrigin ?: return
+        if (!origin.optBoolean("available")) return
+        openThread(ThreadItem(id = origin.getString("thread_id"), title = "分岐元のチャット", model = ""),
+            focusMessageId = origin.optInt("message_id").takeIf { it > 0 })
     }
 
     /** Web `deleteMessage`: removes the message and everything after it, then reloads the thread. */

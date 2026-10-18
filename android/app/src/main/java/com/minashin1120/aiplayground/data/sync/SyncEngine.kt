@@ -115,12 +115,23 @@ class SyncEngine(
                 val message = messages.getJSONObject(i)
                 val files = message.optJSONArray("files") ?: JSONArray()
                 val mapped = JSONArray()
+                val missingLocal = JSONArray()
+                var content = message.optString("content")
+                thread.localFiles.forEach { ref ->
+                    val serverRef = serverRefs[ref]
+                    if (serverRef != null) content = content.replace(ref, "/files/" + serverRef)
+                    else if (!store.fileExists(ref) && content.contains(ref))
+                        missingLocal.put(JSONObject().put("reference", ref).put("attached", false))
+                }
+                message.put("content", content)
                 for (j in 0 until files.length()) {
                     val ref = files.getString(j)
                     val serverRef = if (LocalChatStore.isLocalReference(ref)) serverRefs[ref] else ref
-                    if (serverRef != null) mapped.put(serverRef) else skipped++
+                    if (serverRef != null) mapped.put(serverRef)
+                    else if (!store.fileExists(ref)) missingLocal.put(JSONObject().put("reference", ref).put("attached", true))
+                    else skipped++
                 }
-                message.put("files", mapped)
+                message.put("files", mapped).put("missing_local_files", missingLocal)
             }
             // At most 100 messages per request; parents are always sent before their children.
             val all = (0 until messages.length()).map { messages.getJSONObject(it) }

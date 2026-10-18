@@ -45,6 +45,31 @@ class ServerHistory(
         return Snapshot(cached, rows)
     }
 
+    /** Branching needs every route, rather than only the active parent's ancestors. */
+    suspend fun branchSource(id: String): JSONObject {
+        if (!isOffline()) {
+            try {
+                val first = server.get("/api/threads/$id?limit=$PAGE", token())
+                val rows = messageRows(first.optJSONArray("messages")).toMutableList()
+                var page = first
+                val cursors = HashSet<String>()
+                while (page.optBoolean("has_older_messages")) {
+                    val oldest = page.get("oldest_loaded_id").toString()
+                    check(cursors.add(oldest)) { "履歴を読み込めません" }
+                    page = server.get("/api/threads/$id?limit=$PAGE&before_id=$oldest&include_meta=0", token())
+                    rows += messageRows(page.optJSONArray("messages"))
+                }
+                return JSONObject(first.toString()).put("messages", JSONArray(rows)).put("has_older_messages", false)
+            } catch (e: Exception) {
+                if (!unreachable(e)) throw e
+            }
+        }
+        val cached = cachedThread(id)
+        if (cached == null || !cached.has("has_older_messages") || cached.optBoolean("has_older_messages"))
+            throw ApiException(400, JSONObject().put("error", "すべての分岐を読み込めないため、接続が戻ってから分岐してください。"))
+        return JSONObject(cached.toString())
+    }
+
     private suspend fun fromServer(id: String, parentId: Int?): Snapshot {
         val first = server.get("/api/threads/$id?limit=$PAGE", token())
         val rows = ArrayList<JSONObject>()

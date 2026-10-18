@@ -657,6 +657,7 @@ def import_account_data():
                 if not isinstance(chat_items, list) or len(chat_items) > 100_000:
                     raise ValueError("invalid_chats")
                 total_messages = 0
+                branch_imports, branch_threads, branch_messages = [], {}, {}
                 for chat_index, item in enumerate(chat_items, start=1):
                     progress = 79 + int(12 * (chat_index - 1) / max(1, len(chat_items)))
                     _account_transfer_checkpoint(
@@ -699,6 +700,8 @@ def import_account_data():
                         existing_thread_sigs.add(thread_sig)
                     if src_public_id:
                         existing_thread_pids.add(src_public_id)
+                    branch_threads[src_public_id] = thread.public_id
+                    branch_imports.append((thread, item.get("branch_origin")))
                     id_map = {}
                     pending_parents = []
                     for message_index, message_item in enumerate(messages, start=1):
@@ -710,6 +713,7 @@ def import_account_data():
                         if not isinstance(message_item, dict):
                             raise ValueError("invalid_messages")
                         content = _safe_account_import_text(message_item.get("content"), 20_000_000)
+                        content = _rewrite_imported_file_links(content, file_map, current_user.id)
                         thought = _safe_account_import_text(message_item.get("thought_data"), 20_000_000) if message_item.get("thought_data") else None
                         encrypted = bool(current_user.enable_e2ee)
                         message = Message(
@@ -727,6 +731,7 @@ def import_account_data():
                             quote_text=_safe_account_import_text(message_item.get("quote_text"), 20_000_000) if message_item.get("quote_text") else None,
                             is_encrypted=encrypted,
                             thought_signature=_safe_account_import_text(message_item.get("thought_signature"), 20_000_000) if message_item.get("thought_signature") else None,
+                            prompt_options=_safe_account_import_text(message_item.get("prompt_options"), 100_000) if message_item.get("prompt_options") else None,
                             gem_uuid=gem_uuid_map.get(str(message_item.get("gem_uuid") or "")),
                             gem_name=_safe_account_import_text(message_item.get("gem_name"), 100)[:100] if message_item.get("gem_name") else None,
                         )
@@ -735,11 +740,22 @@ def import_account_data():
                         export_id = message_item.get("export_id")
                         if export_id is not None:
                             id_map[str(export_id)] = message.id
+                            branch_messages[str(export_id)] = message.id
                         pending_parents.append((message, message_item.get("parent_export_id")))
                     for message, old_parent_id in pending_parents:
                         if old_parent_id is not None:
                             message.parent_id = id_map.get(str(old_parent_id))
                     counts["chats"] += 1
+                for thread, origin in branch_imports:
+                    if isinstance(origin, dict):
+                        origin = dict(origin)
+                        source_id = str(origin.get('thread_id') or '')
+                        if source_id in branch_threads:
+                            origin['thread_id'] = branch_threads[source_id]
+                            origin['message_id'] = branch_messages.get(str(origin.get('message_id')))
+                        else:
+                            origin.pop('message_id', None)
+                        _store_branch_origin(thread, origin)
 
             if "feedback" in categories:
                 _account_transfer_checkpoint(current_user.id, job_id, 93, "importing_feedback", "フィードバックを取り込んでいます")
@@ -1079,40 +1095,18 @@ def _collect_referenced_file_paths(user_id, exclude_thread_ids=None):
     """
     excluded = set(exclude_thread_ids or [])
     referenced = set()
-    thread_ids = [tid for (tid,) in db.session.query(Thread.id).filter_by(user_id=user_id).all()]
-    for start in range(0, len(thread_ids), 200):
-        chunk = [tid for tid in thread_ids[start:start + 200] if tid not in excluded]
-        if not chunk:
-            continue
-        for (image_url,) in db.session.query(Message.image_url).filter(Message.thread_id.in_(chunk)).all():
-            if not image_url:
-                continue
-            try:
-                parsed = json.loads(image_url) if isinstance(image_url, str) else image_url
-            except Exception:
-                parsed = image_url
-
-            def walk(item):
-                if isinstance(item, list):
-                    for child in item:
-                        walk(child)
-                elif isinstance(item, dict):
-                    matched = False
-                    for key in ("path", "filepath", "file", "url", "name"):
-                        if key in item and item[key]:
-                            walk(item[key])
-                            matched = True
-                            break
-                    if not matched:
-                        for value in item.values():
-                            walk(value)
-                elif isinstance(item, str) and item:
-                    norm = _normalize_upload_ref(item)
-                    if norm:
-                        referenced.add(norm)
-
-            walk(parsed)
-    return referenced
+    cursor = 0
+    while True:
+        query = db.session.query(Message.id, Message.image_url, Message.content, Message.is_encrypted).join(
+            Thread, Thread.id == Message.thread_id).filter(Thread.user_id == user_id, Message.id > cursor)
+        if excluded:
+            query = query.filter(~Message.thread_id.in_(excluded))
+        rows = query.order_by(Message.id).limit(100).all()
+        if not rows:
+            return referenced
+        for row in rows:
+            referenced.update(_message_file_refs(row, user_id))
+        cursor = rows[-1].id
 
 
 def _dedupe_plan_for_user(user_id):
@@ -1225,6 +1219,7 @@ def account_dedupe_preview():
 @app.route('/api/account/dedupe/execute', methods=['POST'])
 @login_required
 def account_dedupe_execute():
+    _lock_chat_files(current_user.id)
     if not rate_limit(f"rl:account_dedupe:user:{current_user.id}", 10, 3600):
         return jsonify({'error': 'rate_limit'}), 429
     plan = _dedupe_plan_for_user(current_user.id)

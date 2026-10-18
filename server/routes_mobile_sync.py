@@ -58,6 +58,7 @@ def _sync_thread_row(thread, state):
         'id': thread.public_id or str(thread.id),
         'client_uuid': state.client_uuid if state else None,
         'title': thread.title,
+        'branch_origin': _branch_origin(thread),
         'is_bookmarked': bool(thread.is_bookmarked),
         'custom_instruction': thread.custom_instruction or '',
         'include_global_instruction': thread.include_global_instruction if thread.include_global_instruction is not None else True,
@@ -151,6 +152,8 @@ def _sync_resolve_thread(entry):
 
 def _sync_apply_meta(thread, state, entry):
     """Thread settings: the later edit wins (device ``meta_changed_at_ms`` vs server change time)."""
+    if isinstance(entry.get("branch_origin"), dict):
+        _store_branch_origin(thread, entry["branch_origin"])
     changed_ms = _sync_ms(entry.get('meta_changed_at_ms'))
     server_ms = _sync_to_ms(state.changed_at) if state and state.changed_at else 0
     if changed_ms is None or (server_ms and changed_ms < server_ms):
@@ -221,11 +224,27 @@ def _sync_insert_messages(thread, entry, result):
             if parent_id is None:
                 result['rejected'].append({'client_uuid': client_uuid, 'reason': 'parent_missing'})
                 continue
-        raw_files = item.get('files') or []
+        raw_files = list(item.get('files') or []) if isinstance(item.get('files'), list) else item.get('files') or []
+        missing_values = item.get('missing_files') if isinstance(item.get('missing_files'), list) else []
+        missing_files = set(value for value in missing_values if isinstance(value, str))
+        missing_local = item.get('missing_local_files') if isinstance(item.get('missing_local_files'), list) else []
+        for missing in missing_local[:100]:
+            if not isinstance(missing, dict):
+                continue
+            local_ref = str(missing.get('reference') or '')
+            if not re.fullmatch(r'local/[a-zA-Z0-9_.-]{5,80}', local_ref) or '..' in local_ref:
+                continue
+            ref = f"{current_user.id}/missing_{local_ref[6:]}"
+            content = content.replace(local_ref, '/files/' + ref)
+            if missing.get('attached') is True:
+                if not isinstance(raw_files, list):
+                    raw_files = [raw_files]
+                raw_files.append(ref)
+            missing_files.add(ref)
         if not isinstance(raw_files, list):
             raw_files = [raw_files]
         files = _normalize_attachment_list(raw_files, current_user.id)
-        if len(files) != len(raw_files) or any(not _get_file_disk_info(ref).get('exists') for ref in files):
+        if len(files) != len(raw_files) or any(not _get_file_disk_info(ref).get('exists') and ref not in missing_files for ref in files):
             result['rejected'].append({'client_uuid': client_uuid, 'reason': 'invalid_files'})
             continue
         created_ms = _sync_ms(item.get('created_at_ms'))
@@ -243,6 +262,7 @@ def _sync_insert_messages(thread, entry, result):
             content=encrypt_val(content) if is_enc else content,
             model=model or None,
             image_url=json.dumps(files) if files else None,
+            prompt_options=_build_prompt_options_record(item.get('prompt_options')),
             timestamp=created,
             tokens=count_tokens(content, model or 'gpt-4') if role == 'user' else count_tokens_for_display(content, model or 'gpt-4', thought or None),
             tokens_in=_sync_ms(item.get('tokens_in')) or 0,
@@ -271,6 +291,7 @@ def _sync_insert_messages(thread, entry, result):
 @app.route('/api/mobile/v1/sync/push', methods=['POST'])
 def mobile_sync_push():
     """Uploads device chats: new chats and messages (idempotent by UUID), setting changes and deletions."""
+    _lock_chat_files(current_user.id)
     if request.content_length and request.content_length > _SYNC_PUSH_MAX_BYTES:
         return _mobile_error('payload_too_large', 413)
     if not rate_limit(f'rl:mobile:sync:push:{current_user.id}', 60, 60):
@@ -311,12 +332,10 @@ def mobile_sync_push():
         if thread is None:
             deleted_threads.append(str(public_id))
             continue
+        refs = set()
         for message in thread.messages:
-            for ref in _iter_message_attachment_refs(message.image_url):
-                try:
-                    _delete_user_upload_ref(current_user.id, ref)
-                except Exception:
-                    pass
+            refs.update(_message_file_refs(message, current_user.id))
+        _delete_unreferenced_upload_refs(current_user.id, refs, exclude_threads=[thread.id])
         db.session.delete(thread)
         deleted_threads.append(str(public_id))
     deleted_messages = []

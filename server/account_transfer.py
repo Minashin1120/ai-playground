@@ -423,10 +423,12 @@ def _account_export_threads(user_id):
                 "thought_data": thought,
                 "quote_text": message.quote_text,
                 "thought_signature": message.thought_signature,
+                "prompt_options": message.prompt_options,
                 "gem_uuid": message.gem_uuid,
                 "gem_name": message.gem_name,
             })
         rows.append({
+            "branch_origin": _branch_origin(thread),
             "public_id": thread.public_id,
             "title": thread.title,
             "is_bookmarked": bool(thread.is_bookmarked),
@@ -989,14 +991,32 @@ def _rewrite_imported_attachment_value(raw_value, file_map, target_user_id):
         norm = _normalize_upload_ref(item)
         if norm in file_map:
             return file_map[norm]
-        if norm and norm.startswith(f"{target_user_id}/") and _get_file_disk_info(norm).get("exists"):
+        if norm and not re.match(r"^\d+/", norm):
+            matches = [value for key, value in file_map.items() if key.endswith("/" + norm)]
+            if len(matches) == 1:
+                return matches[0]
+        if norm and norm.startswith(f"{target_user_id}/"):
             return norm
+        if norm and re.match(r'^\d+/', norm):
+            # A missing file remains an owned, missing reference after moving
+            # accounts. Do not retain a URL into the previous owner's files.
+            extension = os.path.splitext(norm)[1]
+            if not re.fullmatch(r'\.[A-Za-z0-9]{1,10}', extension):
+                extension = ''
+            missing = f"{target_user_id}/missing_import_{hashlib.sha256(norm.encode()).hexdigest()[:24]}{extension}"
+            file_map[norm] = missing
+            return missing
         return item
 
     rewritten = rewrite(parsed)
     if isinstance(raw_value, str) and isinstance(parsed, (list, dict)):
         return json.dumps(rewritten, ensure_ascii=False, separators=(",", ":"))
     return rewritten
+
+def _rewrite_imported_file_links(content, file_map, target_user_id):
+    return _FILE_LINK_RE.sub(lambda match: '/files/' + str(_rewrite_imported_attachment_value(
+        match.group(1), file_map, target_user_id)), content or '')
+
 
 _LATENCY_PHASE_TO_FIELD = {
     "route_received_ms": "route_received_at",

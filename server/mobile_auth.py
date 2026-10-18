@@ -26,7 +26,7 @@ MOBILE_ENDPOINT_METHODS = {
     'import_account_data': {'POST'},
     'handle_threads': {'GET', 'POST'}, 'handle_thread_item': {'GET', 'DELETE'},
     'update_thread_settings': {'GET', 'PUT'}, 'update_title': {'PUT'},
-    'toggle_bookmark': {'POST'},
+    'toggle_bookmark': {'POST'}, 'branch_thread': {'POST'},
     # Message delete from the bubble controls (owner-checked in the route, like Web).
     'delete_message': {'DELETE'},
     # Chat-screen lock icon: an admin decrypts/re-encrypts their own thread (re-auth below).

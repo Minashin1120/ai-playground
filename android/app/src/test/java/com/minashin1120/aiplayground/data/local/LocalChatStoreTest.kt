@@ -16,6 +16,34 @@ class LocalChatStoreTest {
     private val crypto = EncryptedFileStore(byteArrayOf('T'.code.toByte(), 1)) { key }
     private val store by lazy { LocalChatStore(folder.root.resolve("chats"), crypto) }
 
+    @Test fun branchesShareFilesAndSurviveSourceDeletion() {
+        val source = store.createThread(false, "Source").getString("id")
+        val file = store.saveFile("a.txt", "text/plain", "hello".byteInputStream(), 5)
+        val first = store.appendMessage(source, LocalChatStore.NewMessage("user", "root", null, files = listOf(file), createdMs = 100))
+        val left = store.appendMessage(source, LocalChatStore.NewMessage("assistant", "left", first, createdMs = 200))
+        store.appendMessage(source, LocalChatStore.NewMessage("assistant", "other", first, createdMs = 300))
+        val selected = store.appendMessage(source, LocalChatStore.NewMessage("user", "selected", left, createdMs = 400))
+        store.appendMessage(source, LocalChatStore.NewMessage("assistant", "later", selected, createdMs = 500))
+        val branch = store.branchThread(source, selected, "request-1234567890", true)
+        val id = branch.getString("id")
+        assertEquals(4, store.messages(id).size)
+        assertEquals(id, store.branchThread(source, selected, "request-1234567890", true).getString("id"))
+        assertTrue(store.getThread(id, null, null)!!.getJSONObject("branch_origin").getBoolean("available"))
+        store.deleteThread(source)
+        assertArrayEquals("hello".toByteArray(), store.loadFile(file, 100))
+        assertFalse(store.getThread(id, null, null)!!.getJSONObject("branch_origin").getBoolean("available"))
+        store.deleteThread(id)
+        assertNull(store.loadFile(file, 100))
+    }
+
+    @Test fun temporaryBranchNeedsExplicitSaveConfirmation() {
+        val source = store.createThread(true).getString("id")
+        val message = store.appendMessage(source, LocalChatStore.NewMessage("user", "hi", null))
+        assertTrue(runCatching { store.branchThread(source, message, "request-temporary", false) }.isFailure)
+        val id = store.branchThread(source, message, "request-temporary", true).getString("id")
+        assertFalse(store.getThread(id, null, null)!!.getBoolean("is_temporary"))
+    }
+
     @Test fun threadsAndMessagesUseTheServerShapes() {
         val id = store.createThread(temporary = false).getString("id")
         assertTrue(id.startsWith("l_"))

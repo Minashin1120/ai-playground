@@ -228,13 +228,14 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 |---|---|---|
 | GET `/api/threads` | `page=1&q=検索語`。ページは1始まり | `threads`, `has_next`, `next_page`。1ページ20件 |
 | POST `/api/threads` | `{}` または `{"is_temporary":true}` | `id`, `title`, 一時チャットのメタデータ |
-| GET `/api/threads/<id>` | `limit=50&before_id=<最古ID>&include_meta=1` | `messages`（各メッセージの `created_at` はUTCのISO形式。ブランチ管理の「作成」に表示）, `has_older_messages`, `oldest_loaded_id`, `pending_job` 等 |
-| DELETE `/api/threads/<id>` | 本文不要 | `{"status":"deleted"}`。履歴・紐付く添付を削除する（Webと同じ `confirm("Delete?")` 相当の確認後） |
+| GET `/api/threads/<id>` | `limit=50&before_id=<最古ID>&include_meta=1` | `messages`（各メッセージの `created_at` はUTCのISO形式。ブランチ管理の「作成」に表示）, `has_older_messages`, `oldest_loaded_id`, `pending_job`, `branch_origin`（分岐元の `thread_id`, `message_id`, `available`）等。メッセージの `missing_files` は実体のない参照の配列で、表示位置に「ファイルがありません」と出す |
+| POST `/api/threads/<id>/branch` | `message_id`, `request_id`（16〜80文字の英数字・`_`・`-`）、`confirm_persist_temporary` | 選択した発言の作成日時・IDまでの全分岐を通常チャットへコピーする。`id`, `title`, `leaf_id` を返す。同じリクエストIDの再送は同じ結果。一時チャットは保存確認がなければ409 `confirmation_required`。実行中の回答を含む場合は409。ファイル実体は共有する |
+| DELETE `/api/threads/<id>` | 本文不要 | `{"status":"deleted"}`。履歴を削除し、共有ファイルは残る会話で使われている間保持する（Webと同じ `confirm("Delete?")` 相当の確認後） |
 | GET `/api/threads/<id>/settings` | なし | スレッド指示、共通指示の有無、一時チャットの期限情報 |
 | PUT `/api/threads/<id>/settings` | `custom_instruction`, `include_global_instruction`, `is_temporary`, `enable_prompt_caching` | 更新後の一時チャット状態。`enable_prompt_caching: false` は保存済みのPromptCacheを解除し、次回有効化では別のキャッシュキーを使う。指示は100,000文字以下 |
 | PUT `/api/threads/<id>/title` | `title` | 正規化後のタイトル。最大200文字 |
 | POST `/api/threads/<id>/bookmark` | `{}` | 切り替え後の `is_bookmarked` |
-| DELETE `/api/messages/<id>` | 本文不要 | `{"status":"ok"}`。指定メッセージ以降の履歴と、その添付を削除する（Webと同じ `confirm` 相当の確認後）。本人のスレッドのみ |
+| DELETE `/api/messages/<id>` | 本文不要 | `{"status":"ok"}`。指定メッセージ以降の履歴を削除し、添付・生成ファイルは他の会話から参照されなくなった場合だけ実体を削除する（Webと同じ `confirm` 相当の確認後）。本人のスレッドのみ |
 | POST `/api/admin/threads/<thread_id>/encryption` | `{"enable": false}`（復号化）または `true`（再暗号化） | チャット画面の鍵マークから、管理者が自分のスレッド全体を変換する（Webの `encryption-status-modal` と同じ）。本人確認が必要。管理者以外は403、本人以外のスレッドは404。ほかの管理者APIはBearerの許可リスト外 |
 | POST `/chat_stream` | 下の送信JSON | NDJSONストリーム、またはエラーJSON |
 | POST `/api/bot/lock` | `reason` | Bot対策が有効（設定の `bot_detection_active`）なとき、3秒以内に8回送信するとWebと同じ一時ロックを掛け、`status`（`locked`／`skipped`／`disabled`）と `remaining_seconds` を返す。繰り返すと403 `banned` |
@@ -300,6 +301,8 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 | POST `/api/mcp/chat/<job_id>/decision` | `decision`（`allow` / `deny`） | 本人の実行中チャットで要求された変更系MCPツールを今回だけ許可または拒否 |
 
 IDは文字列として扱います。古い履歴の数値IDを受け取る場合もあります。`limit` は最大200。`before_id` を使って古いメッセージをページングし、初期表示で全履歴を要求しないでください。
+
+分岐元情報は同期のチャットメタデータ `branch_origin` でも送受信します。端末だけの分岐元は `thread_client_uuid`・`message_client_uuid` で同期後のIDを解決します。同期メッセージは `prompt_options` を保持します。削除済みの本人所有ファイルは `missing_files` に列挙すると参照を残して同期できます。端末だけで欠損したファイルは `missing_local_files: [{reference: "local/...", attached: true/false}]` を送り、サーバーが本人の名前空間の欠損参照へ置き換えます。
 
 ### 4.1 送信JSONの最小例
 

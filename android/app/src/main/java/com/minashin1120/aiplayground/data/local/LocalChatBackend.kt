@@ -89,8 +89,12 @@ class LocalChatBackend(
             route.startsWith("/api/threads/") && route.count { it == '/' } == 3 -> {
                 val (id, resolved) = threadPath(route, "")
                 if (onDevice(id)) {
-                    store.getThread(id, query["limit"]?.toIntOrNull()?.coerceIn(1, 200), query["before_id"]?.toIntOrNull()?.minus(idOffset), idOffset)
-                        ?: throw ApiException(403, JSONObject().put("error", "403"))
+                    (store.getThread(id, query["limit"]?.toIntOrNull()?.coerceIn(1, 200), query["before_id"]?.toIntOrNull()?.minus(idOffset), idOffset)
+                        ?: throw ApiException(403, JSONObject().put("error", "403"))).also { reply ->
+                            val origin = reply.optJSONObject("branch_origin")
+                            if (origin != null && idOffset != 0 && LocalChatStore.isDeviceThreadId(origin.optString("thread_id")) && !origin.isNull("message_id"))
+                                origin.put("message_id", origin.getInt("message_id") + idOffset)
+                        }
                 } else {
                     val reply = server().get(resolved + path.substring(route.length), token)
                     if (query["before_id"] == null) store.overlayPending(id, reply) else reply
@@ -130,6 +134,17 @@ class LocalChatBackend(
         val route = split(path).first
         return when {
             route == "/api/threads" -> createThread(payload, token)
+            route.startsWith("/api/threads/") && route.endsWith("/branch") -> {
+                val (id, resolved) = threadPath(route, "/branch")
+                if (!onDevice(id) && remote == null) return server().post(resolved, payload, token)
+                val external = if (!onDevice(id)) store.overlayPending(id, remote!!.branchSource(id), observedOnServer = false) else null
+                val selected = payload.getInt("message_id") - if (external == null) idOffset else 0
+                val reply = store.branchThread(id, selected,
+                    payload.getString("request_id"), payload.optBoolean("confirm_persist_temporary"), external)
+                if (idOffset != 0) reply.put("leaf_id", reply.getInt("leaf_id") + idOffset)
+                onChanged()
+                reply
+            }
             route.startsWith("/api/threads/") && route.endsWith("/bookmark") -> {
                 val (id, resolved) = threadPath(route, "/bookmark")
                 if (!onDevice(id)) return server().post(resolved, payload, token)

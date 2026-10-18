@@ -96,6 +96,8 @@ internal class MessageActions(
     val onEdit: (ChatMessage) -> Unit = {},
     val onRegenerate: (ChatMessage) -> Unit = {},
     val onDelete: (ChatMessage) -> Unit = {},
+    val onBranch: (ChatMessage) -> Unit = {},
+    val canBranch: Boolean = true,
     val onSwitchBranch: (Int) -> Unit = {},
     val onTokenDetail: (TokenDetail) -> Unit = {},
     val onEncryption: (Boolean) -> Unit = {},
@@ -183,11 +185,11 @@ internal fun MessageBubble(
                     liveSkeleton()
                 } else {
                     message.batch?.let { BatchStatusCard(it) }
-                    if (display.isNotEmpty()) MarkdownText(display, loader, onFile, startCollapsed = !streaming, canvasMode = LocalCanvasMode.current)
+                    if (display.isNotEmpty()) MarkdownText(com.minashin1120.aiplayground.data.missingFileMarkup(display, message.missingFiles), loader, onFile, startCollapsed = !streaming, canvasMode = LocalCanvasMode.current)
                 }
                 liveBottom?.invoke()
                 val files = message.files.filterNot { !user && message.content.contains(it) }
-                if (files.isNotEmpty()) AttachmentGrid(files, loader, onFile)
+                if (files.isNotEmpty()) AttachmentGrid(files, loader, onFile, message.missingFiles)
                 if (branchCount > 1) VersionSwitcher(branchIndex, branchCount, actions.onSwitchBranch)
                 MessageFooter(message, user, actions, pythonRuns)
               } }
@@ -211,6 +213,7 @@ internal fun MessageBubble(
                     }
                     if (user && persisted) ControlButton(R.drawable.fa_solid_pen, "編集") { actions.onEdit(message) }
                     if (!user) ControlButton(R.drawable.fa_solid_rotate_right, "再生成") { actions.onRegenerate(message) }
+                    if (persisted && !streaming && actions.canBranch) ControlButton(R.drawable.fa_solid_code_branch, "新しいチャットに分岐") { actions.onBranch(message) }
                     if (persisted) ControlButton(R.drawable.fa_solid_trash, "削除") { actions.onDelete(message) }
                 }
             }
@@ -305,7 +308,7 @@ private fun ThoughtContainer(thought: String, openInitially: Boolean) {
 
 /** `.image-grid` (grid-1 … grid-4, grid-multi) with file thumbnails for non-images. */
 @Composable
-private fun AttachmentGrid(files: List<String>, loader: FileBytesLoader?, onFile: (String) -> Unit) {
+private fun AttachmentGrid(files: List<String>, loader: FileBytesLoader?, onFile: (String) -> Unit, missing: Set<String> = emptySet()) {
     val count = files.size
     val shape = RoundedCornerShape(14.dp)
     Box(
@@ -317,21 +320,21 @@ private fun AttachmentGrid(files: List<String>, loader: FileBytesLoader?, onFile
             .background(if (count in 2..4) Color.Black else Color.Transparent),
     ) {
         when {
-            count == 1 -> AttachmentCell(files[0], loader, onFile, Modifier.fillMaxWidth(), single = true)
+            count == 1 -> AttachmentCell(files[0], loader, onFile, Modifier.fillMaxWidth(), single = true, missing = files[0] in missing)
             count == 2 -> Row(Modifier.fillMaxWidth().aspectRatio(2f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                files.forEach { AttachmentCell(it, loader, onFile, Modifier.weight(1f).fillMaxHeight()) }
+                files.forEach { AttachmentCell(it, loader, onFile, Modifier.weight(1f).fillMaxHeight(), missing = it in missing) }
             }
             count == 3 -> Row(Modifier.fillMaxWidth().aspectRatio(1f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                AttachmentCell(files[0], loader, onFile, Modifier.weight(1f).fillMaxHeight())
+                AttachmentCell(files[0], loader, onFile, Modifier.weight(1f).fillMaxHeight(), missing = files[0] in missing)
                 Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    AttachmentCell(files[1], loader, onFile, Modifier.weight(1f).fillMaxWidth())
-                    AttachmentCell(files[2], loader, onFile, Modifier.weight(1f).fillMaxWidth())
+                    AttachmentCell(files[1], loader, onFile, Modifier.weight(1f).fillMaxWidth(), missing = files[1] in missing)
+                    AttachmentCell(files[2], loader, onFile, Modifier.weight(1f).fillMaxWidth(), missing = files[2] in missing)
                 }
             }
             count == 4 -> Column(Modifier.fillMaxWidth().aspectRatio(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 files.chunked(2).forEach { row ->
                     Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        row.forEach { AttachmentCell(it, loader, onFile, Modifier.weight(1f).fillMaxHeight()) }
+                        row.forEach { AttachmentCell(it, loader, onFile, Modifier.weight(1f).fillMaxHeight(), missing = it in missing) }
                     }
                 }
             }
@@ -341,7 +344,7 @@ private fun AttachmentGrid(files: List<String>, loader: FileBytesLoader?, onFile
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     files.chunked(columns).forEach { row ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            row.forEach { AttachmentCell(it, loader, onFile, Modifier.weight(1f).aspectRatio(1f), corner = 8) }
+                            row.forEach { AttachmentCell(it, loader, onFile, Modifier.weight(1f).aspectRatio(1f), corner = 8, missing = it in missing) }
                             repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                         }
                     }
@@ -359,7 +362,13 @@ private fun AttachmentCell(
     modifier: Modifier,
     single: Boolean = false,
     corner: Int = 0,
+    missing: Boolean = false,
 ) {
+    if (missing) {
+        val palette = LocalWebPalette.current
+        Box(modifier.background(palette.twBg(Tw.gray800)).padding(12.dp), contentAlignment = Alignment.Center) { Text("ファイルがありません", fontSize = 12.sp, color = palette.twText(Tw.gray400)) }
+        return
+    }
     val web = LocalWebPalette.current
     val shape = if (corner > 0) RoundedCornerShape(corner.dp) else RectangleShape
     if (isImageReference(file)) {

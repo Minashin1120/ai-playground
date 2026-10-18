@@ -99,6 +99,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LibraryDialog.kt` | Webの `#lib-modal`（検索、表示順、お気に入りのみ、複数選択の添付・ダウンロード・名前変更・使用チャット・削除、グリッド、使用チャットのモーダル） | ファイルライブラリを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/BranchManager.kt` | Webの `#branch-modal`（ツリー、ブランチ詳細、モデル別内訳、名前・固定、切替、削除、凡例と合計） | ブランチ管理を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/Library.kt` | ライブラリの並び順、音声・動画の判定、モデルの音声・動画入力対応（Web `getModelMediaSupport`） | ライブラリの添付規則を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/BranchSnapshot.kt` | 指定時点までの全分岐抽出、ファイル参照抽出、欠損リンク表示 | 別チャットへの分岐・共有ファイルを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BranchTree.kt` | ブランチツリーの配置計算とパス累計トークン | ブランチ管理の表示計算を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ChatInstructionsDialog.kt` | Webの `#thread-modal`（Chat Instructions：チャット専用の指示、全体プロンプトの参照、ユーザーシステムプロンプト、自動注入の簡易版） | SysPromptの⚙から開く画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundDialog.kt` | Webモーダル（オーバーレイ、ぼかし、パネル、見出し、下部）の共通枠 | 設定・Gems・ライブラリ・Batchの画面枠を調整するとき |

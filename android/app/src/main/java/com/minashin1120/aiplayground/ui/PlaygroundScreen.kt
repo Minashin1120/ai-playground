@@ -1551,15 +1551,23 @@ private fun ConversationContent(
     var welcomeDismissed by remember(state.chatTransitionId) { mutableStateOf(false) }
     val pathTotals = remember(state.messages) { buildTokenTotals(state.messages) }
     val allTotals = remember(state.allMessages) { buildTokenTotals(state.allMessages) }
+    var branchingMessage by remember { mutableStateOf<ChatMessage?>(null) }
     val actions = MessageActions(
         onEdit = { model.beginEdit(it) },
         onRegenerate = { model.regenerate(it) },
         onDelete = { deletingMessage = it },
+        onBranch = { if (state.selected?.isTemporary == true) branchingMessage = it else model.branchChat(it) },
         onTokenDetail = { tokenDetail = it },
         onEncryption = { encryptionState = it },
         onPython = { runs -> if (runs.isEmpty()) model.notify("Python実行結果がありません") else pythonRuns = runs },
     )
     Column(Modifier.fillMaxSize()) {
+        state.branchOrigin?.let { origin ->
+            val palette = LocalWebPalette.current
+            Text(if (origin.optBoolean("available")) "分岐元のチャットを開く" else "分岐元のチャットは利用できません",
+                fontSize = 12.sp, color = if (origin.optBoolean("available")) palette.twText(Tw.blue400) else palette.twText(Tw.gray400),
+                modifier = Modifier.fillMaxWidth().clickable(enabled = origin.optBoolean("available")) { model.openBranchOrigin() }.padding(12.dp))
+        }
         TotalTokenBar(pathTotals, allTotals) { tokenDetail = it }
         state.batchBanner?.let { (text, _) ->
             BatchCompletionBanner(text, onOpen = { model.dismissBatchBanner(open = true) }, onClose = { model.dismissBatchBanner(open = false) })
@@ -1610,7 +1618,8 @@ private fun ConversationContent(
                             onFile = onFile,
                             loader = loader,
                             actions = MessageActions(
-                                onEdit = actions.onEdit, onRegenerate = actions.onRegenerate, onDelete = actions.onDelete,
+                                onEdit = actions.onEdit, onRegenerate = actions.onRegenerate, onDelete = actions.onDelete, onBranch = actions.onBranch,
+                                canBranch = !state.busy && !state.streaming && !state.branchBusy,
                                 onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) },
                                 onTokenDetail = actions.onTokenDetail, onEncryption = actions.onEncryption,
                                 onPython = actions.onPython,
@@ -1669,6 +1678,13 @@ private fun ConversationContent(
         if (sideCanvas) CanvasPanel(canvasSourceText(state), fullScreen = false, notify = model::notify, onClose = model::toggleCanvas,
             modifier = Modifier.width(canvasSidePanelWidth(screenWidth)).fillMaxHeight())
         }
+    }
+    branchingMessage?.let { message ->
+        AlertDialog(onDismissRequest = { branchingMessage = null },
+            title = { Text("新しいチャットに分岐") },
+            text = { Text(com.minashin1120.aiplayground.data.BRANCH_SAVE_WARNING) },
+            confirmButton = { TextButton(onClick = { branchingMessage = null; model.branchChat(message, confirmed = true) }) { Text("保存して分岐") } },
+            dismissButton = { TextButton(onClick = { branchingMessage = null }) { Text("キャンセル") } })
     }
     deletingMessage?.let { message ->
         BrowserConfirmDialog("Delete this message and subsequent history?") { ok ->

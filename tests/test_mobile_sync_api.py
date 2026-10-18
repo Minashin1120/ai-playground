@@ -300,3 +300,191 @@ class MobileSyncApiTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+    def branch_fixture(self, temporary=False):
+        from datetime import datetime, timedelta
+        from pathlib import Path
+        with target.app.app_context():
+            thread = target.Thread(user_id=self.user_id, public_id=target.generate_thread_public_id(),
+                                   title='Source', is_temporary=temporary, custom_instruction='Keep this')
+            target.db.session.add(thread)
+            target.db.session.flush()
+            start = datetime.utcnow() - timedelta(minutes=1)
+            attachment = f'{self.user_id}/attached.txt'
+            generated = f'{self.user_id}/generated.txt'
+            missing = f'{self.user_id}/missing.png'
+            rows = []
+            for index, (role, parent, content) in enumerate([
+                ('user', None, 'root'), ('assistant', 0, f'[document](/files/{generated})'),
+                ('assistant', 0, 'alternate'), ('user', 1, 'selected'),
+                ('user', 2, 'later alternate'), ('assistant', 3, 'later selected'),
+            ]):
+                row = target.Message(thread_id=thread.id, role=role, content=content,
+                                     parent_id=rows[parent].id if parent is not None else None,
+                                     timestamp=start + timedelta(seconds=index),
+                                     image_url=json.dumps([attachment]) if index == 0 else json.dumps([missing]) if index == 2 else None,
+                                     prompt_options=json.dumps({'enable_search': True}) if index == 3 else None)
+                target.db.session.add(row)
+                target.db.session.flush()
+                rows.append(row)
+            # Same time as the selected message, but created after it: excluded.
+            target.db.session.add(target.Message(thread_id=thread.id, role='assistant', content='later tie',
+                parent_id=rows[0].id, timestamp=rows[3].timestamp))
+            target.db.session.commit()
+            public_id, selected = thread.public_id, rows[3].id
+        for ref in [attachment, generated]:
+            file = Path(self.upload_dir, ref)
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text('synthetic branch attachment')
+        return public_id, selected, attachment, generated, missing
+
+    def test_branch_copies_all_routes_up_to_timestamp_and_selected_id(self):
+        public_id, selected, attachment, generated, missing = self.branch_fixture()
+        token = self.token()
+        body = {'message_id': selected, 'request_id': self.uid().replace('-', '')}
+        response = self.call(f'/api/threads/{public_id}/branch', token, 'POST', json=body)
+        self.assertEqual(response.status_code, 201, response.get_json())
+        branch = response.get_json()
+        replay = self.call(f'/api/threads/{public_id}/branch', token, 'POST', json=body)
+        self.assertEqual(replay.get_json()['id'], branch['id'])
+        payload = self.call('/api/threads/' + branch['id'], token).get_json()
+        self.assertEqual(len(payload['messages']), 4)
+        by_content = {row['content']: row for row in payload['messages']}
+        root = by_content['root']
+        self.assertEqual(by_content['alternate']['parent_id'], root['id'])
+        self.assertEqual(by_content['selected']['id'], branch['leaf_id'])
+        self.assertEqual(by_content['selected']['prompt_options'], {'enable_search': True})
+        self.assertEqual(by_content['alternate']['missing_files'], [missing])
+        self.assertEqual(payload['custom_instruction'], 'Keep this')
+        self.assertTrue(payload['branch_origin']['available'])
+        self.assertEqual(payload['branch_origin']['message_id'], selected)
+        # Deleting either owner preserves references from all routes, including
+        # generated links in content and routes not initially on screen.
+        from pathlib import Path
+        self.assertEqual(self.call('/api/threads/' + public_id, token, 'DELETE').status_code, 200)
+        for ref in [attachment, generated]:
+            self.assertTrue(Path(self.upload_dir, ref).is_file())
+        payload = self.call('/api/threads/' + branch['id'], token).get_json()
+        replay = self.call(f'/api/threads/{public_id}/branch', token, 'POST', json=body)
+        self.assertEqual(replay.get_json()['id'], branch['id'])
+        self.assertFalse(payload['branch_origin']['available'])
+        self.assertEqual(self.call('/api/threads/' + branch['id'], token, 'DELETE').status_code, 200)
+        for ref in [attachment, generated]:
+            self.assertFalse(Path(self.upload_dir, ref).exists())
+
+    def test_branch_temporary_chat_requires_confirmation_and_survives_expiry(self):
+        public_id, selected, attachment, generated, missing = self.branch_fixture(temporary=True)
+        token = self.token()
+        body = {'message_id': selected, 'request_id': self.uid().replace('-', '')}
+        response = self.call(f'/api/threads/{public_id}/branch', token, 'POST', json=body)
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.get_json()['code'], 'confirmation_required')
+        body['confirm_persist_temporary'] = True
+        created = self.call(f'/api/threads/{public_id}/branch', token, 'POST', json=body)
+        self.assertEqual(created.status_code, 201, created.get_json())
+        branch = created.get_json()['id']
+        with target.app.app_context():
+            original = target.resolve_thread_for_user(public_id, self.user_id)
+            target._track_temp_chat_uploaded_refs(original, self.user_id, [attachment, generated])
+            self.assertTrue(target._cleanup_temp_chat_member(target._temp_chat_member(original), force=True))
+        from pathlib import Path
+        self.assertTrue(Path(self.upload_dir, attachment).exists())
+        self.assertTrue(Path(self.upload_dir, generated).exists())
+        payload = self.call('/api/threads/' + branch, token).get_json()
+        self.assertFalse(payload['is_temporary'])
+        self.assertEqual(len(payload['messages']), 4)
+
+    def test_branch_checks_owner_message_and_csrf(self):
+        public_id, selected, *_ = self.branch_fixture()
+        token = self.token()
+        with target.app.app_context():
+            other = target.Thread(user_id=self.other_id, public_id=target.generate_thread_public_id())
+            target.db.session.add(other)
+            target.db.session.commit()
+            other_id = other.public_id
+        body = {'message_id': selected, 'request_id': self.uid().replace('-', '')}
+        self.assertEqual(self.call(f'/api/threads/{other_id}/branch', token, 'POST', json=body).status_code, 403)
+        body['message_id'] = -1
+        self.assertEqual(self.call(f'/api/threads/{public_id}/branch', token, 'POST', json=body).status_code, 400)
+        self.assertEqual(self.browser.post(f'/api/threads/{public_id}/branch', json=body).status_code, 403)
+
+    def test_branch_missing_file_references_survive_sync(self):
+        token = self.token()
+        missing = f'{self.user_id}/gone.pdf'
+        result = self.push_chat(token, self.uid(), [
+            {'client_uuid': self.uid(), 'role': 'user', 'content': 'missing', 'files': [missing], 'missing_files': [missing]},
+            {'client_uuid': self.uid(), 'role': 'assistant', 'content': '[file](local/abcdef1234)',
+             'missing_local_files': [{'reference': 'local/abcdef1234', 'attached': True}]},
+        ]).get_json()['threads'][0]
+        self.assertFalse(result.get('rejected'))
+        rows = self.call('/api/threads/' + result['id'], token).get_json()['messages']
+        self.assertEqual(rows[0]['missing_files'], [missing])
+        self.assertEqual(rows[1]['missing_files'], [f'{self.user_id}/missing_abcdef1234'])
+        self.assertIn('/files/', rows[1]['content'])
+
+    def test_branch_preserves_encrypted_payloads_and_exported_origin(self):
+        public_id, selected, attachment, generated, missing = self.branch_fixture()
+        with target.app.app_context():
+            thread = target.resolve_thread_for_user(public_id, self.user_id)
+            row = target.Message.query.filter_by(thread_id=thread.id, role='assistant').order_by(target.Message.id).first()
+            row.content = target.encrypt_val(row.content)
+            row.thought_data = target.encrypt_val('{"text":"reasoning"}')
+            row.is_encrypted = True
+            raw_content = row.content
+            target.db.session.commit()
+        token = self.token()
+        created = self.call(f'/api/threads/{public_id}/branch', token, 'POST', json={
+            'message_id': selected, 'request_id': self.uid().replace('-', '')}).get_json()
+        with target.app.app_context():
+            branch = target.resolve_thread_for_user(created['id'], self.user_id)
+            clone = target.Message.query.filter_by(thread_id=branch.id, role='assistant').order_by(target.Message.id).first()
+            self.assertTrue(clone.is_encrypted)
+            self.assertEqual(clone.content, raw_content)
+            self.assertEqual(target.decrypt_val(clone.thought_data), '{"text":"reasoning"}')
+            exported = next(t for t in target._account_export_threads(self.user_id) if t['public_id'] == branch.public_id)
+            self.assertEqual(exported['branch_origin']['thread_id'], public_id)
+            self.assertEqual(exported['branch_origin']['message_id'], selected)
+
+    def test_branch_creation_failure_rolls_back_every_clone(self):
+        public_id, selected, *_ = self.branch_fixture()
+        token = self.token()
+        with mock.patch.object(target, 'safe_db_commit', side_effect=RuntimeError('synthetic commit failure')):
+            with self.assertRaises(RuntimeError):
+                self.call(f'/api/threads/{public_id}/branch', token, 'POST', json={
+                    'message_id': selected, 'request_id': self.uid().replace('-', '')})
+        with target.app.app_context():
+            self.assertEqual(target.Thread.query.filter_by(user_id=self.user_id).count(), 1)
+            self.assertEqual(target.ThreadBranch.query.count(), 0)
+            self.assertEqual(target.Message.query.count(), 7)
+
+    def test_branch_files_survive_message_deletion_and_cleanup_rollback(self):
+        public_id, selected, attachment, generated, _ = self.branch_fixture()
+        token = self.token()
+        created = self.call(f'/api/threads/{public_id}/branch', token, 'POST', json={
+            'message_id': selected, 'request_id': self.uid().replace('-', '')}).get_json()
+        source_rows = self.call('/api/threads/' + public_id, token).get_json()['messages']
+        self.assertEqual(self.call('/api/messages/' + str(source_rows[0]['id']), token, 'DELETE').status_code, 200)
+        from pathlib import Path
+        for ref in [attachment, generated]:
+            self.assertTrue(Path(self.upload_dir, ref).exists())
+        with target.app.app_context():
+            branch = target.resolve_thread_for_user(created['id'], self.user_id)
+            target._delete_unreferenced_upload_refs(self.user_id, [attachment, generated], exclude_threads=[branch.id])
+            target.db.session.rollback()
+        for ref in [attachment, generated]:
+            self.assertTrue(Path(self.upload_dir, ref).exists())
+
+
+    def test_branch_file_links_remap_on_account_import(self):
+        with target.app.app_context():
+            mapping = {'900/a.pdf': f'{self.user_id}/imported.pdf'}
+            content = target._rewrite_imported_file_links('[file](/files/900/a.pdf) ![](/files/900/gone.png)', mapping, self.user_id)
+            self.assertIn(f'/files/{self.user_id}/imported.pdf', content)
+            self.assertIn(f'/files/{self.user_id}/missing_import_', content)
+            self.assertNotIn('/files/900/', content)
+
+
+    def test_branch_shared_file_collector_accepts_legacy_relative_urls(self):
+        with target.app.app_context():
+            self.assertEqual(target._message_file_refs({'image_url': '["a.pdf"]', 'content': '<audio src="/files/b.wav"></audio>'}, self.user_id),
+                             {f'{self.user_id}/a.pdf', f'{self.user_id}/b.wav'})

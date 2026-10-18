@@ -55,8 +55,10 @@ class MathJaxRendererTest {
         val copied = MathCopyText.restore(text.text)
         assertEquals(false, copied.contains('\n'))
         assertEquals(approximation.replace(Regex("""\s*\n\s*"""), " ").trim(), copied)
-        // One character under the placeholder: a long press cannot select a zero-width word inside it.
+        // One character under the placeholder: a long press cannot select a zero-width word inside it. Word
+        // selection only takes letters, so the character must be one.
         assertEquals(1, text.text.codePointCount(0, text.length))
+        assertEquals(true, Character.isLetterOrDigit(text.text.codePointAt(0)))
         val placeholders = text.getStringAnnotations(0, text.length)
         assertEquals(1, placeholders.size)
         assertEquals(0, placeholders[0].start)

@@ -347,12 +347,14 @@ internal fun displayMathText(alternate: String): AnnotatedString =
  * The alternate text of a typeset formula. A placeholder gives all its width to the first character of its
  * alternate text, so a long press that selected a word inside a longer approximation got a zero-width
  * selection: no highlight, both handles on the formula's end. Each distinct approximation is therefore stood
- * in for by one private-use character, which a long press selects whole, and [restore] puts the approximation
- * back when the selection is copied or quoted ([ProvideMathCopy]).
+ * in for by one character, which a long press selects whole, and [restore] puts the approximation back when the
+ * selection is copied or quoted ([ProvideMathCopy]). The characters are Tangut ideographs: word selection only
+ * takes letters (a private-use character gave an empty selection again), and these are letters that no word
+ * break joins with the Japanese or Latin text around a formula. The placeholder draws over them, so they never show.
  */
 internal object MathCopyText {
-    private const val FIRST = 0xF0000
-    private const val LAST = 0xFFFFD
+    private const val FIRST = 0x17000
+    private const val LAST = 0x187F7
     private val tokens = HashMap<String, String>()
     private val texts = HashMap<Int, String>()
 

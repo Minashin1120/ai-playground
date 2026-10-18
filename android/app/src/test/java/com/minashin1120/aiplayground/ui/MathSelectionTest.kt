@@ -105,6 +105,7 @@ class MathSelectionTest {
         val approximation = latexToDisplay("6(3)^2 = 54")
         // The right end of the formula, where a word of the approximation ("54") used to be selected on its own.
         rule.onNodeWithContentDescription(approximation).performTouchInput { longClick(centerRight.copy(x = centerRight.x - 4f)) }
+        rule.mainClock.advanceTimeBy(600)
         rule.waitForIdle()
         assertNotNull("a long press on the formula offers Copy", copy)
         copy!!.invoke()

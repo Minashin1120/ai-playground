@@ -4159,7 +4159,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(offline = false, connectionStatus = ConnectionStatus.UNKNOWN, connectionMessage = "", connectionBannerVisible = false) }
         viewModelScope.launch {
             try {
-                if (session == null) pair() else {
+                if (session == null) notify("再接続するにはログインしてください。") else {
                     loadAccount()
                     state.value.selected?.let { loadMessages(it.id) }
                 }

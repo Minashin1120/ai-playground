@@ -81,6 +81,7 @@ import com.minashin1120.aiplayground.data.slashPaletteFilter
 import com.minashin1120.aiplayground.data.stripSlashCommand
 import com.minashin1120.aiplayground.data.visibleSlashCommands
 import com.minashin1120.aiplayground.data.THINKING_LEVELS
+import com.minashin1120.aiplayground.data.EFFORT_LEVELS
 import com.minashin1120.aiplayground.data.codingBarText
 import com.minashin1120.aiplayground.data.isAudioPath
 import com.minashin1120.aiplayground.data.isVideoPath
@@ -587,27 +588,34 @@ private fun DetailChips(
                 label(Color(134, 239, 172), Color(21, 128, 61)))
             GearButton("Chat Settings", onChatInstructions)
         }
-        if (rules.thinking.visible) OptGroup(state.enableThinking, center, dimmed = rules.thinking.dimmed) {
-            GroupCheck("Thinking", state.enableThinking, rules.thinking, model::toggleThinking, label(Color(216, 180, 254), Color(126, 34, 206)))
-            val levels = THINKING_LEVELS.filter { it in rules.thinkingLevels }
-            ChipSelect(
-                value = state.chipValues["thinking_level"].orEmpty(),
-                options = THINKING_LEVELS.filter { it in levels }.map { WebOption(it, THINKING_LABELS.getValue(it)) },
-                enabled = levels.isNotEmpty(),
-                onSelect = { model.generationOption("thinking_level", it) },
-                display = THINKING_LABELS,
-            )
-            Text("Budget", fontSize = 10.sp, color = label(Color(216, 180, 254).copy(alpha = 0.8f), Color(126, 34, 206)))
-            BudgetField(state.chipValues["thinking_budget"].orEmpty(), rules.budgetEnabled) { model.generationOption("thinking_budget", it) }
-        }
-        if (rules.effort.visible) OptGroup(false, center) {
-            Text("Effort:", fontSize = 10.sp, color = gray)
-            ChipSelect(
-                value = state.chipValues["reasoning_effort"].orEmpty(),
-                options = rules.effortOptions.map { WebOption(it, EFFORT_LABELS.getValue(it)) },
-                onSelect = { model.generationOption("reasoning_effort", it) },
-                display = EFFORT_LABELS,
-            )
+        if (rules.thinking.visible) {
+            // Web と同じく reasoning-effort モデルも Thinking ボタン（ON/OFF＋レベル）で操作する。
+            val thinkingKey = if (rules.effortAsThinking) "reasoning_effort" else "thinking_level"
+            val thinkingOptions = if (rules.effortAsThinking) EFFORT_LEVELS else THINKING_LEVELS
+            val thinkingLabels = if (rules.effortAsThinking) EFFORT_LABELS else THINKING_LABELS
+            val thinkingValue = state.chipValues[thinkingKey].orEmpty()
+            val thinkingChecked = if (rules.effortAsThinking) thinkingValue != "none" else state.enableThinking
+            val levels = thinkingOptions.filter { it in rules.thinkingLevels }
+            OptGroup(thinkingChecked, center, dimmed = rules.thinking.dimmed) {
+                GroupCheck("Thinking", thinkingChecked, rules.thinking, {
+                    if (rules.effortAsThinking) {
+                        val next = if (thinkingChecked) "none"
+                        else levels.firstOrNull { it != "none" } ?: rules.effortFallback
+                        model.generationOption("reasoning_effort", next)
+                    } else model.toggleThinking()
+                }, label(Color(216, 180, 254), Color(126, 34, 206)))
+                ChipSelect(
+                    value = thinkingValue,
+                    options = levels.map { WebOption(it, thinkingLabels.getValue(it)) },
+                    enabled = levels.isNotEmpty(),
+                    onSelect = { model.generationOption(thinkingKey, it) },
+                    display = thinkingLabels,
+                )
+                if (!rules.effortAsThinking) {
+                    Text("Budget", fontSize = 10.sp, color = label(Color(216, 180, 254).copy(alpha = 0.8f), Color(126, 34, 206)))
+                    BudgetField(state.chipValues["thinking_budget"].orEmpty(), rules.budgetEnabled) { model.generationOption("thinking_budget", it) }
+                }
+            }
         }
         OptGroup(false, center) {
             Text("Safety:", fontSize = 10.sp, color = gray)

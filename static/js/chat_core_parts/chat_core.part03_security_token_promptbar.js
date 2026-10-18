@@ -1223,7 +1223,6 @@
             { key: 'mcp', icon: 'fa-plug', label: 'MCP', checkboxId: 'enable-mcp', containerId: 'mcp-container' },
             { key: 'sysprompt', icon: 'fa-terminal', label: 'SysPrompt', checkboxId: 'enable-sys-prompt', containerId: 'sys-prompt-option', gear: true, gearAction: () => { if (window.openThreadModal) window.openThreadModal(); } },
             { key: 'thinking', icon: 'fa-brain', label: 'Thinking', checkboxId: 'enable-thinking', containerId: 'thinking-options', special: 'thinking' },
-            { key: 'effort', icon: 'fa-sliders-h', label: 'Effort', containerId: 'reasoning-effort-container', selectId: 'reasoning-effort' },
             { key: 'safety', icon: 'fa-shield-halved', label: 'Safety', selectId: 'safety-setting' },
             { key: 'promptcache', icon: 'fa-database', label: 'PromptCache', checkboxId: 'enable-prompt-cache', containerId: 'prompt-cache-container' },
             { key: 'compress', icon: 'fa-compress-alt', label: 'Compress', checkboxId: 'enable-compression', containerId: 'compression-option', gear: true, gearAction: () => { if (window.openCompressionModal) window.openCompressionModal(); } },
@@ -1270,14 +1269,34 @@
         }
         function minimalOptionChecked(item) {
             if (!item.checkboxId) return false;
+            if (item.special === 'thinking') {
+                const opts = get('thinking-options');
+                if (opts && opts.dataset.thinkingMode === 'effort') {
+                    const effort = get('reasoning-effort');
+                    return !!effort && String(effort.value || '').toLowerCase() !== 'none';
+                }
+            }
             const chk = get(item.checkboxId);
             return !!chk && chk.checked;
         }
+        // effort モデルでは reasoning-effort、それ以外は thinking-level が
+        // Thinking ボタンのレベル選択として表示される。
+        function activeThinkingSelect() {
+            const opts = get('thinking-options');
+            if (opts && opts.dataset.thinkingMode === 'effort') return get('reasoning-effort');
+            return get('thinking-level');
+        }
+        function thinkingOptionsList() {
+            const sel = activeThinkingSelect();
+            if (!sel) return [];
+            return Array.from(sel.options).filter((opt) => !opt.disabled && !opt.classList.contains('hidden'));
+        }
         function currentThinkingLevelLabel() {
-            const sel = get('thinking-level');
+            const sel = activeThinkingSelect();
             if (!sel) return THINKING_LEVELS[3].label;
+            if (sel.selectedOptions && sel.selectedOptions[0]) return sel.selectedOptions[0].textContent.trim();
             const level = THINKING_LEVELS.find((item) => item.value === sel.value);
-            return level ? level.label : (sel.selectedOptions[0] ? sel.selectedOptions[0].textContent.trim() : THINKING_LEVELS[3].label);
+            return level ? level.label : THINKING_LEVELS[3].label;
         }
 
         function buildMinimalOptionItem(item) {
@@ -1515,25 +1534,36 @@
 
         // --- Thinking level slide bar ---
         function allowedThinkingValues() {
-            const sel = get('thinking-level');
-            if (!sel) return THINKING_LEVELS.map((l) => l.value);
-            const allowed = Array.from(sel.options)
-                .filter((o) => !o.disabled && !o.classList.contains('hidden'))
-                .map((o) => o.value);
+            return thinkingOptionsList().map((o) => o.value);
             // All options disabled (e.g. Claude uses budget only) -> nothing to pick.
-            return allowed;
         }
         function thinkingIndexFromValue(value) {
-            const idx = THINKING_LEVELS.findIndex((l) => l.value === value);
-            return idx < 0 ? 3 : idx;
+            const allowed = allowedThinkingValues();
+            const idx = allowed.indexOf(String(value));
+            return idx < 0 ? Math.max(0, allowed.length - 1) : idx;
         }
         function syncThinkingSliderUi() {
             const slider = get('thinking-slider');
             const label = get('thinking-slide-value');
-            const sel = get('thinking-level');
-            const idx = thinkingIndexFromValue(sel ? sel.value : 'high');
-            if (slider) slider.value = String(idx);
-            if (label) label.textContent = THINKING_LEVELS[idx].label;
+            const scale = get('thinking-slide-scale');
+            const opts = thinkingOptionsList();
+            const sel = activeThinkingSelect();
+            let idx = opts.findIndex((o) => o.value === (sel ? sel.value : ''));
+            if (idx < 0) idx = Math.max(0, opts.length - 1);
+            if (slider) {
+                slider.min = '0';
+                slider.max = String(Math.max(0, opts.length - 1));
+                slider.value = String(idx);
+            }
+            if (label) label.textContent = opts[idx] ? opts[idx].textContent.trim() : THINKING_LEVELS[Math.min(idx, THINKING_LEVELS.length - 1)].label;
+            if (scale) {
+                scale.innerHTML = '';
+                opts.forEach((opt) => {
+                    const span = document.createElement('span');
+                    span.textContent = opt.textContent.trim();
+                    scale.appendChild(span);
+                });
+            }
         }
         function scheduleThinkingSliderHide() {
             if (thinkingSliderTimer) clearTimeout(thinkingSliderTimer);

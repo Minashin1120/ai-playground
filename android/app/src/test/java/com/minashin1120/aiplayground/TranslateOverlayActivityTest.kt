@@ -129,12 +129,16 @@ class TranslateOverlayActivityTest {
         val gemini36 = SelectionTranslator.requestOptions(TranslationSetting("gemini-3.6-flash", "", "日本語", thinkingLevel = "minimal"))
         assertTrue(gemini36.getBoolean("enable_thinking"))
         assertEquals("medium", gemini36.getString("thinking_level"))
-        // GPT has no Thinking checkbox; an effort it lacks moves to the fallback.
-        val gpt = SelectionTranslator.requestOptions(TranslationSetting("gpt-5", "", "日本語", thinking = true, reasoningEffort = "xhigh"))
-        assertFalse(gpt.getBoolean("enable_thinking"))
+        // GPT uses the Thinking button; an effort it lacks moves to the fallback and turns Thinking on.
+        val gpt = SelectionTranslator.requestOptions(TranslationSetting("gpt-5", "", "日本語", thinking = false, reasoningEffort = "xhigh"))
+        assertTrue(gpt.getBoolean("enable_thinking"))
         assertEquals("medium", gpt.getString("reasoning_effort"))
         assertEquals("low", SelectionTranslator.requestOptions(TranslationSetting("gpt-5", "", "日本語", reasoningEffort = "low"))
             .getString("reasoning_effort"))
+        // Effort none is the Thinking OFF position.
+        val gptOff = SelectionTranslator.requestOptions(TranslationSetting("gpt-5", "", "日本語", reasoningEffort = "none"))
+        assertFalse(gptOff.getBoolean("enable_thinking"))
+        assertEquals("none", gptOff.getString("reasoning_effort"))
     }
 
     @Test fun promptAsksForTheTranslationOnlyAndFencesTheSelection() {

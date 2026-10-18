@@ -1004,7 +1004,7 @@
             const rawArgument = String(command.presetArgument || argument || '').trim();
             if (item.selectId) {
                 if (!rawArgument) {
-                    showToast(`使い方: ${command.label} ${command.id === 'effort' ? 'none / low / medium / high / xhigh / max' : 'default / none'}`, 'info');
+                    showToast(`使い方: ${command.label} default / none`, 'info');
                     return false;
                 }
                 const select = get(item.selectId);
@@ -1025,25 +1025,52 @@
 
             if (item.special === 'thinking' && rawArgument) {
                 const normalized = rawArgument.toLowerCase();
-                const levelAliases = { min: 'minimal', minimal: 'minimal', low: 'low', mid: 'medium', medium: 'medium', high: 'high' };
+                const level = activeThinkingSelect();
+                const isEffort = !!(level && level.id === 'reasoning-effort');
+                const levelAliases = isEffort
+                    ? { off: 'none', none: 'none', min: 'low', minimal: 'low', low: 'low', mid: 'medium', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' }
+                    : { min: 'minimal', minimal: 'minimal', low: 'low', mid: 'medium', medium: 'medium', high: 'high' };
                 const desired = parseSlashToggleArgument(rawArgument);
                 const checkbox = get(item.checkboxId);
                 if (Object.prototype.hasOwnProperty.call(levelAliases, normalized)) {
-                    if (checkbox && !checkbox.checked && !checkbox.disabled) {
-                        checkbox.checked = true;
-                        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                    const targetValue = levelAliases[normalized];
+                    const targetOption = level ? Array.from(level.options).find((opt) =>
+                        opt.value === targetValue && !opt.disabled && !opt.classList.contains('hidden')
+                    ) : null;
+                    if (level && !targetOption) {
+                        showToast(`Thinking: 「${normalized}」はこのモデルでは利用できません`, 'warning');
+                        return false;
                     }
-                    const level = get('thinking-level');
-                    if (level) {
-                        level.value = levelAliases[normalized];
-                        level.dispatchEvent(new Event('change', { bubbles: true }));
+                    if (targetValue === 'none') {
+                        if (checkbox && checkbox.disabled) {
+                            showToast('Thinking: このモデルではOFFにできません', 'warning');
+                            return false;
+                        }
+                        if (checkbox && checkbox.checked) {
+                            checkbox.checked = false;
+                            checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                        } else if (level) {
+                            level.value = 'none';
+                            level.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    } else {
+                        if (checkbox && !checkbox.checked && !checkbox.disabled) {
+                            checkbox.checked = true;
+                            checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                        if (level) {
+                            level.value = targetValue;
+                            level.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
                     }
                     refreshMinimalOptionItems();
                     showToast(`Thinking: ${normalized}`, 'success');
                     return true;
                 }
                 if (desired === undefined) {
-                    showToast('使い方: /thinking on / off / min / low / mid / high', 'info');
+                    showToast(isEffort
+                        ? '使い方: /thinking on / off / min / low / mid / high / xhigh / max'
+                        : '使い方: /thinking on / off / min / low / mid / high', 'info');
                     return false;
                 }
             }

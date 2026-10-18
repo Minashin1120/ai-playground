@@ -379,6 +379,37 @@
             }
             // applyChatDefaults（part04、DOMContentLoaded の外）からも呼ぶため公開する。
             window.toggleOptions = toggleOptions;
+            // Reasoning effort を使うモデルも、Gemini と同じ「Thinking」ボタン
+            // （ON/OFF ＋ レベル選択）で操作する。reasoning-effort は送信値の
+            // 正本として残し、表示だけを Thinking 側へ寄せる。
+            function setComposerThinkingMode(mode) {
+                const thinkOpts = get('thinking-options');
+                const thinkLvl = get('thinking-level');
+                const effortSel = get('reasoning-effort');
+                const thinkChk = get('enable-thinking');
+                const budgetLbl = get('thinking-budget-label');
+                const thinkBudget = get('thinking-budget');
+                const isEffort = mode === 'effort';
+                if (thinkOpts) thinkOpts.dataset.thinkingMode = isEffort ? 'effort' : 'thinking';
+                if (thinkLvl) thinkLvl.classList.toggle('hidden', isEffort);
+                if (effortSel) effortSel.classList.toggle('hidden', !isEffort);
+                if (budgetLbl) budgetLbl.classList.toggle('hidden', isEffort);
+                if (thinkBudget) thinkBudget.classList.toggle('hidden', isEffort);
+                if (!thinkChk) return;
+                if (isEffort) {
+                    // Gemini 用のON/OFF状態を退避し、モデルを戻したときに復元する。
+                    if (thinkChk.dataset.thinkingChecked === undefined) {
+                        thinkChk.dataset.thinkingChecked = thinkChk.checked ? '1' : '0';
+                    }
+                    const noneOpt = effortSel ? Array.from(effortSel.options).find(opt => opt.value === 'none') : null;
+                    const noneAvailable = !!(noneOpt && !noneOpt.disabled && !noneOpt.classList.contains('hidden'));
+                    thinkChk.checked = noneAvailable ? !!(effortSel && String(effortSel.value || '').toLowerCase() !== 'none') : true;
+                    thinkChk.disabled = !noneAvailable;
+                } else if (thinkChk.dataset.thinkingChecked !== undefined) {
+                    thinkChk.checked = thinkChk.dataset.thinkingChecked === '1';
+                    delete thinkChk.dataset.thinkingChecked;
+                }
+            }
             function toggleOptionsForModel() {
                 const modelEl = get('model-select');
                 if (!modelEl) return;
@@ -423,6 +454,9 @@
 
                 if (thinkOpts) thinkOpts.classList.add('hidden');
                 if (reasonOpts) reasonOpts.classList.add('hidden');
+                // 基本は Gemini と同じ Thinking（thinking-level）表示に戻し、
+                // 対象モデルのときだけ下で effort 表示へ切り替える。
+                setComposerThinkingMode('thinking');
                 const vmi = get('vision-model-info');
                 if (vmi) vmi.classList.add('hidden');
                 if (reasonOpts) {
@@ -576,10 +610,12 @@
                 }
                 const supportsReasoningEffort = isLlmModel() && (modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3') || modelLower.includes('grok-4.3') || modelLower.includes('grok-4.5') || modelLower.includes('grok-4.6') || modelLower.includes('grok-4.20-0309-reasoning') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || (modelLower.includes('gpt') && !modelLower.includes('tts')));
                 if (supportsReasoningEffort) {
-                    reasonOpts.classList.remove('hidden');
-                    if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');
+                    if (thinkOpts) thinkOpts.classList.remove('hidden');
+                    setComposerThinkingMode('effort');
+                    if (searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');
                 } else if (isDeepSeek) {
-                    reasonOpts.classList.remove('hidden');
+                    if (thinkOpts) thinkOpts.classList.remove('hidden');
+                    setComposerThinkingMode('effort');
                     // V4.1 Flash handles images natively; only text-only DeepSeek models need the vision-model notice.
                     const vmi = get('vision-model-info');
                     if (vmi) vmi.classList.toggle('hidden', modelLower === 'deepseek-v4.1-flash' || modelLower === 'deepseek-v4-flash-vision-exp');
@@ -1052,6 +1088,7 @@
             get('send-btn').onclick = () => { if (isStopMode) stopGeneration(); else sendMessage(); };
             get('new-chat-btn').onclick = () => startNewChat();
             bindUploadButton();
+            bindThinkingEffortSync();
             bindMinimalOptionsEvents();
             const vmBtn = get('vision-model-change-btn');
             if (vmBtn) vmBtn.onclick = () => _openVisionModelSelector();

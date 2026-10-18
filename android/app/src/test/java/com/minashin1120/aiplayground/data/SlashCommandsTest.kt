@@ -10,8 +10,10 @@ class SlashCommandsTest {
     @Test fun minimalCommandsOnlyShowInMinimalMode() {
         assertEquals(listOf("settings"), visibleSlashCommands("", minimalMode = false).map { it.id })
         val all = visibleSlashCommands("", minimalMode = true).map { it.id }
-        assertTrue(all.containsAll(listOf("settings", "options", "thinking", "thinking-high", "effort", "tempchat")))
+        assertTrue(all.containsAll(listOf("settings", "options", "thinking", "thinking-high", "tempchat")))
         assertFalse("fast" in all)
+        // Effort is part of the Thinking control now, so there is no separate /effort command.
+        assertFalse("effort" in all)
     }
 
     @Test fun filterMatchesLabelOrDescription() {
@@ -25,7 +27,7 @@ class SlashCommandsTest {
         assertEquals("settings", slashCommandToken("/settingsデフォルト"))
         assertNull(slashCommandToken("hello"))
         assertEquals("デフォルト", stripSlashCommand("/settingsデフォルト"))
-        assertEquals("high", stripSlashCommand("/effort high"))
+        assertEquals("high", stripSlashCommand("/thinking high"))
         assertEquals("th", slashPaletteFilter("/th"))
         assertNull(slashPaletteFilter("hi /th"))
     }
@@ -36,6 +38,8 @@ class SlashCommandsTest {
         assertEquals(SlashToggle.TOGGLE, parseSlashToggle(""))
         assertEquals(SlashToggle.INVALID, parseSlashToggle("maybe"))
         assertEquals("medium", SLASH_THINKING_LEVELS["mid"])
+        assertEquals("none", SLASH_EFFORT_THINKING_LEVELS["off"])
+        assertEquals("high", SLASH_EFFORT_THINKING_LEVELS["high"])
     }
 
     @Test fun aiSettingsHelpers() {

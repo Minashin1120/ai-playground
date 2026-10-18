@@ -143,7 +143,7 @@ class MinimalPromptModeRegressionTests(unittest.TestCase):
         for command in (
             "options", "attach", "voice", "paste", "canvas", "coding",
             "fast", "search", "urls", "maps", "python", "file", "mcp",
-            "sysprompt", "thinking", "effort", "safety", "promptcache",
+            "sysprompt", "thinking", "safety", "promptcache",
             "compress", "tempchat",
         ):
             self.assertIn(f"id: '{command}'", script)

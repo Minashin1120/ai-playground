@@ -4677,7 +4677,6 @@
             { key: 'mcp', icon: 'fa-plug', label: 'MCP', checkboxId: 'enable-mcp', containerId: 'mcp-container' },
             { key: 'sysprompt', icon: 'fa-terminal', label: 'SysPrompt', checkboxId: 'enable-sys-prompt', containerId: 'sys-prompt-option', gear: true, gearAction: () => { if (window.openThreadModal) window.openThreadModal(); } },
             { key: 'thinking', icon: 'fa-brain', label: 'Thinking', checkboxId: 'enable-thinking', containerId: 'thinking-options', special: 'thinking' },
-            { key: 'effort', icon: 'fa-sliders-h', label: 'Effort', containerId: 'reasoning-effort-container', selectId: 'reasoning-effort' },
             { key: 'safety', icon: 'fa-shield-halved', label: 'Safety', selectId: 'safety-setting' },
             { key: 'promptcache', icon: 'fa-database', label: 'PromptCache', checkboxId: 'enable-prompt-cache', containerId: 'prompt-cache-container' },
             { key: 'compress', icon: 'fa-compress-alt', label: 'Compress', checkboxId: 'enable-compression', containerId: 'compression-option', gear: true, gearAction: () => { if (window.openCompressionModal) window.openCompressionModal(); } },
@@ -4724,14 +4723,34 @@
         }
         function minimalOptionChecked(item) {
             if (!item.checkboxId) return false;
+            if (item.special === 'thinking') {
+                const opts = get('thinking-options');
+                if (opts && opts.dataset.thinkingMode === 'effort') {
+                    const effort = get('reasoning-effort');
+                    return !!effort && String(effort.value || '').toLowerCase() !== 'none';
+                }
+            }
             const chk = get(item.checkboxId);
             return !!chk && chk.checked;
         }
+        // effort モデルでは reasoning-effort、それ以外は thinking-level が
+        // Thinking ボタンのレベル選択として表示される。
+        function activeThinkingSelect() {
+            const opts = get('thinking-options');
+            if (opts && opts.dataset.thinkingMode === 'effort') return get('reasoning-effort');
+            return get('thinking-level');
+        }
+        function thinkingOptionsList() {
+            const sel = activeThinkingSelect();
+            if (!sel) return [];
+            return Array.from(sel.options).filter((opt) => !opt.disabled && !opt.classList.contains('hidden'));
+        }
         function currentThinkingLevelLabel() {
-            const sel = get('thinking-level');
+            const sel = activeThinkingSelect();
             if (!sel) return THINKING_LEVELS[3].label;
+            if (sel.selectedOptions && sel.selectedOptions[0]) return sel.selectedOptions[0].textContent.trim();
             const level = THINKING_LEVELS.find((item) => item.value === sel.value);
-            return level ? level.label : (sel.selectedOptions[0] ? sel.selectedOptions[0].textContent.trim() : THINKING_LEVELS[3].label);
+            return level ? level.label : THINKING_LEVELS[3].label;
         }
 
         function buildMinimalOptionItem(item) {
@@ -4969,25 +4988,36 @@
 
         // --- Thinking level slide bar ---
         function allowedThinkingValues() {
-            const sel = get('thinking-level');
-            if (!sel) return THINKING_LEVELS.map((l) => l.value);
-            const allowed = Array.from(sel.options)
-                .filter((o) => !o.disabled && !o.classList.contains('hidden'))
-                .map((o) => o.value);
+            return thinkingOptionsList().map((o) => o.value);
             // All options disabled (e.g. Claude uses budget only) -> nothing to pick.
-            return allowed;
         }
         function thinkingIndexFromValue(value) {
-            const idx = THINKING_LEVELS.findIndex((l) => l.value === value);
-            return idx < 0 ? 3 : idx;
+            const allowed = allowedThinkingValues();
+            const idx = allowed.indexOf(String(value));
+            return idx < 0 ? Math.max(0, allowed.length - 1) : idx;
         }
         function syncThinkingSliderUi() {
             const slider = get('thinking-slider');
             const label = get('thinking-slide-value');
-            const sel = get('thinking-level');
-            const idx = thinkingIndexFromValue(sel ? sel.value : 'high');
-            if (slider) slider.value = String(idx);
-            if (label) label.textContent = THINKING_LEVELS[idx].label;
+            const scale = get('thinking-slide-scale');
+            const opts = thinkingOptionsList();
+            const sel = activeThinkingSelect();
+            let idx = opts.findIndex((o) => o.value === (sel ? sel.value : ''));
+            if (idx < 0) idx = Math.max(0, opts.length - 1);
+            if (slider) {
+                slider.min = '0';
+                slider.max = String(Math.max(0, opts.length - 1));
+                slider.value = String(idx);
+            }
+            if (label) label.textContent = opts[idx] ? opts[idx].textContent.trim() : THINKING_LEVELS[Math.min(idx, THINKING_LEVELS.length - 1)].label;
+            if (scale) {
+                scale.innerHTML = '';
+                opts.forEach((opt) => {
+                    const span = document.createElement('span');
+                    span.textContent = opt.textContent.trim();
+                    scale.appendChild(span);
+                });
+            }
         }
         function scheduleThinkingSliderHide() {
             if (thinkingSliderTimer) clearTimeout(thinkingSliderTimer);
@@ -5031,6 +5061,46 @@
                 if (inner) inner.style.transform = '';
             }, 360);
         }
+        // effort モデルでも Enable Thinking と reasoning-effort の表示を
+        // 一つの Thinking ボタンとして同期させる。
+        function bindThinkingEffortSync() {
+            const effortSel = get('reasoning-effort');
+            const thinkChk = get('enable-thinking');
+            const thinkOpts = get('thinking-options');
+            const isEffortMode = () => !!(thinkOpts && thinkOpts.dataset.thinkingMode === 'effort');
+            const noneAvailable = () => {
+                if (!effortSel) return false;
+                const noneOpt = Array.from(effortSel.options).find((opt) => opt.value === 'none');
+                return !!(noneOpt && !noneOpt.disabled && !noneOpt.classList.contains('hidden'));
+            };
+            if (effortSel && effortSel.dataset.thinkingSyncBound !== '1') {
+                effortSel.dataset.thinkingSyncBound = '1';
+                effortSel.addEventListener('change', () => {
+                    if (!isEffortMode() || !thinkChk) return;
+                    thinkChk.checked = noneAvailable() ? String(effortSel.value || '').toLowerCase() !== 'none' : true;
+                    thinkChk.disabled = !noneAvailable();
+                    refreshMinimalOptionItems();
+                });
+            }
+            if (thinkChk && thinkChk.dataset.thinkingEffortBound !== '1') {
+                thinkChk.dataset.thinkingEffortBound = '1';
+                thinkChk.addEventListener('change', () => {
+                    if (!isEffortMode() || !effortSel) return;
+                    if (!thinkChk.checked) {
+                        effortSel.value = 'none';
+                    } else if (!noneAvailable() || String(effortSel.value || '').toLowerCase() === 'none') {
+                        const options = Array.from(effortSel.options).filter((opt) => !opt.disabled && !opt.classList.contains('hidden'));
+                        const preferred = options.find((opt) => opt.value === 'medium')
+                            || options.find((opt) => opt.value === 'high')
+                            || options[0];
+                        if (preferred) effortSel.value = preferred.value;
+                    }
+                    effortSel.dispatchEvent(new Event('change', { bubbles: true }));
+                    refreshMinimalOptionItems();
+                });
+            }
+        }
+
         function bindMinimalOptionsEvents() {
             const backdrop = get('minimal-options-backdrop');
             const closeBtn = get('minimal-options-close-btn');
@@ -5053,14 +5123,11 @@
                 slider.addEventListener('input', () => {
                     const idx = Number(slider.value);
                     const allowed = allowedThinkingValues();
-                    const sel = get('thinking-level');
-                    if (allowed.length) {
-                        const allowedIdx = allowed.map((v) => thinkingIndexFromValue(v));
-                        const targetIdx = allowedIdx.includes(idx) ? idx : allowedIdx.reduce((best, ai) => Math.abs(ai - idx) < Math.abs(best - idx) ? ai : best, allowedIdx[0]);
-                        if (sel) {
-                            sel.value = THINKING_LEVELS[targetIdx].value;
-                            sel.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
+                    const sel = activeThinkingSelect();
+                    if (allowed.length && sel) {
+                        const targetIdx = Math.max(0, Math.min(idx, allowed.length - 1));
+                        sel.value = allowed[targetIdx];
+                        sel.dispatchEvent(new Event('change', { bubbles: true }));
                     }
                     syncThinkingSliderUi();
                     scheduleThinkingSliderHide();
@@ -7979,13 +8046,12 @@
             { id: 'file', label: '/file', description: 'Fileを切り替える（on / off）', icon: 'fa-file-lines', kind: 'minimal', itemKey: 'file' },
             { id: 'mcp', label: '/mcp', description: 'MCPを切り替える（on / off）', icon: 'fa-plug', kind: 'minimal', itemKey: 'mcp' },
             { id: 'sysprompt', label: '/sysprompt', description: 'SysPromptを切り替える（on / off）', icon: 'fa-terminal', kind: 'minimal', itemKey: 'sysprompt' },
-            { id: 'thinking', label: '/thinking', description: 'Thinkingの値を選択（off / min / low / mid / high）', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', requiresArgument: true, autocompleteArgument: true },
+            { id: 'thinking', label: '/thinking', description: 'Thinkingの値を選択（off / min / low / mid / high / xhigh / max）', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', requiresArgument: true, autocompleteArgument: true },
             { id: 'thinking-off', label: '/thinking off', description: 'ThinkingをOFFにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'off' },
             { id: 'thinking-min', label: '/thinking min', description: 'ThinkingをMinにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'min' },
             { id: 'thinking-low', label: '/thinking low', description: 'ThinkingをLowにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'low' },
             { id: 'thinking-mid', label: '/thinking mid', description: 'ThinkingをMidにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'mid' },
             { id: 'thinking-high', label: '/thinking high', description: 'ThinkingをHighにする', icon: 'fa-brain', kind: 'minimal', itemKey: 'thinking', presetArgument: 'high' },
-            { id: 'effort', label: '/effort', description: 'Effortを調整', icon: 'fa-sliders-h', kind: 'minimal', itemKey: 'effort', requiresArgument: true, argumentHint: 'Effortを入力（none / low / medium / high / xhigh / max）...' },
             { id: 'safety', label: '/safety', description: 'Safetyを調整', icon: 'fa-shield-halved', kind: 'minimal', itemKey: 'safety', requiresArgument: true, argumentHint: 'Safetyを入力（default / none）...' },
             { id: 'promptcache', label: '/promptcache', description: 'PromptCacheを切り替える（on / off）', icon: 'fa-database', kind: 'minimal', itemKey: 'promptcache' },
             { id: 'compress', label: '/compress', description: 'Compressを切り替える（on / off）', icon: 'fa-compress-alt', kind: 'minimal', itemKey: 'compress' },
@@ -10346,6 +10412,37 @@
             }
             // applyChatDefaults（part04、DOMContentLoaded の外）からも呼ぶため公開する。
             window.toggleOptions = toggleOptions;
+            // Reasoning effort を使うモデルも、Gemini と同じ「Thinking」ボタン
+            // （ON/OFF ＋ レベル選択）で操作する。reasoning-effort は送信値の
+            // 正本として残し、表示だけを Thinking 側へ寄せる。
+            function setComposerThinkingMode(mode) {
+                const thinkOpts = get('thinking-options');
+                const thinkLvl = get('thinking-level');
+                const effortSel = get('reasoning-effort');
+                const thinkChk = get('enable-thinking');
+                const budgetLbl = get('thinking-budget-label');
+                const thinkBudget = get('thinking-budget');
+                const isEffort = mode === 'effort';
+                if (thinkOpts) thinkOpts.dataset.thinkingMode = isEffort ? 'effort' : 'thinking';
+                if (thinkLvl) thinkLvl.classList.toggle('hidden', isEffort);
+                if (effortSel) effortSel.classList.toggle('hidden', !isEffort);
+                if (budgetLbl) budgetLbl.classList.toggle('hidden', isEffort);
+                if (thinkBudget) thinkBudget.classList.toggle('hidden', isEffort);
+                if (!thinkChk) return;
+                if (isEffort) {
+                    // Gemini 用のON/OFF状態を退避し、モデルを戻したときに復元する。
+                    if (thinkChk.dataset.thinkingChecked === undefined) {
+                        thinkChk.dataset.thinkingChecked = thinkChk.checked ? '1' : '0';
+                    }
+                    const noneOpt = effortSel ? Array.from(effortSel.options).find(opt => opt.value === 'none') : null;
+                    const noneAvailable = !!(noneOpt && !noneOpt.disabled && !noneOpt.classList.contains('hidden'));
+                    thinkChk.checked = noneAvailable ? !!(effortSel && String(effortSel.value || '').toLowerCase() !== 'none') : true;
+                    thinkChk.disabled = !noneAvailable;
+                } else if (thinkChk.dataset.thinkingChecked !== undefined) {
+                    thinkChk.checked = thinkChk.dataset.thinkingChecked === '1';
+                    delete thinkChk.dataset.thinkingChecked;
+                }
+            }
             function toggleOptionsForModel() {
                 const modelEl = get('model-select');
                 if (!modelEl) return;
@@ -10390,6 +10487,9 @@
 
                 if (thinkOpts) thinkOpts.classList.add('hidden');
                 if (reasonOpts) reasonOpts.classList.add('hidden');
+                // 基本は Gemini と同じ Thinking（thinking-level）表示に戻し、
+                // 対象モデルのときだけ下で effort 表示へ切り替える。
+                setComposerThinkingMode('thinking');
                 const vmi = get('vision-model-info');
                 if (vmi) vmi.classList.add('hidden');
                 if (reasonOpts) {
@@ -10543,10 +10643,12 @@
                 }
                 const supportsReasoningEffort = isLlmModel() && (modelLower.includes('gpt-5') || modelLower.includes('o1') || modelLower.includes('o3') || modelLower.includes('grok-4.3') || modelLower.includes('grok-4.5') || modelLower.includes('grok-4.6') || modelLower.includes('grok-4.20-0309-reasoning') || modelLower.includes('grok-build') || modelLower.includes('multi-agent') || (modelLower.includes('gpt') && !modelLower.includes('tts')));
                 if (supportsReasoningEffort) {
-                    reasonOpts.classList.remove('hidden');
-                    if(searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');
+                    if (thinkOpts) thinkOpts.classList.remove('hidden');
+                    setComposerThinkingMode('effort');
+                    if (searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');
                 } else if (isDeepSeek) {
-                    reasonOpts.classList.remove('hidden');
+                    if (thinkOpts) thinkOpts.classList.remove('hidden');
+                    setComposerThinkingMode('effort');
                     // V4.1 Flash handles images natively; only text-only DeepSeek models need the vision-model notice.
                     const vmi = get('vision-model-info');
                     if (vmi) vmi.classList.toggle('hidden', modelLower === 'deepseek-v4.1-flash' || modelLower === 'deepseek-v4-flash-vision-exp');
@@ -11019,6 +11121,7 @@
             get('send-btn').onclick = () => { if (isStopMode) stopGeneration(); else sendMessage(); };
             get('new-chat-btn').onclick = () => startNewChat();
             bindUploadButton();
+            bindThinkingEffortSync();
             bindMinimalOptionsEvents();
             const vmBtn = get('vision-model-change-btn');
             if (vmBtn) vmBtn.onclick = () => _openVisionModelSelector();
@@ -20589,7 +20692,7 @@
             const rawArgument = String(command.presetArgument || argument || '').trim();
             if (item.selectId) {
                 if (!rawArgument) {
-                    showToast(`使い方: ${command.label} ${command.id === 'effort' ? 'none / low / medium / high / xhigh / max' : 'default / none'}`, 'info');
+                    showToast(`使い方: ${command.label} default / none`, 'info');
                     return false;
                 }
                 const select = get(item.selectId);
@@ -20610,25 +20713,52 @@
 
             if (item.special === 'thinking' && rawArgument) {
                 const normalized = rawArgument.toLowerCase();
-                const levelAliases = { min: 'minimal', minimal: 'minimal', low: 'low', mid: 'medium', medium: 'medium', high: 'high' };
+                const level = activeThinkingSelect();
+                const isEffort = !!(level && level.id === 'reasoning-effort');
+                const levelAliases = isEffort
+                    ? { off: 'none', none: 'none', min: 'low', minimal: 'low', low: 'low', mid: 'medium', medium: 'medium', high: 'high', xhigh: 'xhigh', max: 'max' }
+                    : { min: 'minimal', minimal: 'minimal', low: 'low', mid: 'medium', medium: 'medium', high: 'high' };
                 const desired = parseSlashToggleArgument(rawArgument);
                 const checkbox = get(item.checkboxId);
                 if (Object.prototype.hasOwnProperty.call(levelAliases, normalized)) {
-                    if (checkbox && !checkbox.checked && !checkbox.disabled) {
-                        checkbox.checked = true;
-                        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                    const targetValue = levelAliases[normalized];
+                    const targetOption = level ? Array.from(level.options).find((opt) =>
+                        opt.value === targetValue && !opt.disabled && !opt.classList.contains('hidden')
+                    ) : null;
+                    if (level && !targetOption) {
+                        showToast(`Thinking: 「${normalized}」はこのモデルでは利用できません`, 'warning');
+                        return false;
                     }
-                    const level = get('thinking-level');
-                    if (level) {
-                        level.value = levelAliases[normalized];
-                        level.dispatchEvent(new Event('change', { bubbles: true }));
+                    if (targetValue === 'none') {
+                        if (checkbox && checkbox.disabled) {
+                            showToast('Thinking: このモデルではOFFにできません', 'warning');
+                            return false;
+                        }
+                        if (checkbox && checkbox.checked) {
+                            checkbox.checked = false;
+                            checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                        } else if (level) {
+                            level.value = 'none';
+                            level.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    } else {
+                        if (checkbox && !checkbox.checked && !checkbox.disabled) {
+                            checkbox.checked = true;
+                            checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                        if (level) {
+                            level.value = targetValue;
+                            level.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
                     }
                     refreshMinimalOptionItems();
                     showToast(`Thinking: ${normalized}`, 'success');
                     return true;
                 }
                 if (desired === undefined) {
-                    showToast('使い方: /thinking on / off / min / low / mid / high', 'info');
+                    showToast(isEffort
+                        ? '使い方: /thinking on / off / min / low / mid / high / xhigh / max'
+                        : '使い方: /thinking on / off / min / low / mid / high', 'info');
                     return false;
                 }
             }

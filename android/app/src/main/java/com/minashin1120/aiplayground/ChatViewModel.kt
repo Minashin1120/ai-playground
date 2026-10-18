@@ -1789,8 +1789,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val rules = composerRules(model, mcpServers.any { it.enabled })
         val level = chipValues["thinking_level"].orEmpty()
         val effort = chipValues["reasoning_effort"].orEmpty()
-        val nextLevel = if (level !in rules.thinkingLevels && rules.thinkingFallback != null) rules.thinkingFallback else level
-        val nextEffort = if (rules.effort.visible && effort !in rules.effortOptions) rules.effortFallback else effort
+        val nextLevel = if (!rules.effortAsThinking && level !in rules.thinkingLevels && rules.thinkingFallback != null) rules.thinkingFallback else level
+        val nextEffort = when {
+            rules.effortAsThinking -> if (effort !in rules.thinkingLevels && rules.thinkingFallback != null) rules.thinkingFallback else effort
+            rules.effort.visible && effort !in rules.effortOptions -> rules.effortFallback
+            else -> effort
+        }
         // Web `toggleOptions()` remembers the SysPrompt choice while a model cannot use it and brings it back afterwards.
         val sysForced = rules.sysPrompt.forced
         val sysSuppressed = sysForced != null
@@ -2659,6 +2663,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         fun effective(value: Boolean, rule: OptionRule) = rule.forced ?: value
         val effort = current.chipValues["reasoning_effort"].orEmpty()
         val deepSeekNonThinking = current.model.lowercase().contains("deepseek") && effort.lowercase() == "none"
+        // Web の Thinking ボタンと同じく、Effort が none のときは思考を有効にしない。
+        val effortNonThinking = rules.effortAsThinking && effort.lowercase() == "none"
         val items = attachmentItemsForSend(current.attachments)
         if (current.imageMask != null && isGptImageModel(current.model) && items.isEmpty()) {
             notify("Mask は画像入力が必要です")
@@ -2672,7 +2678,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .put("uploaded_image_urls", JSONArray(items.filter { it.source == "upload" }.map { it.reference }))
             .put("marker_system_prompt", if (current.attachments.any { it.edited }) MARKER_HINT_TEXT else JSONObject.NULL)
             .put("image_vision_model", current.visionModel ?: current.preferences?.defaultVisionModel ?: JSONObject.NULL)
-            .put("enable_thinking", !deepSeekNonThinking && effective(current.enableThinking, rules.thinking))
+            .put("enable_thinking", !deepSeekNonThinking && !effortNonThinking && effective(current.enableThinking, rules.thinking))
             .put("enable_search", effective(current.enableSearch, rules.search))
             .put("enable_url_context", effective(current.enableUrlContext, rules.urls))
             .put("enable_maps", effective(current.enableMaps, rules.maps))
@@ -5033,7 +5039,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         "file" -> SlashItem("File", rules.file, current.enableFileCreation, ::toggleFileCreation)
         "mcp" -> SlashItem("MCP", rules.mcp, current.enableMcp, ::toggleMcp)
         "sysprompt" -> SlashItem("SysPrompt", rules.sysPrompt, current.enableSystemPrompt, ::toggleSystemPrompt)
-        "thinking" -> SlashItem("Thinking", rules.thinking, current.enableThinking, ::toggleThinking)
+        "thinking" -> SlashItem(
+            "Thinking",
+            rules.thinking,
+            if (rules.effortAsThinking) current.chipValues["reasoning_effort"].orEmpty() != "none" else current.enableThinking,
+        ) {
+            if (rules.effortAsThinking) {
+                val levels = EFFORT_LEVELS.filter { it in rules.thinkingLevels }
+                val next = if (state.value.chipValues["reasoning_effort"].orEmpty() != "none") "none"
+                else levels.firstOrNull { it != "none" } ?: rules.effortFallback
+                generationOption("reasoning_effort", next)
+            } else toggleThinking()
+        }
         "promptcache" -> SlashItem("PromptCache", rules.promptCache, current.enablePromptCache, ::togglePromptCache)
         "compress" -> SlashItem("Compress", null, current.compression.enabled) {
             saveCompressionSettings(state.value.compression.copy(enabled = !state.value.compression.enabled))
@@ -5053,20 +5070,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val current = state.value
         val rules = composerRules(current.model, current.mcpServers.any { it.enabled })
         val raw = command.presetArgument.ifBlank { argument }.trim()
-        if (command.id == "effort" || command.id == "safety") {
-            if (command.id == "effort" && !rules.effort.visible) { notify("/${command.id} は現在のモデルでは利用できません"); return true }
-            if (command.id == "effort" && (rules.effort.disabled || rules.effort.dimmed)) { notify("/${command.id} は現在変更できません"); return true }
+        if (command.id == "safety") {
             if (raw.isEmpty()) {
-                notify("使い方: ${command.label} ${if (command.id == "effort") "none / low / medium / high / xhigh / max" else "default / none"}")
+                notify("使い方: ${command.label} default / none")
                 return false
             }
-            val options = if (command.id == "effort") rules.effortOptions.map { it to EFFORT_OPTION_LABELS.getValue(it) }
-                else listOf("default" to "Default", "none" to "None")
+            val options = listOf("default" to "Default", "none" to "None")
             val normalized = raw.lowercase()
             val option = options.firstOrNull { (value, label) -> value == normalized || label.lowercase() == normalized }
             if (option == null) { notify("${command.label}: 指定値「$raw」は利用できません"); return false }
-            generationOption(if (command.id == "effort") "reasoning_effort" else "safety_setting", option.first)
-            notify("${if (command.id == "effort") "Effort" else "Safety"}: ${option.second}")
+            generationOption("safety_setting", option.first)
+            notify("Safety: ${option.second}")
             return true
         }
         val item = slashItem(command.itemKey, current, rules) ?: return false
@@ -5075,14 +5089,29 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (disabled && command.itemKey != "thinking") { notify("/${command.id} は現在変更できません"); return true }
         if (command.itemKey == "thinking" && raw.isNotEmpty()) {
             val normalized = raw.lowercase()
-            SLASH_THINKING_LEVELS[normalized]?.let { level ->
-                if (!current.enableThinking && item.rule?.disabled != true) toggleThinking()
-                generationOption("thinking_level", level)
+            val thinkingKey = if (rules.effortAsThinking) "reasoning_effort" else "thinking_level"
+            val availableLevels = (if (rules.effortAsThinking) EFFORT_LEVELS else THINKING_LEVELS)
+                .filter { it in rules.thinkingLevels }
+            val alias = if (rules.effortAsThinking) SLASH_EFFORT_THINKING_LEVELS[normalized] else SLASH_THINKING_LEVELS[normalized]
+            if (alias != null) {
+                if (alias !in availableLevels) {
+                    notify("Thinking: 「$normalized」はこのモデルでは利用できません")
+                    return false
+                }
+                if (alias == "none") {
+                    if (item.rule?.disabled == true) { notify("Thinking: このモデルではOFFにできません"); return false }
+                    generationOption(thinkingKey, "none")
+                } else {
+                    if (!rules.effortAsThinking && !current.enableThinking && item.rule?.disabled != true) toggleThinking()
+                    generationOption(thinkingKey, alias)
+                }
                 notify("Thinking: $normalized")
                 return true
             }
             if (parseSlashToggle(raw) == SlashToggle.INVALID) {
-                notify("使い方: /thinking on / off / min / low / mid / high")
+                notify(if (rules.effortAsThinking)
+                    "使い方: /thinking on / off / min / low / mid / high / xhigh / max"
+                else "使い方: /thinking on / off / min / low / mid / high")
                 return false
             }
         }

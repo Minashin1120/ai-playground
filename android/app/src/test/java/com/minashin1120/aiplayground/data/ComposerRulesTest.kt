@@ -17,6 +17,7 @@ class ComposerRulesTest {
         // The effort step hides Maps again for every model that is not DeepSeek / reasoning-effort.
         assertFalse(rules.maps.visible)
         assertFalse(rules.effort.visible)
+        assertFalse(rules.effortAsThinking)
         assertFalse(rules.budgetEnabled)
         assertFalse(rules.mcp.visible)
         assertTrue(rules.python.visible)
@@ -39,22 +40,35 @@ class ComposerRulesTest {
         assertTrue(showsReasoningProgress("gpt-6.1-sol", false, "high"))
     }
 
-    @Test fun gptModelsShowEffortWithModelSpecificOptions() {
+    @Test fun gptModelsShowEffortThroughTheThinkingControl() {
         val rules = composerRules("gpt-5.6", mcpEnabledServer = false)
-        assertTrue(rules.effort.visible)
+        // Web shows one Thinking button (ON/OFF + level) instead of a separate Effort control.
+        assertFalse(rules.effort.visible)
+        assertTrue(rules.thinking.visible)
+        assertTrue(rules.effortAsThinking)
         assertEquals(listOf("none", "low", "medium", "high", "xhigh", "max"), rules.effortOptions)
-        assertFalse(rules.thinking.visible)
+        assertEquals(setOf("none", "low", "medium", "high", "xhigh", "max"), rules.thinkingLevels)
+        assertEquals("medium", rules.thinkingFallback)
+        assertFalse(rules.thinking.disabled)
+        assertNull(rules.thinking.forced)
+        assertFalse(rules.budgetEnabled)
         assertTrue(rules.batch.visible)
         val grok = composerRules("grok-4.5", mcpEnabledServer = false)
         assertEquals(listOf("low", "medium", "high"), grok.effortOptions)
+        assertEquals(setOf("low", "medium", "high"), grok.thinkingLevels)
+        // No "none": Thinking is always on, as with Gemini 3.x.
+        assertTrue(grok.thinking.disabled)
+        assertEquals(true, grok.thinking.forced)
     }
 
     @Test fun deepSeekForcesSearchOffAndFallsBackToHighEffort() {
         val rules = composerRules("deepseek-v4-pro", mcpEnabledServer = false)
-        assertTrue(rules.effort.visible)
+        assertFalse(rules.effort.visible)
+        assertTrue(rules.effortAsThinking)
         assertEquals(false, rules.search.forced)
         assertTrue(rules.search.disabled)
         assertEquals("high", rules.effortFallback)
+        assertEquals("high", rules.thinkingFallback)
         assertFalse(rules.effortOptions.contains("low"))
         assertTrue(rules.promptCache.disabled)
         assertEquals(false, rules.promptCache.forced)

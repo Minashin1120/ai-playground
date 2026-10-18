@@ -129,15 +129,23 @@ class SelectionTranslator(context: Context) {
             val rules = composerRules(setting.model, false)
             val body = JSONObject()
             COMPOSER_SELECT_DEFAULTS.forEach { (key, fallback) -> body.put(key, fallback) }
-            body.put("enable_thinking", rules.thinking.forced ?: (rules.thinking.visible && setting.thinking))
             body.put("thinking_level", setting.thinkingLevel)
             body.put("thinking_budget", (setting.thinkingBudget.toIntOrNull()?.coerceIn(0, 32768) ?: 4096).toString())
             body.put("reasoning_effort", setting.reasoningEffort)
-            if (rules.thinkingLevels.isNotEmpty() && body.optString("thinking_level") !in rules.thinkingLevels) {
+            if (!rules.effortAsThinking && rules.thinkingLevels.isNotEmpty() && body.optString("thinking_level") !in rules.thinkingLevels) {
                 rules.thinkingFallback?.let { body.put("thinking_level", it) }
             }
-            if (rules.effortOptions.isNotEmpty() && body.optString("reasoning_effort") !in rules.effortOptions) {
+            if (rules.effortAsThinking) {
+                if (body.optString("reasoning_effort") !in rules.thinkingLevels) {
+                    body.put("reasoning_effort", rules.thinkingFallback ?: rules.effortFallback)
+                }
+                // Web の Thinking ボタンと同じく、Effort が none のときは思考を有効にしない。
+                body.put("enable_thinking", body.optString("reasoning_effort") != "none")
+            } else if (rules.effortOptions.isNotEmpty() && body.optString("reasoning_effort") !in rules.effortOptions) {
                 body.put("reasoning_effort", rules.effortFallback)
+                body.put("enable_thinking", rules.thinking.forced ?: (rules.thinking.visible && setting.thinking))
+            } else {
+                body.put("enable_thinking", rules.thinking.forced ?: (rules.thinking.visible && setting.thinking))
             }
             return body
         }

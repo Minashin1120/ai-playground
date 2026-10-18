@@ -40,14 +40,12 @@ val SLASH_COMMANDS = listOf(
     minimal("file", "/file", "Fileを切り替える（on / off）", "file-lines"),
     minimal("mcp", "/mcp", "MCPを切り替える（on / off）", "plug"),
     minimal("sysprompt", "/sysprompt", "SysPromptを切り替える（on / off）", "terminal"),
-    minimal("thinking", "/thinking", "Thinkingの値を選択（off / min / low / mid / high）", "brain", requiresArgument = true, autocomplete = true),
+    minimal("thinking", "/thinking", "Thinkingの値を選択（off / min / low / mid / high / xhigh / max）", "brain", requiresArgument = true, autocomplete = true),
     minimal("thinking-off", "/thinking off", "ThinkingをOFFにする", "brain", itemKey = "thinking", preset = "off"),
     minimal("thinking-min", "/thinking min", "ThinkingをMinにする", "brain", itemKey = "thinking", preset = "min"),
     minimal("thinking-low", "/thinking low", "ThinkingをLowにする", "brain", itemKey = "thinking", preset = "low"),
     minimal("thinking-mid", "/thinking mid", "ThinkingをMidにする", "brain", itemKey = "thinking", preset = "mid"),
     minimal("thinking-high", "/thinking high", "ThinkingをHighにする", "brain", itemKey = "thinking", preset = "high"),
-    minimal("effort", "/effort", "Effortを調整", "sliders-h", requiresArgument = true,
-        hint = "Effortを入力（none / low / medium / high / xhigh / max）..."),
     minimal("safety", "/safety", "Safetyを調整", "shield-halved", requiresArgument = true, hint = "Safetyを入力（default / none）..."),
     minimal("promptcache", "/promptcache", "PromptCacheを切り替える（on / off）", "database"),
     minimal("compress", "/compress", "Compressを切り替える（on / off）", "compress-alt"),
@@ -108,3 +106,9 @@ fun parseSlashToggle(argument: String): SlashToggle {
 
 /** Web thinking-level aliases for `/thinking <level>`. */
 val SLASH_THINKING_LEVELS = mapOf("min" to "minimal", "minimal" to "minimal", "low" to "low", "mid" to "medium", "medium" to "medium", "high" to "high")
+
+/** `/thinking <level>` aliases when the Thinking button hosts reasoning-effort levels. */
+val SLASH_EFFORT_THINKING_LEVELS = mapOf(
+    "off" to "none", "none" to "none", "min" to "low", "minimal" to "low", "low" to "low",
+    "mid" to "medium", "medium" to "medium", "high" to "high", "xhigh" to "xhigh", "max" to "max",
+)

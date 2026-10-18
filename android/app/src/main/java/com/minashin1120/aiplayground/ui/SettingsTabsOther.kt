@@ -55,6 +55,7 @@ import com.minashin1120.aiplayground.TranslationSetting
 import com.minashin1120.aiplayground.data.COMPOSER_SELECT_DEFAULTS
 import com.minashin1120.aiplayground.data.SelectionTranslator
 import com.minashin1120.aiplayground.data.THINKING_LEVELS
+import com.minashin1120.aiplayground.data.EFFORT_LEVELS
 import com.minashin1120.aiplayground.data.composerRules
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -213,16 +214,32 @@ private fun TranslationReasoningFields(setting: TranslationSetting, onChange: (T
     val sent = SelectionTranslator.requestOptions(setting)
     var budget by remember(setting.model) { mutableStateOf(setting.thinkingBudget) }
     if (rules.thinking.visible) {
-        SettingsCheck("Thinking", sent.optBoolean("enable_thinking"), { on ->
-            setTranslationThinking(context, on)
-            onChange(setting.copy(thinking = on))
+        val thinkingKey = if (rules.effortAsThinking) "reasoning_effort" else "thinking_level"
+        val thinkingOptions = if (rules.effortAsThinking) EFFORT_LEVELS else THINKING_LEVELS
+        val thinkingLabels = if (rules.effortAsThinking) EFFORT_LABELS else THINKING_LABELS
+        val levels = thinkingOptions.filter { it in rules.thinkingLevels }
+        val thinkingValue = sent.optString(thinkingKey)
+        val thinkingChecked = if (rules.effortAsThinking) thinkingValue != "none" else sent.optBoolean("enable_thinking")
+        SettingsCheck("Thinking", thinkingChecked, { on ->
+            if (rules.effortAsThinking) {
+                val next = if (on) levels.firstOrNull { it != "none" } ?: rules.effortFallback else "none"
+                setTranslationOption(context, "reasoning_effort", next)
+                onChange(setting.copy(reasoningEffort = next))
+            } else {
+                setTranslationThinking(context, on)
+                onChange(setting.copy(thinking = on))
+            }
         }, enabled = rules.thinking.forced == null && !rules.thinking.disabled)
-        val levels = THINKING_LEVELS.filter { it in rules.thinkingLevels }
         if (levels.isNotEmpty()) {
             SettingsFieldLabel("Thinking Level")
-            SettingsSelect(sent.optString("thinking_level"), levels.map { WebOption(it, THINKING_LABELS.getValue(it)) }, { level ->
-                setTranslationOption(context, "thinking_level", level)
-                onChange(setting.copy(thinkingLevel = level))
+            SettingsSelect(thinkingValue, levels.map { WebOption(it, thinkingLabels.getValue(it)) }, { level ->
+                if (rules.effortAsThinking) {
+                    setTranslationOption(context, "reasoning_effort", level)
+                    onChange(setting.copy(reasoningEffort = level))
+                } else {
+                    setTranslationOption(context, "thinking_level", level)
+                    onChange(setting.copy(thinkingLevel = level))
+                }
             })
         }
         if (rules.budgetEnabled) {
@@ -235,13 +252,6 @@ private fun TranslationReasoningFields(setting: TranslationSetting, onChange: (T
                 }
             }, Modifier.fillMaxWidth(), placeholder = COMPOSER_SELECT_DEFAULTS.getValue("thinking_budget"), number = true)
         }
-    }
-    if (rules.effort.visible && rules.effortOptions.isNotEmpty()) {
-        SettingsFieldLabel("Reasoning Effort")
-        SettingsSelect(sent.optString("reasoning_effort"), rules.effortOptions.map { WebOption(it, EFFORT_LABELS.getValue(it)) }, { effort ->
-            setTranslationOption(context, "reasoning_effort", effort)
-            onChange(setting.copy(reasoningEffort = effort))
-        })
     }
 }
 

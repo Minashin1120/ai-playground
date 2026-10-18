@@ -60,6 +60,7 @@ import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ComposerRules
 import com.minashin1120.aiplayground.data.OptionRule
 import com.minashin1120.aiplayground.data.THINKING_LEVELS
+import com.minashin1120.aiplayground.data.EFFORT_LEVELS
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
@@ -81,7 +82,7 @@ private sealed interface MinimalAction {
     data class Toggle(val rule: OptionRule?, val checked: Boolean, val toggle: () -> Unit) : MinimalAction
     data class Run(val run: () -> Unit, val upload: Boolean = false) : MinimalAction
     data class Select(val value: String, val options: List<WebOption>, val onSelect: (String) -> Unit) : MinimalAction
-    data class Thinking(val rule: OptionRule, val checked: Boolean) : MinimalAction
+    data class Thinking(val rule: OptionRule, val checked: Boolean, val levelLabel: String) : MinimalAction
 }
 
 private data class MinimalItem(
@@ -150,11 +151,14 @@ internal fun MinimalOptionsPopup(
         if (rules.sysPrompt.visible) add(MinimalItem("sysprompt", R.drawable.fa_solid_terminal, "SysPrompt",
             MinimalAction.Toggle(rules.sysPrompt, on(state.enableSystemPrompt, rules.sysPrompt), model::toggleSystemPrompt),
             gear = onChatInstructions))
-        if (rules.thinking.visible) add(MinimalItem("thinking", R.drawable.fa_solid_brain, "Thinking",
-            MinimalAction.Thinking(rules.thinking, on(state.enableThinking, rules.thinking))))
-        if (rules.effort.visible) add(MinimalItem("effort", R.drawable.fa_solid_sliders_h, "Effort", MinimalAction.Select(
-            state.chipValues["reasoning_effort"].orEmpty(), rules.effortOptions.map { WebOption(it, EFFORT_LABELS.getValue(it)) },
-        ) { model.generationOption("reasoning_effort", it) }))
+        if (rules.thinking.visible) {
+            val thinkingKey = if (rules.effortAsThinking) "reasoning_effort" else "thinking_level"
+            val thinkingLabels = if (rules.effortAsThinking) EFFORT_LABELS else THINKING_LABELS
+            val thinkingValue = state.chipValues[thinkingKey].orEmpty()
+            val checked = if (rules.effortAsThinking) thinkingValue != "none" else on(state.enableThinking, rules.thinking)
+            add(MinimalItem("thinking", R.drawable.fa_solid_brain, "Thinking",
+                MinimalAction.Thinking(rules.thinking, checked, thinkingLabels[thinkingValue] ?: thinkingValue)))
+        }
         add(MinimalItem("safety", R.drawable.fa_solid_shield_halved, "Safety", MinimalAction.Select(
             state.chipValues["safety_setting"].orEmpty(), listOf(WebOption("default", "Default"), WebOption("none", "None")),
         ) { model.generationOption("safety_setting", it) }))
@@ -229,8 +233,16 @@ internal fun MinimalOptionsPopup(
                                                 is MinimalAction.Thinking -> {
                                                     // Web: a forced checkbox still opens the slider so the level can change.
                                                     if (!action.rule.disabled && !action.rule.dimmed) {
-                                                        model.toggleThinking()
-                                                        if (!action.checked) close(onShowThinkingSlider)
+                                                        if (rules.effortAsThinking) {
+                                                            val levels = EFFORT_LEVELS.filter { it in rules.thinkingLevels }
+                                                            val next = if (action.checked) "none"
+                                                            else levels.firstOrNull { it != "none" } ?: rules.effortFallback
+                                                            model.generationOption("reasoning_effort", next)
+                                                            if (next != "none") close(onShowThinkingSlider)
+                                                        } else {
+                                                            model.toggleThinking()
+                                                            if (!action.checked) close(onShowThinkingSlider)
+                                                        }
                                                     } else close(onShowThinkingSlider)
                                                 }
                                                 is MinimalAction.Select -> Unit
@@ -306,7 +318,7 @@ private fun MinimalOptionRow(item: MinimalItem, state: ChatState, modifier: Modi
         Text(item.label, fontSize = 11.84.sp, lineHeight = 14.2.sp, fontWeight = FontWeight.SemiBold, color = fg,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = if (upload) Modifier else Modifier.weight(1f))
         if (action is MinimalAction.Thinking) {
-            Text(THINKING_LABELS[state.chipValues["thinking_level"].orEmpty()] ?: "High", fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
+            Text(action.levelLabel.ifBlank { "High" }, fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
                 color = Color(0xFFC4B5FD))
         }
         if (action is MinimalAction.Select) {
@@ -343,8 +355,12 @@ internal fun ThinkingSlideBar(state: ChatState, model: ChatViewModel, rules: Com
     var touched by remember { mutableIntStateOf(0) }
     LaunchedEffect(touched) { delay(2500); visible.targetState = false }
     LaunchedEffect(visible.currentState, visible.targetState) { if (!visible.targetState && !visible.currentState) onDismiss() }
-    val value = state.chipValues["thinking_level"].orEmpty()
-    val index = THINKING_LEVELS.indexOf(value).takeIf { it >= 0 } ?: 3
+    val key = if (rules.effortAsThinking) "reasoning_effort" else "thinking_level"
+    val labels = if (rules.effortAsThinking) EFFORT_LABELS else THINKING_LABELS
+    val order = if (rules.effortAsThinking) EFFORT_LEVELS else THINKING_LEVELS
+    val levels = order.filter { it in rules.thinkingLevels }
+    val value = state.chipValues[key].orEmpty()
+    val index = levels.indexOf(value).takeIf { it >= 0 } ?: levels.lastIndex.coerceAtLeast(0)
     // Web's `#thinking-slide-bar` has no backdrop: an outside tap leaves it open until the timer, × or a swipe.
     Popup(popupPositionProvider = remember(gap) { AboveAnchor(gap) }, onDismissRequest = { visible.targetState = false },
         properties = PopupProperties(dismissOnClickOutside = false)) {
@@ -376,7 +392,7 @@ internal fun ThinkingSlideBar(state: ChatState, model: ChatViewModel, rules: Com
                     FaIcon(R.drawable.fa_solid_brain, null, size = 12.dp, tint = Color(0xFFD8B4FE))
                     Text("Thinking", fontSize = 11.84.sp, fontWeight = FontWeight.Bold, color = Color(0xFFE9D5FF))
                     Spacer(Modifier.weight(1f))
-                    Text(THINKING_LABELS.getValue(THINKING_LEVELS[index]), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC4B5FD))
+                    Text(labels[levels.getOrNull(index).orEmpty()] ?: value.ifBlank { "High" }, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFC4B5FD))
                     Box(Modifier.size(24.dp).clip(CircleShape).clickable(role = Role.Button) { visible.targetState = false },
                         contentAlignment = Alignment.Center) { FaIcon(R.drawable.fa_solid_times, "閉じる", size = 11.dp, tint = Color(0xFFA78BFA)) }
                 }
@@ -384,21 +400,21 @@ internal fun ThinkingSlideBar(state: ChatState, model: ChatViewModel, rules: Com
                 Slider(
                     index.toFloat(),
                     { raw ->
-                        val target = raw.toInt().coerceIn(0, 3)
-                        val allowed = THINKING_LEVELS.withIndex().filter { it.value in rules.thinkingLevels }.map { it.index }
-                        if (allowed.isNotEmpty()) {
-                            val pick = if (target in allowed) target else allowed.minBy { abs(it - target) }
-                            if (THINKING_LEVELS[pick] != value) model.generationOption("thinking_level", THINKING_LEVELS[pick])
+                        if (levels.isNotEmpty()) {
+                            val target = raw.toInt().coerceIn(0, levels.lastIndex)
+                            if (levels[target] != value) model.generationOption(key, levels[target])
                         }
                         touched++
                     },
-                    valueRange = 0f..3f, steps = 2,
+                    // Slider requires a non-empty range; a single disabled level stays a no-op.
+                    valueRange = 0f..levels.lastIndex.coerceAtLeast(1).toFloat(),
+                    steps = if (levels.size >= 2) levels.size - 2 else 0,
                     colors = SliderDefaults.colors(thumbColor = purple, activeTrackColor = purple, inactiveTrackColor = Color(0xFF4C3A70),
                         activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent),
                     modifier = Modifier.fillMaxWidth().height(24.dp),
                 )
                 Row(Modifier.fillMaxWidth().padding(top = 2.4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    listOf("Min", "Low", "Mid", "High").forEach { Text(it, fontSize = 9.6.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8B7AA8)) }
+                    levels.forEach { Text(labels[it] ?: it, fontSize = 9.6.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF8B7AA8)) }
                 }
             }
         }

@@ -43,6 +43,8 @@ data class ComposerRules(
     val coding: OptionRule,
     val batch: OptionRule,
     val mask: Boolean,
+    /** True when [thinking] hosts the reasoning-effort levels (Web shows one Thinking control for both). */
+    val effortAsThinking: Boolean = false,
 )
 
 val THINKING_LEVELS = listOf("minimal", "low", "medium", "high")
@@ -262,6 +264,15 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
         }
     }
     val chipDim = isOcr
+    val effortFallback = if (isDeepSeek) "high" else "medium"
+    // Web は reasoning-effort モデルでも Gemini と同じ Thinking ボタン
+    // （ON/OFF＋レベル）を表示し、Effort は別控件として出さない。
+    val effortAsThinking = effortVisible
+    val effortThinkingRule = OptionRule(
+        visible = true,
+        disabled = "none" !in effortOptions,
+        forced = if ("none" in effortOptions) null else true,
+    )
     return ComposerRules(
         search = search.freeze(),
         urls = urls.freeze(),
@@ -270,18 +281,19 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
         file = OptionRule(),
         mcp = OptionRule(visible = mcpModelSupported(model) && mcpEnabledServer),
         sysPrompt = sys.freeze(),
-        thinking = thinking.freeze(),
-        thinkingLevels = levels,
-        thinkingFallback = fallback,
-        budgetEnabled = budget,
-        effort = OptionRule(visible = effortVisible),
+        thinking = if (effortAsThinking) effortThinkingRule else thinking.freeze(),
+        thinkingLevels = if (effortAsThinking) effortOptions.toSet() else levels,
+        thinkingFallback = if (effortAsThinking) effortFallback else fallback,
+        budgetEnabled = if (effortAsThinking) false else budget,
+        effort = OptionRule(visible = false),
         effortOptions = effortOptions,
-        effortFallback = if (isDeepSeek) "high" else "medium",
+        effortFallback = effortFallback,
         promptCache = promptCache.freeze(),
         canvas = OptionRule(dimmed = chipDim),
         coding = OptionRule(dimmed = chipDim),
         batch = OptionRule(visible = isBatchModelKey(model), disabled = !isBatchModelKey(model)),
         mask = model.contains("gpt-image"),
+        effortAsThinking = effortAsThinking,
     )
 }
 

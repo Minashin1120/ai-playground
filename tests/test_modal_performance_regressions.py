@@ -69,10 +69,9 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
             "const supportsReasoningEffort = isLlmModel() && (",
             source,
         )
-        self.assertIn(
-            "if (supportsReasoningEffort) {\n                    reasonOpts.classList.remove('hidden');",
-            source,
-        )
+        # Effort models share the Gemini Thinking control instead of a separate Effort row.
+        self.assertIn("setComposerThinkingMode('effort');", source)
+        self.assertNotIn("reasonOpts.classList.remove('hidden');", source)
 
     def test_browser_fast_mode_modal_is_fixed_above_home_content(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")

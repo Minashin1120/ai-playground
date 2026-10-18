@@ -1,3 +1,43 @@
+        // effort モデルでも Enable Thinking と reasoning-effort の表示を
+        // 一つの Thinking ボタンとして同期させる。
+        function bindThinkingEffortSync() {
+            const effortSel = get('reasoning-effort');
+            const thinkChk = get('enable-thinking');
+            const thinkOpts = get('thinking-options');
+            const isEffortMode = () => !!(thinkOpts && thinkOpts.dataset.thinkingMode === 'effort');
+            const noneAvailable = () => {
+                if (!effortSel) return false;
+                const noneOpt = Array.from(effortSel.options).find((opt) => opt.value === 'none');
+                return !!(noneOpt && !noneOpt.disabled && !noneOpt.classList.contains('hidden'));
+            };
+            if (effortSel && effortSel.dataset.thinkingSyncBound !== '1') {
+                effortSel.dataset.thinkingSyncBound = '1';
+                effortSel.addEventListener('change', () => {
+                    if (!isEffortMode() || !thinkChk) return;
+                    thinkChk.checked = noneAvailable() ? String(effortSel.value || '').toLowerCase() !== 'none' : true;
+                    thinkChk.disabled = !noneAvailable();
+                    refreshMinimalOptionItems();
+                });
+            }
+            if (thinkChk && thinkChk.dataset.thinkingEffortBound !== '1') {
+                thinkChk.dataset.thinkingEffortBound = '1';
+                thinkChk.addEventListener('change', () => {
+                    if (!isEffortMode() || !effortSel) return;
+                    if (!thinkChk.checked) {
+                        effortSel.value = 'none';
+                    } else if (!noneAvailable() || String(effortSel.value || '').toLowerCase() === 'none') {
+                        const options = Array.from(effortSel.options).filter((opt) => !opt.disabled && !opt.classList.contains('hidden'));
+                        const preferred = options.find((opt) => opt.value === 'medium')
+                            || options.find((opt) => opt.value === 'high')
+                            || options[0];
+                        if (preferred) effortSel.value = preferred.value;
+                    }
+                    effortSel.dispatchEvent(new Event('change', { bubbles: true }));
+                    refreshMinimalOptionItems();
+                });
+            }
+        }
+
         function bindMinimalOptionsEvents() {
             const backdrop = get('minimal-options-backdrop');
             const closeBtn = get('minimal-options-close-btn');
@@ -20,14 +60,11 @@
                 slider.addEventListener('input', () => {
                     const idx = Number(slider.value);
                     const allowed = allowedThinkingValues();
-                    const sel = get('thinking-level');
-                    if (allowed.length) {
-                        const allowedIdx = allowed.map((v) => thinkingIndexFromValue(v));
-                        const targetIdx = allowedIdx.includes(idx) ? idx : allowedIdx.reduce((best, ai) => Math.abs(ai - idx) < Math.abs(best - idx) ? ai : best, allowedIdx[0]);
-                        if (sel) {
-                            sel.value = THINKING_LEVELS[targetIdx].value;
-                            sel.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
+                    const sel = activeThinkingSelect();
+                    if (allowed.length && sel) {
+                        const targetIdx = Math.max(0, Math.min(idx, allowed.length - 1));
+                        sel.value = allowed[targetIdx];
+                        sel.dispatchEvent(new Event('change', { bubbles: true }));
                     }
                     syncThinkingSliderUi();
                     scheduleThinkingSliderHide();

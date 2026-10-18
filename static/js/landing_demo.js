@@ -381,7 +381,7 @@
             '<select class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option>High</option></select>' +
             '<label class="text-[10px] text-purple-300/80">Budget</label>' +
             '<input type="number" value="4096" readonly tabindex="-1" class="w-20 bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-[10px] text-white outline-none"></div>' +
-            '<div class="composer-opt composer-opt-group ld-only-grok flex items-center gap-1"><span class="text-gray-400">Effort:</span>' +
+            '<div class="composer-opt composer-opt-group ld-only-grok flex items-center gap-1.5"><label class="flex items-center gap-1 select-none"><input type="checkbox" class="accent-purple-500 w-3 h-3" checked><span class="text-purple-300">Thinking</span></label>' +
             '<select class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option>Med</option></select></div>' +
             '<div class="composer-opt composer-opt-group ld-only-gemini flex items-center gap-1"><span class="text-gray-400">Safety:</span>' +
             '<select class="bg-gray-700 border border-gray-600 rounded px-1 py-0.5 text-xs text-white outline-none"><option>Default</option></select></div>' +

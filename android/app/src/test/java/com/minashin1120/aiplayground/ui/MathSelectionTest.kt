@@ -18,6 +18,12 @@ import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.rememberTextMeasurer
+import com.github.takahirom.roborazzi.captureRoboImage
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performTouchInput
@@ -70,6 +76,25 @@ class MathSelectionTest {
         waiting.clear()
     }
 
+    /** Diagnostic: the word Compose's long press selects around a candidate formula character between kana. */
+    @Test fun wordBoundaryAroundCandidateCharacters() {
+        var measurer: TextMeasurer? = null
+        rule.setContent { measurer = rememberTextMeasurer() }
+        rule.waitForIdle()
+        val out = StringBuilder("==== word boundaries\n")
+        for ((name, code) in listOf("tangut" to 0x17000, "yi" to 0xA000, "hangul" to 0xAC00, "pua" to 0xF0000, "bmp-pua" to 0xE000)) {
+            val c = String(Character.toChars(code))
+            val text = "あ${c}い ab${c}cd ${c}${c}"
+            val layout = measurer!!.measure(AnnotatedString(text))
+            val cells = (0..text.length).joinToString(" ") { offset ->
+                val range = layout.getWordBoundary(offset)
+                "$offset:${range.start}-${range.end}"
+            }
+            out.append("$name len=${c.length} letter=${Character.isLetterOrDigit(code)} | $cells\n")
+        }
+        println(out)
+    }
+
     @Test fun longPressOnADisplayFormulaSelectsAndCopiesTheWholeFormula() {
         var copy: (() -> Unit)? = null
         val toolbar = object : TextToolbar {
@@ -107,6 +132,7 @@ class MathSelectionTest {
         rule.onNodeWithContentDescription(approximation).performTouchInput { longClick(centerRight.copy(x = centerRight.x - 4f)) }
         rule.mainClock.advanceTimeBy(600)
         rule.waitForIdle()
+        rule.onAllNodes(isRoot()).onFirst().captureRoboImage("build/outputs/roborazzi/math_selection_long_press.png")
         assertNotNull("a long press on the formula offers Copy", copy)
         copy!!.invoke()
         rule.waitForIdle()

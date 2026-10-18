@@ -109,12 +109,16 @@ def _feedback_replies(feedbacks):
 
 def _feedback_reply_json(reply, public_id, is_admin):
     log_path = _feedback_reply_log_path(public_id, reply.id) if is_admin and reply.id else None
+    image_dir = _feedback_reply_images_path(public_id, reply.id) if reply.id else None
+    images = _feedback_image_names_in(image_dir) if image_dir else []
     return {
         'id': reply.id, 'role': reply.role, 'message': reply.message,
         # The administrator's name is shown to administrators only, like ``log_file``.
         'author': (reply.author or '') if is_admin else '',
         'created_at': reply.created_at.isoformat() if reply.created_at else None,
         'log_file': _feedback_display_path(log_path) if log_path else None,
+        'image_count': len(images),
+        'image_dir': os.path.relpath(image_dir, app.root_path) if is_admin and images else None,
     }
 
 
@@ -159,6 +163,8 @@ def _write_feedback_info(fb, **extra):
             'id': r.id, 'role': r.role, 'user_id': r.user_id, 'author': r.author or '', 'message': r.message,
             'created_at': r.created_at.isoformat(timespec='seconds') + 'Z' if r.created_at else None,
             'activity_log': f'logs/reply-{r.id}.jsonl' if r.activity_log_saved else None,
+            'images': [f'images/reply-{r.id}/{name}' for name in _feedback_image_names_in(
+                _feedback_reply_images_path(fb.public_id, r.id))] if r.id else [],
         } for r in replies],
     })
     os.makedirs(_feedback_root_dir(), mode=0o700, exist_ok=True)

@@ -70,53 +70,66 @@
                     }
                 };
             }
-            // Images attached to a feedback (server/feedback_images.py): up to four, sent after the feedback itself.
+            // Images attached to a feedback or a reply (server/feedback_images.py): up to four, sent after the text itself.
             const FB_IMAGE_MAX_COUNT = 4;
             const FB_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
-            let fbImages = [];
-            const renderFbImages = () => {
-                const box = get('fb-images-list');
-                if (!box) return;
-                box.innerHTML = '';
-                fbImages.forEach((entry, index) => {
-                    const cell = document.createElement('div');
-                    cell.className = 'relative w-16 h-16 rounded border border-gray-600 overflow-hidden';
-                    const img = document.createElement('img');
-                    img.src = entry.url;
-                    img.alt = entry.file.name;
-                    img.className = 'w-full h-full object-cover';
-                    const remove = document.createElement('button');
-                    remove.type = 'button';
-                    remove.className = 'absolute top-0 right-0 bg-black/70 text-white text-[10px] leading-none px-1 py-0.5';
-                    remove.textContent = '×';
-                    remove.onclick = () => {
-                        URL.revokeObjectURL(entry.url);
-                        fbImages.splice(index, 1);
-                        renderFbImages();
+            function createFbImagePicker(addButton, input, box) {
+                let entries = [];
+                const render = () => {
+                    if (!box) return;
+                    box.innerHTML = '';
+                    entries.forEach((entry, index) => {
+                        const cell = document.createElement('div');
+                        cell.className = 'relative w-16 h-16 rounded border border-gray-600 overflow-hidden';
+                        const img = document.createElement('img');
+                        img.src = entry.url;
+                        img.alt = entry.file.name;
+                        img.className = 'w-full h-full object-cover';
+                        const remove = document.createElement('button');
+                        remove.type = 'button';
+                        remove.className = 'absolute top-0 right-0 bg-black/70 text-white text-[10px] leading-none px-1 py-0.5';
+                        remove.textContent = '×';
+                        remove.onclick = () => {
+                            URL.revokeObjectURL(entry.url);
+                            entries.splice(index, 1);
+                            render();
+                        };
+                        cell.appendChild(img);
+                        cell.appendChild(remove);
+                        box.appendChild(cell);
+                    });
+                };
+                if (addButton && input) {
+                    addButton.onclick = () => input.click();
+                    input.onchange = (event) => {
+                        for (const file of Array.from(event.target.files || [])) {
+                            if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) { showToast("PNG・JPEG・WebP・GIF の画像を選択してください", "error", true); continue; }
+                            if (file.size > FB_IMAGE_MAX_BYTES) { showToast("画像は1枚5MBまでです", "error", true); continue; }
+                            if (entries.length >= FB_IMAGE_MAX_COUNT) { showToast("添付できる画像は4枚までです", "error", true); break; }
+                            entries.push({file, url: URL.createObjectURL(file)});
+                        }
+                        event.target.value = '';
+                        render();
                     };
-                    cell.appendChild(img);
-                    cell.appendChild(remove);
-                    box.appendChild(cell);
-                });
-            };
-            const clearFbImages = () => {
-                fbImages.forEach(entry => URL.revokeObjectURL(entry.url));
-                fbImages = [];
-                renderFbImages();
-            };
-            if (get('fb-images-add') && get('fb-images-input')) {
-                get('fb-images-add').onclick = () => get('fb-images-input').click();
-                get('fb-images-input').onchange = (event) => {
-                    for (const file of Array.from(event.target.files || [])) {
-                        if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) { showToast("PNG・JPEG・WebP・GIF の画像を選択してください", "error", true); continue; }
-                        if (file.size > FB_IMAGE_MAX_BYTES) { showToast("画像は1枚5MBまでです", "error", true); continue; }
-                        if (fbImages.length >= FB_IMAGE_MAX_COUNT) { showToast("添付できる画像は4枚までです", "error", true); break; }
-                        fbImages.push({file, url: URL.createObjectURL(file)});
-                    }
-                    event.target.value = '';
-                    renderFbImages();
+                }
+                return {
+                    files: () => entries.map(entry => entry.file),
+                    clear: () => {
+                        entries.forEach(entry => URL.revokeObjectURL(entry.url));
+                        entries = [];
+                        render();
+                    },
                 };
             }
+            // Sends [files] to [url] after the feedback or reply was accepted; false when they were not saved.
+            async function uploadFbImages(url, files) {
+                try {
+                    const form = new FormData();
+                    files.forEach(file => form.append('images', file, file.name));
+                    return (await apiFetch(url, {method:'POST', body: form})).ok;
+                } catch (e) { return false; }
+            }
+            const fbImagePicker = createFbImagePicker(get('fb-images-add'), get('fb-images-input'), get('fb-images-list'));
             get('fb-submit').onclick = async () => {
                 const title = get('fb-title').value.trim();
                 const message = get('fb-message').value.trim();
@@ -133,19 +146,13 @@
                 const res = await apiFetch("/api/feedback", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
                 // The feedback's number comes back with the answer; the images follow it.
                 const sent = res.ok ? await res.clone().json().catch(() => ({})) : {};
-                const images = {count: fbImages.length, saved: true};
-                if (res.ok && images.count) {
-                    try {
-                        const form = new FormData();
-                        fbImages.forEach(entry => form.append('images', entry.file, entry.file.name));
-                        const up = await apiFetch(`/api/feedback/${sent.public_id}/images`, {method:'POST', body: form});
-                        images.saved = up.ok;
-                    } catch (e) { images.saved = false; }
-                }
+                const files = fbImagePicker.files();
+                const images = {count: files.length, saved: true};
+                if (res.ok && images.count) images.saved = await uploadFbImages(`/api/feedback/${sent.public_id}/images`, files);
                 if (!(window.ActivityLog ? await window.ActivityLog.reportFeedback(res, clientLogs, chatCopy, images) : res.ok)) return;
                 get('fb-title').value = '';
                 get('fb-message').value = '';
-                clearFbImages();
+                fbImagePicker.clear();
                 if (attachChat) attachChat.checked = false;
                 loadFeedback();
             };
@@ -159,20 +166,29 @@
                 loadFeedback();
             }
 
-            // Reply history of a feedback and the form to add a reply (the sender on their own feedback, administrators on any).
-            // The activity log goes with a reply only when its box is ticked; it needs ログの収集を強化 to be on.
+            // Reply history of a feedback and the reply box under it (the sender on their own feedback, administrators on any).
+            // Each 返信 adds to the history. The activity log goes with a reply only when its box is ticked
+            // (it needs ログの収集を強化 to be on); images follow the reply like those of a feedback.
             const FB_REPLY_LOGS_LABEL = '直近1時間の操作ログを一緒に送信する';
+            let fbReplyPickers = [];
             function feedbackRepliesHtml(item, isAdmin) {
                 const replies = item.replies || [];
                 if (!replies.length) return '';
                 return `<div class="fb-replies mt-2 space-y-2 border-l-2 border-gray-700 pl-2">${replies.map(r => {
                     const who = r.role === 'admin' ? (isAdmin && r.author ? `管理者 (${r.author})` : '管理者') : (isAdmin ? '送信者' : 'あなた');
-                    return `<div class="text-[11px]"><div class="text-gray-400">${escapeHtml(who)} / ${escapeHtml(r.created_at || '')}</div><div class="text-sm whitespace-pre-wrap ${r.role === 'admin' ? 'text-green-300' : 'text-gray-200'}">${escapeHtml(r.message)}</div>${r.log_file ? `<div class="text-amber-300">操作ログ: ${escapeHtml(r.log_file)}</div>` : ''}</div>`;
+                    const files = isAdmin ? [r.log_file && `操作ログ: ${r.log_file}`, r.image_dir && `添付画像（${r.image_count}枚）: ${r.image_dir}`] : [r.image_count && `添付画像: ${r.image_count}枚`];
+                    return `<div class="text-[11px]"><div class="text-gray-400">${escapeHtml(who)} / ${escapeHtml(r.created_at || '')}</div><div class="text-sm whitespace-pre-wrap ${r.role === 'admin' ? 'text-green-300' : 'text-gray-200'}">${escapeHtml(r.message)}</div>${files.filter(Boolean).map(t => `<div class="${isAdmin ? 'text-amber-300' : 'text-gray-400'}">${escapeHtml(t)}</div>`).join('')}</div>`;
                 }).join('')}</div>`;
             }
             function feedbackReplyFormHtml() {
-                return `<div class="fb-reply-form hidden mt-2 space-y-2">
-                    <textarea class="fb-reply-message w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white" rows="3" placeholder="返信内容"></textarea>
+                return `<div class="fb-reply-form mt-2 space-y-2">
+                    <textarea class="fb-reply-message w-full bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white" rows="2" placeholder="返信内容"></textarea>
+                    <div>
+                        <input type="file" class="fb-reply-images-input hidden" accept="image/png,image/jpeg,image/webp,image/gif" multiple>
+                        <button type="button" class="fb-reply-images-add bg-gray-700 hover:bg-gray-600 text-white rounded px-3 py-1 text-xs"><i class="fas fa-image mr-1"></i>画像を添付</button>
+                        <span class="text-[10px] text-gray-500 ml-2">PNG・JPEG・WebP・GIF、4枚まで、1枚5MBまで</span>
+                        <div class="fb-reply-images-list flex flex-wrap gap-2 mt-2"></div>
+                    </div>
                     <label class="flex items-start gap-2 cursor-pointer">
                         <input type="checkbox" class="fb-reply-logs accent-amber-500 mt-0.5 shrink-0">
                         <span>
@@ -180,28 +196,21 @@
                             <span class="fb-reply-logs-note block text-[10px] text-gray-500 mt-1"></span>
                         </span>
                     </label>
-                    <button type="button" class="fb-reply-send bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">返信を送信</button>
+                    <button type="button" class="fb-reply-send bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">返信</button>
                 </div>`;
             }
             function bindFeedbackReply(item, el) {
                 const form = el.querySelector('.fb-reply-form');
-                const toggle = el.querySelector('.fb-reply-toggle');
-                if (!form || !toggle) return;
+                if (!form) return;
                 const logs = form.querySelector('.fb-reply-logs');
                 const note = form.querySelector('.fb-reply-logs-note');
-                const refreshLogs = () => {
-                    const on = !!(window.ActivityLog && window.ActivityLog.isEnabled());
-                    logs.disabled = !on;
-                    if (!on) logs.checked = false;
-                    note.textContent = on
-                        ? 'チェックしたときだけ、「ログの収集を強化」で記録した直近1時間のログを返信と一緒に送信します。'
-                        : '「ログの収集を強化」がオフのため、ログは送信できません。';
-                };
-                toggle.onclick = () => {
-                    form.classList.toggle('hidden');
-                    refreshLogs();
-                    if (!form.classList.contains('hidden')) form.querySelector('.fb-reply-message').focus();
-                };
+                const on = !!(window.ActivityLog && window.ActivityLog.isEnabled());
+                logs.disabled = !on;
+                note.textContent = on
+                    ? 'チェックしたときだけ、「ログの収集を強化」で記録した直近1時間のログを返信と一緒に送信します。'
+                    : '「ログの収集を強化」がオフのため、ログは送信できません。';
+                const picker = createFbImagePicker(form.querySelector('.fb-reply-images-add'), form.querySelector('.fb-reply-images-input'), form.querySelector('.fb-reply-images-list'));
+                fbReplyPickers.push(picker);
                 const send = form.querySelector('.fb-reply-send');
                 send.onclick = async () => {
                     const message = form.querySelector('.fb-reply-message').value.trim();
@@ -209,13 +218,24 @@
                     const payload = {message, client: 'web', version: (window.CHAT_CONFIG && window.CHAT_CONFIG.appVersion) || ''};
                     const clientLogs = logs.checked && window.ActivityLog ? window.ActivityLog.feedbackPayload() : null;
                     if (clientLogs) payload.client_logs = clientLogs;
+                    const files = picker.files();
                     send.disabled = true;
                     try {
                         const res = await apiFetch(`/api/feedback/${item.public_id}/replies`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
                         const data = await res.json().catch(() => ({}));
                         if (!res.ok) { showToast(data.error || "返信を送信できませんでした", "error", true); return; }
-                        if (clientLogs && data.logs_saved === false) showToast("返信を送信しました（ログは保存できませんでした）", "error", true);
-                        else showToast(clientLogs ? `返信と直近1時間のログ（${clientLogs.entries.length}件）を送信しました` : "返信を送信しました", "success");
+                        const imagesSaved = !files.length || await uploadFbImages(`/api/feedback/${item.public_id}/replies/${data.reply_id}/images`, files);
+                        const failed = [];
+                        if (clientLogs && data.logs_saved === false) failed.push('ログ');
+                        if (!imagesSaved) failed.push('画像');
+                        if (failed.length) {
+                            showToast(`返信を送信しました（${failed.join('と')}は保存できませんでした）`, "error", true);
+                        } else {
+                            const sent = ['返信'];
+                            if (clientLogs) sent.push(`直近1時間のログ（${clientLogs.entries.length}件）`);
+                            if (files.length) sent.push(`画像（${files.length}枚）`);
+                            showToast(sent.join(sent.length > 2 ? '、' : 'と') + 'を送信しました', "success");
+                        }
                         loadFeedback();
                     } finally {
                         send.disabled = false;
@@ -224,6 +244,8 @@
             }
 
             async function loadFeedback() {
+                fbReplyPickers.forEach(picker => picker.clear());
+                fbReplyPickers = [];
                 const res = await apiFetch("/api/feedback?all=1");
                 const data = await res.json();
                 const list = get('fb-list');
@@ -232,7 +254,7 @@
                     if(data.is_admin) return;
                     const el = document.createElement('div');
                     el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50';
-                    el.innerHTML = `<div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.image_count ? `<div class="text-[11px] text-gray-400 mt-1">添付画像: ${item.image_count}枚</div>` : ''}${feedbackRepliesHtml(item, false)}<div class="mt-2 flex items-center gap-2"><button type="button" class="fb-reply-toggle bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[10px]">返信</button><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>${feedbackReplyFormHtml()}`;
+                    el.innerHTML = `<div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status)}</div>${item.image_count ? `<div class="text-[11px] text-gray-400 mt-1">添付画像: ${item.image_count}枚</div>` : ''}${feedbackRepliesHtml(item, false)}${feedbackReplyFormHtml()}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>`;
                     el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.public_id);
                     bindFeedbackReply(item, el);
                     list.appendChild(el);
@@ -259,8 +281,7 @@
                                     <option value="rejected">rejected</option>
                                     <option value="resolved">resolved</option>
                                 </select>
-                                <button class="fb-save bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">保存</button>
-                                <button type="button" class="fb-reply-toggle bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded text-xs">返信</button>
+                                <button class="fb-save bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">状態を保存</button>
                                 <button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-3 py-1 rounded text-xs">削除</button>
                             </div>
                             ${feedbackRepliesHtml(item, true)}

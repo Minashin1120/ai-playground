@@ -30,7 +30,8 @@ class FeedbackListTest {
             {"id":3,"public_id":"0123456789ab","title":"","message":"m","status":"new","admin_reply":"ok","created_at":"c",
              "replies":[
                {"id":1,"role":"admin","author":"admin","message":"ok","created_at":"r1","log_file":null},
-               {"id":2,"role":"user","author":"","message":"still broken","created_at":"r2","log_file":"feedback/0123456789ab/logs/reply-2.jsonl"}
+               {"id":2,"role":"user","author":"","message":"still broken","created_at":"r2","log_file":"feedback/0123456789ab/logs/reply-2.jsonl",
+                "image_count":2,"image_dir":"feedback/0123456789ab/images/reply-2"}
              ]}
         ]}"""))
         val replies = list.items.single().replies
@@ -39,6 +40,9 @@ class FeedbackListTest {
         assertEquals("", replies[0].logFile)
         assertEquals("still broken", replies[1].message)
         assertEquals("feedback/0123456789ab/logs/reply-2.jsonl", replies[1].logFile)
+        assertEquals(0, replies[0].imageCount)
+        assertEquals(2, replies[1].imageCount)
+        assertEquals("feedback/0123456789ab/images/reply-2", replies[1].imageDir)
     }
 
     @Test

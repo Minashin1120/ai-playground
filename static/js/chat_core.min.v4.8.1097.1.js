@@ -1,4 +1,4 @@
-var Pi=Object.defineProperty;var o=(e,t)=>Pi(e,"name",{value:t,configurable:!0});const get=o(e=>document.getElementById(e),"get"),nativeConsoleLog=typeof console.log=="function"?console.
+var Oi=Object.defineProperty;var o=(e,t)=>Oi(e,"name",{value:t,configurable:!0});const get=o(e=>document.getElementById(e),"get"),nativeConsoleLog=typeof console.log=="function"?console.
 log.bind(console):function(){},nativeConsoleInfo=typeof console.info=="function"?console.info.bind(console):
 nativeConsoleLog;let settingsModalLoaded=!1;const setSettingsSaveEnabled=o(e=>{const t=get("save-set\
 tings-btn");t&&(t.disabled=!e,t.classList.toggle("opacity-60",!e),t.classList.toggle("cursor-not-all\
@@ -25,7 +25,7 @@ if(!c||c.tagName!=="IMG")return;const m=c.currentSrc||c.src||"";if(!t(m)){const 
 ".svg-code-render");if(_){_.dataset.svgState="error";return}const T=c.closest&&c.closest(".chat-imag\
 e-frame");if(T){T.dataset.chatImageState="error",T.removeAttribute("aria-busy");const M=T.querySelector(
 ".chat-image-loading"),P=M&&M.querySelector("span");P&&(P.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
-const q=M&&M.querySelector("i");q&&(q.className="fas fa-image")}return}l.stopImmediatePropagation(),
+const G=M&&M.querySelector("i");G&&(G.className="fas fa-image")}return}l.stopImmediatePropagation(),
 l.preventDefault();const f=String(m).split("?")[0],b=c.getAttribute("data-viewer-filename")||f.split(
 "/").pop(),y=o(_=>{const T=c.closest&&c.closest(".chat-image-frame");T&&(T.dataset.chatImageState="f\
 ailed",T.removeAttribute("aria-busy"));const M=i(b,!!_);try{c.replaceWith(M)}catch{}},"showWarning"),
@@ -519,11 +519,11 @@ ransparent",a.appendChild(i.content.cloneNode(!0)),document.body.appendChild(a);
 from(a.querySelectorAll("*")).slice(0,5e3)],l=[],c=new Map;let m=0;const f=o(k=>Array.from(k.childNodes||
 []).reduce((_,T)=>T&&T.nodeType===Node.TEXT_NODE?_+String(T.textContent||"").replace(/\s+/g," ").trim().
 length:_,0),"directTextLength");r.forEach(k=>{if(!k||k===a||!k.style)return;const _=window.getComputedStyle(
-k),T=f(k);if(T>0){const P=parseRichPasteCssColor(_.color);if(P&&P.a>=.5){const q=richPasteColorCss(P),
-te=c.get(q)||{color:P,weight:0};te.weight+=T,c.set(q,te),m+=T}}if(!!(String(k.style.backgroundColor||
+k),T=f(k);if(T>0){const P=parseRichPasteCssColor(_.color);if(P&&P.a>=.5){const G=richPasteColorCss(P),
+te=c.get(G)||{color:P,weight:0};te.weight+=T,c.set(G,te),m+=T}}if(!!(String(k.style.backgroundColor||
 "").trim()||String(k.style.background||"").trim())){const P=parseRichPasteCssColor(_.backgroundColor);
-if(P&&P.a>=.72){const q=String(k.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:P,
-weight:Math.max(1,q)})}}});const b=Array.from(c.values()).sort((k,_)=>_.weight-k.weight),y=b.length?
+if(P&&P.a>=.72){const G=String(k.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:P,
+weight:Math.max(1,G)})}}});const b=Array.from(c.values()).sort((k,_)=>_.weight-k.weight),y=b.length?
 b[0].color:null,v=b.reduce((k,_)=>k+(richPasteColorLuminance(_.color)>=.6?_.weight:0),0);l.sort((k,_)=>_.
 weight-k.weight);let w=l.length?l[0].color:null;return w||(w=m>0&&v/m>=.55?{r:11,g:11,b:12,a:1}:t),makeRichPasteTheme(
 w,y||n)}catch{return makeRichPasteTheme(t,n)}finally{a.parentNode&&a.parentNode.removeChild(a)}},"de\
@@ -900,16 +900,16 @@ nd); font-weight: bold; }
                 </div>
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const v=new f(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),w=v.internal.pageSize.getWidth(),k=v.internal.
-pageSize.getHeight(),_=794,T=Math.floor(k/w*_),M=y.scrollHeight||y.offsetHeight;let P=0,q=!0;const te=Math.
+pageSize.getHeight(),_=794,T=Math.floor(k/w*_),M=y.scrollHeight||y.offsetHeight;let P=0,G=!0;const te=Math.
 ceil(M/T);let X=0;for(;P<M;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const H=Math.min(T,M-P),ie=(await new Promise((I,N)=>{const D=setTimeout(()=>N(
+"Aborted","AbortError");const q=Math.min(T,M-P),ie=(await new Promise((I,N)=>{const D=setTimeout(()=>N(
 new Error("PDF chunk rendering timed out")),12e4);b(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
-background,logging:!1,imageTimeout:5e3,x:0,y:P,width:_,height:H,windowWidth:_,scrollX:0,scrollY:0,signal:richPasteAbortController?
+background,logging:!1,imageTimeout:5e3,x:0,y:P,width:_,height:q,windowWidth:_,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:o(O=>{prepareRichPastePdfClone(O,c);const $=O.querySelector(
 ".pdf-root-wrapper");$&&($.style.position="relative",$.style.left="0",$.style.top="0")},"onclone")}).
 then(O=>{clearTimeout(D),I(O)}).catch(O=>{clearTimeout(D),N(O)})})).toDataURL("image/jpeg",.95),xe=v.
-getImageProperties(ie),ue=Math.min(k,xe.height*w/xe.width);q||v.addPage(),v.addImage(ie,"JPEG",0,0,w,
-ue),q=!1,P+=H,X++;const Ae=Math.min(100,15+Math.round(X/te*85));i(Ae),await new Promise(I=>setTimeout(
+getImageProperties(ie),pe=Math.min(k,xe.height*w/xe.width);G||v.addPage(),v.addImage(ie,"JPEG",0,0,w,
+pe),G=!1,P+=q,X++;const Ae=Math.min(100,15+Math.round(X/te*85));i(Ae),await new Promise(I=>setTimeout(
 I,100))}return i(100),{blob:v.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=o(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -1909,8 +1909,8 @@ ordKey"),l=o(v=>{const w=performance.now();if(!(w-e.lastMoveSample<80)){if(e.las
 sqrt(k*k+_*_)/(T/1e3);e.speedMax=Math.max(e.speedMax,M),e.speedSum+=M,e.speedSamples+=1}}e.lastMove=
 {x:v.clientX,y:v.clientY,t:w}}},"recordMove"),c=o(()=>{const v=Math.max(1,performance.now()-e.windowStart),
 w=e.clickTimes.length,k=e.keyTimes.length,_=e.speedSamples?e.speedSum/e.speedSamples:0;let T=0,M=1;if(e.
-clickIntervals.length>=3){const P=e.clickIntervals.reduce((te,X)=>te+X,0)/e.clickIntervals.length,q=e.
-clickIntervals.reduce((te,X)=>te+Math.pow(X-P,2),0)/e.clickIntervals.length;T=P,M=P>0?Math.sqrt(q)/P:
+clickIntervals.length>=3){const P=e.clickIntervals.reduce((te,X)=>te+X,0)/e.clickIntervals.length,G=e.
+clickIntervals.reduce((te,X)=>te+Math.pow(X-P,2),0)/e.clickIntervals.length;T=P,M=P>0?Math.sqrt(G)/P:
 1}return{window_ms:Math.round(v),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,
 fast_keys:e.fastKeys,untrusted_input:!!e.untrustedInput,click_burst:w,key_burst:k,avg_click_ms:T,click_cv:M,
 event_rate:(e.clicks+e.keys+e.moves)/(v/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:_}},"com\
@@ -2141,8 +2141,8 @@ hypot(n.clientX-i.clientX,n.clientY-i.clientY)||1,s:z,mx:(n.clientX+i.clientX)/2
 1){s={startX:t.clientX,startY:t.clientY,dx:vX,dy:vY};return}s={startX:t.clientX,startY:t.clientY,lastX:t.
 clientX,dx:0,dy:0,vx:0,dir:0,active:!1,resist:!1,adjacent:null,lastTime:Date.now()}}o(onViewerTouchStart,
 "onViewerTouchStart");function onViewerTouchMove(e){if(e.touches.length>=2){if(!p){const P=e.touches[0],
-q=e.touches[1];p={d:Math.hypot(P.clientX-q.clientX,P.clientY-q.clientY)||1,s:z,mx:(P.clientX+q.clientX)/
-2,my:(P.clientY+q.clientY)/2,x:vX,y:vY},s=null}const v=e.touches[0],w=e.touches[1],k=Math.hypot(v.clientX-
+G=e.touches[1];p={d:Math.hypot(P.clientX-G.clientX,P.clientY-G.clientY)||1,s:z,mx:(P.clientX+G.clientX)/
+2,my:(P.clientY+G.clientY)/2,x:vX,y:vY},s=null}const v=e.touches[0],w=e.touches[1],k=Math.hypot(v.clientX-
 w.clientX,v.clientY-w.clientY)||1,_=(v.clientX+w.clientX)/2,T=(v.clientY+w.clientY)/2;z=Math.min(6,Math.
 max(1,p.s*k/p.d)),z<=1.0001?(z=1,vX=0,vY=0):(vX=p.x+_-p.mx,vY=p.y+T-p.my);const M=get("image-viewer-\
 img");if(!M)return;e.preventDefault(),M.style.transition="none",applyViewerTransform();return}if(p)return;
@@ -2854,7 +2854,7 @@ from(M&&M.options||[]).forEach(P=>{P.disabled=!1}),e==="gemini-2.5-flash-native-
 "Gemini 3.8 Flash Live\u306F\u56FA\u5B9A\u30EC\u30A4\u30C6\u30F3\u30B7\u306ELive API\u30E2\u30C7\u30EB\uFF08Thinking level\u975E\u5BFE\u5FDC\uFF09");else if(e===
 "gemini-3.8-live-extended-thinking"){b&&(b.textContent="Gemini 3.8 Live Extended Thinking\u306Flow / medi\
 um / high\u306E\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u63A8\u8AD6\u306B\u5BFE\u5FDC");const P=get(
-"sts-thinking-level");Array.from(P&&P.options||[]).forEach(q=>{q.disabled=q.value==="minimal"}),P&&![
+"sts-thinking-level");Array.from(P&&P.options||[]).forEach(G=>{G.disabled=G.value==="minimal"}),P&&![
 "low","medium","high"].includes(P.value)&&(P.value="medium")}e==="gemini-3.5-live-translate-preview"&&
 (w&&(w.textContent="Realtime Translation"),f&&f.classList.add("hidden"),y&&y.classList.add("hidden"),
 _&&_.classList.remove("hidden"),b&&(b.textContent="70\u4EE5\u4E0A\u306E\u8A00\u8A9E\u306B\u5BFE\u5FDC\u3059\u308B\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u97F3\u58F0\u7FFB\u8A33\uFF08Think\u975E\u5BFE\u5FDC\u30FB\u97F3\u58F0\u9078\u629E\u4E0D\u53EF\uFF09"))}

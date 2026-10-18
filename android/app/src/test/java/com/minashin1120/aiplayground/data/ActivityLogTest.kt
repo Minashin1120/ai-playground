@@ -77,5 +77,8 @@ class ActivityLogTest {
         assertEquals("返信を送信しました", feedbackReplySentText(null, true))
         assertEquals("返信と直近1時間のログ（4件）を送信しました", feedbackReplySentText(4, true))
         assertEquals("返信を送信しました（ログは保存できませんでした）", feedbackReplySentText(4, false))
+        assertEquals("返信と画像（2枚）を送信しました", feedbackReplySentText(null, true, 2, true))
+        assertEquals("返信、直近1時間のログ（4件）、画像（1枚）を送信しました", feedbackReplySentText(4, true, 1, true))
+        assertEquals("返信を送信しました（ログと画像は保存できませんでした）", feedbackReplySentText(4, false, 1, false))
     }
 }

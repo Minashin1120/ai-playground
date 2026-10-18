@@ -4853,9 +4853,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Web `.fb-reply-send`: the sender (on their own feedback) or an administrator adds a reply. [withLogs] is the
-     * ticked box: the last hour of the activity log goes with the reply (only while ログの収集を強化 is on).
+     * ticked box: the last hour of the activity log goes with the reply (only while ログの収集を強化 is on);
+     * [images] follow the reply once it was accepted.
      */
-    fun replyFeedback(item: FeedbackItem, message: String, withLogs: Boolean) {
+    fun replyFeedback(item: FeedbackItem, message: String, withLogs: Boolean, images: List<Uri> = emptyList()) {
         if (message.isBlank()) return
         viewModelScope.launch {
             if (state.value.offline) { notify("オフライン中はフィードバックに返信できません。"); return@launch }
@@ -4865,9 +4866,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val logs = if (withLogs && ActivityLog.enabled) withContext(Dispatchers.IO) { ActivityLog.recent() } else null
                 if (logs != null) payload.put("client_logs", JSONObject().put("client", "android")
                     .put("version", BuildConfig.VERSION_NAME).put("window_seconds", ActivityLog.WINDOW_MS / 1000).put("entries", logs))
-                val reply = backend.post("/api/feedback/${item.publicId.ifBlank { item.id.toString() }}/replies", payload, token())
+                val feedbackId = item.publicId.ifBlank { item.id.toString() }
+                val reply = backend.post("/api/feedback/$feedbackId/replies", payload, token())
+                val replyId = reply.optInt("reply_id", 0)
+                val imagesSaved = images.isEmpty() || (replyId > 0 && uploadFeedbackImages(feedbackId, images, replyId))
                 loadFeedback()
-                notify(feedbackReplySentText(logs?.length(), reply.optBoolean("logs_saved", true)))
+                notify(feedbackReplySentText(logs?.length(), reply.optBoolean("logs_saved", true), images.size, imagesSaved))
             } catch (e: Exception) { report(e, "返信を送信できませんでした") }
             finally { mutable.update { it.copy(feedbackBusy = false) } }
         }
@@ -4917,8 +4921,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Web `/api/feedback/<id>/images`: sends the attached images to feedback [feedbackId]; false when they were not saved. */
-    private suspend fun uploadFeedbackImages(feedbackId: String, uris: List<Uri>): Boolean = try {
+    /** Web `uploadFbImages`: sends the attached images to feedback [feedbackId] (or its reply [replyId]); false when they were not saved. */
+    private suspend fun uploadFeedbackImages(feedbackId: String, uris: List<Uri>, replyId: Int? = null): Boolean = try {
         val resolver = getApplication<Application>().contentResolver
         val files = withContext(Dispatchers.IO) {
             uris.mapIndexed { index, uri ->
@@ -4926,7 +4930,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 FeedbackImage("image-${index + 1}", resolver.getType(uri) ?: "application/octet-stream", bytes)
             }
         }
-        api.uploadFeedbackImages(feedbackId, files, token())
+        api.uploadFeedbackImages(feedbackId, files, token(), replyId)
         true
     } catch (e: Exception) {
         Diagnostics.failure("feedback.images", e)

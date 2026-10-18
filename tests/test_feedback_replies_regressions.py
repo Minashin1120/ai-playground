@@ -1,4 +1,5 @@
 """Reply history of a feedback: replies by administrators and the sender, with the activity log on request (server/routes_admin.py)."""
+import io
 import json
 import os
 import tempfile
@@ -6,6 +7,8 @@ import unittest
 from unittest import mock
 
 CSRF = {'X-CSRF-Token': 'csrf-test-token'}
+PNG = b'\x89PNG\r\n\x1a\n' + b'\x00' * 32
+JPG = b'\xff\xd8\xff\xe0' + b'\x00' * 32
 BASE = 'https://localhost'
 
 
@@ -108,6 +111,35 @@ class FeedbackRepliesTests(unittest.TestCase):
         self.assertIsNone(admin_view[0]['log_file'])
         self.assertTrue(admin_view[1]['log_file'].endswith(f'logs/reply-{reply_id}.jsonl'))
         self.assertIsNone(self.listed(sender, public_id)['replies'][1]['log_file'])
+
+    def upload(self, client, public_id, reply_id, files):
+        data = {'images': [(io.BytesIO(body), name) for name, body in files]}
+        return client.post(f'/api/feedback/{public_id}/replies/{reply_id}/images', data=data,
+                           content_type='multipart/form-data', headers=CSRF, base_url=BASE)
+
+    def test_images_follow_a_reply_of_its_author_only(self):
+        sender, admin = self.client(self.sender_id), self.client(self.admin_id)
+        public_id = self.send_feedback(sender)
+        mine = self.reply(sender, public_id, {'message': 'see the screen'}).get_json()['reply_id']
+        theirs = self.reply(admin, public_id, {'message': 'ok'}).get_json()['reply_id']
+        res = self.upload(sender, public_id, mine, [('a.png', PNG), ('b.jpg', JPG)])
+        self.assertEqual((res.status_code, res.get_json()), (200, {'saved': 2, 'images': 2}))
+        folder = os.path.join(self.root, public_id, 'images', f'reply-{mine}')
+        self.assertEqual(sorted(os.listdir(folder)), ['01.png', '02.jpg'])
+        # The feedback's own images are counted apart from the reply's.
+        self.assertEqual(self.listed(sender, public_id)['image_count'], 0)
+        # Only the author of the reply adds images, four at most, of the accepted types.
+        self.assertEqual(self.upload(admin, public_id, mine, [('c.png', PNG)]).status_code, 404)
+        self.assertEqual(self.upload(sender, public_id, theirs, [('c.png', PNG)]).status_code, 404)
+        self.assertEqual(self.upload(self.client(self.other_id), public_id, mine, [('c.png', PNG)]).status_code, 404)
+        self.assertEqual(self.upload(sender, public_id, mine, [('c.png', PNG)] * 3).status_code, 400)
+        self.assertEqual(self.upload(sender, public_id, mine, [('c.txt', b'not an image')]).status_code, 415)
+        listed = self.listed(sender, public_id)['replies']
+        self.assertEqual([r['image_count'] for r in listed], [2, 0])
+        self.assertIsNone(listed[0]['image_dir'])
+        self.assertTrue(self.listed(admin, public_id)['replies'][0]['image_dir'].endswith(f'images/reply-{mine}'))
+        self.assertEqual(self.info(public_id)['replies'][0]['images'],
+                         [f'images/reply-{mine}/01.png', f'images/reply-{mine}/02.jpg'])
 
     def test_a_reply_saved_before_the_history_stays_first(self):
         sender = self.client(self.sender_id)

@@ -409,20 +409,6 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
         var message by remember { mutableStateOf("") }
         var attachChat by remember { mutableStateOf(false) }
         var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
-        val context = LocalContext.current
-        // Web: the type and size are checked when an image is picked; the server checks them again.
-        val pickImages = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { picked ->
-            var next = images
-            for (uri in picked) {
-                val type = context.contentResolver.getType(uri)
-                val size = runCatching { context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } }.getOrNull() ?: -1L
-                if (type == null || type !in FEEDBACK_IMAGE_TYPES) { notify("PNG・JPEG・WebP・GIF の画像を選択してください"); continue }
-                if (size > FEEDBACK_IMAGE_MAX_BYTES) { notify("画像は1枚5MBまでです"); continue }
-                if (next.size >= FEEDBACK_IMAGE_MAX_COUNT) { notify("添付できる画像は4枚までです"); break }
-                next = next + uri
-            }
-            images = next
-        }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingsTextField(title, { title = it.take(200) }, Modifier.fillMaxWidth(), placeholder = "タイトル (任意)")
             SettingsTextField(message, { message = it.take(100_000) }, Modifier.fillMaxWidth(), placeholder = "バグ報告・要望などを入力してください",
@@ -431,15 +417,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                 SettingsCheck(FEEDBACK_CHAT_COPY_LABEL, attachChat, { attachChat = it }, boxSize = 14.dp, labelColor = web.text)
                 SettingsDesc(FEEDBACK_CHAT_COPY_DESCRIPTION, Modifier.padding(start = 22.dp, top = 4.dp))
             }
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SettingsSmallButton("画像を添付", { pickImages.launch("image/*") }, icon = R.drawable.fa_solid_image)
-                    SettingsDesc(FEEDBACK_IMAGES_NOTE, Modifier.weight(1f))
-                }
-                if (images.isNotEmpty()) Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    images.forEach { uri -> FeedbackImageThumb(uri) { images = images - uri } }
-                }
-            }
+            FeedbackImagesField(images, notify) { images = it }
             SettingsSmallButton("送信", {
                 val chatId = state.selected?.id
                 when {
@@ -461,10 +439,9 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
             SettingsDesc(if (log.enabled) "記録中です。フィードバックの送信時に直近1時間のログを送信します。（${log.usage}）" else "記録していません。")
         }
     },
-    SettingsCardSpec(SettingsTab.Feedback, "mine", "あなたのフィードバック", "あなたのフィードバック") {
+    SettingsCardSpec(SettingsTab.Feedback, "mine", "あなたのフィードバック", "あなたのフィードバック 返信内容 画像を添付 $FEEDBACK_REPLY_LOGS_LABEL 返信 削除") {
         val web = LocalWebPalette.current
         var deleting by remember { mutableStateOf<FeedbackItem?>(null) }
-        var replying by remember { mutableStateOf<Int?>(null) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Web `loadFeedback`: an administrator's feedback is listed in the administrator card only.
             if (!state.feedbackAdmin) state.feedbackItems.forEach { item ->
@@ -479,14 +456,11 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                     Text("Status: ${item.status}", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
                     if (item.imageCount > 0) Text("添付画像: ${item.imageCount}枚", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
                     FeedbackReplies(item, admin = false)
-                    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SettingsSmallButton("返信", { replying = if (replying == item.id) null else item.id }, fontSize = 10.sp)
-                        SettingsSmallButton("削除", { deleting = item }, tone = SettingsButtonTone.Red, fontSize = 10.sp, enabled = !state.feedbackBusy)
+                    key(item.id) {
+                        FeedbackReplyForm(!state.feedbackBusy, notify) { message, withLogs, images -> model.replyFeedback(item, message, withLogs, images) }
                     }
-                    if (replying == item.id) FeedbackReplyForm(!state.feedbackBusy, notify) { message, withLogs ->
-                        model.replyFeedback(item, message, withLogs)
-                        replying = null
-                    }
+                    SettingsSmallButton("削除", { deleting = item }, modifier = Modifier.padding(top = 8.dp),
+                        tone = SettingsButtonTone.Red, fontSize = 10.sp, enabled = !state.feedbackBusy)
                 }
             }
         }
@@ -498,13 +472,13 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
         }
     },
     if (!state.feedbackAdmin) null else SettingsCardSpec(SettingsTab.Feedback, "admin", "管理者: すべてのフィードバック",
-        "管理者: すべてのフィードバック 保存 返信 返信内容 $FEEDBACK_REPLY_LOGS_LABEL 削除") {
+        "管理者: すべてのフィードバック 状態を保存 返信内容 画像を添付 $FEEDBACK_REPLY_LOGS_LABEL 返信 削除") {
         var deleting by remember { mutableStateOf<FeedbackItem?>(null) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             state.feedbackItems.forEach { item ->
                 key(item.id) {
                     AdminFeedbackRow(item, !state.feedbackBusy, notify, { status -> model.updateFeedback(item, status) },
-                        { message, withLogs -> model.replyFeedback(item, message, withLogs) }) { deleting = item }
+                        { message, withLogs, images -> model.replyFeedback(item, message, withLogs, images) }) { deleting = item }
                 }
             }
         }
@@ -534,44 +508,77 @@ private fun FeedbackReplies(item: FeedbackItem, admin: Boolean) {
                 Column {
                     Text("$who / ${reply.createdAt}", fontSize = 11.sp, color = Tw.gray400)
                     Text(reply.message, fontSize = 14.sp, color = if (reply.role == "admin") Tw.green300 else web.twText(Tw.gray200))
-                    if (reply.logFile.isNotBlank()) Text("操作ログ: ${reply.logFile}", fontSize = 11.sp, color = Tw.amber300)
+                    if (admin) {
+                        if (reply.logFile.isNotBlank()) Text("操作ログ: ${reply.logFile}", fontSize = 11.sp, color = Tw.amber300)
+                        if (reply.imageDir.isNotBlank()) Text("添付画像（${reply.imageCount}枚）: ${reply.imageDir}", fontSize = 11.sp, color = Tw.amber300)
+                    } else if (reply.imageCount > 0) Text("添付画像: ${reply.imageCount}枚", fontSize = 11.sp, color = Tw.gray400)
                 }
             }
         }
     }
 }
 
-/** Web `feedbackReplyFormHtml`: the reply and the opt-in box for the activity log (needs ログの収集を強化). */
+/** Web `createFbImagePicker`: 画像を添付, the note and the thumbnails; the type, size and count are checked as on Web (the server checks them again). */
 @Composable
-private fun FeedbackReplyForm(enabled: Boolean, notify: (String) -> Unit, onSend: (String, Boolean) -> Unit) {
+private fun FeedbackImagesField(images: List<Uri>, notify: (String) -> Unit, onChange: (List<Uri>) -> Unit) {
+    val context = LocalContext.current
+    val current by rememberUpdatedState(images)
+    val change by rememberUpdatedState(onChange)
+    val pickImages = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { picked ->
+        var next = current
+        for (uri in picked) {
+            val type = context.contentResolver.getType(uri)
+            val size = runCatching { context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } }.getOrNull() ?: -1L
+            if (type == null || type !in FEEDBACK_IMAGE_TYPES) { notify("PNG・JPEG・WebP・GIF の画像を選択してください"); continue }
+            if (size > FEEDBACK_IMAGE_MAX_BYTES) { notify("画像は1枚5MBまでです"); continue }
+            if (next.size >= FEEDBACK_IMAGE_MAX_COUNT) { notify("添付できる画像は4枚までです"); break }
+            next = next + uri
+        }
+        change(next)
+    }
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsSmallButton("画像を添付", { pickImages.launch("image/*") }, icon = R.drawable.fa_solid_image)
+            SettingsDesc(FEEDBACK_IMAGES_NOTE, Modifier.weight(1f))
+        }
+        if (images.isNotEmpty()) Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            images.forEach { uri -> FeedbackImageThumb(uri) { change(current - uri) } }
+        }
+    }
+}
+
+/** Web `feedbackReplyFormHtml`: the reply box under the history; each 返信 adds to it. The log box needs ログの収集を強化. */
+@Composable
+private fun FeedbackReplyForm(enabled: Boolean, notify: (String) -> Unit, onSend: (String, Boolean, List<Uri>) -> Unit) {
     val web = LocalWebPalette.current
     var message by remember { mutableStateOf("") }
     var withLogs by remember { mutableStateOf(false) }
+    var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
     val logsOn = ActivityLog.enabled
     Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SettingsTextField(message, { message = it.take(100_000) }, Modifier.fillMaxWidth(), placeholder = "返信内容",
-            minHeight = 64.dp, singleLine = false, fontSize = 12.sp)
+            minHeight = 48.dp, singleLine = false, fontSize = 12.sp)
+        FeedbackImagesField(images, notify) { images = it }
         Column {
             SettingsCheck(FEEDBACK_REPLY_LOGS_LABEL, withLogs && logsOn, { withLogs = it }, enabled = logsOn, boxSize = 14.dp, labelColor = web.text)
             SettingsDesc(if (logsOn) FEEDBACK_REPLY_LOGS_ON else FEEDBACK_REPLY_LOGS_OFF, Modifier.padding(start = 22.dp, top = 4.dp))
         }
-        SettingsSmallButton("返信を送信", {
+        SettingsSmallButton("返信", {
             if (message.isBlank()) notify("返信内容を入力してください")
-            else { onSend(message.trim(), withLogs && logsOn); message = ""; withLogs = false }
+            else { onSend(message.trim(), withLogs && logsOn, images); message = ""; withLogs = false; images = emptyList() }
         }, tone = SettingsButtonTone.Blue, enabled = enabled)
     }
 }
 
-/** Web `#fb-admin-list` item: who sent it, the saved files, the status, 保存, 返信, 削除 and the replies. */
+/** Web `#fb-admin-list` item: who sent it, the saved files, the status, 状態を保存, 削除, the replies and the reply box. */
 @Composable
 private fun AdminFeedbackRow(
     item: FeedbackItem, enabled: Boolean, notify: (String) -> Unit, onSave: (String) -> Unit,
-    onReply: (String, Boolean) -> Unit, onDelete: () -> Unit,
+    onReply: (String, Boolean, List<Uri>) -> Unit, onDelete: () -> Unit,
 ) {
     val web = LocalWebPalette.current
     val shape = RoundedCornerShape(4.dp)
     var status by remember(item.status) { mutableStateOf(item.status.ifBlank { "new" }) }
-    var replying by remember { mutableStateOf(false) }
     val sender = if (item.agentName.isNotBlank()) "agent:${item.agentName}" else "user:${item.userId ?: ""}"
     val handled = if (item.handledBy.isNotBlank()) " / 対応: ${item.handledBy}" else ""
     val files = listOfNotNull(
@@ -590,12 +597,11 @@ private fun AdminFeedbackRow(
         files.forEach { Text(it, fontSize = 11.sp, color = Tw.amber300) }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsSelect(status, FEEDBACK_STATUS_OPTIONS, { status = it }, fillWidth = false, fontSize = 12.sp)
-            SettingsSmallButton("保存", { onSave(status) }, tone = SettingsButtonTone.Blue, enabled = enabled)
-            SettingsSmallButton("返信", { replying = !replying })
+            SettingsSmallButton("状態を保存", { onSave(status) }, tone = SettingsButtonTone.Blue, enabled = enabled)
             SettingsSmallButton("削除", onDelete, tone = SettingsButtonTone.Red, enabled = enabled)
         }
         FeedbackReplies(item, admin = true)
-        if (replying) FeedbackReplyForm(enabled, notify) { message, withLogs -> onReply(message, withLogs); replying = false }
+        FeedbackReplyForm(enabled, notify, onReply)
     }
 }
 

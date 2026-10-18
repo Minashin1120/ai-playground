@@ -182,12 +182,16 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
         return execute(request("/api/feedback/$feedbackId/chat_files", token).post(multipart).build(), client = streaming, consume = ::jsonResponse)
     }
 
-    /** Web `/api/feedback/<id>/images`: the images attached to feedback [feedbackId], sent after the feedback itself. */
-    suspend fun uploadFeedbackImages(feedbackId: String, images: List<FeedbackImage>, token: String): JSONObject {
+    /**
+     * Web `/api/feedback/<id>/images`: the images attached to feedback [feedbackId], sent after the feedback itself;
+     * with [replyId], Web `/api/feedback/<id>/replies/<reply id>/images` for that reply.
+     */
+    suspend fun uploadFeedbackImages(feedbackId: String, images: List<FeedbackImage>, token: String, replyId: Int? = null): JSONObject {
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM).apply {
             images.forEach { addFormDataPart("images", it.name, it.bytes.toRequestBody(it.mime.toMediaType())) }
         }.build()
-        return execute(request("/api/feedback/$feedbackId/images", token).post(multipart).build(), client = streaming, consume = ::jsonResponse)
+        val path = if (replyId == null) "/api/feedback/$feedbackId/images" else "/api/feedback/$feedbackId/replies/$replyId/images"
+        return execute(request(path, token).post(multipart).build(), client = streaming, consume = ::jsonResponse)
     }
 
     suspend fun upload(name: String, body: RequestBody, token: String): JSONObject {

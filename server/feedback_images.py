@@ -1,7 +1,9 @@
-# --- Images attached to a feedback ---
+# --- Images attached to a feedback or to a reply ---
 # The client sends the feedback first (``POST /api/feedback``), then its images to
 # ``POST /api/feedback/<id>/images`` (the same two steps as the device files of a chat copy). They are kept
 # in ``feedback/<public_id>/images/`` next to ``feedback.json``; deleting the feedback removes the directory.
+# A reply's images follow the reply the same way (``POST /api/feedback/<id>/replies/<reply id>/images``)
+# and are kept in ``feedback/<public_id>/images/reply-<reply id>/``.
 # The type is decided from the file header, never from the name or the declared type, and nothing is decoded.
 _FEEDBACK_IMAGES_DIR = 'images'
 _FEEDBACK_IMAGES_MAX_COUNT = 4
@@ -25,11 +27,47 @@ def _feedback_images_path(public_id):
     return os.path.join(_feedback_dir(public_id), _FEEDBACK_IMAGES_DIR)
 
 
-def _feedback_image_names(public_id):
+def _feedback_reply_images_path(public_id, reply_id):
+    return os.path.join(_feedback_images_path(public_id), f'reply-{int(reply_id)}')
+
+
+def _feedback_image_names_in(directory):
     try:
-        return sorted(name for name in os.listdir(_feedback_images_path(public_id)) if re.fullmatch(r'\d{2}\.(?:png|jpg|webp|gif)', name))
+        return sorted(name for name in os.listdir(directory) if re.fullmatch(r'\d{2}\.(?:png|jpg|webp|gif)', name))
     except OSError:
         return []
+
+
+def _feedback_image_names(public_id):
+    return _feedback_image_names_in(_feedback_images_path(public_id))
+
+
+def _save_feedback_images(directory):
+    """Saves the request's ``images`` into ``directory`` (four at most there); returns (response, status)."""
+    uploads = [u for u in request.files.getlist('images') if u and u.filename is not None]
+    if not uploads:
+        return {'error': 'images_required'}, 400
+    existing = _feedback_image_names_in(directory)
+    if len(existing) + len(uploads) > _FEEDBACK_IMAGES_MAX_COUNT:
+        return {'error': 'too_many_images'}, 400
+    accepted = []
+    for upload in uploads:
+        data = upload.stream.read(_FEEDBACK_IMAGE_MAX_BYTES + 1)
+        if len(data) > _FEEDBACK_IMAGE_MAX_BYTES:
+            return {'error': 'image_too_large'}, 413
+        kind = _feedback_image_kind(data[:16])
+        if kind is None:
+            return {'error': 'unsupported_image'}, 415
+        accepted.append((kind, data))
+    os.makedirs(os.path.dirname(directory), mode=0o700, exist_ok=True)
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    number = max([int(name[:2]) for name in existing] + [0])
+    for kind, data in accepted:
+        number += 1
+        fd = os.open(os.path.join(directory, f'{number:02d}.{kind}'), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'wb') as handle:
+            handle.write(data)
+    return {'saved': len(accepted), 'images': len(_feedback_image_names_in(directory))}, 200
 
 
 @app.route('/api/feedback/<fid>/images', methods=['POST'])
@@ -45,33 +83,37 @@ def feedback_images(fid):
         return jsonify({'error': 'expired'}), 409
     if not rate_limit(f"rl:feedback_images:user:{current_user.id}", 20, 3600):
         return jsonify({'error': 'rate_limit'}), 429
-    uploads = [u for u in request.files.getlist('images') if u and u.filename is not None]
-    if not uploads:
-        return jsonify({'error': 'images_required'}), 400
-    existing = _feedback_image_names(fb.public_id)
-    if len(existing) + len(uploads) > _FEEDBACK_IMAGES_MAX_COUNT:
-        return jsonify({'error': 'too_many_images'}), 400
-    accepted = []
-    for upload in uploads:
-        data = upload.stream.read(_FEEDBACK_IMAGE_MAX_BYTES + 1)
-        if len(data) > _FEEDBACK_IMAGE_MAX_BYTES:
-            return jsonify({'error': 'image_too_large'}), 413
-        kind = _feedback_image_kind(data[:16])
-        if kind is None:
-            return jsonify({'error': 'unsupported_image'}), 415
-        accepted.append((kind, data))
     directory = _feedback_images_path(fb.public_id)
-    os.makedirs(directory, mode=0o700, exist_ok=True)
-    number = max([int(name[:2]) for name in existing] + [0])
-    for kind, data in accepted:
-        number += 1
-        fd = os.open(os.path.join(directory, f'{number:02d}.{kind}'), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, 'wb') as handle:
-            handle.write(data)
-    names = _feedback_image_names(fb.public_id)
+    result, status = _save_feedback_images(directory)
+    if status != 200:
+        return jsonify(result), status
     try:
         _write_feedback_info(fb, images=[
-            {'file': name, 'bytes': os.path.getsize(os.path.join(directory, name))} for name in names])
+            {'file': name, 'bytes': os.path.getsize(os.path.join(directory, name))} for name in _feedback_image_names(fb.public_id)])
     except Exception as e:
         log_force(f"FEEDBACK-INFO-ERROR: feedback={fb.public_id} err={e}")
-    return jsonify({'saved': len(accepted), 'images': len(names)})
+    return jsonify(result)
+
+
+@app.route('/api/feedback/<fid>/replies/<int:reply_id>/images', methods=['POST'])
+@login_required
+def feedback_reply_images(fid, reply_id):
+    """Images added to the user's own reply ``reply_id`` right after it was sent."""
+    fb = _feedback_by_ref(fid)
+    reply = db.session.get(FeedbackReply, reply_id)
+    if not fb or not fb.public_id or not reply or reply.feedback_id != fb.id or reply.user_id != current_user.id:
+        return jsonify({'error': 'not_found'}), 404
+    if not os.path.isdir(_feedback_dir(fb.public_id)):
+        return jsonify({'error': 'not_found'}), 404
+    if reply.created_at and (datetime.utcnow() - reply.created_at).total_seconds() > _FEEDBACK_IMAGES_WINDOW:
+        return jsonify({'error': 'expired'}), 409
+    if not rate_limit(f"rl:feedback_images:user:{current_user.id}", 20, 3600):
+        return jsonify({'error': 'rate_limit'}), 429
+    result, status = _save_feedback_images(_feedback_reply_images_path(fb.public_id, reply.id))
+    if status != 200:
+        return jsonify(result), status
+    try:
+        _write_feedback_info(fb)
+    except Exception as e:
+        log_force(f"FEEDBACK-INFO-ERROR: feedback={fb.public_id} err={e}")
+    return jsonify(result)

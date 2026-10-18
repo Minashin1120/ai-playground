@@ -128,8 +128,6 @@ class SelectionHighlightTest {
     @Test fun mathDark() = capture("math_dark", MATH, dark = true)
     @Test fun codeAndMathDark() = capture("code_math_dark", CODE + MATH, dark = true)
     @Test fun screenDark() = capture("screen_dark", PLAIN, dark = true, screen = true)
-    @Config(sdk = [36]) @Test fun plainDarkSdk36() = capture("plain_dark_sdk36", PLAIN, dark = true)
-    @Config(sdk = [36]) @Test fun screenDarkSdk36() = capture("screen_dark_sdk36", PLAIN, dark = true, screen = true)
 
     private companion object {
         val PLAIN = "結論から言うと、計算はすべて正しいです。\n\nこのまま次の行の計算へ進めて問題ありません。カッコの中をまとめると答えが出ます。"

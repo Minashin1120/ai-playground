@@ -548,7 +548,8 @@ class LocalChatBackend(
         return chain.mapIndexed { index, row ->
             val role = if (row.optString("role") == "assistant") "assistant" else "user"
             val current = index == chain.lastIndex
-            val refs = messageRefs(row)
+            val missing = row.optJSONArray("missing_files")?.let { a -> (0 until a.length()).map { a.getString(it) }.toSet() }.orEmpty()
+            val refs = messageRefs(row).filterNot { it in missing }
             val attachments = refs.mapNotNull { ref ->
                 if (!LocalChatStore.isLocalReference(ref)) {
                     // A server attachment (a server chat, or a file sent again): read from the server or the offline cache.

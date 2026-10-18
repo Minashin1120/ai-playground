@@ -23,6 +23,27 @@ class SyncEngineTest {
     private val store by lazy { LocalChatStore(folder.root.resolve("chats"), EncryptedFileStore(byteArrayOf(7)) { key }) }
     private fun json(body: String) = MockResponse.Builder().addHeader("Content-Type", "application/json").body(body).build()
 
+    @Test fun reusesMissingServerReferencesWithoutRejectingTheBranch() = runBlocking {
+        val thread = store.createThread(false).getString("id")
+        val file = store.saveFile("gone.pdf", "application/pdf", byteArrayOf(1).inputStream(), 1)
+        store.setServerReference(file, "5/gone.pdf")
+        store.appendMessage(thread, LocalChatStore.NewMessage("user", "question", null, files = listOf(file)))
+        val uuid = store.messages(thread).single().getString("uuid")
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(json("""{"status":"ok","threads":[{"id":"srv-missing","messages":[{"client_uuid":"$uuid","id":11}],"rejected":[]}]}"""))
+            val report = SyncEngine(store, PlaygroundApi(server.url("/"))) { "token" }.run()
+            assertEquals(1, report.uploadedMessages)
+            assertEquals(0, report.pending)
+            val request = server.takeRequest()
+            assertEquals("/api/mobile/v1/sync/push", request.target)
+            val message = JSONObject(request.body!!.utf8()).getJSONArray("threads").getJSONObject(0)
+                .getJSONArray("messages").getJSONObject(0)
+            assertEquals("5/gone.pdf", message.getJSONArray("files").getString(0))
+            assertEquals("5/gone.pdf", message.getJSONArray("missing_files").getString(0))
+        }
+    }
+
     @Test fun pushesDeviceChatsAndKeepsOnlyWhatTheServerLacks() = runBlocking {
         val thread = store.createThread(false, "端末のチャット").getString("id")
         val file = store.saveFile("a.png", "image/png", byteArrayOf(1, 2, 3).inputStream(), 3)

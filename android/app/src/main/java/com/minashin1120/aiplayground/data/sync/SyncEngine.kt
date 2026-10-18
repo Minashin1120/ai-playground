@@ -131,7 +131,7 @@ class SyncEngine(
                     else if (!store.fileExists(ref)) missingLocal.put(JSONObject().put("reference", ref).put("attached", true))
                     else skipped++
                 }
-                message.put("files", mapped).put("missing_local_files", missingLocal)
+                message.put("files", mapped).put("missing_local_files", missingLocal).put("missing_files", JSONArray(mapped.toString()))
             }
             // At most 100 messages per request; parents are always sent before their children.
             val all = (0 until messages.length()).map { messages.getJSONObject(it) }

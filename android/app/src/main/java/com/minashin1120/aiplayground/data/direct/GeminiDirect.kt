@@ -24,7 +24,10 @@ class GeminiDirect(
     /** Vertex AI instead of the Gemini API key (server `gemini_backend = vertex_ai`). */
     private val vertex: VertexTarget? = null,
 ) : DirectEngine {
-    override suspend fun run(request: DirectRequest, emit: (JSONObject) -> Unit, onProgress: (String, String) -> Unit): DirectResult {
+    override suspend fun run(request: DirectRequest, emit: (JSONObject) -> Unit, onProgress: (String, String) -> Unit): DirectResult =
+        generate(imageRequest(request), emit, onProgress)
+
+    private suspend fun generate(request: DirectRequest, emit: (JSONObject) -> Unit, onProgress: (String, String) -> Unit): DirectResult {
         if (request.model.equals(NANO_BANANA_21, ignoreCase = true)) {
             return runNanoBanana21(request, emit, onProgress)
         }
@@ -312,6 +315,18 @@ class GeminiDirect(
     }
 
     private fun isImageModel(model: String) = model.contains("image") || model == NANO_BANANA_21
+
+    /**
+     * Server Gemini image branch: one turn with the attachments, the chat's earlier images (attached or
+     * generated, so a follow-up edits the previous image) and the conversation as text. Nano Banana 2.1
+     * and 2 Lite take at most 14 images.
+     */
+    internal fun imageRequest(request: DirectRequest): DirectRequest {
+        val model = request.model.lowercase()
+        if (!isImageModel(model)) return request
+        val limited = model == NANO_BANANA_21 || model.contains("gemini-3.1-flash-lite-image")
+        return request.asImageFollowUp(if (limited) 14 else Int.MAX_VALUE)
+    }
 
     /** Web `browserFastThinkingConfig`: 2.5 uses a budget, newer models a level. */
     private fun thinkingConfig(model: String, options: JSONObject): JSONObject? {

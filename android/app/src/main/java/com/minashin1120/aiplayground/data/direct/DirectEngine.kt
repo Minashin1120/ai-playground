@@ -12,6 +12,8 @@ data class DirectTurn(
     val attachments: List<DirectAttachment> = emptyList(),
     /** Gemini thought signatures of this assistant turn, sent back unchanged. */
     val thoughtSignatures: List<String> = emptyList(),
+    /** Images this assistant turn generated; only the image models send them again (server `_load_history_image_parts`). */
+    val generated: List<DirectAttachment> = emptyList(),
 )
 
 /** Everything a provider call needs; [options] is the chat request body (`enable_search`, `thinking_level`, …). */

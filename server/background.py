@@ -2646,7 +2646,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             _save_user_generated_bytes(user_id, bytes(audio_data), fn2, user_config.get('enable_e2ee'))
                             audio_tag = f'\n<audio controls src="/files/{user_id}/{fn2}" class="w-full mt-2"></audio>\n'
                             pub("content", audio_tag)
-                            full_res += f"Generated Music for: {final_message_text}\n"
+                            # Save the player as streamed (like TTS) so a reloaded answer keeps it.
+                            full_res += audio_tag
                             generated_images.append(f"{user_id}/{fn2}")
                         if not audio_data and not lyrics:
                             pub("error", "Lyria returned no output.")
@@ -7343,7 +7344,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
             if is_grok and grok_reasoning_supported and not thought_accumulated:
                 thought_accumulated = " "
-            final_content = full_res
+            final_content = _strip_invented_agentic_images(
+                full_res,
+                set(agentic_saved_urls) | set(agentic_consumed_urls),
+                [str(m.get('content') or '') for m in history],
+            )
             coding_repair_outputs = ""
             if options.get("coding_mode"):
                 _consume_coding_stream_chunk("", flush=True)

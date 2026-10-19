@@ -88,6 +88,13 @@ class LyriaRealtimeRegressionTests(unittest.TestCase):
         segment = APP_SOURCE[APP_SOURCE.index("is_gemini_music_model_key(model_key_l)"):]
         self.assertIn("Lyria RealTime Studio", segment)
 
+    def test_music_branch_saves_the_audio_player(self):
+        # A reloaded answer must keep the player it streamed, as TTS does.
+        start = APP_SOURCE.index("1B. GEMINI MUSIC GENERATION")
+        segment = APP_SOURCE[start:APP_SOURCE.index("1C. GEMINI EMBEDDING", start)]
+        self.assertIn("full_res += audio_tag", segment)
+        self.assertNotIn("Generated Music for", segment)
+
     def test_config_normalization_clamps_values(self):
         # Import the normalizer directly from app.py without starting the app.
         ns = {}

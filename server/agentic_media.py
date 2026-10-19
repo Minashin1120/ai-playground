@@ -190,6 +190,32 @@ def _rewrite_sandbox_image_refs(text, saved_urls, consumed_urls, filename_url_ma
     return _SANDBOX_IMG_REF_RE.sub(_repl, text)
 
 
+_AGENTIC_FILE_IMG_RE = re.compile(r"!\[[^\]\n]*\]\((/files/\d+/agentic_\d+_[0-9a-f]+\.[A-Za-z0-9]+)\)")
+
+
+def _strip_invented_agentic_images(text, saved_urls, history_texts):
+    """
+    Remove ![...](/files/<id>/agentic_<time>_<hex>.<ext>) links to images this
+    answer did not save and the conversation history does not contain.
+
+    Code-execution answers are stored with such links and sent back as history,
+    so a model can copy the format without running code and link to files that
+    do not exist. Same rule as the Android client's withoutInventedAgenticImages.
+    """
+    if not text or "agentic_" not in text:
+        return text
+    known = set(saved_urls or ())
+    history_texts = [h for h in (history_texts or ()) if h]
+
+    def _repl(match):
+        url = match.group(1)
+        if url in known or any(url in h for h in history_texts):
+            return match.group(0)
+        return ""
+
+    return _AGENTIC_FILE_IMG_RE.sub(_repl, text)
+
+
 def _rewrite_streamed_sandbox_refs(delta, buffer_state, saved_urls, consumed_urls, filename_url_map=None):
     """
     Process a streamed text delta, rewriting Gemini code-execution sandbox image

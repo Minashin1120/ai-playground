@@ -49,6 +49,39 @@ class MediaDirectTest {
         assertEquals(85, jpeg.getJSONArray("tools").getJSONObject(0).getInt("output_compression"))
     }
 
+    @Test fun imageModelsEditTheChatsEarlierImageOnAFollowUp() {
+        val first = DirectAttachment("first.png", "image/png", bytes = byteArrayOf(1))
+        val second = DirectAttachment("second.png", "image/png", bytes = byteArrayOf(2))
+        fun followUp(model: String) = DirectRequest(model, "key-1", "SYSTEM", listOf(
+            DirectTurn("user", "猫を描いて"),
+            DirectTurn("assistant", "Generated Image for: 猫を描いて", generated = listOf(first)),
+            DirectTurn("user", "もっと丸く"),
+            DirectTurn("assistant", "Generated Image for: もっと丸く", generated = listOf(second)),
+            DirectTurn("user", "色を青に"),
+        ), JSONObject())
+        val gpt = OpenAiImageDirect(http).buildPayload(followUp("gpt-image-2.5-flare"))
+        assertEquals("edit", gpt.getJSONArray("tools").getJSONObject(0).getString("action"))
+        val content = gpt.getJSONArray("input").getJSONObject(0).getJSONArray("content")
+        assertEquals(3, content.length())
+        val prompt = content.getJSONObject(0).getString("text")
+        assertTrue(prompt.startsWith("Conversation context for this image follow-up:"))
+        assertTrue(prompt.contains("User: 猫を描いて\nAssistant: Generated Image for: 猫を描いて"))
+        assertTrue(prompt.endsWith("Current user request:\n\n色を青に"))
+        // The newest image first, as the server does.
+        assertTrue(content.getJSONObject(1).getString("image_url").endsWith(Base64.getEncoder().encodeToString(byteArrayOf(2))))
+        val grok = XaiImageDirect(http).buildPayload(followUp("grok-imagine-image-2.0"))
+        assertEquals(2, grok.getJSONArray("images").length())
+        assertTrue(grok.getString("prompt").endsWith("色を青に"))
+        val gemini = GeminiDirect(http).imageRequest(followUp("gemini-3-pro-image"))
+        assertEquals(listOf(second, first), gemini.turns.single().attachments)
+        // Nano Banana 2.1 takes at most 14 images: the attached ones come first.
+        assertEquals(14, GeminiDirect(http).imageRequest(followUp("gemini-nano-banana-2.1").let { request ->
+            request.copy(turns = request.turns.dropLast(1) + DirectTurn("user", "色を青に",
+                List(14) { DirectAttachment("a$it.png", "image/png", bytes = byteArrayOf(3)) }))
+        }).turns.single().attachments.size)
+        assertEquals(5, GeminiDirect(http).imageRequest(followUp("gemini-3-flash")).turns.size)
+    }
+
     @Test fun gptImageReturnsTheGeneratedFile() {
         MockWebServer().use { server ->
             server.start()

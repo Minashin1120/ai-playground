@@ -590,7 +590,9 @@ class LocalChatBackend(
                 val block = if (current) SystemPromptBuilder.attachmentNamesBlock(names, preferences, defaults) else ""
                 if (block.isNotEmpty()) text = "$text\n\n$block"
             } else text = stripErrorFence(text)
-            DirectTurn(role, text, if (role == "user") attachments else emptyList())
+            // An answer's generated images go only to the image models, which edit the previous image (server `_build_non_llm_image_context`).
+            if (role == "user") DirectTurn(role, text, attachments)
+            else DirectTurn(role, text, generated = attachments.filter { it.bytes != null && it.mime.startsWith("image/") })
         }.filterNot { it.role == "assistant" && it.text.isBlank() }
     }
 

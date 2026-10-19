@@ -14,7 +14,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -461,7 +464,8 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                     Modifier.fillMaxWidth().clip(shape).background(web.twBg(Tw.gray800).copy(alpha = 0.5f))
                         .border(1.dp, web.twBorder(Tw.gray700), shape).padding(8.dp),
                 ) {
-                    Text(if (item.publicId.isBlank()) item.createdAt else "ID: ${item.publicId} / ${item.createdAt}", fontSize = 11.sp, color = Tw.gray400)
+                    if (item.publicId.isBlank()) Text(item.createdAt, fontSize = 11.sp, color = Tw.gray400)
+                    else FeedbackIdLine(item.publicId, " / ${item.createdAt}")
                     Text(item.title.ifBlank { "No Title" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = web.text)
                     Text(item.message, fontSize = 14.sp, color = web.text)
                     Text("Status: ${if (item.status == "resolved_unreleased") "resolved（non-released）" else item.status}", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
@@ -602,7 +606,7 @@ private fun AdminFeedbackRow(
             .border(1.dp, web.twBorder(Tw.gray700), shape).padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("ID: ${item.publicId} / $sender / ${item.createdAt}$handled", fontSize = 11.sp, color = Tw.gray400)
+        FeedbackIdLine(item.publicId, " / $sender / ${item.createdAt}$handled")
         Text(item.title.ifBlank { "No Title" }, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = web.text)
         Text(item.message, fontSize = 14.sp, color = web.text)
         files.forEach { Text(it, fontSize = 11.sp, color = Tw.amber300) }
@@ -832,5 +836,17 @@ private fun McpCustomForm(model: ChatViewModel, ops: AccountOps) {
             }
         }
         SettingsDesc("URLはサーバー側で安全性（SSRF対策）を検査します。内部ネットワーク・ループバック等への接続はできません。", color = Tw.gray400)
+    }
+}
+
+/** Web `loadFeedback`: the ID is selectable (`select-all font-mono`), so a long press selects it for copying. */
+@Composable
+private fun FeedbackIdLine(id: String, rest: String) {
+    SelectionContainer {
+        Text(buildAnnotatedString {
+            append("ID: ")
+            withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) { append(id) }
+            append(rest)
+        }, fontSize = 11.sp, color = Tw.gray400)
     }
 }

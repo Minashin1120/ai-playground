@@ -389,6 +389,27 @@ class AgenticImageRegressionTests(unittest.TestCase):
                         7, b"fake-bytes", lambda: "agentic_x.png", False,
                     )
 
+    def test_invented_agentic_links_are_removed_before_saving(self):
+        saved = "/files/1/agentic_1792431909000_0a1b2c3d.png"
+        earlier = "/files/1/agentic_1792400000000_deadbeef.png"
+        invented = "/files/1/agentic_1792431910000_feedface.png"
+        text = (
+            f"結果です\n![Agentic View]({saved})\n"
+            f"前の図\n![Agentic View]({earlier})\n"
+            f"新しい図\n![Agentic View]({invented})\n"
+        )
+
+        result = target._strip_invented_agentic_images(
+            text, {saved}, ["前の回答", f"![Agentic View]({earlier})"]
+        )
+
+        self.assertIn(saved, result)
+        self.assertIn(earlier, result)
+        self.assertNotIn(invented, result)
+        self.assertIn("新しい図", result)
+        plain = "画像は ![図](/files/1/upload.png) です"
+        self.assertEqual(target._strip_invented_agentic_images(plain, set(), []), plain)
+
 
 if __name__ == "__main__":
     unittest.main()

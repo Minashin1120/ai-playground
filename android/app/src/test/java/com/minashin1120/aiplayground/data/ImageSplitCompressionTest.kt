@@ -5,6 +5,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import androidx.core.content.FileProvider
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -23,6 +24,10 @@ class ImageSplitCompressionTest {
     private val context: Application get() = RuntimeEnvironment.getApplication()
 
     @Before fun resetPreferences() {
+        // Robolectric gives every test a different cache directory; AndroidX's static
+        // provider strategy otherwise keeps a root from a previous sandbox.
+        val cache = FileProvider::class.java.getDeclaredField("sCache").apply { isAccessible = true }
+        (cache.get(null) as MutableMap<*, *>).clear()
         context.getSharedPreferences("image_split_compression", Context.MODE_PRIVATE).edit().clear().commit()
     }
 

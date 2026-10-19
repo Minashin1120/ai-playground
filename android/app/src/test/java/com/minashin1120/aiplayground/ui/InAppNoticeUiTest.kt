@@ -75,6 +75,10 @@ class InAppNoticeUiTest {
     }
 
     private fun settle() {
+        // Commit the new composition and let Android create/layout its window before
+        // advancing the animation clock (autoAdvance is deliberately disabled).
+        rule.mainClock.advanceTimeByFrame()
+        rule.waitForIdle()
         rule.mainClock.advanceTimeBy(500L)
         rule.waitForIdle()
     }

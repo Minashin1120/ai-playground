@@ -1117,8 +1117,7 @@ private fun SendStopButton(state: ChatState, phone: Boolean, onSend: () -> Unit,
     ) { streaming ->
         if (streaming) Box(
             Modifier.size(buttonSize).clip(shape)
-                .background(Brush.linearGradient(listOf(Color(0xFFEF4444), Color(0xFFDC2626))))
-                .border(1.dp, Color(239, 68, 68).copy(alpha = 0.45f), shape)
+                .background(Color(0xFFDC2626))
                 .clickable(role = Role.Button, onClick = onStop)
                 .semantics { contentDescription = "生成を停止" },
             contentAlignment = Alignment.Center,
@@ -1126,15 +1125,7 @@ private fun SendStopButton(state: ChatState, phone: Boolean, onSend: () -> Unit,
             Text("■", fontSize = 20.sp, lineHeight = 20.sp, color = Color.White)
         } else Box(
             Modifier.size(buttonSize).alpha(if (enabled) 1f else 0.5f).clip(shape)
-                .background(Brush.linearGradient(listOf(web.theme.t500, web.theme.t700)))
-                .drawBehind {
-                    // `radial-gradient(circle at 32% 18%, rgba(255,255,255,.26), transparent 30%)`
-                    val center = Offset(this.size.width * 0.32f, this.size.height * 0.18f)
-                    val farthest = kotlin.math.hypot(this.size.width * 0.68f, this.size.height * 0.82f)
-                    drawRect(Brush.radialGradient(listOf(Color.White.copy(alpha = 0.26f), Color.Transparent),
-                        center = center, radius = farthest * 0.3f))
-                }
-                .border(1.dp, web.theme.rgb(0.48f), shape)
+                .background(web.theme.t600)
                 .clickable(enabled = enabled, role = Role.Button, onClick = onSend)
                 .semantics { contentDescription = "送信" },
             contentAlignment = Alignment.Center,

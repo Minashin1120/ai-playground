@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.RectangleShape
@@ -146,13 +147,13 @@ internal fun MessageBubble(
     }
     val shape = if (user) RoundedCornerShape(20.dp, 20.dp, 8.dp, 20.dp) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 8.dp)
     val background = when {
-        user -> Brush.verticalGradient(listOf(web.theme.t500, web.theme.t600))
+        user -> SolidColor(web.theme.t600)
         web.isLight -> Brush.verticalGradient(listOf(Color.White, Color(0xFFF4F7FB)))
         else -> Brush.verticalGradient(listOf(Color(16, 22, 40).copy(alpha = 0.82f), Color(10, 14, 26).copy(alpha = 0.86f)))
     }
     val border = when {
+        user -> Color.Transparent
         web.isLight -> Color(15, 23, 42).copy(alpha = 0.08f)
-        user -> web.theme.rgb(0.28f)
         else -> Color.White.copy(alpha = 0.06f)
     }
     val textColor = if (user) web.textInverse else if (web.isLight) web.text else Color.White
@@ -161,9 +162,9 @@ internal fun MessageBubble(
         Box(Modifier.widthIn(max = maxBubble)) {
             Column(
                 Modifier
-                    .shadow(if (user) 10.dp else 14.dp, shape,
-                        ambientColor = if (user) web.theme.rgb(0.16f) else Color.Black.copy(alpha = 0.18f),
-                        spotColor = if (user) web.theme.rgb(0.16f) else Color.Black.copy(alpha = 0.18f))
+                    .then(if (user) Modifier else Modifier.shadow(14.dp, shape,
+                        ambientColor = Color.Black.copy(alpha = 0.18f),
+                        spotColor = Color.Black.copy(alpha = 0.18f)))
                     .clip(shape)
                     .background(background)
                     .border(1.dp, border, shape)

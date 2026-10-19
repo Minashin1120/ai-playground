@@ -6841,3 +6841,57 @@ body:not(.minimal-prompt-mode).liquid-glass-mode .composer-input-shell {
         height: auto !important;
     }
 }
+
+/* Flat primary surfaces: user prompt bubble, send button, sidebar new-chat button.
+   Solid theme color only (no gradient, highlight, glow or lift). Liquid glass keeps its own look. */
+body:not(.liquid-glass-mode) .message-bubble.bg-blue-600 {
+    background: var(--theme-600) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+}
+body:not(.liquid-glass-mode) .message-bubble.bg-blue-600:hover {
+    transform: none;
+    box-shadow: none !important;
+}
+
+body:not(.liquid-glass-mode) #send-btn.composer-send-btn,
+body:not(.liquid-glass-mode) #send-btn,
+body:not(.liquid-glass-mode) #sidebar #new-chat-btn.sidebar-icon-btn,
+body:not(.liquid-glass-mode) #sidebar #new-chat-btn,
+body:not(.liquid-glass-mode) #new-chat-btn.bg-blue-600 {
+    background: var(--theme-600) !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+body:not(.liquid-glass-mode) #send-btn.composer-send-btn:hover,
+body:not(.liquid-glass-mode) #send-btn:hover,
+body:not(.liquid-glass-mode) #sidebar #new-chat-btn.sidebar-icon-btn:hover,
+body:not(.liquid-glass-mode) #sidebar #new-chat-btn:hover,
+body:not(.liquid-glass-mode) #new-chat-btn.bg-blue-600:hover {
+    background: var(--theme-500) !important;
+    box-shadow: none !important;
+    filter: none;
+    transform: none !important;
+}
+body:not(.liquid-glass-mode) #send-btn.composer-send-btn:active,
+body:not(.liquid-glass-mode) #send-btn:active {
+    transform: scale(0.97);
+}
+body:not(.liquid-glass-mode) #send-btn.composer-send-btn.stop-mode,
+body:not(.liquid-glass-mode) #send-btn.stop-mode {
+    background: #dc2626 !important;
+    border-color: transparent !important;
+}
+body:not(.liquid-glass-mode) #send-btn.composer-send-btn.stop-mode:hover,
+body:not(.liquid-glass-mode) #send-btn.stop-mode:hover {
+    background: #ef4444 !important;
+}
+@keyframes send-pulse-flat {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+}
+body:not(.liquid-glass-mode) #send-btn.pulse-ready {
+    animation-name: send-pulse-flat;
+}

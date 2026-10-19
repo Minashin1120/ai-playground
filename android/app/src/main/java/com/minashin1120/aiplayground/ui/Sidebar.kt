@@ -324,7 +324,7 @@ private fun SidebarIconButton(
     ) { FaIcon(icon, label, size = iconSize, tint = tint) }
 }
 
-/** `#new-chat-btn`: the theme-gradient square with a white plus. */
+/** `#new-chat-btn`: the flat theme-color square with a white plus. */
 @Composable
 private fun NewChatToolButton(enabled: Boolean, onClick: () -> Unit) {
     val web = LocalWebPalette.current
@@ -333,8 +333,7 @@ private fun NewChatToolButton(enabled: Boolean, onClick: () -> Unit) {
         Modifier
             .size(28.8.dp)
             .clip(shape)
-            .background(Brush.linearGradient(listOf(web.theme.t500, web.theme.t600)))
-            .border(1.dp, web.theme.rgb(0.4f), shape)
+            .background(web.theme.t600)
             .clickable(enabled = enabled, onClickLabel = "新規チャット", role = Role.Button, onClick = onClick)
             .graphicsLayer { alpha = if (enabled) 1f else 0.5f },
         contentAlignment = Alignment.Center,

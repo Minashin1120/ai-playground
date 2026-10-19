@@ -129,6 +129,9 @@ println("安全")
         }
         // Code spans keep their dollar signs as text.
         assertTrue(parsed.text.text.contains("\$y\$"))
+        // Like Web, a full-width closing parenthesis from the model still ends the formula.
+        val fullWidth = parseInlineMarkdown("「\\(b_n\\）」に置き換える", colors)
+        assertEquals(listOf("b_n"), fullWidth.math.map { it.tex })
     }
 
     @Test fun typesetFormulasBecomeOneTokenThatCopiesTheApproximation() {

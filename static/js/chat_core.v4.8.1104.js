@@ -3424,7 +3424,7 @@
         }
         function maybeNeedsMathJax(text) {
             const t = String(text || '');
-            if (t.includes('$$') || t.includes('\\(') || t.includes('\\[') || t.includes('\\begin{')) return true;
+            if (t.includes('$$') || t.includes('\\(') || t.includes('\\（') || t.includes('\\[') || t.includes('\\begin{')) return true;
             // 単独 $...$ （通貨 $12 は除外し、数式らしい中身のみ）
             return /(?<!\$)\$(?!\$)(?=[\s\S]*?[A-Za-z\\^_{}])(?:[^$\n\\]|\\.)+?\$(?!\$)/.test(t);
         }
@@ -3464,7 +3464,8 @@
                 let t = part.value;
                 // 長い／優先度の高いデリミタから順に退避
                 t = t.replace(/\$\$([\s\S]+?)\$\$/g, stash);
-                t = t.replace(/\\\(([\s\S]+?)\\\)/g, stash);
+                // モデルが全角の括弧で \（ … \） と書くことがあるため、半角の区切りへ直して退避
+                t = t.replace(/\\[(（]([\s\S]+?)\\[)）]/g, (match, body) => stash(`\\(${body}\\)`));
                 t = t.replace(/\\\[([\s\S]+?)\\\]/g, stash);
                 t = t.replace(/\\begin\{([a-zA-Z*]+)\}([\s\S]+?)\\end\{\1\}/g, stash);
                 // 単独 $...$ （空や空白のみ、および $$ は除外）

@@ -46,12 +46,14 @@ class OpenAiImageDirect(private val http: DirectHttp, private val baseUrl: Strin
         val qualities = mutableSetOf("auto", "low", "medium", "high")
         if (request.model.lowercase() in setOf("gpt-image-2.5-sunburst", "gpt-image-2.5-flare")) qualities += setOf("xhigh", "max")
         val images = request.inputImages()
+        val format = pick("image_format", setOf("png", "jpeg", "webp"), "png")
         val tool = JSONObject().put("type", "image_generation").put("model", request.model)
             .put("size", pick("image_size", setOf("auto", "1024x1024", "1536x1024", "1024x1536"), "auto"))
             .put("quality", pick("image_quality", qualities, "auto"))
-            .put("output_format", pick("image_format", setOf("png", "jpeg", "webp"), "png"))
+            .put("output_format", format)
             .put("action", if (images.isEmpty()) "generate" else "edit")
-        options.optString("image_compression").toIntOrNull()?.takeIf { it in 0..100 }?.let { tool.put("output_compression", it) }
+        // Like the server: PNG is lossless and the API rejects output_compression below 100 for it.
+        if (format != "png") options.optString("image_compression").toIntOrNull()?.takeIf { it in 0..100 }?.let { tool.put("output_compression", it) }
         // Like the server, only the Gem / client system prompt goes in front of the image prompt.
         val prompt = listOf(options.optString("system_prompt"), request.prompt()).filter { it.isNotBlank() && it != "null" }.joinToString("\n\n")
         val content = JSONArray().put(JSONObject().put("type", "input_text").put("text", prompt))

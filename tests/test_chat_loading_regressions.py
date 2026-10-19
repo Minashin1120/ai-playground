@@ -40,7 +40,8 @@ class ChatLoadingRegressionTests(unittest.TestCase):
         self.assertIn("function restoreMathSegments(html, blocks, opts = {})", source)
         self.assertIn("@@MATHJAX_BLOCK_", source)
         # marked が落とす \( / \[ と $$ / $ を退避対象に含む
-        self.assertIn(r"/\\\(([\s\S]+?)\\\)/g", source)
+        # モデルが出す全角の \（ \） も受け付け、半角の区切りへ直す
+        self.assertIn(r"/\\[(（]([\s\S]+?)\\[)）]/g", source)
         self.assertIn(r"/\\\[([\s\S]+?)\\\]/g", source)
         self.assertIn(r"/\$\$([\s\S]+?)\$\$/g", source)
         # 一文字だけのインライン数式（$x$）も増分描画対象として退避する

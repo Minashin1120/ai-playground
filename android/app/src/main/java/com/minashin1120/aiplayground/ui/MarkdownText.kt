@@ -894,9 +894,9 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
                 }
             }
         }
-        // Inline math \( … \)
-        if (rest.startsWith("\\(")) {
-            val end = source.indexOf("\\)", i + 2)
+        // Inline math \( … \); like Web, a full-width \（ or \） from the model also delimits it.
+        if (rest.startsWith("\\(") || rest.startsWith("\\（")) {
+            val end = listOf(source.indexOf("\\)", i + 2), source.indexOf("\\）", i + 2)).filter { it >= 0 }.minOrNull() ?: -1
             if (end > 0) {
                 math(source.substring(i + 2, end), false)
                 i = end + 2; continue

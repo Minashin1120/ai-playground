@@ -5671,7 +5671,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             "output_format": format_opt,
                         }
                     ]
-                    if comp_opt is not None:
+                    # PNG is lossless; the API rejects output_compression below 100 for it.
+                    if comp_opt is not None and format_opt in {"jpeg", "webp"}:
                         tools[0]["output_compression"] = comp_opt
                     
                     input_content = [{"type": "input_text", "text": img_prompt}]

@@ -1108,47 +1108,49 @@ async function ensureHighlightLoaded(){return window.hljs?window.hljs:(highlight
 Promise.all([loadStylesheetOnce(HLJS_CSS_SRC,"hljs-theme-chat"),loadScriptOnce(HLJS_JS_SRC,"hljs-scr\
 ipt")]).then(()=>window.hljs||null).catch(e=>{throw highlightLoadPromise=null,e})),await highlightLoadPromise)}
 o(ensureHighlightLoaded,"ensureHighlightLoaded");function maybeNeedsMathJax(e){const t=String(e||"");
-return t.includes("$$")||t.includes("\\(")||t.includes("\\[")||t.includes("\\begin{")?!0:/(?<!\$)\$(?!\$)(?=[\s\S]*?[A-Za-z\\^_{}])(?:[^$\n\\]|\\.)+?\$(?!\$)/.
-test(t)}o(maybeNeedsMathJax,"maybeNeedsMathJax");function protectMathSegments(e){const t=String(e||""),
-n=[],i=o(f=>{const b=`@@MATHJAX_BLOCK_${n.length}@@`;return n.push(f),b},"stash"),a=[],r=/(^|\n)([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:\n\2\3[ \t]*(?:\n|$)|$)/g;
+return t.includes("$$")||t.includes("\\(")||t.includes("\\\uFF08")||t.includes("\\[")||t.includes("\\\
+begin{")?!0:/(?<!\$)\$(?!\$)(?=[\s\S]*?[A-Za-z\\^_{}])(?:[^$\n\\]|\\.)+?\$(?!\$)/.test(t)}o(maybeNeedsMathJax,
+"maybeNeedsMathJax");function protectMathSegments(e){const t=String(e||""),n=[],i=o(f=>{const b=`@@M\
+ATHJAX_BLOCK_${n.length}@@`;return n.push(f),b},"stash"),a=[],r=/(^|\n)([ \t]*)(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:\n\2\3[ \t]*(?:\n|$)|$)/g;
 let l=0,c;for(;(c=r.exec(t))!==null;){const f=c.index;f>l&&a.push({type:"text",value:t.slice(l,f)}),
 a.push({type:"code",value:c[0]}),l=f+c[0].length}return l<t.length&&a.push({type:"text",value:t.slice(
 l)}),a.length||a.push({type:"text",value:t}),{text:a.map(f=>{if(f.type==="code")return f.value;let b=f.
-value;return b=b.replace(/\$\$([\s\S]+?)\$\$/g,i),b=b.replace(/\\\(([\s\S]+?)\\\)/g,i),b=b.replace(/\\\[([\s\S]+?)\\\]/g,
-i),b=b.replace(/\\begin\{([a-zA-Z*]+)\}([\s\S]+?)\\end\{\1\}/g,i),b=b.replace(/(?<!\$)\$(?!\$)([^\s$](?:(?:[^$\n\\]|\\.)*?[^\s$])?)\$(?!\$)/g,
-i),b}).join(""),blocks:n}}o(protectMathSegments,"protectMathSegments");function getStreamMathSegmentKey(e,t){
-const n=String(t||"");let i=2166136261;for(let a=0;a<n.length;a++)i^=n.charCodeAt(a),i=Math.imul(i,16777619);
-return`${e}-${n.length}-${(i>>>0).toString(16)}`}o(getStreamMathSegmentKey,"getStreamMathSegmentKey");
-function restoreMathSegments(e,t,n={}){return!t||!t.length?String(e||""):String(e||"").replace(/@@MATHJAX_BLOCK_(\d+)@@/g,
-(i,a)=>{const r=t[Number(a)];if(r==null)return"";const l=String(r).replace(/&/g,"&amp;").replace(/</g,
-"&lt;").replace(/>/g,"&gt;");return n.streamMathSegments?`<span class="stream-math-segment mathjax_p\
-rocess" data-stream-math-key="${getStreamMathSegmentKey(Number(a),r)}">${l}</span>`:l})}o(restoreMathSegments,
-"restoreMathSegments");function maybeNeedsHighlight(e,t=null){return String(e||"").includes("```")?!0:
-!t||typeof t.querySelector!="function"?!1:!!t.querySelector("pre code")}o(maybeNeedsHighlight,"maybe\
-NeedsHighlight");function queueMathTypeset(e,t="",n={}){lowBandwidthMode&&!n.force||!e||!maybeNeedsMathJax(
-t)||ensureMathJaxLoaded().then(()=>{if(!(!window.MathJax||typeof window.MathJax.typesetPromise!="fun\
-ction")){try{typeof window.MathJax.typesetClear=="function"&&window.MathJax.typesetClear([e])}catch{}
-return window.MathJax.typesetPromise([e]).catch(()=>{})}}).catch(()=>{})}o(queueMathTypeset,"queueMa\
-thTypeset");function queueIncrementalMathTypeset(e){const t=Array.from(e||[]).filter(n=>n&&n.isConnected&&
-!n.getAttribute("data-stream-math-state"));!t.length||lowBandwidthMode||(t.forEach(n=>n.setAttribute(
-"data-stream-math-state","queued")),incrementalMathTypesetChain=incrementalMathTypesetChain.catch(()=>{}).
-then(async()=>{await ensureMathJaxLoaded();const n=t.filter(i=>i.isConnected&&i.getAttribute("data-s\
-tream-math-state")==="queued");if(!(!n.length||!window.MathJax||typeof window.MathJax.typesetPromise!=
-"function")){n.forEach(i=>i.setAttribute("data-stream-math-state","rendering"));try{await window.MathJax.
-typesetPromise(n),n.forEach(i=>{i.isConnected&&i.setAttribute("data-stream-math-state","rendered")})}catch{
-n.forEach(a=>a.removeAttribute("data-stream-math-state"))}}}).catch(()=>{t.forEach(n=>n.removeAttribute(
-"data-stream-math-state"))}))}o(queueIncrementalMathTypeset,"queueIncrementalMathTypeset");function queueHighlight(e,t="",n={}){
-lowBandwidthMode&&!n.force||!e||!maybeNeedsHighlight(t,e)||activeStreamingBubbleId&&e.closest(`#${activeStreamingBubbleId}`)||
-ensureHighlightLoaded().then(()=>{window.hljs&&e.querySelectorAll("pre code").forEach(i=>{if(!(i.getAttribute(
-"data-highlighted")==="true"&&!n.force))try{window.hljs.highlightElement(i)}catch{}})}).catch(()=>{})}
-o(queueHighlight,"queueHighlight");function getNetworkConnectionInfo(){return navigator.connection||
-navigator.mozConnection||navigator.webkitConnection||null}o(getNetworkConnectionInfo,"getNetworkConn\
-ectionInfo");function detectLowBandwidthModeAuto(){const e=getNetworkConnectionInfo();if(!e)return{enabled:!1,
-reason:""};const t=!!e.saveData,n=String(e.effectiveType||"").toLowerCase(),i=Number(e.downlink||0),
-a=n==="slow-2g"||n==="2g"||n==="3g",r=Number.isFinite(i)&&i>0&&i<1.3,l=t||a||r,c=[];return t&&c.push(
-"\u30C7\u30FC\u30BF\u7BC0\u7D04"),n&&c.push(`\u56DE\u7DDA:${n}`),r&&c.push(`\u4E0B\u308A:${i}Mbps`),
-{enabled:l,reason:c.join(" / ")}}o(detectLowBandwidthModeAuto,"detectLowBandwidthModeAuto");function normalizeLowBandwidthModePreference(e){
-const t=String(e||"").trim().toLowerCase();return t==="on"||t==="off"||t==="auto"?t:"auto"}o(normalizeLowBandwidthModePreference,
+value;return b=b.replace(/\$\$([\s\S]+?)\$\$/g,i),b=b.replace(/\\[(（]([\s\S]+?)\\[)）]/g,(y,v)=>i(
+`\\(${v}\\)`)),b=b.replace(/\\\[([\s\S]+?)\\\]/g,i),b=b.replace(/\\begin\{([a-zA-Z*]+)\}([\s\S]+?)\\end\{\1\}/g,
+i),b=b.replace(/(?<!\$)\$(?!\$)([^\s$](?:(?:[^$\n\\]|\\.)*?[^\s$])?)\$(?!\$)/g,i),b}).join(""),blocks:n}}
+o(protectMathSegments,"protectMathSegments");function getStreamMathSegmentKey(e,t){const n=String(t||
+"");let i=2166136261;for(let a=0;a<n.length;a++)i^=n.charCodeAt(a),i=Math.imul(i,16777619);return`${e}\
+-${n.length}-${(i>>>0).toString(16)}`}o(getStreamMathSegmentKey,"getStreamMathSegmentKey");function restoreMathSegments(e,t,n={}){
+return!t||!t.length?String(e||""):String(e||"").replace(/@@MATHJAX_BLOCK_(\d+)@@/g,(i,a)=>{const r=t[Number(
+a)];if(r==null)return"";const l=String(r).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&\
+gt;");return n.streamMathSegments?`<span class="stream-math-segment mathjax_process" data-stream-mat\
+h-key="${getStreamMathSegmentKey(Number(a),r)}">${l}</span>`:l})}o(restoreMathSegments,"restoreMathS\
+egments");function maybeNeedsHighlight(e,t=null){return String(e||"").includes("```")?!0:!t||typeof t.
+querySelector!="function"?!1:!!t.querySelector("pre code")}o(maybeNeedsHighlight,"maybeNeedsHighligh\
+t");function queueMathTypeset(e,t="",n={}){lowBandwidthMode&&!n.force||!e||!maybeNeedsMathJax(t)||ensureMathJaxLoaded().
+then(()=>{if(!(!window.MathJax||typeof window.MathJax.typesetPromise!="function")){try{typeof window.
+MathJax.typesetClear=="function"&&window.MathJax.typesetClear([e])}catch{}return window.MathJax.typesetPromise(
+[e]).catch(()=>{})}}).catch(()=>{})}o(queueMathTypeset,"queueMathTypeset");function queueIncrementalMathTypeset(e){
+const t=Array.from(e||[]).filter(n=>n&&n.isConnected&&!n.getAttribute("data-stream-math-state"));!t.
+length||lowBandwidthMode||(t.forEach(n=>n.setAttribute("data-stream-math-state","queued")),incrementalMathTypesetChain=
+incrementalMathTypesetChain.catch(()=>{}).then(async()=>{await ensureMathJaxLoaded();const n=t.filter(
+i=>i.isConnected&&i.getAttribute("data-stream-math-state")==="queued");if(!(!n.length||!window.MathJax||
+typeof window.MathJax.typesetPromise!="function")){n.forEach(i=>i.setAttribute("data-stream-math-sta\
+te","rendering"));try{await window.MathJax.typesetPromise(n),n.forEach(i=>{i.isConnected&&i.setAttribute(
+"data-stream-math-state","rendered")})}catch{n.forEach(a=>a.removeAttribute("data-stream-math-state"))}}}).
+catch(()=>{t.forEach(n=>n.removeAttribute("data-stream-math-state"))}))}o(queueIncrementalMathTypeset,
+"queueIncrementalMathTypeset");function queueHighlight(e,t="",n={}){lowBandwidthMode&&!n.force||!e||
+!maybeNeedsHighlight(t,e)||activeStreamingBubbleId&&e.closest(`#${activeStreamingBubbleId}`)||ensureHighlightLoaded().
+then(()=>{window.hljs&&e.querySelectorAll("pre code").forEach(i=>{if(!(i.getAttribute("data-highligh\
+ted")==="true"&&!n.force))try{window.hljs.highlightElement(i)}catch{}})}).catch(()=>{})}o(queueHighlight,
+"queueHighlight");function getNetworkConnectionInfo(){return navigator.connection||navigator.mozConnection||
+navigator.webkitConnection||null}o(getNetworkConnectionInfo,"getNetworkConnectionInfo");function detectLowBandwidthModeAuto(){
+const e=getNetworkConnectionInfo();if(!e)return{enabled:!1,reason:""};const t=!!e.saveData,n=String(
+e.effectiveType||"").toLowerCase(),i=Number(e.downlink||0),a=n==="slow-2g"||n==="2g"||n==="3g",r=Number.
+isFinite(i)&&i>0&&i<1.3,l=t||a||r,c=[];return t&&c.push("\u30C7\u30FC\u30BF\u7BC0\u7D04"),n&&c.push(
+`\u56DE\u7DDA:${n}`),r&&c.push(`\u4E0B\u308A:${i}Mbps`),{enabled:l,reason:c.join(" / ")}}o(detectLowBandwidthModeAuto,
+"detectLowBandwidthModeAuto");function normalizeLowBandwidthModePreference(e){const t=String(e||"").
+trim().toLowerCase();return t==="on"||t==="off"||t==="auto"?t:"auto"}o(normalizeLowBandwidthModePreference,
 "normalizeLowBandwidthModePreference");function readLowBandwidthModePreference(){try{return normalizeLowBandwidthModePreference(
 localStorage.getItem(LOW_BANDWIDTH_MODE_STORAGE_KEY)||"auto")}catch{return"auto"}}o(readLowBandwidthModePreference,
 "readLowBandwidthModePreference");function persistLowBandwidthModePreference(e){const t=normalizeLowBandwidthModePreference(

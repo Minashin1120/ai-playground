@@ -97,7 +97,7 @@ class LocalChatBackend(
                         }
                 } else {
                     val reply = server().get(resolved + path.substring(route.length), token)
-                    if (query["before_id"] == null) store.overlayPending(id, reply) else reply
+                    if (query["before_id"] == null) store.overlayPending(id, reply, encrypted = accountEncryption()) else reply
                 }
             }
             route == "/api/mobile/v1/preferences" -> preferences(token)
@@ -137,7 +137,7 @@ class LocalChatBackend(
             route.startsWith("/api/threads/") && route.endsWith("/branch") -> {
                 val (id, resolved) = threadPath(route, "/branch")
                 if (!onDevice(id) && remote == null) return server().post(resolved, payload, token)
-                val external = if (!onDevice(id)) store.overlayPending(id, remote!!.branchSource(id), observedOnServer = false) else null
+                val external = if (!onDevice(id)) store.overlayPending(id, remote!!.branchSource(id), observedOnServer = false, encrypted = accountEncryption()) else null
                 val selected = payload.getInt("message_id") - if (external == null) idOffset else 0
                 val reply = store.branchThread(id, selected,
                     payload.getString("request_id"), payload.optBoolean("confirm_persist_temporary"), external)
@@ -460,9 +460,10 @@ class LocalChatBackend(
                 if (now - lastSave > 3000) { lastSave = now; store.updateMessage(chat.outboxId, assistantId, content, thought) }
             }
             val outputs = result.files.map { file -> store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong()) }
-            store.updateMessage(chat.outboxId, assistantId, result.content, result.thought, result.tokensIn, result.tokensOut,
+            val content = withoutInventedAgenticImages(result.content, turns)
+            store.updateMessage(chat.outboxId, assistantId, content, result.thought, result.tokensIn, result.tokensOut,
                 files = outputs.takeIf { it.isNotEmpty() }, done = true)
-            Diagnostics.log("gen.done", "content_chars" to result.content.length, "files" to outputs.size, "ms" to elapsed())
+            Diagnostics.log("gen.done", "content_chars" to content.length, "files" to outputs.size, "ms" to elapsed())
             JSONObject().put("type", "done")
         } catch (e: CancellationException) {
             Diagnostics.log("gen.cancelled", "content_chars" to partialContent.length, "ms" to elapsed())
@@ -661,6 +662,10 @@ class LocalChatBackend(
         return settings.preferencesPayload(accountName).also { applyLocalDefaults(it) }
     }
 
+    /** The account's encryption setting (cached with its preferences); null until known. */
+    private fun accountEncryption(): Boolean? =
+        settings.cachedServerPreferences()?.takeIf { it.has("enable_e2ee") }?.optBoolean("enable_e2ee")
+
     private fun applyLocalDefaults(prefs: JSONObject) {
         if (!prefs.has("auto_system_prompt_notices_config")) prefs.put("auto_system_prompt_notices_config", defaults.noticesConfig)
         if (!prefs.has("global_system_prompt_uses_time_fallback")) prefs.put("global_system_prompt_uses_time_fallback", true)
@@ -723,3 +728,14 @@ class LocalChatBackend(
         }
     }
 }
+
+private val AGENTIC_IMAGE = Regex("""!\[[^\]\n]*]\((/files/\d+/agentic_\d+_[0-9a-f]+\.[A-Za-z0-9]+)\)""")
+
+/**
+ * The server writes `![Agentic View](/files/…/agentic_…)` for images its code execution saved; the device
+ * saves them as the answer's files instead. A model that imitates those links from the history invents
+ * files that do not exist, so a link no earlier turn contains is removed before the answer is saved.
+ */
+internal fun withoutInventedAgenticImages(content: String, turns: List<DirectTurn>): String =
+    if ("agentic_" !in content) content
+    else AGENTIC_IMAGE.replace(content) { match -> if (turns.any { match.groupValues[1] in it.text }) match.value else "" }

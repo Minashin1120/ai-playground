@@ -330,9 +330,6 @@ class MobileSyncApiTests(unittest.TestCase):
                              'run android/ci/sync-serverless-defaults.py after changing models or notices')
 
 
-if __name__ == '__main__':
-    unittest.main()
-
     def branch_fixture(self, temporary=False):
         from datetime import datetime, timedelta
         from pathlib import Path
@@ -520,3 +517,15 @@ if __name__ == '__main__':
         with target.app.app_context():
             self.assertEqual(target._message_file_refs({'image_url': '["a.pdf"]', 'content': '<audio src="/files/b.wav"></audio>'}, self.user_id),
                              {f'{self.user_id}/a.pdf', f'{self.user_id}/b.wav'})
+
+
+    def test_branch_shared_file_collector_skips_content_no_key_opens(self):
+        from cryptography.fernet import Fernet
+        lost = Fernet(Fernet.generate_key()).encrypt(b'![](/files/x.png)').decode()
+        with target.app.app_context():
+            self.assertEqual(target._message_file_refs({'image_url': '["a.pdf"]', 'content': lost, 'is_encrypted': True}, self.user_id),
+                             {f'{self.user_id}/a.pdf'})
+
+
+if __name__ == '__main__':
+    unittest.main()

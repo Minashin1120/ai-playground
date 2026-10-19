@@ -196,7 +196,8 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
             .put("pending_job", JSONObject.NULL)
     }
 
-    private fun publicMessage(row: JSONObject): JSONObject = JSONObject()
+    /** [encrypted]: how the server stores the row (null: unknown, no lock icon); device-only chats are never encrypted on a server. */
+    private fun publicMessage(row: JSONObject, encrypted: Boolean? = false): JSONObject = JSONObject()
         .put("client_uuid", row.opt("uuid") ?: JSONObject.NULL)
         .put("missing_files", JSONArray((row.optJSONArray("missing_files")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty()
             + fileRefs(row).filter { !fileTarget(it).isFile }).distinct()))
@@ -207,7 +208,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         .put("tokens", row.opt("tokens") ?: JSONObject.NULL).put("tokens_in", row.opt("tokens_in") ?: JSONObject.NULL)
         .put("tokens_out", row.opt("tokens_out") ?: JSONObject.NULL).put("tokens_content", JSONObject.NULL)
         .put("tokens_thought", row.opt("tokens_thought") ?: JSONObject.NULL)
-        .put("is_encrypted", false).put("quote_text", row.opt("quote_text") ?: JSONObject.NULL)
+        .put("is_encrypted", encrypted ?: JSONObject.NULL).put("quote_text", row.opt("quote_text") ?: JSONObject.NULL)
         .put("parent_id", row.opt("parent_id") ?: JSONObject.NULL)
         .put("gem_uuid", row.opt("gem_uuid") ?: JSONObject.NULL).put("gem_name", row.opt("gem_name") ?: JSONObject.NULL)
         .put("created_at", iso(row.optLong("created_ms"))).put("batch_job", JSONObject.NULL)
@@ -468,9 +469,10 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     /**
      * Adds the unsent messages of server chat [serverId] to a `GET /api/threads/<id>` payload (from the
      * server or the offline cache), under pending ids so they keep their place in the branch tree.
+     * [encrypted] is the account's encryption setting, which the server applies when it saves them.
      */
     @Synchronized
-    fun overlayPending(serverId: String, payload: JSONObject, observedOnServer: Boolean = true): JSONObject {
+    fun overlayPending(serverId: String, payload: JSONObject, observedOnServer: Boolean = true, encrypted: Boolean? = null): JSONObject {
         val localId = outboxIdFor(serverId) ?: return payload
         val rows = loadMessages(localId)
         if (rows.isEmpty()) return payload
@@ -483,7 +485,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         rows.filter { it !in kept }.flatMap(::fileRefs).filter { it !in keptRefs }.forEach(::deleteFile)
         saveMessages(localId, kept)
         kept.sortedWith(compareBy<JSONObject> { it.optLong("created_ms") }.thenBy { it.optInt("id") })
-            .forEach { row -> pendingView(row).takeIf { it.optInt("id") !in visibleIds }?.let { messages.put(publicMessage(it)) } }
+            .forEach { row -> pendingView(row).takeIf { it.optInt("id") !in visibleIds }?.let { messages.put(publicMessage(it, encrypted)) } }
         pruneOutboxRow(localId)
         return payload
     }

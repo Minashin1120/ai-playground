@@ -2227,7 +2227,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val cached = if (outbox == null) stored ?: return else withContext(Dispatchers.IO) {
             val base = stored?.let { JSONObject(it.toString()) }
                 ?: JSONObject().put("messages", JSONArray()).takeIf { outbox.outboxIdFor(id) != null }
-            base?.let { outbox.overlayPending(id, it, observedOnServer = false) }
+            base?.let { outbox.overlayPending(id, it, observedOnServer = false, encrypted = state.value.account?.encrypted) }
         } ?: return
         val parsed = parseMessages(cached)
         val all = if (older) (parsed + state.value.allMessages).distinctBy { it.id } else parsed

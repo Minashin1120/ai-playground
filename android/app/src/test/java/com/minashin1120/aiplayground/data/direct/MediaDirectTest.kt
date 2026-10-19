@@ -42,6 +42,11 @@ class MediaDirectTest {
         assertEquals("edit", edit.getJSONArray("tools").getJSONObject(0).getString("action"))
         assertEquals("max", edit.getJSONArray("tools").getJSONObject(0).getString("quality"))
         assertEquals(2, edit.getJSONArray("input").getJSONObject(0).getJSONArray("content").length())
+        // PNG is lossless: the API rejects output_compression below 100 for it.
+        val png = engine.buildPayload(request("gpt-image-2.5-flare", "猫", JSONObject().put("image_compression", "85")))
+        assertFalse(png.getJSONArray("tools").getJSONObject(0).has("output_compression"))
+        val jpeg = engine.buildPayload(request("gpt-image-2.5-flare", "猫", JSONObject().put("image_format", "jpeg").put("image_compression", "85")))
+        assertEquals(85, jpeg.getJSONArray("tools").getJSONObject(0).getInt("output_compression"))
     }
 
     @Test fun gptImageReturnsTheGeneratedFile() {

@@ -125,6 +125,10 @@ class LocalChatStoreTest {
         assertEquals(42, shownUser.getInt("parent_id"))
         assertEquals(shownUser.getInt("id"), rows.getJSONObject(2).getInt("parent_id"))
         assertTrue(LocalChatStore.isPendingId(rows.getJSONObject(2).getInt("id")))
+        // The lock icon shows how the account will store them, not "Plain" until the sync.
+        assertTrue(rows.getJSONObject(2).isNull("is_encrypted"))
+        val encrypted = store.overlayPending("srvA", JSONObject().put("messages", org.json.JSONArray()), encrypted = true).getJSONArray("messages")
+        assertTrue(encrypted.getJSONObject(1).getBoolean("is_encrypted"))
         assertEquals(2, store.pendingCount())
         val pending = store.pendingPush().single()
         assertEquals("srvA", pending.entry.getString("id"))

@@ -20,13 +20,16 @@ def _message_file_refs(message, user_id):
     content = message.get('content') if isinstance(message, dict) else message.content
     encrypted = message.get('is_encrypted', False) if isinstance(message, dict) else message.is_encrypted
     if encrypted and content:
-        original = content
-        try:
-            content = _ring_decrypt_bytes(content.encode()).decode() if cipher else content
-        except Exception:
-            content = original
-        if content == original and str(content).startswith('gAAAA'):
+        if not cipher:
             raise ValueError('暗号化された会話のファイル参照を確認できません')
+        try:
+            content = _ring_decrypt_bytes(content.encode()).decode()
+        except Exception:
+            # No key in the ring opens it (e.g. a key lost before rotation was
+            # kept), so it can never be displayed or link a file. Count only
+            # the plain attachment column instead of failing every delete.
+            if str(content).startswith('gAAAA'):
+                return refs
     for value in _FILE_LINK_RE.findall(content or ''):
         ref = _resolve_user_upload_rel_path(value, user_id)
         if ref and ref.startswith(f'{user_id}/') and '..' not in ref.split('/'):

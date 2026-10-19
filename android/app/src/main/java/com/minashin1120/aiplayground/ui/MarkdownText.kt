@@ -854,7 +854,10 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
         val alternate = latexToDisplay(tex).ifEmpty { " " }
         parts.math += InlineMath(id, tex, display, length, alternate)
         withStyle(SpanStyle(fontFamily = FontFamily.Serif, fontStyle = FontStyle.Italic)) {
-            appendInlineContent(id, alternate)
+            // Add the placeholder only after typesetting in withMathTokens. Copying slices
+            // with existing inline annotations leaves zero-length spans at formula boundaries;
+            // Android never measures those spans and Compose crashes reading their width.
+            append(alternate)
         }
     }
     while (i < source.length) {

@@ -153,6 +153,25 @@ println("安全")
         assertEquals(parsed, parsed.withMathTokens(emptySet()))
     }
 
+    @Test fun typesettingAtParagraphBoundariesDoesNotLeaveEmptyPlaceholders() {
+        val colors = markdownColorsFor(webPalette(light = false, themeColor = null))
+        for (source in listOf("\\(x\\)", "\\(x\\) text", "text \\(x\\)", "\\(x\\)\\(y\\)", "**\\(x\\)** と `code`")) {
+            val parsed = parseInlineMarkdown(source, colors)
+            // Loading/failed formulas are ordinary text, without stale inline annotations.
+            assertTrue(parsed.text.getStringAnnotations(0, parsed.text.length).none { annotation ->
+                parsed.math.any { it.id == annotation.item }
+            })
+            for (ready in listOf(parsed.math.map { it.id }.toSet(), setOf(parsed.math.first().id))) {
+                val rendered = parsed.withMathTokens(ready)
+                val placeholders = rendered.text.getStringAnnotations(0, rendered.text.length)
+                    .filter { annotation -> parsed.math.any { it.id == annotation.item } }
+                assertEquals(source, ready.size, placeholders.size)
+                assertTrue(source, placeholders.all { it.start < it.end })
+                assertEquals(parsed.text.text, MathCopyText.restore(rendered.text.text))
+            }
+        }
+    }
+
     @Test fun environmentsOutsideDelimitersAreDisplayMathLikeWeb() {
         val colors = markdownColorsFor(webPalette(light = false, themeColor = null))
         val source = "次の式:\n\\begin{align}\na &= b \\\\\nc &= d\n\\end{align}\n以上"

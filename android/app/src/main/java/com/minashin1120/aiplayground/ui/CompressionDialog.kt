@@ -95,9 +95,11 @@ internal fun CompressionModal(
     sectionTitle: String,
     onDismiss: () -> Unit,
     onSave: (CompressionSettings) -> Unit,
+    showEnabled: Boolean = false,
     extra: @Composable ColumnScope.() -> Unit = {},
 ) {
     val web = LocalWebPalette.current
+    var enabled by remember { mutableStateOf(current.enabled) }
     var outputType by remember { mutableStateOf(current.outputType) }
     var formatOnly by remember { mutableStateOf(current.formatOnly) }
     var maxSize by remember { mutableStateOf(current.maxSizeMB.toString()) }
@@ -113,6 +115,8 @@ internal fun CompressionModal(
                 Text("画像・圧縮詳細設定", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White)
             }
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                if (showEnabled) SettingsCheck("Compress", enabled, { enabled = it }, boxSize = 16.dp,
+                    labelColor = if (web.isLight) web.text else Tw.gray300, fontSize = 12.sp)
                 Section(sectionTitle, web.theme300, web.theme.t500) {
                     ModalField("出力形式 (変換)") {
                         ModalSelect(outputType, webOptions("original" to "元形式を維持 (自動)", "image/jpeg" to "JPEG に変換",
@@ -148,7 +152,7 @@ internal fun CompressionModal(
                     modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(web.theme.t600)
                         .clickable(role = Role.Button) {
                             onSave(CompressionSettings(
-                                enabled = current.enabled,
+                                enabled = enabled,
                                 maxSizeMB = maxSize.toFloatOrNull()?.coerceIn(0.1f, 10f) ?: 1.0f,
                                 maxDimension = maxDim.toIntOrNull()?.coerceIn(256, 8192) ?: 1920,
                                 outputType = outputType,

@@ -727,6 +727,27 @@
                 { type: outputType, lastModified: file.lastModified || Date.now() }
             );
         };
+        // Both the composer and image splitter use this pipeline, with independent settings.
+        const readComposerCompression = () => ({
+            enabled: !!get('enable-compression').checked,
+            maxSizeMB: getCompressionMaxSizeMB(), maxDimension: getCompressionMaxDim(),
+            outputType: getCompressionOutputType(), formatOnly: getCompressionFormatOnly()
+        });
+        async function applyImageCompression(file, settings) {
+            if (!settings.enabled || !file.type.startsWith('image/')) return file;
+            if (settings.formatOnly) return convertImageFormatOnly(file, settings.outputType);
+            await ensureImageCompression();
+            const options = { maxSizeMB: settings.maxSizeMB, maxWidthOrHeight: settings.maxDimension, useWebWorker: true };
+            if (settings.outputType !== 'original') options.fileType = settings.outputType;
+            const blob = await window.imageCompression(file, options);
+            const result = new File([blob], imageFilenameForMime(file.name, blob.type || file.type),
+                { type: blob.type || file.type, lastModified: file.lastModified || Date.now() });
+            if (result.size > file.size) {
+                showToast(`圧縮後にサイズが増加しました: ${formatBytes(file.size)} -> ${formatBytes(result.size)}（元ファイルを使用）`, 'warning', true);
+                return file;
+            }
+            return result;
+        }
         const setCompressionSettings = (size, dim, type, formatOnly) => {
             localStorage.setItem(COMPRESSION_SIZE_KEY, size);
             localStorage.setItem(COMPRESSION_DIM_KEY, dim);

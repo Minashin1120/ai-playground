@@ -4240,12 +4240,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }.getOrNull()
         }
     }
-    fun upload(uris: List<Uri>) {
+    fun upload(uris: List<Uri>) = upload(uris, skipCompression = false)
+
+    private fun upload(uris: List<Uri>, skipCompression: Boolean) {
         if (state.value.starting) {
             // Launched from the share sheet: the saved session is not loaded yet, so wait for startup instead of failing with 「端末連携が必要です。」.
             viewModelScope.launch {
                 state.first { !it.starting }
-                upload(uris)
+                upload(uris, skipCompression)
             }
             return
         }
@@ -4261,7 +4263,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     val local = withContext(Dispatchers.IO) { queryLocalAttachment(resolver, uri) }
                     mutable.update { it.copy(uploadName = local.name, uploadSent = 0,
                         uploadTotal = if (local.size > 0) local.size else 0) }
-                    val source = withContext(Dispatchers.IO) { prepareUpload(resolver, uri, local) }
+                    val source = withContext(Dispatchers.IO) { if (skipCompression) LocalUpload(local.name, local.size, local.mime) {
+                        resolver.openInputStream(uri) ?: throw IOException("添付を開けません。")
+                    } else prepareUpload(resolver, uri, local) }
                     mutable.update { it.copy(uploadName = source.name, uploadSent = 0,
                         uploadTotal = if (source.size > 0) source.size else 0) }
                     val uploaded = withContext(Dispatchers.IO) { storeLocalUpload(source.name, source.mime, source.size, source.opener) }
@@ -4324,7 +4328,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 if (attach) {
                     imageSplitMutable.value = null
-                    upload(outputs.map { it.uploadUri })
+                    upload(outputs.map { it.uploadUri }, skipCompression = true)
                 } else {
                     val saved = withContext(Dispatchers.IO) {
                         try { saveSplitOutputs(app, outputs, tree) } finally { dir.deleteRecursively() }

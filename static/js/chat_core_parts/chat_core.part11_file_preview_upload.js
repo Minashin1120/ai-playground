@@ -991,8 +991,12 @@
 
             setCameraCaptureStatus(`${filesToUpload.length}枚を添付中...`);
             try {
-                await handleFiles(filesToUpload, { openModal: false });
-                showToast(`${filesToUpload.length}枚の画像を添付しました`, 'success');
+                if (get('camera-split-enabled').checked) {
+                    await openImageSplit(filesToUpload);
+                } else {
+                    await handleFiles(filesToUpload, { openModal: false });
+                }
+                if (!get('camera-split-enabled').checked) showToast(`${filesToUpload.length}枚の画像を添付しました`, 'success');
             } catch (e) {
                 const msg = (e && e.message) ? e.message : '撮影画像の添付に失敗しました';
                 showToast(msg, 'error', true);

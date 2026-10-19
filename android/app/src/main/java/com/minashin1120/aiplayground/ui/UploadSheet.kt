@@ -64,6 +64,7 @@ internal fun UploadSheet(
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var renaming by remember { mutableStateOf<Attachment?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = web.twBg(Tw.gray800)) {
+        NoticeWindowHost()
         val columns = if (LocalConfiguration.current.screenWidthDp >= 768) 3 else 2
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState())

@@ -2,7 +2,7 @@
 
 | ファイル名 | 主な内容 | いつ開くか |
 |---|---|---|
-| `chat_core.part01_bootstrap_utils.js` | 基盤ユーティリティ。`get()` ヘルパー、設定保存ボタン制御、画像読み込み失敗フォールバック、テーマ（`applyThemeColor` / `THEME_STORAGE_KEY`）、Liquid Glass、圧縮設定、アダプティブぼかし（低負荷自動化）、モーダルの開閉（`showModal` / `hideModal`） | 基盤・テーマ・モーダルを変更するとき |
+| `chat_core.part01_bootstrap_utils.js` | 基盤ユーティリティ。`get()` ヘルパー、設定保存ボタン制御、画像読み込み失敗フォールバック、テーマ（`applyThemeColor` / `THEME_STORAGE_KEY`）、Liquid Glass、圧縮設定と共通の画像圧縮処理、アダプティブぼかし（低負荷自動化）、モーダルの開閉（`showModal` / `hideModal`） | 基盤・テーマ・モーダルを変更するとき |
 | `chat_core.part02_rich_paste.js` | リッチペースト（HTML整形・サニタイズ・印刷）、MathJax読み込み、Google／Minashin連携解除・連携UI（`updateGoogleLinkUI` / `updateMinashinLinkUI`）、各種定数（添付・低帯域・一時チャット・Coding/Canvas・マーカー） | リッチペースト・共通定数を変更するとき |
 | `chat_core.part03_security_token_promptbar.js` | セキュリティ（polyfill.io等のブロック）、トークン見積もり、プロンプトバー表示、Thinkingレベル、コード折りたたみ、低帯域モード適用 | セキュリティ・トークン・Coding対象を変更するとき |
 | `chat_core.part04_minimal_options_thinking.js` | ミニマル表示のプラスボタンポップアップ、Thinkingスライダー、設定タブ（`TAB_LABELS`）、Botロックオーバーレイ、SWキャッシュモード（`applyCacheMode`）、Turnstile初期化 | ミニマル表示・Thinking・キャッシュを変更するとき |
@@ -19,4 +19,5 @@
 | `chat_core.part15_slash_tempchat_threads.js` | 一時チャット（ハートビート・タイムアウト）、各プロバイダのBatch状態ポーリング・完了通知、スレッド設定モーダル、圧縮設定モーダル、PDFエクスポート、Gem適用、ブランチ集計 | 履歴読み込み・一時チャット・スレッド設定を変更するとき |
 | `chat_core.part16_gems_branch_debug.js` | ファイルライブラリ操作、ブランチ管理UI、Batch処理一覧モーダル（取得・停止・履歴削除・チャットを開く）、メッセージコピー、規約・Alpha案内モーダル、Thinking表示切替、クライアントデバッグログ、管理者のBot検出ログ画面（`BotAdminLog`：記録のあるアカウントの一覧・一括削除、アカウントごとの状態と記録。開閉とURLは part08） | ブランチ管理・ライブラリ・Batch一覧を変更するとき |
 | `chat_core.part17_thread_branch.js` | 別チャットへの全分岐コピー、分岐元リンク、一時チャット保存警告、欠損ファイル表示 | 別チャットへの分岐・分岐元・欠損ファイル表示を変更するとき |
+| `chat_core.part18_image_split.js` | 画像分割の計算・プレビュー・原寸描画、専用圧縮設定、添付と個別保存 | 画像分割を変更するとき |
 | `../../../scripts/build_frontend.sh` | 部品を番号順に連結し、トップレベルの `//! @chat-core-bundle-split` で配信用JSを分割・圧縮する | JS部品の編集後にビルドするとき。結合ソース・圧縮ファイルは手で編集しない |

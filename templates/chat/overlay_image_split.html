@@ -1,0 +1,44 @@
+    <div id="image-split-modal" class="fixed inset-0 bg-gray-900/95 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto" style="z-index:65;">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel" style="max-height:90dvh;">
+            <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-image text-blue-400 mr-2"></i>画像を分割</h2>
+            <div class="space-y-4 overflow-y-auto flex-1">
+                <p class="text-xs text-gray-400">画像を重なりのある複数の画像に分け、モデルが細部まで読み取れるようにします。各画像には番号と元画像での位置が入り、点線が分割位置です。</p>
+                <canvas id="image-split-preview" class="w-full rounded border border-gray-700 bg-gray-900" aria-label="画像の分割プレビュー"></canvas>
+                <div class="flex items-center justify-between gap-2 text-xs text-gray-400">
+                    <button id="image-split-prev" class="disabled:opacity-40">‹ 前へ</button>
+                    <span id="image-split-page"></span>
+                    <button id="image-split-next" class="disabled:opacity-40">次へ ›</button>
+                </div>
+                <p id="image-split-dimensions" class="text-xs text-gray-300"></p>
+                <div class="grid grid-cols-2 gap-4">
+                    <label class="text-xs text-gray-400">分割数（2〜30枚）<input id="image-split-pieces" type="number" min="2" max="30" value="4" class="w-full mt-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white"></label>
+                    <label class="text-xs text-gray-400">重なり（0〜50%）<input id="image-split-overlap" type="number" min="0" max="50" value="10" class="w-full mt-1 bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white"></label>
+                </div>
+                <label class="flex items-center gap-2 text-xs text-gray-300"><input id="image-split-original" type="checkbox" checked class="accent-blue-500 w-4 h-4">元の画像も含める</label>
+                <label class="flex items-center gap-2 text-xs text-gray-300 pl-6"><input id="image-split-mark-original" type="checkbox" checked class="accent-blue-500 w-4 h-4">元の画像に分割位置と番号を描き込む</label>
+                <label class="flex items-center gap-2 text-xs text-gray-300"><input id="image-split-mark-pieces" type="checkbox" checked class="accent-blue-500 w-4 h-4">分割した画像に番号と分割線を描き込む</label>
+                <button id="image-split-settings" data-progress-no-spinner="true" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white"><i class="fas fa-cog mr-1"></i>画像・圧縮詳細設定</button>
+                <p id="image-split-count" class="text-xs text-gray-400"></p>
+                <p id="image-split-status" class="text-xs text-gray-300" role="status" aria-live="polite"></p>
+                <div id="image-split-downloads" class="space-y-2 text-xs text-blue-300"></div>
+            </div>
+            <div class="flex flex-wrap justify-end gap-2 mt-6 pt-4 border-t border-gray-700">
+                <button id="image-split-cancel" data-progress-no-spinner="true" class="px-2 py-2 text-sm text-gray-400">キャンセル</button>
+                <button id="image-split-save" data-progress-no-spinner="true" class="px-4 py-2 bg-gray-700 rounded text-sm font-bold text-white">保存のみ</button>
+                <button id="image-split-attach" data-progress-no-spinner="true" class="px-4 py-2 bg-blue-600 rounded text-sm font-bold text-white">分割して添付</button>
+            </div>
+        </div>
+    </div>
+    <div id="image-split-compression-modal" class="fixed inset-0 bg-gray-900/95 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto" style="z-index:70;">
+        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 border border-gray-700 m-4 flex flex-col modal-panel" style="max-height:90dvh;">
+            <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-compress-alt text-blue-400 mr-2"></i>画像・圧縮詳細設定</h2>
+            <div class="overflow-y-auto space-y-4">
+                <label class="flex items-center gap-2 text-xs text-gray-300"><input id="image-split-compression-enabled" type="checkbox" class="accent-blue-500 w-4 h-4">Compress</label>
+                {% with compression_prefix='image-split-compression' %}{% include 'chat/compression_fields.html' %}{% endwith %}
+            </div>
+            <div class="flex justify-end gap-3 pt-4 mt-6 border-t border-gray-700">
+                <button id="image-split-compression-close" class="px-4 py-2 text-sm text-gray-400">閉じる</button>
+                <button id="image-split-compression-save" class="px-6 py-2 bg-blue-600 text-white rounded text-sm font-bold">保存</button>
+            </div>
+        </div>
+    </div>

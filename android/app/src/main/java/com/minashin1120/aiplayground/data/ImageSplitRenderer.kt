@@ -26,9 +26,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
+import java.util.UUID
 
-/** Largest decode for one piece or for the marked whole image. */
-private const val SPLIT_MAX_DECODE_PIXELS = 16_000_000L
 /** Folder under Pictures used by 保存のみ on Android 10 and later. */
 internal const val IMAGE_SPLIT_SAVE_FOLDER = "AI Playground"
 
@@ -94,24 +93,25 @@ internal fun loadSplitPreview(context: Context, uri: Uri, maxSide: Int = 1024): 
  * Renders the whole image (optional) and the pieces of [uri] into [outDir] and returns them in the order
  * they should be attached: the whole image first, then the pieces in reading order.
  */
-internal fun renderImageSplit(context: Context, uri: Uri, options: ImageSplitOptions, outDir: File): List<SplitOutput> {
+internal fun renderImageSplit(context: Context, uri: Uri, options: ImageSplitOptions, outDir: File,
+    compression: CompressionSettings = loadSplitCompression(context)): List<SplitOutput> {
+    val targetDir = File(outDir, UUID.randomUUID().toString())
     val source = readSplitSource(context, uri)
     val grid = chooseSplitGrid(options.pieces, source.width, source.height)
     if (!splitFits(grid, source.width, source.height)) {
         throw IOException("画像が小さすぎるため${grid.count}枚に分割できません: ${source.name}")
     }
     val tiles = splitTiles(source.width, source.height, grid, options.overlapPct)
-    val png = splitOutputIsPng(source.mime, source.name)
-    val extension = if (png) "png" else "jpg"
-    val mime = if (png) "image/png" else "image/jpeg"
+    val extension = "png"
+    val mime = "image/png"
     val base = splitBaseName(source.name)
-    outDir.mkdirs()
+    targetDir.mkdirs()
     val outputs = mutableListOf<SplitOutput>()
     if (options.includeOriginal) {
         if (options.markOriginal) {
             val whole = decodeWhole(context, source)
             val marked = try { drawGridOverview(whole, source, grid, tiles) } finally { whole.recycle() }
-            outputs += writeOutput(context, marked, File(outDir, splitOriginalName(base, true, extension)), png, mime)
+            outputs += writeOutput(context, marked, File(targetDir, splitOriginalName(base, true, extension)), mime)
         } else {
             val originalName = source.name.takeIf { it.contains('.') } ?: splitOriginalName(base, false, extension)
             outputs += SplitOutput(originalName, source.mime.ifBlank { mime }, uri) {
@@ -132,13 +132,15 @@ internal fun renderImageSplit(context: Context, uri: Uri, options: ImageSplitOpt
             val output = if (options.markPieces) {
                 try { drawPieceMarks(piece, tile, grid, source) } finally { piece.recycle() }
             } else piece
-            outputs += writeOutput(context, output, File(outDir, splitTileName(base, tile, grid, extension)), png, mime)
+            outputs += writeOutput(context, output, File(targetDir, splitTileName(base, tile, grid, extension)), mime)
         }
     } finally {
         decoder?.recycle()
         fallback?.recycle()
     }
-    return outputs
+    return outputs.mapIndexed { index, output ->
+        compressSplitOutput(context, output, compression, File(targetDir, "processed/$index"))
+    }
 }
 
 /** 保存のみ: Pictures/AI Playground on Android 10+, or the folder the user picked on older versions. */
@@ -182,11 +184,10 @@ private fun copyTo(target: java.io.OutputStream?, output: SplitOutput) {
     (target ?: throw IOException("端末に保存できません。")).use { out -> output.open().use { it.copyTo(out) } }
 }
 
-private fun writeOutput(context: Context, bitmap: Bitmap, file: File, png: Boolean, mime: String): SplitOutput {
+private fun writeOutput(context: Context, bitmap: Bitmap, file: File, mime: String): SplitOutput {
     try {
         FileOutputStream(file).use { out ->
-            val ok = if (png) bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-            else bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+            val ok = bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
             if (!ok) throw IOException("分割画像を書き出せません。")
         }
     } finally {
@@ -207,22 +208,20 @@ private fun decodeRegion(decoder: BitmapRegionDecoder, source: SplitSource, tile
     val raw = orientedRectToRaw(tile.left, tile.top, tile.right, tile.bottom,
         source.rawWidth, source.rawHeight, source.rotation, source.flipped)
     val rect = Rect(raw[0], raw[1], raw[2], raw[3])
-    val sample = splitSampleSize(rect.width(), rect.height(), SPLIT_MAX_DECODE_PIXELS)
-    val decoded = decoder.decodeRegion(rect, BitmapFactory.Options().apply { inSampleSize = sample })
+    val decoded = decoder.decodeRegion(rect, BitmapFactory.Options())
         ?: throw IOException("画像の一部を読み込めません: ${source.name}")
     return orient(decoded, source)
 }
 
-/** Upright whole image, reduced to at most [SPLIT_MAX_DECODE_PIXELS]. */
+/** Upright whole image at its original resolution. */
 private fun decodeWhole(context: Context, source: SplitSource): Bitmap {
-    val sample = splitSampleSize(source.rawWidth, source.rawHeight, SPLIT_MAX_DECODE_PIXELS)
     val decoded = context.contentResolver.openInputStream(source.uri)?.use {
-        BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
+        BitmapFactory.decodeStream(it, null, BitmapFactory.Options())
     } ?: throw IOException("画像として読み込めません: ${source.name}")
     return orient(decoded, source)
 }
 
-/** Fallback for formats without region decoding (e.g. GIF): crop from the reduced whole image. */
+/** Fallback for formats without region decoding (e.g. GIF): crop from the full-resolution whole image. */
 private fun cropScaled(whole: Bitmap, source: SplitSource, tile: SplitTile): Bitmap {
     val sx = whole.width.toDouble() / source.width
     val sy = whole.height.toDouble() / source.height
@@ -270,7 +269,8 @@ private fun drawPieceMarks(piece: Bitmap, tile: SplitTile, grid: SplitGrid, sour
     val header = (text.textSize * 1.8f).toInt().coerceAtLeast(12)
     val out = Bitmap.createBitmap(piece.width, piece.height + header, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(out)
-    canvas.drawColor(0xFF111827.toInt())
+    val headerPaint = Paint().apply { color = 0xFF111827.toInt() }
+    canvas.drawRect(0f, 0f, piece.width.toFloat(), header.toFloat(), headerPaint)
     canvas.drawBitmap(piece, 0f, header.toFloat(), null)
     val metrics = text.fontMetrics
     canvas.drawText(caption, piece.width * 0.02f, header / 2f - (metrics.ascent + metrics.descent) / 2f, text)

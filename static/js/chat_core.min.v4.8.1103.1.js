@@ -23,21 +23,21 @@ l&&c.setAttribute("data-file-name",String(l)),c},"buildBusyWarning"),r=o(l=>Stri
 replace("/files/thumb/","/files/"),"fullFileUrl");document.addEventListener("error",l=>{const c=l.target;
 if(!c||c.tagName!=="IMG")return;const m=c.currentSrc||c.src||"";if(!t(m)){const S=c.closest&&c.closest(
 ".svg-code-render");if(S){S.dataset.svgState="error";return}const C=c.closest&&c.closest(".chat-imag\
-e-frame");if(C){C.dataset.chatImageState="error",C.removeAttribute("aria-busy");const M=C.querySelector(
-".chat-image-loading"),$=M&&M.querySelector("span");$&&($.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
-const q=M&&M.querySelector("i");q&&(q.className="fas fa-image")}return}l.stopImmediatePropagation(),
+e-frame");if(C){C.dataset.chatImageState="error",C.removeAttribute("aria-busy");const A=C.querySelector(
+".chat-image-loading"),$=A&&A.querySelector("span");$&&($.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
+const F=A&&A.querySelector("i");F&&(F.className="fas fa-image")}return}l.stopImmediatePropagation(),
 l.preventDefault();const f=String(m).split("?")[0],b=c.getAttribute("data-viewer-filename")||f.split(
 "/").pop(),y=o(S=>{const C=c.closest&&c.closest(".chat-image-frame");C&&(C.dataset.chatImageState="f\
-ailed",C.removeAttribute("aria-busy"));const M=i(b,!!S);try{c.replaceWith(M)}catch{}},"showWarning"),
+ailed",C.removeAttribute("aria-busy"));const A=i(b,!!S);try{c.replaceWith(A)}catch{}},"showWarning"),
 v=o(()=>{const S=c.closest&&c.closest(".chat-image-frame");S&&(S.dataset.chatImageState="busy",S.removeAttribute(
-"aria-busy"));const C=a(b);try{c.replaceWith(C)}catch{}},"showBusyWarning"),x=o((S,C)=>{const M=c.cloneNode(
-!1);M.setAttribute("data-file-retry",String(C));const $=S+(S.includes("?")?"&":"?")+"retry="+Date.now()+
-"_"+C;M.setAttribute("src",$);try{c.replaceWith(M)}catch{}},"retryLoad"),k=o(S=>{if(S===429||S===503){
+"aria-busy"));const C=a(b);try{c.replaceWith(C)}catch{}},"showBusyWarning"),w=o((S,C)=>{const A=c.cloneNode(
+!1);A.setAttribute("data-file-retry",String(C));const $=S+(S.includes("?")?"&":"?")+"retry="+Date.now()+
+"_"+C;A.setAttribute("src",$);try{c.replaceWith(A)}catch{}},"retryLoad"),k=o(S=>{if(S===429||S===503){
 v();return}if(S===409){y(!0);return}if(S===404||S===410||S===403){y(!1);return}const C=parseInt(c.getAttribute&&
-c.getAttribute("data-file-retry")||"0",10);if(C<2){x(m,C+1);return}if(m.includes("/files/thumb/")&&!c.
-getAttribute("data-file-fallback")){c.setAttribute("data-file-fallback","1"),x(r(m),0);return}y(!1)},
+c.getAttribute("data-file-retry")||"0",10);if(C<2){w(m,C+1);return}if(m.includes("/files/thumb/")&&!c.
+getAttribute("data-file-fallback")){c.setAttribute("data-file-fallback","1"),w(r(m),0);return}y(!1)},
 "handleStatus");n(m).then(k).catch(()=>{const S=parseInt(c.getAttribute&&c.getAttribute("data-file-r\
-etry")||"0",10);if(S<2){x(m,S+1);return}if(m.includes("/files/thumb/")){v();return}y(!1)})},!0)})();
+etry")||"0",10);if(S<2){w(m,S+1);return}if(m.includes("/files/thumb/")){v();return}y(!1)})},!0)})();
 function buildChatImageHtml(e,t={}){const n=String(e||""),i=String(t.alt||""),a=String(t.title||""),
 r=String(t.viewerSrc||n),l=String(t.filename||"");if(n.startsWith("sandbox:"))return`<span class="te\
 xt-xs text-gray-500" title="${escapeHtml(n)}">${escapeHtml(i)||"\uFF08\u753B\u50CF\u30C7\u30FC\u30BF\u306F\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\uFF09"}\
@@ -191,17 +191,17 @@ textContent=`${formatAudioPlayerTime(S)} / ${formatAudioPlayerTime(k)}`,f||(l.va
 1e3,e.currentTime/k*1e3)):"0"),l.disabled=!k,l.style.setProperty("--aip-progress",`${Number(l.value)/
 10}%`)},"refresh"),v=o(()=>{const k=!e.paused&&!e.ended;a.className=n.classList.contains("is-loading")?
 "fas fa-spinner fa-spin":k?"fas fa-pause":"fas fa-play";const S=k?"\u4E00\u6642\u505C\u6B62":"\u518D\u751F";
-i.setAttribute("aria-label",S),i.title=S,c.textContent=`${e.playbackRate}x`},"syncState"),x=o(k=>{n.
+i.setAttribute("aria-label",S),i.title=S,c.textContent=`${e.playbackRate}x`},"syncState"),w=o(k=>{n.
 classList.toggle("is-loading",k),v()},"setLoading");i.addEventListener("click",()=>{if(n.classList.contains(
-"is-failed")&&(n.classList.remove("is-failed"),e.load()),e.paused||e.ended){e.readyState<3&&x(!0);const k=e.
-play();k&&typeof k.catch=="function"&&k.catch(()=>{x(!1)})}else e.pause()}),c.addEventListener("clic\
+"is-failed")&&(n.classList.remove("is-failed"),e.load()),e.paused||e.ended){e.readyState<3&&w(!0);const k=e.
+play();k&&typeof k.catch=="function"&&k.catch(()=>{w(!1)})}else e.pause()}),c.addEventListener("clic\
 k",()=>{const k=AUDIO_PLAYER_SPEEDS.indexOf(e.playbackRate);e.playbackRate=AUDIO_PLAYER_SPEEDS[(k+1)%
 AUDIO_PLAYER_SPEEDS.length]}),l.addEventListener("input",()=>{f=!0,y()}),l.addEventListener("change",
 ()=>{const k=b();k&&(e.currentTime=Number(l.value)/1e3*k),f=!1,y()}),["timeupdate","durationchange",
 "loadedmetadata","seeked","emptied"].forEach(k=>e.addEventListener(k,y)),["play","pause","ended","ra\
-techange"].forEach(k=>e.addEventListener(k,v)),e.addEventListener("waiting",()=>x(!0)),["playing","p\
-ause","canplay","ended"].forEach(k=>e.addEventListener(k,()=>x(!1))),e.addEventListener("loadeddata",
-()=>n.classList.remove("is-failed")),e.addEventListener("error",()=>{n.classList.add("is-failed"),x(
+techange"].forEach(k=>e.addEventListener(k,v)),e.addEventListener("waiting",()=>w(!0)),["playing","p\
+ause","canplay","ended"].forEach(k=>e.addEventListener(k,()=>w(!1))),e.addEventListener("loadeddata",
+()=>n.classList.remove("is-failed")),e.addEventListener("error",()=>{n.classList.add("is-failed"),w(
 !1)}),y(),v()},"upgradeAudioPlayer"),scanAudioPlayers=o(e=>{!e||e.nodeType!==1||(e.tagName==="AUDIO"?
 upgradeAudioPlayer(e):e.querySelectorAll&&e.querySelectorAll("audio[controls]").forEach(upgradeAudioPlayer))},
 "scanAudioPlayers"),initAudioPlayers=o(()=>{try{scanAudioPlayers(document.body),new MutationObserver(
@@ -227,48 +227,57 @@ let r;try{typeof a.convertToBlob=="function"?r=await a.convertToBlob({type:t,qua
 (l,c)=>{a.toBlob(m=>m?l(m):c(new Error("Image conversion failed")),t,1)})}finally{try{window.imageCompression.
 cleanupCanvasMemory(a)}catch{}try{i&&typeof i.close=="function"&&i.close()}catch{}}return new File([
 r],imageFilenameForMime(e.name,t),{type:t,lastModified:e.lastModified||Date.now()})},"convertImageFo\
-rmatOnly"),setCompressionSettings=o((e,t,n,i)=>{localStorage.setItem(COMPRESSION_SIZE_KEY,e),localStorage.
-setItem(COMPRESSION_DIM_KEY,t),localStorage.setItem(COMPRESSION_TYPE_KEY,n),localStorage.setItem(COMPRESSION_FORMAT_ONLY_KEY,
-i)},"setCompressionSettings"),syncCompressionSettingsUi=o(()=>{const e=get("compression-max-size"),t=get(
-"compression-max-dim"),n=get("compression-output-type"),i=get("compression-format-only");if(e&&(e.value=
-getCompressionMaxSizeMB()),t&&(t.value=getCompressionMaxDim()),n&&(n.value=getCompressionOutputType()),
-i){i.checked=getCompressionFormatOnly();const b=i.checked;e&&(e.disabled=b),t&&(t.disabled=b);const y=get(
-"compression-size-wrap"),v=get("compression-dim-wrap");y&&(y.style.opacity=b?"0.4":"1"),v&&(v.style.
-opacity=b?"0.4":"1")}const a=o((b,y)=>{get(b)&&get(y)&&(get(y).value=get(b).value)},"sync");a("gpt-i\
-mage-size","modal-gpt-image-size"),a("gpt-image-quality","modal-gpt-image-quality"),a("gpt-image-for\
-mat","modal-gpt-image-format"),a("gpt-image-compression","modal-gpt-image-compression"),a("gemini-im\
-age-aspect","modal-gemini-image-aspect"),a("gemini-image-size","modal-gemini-image-size"),a("grok-im\
-age-aspect","modal-grok-image-aspect"),a("grok-image-resolution","modal-grok-image-resolution"),a("g\
-rok-image-quality","modal-grok-image-quality"),IDEOGRAM_IMAGE_FIELDS.forEach(b=>a(`ideogram-image-${b}`,
-`modal-ideogram-image-${b}`)),a("ocr-table-format","modal-ocr-table-format"),a("ocr-pages","modal-oc\
-r-pages");const r=o((b,y)=>{get(b)&&get(y)&&(get(y).checked=get(b).checked)},"syncChk");r("ocr-extra\
-ct-header","modal-ocr-extract-header"),r("ocr-extract-footer","modal-ocr-extract-footer"),r("ocr-inc\
-lude-blocks","modal-ocr-include-blocks"),r("ocr-include-images","modal-ocr-include-images");const l=get(
-"model-select").value,c=isGptImageModel(l),m=isGeminiImageModel(l),f=isGrokImageModel(l);get("modal-\
-gpt-image-options")&&get("modal-gpt-image-options").classList.toggle("hidden",!c),get("modal-gemini-\
-image-options")&&get("modal-gemini-image-options").classList.toggle("hidden",!m),get("modal-grok-ima\
-ge-options")&&get("modal-grok-image-options").classList.toggle("hidden",!f),get("modal-ideogram-imag\
-e-options")&&get("modal-ideogram-image-options").classList.toggle("hidden",!isIdeogramModel(l)),typeof updateIdeogramImageUi==
-"function"&&updateIdeogramImageUi(),get("modal-mistral-ocr-options")&&get("modal-mistral-ocr-options").
-classList.toggle("hidden",!isMistralOcrModel(l))},"syncCompressionSettingsUi"),isGeminiLocalPyDialogEnabled=o(
-()=>{const e=localStorage.getItem(GEMINI_LOCAL_PY_DIALOG_KEY);return e===null?!0:e==="1"||e==="true"},
-"isGeminiLocalPyDialogEnabled"),setGeminiLocalPyDialogEnabled=o(e=>{localStorage.setItem(GEMINI_LOCAL_PY_DIALOG_KEY,
-e?"1":"0")},"setGeminiLocalPyDialogEnabled"),syncGeminiLocalPyDialogSetting=o(()=>{const e=get("set-\
-gemini-local-python-dialog");e&&(e.checked=isGeminiLocalPyDialogEnabled())},"syncGeminiLocalPyDialog\
-Setting"),normalizeGeminiBackend=o(e=>{const t=String(e||"").trim().toLowerCase().replace("-","_");return t===
-"vertex_ai"||t==="vertex"||t==="vertexai"?"vertex_ai":"gemini_api"},"normalizeGeminiBackend"),normalizeAdminApiKeyMode=o(
-e=>{const t=String(e||"").trim().toLowerCase().replace("-","_");return t==="user_only"||t==="user"||
-t==="settings"||t==="user_settings"?"user_only":"env_fallback"},"normalizeAdminApiKeyMode"),syncToggleButtons=o(
-(e,t,n)=>{(e||[]).forEach(i=>{const a=i.getAttribute(n)===t;i.classList.toggle("border-cyan-400",a),
-i.classList.toggle("bg-cyan-900/30",a),i.classList.toggle("text-white",a),i.classList.toggle("border\
--gray-600",!a),i.classList.toggle("bg-gray-800/70",!a)})},"syncToggleButtons"),syncAdminApiKeyModeUi=o(
-()=>{const e=get("set-admin-api-key-mode"),t=get("admin-api-key-mode-note"),n=get("admin-api-key-mod\
-e-status"),i=get("admin-api-key-mode-toggle");if(!e)return;const a=normalizeAdminApiKeyMode(e.value);
-e.value=a,i&&!i.dataset.bound&&(i.dataset.bound="1",i.querySelectorAll("[data-admin-api-key-mode]").
-forEach(r=>{r.addEventListener("click",()=>{e.value=normalizeAdminApiKeyMode(r.getAttribute("data-ad\
-min-api-key-mode")),syncAdminApiKeyModeUi()})})),syncToggleButtons(i?i.querySelectorAll("[data-admin\
--api-key-mode]"):[],a,"data-admin-api-key-mode"),t&&(t.textContent=a==="user_only"?"\u901A\u5E38\u30E6\u30FC\u30B6\u30FC\u3068\u540C\u3058\u304F\u3001\u3053\u306E\u753B\u9762\u3067\
-\u4FDD\u5B58\u3057\u305FAPI\u30AD\u30FC/Vertex\u8A2D\u5B9A\u306E\u307F\u3092\u4F7F\u7528\u3057\u307E\u3059\u3002":
+rmatOnly"),readComposerCompression=o(()=>({enabled:!!get("enable-compression").checked,maxSizeMB:getCompressionMaxSizeMB(),
+maxDimension:getCompressionMaxDim(),outputType:getCompressionOutputType(),formatOnly:getCompressionFormatOnly()}),
+"readComposerCompression");async function applyImageCompression(e,t){if(!t.enabled||!e.type.startsWith(
+"image/"))return e;if(t.formatOnly)return convertImageFormatOnly(e,t.outputType);await ensureImageCompression();
+const n={maxSizeMB:t.maxSizeMB,maxWidthOrHeight:t.maxDimension,useWebWorker:!0};t.outputType!=="orig\
+inal"&&(n.fileType=t.outputType);const i=await window.imageCompression(e,n),a=new File([i],imageFilenameForMime(
+e.name,i.type||e.type),{type:i.type||e.type,lastModified:e.lastModified||Date.now()});return a.size>
+e.size?(showToast(`\u5727\u7E2E\u5F8C\u306B\u30B5\u30A4\u30BA\u304C\u5897\u52A0\u3057\u307E\u3057\u305F: ${formatBytes(
+e.size)} -> ${formatBytes(a.size)}\uFF08\u5143\u30D5\u30A1\u30A4\u30EB\u3092\u4F7F\u7528\uFF09`,"war\
+ning",!0),e):a}o(applyImageCompression,"applyImageCompression");const setCompressionSettings=o((e,t,n,i)=>{
+localStorage.setItem(COMPRESSION_SIZE_KEY,e),localStorage.setItem(COMPRESSION_DIM_KEY,t),localStorage.
+setItem(COMPRESSION_TYPE_KEY,n),localStorage.setItem(COMPRESSION_FORMAT_ONLY_KEY,i)},"setCompression\
+Settings"),syncCompressionSettingsUi=o(()=>{const e=get("compression-max-size"),t=get("compression-m\
+ax-dim"),n=get("compression-output-type"),i=get("compression-format-only");if(e&&(e.value=getCompressionMaxSizeMB()),
+t&&(t.value=getCompressionMaxDim()),n&&(n.value=getCompressionOutputType()),i){i.checked=getCompressionFormatOnly();
+const b=i.checked;e&&(e.disabled=b),t&&(t.disabled=b);const y=get("compression-size-wrap"),v=get("co\
+mpression-dim-wrap");y&&(y.style.opacity=b?"0.4":"1"),v&&(v.style.opacity=b?"0.4":"1")}const a=o((b,y)=>{
+get(b)&&get(y)&&(get(y).value=get(b).value)},"sync");a("gpt-image-size","modal-gpt-image-size"),a("g\
+pt-image-quality","modal-gpt-image-quality"),a("gpt-image-format","modal-gpt-image-format"),a("gpt-i\
+mage-compression","modal-gpt-image-compression"),a("gemini-image-aspect","modal-gemini-image-aspect"),
+a("gemini-image-size","modal-gemini-image-size"),a("grok-image-aspect","modal-grok-image-aspect"),a(
+"grok-image-resolution","modal-grok-image-resolution"),a("grok-image-quality","modal-grok-image-qual\
+ity"),IDEOGRAM_IMAGE_FIELDS.forEach(b=>a(`ideogram-image-${b}`,`modal-ideogram-image-${b}`)),a("ocr-\
+table-format","modal-ocr-table-format"),a("ocr-pages","modal-ocr-pages");const r=o((b,y)=>{get(b)&&get(
+y)&&(get(y).checked=get(b).checked)},"syncChk");r("ocr-extract-header","modal-ocr-extract-header"),r(
+"ocr-extract-footer","modal-ocr-extract-footer"),r("ocr-include-blocks","modal-ocr-include-blocks"),
+r("ocr-include-images","modal-ocr-include-images");const l=get("model-select").value,c=isGptImageModel(
+l),m=isGeminiImageModel(l),f=isGrokImageModel(l);get("modal-gpt-image-options")&&get("modal-gpt-imag\
+e-options").classList.toggle("hidden",!c),get("modal-gemini-image-options")&&get("modal-gemini-image\
+-options").classList.toggle("hidden",!m),get("modal-grok-image-options")&&get("modal-grok-image-opti\
+ons").classList.toggle("hidden",!f),get("modal-ideogram-image-options")&&get("modal-ideogram-image-o\
+ptions").classList.toggle("hidden",!isIdeogramModel(l)),typeof updateIdeogramImageUi=="function"&&updateIdeogramImageUi(),
+get("modal-mistral-ocr-options")&&get("modal-mistral-ocr-options").classList.toggle("hidden",!isMistralOcrModel(
+l))},"syncCompressionSettingsUi"),isGeminiLocalPyDialogEnabled=o(()=>{const e=localStorage.getItem(GEMINI_LOCAL_PY_DIALOG_KEY);
+return e===null?!0:e==="1"||e==="true"},"isGeminiLocalPyDialogEnabled"),setGeminiLocalPyDialogEnabled=o(
+e=>{localStorage.setItem(GEMINI_LOCAL_PY_DIALOG_KEY,e?"1":"0")},"setGeminiLocalPyDialogEnabled"),syncGeminiLocalPyDialogSetting=o(
+()=>{const e=get("set-gemini-local-python-dialog");e&&(e.checked=isGeminiLocalPyDialogEnabled())},"s\
+yncGeminiLocalPyDialogSetting"),normalizeGeminiBackend=o(e=>{const t=String(e||"").trim().toLowerCase().
+replace("-","_");return t==="vertex_ai"||t==="vertex"||t==="vertexai"?"vertex_ai":"gemini_api"},"nor\
+malizeGeminiBackend"),normalizeAdminApiKeyMode=o(e=>{const t=String(e||"").trim().toLowerCase().replace(
+"-","_");return t==="user_only"||t==="user"||t==="settings"||t==="user_settings"?"user_only":"env_fa\
+llback"},"normalizeAdminApiKeyMode"),syncToggleButtons=o((e,t,n)=>{(e||[]).forEach(i=>{const a=i.getAttribute(
+n)===t;i.classList.toggle("border-cyan-400",a),i.classList.toggle("bg-cyan-900/30",a),i.classList.toggle(
+"text-white",a),i.classList.toggle("border-gray-600",!a),i.classList.toggle("bg-gray-800/70",!a)})},
+"syncToggleButtons"),syncAdminApiKeyModeUi=o(()=>{const e=get("set-admin-api-key-mode"),t=get("admin\
+-api-key-mode-note"),n=get("admin-api-key-mode-status"),i=get("admin-api-key-mode-toggle");if(!e)return;
+const a=normalizeAdminApiKeyMode(e.value);e.value=a,i&&!i.dataset.bound&&(i.dataset.bound="1",i.querySelectorAll(
+"[data-admin-api-key-mode]").forEach(r=>{r.addEventListener("click",()=>{e.value=normalizeAdminApiKeyMode(
+r.getAttribute("data-admin-api-key-mode")),syncAdminApiKeyModeUi()})})),syncToggleButtons(i?i.querySelectorAll(
+"[data-admin-api-key-mode]"):[],a,"data-admin-api-key-mode"),t&&(t.textContent=a==="user_only"?"\u901A\u5E38\u30E6\u30FC\
+\u30B6\u30FC\u3068\u540C\u3058\u304F\u3001\u3053\u306E\u753B\u9762\u3067\u4FDD\u5B58\u3057\u305FAPI\u30AD\u30FC/Vertex\u8A2D\u5B9A\u306E\u307F\u3092\u4F7F\u7528\u3057\u307E\u3059\u3002":
 "\u7BA1\u7406\u8005\u8A2D\u5B9A\u304C\u7A7A\u6B04\u306E\u3068\u304D\u3060\u3051 .env \u3092\u30D5\u30A9\u30FC\u30EB\u30D0\u30C3\u30AF\u5229\u7528\u3057\u307E\u3059\uFF08\u65E2\u5B9A\uFF09\u3002"),
 n&&(n.textContent=a==="user_only"?"\u73FE\u5728: \u30E6\u30FC\u30B6\u30FC\u8A2D\u5B9A\u306E\u307F\uFF08\u63A8\u5968: \u8A2D\u5B9A\u5024\u3092\u660E\u793A\u7BA1\u7406\uFF09":
 "\u73FE\u5728: .env \u30D5\u30A9\u30FC\u30EB\u30D0\u30C3\u30AF\u6709\u52B9\uFF08\u7BA1\u7406\u8005\u8A2D\u5B9A\u304C\u7A7A\u6B04\u306A\u3089 .env\uFF09")},
@@ -519,14 +528,14 @@ ransparent",a.appendChild(i.content.cloneNode(!0)),document.body.appendChild(a);
 from(a.querySelectorAll("*")).slice(0,5e3)],l=[],c=new Map;let m=0;const f=o(k=>Array.from(k.childNodes||
 []).reduce((S,C)=>C&&C.nodeType===Node.TEXT_NODE?S+String(C.textContent||"").replace(/\s+/g," ").trim().
 length:S,0),"directTextLength");r.forEach(k=>{if(!k||k===a||!k.style)return;const S=window.getComputedStyle(
-k),C=f(k);if(C>0){const $=parseRichPasteCssColor(S.color);if($&&$.a>=.5){const q=richPasteColorCss($),
-te=c.get(q)||{color:$,weight:0};te.weight+=C,c.set(q,te),m+=C}}if(!!(String(k.style.backgroundColor||
-"").trim()||String(k.style.background||"").trim())){const $=parseRichPasteCssColor(S.backgroundColor);
-if($&&$.a>=.72){const q=String(k.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:$,
-weight:Math.max(1,q)})}}});const b=Array.from(c.values()).sort((k,S)=>S.weight-k.weight),y=b.length?
-b[0].color:null,v=b.reduce((k,S)=>k+(richPasteColorLuminance(S.color)>=.6?S.weight:0),0);l.sort((k,S)=>S.
-weight-k.weight);let x=l.length?l[0].color:null;return x||(x=m>0&&v/m>=.55?{r:11,g:11,b:12,a:1}:t),makeRichPasteTheme(
-x,y||n)}catch{return makeRichPasteTheme(t,n)}finally{a.parentNode&&a.parentNode.removeChild(a)}},"de\
+k),C=f(k);if(C>0){const $=parseRichPasteCssColor(S.color);if($&&$.a>=.5){const F=richPasteColorCss($),
+Y=c.get(F)||{color:$,weight:0};Y.weight+=C,c.set(F,Y),m+=C}}if(!!(String(k.style.backgroundColor||"").
+trim()||String(k.style.background||"").trim())){const $=parseRichPasteCssColor(S.backgroundColor);if($&&
+$.a>=.72){const F=String(k.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:$,weight:Math.
+max(1,F)})}}});const b=Array.from(c.values()).sort((k,S)=>S.weight-k.weight),y=b.length?b[0].color:null,
+v=b.reduce((k,S)=>k+(richPasteColorLuminance(S.color)>=.6?S.weight:0),0);l.sort((k,S)=>S.weight-k.weight);
+let w=l.length?l[0].color:null;return w||(w=m>0&&v/m>=.55?{r:11,g:11,b:12,a:1}:t),makeRichPasteTheme(
+w,y||n)}catch{return makeRichPasteTheme(t,n)}finally{a.parentNode&&a.parentNode.removeChild(a)}},"de\
 tectRichPasteTheme"),prepareRichPastePdfClone=o((e,t)=>{if(!e)return;const n=e.head||e.querySelector(
 "head");n&&Array.from(n.querySelectorAll('link[rel="stylesheet"]')).forEach(i=>{try{i.remove()}catch{}}),
 e.body&&(e.body.style.margin="0",e.body.style.background=t.background,e.body.style.color=t.foreground)},
@@ -555,9 +564,9 @@ e||"");const n=Array.from(t.content.querySelectorAll("*")),i=n.reduce((m,f)=>{co
 f.style.display||"").trim().toLowerCase();return m+(["flex","inline-flex","grid","inline-grid"].includes(
 b)?1:0)},0),a=n.reduce((m,f)=>{if(!f||!f.style||!["article","div","main","section"].includes(String(
 f.tagName||"").toLowerCase()))return m;const b=String(f.getAttribute("style")||""),y=Array.from(b.matchAll(
-/(?:^|;)\s*padding(?:-left|-right|-inline|-inline-start|-inline-end)?\s*:\s*([^;]+)/gi)).some(x=>Array.
-from(x[1].matchAll(/(-?\d+(?:\.\d+)?)px/gi)).some(k=>Math.abs(Number(k[1])||0)>=96)),v=Array.from(b.
-matchAll(/(?:^|;)\s*(?:width|min-width)\s*:\s*(-?\d+(?:\.\d+)?)px/gi)).some(x=>Math.abs(Number(x[1])||
+/(?:^|;)\s*padding(?:-left|-right|-inline|-inline-start|-inline-end)?\s*:\s*([^;]+)/gi)).some(w=>Array.
+from(w[1].matchAll(/(-?\d+(?:\.\d+)?)px/gi)).some(k=>Math.abs(Number(k[1])||0)>=96)),v=Array.from(b.
+matchAll(/(?:^|;)\s*(?:width|min-width)\s*:\s*(-?\d+(?:\.\d+)?)px/gi)).some(w=>Math.abs(Number(w[1])||
 0)>720);return m+(y||v?1:0)},0);if(n.length<=500&&i<=24&&a===0)return t.innerHTML;const r=new Set(["\
 align-items","align-self","column-gap","flex","flex-basis","flex-direction","flex-grow","flex-shrink",
 "flex-wrap","gap","grid","grid-auto-columns","grid-auto-flow","grid-auto-rows","grid-column","grid-c\
@@ -566,12 +575,12 @@ late-areas","grid-template-columns","grid-template-rows","justify-content","just
 self","order","row-gap"]),l=new Set(["article","div","main","section"]),c=new Set(["padding","paddin\
 g-left","padding-right","padding-inline","padding-inline-start","padding-inline-end"]);return n.forEach(
 m=>{if(!m||!m.style)return;const f=String(m.tagName||"").toLowerCase(),b=[];String(m.getAttribute("s\
-tyle")||"").split(";").forEach(y=>{if(!y||y.indexOf(":")<0)return;const v=y.indexOf(":"),x=y.slice(0,
-v).trim().toLowerCase();let k=y.slice(v+1).trim();if(!(!x||!k||r.has(x))&&!["height","max-height","m\
-in-height","overflow","overflow-x","overflow-y"].includes(x)&&!(["width","min-width"].includes(x)&&l.
-has(f))){if(c.has(x)&&l.has(f)&&Array.from(k.matchAll(/(-?\d+(?:\.\d+)?)px/gi)).map(C=>Math.abs(Number(
-C[1])||0)).some(C=>C>=96)&&(k="0px"),x==="display"){const S=k.toLowerCase();["flex","grid"].includes(
-S)?k="block":["inline-flex","inline-grid"].includes(S)&&(k="inline-block")}b.push(`${x}: ${k}`)}}),b.
+tyle")||"").split(";").forEach(y=>{if(!y||y.indexOf(":")<0)return;const v=y.indexOf(":"),w=y.slice(0,
+v).trim().toLowerCase();let k=y.slice(v+1).trim();if(!(!w||!k||r.has(w))&&!["height","max-height","m\
+in-height","overflow","overflow-x","overflow-y"].includes(w)&&!(["width","min-width"].includes(w)&&l.
+has(f))){if(c.has(w)&&l.has(f)&&Array.from(k.matchAll(/(-?\d+(?:\.\d+)?)px/gi)).map(C=>Math.abs(Number(
+C[1])||0)).some(C=>C>=96)&&(k="0px"),w==="display"){const S=k.toLowerCase();["flex","grid"].includes(
+S)?k="block":["inline-flex","inline-grid"].includes(S)&&(k="inline-block")}b.push(`${w}: ${k}`)}}),b.
 length?m.setAttribute("style",b.join("; ")):m.removeAttribute("style")}),t.innerHTML},"normalizeRich\
 PastePrintHtml"),getRichPasteSelectionRange=o(e=>{const t=window.getSelection&&window.getSelection();
 if(!t||!t.rangeCount)return null;const n=t.getRangeAt(0);if(e&&e.contains(n.commonAncestorContainer))
@@ -752,11 +761,11 @@ nk","noopener,noreferrer"),setTimeout(()=>URL.revokeObjectURL(a),6e4),!0},"openS
 ()=>{const e=buildRichPastePreviewHtml("preview");if(!e){showToast("\u78BA\u8A8D\u3059\u308B\u5185\u5BB9\u304C\u3042\u308A\u307E\u305B\u3093",
 "warning",!0);return}openSandboxedHtmlTab(e)||showToast("\u5225\u30BF\u30D6\u306E\u8868\u793A\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0)},"openRichPastePreviewTab"),renderRichPastePdfBlob=o(async()=>{const e=get("rich-paste-p\
-rogress-container"),t=get("rich-paste-progress-bar"),n=get("rich-paste-progress-text"),i=o(v=>{const x=Math.
+rogress-container"),t=get("rich-paste-progress-bar"),n=get("rich-paste-progress-text"),i=o(v=>{const w=Math.
 max(0,Math.min(100,Number(v)||0));t&&(t.style.width="100%",t.style.transformOrigin="left center",(!t.
 style.transition||t.style.transition.indexOf("transform")===-1)&&(t.style.transition="transform 0.45\
-s cubic-bezier(0.22, 1, 0.36, 1)"),t.style.transform=`scaleX(${x/100})`,t.style.willChange="transfor\
-m"),n&&(n.innerText=`${Math.round(x)}%`)},"updateProgress");e&&(e.classList.remove("hidden"),e.style.
+s cubic-bezier(0.22, 1, 0.36, 1)"),t.style.transform=`scaleX(${w/100})`,t.style.willChange="transfor\
+m"),n&&(n.innerText=`${Math.round(w)}%`)},"updateProgress");e&&(e.classList.remove("hidden"),e.style.
 setProperty("display","block","important")),t&&(t.style.transition="none",t.style.width="100%",t.style.
 transformOrigin="left center",t.style.transform="scaleX(0)",t.offsetHeight,t.style.transition="trans\
 form 0.45s cubic-bezier(0.22, 1, 0.36, 1)"),i(0),await new Promise(v=>requestAnimationFrame(()=>setTimeout(
@@ -899,17 +908,17 @@ nd); font-weight: bold; }
                     <div class="pdf-content">${m}</div>
                 </div>
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const v=new f(
-{unit:"mm",format:"a4",orientation:"portrait",compress:!0}),x=v.internal.pageSize.getWidth(),k=v.internal.
-pageSize.getHeight(),S=794,C=Math.floor(k/x*S),M=y.scrollHeight||y.offsetHeight;let $=0,q=!0;const te=Math.
-ceil(M/C);let X=0;for(;$<M;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const D=Math.min(C,M-$),ae=(await new Promise((I,N)=>{const G=setTimeout(()=>N(
+{unit:"mm",format:"a4",orientation:"portrait",compress:!0}),w=v.internal.pageSize.getWidth(),k=v.internal.
+pageSize.getHeight(),S=794,C=Math.floor(k/w*S),A=y.scrollHeight||y.offsetHeight;let $=0,F=!0;const Y=Math.
+ceil(A/C);let V=0;for(;$<A;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
+"Aborted","AbortError");const H=Math.min(C,A-$),ae=(await new Promise((I,N)=>{const G=setTimeout(()=>N(
 new Error("PDF chunk rendering timed out")),12e4);b(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
-background,logging:!1,imageTimeout:5e3,x:0,y:$,width:S,height:D,windowWidth:S,scrollX:0,scrollY:0,signal:richPasteAbortController?
+background,logging:!1,imageTimeout:5e3,x:0,y:$,width:S,height:H,windowWidth:S,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:o(P=>{prepareRichPastePdfClone(P,c);const O=P.querySelector(
 ".pdf-root-wrapper");O&&(O.style.position="relative",O.style.left="0",O.style.top="0")},"onclone")}).
 then(P=>{clearTimeout(G),I(P)}).catch(P=>{clearTimeout(G),N(P)})})).toDataURL("image/jpeg",.95),ye=v.
-getImageProperties(ae),fe=Math.min(k,ye.height*x/ye.width);q||v.addPage(),v.addImage(ae,"JPEG",0,0,x,
-fe),q=!1,$+=D,X++;const Me=Math.min(100,15+Math.round(X/te*85));i(Me),await new Promise(I=>setTimeout(
+getImageProperties(ae),fe=Math.min(k,ye.height*w/ye.width);F||v.addPage(),v.addImage(ae,"JPEG",0,0,w,
+fe),F=!1,$+=H,V++;const Me=Math.min(100,15+Math.round(V/Y*85));i(Me),await new Promise(I=>setTimeout(
 I,100))}return i(100),{blob:v.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=o(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -1917,42 +1926,42 @@ lastClickTs:0,lastKeyTs:0,lastMove:null,speedMax:0,speedSum:0,speedSamples:0,las
 e.enabled=!!(botConfig&&botConfig.globalEnabled&&botConfig.accountEnabled&&!isAdminUser)},"refreshEn\
 abled"),n=o(()=>{e.windowStart=performance.now(),e.clicks=0,e.keys=0,e.moves=0,e.fastClicks=0,e.fastKeys=
 0,e.untrustedInput=!1,e.clickTimes=[],e.keyTimes=[],e.clickIntervals=[],e.speedMax=0,e.speedSum=0,e.
-speedSamples=0},"resetWindow"),i=o(v=>{const x=v&&v.target;return!x||typeof x.closest!="function"?!1:
-!!x.closest("[data-bot-ignore-click], #new-chat-btn, #mobile-new-chat-btn, #bot-detection-overlay")},
-"isControlClick"),a=o(v=>{if(i(v))return;if(v&&v.isTrusted===!1){e.untrustedInput=!0,f(!0);return}const x=performance.
-now();if(e.clicks+=1,e.lastClickTs){const k=x-e.lastClickTs;e.clickIntervals.push(k),e.clickIntervals.
-length>10&&e.clickIntervals.shift(),k<120&&(e.fastClicks+=1)}e.lastClickTs=x,e.clickTimes.push(x),e.
-clickTimes=e.clickTimes.filter(k=>x-k<=2e3),e.fastClicks>=4&&f(!0)},"recordClick"),r=o(v=>{if(v&&v.isTrusted===
-!1){e.untrustedInput=!0,f(!0);return}const x=performance.now();e.keys+=1,e.lastKeyTs&&x-e.lastKeyTs<
-50&&(e.fastKeys+=1),e.lastKeyTs=x,e.keyTimes.push(x),e.keyTimes=e.keyTimes.filter(k=>x-k<=2e3)},"rec\
-ordKey"),l=o(v=>{const x=performance.now();if(!(x-e.lastMoveSample<80)){if(e.lastMoveSample=x,e.moves+=
-1,e.lastMove){const k=v.clientX-e.lastMove.x,S=v.clientY-e.lastMove.y,C=x-e.lastMove.t;if(C>0){const M=Math.
-sqrt(k*k+S*S)/(C/1e3);e.speedMax=Math.max(e.speedMax,M),e.speedSum+=M,e.speedSamples+=1}}e.lastMove=
-{x:v.clientX,y:v.clientY,t:x}}},"recordMove"),c=o(()=>{const v=Math.max(1,performance.now()-e.windowStart),
-x=e.clickTimes.length,k=e.keyTimes.length,S=e.speedSamples?e.speedSum/e.speedSamples:0;let C=0,M=1;if(e.
-clickIntervals.length>=3){const $=e.clickIntervals.reduce((te,X)=>te+X,0)/e.clickIntervals.length,q=e.
-clickIntervals.reduce((te,X)=>te+Math.pow(X-$,2),0)/e.clickIntervals.length;C=$,M=$>0?Math.sqrt(q)/$:
-1}return{window_ms:Math.round(v),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,
-fast_keys:e.fastKeys,untrusted_input:!!e.untrustedInput,click_burst:x,key_burst:k,avg_click_ms:C,click_cv:M,
-event_rate:(e.clicks+e.keys+e.moves)/(v/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:S}},"com\
-puteStats"),m=o(v=>v.fast_clicks>=4||v.fast_keys>=8||v.click_burst>=8||v.key_burst>=14||v.event_rate>=
-20||v.avg_click_ms>0&&v.avg_click_ms<160&&v.click_cv<.08,"isSuspicious"),f=o(async(v=!1,x={})=>{if(!e.
-enabled)return;const k=performance.now();if(!v&&k-e.lastSend<3e3)return;e.lastSend=k;const S=c();if(!(!x.
-forceReport&&S.clicks+S.keys+S.moves===0&&!S.untrusted_input)&&!(!v&&!S.untrusted_input&&!m(S))){S.turnstile_token=
-await getTurnstileToken(),botConfig&&botConfig.turnstileSiteKey&&!S.turnstile_token&&!botDetectionVerified&&
-botDetectionOverlayShown&&(S.turnstile_failed=!0,S.challenged=!0);try{const C=await apiFetch("/api/b\
-ot-telemetry",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(S)});if(C.
-status===403){let M=null;try{M=await C.json()}catch{}if(M&&M.error==="banned"){showToast("\u30DC\u30C3\u30C8\u5224\u5B9A\u306B\u3088\u308ABA\
-N\u3055\u308C\u307E\u3057\u305F\u3002","error",!0),setTimeout(()=>{location.href="/banned"},800);return}}}catch{}
-resetTurnstileToken(),n()}},"send");return{start:o(()=>{t(),e.enabled&&(typeof window.PointerEvent!=
-"undefined"?document.addEventListener("pointerdown",a,!0):document.addEventListener("click",a,!0),document.
-addEventListener("keydown",r,!0),document.addEventListener("wheel",()=>{e.moves+=1},{passive:!0}),document.
-addEventListener("mousemove",l,!0),setInterval(()=>f(!1),4e3))},"start"),refreshEnabled:t,send:f,looksSuspicious:o(
-()=>{if(!e.enabled)return!1;const v=c();return m(v)},"looksSuspicious")}})();function openFileViewer(e,t=""){
-if(!e)return;const n=(t||e).split(".").pop().toLowerCase(),i=["png","jpg","jpeg","webp","gif"],a=["m\
-p4","mov","mkv","avi","m4v","webm"],r=["mp3","wav","m4a","ogg","flac"],l=["pdf","txt","md","csv","lo\
-g","json","docx"];if(i.includes(n)){openImageViewer(e);return}const c=get("file-viewer"),m=get("file\
--viewer-body"),f=get("file-viewer-title");if(!(!c||!m||!f)){if(f.textContent=t||"File Preview",m.replaceChildren(),
+speedSamples=0},"resetWindow"),i=o(v=>{const w=v&&v.target;return!w||typeof w.closest!="function"?!1:
+!!w.closest("[data-bot-ignore-click], #new-chat-btn, #mobile-new-chat-btn, #bot-detection-overlay")},
+"isControlClick"),a=o(v=>{if(i(v))return;if(v&&v.isTrusted===!1){e.untrustedInput=!0,f(!0);return}const w=performance.
+now();if(e.clicks+=1,e.lastClickTs){const k=w-e.lastClickTs;e.clickIntervals.push(k),e.clickIntervals.
+length>10&&e.clickIntervals.shift(),k<120&&(e.fastClicks+=1)}e.lastClickTs=w,e.clickTimes.push(w),e.
+clickTimes=e.clickTimes.filter(k=>w-k<=2e3),e.fastClicks>=4&&f(!0)},"recordClick"),r=o(v=>{if(v&&v.isTrusted===
+!1){e.untrustedInput=!0,f(!0);return}const w=performance.now();e.keys+=1,e.lastKeyTs&&w-e.lastKeyTs<
+50&&(e.fastKeys+=1),e.lastKeyTs=w,e.keyTimes.push(w),e.keyTimes=e.keyTimes.filter(k=>w-k<=2e3)},"rec\
+ordKey"),l=o(v=>{const w=performance.now();if(!(w-e.lastMoveSample<80)){if(e.lastMoveSample=w,e.moves+=
+1,e.lastMove){const k=v.clientX-e.lastMove.x,S=v.clientY-e.lastMove.y,C=w-e.lastMove.t;if(C>0){const A=Math.
+sqrt(k*k+S*S)/(C/1e3);e.speedMax=Math.max(e.speedMax,A),e.speedSum+=A,e.speedSamples+=1}}e.lastMove=
+{x:v.clientX,y:v.clientY,t:w}}},"recordMove"),c=o(()=>{const v=Math.max(1,performance.now()-e.windowStart),
+w=e.clickTimes.length,k=e.keyTimes.length,S=e.speedSamples?e.speedSum/e.speedSamples:0;let C=0,A=1;if(e.
+clickIntervals.length>=3){const $=e.clickIntervals.reduce((Y,V)=>Y+V,0)/e.clickIntervals.length,F=e.
+clickIntervals.reduce((Y,V)=>Y+Math.pow(V-$,2),0)/e.clickIntervals.length;C=$,A=$>0?Math.sqrt(F)/$:1}
+return{window_ms:Math.round(v),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
+fastKeys,untrusted_input:!!e.untrustedInput,click_burst:w,key_burst:k,avg_click_ms:C,click_cv:A,event_rate:(e.
+clicks+e.keys+e.moves)/(v/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:S}},"computeStats"),m=o(
+v=>v.fast_clicks>=4||v.fast_keys>=8||v.click_burst>=8||v.key_burst>=14||v.event_rate>=20||v.avg_click_ms>
+0&&v.avg_click_ms<160&&v.click_cv<.08,"isSuspicious"),f=o(async(v=!1,w={})=>{if(!e.enabled)return;const k=performance.
+now();if(!v&&k-e.lastSend<3e3)return;e.lastSend=k;const S=c();if(!(!w.forceReport&&S.clicks+S.keys+S.
+moves===0&&!S.untrusted_input)&&!(!v&&!S.untrusted_input&&!m(S))){S.turnstile_token=await getTurnstileToken(),
+botConfig&&botConfig.turnstileSiteKey&&!S.turnstile_token&&!botDetectionVerified&&botDetectionOverlayShown&&
+(S.turnstile_failed=!0,S.challenged=!0);try{const C=await apiFetch("/api/bot-telemetry",{method:"POS\
+T",headers:{"Content-Type":"application/json"},body:JSON.stringify(S)});if(C.status===403){let A=null;
+try{A=await C.json()}catch{}if(A&&A.error==="banned"){showToast("\u30DC\u30C3\u30C8\u5224\u5B9A\u306B\u3088\u308ABAN\u3055\u308C\u307E\u3057\u305F\u3002",
+"error",!0),setTimeout(()=>{location.href="/banned"},800);return}}}catch{}resetTurnstileToken(),n()}},
+"send");return{start:o(()=>{t(),e.enabled&&(typeof window.PointerEvent!="undefined"?document.addEventListener(
+"pointerdown",a,!0):document.addEventListener("click",a,!0),document.addEventListener("keydown",r,!0),
+document.addEventListener("wheel",()=>{e.moves+=1},{passive:!0}),document.addEventListener("mousemov\
+e",l,!0),setInterval(()=>f(!1),4e3))},"start"),refreshEnabled:t,send:f,looksSuspicious:o(()=>{if(!e.
+enabled)return!1;const v=c();return m(v)},"looksSuspicious")}})();function openFileViewer(e,t=""){if(!e)
+return;const n=(t||e).split(".").pop().toLowerCase(),i=["png","jpg","jpeg","webp","gif"],a=["mp4","m\
+ov","mkv","avi","m4v","webm"],r=["mp3","wav","m4a","ogg","flac"],l=["pdf","txt","md","csv","log","js\
+on","docx"];if(i.includes(n)){openImageViewer(e);return}const c=get("file-viewer"),m=get("file-viewe\
+r-body"),f=get("file-viewer-title");if(!(!c||!m||!f)){if(f.textContent=t||"File Preview",m.replaceChildren(),
 a.includes(n)){const b=document.createElement("video");b.src=String(e),b.controls=!0,b.playsInline=!0,
 b.preload="metadata",m.appendChild(b)}else if(r.includes(n)){const b=document.createElement("audio");
 b.src=String(e),b.controls=!0,m.appendChild(b)}else if(l.includes(n)){const b=document.createElement(
@@ -1961,9 +1970,9 @@ b)}else{const b=document.createElement("div");b.className="fallback",b.appendChi
 "\u3053\u306E\u5F62\u5F0F\u306F\u30D7\u30EC\u30D3\u30E5\u30FC\u3067\u304D\u307E\u305B\u3093\u3002"));
 const y=document.createElement("div");y.className="mt-3 flex justify-center gap-2";const v=document.
 createElement("a");v.href=String(e),v.download="",v.className="px-3 py-1 bg-gray-800 text-white roun\
-ded text-xs border border-gray-700",v.textContent="\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9";const x=document.
-createElement("a");x.href=String(e),x.target="_blank",x.rel="noopener noreferrer",x.className=v.className,
-x.textContent="\u65B0\u3057\u3044\u30BF\u30D6\u3067\u958B\u304F",y.append(v,x),b.appendChild(y),m.appendChild(
+ded text-xs border border-gray-700",v.textContent="\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9";const w=document.
+createElement("a");w.href=String(e),w.target="_blank",w.rel="noopener noreferrer",w.className=v.className,
+w.textContent="\u65B0\u3057\u3044\u30BF\u30D6\u3067\u958B\u304F",y.append(v,w),b.appendChild(y),m.appendChild(
 b)}c.classList.add("visible")}}o(openFileViewer,"openFileViewer");function closeFileViewer(){const e=get(
 "file-viewer"),t=get("file-viewer-body");!e||!t||(t.innerHTML="",e.classList.remove("visible"))}o(closeFileViewer,
 "closeFileViewer"),window.showToast=showToast;function showToast(e,t="error",n=!1,i=null){const a=get(
@@ -2030,10 +2039,10 @@ C)}m=f.tabId}const y=document.createElement("div");y.className="settings-search-
 ms-start gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150",y.style.animation=
 "fadeIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",y.style.animationDelay=b*30+"ms";const v=document.
 createElement("span");v.className="settings-result-tab-badge shrink-0 mt-0.5",v.textContent=TAB_LABELS[f.
-tabId]||f.tabId;const x=document.createElement("div");x.className="min-w-0 flex-1";const k=document.
+tabId]||f.tabId;const w=document.createElement("div");w.className="min-w-0 flex-1";const k=document.
 createElement("div");k.className="text-sm font-bold text-white truncate",k.textContent=f.title;const S=document.
 createElement("div");S.className="text-[11px] text-gray-400 truncate mt-0.5",S.textContent=f.snippet,
-x.appendChild(k),x.appendChild(S),y.appendChild(v),y.appendChild(x),y.addEventListener("click",()=>jumpToSetting(
+w.appendChild(k),w.appendChild(S),y.appendChild(v),y.appendChild(w),y.addEventListener("click",()=>jumpToSetting(
 f.tabId,f.element)),l.appendChild(y)})}r.insertBefore(l,r.firstChild)}o(filterSettings,"filterSettin\
 gs");function jumpToSetting(e,t){const n=get("settings-search");n&&(n.value=""),removeSearchOverlays(),
 filterSettings(),e!==activeSettingsTab&&switchTab(e),setTimeout(()=>{t.scrollIntoView({behavior:"smo\
@@ -2057,27 +2066,27 @@ idden",l?"false":"true")),i&&(i.disabled=!c,i.setAttribute("aria-hidden",c?"fals
 o(refreshSettingsTabsScroll,"refreshSettingsTabsScroll");function initSettingsTabsScroll(){const e=get(
 "settings-tabs-wrap"),t=get("settings-tabs"),n=get("settings-tabs-arrow-left"),i=get("settings-tabs-\
 arrow-right");if(!e||!t||!n||!i)return;if(e.dataset.scrollBound==="1"){syncSettingsTabsOverflow();return}
-e.dataset.scrollBound="1";const a=56;let r=0,l=0,c=0;const m=o(x=>{const k=e.getBoundingClientRect();
-if(!k.width)return;const S=x-k.left;e.classList.toggle("is-edge-left",S>=0&&S<=a),e.classList.toggle(
+e.dataset.scrollBound="1";const a=56;let r=0,l=0,c=0;const m=o(w=>{const k=e.getBoundingClientRect();
+if(!k.width)return;const S=w-k.left;e.classList.toggle("is-edge-left",S>=0&&S<=a),e.classList.toggle(
 "is-edge-right",S>=k.width-a&&S<=k.width)},"updateEdgeHover"),f=o(()=>{c||e.classList.remove("is-edg\
-e-left","is-edge-right")},"clearEdgeHover"),b=o((x,k)=>{const S=getSettingsTabsMaxScroll(t);if(S<=0||
-!x)return;const C=Math.max(0,Math.min(S,t.scrollLeft+x));k&&typeof t.scrollTo=="function"?t.scrollTo(
+e-left","is-edge-right")},"clearEdgeHover"),b=o((w,k)=>{const S=getSettingsTabsMaxScroll(t);if(S<=0||
+!w)return;const C=Math.max(0,Math.min(S,t.scrollLeft+w));k&&typeof t.scrollTo=="function"?t.scrollTo(
 {left:C,behavior:"smooth"}):t.scrollLeft=C,syncSettingsTabsOverflow()},"scrollTabsBy"),y=o(()=>{c=0,
-r&&(clearTimeout(r),r=0),l&&(cancelAnimationFrame(l),l=0)},"stopHold"),v=o(x=>{y(),c=x,e.classList.toggle(
-"is-edge-left",x<0),e.classList.toggle("is-edge-right",x>0),b(x*Math.max(120,t.clientWidth*.55),!0),
+r&&(clearTimeout(r),r=0),l&&(cancelAnimationFrame(l),l=0)},"stopHold"),v=o(w=>{y(),c=w,e.classList.toggle(
+"is-edge-left",w<0),e.classList.toggle("is-edge-right",w>0),b(w*Math.max(120,t.clientWidth*.55),!0),
 r=setTimeout(()=>{const k=o(()=>{c&&(b(c*14,!1),l=requestAnimationFrame(k))},"step");l=requestAnimationFrame(
-k)},280)},"startHold");if(e.addEventListener("pointermove",x=>{x.pointerType!=="touch"&&m(x.clientX)}),
-e.addEventListener("pointerenter",x=>{x.pointerType!=="touch"&&m(x.clientX)}),e.addEventListener("po\
-interleave",x=>{x.pointerType!=="touch"&&(y(),f())}),e.addEventListener("wheel",x=>{const k=getSettingsTabsMaxScroll(
-t);if(k<=2)return;const C=Math.abs(x.deltaY)>=Math.abs(x.deltaX)?x.deltaY:x.deltaX;if(!C)return;const M=Math.
-max(0,Math.min(k,t.scrollLeft+C));M!==t.scrollLeft&&(x.preventDefault(),t.scrollLeft=M,syncSettingsTabsOverflow())},
-{passive:!1}),n.addEventListener("pointerdown",x=>{x.button!=null&&x.button!==0||(x.preventDefault(),
-v(-1))}),i.addEventListener("pointerdown",x=>{x.button!=null&&x.button!==0||(x.preventDefault(),v(1))}),
-n.addEventListener("click",x=>{x.preventDefault(),x.stopPropagation()}),i.addEventListener("click",x=>{
-x.preventDefault(),x.stopPropagation()}),window.addEventListener("pointerup",y),window.addEventListener(
+k)},280)},"startHold");if(e.addEventListener("pointermove",w=>{w.pointerType!=="touch"&&m(w.clientX)}),
+e.addEventListener("pointerenter",w=>{w.pointerType!=="touch"&&m(w.clientX)}),e.addEventListener("po\
+interleave",w=>{w.pointerType!=="touch"&&(y(),f())}),e.addEventListener("wheel",w=>{const k=getSettingsTabsMaxScroll(
+t);if(k<=2)return;const C=Math.abs(w.deltaY)>=Math.abs(w.deltaX)?w.deltaY:w.deltaX;if(!C)return;const A=Math.
+max(0,Math.min(k,t.scrollLeft+C));A!==t.scrollLeft&&(w.preventDefault(),t.scrollLeft=A,syncSettingsTabsOverflow())},
+{passive:!1}),n.addEventListener("pointerdown",w=>{w.button!=null&&w.button!==0||(w.preventDefault(),
+v(-1))}),i.addEventListener("pointerdown",w=>{w.button!=null&&w.button!==0||(w.preventDefault(),v(1))}),
+n.addEventListener("click",w=>{w.preventDefault(),w.stopPropagation()}),i.addEventListener("click",w=>{
+w.preventDefault(),w.stopPropagation()}),window.addEventListener("pointerup",y),window.addEventListener(
 "pointercancel",y),window.addEventListener("blur",y),t.addEventListener("scroll",syncSettingsTabsOverflow,
 {passive:!0}),window.addEventListener("resize",syncSettingsTabsOverflow),typeof ResizeObserver!="und\
-efined")try{const x=new ResizeObserver(()=>syncSettingsTabsOverflow());x.observe(t),x.observe(e)}catch{}
+efined")try{const w=new ResizeObserver(()=>syncSettingsTabsOverflow());w.observe(t),w.observe(e)}catch{}
 syncSettingsTabsOverflow()}o(initSettingsTabsScroll,"initSettingsTabsScroll"),initSettingsTabsScroll();
 const chatContainer=get("chat-container"),scrollToBottomBtn=get("scroll-to-bottom-btn"),CHAT_BOTTOM_THRESHOLD=64;
 let chatAutoScrollFrame=0,chatTouchY=null,chatScrollbarDragging=!1,chatManualScrollPaused=!1,chatManualResumeArmed=!1,
@@ -2162,11 +2171,11 @@ hypot(n.clientX-i.clientX,n.clientY-i.clientY)||1,s:z,mx:(n.clientX+i.clientX)/2
 1){s={startX:t.clientX,startY:t.clientY,dx:vX,dy:vY};return}s={startX:t.clientX,startY:t.clientY,lastX:t.
 clientX,dx:0,dy:0,vx:0,dir:0,active:!1,resist:!1,adjacent:null,lastTime:Date.now()}}o(onViewerTouchStart,
 "onViewerTouchStart");function onViewerTouchMove(e){if(e.touches.length>=2){if(!p){const $=e.touches[0],
-q=e.touches[1];p={d:Math.hypot($.clientX-q.clientX,$.clientY-q.clientY)||1,s:z,mx:($.clientX+q.clientX)/
-2,my:($.clientY+q.clientY)/2,x:vX,y:vY},s=null}const v=e.touches[0],x=e.touches[1],k=Math.hypot(v.clientX-
-x.clientX,v.clientY-x.clientY)||1,S=(v.clientX+x.clientX)/2,C=(v.clientY+x.clientY)/2;z=Math.min(6,Math.
-max(1,p.s*k/p.d)),z<=1.0001?(z=1,vX=0,vY=0):(vX=p.x+S-p.mx,vY=p.y+C-p.my);const M=get("image-viewer-\
-img");if(!M)return;e.preventDefault(),M.style.transition="none",applyViewerTransform();return}if(p)return;
+F=e.touches[1];p={d:Math.hypot($.clientX-F.clientX,$.clientY-F.clientY)||1,s:z,mx:($.clientX+F.clientX)/
+2,my:($.clientY+F.clientY)/2,x:vX,y:vY},s=null}const v=e.touches[0],w=e.touches[1],k=Math.hypot(v.clientX-
+w.clientX,v.clientY-w.clientY)||1,S=(v.clientX+w.clientX)/2,C=(v.clientY+w.clientY)/2;z=Math.min(6,Math.
+max(1,p.s*k/p.d)),z<=1.0001?(z=1,vX=0,vY=0):(vX=p.x+S-p.mx,vY=p.y+C-p.my);const A=get("image-viewer-\
+img");if(!A)return;e.preventDefault(),A.style.transition="none",applyViewerTransform();return}if(p)return;
 if(z>1&&s&&!s.active){const v=e.touches[0];if(!v)return;e.preventDefault(),vX=s.dx+v.clientX-s.startX,
 vY=s.dy+v.clientY-s.startY,applyViewerTransform();return}if(!s)return;const t=e.touches[0];if(!t)return;
 const n=t.clientX-s.startX,i=t.clientY-s.startY,a=Date.now(),r=Math.max(a-s.lastTime,1),l=(t.clientX-
@@ -2834,12 +2843,12 @@ den"),window.VoiceStudio&&window.VoiceStudio.closeIfOpen())}o(updateStsUi,"updat
 if(!isStsModel())return;const e=get("model-select").value||"",t=getStsProvider(e),n=get("sts-voice"),
 i=get("sts-speed-wrap"),a=get("sts-speed"),r=get("sts-speed-label"),l=get("sts-rate-wrap"),c=get("st\
 s-rate-in"),m=get("sts-rate-out"),f=get("sts-thinking-wrap"),b=get("sts-note"),y=get("sts-voice-wrap"),
-v=get("sts-auto-play-wrap"),x=get("sts-mode-label"),k=isTranscriptionModel()||isGeminiLiveTranscribeModel()||
+v=get("sts-auto-play-wrap"),w=get("sts-mode-label"),k=isTranscriptionModel()||isGeminiLiveTranscribeModel()||
 isXaiLiveTranscribeModel(),S=get("sts-lang-wrap"),C=get("sts-reasoning-wrap");if(C&&C.classList.toggle(
-"hidden",!OPENAI_REASONING_STS_MODELS.has(e)),k){x&&(x.textContent="Realtime Speech-to-Text"),y&&y.classList.
+"hidden",!OPENAI_REASONING_STS_MODELS.has(e)),k){w&&(w.textContent="Realtime Speech-to-Text"),y&&y.classList.
 add("hidden"),v&&v.classList.add("hidden"),i&&i.classList.add("hidden"),l&&l.classList.add("hidden"),
-f&&f.classList.add("hidden"),S&&S.classList.add("hidden");const M=get("sts-transcribe-wrap"),$=get("\
-sts-custom-vocab-wrap");M&&M.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),$&&$.classList.
+f&&f.classList.add("hidden"),S&&S.classList.add("hidden");const A=get("sts-transcribe-wrap"),$=get("\
+sts-custom-vocab-wrap");A&&A.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),$&&$.classList.
 toggle("hidden",!isGeminiLiveTranscribeModel()&&!isXaiLiveTranscribeModel()),b&&(b.textContent=isGeminiLiveTranscribeModel()?
 "\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u4F4E\u9045\u5EF6\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM / \u6700\u592710\u5206\uFF09":
 isXaiLiveTranscribeModel()?"xAI \u30B9\u30C8\u30EA\u30FC\u30DF\u30F3\u30B0\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM\uFF09":
@@ -2847,7 +2856,7 @@ e==="grok-voice-transcribe-2.0-file"?"xAI \u97F3\u58F0\u30D5\u30A1\u30A4\u30EB\u
 e==="gpt-live-transcribe"?"\u4F4E\u9045\u5EF6\u30E9\u30A4\u30D6\u6587\u5B57\u8D77\u3053\u3057\uFF0824kHz PCM\uFF09":
 e==="gpt-realtime-whisper"?"\u30B9\u30C8\u30EA\u30FC\u30DF\u30F3\u30B0\u97F3\u58F0\u8A8D\u8B58\u30E2\u30C7\u30EB\u306B\u3088\u308B\u6587\u5B57\u8D77\u3053\u3057\uFF0824kHz PCM\uFF09":
 "\u9AD8\u7CBE\u5EA6\u306A\u30B3\u30DF\u30C3\u30C8\u5358\u4F4D\u306E\u6587\u5B57\u8D77\u3053\u3057\uFF0824kHz PCM\uFF09")}else if(t===
-"openai")x&&(x.textContent="Speech-to-Speech Live"),y&&y.classList.remove("hidden"),v&&v.classList.remove(
+"openai")w&&(w.textContent="Speech-to-Speech Live"),y&&y.classList.remove("hidden"),v&&v.classList.remove(
 "hidden"),setSelectOptions(n,OPENAI_STS_VOICES,n.value||"alloy"),i&&i.classList.remove("hidden"),a&&
 (a.min=.25,a.max=1.5,a.step=.05,a.value||(a.value=1),Number(a.value)<.25&&(a.value=.25),Number(a.value)>
 1.5&&(a.value=1.5)),l&&l.classList.add("hidden"),f&&f.classList.add("hidden"),S&&S.classList.add("hi\
@@ -2856,26 +2865,26 @@ e)&&b&&(b.textContent="OpenAI Realtime\u306F24kHz PCM\u56FA\u5B9A\uFF08Reasoning
 OPENAI_LIVE_STS_MODELS.has(e)&&(setSelectOptions(n,OPENAI_LIVE_VOICES,OPENAI_LIVE_VOICES.includes(n.
 value)?n.value:"marin"),i&&i.classList.add("hidden"),b&&(b.textContent="GPT-Live\u306F\u5168\u4E8C\u91CD\u306E\u97F3\u58F0\u4F1A\u8A71\uFF0824kHz PCM\u30FB\
 \u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC\u30FB\u63A8\u8AD6\u306Fgpt-5.6-luna\u306B\u59D4\u4EFB\uFF09")),
-e==="gpt-realtime-translate"&&(x&&(x.textContent="Realtime Translation"),y&&y.classList.add("hidden"),
+e==="gpt-realtime-translate"&&(w&&(w.textContent="Realtime Translation"),y&&y.classList.add("hidden"),
 i&&i.classList.add("hidden"),S&&S.classList.remove("hidden"),b&&(b.textContent="\u8A71\u3057\u305F\u5185\u5BB9\u3092\u9078\u629E\u3057\u305F\u8A00\u8A9E\u3078\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u3067\
 \u97F3\u58F0\u7FFB\u8A33\uFF0824kHz PCM\u30FB\u97F3\u58F0\u9078\u629E\u4E0D\u53EF\uFF09"));else if(t===
-"xai")x&&(x.textContent="Speech-to-Speech Live"),y&&y.classList.remove("hidden"),v&&v.classList.remove(
+"xai")w&&(w.textContent="Speech-to-Speech Live"),y&&y.classList.remove("hidden"),v&&v.classList.remove(
 "hidden"),setSelectOptions(n,GROK_STS_VOICES,n.value||"Ara"),i&&i.classList.add("hidden"),l&&l.classList.
 remove("hidden"),f&&f.classList.add("hidden"),S&&S.classList.add("hidden"),setSelectOptions(c,GROK_PCM_RATES,
 Number(c.value||24e3)),setSelectOptions(m,GROK_PCM_RATES,Number(m.value||24e3)),b&&(b.textContent="x\
-AI\u306FPCM\u30B5\u30F3\u30D7\u30EB\u30EC\u30FC\u30C8\u5909\u66F4\u53EF");else if(t==="gemini"){x&&(x.
+AI\u306FPCM\u30B5\u30F3\u30D7\u30EB\u30EC\u30FC\u30C8\u5909\u66F4\u53EF");else if(t==="gemini"){w&&(w.
 textContent="Speech-to-Speech Live"),y&&y.classList.remove("hidden"),v&&v.classList.remove("hidden"),
 setSelectOptions(n,GEMINI_STS_VOICES,n.value||"Kore"),i&&i.classList.add("hidden"),l&&l.classList.add(
 "hidden"),f&&f.classList.remove("hidden"),S&&S.classList.add("hidden"),b&&(b.textContent="Gemini Liv\
-e\u306F\u97F3\u58F0\u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC");const M=get("sts-thinking-level");if(Array.
-from(M&&M.options||[]).forEach($=>{$.disabled=!1}),e==="gemini-2.5-flash-native-audio-preview-12-202\
+e\u306F\u97F3\u58F0\u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC");const A=get("sts-thinking-level");if(Array.
+from(A&&A.options||[]).forEach($=>{$.disabled=!1}),e==="gemini-2.5-flash-native-audio-preview-12-202\
 5")f&&f.classList.add("hidden");else if(e==="gemini-3.8-live")f&&f.classList.add("hidden"),b&&(b.textContent=
 "Gemini 3.8 Flash Live\u306F\u56FA\u5B9A\u30EC\u30A4\u30C6\u30F3\u30B7\u306ELive API\u30E2\u30C7\u30EB\uFF08Thinking level\u975E\u5BFE\u5FDC\uFF09");else if(e===
 "gemini-3.8-live-extended-thinking"){b&&(b.textContent="Gemini 3.8 Live Extended Thinking\u306Flow / medi\
 um / high\u306E\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u63A8\u8AD6\u306B\u5BFE\u5FDC");const $=get(
-"sts-thinking-level");Array.from($&&$.options||[]).forEach(q=>{q.disabled=q.value==="minimal"}),$&&![
+"sts-thinking-level");Array.from($&&$.options||[]).forEach(F=>{F.disabled=F.value==="minimal"}),$&&![
 "low","medium","high"].includes($.value)&&($.value="medium")}e==="gemini-3.5-live-translate-preview"&&
-(x&&(x.textContent="Realtime Translation"),f&&f.classList.add("hidden"),y&&y.classList.add("hidden"),
+(w&&(w.textContent="Realtime Translation"),f&&f.classList.add("hidden"),y&&y.classList.add("hidden"),
 S&&S.classList.remove("hidden"),b&&(b.textContent="70\u4EE5\u4E0A\u306E\u8A00\u8A9E\u306B\u5BFE\u5FDC\u3059\u308B\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u97F3\u58F0\u7FFB\u8A33\uFF08Think\u975E\u5BFE\u5FDC\u30FB\u97F3\u58F0\u9078\u629E\u4E0D\u53EF\uFF09"))}
 i&&r&&a&&!i.classList.contains("hidden")&&(r.textContent=`${Number(a.value||1).toFixed(2)}x`)}o(updateStsOptions,
 "updateStsOptions");function stsOpt(e){const t=get(e);return e==="sts-auto-play"||e==="sts-auto-rest\
@@ -2890,13 +2899,13 @@ a)}))}o(setSelectOptions,"setSelectOptions");function updateTtsUi(){const e=get(
 "",t=getTtsProvider(e),n=get("audio-gen-options");if(!n)return;if(!t){n.classList.add("hidden");return}
 n.classList.remove("hidden");const i=get("tts-voice"),a=get("tts-voice-custom-wrap"),r=get("tts-voic\
 e-custom"),l=get("tts-language-wrap"),c=get("tts-language"),m=get("tts-speed-wrap"),f=get("tts-speed"),
-b=get("tts-speed-label"),y=get("tts-speed-note"),v=get("tts-style-wrap"),x=t==="gemini"&&GEMINI_INTERACTIONS_TTS_MODELS.
-has(e);v&&v.classList.toggle("hidden",!x),r&&(r.placeholder=x?"voice_... / voicekey_...":"e.g. en-US\
+b=get("tts-speed-label"),y=get("tts-speed-note"),v=get("tts-style-wrap"),w=t==="gemini"&&GEMINI_INTERACTIONS_TTS_MODELS.
+has(e);v&&v.classList.toggle("hidden",!w),r&&(r.placeholder=w?"voice_... / voicekey_...":"e.g. en-US\
 -Wavenet-D"),t==="openai"?(setSelectOptions(i,OPENAI_TTS_VOICES,i.value||"alloy"),a.classList.add("h\
 idden"),l.classList.add("hidden"),f&&(f.min=.25,f.max=4,f.step=.05,f.value||(f.value=1),Number(f.value)<
 .25&&(f.value=.25),Number(f.value)>4&&(f.value=4),f.disabled=!1),y&&(y.textContent="")):t==="gemini"?
-(setSelectOptions(i,GEMINI_TTS_VOICES,i.value||"Kore"),a.classList.toggle("hidden",!x),!x&&r&&(r.value=
-""),l.classList.add("hidden"),f&&(f.disabled=!0),y&&(y.textContent=x?"(\u672C\u6587\u306F\u305D\u306E\u307E\u307E\u8AAD\u307F\u4E0A\u3052\u3002\u8A71\u3057\u65B9\u306FStyle\u3067\u6307\u5B9A\u30FB\u901F\u5EA6\u306FS\
+(setSelectOptions(i,GEMINI_TTS_VOICES,i.value||"Kore"),a.classList.toggle("hidden",!w),!w&&r&&(r.value=
+""),l.classList.add("hidden"),f&&(f.disabled=!0),y&&(y.textContent=w?"(\u672C\u6587\u306F\u305D\u306E\u307E\u307E\u8AAD\u307F\u4E0A\u3052\u3002\u8A71\u3057\u65B9\u306FStyle\u3067\u6307\u5B9A\u30FB\u901F\u5EA6\u306FS\
 tyle\u3067\u8ABF\u6574)":"(Gemini TTS\u306F\u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC)")):t==="googl\
 e"?(setSelectOptions(i,[{value:"auto",label:"Auto (Studio/Neural2)"},{value:"custom",label:"Custom V\
 oice Name"}],i.value||"auto"),i.value==="custom"?a.classList.remove("hidden"):(a.classList.add("hidd\
@@ -3123,13 +3132,13 @@ return;const c=(e.value||"").trim(),m=(t.value||"").trim(),f=n.value||"none",b=i
 "",y=(a&&a.value||"").trim();if(!c||!m){r&&(r.textContent="\u8868\u793A\u540D\u3068URL\u306F\u5FC5\u9808\u3067\u3059",
 r.style.color="#f87171");return}l&&(l.disabled=!0),r&&(r.textContent="\u63A5\u7D9A\u30C6\u30B9\u30C8\u4E2D...",
 r.style.color="#9ca3af");const v={name:c,url:m,auth_type:f,description:b};f==="bearer"&&y&&(v.bearer_token=
-y);try{const x=await apiFetch(MCP_URLS.servers(),{method:"POST",headers:{"Content-Type":"application\
-/json"},body:JSON.stringify(v)}),k=await x.json().catch(()=>({}));if(!x.ok){r&&(r.textContent=k.error||
+y);try{const w=await apiFetch(MCP_URLS.servers(),{method:"POST",headers:{"Content-Type":"application\
+/json"},body:JSON.stringify(v)}),k=await w.json().catch(()=>({}));if(!w.ok){r&&(r.textContent=k.error||
 "\u8FFD\u52A0\u306B\u5931\u6557\u3057\u307E\u3057\u305F",r.style.color="#f87171");return}r&&(r.textContent=
 k.probe&&k.probe.message||"\u8FFD\u52A0\u3057\u307E\u3057\u305F",r.style.color=k.probe&&k.probe.ok?"\
 #34d399":"#fbbf24"),e.value="",t.value="",i&&(i.value=""),a&&(a.value=""),mcpLoaded=!1,loadMcpServers(
-!0)}catch(x){r&&(r.textContent="\u8FFD\u52A0\u306B\u5931\u6557\u3057\u307E\u3057\u305F: "+(x&&x.message?
-x.message:x),r.style.color="#f87171")}finally{l&&(l.disabled=!1)}}o(mcpAddCustomServer,"mcpAddCustom\
+!0)}catch(w){r&&(r.textContent="\u8FFD\u52A0\u306B\u5931\u6557\u3057\u307E\u3057\u305F: "+(w&&w.message?
+w.message:w),r.style.color="#f87171")}finally{l&&(l.disabled=!1)}}o(mcpAddCustomServer,"mcpAddCustom\
 Server");function bindMcpSettingsUi(){const e=get("mcp-server-list");if(!e)return;const t=get("mcp-a\
 dd-server-btn");t&&t.addEventListener("click",mcpAddCustomServer);const n=get("mcp-custom-auth"),i=get(
 "mcp-custom-bearer-wrap");if(n&&i){const r=o(()=>{i.classList.toggle("hidden",n.value!=="bearer")},"\
@@ -3156,12 +3165,12 @@ hite">
     <div class="flex justify-end mt-1 gap-1">
         <button type="button" data-progress-no-spinner="true" class="mcp-mini-btn" data-act="save-oa\
 uth" data-id="${m}" data-pk="${mcpEsc(y&&(y.oauth_provider_key||y.slug)||"")}">\u4FDD\u5B58</button>
-    </div>`;const x=l.closest("div");x.parentNode.insertBefore(v,x.nextSibling),l.remove()}return}if(c===
+    </div>`;const w=l.closest("div");w.parentNode.insertBefore(v,w.nextSibling),l.remove()}return}if(c===
 "save-oauth"){r.preventDefault();const f=l.getAttribute("data-pk")||"",b=l.closest("[data-mcp-server\
 ]")||document,y=b.querySelectorAll('[data-oauth-role="cid"], .mcp-oauth-edit-cid'),v=b.querySelectorAll(
-'[data-oauth-role="secret"], .mcp-oauth-edit-sec'),x=y.length?y[y.length-1].value:"",k=v.length?v[v.
-length-1].value:"";if(!x&&!k){mcpStatusMsg("mcp-status-msg","Client ID \u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044",
-!0);return}mcpSaveOauthClient(f,x||"********",k||"********",m);return}if(c==="save-bearer"){r.preventDefault();
+'[data-oauth-role="secret"], .mcp-oauth-edit-sec'),w=y.length?y[y.length-1].value:"",k=v.length?v[v.
+length-1].value:"";if(!w&&!k){mcpStatusMsg("mcp-status-msg","Client ID \u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044",
+!0);return}mcpSaveOauthClient(f,w||"********",k||"********",m);return}if(c==="save-bearer"){r.preventDefault();
 const f=document.querySelector(`[data-bearer-id="${m}"]`),b=f?f.value:"";if(!b||b.trim()===""){mcpStatusMsg(
 "mcp-status-msg","Bearer\u30C8\u30FC\u30AF\u30F3\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044",
 !0);return}mcpStatusMsg("mcp-status-msg","\u4FDD\u5B58\u3057\u3066\u3044\u307E\u3059...",!1);try{const y=await apiFetch(
@@ -3227,10 +3236,10 @@ t.includes("v4-flash")&&m("none","max")),c&&(t.includes("gpt-5")||t.includes("o1
 t.includes("grok-4.3")||t.includes("grok-4.5")||t.includes("grok-4.6")||t.includes("grok-4.20-0309-r\
 easoning")||t.includes("grok-build")||t.includes("multi-agent")||t.includes("gpt")&&!a)){m("reasonin\
 g","\u63A8\u8AD6","reasoning effort","low","high");const b=t==="gpt-5.6"||t.startsWith("gpt-5.6-"),y=t.
-startsWith("gpt-6"),v=t.includes("grok-4.6"),x=t.includes("grok-4.3")||t.includes("grok-4.5")||v||t.
+startsWith("gpt-6"),v=t.includes("grok-4.6"),w=t.includes("grok-4.3")||t.includes("grok-4.5")||v||t.
 includes("grok-4.20-0309-reasoning")||t.includes("grok-build")||t.includes("multi-agent")||t.includes(
 "gpt-5")||y||t.includes("o1")||t.includes("o3"),k=t.includes("grok-4.3")||t.includes("grok-build")||
-t.includes("gpt-5")||t==="gpt-6-sol"||t==="gpt-6-luna"||i;x&&m("medium"),k&&m("none"),(b||y||i)&&m("\
+t.includes("gpt-5")||t==="gpt-6-sol"||t==="gpt-6-luna"||i;w&&m("medium"),k&&m("none"),(b||y||i)&&m("\
 max"),(v||t.includes("multi-agent")||b||y)&&m("xhigh")}return t.includes("claude")&&m("thinking","\u601D\u8003",
 "thinking budget","budget"),e.agenticView&&m("agentic view"),[...new Set(n)]}o(getModelCapabilitySearchTerms,
 "getModelCapabilitySearchTerms");const modelListGroups=[];let modelListBanner=null,modelListEmpty=null,
@@ -3298,8 +3307,8 @@ const i=e.getBoundingClientRect(),a=n.button.getBoundingClientRect(),r=12;let l=
 i.top+r?l+=a.top-i.top-r:a.bottom>i.bottom-r&&(l+=a.bottom-i.bottom+r),l=Math.max(0,Math.min(l,e.scrollHeight-
 e.clientHeight)),Math.abs(l-e.scrollTop)<1)return;if(modelListScrollFrame&&cancelAnimationFrame(modelListScrollFrame),
 window.matchMedia("(prefers-reduced-motion: reduce)").matches){e.scrollTop=l;return}const c=e.scrollTop,
-m=l-c,f=performance.now(),b=160,y=o(v=>{const x=Math.min(1,(v-f)/b),k=1-Math.pow(1-x,3);e.scrollTop=
-c+m*k,x<1?modelListScrollFrame=requestAnimationFrame(y):modelListScrollFrame=0},"step");modelListScrollFrame=
+m=l-c,f=performance.now(),b=160,y=o(v=>{const w=Math.min(1,(v-f)/b),k=1-Math.pow(1-w,3);e.scrollTop=
+c+m*k,w<1?modelListScrollFrame=requestAnimationFrame(y):modelListScrollFrame=0},"step");modelListScrollFrame=
 requestAnimationFrame(y)}o(scrollSelectedModelIntoView,"scrollSelectedModelIntoView");function openModelModal(){
 location.pathname!=="/model"&&history.pushState({modal:"model"},"","/model");const e=get("model-sear\
 ch");e&&(e.value=""),updateModelTagUi(),syncModelSearchClear(),renderModelList("",{animate:!0}),showModal(

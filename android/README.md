@@ -70,7 +70,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsForm.kt` | 設定の編集中の値と保存時の送信内容 | 設定項目を追加するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsFields.kt` | 設定カード内の入力部品（チェックボックス、ラジオ、select、入力欄、小ボタン、スイッチ行） | 設定の部品の見た目を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ColorPickerDialog.kt` | テーマ色の選択（Webの `input[type=color]` 相当） | 色選択を変えるとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/CompressionDialog.kt` | 「画像・圧縮詳細設定」モーダル（圧縮と画像・OCRの生成設定）。圧縮の部分（`CompressionModal`）は「AIで翻訳」の画像の圧縮設定でも使う | 圧縮設定を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/CompressionDialog.kt` | 「画像・圧縮詳細設定」モーダル（圧縮と画像・OCRの生成設定）。圧縮の部分（`CompressionModal`）は「AIで翻訳」と画像分割の専用圧縮設定でも使う | 圧縮設定を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SettingsAccount.kt` | アカウント・セキュリティ・2要素認証タブのカードとデータタブの「アカウントデータ」カード | アカウント操作やデータ移行の画面を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ReauthDialog.kt` | 重要な操作の前の本人確認（ANDROID_ONLY.md）と、設定の操作を実行する `AccountOps` | 本人確認の流れを変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImportDialogs.kt` | インポート時の設定変更の確認と、容量超過時のファイル選択 | インポートの確認画面を変えるとき |
@@ -84,13 +84,14 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/CanvasBlocks.kt` | Canvasモードのコードブロック抽出（Web `parseCanvasMarkdown`）、選択、見出し・状態の文言 | Canvasに出すブロックや文言を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMarkerEditor.kt` | Webの「画像編集」（マーカー、モザイク、トリミング、二本指の拡大、保存して反映） | 画像編集の画面や保存を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageMarker.kt` | 画像編集の計算（線の補間、モザイク範囲、トリミングの掴み位置、拡大時の位置制限、保存名） | 画像編集の操作の決まりを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/ImageSplitDialog.kt` | Android版だけの「画像を分割」ダイアログ（プレビュー、分割数、重なり、元画像の扱い、添付／共有／保存） | 画像分割の画面を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ImageSplitDialog.kt` | Webと共通の「画像を分割」ダイアログ（プレビュー、分割数、重なり、元画像の扱い、添付／共有／保存） | 画像分割の画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SharedTextPreviewDialog.kt`、`data/SharedTextMath.kt` | Android版だけの「メッセージとしてプレビュー」ダイアログ（共有されたテキストをAIの回答として `MessageBubble` で全画面に表示）と、数式の区切りが落ちたテキストへの区切りの補完 | 共有テキストのプレビューを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplit.kt` | 画像分割の計算（行列の決め方、重なり付きの範囲、EXIFの向きの逆変換、ファイル名、座標の帯の文言） | 画像分割の決まりを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplitRenderer.kt` | 画像分割の描画と保存（部分デコード、番号・分割線・重なりの描き込み、添付用URI、Pictures／選択フォルダーへの保存） | 分割画像の見た目や保存先を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplitCompression.kt` | 画像分割専用の圧縮設定の保存と、添付・保存・共有で共通の圧縮処理 | 分割画像の圧縮設定・適用を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplitRenderer.kt` | 画像分割の原寸描画と保存（部分デコード、番号・分割線・重なりの描き込み、添付用URI、Pictures／選択フォルダーへの保存） | 分割画像の見た目や保存先を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MinimalOptions.kt` | ミニマル表示の上部モデルバー、＋の「オプション」ポップアップ、Thinkingのスライドバー | ミニマル表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/MessageExtras.kt` | 回答からのPython実行結果とMCP実行メモの取り出し、Batch状態カードの文言 | 回答本文の前処理やBatchカードを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/UploadSheet.kt` | Webの「ファイルアップロード」画面（ボタン、Vision Model、進行状況、ファイルごとの画像編集・送信名・削除）とAndroid版だけの「画像を分割」ボタン | 添付の追加画面を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/UploadSheet.kt` | Webの「ファイルアップロード」画面（ボタン、Vision Model、進行状況、ファイルごとの画像編集・送信名・削除）と「画像を分割」ボタン | 添付の追加画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | Webの音声ドック（`#sts-panel`）と音声スタジオ、提供元別の音声設定、録音して `/sts` へ送る文字起こし系モデルの振り分け | 音声セッションUIを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LyriaStudio.kt` | Webの「Lyria RealTime Studio」（重み付きプロンプト、音楽設定、再生操作、チャットへ保存） | Lyriaスタジオを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | Webの「リッチ貼り付け」画面の枠（クリップボードHTMLのテキスト化、モデルへの指示、既定値の保存） | リッチ貼り付けを変更するとき |
@@ -103,6 +104,9 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/BranchTree.kt` | ブランチツリーの配置計算とパス累計トークン | ブランチ管理の表示計算を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ChatInstructionsDialog.kt` | Webの `#thread-modal`（Chat Instructions：チャット専用の指示、全体プロンプトの参照、ユーザーシステムプロンプト、自動注入の簡易版） | SysPromptの⚙から開く画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundDialog.kt` | Webモーダル（オーバーレイ、ぼかし、パネル、見出し、下部）の共通枠 | 設定・Gems・ライブラリ・Batchの画面枠を調整するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/InAppNoticeState.kt` | アプリ内通知の新着順・個別期限・消去状態・画面回転時の復元と表示先ウィンドウの管理 | 通知の保持・表示期限・モーダル間の引き継ぎを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/InAppNoticeHost.kt` | アプリ内通知の共通Provider、通常画面・モーダルの表示ホスト、通知を前面に出す確認ダイアログ | 通知の重なり・安全領域・表示するウィンドウを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/InAppNoticeBanner.kt` | 画面上部に積む通知の描画、上下スワイプ、登場・退出・位置変更の動きと読み上げ | 通知の見た目・閉じる操作・アニメーションを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundMotion.kt` | 共通の時間・イージング、アニメーション削除設定への追従、モーダルの開閉・予測型「戻る」、一覧・登場・押下の動きの部品 | 画面の動き・遷移を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AppChangelogDialog.kt` | Android版更新履歴のネイティブMarkdown表示、読み込み・再試行・戻る操作 | 更新履歴画面を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/GenerationOptionsPanel.kt` | Webの生成パネル（`composer_gen_image.html`／`composer_gen_media.html`）の描画、Lyria RealTimeの案内バー、入力制限の注記 | 詳細設定の表示を編集するとき |
@@ -125,7 +129,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RemoteImage.kt` | 同一originの添付画像をBearer付きで取得し、キャッシュしてプレビュー | 添付・画像プレビューを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/FileViewer.kt` | Webの画像ビューアー（件数・前後移動・Download／Copy URL／Reuse／Close）とファイル表示パネル（テキスト・PDF・音声・動画） | ファイルや画像の表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ThreadPdf.kt` | スレッドのネイティブA4 PDF出力（WebView不使用） | PDF出力を編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/ImageCompression.kt` | Web相当の画像圧縮設定（保存・読み込み）と、アップロード前の縮小・再エンコード。プロンプトバーと「AIで翻訳」が、それぞれの保存先で同じ処理を使う | 画像圧縮を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/ImageCompression.kt` | Web相当の画像圧縮設定（保存・読み込み）と、アップロード前の縮小・再エンコード。プロンプトバー・「AIで翻訳」・画像分割が、それぞれの保存先で同じ処理を使う | 画像圧縮を編集するとき |
 | `app/src/main/res/` | アイコン、HTTPS設定、バックアップ除外、添付共有範囲 | Androidリソース・保護設定 |
 | `ci/changelogs/` | Android版のバージョンごとの公開更新履歴Markdown | アプリ版の更新履歴を追加・修正するとき |
 | `app/src/test/` | HTTP認証境界・ストリーム・データ解析・Markdown・数式のテスト | 通信・表示実装を変更するとき |

@@ -1,0 +1,28 @@
+                <!-- Client-side Compression Section -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-bold text-blue-300 border-l-2 border-blue-500 pl-2">添付画像のクライアント側圧縮</h3>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div>
+                            <label class="text-xs text-gray-400 block mb-1">出力形式 (変換)</label>
+                            <select id="{{ compression_prefix }}-output-type" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none">
+                                <option value="original">元形式を維持 (自動)</option>
+                                <option value="image/jpeg">JPEG に変換</option>
+                                <option value="image/png">PNG に変換</option>
+                                <option value="image/webp">WebP に変換 (推奨)</option>
+                            </select>
+                        </div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="checkbox" id="{{ compression_prefix }}-format-only" class="accent-blue-500 w-4 h-4">
+                            <label for="{{ compression_prefix }}-format-only" class="text-xs text-gray-300 cursor-pointer select-none">形式変換のみ (品質100・リサイズ無効)</label>
+                        </div>
+                        <div id="{{ compression_prefix }}-size-wrap" class="transition-opacity">
+                            <label class="text-xs text-gray-400 block mb-1">最大ファイルサイズ (MB)</label>
+                            <input type="number" id="{{ compression_prefix }}-max-size" step="0.1" min="0.1" max="10" value="1.0" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none disabled:opacity-50">
+                        </div>
+                        <div id="{{ compression_prefix }}-dim-wrap" class="transition-opacity">
+                            <label class="text-xs text-gray-400 block mb-1">最大幅/高さ (px)</label>
+                            <input type="number" id="{{ compression_prefix }}-max-dim" step="128" min="256" max="8192" value="1920" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none disabled:opacity-50">
+                        </div>
+                    </div>
+                </div>
+

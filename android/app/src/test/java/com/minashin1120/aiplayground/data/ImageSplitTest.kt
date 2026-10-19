@@ -71,13 +71,6 @@ class ImageSplitTest {
             splitTileCaption(tile, grid, 4000, 3000))
     }
 
-    @Test fun photosStayJpegAndOthersBecomePng() {
-        assertFalse(splitOutputIsPng("image/jpeg", "a.jpg"))
-        assertFalse(splitOutputIsPng("", "a.HEIC"))
-        assertTrue(splitOutputIsPng("image/png", "a.png"))
-        assertTrue(splitOutputIsPng("image/webp", "a.webp"))
-    }
-
     @Test fun orientedRectanglesMapBackToStoredPixels() {
         // Stored 400×300; rotated 90° clockwise it is displayed as 300×400.
         assertArrayEquals(intArrayOf(0, 200, 100, 300), orientedRectToRaw(0, 0, 100, 100, 400, 300, 90, false))
@@ -89,9 +82,4 @@ class ImageSplitTest {
         assertArrayEquals(intArrayOf(5, 6, 7, 8), orientedRectToRaw(5, 6, 7, 8, 400, 300, 0, false))
     }
 
-    @Test fun sampleSizeKeepsDecodesUnderTheLimit() {
-        assertEquals(1, splitSampleSize(4000, 3000, 16_000_000L))
-        assertEquals(2, splitSampleSize(8000, 6000, 16_000_000L))
-        assertEquals(4, splitSampleSize(16000, 12000, 16_000_000L))
-    }
 }

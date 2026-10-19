@@ -1290,7 +1290,7 @@
             if (get('camera-fallback-btn')) {
                 get('camera-fallback-btn').onclick = () => {
                     closeCameraCaptureModal();
-                    const photoInput = get('photo-input');
+                    const photoInput = get(get('camera-split-enabled').checked ? 'image-split-input' : 'photo-input');
                     if (photoInput) photoInput.click();
                 };
             }
@@ -1597,6 +1597,8 @@
                 switch (id) {
                     case 'settings-modal': closeSettingsModal(skipHistory); break;
                     case 'upload-modal': closeUploadModal(skipHistory); break;
+                    case 'image-split-modal': closeImageSplit(); break;
+                    case 'image-split-compression-modal': hideModal(id); break;
                     case 'camera-capture-modal': closeCameraCaptureModal(skipHistory ? {skipHistory: true} : {}); break;
                     case 'history-modal': if (window.closeHistoryModal) window.closeHistoryModal(skipHistory); break;
                     case 'lib-modal': if (window.closeLibModal) window.closeLibModal(skipHistory); break;

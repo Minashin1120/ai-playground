@@ -77,6 +77,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -188,6 +189,7 @@ fun PlaygroundScreen(
             LocalReduceMotion provides reduceMotion,
             LocalAttachmentDownloader provides model::downloadAttachment,
         ) {
+            InAppNoticeProvider {
             BoxWithConstraints(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(listOf(colors.background, colors.surfaceContainerLow))
@@ -372,8 +374,8 @@ fun PlaygroundScreen(
                 if (uri != null) model.uploadImageMask(uri)
             }
             val launchCamera: () -> Unit = { attachMenu = false; cameraOpen = true }
-            val noticeToast = remember(context) { arrayOfNulls<android.widget.Toast>(1) }
-            DisposableEffect(context) { onDispose { noticeToast[0]?.cancel() } }
+            val notices = checkNotNull(LocalInAppNotices.current)
+            val noticeAccessibility = LocalAccessibilityManager.current
             val loader: FileBytesLoader = { reference, thumbnail, limit ->
                 model.loadAttachmentBytes(reference, thumbnail, limit)
             }
@@ -453,8 +455,10 @@ fun PlaygroundScreen(
             LaunchedEffect(settingsOpen) { if (!settingsOpen) settingsCard = null }
             LaunchedEffect(state.notice) {
                 state.notice?.let {
-                    noticeToast[0]?.cancel()
-                    noticeToast[0] = android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).also { toast -> toast.show() }
+                    val duration = noticeAccessibility?.calculateRecommendedTimeoutMillis(
+                        NOTICE_DURATION_MILLIS, containsText = true, containsControls = true,
+                    ) ?: NOTICE_DURATION_MILLIS
+                    notices.add(it, duration)
                     model.dismissNotice()
                 }
             }
@@ -676,6 +680,7 @@ fun PlaygroundScreen(
             if (showThreads && state.canvasMode && LocalConfiguration.current.screenWidthDp.dp < CANVAS_SIDE_PANEL_MIN_WIDTH) {
                 androidx.compose.ui.window.Dialog(onDismissRequest = model::toggleCanvas,
                     properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+                    NoticeWindowHost()
                     CanvasPanel(canvasSourceText(state), fullScreen = true, notify = model::notify, onClose = model::toggleCanvas,
                         modifier = Modifier.fillMaxSize().safeDrawingPadding())
                 }
@@ -877,6 +882,7 @@ fun PlaygroundScreen(
                 AppUpdateProgressBar(update, onShowUpdate, Modifier.align(Alignment.TopCenter))
             }
             StartupSplash(startupSplashEnabled, ready = !state.starting, onFinished = { startupSplashFinished = true })
+            }
             }
         }
     }
@@ -1229,7 +1235,7 @@ private fun SetupScreen(state: ChatState, model: ChatViewModel, onWeb: (String) 
     }
     val colors = MaterialTheme.colorScheme
     if (state.setupImportSettingsChanges.isNotEmpty()) {
-        AlertDialog(
+        NoticeAlertDialog(
             onDismissRequest = { if (!state.setupImportBusy) model.cancelSetupImportConfirmation() },
             // Cancelling here drops the uploaded archive, so only the buttons (or back) may do it.
             properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
@@ -1690,7 +1696,7 @@ private fun ConversationContent(
         }
     }
     branchingMessage?.let { message ->
-        AlertDialog(onDismissRequest = { branchingMessage = null },
+        NoticeAlertDialog(onDismissRequest = { branchingMessage = null },
             title = { Text("新しいチャットに分岐") },
             text = { Text(com.minashin1120.aiplayground.data.BRANCH_SAVE_WARNING) },
             confirmButton = { TextButton(onClick = { branchingMessage = null; model.branchChat(message, confirmed = true) }) { Text("保存して分岐") } },

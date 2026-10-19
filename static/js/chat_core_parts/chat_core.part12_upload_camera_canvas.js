@@ -938,33 +938,9 @@
                             showToast("音声抽出に失敗しました。動画のまま送信します。", "error", true);
                         }
                     }
-                    if (get('enable-compression').checked && f.type.startsWith('image/')) {
+                    if (!opts.skipCompression && f.type.startsWith('image/')) {
                         try {
-                            const outputType = getCompressionOutputType();
-                            const formatOnly = getCompressionFormatOnly();
-                            if (formatOnly) {
-                                t = await convertImageFormatOnly(f, outputType);
-                            } else {
-                                const o = {
-                                    maxSizeMB: getCompressionMaxSizeMB(),
-                                    maxWidthOrHeight: getCompressionMaxDim(),
-                                    useWebWorker: true
-                                };
-                                if (outputType && outputType !== 'original') o.fileType = outputType;
-                                await ensureImageCompression();
-                                const c = await window.imageCompression(f, o);
-                                const compressedFile = new File(
-                                    [c],
-                                    imageFilenameForMime(f.name, c.type || (outputType !== 'original' ? outputType : f.type)),
-                                    { type: c.type || f.type, lastModified: f.lastModified || Date.now() }
-                                );
-                                if (compressedFile.size > f.size) {
-                                    showToast(`圧縮後にサイズが増加しました: ${formatBytes(f.size)} -> ${formatBytes(compressedFile.size)}（元ファイルを使用）`, "warning", true);
-                                    t = f;
-                                } else {
-                                    t = compressedFile;
-                                }
-                            }
+                            t = await applyImageCompression(f, readComposerCompression());
                             if (t !== f) updateUploadRowFile(rowObj, t);
                         } catch(e){}
                     }

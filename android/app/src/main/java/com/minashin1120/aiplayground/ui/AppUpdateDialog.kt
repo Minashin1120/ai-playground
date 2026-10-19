@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
@@ -35,7 +34,7 @@ fun AppUpdateDialog(
     val downloading = state.phase == AppUpdatePhase.Downloading
     val installing = state.phase == AppUpdatePhase.Installing
     val progress = downloadFraction(state)
-    AlertDialog(
+    NoticeAlertDialog(
         // Back or a tap beside the dialog only hides a running download; the top bar brings it back.
         onDismissRequest = { if (downloading) onHide() else onDismiss() },
         // A stray tap beside the dialog must not hide a running install.

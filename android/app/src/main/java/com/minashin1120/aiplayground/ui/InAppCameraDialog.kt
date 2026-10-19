@@ -92,6 +92,7 @@ internal fun InAppCameraDialog(
         onDismissRequest = close,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
+        NoticeWindowHost()
         if (permissionGranted) {
             val controller = remember(context) { LifecycleCameraController(context).apply {
                 setEnabledUseCases(CameraController.IMAGE_CAPTURE)

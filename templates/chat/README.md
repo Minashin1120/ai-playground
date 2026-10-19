@@ -1,18 +1,5 @@
 # chat — チャット画面テンプレートの部品
 
-チャット本体の HTML は `templates/chat.html` を入口にし、画面の塊ごとにこのディレクトリへ分けています。Flask の `{% include 'chat/....html' %}` で結合します。描画時の変数（`csrf_token`、`system_version`、`current_user` など）は親と同じです。
-
-**DOM の `id` とクラス名は JS（`static/js/chat_core_parts/`）が直接参照します。** 部品へ移すときも id を変えないでください。
-
-## 探し方
-
-1. 下の表で対象ファイルを決める。
-2. その HTML だけを開く。ボタン色なら CSS（`static/css/chat.custom.v*.css`）が先で、HTML は id の確認程度にする。
-3. `chat.html` 全体や、結合済み JS（`chat_core.v*.js` / `.min.js`）を通読しない。
-4. 要素 id が分からないときは、この README のあと `grep` で `templates/chat/` を探す。
-
-## ファイル一覧
-
 | ファイル | 主な内容 | いつ開くか |
 |---|---|---|
 | `../chat.html` | doctype、head（CSS/JS 読み込み、テーマ、Turnstile）、body の include 一覧 | 新規アセットの読み込み、viewport、最初の描画 |
@@ -29,6 +16,8 @@
 | `composer_input.html` | 入力欄、送信、スラッシュ/`@` 候補、アップロード状態 | 送信ボタン、入力欄、スラッシュコマンド |
 | `composer_popups.html` | ミニマルモードのポップアップ、思考量スライダー | ミニマルモード、思考量 |
 | `overlay_upload.html` | ドロップオーバーレイ、アップロードモーダル、カメラ | アップロード、カメラ |
+| `overlay_image_split.html` | 画像分割のプレビュー・設定・添付・個別保存と専用圧縮モーダル | 画像分割の画面を変更するとき |
+| `compression_fields.html` | プロンプトバーと画像分割で共用する圧縮設定の入力欄 | 圧縮の入力項目を変更するとき |
 | `overlay_voice.html` | Lyria スタジオ、Voice スタジオ（音声ドックの拡大表示）、マーカー編集 | 音声スタジオ、画像マーカー |
 | `overlay_thread.html` | 履歴モーダル、スレッド設定、圧縮設定、Batch処理一覧モーダル | 履歴、スレッド設定、画像圧縮、Batch処理の確認・停止・削除 |
 | `overlay_model_gem.html` | モデル選択モーダル、Gem 作成/編集 | モデル一覧、Gem |
@@ -37,11 +26,3 @@
 | `overlay_library.html` | ファイルライブラリ、規約、Alpha 案内、ブランチ管理、管理者の Bot 画面 | ライブラリ、ブランチ |
 | `overlay_version.html` | 新バージョン通知モーダル | 更新通知 |
 | `scripts.html` | `CHAT_CONFIG`、コア JS（`chat_core_bundles` の複数ファイル）の読み込み、トークン/Python/暗号化モーダル、サイドバー用インライン JS | 初期 JS 設定、インラインスクリプト |
-
-`pwa_meta.html`、`web_fonts.html`、`icon_css.html` はチャット専用ではなく、他画面と共有する部品です。`templates/` 直下にあります。
-
-## 編集時の注意
-
-- 新しいモーダルを足すときは、近い `overlay_*.html` に入れるか、ファイルを増やして `chat.html` の include に1行足します。
-- 閉じタグの対応は部品内で完結させてください。`{% if %}` を部品をまたいで分割しないでください。
-- 画面の見た目は CSS、動きは `chat_core_parts` です。HTML は構造と id の置き場所です。

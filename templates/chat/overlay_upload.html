@@ -20,7 +20,9 @@
                 <button id="upload-select-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-bold btn-hover">ファイルを選択</button>
                 <button id="upload-camera-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-sm font-bold btn-hover">カメラで撮影</button>
                 <button id="upload-photo-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded text-sm font-bold btn-hover" title="写真/動画を選択">写真</button>
+                <button id="upload-split-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5  text-white rounded text-sm font-bold btn-hover" style="background-color:#7c3aed;">画像を分割</button>
                 <button id="upload-lib-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">ライブラリから選択</button>
+                <input id="image-split-input" type="file" accept="image/*" multiple class="hidden">
                 <button id="upload-clear-btn" data-progress-no-spinner="true" class="w-full px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-sm font-bold btn-hover">リストをクリア</button>
             </div>
             <div id="vision-model-info" class="hidden mb-3 p-2 bg-gray-900/50 rounded border border-gray-700 flex items-center justify-between">
@@ -120,6 +122,7 @@
             </div>
             <div id="camera-status" class="text-xs text-gray-400 min-h-[1rem]">カメラを起動中...</div>
             <div id="camera-capture-preview-list" class="hidden rounded-lg border border-gray-700/80 bg-gray-900/70 p-2 grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-32 overflow-y-auto"></div>
+            <label class="flex items-center gap-2 text-xs text-gray-300"><input id="camera-split-enabled" type="checkbox" class="accent-blue-500 w-4 h-4">画像を分割</label>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 <button id="camera-capture-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">撮影</button>
                 <button id="camera-attach-btn" data-progress-no-spinner="true" disabled class="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded text-sm font-bold btn-hover">添付 (0)</button>

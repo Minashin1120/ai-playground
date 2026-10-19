@@ -127,6 +127,7 @@ internal fun WebModalScrim(color: Color? = null) {
  */
 @Composable
 internal fun WebModalWindow(blur: Dp = 10.dp) {
+    NoticeWindowHost()
     val view = LocalView.current
     val blurPx = with(LocalDensity.current) { blur.roundToPx() }
     val visible = LocalModalVisible.current

@@ -25,7 +25,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -65,7 +64,7 @@ internal val WEB_DIALOG_HOST: String get() = com.minashin1120.aiplayground.data.
  */
 @Composable
 internal fun BrowserConfirmDialog(message: String, onResult: (Boolean) -> Unit) {
-    AlertDialog(
+    NoticeAlertDialog(
         onDismissRequest = { onResult(false) },
         properties = BrowserDialogProperties,
         title = { Text("$WEB_DIALOG_HOST の内容", fontSize = 18.sp) },
@@ -81,7 +80,7 @@ private val BrowserDialogProperties = DialogProperties(dismissOnClickOutside = f
 /** Web `alert(message)` as Chrome for Android shows it: the site host as the title, the message and OK. */
 @Composable
 internal fun BrowserAlertDialog(message: String, onDismiss: () -> Unit) {
-    AlertDialog(
+    NoticeAlertDialog(
         onDismissRequest = onDismiss,
         properties = BrowserDialogProperties,
         title = { Text("$WEB_DIALOG_HOST の内容", fontSize = 18.sp) },
@@ -94,7 +93,7 @@ internal fun BrowserAlertDialog(message: String, onDismiss: () -> Unit) {
 @Composable
 internal fun BrowserPromptDialog(message: String, initial: String = "", onResult: (String?) -> Unit) {
     var value by remember { mutableStateOf(initial) }
-    AlertDialog(
+    NoticeAlertDialog(
         onDismissRequest = { onResult(null) },
         properties = BrowserDialogProperties,
         title = { Text("$WEB_DIALOG_HOST の内容", fontSize = 18.sp) },

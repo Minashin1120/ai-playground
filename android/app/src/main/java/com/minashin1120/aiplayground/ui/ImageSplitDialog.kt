@@ -38,6 +38,8 @@ import com.minashin1120.aiplayground.data.chooseSplitGrid
 import com.minashin1120.aiplayground.data.clampSplitOverlap
 import com.minashin1120.aiplayground.data.clampSplitPieces
 import com.minashin1120.aiplayground.data.loadSplitPreview
+import com.minashin1120.aiplayground.data.loadSplitCompression
+import com.minashin1120.aiplayground.data.saveSplitCompression
 import com.minashin1120.aiplayground.data.splitFits
 import com.minashin1120.aiplayground.data.splitTiles
 import kotlinx.coroutines.Dispatchers
@@ -59,6 +61,8 @@ internal fun ImageSplitDialog(
 ) {
     val web = LocalWebPalette.current
     val context = LocalContext.current
+    var compression by remember { mutableStateOf(loadSplitCompression(context)) }
+    var showCompression by rememberSaveable { mutableStateOf(false) }
     var piecesText by rememberSaveable { mutableStateOf("4") }
     var overlapText by rememberSaveable { mutableStateOf("10") }
     var includeOriginal by rememberSaveable { mutableStateOf(true) }
@@ -124,6 +128,10 @@ internal fun ImageSplitDialog(
                         boxSize = 16.dp, labelColor = labelColor, modifier = Modifier.padding(start = 24.dp))
                     SettingsCheck("分割した画像に番号と分割線を描き込む", markPieces, { markPieces = it }, boxSize = 16.dp, labelColor = labelColor)
                 }
+                Text("画像・圧縮詳細設定", fontSize = 12.sp, color = if (web.isLight) web.text else Color.White,
+                    modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(web.twBg(Tw.gray700))
+                        .clickable(enabled = !request.busy, role = Role.Button) { showCompression = true }
+                        .padding(horizontal = 12.dp, vertical = 8.dp))
                 val perImage = pieces + if (includeOriginal) 1 else 0
                 Text("作成される画像: ${perImage * request.uris.size}枚", fontSize = 12.sp, color = Tw.gray400)
                 request.error?.let { Text(it, fontSize = 12.sp, color = Tw.red400) }
@@ -150,6 +158,9 @@ internal fun ImageSplitDialog(
             }
         }
     }
+    if (showCompression) CompressionModal(compression, "添付画像のクライアント側圧縮",
+        onDismiss = { showCompression = false },
+        onSave = { compression = it; saveSplitCompression(context, it) }, showEnabled = true)
 }
 
 /** The image with the overlap bands and cut lines of the current settings. */

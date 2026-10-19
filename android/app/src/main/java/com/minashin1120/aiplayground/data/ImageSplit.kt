@@ -140,15 +140,6 @@ internal fun splitTileName(base: String, tile: SplitTile, grid: SplitGrid, exten
 internal fun splitOriginalName(base: String, marked: Boolean, extension: String): String =
     if (marked) "${base}_split_grid.$extension" else "${base}.$extension"
 
-/** PNG keeps lossless sources lossless; photos stay JPEG. */
-internal fun splitOutputIsPng(sourceMime: String, sourceName: String): Boolean {
-    val mime = sourceMime.lowercase()
-    val ext = sourceName.substringAfterLast('.', "").lowercase()
-    val photo = mime == "image/jpeg" || mime == "image/jpg" || mime == "image/heic" || mime == "image/heif" ||
-        ext in setOf("jpg", "jpeg", "heic", "heif")
-    return !photo
-}
-
 /**
  * Maps a rectangle of the upright image back to the stored pixels of an image whose EXIF says it is
  * mirrored horizontally ([flipped], applied first) and then rotated clockwise by [rotation] degrees.
@@ -173,11 +164,4 @@ internal fun orientedRectToRaw(
     val bt = maxOf(a.second, b.second)
     if (flipped) { val nl = rawWidth - r; r = rawWidth - l; l = nl }
     return intArrayOf(l.coerceIn(0, rawWidth), t.coerceIn(0, rawHeight), r.coerceIn(0, rawWidth), bt.coerceIn(0, rawHeight))
-}
-
-/** Power-of-two sample size that keeps a [width] × [height] decode at or under [maxPixels]. */
-internal fun splitSampleSize(width: Int, height: Int, maxPixels: Long): Int {
-    var sample = 1
-    while (width.toLong() * height / (sample.toLong() * sample) > maxPixels) sample *= 2
-    return sample
 }

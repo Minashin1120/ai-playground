@@ -9,11 +9,14 @@ source "$SCRIPT_DIR/_release_lib.sh"
 TARGET=""
 MESSAGE=""
 CONFIRM=""
+SKIP_ANDROID_TESTS=0
+SKIP_ANDROID_LINT=0
 
 usage() {
     cat <<'EOF'
 Usage: scripts/record_changes.sh --target android|operations --message "..."
        scripts/record_changes.sh --target android|operations --message "..." --confirm TOKEN
+       [--skip-android-tests] [--skip-android-lint]
 
 Without --confirm, prints the exact files and expected Android Actions behavior,
 then exits 2. No services, repository state, or caches are changed.
@@ -21,6 +24,9 @@ then exits 2. No services, repository state, or caches are changed.
 Confirmation token:
   android    android-vX.Y.Z from android/version.properties
   operations OPERATIONS
+
+--skip-android-tests / --skip-android-lint add a commit trailer that makes
+Android CI leave out the unit tests / lint for that commit (Android builds only).
 
 This command commits and pushes only target-specific allowlisted files. It does
 not advance the Web version, run Web deployment, restart services, purge CDN
@@ -33,6 +39,8 @@ while [[ $# -gt 0 ]]; do
         --target) TARGET="${2:-}"; shift 2 ;;
         --message) MESSAGE="${2:-}"; shift 2 ;;
         --confirm) CONFIRM="${2:-}"; shift 2 ;;
+        --skip-android-tests) SKIP_ANDROID_TESTS=1; shift ;;
+        --skip-android-lint) SKIP_ANDROID_LINT=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *) die "unknown argument: $1" ;;
     esac
@@ -101,6 +109,11 @@ if [[ "$TARGET" == "android" && "$android_build_count" != "0" ]]; then
         echo "  Android Release: none (VERSION_NAME unchanged; Actions only verify the build)"
     fi
 fi
+if [[ "$android_build_count" != "0" ]]; then
+    print_android_checks
+elif [[ "$SKIP_ANDROID_TESTS" -eq 1 || "$SKIP_ANDROID_LINT" -eq 1 ]]; then
+    die "--skip-android-tests/--skip-android-lint need a change that starts Android Actions"
+fi
 [[ "$blocked_count" == "0" ]] || die "the tree contains changes outside the selected target"
 [[ "$allowed_count" != "0" ]] || die "there are no changes for target '$TARGET'"
 
@@ -139,7 +152,9 @@ raise SystemExit(0 if sys.argv[1] in allowed else 1)
     }
 done <<< "$STAGED"
 
-git_in commit -m "$MESSAGE"
+COMMIT_ARGS=(-m "$MESSAGE")
+add_android_skip_trailers
+git_in commit "${COMMIT_ARGS[@]}"
 COMMIT="$(git_in rev-parse --short HEAD)"
 if ! git_in push origin HEAD; then
     die "failed to push; local commit $COMMIT exists"

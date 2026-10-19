@@ -50,6 +50,8 @@ jobs:
       cancel-in-progress: false
     outputs:
       sha: ${{ steps.key.outputs.sha }}
+      skip_unit_tests: ${{ steps.skip.outputs.unit_tests }}
+      skip_lint: ${{ steps.skip.outputs.lint }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -61,6 +63,21 @@ jobs:
       - name: Persist or reuse the fixed keystore
         id: key
         run: bash android/ci/bootstrap-keystore.sh
+      # scripts/record_changes.sh and publish_version.sh add these trailers on request; manual runs check everything.
+      - name: Read requested check skips
+        id: skip
+        if: github.event_name == 'push'
+        run: |
+          message=$(git log -1 --format=%B "$GITHUB_SHA")
+          unit_tests=false
+          lint=false
+          if grep -qx 'Android-Skip-Unit-Tests: true' <<< "$message"; then unit_tests=true; fi
+          if grep -qx 'Android-Skip-Lint: true' <<< "$message"; then lint=true; fi
+          echo "unit_tests=$unit_tests" >> "$GITHUB_OUTPUT"
+          echo "lint=$lint" >> "$GITHUB_OUTPUT"
+          if [[ "$unit_tests" == true || "$lint" == true ]]; then
+            echo "::notice title=Android checks skipped::unit tests skipped=$unit_tests, lint skipped=$lint"
+          fi
 
   build:
     needs: bootstrap
@@ -91,9 +108,19 @@ jobs:
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;36.0.0"'
       - name: Unit tests, lint and debug APK
         working-directory: android
+        env:
+          SKIP_UNIT_TESTS: ${{ needs.bootstrap.outputs.skip_unit_tests == 'true' && 'true' || 'false' }}
+          SKIP_LINT: ${{ needs.bootstrap.outputs.skip_lint == 'true' && 'true' || 'false' }}
         run: |
           set +e
-          ./gradlew --no-daemon testDebugUnitTest -Proborazzi.test.record=true lintDebug assembleDebug --stacktrace > "$RUNNER_TEMP/android-build.log" 2>&1
+          tasks="assembleDebug"
+          if [[ "$SKIP_LINT" != "true" ]]; then
+            tasks="lintDebug $tasks"
+          fi
+          if [[ "$SKIP_UNIT_TESTS" != "true" ]]; then
+            tasks="testDebugUnitTest -Proborazzi.test.record=true $tasks"
+          fi
+          ./gradlew --no-daemon $tasks --stacktrace > "$RUNNER_TEMP/android-build.log" 2>&1
           status=$?
           if [[ $status -ne 0 ]]; then
             tail -n 120 "$RUNNER_TEMP/android-build.log"
@@ -150,6 +177,7 @@ jobs:
     with:
       source_sha: ${{ needs.bootstrap.outputs.sha }}
       skip_unit_tests: true
+      skip_lint: ${{ needs.bootstrap.outputs.skip_lint == 'true' }}
       stage: build
 
   publish:

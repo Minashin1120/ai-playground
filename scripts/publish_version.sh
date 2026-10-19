@@ -10,11 +10,14 @@ source "$SCRIPT_DIR/_release_lib.sh"
 MESSAGE=""
 CONFIRM=""
 DRY_RUN=0
+SKIP_ANDROID_TESTS=0
+SKIP_ANDROID_LINT=0
 
 usage() {
     cat <<'EOF'
 Usage: scripts/publish_version.sh --message "..." --confirm V4.8.xxx
        scripts/publish_version.sh --message "..." --dry-run
+       [--skip-android-tests] [--skip-android-lint]
 
 Without --confirm, prints the plan and exits 2. No services or repository
 state are changed.
@@ -27,6 +30,9 @@ With --confirm matching the current SYSTEM_VERSION:
   5. record only an allowlisted set of files, tag that exact revision,
      and send it to the configured remote
 
+--skip-android-tests / --skip-android-lint add a commit trailer that makes
+Android CI leave out the unit tests / lint for that commit (Android builds only).
+
 --message is required in advance. The script never stages ignored files
 and never uses a blanket add of the whole tree.
 EOF
@@ -37,6 +43,8 @@ while [[ $# -gt 0 ]]; do
         --message) MESSAGE="${2:-}"; shift 2 ;;
         --confirm) CONFIRM="${2:-}"; shift 2 ;;
         --dry-run) DRY_RUN=1; shift ;;
+        --skip-android-tests) SKIP_ANDROID_TESTS=1; shift ;;
+        --skip-android-lint) SKIP_ANDROID_LINT=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *) die "unknown argument: $1" ;;
     esac
@@ -123,6 +131,17 @@ if unknown:
 
 print_plan
 
+android_build_count="$(printf '%s' "$STATUS_JSON" | "$PYTHON" -c '
+import json, sys
+sys.path.insert(0, sys.argv[1])
+from _release_common import is_android_build_path
+print(sum(1 for path in json.load(sys.stdin).get("allowed") or [] if is_android_build_path(path)))
+' "$ROOT/scripts")"
+if [[ "$android_build_count" != "0" ]]; then
+    echo "  Android Actions: will run"
+    print_android_checks
+fi
+
 if git_in rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
     warn "local tag $TAG already exists"
     TAG_EXISTS_LOCAL=1
@@ -151,6 +170,10 @@ if [[ "$allowed_count" == "0" ]]; then
 fi
 if ! run_common check-android-notes; then
     warn "the Android version changed without a matching android/ci/changelogs entry"
+    plan_errors=1
+fi
+if [[ "$android_build_count" == "0" ]] && [[ "$SKIP_ANDROID_TESTS" -eq 1 || "$SKIP_ANDROID_LINT" -eq 1 ]]; then
+    warn "--skip-android-tests/--skip-android-lint need a change that starts Android Actions"
     plan_errors=1
 fi
 if [[ "$TAG_EXISTS_LOCAL" -eq 1 || "$TAG_EXISTS_REMOTE" -eq 1 ]]; then
@@ -262,7 +285,9 @@ sys.exit(0 if is_allowed_git_path(sys.argv[2]) else 1)
     fi
 done <<< "$STAGED"
 
-git_in commit -m "$MESSAGE"
+COMMIT_ARGS=(-m "$MESSAGE")
+add_android_skip_trailers
+git_in commit "${COMMIT_ARGS[@]}"
 COMMIT="$(git_in rev-parse --short HEAD)"
 ok "recorded $COMMIT"
 

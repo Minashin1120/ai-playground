@@ -32,3 +32,26 @@ json_get() {
     local key="$1"
     "$PYTHON" -c 'import json,sys; print(json.load(sys.stdin)[sys.argv[1]])' "$key"
 }
+
+# Commit trailers that Android CI (.github/workflows/android.yml) reads to leave out checks.
+ANDROID_SKIP_TESTS_TRAILER="Android-Skip-Unit-Tests: true"
+ANDROID_SKIP_LINT_TRAILER="Android-Skip-Lint: true"
+
+# Appends the requested skip trailers to the COMMIT_ARGS array.
+add_android_skip_trailers() {
+    if [[ "${SKIP_ANDROID_TESTS:-0}" -eq 1 ]]; then
+        COMMIT_ARGS+=(--trailer "$ANDROID_SKIP_TESTS_TRAILER")
+    fi
+    if [[ "${SKIP_ANDROID_LINT:-0}" -eq 1 ]]; then
+        COMMIT_ARGS+=(--trailer "$ANDROID_SKIP_LINT_TRAILER")
+    fi
+}
+
+# Prints which Android CI checks will run for the plan.
+print_android_checks() {
+    local tests="run" lint="run"
+    [[ "${SKIP_ANDROID_TESTS:-0}" -eq 1 ]] && tests="skipped"
+    [[ "${SKIP_ANDROID_LINT:-0}" -eq 1 ]] && lint="skipped"
+    echo "  Android unit tests: $tests"
+    echo "  Android lint: $lint"
+}

@@ -391,6 +391,34 @@ class ReleaseScriptContractTests(unittest.TestCase):
         self.assertIn('tasks="testDebugUnitTest $tasks"', release)
         self.assertIn("skip_unit_tests: true", android)
 
+    def test_android_ci_skips_checks_only_when_the_commit_asks(self):
+        # The record scripts add the trailers; Android CI reads them only on push and keeps the APK build and signing.
+        lib = read("_release_lib.sh")
+        self.assertIn('ANDROID_SKIP_TESTS_TRAILER="Android-Skip-Unit-Tests: true"', lib)
+        self.assertIn('ANDROID_SKIP_LINT_TRAILER="Android-Skip-Lint: true"', lib)
+        for name in ("record_changes.sh", "publish_version.sh"):
+            source = read(name)
+            self.assertIn("--skip-android-tests) SKIP_ANDROID_TESTS=1", source, name)
+            self.assertIn("--skip-android-lint) SKIP_ANDROID_LINT=1", source, name)
+            self.assertIn("add_android_skip_trailers", source, name)
+            self.assertIn('git_in commit "${COMMIT_ARGS[@]}"', source, name)
+            self.assertNotIn('git_in commit -m "$MESSAGE"', source, name)
+
+        android = (ROOT / ".github" / "workflows" / "android.yml").read_text(encoding="utf-8")
+        skip_step = android.split("      - name: Read requested check skips\n", 1)[1].split("\n\n", 1)[0]
+        self.assertIn("if: github.event_name == 'push'", skip_step)
+        self.assertIn("grep -qx 'Android-Skip-Unit-Tests: true'", skip_step)
+        self.assertIn("grep -qx 'Android-Skip-Lint: true'", skip_step)
+        self.assertIn('tasks="testDebugUnitTest -Proborazzi.test.record=true $tasks"', android)
+        self.assertIn('tasks="lintDebug $tasks"', android)
+        self.assertIn("skip_lint: ${{ needs.bootstrap.outputs.skip_lint == 'true' }}", android)
+        self.assertIn("bash android/ci/verify-apk.sh app/build/outputs/apk/debug/app-debug.apk", android)
+
+        release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+        self.assertIn("      skip_lint:\n", release)
+        self.assertIn('tasks="lintRelease $tasks"', release)
+        self.assertIn("bash android/ci/verify-apk.sh app/build/outputs/apk/release/app-release.apk", release)
+
     def test_android_release_builds_alongside_ci_and_publishes_after_both(self):
         # The release APK no longer waits for the debug build, but the GitHub Release still does.
         def job(path, name):

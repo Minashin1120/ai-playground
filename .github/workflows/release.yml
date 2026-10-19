@@ -10,6 +10,11 @@ on:
         required: false
         default: false
         type: boolean
+      # Set when the commit carries the Android-Skip-Lint trailer (see android.yml).
+      skip_lint:
+        required: false
+        default: false
+        type: boolean
       # Android CI builds the release APK alongside its debug build ('build') and publishes it
       # in a second call ('publish') only after both jobs succeed. Other triggers run both stages.
       stage:
@@ -93,8 +98,12 @@ jobs:
         working-directory: android
         env:
           SKIP_UNIT_TESTS: ${{ inputs.skip_unit_tests && 'true' || 'false' }}
+          SKIP_LINT: ${{ inputs.skip_lint && 'true' || 'false' }}
         run: |
-          tasks="lintRelease assembleRelease"
+          tasks="assembleRelease"
+          if [ "$SKIP_LINT" != "true" ]; then
+            tasks="lintRelease $tasks"
+          fi
           if [ "$SKIP_UNIT_TESTS" != "true" ]; then
             tasks="testDebugUnitTest $tasks"
           fi

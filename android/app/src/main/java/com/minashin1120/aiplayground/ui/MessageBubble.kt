@@ -64,7 +64,9 @@ import androidx.compose.ui.zIndex
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.TokenTotals
+import com.minashin1120.aiplayground.data.isAudioPath
 import com.minashin1120.aiplayground.data.isImageReference
+import com.minashin1120.aiplayground.data.isVideoPath
 import com.minashin1120.aiplayground.data.messageTokenLabel
 import com.minashin1120.aiplayground.data.numericId
 import kotlinx.coroutines.delay
@@ -189,7 +191,11 @@ internal fun MessageBubble(
                 }
                 liveBottom?.invoke()
                 val files = message.files.filterNot { !user && message.content.contains(it) }
-                if (files.isNotEmpty()) AttachmentGrid(files, loader, onFile, message.missingFiles)
+                // An answer's audio file plays in place (ANDROID_ONLY §2); `.webm` may be video, so it stays a card.
+                val (audio, others) = if (user) emptyList<String>() to files
+                    else files.partition { isAudioPath(it) && !isVideoPath(it) && it !in message.missingFiles }
+                audio.forEach { InlineAudioPlayer(it, onFile) }
+                if (others.isNotEmpty()) AttachmentGrid(others, loader, onFile, message.missingFiles)
                 if (branchCount > 1) VersionSwitcher(branchIndex, branchCount, actions.onSwitchBranch)
                 MessageFooter(message, user, actions, pythonRuns)
               } }

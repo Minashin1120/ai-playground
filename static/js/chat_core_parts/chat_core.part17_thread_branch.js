@@ -64,7 +64,9 @@
                 banner = document.createElement('div');
                 banner.id = 'branch-origin-banner';
                 banner.className = 'px-4 py-2 text-xs text-gray-400 border-b border-gray-700';
-                chat.parentNode.insertBefore(banner, chat);
+                const totals = get('total-token-bar');
+                if (totals) totals.before(banner);
+                else chat.parentNode.insertBefore(banner, chat);
             }
             banner.replaceChildren();
             banner.hidden = !origin;

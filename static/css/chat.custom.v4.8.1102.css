@@ -6828,3 +6828,16 @@ body:not(.minimal-prompt-mode).liquid-glass-mode .composer-input-shell {
     overflow-wrap: anywhere;
 }
 #bot-log-modal button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Let the prompt grow with wrapped lines as well as explicit newlines. */
+#prompt-input {
+    min-width: 0;
+    flex-shrink: 0;
+    transition-property: color, background-color, border-color;
+}
+@supports (field-sizing: content) {
+    #prompt-input {
+        field-sizing: content;
+        height: auto !important;
+    }
+}

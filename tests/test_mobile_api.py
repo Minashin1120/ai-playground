@@ -1297,6 +1297,15 @@ class MobileApiTests(unittest.TestCase):
             self.assertEqual(self.call('/api/threads', token).status_code, 503)
             self.assertEqual(self.native.get('/api/mobile/v1/config', base_url='https://localhost').status_code, 503)
 
+    def test_html_server_failure_is_not_account_restriction(self):
+        from flask import g
+        with target.app.test_request_context('/api/messages/1', method='DELETE'):
+            g.mobile_request = True
+            g.mobile_bearer_request = True
+            response = target.mobile_response_headers(target.app.make_response(('failure', 500)))
+            self.assertEqual(response.status_code, 500)
+            self.assertEqual(response.json['error'], 'server_error')
+
     def test_expired_session_ban_e2ee_and_maintenance(self):
         token = self.token()
         with target.app.app_context():

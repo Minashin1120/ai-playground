@@ -571,6 +571,7 @@ class ApiException(val status: Int, val payload: JSONObject, val retryAfter: Lon
         code == "invalid_vertex_credentials" -> "Vertex AIのサービスアカウントJSONを確認してください。"
         code == "turnstile_required" -> "Webで安全性の確認が必要です。「Web設定」を開いて確認してください。"
         code == "account_locked" -> payload.optString("message").ifBlank { "アカウントが一時的にロックされています。" }
+        status >= 500 && status != 503 && (code == "request_blocked" || code == "server_error") -> "サーバーでエラーが発生しました。しばらくしてからお試しください。"
         code == "banned" || code == "request_blocked" -> "アカウントの利用が制限されています。Webで状態を確認してください。"
         status == 429 -> "アクセスが集中しています。${retryAfter}秒以上待って再試行してください。"
         status == 503 -> "サービスを一時的に利用できません。しばらくしてからお試しください。"

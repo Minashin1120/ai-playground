@@ -372,7 +372,8 @@ fun PlaygroundScreen(
                 if (uri != null) model.uploadImageMask(uri)
             }
             val launchCamera: () -> Unit = { attachMenu = false; cameraOpen = true }
-            val snackbar = remember { SnackbarHostState() }
+            val noticeToast = remember(context) { arrayOfNulls<android.widget.Toast>(1) }
+            DisposableEffect(context) { onDispose { noticeToast[0]?.cancel() } }
             val loader: FileBytesLoader = { reference, thumbnail, limit ->
                 model.loadAttachmentBytes(reference, thumbnail, limit)
             }
@@ -451,7 +452,11 @@ fun PlaygroundScreen(
             }
             LaunchedEffect(settingsOpen) { if (!settingsOpen) settingsCard = null }
             LaunchedEffect(state.notice) {
-                state.notice?.let { snackbar.showSnackbar(it, duration = SnackbarDuration.Long); model.dismissNotice() }
+                state.notice?.let {
+                    noticeToast[0]?.cancel()
+                    noticeToast[0] = android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).also { toast -> toast.show() }
+                    model.dismissNotice()
+                }
             }
             val closeDrawer: () -> Unit = { scope.launch { drawer.close() } }
             val showThreads = state.account != null
@@ -566,7 +571,7 @@ fun PlaygroundScreen(
                         // Web shows `header.main-chrome-header` below the md breakpoint only.
                         if (showThreads && !wide) MobileChatHeader(state, onMenu = openDrawer, onNewChat = { model.newChat() }, onPdf = sharePdf,
                             onOpenWeb = { onWeb(webChatPath(state)) })
-                    }, snackbarHost = { SnackbarHost(snackbar) },
+                    }, snackbarHost = {},
                     bottomBar = {
                         if (showThreads) CompositionLocalProvider(LocalComposerEstimator provides model::estimatePromptTokens) {
                         Composer(state, model, { modelPicker = true }, { attachMenu = true }, launchSpeech,
@@ -1564,9 +1569,14 @@ private fun ConversationContent(
     Column(Modifier.fillMaxSize()) {
         state.branchOrigin?.let { origin ->
             val palette = LocalWebPalette.current
-            Text(if (origin.optBoolean("available")) "分岐元のチャットを開く" else "分岐元のチャットは利用できません",
-                fontSize = 12.sp, color = if (origin.optBoolean("available")) palette.twText(Tw.blue400) else palette.twText(Tw.gray400),
-                modifier = Modifier.fillMaxWidth().clickable(enabled = origin.optBoolean("available")) { model.openBranchOrigin() }.padding(12.dp))
+            Column(Modifier.fillMaxWidth()) {
+                Text(if (origin.optBoolean("available")) "分岐元のチャットを開く" else "分岐元のチャットは利用できません",
+                    fontSize = 12.sp, lineHeight = 16.sp,
+                    color = if (origin.optBoolean("available")) palette.twText(Tw.blue400) else palette.twText(Tw.gray400),
+                    modifier = Modifier.fillMaxWidth().clickable(enabled = origin.optBoolean("available")) { model.openBranchOrigin() }
+                        .padding(horizontal = 16.dp, vertical = 8.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(if (palette.isLight) Color(15, 23, 42).copy(alpha = 0.10f) else Tw.gray700))
+            }
         }
         TotalTokenBar(pathTotals, allTotals) { tokenDetail = it }
         state.batchBanner?.let { (text, _) ->

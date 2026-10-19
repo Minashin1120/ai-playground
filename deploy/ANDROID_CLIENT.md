@@ -224,6 +224,8 @@ Androidの認証要求はPlay Integrity Standard APIのtokenをエンドポイ�
 
 以下はBearer認証の許可リストです。一覧にないエンドポイントやHTTPメソッドは403 `insufficient_scope`。許可されていても、各ルートの所有者検査・容量制限・モデル認証・Bot判定を通る必要があります。
 
+Bearer認証でHTMLのエラー応答を受けた場合はJSONへ変換します。HTTP 500以上は `server_error`、503は `maintenance` を返し、アカウントの利用制限とは区別します。
+
 | メソッド・パス | 入力 | 主な応答 |
 |---|---|---|
 | GET `/api/threads` | `page=1&q=検索語`。ページは1始まり | `threads`, `has_next`, `next_page`。1ページ20件 |

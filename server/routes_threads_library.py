@@ -259,17 +259,23 @@ def delete_message(mid):
 
 def _delete_message_and_following(msg, user_id):
     """Deletes [msg] and every message created at or after it in the same chat (all branches)."""
-    msgs_to_delete = Message.query.filter(Message.thread_id == msg.thread_id, Message.timestamp >= msg.timestamp).all()
+    thread_id, timestamp = msg.thread_id, msg.timestamp
+    msgs_to_delete = Message.query.filter(Message.thread_id == thread_id, Message.timestamp >= timestamp).all()
     deleted_ids = [m.id for m in msgs_to_delete]
     refs = set()
     for m in msgs_to_delete:
         refs.update(_message_file_refs(m, user_id))
     _delete_unreferenced_upload_refs(user_id, refs, exclude_messages=deleted_ids)
-    Message.query.filter(Message.thread_id == msg.thread_id, Message.timestamp >= msg.timestamp).delete()
+    # MySQL checks self-referencing foreign keys per row, including references
+    # between rows in the same DELETE. Unlink children before deleting parents.
+    if deleted_ids:
+        Message.query.filter(Message.thread_id == thread_id, Message.parent_id.in_(deleted_ids)).update(
+            {Message.parent_id: None}, synchronize_session=False)
+    Message.query.filter(Message.thread_id == thread_id, Message.timestamp >= timestamp).delete(synchronize_session=False)
     # The bulk delete skips ORM events, so the Android sync bookkeeping is updated here.
     if deleted_ids:
         SyncMessageRef.query.filter(SyncMessageRef.message_id.in_(deleted_ids)).delete(synchronize_session=False)
-    _sync_touch_threads(db.session.connection(), [msg.thread_id])
+    _sync_touch_threads(db.session.connection(), [thread_id])
 
 class _LibraryHeapEntry:
     """Keep the worst selected item at the heap root."""

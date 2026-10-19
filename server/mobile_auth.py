@@ -229,7 +229,8 @@ def mobile_response_headers(response):
         # Existing non-API guards sometimes return HTML/redirects. Native
         # callers receive machine-readable errors before a stream is opened.
         if getattr(g, 'mobile_bearer_request', False) and response.status_code >= 300 and response.status_code != 304 and not response.is_json:
-            code = 'maintenance' if response.status_code == 503 else 'request_blocked'
+            code = ('maintenance' if response.status_code == 503 else
+                    'server_error' if response.status_code >= 500 else 'request_blocked')
             status = response.status_code if response.status_code >= 400 else 403
             replacement = _mobile_error(code, status)
             replacement.headers['Cache-Control'] = 'private, no-store, no-transform, max-age=0'

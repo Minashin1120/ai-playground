@@ -181,6 +181,38 @@ class MobileSyncApiTests(unittest.TestCase):
         self.assertEqual(deleted.status_code, 200)
         self.assertEqual(self.call(f'/api/threads/{public_id}', token).status_code, 403)
 
+    def test_delete_branch_with_children_obeys_immediate_parent_constraint(self):
+        token = self.token()
+        first, second, third = self.uid(), self.uid(), self.uid()
+        pushed = self.push_chat(token, self.uid(), [
+            {'client_uuid': first, 'role': 'user', 'content': 'keep', 'created_at_ms': 1_700_000_000_000},
+            {'client_uuid': second, 'role': 'assistant', 'content': 'delete', 'parent': {'client_uuid': first}, 'created_at_ms': 1_700_000_001_000},
+            {'client_uuid': third, 'role': 'user', 'content': 'child', 'parent': {'client_uuid': second}, 'created_at_ms': 1_700_000_002_000},
+        ]).json['threads'][0]
+        ids = {m['client_uuid']: m['id'] for m in pushed['messages']}
+        # Reproduce MySQL's per-row self-FK check, which SQLite normally defers
+        # until the whole DELETE statement has finished.
+        with target.app.app_context():
+            target.db.session.execute(target.db.text("""
+                CREATE TRIGGER immediate_message_parent BEFORE DELETE ON message
+                WHEN EXISTS (SELECT 1 FROM message WHERE parent_id = OLD.id)
+                BEGIN SELECT RAISE(ABORT, 'message still has children'); END
+            """))
+            target.db.session.commit()
+        try:
+            response = self.call(f'/api/messages/{ids[second]}', token, 'DELETE')
+            self.assertEqual(response.status_code, 200)
+            with target.app.app_context():
+                self.assertIsNotNone(target.db.session.get(target.Message, ids[first]))
+                for key in (second, third):
+                    self.assertIsNone(target.db.session.get(target.Message, ids[key]))
+                    self.assertIsNone(target.SyncMessageRef.query.filter_by(client_uuid=key).first())
+        finally:
+            with target.app.app_context():
+                target.db.session.rollback()
+                target.db.session.execute(target.db.text('DROP TRIGGER IF EXISTS immediate_message_parent'))
+                target.db.session.commit()
+
     def test_other_users_and_cookies_cannot_use_sync(self):
         token = self.token()
         pushed = self.push_chat(token, self.uid(), [{'client_uuid': self.uid(), 'role': 'user', 'content': 'mine'}]).json['threads'][0]

@@ -11,6 +11,16 @@ import java.io.ByteArrayInputStream
 import java.io.IOException
 
 class PlaygroundApiTest {
+    @Test fun serverFailureDoesNotClaimAccountRestriction() {
+        val failure = ApiException(500, JSONObject().put("error", "request_blocked"))
+        assertEquals("サーバーでエラーが発生しました。しばらくしてからお試しください。", failure.message)
+        assertEquals("サーバーでエラーが発生しました。しばらくしてからお試しください。",
+            ApiException(500, JSONObject().put("error", "server_error")).message)
+        assertEquals("provider error", ApiException(500, JSONObject().put("error", "provider error")).message)
+        assertEquals("アカウントの利用が制限されています。Webで状態を確認してください。",
+            ApiException(403, JSONObject().put("error", "banned")).message)
+    }
+
     @Test fun markdownTextUsesSameOriginWithoutBearer() = runBlocking {
         MockWebServer().use { server ->
             server.start()

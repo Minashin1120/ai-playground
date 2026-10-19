@@ -24,7 +24,9 @@ data class ChatMessage(val id: String, val role: String, val content: String,
                        /** Web `batch_job`: shown as the Batch card above the answer. */
                        val batch: BatchInfo? = null,
                        /** `created_at` (UTC ISO), shown as 作成 in the branch manager. */
-                       val createdAt: String = "", val promptOptions: JSONObject? = null, val missingFiles: Set<String> = emptySet())
+                       val createdAt: String = "", val promptOptions: JSONObject? = null, val missingFiles: Set<String> = emptySet(),
+                       /** UI-only identity retained when sync replaces a pending message id. Never sent to the server. */
+                       val conversationKey: String? = null)
 /**
  * One composer attachment (Web `#upload-list` row). [name] is the send name ("送信名"), [defaultName] what it
  * falls back to; [source] is Web `upload` / `library`. After an image edit, [original] keeps the pre-edit file,

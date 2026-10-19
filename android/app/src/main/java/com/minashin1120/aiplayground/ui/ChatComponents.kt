@@ -213,7 +213,7 @@ internal class ConversationKeyTracker {
     /** LazyColumn key for the row at [index] of the list last passed to [update]; unique within it. */
     fun keyAt(index: Int, message: ChatMessage): String = resolvedList.getOrNull(index) ?: aliasOf(message)
 
-    private fun aliasOf(message: ChatMessage): String = aliases[message.id] ?: message.id
+    private fun aliasOf(message: ChatMessage): String = message.conversationKey ?: aliases[message.id] ?: message.id
 
     /** Returns true only the first time a newly added key asks, so re-composition never replays the entry. */
     fun consumeFresh(key: String): Boolean = fresh.remove(key)
@@ -278,7 +278,8 @@ internal class ConversationKeyTracker {
                 lastLiveShown = false
             }
         }
-        added.forEach { if (it.id !in claimed) fresh += keyOf(it) }
+        val previousKeys = previous.mapTo(HashSet()) { keyOf(it) }
+        added.forEach { if (it.id !in claimed && aliasOf(it) !in previousKeys) fresh += keyOf(it) }
     }
 }
 

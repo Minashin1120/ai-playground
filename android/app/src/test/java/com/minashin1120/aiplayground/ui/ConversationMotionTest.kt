@@ -96,6 +96,30 @@ class ConversationMotionTest {
     }
 
     @Test
+    fun syncedBranchKeepsEveryRowKeyAndDoesNotReplayEntryMotion() {
+        val keys = ConversationKeyTracker()
+        val pending = listOf(
+            ChatMessage("1900000001", "user", "同じ質問"),
+            ChatMessage("1900000002", "assistant", "同じ回答"),
+            ChatMessage("1900000003", "user", "同じ質問"),
+            ChatMessage("1900000004", "assistant", "同じ回答"),
+        )
+        keys.update(pending, streaming = false, liveVisible = false)
+        val rowKeys = pending.map { keys.keyOf(it) }
+        val synced = pending.mapIndexed { index, message ->
+            message.copy(id = (100 + index).toString(), conversationKey = message.id)
+        }
+        keys.update(synced, streaming = false, liveVisible = false)
+        synced.forEachIndexed { index, message ->
+            assertEquals(rowKeys[index], keys.keyAt(index, message))
+            assertFalse(keys.consumeFresh(keys.keyOf(message)))
+        }
+        val newReply = ChatMessage("200", "assistant", "新しい回答")
+        keys.update(synced + newReply, streaming = false, liveVisible = false)
+        assertTrue(keys.consumeFresh(keys.keyOf(newReply)))
+    }
+
+    @Test
     fun staggerDelayIsCapped() {
         assertEquals(0, staggerDelay(0))
         assertEquals(80, staggerDelay(2))

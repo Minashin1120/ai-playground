@@ -2143,7 +2143,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val pendingJobId = reply.optJSONObject("pending_job")?.nullableString("job_id")?.ifBlank { null }
         val pendingJobStopped = pendingJobId != null && pendingJobId in suppressedPendingJobIds
         if (!older) stoppedJobStillRunning = pendingJobStopped
-        val parsed = parseMessages(reply)
+        // Sync changes pending ids to server ids without changing the displayed conversation.
+        // Use the exact store mapping so even repeated questions and replies retain their row identity.
+        val previousRows = state.value.allMessages
+        val conversationKeys = if (inPlace) withContext(Dispatchers.IO) {
+            previousRows.associate { message ->
+                val resolved = numericId(message)?.let { localChats?.resolveMessageId(id, it) ?: it }?.toString() ?: message.id
+                resolved to (message.conversationKey ?: message.id)
+            }
+        } else emptyMap()
+        val parsed = parseMessages(reply).map { message ->
+            conversationKeys[message.id]?.let { message.copy(conversationKey = it) } ?: message
+        }
         val parsedOldest = parsed.mapNotNull { numericId(it) }.filterNot { LocalChatStore.isPendingId(it) }.minOrNull()
         val earlier = if (inPlace && parsedOldest != null)
             state.value.allMessages.filter { m -> numericId(m)?.let { n -> n < parsedOldest } == true } else emptyList()

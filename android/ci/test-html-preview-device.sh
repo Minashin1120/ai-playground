@@ -11,7 +11,7 @@ image="system-images;android-$preview_api;google_apis;x86_64"
 timeout 300 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" emulator "$image" > "$report_dir/sdk.log" 2>&1
 sudo chmod 666 /dev/kvm
 printf 'no\n' | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n html-preview --device pixel --path "$ANDROID_AVD_HOME/html-preview.avd" -k "$image" > "$report_dir/avd.log" 2>&1
-sed -i 's/^disk.dataPartition.size=.*/disk.dataPartition.size=4G/;s/^hw.ramSize=.*/hw.ramSize=4096/;s/^vm.heapSize=.*/vm.heapSize=512/' "$ANDROID_AVD_HOME/html-preview.avd/config.ini"
+sed -i 's/^disk.dataPartition.size=.*/disk.dataPartition.size=4G/;s/^hw.ramSize=.*/hw.ramSize=4096M/;s/^vm.heapSize=.*/vm.heapSize=512M/' "$ANDROID_AVD_HOME/html-preview.avd/config.ini"
 adb kill-server || true
 adb start-server
 cp "$ANDROID_AVD_HOME/html-preview.avd/config.ini" "$report_dir/device-config.ini"

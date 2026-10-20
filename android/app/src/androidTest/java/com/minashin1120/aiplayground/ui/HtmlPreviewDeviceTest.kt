@@ -28,6 +28,7 @@ class HtmlPreviewDeviceTest {
                 HtmlCodePreviewDialog("""<!doctype html><html><head><style>html,body{margin:0;width:100%;height:100%;background:rgb(0,255,0)}</style></head><body><h1>Preview 日本語</h1><script>setInterval(()=>parent.postMessage('preview-painted','*'),100)</script></body></html>""") {}
             }
         }
+        println("HTML_PREVIEW_DEVICE sdk=${android.os.Build.VERSION.SDK_INT} heap=${Runtime.getRuntime().maxMemory()}")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         var webView: WebView? = null
         compose.waitUntil(15000) {

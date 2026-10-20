@@ -25,7 +25,7 @@ class HtmlPreviewDeviceTest {
     @Test fun htmlPreviewActuallyPaintsInsideTheComposeDialog() {
         compose.setContent {
             PlaygroundTheme {
-                HtmlCodePreviewDialog("""<!doctype html><html><head><style>html,body{margin:0;width:100%;height:100%;background:rgb(0,255,0)}</style></head><body><h1>Preview 日本語</h1><script>setInterval(()=>parent.postMessage('preview-painted','*'),100)</script></body></html>""") {}
+                HtmlCodePreviewDialog("""<!doctype html><html><head><style>html,body{margin:0;width:100%;height:100%;background:rgb(0,255,0)}</style></head><body><h1>Preview 日本語</h1><script>setInterval(()=>{parent.postMessage('preview-painted','*');parent.postMessage({type:'preview-child',color:getComputedStyle(document.body).backgroundColor,w:innerWidth,h:innerHeight},'*')},100)</script></body></html>""") {}
             }
         }
         println("HTML_PREVIEW_DEVICE sdk=${android.os.Build.VERSION.SDK_INT} heap=${Runtime.getRuntime().maxMemory()}")
@@ -45,12 +45,12 @@ class HtmlPreviewDeviceTest {
         }
         val state = AtomicReference("")
         instrumentation.runOnMainSync {
-            webView!!.evaluateJavascript("window.addEventListener('message',e=>{if(e.data==='preview-painted')window.previewPainted=true});'listening'", null)
+            webView!!.evaluateJavascript("window.addEventListener('message',e=>{if(e.data==='preview-painted')window.previewPainted=true;if(e.data?.type==='preview-child')window.previewChild=e.data});'listening'", null)
         }
         try {
             compose.waitUntil(20000) {
                 instrumentation.runOnMainSync {
-                    webView!!.evaluateJavascript("if(!window.previewListener){window.previewListener=true;window.addEventListener('message',e=>{if(e.data==='preview-painted')window.previewPainted=true})};JSON.stringify({ready:window.previewPainted===true,w:innerWidth,h:innerHeight,status:document.getElementById('status')?.textContent,frames:frames.length,url:location.href})") { state.set(it) }
+                    webView!!.evaluateJavascript("if(!window.previewListener){window.previewListener=true;window.addEventListener('message',e=>{if(e.data==='preview-painted')window.previewPainted=true;if(e.data?.type==='preview-child')window.previewChild=e.data})};JSON.stringify({ready:window.previewPainted===true,w:innerWidth,h:innerHeight,status:document.getElementById('status')?.textContent,frames:frames.length,url:location.href,child:window.previewChild,frameHeight:document.getElementById('preview')?.getBoundingClientRect().height})") { state.set(it) }
                 }
                 println("HTML_PREVIEW_STATE=${state.get()}")
                 state.get().contains("ready\\\":true")
@@ -109,14 +109,38 @@ class HtmlPreviewDeviceTest {
         println("HTML_PREVIEW_PAINT baseline=$baseline")
         save("baseline")
         if (!isGreen(baseline)) {
-            instrumentation.runOnMainSync { webView!!.setLayerType(View.LAYER_TYPE_HARDWARE, null); webView!!.invalidate() }
-            val hardware = waitForPaint()
-            println("HTML_PREVIEW_PAINT hardware=$hardware")
-            save("hardware")
-            if (!isGreen(hardware)) {
-                instrumentation.runOnMainSync { webView!!.setLayerType(View.LAYER_TYPE_SOFTWARE, null); webView!!.invalidate() }
-                println("HTML_PREVIEW_PAINT software=${waitForPaint()}")
-                save("software")
+            instrumentation.runOnMainSync {
+                webView!!.visibility = View.INVISIBLE
+                webView!!.visibility = View.VISIBLE
+                webView!!.onResume()
+                webView!!.invalidate()
+            }
+            val visible = waitForPaint()
+            println("HTML_PREVIEW_PAINT visibility=$visible")
+            save("visibility")
+            if (!isGreen(visible)) {
+                instrumentation.runOnMainSync { webView!!.reload() }
+                val reloaded = waitForPaint()
+                println("HTML_PREVIEW_PAINT reload=$reloaded")
+                save("reload")
+                if (!isGreen(reloaded)) {
+                    instrumentation.runOnMainSync {
+                        webView!!.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                        webView!!.requestLayout()
+                        webView!!.reload()
+                    }
+                    val layout = waitForPaint()
+                    println("HTML_PREVIEW_PAINT matchParent=$layout")
+                    save("layout")
+                    if (!isGreen(layout)) {
+                        instrumentation.runOnMainSync {
+                            webView!!.webViewClient = android.webkit.WebViewClient()
+                            webView!!.loadDataWithBaseURL("https://control.invalid/", "<html><body style='margin:0;background:rgb(0,255,0)'><h1>Direct control</h1></body></html>", "text/html", "UTF-8", null)
+                        }
+                        println("HTML_PREVIEW_PAINT direct=${waitForPaint()}")
+                        save("direct")
+                    }
+                }
             }
         }
         lastBitmap?.recycle()

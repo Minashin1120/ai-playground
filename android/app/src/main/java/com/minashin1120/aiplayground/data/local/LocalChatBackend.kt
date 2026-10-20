@@ -248,10 +248,13 @@ class LocalChatBackend(
 
     private suspend fun streamLocal(path: String, payload: JSONObject, token: String, onAccepted: () -> Unit, onEvent: (JSONObject) -> Unit) {
         when {
-            // Tools without a device runtime use the account server, including Python on DeepSeek.
+            // Features without a device runtime use the account server, including Coding Mode.
             path == "/chat_stream" && fallback != null && needsServerTools(payload) ->
                 fallback.stream(path, withServerAttachments(payload), token, onAccepted, onEvent)
             path == "/chat_stream" -> {
+                if (payload.optBoolean("coding_mode")) throw ApiException(400, JSONObject()
+                    .put("code", "serverless_coding_unavailable")
+                    .put("error", "Coding Modeにはサーバーへの接続が必要です。ログインし、チャットを同期してから再試行してください。"))
                 if (requiresServerPython(payload)) throw ApiException(400, JSONObject()
                     .put("code", "serverless_python_unavailable")
                     .put("error", "このモデルのPython実行にはサーバーへの接続が必要です。ログインし、チャットを同期してから再試行してください。"))
@@ -272,7 +275,8 @@ class LocalChatBackend(
      * or holds answers the server has not received yet.
      */
     private fun needsServerTools(payload: JSONObject): Boolean {
-        if (!payload.optBoolean("enable_file_creation") && !payload.optBoolean("enable_mcp") && !requiresServerPython(payload)) return false
+        if (!payload.optBoolean("coding_mode") && !payload.optBoolean("enable_file_creation") &&
+            !payload.optBoolean("enable_mcp") && !requiresServerPython(payload)) return false
         val threadId = store.resolveAlias(payload.optString("thread_id"))
         if (threadId.isBlank()) return true
         return !onDevice(threadId) && store.pendingRows(threadId).isEmpty()
@@ -409,8 +413,6 @@ class LocalChatBackend(
             .put("error", "このモデルのAPIキーが端末に設定されていません。").put("model", model))
         if (body.optBoolean("batch_mode")) throw ApiException(400, JSONObject().put("code", "serverless_unsupported")
             .put("error", "Batchはサーバー不使用モードでは使えません。"))
-        if (body.has("coding_target")) throw ApiException(400, JSONObject().put("code", "serverless_unsupported")
-            .put("error", "Coding Modeはサーバー不使用モードではまだ使えません。"))
         val files = attachmentRefs(body)
         Diagnostics.log("gen.route", "provider" to route.provider, "vertex" to (vertex != null), "files" to files.size, "ms" to elapsed())
         val chat = conversation(threadId, body)

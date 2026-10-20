@@ -120,4 +120,56 @@ class LocalChatBackendPythonTest {
         assertTrue(backend.requiresServerPython(request()))
         assertFalse(backend.requiresServerPython(request().put("enable_python", false)))
     }
+
+    private fun codingRequest(thread: String = "server-thread", candidates: Boolean = false) =
+        request(model = "gpt-5.4", thread = thread).put("enable_python", false)
+            .put("coding_mode", true).put("coding_target", JSONObject().put("code", "print(1)"))
+            .apply { if (candidates) put("coding_candidates", JSONArray().put(JSONObject().put("code", "print(2)"))) }
+
+    @Test fun codingOnlySendUsesServerWithoutDeviceApiKey() = runBlocking {
+        val server = RecordingServer()
+        val (backend, _) = fixture(server)
+        for (thread in listOf("server-thread", "")) {
+            for (candidates in listOf(false, true)) {
+                val body = codingRequest(thread, candidates)
+                var accepted = false
+                val events = mutableListOf<JSONObject>()
+                backend.stream("/chat_stream", body, "session", { accepted = true }, { events += it })
+                assertTrue(accepted)
+                assertSame(body, server.requests.last())
+                assertEquals("done", events.last().getString("type"))
+            }
+        }
+        assertEquals(4, server.requests.size)
+    }
+
+    private suspend fun assertCodingUnavailable(backend: LocalChatBackend, body: JSONObject) {
+        var accepted = false
+        val events = mutableListOf<JSONObject>()
+        try {
+            backend.stream("/chat_stream", body, "session", { accepted = true }, { events += it })
+            fail("Coding Mode requires a server with the complete chat history")
+        } catch (error: ApiException) {
+            assertEquals("serverless_coding_unavailable", error.payload.getString("code"))
+        }
+        assertFalse(accepted)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test fun codingWithoutAccountRequiresServerBeforeCheckingDeviceApiKey() = runBlocking {
+        val (backend, _) = fixture(null)
+        assertCodingUnavailable(backend, codingRequest(candidates = true))
+    }
+
+    @Test fun codingPreservesDeviceOnlyChatAndPendingAnswers() = runBlocking {
+        val server = RecordingServer()
+        val (backend, store) = fixture(server)
+        val localThread = store.createThread(false).getString("id")
+        assertCodingUnavailable(backend, codingRequest(localThread))
+        val outbox = store.ensureOutboxThread("server-thread")
+        store.appendMessage(outbox, LocalChatStore.NewMessage("assistant", "Pending answer", null))
+        assertCodingUnavailable(backend, codingRequest(candidates = true))
+        assertEquals(1, store.pendingRows("server-thread").size)
+        assertTrue(server.requests.isEmpty())
+    }
 }

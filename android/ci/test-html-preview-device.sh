@@ -30,7 +30,7 @@ ready=0
 for attempt in $(seq 1 180); do
   if [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]] &&
       adb shell pm path android 2>/dev/null | grep -q '^package:' &&
-      [[ "$(adb shell cmd user is-user-unlocked 0 2>/dev/null | tr -d '\r')" == "true" ]]; then
+      [[ "$(adb shell am get-started-user-state 0 2>/dev/null | tr -d '\r')" == "RUNNING_UNLOCKED" ]]; then
     ready=$((ready + 1))
     if [[ "$ready" -ge 5 ]]; then break; fi
   else

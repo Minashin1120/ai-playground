@@ -30,6 +30,7 @@ class HtmlPreviewDeviceTest {
         }
         println("HTML_PREVIEW_DEVICE sdk=${android.os.Build.VERSION.SDK_INT} heap=${Runtime.getRuntime().maxMemory()}")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
+        assertTrue("Device credential storage is not ready", instrumentation.targetContext.getSystemService(android.os.UserManager::class.java).isUserUnlocked)
         var webView: WebView? = null
         compose.waitUntil(15000) {
             instrumentation.runOnMainSync {

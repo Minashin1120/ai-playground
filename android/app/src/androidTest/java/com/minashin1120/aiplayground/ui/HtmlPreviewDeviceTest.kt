@@ -17,7 +17,8 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
-@SdkSuppress(minSdkVersion = 29)
+// Match the SDK 37 device reported in feedback a18200a6c195.
+@SdkSuppress(minSdkVersion = 37)
 class HtmlPreviewDeviceTest {
     @get:Rule val compose = createComposeRule()
 

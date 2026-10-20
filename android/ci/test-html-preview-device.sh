@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 report_dir="$RUNNER_TEMP/html-preview-device"
-mkdir -p "$report_dir"
-timeout 300 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "system-images;android-35;google_apis;x86_64" > "$report_dir/sdk.log" 2>&1
+export ANDROID_USER_HOME="$RUNNER_TEMP/html-preview-android"
+export ANDROID_EMULATOR_HOME="$ANDROID_USER_HOME"
+export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+mkdir -p "$report_dir" "$ANDROID_AVD_HOME"
+timeout 300 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "system-images;android-37.0;google_apis;x86_64" > "$report_dir/sdk.log" 2>&1
 sudo chmod 666 /dev/kvm
-printf 'no\n' | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n html-preview -k 'system-images;android-35;google_apis;x86_64' > "$report_dir/avd.log" 2>&1
+printf 'no\n' | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n html-preview --path "$ANDROID_AVD_HOME/html-preview.avd" -k 'system-images;android-37.0;google_apis;x86_64' > "$report_dir/avd.log" 2>&1
 "$ANDROID_HOME/emulator/emulator" -avd html-preview -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader > "$report_dir/emulator.log" 2>&1 &
 emulator_pid=$!
 trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT

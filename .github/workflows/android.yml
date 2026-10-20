@@ -107,9 +107,12 @@ jobs:
           bash android/ci/verify-keystore.sh
       - name: Install Android SDK components
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;36.0.0"'
-      - name: HTML preview on an Android WebView
+      - name: HTML preview on Android 35
         working-directory: android
-        run: bash ci/test-html-preview-device.sh
+        run: HTML_PREVIEW_API=35 bash ci/test-html-preview-device.sh
+      - name: HTML preview on Android 37
+        working-directory: android
+        run: HTML_PREVIEW_API=37.0 bash ci/test-html-preview-device.sh
       - name: HTML preview device reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

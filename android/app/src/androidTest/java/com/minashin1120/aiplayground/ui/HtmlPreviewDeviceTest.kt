@@ -17,8 +17,8 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(AndroidJUnit4::class)
-// Match the SDK 37 device reported in feedback a18200a6c195.
-@SdkSuppress(minSdkVersion = 37)
+// Run both a stable baseline and the SDK 37 environment from the report.
+@SdkSuppress(minSdkVersion = 29)
 class HtmlPreviewDeviceTest {
     @get:Rule val compose = createComposeRule()
 

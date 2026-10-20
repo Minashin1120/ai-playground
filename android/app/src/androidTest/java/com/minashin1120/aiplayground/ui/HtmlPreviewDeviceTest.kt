@@ -46,7 +46,7 @@ class HtmlPreviewDeviceTest {
         }
         compose.waitUntil(20000) {
             instrumentation.runOnMainSync {
-                webView!!.evaluateJavascript("JSON.stringify({ready:window.previewPainted===true,w:innerWidth,h:innerHeight,status:document.getElementById('status')?.textContent})") { state.set(it) }
+                webView!!.evaluateJavascript("if(!window.previewListener){window.previewListener=true;window.addEventListener('message',e=>{if(e.data==='preview-painted')window.previewPainted=true})};JSON.stringify({ready:window.previewPainted===true,w:innerWidth,h:innerHeight,status:document.getElementById('status')?.textContent})") { state.set(it) }
             }
             println("HTML_PREVIEW_STATE=${state.get()}")
             state.get().contains("ready\\\":true")

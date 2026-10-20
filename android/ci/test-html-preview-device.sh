@@ -2,14 +2,17 @@
 set -euo pipefail
 report_dir="$RUNNER_TEMP/html-preview-device"
 mkdir -p "$report_dir"
-"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "system-images;android-35;google_apis;x86_64" > "$report_dir/sdk.log" 2>&1
+timeout 300 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "system-images;android-35;google_apis;x86_64" > "$report_dir/sdk.log" 2>&1
 sudo chmod 666 /dev/kvm
 printf 'no\n' | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n html-preview -k 'system-images;android-35;google_apis;x86_64' > "$report_dir/avd.log" 2>&1
-"$ANDROID_HOME/emulator/emulator" -avd html-preview -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > "$report_dir/emulator.log" 2>&1 &
+"$ANDROID_HOME/emulator/emulator" -avd html-preview -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader > "$report_dir/emulator.log" 2>&1 &
 emulator_pid=$!
 trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT
 export PATH="$ANDROID_HOME/platform-tools:$PATH"
-adb wait-for-device
+if ! timeout 180 adb wait-for-device; then
+  tail -n 60 "$report_dir/emulator.log"
+  exit 1
+fi
 for attempt in $(seq 1 120); do
   if [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then break; fi
   sleep 2

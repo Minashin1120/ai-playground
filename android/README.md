@@ -141,3 +141,4 @@
 | `ci/verify-keystore.sh`, `ci/verify-apk.sh` | 固定証明書とAPK署名の一致確認 | 署名・上書き更新を検証するとき |
 | `ci/debug.keystore`, `ci/signing-fingerprint.txt` | Actionsが初回だけ保存する共有固定鍵と証明書のSHA-256 | 再利用のみ。削除・置換・再生成しない |
 | `../.github/workflows/android.yml`, `../.github/workflows/release.yml` | CIと署名APKのリリース | GitHub Actionsの運用 |
+| `app/src/androidTest/java/com/minashin1120/aiplayground/ui/HtmlPreviewDeviceTest.kt`, `ci/test-html-preview-device.sh` | GitHub ActionsのAndroidエミュレーターでHTMLプレビューのWebViewと実際の画面描画を検証 | HTMLプレビューのAndroid上の表示を検証するとき |

@@ -15,6 +15,7 @@ android {
         applicationId = "com.minashin1120.aiplayground"
         minSdk = 26
         targetSdk = 37
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = releaseVersion.getProperty("VERSION_CODE").toInt()
         versionName = releaseVersion.getProperty("VERSION_NAME")
         buildConfigField("String", "BASE_URL", "\"https://ai.minashin1120.com/\"")
@@ -75,6 +76,10 @@ dependencies {
     implementation("com.caverock:androidsvg-aar:1.4")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2025.08.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
     testImplementation("com.squareup.okhttp3:mockwebserver3:5.3.0")

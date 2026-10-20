@@ -135,6 +135,7 @@ internal fun MessageBubble(
     liveBottom: (@Composable () -> Unit)? = null,
     /** The reasoning placeholder is shown collapsed (`.thought-content.collapsed`). */
     thoughtCollapsed: Boolean = false,
+    preserveLiveLayout: Boolean = false,
 ) {
     val web = LocalWebPalette.current
     val user = message.role == "user"
@@ -177,7 +178,7 @@ internal fun MessageBubble(
                 liveTop?.invoke()
                 if (!user && message.thought.isNotBlank()) {
                     val thought = remember(message.thought) { thoughtText(message.thought) }
-                    if (thought.isNotBlank()) ThoughtContainer(thought, openInitially = streaming && !thoughtCollapsed)
+                    if (thought.isNotBlank()) ThoughtContainer(thought, openInitially = (streaming || preserveLiveLayout) && !thoughtCollapsed)
                 }
                 if (user) {
                     // User messages are shown as raw text (`whitespace-pre-wrap font-sans text-sm`).
@@ -188,7 +189,8 @@ internal fun MessageBubble(
                     liveSkeleton()
                 } else {
                     message.batch?.let { BatchStatusCard(it) }
-                    if (display.isNotEmpty()) MarkdownText(com.minashin1120.aiplayground.data.missingFileMarkup(display, message.missingFiles), loader, onFile, startCollapsed = !streaming, canvasMode = LocalCanvasMode.current)
+                    if (display.isNotEmpty()) MarkdownText(com.minashin1120.aiplayground.data.missingFileMarkup(display, message.missingFiles), loader, onFile,
+                        startCollapsed = !streaming && !preserveLiveLayout, canvasMode = LocalCanvasMode.current)
                 }
                 liveBottom?.invoke()
                 val files = message.files.filterNot { !user && message.content.contains(it) }

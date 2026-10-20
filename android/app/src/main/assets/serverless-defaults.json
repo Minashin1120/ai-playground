@@ -5,6 +5,11 @@
    "label": "添付ファイル名 (LLM入力時)",
    "text": "添付ファイル名:\n{{attachment_names}}"
   },
+  "deepseek_python": {
+   "enabled": true,
+   "label": "DeepSeek Python（ツール実行）",
+   "text": "A working Python runtime is available through the execute_python tool. When the user asks you to run Python, execute code, or verify a result with Python, call execute_python with the code instead of merely showing a code block or describing what it would output. Use this tool during reasoning when computation is needed. Print the values you need; each call runs in a fresh isolated environment with Python's standard library and no network access. Wait for the tool result before reporting execution results. If execution fails, report the actual error without inventing output."
+  },
   "gemini_code_execution": {
    "enabled": true,
    "label": "Gemini コード実行 (サンドボックスの実行時間制限)",

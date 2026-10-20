@@ -382,6 +382,7 @@ data class AutoSystemPrompt(
 /** Web order and labels; the server supplies the current value and default text. */
 val AUTO_SYSTEM_PROMPT_ITEMS = listOf(
     Triple("python", "Python 実行案内", ""),
+    Triple("deepseek_python", "DeepSeek Python（ツール実行）", ""),
     Triple("gemini_code_execution", "Gemini コード実行（サンドボックスの実行時間制限）", ""),
     Triple("python_file_creation", "Python + ファイル作成（Gemini コード実行時）", ""),
     Triple("gemini_local_python", "Gemini 音声/動画/PDF/DOCX + Python（ローカル実行）", ""),

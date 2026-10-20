@@ -290,22 +290,16 @@
             if (!container) return;
 
             // When a silent reload keeps the current thread view (e.g. right after a
-            // streamed answer completes), preserve the scroll position. Clearing the
-            // container collapses its height, which would otherwise reset the view to
-            // the top. The decision to stay put or snap to the bottom is made by the
-            // restore helper based on the auto-scroll state: users who scrolled away
-            // (auto-scroll paused) must never be dragged back down, while users still
-            // pinned at the bottom stay pinned without a one-frame jump to the top.
+            // streamed answer completes), preserve its scroll position. Build the new
+            // tree offscreen and replace the old children in one operation, so the
+            // scroll range never collapses to zero during the rebuild.
             let previousScrollTop = null;
             if (keepScroll) {
                 previousScrollTop = container.scrollTop;
             }
 
-            // Always clear and rebuild to ensure the UI reflects the current state (allMessages/currentLeafId).
-            // Silent mode in loadMessages handles skipping the spinner, but we still need to swap the content here.
-            container.innerHTML = '';
-
             if (allMessages.length === 0) {
+                container.replaceChildren();
                 currentParentId = null;
                 updateTotalTokenBar(0);
                 return;
@@ -393,7 +387,7 @@
                 }
             }
 
-            container.appendChild(fragment);
+            container.replaceChildren(fragment);
             displayMissingMessageFiles(container, path);
 
             updateTotalTokenBar(pathTotals.tokens_total, pathTotals, allBranchTotals);
@@ -419,8 +413,7 @@
             const maxScroll = container.scrollHeight - container.clientHeight;
             if (userAutoScroll && !chatManualPauseIntent) {
                 // The user is still following the stream (pinned at the bottom): snap
-                // to the new bottom synchronously so the view stays pinned without a
-                // one-frame jump to the top.
+                // to the new bottom so the view stays pinned.
                 container.scrollTop = container.scrollHeight;
             } else {
                 // Auto-scroll is paused (the user scrolled away to re-read), or a

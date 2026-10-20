@@ -6071,6 +6071,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     )
                     python_tools = []
                     if options.get("enable_python"):
+                        if _auto_notice_enabled("deepseek_python"):
+                            messages.append({
+                                "role": "system",
+                                "content": _auto_notice_text("deepseek_python"),
+                            })
                         python_tools.append({
                             "type": "function",
                             "function": {

@@ -1,8 +1,12 @@
+import ast
+import copy
+import json
 import os
+import textwrap
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 from tests.app_source import read_app_source
@@ -108,6 +112,82 @@ class DeepSeekPythonToolTests(unittest.TestCase):
         self.assertIn("[host path redacted]", result)
         self.assertNotIn("/home/ai-chat-minashin1120", result)
         self.assertNotIn("venv/bin/python3", result)
+
+    def test_execution_guidance_respects_notice_and_python_switches(self):
+        source = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
+        start = source.index('                    python_tools = []', source.index('            elif is_deepseek:', source.index('def background_chat_task')))
+        end = source.index('                    if options.get("enable_file_creation"):', start)
+        snippet = textwrap.dedent(source[start:end])
+        for python_enabled in (False, True):
+            for notice_enabled in (False, True):
+                with self.subTest(python=python_enabled, notice=notice_enabled):
+                    messages = []
+                    read_notice = Mock(return_value="Custom Python instructions")
+                    namespace = dict(options={"enable_python": python_enabled}, messages=messages,
+                                     _auto_notice_enabled=lambda key: notice_enabled,
+                                     _auto_notice_text=read_notice)
+                    exec(compile(snippet, "deepseek-tool-setup-test", "exec"), namespace)
+                    self.assertEqual(bool(namespace["python_tools"]), python_enabled)
+                    self.assertEqual(messages, [{"role": "system", "content": "Custom Python instructions"}]
+                                     if python_enabled and notice_enabled else [])
+                    if python_enabled and notice_enabled:
+                        read_notice.assert_called_once_with("deepseek_python")
+                    else:
+                        read_notice.assert_not_called()
+
+    def test_python_request_calls_runtime_and_returns_real_result_to_model(self):
+        # Run the production provider branch without a database, Redis, or API key.
+        source = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
+        start = source.index('                log_force("Routing: DeepSeek V4 Branch (Chat Completions)")')
+        end = source.index('            elif is_kimi or is_zai:', start)
+        branch = textwrap.dedent(source[start:end])
+        module = ast.parse("def run_branch():\n    global full_res, thought_accumulated\n" + textwrap.indent(branch, "    "))
+        requests = []
+        events = []
+        execute = Mock(return_value="42\n")
+
+        def chunk(content=None, reasoning=None, calls=None):
+            return SimpleNamespace(usage=None, choices=[SimpleNamespace(delta=SimpleNamespace(
+                content=content, reasoning_content=reasoning, tool_calls=calls))])
+
+        def create(**kwargs):
+            requests.append(copy.deepcopy(kwargs))
+            if len(requests) == 1:
+                return iter([chunk(reasoning="I will calculate."), chunk(calls=[SimpleNamespace(
+                    index=0, id="call_python", type="function", function=SimpleNamespace(
+                        name="execute_python", arguments=json.dumps({"code": "print(6 * 7)"})))])])
+            return iter([chunk(content="The result is 42.")])
+
+        namespace = dict(
+            log_force=lambda *a: None, check_stop=lambda: False,
+            o_client=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))),
+            options={"enable_python": True, "enable_thinking": True},
+            model_key="deepseek-v4.1-flash", model_key_l="deepseek-v4.1-flash",
+            history=[], quote_text="", message_text="Run print(6 * 7) in Python.",
+            loaded_files=[], req_reasoning_effort="high", user_id=7,
+            _auto_notice_enabled=lambda key: True,
+            _auto_notice_text=lambda key: target.AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS[key],
+            _ensure_mcp_env=lambda: None, _deepseek_api_model_id=target._deepseek_api_model_id,
+            _deepseek_reasoning_effort=lambda: "high", _mark_provider_request_started=lambda: None,
+            _latency_mark_once=lambda *a: None, job_id="test", _refresh_pending_job=lambda: None,
+            thought_accumulated="", full_res="", deepseek_tool_context=[],
+            accumulate_deepseek_tool_call_deltas=target.accumulate_deepseek_tool_call_deltas,
+            safe_execute_python=execute, _markdown_fence_for_code=target._markdown_fence_for_code,
+            json=json, pub=lambda *a: events.append(a),
+        )
+        exec(compile(module, "deepseek-provider-test", "exec"), namespace)
+        namespace["run_branch"]()
+        self.assertFalse([event for event in events if event[0] == "error"], events)
+        execute.assert_called_once_with("print(6 * 7)")
+        self.assertEqual(len(requests), 2)
+        self.assertEqual(requests[0]["tools"][0]["function"]["name"], "execute_python")
+        self.assertTrue(any("call execute_python" in m.get("content", "")
+                            for m in requests[0]["messages"] if m["role"] == "system"))
+        assistant, result = requests[1]["messages"][-2:]
+        self.assertEqual(assistant["reasoning_content"], "I will calculate.")
+        self.assertEqual(result, {"role": "tool", "tool_call_id": "call_python", "content": "42\n"})
+        self.assertIn(("python", {"id": "call_python", "code": "print(6 * 7)", "output": "42\n"}), events)
+        self.assertIn(("content", "The result is 42."), events)
 
     def test_deepseek_ui_and_backend_enable_the_python_tool(self):
         js_assets = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))

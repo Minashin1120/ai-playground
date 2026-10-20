@@ -39,6 +39,7 @@
                             el.className = 'thumb-item shadow-sm';
                             el.dataset.viewerSrc = src;
                             el.dataset.viewerFilename = filename || src.split('/').pop();
+                            el.uploadRow = row;
                             el.onclick = function(e) {
                                 e.preventDefault();
                                 openImageViewer(this.dataset.viewerSrc, '.thumb-item');

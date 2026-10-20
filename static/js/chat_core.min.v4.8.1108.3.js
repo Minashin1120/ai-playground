@@ -5,21 +5,21 @@ if(a){const A=document.querySelectorAll("#upload-list .upload-row");a.innerHTML=
 const Y=$.getAttribute("data-local-url"),V=$.getAttribute("data-filename"),we=$.querySelector("img.u\
 pload-preview")!==null;let H;if(we){let Z=Y;if(!Z&&V){const ae=V.replace(/^\d+\//,"");Z=buildAttachmentPreviewUrl(
 ae)}Z&&(H=document.createElement("img"),H.src=Z,H.className="thumb-item shadow-sm",H.dataset.viewerSrc=
-Z,H.dataset.viewerFilename=V||Z.split("/").pop(),H.onclick=function(ae){ae.preventDefault(),openImageViewer(
-this.dataset.viewerSrc,".thumb-item")},H.onerror=function(){this.parentElement.replaceChild(u("ERR"),
-this)})}H||(H=u("FILE")),H.style.animationDelay=`${F*32}ms`,a.appendChild(H)}),A.length>0?a.classList.
-remove("hidden"):a.classList.add("hidden")}function u(A){const $=document.createElement("div");return $.
-className="thumb-item bg-gray-800 flex items-center justify-center text-gray-500 text-[9px] shadow-s\
-m font-bold",$.innerText=A,$}o(u,"createFileThumb");const f=collectImageUrlsForSend(),b=uploadProgressState.
-total,y=uploadProgressState.completed,v=uploadProgressState.active;b===0&&(e.classList.add("hidden"),
-n&&n.classList.add("hidden"),l&&l.classList.add("hidden"),a&&a.classList.add("hidden"));const w=get(
-"send-btn"),k=get("mic-btn"),S=get("mask-btn"),C=isStopMode;if(v>0?(w&&(w.disabled=!0),k&&(k.disabled=
-!0),S&&(S.disabled=!0)):C||(w&&(w.disabled=!1),k&&(k.disabled=!1),S&&(S.disabled=!1)),v>0){const A=`\
-Preparing... (${y}/${b})`;e.classList.remove("hidden"),t.innerText=A,r&&(r.innerText=`(${y}/${b})`);
-let $=y*100,F=0;for(let we in uploadProgressState.perFilePct)$+=uploadProgressState.perFilePct[we],F++;
-const Y=b>0?$/(b*100)*100:0,V=`${Math.min(100,Y)}%`;n&&i&&(n.classList.remove("hidden"),i.style.width=
-V),l&&c&&(l.classList.remove("hidden"),c.style.width=V)}else r&&(r.innerText=""),l&&l.classList.add(
-"hidden"),f.length>0?(e.classList.remove("hidden"),t.innerText=`${f.length} files ready`,n&&n.classList.
+Z,H.dataset.viewerFilename=V||Z.split("/").pop(),H.uploadRow=$,H.onclick=function(ae){ae.preventDefault(),
+openImageViewer(this.dataset.viewerSrc,".thumb-item")},H.onerror=function(){this.parentElement.replaceChild(
+u("ERR"),this)})}H||(H=u("FILE")),H.style.animationDelay=`${F*32}ms`,a.appendChild(H)}),A.length>0?a.
+classList.remove("hidden"):a.classList.add("hidden")}function u(A){const $=document.createElement("d\
+iv");return $.className="thumb-item bg-gray-800 flex items-center justify-center text-gray-500 text-\
+[9px] shadow-sm font-bold",$.innerText=A,$}o(u,"createFileThumb");const f=collectImageUrlsForSend(),
+b=uploadProgressState.total,y=uploadProgressState.completed,v=uploadProgressState.active;b===0&&(e.classList.
+add("hidden"),n&&n.classList.add("hidden"),l&&l.classList.add("hidden"),a&&a.classList.add("hidden"));
+const w=get("send-btn"),k=get("mic-btn"),S=get("mask-btn"),C=isStopMode;if(v>0?(w&&(w.disabled=!0),k&&
+(k.disabled=!0),S&&(S.disabled=!0)):C||(w&&(w.disabled=!1),k&&(k.disabled=!1),S&&(S.disabled=!1)),v>
+0){const A=`Preparing... (${y}/${b})`;e.classList.remove("hidden"),t.innerText=A,r&&(r.innerText=`(${y}\
+/${b})`);let $=y*100,F=0;for(let we in uploadProgressState.perFilePct)$+=uploadProgressState.perFilePct[we],
+F++;const Y=b>0?$/(b*100)*100:0,V=`${Math.min(100,Y)}%`;n&&i&&(n.classList.remove("hidden"),i.style.
+width=V),l&&c&&(l.classList.remove("hidden"),c.style.width=V)}else r&&(r.innerText=""),l&&l.classList.
+add("hidden"),f.length>0?(e.classList.remove("hidden"),t.innerText=`${f.length} files ready`,n&&n.classList.
 add("hidden")):(e.classList.add("hidden"),t.innerText="",n&&n.classList.add("hidden"));schedulePromptTokenEstimate()}
 o(updateFilePreview,"updateFilePreview");function updateMaskPreview(){const e=get("mask-preview"),t=get(
 "mask-name");!e||!t||(currentMaskImage?(e.classList.remove("hidden"),t.innerText=`Mask: ${currentMaskImage.
@@ -2067,8 +2067,8 @@ scrollHeight;e.scrollTop=Math.max(0,n+(c-t))}}catch{showToast("\u904E\u53BB\u30E
 "error",!0)}finally{loadingOlderMessages=!1;const i=get("load-older-messages-btn");i&&threadHasOlderMessages&&
 (i.disabled=!1,i.innerHTML='<i class="fas fa-clock-rotate-left mr-1"></i>\u904E\u53BB\u30E1\u30C3\u30BB\u30FC\u30B8\u3092\u8AAD\u307F\u8FBC\u3080')}}
 o(loadOlderMessages,"loadOlderMessages");function renderThreadTree(e={}){const t=!!e.silent,n=!!e.animate&&
-!t,i=!!e.keepScroll,a=get("chat-container");if(!a)return;let r=null;if(i&&(r=a.scrollTop),a.innerHTML=
-"",allMessages.length===0){currentParentId=null,updateTotalTokenBar(0);return}const l={};allMessages.
+!t,i=!!e.keepScroll,a=get("chat-container");if(!a)return;let r=null;if(i&&(r=a.scrollTop),allMessages.
+length===0){a.replaceChildren(),currentParentId=null,updateTotalTokenBar(0);return}const l={};allMessages.
 forEach(w=>{l[w.id]=w,w.childrenIds=[]}),allMessages.forEach(w=>{w.parent_id&&l[w.parent_id]&&l[w.parent_id].
 childrenIds.push(w.id)}),(!currentLeafId||!l[currentLeafId])&&(currentLeafId=allMessages.length>0?allMessages[allMessages.
 length-1].id:null);const c=[];let u=l[currentLeafId];for(;u;)c.unshift(u),u=l[u.parent_id];const f=buildTokenTotals(
@@ -2084,7 +2084,7 @@ id,w.role,w.content,w.image_url,w.thought_data,w.model,C,n,w.quote_text,w.tokens
 w.is_encrypted,w.tokens_content,w.tokens_thought,y,!1,w.parent_id,w.gem_name,w.batch_job)});const v=currentThreadPending;
 if(v&&!isPendingJobSuppressed(v.job_id)){const w=v.message_id,k=new Set(c.map(A=>A.id)),S=c.length?c[c.
 length-1]:null;if(w&&k.has(w)&&currentLeafId===w||!w&&S&&S.role==="user"){const A=v.job_id?`pending-${v.
-job_id}`:null;renderPendingMessage(y,n,!1,A,v.model||null)}}if(a.appendChild(y),displayMissingMessageFiles(
+job_id}`:null;renderPendingMessage(y,n,!1,A,v.model||null)}}if(a.replaceChildren(y),displayMissingMessageFiles(
 a,c),updateTotalTokenBar(f.tokens_total,f,b),currentParentId=currentLeafId,i&&r!==null?restoreThreadTreeScroll(
 a,r):scrollToBottom(),lowBandwidthMode)queueMessageDecorations(a,a&&a.textContent||"");else if(queueHighlight(
 a),c.length){const w=c[c.length-1]&&c[c.length-1].content;queueMathTypeset(a,w)}}o(renderThreadTree,

@@ -2159,61 +2159,66 @@ clearViewerAdjacent(),viewerImages=[],viewerIndex=0,s=null,resetViewerTransform(
 "closeImageViewer");function clearViewerAdjacent(){const e=document.querySelector(".viewer-adjacent");
 e&&e.remove()}o(clearViewerAdjacent,"clearViewerAdjacent");function renderViewerChrome(){if(!viewerImages.
 length)return;const e=get("image-viewer-meta"),t=document.querySelector(".viewer-nav.prev"),n=document.
-querySelector(".viewer-nav.next"),i=viewerImages[viewerIndex];if(e.innerText=`${viewerIndex+1} / ${viewerImages.
-length} \u2022 ${i.filename}`,viewerIndex<viewerImages.length-1){const a=new Image;a.src=viewerImages[viewerIndex+
+querySelector(".viewer-nav.next"),i=viewerImages[viewerIndex],a=get("viewer-edit-image");if(a&&(a.style.
+display=getViewerAttachmentRow(i)?"flex":"none"),e.innerText=`${viewerIndex+1} / ${viewerImages.length}\
+ \u2022 ${i.filename}`,viewerIndex<viewerImages.length-1){const r=new Image;r.src=viewerImages[viewerIndex+
 1].url}t.style.display=viewerImages.length>1?"flex":"none",n.style.display=viewerImages.length>1?"fl\
 ex":"none",t.style.opacity=viewerIndex>0?"1":"0.3",n.style.opacity=viewerIndex<viewerImages.length-1?
 "1":"0.3",t.style.pointerEvents=viewerIndex>0?"auto":"none",n.style.pointerEvents=viewerIndex<viewerImages.
-length-1?"auto":"none"}o(renderViewerChrome,"renderViewerChrome");function updateViewerState(e){if(!viewerImages.
-length)return;const t=get("image-viewer-img");if(!t)return;const n=viewerImages[viewerIndex],i=!e||e.
-fade!==!1;resetViewerTransform(),renderViewerChrome(),t.style.transition="none",t.style.transform=i?
-"scale(0.96)":"translate(0, 0) scale(1)",t.style.opacity=i?"0.35":"0";const a=o(()=>{t.style.transition=
-i?"transform 0.28s var(--ease-out), opacity 0.28s var(--ease-out)":"none",t.style.opacity="1",t.style.
-transform="scale(1)",i||clearViewerAdjacent()},"reveal");i?setTimeout(()=>{s&&s.active||(t.src=n.url,
-t.onload=a,t.onerror=a,t.complete&&t.naturalWidth&&a())},140):(t.src=n.url,t.onload=a,t.onerror=a,t.
-complete&&t.naturalWidth&&a())}o(updateViewerState,"updateViewerState");function navImage(e){const t=viewerIndex+
-e;t>=0&&t<viewerImages.length&&(clearViewerAdjacent(),viewerIndex=t,updateViewerState())}o(navImage,
-"navImage");function getViewerAdjacent(e){const t=document.querySelector(".viewer-content");if(!t)return null;
-const n=viewerIndex+e;if(n<0||n>=viewerImages.length)return null;let i=t.querySelector(".viewer-adja\
-cent");return i||(i=document.createElement("img"),i.className="viewer-adjacent",i.alt="",t.appendChild(
-i)),i.src=viewerImages[n].url,i.dataset.dir=String(e),i}o(getViewerAdjacent,"getViewerAdjacent");function onViewerTouchStart(e){
-if(!viewerImages.length)return;if(e.touches.length>=2){const n=e.touches[0],i=e.touches[1];p={d:Math.
-hypot(n.clientX-i.clientX,n.clientY-i.clientY)||1,s:z,mx:(n.clientX+i.clientX)/2,my:(n.clientY+i.clientY)/
-2,x:vX,y:vY},s=null,e.preventDefault();return}if(e.touches.length!==1)return;const t=e.touches[0];if(z>
-1){s={startX:t.clientX,startY:t.clientY,dx:vX,dy:vY};return}s={startX:t.clientX,startY:t.clientY,lastX:t.
-clientX,dx:0,dy:0,vx:0,dir:0,active:!1,resist:!1,adjacent:null,lastTime:Date.now()}}o(onViewerTouchStart,
-"onViewerTouchStart");function onViewerTouchMove(e){if(e.touches.length>=2){if(!p){const $=e.touches[0],
-F=e.touches[1];p={d:Math.hypot($.clientX-F.clientX,$.clientY-F.clientY)||1,s:z,mx:($.clientX+F.clientX)/
-2,my:($.clientY+F.clientY)/2,x:vX,y:vY},s=null}const v=e.touches[0],w=e.touches[1],k=Math.hypot(v.clientX-
-w.clientX,v.clientY-w.clientY)||1,S=(v.clientX+w.clientX)/2,C=(v.clientY+w.clientY)/2;z=Math.min(6,Math.
-max(1,p.s*k/p.d)),z<=1.0001?(z=1,vX=0,vY=0):(vX=p.x+S-p.mx,vY=p.y+C-p.my);const A=get("image-viewer-\
-img");if(!A)return;e.preventDefault(),A.style.transition="none",applyViewerTransform();return}if(p)return;
-if(z>1&&s&&!s.active){const v=e.touches[0];if(!v)return;e.preventDefault(),vX=s.dx+v.clientX-s.startX,
-vY=s.dy+v.clientY-s.startY,applyViewerTransform();return}if(!s)return;const t=e.touches[0];if(!t)return;
-const n=t.clientX-s.startX,i=t.clientY-s.startY,a=Date.now(),r=Math.max(a-s.lastTime,1),l=(t.clientX-
-s.lastX)/r;if(s.vx=l*.6+s.vx*.4,s.lastX=t.clientX,s.lastTime=a,s.dx=n,!s.active){if(Math.abs(n)<10&&
-Math.abs(i)<10)return;if(Math.abs(n)<Math.abs(i)*1.15){s=null;return}s.active=!0,s.dir=n>0?-1:1,s.adjacent=
-getViewerAdjacent(s.dir),s.adjacent||(s.resist=!0)}e.preventDefault();const c=get("image-viewer-img");
-if(!c)return;const u=document.querySelector(".viewer-content"),f=u?u.clientWidth:window.innerWidth,b=s.
-resist?n*.3:n;c.style.transition="none",c.style.transform=`translateX(${b}px) scale(${1-Math.min(Math.
-abs(b)/(f*4),.04)})`,c.style.opacity=String(Math.max(1-Math.min(Math.abs(b)/(f*.45),.55),.4));const y=s.
-adjacent;if(y){const v=Number(y.dataset.dir)||0;y.style.transition="none",y.style.transform=`transla\
-te(-50%, -50%) translateX(${v*f+n}px) scale(0.97)`,y.style.opacity=String(Math.min(Math.abs(n)/(f*.3),
-1))}}o(onViewerTouchMove,"onViewerTouchMove");function onViewerTouchEnd(){if(p){p=null,s=null;return}
-if(!s)return;const e=s;if(s=null,!e.active)return;suppressViewerCloseClick=!0,setTimeout(()=>{suppressViewerCloseClick=
-!1},120);const t=get("image-viewer-img");if(!t)return;const n=document.querySelector(".viewer-conten\
-t"),i=n?n.clientWidth:window.innerWidth,a=i*.22,r=e.dir||(e.dx>0?-1:1),l=window.matchMedia&&window.matchMedia(
-"(prefers-reduced-motion: reduce)").matches,c=!e.resist&&(Math.abs(e.dx)>a||Math.abs(e.vx)>.45&&Math.
-sign(e.dx)===r),u=e.adjacent;if(!c){if(t.style.transition="transform 0.32s var(--ease-out), opacity \
-0.32s var(--ease-out)",t.style.transform="translateX(0) scale(1)",t.style.opacity="1",u){const b=u;u.
-style.transition="transform 0.32s var(--ease-out), opacity 0.32s var(--ease-out)",u.style.transform=
-`translate(-50%, -50%) translateX(${r*i}px) scale(0.97)`,u.style.opacity="0",setTimeout(()=>{b.isConnected&&
-b.remove()},340)}return}if(l){finishSwipeNav(r);return}const f=r*i;t.style.transition="transform 0.3\
-s var(--ease-out), opacity 0.3s var(--ease-out)",t.style.transform=`translateX(${f}px) scale(0.96)`,
-t.style.opacity="0.2",u&&(u.style.transition="transform 0.3s var(--ease-out), opacity 0.3s var(--eas\
-e-out)",u.style.transform="translate(-50%, -50%) translateX(0) scale(1)",u.style.opacity="1"),setTimeout(
-()=>finishSwipeNav(r),300)}o(onViewerTouchEnd,"onViewerTouchEnd");function finishSwipeNav(e){if(!viewerImages.
-length||s&&s.active)return;const t=get("image-viewer");if(!t||!t.classList.contains("visible")){clearViewerAdjacent();
+length-1?"auto":"none"}o(renderViewerChrome,"renderViewerChrome");function getViewerAttachmentRow(e){
+const t=e&&e.element&&e.element.uploadRow;return t&&t.isConnected&&t.querySelector(".upload-marker")?
+t:null}o(getViewerAttachmentRow,"getViewerAttachmentRow");function editCurrentAttachmentImage(){const e=getViewerAttachmentRow(
+viewerImages[viewerIndex]);e&&(closeImageViewer(),openMarkerModalForRow(e))}o(editCurrentAttachmentImage,
+"editCurrentAttachmentImage");function updateViewerState(e){if(!viewerImages.length)return;const t=get(
+"image-viewer-img");if(!t)return;const n=viewerImages[viewerIndex],i=!e||e.fade!==!1;resetViewerTransform(),
+renderViewerChrome(),t.style.transition="none",t.style.transform=i?"scale(0.96)":"translate(0, 0) sc\
+ale(1)",t.style.opacity=i?"0.35":"0";const a=o(()=>{t.style.transition=i?"transform 0.28s var(--ease\
+-out), opacity 0.28s var(--ease-out)":"none",t.style.opacity="1",t.style.transform="scale(1)",i||clearViewerAdjacent()},
+"reveal");i?setTimeout(()=>{s&&s.active||(t.src=n.url,t.onload=a,t.onerror=a,t.complete&&t.naturalWidth&&
+a())},140):(t.src=n.url,t.onload=a,t.onerror=a,t.complete&&t.naturalWidth&&a())}o(updateViewerState,
+"updateViewerState");function navImage(e){const t=viewerIndex+e;t>=0&&t<viewerImages.length&&(clearViewerAdjacent(),
+viewerIndex=t,updateViewerState())}o(navImage,"navImage");function getViewerAdjacent(e){const t=document.
+querySelector(".viewer-content");if(!t)return null;const n=viewerIndex+e;if(n<0||n>=viewerImages.length)
+return null;let i=t.querySelector(".viewer-adjacent");return i||(i=document.createElement("img"),i.className=
+"viewer-adjacent",i.alt="",t.appendChild(i)),i.src=viewerImages[n].url,i.dataset.dir=String(e),i}o(getViewerAdjacent,
+"getViewerAdjacent");function onViewerTouchStart(e){if(!viewerImages.length)return;if(e.touches.length>=
+2){const n=e.touches[0],i=e.touches[1];p={d:Math.hypot(n.clientX-i.clientX,n.clientY-i.clientY)||1,s:z,
+mx:(n.clientX+i.clientX)/2,my:(n.clientY+i.clientY)/2,x:vX,y:vY},s=null,e.preventDefault();return}if(e.
+touches.length!==1)return;const t=e.touches[0];if(z>1){s={startX:t.clientX,startY:t.clientY,dx:vX,dy:vY};
+return}s={startX:t.clientX,startY:t.clientY,lastX:t.clientX,dx:0,dy:0,vx:0,dir:0,active:!1,resist:!1,
+adjacent:null,lastTime:Date.now()}}o(onViewerTouchStart,"onViewerTouchStart");function onViewerTouchMove(e){
+if(e.touches.length>=2){if(!p){const $=e.touches[0],F=e.touches[1];p={d:Math.hypot($.clientX-F.clientX,
+$.clientY-F.clientY)||1,s:z,mx:($.clientX+F.clientX)/2,my:($.clientY+F.clientY)/2,x:vX,y:vY},s=null}
+const v=e.touches[0],w=e.touches[1],k=Math.hypot(v.clientX-w.clientX,v.clientY-w.clientY)||1,S=(v.clientX+
+w.clientX)/2,C=(v.clientY+w.clientY)/2;z=Math.min(6,Math.max(1,p.s*k/p.d)),z<=1.0001?(z=1,vX=0,vY=0):
+(vX=p.x+S-p.mx,vY=p.y+C-p.my);const A=get("image-viewer-img");if(!A)return;e.preventDefault(),A.style.
+transition="none",applyViewerTransform();return}if(p)return;if(z>1&&s&&!s.active){const v=e.touches[0];
+if(!v)return;e.preventDefault(),vX=s.dx+v.clientX-s.startX,vY=s.dy+v.clientY-s.startY,applyViewerTransform();
+return}if(!s)return;const t=e.touches[0];if(!t)return;const n=t.clientX-s.startX,i=t.clientY-s.startY,
+a=Date.now(),r=Math.max(a-s.lastTime,1),l=(t.clientX-s.lastX)/r;if(s.vx=l*.6+s.vx*.4,s.lastX=t.clientX,
+s.lastTime=a,s.dx=n,!s.active){if(Math.abs(n)<10&&Math.abs(i)<10)return;if(Math.abs(n)<Math.abs(i)*1.15){
+s=null;return}s.active=!0,s.dir=n>0?-1:1,s.adjacent=getViewerAdjacent(s.dir),s.adjacent||(s.resist=!0)}
+e.preventDefault();const c=get("image-viewer-img");if(!c)return;const u=document.querySelector(".vie\
+wer-content"),f=u?u.clientWidth:window.innerWidth,b=s.resist?n*.3:n;c.style.transition="none",c.style.
+transform=`translateX(${b}px) scale(${1-Math.min(Math.abs(b)/(f*4),.04)})`,c.style.opacity=String(Math.
+max(1-Math.min(Math.abs(b)/(f*.45),.55),.4));const y=s.adjacent;if(y){const v=Number(y.dataset.dir)||
+0;y.style.transition="none",y.style.transform=`translate(-50%, -50%) translateX(${v*f+n}px) scale(0.\
+97)`,y.style.opacity=String(Math.min(Math.abs(n)/(f*.3),1))}}o(onViewerTouchMove,"onViewerTouchMove");
+function onViewerTouchEnd(){if(p){p=null,s=null;return}if(!s)return;const e=s;if(s=null,!e.active)return;
+suppressViewerCloseClick=!0,setTimeout(()=>{suppressViewerCloseClick=!1},120);const t=get("image-vie\
+wer-img");if(!t)return;const n=document.querySelector(".viewer-content"),i=n?n.clientWidth:window.innerWidth,
+a=i*.22,r=e.dir||(e.dx>0?-1:1),l=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: redu\
+ce)").matches,c=!e.resist&&(Math.abs(e.dx)>a||Math.abs(e.vx)>.45&&Math.sign(e.dx)===r),u=e.adjacent;
+if(!c){if(t.style.transition="transform 0.32s var(--ease-out), opacity 0.32s var(--ease-out)",t.style.
+transform="translateX(0) scale(1)",t.style.opacity="1",u){const b=u;u.style.transition="transform 0.\
+32s var(--ease-out), opacity 0.32s var(--ease-out)",u.style.transform=`translate(-50%, -50%) transla\
+teX(${r*i}px) scale(0.97)`,u.style.opacity="0",setTimeout(()=>{b.isConnected&&b.remove()},340)}return}
+if(l){finishSwipeNav(r);return}const f=r*i;t.style.transition="transform 0.3s var(--ease-out), opaci\
+ty 0.3s var(--ease-out)",t.style.transform=`translateX(${f}px) scale(0.96)`,t.style.opacity="0.2",u&&
+(u.style.transition="transform 0.3s var(--ease-out), opacity 0.3s var(--ease-out)",u.style.transform=
+"translate(-50%, -50%) translateX(0) scale(1)",u.style.opacity="1"),setTimeout(()=>finishSwipeNav(r),
+300)}o(onViewerTouchEnd,"onViewerTouchEnd");function finishSwipeNav(e){if(!viewerImages.length||s&&s.
+active)return;const t=get("image-viewer");if(!t||!t.classList.contains("visible")){clearViewerAdjacent();
 return}const n=viewerIndex+e;n<0||n>=viewerImages.length||(viewerIndex=n,updateViewerState({fade:!1}))}
 o(finishSwipeNav,"finishSwipeNav");function handleViewerKeydown(e){e.key==="ArrowLeft"&&navImage(-1),
 e.key==="ArrowRight"&&navImage(1),e.key==="Escape"&&closeImageViewer()}o(handleViewerKeydown,"handle\

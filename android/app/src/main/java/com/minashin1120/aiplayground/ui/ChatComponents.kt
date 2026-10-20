@@ -197,12 +197,16 @@ internal class ConversationKeyTracker {
     private val aliases = HashMap<String, String>()
     private val fresh = HashSet<String>()
     private var liveSerial = 0
+    private var liveReplyId: String? = null
 
     /** True once the streamed reply has been handed to a stored message during the current stream. */
     var liveConsumed = false
         private set
 
     val liveKey: String get() = "live-$liveSerial"
+
+    /** True while the stored row is taking over the live bubble's expanded layout. */
+    fun isLiveReply(message: ChatMessage): Boolean = message.id == liveReplyId
 
     private var resolved: Map<String, String> = emptyMap()
     private var resolvedList: List<String> = emptyList()
@@ -220,7 +224,10 @@ internal class ConversationKeyTracker {
 
     /** [loadingHistory]: the opened chat's history is still loading; the rows it brings appear without entry motion. */
     fun update(messages: List<ChatMessage>, streaming: Boolean, liveVisible: Boolean, loadingHistory: Boolean = false) {
-        if (streaming && !lastStreaming) liveConsumed = false
+        if (streaming && !lastStreaming) {
+            liveConsumed = false
+            liveReplyId = null
+        }
         lastStreaming = streaming
         val previous = lastMessages
         if (previous !== messages) {
@@ -273,6 +280,7 @@ internal class ConversationKeyTracker {
             added.lastOrNull { it.role == "assistant" }?.let { reply ->
                 claimed += reply.id
                 aliases[reply.id] = liveKey
+                liveReplyId = reply.id
                 liveSerial += 1
                 liveConsumed = true
                 lastLiveShown = false

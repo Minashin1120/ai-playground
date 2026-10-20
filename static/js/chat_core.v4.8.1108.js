@@ -7103,6 +7103,8 @@
             const prevBtn = document.querySelector('.viewer-nav.prev');
             const nextBtn = document.querySelector('.viewer-nav.next');
             const item = viewerImages[viewerIndex];
+            const editButton = get('viewer-edit-image');
+            if (editButton) editButton.style.display = getViewerAttachmentRow(item) ? 'flex' : 'none';
 
             meta.innerText = `${viewerIndex + 1} / ${viewerImages.length} • ${item.filename}`;
 
@@ -7118,6 +7120,18 @@
             nextBtn.style.opacity = viewerIndex < viewerImages.length - 1 ? '1' : '0.3';
             prevBtn.style.pointerEvents = viewerIndex > 0 ? 'auto' : 'none';
             nextBtn.style.pointerEvents = viewerIndex < viewerImages.length - 1 ? 'auto' : 'none';
+        }
+
+        function getViewerAttachmentRow(item) {
+            const row = item && item.element && item.element.uploadRow;
+            return row && row.isConnected && row.querySelector('.upload-marker') ? row : null;
+        }
+
+        function editCurrentAttachmentImage() {
+            const row = getViewerAttachmentRow(viewerImages[viewerIndex]);
+            if (!row) return;
+            closeImageViewer();
+            openMarkerModalForRow(row);
         }
 
         function updateViewerState(opts) {
@@ -12391,6 +12405,7 @@
             };
             const AUTO_SYS_PROMPT_ITEMS = [
                 { key: 'python', label: 'Python 実行案内' },
+                { key: 'deepseek_python', label: 'DeepSeek Python（ツール実行）' },
                 { key: 'gemini_code_execution', label: 'Gemini コード実行（サンドボックスの実行時間制限）' },
                 { key: 'python_file_creation', label: 'Python + ファイル作成（Gemini コード実行時）' },
                 { key: 'gemini_local_python', label: 'Gemini 音声/動画/PDF/DOCX + Python（ローカル実行）' },
@@ -16767,6 +16782,7 @@
                             el.className = 'thumb-item shadow-sm';
                             el.dataset.viewerSrc = src;
                             el.dataset.viewerFilename = filename || src.split('/').pop();
+                            el.uploadRow = row;
                             el.onclick = function(e) {
                                 e.preventDefault();
                                 openImageViewer(this.dataset.viewerSrc, '.thumb-item');
@@ -23653,22 +23669,16 @@
             if (!container) return;
 
             // When a silent reload keeps the current thread view (e.g. right after a
-            // streamed answer completes), preserve the scroll position. Clearing the
-            // container collapses its height, which would otherwise reset the view to
-            // the top. The decision to stay put or snap to the bottom is made by the
-            // restore helper based on the auto-scroll state: users who scrolled away
-            // (auto-scroll paused) must never be dragged back down, while users still
-            // pinned at the bottom stay pinned without a one-frame jump to the top.
+            // streamed answer completes), preserve its scroll position. Build the new
+            // tree offscreen and replace the old children in one operation, so the
+            // scroll range never collapses to zero during the rebuild.
             let previousScrollTop = null;
             if (keepScroll) {
                 previousScrollTop = container.scrollTop;
             }
 
-            // Always clear and rebuild to ensure the UI reflects the current state (allMessages/currentLeafId).
-            // Silent mode in loadMessages handles skipping the spinner, but we still need to swap the content here.
-            container.innerHTML = '';
-
             if (allMessages.length === 0) {
+                container.replaceChildren();
                 currentParentId = null;
                 updateTotalTokenBar(0);
                 return;
@@ -23756,7 +23766,7 @@
                 }
             }
 
-            container.appendChild(fragment);
+            container.replaceChildren(fragment);
             displayMissingMessageFiles(container, path);
 
             updateTotalTokenBar(pathTotals.tokens_total, pathTotals, allBranchTotals);
@@ -23782,8 +23792,7 @@
             const maxScroll = container.scrollHeight - container.clientHeight;
             if (userAutoScroll && !chatManualPauseIntent) {
                 // The user is still following the stream (pinned at the bottom): snap
-                // to the new bottom synchronously so the view stays pinned without a
-                // one-frame jump to the top.
+                // to the new bottom so the view stays pinned.
                 container.scrollTop = container.scrollHeight;
             } else {
                 // Auto-scroll is paused (the user scrolled away to re-read), or a

@@ -8,6 +8,17 @@ def get_bot_detection_global_enabled():
     return get_bool_app_setting("bot_detection_global_enabled", True)
 
 AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = "Python execution is available; you can run Python code when needed."
+AUTO_SYSTEM_PROMPT_NOTICE_DEEPSEEK_PYTHON = (
+    "A working Python runtime is available through the execute_python tool. "
+    "When the user asks you to run Python, execute code, or verify a result "
+    "with Python, call execute_python with the code instead of merely "
+    "showing a code block or describing what it would output. "
+    "Use this tool during reasoning when computation is needed. "
+    "Print the values you need; each call runs in a fresh isolated "
+    "environment with Python's standard library and no network access. "
+    "Wait for the tool result before reporting execution results. "
+    "If execution fails, report the actual error without inventing output."
+)
 # Added with the Gemini code-execution guidance when File creation is on as well: the sandbox
 # keeps nothing, so a file the model only wrote there was never saved for the user.
 AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_FILE_CREATION = (
@@ -71,6 +82,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_MCP = (
 
 AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "python",
+    "deepseek_python",
     "gemini_code_execution",
     "python_file_creation",
     "gemini_local_python",
@@ -86,6 +98,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
 
 AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
     "python": "Python",
+    "deepseek_python": "DeepSeek Python（ツール実行）",
     "gemini_code_execution": "Gemini コード実行 (サンドボックスの実行時間制限)",
     "python_file_creation": "Python + ファイル作成 (Gemini コード実行時)",
     "gemini_local_python": "Gemini 音声/動画/PDF/DOCX + Python (ローカル実行時)",
@@ -101,6 +114,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
 
 AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
     "python": AUTO_SYSTEM_PROMPT_NOTICE_PYTHON,
+    "deepseek_python": AUTO_SYSTEM_PROMPT_NOTICE_DEEPSEEK_PYTHON,
     "gemini_code_execution": AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_CODE_EXECUTION,
     "python_file_creation": AUTO_SYSTEM_PROMPT_NOTICE_PYTHON_FILE_CREATION,
     "gemini_local_python": AUTO_SYSTEM_PROMPT_NOTICE_GEMINI_LOCAL_PYTHON,

@@ -238,6 +238,8 @@
             const prevBtn = document.querySelector('.viewer-nav.prev');
             const nextBtn = document.querySelector('.viewer-nav.next');
             const item = viewerImages[viewerIndex];
+            const editButton = get('viewer-edit-image');
+            if (editButton) editButton.style.display = getViewerAttachmentRow(item) ? 'flex' : 'none';
 
             meta.innerText = `${viewerIndex + 1} / ${viewerImages.length} • ${item.filename}`;
 
@@ -253,6 +255,18 @@
             nextBtn.style.opacity = viewerIndex < viewerImages.length - 1 ? '1' : '0.3';
             prevBtn.style.pointerEvents = viewerIndex > 0 ? 'auto' : 'none';
             nextBtn.style.pointerEvents = viewerIndex < viewerImages.length - 1 ? 'auto' : 'none';
+        }
+
+        function getViewerAttachmentRow(item) {
+            const row = item && item.element && item.element.uploadRow;
+            return row && row.isConnected && row.querySelector('.upload-marker') ? row : null;
+        }
+
+        function editCurrentAttachmentImage() {
+            const row = getViewerAttachmentRow(viewerImages[viewerIndex]);
+            if (!row) return;
+            closeImageViewer();
+            openMarkerModalForRow(row);
         }
 
         function updateViewerState(opts) {

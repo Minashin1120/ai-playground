@@ -53,7 +53,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.autofill.ContentType
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -387,6 +386,12 @@ fun PlaygroundScreen(
                 }.distinct()
                 viewingFile = FileViewRequest(reference, gallery = gallery)
             }
+            val openPendingAttachment: (String) -> Unit = { reference ->
+                viewingFile = FileViewRequest(reference,
+                    gallery = state.attachments.filter { isImageReference(it.name) || it.mime.startsWith("image/") }.map { it.reference },
+                    editAttachment = state.attachments.any { it.reference == reference },
+                )
+            }
             // Web image viewer "Download": Android asks where to save it (ANDROID_ONLY.md §2).
             var pendingFileDownload by remember { mutableStateOf<String?>(null) }
             val fileSaver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
@@ -411,6 +416,7 @@ fun PlaygroundScreen(
                     model.notify("画像URLをコピーしました")
                 },
                 onReuse = { reference -> model.reuseImage(reference) },
+                onEdit = { reference -> markerTarget = state.attachments.firstOrNull { it.reference == reference } },
             )
             val sharePdf: () -> Unit = {
                 model.exportPdf { file ->
@@ -584,7 +590,7 @@ fun PlaygroundScreen(
                             onChatInstructions = { model.ensureThread { threadSettings = true } },
                             onCompressionSettings = { compressionOpen = true },
                             onTemporarySettings = { model.requestSettings(SettingsTab.General.id, "temp-chat") },
-                            loader = loader, onOpenFile = openInApp, onDockHeight = { composerHeight = it },
+                            loader = loader, onOpenFile = openPendingAttachment, onDockHeight = { composerHeight = it },
                             onRealtime = {
                                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
                                 else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
@@ -658,9 +664,8 @@ fun PlaygroundScreen(
                 }
             } else {
                 val web = LocalWebPalette.current
-                // `#overlay` (rgba(4,8,20,.55), light rgba(15,23,42,.32)) with its 4px backdrop blur.
-                val contentBlur by androidx.compose.animation.core.animateDpAsState(
-                    if (drawer.targetValue == DrawerValue.Open && !reduceMotion) 4.dp else 0.dp, label = "drawer blur")
+                // Keep the moving drawer inexpensive to render; a full-screen blur makes swipe
+                // tracking janky on devices where the chat content is already GPU-heavy.
                 ModalNavigationDrawer(drawerState = drawer, gesturesEnabled = showThreads && allowDrawerOpen,
                     scrimColor = if (web.isLight) Color(15, 23, 42).copy(alpha = 0.32f) else Color(4, 8, 20).copy(alpha = 0.55f),
                     drawerContent = {
@@ -673,7 +678,7 @@ fun PlaygroundScreen(
                         ) {
                             if (showThreads) Sidebar(state, versionLabel, sidebarActions(closeDrawer))
                         }
-                    }) { Box(Modifier.blur(contentBlur)) { content() } }
+                    }) { Box { content() } }
             }
 
             // Web `#canvas-panel` below 1024px: a full-screen layer over the header and the composer.
@@ -813,7 +818,7 @@ fun PlaygroundScreen(
                 },
                 onLibrary = { libraryOpen = true },
                 onChangeVisionModel = { visionPicker = true },
-                onOpenFile = openInApp,
+                onOpenFile = openPendingAttachment,
                 onEditImage = { markerTarget = it },
             )
             ModalValueHost(sharedTextPreview.takeIf { startupSplashFinished }) { text ->
@@ -1641,6 +1646,7 @@ private fun ConversationContent(
                                 onPython = actions.onPython,
                             ),
                             controlsVisible = activeMessageId == message.id,
+                            preserveLiveLayout = keys.isLiveReply(message),
                             // Web's tap-to-hover: tapping the bubble again keeps its controls; a tap elsewhere hides them.
                             onToggleControls = { activeMessageId = message.id },
                             branchIndex = if (index < 0) 0 else index,

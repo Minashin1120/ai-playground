@@ -73,6 +73,7 @@ internal data class FileViewRequest(
     val mime: String = "",
     /** Web `openImageViewer`: the chat's images the viewer steps through ("n / total"). */
     val gallery: List<String> = emptyList(),
+    val editAttachment: Boolean = false,
 )
 
 /** What the Web image viewer toolbar does with the shown image. */
@@ -81,6 +82,7 @@ internal class ImageViewerActions(
     val onCopyUrl: (String) -> Unit = {},
     /** Returns whether the image was added (the viewer then closes, as on Web). */
     val onReuse: (String) -> Boolean = { false },
+    val onEdit: ((String) -> Unit)? = null,
 )
 
 internal fun fileViewerTitle(reference: String, displayName: String = ""): String {
@@ -269,12 +271,16 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
                     .padding(horizontal = 20.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                listOf<Triple<Int, String, () -> Unit>>(
+                (listOfNotNull<Triple<Int, String, () -> Unit>>(
+                    actions.onEdit?.takeIf { request.editAttachment }?.let { edit ->
+                        Triple(R.drawable.fa_solid_pen, "画像編集", { dismissOnce(); edit(current) })
+                    },
+                ) + listOf<Triple<Int, String, () -> Unit>>(
                     Triple(R.drawable.fa_solid_download, "Download", { actions.onDownload(current) }),
                     Triple(R.drawable.fa_solid_link, "Copy URL", { actions.onCopyUrl(current) }),
                     Triple(R.drawable.fa_solid_reply, "Reuse as Attachment", { if (actions.onReuse(current)) dismissOnce() }),
                     Triple(R.drawable.fa_solid_times, "Close", dismissOnce),
-                ).forEach { (icon, label, action) ->
+                )).forEach { (icon, label, action) ->
                     Box(Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = label, onClick = action),
                         contentAlignment = Alignment.Center) { FaIcon(icon, label, size = 16.dp, tint = androidx.compose.ui.graphics.Color(0xFFF1F5F9)) }
                 }

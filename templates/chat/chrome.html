@@ -22,6 +22,7 @@
         </div>
         <button class="viewer-nav next" data-progress-no-spinner="true" onclick="navImage(1)"><i class="fas fa-chevron-right"></i></button>
         <div class="viewer-toolbar">
+            <button id="viewer-edit-image" onclick="editCurrentAttachmentImage()" data-progress-no-spinner="true" title="画像編集" aria-label="画像編集" style="display: none"><i class="fas fa-pen"></i></button>
             <button onclick="downloadCurrentImage()" data-progress-no-spinner="true" title="Download"><i class="fas fa-download"></i></button>
             <button onclick="copyCurrentImageUrl()" data-progress-no-spinner="true" title="Copy URL"><i class="fas fa-link"></i></button>
             <button onclick="reuseCurrentImage()" data-progress-no-spinner="true" title="Reuse as Attachment"><i class="fas fa-reply"></i></button>

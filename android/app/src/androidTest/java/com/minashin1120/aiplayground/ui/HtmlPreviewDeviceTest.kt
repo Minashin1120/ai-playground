@@ -62,20 +62,64 @@ class HtmlPreviewDeviceTest {
             }
             println("HTML_PREVIEW_FINAL=${state.get()}")
         }
-        val location = IntArray(2)
-        var width = 0
-        var height = 0
-        instrumentation.runOnMainSync {
-            webView!!.getLocationOnScreen(location)
-            width = webView!!.width
-            height = webView!!.height
+        // WebView loading uses real time; finish the independent Compose animation clock as well.
+        compose.mainClock.advanceTimeBy(1000)
+        compose.waitForIdle()
+        var lastBitmap: android.graphics.Bitmap? = null
+        fun sample(): Int {
+            val location = IntArray(2)
+            var width = 0
+            var height = 0
+            instrumentation.runOnMainSync {
+                webView!!.getLocationOnScreen(location)
+                width = webView!!.width
+                height = webView!!.height
+            }
+            assertTrue("WebView has no viewport", width > 100 && height > 100)
+            val bitmap = instrumentation.uiAutomation.takeScreenshot()
+            lastBitmap?.recycle()
+            lastBitmap = bitmap
+            return bitmap.getPixel(location[0] + width / 2, location[1] + height / 2)
         }
-        val screenshot = instrumentation.uiAutomation.takeScreenshot()
-        val file = File(instrumentation.targetContext.getExternalFilesDir(null), "html-preview.png")
-        file.outputStream().use { screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) }
-        println("HTML_PREVIEW_STATE=${state.get()} view=${width}x$height location=${location.toList()}")
-        assertTrue("WebView has no viewport", width > 100 && height > 100)
-        val pixel = screenshot.getPixel(location[0]+width/2,location[1]+height/2)
-        assertEquals("WebView content was not painted", Color.GREEN,pixel)
+        fun isGreen(pixel: Int): Boolean = Color.green(pixel) > 230 && Color.red(pixel) < 20 && Color.blue(pixel) < 20
+        fun waitForPaint(): Int {
+            val deadline = android.os.SystemClock.uptimeMillis() + 3000
+            var pixel: Int
+            do {
+                pixel = sample()
+                if (isGreen(pixel)) break
+                android.os.SystemClock.sleep(100)
+            } while (android.os.SystemClock.uptimeMillis() < deadline)
+            return pixel
+        }
+        fun save(name: String) {
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "html-preview-$name.png")
+                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/html-preview-device")
+            }
+            val resolver = instrumentation.targetContext.contentResolver
+            val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)!!
+            resolver.openOutputStream(uri)!!.use { lastBitmap!!.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it) }
+        }
+        instrumentation.runOnMainSync {
+            println("HTML_PREVIEW_VIEW hardware=${webView!!.isHardwareAccelerated} layer=${webView!!.layerType} size=${webView!!.width}x${webView!!.height}")
+        }
+        val baseline = waitForPaint()
+        println("HTML_PREVIEW_PAINT baseline=$baseline")
+        save("baseline")
+        if (!isGreen(baseline)) {
+            instrumentation.runOnMainSync { webView!!.setLayerType(View.LAYER_TYPE_HARDWARE, null); webView!!.invalidate() }
+            val hardware = waitForPaint()
+            println("HTML_PREVIEW_PAINT hardware=$hardware")
+            save("hardware")
+            if (!isGreen(hardware)) {
+                instrumentation.runOnMainSync { webView!!.setLayerType(View.LAYER_TYPE_SOFTWARE, null); webView!!.invalidate() }
+                println("HTML_PREVIEW_PAINT software=${waitForPaint()}")
+                save("software")
+            }
+        }
+        lastBitmap?.recycle()
+        assertTrue("WebView content was not painted: $baseline", isGreen(baseline))
     }
 }

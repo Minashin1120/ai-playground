@@ -48,7 +48,7 @@ adb shell df /data > "$report_dir/data-space.log"
 set +e
 ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.minashin1120.aiplayground.ui.HtmlPreviewDeviceTest > "$report_dir/test.log" 2>&1
 status=$?
-adb pull /sdcard/Android/data/com.minashin1120.aiplayground/files/html-preview-attempt.png "$report_dir/attempt.png" || true
+adb pull /sdcard/Pictures/html-preview-device "$report_dir/paint" || true
 adb exec-out screencap -p > "$report_dir/screen.png"
 adb logcat -d | grep -E 'chromium|HTML_PREVIEW|TestRunner|AndroidRuntime' | tail -n 100 > "$report_dir/webview.log"
 if [[ $status -ne 0 ]]; then

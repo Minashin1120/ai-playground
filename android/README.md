@@ -120,7 +120,8 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/WebFonts.kt`, `app/src/main/res/values/font_certs.xml` | Google Fonts経由のNoto Sans JP／JetBrains Mono | フォントを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/WebComponents.kt` | Web再現の共通部品（Font Awesomeアイコン、トグル、チェックボックス、select、チップ、設定カード、ボタン、モーダルの見出し・下部） | Webと同じ見た目の部品を使うとき |
 | `app/src/main/res/drawable/fa_*.xml`, `ci/sync-web-icons.py` | WebのFont Awesomeサブセットから生成したアイコン（手で編集しない。`--check` で一致確認） | Webで使うアイコンが増減したとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/HtmlCodePreviewDialog.kt`, `app/src/main/assets/html-preview-security.js` | HTMLコードブロックのプレビュー（隔離したWebView、Webと共通の危険スクリプト除去） | HTMLプレビューの表示・安全対策を変更するとき |
+| `ci/test-html-preview.py` | AndroidのHTMLプレビュー用HTMLをChromiumで描画し、日本語・CSS・JavaScript・隔離・危険スクリプト除去を検証 | HTMLプレビューの描画を確認するとき（AndroidのビルドやWebViewの実機検証は行わない） |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/HtmlCodePreviewDialog.kt`, `app/src/main/assets/html-preview-security.js` | HTMLコードブロックのプレビュー（専用URLから読み込む隔離したWebView、Webと共通の危険スクリプト除去） | HTMLプレビューの表示・安全対策を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | Webの `marked`（GFM・`breaks`）と `pre-wrap` 表示を再現するMarkdown（リスト、引用、表、コード、`chat_error`、色分け、インラインコード）、回答中の生HTML（`<details>`・表を含む）とSVG | メッセージ本文表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InlineAudioPlayer.kt` | 回答内の `<audio controls src>`（TTS・音楽・Lyriaの出力）を再生するインラインプレーヤー（初回タップで取得、再生・シーク・再生速度の切り替え。Web版の専用プレーヤーと同じ見た目）と、画面が渡す添付ダウンローダー `LocalAttachmentDownloader` | 回答内の音声の再生を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MessageBubble.kt` | Webの `.message-bubble`（吹き出し、タップで出る操作ボタン、引用、Thinking、添付グリッド、分岐切替、フッター）、合計トークン帯、トークン詳細・暗号化モーダル、Welcome、一番下へ | メッセージの見た目を編集するとき |

@@ -271,7 +271,7 @@ ALL_VALID_MODEL_IDS = {
     "grok-voice-latest", "grok-voice-3.0", "grok-voice-think-fast-2.0", "grok-voice-think-fast-1.0", "grok-voice-fast-1.0", "grok-voice-agent",
     "grok-voice-transcribe-2.0", "grok-voice-transcribe-2.0-file",
     # Grok Imagine
-    "grok-imagine-image-2.0", "grok-imagine-image-quality", "grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video-1.5", "grok-imagine-video",
+    "grok-imagine-image-2.0", "grok-imagine-image-quality", "grok-imagine-image", "grok-imagine-image-pro", "grok-imagine-video-1.5-lite", "grok-imagine-video-1.5", "grok-imagine-video",
     # xAI Grok
     "grok-4.6", "grok-4.5", "grok-4.3", "grok-build-0.1",
     "grok-4.20-0309-reasoning", "grok-4.20-0309-non-reasoning", "grok-4.20-multi-agent-0309",

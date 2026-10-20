@@ -25,8 +25,43 @@ class MediaDirectTest {
         assertEquals("openai", router.route("gpt-transcribe", "transcription")?.provider)
         assertEquals("gemini", router.route("veo-3.1-generate-preview", "video")?.provider)
         assertEquals("xai", router.route("grok-imagine-video", "video")?.provider)
+        assertEquals("xai", router.route("grok-imagine-video-1.5-lite", "video")?.provider)
         assertNull(router.route("lyria-3.5", "music"))
         assertNull(router.route("gpt-realtime-2", "realtime_audio"))
+    }
+
+    @Test fun grokVideoLiteGeneratesTextAndImageVideos() {
+        for (withImage in listOf(false, true)) {
+            MockWebServer().use { server ->
+                server.start()
+                val clipUrl = server.url("/clip.mp4").toString()
+                server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                    .body("""{"request_id":"lite-test"}""").build())
+                server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                    .body("""{"status":"done","video":{"url":"$clipUrl"}}""").build())
+                server.enqueue(MockResponse.Builder().addHeader("Content-Type", "video/mp4").body("video-bytes").build())
+                val resolution = if (withImage) "1080p" else "480p"
+                val options = JSONObject().put("grok_video_resolution", resolution).put("grok_video_duration", "15")
+                val attachments = if (withImage) listOf(DirectAttachment("a.png", "image/png", bytes = byteArrayOf(1))) else emptyList()
+                val result = run(VideoDirect(http, "xai", server.url("/").toString().trimEnd('/')),
+                    request("grok-imagine-video-1.5-lite", "日の出", options, attachments))
+                assertArrayEquals("video-bytes".toByteArray(), result.files.single().bytes)
+                val post = server.takeRequest()
+                assertTrue(post.target.endsWith("/v1/videos/generations"))
+                val payload = JSONObject(post.body!!.utf8())
+                assertEquals("grok-imagine-video-1.5-lite", payload.getString("model"))
+                assertEquals(resolution, payload.getString("resolution"))
+                assertEquals(15, payload.getInt("duration"))
+                assertEquals(withImage, payload.has("image"))
+                if (withImage) assertEquals("data:image/png;base64,AQ==", payload.getJSONObject("image").getString("url"))
+                assertFalse(payload.has("reference_images"))
+                assertFalse(payload.has("reference_audios"))
+                assertFalse(payload.has("keyframes"))
+                assertFalse(payload.has("last_frame"))
+                assertTrue(server.takeRequest().target.endsWith("/v1/videos/lite-test"))
+                assertNull(server.takeRequest().headers["Authorization"])
+            }
+        }
     }
 
     @Test fun gptImageUsesTheImageGenerationToolAndEditsWithImages() {

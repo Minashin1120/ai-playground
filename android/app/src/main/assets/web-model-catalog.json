@@ -3168,6 +3168,28 @@
     "searchTerms": []
   },
   {
+    "id": "grok-imagine-video-1.5-lite",
+    "name": "Grok Imagine Video 1.5 Lite",
+    "description": "Low-cost text/image-to-video with lip-synced audio, 1–15 seconds. 1080p is upscaled from 720p. No reference images, voice references, or keyframes.",
+    "price": "480p $0.02/s, 720p $0.03/s, 1080p $0.14/s; image input $0.01/image",
+    "category": "Grok Imagine",
+    "categoryIcon": "fas fa-magic text-blue-400",
+    "categoryDescription": "Grok generation models",
+    "apiId": "grok-imagine-video-1.5-lite",
+    "agenticView": false,
+    "implementedAt": "2026-10-20",
+    "implementedRank": 11061,
+    "emoji": "🎬",
+    "deprecated": false,
+    "tags": [
+      "xai",
+      "image",
+      "audio",
+      "video"
+    ],
+    "searchTerms": []
+  },
+  {
     "id": "grok-imagine-video-1.5",
     "name": "Grok Imagine Video 1.5",
     "description": "Current xAI video generation model with 1080p text/image-to-video support.",

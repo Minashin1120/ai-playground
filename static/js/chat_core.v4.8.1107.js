@@ -6684,6 +6684,44 @@
             filterSettings();
             refreshSettingsTabsScroll();
         }
+        function initSettingsSwipeNav() {
+            try {
+                const area = document.querySelector('#settings-modal .settings-main');
+                if (!area || area.dataset.swipeBound === '1') return;
+                area.dataset.swipeBound = '1';
+                let sx = 0, sy = 0, st = 0, ok = false;
+                const blocked = (el) => {
+                    for (let n = el; n && n !== area; n = n.parentElement) {
+                        if (n.id === 'settings-tabs-wrap') return true;
+                        const tag = n.tagName;
+                        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'PRE' || tag === 'CODE') return true;
+                        if (n.scrollWidth > n.clientWidth + 2) {
+                            const ox = getComputedStyle(n).overflowX;
+                            if (ox === 'auto' || ox === 'scroll') return true;
+                        }
+                    }
+                    return false;
+                };
+                area.addEventListener('touchstart', (e) => {
+                    ok = false;
+                    if (e.touches.length !== 1) return;
+                    const ss = get('settings-search');
+                    if (ss && ss.value.trim()) return;
+                    if (blocked(e.target)) return;
+                    sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now(); ok = true;
+                }, { passive: true });
+                area.addEventListener('touchend', (e) => {
+                    if (!ok) return;
+                    ok = false;
+                    const t = e.changedTouches[0];
+                    if (!t) return;
+                    const dx = t.clientX - sx, dy = t.clientY - sy;
+                    if (Date.now() - st > 600 || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+                    const next = ALL_TABS[ALL_TABS.indexOf(activeSettingsTab) + (dx < 0 ? 1 : -1)];
+                    if (next) switchTab(next);
+                }, { passive: true });
+            } catch (_) {}
+        }
         function getSettingsTabsMaxScroll(tabs) {
             if (!tabs) return 0;
             return Math.max(0, tabs.scrollWidth - tabs.clientWidth);
@@ -6712,6 +6750,7 @@
         }
         function refreshSettingsTabsScroll() {
             initSettingsTabsScroll();
+            initSettingsSwipeNav();
             syncSettingsTabsOverflow();
         }
         function initSettingsTabsScroll() {
@@ -7832,6 +7871,7 @@
                     { id: "grok-imagine-image-quality", implementedAt: "2026-05-09", implementedRank: 5020, name: "Grok Imagine Image Quality", desc: "Next-gen Grok image generation with 1K/2K support.", price: "$0.05 / image" },
                     { id: "grok-imagine-image", implementedAt: "2026-01-30", implementedRank: 520, name: "Grok Imagine Image", desc: "Latest Grok image generation.", price: "$0.02 / image" },
                     { id: "grok-imagine-image-pro", implementedAt: "2026-02-01", implementedRank: 530, name: "Grok Imagine Image Pro", desc: "Discontinued by xAI. Retained for chat history compatibility.", price: "$0.07 / image", deprecated: true },
+                    { id: "grok-imagine-video-1.5-lite", implementedAt: "2026-10-20", implementedRank: 11061, quickEmoji: "🎬", name: "Grok Imagine Video 1.5 Lite", desc: "Low-cost text/image-to-video with lip-synced audio, 1–15 seconds. 1080p is upscaled from 720p. No reference images, voice references, or keyframes.", price: "480p $0.02/s, 720p $0.03/s, 1080p $0.14/s; image input $0.01/image" },
                     { id: "grok-imagine-video-1.5", implementedAt: "2026-08-25", implementedRank: 8501, quickEmoji: "🎬", name: "Grok Imagine Video 1.5", desc: "Current xAI video generation model with 1080p text/image-to-video support.", price: "$0.080 / second" },
                     { id: "grok-imagine-video", implementedAt: "2026-01-30", implementedRank: 530, name: "Grok Imagine Video", desc: "Legacy Grok video generation.", price: "$0.05 / second" }
                 ]
@@ -10280,8 +10320,9 @@
             const resolution = get('grok-video-resolution');
             if (resolution) {
                 const fullHd = Array.from(resolution.options).find(opt => opt.value === '1080p');
-                if (fullHd) fullHd.disabled = model !== 'grok-imagine-video-1.5';
-                if (model !== 'grok-imagine-video-1.5' && resolution.value === '1080p') resolution.value = '720p';
+                const supportsFullHd = ['grok-imagine-video-1.5', 'grok-imagine-video-1.5-lite'].includes(model);
+                if (fullHd) fullHd.disabled = !supportsFullHd;
+                if (!supportsFullHd && resolution.value === '1080p') resolution.value = '720p';
             }
         }
         function updateGeminiVideoUi() {

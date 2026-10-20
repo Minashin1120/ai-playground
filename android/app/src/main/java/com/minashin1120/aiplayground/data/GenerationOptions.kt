@@ -198,7 +198,7 @@ fun generationPanels(modelId: String, values: Map<String, String> = emptyMap()):
             number("grok_video_duration", "Duration", "5", 1.0, 15.0, width = 48, suffix = "sec"),
             select("grok_video_aspect", "Aspect", "16:9", *VIDEO_ASPECTS),
             select("grok_video_resolution", "Resolution", "720p", *plain("720p", "480p", "1080p"),
-                disabled = if (m != "grok-imagine-video-1.5") setOf("1080p") else emptySet()),
+                disabled = if (m !in setOf("grok-imagine-video-1.5", "grok-imagine-video-1.5-lite")) setOf("1080p") else emptySet()),
         ), "※ Grok Imagine Video"))
     }
     if (isGeminiVideoModel(m)) {

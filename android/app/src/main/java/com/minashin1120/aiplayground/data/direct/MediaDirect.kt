@@ -555,7 +555,7 @@ class VideoDirect(private val http: DirectHttp, private val provider: String, pr
         val options = request.options
         val headers = mapOf("Authorization" to "Bearer ${request.apiKey}")
         var resolution = options.optString("grok_video_resolution").takeIf { it in setOf("480p", "720p", "1080p") } ?: "720p"
-        if (resolution == "1080p" && request.model != "grok-imagine-video-1.5") resolution = "720p"
+        if (resolution == "1080p" && request.model !in setOf("grok-imagine-video-1.5", "grok-imagine-video-1.5-lite")) resolution = "720p"
         val payload = JSONObject().put("model", request.model).put("prompt", request.prompt())
             .put("duration", options.optString("grok_video_duration").toIntOrNull() ?: 5)
             .put("aspect_ratio", options.optString("grok_video_aspect").ifBlank { "16:9" }).put("resolution", resolution)

@@ -44,6 +44,7 @@ class GenerationOptionsTest {
         assertEquals("1080p", generationOptionsPayload("veo-3.1-lite-generate-preview", mapOf("gemini_video_resolution" to "4K")).getString("gemini_video_resolution"))
         assertEquals("720p", generationOptionsPayload("grok-imagine-video", mapOf("grok_video_resolution" to "1080p")).getString("grok_video_resolution"))
         assertEquals("1080p", generationOptionsPayload("grok-imagine-video-1.5", mapOf("grok_video_resolution" to "1080p")).getString("grok_video_resolution"))
+        assertEquals("1080p", generationOptionsPayload("grok-imagine-video-1.5-lite", mapOf("grok_video_resolution" to "1080p")).getString("grok_video_resolution"))
     }
 
     @Test fun imageRulesFollowTheWeb() {

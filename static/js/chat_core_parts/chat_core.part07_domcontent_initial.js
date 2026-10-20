@@ -199,8 +199,9 @@
             const resolution = get('grok-video-resolution');
             if (resolution) {
                 const fullHd = Array.from(resolution.options).find(opt => opt.value === '1080p');
-                if (fullHd) fullHd.disabled = model !== 'grok-imagine-video-1.5';
-                if (model !== 'grok-imagine-video-1.5' && resolution.value === '1080p') resolution.value = '720p';
+                const supportsFullHd = ['grok-imagine-video-1.5', 'grok-imagine-video-1.5-lite'].includes(model);
+                if (fullHd) fullHd.disabled = !supportsFullHd;
+                if (!supportsFullHd && resolution.value === '1080p') resolution.value = '720p';
             }
         }
         function updateGeminiVideoUi() {

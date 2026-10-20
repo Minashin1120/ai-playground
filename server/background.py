@@ -1531,6 +1531,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     "grok-imagine-image",
                     "grok-imagine-image-pro",
                     "grok-imagine-image-quality",
+                    "grok-imagine-video-1.5-lite",
                     "grok-imagine-video-1.5",
                     "grok-imagine-video",
                 ):
@@ -4869,7 +4870,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     pub("error", f"Grok Imagine Error: {err_msg}")
 
             # --- 1.6 Grok Imagine Video Generation ---
-            elif model_key in ("grok-imagine-video", "grok-imagine-video-1.5"):
+            elif model_key in ("grok-imagine-video", "grok-imagine-video-1.5", "grok-imagine-video-1.5-lite"):
                 log_force("Routing: Grok Video Branch")
                 try:
                     pub("content", "**Generating Video (Grok)...**\n")
@@ -4884,7 +4885,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     resolution = options.get('grok_video_resolution') or "720p"
                     if resolution not in ("480p", "720p", "1080p"):
                         resolution = "720p"
-                    if resolution == "1080p" and model_key != "grok-imagine-video-1.5":
+                    if resolution == "1080p" and model_key not in ("grok-imagine-video-1.5", "grok-imagine-video-1.5-lite"):
                         resolution = "720p"
                     
                     api_key = key # Decrypted XAI API Key

@@ -1574,6 +1574,44 @@
             filterSettings();
             refreshSettingsTabsScroll();
         }
+        function initSettingsSwipeNav() {
+            try {
+                const area = document.querySelector('#settings-modal .settings-main');
+                if (!area || area.dataset.swipeBound === '1') return;
+                area.dataset.swipeBound = '1';
+                let sx = 0, sy = 0, st = 0, ok = false;
+                const blocked = (el) => {
+                    for (let n = el; n && n !== area; n = n.parentElement) {
+                        if (n.id === 'settings-tabs-wrap') return true;
+                        const tag = n.tagName;
+                        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'PRE' || tag === 'CODE') return true;
+                        if (n.scrollWidth > n.clientWidth + 2) {
+                            const ox = getComputedStyle(n).overflowX;
+                            if (ox === 'auto' || ox === 'scroll') return true;
+                        }
+                    }
+                    return false;
+                };
+                area.addEventListener('touchstart', (e) => {
+                    ok = false;
+                    if (e.touches.length !== 1) return;
+                    const ss = get('settings-search');
+                    if (ss && ss.value.trim()) return;
+                    if (blocked(e.target)) return;
+                    sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now(); ok = true;
+                }, { passive: true });
+                area.addEventListener('touchend', (e) => {
+                    if (!ok) return;
+                    ok = false;
+                    const t = e.changedTouches[0];
+                    if (!t) return;
+                    const dx = t.clientX - sx, dy = t.clientY - sy;
+                    if (Date.now() - st > 600 || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+                    const next = ALL_TABS[ALL_TABS.indexOf(activeSettingsTab) + (dx < 0 ? 1 : -1)];
+                    if (next) switchTab(next);
+                }, { passive: true });
+            } catch (_) {}
+        }
         function getSettingsTabsMaxScroll(tabs) {
             if (!tabs) return 0;
             return Math.max(0, tabs.scrollWidth - tabs.clientWidth);
@@ -1602,6 +1640,7 @@
         }
         function refreshSettingsTabsScroll() {
             initSettingsTabsScroll();
+            initSettingsSwipeNav();
             syncSettingsTabsOverflow();
         }
         function initSettingsTabsScroll() {

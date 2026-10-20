@@ -1006,6 +1006,7 @@
                     { id: "grok-imagine-image-quality", implementedAt: "2026-05-09", implementedRank: 5020, name: "Grok Imagine Image Quality", desc: "Next-gen Grok image generation with 1K/2K support.", price: "$0.05 / image" },
                     { id: "grok-imagine-image", implementedAt: "2026-01-30", implementedRank: 520, name: "Grok Imagine Image", desc: "Latest Grok image generation.", price: "$0.02 / image" },
                     { id: "grok-imagine-image-pro", implementedAt: "2026-02-01", implementedRank: 530, name: "Grok Imagine Image Pro", desc: "Discontinued by xAI. Retained for chat history compatibility.", price: "$0.07 / image", deprecated: true },
+                    { id: "grok-imagine-video-1.5-lite", implementedAt: "2026-10-20", implementedRank: 11061, quickEmoji: "🎬", name: "Grok Imagine Video 1.5 Lite", desc: "Low-cost text/image-to-video with lip-synced audio, 1–15 seconds. 1080p is upscaled from 720p. No reference images, voice references, or keyframes.", price: "480p $0.02/s, 720p $0.03/s, 1080p $0.14/s; image input $0.01/image" },
                     { id: "grok-imagine-video-1.5", implementedAt: "2026-08-25", implementedRank: 8501, quickEmoji: "🎬", name: "Grok Imagine Video 1.5", desc: "Current xAI video generation model with 1080p text/image-to-video support.", price: "$0.080 / second" },
                     { id: "grok-imagine-video", implementedAt: "2026-01-30", implementedRank: 530, name: "Grok Imagine Video", desc: "Legacy Grok video generation.", price: "$0.05 / second" }
                 ]

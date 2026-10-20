@@ -18,6 +18,7 @@ class XaiModelCoverageRegressionTests(unittest.TestCase):
             "grok-4.20-0309-non-reasoning",
             "grok-4.20-multi-agent-0309",
             "grok-imagine-video-1.5",
+            "grok-imagine-video-1.5-lite",
             "grok-voice-3.0",
             "grok-voice-think-fast-2.0",
         )

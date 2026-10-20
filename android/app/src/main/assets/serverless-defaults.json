@@ -2063,6 +2063,18 @@
   },
   {
    "capabilities": [
+    "video"
+   ],
+   "deprecated": false,
+   "id": "grok-imagine-video-1.5-lite",
+   "mode": "video",
+   "name": "Grok Imagine Video 1.5 Lite",
+   "provider": "xai",
+   "provider_label": "xAI (Grok)",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "tts"
    ],
    "deprecated": false,

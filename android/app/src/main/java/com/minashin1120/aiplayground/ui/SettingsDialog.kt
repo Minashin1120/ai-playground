@@ -1,6 +1,10 @@
 package com.minashin1120.aiplayground.ui
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
@@ -166,7 +170,31 @@ fun SettingsDialog(
                 }
                 if (phone) {
                     SettingsTabRow(tab, cards, query.trim(), phone = true) { query = ""; tab = it }
-                    content(Modifier.weight(1f))
+                    val currentTab by rememberUpdatedState(tab)
+                    val searching by rememberUpdatedState(query.isNotBlank())
+                    content(Modifier.weight(1f).pointerInput(Unit) {
+                        // Swipe left/right to switch tabs (same thresholds as Web); never consumes events.
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                            val startMs = System.currentTimeMillis()
+                            var dx = 0f
+                            var dy = 0f
+                            var multi = false
+                            do {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                if (event.changes.size > 1) multi = true
+                                val c = event.changes.firstOrNull { it.id == down.id } ?: break
+                                dx = c.position.x - down.position.x
+                                dy = c.position.y - down.position.y
+                            } while (event.changes.any { it.pressed })
+                            val elapsed = System.currentTimeMillis() - startMs
+                            val min = 60.dp.toPx()
+                            if (!multi && !searching && elapsed <= 600 && kotlin.math.abs(dx) >= min && kotlin.math.abs(dx) >= kotlin.math.abs(dy) * 1.5f) {
+                                val all = SettingsTab.entries
+                                all.getOrNull(all.indexOf(currentTab) + if (dx < 0) 1 else -1)?.let { query = ""; tab = it }
+                            }
+                        }
+                    })
                 } else Row(Modifier.weight(1f).drawBehind {
                     drawLine(Color(0xFF1A2338), androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx())
                 }) {

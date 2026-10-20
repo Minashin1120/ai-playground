@@ -8,6 +8,8 @@ import com.minashin1120.aiplayground.data.direct.DirectAttachment
 import com.minashin1120.aiplayground.data.direct.DirectApiException
 import com.minashin1120.aiplayground.data.direct.DirectRequest
 import com.minashin1120.aiplayground.data.direct.DirectRouter
+import com.minashin1120.aiplayground.data.direct.GeminiDirect
+import com.minashin1120.aiplayground.data.direct.OpenAiResponsesDirect
 import com.minashin1120.aiplayground.data.direct.DirectTurn
 import com.minashin1120.aiplayground.data.direct.ServerlessDefaults
 import com.minashin1120.aiplayground.data.direct.SystemPromptBuilder
@@ -246,10 +248,13 @@ class LocalChatBackend(
 
     private suspend fun streamLocal(path: String, payload: JSONObject, token: String, onAccepted: () -> Unit, onEvent: (JSONObject) -> Unit) {
         when {
-            // File creation and MCP run on the server only: with either on, an account's answer comes from the server.
+            // Tools without a device runtime use the account server, including Python on DeepSeek.
             path == "/chat_stream" && fallback != null && needsServerTools(payload) ->
                 fallback.stream(path, withServerAttachments(payload), token, onAccepted, onEvent)
             path == "/chat_stream" -> {
+                if (requiresServerPython(payload)) throw ApiException(400, JSONObject()
+                    .put("code", "serverless_python_unavailable")
+                    .put("error", "このモデルのPython実行にはサーバーへの接続が必要です。ログインし、チャットを同期してから再試行してください。"))
                 // Image and video answers take minutes; the hold lasts until the answer is saved and uploaded.
                 val mode = modeOf(payload.optString("model"))
                 val hold = if (needsKeepAlive(mode)) keepAlive.begin(mode) else null
@@ -263,14 +268,23 @@ class LocalChatBackend(
     }
 
     /**
-     * File creation (`enable_file_creation`) and MCP (`enable_mcp`) have no device implementation. A send with either on
-     * goes to the server, unless the chat only exists on the device or holds answers the server has not received yet.
+     * Tools without a device runtime use the server, unless the chat only exists on the device
+     * or holds answers the server has not received yet.
      */
     private fun needsServerTools(payload: JSONObject): Boolean {
-        if (!payload.optBoolean("enable_file_creation") && !payload.optBoolean("enable_mcp")) return false
+        if (!payload.optBoolean("enable_file_creation") && !payload.optBoolean("enable_mcp") && !requiresServerPython(payload)) return false
         val threadId = store.resolveAlias(payload.optString("thread_id"))
         if (threadId.isBlank()) return true
         return !onDevice(threadId) && store.pendingRows(threadId).isEmpty()
+    }
+
+    /** Only Gemini and OpenAI Responses currently provide Python execution in the direct engines. */
+    internal fun requiresServerPython(payload: JSONObject): Boolean {
+        if (!payload.optBoolean("enable_python")) return false
+        val model = payload.optString("model")
+        if (modeOf(model) != "chat") return false
+        val route = router.route(model, "chat") ?: return false
+        return route.engine !is GeminiDirect && !(route.provider == "openai" && route.engine is OpenAiResponsesDirect)
     }
 
     /**

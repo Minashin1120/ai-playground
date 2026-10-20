@@ -1,6 +1,7 @@
 package com.minashin1120.aiplayground.ui
 
 import android.annotation.SuppressLint
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -60,6 +61,9 @@ internal fun HtmlCodePreviewDialog(code: String, onDismiss: () -> Unit) {
                 modifier = Modifier.fillMaxSize(),
                 factory = { viewContext ->
                     WebView(viewContext).apply {
+                        // WRAP_CONTENT makes percentage-height HTML collapse to zero in WebView.
+                        // Match the Compose viewport before loading the sandboxed document.
+                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                         settings.apply {
                             javaScriptEnabled = true
                             allowFileAccess = false

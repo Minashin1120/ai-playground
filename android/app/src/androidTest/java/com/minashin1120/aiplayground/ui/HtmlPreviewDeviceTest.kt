@@ -108,41 +108,6 @@ class HtmlPreviewDeviceTest {
         val baseline = waitForPaint()
         println("HTML_PREVIEW_PAINT baseline=$baseline")
         save("baseline")
-        if (!isGreen(baseline)) {
-            instrumentation.runOnMainSync {
-                webView!!.visibility = View.INVISIBLE
-                webView!!.visibility = View.VISIBLE
-                webView!!.onResume()
-                webView!!.invalidate()
-            }
-            val visible = waitForPaint()
-            println("HTML_PREVIEW_PAINT visibility=$visible")
-            save("visibility")
-            if (!isGreen(visible)) {
-                instrumentation.runOnMainSync { webView!!.reload() }
-                val reloaded = waitForPaint()
-                println("HTML_PREVIEW_PAINT reload=$reloaded")
-                save("reload")
-                if (!isGreen(reloaded)) {
-                    instrumentation.runOnMainSync {
-                        webView!!.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                        webView!!.requestLayout()
-                        webView!!.reload()
-                    }
-                    val layout = waitForPaint()
-                    println("HTML_PREVIEW_PAINT matchParent=$layout")
-                    save("layout")
-                    if (!isGreen(layout)) {
-                        instrumentation.runOnMainSync {
-                            webView!!.webViewClient = android.webkit.WebViewClient()
-                            webView!!.loadDataWithBaseURL("https://control.invalid/", "<html><body style='margin:0;background:rgb(0,255,0)'><h1>Direct control</h1></body></html>", "text/html", "UTF-8", null)
-                        }
-                        println("HTML_PREVIEW_PAINT direct=${waitForPaint()}")
-                        save("direct")
-                    }
-                }
-            }
-        }
         lastBitmap?.recycle()
         assertTrue("WebView content was not painted: $baseline", isGreen(baseline))
     }

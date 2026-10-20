@@ -7,12 +7,15 @@ export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
 mkdir -p "$report_dir" "$ANDROID_AVD_HOME"
 timeout 300 "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "system-images;android-37.0;google_apis;x86_64" > "$report_dir/sdk.log" 2>&1
 sudo chmod 666 /dev/kvm
-printf 'no\n' | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n html-preview --path "$ANDROID_AVD_HOME/html-preview.avd" -k 'system-images;android-37.0;google_apis;x86_64' > "$report_dir/avd.log" 2>&1
-"$ANDROID_HOME/emulator/emulator" -avd html-preview -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader > "$report_dir/emulator.log" 2>&1 &
+printf 'no\n' | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force -n html-preview --device pixel --path "$ANDROID_AVD_HOME/html-preview.avd" -k 'system-images;android-37.0;google_apis;x86_64' > "$report_dir/avd.log" 2>&1
+export PATH="$ANDROID_HOME/platform-tools:$PATH"
+adb start-server
+cp "$ANDROID_AVD_HOME/html-preview.avd/config.ini" "$report_dir/device-config.ini"
+"$ANDROID_HOME/emulator/emulator" -avd html-preview -memory 3072 -cores 2 -skin 480x960 -no-metrics -show-kernel -feature -Vulkan -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader > "$report_dir/emulator.log" 2>&1 &
 emulator_pid=$!
 trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT
 export PATH="$ANDROID_HOME/platform-tools:$PATH"
-if ! timeout 180 adb wait-for-device; then
+if ! timeout 300 adb wait-for-device; then
   tail -n 60 "$report_dir/emulator.log"
   exit 1
 fi

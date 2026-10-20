@@ -44,12 +44,20 @@ class HtmlPreviewDeviceTest {
         instrumentation.runOnMainSync {
             webView!!.evaluateJavascript("window.addEventListener('message',e=>{if(e.data==='preview-painted')window.previewPainted=true});'listening'", null)
         }
-        compose.waitUntil(20000) {
-            instrumentation.runOnMainSync {
-                webView!!.evaluateJavascript("if(!window.previewListener){window.previewListener=true;window.addEventListener('message',e=>{if(e.data==='preview-painted')window.previewPainted=true})};JSON.stringify({ready:window.previewPainted===true,w:innerWidth,h:innerHeight,status:document.getElementById('status')?.textContent})") { state.set(it) }
+        try {
+            compose.waitUntil(20000) {
+                instrumentation.runOnMainSync {
+                    webView!!.evaluateJavascript("if(!window.previewListener){window.previewListener=true;window.addEventListener('message',e=>{if(e.data==='preview-painted')window.previewPainted=true})};JSON.stringify({ready:window.previewPainted===true,w:innerWidth,h:innerHeight,status:document.getElementById('status')?.textContent})") { state.set(it) }
+                }
+                println("HTML_PREVIEW_STATE=${state.get()}")
+                state.get().contains("ready\\\":true")
             }
-            println("HTML_PREVIEW_STATE=${state.get()}")
-            state.get().contains("ready\\\":true")
+        } finally {
+            val bitmap = instrumentation.uiAutomation.takeScreenshot()
+            File(instrumentation.targetContext.getExternalFilesDir(null), "html-preview-attempt.png").outputStream().use {
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)
+            }
+            println("HTML_PREVIEW_FINAL=${state.get()}")
         }
         val location = IntArray(2)
         var width = 0

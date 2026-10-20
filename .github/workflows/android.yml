@@ -35,7 +35,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: android-ci-${{ github.ref }}
+  group: android-ci-${{ github.ref }}${{ startsWith(github.event.head_commit.message, 'Diagnose WebView emulator startup') && '-device-retry' || '' }}
   # Supersede only a diagnostic retry of the WebView device check.
   cancel-in-progress: ${{ github.event_name == 'push' && startsWith(github.event.head_commit.message, 'Diagnose WebView emulator startup') }}
 

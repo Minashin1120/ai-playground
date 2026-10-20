@@ -108,6 +108,9 @@ class HtmlPreviewDeviceTest {
         val baseline = waitForPaint()
         println("HTML_PREVIEW_PAINT baseline=$baseline")
         save("baseline")
+        val snapshot = org.json.JSONObject(org.json.JSONTokener(state.get()).nextValue() as String)
+        assertTrue("The iframe collapsed to zero height", snapshot.getDouble("frameHeight") > 0)
+        assertTrue("The child viewport collapsed to zero height", snapshot.getJSONObject("child").getInt("h") > 0)
         lastBitmap?.recycle()
         assertTrue("WebView content was not painted: $baseline", isGreen(baseline))
     }

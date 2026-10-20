@@ -23,7 +23,6 @@ import android.provider.OpenableColumns
 import androidx.core.content.FileProvider
 import androidx.exifinterface.media.ExifInterface
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.util.UUID
@@ -107,40 +106,46 @@ internal fun renderImageSplit(context: Context, uri: Uri, options: ImageSplitOpt
     val base = splitBaseName(source.name)
     targetDir.mkdirs()
     val outputs = mutableListOf<SplitOutput>()
-    if (options.includeOriginal) {
-        if (options.markOriginal) {
-            val whole = decodeWhole(context, source)
-            val marked = try { drawGridOverview(whole, source, grid, tiles) } finally { whole.recycle() }
-            outputs += writeOutput(context, marked, File(targetDir, splitOriginalName(base, true, extension)), mime)
-        } else {
-            val originalName = source.name.takeIf { it.contains('.') } ?: splitOriginalName(base, false, extension)
-            outputs += SplitOutput(originalName, source.mime.ifBlank { mime }, uri) {
-                context.contentResolver.openInputStream(uri) ?: throw IOException("画像を開けません。")
+    // Bound the full-image allocation to 32 MiB. Larger images retain region decoding.
+    var whole: Bitmap? = null
+    var decoder: BitmapRegionDecoder? = null
+    try {
+        if (source.rawWidth.toLong() * source.rawHeight <= 8L * 1024 * 1024) {
+            whole = decodeWhole(context, source)
+        }
+        if (options.includeOriginal) {
+            if (options.markOriginal) {
+                val original = whole ?: decodeWhole(context, source)
+                val marked = try { drawGridOverview(original, source, grid, tiles) }
+                    finally { if (original !== whole) original.recycle() }
+                outputs += writeOutput(context, marked, File(targetDir, splitOriginalName(base, true, extension)), compression)
+            } else {
+                val originalName = source.name.takeIf { it.contains('.') } ?: splitOriginalName(base, false, extension)
+                val original = SplitOutput(originalName, source.mime.ifBlank { mime }, uri) {
+                    context.contentResolver.openInputStream(uri) ?: throw IOException("画像を開けません。")
+                }
+                outputs += compressSplitOutput(context, original, compression, File(targetDir, "original"))
             }
         }
-    }
-    val decoder = openRegionDecoder(context, uri)
-    var fallback: Bitmap? = null
-    try {
+        if (whole == null) decoder = openRegionDecoder(context, uri)
         for (tile in tiles) {
-            val piece = if (decoder != null) {
-                decodeRegion(decoder, source, tile)
+            val regionDecoder = decoder
+            val piece = if (regionDecoder != null) {
+                decodeRegion(regionDecoder, source, tile)
             } else {
-                val whole = fallback ?: decodeWhole(context, source).also { fallback = it }
-                cropScaled(whole, source, tile)
+                val original = whole ?: decodeWhole(context, source).also { whole = it }
+                cropScaled(original, source, tile)
             }
             val output = if (options.markPieces) {
                 try { drawPieceMarks(piece, tile, grid, source) } finally { piece.recycle() }
             } else piece
-            outputs += writeOutput(context, output, File(targetDir, splitTileName(base, tile, grid, extension)), mime)
+            outputs += writeOutput(context, output, File(targetDir, splitTileName(base, tile, grid, extension)), compression)
         }
     } finally {
         decoder?.recycle()
-        fallback?.recycle()
+        whole?.recycle()
     }
-    return outputs.mapIndexed { index, output ->
-        compressSplitOutput(context, output, compression, File(targetDir, "processed/$index"))
-    }
+    return outputs
 }
 
 /** 保存のみ: Pictures/AI Playground on Android 10+, or the folder the user picked on older versions. */
@@ -184,16 +189,15 @@ private fun copyTo(target: java.io.OutputStream?, output: SplitOutput) {
     (target ?: throw IOException("端末に保存できません。")).use { out -> output.open().use { it.copyTo(out) } }
 }
 
-private fun writeOutput(context: Context, bitmap: Bitmap, file: File, mime: String): SplitOutput {
-    try {
-        FileOutputStream(file).use { out ->
-            val ok = bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-            if (!ok) throw IOException("分割画像を書き出せません。")
-        }
-    } finally {
-        bitmap.recycle()
-    }
-    return SplitOutput(file.name, mime, splitShareUri(context, file)) { file.inputStream() }
+private fun writeOutput(context: Context, bitmap: Bitmap, file: File, settings: CompressionSettings): SplitOutput {
+    // Previously each piece was encoded as PNG, decoded again, compressed and copied.
+    // Keep the bitmap in memory until its final encoding, then release it before the next piece.
+    val effective = if (!settings.enabled || (settings.formatOnly && settings.outputType == "original"))
+        settings.copy(formatOnly = true, outputType = "image/png") else settings
+    val (format, extension) = resolveOutputType(effective.outputType, "image/png")
+    val target = File(file.parentFile, file.nameWithoutExtension + "." + extension)
+    writeCompressedBitmap(bitmap, target, format, effective)
+    return SplitOutput(target.name, mimeForExtension(extension), splitShareUri(context, target)) { target.inputStream() }
 }
 
 @Suppress("DEPRECATION")

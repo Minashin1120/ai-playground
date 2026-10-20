@@ -1150,11 +1150,13 @@ internal fun InlineRichText(source: InlineMarkdown, style: TextStyle, codeBackgr
 private fun CodeBlock(block: MarkdownBlock.Code, colors: MarkdownColors, startCollapsed: Boolean) {
     // Web `snapshotCodeCollapseByMessage`: the open/closed state survives scrolling away and reloads.
     var collapsed by rememberSaveable(block.text, block.language) { mutableStateOf(startCollapsed) }
+    var previewOpen by rememberSaveable { mutableStateOf(false) }
     var copied by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(copied) { if (copied != null) { delay(2000); copied = null } }
     val clipboard = LocalClipboardManager.current
     val actions = LocalMarkdownCodeActions.current
     val shape = RoundedCornerShape(16.dp)
+    if (previewOpen) HtmlCodePreviewDialog(block.text) { previewOpen = false }
     Column(
         Modifier
             .fillMaxWidth()
@@ -1181,6 +1183,9 @@ private fun CodeBlock(block: MarkdownBlock.Code, colors: MarkdownColors, startCo
                 val active = actions.selectedCodingKey == codingTargetKey(block.language.ifBlank { "text" }, block.text)
                 CodeActionButton(if (active) R.drawable.fa_solid_thumbtack else R.drawable.fa_solid_quote_right,
                     if (active) "編集対象に設定済み" else "編集対象に指定", colors) { actions.onCodingTarget.invoke(block.text, block.language) }
+            }
+            if (isHtmlPreviewCandidate(block.language, block.text)) {
+                CodeActionButton(R.drawable.fa_solid_up_right_from_square, "プレビュー", colors) { previewOpen = true }
             }
             CodeActionButton(R.drawable.fa_solid_download, "ダウンロード", colors) { actions.onDownload(block.text, block.language) }
             CodeActionButton(

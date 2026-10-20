@@ -63,40 +63,47 @@ fun compressImage(context: Context, uri: Uri, name: String, mime: String, settin
 
         val (format, extension) = resolveOutputType(settings.outputType, mime)
         val sample = if (settings.formatOnly) 1 else sampleSize(sourceWidth, sourceHeight, settings.maxDimension)
-        var bitmap = resolver.openInputStream(uri)?.use {
+        val bitmap = resolver.openInputStream(uri)?.use {
             BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
         } ?: return null
-
-        if (!settings.formatOnly) {
-            val longest = maxOf(bitmap.width, bitmap.height)
-            if (longest > settings.maxDimension) {
-                val scale = settings.maxDimension.toFloat() / longest
-                bitmap = scaleBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt())
-            }
-        }
 
         val directory = File(context.cacheDir, "compressed").apply { mkdirs() }
         val stem = name.substringBeforeLast('.').ifBlank { "image" }
             .filter { it.isLetterOrDigit() || it == '-' || it == '_' }.take(32).ifBlank { "image" }
         val target = File(directory, "$stem.$extension")
 
-        var current = bitmap
+        writeCompressedBitmap(bitmap, target, format, settings)
+        if (target.length() <= 0) null else CompressedImage(target, "$stem.$extension", mimeForExtension(extension))
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/** Encodes an already decoded image directly to its destination; always consumes [bitmap]. */
+internal fun writeCompressedBitmap(bitmap: Bitmap, target: File, format: Bitmap.CompressFormat,
+    settings: CompressionSettings) {
+    var current = bitmap
+    try {
+        if (!settings.formatOnly && maxOf(current.width, current.height) > settings.maxDimension) {
+            val scale = settings.maxDimension.toFloat() / maxOf(current.width, current.height)
+            current = scaleBitmap(current, (current.width * scale).toInt(), (current.height * scale).toInt())
+        }
         var quality = if (settings.formatOnly) 100 else 90
         var shrinkAttempts = 0
         while (true) {
-            FileOutputStream(target).use { output -> current.compress(format, quality, output) }
+            FileOutputStream(target).use { output ->
+                if (!current.compress(format, quality, output)) throw java.io.IOException("画像を圧縮できません。")
+            }
             if (settings.formatOnly || target.length() <= settings.maxSizeBytes) break
-            if (quality > 35) { quality -= 15; continue }
+            // PNG is lossless: Android ignores quality, so retrying it only repeats the same work.
+            if (format != Bitmap.CompressFormat.PNG && quality > 35) { quality -= 15; continue }
             if (shrinkAttempts >= 4) break
             shrinkAttempts++
             current = scaleBitmap(current, (current.width * 0.8).toInt(), (current.height * 0.8).toInt())
             quality = 80
         }
-        if (current !== bitmap) current.recycle()
-        bitmap.recycle()
-        if (target.length() <= 0) null else CompressedImage(target, "$stem.$extension", mimeForExtension(extension))
-    } catch (e: Exception) {
-        null
+    } finally {
+        current.recycle()
     }
 }
 
@@ -116,7 +123,7 @@ private fun scaleBitmap(source: Bitmap, width: Int, height: Int): Bitmap {
     return scaled
 }
 
-private fun resolveOutputType(outputType: String, sourceMime: String): Pair<Bitmap.CompressFormat, String> = when {
+internal fun resolveOutputType(outputType: String, sourceMime: String): Pair<Bitmap.CompressFormat, String> = when {
     outputType.contains("png", ignoreCase = true) -> Bitmap.CompressFormat.PNG to "png"
     outputType.contains("webp", ignoreCase = true) -> Bitmap.CompressFormat.WEBP to "webp"
     outputType.contains("jpeg", ignoreCase = true) || outputType.contains("jpg", ignoreCase = true) ->
@@ -126,7 +133,7 @@ private fun resolveOutputType(outputType: String, sourceMime: String): Pair<Bitm
     else -> Bitmap.CompressFormat.JPEG to "jpg"
 }
 
-private fun mimeForExtension(extension: String): String = when (extension.lowercase()) {
+internal fun mimeForExtension(extension: String): String = when (extension.lowercase()) {
     "png" -> "image/png"
     "webp" -> "image/webp"
     else -> "image/jpeg"

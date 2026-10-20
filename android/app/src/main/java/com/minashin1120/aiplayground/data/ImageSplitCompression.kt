@@ -13,7 +13,7 @@ internal fun saveSplitCompression(context: Context, settings: CompressionSetting
     saveCompressionSettings(context.getSharedPreferences(SPLIT_COMPRESSION_PREFS, Context.MODE_PRIVATE), settings)
 }
 
-/** Called once for attachment, saving and sharing alike. Copies each result before the shared cache is reused. */
+/** Compresses the unchanged original; rendered pieces use direct bitmap encoding instead. */
 internal fun compressSplitOutput(context: Context, output: SplitOutput, settings: CompressionSettings, directory: File): SplitOutput {
     val compressed = compressImage(context, output.uploadUri, output.name, output.mime, settings) ?: return output
     directory.mkdirs()

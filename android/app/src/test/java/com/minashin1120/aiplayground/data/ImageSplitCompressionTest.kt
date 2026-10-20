@@ -99,4 +99,70 @@ class ImageSplitCompressionTest {
             bitmap.recycle()
         }
     }
+
+    @Test fun resizedPiecesAreEncodedDirectlyWithoutIntermediatePngFiles() {
+        val source = source()
+        val directory = File(source.parentFile, "out")
+        val outputs = renderImageSplit(context, splitShareUri(context, source),
+            ImageSplitOptions(pieces = 4, overlapPct = 0, includeOriginal = false, markPieces = false),
+            directory, CompressionSettings(maxDimension = 32, outputType = "image/jpeg"))
+        assertEquals(4, directory.walkTopDown().count { it.isFile })
+        outputs.forEach { output ->
+            assertTrue(output.name.endsWith(".jpg"))
+            val bitmap = output.open().use { BitmapFactory.decodeStream(it) }!!
+            assertEquals(32, bitmap.width)
+            assertEquals(21, bitmap.height)
+            bitmap.recycle()
+        }
+    }
+
+    @Test fun formatOnlyOriginalKeepsLosslessFullSizePieces() {
+        val source = source()
+        val outputs = renderImageSplit(context, splitShareUri(context, source),
+            ImageSplitOptions(pieces = 4, overlapPct = 0, includeOriginal = false, markPieces = false),
+            File(source.parentFile, "out"), CompressionSettings(maxDimension = 32, formatOnly = true))
+        val bitmap = outputs.first().open().use { BitmapFactory.decodeStream(it) }!!
+        assertEquals(50, bitmap.width)
+        assertEquals(34, bitmap.height)
+        assertEquals(Color.TRANSPARENT, bitmap.getPixel(0, 0))
+        bitmap.recycle()
+    }
+
+    @Test fun sharedSourceRemainsIntactAfterDrawingOverviewAndAllPieces() {
+        val source = source()
+        val outputs = renderImageSplit(context, splitShareUri(context, source),
+            ImageSplitOptions(pieces = 4, overlapPct = 0, includeOriginal = true,
+                markOriginal = true, markPieces = false),
+            File(source.parentFile, "out"), CompressionSettings(enabled = false))
+        assertEquals(5, outputs.size)
+        val overview = outputs.first().open().use { BitmapFactory.decodeStream(it) }!!
+        assertEquals(100, overview.width)
+        assertEquals(68, overview.height)
+        overview.recycle()
+        outputs.drop(1).forEach { output ->
+            val bitmap = output.open().use { BitmapFactory.decodeStream(it) }!!
+            assertEquals(50, bitmap.width)
+            assertEquals(34, bitmap.height)
+            // Overview badges and lines must never be drawn onto the shared source.
+            assertEquals(Color.rgb(18, 171, 52), bitmap.getPixel(25, 17))
+            bitmap.recycle()
+        }
+    }
+
+    @Test fun oversizedPngShrinksWithoutChangingItsLosslessFormat() {
+        val bitmap = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888)
+        val random = java.util.Random(1234)
+        val pixels = IntArray(512 * 512) { Color.rgb(random.nextInt(256), random.nextInt(256), random.nextInt(256)) }
+        bitmap.setPixels(pixels, 0, 512, 0, 0, 512, 512)
+        val target = File(context.cacheDir, "noise.png")
+        writeCompressedBitmap(bitmap, target, Bitmap.CompressFormat.PNG,
+            CompressionSettings(maxSizeMB = 0.05f))
+        assertTrue(bitmap.isRecycled)
+        val result = BitmapFactory.decodeFile(target.path)!!
+        // Preserve the existing four-shrink limit even if the byte budget cannot be reached.
+        assertEquals(208, result.width)
+        assertEquals(208, result.height)
+        result.recycle()
+    }
+
 }

@@ -12,11 +12,6 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.InlineTextContent
@@ -39,7 +34,6 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -391,8 +385,9 @@ internal object MathCopyText {
 }
 
 /**
- * Width of the inline formula viewport, expressed as an em scale. The drawing keeps [WEB_MATH_SCALE]
- * and scrolls within this width; its height must also use the natural scale so it stays readable.
+ * The em scale of a formula inside text: Web's [WEB_MATH_SCALE], reduced so a formula wider than the text
+ * shrinks to fit instead of running off the bubble. This covers inline formulas too: a formula cannot wrap,
+ * so one wider than the line was cut off at the edge and the next line was drawn over it.
  */
 internal fun fittedMathScale(widthEm: Float, availableWidth: Int, fontPx: Float): Float {
     if (availableWidth == Constraints.Infinity || availableWidth <= 1 || widthEm <= 0f || fontPx <= 0f) return WEB_MATH_SCALE
@@ -415,25 +410,18 @@ internal fun inlineMathContent(
     textLayout: () -> TextLayoutResult?,
 ): InlineTextContent {
     val scale = fittedMathScale(svg.widthEm, availableWidth, fontPx)
-    val half = maxOf(svg.ascentEm * WEB_MATH_SCALE - TEXT_CENTER_EM, svg.depthEm * WEB_MATH_SCALE + TEXT_CENTER_EM)
+    val half = maxOf(svg.ascentEm * scale - TEXT_CENTER_EM, svg.depthEm * scale + TEXT_CENTER_EM)
     // Web `mjx-container[display]` keeps 1em above and below a display formula.
     val margin = if (item.display) 1f else 0f
     val placeholder = Placeholder((svg.widthEm * scale).em, (2 * half + 2 * margin).em, PlaceholderVerticalAlign.TextCenter)
-    return InlineTextContent(placeholder) {
-        // Limit the viewport to the line, keeping the formula at its readable natural size.
-        // Shrinking the drawing made wide formulas impossible to scroll.
-        val width = with(LocalDensity.current) { (svg.widthEm * WEB_MATH_SCALE * fontPx).toDp() }
-        Box(Modifier.fillMaxSize().horizontalScroll(rememberScrollState())) {
-            InlineMathDrawing(svg, color, WEB_MATH_SCALE, item.start, textLayout, Modifier.width(width).fillMaxHeight())
-        }
-    }
+    return InlineTextContent(placeholder) { InlineMathDrawing(svg, color, scale, item.start, textLayout) }
 }
 
 @Composable
-private fun InlineMathDrawing(svg: MathSvg, color: Color, scale: Float, start: Int, textLayout: () -> TextLayoutResult?, modifier: Modifier) {
+private fun InlineMathDrawing(svg: MathSvg, color: Color, scale: Float, start: Int, textLayout: () -> TextLayoutResult?) {
     val drawing = rememberMathDrawing(svg, color) ?: return
     var top by remember { mutableFloatStateOf(Float.NaN) }
-    Canvas(modifier.onPlaced { top = it.positionInParent().y }) {
+    Canvas(Modifier.fillMaxSize().onPlaced { top = it.positionInParent().y }) {
         val mathEm = size.width / svg.widthEm
         // Where TextCenter puts the baseline for Noto Sans JP; the laid-out line's baseline when known.
         val estimated = size.height / 2f + TEXT_CENTER_EM * mathEm / scale

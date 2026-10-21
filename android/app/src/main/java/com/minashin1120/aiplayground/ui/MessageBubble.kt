@@ -4,9 +4,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -36,7 +35,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,12 +49,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -143,7 +137,6 @@ internal fun MessageBubble(
     thoughtCollapsed: Boolean = false,
     preserveLiveLayout: Boolean = false,
 ) {
-    val toggleControls by rememberUpdatedState(onToggleControls)
     val web = LocalWebPalette.current
     val user = message.role == "user"
     val persisted = numericId(message) != null
@@ -176,29 +169,7 @@ internal fun MessageBubble(
                     .clip(shape)
                     .background(background)
                     .border(1.dp, border, shape)
-                    .semantics { onClick { toggleControls(); true } }
-                    .pointerInput(Unit) {
-                        // Observe after children: selection and horizontal/vertical scrolling own
-                        // their gestures. A bubble tap must never consume their initial down.
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                            var handled = false
-                            var moved = false
-                            do {
-                                val event = awaitPointerEvent(PointerEventPass.Final)
-                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                                handled = handled || change.isConsumed
-                                moved = moved || (change.position - down.position).getDistance() > viewConfiguration.touchSlop
-                                if (!change.pressed) {
-                                    if (!handled && !moved && change.uptimeMillis - down.uptimeMillis < viewConfiguration.longPressTimeoutMillis) {
-                                        toggleControls()
-                                        change.consume()
-                                    }
-                                    break
-                                }
-                            } while (true)
-                        }
-                    }
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onToggleControls)
                     .padding(16.dp),
             ) {
               // One selection for the whole bubble, so a long-press selection runs across paragraphs like Web.

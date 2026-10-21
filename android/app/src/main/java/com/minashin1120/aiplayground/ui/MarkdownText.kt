@@ -1106,7 +1106,7 @@ internal fun InlineRichText(source: InlineMarkdown, style: TextStyle, codeBackgr
                 .then(if (parsed === source) Modifier else Modifier.semantics { contentDescription = source.text.text })
                 .then(
                     if (!hasMath) Modifier
-                    // Remember the line width for horizontally scrollable formula viewports.
+                    // Formulas wider than the bubble shrink to fit, so remember the width they get.
                     else Modifier.layout { measurable, constraints ->
                         if (constraints.maxWidth != availableWidth) availableWidth = constraints.maxWidth
                         val placeable = measurable.measure(constraints)

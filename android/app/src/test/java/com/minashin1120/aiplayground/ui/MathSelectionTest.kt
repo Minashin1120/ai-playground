@@ -19,6 +19,9 @@ import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.TouchInjectionScope
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.onNodeWithText
@@ -75,11 +78,11 @@ class MathSelectionTest {
     }
 
     /** Typesets every formula the composition asked MathJax for. */
-    private fun typesetPending() {
+    private fun typesetPending(width: Int = 6000) {
         val waiting = field<HashMap<String, *>>("waiting")
         val cache = field<LruCache<String, MathSvg>>("cache")
         waiting.keys.toList().forEach { id ->
-            cache.put(id, parseMathSvg("""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -800 6000 1050"><rect y="-800" width="6000" height="1050"></rect></svg>""")!!)
+            cache.put(id, parseMathSvg("""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -800 $width 1050"><rect y="-800" width="$width" height="1050"></rect></svg>""")!!)
         }
         waiting.clear()
     }
@@ -105,6 +108,7 @@ class MathSelectionTest {
 
     @Test fun longPressOnADisplayFormulaSelectsAndCopiesTheWholeFormula() {
         var menus = 0
+        var bubbleTaps = 0
         var haptics = 0
         var copy: (() -> Unit)? = null
         val toolbar = object : TextToolbar {
@@ -129,7 +133,7 @@ class MathSelectionTest {
                             item {
                                 key(generation) {
                                     MessageBubble(ChatMessage("1", "assistant", "前の項に足す数\n\n$$6(3)^2 = 54$$\n\nとなります。", encrypted = false),
-                                        onFile = {}, loader = null, actions = MessageActions(), controlsVisible = false, onToggleControls = {})
+                                        onFile = {}, loader = null, actions = MessageActions(), controlsVisible = false, onToggleControls = { bubbleTaps++ })
                                 }
                             }
                         }
@@ -152,11 +156,13 @@ class MathSelectionTest {
             rule.mainClock.advanceTimeBy(600)
             rule.waitForIdle()
             rule.onAllNodes(isRoot()).onFirst().captureRoboImage("build/outputs/roborazzi/math_selection_$name.png")
+            assertEquals("long press must not toggle bubble controls", 0, bubbleTaps)
             copy?.invoke()
             rule.waitForIdle()
             val copied = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
             println("==== $name: haptics=$haptics menus=$menus copy=${copy != null} copied=[$copied]")
             node.performTouchInput { click(at()) }
+            bubbleTaps = 0
             rule.mainClock.advanceTimeBy(600)
             rule.waitForIdle()
             return copied.orEmpty()
@@ -169,5 +175,48 @@ class MathSelectionTest {
         val formula = pressAndCopy("formula", rule.onNodeWithContentDescription(approximation, useUnmergedTree = true)) { centerRight.copy(x = centerRight.x - 4f) }
         assertTrue("the control selects text: [$plain]", plain.isNotEmpty())
         assertEquals(approximation, formula)
+    }
+
+    @Test fun wideInlineFormulaScrollsInsideTheBubble() {
+        assertFormulaScrolls("文中の式 \\(a+b+c+d+e+f+g+h+i+j\\) です。")
+    }
+
+    @Test fun wideDisplayFormulaScrollsInsideTheBubble() {
+        assertFormulaScrolls("前の段落\n\n${'$'}${'$'}a+b+c+d+e+f+g+h+i+j${'$'}${'$'}\n\n後の段落")
+    }
+
+    private fun assertFormulaScrolls(source: String) {
+        var generation by mutableIntStateOf(0)
+        var bubbleTaps = 0
+        rule.setContent {
+            PlaygroundTheme(darkTheme = true) {
+                Box(Modifier.width(411.dp)) {
+                    LazyColumn {
+                        item {
+                            key(generation) {
+                                MessageBubble(ChatMessage("scroll", "assistant", source, encrypted = false),
+                                    onFile = {}, loader = null, actions = MessageActions(),
+                                    controlsVisible = false, onToggleControls = { bubbleTaps++ })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        rule.waitForIdle()
+        typesetPending(width = 60000)
+        generation++
+        rule.mainClock.advanceTimeBy(1_000)
+        rule.waitForIdle()
+        val formula = rule.onNode(SemanticsMatcher("overflowing horizontal formula") {
+            val range = it.config.getOrElse(SemanticsProperties.HorizontalScrollAxisRange) { null }
+            range != null && range.maxValue() > 0f
+        }, useUnmergedTree = true)
+        val before = formula.fetchSemanticsNode().config[SemanticsProperties.HorizontalScrollAxisRange].value()
+        formula.performTouchInput { swipeLeft(durationMillis = 200) }
+        rule.waitForIdle()
+        val after = formula.fetchSemanticsNode().config[SemanticsProperties.HorizontalScrollAxisRange].value()
+        assertTrue("swipe must move the formula viewport", after > before)
+        assertEquals("scroll must not toggle bubble controls", 0, bubbleTaps)
     }
 }

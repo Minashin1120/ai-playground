@@ -1069,7 +1069,14 @@ private val LocalMessageSelection = staticCompositionLocalOf { false }
 @Composable
 internal fun MessageSelection(content: @Composable () -> Unit) {
     if (LocalMessageSelection.current) content()
-    else ProvideMathCopy { SelectionContainer { CompositionLocalProvider(LocalMessageSelection provides true, content = content) } }
+    else {
+        val trace = LocalInteractionTrace.current ?: rememberInteractionTrace("message")
+        ProvideMathCopy {
+            SelectionContainer(modifier = Modifier.observeInteraction(trace)) {
+                CompositionLocalProvider(LocalMessageSelection provides true, LocalInteractionTrace provides trace, content = content)
+            }
+        }
+    }
 }
 
 /** Text with Web inline-code chips: rounded 6.4px background, 6.4px side padding, 24px tall. */
@@ -1334,7 +1341,11 @@ private fun MathBlock(block: MarkdownBlock.Math, style: TextStyle) {
     val drawing = svg?.let { rememberMathDrawing(it, color) }
     // The readable text approximation: shown while MathJax loads or if it cannot set the formula, and copied otherwise.
     val rendered = remember(block.tex) { latexToDisplay(block.tex) }
-    Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(vertical = 15.2.dp), contentAlignment = Alignment.Center) {
+    val scroll = rememberScrollState()
+    val trace = rememberInteractionTrace("math_block")
+    val naturalWidth = with(LocalDensity.current) { svg?.let { (it.widthEm * WEB_MATH_SCALE * style.fontSize.takeOrElse { 16.sp }.toPx()).toInt() } }
+    TraceMathRendering(trace, state, scroll, naturalWidth, WEB_MATH_SCALE)
+    Box(Modifier.fillMaxWidth().observeInteraction(trace, scroll).horizontalScroll(scroll).padding(vertical = 15.2.dp), contentAlignment = Alignment.Center) {
         if (svg != null && drawing != null) {
             MathDisplayText(svg, drawing, rendered, color, style)
         } else {

@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "events": [
     "activity.created",
     "activity.new_intent",
@@ -161,6 +161,7 @@
     "translation.start",
     "ui.drawer",
     "ui.hide",
+    "ui.interaction",
     "ui.panels",
     "ui.press",
     "ui.selection_windows",
@@ -188,6 +189,7 @@
     "col",
     "consumed_after_ms",
     "content_chars",
+    "content_width",
     "count",
     "dom_ms",
     "down_consumed_after_ms",
@@ -214,6 +216,8 @@
     "max_mb",
     "messages",
     "moved_dp",
+    "moved_x",
+    "moved_y",
     "ms",
     "nodes",
     "output_bytes",
@@ -223,14 +227,20 @@
     "pid",
     "pieces",
     "press_ms",
+    "press_x",
+    "press_y",
     "quiet_ms",
     "reason_code",
     "rows",
     "scale",
+    "scroll_max",
+    "scroll_x",
     "scrolled_px",
     "sdk",
     "selection_changes",
+    "selection_height",
     "selection_menus",
+    "selection_width",
     "seq",
     "size",
     "slop_dp",
@@ -242,6 +252,10 @@
     "thread_id",
     "threads",
     "to",
+    "toolbar_creates",
+    "toolbar_destroys",
+    "toolbar_hides",
+    "toolbar_requests",
     "turns",
     "upload_completed",
     "upload_count",
@@ -258,11 +272,13 @@
   ],
   "booleans": [
     "accepted",
+    "action_mode_active",
     "advanced",
     "alpha",
     "alt",
     "api_key_prompt",
     "attach_menu",
+    "attached",
     "auth_busy",
     "auth_error",
     "banned",
@@ -278,6 +294,7 @@
     "canvas",
     "changelog",
     "checked",
+    "clipped",
     "closes",
     "coding",
     "compression",
@@ -293,6 +310,7 @@
     "feedback_modal",
     "file_creation",
     "file_view",
+    "focused",
     "foreground",
     "from_history",
     "gem",
@@ -370,10 +388,12 @@
     "thread_settings",
     "token_modal",
     "turnstile",
+    "up_consumed",
     "uploading",
     "url_context",
     "vertex",
     "vision_picker",
+    "window_focused",
     "x_link_prompt"
   ],
   "enums": {
@@ -1918,6 +1938,7 @@
       "InAppNoticeHost.kt",
       "InAppNoticeState.kt",
       "InlineAudioPlayer.kt",
+      "InteractionDiagnostics.kt",
       "LatexText.kt",
       "Library.kt",
       "LibraryDialog.kt",
@@ -2081,6 +2102,30 @@
       "AwaitingInstallPermission",
       "Installing",
       "Error"
+    ],
+    "ui_element": [
+      "message",
+      "math_block",
+      "inline_math"
+    ],
+    "interaction_stage": [
+      "press",
+      "settled",
+      "focus",
+      "request",
+      "created",
+      "shown",
+      "hidden",
+      "destroyed",
+      "action",
+      "dispose",
+      "render",
+      "scroll"
+    ],
+    "ui_action": [
+      "copy",
+      "quote",
+      "select_all"
     ]
   },
   "routes": [
@@ -2312,7 +2357,9 @@
   "identifiers": {
     "op": "(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})",
     "job": "(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})|job_[0-9]{10,13}_[0-9]{1,20}_[0-9a-f]{16}",
-    "thread_id": "(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})|[A-Za-z0-9_-]{43}|[0-9]{1,20}"
+    "thread_id": "(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})|[A-Za-z0-9_-]{43}|[0-9]{1,20}",
+    "parent_op": "(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})",
+    "gesture": "(?:[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"
   },
   "version_pattern": "(?:[vV]?[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,8}|[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{3})"
 }

@@ -120,3 +120,20 @@ def test_versions_keep_web_asset_versions_without_accepting_arbitrary_text():
     assert safe_entry({'ev': 'page.load', 'version': '2026-10-21-001'})['version'] == '2026-10-21-001'
     assert safe_entry({'ev': 'app.start', 'version': '1.70.0'})['version'] == '1.70.0'
     assert 'version' not in safe_entry({'ev': 'page.load', 'version': SECRET})
+
+
+def test_interaction_diagnostics_keep_only_safe_state_and_random_ids():
+    op = '12345678-1234-1234-1234-123456789abc'
+    raw = dict(ev='ui.interaction', op=op, parent_op=op, gesture=op,
+               ui_element='math_block', interaction_stage='settled', phase='done',
+               scroll_x=42, scroll_max=120, content_width=600, toolbar_requests=1,
+               focused=True, action_mode_active=False, after_ms=400,
+               text=SECRET, tex=SECRET, selection_text=SECRET, title=SECRET)
+    safe = safe_entry(raw)
+    assert safe['gesture'] == op and safe['parent_op'] == op
+    assert safe['scroll_x'] == 42 and safe['scroll_max'] == 120
+    assert safe['focused'] is True and safe['action_mode_active'] is False
+    assert SECRET not in json.dumps(safe)
+    invalid = safe_entry(dict(ev='ui.interaction', parent_op=SECRET, gesture=SECRET,
+                             interaction_stage=SECRET, ui_element=SECRET, scroll_x=SECRET))
+    assert invalid == {'ev': 'ui.interaction'}

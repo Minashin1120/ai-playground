@@ -87,9 +87,9 @@ private fun shownWindows(density: Float): List<String> =
         "${view.javaClass.simpleName} ${dp(at[0])},${dp(at[1])} ${dp(view.width)}x${dp(view.height)}"
     }
 
-private class SelectionHaptics(private val base: HapticFeedback) : HapticFeedback {
+private class SelectionHaptics(private val base: HapticFeedback, private val trace: InteractionTrace) : HapticFeedback {
     override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
-        if (hapticFeedbackType == HapticFeedbackType.TextHandleMove) SelectionSignals.changed()
+        if (hapticFeedbackType == HapticFeedbackType.TextHandleMove) { SelectionSignals.changed(); trace.selectionChanges++ }
         base.performHapticFeedback(hapticFeedbackType)
     }
 }
@@ -126,8 +126,9 @@ private class QuoteClipboard(
 }
 
 /** Floating selection toolbar with the platform Copy / Select all plus "Quote". */
-private class QuoteTextToolbar(private val view: View, private val capture: QuoteCapture) : TextToolbar {
+private class QuoteTextToolbar(private val view: View, private val capture: QuoteCapture, private val trace: InteractionTrace) : TextToolbar {
     private var actionMode: ActionMode? = null
+    private var lastRequestLogMs: Long? = null
     private var contentRect = Rect.Zero
     private var onCopy: (() -> Unit)? = null
     private var onSelectAll: (() -> Unit)? = null
@@ -138,6 +139,8 @@ private class QuoteTextToolbar(private val view: View, private val capture: Quot
     private val callback = object : ActionMode.Callback2() {
         override fun onCreateActionMode(mode: ActionMode, menu: Menu): Boolean {
             populate(menu)
+            trace.toolbarCreates++
+            trace.log("created", "done", "window_focused" to view.hasWindowFocus(), "attached" to view.isAttachedToWindow)
             return true
         }
 
@@ -148,6 +151,8 @@ private class QuoteTextToolbar(private val view: View, private val capture: Quot
         }
 
         override fun onActionItemClicked(mode: ActionMode, item: MenuItem): Boolean {
+            val action = when (item.itemId) { ID_QUOTE -> "quote"; ID_COPY -> "copy"; ID_SELECT_ALL -> "select_all"; else -> null }
+            if (action != null) trace.log("action", "start", "ui_action" to action)
             when (item.itemId) {
                 // The copy may reach the clipboard asynchronously; the wrappers disarm when they take it.
                 ID_QUOTE -> { capture.armed = true; onCopy?.invoke() }
@@ -156,10 +161,14 @@ private class QuoteTextToolbar(private val view: View, private val capture: Quot
                 else -> return false
             }
             if (item.itemId != ID_SELECT_ALL) mode.finish()
+            trace.log("action", "done", "ui_action" to action)
             return true
         }
 
         override fun onDestroyActionMode(mode: ActionMode) {
+            trace.toolbarDestroys++
+            trace.actionModeActive = false
+            trace.log("destroyed")
             actionMode = null
             status = TextToolbarStatus.Hidden
         }
@@ -189,7 +198,17 @@ private class QuoteTextToolbar(private val view: View, private val capture: Quot
         SelectionSignals.menuShown()
         onCopy = onCopyRequested
         onSelectAll = onSelectAllRequested
+        trace.toolbarRequests++
         val mode = actionMode
+        // Compose may reposition the same menu every frame. Aggregate those requests in
+        // the counters; throttle repeated platform refusals to once per second.
+        val now = android.os.SystemClock.uptimeMillis()
+        val recordRequest = mode == null && (lastRequestLogMs == null || now - lastRequestLogMs!! >= 1_000)
+        if (recordRequest) {
+            lastRequestLogMs = now
+            trace.log("request", "start", "window_focused" to view.hasWindowFocus(), "attached" to view.isAttachedToWindow,
+                "selection_width" to rect.width.toInt(), "selection_height" to rect.height.toInt())
+        }
         if (mode == null) {
             status = TextToolbarStatus.Shown
             actionMode = view.startActionMode(callback, ActionMode.TYPE_FLOATING)
@@ -197,9 +216,15 @@ private class QuoteTextToolbar(private val view: View, private val capture: Quot
             mode.invalidate()
             mode.invalidateContentRect()
         }
+        trace.actionModeActive = actionMode != null
+        if (recordRequest) trace.log("shown", if (trace.actionModeActive) "done" else "error",
+            "accepted" to trace.actionModeActive, "window_focused" to view.hasWindowFocus())
     }
 
     override fun hide() {
+        trace.toolbarHides++
+        trace.actionModeActive = false
+        trace.log("hidden")
         status = TextToolbarStatus.Hidden
         actionMode?.finish()
         actionMode = null
@@ -219,14 +244,16 @@ internal fun ProvideQuoteSelection(onQuote: (String) -> Unit, content: @Composab
     val view = LocalView.current
     val latest = rememberUpdatedState(onQuote)
     val capture = remember { QuoteCapture() }
-    val toolbar = remember(view) { QuoteTextToolbar(view, capture) }
+    val trace = rememberInteractionTrace("message")
+    val toolbar = remember(view, trace) { QuoteTextToolbar(view, capture, trace) }
     val baseManager = LocalClipboardManager.current
     val baseClipboard = LocalClipboard.current
     val baseHaptics = LocalHapticFeedback.current
-    val haptics = remember(baseHaptics) { SelectionHaptics(baseHaptics) }
+    val haptics = remember(baseHaptics, trace) { SelectionHaptics(baseHaptics, trace) }
     val manager = remember(baseManager) { QuoteClipboardManager(baseManager, capture) { text -> latest.value(text.trim()) } }
     val clipboard = remember(baseClipboard) { QuoteClipboard(baseClipboard, capture) { text -> latest.value(text.trim()) } }
     CompositionLocalProvider(
+        LocalInteractionTrace provides trace,
         LocalTextToolbar provides toolbar,
         LocalClipboardManager provides manager,
         LocalClipboard provides clipboard,

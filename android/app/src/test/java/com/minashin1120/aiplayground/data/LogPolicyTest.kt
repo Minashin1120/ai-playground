@@ -21,4 +21,22 @@ class LogPolicyTest {
         assertNull(LogPolicy.route("/unknown/private-filename.txt"))
         assertEquals("/api/threads/<thread_id>", LogPolicy.route(LogPolicy.route("/api/threads/private-id")!!))
     }
+    @Test fun interactionStateSurvivesButSelectionAndFormulaContentsDoNot() {
+        val secret = "PRIVATE_PROMPT_ANSWER_TITLE_FILENAME_KEY"
+        val id = "12345678-1234-1234-1234-123456789abc"
+        val raw = JSONObject().put("ev", "ui.interaction").put("op", id).put("parent_op", id).put("gesture", id)
+            .put("ui_element", "math_block").put("interaction_stage", "settled").put("phase", "done")
+            .put("scroll_x", 42).put("scroll_max", 120).put("focused", true).put("action_mode_active", false)
+            .put("tex", secret).put("selection_text", secret).put("message", secret)
+        val safe = LogPolicy.entry(raw)!!
+        assertEquals(id, safe.getString("gesture"))
+        assertEquals(id, safe.getString("parent_op"))
+        assertEquals(42, safe.getInt("scroll_x"))
+        assertTrue(safe.getBoolean("focused"))
+        assertFalse(safe.getBoolean("action_mode_active"))
+        assertFalse(safe.toString().contains(secret))
+        val invalid = LogPolicy.entry(JSONObject().put("ev", "ui.interaction")
+            .put("parent_op", secret).put("gesture", secret).put("interaction_stage", secret))!!
+        assertEquals(1, invalid.length())
+    }
 }

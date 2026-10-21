@@ -414,14 +414,18 @@ internal fun inlineMathContent(
     // Web `mjx-container[display]` keeps 1em above and below a display formula.
     val margin = if (item.display) 1f else 0f
     val placeholder = Placeholder((svg.widthEm * scale).em, (2 * half + 2 * margin).em, PlaceholderVerticalAlign.TextCenter)
-    return InlineTextContent(placeholder) { InlineMathDrawing(svg, color, scale, item.start, textLayout) }
+    return InlineTextContent(placeholder) {
+        val trace = rememberInteractionTrace("inline_math")
+        TraceMathRendering(trace, MathState.Ready(svg), null, (svg.widthEm * WEB_MATH_SCALE * fontPx).toInt(), scale)
+        InlineMathDrawing(svg, color, scale, item.start, textLayout, Modifier.observeInteraction(trace))
+    }
 }
 
 @Composable
-private fun InlineMathDrawing(svg: MathSvg, color: Color, scale: Float, start: Int, textLayout: () -> TextLayoutResult?) {
+private fun InlineMathDrawing(svg: MathSvg, color: Color, scale: Float, start: Int, textLayout: () -> TextLayoutResult?, modifier: Modifier) {
     val drawing = rememberMathDrawing(svg, color) ?: return
     var top by remember { mutableFloatStateOf(Float.NaN) }
-    Canvas(Modifier.fillMaxSize().onPlaced { top = it.positionInParent().y }) {
+    Canvas(modifier.fillMaxSize().onPlaced { top = it.positionInParent().y }) {
         val mathEm = size.width / svg.widthEm
         // Where TextCenter puts the baseline for Noto Sans JP; the laid-out line's baseline when known.
         val estimated = size.height / 2f + TEXT_CENTER_EM * mathEm / scale

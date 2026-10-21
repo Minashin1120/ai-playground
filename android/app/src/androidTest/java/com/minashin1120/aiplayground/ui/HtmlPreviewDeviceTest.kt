@@ -82,10 +82,23 @@ class HtmlPreviewDeviceTest {
             return bitmap.getPixel(location[0] + width / 2, location[1] + height / 2)
         }
         fun isGreen(pixel: Int): Boolean = Color.green(pixel) > 230 && Color.red(pixel) < 20 && Color.blue(pixel) < 20
+        fun waitForSystemUiIfNeeded() {
+            // A cold CI emulator can put the OS's System UI ANR dialog over a correctly
+            // painted preview. Wait for that OS process; keep the app's paint assertions.
+            val root = instrumentation.uiAutomation.rootInActiveWindow ?: return
+            if (root.packageName?.toString() != "android") return
+            if (root.findAccessibilityNodeInfosByText("System UI").isEmpty()) return
+            val wait = root.findAccessibilityNodeInfosByViewId("android:id/aerr_wait")
+                .firstOrNull { it.isEnabled && it.isClickable } ?: return
+            if (wait.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)) {
+                println("HTML_PREVIEW_SYSTEM_UI_ANR_WAIT")
+            }
+        }
         fun waitForPaint(): Int {
             val deadline = android.os.SystemClock.uptimeMillis() + 3000
             var pixel: Int
             do {
+                waitForSystemUiIfNeeded()
                 pixel = sample()
                 if (isGreen(pixel)) break
                 android.os.SystemClock.sleep(100)

@@ -209,7 +209,7 @@ class MathSelectionTest {
         rule.mainClock.advanceTimeBy(1_000)
         rule.waitForIdle()
         val formula = rule.onNode(SemanticsMatcher("overflowing horizontal formula") {
-            val range = it.config.getOrElse(SemanticsProperties.HorizontalScrollAxisRange) { null }
+            val range = it.config.getOrElseNullable(SemanticsProperties.HorizontalScrollAxisRange) { null }
             range != null && range.maxValue() > 0f
         }, useUnmergedTree = true)
         val before = formula.fetchSemanticsNode().config[SemanticsProperties.HorizontalScrollAxisRange].value()

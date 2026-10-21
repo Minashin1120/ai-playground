@@ -213,7 +213,10 @@ def _feedback_client(data, client_logs, chat_copy):
 def _save_feedback_client_logs(feedback_id, user_id, payload, reply_id=None):
     """Writes the client's activity log entries for ``feedback_id`` (or its reply ``reply_id``); returns the file path (None when empty)."""
     entries = payload.get('entries')
-    if not isinstance(entries, list) or not entries:
+    if not isinstance(entries, list):
+        return None
+    entries = entries + _recent_server_diagnostics(user_id)
+    if not entries:
         return None
     client = str(payload.get('client') or 'unknown').lower()
     if not re.fullmatch(r'[a-z]{1,16}', client):
@@ -226,7 +229,11 @@ def _save_feedback_client_logs(feedback_id, user_id, payload, reply_id=None):
         if not isinstance(entry, dict):
             dropped += 1
             continue
-        line = json.dumps(entry, ensure_ascii=False, default=str, separators=(',', ':'))
+        entry = _safe_log_entry(entry)
+        if entry is None:
+            dropped += 1
+            continue
+        line = json.dumps(entry, ensure_ascii=False, separators=(',', ':'))
         if len(line) > _FEEDBACK_LOG_MAX_LINE:
             line = json.dumps({'t': entry.get('t'), 'ev': str(entry.get('ev') or '')[:80], 'truncated': len(line)},
                               ensure_ascii=False, default=str, separators=(',', ':'))
@@ -238,15 +245,16 @@ def _save_feedback_client_logs(feedback_id, user_id, payload, reply_id=None):
     dropped += max(0, len(entries) - _FEEDBACK_LOG_MAX_ENTRIES)
     meta = {
         'kind': 'meta', 'feedback_id': feedback_id, 'user_id': user_id, 'client': client,
-        'client_version': str(payload.get('version') or '')[:64],
+        'client_version': _safe_log_version(payload.get('version')),
         'server_version': app.config.get('SYSTEM_VERSION'),
-        'user_agent': str(request.headers.get('User-Agent') or '')[:300],
+        'user_agent': 'android' if client == 'android' else 'web',
         'received_at': received.isoformat(timespec='seconds') + 'Z',
         'window_seconds': payload.get('window_seconds') if isinstance(payload.get('window_seconds'), int) else None,
         'entries': len(lines), 'dropped': dropped,
     }
     if reply_id is not None:
         meta['reply_id'] = reply_id
+    g.feedback_logs_count = len(lines)
     path = _feedback_activity_log_path(feedback_id) if reply_id is None else _feedback_reply_log_path(feedback_id, reply_id)
     os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -289,6 +297,7 @@ def feedback():
         if client_logs is not None:
             try:
                 result['logs_saved'] = _save_feedback_client_logs(fb.public_id, current_user.id, client_logs) is not None
+                result['logs_count'] = getattr(g, 'feedback_logs_count', 0)
             except Exception as e:
                 log_force(f"FEEDBACK-LOGS-ERROR: user={current_user.id} feedback={fb.public_id} err={e}")
                 result['logs_saved'] = False
@@ -458,6 +467,7 @@ def feedback_reply(fid):
     if client_logs is not None:
         try:
             result['logs_saved'] = _save_feedback_client_logs(fb.public_id, current_user.id, client_logs, reply_id=reply.id) is not None
+            result['logs_count'] = getattr(g, 'feedback_logs_count', 0)
         except Exception as e:
             log_force(f"FEEDBACK-LOGS-ERROR: user={current_user.id} feedback={fb.public_id} reply={reply.id} err={e}")
             result['logs_saved'] = False

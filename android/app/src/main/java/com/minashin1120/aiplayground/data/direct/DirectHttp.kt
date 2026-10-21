@@ -1,5 +1,7 @@
 package com.minashin1120.aiplayground.data.direct
 
+import com.minashin1120.aiplayground.data.LogPolicy
+
 import com.minashin1120.aiplayground.BuildConfig
 import com.minashin1120.aiplayground.data.ActivityLog
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -66,21 +68,21 @@ class DirectHttp(
             val path = request.url.encodedPath
             continuation.invokeOnCancellation {
                 call.cancel()
-                ActivityLog.log("direct.cancel", "method" to request.method, "host" to host, "path" to path,
+                ActivityLog.log("direct.cancel", "method" to request.method, "provider" to LogPolicy.provider(host), "path" to path,
                     "ms" to System.currentTimeMillis() - started)
             }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    ActivityLog.log("direct.error", "method" to request.method, "host" to host, "path" to path,
+                    ActivityLog.log("direct.error", "method" to request.method, "provider" to LogPolicy.provider(host), "path" to path,
                         "ms" to System.currentTimeMillis() - started, "error" to e.javaClass.simpleName, "message" to e.message)
                     if (continuation.isActive) continuation.resumeWith(Result.failure(e))
                 }
 
                 override fun onResponse(call: Call, response: Response) {
-                    ActivityLog.log("direct", "method" to request.method, "host" to host, "path" to path,
+                    ActivityLog.log("direct", "method" to request.method, "provider" to LogPolicy.provider(host), "path" to path,
                         "status" to response.code, "ms" to System.currentTimeMillis() - started)
                     val result = runCatching { response.use { consume(it) } }
-                    if (result.isFailure) ActivityLog.log("direct.read_error", "host" to host, "path" to path,
+                    if (result.isFailure) ActivityLog.log("direct.read_error", "provider" to LogPolicy.provider(host), "path" to path,
                         "ms" to System.currentTimeMillis() - started, "error" to result.exceptionOrNull()?.javaClass?.simpleName)
                     if (continuation.isActive) continuation.resumeWith(result)
                 }

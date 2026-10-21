@@ -101,6 +101,8 @@ except ImportError:
 
 # Logger Setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+from server.logging_policy import install_safe_logging
+install_safe_logging()
 logger = logging.getLogger(__name__)
 logging.getLogger("weasyprint").setLevel(logging.ERROR)
 logging.getLogger("fontTools").setLevel(logging.WARNING)
@@ -111,12 +113,18 @@ def log_force(msg):
     try:
         if isinstance(msg, str) and msg.startswith("DEBUG:") and not VERBOSE_DEBUG_LOGS:
             return
-        t = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_msg = f"[{t}] [AI-CHAT-DEBUG] {msg}"
-        with open("/home/ai-chat-minashin1120/app/debug.log", "a") as f:
-            f.write(log_msg + "\n")
-        print(log_msg, file=sys.stdout, flush=True)
-        logger.info(msg)
+        # Never interpolate legacy payloads (including SDK exceptions and model output).
+        import inspect
+        caller = inspect.currentframe().f_back
+        code_file = os.path.basename(caller.f_code.co_filename)
+        from server.logging_policy import SCHEMA as _log_schema
+        if code_file not in _log_schema['enums']['code_file']:
+            code_file = 'external'
+        payload = json.dumps({'ev': 'operations.log', 't': int(time.time() * 1000), 'version': app.config.get('SYSTEM_VERSION'), 'file': code_file, 'line': caller.f_lineno})
+        del caller
+        with open(os.path.join(app.root_path, "debug.log"), "a") as handle:
+            handle.write(payload + "\n")
+        logger.info("legacy event", stacklevel=2)
     except:
         pass
 
@@ -762,8 +770,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-10-20-005')
-app.config['SYSTEM_VERSION'] = 'V4.8.1108'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-10-21-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.1109'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -932,6 +940,7 @@ _SERVER_PARTS = [
     "models.py",
     "account_transfer.py",
     "request_identity.py",
+    "diagnostic_logging.py",
     "account_security.py",
     "chat_state.py",
     "app_settings_schema.py",
@@ -960,6 +969,16 @@ _SERVER_PARTS = [
 ]
 for _server_part in _SERVER_PARTS:
     _exec_server_part(_server_part)
+
+# Keep provider/tool modules independently testable; attach application logging at composition.
+for _diagnostic_function, _diagnostic_event in {
+    '_execute_create_file_tool': 'tool.create_file',
+    '_execute_edit_file_tool': 'tool.edit_file',
+    'ideogram_request': 'provider.ideogram',
+    'safe_execute_python': 'tool.python',
+}.items():
+    globals()[_diagnostic_function] = _diagnostic_operation(_diagnostic_event)(globals()[_diagnostic_function])
+
 
 # MCP外部連携（mcp_service）のBlueprint登録
 try:

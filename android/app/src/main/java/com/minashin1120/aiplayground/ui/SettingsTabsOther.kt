@@ -323,7 +323,7 @@ private const val FEEDBACK_IMAGES_NOTE = "PNG・JPEG・WebP・GIF、4枚まで�
 private val FEEDBACK_IMAGE_TYPES = setOf("image/png", "image/jpeg", "image/webp", "image/gif")
 private const val FEEDBACK_CHAT_COPY_LABEL = "現在開いているチャットのコピーを送信する"
 private const val FEEDBACK_CHAT_COPY_DESCRIPTION = "開いているチャットのメッセージ、回答、思考過程、添付ファイル、チャットの設定と、そのチャットに関するエラーログなどの記録を復号して、不具合の調査用に送信します。送信したコピーは、チャットを削除しても残ります。"
-private const val ACTIVITY_LOG_DESCRIPTION = "この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバックの送信時に直近1時間のログを一緒に送信します。チャットで送信した内容、回答、ファイル、入力欄の文字は記録しません。"
+private const val ACTIVITY_LOG_DESCRIPTION = "この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバックの送信時に直近1時間のログを一緒に送信します。記録から1時間を過ぎたログは自動削除します（アプリ・ブラウザーの停止中は次回起動時）。チャットの本文・回答・タイトル、ファイル名・中身、入力欄の文字、認証情報は記録しません。送信済みのログは調査用に保持します。"
 
 /** Web `refreshActivityLogUi`: the switch state and `操作ログ: N件 (x.xMB)`, read again after each change. */
 private class ActivityLogInfo(val enabled: Boolean, val usage: String, val setEnabled: (Boolean) -> Unit, val clear: () -> Unit)
@@ -414,7 +414,7 @@ private const val FEEDBACK_REPLY_LOGS_LABEL = "直近1時間の操作ログを�
 private const val FEEDBACK_REPLY_LOGS_ON = "チェックしたときだけ、「ログの収集を強化」で記録した直近1時間のログを返信と一緒に送信します。"
 private const val FEEDBACK_REPLY_LOGS_OFF = "「ログの収集を強化」がオフのため、ログは送信できません。"
 
-internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (String) -> Unit): List<SettingsCardSpec> = listOfNotNull(
+internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (String) -> Unit, form: SettingsForm): List<SettingsCardSpec> = listOfNotNull(
     SettingsCardSpec(SettingsTab.Feedback, "send", "フィードバック送信",
         "フィードバック送信 タイトル (任意) バグ報告・要望などを入力してください $FEEDBACK_CHAT_COPY_LABEL $FEEDBACK_CHAT_COPY_DESCRIPTION 画像を添付 $FEEDBACK_IMAGES_NOTE 送信",
         titleIcon = R.drawable.fa_solid_bug) {
@@ -450,6 +450,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
         val log = rememberActivityLogInfo()
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsSwitchRow("操作ログを記録する", ACTIVITY_LOG_DESCRIPTION, log.enabled, { log.setEnabled(it) }, accent = Tw.amber600)
+            if (!state.localProfile) SettingsSwitchRow("サーバー調査ログを記録する", "このアカウントのサーバー処理の段階・結果を記録します。同じアカウントのWeb版・Android版で共通です。保存は記録から1時間で、ログを添付したフィードバック・返信には調査用のコピーを残します。変更は「保存」で反映します。", form.serverDiagnosticLog, { form.serverDiagnosticLog = it }, accent = Tw.amber600)
             SettingsDesc(if (log.enabled) "記録中です。フィードバックの送信時に直近1時間のログを送信します。（${log.usage}）" else "記録していません。")
         }
     },
@@ -472,7 +473,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                     if (item.imageCount > 0) Text("添付画像: ${item.imageCount}枚", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
                     FeedbackReplies(item, admin = false)
                     key(item.id) {
-                        FeedbackReplyForm(!state.feedbackBusy, notify) { message, withLogs, images -> model.replyFeedback(item, message, withLogs, images) }
+                        FeedbackReplyForm(!state.feedbackBusy, notify, serverLogs = state.preferences?.enableServerDiagnosticLog == true) { message, withLogs, images -> model.replyFeedback(item, message, withLogs, images) }
                     }
                     SettingsSmallButton("削除", { deleting = item }, modifier = Modifier.padding(top = 8.dp),
                         tone = SettingsButtonTone.Red, fontSize = 10.sp, enabled = !state.feedbackBusy)
@@ -493,7 +494,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
             state.feedbackItems.forEach { item ->
                 key(item.id) {
                     AdminFeedbackRow(item, !state.feedbackBusy, notify, { status -> model.updateFeedback(item, status) },
-                        { message, withLogs, images -> model.replyFeedback(item, message, withLogs, images) }) { deleting = item }
+                        { message, withLogs, images -> model.replyFeedback(item, message, withLogs, images) }, serverLogs = state.preferences?.enableServerDiagnosticLog == true) { deleting = item }
                 }
             }
         }
@@ -564,12 +565,12 @@ private fun FeedbackImagesField(images: List<Uri>, notify: (String) -> Unit, onC
 
 /** Web `feedbackReplyFormHtml`: the reply box under the history; each 返信 adds to it. The log box needs ログの収集を強化. */
 @Composable
-private fun FeedbackReplyForm(enabled: Boolean, notify: (String) -> Unit, onSend: (String, Boolean, List<Uri>) -> Unit) {
+private fun FeedbackReplyForm(enabled: Boolean, notify: (String) -> Unit, serverLogs: Boolean = false, onSend: (String, Boolean, List<Uri>) -> Unit) {
     val web = LocalWebPalette.current
     var message by remember { mutableStateOf("") }
     var withLogs by remember { mutableStateOf(false) }
     var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    val logsOn = ActivityLog.enabled
+    val logsOn = ActivityLog.enabled || serverLogs
     Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SettingsTextField(message, { message = it.take(100_000) }, Modifier.fillMaxWidth(), placeholder = "返信内容",
             minHeight = 48.dp, singleLine = false, fontSize = 12.sp)
@@ -589,7 +590,7 @@ private fun FeedbackReplyForm(enabled: Boolean, notify: (String) -> Unit, onSend
 @Composable
 private fun AdminFeedbackRow(
     item: FeedbackItem, enabled: Boolean, notify: (String) -> Unit, onSave: (String) -> Unit,
-    onReply: (String, Boolean, List<Uri>) -> Unit, onDelete: () -> Unit,
+    onReply: (String, Boolean, List<Uri>) -> Unit, serverLogs: Boolean = false, onDelete: () -> Unit,
 ) {
     val web = LocalWebPalette.current
     val shape = RoundedCornerShape(4.dp)
@@ -616,7 +617,7 @@ private fun AdminFeedbackRow(
             SettingsSmallButton("削除", onDelete, tone = SettingsButtonTone.Red, enabled = enabled)
         }
         FeedbackReplies(item, admin = true)
-        FeedbackReplyForm(enabled, notify, onReply)
+        FeedbackReplyForm(enabled, notify, serverLogs, onReply)
     }
 }
 

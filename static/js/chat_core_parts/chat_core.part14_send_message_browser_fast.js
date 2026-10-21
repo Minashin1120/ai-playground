@@ -94,6 +94,8 @@
                 if (finishProgress) finishProgress.setPhase('waiting');
                 get('prompt-input').value = '';
                 get('prompt-input').style.height = 'auto';
+                window.ActivityLog?.log('send.stream.start');
+                let loggedFirstChunk = false;
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
@@ -164,6 +166,7 @@
                 };
                 while (true) {
                     const { done, value } = await reader.read();
+                    if (!done && !loggedFirstChunk) { loggedFirstChunk = true; window.ActivityLog?.log('send.stream.first'); }
                     if (done) break;
                     if (window.ConnectionMonitor) window.ConnectionMonitor.reportActivity();
                     if (finishProgress) finishProgress.setPhase('receiving');
@@ -281,6 +284,10 @@
         }
 
         async function sendMessage() {
+            if (!window.ActivityLog) return sendMessageLogged();
+            return window.ActivityLog.operation('send', () => sendMessageLogged());
+        }
+        async function sendMessageLogged() {
             vibrateHelper(50);
             if (abortController) {
                 showToast("回答生成中です。完了までお待ちいただくか、停止してください。", "warning", true);
@@ -868,6 +875,8 @@
                     }
                 };
                 markApiAccepted();
+                window.ActivityLog?.log('send.stream.start');
+                let loggedFirstChunk = false;
                 const reader = r.body.getReader();
                 const dec = new TextDecoder();
                 let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false;
@@ -877,6 +886,8 @@
 
                 while(!streamEndedByError) {
                     const {done, value} = await reader.read();
+                    if (!done && !loggedFirstChunk) { loggedFirstChunk = true; window.ActivityLog?.log('send.stream.first'); }
+                    if (done) window.ActivityLog?.log('send.stream.done');
                     if(done) break;
                     if (window.ConnectionMonitor) window.ConnectionMonitor.reportActivity();
                     if (finishStreamProgress) finishStreamProgress.setPhase('receiving');
@@ -1143,6 +1154,7 @@
                 } else loadThreads(false);
 
             } catch(e){
+                window.ActivityLog?.log(e.name === 'AbortError' ? 'send.cancelled' : 'send.error');
                 let syncedAfterAbort = false;
                 const manuallyStopped = e.name === 'AbortError' && isManualStopAbortForThread(streamStartedThreadId);
                 if (e.name === 'AbortError' && !manuallyStopped) {
@@ -1306,10 +1318,14 @@
                     window.ConnectionMonitor.operationStarted();
                 }
                 if (finishResumeProgress) finishResumeProgress.setPhase('waiting');
+                window.ActivityLog?.log('send.stream.start');
+                let loggedFirstChunk = false;
                 const reader = r.body.getReader();
                 const dec = new TextDecoder();
                 while(!streamEndedByError) {
                     const {done, value} = await reader.read();
+                    if (!done && !loggedFirstChunk) { loggedFirstChunk = true; window.ActivityLog?.log('send.stream.first'); }
+                    if (done) window.ActivityLog?.log('send.stream.done');
                     if (done) break;
                     if (window.ConnectionMonitor) window.ConnectionMonitor.reportActivity();
                     if (finishResumeProgress) finishResumeProgress.setPhase('receiving');
@@ -1487,6 +1503,7 @@
                 await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
                 loadThreads(false);
             } catch (e) {
+                window.ActivityLog?.log(e.name === 'AbortError' ? 'send.cancelled' : 'send.stream.error');
                 const manuallyStopped = e.name === 'AbortError' && isManualStopAbortForThread(resumeStartedThreadId);
                 if (e.name === 'AbortError' && !manuallyStopped) {
                     await syncThreadAfterAbortedStream(resumeStartedThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });

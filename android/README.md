@@ -51,8 +51,9 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/CapturedPhotoOrientation.kt` | 撮影したJPEGのEXIFの向きを画素へ反映 | 撮影後の画像の向きを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ChatAutoScroll.kt` | Web `part05` の会話の自動追従（上へのスクロールで停止、下端付近で再開、「一番下へ」の表示条件） | 生成中のスクロールの動きを変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LiveAnswer.kt` | 生成待ち・チャット読み込み中のスケルトン、チャット読み込み失敗のカード、Searching web／Search complete、Image Analysis、Python Execution、右下の通信スピナー | 生成中の表示を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/LogPolicy.kt` | 共通スキーマによる機密除外・ルート正規化・処理段階の記録 | 許可イベント・項目、処理の記録方法を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ActivityLog.kt` | 「ログの収集を強化」の操作ログ（通信・画面・状態の変化・タップ・エラーと診断ログの各段階。入力した本文・回答・ファイルの中身は含めない）をアプリのデータ領域に直近1時間ぶん記録し、フィードバック送信時に渡す | 操作ログの記録項目・保存・送信を変えるとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/Diagnostics.kt` | 管理者アカウントだけの診断ログ（処理の段階・所要時間・サイズ・エラー表示・停滞時のスレッドのスタック。入力した本文・ファイルの中身は含めない）の端末への記録 | サーバー不使用モードの不具合調査で記録する項目を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/Diagnostics.kt` | 管理者アカウントだけの診断ログ（処理の段階・所要時間・サイズ・固定エラー分類・停滞時のアプリコード位置。入力した本文・ファイルの中身は含めない）の端末への記録 | サーバー不使用モードの不具合調査で記録する項目を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ProgressText.kt` | Web `progress_spinner.js` の文言表と通信中の処理一覧（`PlaygroundApi.progress`） | 通信スピナーの文言や対象を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/Composer.kt` | Webのプロンプトバー（引用・Coding対象・編集バー、モデルボタン、Canvas／Coding／Batch、詳細チップ、添付プレビュー、固定プロンプト、Gem表示、`/`・`@` 候補、入力シェル、送信・停止、トークン見積もり） | 入力欄の見た目や操作を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/QuoteSelection.kt` | 会話の範囲選択に「Quote」を加える選択ツールバー | 引用の操作を変更するとき |

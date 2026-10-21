@@ -92,32 +92,31 @@ def try_alter(sql):
     except Exception:
         pass
 
+def _ensure_required_user_flags(columns):
+    # Inspect and alter on the same connection: SQLite may otherwise prepare DDL
+    # using a pooled connection's stale schema after another connection changed it.
+    with db.engine.begin() as conn:
+        if 'user' not in set(inspect(conn).get_table_names()):
+            return
+        for column in columns:
+            if column in {c['name'] for c in inspect(conn).get_columns('user')}:
+                continue
+            try:
+                if db.engine.dialect.name in ('mysql', 'mariadb'):
+                    conn.execute(text("SET SESSION lock_wait_timeout=5"))
+                conn.execute(text(f"ALTER TABLE user ADD COLUMN {column} BOOLEAN DEFAULT 0"))
+            except Exception:
+                # Another startup worker may already have completed this DDL.
+                if column not in {c['name'] for c in inspect(conn).get_columns('user')}:
+                    raise
+            if column not in {c['name'] for c in inspect(conn).get_columns('user')}:
+                raise RuntimeError(f"Required database column user.{column} is missing")
+
+
 def ensure_user_liquid_glass_column():
     """Ensure login-critical visual preferences exist before any User query."""
-    table_names = set(inspect(db.engine).get_table_names())
-    if 'user' not in table_names:
-        return
-    column_names = {column['name'] for column in inspect(db.engine).get_columns('user')}
-    if 'liquid_glass_enabled' not in column_names:
-        with db.engine.begin() as conn:
-            if db.engine.dialect.name in ('mysql', 'mariadb'):
-                conn.execute(text("SET SESSION lock_wait_timeout=5"))
-            conn.execute(text(
-                "ALTER TABLE user ADD COLUMN liquid_glass_enabled BOOLEAN DEFAULT 0"
-            ))
-    verified_columns = {column['name'] for column in inspect(db.engine).get_columns('user')}
-    if 'liquid_glass_enabled' not in verified_columns:
-        raise RuntimeError("Required database column user.liquid_glass_enabled is missing")
-    if 'light_mode_enabled' not in verified_columns:
-        with db.engine.begin() as conn:
-            if db.engine.dialect.name in ('mysql', 'mariadb'):
-                conn.execute(text("SET SESSION lock_wait_timeout=5"))
-            conn.execute(text(
-                "ALTER TABLE user ADD COLUMN light_mode_enabled BOOLEAN DEFAULT 0"
-            ))
-    verified_columns = {column['name'] for column in inspect(db.engine).get_columns('user')}
-    if 'light_mode_enabled' not in verified_columns:
-        raise RuntimeError("Required database column user.light_mode_enabled is missing")
+    _ensure_required_user_flags(('liquid_glass_enabled', 'light_mode_enabled'))
+
 
 def ensure_thread_last_model_column():
     try:
@@ -814,15 +813,9 @@ def cleanup_user_temp_system_prompt_columns():
         pass
 
 def ensure_user_debug_settings_columns():
-    try:
-        with db.engine.connect() as conn:
-            res = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='enable_client_debug_log'")).fetchone()
-            if not res:
-                conn.execute(text("SET SESSION lock_wait_timeout=1"))
-                conn.execute(text("ALTER TABLE user ADD COLUMN enable_client_debug_log BOOLEAN DEFAULT 0"))
-                conn.commit()
-    except Exception:
-        pass
+    # Required by every User SELECT, even when optional migrations are disabled.
+    _ensure_required_user_flags(('enable_client_debug_log', 'enable_server_diagnostic_log'))
+
 
 def ensure_bot_evidence_columns():
     try:

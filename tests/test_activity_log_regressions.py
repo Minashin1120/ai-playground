@@ -68,7 +68,7 @@ assert.equal(store.get('aip_activity_log_enabled'), '1');
   assert.ok(log.stats().count > 0);
   log.clear();
   assert.equal(log.recent().length, 0);
-  log.log('x');
+  log.log('click');
   assert.equal(log.recent().length, 1);
   log.setEnabled(false);
   assert.equal(store.get('aip_activity_log_v1'), undefined);
@@ -282,9 +282,10 @@ class FeedbackClientLogTests(unittest.TestCase):
             rows = [json.loads(line) for line in handle]
         self.assertEqual(rows[0]['kind'], 'meta')
         self.assertEqual(rows[0]['user_id'], self.user_id)
-        self.assertEqual((rows[0]['entries'], rows[0]['dropped']), (2, 1))
+        self.assertEqual((rows[0]['entries'], rows[0]['dropped']), (1, 2))
         self.assertEqual(rows[1]['ev'], 'click')
-        self.assertEqual(set(rows[2]), {'t', 'ev', 'truncated'})
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]['dropped'], 2)
         self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
         info = self.read_info(feedback_id)
         self.assertEqual((info['title'], info['message'], info['client'], info['client_version'], info['activity_log_saved']),

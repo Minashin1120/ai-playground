@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.ui
 
+import com.minashin1120.aiplayground.data.Diagnostics
 import android.annotation.SuppressLint
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -61,6 +62,7 @@ internal fun HtmlCodePreviewDialog(code: String, onDismiss: () -> Unit) {
                 modifier = Modifier.fillMaxSize(),
                 factory = { viewContext ->
                     WebView(viewContext).apply {
+                        Diagnostics.log("html_preview.start")
                         // WRAP_CONTENT makes percentage-height HTML collapse to zero in WebView.
                         // Match the Compose viewport before loading the sandboxed document.
                         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
@@ -91,14 +93,15 @@ internal fun HtmlCodePreviewDialog(code: String, onDismiss: () -> Unit) {
                                 }
                                 return null
                             }
+                            override fun onPageFinished(view: WebView, url: String) { Diagnostics.log("html_preview.done", "h" to view.height, "w" to view.width) }
                             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                                if (request.isForMainFrame) loadFailed = true
+                                if (request.isForMainFrame) { Diagnostics.log("html_preview.error", "error_code" to error.errorCode); loadFailed = true }
                             }
                         }
                         loadUrl(HTML_PREVIEW_URL)
                     }
                 },
-                onRelease = { view -> view.stopLoading(); view.destroy() },
+                onRelease = { view -> Diagnostics.log("html_preview.close"); view.stopLoading(); view.destroy() },
             )
         },
     )

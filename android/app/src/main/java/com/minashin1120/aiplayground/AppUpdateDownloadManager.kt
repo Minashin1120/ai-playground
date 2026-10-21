@@ -1,5 +1,7 @@
 package com.minashin1120.aiplayground
 
+import com.minashin1120.aiplayground.data.Diagnostics
+
 import com.minashin1120.aiplayground.data.AppUpdate
 import com.minashin1120.aiplayground.data.AppUpdateDownloadProgress
 import kotlinx.coroutines.CancellationException
@@ -34,14 +36,19 @@ class AppUpdateDownloadManager(
     private var cancelledJob: Job? = null
 
     internal fun updateState(transform: (AppUpdateUiState) -> AppUpdateUiState) {
+        val before = mutable.value
         mutable.update(transform)
+        val after = mutable.value
+        if (before.phase != after.phase || before.dialogHidden != after.dialogHidden)
+            Diagnostics.log("app_update.state", "update_phase" to after.phase.name, "bytes" to after.downloadedBytes,
+                "hidden" to after.dialogHidden)
     }
 
     /** Starts the download; returns false when there is nothing to download or it already runs. */
     fun startDownload(): Boolean {
         val update = state.value.update ?: return false
         if (downloadJob?.isActive == true) return false
-        mutable.update {
+        updateState {
             it.copy(
                 phase = AppUpdatePhase.Downloading,
                 downloadedBytes = 0L,
@@ -62,7 +69,7 @@ class AppUpdateDownloadManager(
                 val file = download(update, directory) { progress ->
                     // The stream loop never suspends, so check here to stop reading after cancel.
                     currentCoroutineContext().ensureActive()
-                    mutable.update {
+                    updateState {
                         if (it.phase != AppUpdatePhase.Downloading) it
                         else it.copy(downloadedBytes = progress.downloadedBytes, totalBytes = progress.totalBytes)
                     }
@@ -70,7 +77,7 @@ class AppUpdateDownloadManager(
                 // A cancelled job must not report into a retry that already replaced it.
                 currentCoroutineContext().ensureActive()
                 // A finished download brings the dialog back so the user can start the install.
-                mutable.update {
+                updateState {
                     if (it.phase != AppUpdatePhase.Downloading) it
                     else it.copy(phase = AppUpdatePhase.Ready, readyFile = file, errorMessage = null, dialogHidden = false)
                 }
@@ -78,7 +85,7 @@ class AppUpdateDownloadManager(
                 // Cancellation is represented by the Available state in cancelDownload().
             } catch (error: Throwable) {
                 if (!currentCoroutineContext().isActive) return@launch
-                mutable.update {
+                updateState {
                     if (it.phase != AppUpdatePhase.Downloading) it
                     else it.copy(
                         phase = AppUpdatePhase.Error,
@@ -99,7 +106,7 @@ class AppUpdateDownloadManager(
         }
         downloadJob = null
         state.value.update?.let { update ->
-            mutable.update {
+            updateState {
                 it.copy(
                     update = update,
                     phase = AppUpdatePhase.Available,
@@ -115,11 +122,11 @@ class AppUpdateDownloadManager(
 
     /** Hides the dialog while the download continues; a progress bar stays on top of the screen. */
     fun hideDialog() {
-        mutable.update { if (it.phase == AppUpdatePhase.Downloading) it.copy(dialogHidden = true) else it }
+        updateState { if (it.phase == AppUpdatePhase.Downloading) it.copy(dialogHidden = true) else it }
     }
 
     fun showDialog() {
-        mutable.update { it.copy(dialogHidden = false) }
+        updateState { it.copy(dialogHidden = false) }
     }
 
     /**
@@ -127,7 +134,7 @@ class AppUpdateDownloadManager(
      * the update stays [AppUpdatePhase.Ready] and the top bar or settings reopen the dialog.
      */
     fun dismiss() {
-        mutable.update {
+        updateState {
             when (it.phase) {
                 AppUpdatePhase.Downloading, AppUpdatePhase.Installing -> it
                 // Declining the install permission also returns to Ready, so resuming the app does not start the installer.

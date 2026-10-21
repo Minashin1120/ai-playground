@@ -7,9 +7,8 @@ import java.io.File
 
 /**
  * Administrator-only diagnostics of serverless mode: which step ran when, how long it took, sizes, MIME
- * types, states, exception names, the error shown in an answer (the server's or the AI provider's text,
- * which can name an attachment), and the stacks of the app's threads when work stalls. Never the user's
- * message text or file contents.
+ * types, fixed states, exception categories and app source locations when work stalls. Never free text,
+ * titles, filenames, credentials, message text or file contents.
  *
  * Entries go to a file first, so they survive the app being killed; [ChatViewModel] sends them to
  * `/api/mobile/v1/diagnostics` (server `logs/android-diagnostics.log`) and removes what the server took.
@@ -19,7 +18,6 @@ import java.io.File
  */
 object Diagnostics {
     private const val MAX_FILE_BYTES = 768 * 1024
-    private const val MAX_FIELD_CHARS = 2000
     private const val STACK_FRAMES = 24
     private const val PREFS = "diagnostics"
 
@@ -37,6 +35,14 @@ object Diagnostics {
     fun init(app: Context) {
         context = app
         file = File(app.noBackupFilesDir, "diagnostics/pending.jsonl")
+        synchronized(lock) {
+            file?.let { target -> runCatching {
+                if (target.isFile) {
+                    val safe = target.readLines().mapNotNull { line -> runCatching { LogPolicy.entry(JSONObject(line)) }.getOrNull() }
+                    target.writeText(safe.joinToString("") { "$it\n" })
+                }
+            } }
+        }
         pid = runCatching { android.os.Process.myPid() }.getOrDefault(0)
         enabled = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("admin", false)
         val previous = Thread.getDefaultUncaughtExceptionHandler()
@@ -58,33 +64,36 @@ object Diagnostics {
     }
 
     fun log(event: String, vararg fields: Pair<String, Any?>) {
-        // The same steps also go to the user's activity log (ログの収集を強化) when it is on.
-        val activity = ActivityLog.enabled
-        if (!enabled && !activity) return
-        val target = file ?: return
-        val now = System.currentTimeMillis()
-        val entry = JSONObject().put("t", now).put("ev", event).put("pid", pid).put("thread", Thread.currentThread().name)
-        fields.forEach { (key, value) -> entry.put(key, sanitize(value)) }
-        if (activity) ActivityLog.logEntry(entry)
-        lastEventAt = now
-        if (!enabled) return
-        synchronized(lock) {
-            entry.put("seq", ++seq)
-            runCatching {
-                target.parentFile?.mkdirs()
-                if (target.length() > MAX_FILE_BYTES) {
-                    // Keep the newest half when the server has been out of reach for a long time.
-                    val lines = target.readLines()
-                    target.writeText(lines.takeLast(lines.size / 2).joinToString("") { "$it\n" })
+        runCatching {
+            // The same steps also go to the user's activity log (ログの収集を強化) when it is on.
+            val activity = ActivityLog.enabled
+            if (!enabled && !activity) return
+            val target = file
+            val now = System.currentTimeMillis()
+            val entry = JSONObject().put("t", now).put("ev", event).put("pid", pid).put("thread", Thread.currentThread().name)
+            fields.forEach { (key, value) -> entry.put(key, value) }
+            val safe = LogPolicy.entry(entry) ?: return
+            if (activity) ActivityLog.logEntry(safe)
+            lastEventAt = now
+            if (!enabled || target == null) return
+            synchronized(lock) {
+                safe.put("seq", ++seq)
+                runCatching {
+                    target.parentFile?.mkdirs()
+                    if (target.length() > MAX_FILE_BYTES) {
+                        // Keep the newest half when the server has been out of reach for a long time.
+                        val lines = target.readLines()
+                        target.writeText(lines.takeLast(lines.size / 2).joinToString("") { "$it\n" })
+                    }
+                    target.appendText(safe.toString() + "\n")
                 }
-                target.appendText(entry.toString() + "\n")
             }
         }
     }
 
-    /** An exception: its class, message and the app's own frames. */
+    /** An exception category and the app's own source locations; never its message. */
     fun failure(event: String, error: Throwable, vararg fields: Pair<String, Any?>) {
-        log(event, *fields, "error" to error.javaClass.name, "message" to error.message,
+        log(event, *fields, "error" to error.javaClass.simpleName, "failed" to true,
             "stack" to frames(error.stackTrace))
     }
 
@@ -103,7 +112,12 @@ object Diagnostics {
                     threads.put(JSONObject().put("name", thread.name).put("state", thread.state.name).put("frames", frames(trace)))
                 }
         }
-        log("stall.stacks", *fields, "reason" to reason, "memory" to memory(), "threads" to threads)
+        val combined = JSONArray()
+        for (index in 0 until threads.length()) {
+            val frames = threads.getJSONObject(index).getJSONArray("frames")
+            for (frame in 0 until frames.length()) if (combined.length() < STACK_FRAMES) combined.put(frames.getJSONObject(frame))
+        }
+        log("stall.stacks", *fields, "stack" to combined, "used_mb" to memory().optLong("used_mb"), "max_mb" to memory().optLong("max_mb"))
     }
 
     /** Up to [max] waiting lines (oldest first): [lines] is how many to [drop] once the server took [entries]. */
@@ -115,7 +129,7 @@ object Diagnostics {
         var chars = 0
         val lines = all.take(max).takeWhile { line -> chars += line.length; chars <= maxChars }
             .ifEmpty { all.take(1) }
-        Batch(lines.size, lines.mapNotNull { runCatching { JSONObject(it) }.getOrNull() })
+        Batch(lines.size, lines.mapNotNull { runCatching { LogPolicy.entry(JSONObject(it)) }.getOrNull() })
     }
 
     /** Waiting entries (not yet sent) that mention [ids], for the chat copy of a feedback. */
@@ -144,14 +158,12 @@ object Diagnostics {
 
     private fun frames(trace: Array<StackTraceElement>): JSONArray {
         val out = JSONArray()
-        trace.take(STACK_FRAMES).forEach { out.put("${it.className}.${it.methodName}:${it.lineNumber}") }
+        trace.filter { it.className.startsWith("com.minashin1120.aiplayground.") }.take(STACK_FRAMES).forEach {
+            val name = it.className.substringAfterLast('.').substringBefore('$').removeSuffix("Kt") + ".kt"
+            out.put(JSONObject().put("code_file", name).put("line", it.lineNumber))
+        }
         return out
     }
 
-    private fun sanitize(value: Any?): Any = when (value) {
-        null -> JSONObject.NULL
-        is Number, is Boolean, is JSONObject, is JSONArray -> value
-        is Collection<*> -> JSONArray(value.map { sanitize(it) })
-        else -> value.toString().take(MAX_FIELD_CHARS)
-    }
+
 }

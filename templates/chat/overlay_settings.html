@@ -388,13 +388,14 @@
             <div class="flex items-center justify-between gap-3">
                 <div>
                     <div class="text-xs font-bold text-white">操作ログを記録する</div>
-                    <div class="text-[10px] text-gray-500 mt-1">この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバックの送信時に直近1時間のログを一緒に送信します。チャットで送信した内容、回答、ファイル、入力欄の文字は記録しません。</div>
+                    <div class="text-[10px] text-gray-500 mt-1">この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバックの送信時に直近1時間のログを一緒に送信します。記録から1時間を過ぎたログは自動削除します（アプリ・ブラウザーの停止中は次回起動時）。チャットの本文・回答・タイトル、ファイル名・中身、入力欄の文字、認証情報は記録しません。送信済みのログは調査用に保持します。</div>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer shrink-0">
                     <input type="checkbox" id="set-activity-log" class="sr-only peer">
                     <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
                 </label>
             </div>
+            <div class="flex items-center justify-between gap-3 mt-3"><div><div class="text-xs font-bold text-white">サーバー調査ログを記録する</div><div class="text-[10px] text-gray-500 mt-1">このアカウントのサーバー処理の段階・結果を記録します。同じアカウントのWeb版・Android版で共通です。保存は記録から1時間で、ログを添付したフィードバック・返信には調査用のコピーを残します。変更は「保存」で反映します。</div></div><label class="relative inline-flex items-center cursor-pointer shrink-0"><input type="checkbox" id="set-server-diagnostic-log" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div></label></div>
             <div id="activity-log-feedback-status" class="text-[10px] text-gray-500 mt-2"></div>
         </div>
         <div class="settings-card">

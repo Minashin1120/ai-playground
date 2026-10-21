@@ -318,6 +318,7 @@ def _mobile_preferences_payload():
         'llm_transcribe_prompt_default': DEFAULT_LLM_TRANSCRIBE_PROMPT,
         'enable_latency_metrics': bool(user.enable_latency_metrics),
         'enable_client_debug_log': bool(user.enable_client_debug_log),
+        'enable_server_diagnostic_log': bool(user.enable_server_diagnostic_log),
         'passkey_only_login': bool(user.passkey_only_login),
         'model_api_keys': {model_key: _SECRET_MASK for model_key in _load_user_model_api_key_map(user)},
         'gemini_backend': _normalize_gemini_backend(user.gemini_backend),
@@ -380,6 +381,12 @@ def mobile_preferences():
     data = request.get_json(silent=True) or {}
     if not isinstance(data, dict):
         return _mobile_error('invalid_request')
+    diagnostic_consent_changed = False
+    if 'enable_server_diagnostic_log' in data:
+        if type(data['enable_server_diagnostic_log']) is not bool:
+            return _mobile_error('invalid_request')
+        diagnostic_consent_changed = bool(current_user.enable_server_diagnostic_log) != data['enable_server_diagnostic_log']
+        current_user.enable_server_diagnostic_log = data['enable_server_diagnostic_log']
     if 'default_model' in data and data.get('default_model') not in ALL_VALID_MODEL_IDS:
         return _mobile_error('invalid_default_model')
     if 'default_vision_model' in data and data.get('default_vision_model') not in ALL_VALID_MODEL_IDS:
@@ -477,4 +484,6 @@ def mobile_preferences():
         db.session.rollback()
         return _mobile_error(provider_error)
     safe_db_commit()
+    if 'enable_server_diagnostic_log' in data and (diagnostic_consent_changed or data['enable_server_diagnostic_log'] is False):
+        _clear_server_diagnostics(current_user.id)
     return jsonify(_mobile_preferences_payload())

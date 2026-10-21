@@ -4,6 +4,7 @@
 
 - `systemd/`：Gunicornと2つのRQワーカー
 - `apache/`：HTTPSリバースプロキシ、SSE、大容量アップロード
+- [LOGGING.md](LOGGING.md)：ログの収集条件、機密除外、1時間の保持とフィードバック添付
 - [KEY_ROTATION.md](KEY_ROTATION.md)：暗号化鍵 `secret.key` のローテーション手順
 - [ANDROID_CLIENT.md](ANDROID_CLIENT.md)：Android連携API、認証、アプリ構築、サーバー設定、運用・試験
 

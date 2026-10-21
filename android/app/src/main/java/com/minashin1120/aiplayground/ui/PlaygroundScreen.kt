@@ -294,7 +294,7 @@ fun PlaygroundScreen(
             var cameraOpen by remember { mutableStateOf(false) }
             var bubbleAfterNotificationPermission by remember { mutableStateOf(false) }
             // ログの収集を強化: which modals and panels are open (names only).
-            val openPanels = listOf(
+            val panelStates = listOf(
                 "model_picker" to modelPicker, "thread_settings" to threadSettings, "attach_menu" to attachMenu,
                 "library" to libraryOpen, "file_view" to (viewingFile != null), "gem_editor" to gemEditorOpen,
                 "gem_delete" to (gemDeleting != null), "history" to historyOpen, "branch" to branchOpen, "alpha" to alphaOpen,
@@ -302,8 +302,9 @@ fun PlaygroundScreen(
                 "settings" to settingsOpen, "compression" to compressionOpen, "changelog" to changelogOpen,
                 "advanced" to advancedOpen, "realtime" to realtimeOpen, "lyria" to lyriaOpen, "rich_paste" to richPasteOpen,
                 "marker" to (markerTarget != null), "vision_picker" to visionPicker, "camera" to cameraOpen,
-            ).filter { it.second }.joinToString(",") { it.first }
-            LaunchedEffect(openPanels) { ActivityLog.log("ui.panels", "open" to openPanels.ifEmpty { "none" }) }
+            )
+            val openPanels = panelStates.filter { it.second }.joinToString(",") { it.first }
+            LaunchedEffect(openPanels) { ActivityLog.log("ui.panels", *panelStates.map { it.first to it.second }.toTypedArray()) }
             LaunchedEffect(drawer) { snapshotFlow { drawer.isOpen }.collect { ActivityLog.log("ui.drawer", "open" to it) } }
             val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                 if (bubbleAfterNotificationPermission) {
@@ -1844,7 +1845,7 @@ private fun Modifier.onBackgroundTap(onTap: () -> Unit, onUnhandledTap: () -> Un
                 val density = 1.dp.toPx()
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     ActivityLog.log("ui.selection_windows", "after_ms" to SELECTION_WINDOWS_DELAY_MS,
-                        "windows" to visibleWindows(density))
+                        "windows" to com.minashin1120.aiplayground.data.LogPolicy.windows(visibleWindows(density)))
                 }, SELECTION_WINDOWS_DELAY_MS)
             }
         }

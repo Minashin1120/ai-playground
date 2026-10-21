@@ -1,4 +1,5 @@
         function previewCanvasCodeFromButton(btn) {
+            window.ActivityLog?.log('html_preview.start');
             if (!btn) return false;
             const payload = collectCanvasBlocksFromButton(btn);
             if (!payload || !payload.blocks || !payload.blocks.length) return false;

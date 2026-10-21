@@ -186,6 +186,7 @@ data class Preferences(
     val llmTranscribePromptDefault: String = "",
     val enableLatencyMetrics: Boolean = false,
     val enableClientDebugLog: Boolean = false,
+    val enableServerDiagnosticLog: Boolean = false,
     val passkeyOnlyLogin: Boolean = false,
     /** Provider key fields (`openai_key` …) mapped to the server mask; blank when not set. */
     val providerKeys: Map<String, String> = emptyMap(),
@@ -350,6 +351,7 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
     llmTranscribePromptDefault = json.nullableString("llm_transcribe_prompt_default"),
     enableLatencyMetrics = json.optBoolean("enable_latency_metrics"),
     enableClientDebugLog = json.optBoolean("enable_client_debug_log"),
+    enableServerDiagnosticLog = json.optBoolean("enable_server_diagnostic_log"),
     passkeyOnlyLogin = json.optBoolean("passkey_only_login"),
     providerKeys = PROVIDER_KEY_FIELDS.associateWith { json.nullableString(it) },
     modelApiKeys = json.optJSONObject("model_api_keys")?.keys()?.asSequence()?.toSet().orEmpty(),

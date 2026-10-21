@@ -1,6 +1,7 @@
 package com.minashin1120.aiplayground.ui
 
 import android.media.MediaPlayer
+import com.minashin1120.aiplayground.data.Diagnostics
 import android.media.PlaybackParams
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -81,6 +82,16 @@ internal fun InlineAudioPlayer(reference: String, onOpen: (String) -> Unit) {
     var scrubbing by remember(reference) { mutableStateOf(false) }
     var speedIndex by remember(reference) { mutableIntStateOf(0) }
 
+    LaunchedEffect(phase, playing) {
+        val event = when {
+            phase == AudioPhase.Idle -> null
+            phase == AudioPhase.Failed -> "media.error"
+            phase == AudioPhase.Loading -> "media.start"
+            playing -> "media.play"
+            else -> "media.pause"
+        }
+        event?.let { Diagnostics.log(it, "duration" to durationMs, "type" to "audio") }
+    }
     DisposableEffect(reference) {
         onDispose {
             holder.player?.let { player ->
@@ -123,6 +134,7 @@ internal fun InlineAudioPlayer(reference: String, onOpen: (String) -> Unit) {
                 playing = true
             }
             player.setOnCompletionListener {
+                Diagnostics.log("media.ended", "type" to "audio")
                 playing = false
                 positionMs = 0
                 runCatching { it.seekTo(0) }

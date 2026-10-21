@@ -44,7 +44,10 @@ class SelectionTranslator(context: Context) {
      * Returns the translation of [text], or of the text in [images] when there are any; [onContent] gets each
      * piece of text as it arrives (on a background thread).
      */
-    suspend fun translate(text: String, images: List<Image>, setting: TranslationSetting, onContent: (String) -> Unit): String {
+    suspend fun translate(text: String, images: List<Image>, setting: TranslationSetting, onContent: (String) -> Unit): String =
+        LogPolicy.suspendOperation("translation") { translateLogged(text, images, setting, onContent) }
+
+    private suspend fun translateLogged(text: String, images: List<Image>, setting: TranslationSetting, onContent: (String) -> Unit): String {
         if (setting.model.isBlank()) throw Unavailable(MODEL_MISSING, openApp = true)
         val prompt = if (images.isEmpty()) translationPrompt(text, setting.language) else imageTranslationPrompt(setting.language)
         val attachments = images.map { DirectAttachment(it.name, it.mime, it.bytes) }

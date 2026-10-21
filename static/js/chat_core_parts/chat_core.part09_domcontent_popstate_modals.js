@@ -204,7 +204,7 @@
                 if (!form) return;
                 const logs = form.querySelector('.fb-reply-logs');
                 const note = form.querySelector('.fb-reply-logs-note');
-                const on = !!(window.ActivityLog && window.ActivityLog.isEnabled());
+                const on = !!(window.ActivityLog && window.ActivityLog.canAttach());
                 logs.disabled = !on;
                 note.textContent = on
                     ? 'チェックしたときだけ、「ログの収集を強化」で記録した直近1時間のログを返信と一緒に送信します。'
@@ -232,7 +232,7 @@
                             showToast(`返信を送信しました（${failed.join('と')}は保存できませんでした）`, "error", true);
                         } else {
                             const sent = ['返信'];
-                            if (clientLogs) sent.push(`直近1時間のログ（${clientLogs.entries.length}件）`);
+                            if (clientLogs) sent.push(`直近1時間のログ（${typeof data.logs_count === 'number' ? data.logs_count : clientLogs.entries.length}件）`);
                             if (files.length) sent.push(`画像（${files.length}枚）`);
                             showToast(sent.join(sent.length > 2 ? '、' : 'と') + 'を送信しました', "success");
                         }

@@ -640,6 +640,8 @@ def _gemini_combines_builtin_and_function_tools(tools):
 
 def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):
     with app.app_context():
+        g.diagnostic_user_id = user_id
+        _record_server_diagnostic(user_id, 'server.worker.start', job=job_id)
         channel = f"ai_chat:channel:{job_id}"
         r = redis.from_url(REDIS_URL)
         _latency_mark_once(job_id, "worker_started_ms")
@@ -836,7 +838,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 except Exception:
                     pass
 
+        _diagnostic_first_types = set()
         def pub(dt, d, **metadata):
+            if dt in ('content', 'thought', 'status', 'done', 'error') and dt not in _diagnostic_first_types:
+                _diagnostic_first_types.add(dt)
+                _record_server_diagnostic(user_id, 'server.stream.error' if dt == 'error' else 'server.stream.end' if dt == 'done' else 'server.stream.first', job=job_id, type=dt)
             if options.get("coding_mode") and dt == "content" and not metadata.get("coding_final"):
                 _consume_coding_stream_chunk(d)
                 return
@@ -7631,6 +7637,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             else:
                 pub("error", err_msg)
         finally:
+            _record_server_diagnostic(user_id, 'server.worker.end', job=job_id)
             _latency_mark_once(job_id, "worker_done_ms")
             r.delete(f"stop_job:{job_id}")
             try:

@@ -28,7 +28,11 @@
             });
         }
 
-        async function branchChatMessage(id, button) {
+        async function branchChatMessage(...args) {
+            if (!window.ActivityLog) return branchChatMessageLogged.apply(this, args);
+            return window.ActivityLog.operation('branch', () => branchChatMessageLogged.apply(this, args));
+        }
+        async function branchChatMessageLogged(id, button) {
             if (branchCreating || abortController || !currentThreadId || !/^\d+$/.test(String(id))) return;
             if (temporaryChatEnabled && !await confirmBranchSave()) return;
             const source = String(currentThreadId);
@@ -49,6 +53,7 @@
                 await loadThreads();
                 showToast('新しいチャットに分岐しました');
             } catch (error) {
+                window.ActivityLog?.log('branch.error');
                 showToast(error.message || '分岐を作成できませんでした', 'error', true);
             } finally {
                 branchCreating = false;

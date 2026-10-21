@@ -146,7 +146,7 @@ fun SettingsDialog(
         connectionCard(state, model, accountCtx) +
         apiCards(state, form, notify) + promptCards(state, form) + displayCards(form) { colorPicker = true } +
         dataTab + accountCards(state, form, accountCtx) + securityCards(state, form, accountCtx) +
-        twoFactorCards(state, form, accountCtx) + feedbackCards(state, model, notify) + mcpCards(state, model, extras, ops)
+        twoFactorCards(state, form, accountCtx) + feedbackCards(state, model, notify, form) + mcpCards(state, model, extras, ops)
     // The no-account profile has no server account: account, security, 2FA, feedback, MCP and account data are hidden.
     val cards = if (state.localProfile) allCards.filter { it.tab !in LOCAL_PROFILE_HIDDEN_TABS && it.key != "account-data" } else allCards
 

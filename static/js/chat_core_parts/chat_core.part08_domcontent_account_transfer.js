@@ -982,6 +982,7 @@
                     default_enable_system_prompt: get('set-default-sys-prompt') ? get('set-default-sys-prompt').checked : false,
                     default_safety_setting: get('set-default-safety') ? get('set-default-safety').value : null,
                     enable_latency_metrics: get('set-latency-metrics') ? get('set-latency-metrics').checked : false,
+                    enable_server_diagnostic_log: get('set-server-diagnostic-log') ? get('set-server-diagnostic-log').checked : false,
                     enable_client_debug_log: get('set-client-debug-log') ? get('set-client-debug-log').checked : false,
                     passkey_only_login: get('set-passkey-only-login') ? get('set-passkey-only-login').checked : false,
                     skip_2fa_on_google_login: get('set-skip-2fa-google') ? get('set-skip-2fa-google').checked : false,

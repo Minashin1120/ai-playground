@@ -3114,8 +3114,7 @@
         const sendClientDebugLog = (level, message) => {
             if (!isClientDebugLogEnabled()) return;
             const payload = {
-                level: String(level || 'info'),
-                message: String(message || '')
+                ev: 'server.client_log'
             };
             apiFetch('/api/debug/client_log', {
                 method: 'POST',
@@ -11203,6 +11202,7 @@
                 } else if (d && Object.prototype.hasOwnProperty.call(d, 'compact_prompt_mode')) {
                     setCompactPromptMode(!!d.compact_prompt_mode);
                 }
+                if (get('set-server-diagnostic-log')) get('set-server-diagnostic-log').checked = d.enable_server_diagnostic_log === true;
                 if (get('set-client-debug-log')) {
                     syncClientDebugLogToggle(d.enable_client_debug_log === true, 'settings sync');
                 }
@@ -12993,6 +12993,7 @@
                     default_enable_system_prompt: get('set-default-sys-prompt') ? get('set-default-sys-prompt').checked : false,
                     default_safety_setting: get('set-default-safety') ? get('set-default-safety').value : null,
                     enable_latency_metrics: get('set-latency-metrics') ? get('set-latency-metrics').checked : false,
+                    enable_server_diagnostic_log: get('set-server-diagnostic-log') ? get('set-server-diagnostic-log').checked : false,
                     enable_client_debug_log: get('set-client-debug-log') ? get('set-client-debug-log').checked : false,
                     passkey_only_login: get('set-passkey-only-login') ? get('set-passkey-only-login').checked : false,
                     skip_2fa_on_google_login: get('set-skip-2fa-google') ? get('set-skip-2fa-google').checked : false,
@@ -13851,7 +13852,7 @@
                 if (!form) return;
                 const logs = form.querySelector('.fb-reply-logs');
                 const note = form.querySelector('.fb-reply-logs-note');
-                const on = !!(window.ActivityLog && window.ActivityLog.isEnabled());
+                const on = !!(window.ActivityLog && window.ActivityLog.canAttach());
                 logs.disabled = !on;
                 note.textContent = on
                     ? 'チェックしたときだけ、「ログの収集を強化」で記録した直近1時間のログを返信と一緒に送信します。'
@@ -13879,7 +13880,7 @@
                             showToast(`返信を送信しました（${failed.join('と')}は保存できませんでした）`, "error", true);
                         } else {
                             const sent = ['返信'];
-                            if (clientLogs) sent.push(`直近1時間のログ（${clientLogs.entries.length}件）`);
+                            if (clientLogs) sent.push(`直近1時間のログ（${typeof data.logs_count === 'number' ? data.logs_count : clientLogs.entries.length}件）`);
                             if (files.length) sent.push(`画像（${files.length}枚）`);
                             showToast(sent.join(sent.length > 2 ? '、' : 'と') + 'を送信しました', "success");
                         }
@@ -19775,6 +19776,7 @@
             };
         }
         function previewCanvasCodeFromButton(btn) {
+            window.ActivityLog?.log('html_preview.start');
             if (!btn) return false;
             const payload = collectCanvasBlocksFromButton(btn);
             if (!payload || !payload.blocks || !payload.blocks.length) return false;
@@ -21579,6 +21581,8 @@
                 if (finishProgress) finishProgress.setPhase('waiting');
                 get('prompt-input').value = '';
                 get('prompt-input').style.height = 'auto';
+                window.ActivityLog?.log('send.stream.start');
+                let loggedFirstChunk = false;
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
@@ -21649,6 +21653,7 @@
                 };
                 while (true) {
                     const { done, value } = await reader.read();
+                    if (!done && !loggedFirstChunk) { loggedFirstChunk = true; window.ActivityLog?.log('send.stream.first'); }
                     if (done) break;
                     if (window.ConnectionMonitor) window.ConnectionMonitor.reportActivity();
                     if (finishProgress) finishProgress.setPhase('receiving');
@@ -21766,6 +21771,10 @@
         }
 
         async function sendMessage() {
+            if (!window.ActivityLog) return sendMessageLogged();
+            return window.ActivityLog.operation('send', () => sendMessageLogged());
+        }
+        async function sendMessageLogged() {
             vibrateHelper(50);
             if (abortController) {
                 showToast("回答生成中です。完了までお待ちいただくか、停止してください。", "warning", true);
@@ -22353,6 +22362,8 @@
                     }
                 };
                 markApiAccepted();
+                window.ActivityLog?.log('send.stream.start');
+                let loggedFirstChunk = false;
                 const reader = r.body.getReader();
                 const dec = new TextDecoder();
                 let buf="", acc="", tht="", first=true, thEl=null, cEl=null, searchBox=null, hadError=false;
@@ -22362,6 +22373,8 @@
 
                 while(!streamEndedByError) {
                     const {done, value} = await reader.read();
+                    if (!done && !loggedFirstChunk) { loggedFirstChunk = true; window.ActivityLog?.log('send.stream.first'); }
+                    if (done) window.ActivityLog?.log('send.stream.done');
                     if(done) break;
                     if (window.ConnectionMonitor) window.ConnectionMonitor.reportActivity();
                     if (finishStreamProgress) finishStreamProgress.setPhase('receiving');
@@ -22628,6 +22641,7 @@
                 } else loadThreads(false);
 
             } catch(e){
+                window.ActivityLog?.log(e.name === 'AbortError' ? 'send.cancelled' : 'send.error');
                 let syncedAfterAbort = false;
                 const manuallyStopped = e.name === 'AbortError' && isManualStopAbortForThread(streamStartedThreadId);
                 if (e.name === 'AbortError' && !manuallyStopped) {
@@ -22791,10 +22805,14 @@
                     window.ConnectionMonitor.operationStarted();
                 }
                 if (finishResumeProgress) finishResumeProgress.setPhase('waiting');
+                window.ActivityLog?.log('send.stream.start');
+                let loggedFirstChunk = false;
                 const reader = r.body.getReader();
                 const dec = new TextDecoder();
                 while(!streamEndedByError) {
                     const {done, value} = await reader.read();
+                    if (!done && !loggedFirstChunk) { loggedFirstChunk = true; window.ActivityLog?.log('send.stream.first'); }
+                    if (done) window.ActivityLog?.log('send.stream.done');
                     if (done) break;
                     if (window.ConnectionMonitor) window.ConnectionMonitor.reportActivity();
                     if (finishResumeProgress) finishResumeProgress.setPhase('receiving');
@@ -22972,6 +22990,7 @@
                 await loadMessages(currentThreadId, { preserveDraft: true, silent: true });
                 loadThreads(false);
             } catch (e) {
+                window.ActivityLog?.log(e.name === 'AbortError' ? 'send.cancelled' : 'send.stream.error');
                 const manuallyStopped = e.name === 'AbortError' && isManualStopAbortForThread(resumeStartedThreadId);
                 if (e.name === 'AbortError' && !manuallyStopped) {
                     await syncThreadAfterAbortedStream(resumeStartedThreadId, { retries: 2, retryDelayMs: 180, notifyOnFailure: true });
@@ -26389,7 +26408,11 @@
             });
         }
 
-        async function branchChatMessage(id, button) {
+        async function branchChatMessage(...args) {
+            if (!window.ActivityLog) return branchChatMessageLogged.apply(this, args);
+            return window.ActivityLog.operation('branch', () => branchChatMessageLogged.apply(this, args));
+        }
+        async function branchChatMessageLogged(id, button) {
             if (branchCreating || abortController || !currentThreadId || !/^\d+$/.test(String(id))) return;
             if (temporaryChatEnabled && !await confirmBranchSave()) return;
             const source = String(currentThreadId);
@@ -26410,6 +26433,7 @@
                 await loadThreads();
                 showToast('新しいチャットに分岐しました');
             } catch (error) {
+                window.ActivityLog?.log('branch.error');
                 showToast(error.message || '分岐を作成できませんでした', 'error', true);
             } finally {
                 branchCreating = false;
@@ -26675,7 +26699,11 @@
             splitState.busy = busy;
             get('image-split-modal').querySelectorAll('input,button').forEach(el => { el.disabled = busy; }); updateSplitPreview();
         }
-        async function runImageSplit(attach) {
+        async function runImageSplit(...args) {
+            if (!window.ActivityLog) return runImageSplitLogged.apply(this, args);
+            return window.ActivityLog.operation('image_split', () => runImageSplitLogged.apply(this, args));
+        }
+        async function runImageSplitLogged(attach) {
             if (splitState.busy) return;
             const options = splitOptions(), compression = readSplitCompression();
             if (attach && browserFastModeEnabled && browserFastLocalFiles.size + splitState.files.length * (options.pieces + Number(options.includeOriginal)) > BROWSER_FAST_MAX_IMAGES) {
@@ -26703,7 +26731,7 @@
                     }
                     get('image-split-status').textContent = `${outputs.length}枚のダウンロードを開始しました。保存されない画像は下のリンクから保存できます。`;
                 }
-            } catch (e) { get('image-split-status').textContent = e.message || '画像を分割できませんでした。'; }
+            } catch (e) { window.ActivityLog?.log('image_split.error'); get('image-split-status').textContent = e.message || '画像を分割できませんでした。'; }
             finally {
                 setSplitBusy(false);
                 if (splitState.files.length) {

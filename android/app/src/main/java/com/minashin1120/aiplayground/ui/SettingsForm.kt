@@ -69,6 +69,7 @@ internal class SettingsForm(prefs: Preferences?) {
 
     var latencyMetrics by mutableStateOf(prefs?.enableLatencyMetrics ?: false)
     var clientDebugLog by mutableStateOf(prefs?.enableClientDebugLog ?: false)
+    var serverDiagnosticLog by mutableStateOf(prefs?.enableServerDiagnosticLog ?: false)
 
     /** `set-username` / `set-password`: empty means unchanged (sent through the account API). */
     var newUsername by mutableStateOf("")
@@ -145,6 +146,7 @@ internal class SettingsForm(prefs: Preferences?) {
         .put("liquid_glass_enabled", liquidGlass)
         .put("enable_latency_metrics", latencyMetrics)
         .put("enable_client_debug_log", clientDebugLog)
+        .put("enable_server_diagnostic_log", serverDiagnosticLog)
         .put("skip_2fa_on_google_login", skip2faGoogle)
         .put("default_2fa_method", default2fa)
         .put("passkey_only_login", passkeyOnly)

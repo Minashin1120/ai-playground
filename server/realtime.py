@@ -122,6 +122,8 @@ def _rt_push_event(session, event):
 
 
 def _rt_set_meta_status(session, status):
+    if status != getattr(session, 'status', None):
+        _record_server_diagnostic(getattr(session, 'user_id', None), 'realtime.state', realtime_state=status)
     session.status = status
     if not getattr(session, "bridged", False):
         return

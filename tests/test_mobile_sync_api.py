@@ -527,5 +527,86 @@ class MobileSyncApiTests(unittest.TestCase):
                              {f'{self.user_id}/a.pdf'})
 
 
+    def test_server_diagnostics_are_account_opt_in_and_shared_between_clients(self):
+        token = self.token()
+        before = self.call('/api/mobile/v1/preferences', token)
+        self.assertFalse(before.json['enable_server_diagnostic_log'])
+        with target.app.app_context():
+            target._record_server_diagnostic(self.user_id, 'server.worker.start')
+            self.assertEqual(target._recent_server_diagnostics(self.user_id), [])
+        enabled = self.call('/api/mobile/v1/preferences', token, 'PUT', json={'enable_server_diagnostic_log': True})
+        self.assertEqual(enabled.status_code, 200)
+        self.assertTrue(enabled.json['enable_server_diagnostic_log'])
+        web = self.browser.get('/api/settings', base_url='https://localhost')
+        self.assertTrue(web.json['enable_server_diagnostic_log'])
+        with target.app.app_context():
+            target._record_server_diagnostic(self.user_id, 'server.worker.start', job='a' * 32,
+                title='PRIVATE-TITLE', message='PRIVATE-PROMPT', ms=42)
+            target._record_server_diagnostic(self.other_id, 'server.worker.start', ms=99)
+            rows = target._recent_server_diagnostics(self.user_id)
+            self.assertTrue(any(e.get('ms') == 42 for e in rows))
+            self.assertNotIn('PRIVATE', json.dumps(rows))
+            self.assertEqual(target._recent_server_diagnostics(self.other_id), [])
+        self.call('/api/mobile/v1/preferences', token, 'PUT', json={'enable_server_diagnostic_log': True})
+        with target.app.app_context():
+            self.assertTrue(any(e.get('ms') == 42 for e in target._recent_server_diagnostics(self.user_id)))
+        invalid = self.call('/api/mobile/v1/preferences', token, 'PUT', json={'enable_server_diagnostic_log': 'false'})
+        self.assertEqual(invalid.status_code, 400)
+        disabled = self.call('/api/mobile/v1/preferences', token, 'PUT', json={'enable_server_diagnostic_log': False})
+        self.assertFalse(disabled.json['enable_server_diagnostic_log'])
+        self.assertFalse(self.browser.get('/api/settings', base_url='https://localhost').json['enable_server_diagnostic_log'])
+        with target.app.app_context():
+            self.assertEqual(target._recent_server_diagnostics(self.user_id), [])
+        self.assertFalse(list(self.redis.scan_iter('diagnostic:v2:*:*:*')))
+
+    def test_server_diagnostic_event_expiry_does_not_slide_and_snapshot_survives(self):
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.enable_server_diagnostic_log = True
+            target.db.session.commit()
+            target._record_server_diagnostic(self.user_id, 'server.worker.start', op='a' * 32)
+            event_keys = list(self.redis.scan_iter('diagnostic:v2:*:*:*'))
+            self.assertEqual(len(event_keys), 1)
+            first = event_keys[0]
+            self.redis.expire(first, 20)
+            target._recent_server_diagnostics(self.user_id)
+            target._record_server_diagnostic(self.user_id, 'server.worker.end', op='a' * 32)
+            self.assertLessEqual(self.redis.ttl(first), 20)
+            self.assertGreater(self.redis.ttl(first), 0)
+            snapshot = target._recent_server_diagnostics(self.user_id)
+            self.assertEqual(len(snapshot), 2)
+            for key in self.redis.scan_iter('diagnostic:v2:*:*:*'):
+                self.redis.delete(key)
+            self.assertEqual(target._recent_server_diagnostics(self.user_id), [])
+            self.assertEqual(len(snapshot), 2)
+
+    def test_server_logs_attach_without_device_logs_only_when_requested(self):
+        feedback_dir = tempfile.TemporaryDirectory(prefix='server-feedback-test-')
+        self.addCleanup(feedback_dir.cleanup)
+        patcher = mock.patch.dict(target.app.config, FEEDBACK_DIR=feedback_dir.name)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        token = self.token()
+        self.call('/api/mobile/v1/preferences', token, 'PUT', json={'enable_server_diagnostic_log': True})
+        with target.app.app_context():
+            target._record_server_diagnostic(self.user_id, 'server.worker.start', job='job_1792500000_1_abcdef0123456789',
+                title='PRIVATE-TITLE', message='PRIVATE-CONTENT')
+        sent = self.call('/api/feedback', token, 'POST', json={'message': 'synthetic report', 'client_logs': {
+            'client': 'android', 'version': '1.70.0', 'entries': []}})
+        self.assertEqual(sent.status_code, 200, sent.json)
+        self.assertTrue(sent.json['logs_saved'])
+        self.assertGreater(sent.json['logs_count'], 0)
+        path = os.path.join(feedback_dir.name, sent.json['public_id'], 'logs', 'activity.jsonl')
+        with open(path, encoding='utf-8') as handle:
+            saved = handle.read()
+        self.assertNotIn('PRIVATE', saved)
+        self.assertEqual(len(saved.splitlines()) - 1, sent.json['logs_count'])
+        reply = self.call('/api/feedback/' + sent.json['public_id'] + '/replies', token, 'POST', json={'message': 'without logs'})
+        self.assertNotIn('logs_saved', reply.json)
+        with target.app.app_context():
+            target._clear_server_diagnostics(self.user_id)
+        with open(path, encoding='utf-8') as handle:
+            self.assertEqual(handle.read(), saved)
+
 if __name__ == '__main__':
     unittest.main()

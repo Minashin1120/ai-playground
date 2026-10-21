@@ -20,7 +20,6 @@ import java.util.concurrent.TimeUnit
 object ActivityLog {
     const val WINDOW_MS = 60 * 60 * 1000L
     private const val MAX_FILE_BYTES = 4 * 1024 * 1024L
-    private const val MAX_FIELD_CHARS = 500
     private const val PREFS = "activity_log"
     private const val PRUNE_EVERY = 200
 
@@ -30,21 +29,27 @@ object ActivityLog {
     @Volatile var enabled: Boolean = false
         private set
     private var seq = 0L
+    private var generation = 0L
     private var writesSincePrune = 0
     private val listeners = mutableListOf<(Boolean) -> Unit>()
     /** Writes leave the calling thread (taps and state changes are logged on the main thread). */
-    private val writer = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "activity-log").apply { isDaemon = true } }
+    private val writer = Executors.newSingleThreadScheduledExecutor { runnable -> Thread(runnable, "activity-log").apply { isDaemon = true } }
 
     fun init(app: Context) {
         val preferences = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs = preferences
+        writer.scheduleWithFixedDelay({ synchronized(lock) { file?.let { runCatching { prune(it) } } } }, 30, 30, TimeUnit.SECONDS)
         initFile(File(app.noBackupFilesDir, "activity_log/events.jsonl"), preferences.getBoolean("enabled", false))
     }
 
     /** Tests: [target] holds the log instead of the app's data directory. */
     internal fun initFile(target: File, enabledAtStart: Boolean) {
-        file = target
-        enabled = enabledAtStart
+        synchronized(lock) {
+            generation++
+            file = target
+            enabled = enabledAtStart
+            runCatching { if (enabled) prune(target) else target.delete() }
+        }
     }
 
     fun setEnabled(value: Boolean) {
@@ -65,35 +70,40 @@ object ActivityLog {
         val preferences = prefs ?: return
         val previous = preferences.getString("owner", null)
         if (previous == owner) return
-        if (previous != null) synchronized(lock) { file?.delete() }
+        synchronized(lock) { generation++; if (previous != null) file?.delete() }
         preferences.edit().putString("owner", owner).apply()
     }
 
     fun log(event: String, vararg fields: Pair<String, Any?>) {
-        if (!enabled) return
-        val target = file ?: return
-        val entry = JSONObject().put("t", System.currentTimeMillis()).put("ev", event.take(80))
-            .put("thread", Thread.currentThread().name)
-        fields.forEach { (key, value) -> if (value != null) entry.put(key, sanitize(value)) }
-        append(target, entry)
+        runCatching {
+            if (!enabled) return
+            val target = file ?: return
+            val entry = JSONObject().put("t", System.currentTimeMillis()).put("ev", event.take(80))
+                .put("thread", Thread.currentThread().name)
+            fields.forEach { (key, value) -> if (value != null) entry.put(key, value) }
+            append(target, entry)
+        }
     }
 
     /** An entry that was already built (the [Diagnostics] steps). */
     fun logEntry(entry: JSONObject) {
-        if (!enabled) return
-        val target = file ?: return
-        append(target, JSONObject(entry.toString()))
+        runCatching {
+            if (!enabled) return
+            val target = file ?: return
+            append(target, JSONObject(entry.toString()))
+        }
     }
 
     private fun append(target: File, entry: JSONObject) {
-        val number = synchronized(lock) { ++seq }
-        entry.put("seq", number)
-        runCatching { writer.execute { write(target, entry) } }
+        val safe = LogPolicy.entry(entry) ?: return
+        val version = synchronized(lock) { (++seq) to generation }
+        safe.put("seq", version.first)
+        runCatching { writer.execute { write(target, safe, version.second) } }
     }
 
-    private fun write(target: File, entry: JSONObject) {
+    private fun write(target: File, entry: JSONObject, expectedGeneration: Long) {
         synchronized(lock) {
-            if (!enabled) return
+            if (!enabled || generation != expectedGeneration) return
             runCatching {
                 target.parentFile?.mkdirs()
                 if (++writesSincePrune >= PRUNE_EVERY || target.length() > MAX_FILE_BYTES) {
@@ -109,7 +119,13 @@ object ActivityLog {
     private fun prune(target: File) {
         if (!target.isFile) return
         val cutoff = System.currentTimeMillis() - WINDOW_MS
-        var lines = target.readLines().filter { line -> (timeOf(line) ?: 0L) >= cutoff }
+        var lines = target.readLines().mapNotNull { line ->
+            runCatching {
+                val safe = LogPolicy.entry(JSONObject(line.substringAfter('\t'))) ?: return@runCatching null
+                val time = safe.optLong("t")
+                if (time <= cutoff || time > System.currentTimeMillis()) null else "$time\t$safe"
+            }.getOrNull()
+        }
         while (lines.sumOf { it.length + 1 } > MAX_FILE_BYTES && lines.size > 1) lines = lines.takeLast(lines.size / 2)
         target.writeText(lines.joinToString("") { "$it\n" })
     }
@@ -123,13 +139,14 @@ object ActivityLog {
     /** The last [windowMs] of entries (oldest first), at most about [maxChars] characters of JSON. */
     fun recent(windowMs: Long = WINDOW_MS, maxChars: Int = 3_000_000): JSONArray = drain().let { synchronized(lock) {
         val target = file ?: return JSONArray()
-        val cutoff = System.currentTimeMillis() - windowMs
+        runCatching { prune(target) }
+        val cutoff = System.currentTimeMillis() - minOf(windowMs, WINDOW_MS)
         val lines = runCatching { if (target.isFile) target.readLines() else emptyList() }.getOrDefault(emptyList())
         val kept = ArrayDeque<String>()
         var chars = 0
         for (line in lines.asReversed()) {
             val time = timeOf(line) ?: continue
-            if (time < cutoff) break
+            if (time <= cutoff) break
             if (chars + line.length + 1 > maxChars) break
             chars += line.length + 1
             kept.addFirst(line)
@@ -140,6 +157,7 @@ object ActivityLog {
     /** Entries and bytes on the device (the settings' log size). */
     fun stats(): Pair<Int, Long> = drain().let { synchronized(lock) {
         val target = file ?: return 0 to 0L
+        runCatching { prune(target) }
         if (!target.isFile) return 0 to 0L
         val count = runCatching { target.useLines { lines -> lines.count { it.isNotBlank() } } }.getOrDefault(0)
         count to target.length()
@@ -147,14 +165,10 @@ object ActivityLog {
 
     fun clear() {
         drain()
-        synchronized(lock) { file?.delete() }
+        synchronized(lock) { generation++; file?.delete() }
     }
 
-    private fun sanitize(value: Any): Any = when (value) {
-        is Number, is Boolean, is JSONObject, is JSONArray -> value
-        is Collection<*> -> JSONArray(value.mapNotNull { it?.let(::sanitize) })
-        else -> value.toString().let { if (it.length > MAX_FIELD_CHARS) it.take(MAX_FIELD_CHARS) + "…(${it.length})" else it }
-    }
+
 }
 
 /**

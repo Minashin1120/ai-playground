@@ -127,7 +127,8 @@ def handle_settings():
             'is_bot_banned': current_user.is_bot_banned,
             'bot_ban_reason': current_user.bot_ban_reason,
             'enable_latency_metrics': current_user.enable_latency_metrics if current_user.enable_latency_metrics is not None else False,
-            'enable_client_debug_log': current_user.enable_client_debug_log if current_user.enable_client_debug_log is not None else False
+            'enable_client_debug_log': current_user.enable_client_debug_log if current_user.enable_client_debug_log is not None else False,
+            'enable_server_diagnostic_log': bool(current_user.enable_server_diagnostic_log)
         }
         if getattr(current_user, 'is_admin', False):
             payload['admin_api_key_mode'] = _normalize_admin_api_key_mode(current_user.admin_api_key_mode)
@@ -257,6 +258,12 @@ def handle_settings():
         current_user.default_2fa_method = str(d['default_2fa_method'])
     if 'bot_detection_enabled' in d and d['bot_detection_enabled'] is not None:
         current_user.bot_detection_enabled = bool(d['bot_detection_enabled'])
+    diagnostic_consent_changed = False
+    if 'enable_server_diagnostic_log' in d:
+        if type(d['enable_server_diagnostic_log']) is not bool:
+            return jsonify({'error': 'invalid_payload'}), 400
+        diagnostic_consent_changed = bool(current_user.enable_server_diagnostic_log) != d['enable_server_diagnostic_log']
+        current_user.enable_server_diagnostic_log = d['enable_server_diagnostic_log']
     if 'enable_latency_metrics' in d:
         current_user.enable_latency_metrics = bool(d['enable_latency_metrics'])
     if 'enable_client_debug_log' in d:
@@ -298,6 +305,8 @@ def handle_settings():
         _refresh_user_2fa_state(current_user)
         log_force("DEBUG: handle_settings calling safe_db_commit")
         safe_db_commit()
+        if 'enable_server_diagnostic_log' in d and (diagnostic_consent_changed or d['enable_server_diagnostic_log'] is False):
+            _clear_server_diagnostics(current_user.id)
         log_force("DEBUG: handle_settings safe_db_commit finished")
         if result_message is None:
             result_message = "設定を保存しました"
@@ -324,11 +333,7 @@ def receive_client_log():
         level = str(d.get('level') or 'info').upper()
         if level not in {'DEBUG', 'INFO', 'WARNING', 'ERROR'}:
             level = 'INFO'
-        msg = str(d.get('message') or '')
-        if not msg:
-            return jsonify({'status': 'ignored', 'reason': 'empty'}), 200
-        msg = re.sub(r'[\r\n\x00-\x08\x0b\x0c\x0e-\x1f\x7f]+', ' ', msg)[:8192]
-        log_force(f"CLIENT-DEBUG [{level}]: {msg}")
+        _record_server_diagnostic(current_user.id, 'server.client_log')
         return jsonify({'status': 'ok'})
     except Exception as e:
         log_force(f"CLIENT-DEBUG-ERROR: user={getattr(current_user, 'id', 'unknown')} err={e}")

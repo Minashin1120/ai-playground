@@ -718,6 +718,7 @@ def chat_stream():
             return jsonify({'error': f'{bounded_key} is too large'}), 400
     user_config = {'enable_e2ee': current_user.enable_e2ee}
     job_id = f"job_{int(time.time())}_{current_user.id}_{secrets.token_hex(8)}"
+    _record_server_diagnostic(current_user.id, 'server.request.start', op=getattr(g, 'diagnostic_op', None), job=job_id, route='/chat_stream')
     _latency_mark_once(job_id, "route_received_ms")
 
     temporary_requested = _coerce_bool_or_none(data.get('temporary_chat'))

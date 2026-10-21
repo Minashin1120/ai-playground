@@ -200,7 +200,11 @@
             splitState.busy = busy;
             get('image-split-modal').querySelectorAll('input,button').forEach(el => { el.disabled = busy; }); updateSplitPreview();
         }
-        async function runImageSplit(attach) {
+        async function runImageSplit(...args) {
+            if (!window.ActivityLog) return runImageSplitLogged.apply(this, args);
+            return window.ActivityLog.operation('image_split', () => runImageSplitLogged.apply(this, args));
+        }
+        async function runImageSplitLogged(attach) {
             if (splitState.busy) return;
             const options = splitOptions(), compression = readSplitCompression();
             if (attach && browserFastModeEnabled && browserFastLocalFiles.size + splitState.files.length * (options.pieces + Number(options.includeOriginal)) > BROWSER_FAST_MAX_IMAGES) {
@@ -228,7 +232,7 @@
                     }
                     get('image-split-status').textContent = `${outputs.length}枚のダウンロードを開始しました。保存されない画像は下のリンクから保存できます。`;
                 }
-            } catch (e) { get('image-split-status').textContent = e.message || '画像を分割できませんでした。'; }
+            } catch (e) { window.ActivityLog?.log('image_split.error'); get('image-split-status').textContent = e.message || '画像を分割できませんでした。'; }
             finally {
                 setSplitBusy(false);
                 if (splitState.files.length) {

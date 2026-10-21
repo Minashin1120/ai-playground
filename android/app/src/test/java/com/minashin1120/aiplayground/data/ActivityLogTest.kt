@@ -36,15 +36,14 @@ class ActivityLogTest {
         assertEquals("/api/threads", entry.getString("path"))
         assertEquals(200, entry.getInt("status"))
         assertFalse(entry.has("skipped"))
-        assertEquals(2, ActivityLog.stats().first)
+        assertEquals(1, ActivityLog.stats().first)
     }
 
-    @Test fun longValuesAreShortenedAndClearRemovesTheFile() {
+    @Test fun freeTextIsExcludedAndClearRemovesTheFile() {
         ActivityLog.initFile(file, enabledAtStart = true)
         ActivityLog.log("error", "message" to "x".repeat(2000))
-        val message = ActivityLog.recent().getJSONObject(0).getString("message")
-        assertTrue(message.length < 600)
-        assertTrue(message.endsWith("…(2000)"))
+        val entry = ActivityLog.recent().getJSONObject(0)
+        assertFalse(entry.has("message"))
 
         ActivityLog.clear()
         assertFalse(file.exists())

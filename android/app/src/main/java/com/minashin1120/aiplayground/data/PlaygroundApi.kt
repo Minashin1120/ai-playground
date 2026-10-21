@@ -87,7 +87,7 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
                 }
                 override fun onResponse(call: Call, response: Response) {
                     ActivityLog.log("http", "method" to req.method, "host" to host, "path" to req.url.encodedPath,
-                        "status" to response.code, "ms" to System.currentTimeMillis() - started,
+                        "op" to response.header("X-Diagnostic-ID"), "status" to response.code, "ms" to System.currentTimeMillis() - started,
                         "type" to response.header("Content-Type")?.substringBefore(';'))
                     val result = runCatching { response.use { consume(it) } }
                     if (result.isFailure) ActivityLog.log("http.read_error", "path" to req.url.encodedPath,

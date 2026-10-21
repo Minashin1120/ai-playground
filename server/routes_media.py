@@ -1236,6 +1236,9 @@ with app.app_context():
             try_alter("ALTER TABLE user ADD COLUMN enable_client_debug_log BOOLEAN DEFAULT 0")
         except: pass
         try:
+            try_alter("ALTER TABLE user ADD COLUMN enable_server_diagnostic_log BOOLEAN DEFAULT 0")
+        except: pass
+        try:
             try_alter("ALTER TABLE chat_latency_trace ADD COLUMN client_done_at DATETIME")
         except: pass
         try:
@@ -1676,11 +1679,7 @@ def client_log():
         level = str(d.get('level') or 'info').upper()
         if level not in {'DEBUG', 'INFO', 'WARNING', 'ERROR'}:
             level = 'INFO'
-        msg = str(d.get('message') or '')
-        if not msg:
-            return jsonify({'status': 'ignored', 'reason': 'empty'}), 200
-        msg = re.sub(r'[\r\n\x00-\x08\x0b\x0c\x0e-\x1f\x7f]+', ' ', msg)[:8192]
-        log_force(f"CLIENT-DEBUG [LEGACY {level}]: {msg}")
+        _record_server_diagnostic(current_user.id, 'server.client_log')
         return jsonify({'status': 'ok'})
     except Exception:
         return jsonify({'status': 'error'}), 500

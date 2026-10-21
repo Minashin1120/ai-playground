@@ -1263,8 +1263,7 @@
         const sendClientDebugLog = (level, message) => {
             if (!isClientDebugLogEnabled()) return;
             const payload = {
-                level: String(level || 'info'),
-                message: String(message || '')
+                ev: 'server.client_log'
             };
             apiFetch('/api/debug/client_log', {
                 method: 'POST',

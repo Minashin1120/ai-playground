@@ -374,14 +374,19 @@ def mobile_diagnostics():
     if not isinstance(entries, list) or len(entries) > _DIAGNOSTICS_MAX_ENTRIES:
         return _mobile_error('invalid_request')
     received = datetime.utcnow().isoformat(timespec='milliseconds') + 'Z'
-    agent = str(request.headers.get('User-Agent') or '')[:80]
+    agent = 'android'
+    version_match = re.match(r'AIPlayground-Android/(\d{1,4}\.\d{1,4}\.\d{1,8})(?:\s|$)', request.headers.get('User-Agent', ''))
+    client_version = version_match.group(1) if version_match else None
     session_id = getattr(getattr(g, 'mobile_session', None), 'id', None)
     lines = []
     for entry in entries:
         if not isinstance(entry, dict):
             continue
+        entry = _safe_log_entry(entry)
+        if entry is None:
+            continue
         line = json.dumps({'received_at': received, 'user_id': current_user.id, 'session': session_id,
-                           'agent': agent, 'entry': entry}, ensure_ascii=False, default=str)
+                           'agent': agent, 'client_version': client_version, 'entry': entry}, ensure_ascii=False, default=str)
         if len(line) > _DIAGNOSTICS_MAX_LINE:
             line = json.dumps({'received_at': received, 'user_id': current_user.id, 'session': session_id, 'agent': agent,
                                'entry': {'ev': 'truncated', 'original_ev': str(entry.get('ev'))[:80], 'size': len(line)}})

@@ -92,6 +92,8 @@ def _lyria_push_event(session, event):
 
 
 def _lyria_set_status(session, status):
+    if status != getattr(session, 'status', None):
+        _record_server_diagnostic(getattr(session, 'user_id', None), 'lyria.state', realtime_state=status)
     session.status = status
     if not session.bridged:
         return

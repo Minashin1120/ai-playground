@@ -93,6 +93,9 @@ internal fun loadSplitPreview(context: Context, uri: Uri, maxSide: Int = 1024): 
  * they should be attached: the whole image first, then the pieces in reading order.
  */
 internal fun renderImageSplit(context: Context, uri: Uri, options: ImageSplitOptions, outDir: File,
+    compression: CompressionSettings = loadSplitCompression(context)): List<SplitOutput> = LogPolicy.operation("image_split") { renderImageSplitLogged(context, uri, options, outDir, compression) }
+
+private fun renderImageSplitLogged(context: Context, uri: Uri, options: ImageSplitOptions, outDir: File,
     compression: CompressionSettings = loadSplitCompression(context)): List<SplitOutput> {
     val targetDir = File(outDir, UUID.randomUUID().toString())
     val source = readSplitSource(context, uri)

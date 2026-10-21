@@ -329,9 +329,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun activitySnapshot(s: ChatState): Map<String, Any?> = linkedMapOf(
         "starting" to s.starting, "signed_in" to (s.account != null), "local_profile" to s.localProfile,
         "serverless" to s.serverless, "pairing" to s.pairing, "busy" to s.busy, "auth_busy" to s.authBusy,
-        "auth_error" to s.authError, "setup_required" to s.setupRequired, "server_checking" to s.serverChecking,
-        "server_error" to s.serverError, "syncing" to s.syncing, "pending_count" to s.pendingCount, "sync_message" to s.syncMessage,
-        "thread" to s.selected?.id, "threads" to s.threads.size, "messages" to s.messages.size, "has_older" to s.hasOlder,
+        "auth_error" to (s.authError != null), "setup_required" to s.setupRequired, "server_checking" to s.serverChecking,
+        "server_error" to (s.serverError != null), "syncing" to s.syncing, "pending_count" to s.pendingCount, "sync_message" to (s.syncMessage != null),
+        "thread_id" to s.selected?.id, "threads" to s.threads.size, "messages" to s.messages.size, "has_older" to s.hasOlder,
         "leaf" to s.leafId, "editing" to (s.editingMessageId != null), "temporary" to s.newThreadTemporary,
         "draft_empty" to s.draft.isEmpty(), "quote" to s.quote.isNotEmpty(), "model" to s.model, "attachments" to s.attachments.size,
         "thinking" to s.enableThinking, "search" to s.enableSearch, "url_context" to s.enableUrlContext, "maps" to s.enableMaps,
@@ -339,15 +339,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         "batch" to s.batchMode, "python" to s.enablePython, "mcp" to s.enableMcp, "canvas" to s.canvasMode, "coding" to s.codingMode,
         "selects" to s.chipValues.toString(), "vision_model" to s.visionModel, "uploading" to s.uploading,
         "upload_completed" to s.uploadCompleted, "upload_count" to s.uploadCount, "streaming" to s.streaming, "job" to s.jobId,
-        "retry" to s.retryAvailable, "status" to s.status, "live_pending" to s.live.pendingStatus, "live_accepted" to s.live.accepted,
-        "live_search" to s.live.search, "live_error" to s.live.error, "cards" to s.cards.size, "notice" to s.notice,
-        "offline" to s.offline, "connection" to s.connectionStatus.name, "connection_message" to s.connectionMessage,
+        "retry" to s.retryAvailable, "status" to (s.status != null), "live_pending" to s.live.pendingStatus, "live_accepted" to s.live.accepted,
+        "live_search" to s.live.search, "live_error" to s.live.error, "cards" to s.cards.size, "notice" to (s.notice != null),
+        "offline" to s.offline, "connection" to s.connectionStatus.name, "connection_message" to (s.connectionMessage != null),
         "banned" to s.banned, "locked" to (s.accountLock != null), "mcp_decision" to (s.mcpDecision != null),
         "api_key_prompt" to s.apiKeyPrompt, "x_link_prompt" to s.xLinkPrompt, "mic" to s.micMode,
         "realtime" to s.realtime.active, "lyria" to s.lyria.kind, "library_busy" to s.libraryBusy,
         "library_failed" to s.libraryFailed, "gems_busy" to s.gemsBusy, "gem" to (s.selectedGem != null),
         "prefs_busy" to s.prefsBusy, "mcp_busy" to s.mcpBusy, "feedback_busy" to s.feedbackBusy, "batch_busy" to s.batchBusy,
-        "cache_syncing" to s.cacheSyncing, "thread_loading" to s.threadLoadingId, "thread_load_failed" to s.threadLoadFailedId,
+        "cache_syncing" to s.cacheSyncing, "thread_loading" to (s.threadLoadingId != null), "thread_load_failed" to (s.threadLoadFailedId != null),
         "navigation" to s.chatNavigationKind.name, "low_bandwidth" to s.lowBandwidthMode, "settings_request" to s.settingsRequest,
         "settings_tab" to s.settingsRequestTab, "slash_command" to s.pendingSlashCommand,
         "turnstile" to (s.sessionTurnstileUrl != null || s.authTurnstileUrl != null), "batch_banner" to (s.batchBanner != null),
@@ -2068,21 +2068,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             chatNavigationId = transition.first, chatNavigationKind = transition.second) }
         navigationJob = viewModelScope.launch {
             val started = System.currentTimeMillis()
-            Diagnostics.log("thread.open", "thread" to thread.id)
+            Diagnostics.log("thread.open", "thread_id" to thread.id)
             try {
                 loadMessages(thread.id)
-                Diagnostics.log("thread.opened", "thread" to thread.id, "ms" to System.currentTimeMillis() - started,
+                Diagnostics.log("thread.opened", "thread_id" to thread.id, "ms" to System.currentTimeMillis() - started,
                     "messages" to state.value.messages.size)
                 mutable.update { it.copy(busy = if (it.selected?.id == thread.id) false else it.busy,
                     threadLoadingId = if (it.threadLoadingId == transition.first) 0L else it.threadLoadingId) }
                 if (foreground && state.value.jobId != null) resume()
             }
             catch (e: CancellationException) {
-                Diagnostics.log("thread.open_cancelled", "thread" to thread.id, "ms" to System.currentTimeMillis() - started)
+                Diagnostics.log("thread.open_cancelled", "thread_id" to thread.id, "ms" to System.currentTimeMillis() - started)
                 throw e
             }
             catch (e: Exception) {
-                Diagnostics.failure("thread.open_error", e, "thread" to thread.id, "ms" to System.currentTimeMillis() - started)
+                Diagnostics.failure("thread.open_error", e, "thread_id" to thread.id, "ms" to System.currentTimeMillis() - started)
                 if (state.value.threadLoadingId == transition.first) mutable.update { it.copy(threadLoadFailedId = thread.id) }
                 report(e, "チャットの読み込みに失敗しました")
             }
@@ -2120,7 +2120,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             else -> THREAD_INITIAL_MESSAGE_LIMIT
         }
         val reply = try {
-            Diagnostics.log("thread.fetch", "thread" to id, "older" to older)
+            Diagnostics.log("thread.fetch", "thread_id" to id, "older" to older)
             backend.get("/api/threads/$id?limit=$limit$before", token())
         } catch (e: CancellationException) {
             throw e
@@ -2136,7 +2136,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             loadCachedMessages(id, older, cached, fetchGeneration)
             return
         }
-        Diagnostics.log("thread.fetched", "thread" to id, "rows" to (reply.optJSONArray("messages")?.length() ?: 0),
+        Diagnostics.log("thread.fetched", "thread_id" to id, "rows" to (reply.optJSONArray("messages")?.length() ?: 0),
             "pending_job" to !reply.isNull("pending_job"))
         if (state.value.selected?.id != id || fetchGeneration != messageFetchGeneration) return
         if (inPlace && (state.value.streaming || state.value.busy)) return
@@ -2302,7 +2302,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val thread = state.value.selected ?: return
         navigationJob?.cancel()
         navigationJob = viewModelScope.launch {
-            Diagnostics.log("thread.refresh", "thread" to thread.id)
+            Diagnostics.log("thread.refresh", "thread_id" to thread.id)
             try { loadMessages(thread.id, inPlace = true) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { report(e) }
@@ -2310,11 +2310,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     /** [onNewChat] runs when the open chat was deleted (Web `startNewChat` also closes the phone sidebar). */
     fun deleteThread(thread: ThreadItem, onNewChat: () -> Unit = {}) { viewModelScope.launch {
-        Diagnostics.log("thread.delete", "thread" to thread.id, "offline" to state.value.offline)
+        Diagnostics.log("thread.delete", "thread_id" to thread.id, "offline" to state.value.offline)
         if (state.value.offline && !deviceChat(thread.id)) { notify("オフライン中は履歴を削除できません。"); return@launch }
         try {
             backend.delete("/api/threads/${thread.id}", token())
-            Diagnostics.log("thread.deleted", "thread" to thread.id)
+            Diagnostics.log("thread.deleted", "thread_id" to thread.id)
             state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.deleteThread(account.id, thread.id) } }
             chatHistory.removeThread(thread.id)
             mutable.update { it.copy(canGoBackInChats = chatHistory.canGoBack) }
@@ -2352,6 +2352,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val requestId = branchRequestIds.getOrPut(key) { java.util.UUID.randomUUID().toString().replace("-", "") }
         mutable.update { it.copy(branchBusy = true) }
         viewModelScope.launch {
+            Diagnostics.log("branch.start", "op" to requestId)
             try {
                 val reply = backend.post("/api/threads/${source.id}/branch", JSONObject()
                     .put("message_id", id).put("request_id", requestId).put("confirm_persist_temporary", confirmed), token())
@@ -2359,9 +2360,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 openThread(ThreadItem(id = reply.getString("id"), title = reply.getString("title"), model = source.model), focusMessageId = reply.getInt("leaf_id"))
                 fetchThreads(false)
                 if (state.value.serverless && !state.value.localProfile) syncAfterAnswer()
+                Diagnostics.log("branch.done", "op" to requestId)
                 notify("新しいチャットに分岐しました")
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { report(e) }
+            } catch (e: CancellationException) { Diagnostics.log("branch.cancelled", "op" to requestId); throw e }
+            catch (e: Exception) { Diagnostics.log("branch.error", "op" to requestId); report(e) }
             finally { mutable.update { it.copy(branchBusy = false) } }
         }
     }
@@ -3156,9 +3158,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val onEvent: (JSONObject) -> Unit = { event ->
                     val type = event.optString("type")
                     if (type == "status" || type == "error" || seenEvents.add(type)) {
-                        // Status texts and errors come from the app, the server or the AI provider, never from the user.
+                        // Only the fixed event type is diagnostic; status/error text may contain private content.
                         Diagnostics.log("send.event", "type" to type, "ms" to System.currentTimeMillis() - sendStarted,
-                            "status" to if (type == "status" || type == "error") event.optString("content").take(1000) else null)
+                            "failed" to (type == "error"))
                     }
                     if (streamJob === owner) {
                         flow.setPhase("receiving")
@@ -3369,14 +3371,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun stop() { viewModelScope.launch {
         val id = state.value.selected?.id ?: return@launch
-        Diagnostics.log("send.stop", "thread" to id, "streaming" to state.value.streaming, "job" to (state.value.jobId != null))
+        Diagnostics.log("send.stop", "thread_id" to id, "streaming" to state.value.streaming, "job" to (state.value.jobId != null))
         try {
             // The answer is generated on the device (a server job is only rejoined, with its job id):
             // cancelling the request saves what arrived so far, and serverless mode then uploads it.
             if (uploadsLocal && state.value.jobId == null) {
                 val started = System.currentTimeMillis()
                 streamJob?.cancelAndJoin()
-                Diagnostics.log("send.stopped", "thread" to id, "wait_ms" to System.currentTimeMillis() - started)
+                Diagnostics.log("send.stopped", "thread_id" to id, "wait_ms" to System.currentTimeMillis() - started)
                 mutable.update { it.copy(streaming = false, status = "停止を要求しました。", live = LiveAnswer()) }
                 loadMessages(id)
                 scheduleSync()
@@ -4892,7 +4894,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(feedbackBusy = true) }
             try {
                 val payload = JSONObject().put("message", message.trim()).put("client", "android").put("version", BuildConfig.VERSION_NAME)
-                val logs = if (withLogs && ActivityLog.enabled) withContext(Dispatchers.IO) { ActivityLog.recent() } else null
+                val logs = if (!withLogs) null else if (ActivityLog.enabled) withContext(Dispatchers.IO) { ActivityLog.recent() } else if (state.value.preferences?.enableServerDiagnosticLog == true) JSONArray() else null
                 if (logs != null) payload.put("client_logs", JSONObject().put("client", "android")
                     .put("version", BuildConfig.VERSION_NAME).put("window_seconds", ActivityLog.WINDOW_MS / 1000).put("entries", logs))
                 val feedbackId = item.publicId.ifBlank { item.id.toString() }
@@ -4900,7 +4902,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val replyId = reply.optInt("reply_id", 0)
                 val imagesSaved = images.isEmpty() || (replyId > 0 && uploadFeedbackImages(feedbackId, images, replyId))
                 loadFeedback()
-                notify(feedbackReplySentText(logs?.length(), reply.optBoolean("logs_saved", true), images.size, imagesSaved))
+                notify(feedbackReplySentText(logs?.let { reply.optInt("logs_count", it.length()) }, reply.optBoolean("logs_saved", true), images.size, imagesSaved))
             } catch (e: Exception) { report(e, "返信を送信できませんでした") }
             finally { mutable.update { it.copy(feedbackBusy = false) } }
         }
@@ -4930,7 +4932,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val payload = JSONObject().put("title", title.trim()).put("message", message.trim())
                 // ログの収集を強化: the last hour of the activity log goes with the feedback.
-                val logs = if (ActivityLog.enabled) withContext(Dispatchers.IO) { ActivityLog.recent() } else null
+                val logs = if (ActivityLog.enabled) withContext(Dispatchers.IO) { ActivityLog.recent() } else if (state.value.preferences?.enableServerDiagnosticLog == true) JSONArray() else null
                 if (logs != null) payload.put("client_logs", JSONObject().put("client", "android")
                     .put("version", BuildConfig.VERSION_NAME).put("window_seconds", ActivityLog.WINDOW_MS / 1000).put("entries", logs))
                 val chatCopy = chatId?.let { feedbackChatCopy(it) }
@@ -4944,7 +4946,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 val imagesSaved = images.isEmpty() || (feedbackId.isNotBlank() && uploadFeedbackImages(feedbackId, images))
                 loadFeedback()
-                notify(feedbackSentText(logs?.length(), reply.optBoolean("logs_saved", true), chatCopy != null, chatSaved, images.size, imagesSaved))
+                notify(feedbackSentText(logs?.let { reply.optInt("logs_count", it.length()) }, reply.optBoolean("logs_saved", true), chatCopy != null, chatSaved, images.size, imagesSaved))
             } catch (e: Exception) { report(e) }
             finally { mutable.update { it.copy(feedbackBusy = false) } }
         }

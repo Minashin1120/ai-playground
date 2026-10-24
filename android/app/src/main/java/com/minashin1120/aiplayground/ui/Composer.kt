@@ -973,7 +973,8 @@ private fun InputRow(
         ToolButton(
             if (minimal) R.drawable.fa_solid_plus else R.drawable.fa_solid_paperclip,
             if (minimal) "オプション" else "Upload", toolSize, toolShape,
-            enabled = !state.offline,
+            // The options popup also contains local settings that work without the server.
+            enabled = minimal || !state.offline,
             onClick = if (minimal) onPlus else pickFiles,
         )
         if (!minimal) {

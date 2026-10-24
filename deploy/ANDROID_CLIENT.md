@@ -834,3 +834,7 @@ Turnstileの確認は、認証要求でPlay Integrityの判定が高リスクま
 | [apache/mobile-api.inc.conf](apache/mobile-api.inc.conf) | ApacheのHTTPS転送、JSONエラー維持、キャッシュ設定 |
 
 APIの具体的な契約は本書と現行サーバーコードが正本です。Android・HTTPライブラリ・Apacheの一般仕様は各節の公式資料を参照し、依存更新・配布時には情報を再確認してください。
+
+### 調査ログの保存時間
+
+`/api/mobile/v1/preferences` の `server_diagnostic_log_retention_hours` は1〜8760の整数（時間、既定1）で、Web設定とアカウント内で共有します。省略時は現在値を維持します。不正な型・範囲は400で拒否します。端末操作ログの保存時間は端末別に保存し、即時反映します。

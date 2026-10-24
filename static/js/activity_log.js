@@ -5,10 +5,10 @@
  * operations to localStorage: clicks (element ids/classes, never text), setting switches,
  * requests (method, path without query, status, time), modals, toasts, page lifecycle,
  * errors and console warnings. It never records what was typed, prompts, answers or file
- * contents. Sending a feedback attaches the last hour (`window.ActivityLog.recent()`).
+ * contents. Sending a feedback attaches entries within the configured retention window (`window.ActivityLog.recent()`).
  *
  * The log is not part of the site cache: clearing the cache keeps it, and it is removed
- * only by the "ログを削除" button, turning the setting off, or another account signing in.
+ * on expiry, by the "ログを削除" button, turning the setting off, or another account signing in.
  */
 (function () {
     'use strict';
@@ -18,7 +18,19 @@
     var ENABLED_KEY = 'aip_activity_log_enabled';
     var DATA_KEY = 'aip_activity_log_v1';
     var OWNER_KEY = 'aip_activity_log_owner';
+    var RETENTION_KEY = 'aip_activity_log_retention_hours';
     var KEEP_MS = 60 * 60 * 1000;
+    function setRetentionHours(value) {
+        var hours = Number(value);
+        if (!Number.isInteger(hours) || hours < 1 || hours > 8760) return false;
+        // Remove already expired entries before increasing the window.
+        expire();
+        KEEP_MS = hours * 3600000;
+        writeStorage(RETENTION_KEY, String(hours));
+        expire();
+        notify();
+        return true;
+    }
     var MAX_STORED_CHARS = 1500000;
     var MAX_FIELD = 500;
     var FLUSH_MS = 2000;
@@ -40,6 +52,8 @@
     }
 
     enabled = readStorage(ENABLED_KEY) === '1';
+    var savedHours = Number(readStorage(RETENTION_KEY));
+    if (Number.isInteger(savedHours) && savedHours >= 1 && savedHours <= 8760) KEEP_MS = savedHours * 3600000;
 
     function clip(value, max) {
         var text = String(value == null ? '' : value);
@@ -474,6 +488,15 @@
             }
         } catch (e) {}
         window.addEventListener('storage', function (event) {
+            if (event.key === RETENTION_KEY) {
+                var hours = Number(event.newValue);
+                KEEP_MS = (Number.isInteger(hours) && hours >= 1 && hours <= 8760 ? hours : 1) * 3600000;
+                expire();
+                var input = document.getElementById && document.getElementById('set-activity-log-retention-hours');
+                if (input) input.value = String(KEEP_MS / 3600000);
+                notify();
+                return;
+            }
             if (event.key !== ENABLED_KEY) return;
             enabled = event.newValue === '1';
             if (!enabled) buffer = [];
@@ -569,7 +592,7 @@
                 return true;
             }
             var sent = ['フィードバック'];
-            if (payload) sent.push('直近1時間のログ（' + (typeof data.logs_count === 'number' ? data.logs_count : payload.entries.length) + '件）');
+            if (payload) sent.push('保存期間内のログ（' + (typeof data.logs_count === 'number' ? data.logs_count : payload.entries.length) + '件）');
             if (chatCopy) sent.push('チャットのコピー');
             if (images && images.count) sent.push('画像（' + images.count + '枚）');
             toast(sent.join(sent.length > 2 ? '、' : 'と') + 'を送信しました', 'success');
@@ -591,7 +614,7 @@
         var status = document.getElementById('activity-log-feedback-status');
         if (status) {
             status.textContent = enabled
-                ? '記録中です。フィードバックの送信時に直近1時間のログを送信します。（' + usageText() + '）'
+                ? '記録中です。フィードバック・返信でログの添付を選択した場合に送信します。（' + usageText() + '）'
                 : '記録していません。';
         }
         var usage = document.getElementById('activity-log-usage-text');
@@ -606,6 +629,13 @@
         if (typeof document.getElementById !== 'function') return;
         var toggle = document.getElementById('set-activity-log');
         if (toggle) toggle.addEventListener('change', function () { setEnabled(!!toggle.checked); });
+        var retention = document.getElementById('set-activity-log-retention-hours');
+        if (retention) {
+            retention.value = String(KEEP_MS / 3600000);
+            retention.addEventListener('change', function () {
+                if (!setRetentionHours(retention.value)) retention.value = String(KEEP_MS / 3600000);
+            });
+        }
         var button = document.getElementById('clear-activity-log-btn');
         if (button) {
             button.addEventListener('click', function () {
@@ -643,6 +673,7 @@
         canAttach: canAttach,
         chatCopyPayload: chatCopyPayload,
         reportFeedback: reportFeedback,
-        WINDOW_MS: KEEP_MS,
+        setRetentionHours: setRetentionHours,
+        get WINDOW_MS() { return KEEP_MS; },
     };
 })();

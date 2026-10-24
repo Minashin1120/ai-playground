@@ -559,6 +559,30 @@ class MobileSyncApiTests(unittest.TestCase):
             self.assertEqual(target._recent_server_diagnostics(self.user_id), [])
         self.assertFalse(list(self.redis.scan_iter('diagnostic:v2:*:*:*')))
 
+    def test_server_diagnostic_retention_is_shared_validated_and_applied(self):
+        token = self.token()
+        for value in [0, -1, 8761, 1.5, True, "2", None]:
+            response = self.call('/api/mobile/v1/preferences', token, 'PUT',
+                json={'server_diagnostic_log_retention_hours': value})
+            self.assertEqual(response.status_code, 400)
+            response = self.browser.post('/api/settings', base_url='https://localhost', headers={'X-CSRF-Token': 'browser-csrf'},
+                json={'server_diagnostic_log_retention_hours': value})
+            self.assertEqual(response.status_code, 400)
+        response = self.call('/api/mobile/v1/preferences', token, 'PUT',
+            json={'enable_server_diagnostic_log': True, 'server_diagnostic_log_retention_hours': 4})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.browser.get('/api/settings', base_url='https://localhost').json['server_diagnostic_log_retention_hours'], 4)
+        with target.app.app_context():
+            target._record_server_diagnostic(self.user_id, 'server.worker.start', ms=123)
+            keys = list(self.redis.scan_iter('diagnostic:v2:*:*:*'))
+            self.assertTrue(keys)
+            self.assertTrue(all(14390 <= self.redis.ttl(key) <= 14400 for key in keys))
+        self.browser.post('/api/settings', base_url='https://localhost', headers={'X-CSRF-Token': 'browser-csrf'}, json={'server_diagnostic_log_retention_hours': 1})
+        self.assertEqual(self.call('/api/mobile/v1/preferences', token).json['server_diagnostic_log_retention_hours'], 1)
+        self.assertTrue(all(0 < self.redis.ttl(key) <= 3600 for key in keys))
+        self.call('/api/mobile/v1/preferences', token, 'PUT', json={'server_diagnostic_log_retention_hours': 8})
+        self.assertTrue(all(0 < self.redis.ttl(key) <= 3600 for key in keys))
+
     def test_server_diagnostic_event_expiry_does_not_slide_and_snapshot_survives(self):
         with target.app.app_context():
             user = target.db.session.get(target.User, self.user_id)

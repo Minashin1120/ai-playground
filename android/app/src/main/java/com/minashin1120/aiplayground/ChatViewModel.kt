@@ -4924,15 +4924,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** [chatId] is the open chat whose copy goes with the feedback (null when the box is not ticked); [images] are the attached images. */
-    fun submitFeedback(title: String, message: String, chatId: String? = null, images: List<Uri> = emptyList()) {
+    fun submitFeedback(title: String, message: String, chatId: String? = null, images: List<Uri> = emptyList(), attachLogs: Boolean = false) {
         if (message.isBlank()) return
         viewModelScope.launch {
             if (state.value.offline) { notify("オフライン中はフィードバックを送信できません。"); return@launch }
             mutable.update { it.copy(feedbackBusy = true) }
             try {
                 val payload = JSONObject().put("title", title.trim()).put("message", message.trim())
-                // ログの収集を強化: the last hour of the activity log goes with the feedback.
-                val logs = if (ActivityLog.enabled) withContext(Dispatchers.IO) { ActivityLog.recent() } else if (state.value.preferences?.enableServerDiagnosticLog == true) JSONArray() else null
+                // Attach recorded logs only when selected for this feedback.
+                val logs = if (!attachLogs) null else if (ActivityLog.enabled) withContext(Dispatchers.IO) { ActivityLog.recent() } else if (state.value.preferences?.enableServerDiagnosticLog == true) JSONArray() else null
                 if (logs != null) payload.put("client_logs", JSONObject().put("client", "android")
                     .put("version", BuildConfig.VERSION_NAME).put("window_seconds", ActivityLog.WINDOW_MS / 1000).put("entries", logs))
                 val chatCopy = chatId?.let { feedbackChatCopy(it) }

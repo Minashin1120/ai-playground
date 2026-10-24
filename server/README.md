@@ -9,7 +9,7 @@
 | `routes_mobile_sync.py` | Androidのサーバー不使用モード：端末チャットの同期（変更一覧・アップロード・削除）、本人確認後のAPIキー取り出し、管理者の診断ログ受信（`diagnostics/android-diagnostics.log`） | 同期API、端末へのキー取り込み、Android診断ログ |
 | `routes_mobile_auth.py` | Androidのネイティブ新規登録・パスワード／パスキーログイン・TOTP／WebAuthn 2FA・セキュリティ管理・初回セットアップとZIP取り込み・旧ブラウザー連携 | アプリ内認証、2FA・パスキー管理、初回設定 |
 | `request_hooks.py` | `@app.before_request`。古いログイン flash の除去、設定保存 flash の掃除、ユーザー別アップロード上限 | リクエスト前処理、flash 漏れ、アップロードサイズ |
-| `diagnostic_logging.py` | アカウントごとのオプトイン調査ログ、Redisの1時間TTL、リクエスト・ワーカー・処理段階の関連付け | サーバー調査ログの同意・収集・保持・添付を変更するとき |
+| `diagnostic_logging.py` | アカウントごとのオプトイン調査ログ、Redisの設定時間TTL、リクエスト・ワーカー・処理段階の関連付け | サーバー調査ログの同意・収集・保持・添付を変更するとき |
 | `logging_policy.py` / `logging_schema.json` | Web・Android・サーバーで共有する許可項目と機密除外、既存運用ログの安全な出力 | 記録項目・型・固定値、例外やSDKのログ出力を変更するとき |
 | `storage.py` | 容量制限、アップロードパス、添付の正規化、PDF/DOCX テキスト抽出、チャンクアップロード、サムネイルとメディアのメモリキャッシュ | ファイル保存、容量、添付、チャンク |
 | `image_tools.py` | 画像ヘッダー解析・構造検証、cwebp／dwebp／ffmpeg／CairoSVG を子プロセスで使うサムネイル・PNG変換・SVG描画、PNG書き出しとTOTP用QR。Pillowは読み込まない | サムネイル、画像形式の変換、画像検証、QRコード |

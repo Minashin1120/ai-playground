@@ -19,6 +19,36 @@ def _server_diagnostic_enabled(user_id):
         return bool(connection.execute(db.select(User.enable_server_diagnostic_log).where(User.id == int(user_id))).scalar())
 
 
+def _server_diagnostic_retention_seconds(user_id):
+    with app.app_context(), db.engine.connect() as connection:
+        hours = connection.execute(db.select(User.server_diagnostic_log_retention_hours).where(User.id == int(user_id))).scalar()
+        return max(1, min(8760, int(hours or 1))) * 3600
+
+
+def _update_server_diagnostic_retention(user_id):
+    """Shorten existing TTLs; extending retention only applies to future entries."""
+    try:
+        seconds = _server_diagnostic_retention_seconds(user_id)
+        base = _server_diagnostic_key(user_id)
+        generation = redis_conn.get(base + ':generation')
+        if not generation:
+            return
+        generation = generation.decode() if isinstance(generation, bytes) else generation
+        index = base + ':' + generation
+        now = time.time()
+        for member, timestamp in redis_conn.zrange(index, 0, -1, withscores=True):
+            member = member.decode() if isinstance(member, bytes) else member
+            key = index + ':' + member
+            remaining = int(timestamp + seconds - now)
+            if remaining <= 0:
+                redis_conn.delete(key)
+                redis_conn.zrem(index, member)
+            elif redis_conn.ttl(key) > remaining:
+                redis_conn.expire(key, remaining)
+    except Exception:
+        pass
+
+
 def _clear_server_diagnostics(user_id):
     try:
         key = _server_diagnostic_key(user_id)
@@ -43,16 +73,17 @@ def _record_server_diagnostic(user_id, event, **fields):
     try:
         if not _server_diagnostic_enabled(user_id):
             return
+        retention_seconds = _server_diagnostic_retention_seconds(user_id)
         now = time.time()
         entry = _safe_log_entry(dict(fields, ev=event, t=int(now * 1000)))
         if entry is None:
             return
         base = _server_diagnostic_key(user_id)
         candidate = secrets.token_hex(16)
-        redis_conn.set(base + ':generation', candidate, nx=True, ex=_SERVER_DIAGNOSTIC_SECONDS)
+        redis_conn.set(base + ':generation', candidate, nx=True, ex=retention_seconds)
         generation = redis_conn.get(base + ':generation')
         generation = generation.decode() if isinstance(generation, bytes) else generation
-        redis_conn.expire(base + ':generation', _SERVER_DIAGNOSTIC_SECONDS)
+        redis_conn.expire(base + ':generation', retention_seconds)
         index = base + ':' + generation
         member = secrets.token_hex(16)
         if not _server_diagnostic_enabled(user_id):
@@ -77,7 +108,7 @@ def _record_server_diagnostic(user_id, event, **fields):
             redis.call('EXPIRE', KEYS[1], ARGV[4])
             return 1
         """, 3, index, index + ':' + member, base + ':generation', member, now,
-            json.dumps(entry, separators=(',', ':')), _SERVER_DIAGNOSTIC_SECONDS,
+            json.dumps(entry, separators=(',', ':')), retention_seconds,
             _SERVER_DIAGNOSTIC_MAX_ENTRIES, generation)
     except Exception:
         # Logging is best effort and must not change application behavior.
@@ -94,7 +125,7 @@ def _recent_server_diagnostics(user_id):
             return []
         generation = generation.decode() if isinstance(generation, bytes) else generation
         index = base + ':' + generation
-        cutoff = time.time() - _SERVER_DIAGNOSTIC_SECONDS
+        cutoff = time.time() - _server_diagnostic_retention_seconds(user_id)
         members = redis_conn.zrangebyscore(index, cutoff, '+inf', start=0, num=_SERVER_DIAGNOSTIC_MAX_ENTRIES)
         if not members:
             return []

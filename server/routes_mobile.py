@@ -319,6 +319,7 @@ def _mobile_preferences_payload():
         'enable_latency_metrics': bool(user.enable_latency_metrics),
         'enable_client_debug_log': bool(user.enable_client_debug_log),
         'enable_server_diagnostic_log': bool(user.enable_server_diagnostic_log),
+        'server_diagnostic_log_retention_hours': user.server_diagnostic_log_retention_hours or 1,
         'passkey_only_login': bool(user.passkey_only_login),
         'model_api_keys': {model_key: _SECRET_MASK for model_key in _load_user_model_api_key_map(user)},
         'gemini_backend': _normalize_gemini_backend(user.gemini_backend),
@@ -381,6 +382,13 @@ def mobile_preferences():
     data = request.get_json(silent=True) or {}
     if not isinstance(data, dict):
         return _mobile_error('invalid_request')
+    diagnostic_retention_changed = False
+    if 'server_diagnostic_log_retention_hours' in data:
+        hours = data['server_diagnostic_log_retention_hours']
+        if type(hours) is not int or not 1 <= hours <= 8760:
+            return _mobile_error('invalid_request')
+        diagnostic_retention_changed = current_user.server_diagnostic_log_retention_hours != hours
+        current_user.server_diagnostic_log_retention_hours = hours
     diagnostic_consent_changed = False
     if 'enable_server_diagnostic_log' in data:
         if type(data['enable_server_diagnostic_log']) is not bool:
@@ -486,4 +494,6 @@ def mobile_preferences():
     safe_db_commit()
     if 'enable_server_diagnostic_log' in data and (diagnostic_consent_changed or data['enable_server_diagnostic_log'] is False):
         _clear_server_diagnostics(current_user.id)
+    if diagnostic_retention_changed:
+        _update_server_diagnostic_retention(current_user.id)
     return jsonify(_mobile_preferences_payload())

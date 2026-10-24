@@ -92,7 +92,7 @@ def try_alter(sql):
     except Exception:
         pass
 
-def _ensure_required_user_flags(columns):
+def _ensure_required_user_flags(columns, column_type="BOOLEAN DEFAULT 0"):
     # Inspect and alter on the same connection: SQLite may otherwise prepare DDL
     # using a pooled connection's stale schema after another connection changed it.
     with db.engine.begin() as conn:
@@ -104,7 +104,7 @@ def _ensure_required_user_flags(columns):
             try:
                 if db.engine.dialect.name in ('mysql', 'mariadb'):
                     conn.execute(text("SET SESSION lock_wait_timeout=5"))
-                conn.execute(text(f"ALTER TABLE user ADD COLUMN {column} BOOLEAN DEFAULT 0"))
+                conn.execute(text(f"ALTER TABLE user ADD COLUMN {column} {column_type}"))
             except Exception:
                 # Another startup worker may already have completed this DDL.
                 if column not in {c['name'] for c in inspect(conn).get_columns('user')}:
@@ -815,6 +815,7 @@ def cleanup_user_temp_system_prompt_columns():
 def ensure_user_debug_settings_columns():
     # Required by every User SELECT, even when optional migrations are disabled.
     _ensure_required_user_flags(('enable_client_debug_log', 'enable_server_diagnostic_log'))
+    _ensure_required_user_flags(('server_diagnostic_log_retention_hours',), 'INTEGER DEFAULT 1')
 
 
 def ensure_bot_evidence_columns():

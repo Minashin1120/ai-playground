@@ -14,6 +14,7 @@ class ActivityLogTest {
 
     @After fun tearDown() {
         ActivityLog.setEnabled(false)
+        ActivityLog.setRetentionHours(1)
         dir.deleteRecursively()
     }
 
@@ -37,6 +38,19 @@ class ActivityLogTest {
         assertEquals(200, entry.getInt("status"))
         assertFalse(entry.has("skipped"))
         assertEquals(1, ActivityLog.stats().first)
+    }
+
+    @Test fun configurableRetentionPrunesOldEntriesWithoutRestoringThem() {
+        ActivityLog.initFile(file, enabledAtStart = true)
+        ActivityLog.setRetentionHours(4)
+        file.parentFile?.mkdirs()
+        val old = System.currentTimeMillis() - 2 * 3600000L
+        file.writeText("$old\t{\"t\":$old,\"ev\":\"http\",\"status\":201}\n")
+        assertEquals(1, ActivityLog.recent().length())
+        ActivityLog.setRetentionHours(1)
+        assertEquals(0, ActivityLog.recent().length())
+        ActivityLog.setRetentionHours(8)
+        assertEquals(0, ActivityLog.recent().length())
     }
 
     @Test fun freeTextIsExcludedAndClearRemovesTheFile() {
@@ -64,9 +78,9 @@ class ActivityLogTest {
 
     @Test fun feedbackSentTextNamesTheLogsAndTheChatCopy() {
         assertEquals("フィードバックを送信しました", feedbackSentText(null, true, false, false))
-        assertEquals("フィードバックと直近1時間のログ（3件）を送信しました", feedbackSentText(3, true, false, false))
+        assertEquals("フィードバックと保存期間内のログ（3件）を送信しました", feedbackSentText(3, true, false, false))
         assertEquals("フィードバックとチャットのコピーを送信しました", feedbackSentText(null, true, true, true))
-        assertEquals("フィードバック、直近1時間のログ（2件）、チャットのコピーを送信しました", feedbackSentText(2, true, true, true))
+        assertEquals("フィードバック、保存期間内のログ（2件）、チャットのコピーを送信しました", feedbackSentText(2, true, true, true))
         assertEquals("フィードバックを送信しました（ログとチャットのコピーは保存できませんでした）", feedbackSentText(2, false, true, false))
         assertEquals("フィードバックと画像（2枚）を送信しました", feedbackSentText(null, true, false, false, 2, true))
         assertEquals("フィードバックを送信しました（画像は保存できませんでした）", feedbackSentText(null, true, false, false, 2, false))
@@ -74,10 +88,10 @@ class ActivityLogTest {
 
     @Test fun feedbackReplySentTextNamesTheLogsOnlyWhenTheyWentWithIt() {
         assertEquals("返信を送信しました", feedbackReplySentText(null, true))
-        assertEquals("返信と直近1時間のログ（4件）を送信しました", feedbackReplySentText(4, true))
+        assertEquals("返信と保存期間内のログ（4件）を送信しました", feedbackReplySentText(4, true))
         assertEquals("返信を送信しました（ログは保存できませんでした）", feedbackReplySentText(4, false))
         assertEquals("返信と画像（2枚）を送信しました", feedbackReplySentText(null, true, 2, true))
-        assertEquals("返信、直近1時間のログ（4件）、画像（1枚）を送信しました", feedbackReplySentText(4, true, 1, true))
+        assertEquals("返信、保存期間内のログ（4件）、画像（1枚）を送信しました", feedbackReplySentText(4, true, 1, true))
         assertEquals("返信を送信しました（ログと画像は保存できませんでした）", feedbackReplySentText(4, false, 1, false))
     }
 }

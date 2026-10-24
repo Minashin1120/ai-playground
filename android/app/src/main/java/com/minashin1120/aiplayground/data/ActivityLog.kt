@@ -18,7 +18,19 @@ import java.util.concurrent.TimeUnit
  * are written. Without [init] (JVM unit tests) every call does nothing.
  */
 object ActivityLog {
-    const val WINDOW_MS = 60 * 60 * 1000L
+    @Volatile var retentionHours: Int = 1
+        private set
+    val WINDOW_MS: Long get() = retentionHours * 3600000L
+
+    fun setRetentionHours(value: Int) {
+        require(value in 1..8760)
+        synchronized(lock) {
+            file?.let { prune(it) }
+            retentionHours = value
+            prefs?.edit()?.putInt("retention_hours", value)?.apply()
+            file?.let { prune(it) }
+        }
+    }
     private const val MAX_FILE_BYTES = 4 * 1024 * 1024L
     private const val PREFS = "activity_log"
     private const val PRUNE_EVERY = 200
@@ -38,6 +50,7 @@ object ActivityLog {
     fun init(app: Context) {
         val preferences = app.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs = preferences
+        retentionHours = preferences.getInt("retention_hours", 1).coerceIn(1, 8760)
         writer.scheduleWithFixedDelay({ synchronized(lock) { file?.let { runCatching { prune(it) } } } }, 30, 30, TimeUnit.SECONDS)
         initFile(File(app.noBackupFilesDir, "activity_log/events.jsonl"), preferences.getBoolean("enabled", false))
     }
@@ -188,7 +201,7 @@ fun feedbackSentText(
     if (failed.isNotEmpty()) return "フィードバックを送信しました（${failed.joinToString("と")}は保存できませんでした）"
     val sent = buildList {
         add("フィードバック")
-        if (logCount != null) add("直近1時間のログ（${logCount}件）")
+        if (logCount != null) add("保存期間内のログ（${logCount}件）")
         if (chatCopy) add("チャットのコピー")
         if (imageCount > 0) add("画像（${imageCount}枚）")
     }
@@ -204,7 +217,7 @@ fun feedbackReplySentText(logCount: Int?, logsSaved: Boolean, imageCount: Int = 
     if (failed.isNotEmpty()) return "返信を送信しました（${failed.joinToString("と")}は保存できませんでした）"
     val sent = buildList {
         add("返信")
-        if (logCount != null) add("直近1時間のログ（${logCount}件）")
+        if (logCount != null) add("保存期間内のログ（${logCount}件）")
         if (imageCount > 0) add("画像（${imageCount}枚）")
     }
     return sent.joinToString(if (sent.size > 2) "、" else "と") + "を送信しました"

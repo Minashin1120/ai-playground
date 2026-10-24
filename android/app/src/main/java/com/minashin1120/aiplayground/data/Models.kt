@@ -187,6 +187,7 @@ data class Preferences(
     val enableLatencyMetrics: Boolean = false,
     val enableClientDebugLog: Boolean = false,
     val enableServerDiagnosticLog: Boolean = false,
+    val serverDiagnosticLogRetentionHours: Int = 1,
     val passkeyOnlyLogin: Boolean = false,
     /** Provider key fields (`openai_key` …) mapped to the server mask; blank when not set. */
     val providerKeys: Map<String, String> = emptyMap(),
@@ -352,6 +353,7 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
     enableLatencyMetrics = json.optBoolean("enable_latency_metrics"),
     enableClientDebugLog = json.optBoolean("enable_client_debug_log"),
     enableServerDiagnosticLog = json.optBoolean("enable_server_diagnostic_log"),
+    serverDiagnosticLogRetentionHours = json.optInt("server_diagnostic_log_retention_hours", 1).coerceIn(1, 8760),
     passkeyOnlyLogin = json.optBoolean("passkey_only_login"),
     providerKeys = PROVIDER_KEY_FIELDS.associateWith { json.nullableString(it) },
     modelApiKeys = json.optJSONObject("model_api_keys")?.keys()?.asSequence()?.toSet().orEmpty(),

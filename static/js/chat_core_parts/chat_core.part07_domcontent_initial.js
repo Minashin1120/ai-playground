@@ -1068,6 +1068,7 @@
                 } else if (d && Object.prototype.hasOwnProperty.call(d, 'compact_prompt_mode')) {
                     setCompactPromptMode(!!d.compact_prompt_mode);
                 }
+                if (get('set-server-diagnostic-log-retention-hours')) get('set-server-diagnostic-log-retention-hours').value = d.server_diagnostic_log_retention_hours || 1;
                 if (get('set-server-diagnostic-log')) get('set-server-diagnostic-log').checked = d.enable_server_diagnostic_log === true;
                 if (get('set-client-debug-log')) {
                     syncClientDebugLogToggle(d.enable_client_debug_log === true, 'settings sync');

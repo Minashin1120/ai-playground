@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -323,7 +324,7 @@ private const val FEEDBACK_IMAGES_NOTE = "PNG・JPEG・WebP・GIF、4枚まで�
 private val FEEDBACK_IMAGE_TYPES = setOf("image/png", "image/jpeg", "image/webp", "image/gif")
 private const val FEEDBACK_CHAT_COPY_LABEL = "現在開いているチャットのコピーを送信する"
 private const val FEEDBACK_CHAT_COPY_DESCRIPTION = "開いているチャットのメッセージ、回答、思考過程、添付ファイル、チャットの設定と、そのチャットに関するエラーログなどの記録を復号して、不具合の調査用に送信します。送信したコピーは、チャットを削除しても残ります。"
-private const val ACTIVITY_LOG_DESCRIPTION = "この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバックの送信時に直近1時間のログを一緒に送信します。記録から1時間を過ぎたログは自動削除します（アプリ・ブラウザーの停止中は次回起動時）。チャットの本文・回答・タイトル、ファイル名・中身、入力欄の文字、認証情報は記録しません。送信済みのログは調査用に保持します。"
+private const val ACTIVITY_LOG_DESCRIPTION = "この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバック・返信でログの添付を選択した場合に、保存期間内のログを送信します。設定した保存時間を過ぎたログは自動削除します（アプリ・ブラウザーの停止中は次回起動時）。チャットの本文・回答・タイトル、ファイル名・中身、入力欄の文字、認証情報は記録しません。送信済みのログは調査用に保持します。"
 
 /** Web `refreshActivityLogUi`: the switch state and `操作ログ: N件 (x.xMB)`, read again after each change. */
 private class ActivityLogInfo(val enabled: Boolean, val usage: String, val setEnabled: (Boolean) -> Unit, val clear: () -> Unit)
@@ -410,23 +411,30 @@ private val FEEDBACK_STATUS_OPTIONS = webOptions(
     "resolved_unreleased" to "resolved（non-released）",
 )
 private const val FEEDBACK_DELETE_CONFIRM = "このフィードバックを削除しますか？\n一緒に送信した操作ログとチャットのコピーも削除されます。"
-private const val FEEDBACK_REPLY_LOGS_LABEL = "直近1時間の操作ログを一緒に送信する"
-private const val FEEDBACK_REPLY_LOGS_ON = "チェックしたときだけ、「ログの収集を強化」で記録した直近1時間のログを返信と一緒に送信します。"
+private const val FEEDBACK_LOGS_LABEL = "ログを一緒に送信する"
+private const val FEEDBACK_LOGS_DESCRIPTION = "保存期間内の操作ログと、記録が有効なサーバー調査ログを添付します。ログは「ログの収集を強化」で記録できます。チェックしない場合は添付しません。"
+private const val FEEDBACK_REPLY_LOGS_LABEL = "保存期間内の操作ログを一緒に送信する"
+private const val FEEDBACK_REPLY_LOGS_ON = "チェックしたときだけ、「ログの収集を強化」で記録した保存期間内のログを返信と一緒に送信します。"
 private const val FEEDBACK_REPLY_LOGS_OFF = "「ログの収集を強化」がオフのため、ログは送信できません。"
 
 internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (String) -> Unit, form: SettingsForm): List<SettingsCardSpec> = listOfNotNull(
     SettingsCardSpec(SettingsTab.Feedback, "send", "フィードバック送信",
-        "フィードバック送信 タイトル (任意) バグ報告・要望などを入力してください $FEEDBACK_CHAT_COPY_LABEL $FEEDBACK_CHAT_COPY_DESCRIPTION 画像を添付 $FEEDBACK_IMAGES_NOTE 送信",
+        "フィードバック送信 タイトル (任意) バグ報告・要望などを入力してください $FEEDBACK_LOGS_LABEL $FEEDBACK_LOGS_DESCRIPTION $FEEDBACK_CHAT_COPY_LABEL $FEEDBACK_CHAT_COPY_DESCRIPTION 画像を添付 $FEEDBACK_IMAGES_NOTE 送信",
         titleIcon = R.drawable.fa_solid_bug) {
         val web = LocalWebPalette.current
         var title by remember { mutableStateOf("") }
         var message by remember { mutableStateOf("") }
         var attachChat by remember { mutableStateOf(false) }
+        var attachLogs by remember { mutableStateOf(false) }
         var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingsTextField(title, { title = it.take(200) }, Modifier.fillMaxWidth(), placeholder = "タイトル (任意)")
             SettingsTextField(message, { message = it.take(100_000) }, Modifier.fillMaxWidth(), placeholder = "バグ報告・要望などを入力してください",
                 minHeight = 112.dp, singleLine = false)
+            Column {
+                SettingsCheck(FEEDBACK_LOGS_LABEL, attachLogs, { attachLogs = it }, boxSize = 14.dp, labelColor = web.text)
+                SettingsDesc(FEEDBACK_LOGS_DESCRIPTION, Modifier.padding(start = 22.dp, top = 4.dp))
+            }
             Column {
                 SettingsCheck(FEEDBACK_CHAT_COPY_LABEL, attachChat, { attachChat = it }, boxSize = 14.dp, labelColor = web.text)
                 SettingsDesc(FEEDBACK_CHAT_COPY_DESCRIPTION, Modifier.padding(start = 22.dp, top = 4.dp))
@@ -438,8 +446,8 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                     message.isBlank() -> notify("フィードバック内容を入力してください")
                     attachChat && chatId == null -> notify("コピーを送信するチャットが開かれていません")
                     else -> {
-                        model.submitFeedback(title.trim(), message.trim(), if (attachChat) chatId else null, images)
-                        title = ""; message = ""; attachChat = false; images = emptyList()
+                        model.submitFeedback(title.trim(), message.trim(), if (attachChat) chatId else null, images, attachLogs)
+                        title = ""; message = ""; attachChat = false; attachLogs = false; images = emptyList()
                     }
                 }
             }, tone = SettingsButtonTone.Blue, enabled = !state.feedbackBusy, fill = true)
@@ -450,8 +458,24 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
         val log = rememberActivityLogInfo()
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SettingsSwitchRow("操作ログを記録する", ACTIVITY_LOG_DESCRIPTION, log.enabled, { log.setEnabled(it) }, accent = Tw.amber600)
-            if (!state.localProfile) SettingsSwitchRow("サーバー調査ログを記録する", "このアカウントのサーバー処理の段階・結果を記録します。同じアカウントのWeb版・Android版で共通です。保存は記録から1時間で、ログを添付したフィードバック・返信には調査用のコピーを残します。変更は「保存」で反映します。", form.serverDiagnosticLog, { form.serverDiagnosticLog = it }, accent = Tw.amber600)
-            SettingsDesc(if (log.enabled) "記録中です。フィードバックの送信時に直近1時間のログを送信します。（${log.usage}）" else "記録していません。")
+            if (!state.localProfile) SettingsSwitchRow("サーバー調査ログを記録する", "このアカウントのサーバー処理の段階・結果を記録します。同じアカウントのWeb版・Android版で共通です。保存期間は設定した時間で、ログを添付したフィードバック・返信には調査用のコピーを残します。変更は「保存」で反映します。", form.serverDiagnosticLog, { form.serverDiagnosticLog = it }, accent = Tw.amber600)
+            var localHours by remember { mutableStateOf(ActivityLog.retentionHours.toString()) }
+            var localHoursFocused by remember { mutableStateOf(false) }
+            SettingsFieldLabel("操作ログの保存時間（時間）")
+            SettingsTextField(localHours, { localHours = it }, Modifier.fillMaxWidth().onFocusChanged { focus ->
+                if (localHoursFocused && !focus.isFocused) {
+                    localHours.toIntOrNull()?.takeIf { it in 1..8760 }?.let { ActivityLog.setRetentionHours(it) }
+                }
+                localHoursFocused = focus.isFocused
+            }, number = true)
+            if (localHours.toIntOrNull()?.let { it in 1..8760 } != true) SettingsDesc("1〜8760時間の整数で指定してください。")
+            if (!state.localProfile) {
+                SettingsFieldLabel("サーバー調査ログの保存時間（時間）")
+                SettingsTextField(form.serverDiagnosticLogRetentionHours, { form.serverDiagnosticLogRetentionHours = it }, Modifier.fillMaxWidth(), number = true)
+                if (form.serverDiagnosticLogRetentionHours.toIntOrNull()?.let { it in 1..8760 } != true) SettingsDesc("1〜8760時間の整数で指定してください。")
+            }
+            SettingsDesc("1〜8760時間の整数で指定できます。操作ログはこの端末に即時反映し、サーバー調査ログは「保存」で反映します。時間を延ばしても削除済みのログは復元されません。")
+            SettingsDesc(if (log.enabled) "記録中です。フィードバック・返信でログの添付を選択した場合に送信します。（${log.usage}）" else "記録していません。")
         }
     },
     SettingsCardSpec(SettingsTab.Feedback, "mine", "あなたのフィードバック", "あなたのフィードバック 返信内容 画像を添付 $FEEDBACK_REPLY_LOGS_LABEL 返信 削除") {

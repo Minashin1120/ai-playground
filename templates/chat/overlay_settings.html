@@ -368,6 +368,13 @@
                 <input type="text" id="fb-title" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="タイトル (任意)">
                 <textarea id="fb-message" class="w-full h-28 bg-gray-800 border border-gray-600 rounded px-2 py-2 text-sm text-white" placeholder="バグ報告・要望などを入力してください"></textarea>
                 <label class="flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" id="fb-attach-logs" class="accent-amber-500 mt-0.5 shrink-0">
+                    <span>
+                        <span class="block text-xs font-bold text-white">ログを一緒に送信する</span>
+                        <span class="block text-[10px] text-gray-500 mt-1">保存期間内の操作ログと、記録が有効なサーバー調査ログを添付します。ログは「ログの収集を強化」で記録できます。チェックしない場合は添付しません。</span>
+                    </span>
+                </label>
+                <label class="flex items-start gap-2 cursor-pointer">
                     <input type="checkbox" id="fb-attach-chat" class="accent-amber-500 mt-0.5 shrink-0">
                     <span>
                         <span class="block text-xs font-bold text-white">現在開いているチャットのコピーを送信する</span>
@@ -388,14 +395,17 @@
             <div class="flex items-center justify-between gap-3">
                 <div>
                     <div class="text-xs font-bold text-white">操作ログを記録する</div>
-                    <div class="text-[10px] text-gray-500 mt-1">この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバックの送信時に直近1時間のログを一緒に送信します。記録から1時間を過ぎたログは自動削除します（アプリ・ブラウザーの停止中は次回起動時）。チャットの本文・回答・タイトル、ファイル名・中身、入力欄の文字、認証情報は記録しません。送信済みのログは調査用に保持します。</div>
+                    <div class="text-[10px] text-gray-500 mt-1">この端末での操作（画面の操作、通信の結果、エラーなど）を記録し、フィードバック・返信でログの添付を選択した場合に、保存期間内のログを送信します。設定した保存時間を過ぎたログは自動削除します（アプリ・ブラウザーの停止中は次回起動時）。チャットの本文・回答・タイトル、ファイル名・中身、入力欄の文字、認証情報は記録しません。送信済みのログは調査用に保持します。</div>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer shrink-0">
                     <input type="checkbox" id="set-activity-log" class="sr-only peer">
                     <div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div>
                 </label>
             </div>
-            <div class="flex items-center justify-between gap-3 mt-3"><div><div class="text-xs font-bold text-white">サーバー調査ログを記録する</div><div class="text-[10px] text-gray-500 mt-1">このアカウントのサーバー処理の段階・結果を記録します。同じアカウントのWeb版・Android版で共通です。保存は記録から1時間で、ログを添付したフィードバック・返信には調査用のコピーを残します。変更は「保存」で反映します。</div></div><label class="relative inline-flex items-center cursor-pointer shrink-0"><input type="checkbox" id="set-server-diagnostic-log" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div></label></div>
+            <div class="flex items-center justify-between gap-3 mt-3"><div><div class="text-xs font-bold text-white">サーバー調査ログを記録する</div><div class="text-[10px] text-gray-500 mt-1">このアカウントのサーバー処理の段階・結果を記録します。同じアカウントのWeb版・Android版で共通です。保存期間は設定した時間で、ログを添付したフィードバック・返信には調査用のコピーを残します。変更は「保存」で反映します。</div></div><label class="relative inline-flex items-center cursor-pointer shrink-0"><input type="checkbox" id="set-server-diagnostic-log" class="sr-only peer"><div class="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-600"></div></label></div>
+            <label class="block text-xs text-gray-400 mt-3">操作ログの保存時間（時間）<input type="number" id="set-activity-log-retention-hours" min="1" max="8760" step="1" value="1" class="block w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 mt-1 text-white"></label>
+            <label class="block text-xs text-gray-400 mt-3">サーバー調査ログの保存時間（時間）<input type="number" id="set-server-diagnostic-log-retention-hours" min="1" max="8760" step="1" value="1" class="block w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 mt-1 text-white"></label>
+            <div class="text-[10px] text-gray-500 mt-1">1〜8760時間の整数で指定できます。操作ログはこの端末に即時反映し、サーバー調査ログは「保存」で反映します。時間を延ばしても削除済みのログは復元されません。</div>
             <div id="activity-log-feedback-status" class="text-[10px] text-gray-500 mt-2"></div>
         </div>
         <div class="settings-card">

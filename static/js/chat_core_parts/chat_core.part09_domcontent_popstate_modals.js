@@ -134,9 +134,10 @@
                 const title = get('fb-title').value.trim();
                 const message = get('fb-message').value.trim();
                 if(!message) { showToast("フィードバック内容を入力してください", "error", true); return; }
-                // ログの収集を強化 (static/js/activity_log.js): the last hour goes with the feedback.
+                // Attach recorded logs only when selected for this feedback.
                 const payload = {title, message, client: 'web', version: (window.CHAT_CONFIG && window.CHAT_CONFIG.appVersion) || ''};
-                const clientLogs = window.ActivityLog ? window.ActivityLog.feedbackPayload() : null;
+                const attachLogs = get('fb-attach-logs');
+                const clientLogs = attachLogs && attachLogs.checked && window.ActivityLog ? window.ActivityLog.feedbackPayload() : null;
                 if (clientLogs) payload.client_logs = clientLogs;
                 // The server copies everything it has on the open chat, decrypted, next to the logs (server/feedback_chat_copy.py).
                 const attachChat = get('fb-attach-chat');
@@ -154,6 +155,7 @@
                 get('fb-message').value = '';
                 fbImagePicker.clear();
                 if (attachChat) attachChat.checked = false;
+                if (attachLogs) attachLogs.checked = false;
                 loadFeedback();
             };
 
@@ -169,7 +171,7 @@
             // Reply history of a feedback and the reply box under it (the sender on their own feedback, administrators on any).
             // Each 返信 adds to the history. The activity log goes with a reply only when its box is ticked
             // (it needs ログの収集を強化 to be on); images follow the reply like those of a feedback.
-            const FB_REPLY_LOGS_LABEL = '直近1時間の操作ログを一緒に送信する';
+            const FB_REPLY_LOGS_LABEL = '保存期間内の操作ログを一緒に送信する';
             let fbReplyPickers = [];
             function feedbackRepliesHtml(item, isAdmin) {
                 const replies = item.replies || [];
@@ -207,7 +209,7 @@
                 const on = !!(window.ActivityLog && window.ActivityLog.canAttach());
                 logs.disabled = !on;
                 note.textContent = on
-                    ? 'チェックしたときだけ、「ログの収集を強化」で記録した直近1時間のログを返信と一緒に送信します。'
+                    ? 'チェックしたときだけ、「ログの収集を強化」で記録した保存期間内のログを返信と一緒に送信します。'
                     : '「ログの収集を強化」がオフのため、ログは送信できません。';
                 const picker = createFbImagePicker(form.querySelector('.fb-reply-images-add'), form.querySelector('.fb-reply-images-input'), form.querySelector('.fb-reply-images-list'));
                 fbReplyPickers.push(picker);
@@ -232,7 +234,7 @@
                             showToast(`返信を送信しました（${failed.join('と')}は保存できませんでした）`, "error", true);
                         } else {
                             const sent = ['返信'];
-                            if (clientLogs) sent.push(`直近1時間のログ（${typeof data.logs_count === 'number' ? data.logs_count : clientLogs.entries.length}件）`);
+                            if (clientLogs) sent.push(`保存期間内のログ（${typeof data.logs_count === 'number' ? data.logs_count : clientLogs.entries.length}件）`);
                             if (files.length) sent.push(`画像（${files.length}枚）`);
                             showToast(sent.join(sent.length > 2 ? '、' : 'と') + 'を送信しました', "success");
                         }

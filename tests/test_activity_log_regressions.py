@@ -103,7 +103,7 @@ const reply = (ok, data) => ({ ok, json: () => Promise.resolve(data) });
   assert.equal(await window.ActivityLog.reportFeedback(reply(false, { error: 'rate_limit' }), null, true), false);
   assert.deepEqual(toasts.map(t => t[0]), [
     'フィードバックを送信しました',
-    'フィードバック、直近1時間のログ（2件）、チャットのコピーを送信しました',
+    'フィードバック、保存期間内のログ（2件）、チャットのコピーを送信しました',
     'フィードバックとチャットのコピーを送信しました',
     'フィードバックを送信しました（チャットのコピーは保存できませんでした）',
     'rate_limit',

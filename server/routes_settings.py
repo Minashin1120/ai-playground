@@ -128,7 +128,8 @@ def handle_settings():
             'bot_ban_reason': current_user.bot_ban_reason,
             'enable_latency_metrics': current_user.enable_latency_metrics if current_user.enable_latency_metrics is not None else False,
             'enable_client_debug_log': current_user.enable_client_debug_log if current_user.enable_client_debug_log is not None else False,
-            'enable_server_diagnostic_log': bool(current_user.enable_server_diagnostic_log)
+            'enable_server_diagnostic_log': bool(current_user.enable_server_diagnostic_log),
+            'server_diagnostic_log_retention_hours': current_user.server_diagnostic_log_retention_hours or 1
         }
         if getattr(current_user, 'is_admin', False):
             payload['admin_api_key_mode'] = _normalize_admin_api_key_mode(current_user.admin_api_key_mode)
@@ -258,6 +259,13 @@ def handle_settings():
         current_user.default_2fa_method = str(d['default_2fa_method'])
     if 'bot_detection_enabled' in d and d['bot_detection_enabled'] is not None:
         current_user.bot_detection_enabled = bool(d['bot_detection_enabled'])
+    diagnostic_retention_changed = False
+    if 'server_diagnostic_log_retention_hours' in d:
+        hours = d['server_diagnostic_log_retention_hours']
+        if type(hours) is not int or not 1 <= hours <= 8760:
+            return jsonify({'error': 'ログの保存時間は1〜8760時間の整数で指定してください。'}), 400
+        diagnostic_retention_changed = current_user.server_diagnostic_log_retention_hours != hours
+        current_user.server_diagnostic_log_retention_hours = hours
     diagnostic_consent_changed = False
     if 'enable_server_diagnostic_log' in d:
         if type(d['enable_server_diagnostic_log']) is not bool:
@@ -307,6 +315,8 @@ def handle_settings():
         safe_db_commit()
         if 'enable_server_diagnostic_log' in d and (diagnostic_consent_changed or d['enable_server_diagnostic_log'] is False):
             _clear_server_diagnostics(current_user.id)
+        if diagnostic_retention_changed:
+            _update_server_diagnostic_retention(current_user.id)
         log_force("DEBUG: handle_settings safe_db_commit finished")
         if result_message is None:
             result_message = "設定を保存しました"

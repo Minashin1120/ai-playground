@@ -137,3 +137,28 @@ def test_interaction_diagnostics_keep_only_safe_state_and_random_ids():
     invalid = safe_entry(dict(ev='ui.interaction', parent_op=SECRET, gesture=SECRET,
                              interaction_stage=SECRET, ui_element=SECRET, scroll_x=SECRET))
     assert invalid == {'ev': 'ui.interaction'}
+
+
+def test_web_configurable_retention_expires_and_persists_without_resurrecting():
+    _run_node(r"""
+load();
+const log = window.ActivityLog;
+log.setEnabled(true);
+assert.equal(log.WINDOW_MS, 3600000);
+assert.equal(log.setRetentionHours(4), true);
+store.set('aip_activity_log_v1', JSON.stringify([
+  {t: Date.now() - 7200000, ev: 'http', status: 201},
+  {t: Date.now() - 1800000, ev: 'http', status: 202}
+]));
+assert.ok(log.recent().some(e => e.status === 201));
+assert.equal(log.feedbackPayload().window_seconds, 14400);
+assert.equal(log.setRetentionHours(1), true);
+assert.ok(!log.recent().some(e => e.status === 201));
+assert.equal(log.setRetentionHours(8), true);
+assert.ok(!log.recent().some(e => e.status === 201));
+for (const value of [0, -1, 1.5, 8761, 'bad', Infinity]) assert.equal(log.setRetentionHours(value), false);
+assert.equal(store.get('aip_activity_log_retention_hours'), '8');
+delete window.ActivityLog;
+load();
+assert.equal(window.ActivityLog.WINDOW_MS, 8 * 3600000);
+""")

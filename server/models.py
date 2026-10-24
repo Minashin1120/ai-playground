@@ -98,6 +98,7 @@ class User(UserMixin, db.Model):
     enable_latency_metrics = db.Column(db.Boolean, default=False)
     enable_client_debug_log = db.Column(db.Boolean, default=False)
     enable_server_diagnostic_log = db.Column(db.Boolean, default=False)
+    server_diagnostic_log_retention_hours = db.Column(db.Integer, default=1)
     threads = db.relationship('Thread', backref='user', lazy=True, cascade="all, delete-orphan")
     gems = db.relationship('Gem', backref='user', lazy=True, cascade="all, delete-orphan")
     sessions = db.relationship('UserSession', backref='user', lazy=True, cascade="all, delete-orphan")

@@ -69,6 +69,7 @@ internal class SettingsForm(prefs: Preferences?) {
 
     var latencyMetrics by mutableStateOf(prefs?.enableLatencyMetrics ?: false)
     var clientDebugLog by mutableStateOf(prefs?.enableClientDebugLog ?: false)
+    var serverDiagnosticLogRetentionHours by mutableStateOf((prefs?.serverDiagnosticLogRetentionHours ?: 1).toString())
     var serverDiagnosticLog by mutableStateOf(prefs?.enableServerDiagnosticLog ?: false)
 
     /** `set-username` / `set-password`: empty means unchanged (sent through the account API). */
@@ -147,6 +148,7 @@ internal class SettingsForm(prefs: Preferences?) {
         .put("enable_latency_metrics", latencyMetrics)
         .put("enable_client_debug_log", clientDebugLog)
         .put("enable_server_diagnostic_log", serverDiagnosticLog)
+        .put("server_diagnostic_log_retention_hours", serverDiagnosticLogRetentionHours.toIntOrNull() ?: 0)
         .put("skip_2fa_on_google_login", skip2faGoogle)
         .put("default_2fa_method", default2fa)
         .put("passkey_only_login", passkeyOnly)

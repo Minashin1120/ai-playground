@@ -122,10 +122,10 @@ def test_route_uses_provider_count_and_labels_fallback():
     scope = dict(request=SimpleNamespace(get_json=lambda **_: {'model': 'claude-test', 'message': 'hello', 'image_urls': []}),
                  current_user=SimpleNamespace(id=1), jsonify=lambda value: value,
                  _normalize_attachment_list=lambda refs, _: refs, should_count_tokens_for_display=lambda _: True,
-                 count_tokens=lambda *_: 3, _provider_draft_estimate=lambda *_: {'tokens_total': 9, 'estimate_method': 'provider'})
+                 count_tokens=lambda *_: 3, _provider_draft_estimate=lambda *_, **_kw: {'tokens_total': 9, 'estimate_method': 'provider'})
     exec(compile(ast.Module(body=[fn], type_ignores=[]), 'route', 'exec'), scope)
     assert scope['estimate_prompt_tokens_api']()['tokens_total'] == 9
-    scope['_provider_draft_estimate'] = lambda *_: None
+    scope['_provider_draft_estimate'] = lambda *_, **_kw: None
     result = scope['estimate_prompt_tokens_api']()
     assert result['tokens_total'] == 3
     assert result['estimate_method'] == 'approximate'
@@ -200,3 +200,40 @@ def test_failed_tokenizer_does_not_return_zero_or_log_prompt_text():
     exec(compile(ast.Module(body=[fn], type_ignores=[]), 'count_tokens', 'exec'), scope)
     assert scope['count_tokens']('PRIVATE_PROMPT') > 0
     assert 'PRIVATE_PROMPT' not in str(scope['log_force'].call_args_list)
+
+
+def test_openai_text_documents_use_the_same_native_file_input_as_generation():
+    scope = namespace()
+    setup_estimate(scope)
+    result = scope['_provider_draft_estimate'](SimpleNamespace(id=1), 'gpt-5', 'test', ['1/document.txt'])
+    assert result['estimate_method'] == 'provider'
+    attachment = scope['_draft_count_call'].call_args.args[-1][0]
+    assert attachment['bytes'] == b'fake'
+    assert 'text' not in attachment
+    body = scope['_draft_counter_request']('openai', 'gpt-5', 'test', [attachment])
+    assert any(part['type'] == 'input_file' for part in body['input'][0]['content'])
+
+
+def test_openai_quote_and_message_match_generation_content_blocks():
+    scope = namespace()
+    setup_estimate(scope)
+    result = scope['_provider_draft_estimate'](SimpleNamespace(id=1), 'gpt-5', 'normalized', [],
+                                               message_text='question', quote_text='quoted')
+    assert result['estimate_method'] == 'provider'
+    text = scope['_draft_count_call'].call_args.args[-2]
+    body = scope['_draft_counter_request']('openai', 'gpt-5', text, [])
+    assert body['input'][0]['content'] == [{'type': 'input_text', 'text': 'User Quote:\nquoted\n---'},
+                                         {'type': 'input_text', 'text': 'question'}]
+
+
+def test_media_only_input_does_not_add_a_synthetic_empty_text_part():
+    scope = namespace()
+    setup_estimate(scope)
+    scope['_draft_count_call'].side_effect = [1120]
+    result = scope['_provider_draft_estimate'](SimpleNamespace(id=1), 'gpt-5', '', ['1/photo.png'])
+    assert result['tokens_prompt'] == 0
+    assert result['tokens_files'] == result['tokens_total'] == 1120
+    assert scope['_draft_count_call'].call_count == 1
+    body = scope['_draft_counter_request']('gemini', 'gemini-3-pro', '',
+        [{'name': 'photo.png', 'mime': 'image/png', 'bytes': b'fake'}])
+    assert all('text' not in part for part in body['contents'][0]['parts'])

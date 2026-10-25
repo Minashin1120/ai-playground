@@ -19,7 +19,8 @@ def _draft_counter_request(provider, model, text, attachments):
                 parts.append({'text': f['text']})
             else:
                 parts.append({'inlineData': {'mimeType': f['mime'], 'data': base64.b64encode(f['bytes']).decode('ascii')}})
-        parts.append({'text': text})
+        if text or not parts:
+            parts.append({'text': text})
         return {'contents': [{'role': 'user', 'parts': parts}]}
     if provider == 'anthropic':
         parts = []
@@ -33,7 +34,10 @@ def _draft_counter_request(provider, model, text, attachments):
             parts.append({'type': 'text', 'text': text or '(empty)'})
         return {'model': model, 'messages': [{'role': 'user', 'content': parts}]}
     if provider == 'openai':
-        parts = []
+        texts = text if isinstance(text, list) else [text]
+        parts = [{'type': 'input_text', 'text': value} for value in texts if value]
+        if not parts and not attachments:
+            parts.append({'type': 'input_text', 'text': ''})
         for f in attachments:
             if f.get('text') is not None:
                 parts.append({'type': 'input_text', 'text': f['text']})
@@ -41,8 +45,6 @@ def _draft_counter_request(provider, model, text, attachments):
                 parts.append({'type': 'input_image', 'image_url': 'data:' + f['mime'] + ';base64,' + base64.b64encode(f['bytes']).decode('ascii')})
             else:
                 parts.append({'type': 'input_file', 'filename': f['name'], 'file_data': 'data:' + f['mime'] + ';base64,' + base64.b64encode(f['bytes']).decode('ascii')})
-        if text or not parts:
-            parts.append({'type': 'input_text', 'text': text})
         return {'model': model, 'input': [{'role': 'user', 'content': parts}]}
     combined = '\n\n'.join([text] + [f['text'] for f in attachments])
     if provider == 'xai':
@@ -98,7 +100,7 @@ def _draft_count_call(user, resolved, model, text, attachments):
     return value
 
 
-def _provider_draft_estimate(user, model, text, references):
+def _provider_draft_estimate(user, model, text, references, message_text=None, quote_text=None):
     """Return an API count, or None so the caller can supply a labelled approximation."""
     provider = get_model_api_provider(model)
     if provider not in {'gemini', 'anthropic', 'openai', 'xai', 'kimi'}:
@@ -131,7 +133,9 @@ def _provider_draft_estimate(user, model, text, references):
             mime = _normalize_media_mime(name, mimetypes.guess_type(name)[0]) or 'application/octet-stream'
             ext = os.path.splitext(name)[1].lower()
             f = {'name': name, 'mime': mime, 'bytes': bits}
-            if mime.startswith('text/') or ext in _TEXT_LIKE_UPLOAD_EXTS:
+            if provider == 'openai' and (mime.startswith('text/') or ext in _TEXT_LIKE_UPLOAD_EXTS or ext == '.docx'):
+                pass  # Responses receives these as native input_file blocks, not extracted text.
+            elif mime.startswith('text/') or ext in _TEXT_LIKE_UPLOAD_EXTS:
                 f['text'] = '[File: ' + name + ']\n' + _decode_text_bytes_for_prompt(bits)
             elif ext == '.docx' and provider != 'openai':
                 f['text'] = '[File: ' + name + ']\n' + _extract_docx_as_numbered(bits)
@@ -141,8 +145,14 @@ def _provider_draft_estimate(user, model, text, references):
                       provider == 'openai' and ext == '.docx'):
                 return None
             attachments.append(f)
-        prompt = _draft_count_call(user, resolved, model, text, [])
-        total = _draft_count_call(user, resolved, model, text, attachments) if attachments else prompt
+        api_text = text
+        if message_text is not None and quote_text:
+            if provider == 'openai':
+                api_text = [f'User Quote:\n{quote_text}\n---', message_text]
+            elif provider in {'xai', 'kimi'}:
+                api_text = f'User Quote:\n{quote_text}\n---\n{message_text}'
+        prompt = _draft_count_call(user, resolved, model, api_text, []) if api_text else 0
+        total = _draft_count_call(user, resolved, model, api_text, attachments) if attachments else prompt
         if total < prompt:
             return None
         counted = True

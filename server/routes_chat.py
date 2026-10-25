@@ -1986,7 +1986,8 @@ def estimate_prompt_tokens_api():
             'files_error': 0
         })
 
-    provider_estimate = _provider_draft_estimate(current_user, model_key, message_for_count, norm_image_urls)
+    provider_estimate = _provider_draft_estimate(current_user, model_key, message_for_count, norm_image_urls,
+                                                message_text=message_text, quote_text=quote_text)
     if provider_estimate is not None:
         return jsonify(provider_estimate)
 

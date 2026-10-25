@@ -117,7 +117,7 @@ class ComposerRulesTest {
             tokenEstimateLine(true, false, JSONObject("""{"countable":false}"""))!!.text)
         val line = tokenEstimateLine(true, false, JSONObject(
             """{"countable":true,"tokens_total":42,"tokens_prompt":30,"tokens_files":12,"files_non_text":1,"files_error":2}"""))!!
-        assertEquals("入力見積: 42 tokens (本文 30 / ファイル 12) ・ 非テキスト1件は0換算 / 失敗2件", line.text)
+        assertEquals("入力見積: 一部のみ 42 tokens (本文 30 / ファイル 12) ・ 未計測1件 / 失敗2件", line.text)
         assertEquals("count", line.tone)
     }
 }

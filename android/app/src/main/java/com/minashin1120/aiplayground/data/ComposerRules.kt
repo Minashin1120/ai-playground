@@ -314,13 +314,20 @@ fun tokenEstimateLine(hasInput: Boolean, pending: Boolean, data: org.json.JSONOb
     if (data == null) return TokenEstimateLine("入力トークンを計算できませんでした", "error")
     if (!data.optBoolean("countable")) return TokenEstimateLine("このモデルは入力トークン表示対象外です", "muted")
     val notes = buildList {
-        data.optInt("files_non_text").takeIf { it > 0 }?.let { add("非テキスト${it}件は0換算") }
+        data.optInt("files_non_text").takeIf { it > 0 }?.let { add("未計測${it}件") }
         data.optInt("files_missing").takeIf { it > 0 }?.let { add("未検出${it}件") }
         data.optInt("files_error").takeIf { it > 0 }?.let { add("失敗${it}件") }
     }
-    val noteText = if (notes.isEmpty()) "" else " ・ ${notes.joinToString(" / ")}"
+    val methodNotes = buildList {
+        if (data.has("estimate_method")) add(if (data.optString("estimate_method") == "provider") "プロバイダー計測" else "概算")
+        if (data.optString("estimate_scope") == "draft") add("入力欄のみ（履歴・SysPrompt除外）")
+    }
+    val incomplete = data.optInt("files_non_text") + data.optInt("files_missing") + data.optInt("files_error") > 0
+    val prefix = if (incomplete) "一部のみ " else ""
+    val allNotes = notes + methodNotes
+    val noteText = if (allNotes.isEmpty()) "" else " ・ ${allNotes.joinToString(" / ")}"
     return TokenEstimateLine(
-        "入力見積: ${data.optLong("tokens_total")} tokens (本文 ${data.optLong("tokens_prompt")} / ファイル ${data.optLong("tokens_files")})$noteText",
+        "入力見積: $prefix${data.optLong("tokens_total")} tokens (本文 ${data.optLong("tokens_prompt")} / ファイル ${data.optLong("tokens_files")})$noteText",
         "count",
     )
 }

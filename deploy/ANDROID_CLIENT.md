@@ -249,7 +249,7 @@ Bearer認証でHTMLのエラー応答を受けた場合はJSONへ変換します
 | POST `/api/realtime/commit`、`/api/realtime/cancel`、`/api/realtime/save` | `session_id`、保存時は任意の `thread_id` | 発話確定、破棄、履歴保存 |
 | POST `/api/gemini/music/start`、GET `/api/gemini/music/stream` | `weighted_prompts`、SSEの `session_id` | Lyriaセッション。SSEの最初のイベントは `snapshot: true` と `status`（状態のみ。録音全体は送らず、保存はサーバー側の録音を使う）、以降はBase64音声（`audio`）、`error`、`final`。各リクエストは別のサーバープロセスに届いてもよい（Redis経由で中継） |
 | POST `/api/gemini/music/command`、`/cancel`、`/save` | `session_id`、`control`／`action`、保存時は任意の `thread_id` | 一時停止／再開、破棄、履歴保存 |
-| POST `/api/token_estimate` | `model`, `message`, `quote_text`, `image_urls` | 既存のトークン見積応答（`countable`, `tokens_total`, `tokens_prompt`, `tokens_files` など）。入力欄の下にWebと同じ文言で表示する。請求額の確定値ではない |
+| POST `/api/token_estimate` | `model`, `message`, `quote_text`, `image_urls` | 既存のトークン見積応答（`countable`, `tokens_total`, `tokens_prompt`, `tokens_files` など）。入力欄の下にWebと同じ文言で表示する。`estimate_method` は `provider`（プロバイダーの計測API）または `approximate`（概算）、`estimate_scope` は `draft`（入力欄の本文・引用・添付。履歴・SysPrompt・ツールは含めない）。Gemini・OpenAI・Claudeは添付を含む計測API、Grok・Kimiはテキストの計測APIを優先する。端末内モードも同じ方針で事業者へ直接計測し、計測できない場合は概算へ切り替える。計測だけで回答生成・Files APIへの永続アップロードは行わない。入力が落ち着いて700ms後に計測し、結果だけを最大60秒キャッシュする。大容量・未対応形式・APIエラーでは概算と未計測件数を表示する。請求額の確定値ではない |
 | POST `/api/temporary_chat/heartbeat` | `thread_id`, `active` | 一時チャットの状態・期限情報 |
 | GET `/c/<thread_id>/pdf` | 任意で `leaf_id` | スレッドのPDF用JSON。AndroidはネイティブA4へ描画して共有する |
 | POST `/upload` | multipart/form-data、同名 `file` フィールドを必要数 | `filename`（先頭）, `filenames`（全件） |

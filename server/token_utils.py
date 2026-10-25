@@ -120,7 +120,8 @@ def count_tokens(text, model="gpt-4"):
             enc = _get_token_encoder(model_hint)
             c = len(enc.encode(raw, disallowed_special=()))
             if c == 0 and raw.strip():
-                log_force(f"Token count 0 for non-empty text: {raw[:20]}...")
+                log_force("Token count 0 for non-empty text")
+                continue
             return c
         except Exception:
             continue
@@ -141,6 +142,14 @@ LLM_TOKEN_MARKERS = (
     "gpt",
     "gemini",
     "grok",
+    "claude",
+    "deepseek",
+    "glm-",
+    "kimi",
+    "mistral",
+    "o1",
+    "o3",
+    "o4",
 )
 
 PROMPT_TOKEN_MARKERS = (

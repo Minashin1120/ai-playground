@@ -178,9 +178,15 @@ class LocalChatBackend(
             val model = payload.optString("model")
             val quote = payload.optString("quote_text")
             val message = payload.optString("message")
-            val prompt = estimateTokens(if (quote.isEmpty()) message else
-                "Context (User Quote):\n\"\"\"\n$quote\n\"\"\"\n\nUser Message:\n$message")
+            val text = if (quote.isEmpty()) message else
+                "Context (User Quote):\n\"\"\"\n$quote\n\"\"\"\n\nUser Message:\n$message"
+            val prompt = estimateTokens(text)
             val refs = attachmentRefs(payload)
+            providerEstimate(model, text, refs)?.let {
+                ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "done", "files" to refs.size,
+                    "ms" to System.currentTimeMillis() - started)
+                return it
+            }
             var tokens = 0
             var counted = 0
             var missing = 0
@@ -216,7 +222,8 @@ class LocalChatBackend(
             }
             ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "done",
                 "files" to refs.size, "failed_files" to errors + missing, "ms" to System.currentTimeMillis() - started)
-            return JSONObject().put("countable", true).put("tokens_total", prompt + tokens).put("tokens_prompt", prompt)
+            return JSONObject().put("estimate_method", "approximate").put("estimate_scope", "draft")
+                .put("countable", true).put("tokens_total", prompt + tokens).put("tokens_prompt", prompt)
                 .put("tokens_files", tokens).put("files_total", refs.size).put("files_counted", counted)
                 .put("files_non_text", nonText).put("files_missing", missing).put("files_error", errors)
         } catch (e: CancellationException) {
@@ -225,6 +232,43 @@ class LocalChatBackend(
         } catch (e: Exception) {
             ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "error")
             throw e
+        }
+    }
+
+    private suspend fun providerEstimate(model: String, text: String, refs: List<String>): JSONObject? {
+        if (modeOf(model) != "chat") return null
+        val found = router.route(model, modeOf(model)) ?: return null
+        try {
+            val vertex = if (found.provider == "gemini") vertexTarget() else null
+            val key = if (vertex != null) "" else settings.apiKeyFor(model) ?: return null
+            var remaining = 16L * 1024 * 1024 - text.toByteArray().size
+            if (remaining < 0) return null
+            val attachments = refs.map { ref ->
+                val local = LocalChatStore.isLocalReference(ref)
+                val info = if (local) store.fileInfo(ref) else null
+                if (remaining <= 0 || (info != null && info.optLong("size") > remaining)) return null
+                val job = currentCoroutineContext()[Job]
+                val bytes = if (local) store.loadFile(ref, remaining) { job?.isActive == false }
+                    else remote?.file(ref, remaining)
+                if (bytes == null) return null
+                remaining -= bytes.size
+                val name = info?.optString("name") ?: ref.substringAfterLast('/')
+                val mime = info?.optString("mime") ?: java.net.URLConnection.guessContentTypeFromName(name).orEmpty()
+                AttachmentExtractor.prepare(name, mime, bytes)
+            }
+            val request = DirectRequest(model, key, "", listOf(DirectTurn("user", text)), JSONObject())
+            val prompt = router.tokenCounter.count(request, vertex) ?: return null
+            val total = if (attachments.isEmpty()) prompt else router.tokenCounter.count(
+                request.copy(turns = listOf(DirectTurn("user", text, attachments))), vertex) ?: return null
+            if (total < prompt) return null
+            return JSONObject().put("countable", true).put("tokens_total", total).put("tokens_prompt", prompt)
+                .put("tokens_files", total - prompt).put("files_total", refs.size).put("files_counted", refs.size)
+                .put("files_non_text", 0).put("files_missing", 0).put("files_error", 0)
+                .put("estimate_method", "provider").put("estimate_scope", "draft")
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "error")
+            return null
         }
     }
 

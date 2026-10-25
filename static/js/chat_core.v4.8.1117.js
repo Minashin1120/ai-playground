@@ -4445,7 +4445,7 @@
                 delete messageMeta.__total_all_branches__;
             }
         }
-        const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS = 300;
+        const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS = 700;
         let promptTokenEstimateTimer = null;
         let promptTokenEstimateAbort = null;
         let promptTokenEstimateSeq = 0;
@@ -4494,15 +4494,21 @@
             const total = Number(data.tokens_total || 0);
             const prompt = Number(data.tokens_prompt || 0);
             const files = Number(data.tokens_files || 0);
+            const incomplete = Number(data.files_non_text || 0) + Number(data.files_missing || 0) + Number(data.files_error || 0) > 0;
             const notes = [];
-            if (Number(data.files_non_text || 0) > 0) notes.push(`非テキスト${data.files_non_text}件は0換算`);
+            if (Number(data.files_non_text || 0) > 0) notes.push(`未計測${data.files_non_text}件`);
             if (Number(data.files_missing || 0) > 0) notes.push(`未検出${data.files_missing}件`);
             if (Number(data.files_error || 0) > 0) notes.push(`失敗${data.files_error}件`);
+            if (data.estimate_method) notes.push(data.estimate_method === 'provider' ? 'プロバイダー計測' : '概算');
+            if (data.estimate_scope === 'draft') notes.push('入力欄のみ（履歴・SysPrompt除外）');
             const noteText = notes.length ? ` ・ ${notes.join(' / ')}` : '';
-            setPromptTokenEstimateText(`入力見積: ${total} tokens (本文 ${prompt} / ファイル ${files})${noteText}`, 'text-cyan-300');
+            setPromptTokenEstimateText(`入力見積: ${incomplete ? '一部のみ ' : ''}${total} tokens (本文 ${prompt} / ファイル ${files})${noteText}`, 'text-cyan-300');
         }
         function schedulePromptTokenEstimate(immediate = false) {
             const payload = buildPromptTokenEstimatePayload();
+            ++promptTokenEstimateSeq;
+            if (promptTokenEstimateTimer) { clearTimeout(promptTokenEstimateTimer); promptTokenEstimateTimer = null; }
+            if (promptTokenEstimateAbort) { promptTokenEstimateAbort.abort(); promptTokenEstimateAbort = null; }
             const hasPrompt = !!((payload.message || '').trim() || (payload.quote_text || '').trim());
             const hasFiles = Array.isArray(payload.image_urls) && payload.image_urls.length > 0;
             if (!hasPrompt && !hasFiles) {

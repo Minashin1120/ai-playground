@@ -1986,6 +1986,10 @@ def estimate_prompt_tokens_api():
             'files_error': 0
         })
 
+    provider_estimate = _provider_draft_estimate(current_user, model_key, message_for_count, norm_image_urls)
+    if provider_estimate is not None:
+        return jsonify(provider_estimate)
+
     prompt_tokens = count_tokens(message_for_count or "", model_key)
     file_tokens = 0
     files_counted = 0
@@ -2009,6 +2013,8 @@ def estimate_prompt_tokens_api():
 
     return jsonify({
         'countable': True,
+        'estimate_method': 'approximate',
+        'estimate_scope': 'draft',
         'tokens_total': prompt_tokens + file_tokens,
         'tokens_prompt': prompt_tokens,
         'tokens_files': file_tokens,

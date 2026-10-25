@@ -1136,7 +1136,7 @@ private fun SendStopButton(state: ChatState, phone: Boolean, onSend: () -> Unit,
     }
 }
 
-/** `#prompt-token-estimate`, refreshed 300 ms after the input settles (Web `schedulePromptTokenEstimate`). */
+/** `#prompt-token-estimate`, refreshed 700 ms after the input settles (Web `schedulePromptTokenEstimate`). */
 @Composable
 private fun TokenEstimate(state: ChatState) {
     val web = LocalWebPalette.current
@@ -1150,8 +1150,8 @@ private fun TokenEstimate(state: ChatState) {
     val viewModel = LocalComposerEstimator.current
     LaunchedEffect(model, message, quote, files) {
         if (!hasInput || viewModel == null) { pending = false; result = null; return@LaunchedEffect }
-        delay(300)
         pending = true
+        delay(700)
         result = try { viewModel(model, message, quote, files) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { null }

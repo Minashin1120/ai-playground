@@ -6,6 +6,8 @@ package com.minashin1120.aiplayground.data.direct
  * provider's API origin (tests only).
  */
 class DirectRouter(private val http: DirectHttp, private val bases: Map<String, String> = emptyMap()) {
+    val tokenCounter = ProviderTokenCounter(http, bases)
+
     data class Route(val provider: String, val engine: DirectEngine)
 
     private fun base(provider: String, default: String) = bases[provider] ?: default

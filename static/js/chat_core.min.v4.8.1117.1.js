@@ -1435,7 +1435,7 @@ r.innerText="All branches: 0 tokens",r.onclick=null,delete messageMeta.__total_a
 classList.add("hidden"),a.innerText="Total: 0 tokens",a.classList.remove("cursor-pointer","underline",
 "decoration-dotted"),a.onclick=null,delete messageMeta.__total__,r&&(r.classList.add("hidden"),r.classList.
 remove("cursor-pointer","underline","decoration-dotted"),r.innerText="All branches: 0 tokens",r.onclick=
-null),delete messageMeta.__total_all_branches__)}o(updateTotalTokenBar,"updateTotalTokenBar");const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS=300;
+null),delete messageMeta.__total_all_branches__)}o(updateTotalTokenBar,"updateTotalTokenBar");const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS=700;
 let promptTokenEstimateTimer=null,promptTokenEstimateAbort=null,promptTokenEstimateSeq=0,promptTokenEstimateLastKey="",
 promptTokenEstimateLastData=null;function setPromptTokenEstimateText(e,t="text-gray-400"){const n=get(
 "prompt-token-estimate");if(n){if(!e){n.classList.add("hidden"),n.innerText="";return}n.className=`m\
@@ -1450,13 +1450,18 @@ if(e&&e.pending){setPromptTokenEstimateText("\u5165\u529B\u30C8\u30FC\u30AF\u30F
 "text-gray-500");return}if(!e){setPromptTokenEstimateText("\u5165\u529B\u30C8\u30FC\u30AF\u30F3\u3092\u8A08\u7B97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F",
 "text-red-300");return}if(!e.countable){setPromptTokenEstimateText("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u5165\u529B\u30C8\u30FC\u30AF\u30F3\u8868\u793A\u5BFE\u8C61\u5916\u3067\u3059",
 "text-gray-500");return}const r=Number(e.tokens_total||0),l=Number(e.tokens_prompt||0),c=Number(e.tokens_files||
-0),u=[];Number(e.files_non_text||0)>0&&u.push(`\u975E\u30C6\u30AD\u30B9\u30C8${e.files_non_text}\u4EF6\u306F0\u63DB\
-\u7B97`),Number(e.files_missing||0)>0&&u.push(`\u672A\u691C\u51FA${e.files_missing}\u4EF6`),Number(e.
-files_error||0)>0&&u.push(`\u5931\u6557${e.files_error}\u4EF6`);const f=u.length?` \u30FB ${u.join("\
- / ")}`:"";setPromptTokenEstimateText(`\u5165\u529B\u898B\u7A4D: ${r} tokens (\u672C\u6587 ${l} / \u30D5\u30A1\
-\u30A4\u30EB ${c})${f}`,"text-cyan-300")}o(renderPromptTokenEstimate,"renderPromptTokenEstimate");function schedulePromptTokenEstimate(e=!1){
-const t=buildPromptTokenEstimatePayload(),n=!!((t.message||"").trim()||(t.quote_text||"").trim()),i=Array.
-isArray(t.image_urls)&&t.image_urls.length>0;if(!n&&!i){promptTokenEstimateLastKey="",promptTokenEstimateLastData=
+0),u=Number(e.files_non_text||0)+Number(e.files_missing||0)+Number(e.files_error||0)>0,f=[];Number(e.
+files_non_text||0)>0&&f.push(`\u672A\u8A08\u6E2C${e.files_non_text}\u4EF6`),Number(e.files_missing||
+0)>0&&f.push(`\u672A\u691C\u51FA${e.files_missing}\u4EF6`),Number(e.files_error||0)>0&&f.push(`\u5931\u6557${e.
+files_error}\u4EF6`),e.estimate_method&&f.push(e.estimate_method==="provider"?"\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u8A08\u6E2C":
+"\u6982\u7B97"),e.estimate_scope==="draft"&&f.push("\u5165\u529B\u6B04\u306E\u307F\uFF08\u5C65\u6B74\u30FBSysPrompt\u9664\u5916\uFF09");
+const b=f.length?` \u30FB ${f.join(" / ")}`:"";setPromptTokenEstimateText(`\u5165\u529B\u898B\u7A4D: ${u?
+"\u4E00\u90E8\u306E\u307F ":""}${r} tokens (\u672C\u6587 ${l} / \u30D5\u30A1\u30A4\u30EB ${c})${b}`,
+"text-cyan-300")}o(renderPromptTokenEstimate,"renderPromptTokenEstimate");function schedulePromptTokenEstimate(e=!1){
+const t=buildPromptTokenEstimatePayload();++promptTokenEstimateSeq,promptTokenEstimateTimer&&(clearTimeout(
+promptTokenEstimateTimer),promptTokenEstimateTimer=null),promptTokenEstimateAbort&&(promptTokenEstimateAbort.
+abort(),promptTokenEstimateAbort=null);const n=!!((t.message||"").trim()||(t.quote_text||"").trim()),
+i=Array.isArray(t.image_urls)&&t.image_urls.length>0;if(!n&&!i){promptTokenEstimateLastKey="",promptTokenEstimateLastData=
 null,promptTokenEstimateTimer&&(clearTimeout(promptTokenEstimateTimer),promptTokenEstimateTimer=null),
 promptTokenEstimateAbort&&(promptTokenEstimateAbort.abort(),promptTokenEstimateAbort=null),renderPromptTokenEstimate(
 null,t);return}const a=JSON.stringify([t.model||"",t.message||"",t.quote_text||"",t.image_urls||[]]);

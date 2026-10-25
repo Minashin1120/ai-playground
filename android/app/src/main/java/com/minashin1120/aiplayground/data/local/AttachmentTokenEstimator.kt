@@ -75,6 +75,8 @@ internal object AttachmentTokenEstimator {
             if (tokens != null) return AttachmentTokenEstimate(tokens)
         }
         val text = attachment.text ?: return AttachmentTokenEstimate(reason = "non_text")
-        return AttachmentTokenEstimate(LocalChatBackend.estimateTokens(text))
+        if (text == "（この形式の内容は端末では読み取れません）") return AttachmentTokenEstimate(reason = "non_text")
+        if (text in setOf("（DOCXを読み取れませんでした）", "（XLSXを読み取れませんでした）")) return AttachmentTokenEstimate(reason = "error")
+        return AttachmentTokenEstimate(LocalChatBackend.estimateTokens(com.minashin1120.aiplayground.data.direct.attachmentText(attachment)))
     }
 }

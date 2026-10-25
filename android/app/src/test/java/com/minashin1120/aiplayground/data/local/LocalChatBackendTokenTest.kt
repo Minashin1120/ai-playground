@@ -44,7 +44,7 @@ class LocalChatBackendTokenTest {
         val body = JSONObject().put("model", "gemini-3-pro-preview").put("message", "hello")
             .put("image_urls", JSONArray(listOf(ref, textRef, missing)))
         val result = backend.post("/api/token_estimate", body)
-        assertEquals(1120 + LocalChatBackend.estimateTokens(text), result.getInt("tokens_files"))
+        assertEquals(1120 + LocalChatBackend.estimateTokens("[添付ファイル: test.txt]\n$text"), result.getInt("tokens_files"))
         assertEquals(result.getInt("tokens_prompt") + result.getInt("tokens_files"), result.getInt("tokens_total"))
         assertEquals(2, result.getInt("files_counted"))
         assertEquals(1, result.getInt("files_missing"))

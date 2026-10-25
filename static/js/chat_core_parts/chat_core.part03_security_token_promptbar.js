@@ -1305,6 +1305,23 @@
             if (opts && opts.dataset.thinkingMode === 'effort') return get('reasoning-effort');
             return get('thinking-level');
         }
+        function thinkingUsesLevelSlider() {
+            if (get('thinking-options')?.dataset.thinkingMode === 'effort') return true;
+            return !!get('thinking-budget')?.disabled && thinkingOptionsList().length > 0;
+        }
+        function thinkingSliderOptions() {
+            const opts = thinkingOptionsList();
+            const chk = get('enable-thinking');
+            if (get('thinking-options')?.dataset.thinkingMode !== 'effort' && chk && !chk.disabled) {
+                return [{ value: 'off', textContent: 'Off' }, ...opts];
+            }
+            return opts;
+        }
+        function thinkingSliderValue() {
+            const chk = get('enable-thinking');
+            return get('thinking-options')?.dataset.thinkingMode !== 'effort' && chk && !chk.checked
+                ? 'off' : activeThinkingSelect()?.value;
+        }
         function thinkingOptionsList() {
             const sel = activeThinkingSelect();
             if (!sel) return [];
@@ -1312,6 +1329,7 @@
         }
         function currentThinkingLevelLabel() {
             const sel = activeThinkingSelect();
+            if (thinkingSliderValue() === 'off') return 'Off';
             if (!sel) return THINKING_LEVELS[3].label;
             if (sel.selectedOptions && sel.selectedOptions[0]) return sel.selectedOptions[0].textContent.trim();
             const level = THINKING_LEVELS.find((item) => item.value === sel.value);
@@ -1425,8 +1443,7 @@
                 return;
             }
             if (item.special === 'thinking') {
-                if (get('thinking-options')?.dataset.thinkingMode === 'effort') {
-                    // Effort (including None) is selected directly in the slider.
+                if (thinkingUsesLevelSlider()) {
                     closeMinimalOptions();
                     showThinkingSlider();
                     return;
@@ -1439,7 +1456,7 @@
                     const turningOn = !chk.checked;
                     chk.checked = turningOn;
                     chk.dispatchEvent(new Event('change', { bubbles: true }));
-                    if (turningOn) {
+                    if (turningOn && thinkingOptionsList().length) {
                         closeMinimalOptions();
                         showThinkingSlider();
                     } else {
@@ -1559,7 +1576,7 @@
 
         // --- Thinking level slide bar ---
         function allowedThinkingValues() {
-            return thinkingOptionsList().map((o) => o.value);
+            return thinkingSliderOptions().map((o) => o.value);
             // All options disabled (e.g. Claude uses budget only) -> nothing to pick.
         }
         function thinkingIndexFromValue(value) {
@@ -1571,9 +1588,8 @@
             const slider = get('thinking-slider');
             const label = get('thinking-slide-value');
             const scale = get('thinking-slide-scale');
-            const opts = thinkingOptionsList();
-            const sel = activeThinkingSelect();
-            let idx = opts.findIndex((o) => o.value === (sel ? sel.value : ''));
+            const opts = thinkingSliderOptions();
+            let idx = opts.findIndex((o) => o.value === thinkingSliderValue());
             if (idx < 0) idx = Math.max(0, opts.length - 1);
             if (slider) {
                 slider.min = '0';

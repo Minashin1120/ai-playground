@@ -157,7 +157,7 @@ internal fun MinimalOptionsPopup(
             val thinkingValue = state.chipValues[thinkingKey].orEmpty()
             val checked = if (rules.effortAsThinking) thinkingValue != "none" else on(state.enableThinking, rules.thinking)
             add(MinimalItem("thinking", R.drawable.fa_solid_brain, "Thinking",
-                MinimalAction.Thinking(rules.thinking, checked, thinkingLabels[thinkingValue] ?: thinkingValue)))
+                MinimalAction.Thinking(rules.thinking, checked, if (!checked && !rules.effortAsThinking && !rules.budgetEnabled) "Off" else thinkingLabels[thinkingValue] ?: thinkingValue)))
         }
         add(MinimalItem("safety", R.drawable.fa_solid_shield_halved, "Safety", MinimalAction.Select(
             state.chipValues["safety_setting"].orEmpty(), listOf(WebOption("default", "Default"), WebOption("none", "None")),
@@ -231,12 +231,12 @@ internal fun MinimalOptionsPopup(
                                                 is MinimalAction.Run -> close(action.run)
                                                 is MinimalAction.Toggle -> if (action.rule?.interactive != false) action.toggle()
                                                 is MinimalAction.Thinking -> {
-                                                    if (rules.effortAsThinking) {
-                                                        // Select Effort, including None, directly in the slider.
+                                                    if (rules.effortAsThinking || (!rules.budgetEnabled && rules.thinkingLevels.isNotEmpty())) {
+                                                        // Select the level, including Off/None, directly in the slider.
                                                         close(onShowThinkingSlider)
                                                     } else if (!action.rule.disabled && !action.rule.dimmed) {
                                                         model.toggleThinking()
-                                                        if (!action.checked) close(onShowThinkingSlider)
+                                                        if (!action.checked && rules.thinkingLevels.isNotEmpty()) close(onShowThinkingSlider)
                                                     } else close(onShowThinkingSlider) // Forced Thinking still allows level changes.
                                                 }
                                                 is MinimalAction.Select -> Unit
@@ -350,10 +350,11 @@ internal fun ThinkingSlideBar(state: ChatState, model: ChatViewModel, rules: Com
     LaunchedEffect(touched) { delay(2500); visible.targetState = false }
     LaunchedEffect(visible.currentState, visible.targetState) { if (!visible.targetState && !visible.currentState) onDismiss() }
     val key = if (rules.effortAsThinking) "reasoning_effort" else "thinking_level"
-    val labels = if (rules.effortAsThinking) EFFORT_LABELS else THINKING_LABELS
+    val canDisable = !rules.effortAsThinking && !rules.thinking.disabled && !rules.thinking.dimmed
+    val labels = (if (rules.effortAsThinking) EFFORT_LABELS else THINKING_LABELS) + ("off" to "Off")
     val order = if (rules.effortAsThinking) EFFORT_LEVELS else THINKING_LEVELS
-    val levels = order.filter { it in rules.thinkingLevels }
-    val value = state.chipValues[key].orEmpty()
+    val levels = (if (canDisable) listOf("off") else emptyList()) + order.filter { it in rules.thinkingLevels }
+    val value = if (canDisable && !state.enableThinking) "off" else state.chipValues[key].orEmpty()
     val index = levels.indexOf(value).takeIf { it >= 0 } ?: levels.lastIndex.coerceAtLeast(0)
     // Web's `#thinking-slide-bar` has no backdrop: an outside tap leaves it open until the timer, × or a swipe.
     Popup(popupPositionProvider = remember(gap) { AboveAnchor(gap) }, onDismissRequest = { visible.targetState = false },
@@ -396,7 +397,11 @@ internal fun ThinkingSlideBar(state: ChatState, model: ChatViewModel, rules: Com
                     { raw ->
                         if (levels.isNotEmpty()) {
                             val target = raw.toInt().coerceIn(0, levels.lastIndex)
-                            if (levels[target] != value) model.generationOption(key, levels[target])
+                            if (levels[target] != value) {
+                                val selected = levels[target]
+                                if (!rules.effortAsThinking && state.enableThinking != (selected != "off")) model.toggleThinking()
+                                if (selected != "off") model.generationOption(key, selected)
+                            }
                         }
                         touched++
                     },

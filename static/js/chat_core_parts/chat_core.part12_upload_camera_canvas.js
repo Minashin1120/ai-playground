@@ -4,6 +4,7 @@
                     uploadFileChunked(file, row).then(resolve);
                     return;
                 }
+                if (isUploadCancelled(row)) { resolve(false); return; }
                 let uploadOpStarted = false;
                 if (window.ConnectionMonitor) {
                     window.ConnectionMonitor.operationStarted();
@@ -31,7 +32,7 @@
                     let d = {};
                     try { d = JSON.parse(xhr.responseText || '{}'); } catch (e) {}
                     if (xhr.status >= 200 && xhr.status < 300 && d && d.filename) {
-                        if (row && row.row && row.uploadId && uploadCancelTokens.has(row.uploadId)) {
+                        if (isUploadCancelled(row)) {
                             if (row.row && row.row.parentNode) row.row.remove();
                             finishUploadOp();
                             resolve(false);
@@ -888,6 +889,7 @@
             const incoming = Array.from(fs).filter(Boolean);
             if (!incoming.length) return;
             const allowedIncoming = incoming;
+            const generation = uploadGeneration;
             if (opts.openModal !== false) {
                 openUploadModal();
             } else {
@@ -902,6 +904,7 @@
             const support = getModelMediaSupport(get('model-select').value);
             const processOne = async (f) => {
                 let currentUploadId = null;
+                if (generation !== uploadGeneration) return false;
                 try {
                     if (isAudioFile(f) && !support.audio) {
                         showToast("このモデルは音声入力に対応していません", "error", true);
@@ -922,6 +925,7 @@
                         return false;
                     }
                     const rowObj = addUploadRow(f);
+                    rowObj.generation = generation;
                     updateFilePreview(); // Immediate feedback
                     currentUploadId = rowObj.uploadId;
                     uploadProgressState.perFilePct[currentUploadId] = 0;
@@ -944,6 +948,7 @@
                             if (t !== f) updateUploadRowFile(rowObj, t);
                         } catch(e){}
                     }
+                    if (isUploadCancelled(rowObj)) return false;
                     if (browserFastModeEnabled) {
                         const existingBytes = Array.from(browserFastLocalFiles.values())
                             .reduce((sum, entry) => sum + Number(entry.file && entry.file.size || 0), 0);
@@ -961,20 +966,22 @@
                     }
                     return await uploadFileWithProgress(t, rowObj);
                 } finally {
-                    if (currentUploadId) {
-                        if (uploadProgressState.perFilePct.hasOwnProperty(currentUploadId)) {
-                            delete uploadProgressState.perFilePct[currentUploadId];
-                            uploadProgressState.completed++;
-                            uploadProgressState.active--;
+                    if (generation === uploadGeneration) {
+                        if (currentUploadId) {
+                            if (uploadProgressState.perFilePct.hasOwnProperty(currentUploadId)) {
+                                delete uploadProgressState.perFilePct[currentUploadId];
+                                uploadProgressState.completed++;
+                                uploadProgressState.active--;
+                            }
                         }
+                        if (uploadProgressState.active <= 0) {
+                            uploadProgressState.total = 0;
+                            uploadProgressState.completed = 0;
+                            uploadProgressState.active = 0;
+                            uploadProgressState.perFilePct = {};
+                        }
+                        updateFilePreview();
                     }
-                    if (uploadProgressState.active <= 0) {
-                        uploadProgressState.total = 0;
-                        uploadProgressState.completed = 0;
-                        uploadProgressState.active = 0;
-                        uploadProgressState.perFilePct = {};
-                    }
-                    updateFilePreview();
                 }
             };
             let cursor = 0;
@@ -988,7 +995,7 @@
             });
             await Promise.all(workers);
         }
-        get('clear-file-btn').onclick = () => { resetUploadState(); };
+        get('clear-file-btn').onclick = (e) => { e.stopPropagation(); resetUploadState(); };
         if (get('clear-mask-btn')) {
             get('clear-mask-btn').onclick = () => {
                 currentMaskImage = null;

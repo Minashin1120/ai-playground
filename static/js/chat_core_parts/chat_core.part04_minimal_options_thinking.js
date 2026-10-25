@@ -63,8 +63,18 @@
                     const sel = activeThinkingSelect();
                     if (allowed.length && sel) {
                         const targetIdx = Math.max(0, Math.min(idx, allowed.length - 1));
-                        sel.value = allowed[targetIdx];
-                        sel.dispatchEvent(new Event('change', { bubbles: true }));
+                        const value = allowed[targetIdx];
+                        const chk = get('enable-thinking');
+                        if (value === 'off') {
+                            if (chk) { chk.checked = false; chk.dispatchEvent(new Event('change', { bubbles: true })); }
+                        } else {
+                            if (get('thinking-options')?.dataset.thinkingMode !== 'effort' && chk && !chk.checked) {
+                                chk.checked = true;
+                                chk.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                            sel.value = value;
+                            sel.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
                     }
                     syncThinkingSliderUi();
                     scheduleThinkingSliderHide();
@@ -346,7 +356,8 @@
                 if (!el) continue;
                 if (el.type === 'checkbox') el.checked = !!options[key];
                 else el.value = String(options[key]);
-                el.dispatchEvent(new Event('change', { bubbles: true }));
+                if (key === 'enable_prompt_caching') updatePromptCacheUi();
+                else el.dispatchEvent(new Event('change', { bubbles: true }));
             }
             if (Object.prototype.hasOwnProperty.call(options, 'image_vision_model')) {
                 currentVisionModel = options.image_vision_model;

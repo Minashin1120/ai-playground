@@ -698,6 +698,12 @@
         }
         let uploadProgressState = { total: 0, completed: 0, active: 0, perFilePct: {} };
         const uploadCancelTokens = new Set();
+        let uploadGeneration = 0;
+        function isUploadCancelled(row) {
+            return !!(row && (row.generation !== undefined && row.generation !== uploadGeneration
+                || row.uploadId && uploadCancelTokens.has(row.uploadId)
+                || row.row && !row.row.isConnected));
+        }
 
         function updateGlobalUploadProgress(uploadId, pct) {
             if (uploadProgressState.perFilePct.hasOwnProperty(uploadId)) {
@@ -706,6 +712,7 @@
             }
         }
         function resetUploadState() {
+            uploadGeneration++;
             browserFastLocalFiles.forEach((entry) => {
                 const row = entry && entry.rowObj ? entry.rowObj.row : null;
                 const localUrl = row ? row.getAttribute('data-local-url') : null;
@@ -724,10 +731,10 @@
                 thumbContainer.innerHTML = '';
                 thumbContainer.classList.add('hidden');
             }
-            updateFilePreview();
-            updateMaskPreview();
             const list = get('upload-list');
             if (list) list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
+            updateFilePreview();
+            updateMaskPreview();
 
             const input = get('file-input');
             if (input) input.value = '';
@@ -1284,6 +1291,7 @@
         // Use chunked upload for medium/large files to avoid proxy/body size limits.
         const CHUNK_THRESHOLD_BYTES = 20 * 1024 * 1024;
         async function uploadFileChunked(file, row) {
+            if (isUploadCancelled(row)) return false;
             if (!file) return false;
             let uploadOpStarted = false;
             if (window.ConnectionMonitor) {
@@ -1350,7 +1358,7 @@
                 });
                 const doneData = await doneRes.json();
                 if (doneRes.ok && doneData && doneData.filename) {
-                    if (row && row.row && row.uploadId && uploadCancelTokens.has(row.uploadId)) {
+                    if (isUploadCancelled(row)) {
                         if (row.row && row.row.parentNode) row.row.remove();
                         return false;
                     }

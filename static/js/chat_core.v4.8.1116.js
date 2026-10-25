@@ -4780,6 +4780,23 @@
             if (opts && opts.dataset.thinkingMode === 'effort') return get('reasoning-effort');
             return get('thinking-level');
         }
+        function thinkingUsesLevelSlider() {
+            if (get('thinking-options')?.dataset.thinkingMode === 'effort') return true;
+            return !!get('thinking-budget')?.disabled && thinkingOptionsList().length > 0;
+        }
+        function thinkingSliderOptions() {
+            const opts = thinkingOptionsList();
+            const chk = get('enable-thinking');
+            if (get('thinking-options')?.dataset.thinkingMode !== 'effort' && chk && !chk.disabled) {
+                return [{ value: 'off', textContent: 'Off' }, ...opts];
+            }
+            return opts;
+        }
+        function thinkingSliderValue() {
+            const chk = get('enable-thinking');
+            return get('thinking-options')?.dataset.thinkingMode !== 'effort' && chk && !chk.checked
+                ? 'off' : activeThinkingSelect()?.value;
+        }
         function thinkingOptionsList() {
             const sel = activeThinkingSelect();
             if (!sel) return [];
@@ -4787,6 +4804,7 @@
         }
         function currentThinkingLevelLabel() {
             const sel = activeThinkingSelect();
+            if (thinkingSliderValue() === 'off') return 'Off';
             if (!sel) return THINKING_LEVELS[3].label;
             if (sel.selectedOptions && sel.selectedOptions[0]) return sel.selectedOptions[0].textContent.trim();
             const level = THINKING_LEVELS.find((item) => item.value === sel.value);
@@ -4900,8 +4918,7 @@
                 return;
             }
             if (item.special === 'thinking') {
-                if (get('thinking-options')?.dataset.thinkingMode === 'effort') {
-                    // Effort (including None) is selected directly in the slider.
+                if (thinkingUsesLevelSlider()) {
                     closeMinimalOptions();
                     showThinkingSlider();
                     return;
@@ -4914,7 +4931,7 @@
                     const turningOn = !chk.checked;
                     chk.checked = turningOn;
                     chk.dispatchEvent(new Event('change', { bubbles: true }));
-                    if (turningOn) {
+                    if (turningOn && thinkingOptionsList().length) {
                         closeMinimalOptions();
                         showThinkingSlider();
                     } else {
@@ -5034,7 +5051,7 @@
 
         // --- Thinking level slide bar ---
         function allowedThinkingValues() {
-            return thinkingOptionsList().map((o) => o.value);
+            return thinkingSliderOptions().map((o) => o.value);
             // All options disabled (e.g. Claude uses budget only) -> nothing to pick.
         }
         function thinkingIndexFromValue(value) {
@@ -5046,9 +5063,8 @@
             const slider = get('thinking-slider');
             const label = get('thinking-slide-value');
             const scale = get('thinking-slide-scale');
-            const opts = thinkingOptionsList();
-            const sel = activeThinkingSelect();
-            let idx = opts.findIndex((o) => o.value === (sel ? sel.value : ''));
+            const opts = thinkingSliderOptions();
+            let idx = opts.findIndex((o) => o.value === thinkingSliderValue());
             if (idx < 0) idx = Math.max(0, opts.length - 1);
             if (slider) {
                 slider.min = '0';
@@ -5172,8 +5188,18 @@
                     const sel = activeThinkingSelect();
                     if (allowed.length && sel) {
                         const targetIdx = Math.max(0, Math.min(idx, allowed.length - 1));
-                        sel.value = allowed[targetIdx];
-                        sel.dispatchEvent(new Event('change', { bubbles: true }));
+                        const value = allowed[targetIdx];
+                        const chk = get('enable-thinking');
+                        if (value === 'off') {
+                            if (chk) { chk.checked = false; chk.dispatchEvent(new Event('change', { bubbles: true })); }
+                        } else {
+                            if (get('thinking-options')?.dataset.thinkingMode !== 'effort' && chk && !chk.checked) {
+                                chk.checked = true;
+                                chk.dispatchEvent(new Event('change', { bubbles: true }));
+                            }
+                            sel.value = value;
+                            sel.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
                     }
                     syncThinkingSliderUi();
                     scheduleThinkingSliderHide();
@@ -5455,7 +5481,8 @@
                 if (!el) continue;
                 if (el.type === 'checkbox') el.checked = !!options[key];
                 else el.value = String(options[key]);
-                el.dispatchEvent(new Event('change', { bubbles: true }));
+                if (key === 'enable_prompt_caching') updatePromptCacheUi();
+                else el.dispatchEvent(new Event('change', { bubbles: true }));
             }
             if (Object.prototype.hasOwnProperty.call(options, 'image_vision_model')) {
                 currentVisionModel = options.image_vision_model;
@@ -17446,6 +17473,12 @@
         }
         let uploadProgressState = { total: 0, completed: 0, active: 0, perFilePct: {} };
         const uploadCancelTokens = new Set();
+        let uploadGeneration = 0;
+        function isUploadCancelled(row) {
+            return !!(row && (row.generation !== undefined && row.generation !== uploadGeneration
+                || row.uploadId && uploadCancelTokens.has(row.uploadId)
+                || row.row && !row.row.isConnected));
+        }
 
         function updateGlobalUploadProgress(uploadId, pct) {
             if (uploadProgressState.perFilePct.hasOwnProperty(uploadId)) {
@@ -17454,6 +17487,7 @@
             }
         }
         function resetUploadState() {
+            uploadGeneration++;
             browserFastLocalFiles.forEach((entry) => {
                 const row = entry && entry.rowObj ? entry.rowObj.row : null;
                 const localUrl = row ? row.getAttribute('data-local-url') : null;
@@ -17472,10 +17506,10 @@
                 thumbContainer.innerHTML = '';
                 thumbContainer.classList.add('hidden');
             }
-            updateFilePreview();
-            updateMaskPreview();
             const list = get('upload-list');
             if (list) list.innerHTML = '<div class="text-xs text-gray-500">まだアップロードがありません。</div>';
+            updateFilePreview();
+            updateMaskPreview();
 
             const input = get('file-input');
             if (input) input.value = '';
@@ -18032,6 +18066,7 @@
         // Use chunked upload for medium/large files to avoid proxy/body size limits.
         const CHUNK_THRESHOLD_BYTES = 20 * 1024 * 1024;
         async function uploadFileChunked(file, row) {
+            if (isUploadCancelled(row)) return false;
             if (!file) return false;
             let uploadOpStarted = false;
             if (window.ConnectionMonitor) {
@@ -18098,7 +18133,7 @@
                 });
                 const doneData = await doneRes.json();
                 if (doneRes.ok && doneData && doneData.filename) {
-                    if (row && row.row && row.uploadId && uploadCancelTokens.has(row.uploadId)) {
+                    if (isUploadCancelled(row)) {
                         if (row.row && row.row.parentNode) row.row.remove();
                         return false;
                     }
@@ -18152,6 +18187,7 @@
                     uploadFileChunked(file, row).then(resolve);
                     return;
                 }
+                if (isUploadCancelled(row)) { resolve(false); return; }
                 let uploadOpStarted = false;
                 if (window.ConnectionMonitor) {
                     window.ConnectionMonitor.operationStarted();
@@ -18179,7 +18215,7 @@
                     let d = {};
                     try { d = JSON.parse(xhr.responseText || '{}'); } catch (e) {}
                     if (xhr.status >= 200 && xhr.status < 300 && d && d.filename) {
-                        if (row && row.row && row.uploadId && uploadCancelTokens.has(row.uploadId)) {
+                        if (isUploadCancelled(row)) {
                             if (row.row && row.row.parentNode) row.row.remove();
                             finishUploadOp();
                             resolve(false);
@@ -19036,6 +19072,7 @@
             const incoming = Array.from(fs).filter(Boolean);
             if (!incoming.length) return;
             const allowedIncoming = incoming;
+            const generation = uploadGeneration;
             if (opts.openModal !== false) {
                 openUploadModal();
             } else {
@@ -19050,6 +19087,7 @@
             const support = getModelMediaSupport(get('model-select').value);
             const processOne = async (f) => {
                 let currentUploadId = null;
+                if (generation !== uploadGeneration) return false;
                 try {
                     if (isAudioFile(f) && !support.audio) {
                         showToast("このモデルは音声入力に対応していません", "error", true);
@@ -19070,6 +19108,7 @@
                         return false;
                     }
                     const rowObj = addUploadRow(f);
+                    rowObj.generation = generation;
                     updateFilePreview(); // Immediate feedback
                     currentUploadId = rowObj.uploadId;
                     uploadProgressState.perFilePct[currentUploadId] = 0;
@@ -19092,6 +19131,7 @@
                             if (t !== f) updateUploadRowFile(rowObj, t);
                         } catch(e){}
                     }
+                    if (isUploadCancelled(rowObj)) return false;
                     if (browserFastModeEnabled) {
                         const existingBytes = Array.from(browserFastLocalFiles.values())
                             .reduce((sum, entry) => sum + Number(entry.file && entry.file.size || 0), 0);
@@ -19109,20 +19149,22 @@
                     }
                     return await uploadFileWithProgress(t, rowObj);
                 } finally {
-                    if (currentUploadId) {
-                        if (uploadProgressState.perFilePct.hasOwnProperty(currentUploadId)) {
-                            delete uploadProgressState.perFilePct[currentUploadId];
-                            uploadProgressState.completed++;
-                            uploadProgressState.active--;
+                    if (generation === uploadGeneration) {
+                        if (currentUploadId) {
+                            if (uploadProgressState.perFilePct.hasOwnProperty(currentUploadId)) {
+                                delete uploadProgressState.perFilePct[currentUploadId];
+                                uploadProgressState.completed++;
+                                uploadProgressState.active--;
+                            }
                         }
+                        if (uploadProgressState.active <= 0) {
+                            uploadProgressState.total = 0;
+                            uploadProgressState.completed = 0;
+                            uploadProgressState.active = 0;
+                            uploadProgressState.perFilePct = {};
+                        }
+                        updateFilePreview();
                     }
-                    if (uploadProgressState.active <= 0) {
-                        uploadProgressState.total = 0;
-                        uploadProgressState.completed = 0;
-                        uploadProgressState.active = 0;
-                        uploadProgressState.perFilePct = {};
-                    }
-                    updateFilePreview();
                 }
             };
             let cursor = 0;
@@ -19136,7 +19178,7 @@
             });
             await Promise.all(workers);
         }
-        get('clear-file-btn').onclick = () => { resetUploadState(); };
+        get('clear-file-btn').onclick = (e) => { e.stopPropagation(); resetUploadState(); };
         if (get('clear-mask-btn')) {
             get('clear-mask-btn').onclick = () => {
                 currentMaskImage = null;

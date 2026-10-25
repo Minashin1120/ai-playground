@@ -83,6 +83,40 @@ class IdeogramDirectTest {
         }
     }
 
+    @Test fun firstUploadRemainsTheTargetAcrossReferenceAndTextOnlyTurns() {
+        val engine = IdeogramImageDirect(http)
+        val reference = png.copy(name = "reference.png", bytes = byteArrayOf(4, 5, 6))
+        val generated = png.copy(name = "generated.png")
+        val turns = listOf(
+            DirectTurn("user", "edit", listOf(png)),
+            DirectTurn("assistant", "done", generated = listOf(generated)),
+            DirectTurn("user", "use this reference", listOf(reference))
+        )
+        val followUp = request("ideogram-4.5", "").copy(turns = turns)
+        assertEquals(listOf(png, reference), engine.sourceImages(followUp))
+        val body = bodyText(engine.buildCall(followUp, engine.sourceImages(followUp)))
+        assertTrue(body.contains("name=\"image\"; filename=\"a.png\""))
+        assertTrue(body.contains("name=\"reference_images\"; filename=\"reference.png\""))
+        assertFalse(body.contains("generated.png"))
+        assertEquals(listOf(png, reference), engine.sourceImages(followUp.copy(
+            turns = turns + DirectTurn("assistant", "done", generated = listOf(generated)) + DirectTurn("user", "again")
+        )))
+    }
+
+    @Test fun imageSelectionHandlesFirstTurnDuplicatesLimitsAndGeneratedFallback() {
+        val engine = IdeogramImageDirect(http)
+        assertEquals(listOf(png), engine.sourceImages(request("ideogram-4.5", "edit", attachments = listOf(png, png))))
+        assertTrue(engine.sourceImages(request("ideogram-4.5", "generate")).isEmpty())
+        val many = (1..8).map { png.copy(name = "$it.png") }
+        val followUp = request("ideogram-4.5", "").copy(turns = listOf(
+            DirectTurn("user", "edit", listOf(png)), DirectTurn("user", "reference", many)
+        ))
+        assertEquals(listOf(png) + many.take(4), engine.sourceImages(followUp))
+        assertEquals(listOf(png), engine.sourceImages(followUp.copy(turns = listOf(
+            DirectTurn("user", "generate"), DirectTurn("assistant", "done", generated = listOf(png)), DirectTurn("user", "edit")
+        ))))
+    }
+
     @Test fun errorsUseIdeogramMessages() {
         assertTrue(ideogramError(401, "{}").message.contains("APIキー"))
         assertTrue(ideogramError(422, "{}").message.contains("安全性"))

@@ -184,13 +184,18 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
         return DirectResult(files.indices.joinToString("\n") { "Generated Image ${it + 1} for: ${request.prompt()}" }, files = files)
     }
 
-    /** The attached images; Ideogram 4.5 without any continues from the newest image in the chat. */
-    private fun sourceImages(request: DirectRequest): List<DirectAttachment> {
+    /** First user upload is the edit target; newer uploads are reference images. */
+    internal fun sourceImages(request: DirectRequest): List<DirectAttachment> {
         val attached = request.inputImages()
-        val chosen = when {
-            attached.isNotEmpty() -> attached
-            request.model.lowercase() == "ideogram-4.5" -> listOfNotNull(request.historyImages().firstOrNull())
-            else -> emptyList()
+        val chosen = if (request.model.lowercase() == "ideogram-4.5") {
+            val uploads = request.turns.filter { it.role == "user" }.flatMap { it.attachments }
+                .filter { it.bytes != null && it.mime.startsWith("image/") }
+            val ordered = uploads.take(1) + attached + uploads.drop(1)
+            ordered.distinctBy { it.name }.take(5).ifEmpty {
+                listOfNotNull(request.historyImages().firstOrNull())
+            }
+        } else {
+            attached
         }
         chosen.forEach { image ->
             if (image.mime !in SOURCE_MIMES) throw DirectApiException(0, "入力画像を Ideogram が受け付ける形式（PNG / JPEG / WEBP）へ変換できませんでした。")

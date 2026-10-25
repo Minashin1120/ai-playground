@@ -1,4 +1,6 @@
 import json
+import os
+import textwrap
 import types
 import unittest
 from pathlib import Path
@@ -75,6 +77,58 @@ class IdeogramRegistrationTests(unittest.TestCase):
 
 
 class IdeogramRequestTests(unittest.TestCase):
+    def test_worker_uses_user_uploads_before_current_images_and_generated_fallback(self):
+        source = (APP_ROOT / "server" / "background.py").read_text(encoding="utf-8")
+        start = source.index('                    # Keep the first user image')
+        end = source.index('\n                    if ideogram_sources:', start)
+        selection = textwrap.dedent(source[start:end])
+        reference = ("ref.png", b"reference", "image/png")
+        generated = ("generated.png", b"generated", "image/png")
+        def part(image):
+            return dict(name=image[0], bytes=image[1], mime=image[2])
+        for current, previous, expected in (
+            ([reference], [PNG], [PNG, reference]),
+            ([], [PNG, reference], [PNG, reference]),
+            ([PNG, reference], [], [PNG, reference]),
+            ([], [], [generated]),
+        ):
+            with self.subTest(current=current, previous=previous):
+                namespace = dict(vars(IDEOGRAM), os=os, model_key_l="ideogram-4.5",
+                                 MAX_CONTEXT_MESSAGES=0, MAX_CONTEXT_TOKENS=0,
+                                 loaded_files=[part(image) for image in current],
+                                 _load_history_image_parts=lambda include_roles, **kw: [part(image) for image in (previous if include_roles == {"user"} else [generated])])
+                exec(selection, namespace)
+                self.assertEqual(expected, namespace["ideogram_sources"])
+        # Even when the text context is trimmed, the full selected branch supplies
+        # the first upload; assistant outputs must not become edit targets.
+        ancestors = [types.SimpleNamespace(role="assistant", image_url="generated"),
+                     types.SimpleNamespace(role="user", image_url="original")]
+        def limited_history(include_roles, source_messages=None, **kwargs):
+            self.assertEqual({"user"}, include_roles)
+            self.assertEqual([{"role": "user", "image_url": "original"}], source_messages)
+            return [part(PNG)]
+        namespace.update(MAX_CONTEXT_MESSAGES=1, thread_id=1, user_id=1,
+                         msg=types.SimpleNamespace(parent_id=2), loaded_files=[part(reference)],
+                         _iter_chat_history_ancestors=lambda *args: iter(ancestors),
+                         _load_history_image_parts=limited_history)
+        exec(selection, namespace)
+        self.assertEqual([PNG, reference], namespace["ideogram_sources"])
+
+    def test_first_upload_stays_the_target_when_references_are_attached(self):
+        reference = ("ref.png", b"reference", "image/png")
+        older_reference = ("old.png", b"older reference", "image/png")
+        sources = IDEOGRAM.ideogram_select_sources([reference], [PNG, older_reference])
+        _, kwargs, _, edit = self.build("ideogram-4.5", images=sources)
+        self.assertTrue(edit)
+        self.assertEqual([("image", PNG), ("reference_images", reference), ("reference_images", older_reference)], kwargs["files"])
+        self.assertEqual([PNG, older_reference], IDEOGRAM.ideogram_select_sources([], [PNG, older_reference]))
+
+    def test_source_selection_first_turn_deduplication_and_reference_limit(self):
+        refs = [(f"ref{i}.png", b"reference", "image/png") for i in range(6)]
+        self.assertEqual([], IDEOGRAM.ideogram_select_sources([], []))
+        self.assertEqual([PNG], IDEOGRAM.ideogram_select_sources([PNG, PNG], []))
+        self.assertEqual([PNG] + refs[:4], IDEOGRAM.ideogram_select_sources(refs + [PNG], [PNG]))
+
     def build(self, model, options=None, images=None, prompt="a cat"):
         return IDEOGRAM.ideogram_build_request(model, prompt, options or {}, images)
 

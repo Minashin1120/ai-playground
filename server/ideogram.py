@@ -53,6 +53,20 @@ def is_ideogram_model_key(model_key):
     return str(model_key or "").strip().lower() in IDEOGRAM_MODELS
 
 
+def ideogram_select_sources(current_sources, history_sources):
+    """First user upload is the target; current and earlier uploads are references."""
+    ordered = history_sources[:1] + current_sources + history_sources[1:]
+    selected = []
+    seen = set()
+    for source in ordered:
+        if source[0] not in seen:
+            selected.append(source)
+            seen.add(source[0])
+        if len(selected) == 5:
+            break
+    return selected
+
+
 def ideogram_supports_edit(model_key):
     return str(model_key or "").strip().lower() == "ideogram-4.5"
 

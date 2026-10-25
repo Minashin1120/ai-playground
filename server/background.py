@@ -1376,11 +1376,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             
             history = list(reversed(history_rev))
 
-            def _load_history_image_parts(include_roles=None, newest_first=False, include_only_images=True):
+            def _load_history_image_parts(include_roles=None, newest_first=False, include_only_images=True, source_messages=None):
                 parts = []
                 seen = set()
                 total_bytes = 0
-                src_messages = list(reversed(history)) if newest_first else history
+                image_history = history if source_messages is None else source_messages
+                src_messages = list(reversed(image_history)) if newest_first else image_history
                 for m in src_messages:
                     role = str(m.get('role') or '').strip().lower()
                     if include_roles and role not in include_roles:
@@ -4641,7 +4642,19 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 log_force("Routing: Ideogram Branch")
                 try:
                     pub("status", "画像生成の準備中...")
-                    _unused_ctx, history_image_parts = _build_non_llm_image_context(final_message_text)
+                    # Keep the first user image as the edit target, even when a later
+                    # turn attaches reference images. Generated images are fallback only.
+                    upload_history = None
+                    if ideogram_supports_edit(model_key_l) and (MAX_CONTEXT_MESSAGES or MAX_CONTEXT_TOKENS):
+                        # Text context limits must not change the original edit target.
+                        upload_history = list(reversed([
+                            {"role": node.role, "image_url": node.image_url}
+                            for node in _iter_chat_history_ancestors(thread_id, msg.parent_id, user_id)
+                            if node.role == "user" and node.image_url
+                        ]))
+                    history_image_parts = _load_history_image_parts(
+                        include_roles={"user"}, source_messages=upload_history
+                    ) if ideogram_supports_edit(model_key_l) else []
 
                     def _ideogram_source_entry(raw_bytes, raw_mime, raw_name):
                         entry_bytes = raw_bytes
@@ -4656,17 +4669,23 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             raise RuntimeError("Ideogram に送れる入力画像は1枚あたり25MBまでです。")
                         return (os.path.basename(raw_name or "input.png"), entry_bytes, entry_mime)
 
-                    ideogram_sources = []
+                    current_sources = []
                     for fi in loaded_files:
                         if not fi.get('bytes') or not str(fi.get('mime', '')).startswith('image/'):
                             continue
-                        ideogram_sources.append(_ideogram_source_entry(
-                            fi['bytes'], fi['mime'], fi.get('send_name') or fi.get('name') or f"input_{len(ideogram_sources)}.png"
+                        current_sources.append(_ideogram_source_entry(
+                            fi['bytes'], fi['mime'], fi.get('send_name') or fi.get('name') or f"input_{len(current_sources)}.png"
                         ))
-                    if not ideogram_sources and ideogram_supports_edit(model_key_l) and history_image_parts:
-                        # Multi-turn editing: continue from the newest image in the conversation.
-                        hp = history_image_parts[0]
-                        ideogram_sources.append(_ideogram_source_entry(hp['bytes'], hp['mime'], hp['name']))
+                    history_sources = [
+                        _ideogram_source_entry(hp['bytes'], hp['mime'], hp['name'])
+                        for hp in history_image_parts
+                    ]
+                    ideogram_sources = ideogram_select_sources(current_sources, history_sources)
+                    if not ideogram_sources and ideogram_supports_edit(model_key_l):
+                        fallback_images = _load_history_image_parts(include_roles={"assistant"}, newest_first=True)
+                        if fallback_images:
+                            hp = fallback_images[0]
+                            ideogram_sources = [_ideogram_source_entry(hp['bytes'], hp['mime'], hp['name'])]
 
                     if ideogram_sources:
                         pub("status", "Ideogram API (Precise Edit) を呼び出し中...")

@@ -16,6 +16,8 @@ import com.minashin1120.aiplayground.data.direct.SystemPromptBuilder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
+import com.minashin1120.aiplayground.data.ActivityLog
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -158,18 +160,71 @@ class LocalChatBackend(
                 JSONObject().put("status", "ok").put("is_bookmarked", row.optBoolean("is_bookmarked"))
             }
             route == "/api/temporary_chat/heartbeat" -> JSONObject().put("status", "ok")
-            route == "/api/token_estimate" -> {
-                // Server `/api/token_estimate` shape; files are not counted on the device.
-                val prompt = estimateTokens(payload.optString("message") + payload.optString("quote_text"))
-                val files = payload.optJSONArray("image_urls")?.length() ?: 0
-                JSONObject().put("countable", true).put("tokens_total", prompt).put("tokens_prompt", prompt).put("tokens_files", 0)
-                    .put("files_total", files).put("files_counted", 0).put("files_non_text", files).put("files_missing", 0).put("files_error", 0)
-            }
+            route == "/api/token_estimate" -> estimatePrompt(payload)
             // A server answer being rejoined (it has a job id) is stopped on the server.
             route == "/api/stop_chat" -> if (fallback != null && payload.has("job_id")) fallback.post(path, payload, token)
                 else JSONObject().put("status", "ok")
             route == "/api/gems" && fallback == null -> settings.saveGem(null, payload)
             else -> fallback?.post(path, payload, token) ?: throw unavailable()
+        }
+    }
+
+    private val tokenEstimates = LinkedHashMap<String, AttachmentTokenEstimate>()
+
+    private suspend fun estimatePrompt(payload: JSONObject): JSONObject {
+        val started = System.currentTimeMillis()
+        ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "start")
+        try {
+            val model = payload.optString("model")
+            val quote = payload.optString("quote_text")
+            val message = payload.optString("message")
+            val prompt = estimateTokens(if (quote.isEmpty()) message else
+                "Context (User Quote):\n\"\"\"\n$quote\n\"\"\"\n\nUser Message:\n$message")
+            val refs = attachmentRefs(payload)
+            var tokens = 0
+            var counted = 0
+            var missing = 0
+            var errors = 0
+            var nonText = 0
+            for (ref in refs) {
+                currentCoroutineContext().ensureActive()
+                val key = "$model\n$ref"
+                val cached = synchronized(tokenEstimates) { tokenEstimates[key] }
+                val estimate = cached ?: try {
+                    val local = LocalChatStore.isLocalReference(ref)
+                    val info = if (local) store.fileInfo(ref) else null
+                    val name = info?.optString("name") ?: ref.substringAfterLast('/')
+                    val mime = info?.optString("mime") ?: java.net.URLConnection.guessContentTypeFromName(name).orEmpty()
+                    val job = currentCoroutineContext()[Job]
+                    val bytes = if (local) store.loadFile(ref, MAX_ATTACHMENT_BYTES) { job?.isActive == false }
+                        else remote?.file(ref, MAX_ATTACHMENT_BYTES)
+                    if (bytes == null) AttachmentTokenEstimate(reason = "missing")
+                    else AttachmentTokenEstimator.estimate(model, name, mime, bytes, store::temporaryProbeFile)
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) { AttachmentTokenEstimate(reason = "error") }
+                if (cached == null && estimate.reason == "ok") synchronized(tokenEstimates) {
+                    if (tokenEstimates.size >= 128) tokenEstimates.remove(tokenEstimates.keys.first())
+                    tokenEstimates[key] = estimate
+                }
+                tokens += estimate.tokens
+                when (estimate.reason) {
+                    "ok" -> counted++
+                    "missing" -> missing++
+                    "non_text" -> nonText++
+                    else -> errors++
+                }
+            }
+            ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "done",
+                "files" to refs.size, "failed_files" to errors + missing, "ms" to System.currentTimeMillis() - started)
+            return JSONObject().put("countable", true).put("tokens_total", prompt + tokens).put("tokens_prompt", prompt)
+                .put("tokens_files", tokens).put("files_total", refs.size).put("files_counted", counted)
+                .put("files_non_text", nonText).put("files_missing", missing).put("files_error", errors)
+        } catch (e: CancellationException) {
+            ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "cancelled")
+            throw e
+        } catch (e: Exception) {
+            ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "error")
+            throw e
         }
     }
 

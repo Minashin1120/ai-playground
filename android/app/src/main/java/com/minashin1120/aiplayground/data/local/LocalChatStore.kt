@@ -20,6 +20,12 @@ import java.util.UUID
 class LocalChatStore(private val root: File, private val crypto: EncryptedFileStore) {
     private val indexFile get() = File(root, "index.enc")
 
+    /** Private, short-lived seekable file for PDF metadata; the caller always deletes it. */
+    internal fun temporaryProbeFile(): File {
+        root.mkdirs()
+        return File.createTempFile("token-probe-", ".tmp", root)
+    }
+
     // --- index ---
 
     private fun loadIndex(): JSONObject = crypto.readJson(indexFile)

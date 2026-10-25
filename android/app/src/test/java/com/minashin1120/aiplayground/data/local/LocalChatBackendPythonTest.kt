@@ -35,7 +35,7 @@ class LocalChatBackendPythonTest {
         }
     }
 
-    private fun fixture(server: RecordingServer?): Pair<LocalChatBackend, LocalChatStore> {
+    private fun fixture(server: RecordingServer?, upload: suspend (String) -> String? = { null }): Pair<LocalChatBackend, LocalChatStore> {
         fun crypto(id: Byte): EncryptedFileStore {
             val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
             return EncryptedFileStore(byteArrayOf(id)) { key }
@@ -46,12 +46,29 @@ class LocalChatBackendPythonTest {
         val remote = server?.let { ServerHistory(it, { "session" }, { _, _ -> error("Unexpected file request") },
             { null }, { _, _ -> null }, { false }, {}) }
         return LocalChatBackend(store, LocalSettingsStore(root, encryption, crypto(2)), ServerlessDefaults(JSONObject()),
-            DirectRouter(DirectHttp()), "この端末", server, { "chat" }, remote = remote) to store
+            DirectRouter(DirectHttp()), "この端末", server, { "chat" }, remote = remote, uploadAttachment = upload) to store
     }
 
     private fun request(model: String = "deepseek-v4.1-flash", thread: String = "server-thread") = JSONObject()
         .put("model", model).put("thread_id", thread).put("message", "Pythonで何か計算して")
         .put("enable_python", true).put("enable_file_creation", false).put("enable_mcp", false)
+
+    @Test fun serverAttachmentProgressDoesNotAcceptTheModelRequestEarly() = runBlocking {
+        val server = RecordingServer()
+        var accepted = false
+        val events = mutableListOf<JSONObject>()
+        val (backend, _) = fixture(server) { reference ->
+            assertEquals("local/photo", reference)
+            assertFalse(accepted)
+            assertEquals("uploading", events.last().getString("phase"))
+            "server/photo.png"
+        }
+        backend.stream("/chat_stream", request().put("image_urls", JSONArray().put("local/photo")), "session",
+            { accepted = true }, { events += it })
+        assertTrue(accepted)
+        assertEquals("server/photo.png", server.requests.single().getJSONArray("image_urls").getString(0))
+        assertEquals("done", events.last().getString("type"))
+    }
 
     @Test fun pythonOnlySendUsesServerAndForwardsExecutionEvents() = runBlocking {
         val server = RecordingServer()

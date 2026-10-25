@@ -2,6 +2,7 @@ package com.minashin1120.aiplayground.ui
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.graphics.Canvas as AndroidCanvas
 import android.graphics.Paint as AndroidPaint
 import android.graphics.Rect as AndroidRect
@@ -61,9 +62,10 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** One undoable edit, replayed onto the marker layer (Web `saveMarkerHistory` snapshots). */
-private sealed interface MarkerOp {
+internal sealed interface MarkerOp {
     data class StrokeOp(val points: List<MarkerPoint>, val width: Float, val color: Color) : MarkerOp
     data class MosaicOp(val rect: MarkerRect, val block: Int) : MarkerOp
+    data class RotateOp(val turns: Int) : MarkerOp
     data object ClearOp : MarkerOp
 }
 
@@ -122,6 +124,7 @@ private fun drawOp(layer: Bitmap, base: Bitmap, op: MarkerOp) {
             }
             source.recycle()
         }
+        is MarkerOp.RotateOp -> Unit // The whole composite is rotated, including the crop and marker layer.
         MarkerOp.ClearOp -> canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
     }
 }
@@ -164,6 +167,7 @@ internal fun ImageMarkerEditor(
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     val resetView = { scale = 1f; offset = Offset.Zero }
+    val rotation = markerQuarterTurns(history.filterIsInstance<MarkerOp.RotateOp>().sumOf { it.turns })
     var canvasSize by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
     TwModalFrame(onDismiss, maxPanelWidth = 768.dp) { phone ->
@@ -174,7 +178,7 @@ internal fun ImageMarkerEditor(
                 FaIcon(R.drawable.fa_solid_times, "閉じる", size = 14.dp, tint = Tw.gray400)
             }
         }
-        Text("マーカー・モザイク・トリミングが可能です。送信時に編集済み画像の確認を促します。", fontSize = 12.sp, color = Tw.gray400,
+        Text("マーカー・モザイク・トリミング・回転が可能です。送信時に編集済み画像の確認を促します。", fontSize = 12.sp, color = Tw.gray400,
             modifier = Modifier.padding(bottom = 12.dp))
         val source = image
         val stageShape = RoundedCornerShape(14.dp)
@@ -192,9 +196,16 @@ internal fun ImageMarkerEditor(
                 }
                 return@BoxWithConstraints
             }
-            val fit = min(min(1f, areaW / (source.width * density)), areaMaxH / (source.height * density)) * density
-            val canvasW = max(1, (source.width * fit).toInt())
-            val canvasH = max(1, (source.height * fit).toInt())
+            // Keep edit coordinates stable while rotating; gestures are mapped back into this canvas.
+            val (canvasW, canvasH) = remember(source) {
+                val fit = min(min(1f, areaW / (source.width * density)), areaMaxH / (source.height * density)) * density
+                max(1, (source.width * fit).toInt()) to max(1, (source.height * fit).toInt())
+            }
+            val rotatedW = (if (rotation % 2 == 0) canvasW else canvasH).toFloat()
+            val rotatedH = (if (rotation % 2 == 0) canvasH else canvasW).toFloat()
+            val viewFit = min(1f, min(areaW / rotatedW, areaMaxH / rotatedH))
+            val renderScale = scale * viewFit
+            val rotationOrigin = rotateMarkerPoint(MarkerPoint(0f, 0f), canvasW.toFloat(), canvasH.toFloat(), rotation)
             val base = remember(source, canvasW, canvasH) { Bitmap.createScaledBitmap(source, canvasW, canvasH, true) }
             val layer = remember(canvasW, canvasH) { Bitmap.createBitmap(canvasW, canvasH, Bitmap.Config.ARGB_8888) }
             SideEffect { canvasSize = canvasW to canvasH }
@@ -213,19 +224,23 @@ internal fun ImageMarkerEditor(
             val livePoints = remember { mutableStateListOf<MarkerPoint>() }
             var liveMosaic by remember { mutableStateOf<MarkerRect?>(null) }
             val stageW = areaW
-            val stageH = canvasH.toFloat()
-            val originX = (stageW - canvasW) / 2
-            fun toCanvas(p: Offset) = MarkerPoint((p.x - originX - offset.x) / scale, (p.y - offset.y) / scale)
+            val stageH = rotatedH * viewFit
+            val originX = (stageW - rotatedW * viewFit) / 2
+            fun toCanvas(p: Offset) = rotateMarkerPoint(
+                MarkerPoint((p.x - originX - offset.x) / (scale * viewFit), (p.y - offset.y) / (scale * viewFit)),
+                rotatedW, rotatedH, -rotation,
+            )
             fun clampOffset(next: Offset): Offset {
-                val (x, y) = clampMarkerOffset(scale, next.x, next.y, stageW, stageH, canvasW.toFloat(), canvasH.toFloat())
+                val (x, y) = clampMarkerOffset(scale, next.x, next.y, stageW, stageH, rotatedW * viewFit, rotatedH * viewFit)
                 return Offset(x, y)
             }
             val brushPx = brushSize * density
             Box(
-                Modifier.fillMaxWidth().height(with(LocalDensity.current) { canvasH.toDp() })
-                    .pointerInput(mode, brushPx, colorHex, opacityPct, canvasW, canvasH) {
+                Modifier.fillMaxWidth().height(with(LocalDensity.current) { stageH.toDp() })
+                    .pointerInput(mode, brushPx, colorHex, opacityPct, canvasW, canvasH, rotation, viewFit) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
+                            if (saving) return@awaitEachGesture
                             var pinching = false
                             var cropMode = "move"
                             var cropStart: MarkerRect? = null
@@ -281,11 +296,14 @@ internal fun ImageMarkerEditor(
             ) {
                 Box(
                     Modifier.offset { androidx.compose.ui.unit.IntOffset(originX.toInt(), 0) }
+                        .wrapContentSize(Alignment.TopStart, unbounded = true)
                         .size(with(LocalDensity.current) { canvasW.toDp() }, with(LocalDensity.current) { canvasH.toDp() })
                         .graphicsLayer {
                             transformOrigin = TransformOrigin(0f, 0f)
-                            scaleX = scale; scaleY = scale
-                            translationX = offset.x; translationY = offset.y
+                            scaleX = renderScale; scaleY = renderScale
+                            rotationZ = rotation * 90f
+                            translationX = offset.x + rotationOrigin.x * renderScale
+                            translationY = offset.y + rotationOrigin.y * renderScale
                         },
                 ) {
                     Image(base.asImageBitmap(), null, Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.FillBounds)
@@ -310,8 +328,19 @@ internal fun ImageMarkerEditor(
             attachOriginal = attachOriginal, onAttachOriginal = { attachOriginal = it },
             onResetView = resetView,
             onResetCrop = { canvasSize?.let { (w, h) -> cropRect = MarkerRect(0f, 0f, w.toFloat(), h.toFloat()) } },
-            onUndo = { if (history.size > undoFloor) history.removeAt(history.lastIndex) },
-            onClear = { push(MarkerOp.ClearOp) },
+            onUndo = {
+                if (!saving && history.size > undoFloor) {
+                    if (history.removeAt(history.lastIndex) is MarkerOp.RotateOp) resetView()
+                }
+            },
+            onRotate = { turns ->
+                if (!saving && image != null) {
+                    push(MarkerOp.RotateOp(turns))
+                    resetView()
+                    ActivityLog.log("change", "control" to "marker-modal", "marker" to true)
+                }
+            },
+            onClear = { if (!saving) push(MarkerOp.ClearOp) },
             saving = saving,
             onSave = save@{
                 val original = image ?: return@save
@@ -320,7 +349,9 @@ internal fun ImageMarkerEditor(
                 saving = true
                 val ops = history.toList()
                 val crop = cropRect
+                ActivityLog.log("state", "marker" to true, "phase" to "start")
                 onSaveRequest(original, ops, crop, edited) { png ->
+                    ActivityLog.log("state", "marker" to true, "phase" to if (png == null) "error" else "done")
                     saving = false
                     if (png == null) onError("編集画像の生成に失敗しました") else onSave(png, attachOriginal)
                 }
@@ -347,22 +378,41 @@ private fun onSaveRequest(
  * Web `saveMarkerToRow`: the image at its own size with the marker layer scaled over it, then the crop.
  * The layer is rebuilt at the size it was edited at from the recorded edits.
  */
-private fun renderEdited(original: Bitmap, ops: List<MarkerOp>, crop: MarkerRect?, canvasSize: Pair<Int, Int>): ByteArray {
+internal fun renderEdited(original: Bitmap, ops: List<MarkerOp>, crop: MarkerRect?, canvasSize: Pair<Int, Int>): ByteArray {
+    val rotation = markerQuarterTurns(ops.filterIsInstance<MarkerOp.RotateOp>().sumOf { it.turns })
     val (cw, ch) = canvasSize
     val base = Bitmap.createScaledBitmap(original, cw, ch, true)
     val layer = Bitmap.createBitmap(cw, ch, Bitmap.Config.ARGB_8888)
-    val start = ops.indexOfLast { it == MarkerOp.ClearOp } + 1
-    ops.drop(start).forEach { drawOp(layer, base, it) }
-    var out = original.copy(Bitmap.Config.ARGB_8888, true)
-    val paint = AndroidPaint(AndroidPaint.FILTER_BITMAP_FLAG)
-    AndroidCanvas(out).drawBitmap(layer, null, AndroidRect(0, 0, out.width, out.height), paint)
-    if (crop != null && !isFullCrop(crop, cw.toFloat(), ch.toFloat())) {
-        val (cx, cy, w, h) = cropToImage(crop, cw.toFloat(), ch.toFloat(), out.width, out.height)
-        out = Bitmap.createBitmap(out, cx, cy, w, h)
-    }
-    return ByteArrayOutputStream().use { stream ->
-        out.compress(Bitmap.CompressFormat.PNG, 100, stream)
-        stream.toByteArray()
+    var out: Bitmap? = null
+    try {
+        val start = ops.indexOfLast { it == MarkerOp.ClearOp } + 1
+        ops.drop(start).forEach { drawOp(layer, base, it) }
+        var rendered = original.copy(Bitmap.Config.ARGB_8888, true)
+        out = rendered
+        val paint = AndroidPaint(AndroidPaint.FILTER_BITMAP_FLAG)
+        AndroidCanvas(rendered).drawBitmap(layer, null, AndroidRect(0, 0, rendered.width, rendered.height), paint)
+        if (crop != null && !isFullCrop(crop, cw.toFloat(), ch.toFloat())) {
+            val (cx, cy, w, h) = cropToImage(crop, cw.toFloat(), ch.toFloat(), rendered.width, rendered.height)
+            val cropped = Bitmap.createBitmap(rendered, cx, cy, w, h)
+            if (cropped !== rendered) rendered.recycle()
+            rendered = cropped
+            out = rendered
+        }
+        if (rotation != 0) {
+            val rotated = Bitmap.createBitmap(rendered, 0, 0, rendered.width, rendered.height,
+                Matrix().apply { postRotate(rotation * 90f) }, false)
+            if (rotated !== rendered) rendered.recycle()
+            rendered = rotated
+            out = rendered
+        }
+        return ByteArrayOutputStream().use { stream ->
+            check(rendered.compress(Bitmap.CompressFormat.PNG, 100, stream))
+            stream.toByteArray()
+        }
+    } finally {
+        out?.recycle()
+        layer.recycle()
+        if (base !== original) base.recycle()
     }
 }
 
@@ -407,7 +457,7 @@ private fun MarkerToolbar(
     colorHex: String, onColor: (String) -> Unit, onPickColor: () -> Unit,
     opacityPct: Double, onOpacity: (Double) -> Unit,
     attachOriginal: Boolean, onAttachOriginal: (Boolean) -> Unit,
-    onResetView: () -> Unit, onResetCrop: () -> Unit, onUndo: () -> Unit, onClear: () -> Unit,
+    onResetView: () -> Unit, onResetCrop: () -> Unit, onUndo: () -> Unit, onClear: () -> Unit, onRotate: (Int) -> Unit,
     saving: Boolean, onSave: () -> Unit,
 ) {
     val web = LocalWebPalette.current
@@ -470,7 +520,9 @@ private fun MarkerToolbar(
         ) {
             MarkerActionButton("位置/倍率リセット", onClick = onResetView)
             if (mode == MarkerMode.CROP) MarkerActionButton("トリミングリセット", onClick = onResetCrop)
-            MarkerActionButton("戻す", onClick = onUndo)
+            MarkerActionButton("左に90°回転", enabled = !saving) { onRotate(-1) }
+            MarkerActionButton("右に90°回転", enabled = !saving) { onRotate(1) }
+            MarkerActionButton("戻す", enabled = !saving, onClick = onUndo)
             MarkerActionButton("消去", onClick = onClear)
             val shape = RoundedCornerShape(4.dp)
             Text("保存して反映", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black,
@@ -481,10 +533,10 @@ private fun MarkerToolbar(
 }
 
 @Composable
-private fun MarkerActionButton(label: String, onClick: () -> Unit) {
+private fun MarkerActionButton(label: String, enabled: Boolean = true, onClick: () -> Unit) {
     val shape = RoundedCornerShape(4.dp)
     Text(label, fontSize = 12.sp, color = Color.White,
-        modifier = Modifier.clip(shape).background(Tw.gray700).clickable(role = Role.Button, onClick = onClick)
+        modifier = Modifier.clip(shape).background(Tw.gray700).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 4.dp))
 }
 

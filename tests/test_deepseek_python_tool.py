@@ -136,6 +136,12 @@ class DeepSeekPythonToolTests(unittest.TestCase):
                         read_notice.assert_not_called()
 
     def test_python_request_calls_runtime_and_returns_real_result_to_model(self):
+        self._assert_python_rounds(1)
+
+    def test_tool_budget_leaves_one_request_to_write_the_final_answer(self):
+        self._assert_python_rounds(8)
+
+    def _assert_python_rounds(self, rounds):
         # Run the production provider branch without a database, Redis, or API key.
         source = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
         start = source.index('                log_force("Routing: DeepSeek V4 Branch (Chat Completions)")')
@@ -152,7 +158,7 @@ class DeepSeekPythonToolTests(unittest.TestCase):
 
         def create(**kwargs):
             requests.append(copy.deepcopy(kwargs))
-            if len(requests) == 1:
+            if len(requests) <= rounds:
                 return iter([chunk(reasoning="I will calculate."), chunk(calls=[SimpleNamespace(
                     index=0, id="call_python", type="function", function=SimpleNamespace(
                         name="execute_python", arguments=json.dumps({"code": "print(6 * 7)"})))])])
@@ -178,8 +184,10 @@ class DeepSeekPythonToolTests(unittest.TestCase):
         exec(compile(module, "deepseek-provider-test", "exec"), namespace)
         namespace["run_branch"]()
         self.assertFalse([event for event in events if event[0] == "error"], events)
-        execute.assert_called_once_with("print(6 * 7)")
-        self.assertEqual(len(requests), 2)
+        self.assertEqual(execute.call_count, rounds)
+        execute.assert_called_with("print(6 * 7)")
+        self.assertEqual(len(requests), rounds + 1)
+        self.assertEqual(requests[-1]["tool_choice"], "none" if rounds == 8 else "auto")
         self.assertEqual(requests[0]["tools"][0]["function"]["name"], "execute_python")
         self.assertTrue(any("call execute_python" in m.get("content", "")
                             for m in requests[0]["messages"] if m["role"] == "system"))

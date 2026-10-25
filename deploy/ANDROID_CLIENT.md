@@ -235,6 +235,7 @@ Bearer認証でHTMLのエラー応答を受けた場合はJSONへ変換します
 | DELETE `/api/threads/<id>` | 本文不要 | `{"status":"deleted"}`。履歴を削除し、共有ファイルは残る会話で使われている間保持する（Webと同じ `confirm("Delete?")` 相当の確認後） |
 | GET `/api/threads/<id>/settings` | なし | スレッド指示、共通指示の有無、一時チャットの期限情報 |
 | PUT `/api/threads/<id>/settings` | `custom_instruction`, `include_global_instruction`, `is_temporary`, `enable_prompt_caching` | 更新後の一時チャット状態。`enable_prompt_caching: false` は保存済みのPromptCacheを解除し、次回有効化では別のキャッシュキーを使う。指示は100,000文字以下 |
+| POST `/api/generate_title` | `thread_id`, `model_id` | 自分のチャットの最初の質問からタイトルを自動生成。回答完了後に非同期で実行 |
 | PUT `/api/threads/<id>/title` | `title` | 正規化後のタイトル。最大200文字 |
 | POST `/api/threads/<id>/bookmark` | `{}` | 切り替え後の `is_bookmarked` |
 | DELETE `/api/messages/<id>` | 本文不要 | `{"status":"ok"}`。指定メッセージ以降の履歴を削除し、添付・生成ファイルは他の会話から参照されなくなった場合だけ実体を削除する（Webと同じ `confirm` 相当の確認後）。本人のスレッドのみ |

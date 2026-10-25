@@ -425,7 +425,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
         var title by remember { mutableStateOf("") }
         var message by remember { mutableStateOf("") }
         var attachChat by remember { mutableStateOf(false) }
-        var attachLogs by remember { mutableStateOf(false) }
+        var attachLogs by remember { mutableStateOf(true) }
         var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingsTextField(title, { title = it.take(200) }, Modifier.fillMaxWidth(), placeholder = "タイトル (任意)")
@@ -446,8 +446,9 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                     message.isBlank() -> notify("フィードバック内容を入力してください")
                     attachChat && chatId == null -> notify("コピーを送信するチャットが開かれていません")
                     else -> {
-                        model.submitFeedback(title.trim(), message.trim(), if (attachChat) chatId else null, images, attachLogs)
-                        title = ""; message = ""; attachChat = false; attachLogs = false; images = emptyList()
+                        model.submitFeedback(title.trim(), message.trim(), if (attachChat) chatId else null, images, attachLogs) {
+                            title = ""; message = ""; attachChat = false; attachLogs = true; images = emptyList()
+                        }
                     }
                 }
             }, tone = SettingsButtonTone.Blue, enabled = !state.feedbackBusy, fill = true)

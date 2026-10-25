@@ -54,7 +54,8 @@ class GeminiDirect(
             ?: "$baseUrl/v1beta/models/${URLEncoder.encode(model, "UTF-8")}:streamGenerateContent?alt=sse"
         val headers = if (vertex != null) mapOf("Authorization" to "Bearer ${vertex.token()}") else mapOf("x-goog-api-key" to request.apiKey)
         val requestStarted = System.currentTimeMillis()
-        http.postSse(url, headers, payload) { sse ->
+        // Code execution can return a base64 image larger than an ordinary text delta.
+        http.postSse(url, headers, payload, maxLine = 32L * 1024 * 1024) { sse ->
             if (chunks++ == 0) Diagnostics.log("gemini.first_chunk", "ms" to System.currentTimeMillis() - requestStarted)
             if (sse.data.isBlank() || sse.data == "[DONE]") return@postSse true
             val chunk = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true

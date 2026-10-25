@@ -216,6 +216,25 @@ class MobileApiTests(unittest.TestCase):
         self.assertTrue(listed['is_bookmarked'])
         self.assertTrue(listed['is_temporary'])
 
+    def test_native_title_generation_is_owner_scoped(self):
+        token = self.token()
+        thread_id = self.call('/api/threads', token, 'POST', json={}).json['id']
+        with target.app.app_context():
+            thread = target.resolve_thread_for_user(thread_id, self.user_id)
+            target.db.session.add(target.Message(thread_id=thread.id, role='user', content='A test question', is_encrypted=False))
+            foreign = target.Thread(user_id=self.other_id, public_id=target.generate_thread_public_id())
+            target.db.session.add(foreign)
+            target.db.session.commit()
+            foreign_id = foreign.public_id
+        with mock.patch.object(target, '_get_model_specific_api_key', return_value=None), \
+             mock.patch.object(target, '_admin_env_fallback_enabled', return_value=False), \
+             mock.patch.object(target, '_resolve_gemini_runtime', return_value={}):
+            response = self.call('/api/generate_title', token, 'POST', json={'thread_id': thread_id})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['title'], 'A test question')
+        self.assertEqual(self.call('/api/generate_title', token, 'POST', json={'thread_id': foreign_id}).status_code, 403)
+        self.assertEqual(self.call('/api/generate_title', 'invalid', 'POST', json={'thread_id': thread_id}).status_code, 401)
+
     def test_native_thread_settings_remain_owner_scoped(self):
         token = self.token()
         with target.app.app_context():

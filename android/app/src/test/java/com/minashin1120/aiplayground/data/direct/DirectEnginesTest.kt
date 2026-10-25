@@ -20,6 +20,21 @@ class DirectEnginesTest {
         result to events
     }
 
+    @Test fun geminiReceivesCodeExecutionImagesLargerThanEightMiB() {
+        MockWebServer().use { server ->
+            server.start()
+            val encoded = "AAAA".repeat(2 * 1024 * 1024 + 1)
+            server.enqueue(sse(
+                """{"candidates":[{"content":{"parts":[{"inlineData":{"mimeType":"image/png","data":"$encoded"}}]}}]}""",
+                """{"candidates":[{"content":{"parts":[{"text":"finished"}]}}]}""",
+            ))
+            val (result, _) = run(GeminiDirect(http, server.url("/").toString().trimEnd('/')), request())
+            assertEquals("finished", result.content)
+            assertEquals(1, result.files.size)
+            assertEquals(encoded.length / 4 * 3, result.files.single().bytes.size)
+        }
+    }
+
     @Test fun geminiStreamsTextThoughtsPythonAndUsage() {
         MockWebServer().use { server ->
             server.start()

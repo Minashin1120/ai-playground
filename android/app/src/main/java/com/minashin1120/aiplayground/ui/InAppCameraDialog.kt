@@ -7,15 +7,10 @@ import android.net.Uri
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.view.CameraController
-import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ZoomState
-import androidx.camera.core.resolutionselector.AspectRatioStrategy
-import androidx.camera.core.resolutionselector.ResolutionSelector
-import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -46,6 +41,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.data.normalizeCapturedPhotoOrientation
 import java.io.File
 import java.util.Locale
@@ -94,24 +90,15 @@ internal fun InAppCameraDialog(
     ) {
         NoticeWindowHost()
         if (permissionGranted) {
-            val controller = remember(context) { LifecycleCameraController(context).apply {
-                setEnabledUseCases(CameraController.IMAGE_CAPTURE)
-                // The default favours shutter speed (zero-shutter-lag frames, lighter processing); prefer quality.
-                imageCaptureMode = ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
-                imageCaptureResolutionSelector = ResolutionSelector.Builder()
-                    .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
-                    .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
-                    .build()
-                isPinchToZoomEnabled = true
-            } }
-            var zoomState by remember(controller) { mutableStateOf<ZoomState?>(null) }
-            DisposableEffect(controller, lifecycleOwner) {
-                controller.bindToLifecycle(lifecycleOwner)
+            val session = remember(context) { InAppCameraSession(context) }
+            var zoomState by remember(session) { mutableStateOf<ZoomState?>(null) }
+            DisposableEffect(session, lifecycleOwner) {
+                val unbind = session.bind(lifecycleOwner) { onError("カメラを起動できません。") }
                 val zoomObserver = Observer<ZoomState> { zoomState = it }
-                controller.zoomState.observe(lifecycleOwner, zoomObserver)
+                session.zoomState.observe(lifecycleOwner, zoomObserver)
                 onDispose {
-                    controller.zoomState.removeObserver(zoomObserver)
-                    controller.unbind()
+                    session.zoomState.removeObserver(zoomObserver)
+                    unbind()
                 }
             }
             Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -119,10 +106,9 @@ internal fun InAppCameraDialog(
                     factory = { viewContext -> PreviewView(viewContext).apply {
                         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                         scaleType = PreviewView.ScaleType.FIT_CENTER
-                        this.controller = controller
+                        session.attachPreview(this)
                     } },
                     modifier = Modifier.fillMaxSize(),
-                    update = { it.controller = controller },
                 )
                 Text(
                     "閉じる", color = Color.White, modifier = Modifier.align(Alignment.TopStart)
@@ -176,7 +162,7 @@ internal fun InAppCameraDialog(
                                     Box(
                                         Modifier.size(40.dp)
                                             .background(if (selected) Color.White.copy(alpha = 0.22f) else Color.Transparent, CircleShape)
-                                            .clickable { controller.setZoomRatio(preset) },
+                                            .clickable { session.setZoomRatio(preset) },
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         Text(
@@ -204,17 +190,21 @@ internal fun InAppCameraDialog(
                                     val directory = File(context.cacheDir, "shared").apply { mkdirs() }
                                     val file = File(directory, "camera_${System.currentTimeMillis()}.jpg")
                                     captureInProgress = true
+                                    ActivityLog.log("media.start", "source" to "camera", "type" to "image")
                                     try {
                                         val options = androidx.camera.core.ImageCapture.OutputFileOptions.Builder(file).build()
-                                        controller.takePicture(options, ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageSavedCallback {
+                                        session.takePicture(options, ContextCompat.getMainExecutor(context), object : ImageCapture.OnImageSavedCallback {
                                             override fun onImageSaved(result: ImageCapture.OutputFileResults) {
                                                 scope.launch {
                                                     try {
                                                         withContext(Dispatchers.IO) { normalizeCapturedPhotoOrientation(file) }
                                                         shots = ArrayList(shots + file.path)
+                                                        ActivityLog.log("media.ready", "source" to "camera", "type" to "image")
                                                     } catch (exception: CancellationException) {
+                                                        ActivityLog.log("media.close", "source" to "camera", "type" to "image", "phase" to "cancelled")
                                                         throw exception
                                                     } catch (exception: Exception) {
+                                                        ActivityLog.log("media.error", "source" to "camera", "type" to "image")
                                                         onError("写真を処理できません。")
                                                     } finally {
                                                         captureInProgress = false
@@ -223,11 +213,13 @@ internal fun InAppCameraDialog(
                                             }
                                             override fun onError(exception: ImageCaptureException) {
                                                 captureInProgress = false
+                                                ActivityLog.log("media.error", "source" to "camera", "type" to "image")
                                                 onError("写真を撮影できません。")
                                             }
                                         })
                                     } catch (exception: Exception) {
                                         captureInProgress = false
+                                        ActivityLog.log("media.error", "source" to "camera", "type" to "image")
                                         onError("写真を撮影できません。")
                                     }
                                 },

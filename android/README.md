@@ -22,6 +22,8 @@
 | `app/src/main/java/com/minashin1120/aiplayground/GenerationService.kt`, `app/src/main/java/com/minashin1120/aiplayground/data/local/GenerationTracker.kt` | 回答の生成・受信中のフォアグラウンドサービス（通知とCPUの保持）と通知チャンネル、実行中の生成の数え上げ（サーバー不使用モードで回答の保存後まで保護する画像・動画のmodeは `needsKeepAlive` で判定） | 生成中のアプリ保護・アプリを離れたときの継続・通知を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppChangelogViewModel.kt` | Android版更新履歴Markdownの取得状態・再試行 | アプリ版更新履歴の取得を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/AppUpdateChecker.kt`, `AppUpdateDownloader.kt` | GitHub Release資産の確認、APK取得、SHA-256検証 | 更新元・資産名・ダウンロードを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/PendingFeedbackStore.kt`, `PendingFeedbackSender.kt` | 接続できないときのフィードバックと選択した添付の暗号化保存、送信済み段階の保存、自動再送 | フィードバックの送信保留・再送を変更するとき |
+| `docs/PENDING_FEEDBACK.md` | フィードバックの端末保存、再送のタイミング、添付とログの扱い | フィードバック送信保留の動作を確認するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/OfflineCacheStore.kt` | アカウント別の暗号化オフライン履歴・ファイル保存、同期設定、カテゴリ削除 | オフライン閲覧・端末保存・キャッシュ管理を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AppUpdateDialog.kt` | APK更新の確認、進捗、設定案内、再試行ダイアログと、非表示中（ダウンロード中・インストール待ち）の画面上部バー | 更新UI・文言・導線 |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatViewModel.kt` | ネイティブ認証・パスキー／TOTP 2FA・セキュリティ管理・初回セットアップ／ZIP取り込み・履歴・送信・再接続・アップロード状態 | アプリ操作・通信フロー |
@@ -47,7 +49,8 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/BotTelemetry.kt` | Web版のBot判定に合わせたタップの集計（`/api/bot-telemetry`）と、送信の連打の回数（`/api/bot/lock`） | Bot判定の基準・送信条件を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BrowserLoginPkce.kt` | ブラウザー経由ログインのPKCE（S256）verifier・challenge生成 | Google・MinashinのApp Link復帰を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `ChatComponents.kt` | Compose画面の組み立て（ドロワー／タブレット2ペイン、各モーダルの開閉）、メッセージ操作、Coding差分（Live Code Changes）とBatch完了バナー、生成中の回答 | 画面構造と操作を編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/InAppCameraDialog.kt` | CameraXを使うアプリ内カメラのプレビュー、権限、ズーム、無音撮影、画質優先の撮影設定、連続撮影と撮影分の一覧・添付・クリア、撮影分を画像分割へ渡す切り替え | カメラ撮影を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/InAppCameraDialog.kt` | CameraXを使うアプリ内カメラのプレビュー、権限、ズーム、無音撮影、端末の向きに応じた撮影、画質優先の撮影設定、連続撮影と撮影分の一覧・添付・クリア、撮影分を画像分割へ渡す切り替え | カメラ撮影を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/InAppCameraSession.kt` | CameraXのプレビュー・撮影の接続、ライフサイクルに応じた向きの検知、撮影の向き、ズーム・フォーカス | カメラの端末連携や撮影設定を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/CapturedPhotoOrientation.kt` | 撮影したJPEGのEXIFの向きを画素へ反映 | 撮影後の画像の向きを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ChatAutoScroll.kt` | Web `part05` の会話の自動追従（上へのスクロールで停止、下端付近で再開、「一番下へ」の表示条件） | 生成中のスクロールの動きを変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LiveAnswer.kt` | 生成待ち・チャット読み込み中のスケルトン、チャット読み込み失敗のカード、Searching web／Search complete、Image Analysis、Python Execution、右下の通信スピナー | 生成中の表示を変えるとき |
@@ -84,8 +87,8 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ConfirmDialogs.kt` | Webの確認モーダル（外部ツール操作の確認、ローカルPython実行に切替） | 送信前・生成中の確認ダイアログを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasPanel.kt` | Webの `#canvas-panel`（スマートフォンは全画面、1024dp以上は右側。Blocks／Source、Copy、Clear、×） | Canvasの表示や操作を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/CanvasBlocks.kt` | Canvasモードのコードブロック抽出（Web `parseCanvasMarkdown`）、選択、見出し・状態の文言 | Canvasに出すブロックや文言を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMarkerEditor.kt` | Webの「画像編集」（マーカー、モザイク、トリミング、二本指の拡大、保存して反映） | 画像編集の画面や保存を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/ImageMarker.kt` | 画像編集の計算（線の補間、モザイク範囲、トリミングの掴み位置、拡大時の位置制限、保存名） | 画像編集の操作の決まりを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMarkerEditor.kt` | 「画像編集」（マーカー、モザイク、トリミング、左右90度の回転、二本指の拡大、保存して反映） | 画像編集の画面や保存を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/ImageMarker.kt` | 画像編集の計算（線の補間、モザイク範囲、トリミングの掴み位置、拡大時の位置制限、回転の座標変換、保存名） | 画像編集の操作の決まりを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageSplitDialog.kt` | Webと共通の「画像を分割」ダイアログ（プレビュー、分割数、重なり、元画像の扱い、添付／共有／保存） | 画像分割の画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SharedTextPreviewDialog.kt`、`data/SharedTextMath.kt` | Android版だけの「メッセージとしてプレビュー」ダイアログ（共有されたテキストをAIの回答として `MessageBubble` で全画面に表示）と、数式の区切りが落ちたテキストへの区切りの補完 | 共有テキストのプレビューを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplit.kt` | 画像分割の計算（行列の決め方、重なり付きの範囲、EXIFの向きの逆変換、ファイル名、座標の帯の文言） | 画像分割の決まりを変更するとき |

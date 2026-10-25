@@ -25,6 +25,13 @@ class SseReaderTest {
         assertEquals(listOf(SseEvent(null, "x")), parsed)
     }
 
+    @Test fun rejectsLinesBeyondTheConfiguredLimit() {
+        try {
+            readSse(Buffer().writeUtf8("data: too long\n\n"), maxLine = 8) { fail("Oversized event delivered"); true }
+            fail("Expected size limit")
+        } catch (_: java.io.IOException) { }
+    }
+
     @Test fun stopsWhenTheCallbackReturnsFalse() {
         val out = mutableListOf<String>()
         readSse(Buffer().writeUtf8("data: 1\n\ndata: 2\n\n")) { out += it.data; false }

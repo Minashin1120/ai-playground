@@ -250,7 +250,7 @@ class LocalChatBackend(
         when {
             // Features without a device runtime use the account server, including Coding Mode.
             path == "/chat_stream" && fallback != null && needsServerTools(payload) ->
-                fallback.stream(path, withServerAttachments(payload), token, onAccepted, onEvent)
+                fallback.stream(path, withServerAttachments(payload, onEvent), token, onAccepted, onEvent)
             path == "/chat_stream" -> {
                 if (payload.optBoolean("coding_mode")) throw ApiException(400, JSONObject()
                     .put("code", "serverless_coding_unavailable")
@@ -274,7 +274,7 @@ class LocalChatBackend(
      * Tools without a device runtime use the server, unless the chat only exists on the device
      * or holds answers the server has not received yet.
      */
-    private fun needsServerTools(payload: JSONObject): Boolean {
+    internal fun needsServerTools(payload: JSONObject): Boolean {
         if (!payload.optBoolean("coding_mode") && !payload.optBoolean("enable_file_creation") &&
             !payload.optBoolean("enable_mcp") && !requiresServerPython(payload)) return false
         val threadId = store.resolveAlias(payload.optString("thread_id"))
@@ -295,7 +295,7 @@ class LocalChatBackend(
      * Attachments chosen while chats are local exist only on the device (`local/…`). The server reads them by its own
      * file name, so a send that goes to the server uploads them first and carries the server references instead.
      */
-    private suspend fun withServerAttachments(payload: JSONObject): JSONObject {
+    private suspend fun withServerAttachments(payload: JSONObject, onEvent: (JSONObject) -> Unit): JSONObject {
         val refs = LinkedHashSet<String>()
         fun collect(ref: String?) { if (!ref.isNullOrBlank() && LocalChatStore.isLocalReference(ref)) refs += ref }
         payload.optJSONArray("image_urls")?.let { rows -> for (i in 0 until rows.length()) collect(rows.optString(i)) }
@@ -305,6 +305,8 @@ class LocalChatBackend(
         if (refs.isEmpty()) return payload
         val serverRefs = HashMap<String, String>()
         refs.forEach { ref ->
+            onEvent(JSONObject().put("type", "status").put("phase", "uploading")
+                .put("content", "添付ファイルをサーバーへ送信中...（${serverRefs.size + 1}/${refs.size}）"))
             serverRefs[ref] = uploadAttachment(ref)
                 ?: throw ApiException(400, JSONObject().put("error", "添付ファイルをサーバーへ送信できませんでした。"))
         }

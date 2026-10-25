@@ -190,3 +190,15 @@ fun clampMarkerOffset(
 
 /** Web `saveMarkerToRow` file name: `<name without extension>_marked.png`. */
 fun markedFileName(name: String): String = "${name.replace(Regex("\\.[^/.]+$"), "")}_marked.png"
+
+/** Clockwise quarter turns, including negative turns from the left rotation button. */
+fun markerQuarterTurns(turns: Int): Int = ((turns % 4) + 4) % 4
+
+/** Map unrotated edit coordinates into the rotated image's bounding box. */
+fun rotateMarkerPoint(point: MarkerPoint, width: Float, height: Float, turns: Int): MarkerPoint =
+    when (markerQuarterTurns(turns)) {
+        1 -> MarkerPoint(height - point.y, point.x)
+        2 -> MarkerPoint(width - point.x, height - point.y)
+        3 -> MarkerPoint(point.y, width - point.x)
+        else -> point
+    }

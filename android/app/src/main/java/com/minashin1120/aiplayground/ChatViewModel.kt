@@ -24,7 +24,6 @@ import com.minashin1120.aiplayground.data.direct.DirectHttp
 import com.minashin1120.aiplayground.data.direct.DirectRouter
 import com.minashin1120.aiplayground.data.direct.TranscriptionDirect
 import com.minashin1120.aiplayground.data.local.LocalSettingsStore
-import com.minashin1120.aiplayground.data.feedbackSentText
 import com.minashin1120.aiplayground.data.feedbackReplySentText
 import com.minashin1120.aiplayground.data.local.LocalChatBackend
 import com.minashin1120.aiplayground.data.local.LocalChatStore
@@ -372,6 +371,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var heartbeatJob: Job? = null
     private var connectionMonitorJob: Job? = null
     private var connectionRecoveredHideJob: Job? = null
+    private val pendingFeedback by lazy { PendingFeedbackStore(File(getApplication<Application>().noBackupFilesDir, "pending_feedback")) }
+    private val feedbackSendMutex = kotlinx.coroutines.sync.Mutex()
+    private var feedbackRetryJob: Job? = null
     private var slowConnectionCount = 0
     private var networkCallbackRegistered = false
     private var libraryJob: Job? = null
@@ -1678,6 +1680,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             connectionBannerVisible = wasDisconnected,
             offline = false,
         ) }
+        retryPendingFeedback()
         // Serverless mode: answers finished while the server was out of reach go up now.
         if (wasDisconnected && state.value.serverless) scheduleSync()
         if (wasDisconnected) {
@@ -2101,8 +2104,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * 過去メッセージを読み込む stay, the chosen model and Gem are kept, and a failed request or a send
      * that started meanwhile leaves the chat as it is.
      */
-    private suspend fun loadMessages(requestedId: String, older: Boolean = false, autoResume: Boolean = true, inPlace: Boolean = false) {
-        if (inPlace && (state.value.streaming || state.value.busy)) return
+    private suspend fun loadMessages(requestedId: String, older: Boolean = false, autoResume: Boolean = true, inPlace: Boolean = false, streamFinished: Boolean = false) {
+        if (inPlace && !streamFinished && (state.value.streaming || state.value.busy)) return
         val fetchGeneration = if (older) messageFetchGeneration else ++messageFetchGeneration
         val id = serverIdOf(requestedId)
         if (inPlace && state.value.offline && !deviceChat(id)) return
@@ -2139,7 +2142,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         Diagnostics.log("thread.fetched", "thread_id" to id, "rows" to (reply.optJSONArray("messages")?.length() ?: 0),
             "pending_job" to !reply.isNull("pending_job"))
         if (state.value.selected?.id != id || fetchGeneration != messageFetchGeneration) return
-        if (inPlace && (state.value.streaming || state.value.busy)) return
+        if (inPlace && !streamFinished && (state.value.streaming || state.value.busy)) return
         val pendingJobId = reply.optJSONObject("pending_job")?.nullableString("job_id")?.ifBlank { null }
         val pendingJobStopped = pendingJobId != null && pendingJobId in suppressedPendingJobIds
         if (!older) stoppedJobStillRunning = pendingJobStopped
@@ -2167,7 +2170,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val path = activeBranchPath(all, leaf)
         val keepsEarlier = earlier.isNotEmpty()
         if (state.value.selected?.id != id || fetchGeneration != messageFetchGeneration ||
-            (inPlace && (state.value.streaming || state.value.busy))) return
+            (inPlace && !streamFinished && (state.value.streaming || state.value.busy))) return
         mutable.update { it.copy(messages = path, allMessages = all, leafId = leaf,
             hasOlder = if (keepsEarlier) it.hasOlder else reply.optBoolean("has_older_messages"),
             oldestId = if (keepsEarlier) it.oldestId else reply.nullableString("oldest_loaded_id"),
@@ -2191,7 +2194,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val uuid = reply.nullableString("last_gem_uuid")
                 if (uuid.isBlank()) null else it.gems.firstOrNull { gem -> gem.uuid == uuid }
             }) }
-        if (!older) {
+        if (!older && !inPlace) {
             // Web `loadMessages`: the chat's PromptCache flag and last model come back with it (the flag
             // first, so a PromptCache lock from the previous chat never blocks the switch).
             mutable.update { it.copy(enablePromptCache = reply.optBoolean("enable_prompt_caching")) }
@@ -3216,8 +3219,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 mutable.update { current ->
                     if (current.selected?.id == id) current.copy(leafId = null) else current
                 }
-                loadMessages(id)
+                loadMessages(id, inPlace = true, streamFinished = true)
                 fetchThreads(false)
+                if (!answerFailed && !deviceChat(id) && state.value.selected?.id == id &&
+                    state.value.selected?.title in listOf("New Chat", "新しいチャット", "No Title")) {
+                    // Match Web: title generation must not delay completion of the answer.
+                    viewModelScope.launch {
+                        try {
+                            val reply = backend.post("/api/generate_title", JSONObject()
+                                .put("thread_id", id).put("model_id", modelId), token())
+                            reply.nullableString("title").takeIf { it.isNotBlank() }?.let { title ->
+                                mutable.update { current -> current.copy(selected = current.selected?.let {
+                                    if (it.id == id) it.copy(title = title) else it
+                                }) }
+                                fetchThreads(false)
+                            }
+                        } catch (e: CancellationException) { throw e }
+                        catch (e: Exception) { Diagnostics.failure("thread.open_error", e) }
+                    }
+                }
                 if (body.optBoolean("batch_mode")) {
                     fetchBatchJobs(notify = false)
                     startBatchPolling()
@@ -3252,7 +3272,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     e is ApiException -> notify("Connection Error: " + e.payload.optString("error").ifBlank { "HTTP ${e.status}" })
                     else -> notify("Connection Error: " + (e.message ?: "通信に失敗しました"))
                 }
-                if (id.isNotBlank() && session != null) runCatching { loadMessages(id) }
+                if (id.isNotBlank() && session != null) runCatching { loadMessages(id, inPlace = true, streamFinished = true) }
                 notifyAnswerFinishedIfAway(id, failed = true)
             } finally {
                 flow.finish()
@@ -3318,7 +3338,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
             "status" -> {
-                markApiAccepted()
+                if (event.optString("phase") != "uploading") markApiAccepted()
                 updateLive { live ->
                     live.copy(
                         pendingStatus = live.pendingStatus?.let { content.ifBlank { "モデル処理中..." } },
@@ -3365,7 +3385,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 flow.finish()
                 if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "", live = LiveAnswer()) }
             }
-            runCatching { loadMessages(id, autoResume = false) }.onFailure { report(it) }
+            runCatching { loadMessages(id, autoResume = false, inPlace = true) }.onFailure { report(it) }
             notifyAnswerFinishedIfAway(id, failed)
         }
     }
@@ -4272,8 +4292,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         uploadTotal = if (source.size > 0) source.size else 0) }
                     val uploaded = withContext(Dispatchers.IO) { storeLocalUpload(source.name, source.mime, source.size, source.opener) }
                         ?: if (source.size > CHUNK_UPLOAD_THRESHOLD_BYTES) uploadInChunks(source) else uploadWhole(source)
-                    mutable.update { it.copy(attachments = it.attachments + Attachment(source.name, uploaded, source.mime),
-                        uploadCompleted = it.uploadCompleted + 1) }
+                    mutable.update { it.copy(attachments = it.attachments + Attachment(source.name, uploaded, source.mime)) }
+                    val deviceBackend = localBackend as? LocalChatBackend
+                    val chats = localChats
+                    if (deviceBackend != null && chats != null && state.value.serverless && !state.value.localProfile && !state.value.offline) {
+                        val current = state.value
+                        val options = JSONObject().put("thread_id", current.selected?.id.orEmpty()).put("model", current.model)
+                            .put("coding_mode", current.codingMode).put("enable_file_creation", current.enableFileCreation)
+                            .put("enable_mcp", current.enableMcp).put("enable_python", current.enablePython)
+                        withContext(Dispatchers.IO) {
+                            if (deviceBackend.needsServerTools(options)) {
+                                try { SyncEngine(chats, syncApi) { token() }.uploadAttachment(uploaded) }
+                                catch (e: CancellationException) { throw e }
+                                catch (e: Exception) { Diagnostics.failure("sync.error", e) }
+                            }
+                        }
+                    }
+                    mutable.update { it.copy(uploadCompleted = it.uploadCompleted + 1) }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -4924,31 +4959,80 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** [chatId] is the open chat whose copy goes with the feedback (null when the box is not ticked); [images] are the attached images. */
-    fun submitFeedback(title: String, message: String, chatId: String? = null, images: List<Uri> = emptyList(), attachLogs: Boolean = false) {
-        if (message.isBlank()) return
+    fun submitFeedback(title: String, message: String, chatId: String? = null, images: List<Uri> = emptyList(), attachLogs: Boolean = false, onStored: () -> Unit = {}) {
+        if (message.isBlank() || state.value.feedbackBusy) return
         viewModelScope.launch {
-            if (state.value.offline) { notify("オフライン中はフィードバックを送信できません。"); return@launch }
+            if (state.value.localProfile || state.value.account == null) { notify("フィードバックの送信にはログインが必要です。"); return@launch }
             mutable.update { it.copy(feedbackBusy = true) }
+            val origin = ServerOrigin.current
+            val account = state.value.account!!.id
+            val auth = session?.token
             try {
                 val payload = JSONObject().put("title", title.trim()).put("message", message.trim())
-                // Attach recorded logs only when selected for this feedback.
                 val logs = if (!attachLogs) null else if (ActivityLog.enabled) withContext(Dispatchers.IO) { ActivityLog.recent() } else if (state.value.preferences?.enableServerDiagnosticLog == true) JSONArray() else null
                 if (logs != null) payload.put("client_logs", JSONObject().put("client", "android")
                     .put("version", BuildConfig.VERSION_NAME).put("window_seconds", ActivityLog.WINDOW_MS / 1000).put("entries", logs))
                 val chatCopy = chatId?.let { feedbackChatCopy(it) }
                 if (chatCopy != null) payload.put("chat_copy", chatCopy.payload)
-                // The server gathers the chat's records, logs and attachments before it answers.
-                val reply = if (chatCopy != null) api.postLong("/api/feedback", payload, token()) else backend.post("/api/feedback", payload, token())
-                var chatSaved = reply.optBoolean("chat_copy_saved", false)
-                val feedbackId = reply.optString("public_id", "").ifBlank { reply.optInt("feedback_id", 0).takeIf { it > 0 }?.toString().orEmpty() }
-                if (chatCopy != null && chatSaved && chatCopy.deviceFiles.isNotEmpty()) {
-                    chatSaved = feedbackId.isNotBlank() && uploadFeedbackChatFiles(feedbackId, chatCopy.deviceFiles)
+                val record = withContext(Dispatchers.IO) {
+                    val resolver = getApplication<Application>().contentResolver
+                    val attachments = images.mapIndexed { index, uri ->
+                        PendingFeedbackStore.Attachment(resolver.getType(uri) ?: "application/octet-stream", "image-${index + 1}") {
+                            resolver.openInputStream(uri) ?: throw IOException("画像を読み込めません")
+                        }
+                    } + chatCopy?.deviceFiles.orEmpty().map { reference ->
+                        val store = localChats ?: throw IOException("添付ファイルを読み込めません")
+                        val info = store.fileInfo(reference)
+                        PendingFeedbackStore.Attachment(info?.optString("mime") ?: "application/octet-stream",
+                            info?.optString("name").orEmpty().ifBlank { reference.substringAfterLast('/') }, reference) {
+                            // Snapshot encrypted local files now, so deletion of the chat cannot break retry.
+                            val temporary = File(getApplication<Application>().cacheDir, "feedback-" + java.util.UUID.randomUUID())
+                            try {
+                                if (store.materializeFile(reference, temporary) == null) throw IOException("添付ファイルを読み込めません")
+                                temporary.inputStream().also { temporary.delete() }
+                            } catch (e: Exception) { temporary.delete(); throw e }
+                        }
+                    }
+                    pendingFeedback.enqueue(origin.toString(), account, payload, attachments)
                 }
-                val imagesSaved = images.isEmpty() || (feedbackId.isNotBlank() && uploadFeedbackImages(feedbackId, images))
-                loadFeedback()
-                notify(feedbackSentText(logs?.let { reply.optInt("logs_count", it.length()) }, reply.optBoolean("logs_saved", true), chatCopy != null, chatSaved, images.size, imagesSaved))
-            } catch (e: Exception) { report(e) }
+                onStored()
+                ActivityLog.log("change", "tab" to "feedback", "state" to "pending", "persisted" to true)
+                if (auth == null || state.value.offline || !hasUsableNetwork()) {
+                    notify("フィードバックを端末に保存しました。サーバーに接続できると自動送信します。")
+                } else {
+                    try {
+                        val sent = feedbackSendMutex.withLock { PendingFeedbackSender(pendingFeedback, getApplication<Application>().cacheDir, PlaygroundApi(origin), auth).send(record) }
+                        loadFeedback()
+                        notify(sent)
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) {
+                        Diagnostics.failure("error", e, "tab" to "feedback", "state" to "pending", "retry" to true)
+                        notify("フィードバックを端末に保存しました。サーバーに接続できると再送します。")
+                    }
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { report(e, "フィードバックを端末に保存できませんでした") }
             finally { mutable.update { it.copy(feedbackBusy = false) } }
+        }
+    }
+
+    /** Every successful foreground probe also retries persisted records after process restart. */
+    private fun retryPendingFeedback() {
+        val account = state.value.account?.id ?: return
+        if (state.value.localProfile || state.value.feedbackBusy || feedbackRetryJob?.isActive == true) return
+        val origin = ServerOrigin.current
+        val auth = session?.token ?: return
+        feedbackRetryJob = viewModelScope.launch {
+            try {
+                val records = withContext(Dispatchers.IO) { pendingFeedback.records(origin.toString(), account) }
+                for (record in records) {
+                    if (state.value.account?.id != account || ServerOrigin.current != origin || session?.token != auth) break
+                    val sent = feedbackSendMutex.withLock { PendingFeedbackSender(pendingFeedback, getApplication<Application>().cacheDir, PlaygroundApi(origin), auth).send(record) }
+                    notify(sent)
+                }
+                if (records.isNotEmpty()) loadFeedback()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { Diagnostics.failure("error", e, "tab" to "feedback", "state" to "pending", "retry" to true) }
         }
     }
 
@@ -4974,7 +5058,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * Web `chat_copy`: the server copies everything it has on the chat, decrypted. The device adds what only
      * it holds: the chat as it shows it while chats are on the device (a device chat, or unsent messages over
      * a server chat), its offline cache of the chat, preferences keyed by the chat, diagnostics entries not yet
-     * sent, and the attachments kept only here ([uploadFeedbackChatFiles] after the feedback is accepted).
+     * sent, and the attachments kept only here (the encrypted outbox uploads these after the feedback is accepted).
      */
     private suspend fun feedbackChatCopy(id: String): FeedbackChatCopy {
         val resolved = serverIdOf(id)
@@ -5006,28 +5090,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }.filter { LocalChatStore.isLocalReference(it) }.distinct()
         copy.put("device_files", files.size)
         return FeedbackChatCopy(copy, files)
-    }
-
-    /** Sends the attachments kept only on this device to the chat copy of [feedbackId]; false when one was not saved. */
-    private suspend fun uploadFeedbackChatFiles(feedbackId: String, references: List<String>): Boolean {
-        val store = localChats ?: return false
-        var saved = true
-        for (reference in references) {
-            val target = File(getApplication<Application>().cacheDir, "feedback-" + java.util.UUID.randomUUID())
-            try {
-                val (mime, name) = withContext(Dispatchers.IO) {
-                    store.materializeFile(reference, target) to store.fileInfo(reference)?.optString("name").orEmpty()
-                }
-                val ok = mime != null && api.uploadFeedbackChatFile(feedbackId, reference,
-                    name.ifBlank { reference.substringAfterLast('/') }, target, mime, token()).optBoolean("saved")
-                if (!ok) saved = false
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                Diagnostics.failure("feedback.chat_file", e)
-                saved = false
-            } finally { target.delete() }
-        }
-        return saved
     }
 
     fun loadMcpServers() {

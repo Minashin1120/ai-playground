@@ -112,10 +112,10 @@ class DirectHttp(
         }
 
     /** POSTs [payload] and hands each Server-Sent Event to [onEvent] until it returns false or the stream ends. */
-    suspend fun postSse(url: String, headers: Map<String, String>, payload: JSONObject, onEvent: (SseEvent) -> Boolean) {
+    suspend fun postSse(url: String, headers: Map<String, String>, payload: JSONObject, maxLine: Long = 8L * 1024 * 1024, onEvent: (SseEvent) -> Boolean) {
         execute(request(url, headers).header("Accept", "text/event-stream").post(jsonBody(payload)).build(), streamingClient) { response ->
             if (!response.isSuccessful) throw providerError(response.code, response.body.string())
-            readSse(response.body.source(), onEvent = onEvent)
+            readSse(response.body.source(), maxLine = maxLine, onEvent = onEvent)
         }
     }
 

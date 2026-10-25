@@ -13805,7 +13805,7 @@
                 get('fb-message').value = '';
                 fbImagePicker.clear();
                 if (attachChat) attachChat.checked = false;
-                if (attachLogs) attachLogs.checked = false;
+                if (attachLogs) attachLogs.checked = true;
                 loadFeedback();
             };
 

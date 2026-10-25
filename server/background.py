@@ -6131,7 +6131,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     }
                     saw_deepseek_usage = False
                     max_tool_rounds = 8
-                    for tool_round in range(max_tool_rounds):
+                    for tool_round in range(max_tool_rounds + 1):
+                        if tool_round == max_tool_rounds:
+                            pub("status", "ツールの実行結果から回答を生成中...")
                         deepseek_kwargs = {
                             "model": _deepseek_api_model_id(model_key),
                             "messages": messages,
@@ -6140,7 +6142,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         }
                         if python_tools:
                             deepseek_kwargs["tools"] = python_tools
-                            deepseek_kwargs["tool_choice"] = "auto"
+                            # Reserve one final request for an answer using the collected results.
+                            deepseek_kwargs["tool_choice"] = "none" if tool_round == max_tool_rounds else "auto"
                         if enable_reasoning:
                             deepseek_kwargs["reasoning_effort"] = _deepseek_reasoning_effort()
                             deepseek_kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
@@ -6229,6 +6232,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     final_assistant_message["reasoning_content"] = round_reasoning
                                 deepseek_tool_context.append(final_assistant_message)
                             break
+
+                        if tool_round == max_tool_rounds:
+                            raise RuntimeError("DeepSeek returned tool calls after tools were disabled.")
 
                         assistant_tool_calls = []
                         for tool_index in sorted(streamed_tool_calls):

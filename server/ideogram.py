@@ -53,9 +53,9 @@ def is_ideogram_model_key(model_key):
     return str(model_key or "").strip().lower() in IDEOGRAM_MODELS
 
 
-def ideogram_select_sources(current_sources, history_sources):
-    """First user upload is the target; current and earlier uploads are references."""
-    ordered = history_sources[:1] + current_sources + history_sources[1:]
+def ideogram_select_sources(current_sources, generated_sources):
+    """Last model output is the target; current uploads are references."""
+    ordered = generated_sources[:1] + current_sources
     selected = []
     seen = set()
     for source in ordered:

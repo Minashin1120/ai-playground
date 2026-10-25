@@ -184,15 +184,18 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
         return DirectResult(files.indices.joinToString("\n") { "Generated Image ${it + 1} for: ${request.prompt()}" }, files = files)
     }
 
-    /** First user upload is the edit target; newer uploads are reference images. */
+    /** Last model output in the selected branch is the target; uploads are references. */
     internal fun sourceImages(request: DirectRequest): List<DirectAttachment> {
         val attached = request.inputImages()
         val chosen = if (request.model.lowercase() == "ideogram-4.5") {
-            val uploads = request.turns.filter { it.role == "user" }.flatMap { it.attachments }
-                .filter { it.bytes != null && it.mime.startsWith("image/") }
-            val ordered = uploads.take(1) + attached + uploads.drop(1)
+            val generated = request.turns.asReversed().filter { it.role == "assistant" }
+                .flatMap { (it.attachments + it.generated).asReversed() }
+                .firstOrNull { it.bytes != null && it.mime.startsWith("image/") }
+            val ordered = listOfNotNull(generated) + attached
             ordered.distinctBy { it.name }.take(5).ifEmpty {
-                listOfNotNull(request.historyImages().firstOrNull())
+                listOfNotNull(request.turns.asReversed().filter { it.role == "user" }
+                    .flatMap { it.attachments }
+                    .firstOrNull { it.bytes != null && it.mime.startsWith("image/") })
             }
         } else {
             attached

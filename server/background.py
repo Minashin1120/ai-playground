@@ -1376,7 +1376,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             
             history = list(reversed(history_rev))
 
-            def _load_history_image_parts(include_roles=None, newest_first=False, include_only_images=True, source_messages=None):
+            def _load_history_image_parts(include_roles=None, newest_first=False, include_only_images=True, source_messages=None, reverse_within_message=False):
                 parts = []
                 seen = set()
                 total_bytes = 0
@@ -1395,6 +1395,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         ref_list = raw_urls
                     if not isinstance(ref_list, list):
                         ref_list = [ref_list]
+                    if reverse_within_message:
+                        ref_list = list(reversed(ref_list))
                     for ref in ref_list:
                         if _HISTORY_IMAGE_MAX_ITEMS and len(parts) >= _HISTORY_IMAGE_MAX_ITEMS:
                             return parts
@@ -4642,18 +4644,18 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 log_force("Routing: Ideogram Branch")
                 try:
                     pub("status", "画像生成の準備中...")
-                    # Keep the first user image as the edit target, even when a later
-                    # turn attaches reference images. Generated images are fallback only.
-                    upload_history = None
+                    # Edit the last model output in the selected branch; new uploads
+                    # are references. Text context limits must not change the target.
+                    image_history = None
                     if ideogram_supports_edit(model_key_l) and (MAX_CONTEXT_MESSAGES or MAX_CONTEXT_TOKENS):
-                        # Text context limits must not change the original edit target.
-                        upload_history = list(reversed([
+                        image_history = list(reversed([
                             {"role": node.role, "image_url": node.image_url}
                             for node in _iter_chat_history_ancestors(thread_id, msg.parent_id, user_id)
-                            if node.role == "user" and node.image_url
+                            if node.image_url
                         ]))
                     history_image_parts = _load_history_image_parts(
-                        include_roles={"user"}, source_messages=upload_history
+                        include_roles={"assistant"}, newest_first=True,
+                        source_messages=image_history, reverse_within_message=True
                     ) if ideogram_supports_edit(model_key_l) else []
 
                     def _ideogram_source_entry(raw_bytes, raw_mime, raw_name):
@@ -4676,13 +4678,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         current_sources.append(_ideogram_source_entry(
                             fi['bytes'], fi['mime'], fi.get('send_name') or fi.get('name') or f"input_{len(current_sources)}.png"
                         ))
-                    history_sources = [
+                    generated_sources = [
                         _ideogram_source_entry(hp['bytes'], hp['mime'], hp['name'])
-                        for hp in history_image_parts
+                        for hp in history_image_parts[:1]
                     ]
-                    ideogram_sources = ideogram_select_sources(current_sources, history_sources)
+                    ideogram_sources = ideogram_select_sources(current_sources, generated_sources)
                     if not ideogram_sources and ideogram_supports_edit(model_key_l):
-                        fallback_images = _load_history_image_parts(include_roles={"assistant"}, newest_first=True)
+                        fallback_images = _load_history_image_parts(
+                            include_roles={"user"}, newest_first=True, source_messages=image_history
+                        )
                         if fallback_images:
                             hp = fallback_images[0]
                             ideogram_sources = [_ideogram_source_entry(hp['bytes'], hp['mime'], hp['name'])]

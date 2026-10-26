@@ -1065,10 +1065,10 @@ private fun InlineText(text: String, style: TextStyle, colors: MarkdownColors) {
 /** True inside a bubble-wide selection, so nested text joins it instead of starting its own. */
 private val LocalMessageSelection = staticCompositionLocalOf { false }
 
-/** A [SelectionContainer] unless one is already open around this text. */
+/** Joins the bubble selection, except for text in an independently scrolling viewport. */
 @Composable
-internal fun MessageSelection(content: @Composable () -> Unit) {
-    if (LocalMessageSelection.current) content()
+internal fun MessageSelection(independent: Boolean = false, content: @Composable () -> Unit) {
+    if (LocalMessageSelection.current && !independent) content()
     else {
         val trace = LocalInteractionTrace.current ?: rememberInteractionTrace("message")
         ProvideMathCopy {

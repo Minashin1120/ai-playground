@@ -306,7 +306,9 @@ private fun ThoughtContainer(thought: String, openInitially: Boolean) {
                     .verticalScroll(rememberScrollState())
                     .padding(13.6.dp),
             ) {
-                MessageSelection {
+                // Its full text extends beyond the clipped 400dp viewport. Registering it with
+                // the bubble makes that hidden text overlap the answer in selection hit testing.
+                MessageSelection(independent = true) {
                     Text(thought, color = if (web.isLight) Color(0xFF334155) else Color(0xFFCBD5F5), fontSize = 13.6.sp, lineHeight = 20.sp,
                         fontFamily = FontFamily.Monospace)
                 }

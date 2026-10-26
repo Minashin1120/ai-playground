@@ -1075,7 +1075,63 @@
             showToast('設定を保存しました', 'success');
         };
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleGemItem.replace('0', id), {method: 'DELETE'}); loadGems(); }
-        async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { const res = await apiFetch(CHAT_CONFIG.urls.updateTitle.replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); const d = await res.json().catch(() => ({})); if (res.ok && currentThreadId === String(id)) setCurrentChatHeaderTitle((d && d.title) || n); loadThreads(); } }
+        function renameThread(e, id) {
+            e.stopPropagation();
+            const modal = get('thread-rename-modal');
+            const form = get('thread-rename-form');
+            const input = get('thread-rename-input');
+            const save = get('thread-rename-save');
+            const cancel = get('thread-rename-cancel');
+            const error = get('thread-rename-error');
+            const opener = e.currentTarget;
+            input.value = opener.closest('[data-thread-id]')?.dataset.threadTitle || '';
+            error.textContent = '';
+            save.disabled = false;
+            let busy = false;
+            const close = () => {
+                if (busy) return;
+                hideModal('thread-rename-modal');
+                opener.focus();
+            };
+            cancel.onclick = close;
+            modal.onclick = event => { if (event.target === modal) close(); };
+            modal.onkeydown = event => {
+                if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+                if (event.key === 'Tab') {
+                    if (event.shiftKey && document.activeElement === input) { event.preventDefault(); cancel.focus(); }
+                    else if (!event.shiftKey && document.activeElement === cancel) { event.preventDefault(); input.focus(); }
+                }
+            };
+            form.onsubmit = async event => {
+                event.preventDefault();
+                const title = input.value.trim();
+                if (busy || !title) { if (!title) input.focus(); return; }
+                busy = true;
+                save.disabled = true;
+                cancel.disabled = true;
+                try {
+                    const res = await apiFetch(CHAT_CONFIG.urls.updateTitle.replace('0', id), {
+                        method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title})
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error('rename failed');
+                    if (currentThreadId === String(id)) setCurrentChatHeaderTitle(data.title || title);
+                    busy = false;
+                    close();
+                    loadThreads();
+                } catch (_) {
+                    error.textContent = '名前の変更に失敗しました。もう一度お試しください。';
+                } finally {
+                    busy = false;
+                    save.disabled = false;
+                    cancel.disabled = false;
+                }
+            };
+            cancel.disabled = false;
+            showModal('thread-rename-modal');
+            input.focus();
+        }
+
         async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleThreadItem.replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
         async function deleteMessage(id, confirmed) { if(!confirmed && !confirm("Delete this message and subsequent history?")) return; await apiFetch(CHAT_CONFIG.urls.deleteMessage.replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
         let activePdfPrintFrame = null;

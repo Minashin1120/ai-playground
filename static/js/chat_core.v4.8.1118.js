@@ -1311,6 +1311,10 @@
         };
         window.showModal = showModal;
         const hideModal = (id, options = {}) => {
+            if (id === 'token-detail-modal' && typeof cancelPromptTokenDetail === 'function') {
+                cancelPromptTokenDetail();
+                if (get('token-detail-estimate') && !get('token-detail-estimate').classList.contains('hidden')) get('prompt-token-estimate')?.focus();
+            }
             const el = get(id);
             if (!el) return;
             cancelModalTransitions(el);
@@ -4451,15 +4455,26 @@
         let promptTokenEstimateSeq = 0;
         let promptTokenEstimateLastKey = '';
         let promptTokenEstimateLastData = null;
+        let promptTokenEstimateVisible = null;
+        let promptTokenDetailAbort = null;
+        let promptTokenDetailSeq = 0;
+        let promptTokenDetailSnapshot = null;
+        function cancelPromptTokenDetail() {
+            ++promptTokenDetailSeq;
+            if (promptTokenDetailAbort) promptTokenDetailAbort.abort();
+            promptTokenDetailAbort = null;
+        }
         function setPromptTokenEstimateText(text, colorClass = 'text-gray-400') {
             const el = get('prompt-token-estimate');
             if (!el) return;
+            el.disabled = true;
+            promptTokenEstimateVisible = null;
             if (!text) {
                 el.classList.add('hidden');
                 el.innerText = '';
                 return;
             }
-            el.className = `mt-1 px-1 text-[10px] ${colorClass}`;
+            el.className = `mt-1 px-1 text-left text-[10px] hover:underline rounded ${colorClass}`;
             el.classList.remove('hidden');
             el.innerText = text;
         }
@@ -4503,6 +4518,95 @@
             if (data.estimate_scope === 'draft') notes.push('入力欄のみ（履歴・SysPrompt除外）');
             const noteText = notes.length ? ` ・ ${notes.join(' / ')}` : '';
             setPromptTokenEstimateText(`入力見積: ${incomplete ? '一部のみ ' : ''}${total} tokens (本文 ${prompt} / ファイル ${files})${noteText}`, 'text-cyan-300');
+            promptTokenEstimateVisible = { data, payload: p };
+            const trigger = get('prompt-token-estimate');
+            if (trigger) { trigger.disabled = false; trigger.classList.add('underline'); }
+        }
+        function renderPromptTokenDetail(data, payload, pending = false, failed = false) {
+            const body = get('token-detail-estimate');
+            if (!body) return;
+            promptTokenDetailSnapshot = { data, payload };
+            body.replaceChildren();
+            const text = (value, cls = 'text-gray-400') => {
+                const p = document.createElement('p'); p.className = cls; p.textContent = value; body.appendChild(p);
+            };
+            const row = (label, value) => {
+                const item = document.createElement('div'); item.className = 'flex justify-between gap-3 items-start';
+                const key = document.createElement('span'); key.className = 'min-w-0 break-words'; key.textContent = label;
+                const number = document.createElement('span'); number.className = 'font-mono shrink-0';
+                number.textContent = value === null || value === undefined ? '未計測' : `${value} tokens`;
+                item.append(key, number); body.appendChild(item);
+            };
+            text(payload.model || '', 'text-blue-300 break-all');
+            text('開いた時点の入力');
+            row('合計', data.tokens_total);
+            row('本文・引用', data.tokens_prompt);
+            row('添付ファイル合計', data.tokens_files);
+            text(`計測方法: ${data.estimate_method === 'provider' ? 'プロバイダー計測' : '概算'}`);
+            text('対象: 入力欄の本文・引用・添付（履歴・SysPrompt・ツール除外）');
+            text(`添付 ${data.files_total || 0}件 / 計測済み ${data.files_counted || 0}件 / 未計測 ${data.files_non_text || 0}件 / 未検出 ${data.files_missing || 0}件 / 失敗 ${data.files_error || 0}件`);
+            const detail = data.breakdown;
+            if (detail) {
+                text('内訳', 'font-bold text-gray-200 pt-2');
+                row('本文（形式情報を含む場合あり）', detail.message_tokens);
+                row('引用（区切りを含む）', detail.quote_tokens);
+                const statuses = { missing: '未検出', error: '計測失敗', read_error: '読み込み失敗', unseparated: '分割未計測', non_text: '未計測', no_text: 'テキストなし' };
+                (detail.files || []).forEach((file, i) => {
+                    row(`添付 ${i + 1}: ${file.name || 'ファイル'}`, file.tokens);
+                    text(`${file.method === 'provider' ? 'プロバイダー計測' : '概算'} / ${file.reason === 'ok' ? '計測済み' : (statuses[file.reason] || '未計測')}`);
+                });
+                row('結合時の差・分割未計測分', detail.adjustment_tokens);
+                text('内訳は本文、引用、添付を順に加えたときの増分です。結合時の差や分割できない分は別に表示します。');
+            }
+            if (pending) text('詳細な内訳を計算中...');
+            if (failed) text('詳細な内訳を取得できませんでした。', 'text-red-300');
+            if (!pending && !detail && !failed) text('この接続先では詳細な内訳を取得できません。');
+            if (failed) {
+                const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'text-blue-300 underline';
+                retry.textContent = '再試行'; retry.onclick = () => loadPromptTokenDetail(data, payload); body.appendChild(retry);
+            }
+            text('送信後に返る使用量や請求額の確定値とは異なります。');
+        }
+        async function loadPromptTokenDetail(snapshot, payload) {
+            cancelPromptTokenDetail();
+            const seq = promptTokenDetailSeq;
+            promptTokenDetailAbort = new AbortController();
+            renderPromptTokenDetail(snapshot, payload, true);
+            try {
+                const response = await apiFetch(CHAT_CONFIG.urls.estimatePromptTokensApi, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...payload, include_details: true }), signal: promptTokenDetailAbort.signal
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                if (seq !== promptTokenDetailSeq || get('token-detail-modal').classList.contains('hidden')) return;
+                if (!data.countable || (snapshot.estimate_method === 'provider' && data.estimate_method !== 'provider')) throw new Error('Unavailable');
+                renderPromptTokenDetail(data, payload);
+            } catch (error) {
+                if (seq !== promptTokenDetailSeq || error.name === 'AbortError' || get('token-detail-modal').classList.contains('hidden')) return;
+                renderPromptTokenDetail(snapshot, payload, false, true);
+            }
+        }
+        function openPromptTokenDetail() {
+            const visible = promptTokenEstimateVisible;
+            if (!visible || !visible.data.countable) return;
+            const payload = JSON.parse(JSON.stringify(visible.payload));
+            get('token-detail-title').textContent = '入力トークン見積の詳細';
+            get('token-detail-usage').classList.add('hidden');
+            get('token-detail-estimate').classList.remove('hidden');
+            showTokenDetailModal(null, true);
+            get('token-detail-modal').querySelector('button')?.focus();
+            loadPromptTokenDetail(visible.data, payload);
+        }
+        function restorePromptTokenDetail() {
+            const snapshot = promptTokenDetailSnapshot;
+            if (!snapshot) { showTokenDetailModal(); return; }
+            get('token-detail-title').textContent = '入力トークン見積の詳細';
+            get('token-detail-usage').classList.add('hidden');
+            get('token-detail-estimate').classList.remove('hidden');
+            showTokenDetailModal(null, true);
+            if (snapshot.data.breakdown) renderPromptTokenDetail(snapshot.data, snapshot.payload);
+            else loadPromptTokenDetail(snapshot.data, snapshot.payload);
         }
         function schedulePromptTokenEstimate(immediate = false) {
             const payload = buildPromptTokenEstimatePayload();
@@ -4530,6 +4634,7 @@
                 renderPromptTokenEstimate(promptTokenEstimateLastData, payload);
                 return;
             }
+            renderPromptTokenEstimate({ pending: true }, payload);
             if (promptTokenEstimateTimer) {
                 clearTimeout(promptTokenEstimateTimer);
                 promptTokenEstimateTimer = null;
@@ -13632,7 +13737,11 @@
                 '/edit-image': { id: 'marker-modal', open: () => { /* Marker modal usually needs context */ } },
                 '/chat-settings': { id: 'thread-modal', open: () => window.openThreadModal() },
                 '/model': { id: 'model-modal', open: () => openModelModal() },
-                '/token-details': { id: 'token-detail-modal', open: () => showTokenDetailModal() },
+                '/token-details': { id: 'token-detail-modal', open: () => {
+                    if (history.state && history.state.promptEstimate) restorePromptTokenDetail();
+                    else if (history.state && history.state.messageId !== undefined) openTokenDetail(history.state.messageId);
+                    else showTokenDetailModal();
+                } },
                 '/encryption-status': { id: 'encryption-status-modal', open: () => showEncryptionStatusModal() },
                 '/python-execution': { id: 'python-exec-modal', open: () => showPythonExecDetailModal() },
                 '/gem': { id: 'gem-modal', open: () => { editingGemUuid = null; get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`; showModal('gem-modal'); } },
@@ -13928,6 +14037,20 @@
                 };
             }
 
+            function filterAdminFeedback() {
+                const status = get('fb-admin-status-filter').value;
+                let visible = 0;
+                get('fb-admin-list').querySelectorAll('[data-feedback-status]').forEach(row => {
+                    const matches = status === 'all' || (status === 'unresolved'
+                        ? ['new', 'in_review', 'replied'].includes(row.dataset.feedbackStatus)
+                        : row.dataset.feedbackStatus === status);
+                    row.hidden = !matches;
+                    if (matches) visible++;
+                });
+                get('fb-admin-empty').classList.toggle('hidden', visible !== 0);
+            }
+            get('fb-admin-status-filter').onchange = filterAdminFeedback;
+
             async function loadFeedback() {
                 fbReplyPickers.forEach(picker => picker.clear());
                 fbReplyPickers = [];
@@ -13953,6 +14076,7 @@
                     (data.items || []).forEach(item => {
                         const el = document.createElement('div');
                         el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50 space-y-2';
+                        el.dataset.feedbackStatus = item.status || 'new';
                         el.innerHTML = `
                             <div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.agent_name ? `agent:${escapeHtml(item.agent_name)}` : `user:${item.user_id}`} / ${item.created_at}${item.handled_by ? ` / 対応: ${escapeHtml(item.handled_by)}` : ''}</div>
                             <div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div>
@@ -13983,6 +14107,7 @@
                         bindFeedbackReply(item, el);
                         adminList.appendChild(el);
                     });
+                    filterAdminFeedback();
                 } else {
                     adminPanel.classList.add('hidden');
                 }
@@ -20407,9 +20532,10 @@
             return msgEl;
         }
 
-        function showTokenDetailModal(messageId = null) {
+        function showTokenDetailModal(messageId = null, promptEstimate = false) {
             if (location.pathname !== '/token-details') {
                 const state = { modal: 'token-details' };
+                if (promptEstimate) state.promptEstimate = true;
                 if (messageId !== null) state.messageId = messageId;
                 history.pushState(state, '', '/token-details');
             }
@@ -20421,6 +20547,9 @@
             if (!meta) return;
             const modal = get('token-detail-modal');
             if (!modal) return;
+            get('token-detail-usage').classList.remove('hidden');
+            get('token-detail-estimate').classList.add('hidden');
+            cancelPromptTokenDetail();
             const total = meta.tokens_total !== null && meta.tokens_total !== undefined ? meta.tokens_total : '-';
             const tIn = meta.tokens_in !== null && meta.tokens_in !== undefined ? meta.tokens_in : '-';
             const tOut = meta.tokens_out !== null && meta.tokens_out !== undefined ? meta.tokens_out : '-';
@@ -20439,6 +20568,7 @@
         }
 
         function closeTokenDetail(skipHistory = false) {
+            cancelPromptTokenDetail();
             const modal = get('token-detail-modal');
             if (!modal) return;
             hideModal('token-detail-modal');
@@ -23141,6 +23271,7 @@
 
                         row.className = `p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group ${activeClass}`;
                         row.dataset.threadId = tid;
+                        row.dataset.threadTitle = t.title || '';
                         row.innerHTML = `<div class="flex items-center gap-1 truncate flex-1"><button class="${star} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${tid}')"><i class="fas fa-star text-[10px]"></i></button><span class="truncate">${escapeHtml(t.title || "No Title")}</span>${tempBadge}</div><div class="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition" data-thread-actions="1"><button class="text-gray-500 hover:text-white px-1 transition" onclick="renameThread(event, '${tid}')"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1 transition" onclick="deleteThread(event, '${tid}')"><i class="fas fa-trash text-xs"></i></button></div>`;
                         row.onclick = (e) => {
                             if (e.target.closest('button') || e.target.closest('[data-thread-actions]')) return;
@@ -24525,7 +24656,63 @@
             showToast('設定を保存しました', 'success');
         };
         async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleGemItem.replace('0', id), {method: 'DELETE'}); loadGems(); }
-        async function renameThread(e, id) { e.stopPropagation(); const n = prompt("Title:"); if(n) { const res = await apiFetch(CHAT_CONFIG.urls.updateTitle.replace('0', id), { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title: n}) }); const d = await res.json().catch(() => ({})); if (res.ok && currentThreadId === String(id)) setCurrentChatHeaderTitle((d && d.title) || n); loadThreads(); } }
+        function renameThread(e, id) {
+            e.stopPropagation();
+            const modal = get('thread-rename-modal');
+            const form = get('thread-rename-form');
+            const input = get('thread-rename-input');
+            const save = get('thread-rename-save');
+            const cancel = get('thread-rename-cancel');
+            const error = get('thread-rename-error');
+            const opener = e.currentTarget;
+            input.value = opener.closest('[data-thread-id]')?.dataset.threadTitle || '';
+            error.textContent = '';
+            save.disabled = false;
+            let busy = false;
+            const close = () => {
+                if (busy) return;
+                hideModal('thread-rename-modal');
+                opener.focus();
+            };
+            cancel.onclick = close;
+            modal.onclick = event => { if (event.target === modal) close(); };
+            modal.onkeydown = event => {
+                if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+                if (event.key === 'Tab') {
+                    if (event.shiftKey && document.activeElement === input) { event.preventDefault(); cancel.focus(); }
+                    else if (!event.shiftKey && document.activeElement === cancel) { event.preventDefault(); input.focus(); }
+                }
+            };
+            form.onsubmit = async event => {
+                event.preventDefault();
+                const title = input.value.trim();
+                if (busy || !title) { if (!title) input.focus(); return; }
+                busy = true;
+                save.disabled = true;
+                cancel.disabled = true;
+                try {
+                    const res = await apiFetch(CHAT_CONFIG.urls.updateTitle.replace('0', id), {
+                        method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title})
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error('rename failed');
+                    if (currentThreadId === String(id)) setCurrentChatHeaderTitle(data.title || title);
+                    busy = false;
+                    close();
+                    loadThreads();
+                } catch (_) {
+                    error.textContent = '名前の変更に失敗しました。もう一度お試しください。';
+                } finally {
+                    busy = false;
+                    save.disabled = false;
+                    cancel.disabled = false;
+                }
+            };
+            cancel.disabled = false;
+            showModal('thread-rename-modal');
+            input.focus();
+        }
+
         async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleThreadItem.replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
         async function deleteMessage(id, confirmed) { if(!confirmed && !confirm("Delete this message and subsequent history?")) return; await apiFetch(CHAT_CONFIG.urls.deleteMessage.replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
         let activePdfPrintFrame = null;

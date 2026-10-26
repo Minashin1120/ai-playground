@@ -1,4 +1,4 @@
-var Ni=Object.defineProperty;var o=(e,t)=>Ni(e,"name",{value:t,configurable:!0});const get=o(e=>document.getElementById(e),"get"),nativeConsoleLog=typeof console.log=="function"?console.
+var Ri=Object.defineProperty;var o=(e,t)=>Ri(e,"name",{value:t,configurable:!0});const get=o(e=>document.getElementById(e),"get"),nativeConsoleLog=typeof console.log=="function"?console.
 log.bind(console):function(){},nativeConsoleInfo=typeof console.info=="function"?console.info.bind(console):
 nativeConsoleLog;let settingsModalLoaded=!1;const setSettingsSaveEnabled=o(e=>{const t=get("save-set\
 tings-btn");t&&(t.disabled=!e,t.classList.toggle("opacity-60",!e),t.classList.toggle("cursor-not-all\
@@ -407,10 +407,12 @@ n"))return;cancelModalTransitions(t),t.classList.remove("hidden"),t.style.displa
 remove("modal-close"),t.classList.remove("modal-open"),t.classList.add("modal-prep");const n={first:0,
 second:0};n.first=requestAnimationFrame(()=>{n.second=requestAnimationFrame(()=>{modalOpenFrames.delete(
 t),t.classList.remove("modal-prep"),t.classList.add("modal-open")})}),modalOpenFrames.set(t,n)},"sho\
-wModal");window.showModal=showModal;const hideModal=o((e,t={})=>{const n=get(e);if(!n)return;cancelModalTransitions(
-n);const i=!!(t&&t.skipConfirm),a=!!(t&&t.skipReset);if(e==="camera-capture-modal"&&cameraCapturePendingFiles.
-length>0&&!i&&!cameraCaptureBusy){attachCameraCapturedFiles();return}if(e==="rich-paste-modal"&&!i&&
-hasRichPasteContent()&&!confirm("\u8CBC\u308A\u4ED8\u3051\u305F\u5185\u5BB9\u3092\u7834\u68C4\u3057\u3066\u9589\u3058\u307E\u3059\u304B\uFF1F"))
+wModal");window.showModal=showModal;const hideModal=o((e,t={})=>{var l;e==="token-detail-modal"&&typeof cancelPromptTokenDetail==
+"function"&&(cancelPromptTokenDetail(),get("token-detail-estimate")&&!get("token-detail-estimate").classList.
+contains("hidden")&&((l=get("prompt-token-estimate"))==null||l.focus()));const n=get(e);if(!n)return;
+cancelModalTransitions(n);const i=!!(t&&t.skipConfirm),a=!!(t&&t.skipReset);if(e==="camera-capture-m\
+odal"&&cameraCapturePendingFiles.length>0&&!i&&!cameraCaptureBusy){attachCameraCapturedFiles();return}
+if(e==="rich-paste-modal"&&!i&&hasRichPasteContent()&&!confirm("\u8CBC\u308A\u4ED8\u3051\u305F\u5185\u5BB9\u3092\u7834\u68C4\u3057\u3066\u9589\u3058\u307E\u3059\u304B\uFF1F"))
 return;if(e==="marker-modal"&&(markerState.row=null),e==="camera-capture-modal"&&(a||resetCameraCapturePending(),
 stopCameraCaptureStream()),!n.classList.contains("modal-open")){n.style.display="none",n.classList.remove(
 "modal-close"),n.classList.remove("modal-prep"),n.classList.add("hidden");return}n.classList.remove(
@@ -917,8 +919,8 @@ background,logging:!1,imageTimeout:5e3,x:0,y:I,width:S,height:U,windowWidth:S,sc
 richPasteAbortController.signal:void 0,onclone:o(P=>{prepareRichPastePdfClone(P,c);const H=P.querySelector(
 ".pdf-root-wrapper");H&&(H.style.position="relative",H.style.left="0",H.style.top="0")},"onclone")}).
 then(P=>{clearTimeout(q),$(P)}).catch(P=>{clearTimeout(q),R(P)})})).toDataURL("image/jpeg",.95),_e=w.
-getImageProperties(re),me=Math.min(k,_e.height*v/_e.width);B||w.addPage(),w.addImage(re,"JPEG",0,0,v,
-me),B=!1,I+=U,J++;const we=Math.min(100,15+Math.round(J/Z*85));i(we),await new Promise($=>setTimeout(
+getImageProperties(re),pe=Math.min(k,_e.height*v/_e.width);B||w.addPage(),w.addImage(re,"JPEG",0,0,v,
+pe),B=!1,I+=U,J++;const we=Math.min(100,15+Math.round(J/Z*85));i(we),await new Promise($=>setTimeout(
 $,100))}return i(100),{blob:w.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=o(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -1437,18 +1439,22 @@ classList.add("hidden"),a.innerText="Total: 0 tokens",a.classList.remove("cursor
 remove("cursor-pointer","underline","decoration-dotted"),r.innerText="All branches: 0 tokens",r.onclick=
 null),delete messageMeta.__total_all_branches__)}o(updateTotalTokenBar,"updateTotalTokenBar");const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS=700;
 let promptTokenEstimateTimer=null,promptTokenEstimateAbort=null,promptTokenEstimateSeq=0,promptTokenEstimateLastKey="",
-promptTokenEstimateLastData=null;function setPromptTokenEstimateText(e,t="text-gray-400"){const n=get(
-"prompt-token-estimate");if(n){if(!e){n.classList.add("hidden"),n.innerText="";return}n.className=`m\
-t-1 px-1 text-[10px] ${t}`,n.classList.remove("hidden"),n.innerText=e}}o(setPromptTokenEstimateText,
-"setPromptTokenEstimateText");function buildPromptTokenEstimatePayload(){return{model:get("model-sel\
-ect")&&get("model-select").value?get("model-select").value:"",message:get("prompt-input")&&get("prom\
-pt-input").value?get("prompt-input").value:"",quote_text:currentQuote||"",image_urls:collectImageUrlsForSend()}}
-o(buildPromptTokenEstimatePayload,"buildPromptTokenEstimatePayload");function renderPromptTokenEstimate(e,t=null){
-const n=t||buildPromptTokenEstimatePayload(),i=!!((n.message||"").trim()||(n.quote_text||"").trim()),
-a=Array.isArray(n.image_urls)&&n.image_urls.length>0;if(!i&&!a){setPromptTokenEstimateText("");return}
-if(e&&e.pending){setPromptTokenEstimateText("\u5165\u529B\u30C8\u30FC\u30AF\u30F3\u3092\u8A08\u7B97\u4E2D...",
-"text-gray-500");return}if(!e){setPromptTokenEstimateText("\u5165\u529B\u30C8\u30FC\u30AF\u30F3\u3092\u8A08\u7B97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F",
-"text-red-300");return}if(!e.countable){setPromptTokenEstimateText("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u5165\u529B\u30C8\u30FC\u30AF\u30F3\u8868\u793A\u5BFE\u8C61\u5916\u3067\u3059",
+promptTokenEstimateLastData=null,promptTokenEstimateVisible=null,promptTokenDetailAbort=null,promptTokenDetailSeq=0,
+promptTokenDetailSnapshot=null;function cancelPromptTokenDetail(){++promptTokenDetailSeq,promptTokenDetailAbort&&
+promptTokenDetailAbort.abort(),promptTokenDetailAbort=null}o(cancelPromptTokenDetail,"cancelPromptTo\
+kenDetail");function setPromptTokenEstimateText(e,t="text-gray-400"){const n=get("prompt-token-estim\
+ate");if(n){if(n.disabled=!0,promptTokenEstimateVisible=null,!e){n.classList.add("hidden"),n.innerText=
+"";return}n.className=`mt-1 px-1 text-left text-[10px] hover:underline rounded ${t}`,n.classList.remove(
+"hidden"),n.innerText=e}}o(setPromptTokenEstimateText,"setPromptTokenEstimateText");function buildPromptTokenEstimatePayload(){
+return{model:get("model-select")&&get("model-select").value?get("model-select").value:"",message:get(
+"prompt-input")&&get("prompt-input").value?get("prompt-input").value:"",quote_text:currentQuote||"",
+image_urls:collectImageUrlsForSend()}}o(buildPromptTokenEstimatePayload,"buildPromptTokenEstimatePay\
+load");function renderPromptTokenEstimate(e,t=null){const n=t||buildPromptTokenEstimatePayload(),i=!!((n.
+message||"").trim()||(n.quote_text||"").trim()),a=Array.isArray(n.image_urls)&&n.image_urls.length>0;
+if(!i&&!a){setPromptTokenEstimateText("");return}if(e&&e.pending){setPromptTokenEstimateText("\u5165\u529B\u30C8\u30FC\u30AF\u30F3\
+\u3092\u8A08\u7B97\u4E2D...","text-gray-500");return}if(!e){setPromptTokenEstimateText("\u5165\u529B\u30C8\u30FC\u30AF\u30F3\u3092\u8A08\u7B97\u3067\u304D\u307E\
+\u305B\u3093\u3067\u3057\u305F","text-red-300");return}if(!e.countable){setPromptTokenEstimateText("\
+\u3053\u306E\u30E2\u30C7\u30EB\u306F\u5165\u529B\u30C8\u30FC\u30AF\u30F3\u8868\u793A\u5BFE\u8C61\u5916\u3067\u3059",
 "text-gray-500");return}const r=Number(e.tokens_total||0),l=Number(e.tokens_prompt||0),c=Number(e.tokens_files||
 0),u=Number(e.files_non_text||0)+Number(e.files_missing||0)+Number(e.files_error||0)>0,f=[];Number(e.
 files_non_text||0)>0&&f.push(`\u672A\u8A08\u6E2C${e.files_non_text}\u4EF6`),Number(e.files_missing||
@@ -1457,17 +1463,63 @@ files_error}\u4EF6`),e.estimate_method&&f.push(e.estimate_method==="provider"?"\
 "\u6982\u7B97"),e.estimate_scope==="draft"&&f.push("\u5165\u529B\u6B04\u306E\u307F\uFF08\u5C65\u6B74\u30FBSysPrompt\u9664\u5916\uFF09");
 const b=f.length?` \u30FB ${f.join(" / ")}`:"";setPromptTokenEstimateText(`\u5165\u529B\u898B\u7A4D: ${u?
 "\u4E00\u90E8\u306E\u307F ":""}${r} tokens (\u672C\u6587 ${l} / \u30D5\u30A1\u30A4\u30EB ${c})${b}`,
-"text-cyan-300")}o(renderPromptTokenEstimate,"renderPromptTokenEstimate");function schedulePromptTokenEstimate(e=!1){
-const t=buildPromptTokenEstimatePayload();++promptTokenEstimateSeq,promptTokenEstimateTimer&&(clearTimeout(
-promptTokenEstimateTimer),promptTokenEstimateTimer=null),promptTokenEstimateAbort&&(promptTokenEstimateAbort.
-abort(),promptTokenEstimateAbort=null);const n=!!((t.message||"").trim()||(t.quote_text||"").trim()),
-i=Array.isArray(t.image_urls)&&t.image_urls.length>0;if(!n&&!i){promptTokenEstimateLastKey="",promptTokenEstimateLastData=
-null,promptTokenEstimateTimer&&(clearTimeout(promptTokenEstimateTimer),promptTokenEstimateTimer=null),
-promptTokenEstimateAbort&&(promptTokenEstimateAbort.abort(),promptTokenEstimateAbort=null),renderPromptTokenEstimate(
-null,t);return}const a=JSON.stringify([t.model||"",t.message||"",t.quote_text||"",t.image_urls||[]]);
-if(a===promptTokenEstimateLastKey&&promptTokenEstimateLastData){renderPromptTokenEstimate(promptTokenEstimateLastData,
-t);return}promptTokenEstimateTimer&&(clearTimeout(promptTokenEstimateTimer),promptTokenEstimateTimer=
-null);const r=o(async()=>{promptTokenEstimateAbort&&promptTokenEstimateAbort.abort(),promptTokenEstimateAbort=
+"text-cyan-300"),promptTokenEstimateVisible={data:e,payload:n};const y=get("prompt-token-estimate");
+y&&(y.disabled=!1,y.classList.add("underline"))}o(renderPromptTokenEstimate,"renderPromptTokenEstima\
+te");function renderPromptTokenDetail(e,t,n=!1,i=!1){const a=get("token-detail-estimate");if(!a)return;
+promptTokenDetailSnapshot={data:e,payload:t},a.replaceChildren();const r=o((u,f="text-gray-400")=>{const b=document.
+createElement("p");b.className=f,b.textContent=u,a.appendChild(b)},"text"),l=o((u,f)=>{const b=document.
+createElement("div");b.className="flex justify-between gap-3 items-start";const y=document.createElement(
+"span");y.className="min-w-0 break-words",y.textContent=u;const w=document.createElement("span");w.className=
+"font-mono shrink-0",w.textContent=f==null?"\u672A\u8A08\u6E2C":`${f} tokens`,b.append(y,w),a.appendChild(
+b)},"row");r(t.model||"","text-blue-300 break-all"),r("\u958B\u3044\u305F\u6642\u70B9\u306E\u5165\u529B"),
+l("\u5408\u8A08",e.tokens_total),l("\u672C\u6587\u30FB\u5F15\u7528",e.tokens_prompt),l("\u6DFB\u4ED8\u30D5\u30A1\u30A4\u30EB\u5408\u8A08",
+e.tokens_files),r(`\u8A08\u6E2C\u65B9\u6CD5: ${e.estimate_method==="provider"?"\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u8A08\u6E2C":
+"\u6982\u7B97"}`),r("\u5BFE\u8C61: \u5165\u529B\u6B04\u306E\u672C\u6587\u30FB\u5F15\u7528\u30FB\u6DFB\u4ED8\uFF08\u5C65\u6B74\u30FBSysPrompt\u30FB\u30C4\u30FC\u30EB\u9664\u5916\uFF09"),
+r(`\u6DFB\u4ED8 ${e.files_total||0}\u4EF6 / \u8A08\u6E2C\u6E08\u307F ${e.files_counted||0}\u4EF6 / \u672A\u8A08\u6E2C ${e.
+files_non_text||0}\u4EF6 / \u672A\u691C\u51FA ${e.files_missing||0}\u4EF6 / \u5931\u6557 ${e.files_error||
+0}\u4EF6`);const c=e.breakdown;if(c){r("\u5185\u8A33","font-bold text-gray-200 pt-2"),l("\u672C\u6587\uFF08\u5F62\u5F0F\u60C5\u5831\u3092\u542B\u3080\u5834\
+\u5408\u3042\u308A\uFF09",c.message_tokens),l("\u5F15\u7528\uFF08\u533A\u5207\u308A\u3092\u542B\u3080\uFF09",
+c.quote_tokens);const u={missing:"\u672A\u691C\u51FA",error:"\u8A08\u6E2C\u5931\u6557",read_error:"\u8AAD\
+\u307F\u8FBC\u307F\u5931\u6557",unseparated:"\u5206\u5272\u672A\u8A08\u6E2C",non_text:"\u672A\u8A08\u6E2C",
+no_text:"\u30C6\u30AD\u30B9\u30C8\u306A\u3057"};(c.files||[]).forEach((f,b)=>{l(`\u6DFB\u4ED8 ${b+1}\
+: ${f.name||"\u30D5\u30A1\u30A4\u30EB"}`,f.tokens),r(`${f.method==="provider"?"\u30D7\u30ED\u30D0\u30A4\u30C0\u30FC\u8A08\u6E2C":
+"\u6982\u7B97"} / ${f.reason==="ok"?"\u8A08\u6E2C\u6E08\u307F":u[f.reason]||"\u672A\u8A08\u6E2C"}`)}),
+l("\u7D50\u5408\u6642\u306E\u5DEE\u30FB\u5206\u5272\u672A\u8A08\u6E2C\u5206",c.adjustment_tokens),r(
+"\u5185\u8A33\u306F\u672C\u6587\u3001\u5F15\u7528\u3001\u6DFB\u4ED8\u3092\u9806\u306B\u52A0\u3048\u305F\u3068\u304D\u306E\u5897\u5206\u3067\u3059\u3002\u7D50\u5408\u6642\u306E\u5DEE\u3084\u5206\u5272\u3067\u304D\u306A\u3044\u5206\u306F\u5225\u306B\u8868\u793A\u3057\u307E\u3059\u3002")}
+if(n&&r("\u8A73\u7D30\u306A\u5185\u8A33\u3092\u8A08\u7B97\u4E2D..."),i&&r("\u8A73\u7D30\u306A\u5185\u8A33\u3092\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002",
+"text-red-300"),!n&&!c&&!i&&r("\u3053\u306E\u63A5\u7D9A\u5148\u3067\u306F\u8A73\u7D30\u306A\u5185\u8A33\u3092\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3002"),
+i){const u=document.createElement("button");u.type="button",u.className="text-blue-300 underline",u.
+textContent="\u518D\u8A66\u884C",u.onclick=()=>loadPromptTokenDetail(e,t),a.appendChild(u)}r("\u9001\u4FE1\u5F8C\u306B\u8FD4\u308B\
+\u4F7F\u7528\u91CF\u3084\u8ACB\u6C42\u984D\u306E\u78BA\u5B9A\u5024\u3068\u306F\u7570\u306A\u308A\u307E\u3059\u3002")}
+o(renderPromptTokenDetail,"renderPromptTokenDetail");async function loadPromptTokenDetail(e,t){cancelPromptTokenDetail();
+const n=promptTokenDetailSeq;promptTokenDetailAbort=new AbortController,renderPromptTokenDetail(e,t,
+!0);try{const i=await apiFetch(CHAT_CONFIG.urls.estimatePromptTokensApi,{method:"POST",headers:{"Con\
+tent-Type":"application/json"},body:JSON.stringify({...t,include_details:!0}),signal:promptTokenDetailAbort.
+signal});if(!i.ok)throw new Error(`HTTP ${i.status}`);const a=await i.json();if(n!==promptTokenDetailSeq||
+get("token-detail-modal").classList.contains("hidden"))return;if(!a.countable||e.estimate_method==="\
+provider"&&a.estimate_method!=="provider")throw new Error("Unavailable");renderPromptTokenDetail(a,t)}catch(i){
+if(n!==promptTokenDetailSeq||i.name==="AbortError"||get("token-detail-modal").classList.contains("hi\
+dden"))return;renderPromptTokenDetail(e,t,!1,!0)}}o(loadPromptTokenDetail,"loadPromptTokenDetail");function openPromptTokenDetail(){
+var n;const e=promptTokenEstimateVisible;if(!e||!e.data.countable)return;const t=JSON.parse(JSON.stringify(
+e.payload));get("token-detail-title").textContent="\u5165\u529B\u30C8\u30FC\u30AF\u30F3\u898B\u7A4D\u306E\u8A73\u7D30",
+get("token-detail-usage").classList.add("hidden"),get("token-detail-estimate").classList.remove("hid\
+den"),showTokenDetailModal(null,!0),(n=get("token-detail-modal").querySelector("button"))==null||n.focus(),
+loadPromptTokenDetail(e.data,t)}o(openPromptTokenDetail,"openPromptTokenDetail");function restorePromptTokenDetail(){
+const e=promptTokenDetailSnapshot;if(!e){showTokenDetailModal();return}get("token-detail-title").textContent=
+"\u5165\u529B\u30C8\u30FC\u30AF\u30F3\u898B\u7A4D\u306E\u8A73\u7D30",get("token-detail-usage").classList.
+add("hidden"),get("token-detail-estimate").classList.remove("hidden"),showTokenDetailModal(null,!0),
+e.data.breakdown?renderPromptTokenDetail(e.data,e.payload):loadPromptTokenDetail(e.data,e.payload)}o(
+restorePromptTokenDetail,"restorePromptTokenDetail");function schedulePromptTokenEstimate(e=!1){const t=buildPromptTokenEstimatePayload();
+++promptTokenEstimateSeq,promptTokenEstimateTimer&&(clearTimeout(promptTokenEstimateTimer),promptTokenEstimateTimer=
+null),promptTokenEstimateAbort&&(promptTokenEstimateAbort.abort(),promptTokenEstimateAbort=null);const n=!!((t.
+message||"").trim()||(t.quote_text||"").trim()),i=Array.isArray(t.image_urls)&&t.image_urls.length>0;
+if(!n&&!i){promptTokenEstimateLastKey="",promptTokenEstimateLastData=null,promptTokenEstimateTimer&&
+(clearTimeout(promptTokenEstimateTimer),promptTokenEstimateTimer=null),promptTokenEstimateAbort&&(promptTokenEstimateAbort.
+abort(),promptTokenEstimateAbort=null),renderPromptTokenEstimate(null,t);return}const a=JSON.stringify(
+[t.model||"",t.message||"",t.quote_text||"",t.image_urls||[]]);if(a===promptTokenEstimateLastKey&&promptTokenEstimateLastData){
+renderPromptTokenEstimate(promptTokenEstimateLastData,t);return}renderPromptTokenEstimate({pending:!0},
+t),promptTokenEstimateTimer&&(clearTimeout(promptTokenEstimateTimer),promptTokenEstimateTimer=null);
+const r=o(async()=>{promptTokenEstimateAbort&&promptTokenEstimateAbort.abort(),promptTokenEstimateAbort=
 new AbortController;const l=++promptTokenEstimateSeq;renderPromptTokenEstimate({pending:!0},t);try{const c=await apiFetch(
 CHAT_CONFIG.urls.estimatePromptTokensApi,{method:"POST",headers:{"Content-Type":"application/json"},
 body:JSON.stringify(t),signal:promptTokenEstimateAbort.signal});if(!c.ok)throw new Error(`HTTP ${c.status}`);

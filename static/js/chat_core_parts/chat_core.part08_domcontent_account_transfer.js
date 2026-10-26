@@ -1587,7 +1587,11 @@
                 '/edit-image': { id: 'marker-modal', open: () => { /* Marker modal usually needs context */ } },
                 '/chat-settings': { id: 'thread-modal', open: () => window.openThreadModal() },
                 '/model': { id: 'model-modal', open: () => openModelModal() },
-                '/token-details': { id: 'token-detail-modal', open: () => showTokenDetailModal() },
+                '/token-details': { id: 'token-detail-modal', open: () => {
+                    if (history.state && history.state.promptEstimate) restorePromptTokenDetail();
+                    else if (history.state && history.state.messageId !== undefined) openTokenDetail(history.state.messageId);
+                    else showTokenDetailModal();
+                } },
                 '/encryption-status': { id: 'encryption-status-modal', open: () => showEncryptionStatusModal() },
                 '/python-execution': { id: 'python-exec-modal', open: () => showPythonExecDetailModal() },
                 '/gem': { id: 'gem-modal', open: () => { editingGemUuid = null; get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`; showModal('gem-modal'); } },

@@ -100,7 +100,7 @@ def _draft_count_call(user, resolved, model, text, attachments):
     return value
 
 
-def _provider_draft_estimate(user, model, text, references, message_text=None, quote_text=None):
+def _provider_draft_estimate(user, model, text, references, message_text=None, quote_text=None, include_details=False):
     """Return an API count, or None so the caller can supply a labelled approximation."""
     provider = get_model_api_provider(model)
     if provider not in {'gemini', 'anthropic', 'openai', 'xai', 'kimi'}:
@@ -155,14 +155,55 @@ def _provider_draft_estimate(user, model, text, references, message_text=None, q
         total = _draft_count_call(user, resolved, model, api_text, attachments) if attachments else prompt
         if total < prompt:
             return None
-        counted = True
-        _record_server_diagnostic(user.id, 'state', route='/api/token_estimate', provider=provider, phase='done', op=op, files=len(references))
-        return {'countable': True, 'tokens_total': total, 'tokens_prompt': prompt, 'tokens_files': total - prompt,
+        result = {'countable': True, 'tokens_total': total, 'tokens_prompt': prompt, 'tokens_files': total - prompt,
                 'files_total': len(references), 'files_counted': len(references), 'files_non_text': 0, 'files_missing': 0,
                 'files_error': 0, 'estimate_method': 'provider', 'estimate_scope': 'draft'}
+        if include_details:
+            result['breakdown'] = _provider_draft_breakdown(user, resolved, model, api_text, attachments,
+                references, result, message_text if message_text is not None else text, bool(quote_text))
+        counted = True
+        _record_server_diagnostic(user.id, 'state', route='/api/token_estimate', provider=provider, phase='done', op=op, files=len(references))
+        return result
     except Exception:
         # No provider error text, names, prompt, keys or payloads enter the logs.
         return None
     finally:
         if not counted:
             _record_server_diagnostic(user.id, 'state', route='/api/token_estimate', provider=provider, phase='error', op=op)
+
+
+def _provider_draft_breakdown(user, resolved, model, api_text, attachments, references, result, message, has_quote):
+    """Marginal counts preserve the actual combined total; unresolved counts stay unknown."""
+    deadline = time.monotonic() + 30
+    message_tokens = result['tokens_prompt'] if not has_quote else None
+    if has_quote:
+        try:
+            message_tokens = _draft_count_call(user, resolved, model, message, []) if message else 0
+        except Exception:
+            _record_server_diagnostic(user.id, 'state', route='/api/token_estimate', phase='error', provider=resolved['provider'])
+    quote_tokens = max(0, result['tokens_prompt'] - message_tokens) if message_tokens is not None and has_quote else 0 if not has_quote else None
+    rows = []
+    previous = result['tokens_prompt']
+    for index, (ref, attachment) in enumerate(zip(references, attachments)):
+        tokens = None
+        try:
+            if time.monotonic() < deadline:
+                current = result['tokens_total'] if index == len(attachments) - 1 else _draft_count_call(
+                    user, resolved, model, api_text, attachments[:index + 1])
+                if previous is not None and current >= previous:
+                    tokens = current - previous
+                previous = current
+            else:
+                previous = None
+        except Exception:
+            previous = None
+            _record_server_diagnostic(user.id, 'state', route='/api/token_estimate', phase='error', provider=resolved['provider'])
+        rows.append({'reference': ref, 'name': attachment['name'], 'tokens': tokens,
+                     'method': 'provider', 'reason': 'ok' if tokens is not None else 'unseparated'})
+    return _draft_breakdown_result(result, message_tokens, quote_tokens, rows)
+
+
+def _draft_breakdown_result(result, message_tokens, quote_tokens, rows):
+    known = (message_tokens or 0) + (quote_tokens or 0) + sum(row.get('tokens') or 0 for row in rows)
+    return {'message_tokens': message_tokens, 'quote_tokens': quote_tokens, 'files': rows,
+            'adjustment_tokens': result['tokens_total'] - known}

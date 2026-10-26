@@ -515,8 +515,16 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
     if (!state.feedbackAdmin) null else SettingsCardSpec(SettingsTab.Feedback, "admin", "管理者: すべてのフィードバック",
         "管理者: すべてのフィードバック 状態を保存 返信内容 画像を添付 $FEEDBACK_REPLY_LOGS_LABEL 返信 削除") {
         var deleting by remember { mutableStateOf<FeedbackItem?>(null) }
+        var statusFilter by remember { mutableStateOf("all") }
+        val filteredItems = state.feedbackItems.filter { item ->
+            statusFilter == "all" || if (statusFilter == "unresolved")
+                item.status in listOf("new", "in_review", "replied") else item.status == statusFilter
+        }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            state.feedbackItems.forEach { item ->
+            Text("状態で絞り込み", fontSize = 12.sp, color = LocalWebPalette.current.text)
+            SettingsSelect(statusFilter, webOptions("all" to "すべて", "unresolved" to "未解決") + FEEDBACK_STATUS_OPTIONS, { statusFilter = it })
+            if (filteredItems.isEmpty()) SettingsDesc("該当するフィードバックはありません。")
+            filteredItems.forEach { item ->
                 key(item.id) {
                     AdminFeedbackRow(item, !state.feedbackBusy, notify, { status -> model.updateFeedback(item, status) },
                         { message, withLogs, images -> model.replyFeedback(item, message, withLogs, images) }, serverLogs = state.preferences?.enableServerDiagnosticLog == true) { deleting = item }

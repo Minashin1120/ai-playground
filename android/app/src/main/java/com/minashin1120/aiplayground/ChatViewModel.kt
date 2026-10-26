@@ -2477,6 +2477,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         backend.post("/api/token_estimate", JSONObject().put("model", model).put("message", message)
             .put("quote_text", quote).put("image_urls", JSONArray(imageUrls)), token())
 
+    suspend fun estimatePromptTokenDetails(model: String, message: String, quote: String, imageUrls: List<String>): JSONObject =
+        backend.post("/api/token_estimate", JSONObject().put("model", model).put("message", message)
+            .put("quote_text", quote).put("image_urls", JSONArray(imageUrls)).put("include_details", true), token())
+
     suspend fun legalMarkdown(kind: String): String {
         val safe = if (kind == "privacy") "privacy" else "terms"
         return api.getText("/static/legal/$safe.md?t=${System.currentTimeMillis()}")

@@ -18,7 +18,7 @@
                     <span id="mic-recording-text" class="shrink-0">録音中…</span>
                     <div id="mic-waveform" class="h-4 w-28 sm:w-36 flex items-end rounded border px-1 overflow-hidden" style="gap: 2px; padding-top: 2px; padding-bottom: 2px; background: rgba(69, 10, 10, 0.25); border-color: rgba(185, 28, 28, 0.3);" aria-hidden="true"></div>
                 </div>
-                <div id="prompt-token-estimate" class="hidden mt-1 px-1 text-[10px] text-gray-400"></div>
+                <button type="button" id="prompt-token-estimate" class="hidden mt-1 px-1 text-left text-[10px] text-gray-400" disabled aria-haspopup="dialog" aria-controls="token-detail-modal" title="入力トークン見積の詳細" onclick="openPromptTokenDetail()"></button>
 
                 <!-- Slash command suggestions (command palette style, triggered by /) -->
                 <div id="slash-command-suggestions" class="hidden fixed z-[80] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl overflow-hidden text-sm min-w-[280px] max-w-[400px]">

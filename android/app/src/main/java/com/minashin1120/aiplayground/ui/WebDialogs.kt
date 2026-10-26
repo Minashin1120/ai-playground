@@ -108,6 +108,19 @@ internal fun BrowserPromptDialog(message: String, initial: String = "", onResult
     )
 }
 
+/** The chat rename form starts with the current title, matching Web. */
+@Composable
+internal fun ThreadRenameDialog(initial: String, onResult: (String?) -> Unit) {
+    var value by remember { mutableStateOf(initial) }
+    NoticeAlertDialog(
+        onDismissRequest = { onResult(null) },
+        title = { Text("チャット名を変更", fontSize = 18.sp) },
+        text = { OutlinedTextField(value, { value = it }, label = { Text("チャット名") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+        confirmButton = { TextButton(enabled = value.isNotBlank(), onClick = { onResult(value) }) { Text("保存") } },
+        dismissButton = { TextButton(onClick = { onResult(null) }) { Text("キャンセル") } },
+    )
+}
+
 /**
  * A Web `.modal-overlay` with a custom `.modal-panel`: tinted, blurred backdrop and the Web
  * open/close motion. [content] draws the panel itself and must mark it with [modalPanelTaps];

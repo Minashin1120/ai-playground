@@ -578,9 +578,10 @@
             return msgEl;
         }
 
-        function showTokenDetailModal(messageId = null) {
+        function showTokenDetailModal(messageId = null, promptEstimate = false) {
             if (location.pathname !== '/token-details') {
                 const state = { modal: 'token-details' };
+                if (promptEstimate) state.promptEstimate = true;
                 if (messageId !== null) state.messageId = messageId;
                 history.pushState(state, '', '/token-details');
             }
@@ -592,6 +593,9 @@
             if (!meta) return;
             const modal = get('token-detail-modal');
             if (!modal) return;
+            get('token-detail-usage').classList.remove('hidden');
+            get('token-detail-estimate').classList.add('hidden');
+            cancelPromptTokenDetail();
             const total = meta.tokens_total !== null && meta.tokens_total !== undefined ? meta.tokens_total : '-';
             const tIn = meta.tokens_in !== null && meta.tokens_in !== undefined ? meta.tokens_in : '-';
             const tOut = meta.tokens_out !== null && meta.tokens_out !== undefined ? meta.tokens_out : '-';
@@ -610,6 +614,7 @@
         }
 
         function closeTokenDetail(skipHistory = false) {
+            cancelPromptTokenDetail();
             const modal = get('token-detail-modal');
             if (!modal) return;
             hideModal('token-detail-modal');

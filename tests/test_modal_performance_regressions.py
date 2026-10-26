@@ -19,10 +19,11 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         template = read_chat_markup()
         app_source = read_app_source()
 
-        self.assertIn(
-            "'/token-details': { id: 'token-detail-modal', open: () => showTokenDetailModal() }",
-            source,
-        )
+        token_route = source.split("'/token-details':", 1)[1].split("'/encryption-status':", 1)[0]
+        self.assertIn("id: 'token-detail-modal'", token_route)
+        self.assertIn("if (history.state && history.state.promptEstimate) restorePromptTokenDetail()", token_route)
+        self.assertIn("openTokenDetail(history.state.messageId)", token_route)
+        self.assertIn("else showTokenDetailModal()", token_route)
         self.assertIn(
             "'/encryption-status': { id: 'encryption-status-modal', open: () => showEncryptionStatusModal() }",
             source,

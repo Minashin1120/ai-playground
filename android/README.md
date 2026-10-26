@@ -34,6 +34,8 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/SseReader.kt` | Server-Sent Eventsの読み取り（サーバーのRealtime／Lyriaと事業者APIのストリーム） | SSEの解析を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/` | サーバー不使用モードの直接送信：事業者APIへのHTTP（`DirectHttp.kt`、許可ホストのみ）、モデル別の振り分け（`DirectRouter.kt`）、Gemini（`GeminiDirect.kt`、Vertex AIは `VertexAuth.kt`）／OpenAI Responses（xAI含む、`OpenAiResponsesDirect.kt`）／Anthropic（`AnthropicDirect.kt`）／Chat Completions（`ChatCompletionsDirect.kt`）／画像生成（OpenAI／xAI／Ideogram）とTTS（`MediaDirect.kt`）の各エンジン（共通の枠は `DirectEngine.kt`）、システムプロンプトの組み立て（`SystemPromptBuilder.kt`）、添付のテキスト化（`AttachmentExtractor.kt`） | 端末からの送信・対応モデル・プロンプト組み立てを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/ProviderTokenCounter.kt` | 入力欄の本文・引用・添付の公式API計測、短時間キャッシュ | 端末からの入力見積の精度・計測APIを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/local/TokenEstimateBreakdown.kt` | 詳細を開いたときの本文・引用・添付の増分計測と結合時の差の算出 | 端末内の入力トークン見積の内訳を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/PromptTokenEstimateDialog.kt` | 入力見積の詳細（開いた時点の入力、計測方法、本文・引用・添付ごとの内訳、再試行） | 入力見積をタップしたときの詳細画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/AttachmentTokenEstimator.kt` | 入力見積の添付トークン計算（Geminiの画像・PDF・音声・動画、テキスト抽出） | 端末内の添付トークン計算を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/` | 端末内プロファイル：チャット・添付の暗号化保存とサーバー不使用モードの送信待ち（`LocalChatStore.kt`）、設定・Gem・APIキー（`LocalSettingsStore.kt`）、プロファイルの切り替え（`LocalProfiles.kt`）、サーバーと同じ形で応答する窓口（`LocalChatBackend.kt`）、回答の生成に使うサーバーの履歴・添付の読み込み（`ServerHistory.kt`） | アカウントなし利用・サーバー不使用モードの保存や応答を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/sync/SyncEngine.kt` | サーバー不使用モードの送信待ちの保存（添付の先行アップロード、メッセージの送信、新しいチャットのタイトル、旧版の削除の反映） | 回答をアカウントへ送る手順・失敗時の扱いを変更するとき |
@@ -67,7 +69,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/CodingTargets.kt` | Coding Modeの対象候補の抽出、対象バーの文言、送信時の候補と上限 | Coding Modeの送信内容を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/Sidebar.kt` | Webの `#sidebar` 相当（ツールバー、検索、Gems、スレッド一覧、引っ張って更新、フッター） | サイドバーを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ChatHeader.kt` | スマートフォン用の上部バー（Webの `header.main-chrome-header`） | 上部バーを編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/WebDialogs.kt` | Webの `confirm()`／`prompt()` 相当、チャット履歴・アルファ版・利用規約のモーダル、共通オーバーレイ | 確認ダイアログや小さなモーダルを編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/WebDialogs.kt` | チャット名の変更、Webの `confirm()`／`prompt()` 相当、チャット履歴・アルファ版・利用規約のモーダル、共通オーバーレイ | 確認ダイアログや小さなモーダルを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/LowBandwidth.kt` | Web相当の低速回線モードの判定・設定の切り替え・表示文言 | 低速回線モードを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/StartupSplash.kt`, `app/src/main/java/com/minashin1120/aiplayground/ui/StartupSplashPolicy.kt`, `app/src/main/res/drawable/ic_playground_mark.xml` | 起動時のぼかし・光・ロゴと「AI Playground」の表示、起動完了後のロゴのズームによる画面リビールとアクセシビリティ対応（ロゴはベクターのパスで描画。図形は `ic_playground_mark.xml` と同じ）。`StartupSplashPolicy.kt` は、画面回転などの同一プロセス内の再生成では再生せず、プロセス終了後のタスク復元では再生する判定 | 起動アニメーション・ロゴ素材を編集するとき |
 | `app/src/main/res/mipmap-anydpi-v26/ic_launcher*.xml`, `app/src/main/res/drawable/ic_launcher_{background,foreground,monochrome}.xml` | ランチャーアイコン（ベクターのアダプティブアイコン。テーマアイコン用の単色版を含む）。通知の小アイコンは `ic_playground.xml` | ランチャーアイコンを編集するとき |

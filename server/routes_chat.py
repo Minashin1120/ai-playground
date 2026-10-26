@@ -1987,7 +1987,8 @@ def estimate_prompt_tokens_api():
         })
 
     provider_estimate = _provider_draft_estimate(current_user, model_key, message_for_count, norm_image_urls,
-                                                message_text=message_text, quote_text=quote_text)
+                                                message_text=message_text, quote_text=quote_text,
+                                                include_details=data.get('include_details') is True)
     if provider_estimate is not None:
         return jsonify(provider_estimate)
 
@@ -1997,12 +1998,16 @@ def estimate_prompt_tokens_api():
     files_non_text = 0
     files_missing = 0
     files_error = 0
+    detail_files = []
 
     for rel_path in norm_image_urls:
         est = _estimate_attachment_prompt_tokens(rel_path, model_key=model_key)
         tok = int(est.get("tokens") or 0)
         file_tokens += tok
         reason = est.get("reason")
+        if data.get('include_details') is True:
+            detail_files.append({'reference': rel_path, 'name': os.path.basename(rel_path),
+                'tokens': tok if est.get('countable') else None, 'method': 'approximate', 'reason': reason})
         if est.get("countable"):
             files_counted += 1
         elif reason == "missing":
@@ -2012,7 +2017,7 @@ def estimate_prompt_tokens_api():
         else:
             files_error += 1
 
-    return jsonify({
+    result = {
         'countable': True,
         'estimate_method': 'approximate',
         'estimate_scope': 'draft',
@@ -2024,7 +2029,12 @@ def estimate_prompt_tokens_api():
         'files_non_text': files_non_text,
         'files_missing': files_missing,
         'files_error': files_error
-    })
+    }
+    if data.get('include_details') is True:
+        message_tokens = count_tokens(message_text, model_key)
+        quote_tokens = max(0, prompt_tokens - message_tokens) if quote_text else 0
+        result['breakdown'] = _draft_breakdown_result(result, message_tokens, quote_tokens, detail_files)
+    return jsonify(result)
 
 
 @app.route('/chat_stream_resume', methods=['POST'])

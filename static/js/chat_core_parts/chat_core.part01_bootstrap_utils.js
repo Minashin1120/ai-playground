@@ -1311,6 +1311,10 @@
         };
         window.showModal = showModal;
         const hideModal = (id, options = {}) => {
+            if (id === 'token-detail-modal' && typeof cancelPromptTokenDetail === 'function') {
+                cancelPromptTokenDetail();
+                if (get('token-detail-estimate') && !get('token-detail-estimate').classList.contains('hidden')) get('prompt-token-estimate')?.focus();
+            }
             const el = get(id);
             if (!el) return;
             cancelModalTransitions(el);

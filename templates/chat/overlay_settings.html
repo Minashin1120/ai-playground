@@ -414,6 +414,15 @@
         </div>
         <div id="fb-admin-panel" class="settings-card hidden">
             <h3 class="settings-card-title">管理者: すべてのフィードバック</h3>
+            <label for="fb-admin-status-filter" class="text-xs text-gray-300">状態で絞り込み</label>
+            <select id="fb-admin-status-filter" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-xs text-white mb-3">
+                <option value="all">すべて</option>
+                <option value="unresolved">未解決</option>
+                <option value="new">new</option><option value="in_review">in_review</option>
+                <option value="replied">replied</option><option value="rejected">rejected</option>
+                <option value="resolved">resolved</option><option value="resolved_unreleased">resolved（non-released）</option>
+            </select>
+            <p id="fb-admin-empty" class="hidden text-xs text-gray-400">該当するフィードバックはありません。</p>
             <div id="fb-admin-list" class="space-y-3 text-xs text-gray-300"></div>
         </div>
     </div>

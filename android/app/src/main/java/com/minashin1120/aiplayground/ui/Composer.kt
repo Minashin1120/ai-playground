@@ -64,6 +64,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -1145,6 +1146,10 @@ private fun TokenEstimate(state: ChatState) {
     val quote = state.quote
     val files = attachmentItemsForSend(state.attachments).map { it.reference }
     val hasInput = message.isNotBlank() || quote.isNotBlank() || files.isNotEmpty()
+    val inputKey = listOf(model, message, quote, files.joinToString("\n"))
+    var estimatedInput by remember { mutableStateOf<List<String>?>(null) }
+    var snapshot by remember { mutableStateOf<PromptTokenEstimateSnapshot?>(null) }
+    snapshot?.let { PromptTokenEstimateDialog(it) { snapshot = null } }
     var pending by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<JSONObject?>(null) }
     val viewModel = LocalComposerEstimator.current
@@ -1155,6 +1160,7 @@ private fun TokenEstimate(state: ChatState) {
         result = try { viewModel(model, message, quote, files) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { null }
+        estimatedInput = inputKey
         pending = false
     }
     val line = tokenEstimateLine(hasInput && viewModel != null, pending, result) ?: return
@@ -1163,8 +1169,12 @@ private fun TokenEstimate(state: ChatState) {
         "count" -> if (web.isLight) Color(14, 116, 144) else Tw.cyan300
         else -> if (web.isLight) Color(105, 117, 136) else Tw.gray500
     }
-    Text(line.text, fontSize = 10.sp, lineHeight = 20.sp, color = color, maxLines = 2,
-        modifier = Modifier.padding(top = 4.dp, start = 5.6.dp, end = 4.dp).alpha(0.85f))
+    val canOpen = !pending && result?.optBoolean("countable") == true && estimatedInput == inputKey
+    Text(line.text, textDecoration = if (canOpen) TextDecoration.Underline else null, fontSize = 10.sp, lineHeight = 20.sp, color = color, maxLines = 2,
+        modifier = Modifier.clickable(enabled = canOpen,
+            role = Role.Button, onClickLabel = "入力トークン見積の詳細") {
+            result?.let { snapshot = PromptTokenEstimateSnapshot(model, message, quote, files.toList(), it) }
+        }.padding(top = 4.dp, start = 5.6.dp, end = 4.dp).alpha(0.85f))
 }
 
 /** Supplies the token-estimate request so previews and tests can render the composer without a network. */

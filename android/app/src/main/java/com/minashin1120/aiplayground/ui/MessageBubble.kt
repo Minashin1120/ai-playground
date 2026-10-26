@@ -619,7 +619,7 @@ private fun SmallModalButton(label: String, background: Color, onClick: () -> Un
 
 /** `bg-gray-900 border border-gray-700 rounded-xl max-w-sm p-4` modal with the corner close button. */
 @Composable
-private fun SmallInfoModal(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+internal fun SmallInfoModal(onDismiss: () -> Unit, content: @Composable () -> Unit) {
     val web = LocalWebPalette.current
     WebOverlayModal(onDismiss, if (web.isLight) Color(0xFFF7F9FC) else Tw.gray900.copy(alpha = 0.9f), 4.dp) { _ ->
         val shape = RoundedCornerShape(12.dp)

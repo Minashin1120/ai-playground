@@ -22,7 +22,7 @@
 | `overlay_thread.html` | 履歴モーダル、スレッド設定、圧縮設定、Batch処理一覧モーダル | 履歴、スレッド設定、画像圧縮、Batch処理の確認・停止・削除 |
 | `overlay_model_gem.html` | モデル選択モーダル、Gem 作成/編集 | モデル一覧、Gem |
 | `overlay_settings.html` | 設定モーダル（タブ、2FA、MCP 設定を含む） | 設定画面、MCP タブ、2FA タブ |
-| `overlay_dialogs.html` | MCP 変更確認、Gemini ローカル Python、インポート確認 | 確認ダイアログ |
+| `overlay_dialogs.html` | チャット名の変更、MCP 変更確認、Gemini ローカル Python、インポート確認 | 確認ダイアログ |
 | `overlay_library.html` | ファイルライブラリ、規約、Alpha 案内、ブランチ管理、管理者の Bot 画面 | ライブラリ、ブランチ |
 | `overlay_version.html` | 新バージョン通知モーダル | 更新通知 |
 | `scripts.html` | `CHAT_CONFIG`、コア JS（`chat_core_bundles` の複数ファイル）の読み込み、トークン/Python/暗号化モーダル、サイドバー用インライン JS | 初期 JS 設定、インラインスクリプト |

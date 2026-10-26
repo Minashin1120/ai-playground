@@ -182,7 +182,7 @@ class LocalChatBackend(
                 "Context (User Quote):\n\"\"\"\n$quote\n\"\"\"\n\nUser Message:\n$message"
             val prompt = estimateTokens(text)
             val refs = attachmentRefs(payload)
-            providerEstimate(model, text, refs)?.let {
+            providerEstimate(model, text, refs, payload)?.let {
                 ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "done", "files" to refs.size,
                     "ms" to System.currentTimeMillis() - started)
                 return it
@@ -192,6 +192,7 @@ class LocalChatBackend(
             var missing = 0
             var errors = 0
             var nonText = 0
+            val detailFiles = JSONArray()
             for (ref in refs) {
                 currentCoroutineContext().ensureActive()
                 val key = "$model\n$ref"
@@ -212,6 +213,10 @@ class LocalChatBackend(
                     if (tokenEstimates.size >= 128) tokenEstimates.remove(tokenEstimates.keys.first())
                     tokenEstimates[key] = estimate
                 }
+                if (payload.optBoolean("include_details")) detailFiles.put(JSONObject()
+                    .put("reference", ref).put("name", store.fileInfo(ref)?.optString("name") ?: ref.substringAfterLast('/'))
+                    .put("tokens", if (estimate.reason == "ok") estimate.tokens else JSONObject.NULL)
+                    .put("method", "approximate").put("reason", estimate.reason))
                 tokens += estimate.tokens
                 when (estimate.reason) {
                     "ok" -> counted++
@@ -222,10 +227,16 @@ class LocalChatBackend(
             }
             ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "done",
                 "files" to refs.size, "failed_files" to errors + missing, "ms" to System.currentTimeMillis() - started)
-            return JSONObject().put("estimate_method", "approximate").put("estimate_scope", "draft")
+            val result = JSONObject().put("estimate_method", "approximate").put("estimate_scope", "draft")
                 .put("countable", true).put("tokens_total", prompt + tokens).put("tokens_prompt", prompt)
                 .put("tokens_files", tokens).put("files_total", refs.size).put("files_counted", counted)
                 .put("files_non_text", nonText).put("files_missing", missing).put("files_error", errors)
+            if (payload.optBoolean("include_details")) {
+                val messageTokens = estimateTokens(message)
+                result.put("breakdown", tokenEstimateBreakdown(result, messageTokens,
+                    if (quote.isEmpty()) 0 else maxOf(0, prompt - messageTokens), detailFiles))
+            }
+            return result
         } catch (e: CancellationException) {
             ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "cancelled")
             throw e
@@ -235,7 +246,7 @@ class LocalChatBackend(
         }
     }
 
-    private suspend fun providerEstimate(model: String, text: String, refs: List<String>): JSONObject? {
+    private suspend fun providerEstimate(model: String, text: String, refs: List<String>, payload: JSONObject): JSONObject? {
         if (modeOf(model) != "chat") return null
         val found = router.route(model, modeOf(model)) ?: return null
         try {
@@ -261,10 +272,19 @@ class LocalChatBackend(
             val total = if (attachments.isEmpty()) prompt else router.tokenCounter.count(
                 request.copy(turns = listOf(DirectTurn("user", text, attachments))), vertex) ?: return null
             if (total < prompt) return null
-            return JSONObject().put("countable", true).put("tokens_total", total).put("tokens_prompt", prompt)
+            val result = JSONObject().put("countable", true).put("tokens_total", total).put("tokens_prompt", prompt)
                 .put("tokens_files", total - prompt).put("files_total", refs.size).put("files_counted", refs.size)
                 .put("files_non_text", 0).put("files_missing", 0).put("files_error", 0)
                 .put("estimate_method", "provider").put("estimate_scope", "draft")
+            if (payload.optBoolean("include_details")) result.put("breakdown", providerTokenBreakdown(
+                result, payload.optString("quote_text").isNotEmpty(), refs, attachments,
+                countMessage = {
+                    val message = payload.optString("message")
+                    if (message.isEmpty()) 0 else router.tokenCounter.count(request.copy(turns = listOf(DirectTurn("user", message))), vertex)
+                },
+                countFiles = { subset -> router.tokenCounter.count(request.copy(turns = listOf(DirectTurn("user", text, subset))), vertex) },
+            ))
+            return result
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) {
             ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "error")

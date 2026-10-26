@@ -151,7 +151,8 @@ def test_web_shows_unknown_attachments_and_counting_scope():
     source = (ROOT / 'static/js/chat_core_parts/chat_core.part03_security_token_promptbar.js').read_text()
     renderer = source[source.index('        function renderPromptTokenEstimate('):source.index('        function schedulePromptTokenEstimate(')]
     script = '''const assert = require('node:assert/strict');
-let text;
+let text, promptTokenEstimateVisible;
+const get = () => null;
 function setPromptTokenEstimateText(value) { text = value; }
 ''' + renderer + '''
 renderPromptTokenEstimate({countable:true,tokens_total:123,tokens_prompt:23,tokens_files:100,
@@ -237,3 +238,63 @@ def test_media_only_input_does_not_add_a_synthetic_empty_text_part():
     body = scope['_draft_counter_request']('gemini', 'gemini-3-pro', '',
         [{'name': 'photo.png', 'mime': 'image/png', 'bytes': b'fake'}])
     assert all('text' not in part for part in body['contents'][0]['parts'])
+
+
+def test_details_allocate_quote_and_each_attachment_without_changing_total():
+    scope = namespace()
+    setup_estimate(scope)
+    scope['_draft_count_call'].side_effect = [8, 108, 3, 28, 68]
+    result = scope['_provider_draft_estimate'](SimpleNamespace(id=1), 'gpt-5', 'normalized',
+        ['1/a.png', '1/b.png', '1/c.png'], message_text='message', quote_text='quote', include_details=True)
+    detail = result['breakdown']
+    assert result['tokens_total'] == 108
+    assert detail['message_tokens'] == 3
+    assert detail['quote_tokens'] == 5
+    assert [f['tokens'] for f in detail['files']] == [20, 40, 40]
+    assert detail['adjustment_tokens'] == 0
+
+
+def test_failed_split_keeps_provider_total_and_marks_unknown_values():
+    scope = namespace()
+    setup_estimate(scope)
+    scope['_draft_count_call'].side_effect = [8, 108, RuntimeError('PRIVATE_INPUT')]
+    result = scope['_provider_draft_estimate'](SimpleNamespace(id=1), 'gpt-5', 'message',
+        ['1/a.png', '1/b.png'], include_details=True)
+    assert result['estimate_method'] == 'provider'
+    assert result['tokens_total'] == 108
+    assert all(f['tokens'] is None for f in result['breakdown']['files'])
+    assert result['breakdown']['adjustment_tokens'] == 100
+    assert 'PRIVATE_INPUT' not in str(scope['_record_server_diagnostic'].call_args_list)
+
+
+def test_detail_renderer_treats_names_as_text_and_hides_prompt_contents():
+    import subprocess
+    source = (ROOT / 'static/js/chat_core_parts/chat_core.part03_security_token_promptbar.js').read_text()
+    renderer = source[source.index('        function renderPromptTokenDetail('):source.index('        async function loadPromptTokenDetail(')]
+    script = '''const assert = require('node:assert/strict');
+class Element {
+  constructor() { this.children = []; this.textContent = ''; }
+  set innerHTML(value) { throw new Error('Unsafe HTML'); }
+  replaceChildren() { this.children = []; }
+  append(...items) { this.children.push(...items); }
+  appendChild(item) { this.children.push(item); }
+}
+const body = new Element();
+const document = {createElement: () => new Element()};
+const get = () => body;
+let promptTokenDetailSnapshot;
+''' + renderer + '''
+renderPromptTokenDetail({tokens_total:123,tokens_prompt:23,tokens_files:100,estimate_method:'provider',
+files_total:2,files_counted:1,files_non_text:1,
+breakdown:{message_tokens:20,quote_tokens:3,adjustment_tokens:100,
+files:[{name:'<img src=x onerror=alert(1)>',tokens:null,method:'provider',reason:'unseparated'}]}},
+{model:'gpt-5',message:'PRIVATE_PROMPT'});
+const contents = node => node.textContent + node.children.map(contents).join(' ');
+const text = contents(body);
+assert(text.includes('<img src=x onerror=alert(1)>'));
+assert(text.includes('分割未計測'));
+assert(text.includes('未計測'));
+assert(text.includes('結合時の差・分割未計測分'));
+assert(!text.includes('PRIVATE_PROMPT'));
+'''
+    subprocess.run(['node', '-e', script], check=True, capture_output=True, text=True)

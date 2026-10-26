@@ -584,7 +584,8 @@ fun PlaygroundScreen(
                             onOpenWeb = { onWeb(webChatPath(state)) })
                     }, snackbarHost = {},
                     bottomBar = {
-                        if (showThreads) CompositionLocalProvider(LocalComposerEstimator provides model::estimatePromptTokens) {
+                        if (showThreads) CompositionLocalProvider(LocalComposerEstimator provides model::estimatePromptTokens,
+                            LocalComposerDetailsEstimator provides model::estimatePromptTokenDetails) {
                         Composer(state, model, { modelPicker = true }, { attachMenu = true }, launchSpeech,
                             onRichPaste = { richPasteOpen = true }, onMask = { maskPicker.launch("image/*") },
                             onSettings = { settingsTab = "一般"; settingsOpen = true },
@@ -767,7 +768,7 @@ fun PlaygroundScreen(
             // Web `confirm("Delete?")` / `prompt("Title:")` for Gems and threads.
             gemDeleting?.let { gem -> BrowserConfirmDialog("Delete?") { ok -> if (ok) model.deleteGem(gem); gemDeleting = null } }
             renaming?.let { thread ->
-                BrowserPromptDialog("Title:") { title -> if (!title.isNullOrEmpty()) model.renameThread(thread, title); renaming = null }
+                ThreadRenameDialog(thread.title) { title -> if (!title.isNullOrBlank()) model.renameThread(thread, title.trim()); renaming = null }
             }
             ModalHost(settingsOpen) {
                 SettingsDialog(state, model, onDismiss = { settingsOpen = false }, initialTab = settingsTab,

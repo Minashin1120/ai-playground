@@ -245,6 +245,20 @@
                 };
             }
 
+            function filterAdminFeedback() {
+                const status = get('fb-admin-status-filter').value;
+                let visible = 0;
+                get('fb-admin-list').querySelectorAll('[data-feedback-status]').forEach(row => {
+                    const matches = status === 'all' || (status === 'unresolved'
+                        ? ['new', 'in_review', 'replied'].includes(row.dataset.feedbackStatus)
+                        : row.dataset.feedbackStatus === status);
+                    row.hidden = !matches;
+                    if (matches) visible++;
+                });
+                get('fb-admin-empty').classList.toggle('hidden', visible !== 0);
+            }
+            get('fb-admin-status-filter').onchange = filterAdminFeedback;
+
             async function loadFeedback() {
                 fbReplyPickers.forEach(picker => picker.clear());
                 fbReplyPickers = [];
@@ -270,6 +284,7 @@
                     (data.items || []).forEach(item => {
                         const el = document.createElement('div');
                         el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50 space-y-2';
+                        el.dataset.feedbackStatus = item.status || 'new';
                         el.innerHTML = `
                             <div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.agent_name ? `agent:${escapeHtml(item.agent_name)}` : `user:${item.user_id}`} / ${item.created_at}${item.handled_by ? ` / 対応: ${escapeHtml(item.handled_by)}` : ''}</div>
                             <div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div>
@@ -300,6 +315,7 @@
                         bindFeedbackReply(item, el);
                         adminList.appendChild(el);
                     });
+                    filterAdminFeedback();
                 } else {
                     adminPanel.classList.add('hidden');
                 }

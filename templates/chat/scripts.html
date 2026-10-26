@@ -62,10 +62,10 @@
     <script src="{{ url_for('static', filename='js/pwa_install.min.js') }}?v={{ app_version }}" defer></script>
 
 <div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
-  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative modal-panel">
-    <button onclick="closeTokenDetail()" class="absolute right-3 top-3 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative modal-panel" role="dialog" aria-modal="true" aria-labelledby="token-detail-title">
+    <button type="button" aria-label="閉じる" onclick="closeTokenDetail()" class="absolute right-3 top-3 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
     <div class="text-sm font-bold text-blue-300" id="token-detail-title">Token Details</div>
-    <div class="mt-3 text-xs text-gray-300 space-y-2">
+    <div id="token-detail-usage" class="mt-3 text-xs text-gray-300 space-y-2">
       <div class="flex justify-between"><span>Total</span><span id="token-detail-total" class="font-mono">-</span></div>
       <div class="flex justify-between"><span>In</span><span id="token-detail-in" class="font-mono">-</span></div>
       <div class="flex justify-between"><span>Out</span><span id="token-detail-out" class="font-mono">-</span></div>
@@ -73,6 +73,7 @@
       <div class="flex justify-between"><span>Thought</span><span id="token-detail-thought" class="font-mono">-</span></div>
       <div class="flex justify-between"><span>Encryption</span><span id="token-detail-encrypted" class="font-mono">-</span></div>
     </div>
+    <div id="token-detail-estimate" class="hidden mt-3 overflow-y-auto text-xs text-gray-300 space-y-2" style="max-height:65vh;" aria-live="polite"></div>
   </div>
 </div>
 

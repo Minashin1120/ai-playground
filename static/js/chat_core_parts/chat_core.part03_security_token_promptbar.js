@@ -976,15 +976,26 @@
         let promptTokenEstimateSeq = 0;
         let promptTokenEstimateLastKey = '';
         let promptTokenEstimateLastData = null;
+        let promptTokenEstimateVisible = null;
+        let promptTokenDetailAbort = null;
+        let promptTokenDetailSeq = 0;
+        let promptTokenDetailSnapshot = null;
+        function cancelPromptTokenDetail() {
+            ++promptTokenDetailSeq;
+            if (promptTokenDetailAbort) promptTokenDetailAbort.abort();
+            promptTokenDetailAbort = null;
+        }
         function setPromptTokenEstimateText(text, colorClass = 'text-gray-400') {
             const el = get('prompt-token-estimate');
             if (!el) return;
+            el.disabled = true;
+            promptTokenEstimateVisible = null;
             if (!text) {
                 el.classList.add('hidden');
                 el.innerText = '';
                 return;
             }
-            el.className = `mt-1 px-1 text-[10px] ${colorClass}`;
+            el.className = `mt-1 px-1 text-left text-[10px] hover:underline rounded ${colorClass}`;
             el.classList.remove('hidden');
             el.innerText = text;
         }
@@ -1028,6 +1039,95 @@
             if (data.estimate_scope === 'draft') notes.push('入力欄のみ（履歴・SysPrompt除外）');
             const noteText = notes.length ? ` ・ ${notes.join(' / ')}` : '';
             setPromptTokenEstimateText(`入力見積: ${incomplete ? '一部のみ ' : ''}${total} tokens (本文 ${prompt} / ファイル ${files})${noteText}`, 'text-cyan-300');
+            promptTokenEstimateVisible = { data, payload: p };
+            const trigger = get('prompt-token-estimate');
+            if (trigger) { trigger.disabled = false; trigger.classList.add('underline'); }
+        }
+        function renderPromptTokenDetail(data, payload, pending = false, failed = false) {
+            const body = get('token-detail-estimate');
+            if (!body) return;
+            promptTokenDetailSnapshot = { data, payload };
+            body.replaceChildren();
+            const text = (value, cls = 'text-gray-400') => {
+                const p = document.createElement('p'); p.className = cls; p.textContent = value; body.appendChild(p);
+            };
+            const row = (label, value) => {
+                const item = document.createElement('div'); item.className = 'flex justify-between gap-3 items-start';
+                const key = document.createElement('span'); key.className = 'min-w-0 break-words'; key.textContent = label;
+                const number = document.createElement('span'); number.className = 'font-mono shrink-0';
+                number.textContent = value === null || value === undefined ? '未計測' : `${value} tokens`;
+                item.append(key, number); body.appendChild(item);
+            };
+            text(payload.model || '', 'text-blue-300 break-all');
+            text('開いた時点の入力');
+            row('合計', data.tokens_total);
+            row('本文・引用', data.tokens_prompt);
+            row('添付ファイル合計', data.tokens_files);
+            text(`計測方法: ${data.estimate_method === 'provider' ? 'プロバイダー計測' : '概算'}`);
+            text('対象: 入力欄の本文・引用・添付（履歴・SysPrompt・ツール除外）');
+            text(`添付 ${data.files_total || 0}件 / 計測済み ${data.files_counted || 0}件 / 未計測 ${data.files_non_text || 0}件 / 未検出 ${data.files_missing || 0}件 / 失敗 ${data.files_error || 0}件`);
+            const detail = data.breakdown;
+            if (detail) {
+                text('内訳', 'font-bold text-gray-200 pt-2');
+                row('本文（形式情報を含む場合あり）', detail.message_tokens);
+                row('引用（区切りを含む）', detail.quote_tokens);
+                const statuses = { missing: '未検出', error: '計測失敗', read_error: '読み込み失敗', unseparated: '分割未計測', non_text: '未計測', no_text: 'テキストなし' };
+                (detail.files || []).forEach((file, i) => {
+                    row(`添付 ${i + 1}: ${file.name || 'ファイル'}`, file.tokens);
+                    text(`${file.method === 'provider' ? 'プロバイダー計測' : '概算'} / ${file.reason === 'ok' ? '計測済み' : (statuses[file.reason] || '未計測')}`);
+                });
+                row('結合時の差・分割未計測分', detail.adjustment_tokens);
+                text('内訳は本文、引用、添付を順に加えたときの増分です。結合時の差や分割できない分は別に表示します。');
+            }
+            if (pending) text('詳細な内訳を計算中...');
+            if (failed) text('詳細な内訳を取得できませんでした。', 'text-red-300');
+            if (!pending && !detail && !failed) text('この接続先では詳細な内訳を取得できません。');
+            if (failed) {
+                const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'text-blue-300 underline';
+                retry.textContent = '再試行'; retry.onclick = () => loadPromptTokenDetail(data, payload); body.appendChild(retry);
+            }
+            text('送信後に返る使用量や請求額の確定値とは異なります。');
+        }
+        async function loadPromptTokenDetail(snapshot, payload) {
+            cancelPromptTokenDetail();
+            const seq = promptTokenDetailSeq;
+            promptTokenDetailAbort = new AbortController();
+            renderPromptTokenDetail(snapshot, payload, true);
+            try {
+                const response = await apiFetch(CHAT_CONFIG.urls.estimatePromptTokensApi, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...payload, include_details: true }), signal: promptTokenDetailAbort.signal
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                if (seq !== promptTokenDetailSeq || get('token-detail-modal').classList.contains('hidden')) return;
+                if (!data.countable || (snapshot.estimate_method === 'provider' && data.estimate_method !== 'provider')) throw new Error('Unavailable');
+                renderPromptTokenDetail(data, payload);
+            } catch (error) {
+                if (seq !== promptTokenDetailSeq || error.name === 'AbortError' || get('token-detail-modal').classList.contains('hidden')) return;
+                renderPromptTokenDetail(snapshot, payload, false, true);
+            }
+        }
+        function openPromptTokenDetail() {
+            const visible = promptTokenEstimateVisible;
+            if (!visible || !visible.data.countable) return;
+            const payload = JSON.parse(JSON.stringify(visible.payload));
+            get('token-detail-title').textContent = '入力トークン見積の詳細';
+            get('token-detail-usage').classList.add('hidden');
+            get('token-detail-estimate').classList.remove('hidden');
+            showTokenDetailModal(null, true);
+            get('token-detail-modal').querySelector('button')?.focus();
+            loadPromptTokenDetail(visible.data, payload);
+        }
+        function restorePromptTokenDetail() {
+            const snapshot = promptTokenDetailSnapshot;
+            if (!snapshot) { showTokenDetailModal(); return; }
+            get('token-detail-title').textContent = '入力トークン見積の詳細';
+            get('token-detail-usage').classList.add('hidden');
+            get('token-detail-estimate').classList.remove('hidden');
+            showTokenDetailModal(null, true);
+            if (snapshot.data.breakdown) renderPromptTokenDetail(snapshot.data, snapshot.payload);
+            else loadPromptTokenDetail(snapshot.data, snapshot.payload);
         }
         function schedulePromptTokenEstimate(immediate = false) {
             const payload = buildPromptTokenEstimatePayload();
@@ -1055,6 +1155,7 @@
                 renderPromptTokenEstimate(promptTokenEstimateLastData, payload);
                 return;
             }
+            renderPromptTokenEstimate({ pending: true }, payload);
             if (promptTokenEstimateTimer) {
                 clearTimeout(promptTokenEstimateTimer);
                 promptTokenEstimateTimer = null;

@@ -50,5 +50,12 @@ class LocalChatBackendTokenTest {
         assertEquals(1, result.getInt("files_missing"))
         assertEquals(0, result.getInt("files_error"))
         assertEquals(result.toString(), backend.post("/api/token_estimate", body).toString())
+        val detail = backend.post("/api/token_estimate", JSONObject(body.toString()).put("include_details", true))
+        assertEquals(result.getInt("tokens_total"), detail.getInt("tokens_total"))
+        val breakdown = detail.getJSONObject("breakdown")
+        assertEquals(3, breakdown.getJSONArray("files").length())
+        assertTrue(breakdown.getJSONArray("files").getJSONObject(2).isNull("tokens"))
+        assertEquals("missing", breakdown.getJSONArray("files").getJSONObject(2).getString("reason"))
+
     }
 }

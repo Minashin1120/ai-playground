@@ -4,7 +4,7 @@
 |---|---|---|
 | `chat_core.part01_bootstrap_utils.js` | 基盤ユーティリティ。`get()` ヘルパー、設定保存ボタン制御、画像読み込み失敗フォールバック、テーマ（`applyThemeColor` / `THEME_STORAGE_KEY`）、Liquid Glass、圧縮設定と共通の画像圧縮処理、アダプティブぼかし（低負荷自動化）、モーダルの開閉（`showModal` / `hideModal`） | 基盤・テーマ・モーダルを変更するとき |
 | `chat_core.part02_rich_paste.js` | リッチペースト（HTML整形・サニタイズ・印刷）、MathJax読み込み、Google／Minashin連携解除・連携UI（`updateGoogleLinkUI` / `updateMinashinLinkUI`）、各種定数（添付・低帯域・一時チャット・Coding/Canvas・マーカー） | リッチペースト・共通定数を変更するとき |
-| `chat_core.part03_security_token_promptbar.js` | セキュリティ（polyfill.io等のブロック）、トークン見積もり、プロンプトバー表示、Thinkingレベル、コード折りたたみ、低帯域モード適用 | セキュリティ・トークン・Coding対象を変更するとき |
+| `chat_core.part03_security_token_promptbar.js` | セキュリティ（polyfill.io等のブロック）、トークン見積もり・クリックで開く詳細内訳、プロンプトバー表示、Thinkingレベル、コード折りたたみ、低帯域モード適用 | セキュリティ・トークン・Coding対象を変更するとき |
 | `chat_core.part04_minimal_options_thinking.js` | ミニマル表示のプラスボタンポップアップ、Thinkingスライダー、設定タブ（`TAB_LABELS`）、Botロックオーバーレイ、SWキャッシュモード（`applyCacheMode`）、Turnstile初期化 | ミニマル表示・Thinking・キャッシュを変更するとき |
 | `chat_core.part05_settings_modal.js` | 設定モーダル本体。モデル定義 `MODELS` 配列、`MODEL_NAME_BY_ID` / `MODEL_TAGS`、音声（TTS/STS）一覧、画像・音声・動画拡張子、スラッシュコマンド定義、ウェルカム画面クイックアクセス | 設定画面・モデル定義を変更するとき |
 | `chat_core.part06_model_media_prompt_cache.js` | モデル一覧描画・Visionモデル選択、PromptCache 制約、ブラウザ高速モードとBatchの選択肢制御、MCP（外部モデル連携）設定UI（`loadMcpServers` / `renderMcpServers` / `bindMcpSettingsUi`） | モデル表示・PromptCache・MCP設定を変更するとき |

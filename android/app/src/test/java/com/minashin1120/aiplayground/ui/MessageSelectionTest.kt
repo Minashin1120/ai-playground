@@ -80,7 +80,9 @@ class MessageSelectionTest {
             }
         }
         rule.waitForIdle()
-        val node = rule.onNodeWithText(target)
+        // The bubble merges accessibility nodes. Gesture coordinates must come from the text
+        // itself, otherwise a first-line press lands on the bubble padding / thought header.
+        val node = rule.onNodeWithText(target, useUnmergedTree = true)
         val layouts = mutableListOf<TextLayoutResult>()
         node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         // Use the first line, which is visible even when the thought is much taller than its viewport.

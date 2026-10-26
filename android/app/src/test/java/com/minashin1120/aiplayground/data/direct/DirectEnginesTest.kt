@@ -128,6 +128,48 @@ class DirectEnginesTest {
         assertTrue(contents.getJSONObject(2).getJSONArray("parts").getJSONObject(0).getString("text").contains("中身"))
     }
 
+    @Test fun geminiReusesLargeImagesAcrossEnginesAndReuploadsMissingFiles() {
+        MockWebServer().use { server ->
+            server.start()
+            val base = server.url("/").toString().trimEnd('/')
+            val json = { body: String -> MockResponse.Builder().addHeader("Content-Type", "application/json").body(body).build() }
+            fun enqueueUpload(id: String) {
+                server.enqueue(MockResponse.Builder().addHeader("X-Goog-Upload-URL", "$base/upload-$id").body("").build())
+                server.enqueue(json("""{"file":{"name":"files/$id","uri":"$base/files/$id","mimeType":"image/jpeg","state":"ACTIVE"}}"""))
+                server.enqueue(sse("""{"candidates":[{"content":{"parts":[{"text":"ok"}]}}]}"""))
+            }
+            val bytes = ByteArray(1024 * 1024 + 1) { 7 }
+            fun body() = request(turns = listOf(DirectTurn("user", "describe", listOf(
+                DirectAttachment("image.jpg", "image/jpeg", bytes = bytes.copyOf())))))
+            enqueueUpload("one")
+            assertEquals("ok", run(GeminiDirect(http, base), body()).first.content)
+            assertTrue(server.takeRequest().target.startsWith("/upload/v1beta/files"))
+            assertEquals(bytes.size.toLong(), server.takeRequest().bodySize)
+            assertFalse(JSONObject(server.takeRequest().body!!.utf8()).toString().contains("inlineData"))
+            server.enqueue(json("""{"state":"ACTIVE"}"""))
+            server.enqueue(sse("""{"candidates":[{"content":{"parts":[{"text":"cached"}]}}]}"""))
+            assertEquals("cached", run(GeminiDirect(http, base), body()).first.content)
+            assertEquals("/v1beta/files/one", server.takeRequest().target)
+            val cached = JSONObject(server.takeRequest().body!!.utf8()).toString()
+            assertTrue(cached.contains("$base/files/one"))
+            assertFalse(cached.contains("inlineData"))
+            server.enqueue(MockResponse.Builder().code(404).body("{}").build())
+            enqueueUpload("two")
+            assertEquals("ok", run(GeminiDirect(http, base), body()).first.content)
+            assertEquals("/v1beta/files/one", server.takeRequest().target)
+            assertTrue(server.takeRequest().target.startsWith("/upload/v1beta/files"))
+            server.takeRequest()
+            assertTrue(JSONObject(server.takeRequest().body!!.utf8()).toString().contains("$base/files/two"))
+            enqueueUpload("different-key")
+            run(GeminiDirect(http, base), body().copy(apiKey = "another-key"))
+            val otherKey = server.takeRequest()
+            assertTrue(otherKey.target.startsWith("/upload/v1beta/files"))
+            assertEquals("another-key", otherKey.headers["x-goog-api-key"])
+            server.takeRequest()
+            server.takeRequest()
+        }
+    }
+
     @Test fun geminiUploadsVideosThroughFilesApiInsteadOfInline() {
         MockWebServer().use { server ->
             server.start()

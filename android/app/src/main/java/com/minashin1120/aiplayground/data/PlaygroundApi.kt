@@ -12,6 +12,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Protocol
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -30,10 +31,15 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
     constructor() : this(null)
     private val origin: HttpUrl get() = fixedOrigin ?: ServerOrigin.current
     private val jsonType = "application/json; charset=utf-8".toMediaType()
-    private val normal = OkHttpClient.Builder().cookieJar(CookieJar.NO_COOKIES)
+    // Keep uploads, short requests and streams on separate HTTP/1.1 connections.
+    // A stalled multiplexed connection must not hold settings, heartbeat and release notes together.
+    private val normal = OkHttpClient.Builder().protocols(listOf(Protocol.HTTP_1_1)).cookieJar(CookieJar.NO_COOKIES)
         .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
         .connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(120, TimeUnit.SECONDS).callTimeout(180, TimeUnit.SECONDS).build()
+    // Probes must not spend their three-second budget queued behind settings or file transfers.
+    private val heartbeat = normal.newBuilder().dispatcher(okhttp3.Dispatcher())
+        .connectionPool(okhttp3.ConnectionPool()).build()
     private val streaming = normal.newBuilder().readTimeout(660, TimeUnit.SECONDS)
         .callTimeout(0, TimeUnit.SECONDS).build()
     /**
@@ -120,7 +126,8 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
         return JSONObject(readBoundedUtf8(response.body.byteStream(), 8 * 1024 * 1024))
     }
     suspend fun get(path: String, token: String? = null): JSONObject = execute(
-        request(path, token).header("Accept", "application/json").build(), consume = ::jsonResponse)
+        request(path, token).header("Accept", "application/json").build(),
+        client = if (path.startsWith("/api/version?heartbeat=")) heartbeat else normal, consume = ::jsonResponse)
     suspend fun getText(path: String, limit: Int = 1024 * 1024): String = execute(
         request(path, null).header("Accept", "text/markdown").get().build()
     ) { response ->

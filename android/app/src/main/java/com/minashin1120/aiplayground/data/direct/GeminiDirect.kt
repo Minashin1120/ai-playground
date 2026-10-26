@@ -204,7 +204,7 @@ class GeminiDirect(
     }
 
     /**
-     * Server Gemini branch: videos, and other files over [INLINE_LIMIT_BYTES], go through the Files API
+     * Videos, and files over [FILE_REUSE_THRESHOLD_BYTES], go through the Files API
      * (upload, then wait until processed) instead of inline base64, which a large video makes too big to
      * send. Vertex AI has no Files API, so its requests stay inline. Returns the `fileData` of each upload.
      */
@@ -213,13 +213,37 @@ class GeminiDirect(
         request.turns.flatMap { it.attachments }.forEach { attachment ->
             val bytes = attachment.bytes ?: return@forEach
             val video = attachment.mime.lowercase().startsWith("video/")
-            if (!video && bytes.size <= INLINE_LIMIT_BYTES) return@forEach
+            if (!video && bytes.size <= FILE_REUSE_THRESHOLD_BYTES) return@forEach
             val label = if (video) "動画" else "ファイル"
             emit(event("status", "${label}をGeminiへアップロード中..."))
             val started = System.currentTimeMillis()
             Diagnostics.log("gemini.upload_start", "mime" to attachment.mime, "bytes" to bytes.size)
             val file = try {
-                uploadFile(attachment, bytes, request.apiKey, label, emit)
+                val digest = java.security.MessageDigest.getInstance("SHA-256")
+                for (field in listOf(baseUrl.toByteArray(), request.apiKey.toByteArray(), attachment.mime.toByteArray(), bytes)) {
+                    digest.update(java.nio.ByteBuffer.allocate(4).putInt(field.size).array())
+                    digest.update(field)
+                }
+                val cacheKey = digest.digest().joinToString("") { "%02x".format(it) }
+                val cached = synchronized(uploadCache) {
+                    uploadCache[cacheKey]?.takeIf { System.nanoTime() - it.createdAt < FILE_CACHE_TTL_NS }
+                }
+                val reusable = if (cached == null) null else try {
+                    emit(event("status", "Geminiの添付ファイルを確認中..."))
+                    val state = http.getJson("$baseUrl/v1beta/${cached.name}", mapOf("x-goog-api-key" to request.apiKey)).optString("state")
+                    Diagnostics.log("gemini.file_state", "state" to state)
+                    cached.takeIf { state == "ACTIVE" }
+                } catch (e: DirectApiException) {
+                    if (e.status != 404) throw e
+                    null
+                }
+                val uploaded = reusable ?: uploadFile(attachment, bytes, request.apiKey, label, emit).also {
+                    synchronized(uploadCache) {
+                        if (uploadCache.size >= 32) uploadCache.remove(uploadCache.keys.first())
+                        uploadCache[cacheKey] = it
+                    }
+                }
+                uploaded.data
             } catch (e: kotlinx.coroutines.CancellationException) {
                 Diagnostics.log("gemini.upload_cancelled", "ms" to System.currentTimeMillis() - started)
                 throw e
@@ -235,7 +259,7 @@ class GeminiDirect(
     }
 
     /** Files API resumable upload, then `files.get` every 2 seconds for up to 120 seconds until ACTIVE (server `_wait_gemini_file_active`). */
-    private suspend fun uploadFile(attachment: DirectAttachment, bytes: ByteArray, apiKey: String, label: String, emit: (JSONObject) -> Unit): JSONObject {
+    private suspend fun uploadFile(attachment: DirectAttachment, bytes: ByteArray, apiKey: String, label: String, emit: (JSONObject) -> Unit): UploadedFile {
         val key = mapOf("x-goog-api-key" to apiKey)
         val uploadUrl = http.postJsonForHeader("$baseUrl/upload/v1beta/files", key + mapOf(
             "X-Goog-Upload-Protocol" to "resumable", "X-Goog-Upload-Command" to "start",
@@ -258,7 +282,8 @@ class GeminiDirect(
         }
         if (state.isNotEmpty() && state != "ACTIVE") throw IOException(if (state == "PROCESSING") "処理が時間内に終わりませんでした。" else "state:$state")
         val uri = file.optString("uri").ifBlank { throw IOException("ファイルのURIを取得できませんでした。") }
-        return JSONObject().put("mimeType", file.optString("mimeType").ifBlank { attachment.mime }).put("fileUri", uri)
+        return UploadedFile(JSONObject().put("mimeType", file.optString("mimeType").ifBlank { attachment.mime }).put("fileUri", uri),
+            file.getString("name"), System.nanoTime())
     }
 
     internal fun buildPayload(request: DirectRequest, uploads: Map<DirectAttachment, JSONObject> = emptyMap()): JSONObject {
@@ -355,7 +380,12 @@ class GeminiDirect(
         }
     }
 
+    private data class UploadedFile(val data: JSONObject, val name: String, val createdAt: Long)
+
     private companion object {
+        const val FILE_REUSE_THRESHOLD_BYTES = 1024 * 1024
+        const val FILE_CACHE_TTL_NS = 60L * 60 * 1_000_000_000
+        val uploadCache = LinkedHashMap<String, UploadedFile>()
         const val NANO_BANANA_21 = "gemini-nano-banana-2.1"
         val GEMINI_IMAGE_ASPECTS = setOf("1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5", "5:4", "8:1", "9:16", "16:9", "21:9")
         /** Server `media_inline_limit`: larger files (and every video) go through the Files API. */

@@ -85,6 +85,8 @@ class ServerHistory(
 
     /** Attachment bytes of a server reference, or null when neither the server nor the offline cache has them. */
     suspend fun file(reference: String, limit: Long): ByteArray? {
+        // Attachment references are immutable. Reuse the encrypted full-resolution cache first.
+        cachedFile(reference, limit)?.let { return it }
         if (!isOffline()) {
             try {
                 return serverFile(reference, limit)

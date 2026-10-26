@@ -368,6 +368,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val suppressedPendingJobIds = mutableSetOf<String>()
     private var stoppedJobStillRunning = false
     private var uploadJob: Job? = null
+    private val pendingUploads = java.util.ArrayDeque<Pair<Uri, Boolean>>()
     private var heartbeatJob: Job? = null
     private var connectionMonitorJob: Job? = null
     private var connectionRecoveredHideJob: Job? = null
@@ -4279,47 +4280,56 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (state.value.banned) return
         if (state.value.offline && !uploadsLocal) { mutable.update { it.copy(notice = "オフライン中はファイルをアップロードできません。") }; return }
-        if (uris.isEmpty() || state.value.uploading) return
+        if (uris.isEmpty()) return
+        uris.forEach { pendingUploads.addLast(it to skipCompression) }
+        if (state.value.uploading) {
+            mutable.update { it.copy(uploadCount = it.uploadCount + uris.size) }
+            return
+        }
+        mutable.update { it.copy(uploading = true, uploadSent = 0, uploadTotal = 0, uploadName = "",
+            uploadCompleted = 0, uploadCount = pendingUploads.size) }
         uploadJob = viewModelScope.launch {
-            mutable.update { it.copy(uploading = true, uploadSent = 0, uploadTotal = 0, uploadName = "",
-                uploadCompleted = 0, uploadCount = uris.size) }
             try {
-                for (uri in uris) {
-                    val resolver = getApplication<Application>().contentResolver
-                    val local = withContext(Dispatchers.IO) { queryLocalAttachment(resolver, uri) }
-                    mutable.update { it.copy(uploadName = local.name, uploadSent = 0,
-                        uploadTotal = if (local.size > 0) local.size else 0) }
-                    val source = withContext(Dispatchers.IO) { if (skipCompression) LocalUpload(local.name, local.size, local.mime) {
-                        resolver.openInputStream(uri) ?: throw IOException("添付を開けません。")
-                    } else prepareUpload(resolver, uri, local) }
-                    mutable.update { it.copy(uploadName = source.name, uploadSent = 0,
-                        uploadTotal = if (source.size > 0) source.size else 0) }
-                    val uploaded = withContext(Dispatchers.IO) { storeLocalUpload(source.name, source.mime, source.size, source.opener) }
-                        ?: if (source.size > CHUNK_UPLOAD_THRESHOLD_BYTES) uploadInChunks(source) else uploadWhole(source)
-                    mutable.update { it.copy(attachments = it.attachments + Attachment(source.name, uploaded, source.mime)) }
-                    val deviceBackend = localBackend as? LocalChatBackend
-                    val chats = localChats
-                    if (deviceBackend != null && chats != null && state.value.serverless && !state.value.localProfile && !state.value.offline) {
-                        val current = state.value
-                        val options = JSONObject().put("thread_id", current.selected?.id.orEmpty()).put("model", current.model)
-                            .put("coding_mode", current.codingMode).put("enable_file_creation", current.enableFileCreation)
-                            .put("enable_mcp", current.enableMcp).put("enable_python", current.enablePython)
-                        withContext(Dispatchers.IO) {
-                            if (deviceBackend.needsServerTools(options)) {
-                                try { SyncEngine(chats, syncApi) { token() }.uploadAttachment(uploaded) { sent, total ->
-                                    mutable.update { it.copy(uploadSent = sent, uploadTotal = total) }
-                                } }
-                                catch (e: CancellationException) { throw e }
-                                catch (e: Exception) { Diagnostics.failure("sync.error", e) }
+                while (pendingUploads.isNotEmpty()) {
+                    val (uri, queuedSkipCompression) = pendingUploads.removeFirst()
+                    try {
+                        val resolver = getApplication<Application>().contentResolver
+                        val local = withContext(Dispatchers.IO) { queryLocalAttachment(resolver, uri) }
+                        mutable.update { it.copy(uploadName = local.name, uploadSent = 0,
+                            uploadTotal = if (local.size > 0) local.size else 0) }
+                        val source = withContext(Dispatchers.IO) { if (queuedSkipCompression) LocalUpload(local.name, local.size, local.mime) {
+                            resolver.openInputStream(uri) ?: throw IOException("添付を開けません。")
+                        } else prepareUpload(resolver, uri, local) }
+                        mutable.update { it.copy(uploadName = source.name, uploadSent = 0,
+                            uploadTotal = if (source.size > 0) source.size else 0) }
+                        val uploaded = withContext(Dispatchers.IO) { storeLocalUpload(source.name, source.mime, source.size, source.opener) }
+                            ?: if (source.size > CHUNK_UPLOAD_THRESHOLD_BYTES) uploadInChunks(source) else uploadWhole(source)
+                        mutable.update { it.copy(attachments = it.attachments + Attachment(source.name, uploaded, source.mime)) }
+                        val deviceBackend = localBackend as? LocalChatBackend
+                        val chats = localChats
+                        if (deviceBackend != null && chats != null && state.value.serverless && !state.value.localProfile && !state.value.offline) {
+                            val current = state.value
+                            val options = JSONObject().put("thread_id", current.selected?.id.orEmpty()).put("model", current.model)
+                                .put("coding_mode", current.codingMode).put("enable_file_creation", current.enableFileCreation)
+                                .put("enable_mcp", current.enableMcp).put("enable_python", current.enablePython)
+                            withContext(Dispatchers.IO) {
+                                if (deviceBackend.needsServerTools(options)) {
+                                    try { SyncEngine(chats, syncApi) { token() }.uploadAttachment(uploaded) { sent, total ->
+                                        mutable.update { it.copy(uploadSent = sent, uploadTotal = total) }
+                                    } }
+                                    catch (e: CancellationException) { throw e }
+                                    catch (e: Exception) { Diagnostics.failure("sync.error", e) }
+                                }
                             }
                         }
-                    }
-                    mutable.update { it.copy(uploadCompleted = it.uploadCompleted + 1) }
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) { report(e) }
+                    finally { mutable.update { it.copy(uploadCompleted = it.uploadCompleted + 1) } }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) { report(e) }
-            finally { mutable.update { it.copy(uploading = false, uploadSent = 0, uploadTotal = 0, uploadName = "",
+            finally { pendingUploads.clear(); mutable.update { it.copy(uploading = false, uploadSent = 0, uploadTotal = 0, uploadName = "",
                 uploadCompleted = 0, uploadCount = 0) } }
         }
     }
@@ -4395,11 +4405,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Removing the uploading row (Web `uploadCancelTokens`): the rest of this batch is not uploaded. */
     fun cancelUpload() {
         if (!state.value.uploading) return
+        pendingUploads.clear()
         uploadJob?.cancel()
     }
 
     /** Web `resetUploadState`: the composer ✕ and "リストをクリア" drop every attachment and the mask. */
     fun resetUploads() {
+        pendingUploads.clear()
         uploadJob?.cancel()
         mutable.update { it.copy(attachments = emptyList(), imageMask = null) }
     }

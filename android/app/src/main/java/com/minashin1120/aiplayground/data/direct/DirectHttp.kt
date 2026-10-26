@@ -33,12 +33,11 @@ class DirectHttp(
     private val allowedHosts: Set<String> = PROVIDER_HOSTS,
     private val allowCleartextLocalhost: Boolean = false,
 ) {
-    private val client = OkHttpClient.Builder().cookieJar(CookieJar.NO_COOKIES)
+    private val client = OkHttpClient.Builder().protocols(listOf(Protocol.HTTP_1_1)).cookieJar(CookieJar.NO_COOKIES)
         .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
         .connectTimeout(20, TimeUnit.SECONDS).readTimeout(660, TimeUnit.SECONDS)
         .writeTimeout(180, TimeUnit.SECONDS).callTimeout(0, TimeUnit.SECONDS).build()
-    // Provider SSE responses can be buffered over HTTP/2 before Android receives their deltas.
-    // Keep ordinary provider requests on the default client and use HTTP/1.1 only for live streams.
+    // Use the same transport for binary uploads and SSE so an HTTP/2 connection cannot stall either.
     private val streamingClient = client.newBuilder().protocols(listOf(Protocol.HTTP_1_1)).build()
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 

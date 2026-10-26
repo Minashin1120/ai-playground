@@ -1,6 +1,7 @@
 package com.minashin1120.aiplayground.data
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import org.json.JSONArray
@@ -19,6 +20,27 @@ class PlaygroundApiTest {
         assertEquals("provider error", ApiException(500, JSONObject().put("error", "provider error")).message)
         assertEquals("アカウントの利用が制限されています。Webで状態を確認してください。",
             ApiException(403, JSONObject().put("error", "banned")).message)
+    }
+
+    @Test fun heartbeatIsNotQueuedBehindBusyRequests() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            repeat(5) { server.enqueue(MockResponse.Builder().throttleBody(1, 1, java.util.concurrent.TimeUnit.SECONDS)
+                .addHeader("Content-Type", "application/json").body("{" + " ".repeat(128) + "}").build()) }
+            val api = PlaygroundApi(server.url("/"))
+            val blocked = (1..5).map { index ->
+                async(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { api.get("/slow/$index") }
+            }
+            try {
+                repeat(5) { assertNotNull(server.takeRequest(5, java.util.concurrent.TimeUnit.SECONDS)) }
+                server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json").body("""{"version":"ok"}""").build())
+                val reply = kotlinx.coroutines.withTimeout(2_000) { api.get("/api/version?heartbeat=1") }
+                assertEquals("ok", reply.getString("version"))
+            } finally {
+                blocked.forEach { it.cancel() }
+                blocked.forEach { it.join() }
+            }
+        }
     }
 
     @Test fun markdownTextUsesSameOriginWithoutBearer() = runBlocking {

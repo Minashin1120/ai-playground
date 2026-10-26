@@ -5303,7 +5303,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if response_format in ("text", "json_object") and response_format != "text":
                     create_kwargs["response_format"] = response_format
                 tool_choice = str(options.get("xai_tool_choice") or "auto").strip().lower()
-                if tool_choice in ("auto", "none", "required") and (tools or tool_choice != "required"):
+                if tools and tool_choice in ("auto", "none", "required"):
                     create_kwargs["tool_choice"] = tool_choice
                 if tools:
                     create_kwargs["parallel_tool_calls"] = bool(options.get("xai_parallel_tool_calls", True))

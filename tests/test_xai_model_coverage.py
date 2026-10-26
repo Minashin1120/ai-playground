@@ -1,5 +1,8 @@
 from pathlib import Path
+import textwrap
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock
 
 from tests.chat_template import read_chat_markup
 
@@ -12,6 +15,48 @@ SETUP = (ROOT / "templates/setup.html").read_text(encoding="utf-8")
 
 
 class XaiModelCoverageRegressionTests(unittest.TestCase):
+    def test_native_chat_only_sends_tool_controls_with_tools(self):
+        source = (ROOT / "server/background.py").read_text(encoding="utf-8")
+        native_branch = source.index('# --- 2. xAI Grok (Native SDK) ---')
+        start = source.index('                create_kwargs = {"model": model_key}', native_branch)
+        end = source.index('                grok_sys = ', start)
+        request_code = compile(textwrap.dedent(source[start:end]), "<grok-request>", "exec")
+        for tools, legacy_search in (([], None), ([], object()), ([object()], None)):
+            for choice in (None, "auto", "none", "required", "invalid"):
+                with self.subTest(tools=bool(tools), legacy_search=bool(legacy_search), choice=choice):
+                    create = Mock()
+                    started = Mock()
+                    namespace = {
+                        "model_key": "grok-4.20-0309-non-reasoning",
+                        "model_key_l": "grok-4.20-0309-non-reasoning",
+                        "options": {"xai_tool_choice": choice, "xai_parallel_tool_calls": False},
+                        "search_params": legacy_search,
+                        "tools": tools,
+                        "include": [],
+                        "grok_reasoning_effort_supported": False,
+                        "grok_reasoning_supported": False,
+                        "_mark_provider_request_started": started,
+                        "x_client": SimpleNamespace(chat=SimpleNamespace(create=create)),
+                    }
+                    exec(request_code, namespace)
+                    started.assert_called_once_with()
+                    create.assert_called_once()
+                    kwargs = create.call_args.kwargs
+                    expected_choice = choice or "auto"
+                    if tools:
+                        self.assertEqual(kwargs["tools"], tools)
+                        self.assertFalse(kwargs["parallel_tool_calls"])
+                        if expected_choice in ("auto", "none", "required"):
+                            self.assertEqual(kwargs["tool_choice"], expected_choice)
+                        else:
+                            self.assertNotIn("tool_choice", kwargs)
+                    else:
+                        self.assertNotIn("tools", kwargs)
+                        self.assertNotIn("tool_choice", kwargs)
+                        self.assertNotIn("parallel_tool_calls", kwargs)
+                    if legacy_search:
+                        self.assertIs(kwargs["search_parameters"], legacy_search)
+
     def test_current_xai_models_are_registered_everywhere(self):
         current = (
             "grok-4.20-0309-reasoning",

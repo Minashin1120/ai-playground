@@ -238,12 +238,12 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
     suspend fun uploadInit(filename: String, size: Long, token: String): JSONObject =
         post("/upload/init", JSONObject().put("filename", filename).put("size", size), token)
 
-    suspend fun uploadChunk(uploadId: String, index: Int, total: Int, chunk: ByteArray, token: String): JSONObject {
+    suspend fun uploadChunk(uploadId: String, index: Int, total: Int, chunk: ByteArray, token: String, onProgress: (Long) -> Unit = {}): JSONObject {
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("upload_id", uploadId)
             .addFormDataPart("index", index.toString())
             .addFormDataPart("total", total.toString())
-            .addFormDataPart("chunk", "chunk", chunk.toRequestBody("application/octet-stream".toMediaType()))
+            .addFormDataPart("chunk", "chunk", uploadBytesBody(chunk, "application/octet-stream", onProgress))
             .build()
         return execute(request("/upload/chunk", token).post(multipart).build(), consume = ::jsonResponse)
     }
@@ -374,3 +374,19 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
 
 /** An image attached to a feedback: [mime] is one of image/png, image/jpeg, image/webp, image/gif. */
 class FeedbackImage(val name: String, val mime: String, val bytes: ByteArray)
+
+/** Reports actual file bytes written, excluding multipart framing. */
+internal fun uploadBytesBody(bytes: ByteArray, mime: String, onProgress: (Long) -> Unit): RequestBody =
+    object : RequestBody() {
+        override fun contentType() = mime.toMediaType()
+        override fun contentLength() = bytes.size.toLong()
+        override fun writeTo(sink: okio.BufferedSink) {
+            var offset = 0
+            while (offset < bytes.size) {
+                val count = minOf(64 * 1024, bytes.size - offset)
+                sink.write(bytes, offset, count)
+                offset += count
+                onProgress(offset.toLong())
+            }
+        }
+    }

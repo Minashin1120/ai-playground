@@ -24,6 +24,36 @@ import javax.crypto.KeyGenerator
 class LocalChatBackendTokenTest {
     @get:Rule val folder = TemporaryFolder()
 
+    @Test fun largeAttachmentsUseLocalAutomaticCountsButDetailsUseTheProvider() = runBlocking {
+        fun crypto(id: Byte): EncryptedFileStore {
+            val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+            return EncryptedFileStore(byteArrayOf(id)) { key }
+        }
+        val encrypted = crypto(1)
+        val store = LocalChatStore(folder.root, encrypted)
+        val settings = LocalSettingsStore(folder.root, encrypted, crypto(2))
+        settings.savePreferences(JSONObject().put("gemini_key", "fake-key"))
+        val bytes = ByteArray(1024 * 1024 + 1) { 65 }
+        val ref = store.saveFile("large.txt", "text/plain", bytes.inputStream(), bytes.size.toLong())
+        mockwebserver3.MockWebServer().use { server ->
+            server.start()
+            repeat(8) { server.enqueue(mockwebserver3.MockResponse.Builder().body("""{"totalTokens":42}""").build()) }
+            val router = DirectRouter(DirectHttp(allowedHosts = emptySet(), allowCleartextLocalhost = true),
+                mapOf("gemini" to server.url("/").toString().trimEnd('/')))
+            val backend = LocalChatBackend(store, settings, ServerlessDefaults(JSONObject()), router, "test", null, { "chat" })
+            val body = JSONObject().put("model", "gemini-3-pro-preview").put("message", "hello")
+                .put("image_urls", JSONArray(listOf(ref)))
+            assertEquals("approximate", backend.post("/api/token_estimate", body).getString("estimate_method"))
+            body.put("message", "edited")
+            assertEquals("approximate", backend.post("/api/token_estimate", body).getString("estimate_method"))
+            assertEquals(0, server.requestCount)
+            val detail = backend.post("/api/token_estimate", body.put("include_details", true))
+            assertEquals("provider", detail.getString("estimate_method"))
+            assertTrue(server.requestCount >= 2)
+            assertTrue(detail.has("breakdown"))
+        }
+    }
+
     @Test fun countsEncryptedAttachmentsAndReportsMissingFiles() = runBlocking {
         fun crypto(id: Byte): EncryptedFileStore {
             val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()

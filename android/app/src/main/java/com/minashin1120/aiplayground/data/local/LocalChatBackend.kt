@@ -248,6 +248,12 @@ class LocalChatBackend(
 
     private suspend fun providerEstimate(model: String, text: String, refs: List<String>, payload: JSONObject): JSONObject? {
         if (modeOf(model) != "chat") return null
+        // Automatic recounts must not resend megabytes of media for every draft edit.
+        // The details dialog remains an explicit request for full provider counting.
+        if (!payload.optBoolean("include_details") && refs.any { ref ->
+                !LocalChatStore.isLocalReference(ref) ||
+                    (store.fileInfo(ref)?.optLong("size") ?: Long.MAX_VALUE) > 1024 * 1024
+            }) return null
         val found = router.route(model, modeOf(model)) ?: return null
         try {
             val vertex = if (found.provider == "gemini") vertexTarget() else null

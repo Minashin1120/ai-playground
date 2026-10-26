@@ -8,9 +8,9 @@ import com.minashin1120.aiplayground.data.local.textOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.RequestBody.Companion.toRequestBody
+import com.minashin1120.aiplayground.data.uploadBytesBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -64,7 +64,12 @@ class SyncEngine(
     }
 
     /** Uploads one device attachment (once: a recorded server reference is reused); null when the server cannot take it. */
-    suspend fun uploadAttachment(reference: String): String? {
+    suspend fun uploadAttachment(reference: String, onProgress: (Long, Long) -> Unit = { _, _ -> }): String? =
+        withContext(Dispatchers.IO) {
+            store.attachmentUploadMutex.withLock { uploadAttachmentLocked(reference, onProgress) }
+        }
+
+    private suspend fun uploadAttachmentLocked(reference: String, onProgress: (Long, Long) -> Unit): String? {
         store.fileInfo(reference)?.optString("server_ref")?.takeIf { it.isNotBlank() && it != "null" }?.let { return it }
         val info = store.fileInfo(reference) ?: return null
         val loadStarted = System.currentTimeMillis()
@@ -73,6 +78,7 @@ class SyncEngine(
         Diagnostics.log("sync.attachment_loaded", "mime" to info.optString("mime"), "bytes" to info.optLong("size"),
             "loaded" to (bytes != null), "ms" to System.currentTimeMillis() - loadStarted, "memory" to Diagnostics.memory())
         if (bytes == null) return null
+        onProgress(0, bytes.size.toLong())
         val uploadStarted = System.currentTimeMillis()
         val name = info.optString("name").ifBlank { reference.substringAfterLast('/') }
         val serverRef = try {
@@ -83,11 +89,15 @@ class SyncEngine(
                 val total = (bytes.size + chunk - 1) / chunk
                 for (index in 0 until total) {
                     val start = index * chunk
-                    api.uploadChunk(uploadId, index, total, bytes.copyOfRange(start, minOf(bytes.size, start + chunk)), token())
+                    api.uploadChunk(uploadId, index, total, bytes.copyOfRange(start, minOf(bytes.size, start + chunk)), token()) { sent ->
+                        onProgress(start + sent, bytes.size.toLong())
+                    }
                 }
                 api.uploadComplete(uploadId, token()).getString("filename")
             } else {
-                api.upload(name, bytes.toRequestBody(info.optString("mime").toMediaTypeOrNull()), token()).getString("filename")
+                api.upload(name, uploadBytesBody(bytes, info.optString("mime").ifBlank { "application/octet-stream" }) { sent ->
+                    onProgress(sent, bytes.size.toLong())
+                }, token()).getString("filename")
             }
         } catch (e: ApiException) {
             // Storage quota or a rejected type: the text syncs without this attachment.

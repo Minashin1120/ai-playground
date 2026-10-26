@@ -18,6 +18,9 @@ import java.util.UUID
  * (messages) and `files/<digest>.enc` with `files.enc` (attachment bytes).
  */
 class LocalChatStore(private val root: File, private val crypto: EncryptedFileStore) {
+    /** Shared by eager upload, send and outbox sync; never holds a JVM monitor across network IO. */
+    internal val attachmentUploadMutex = kotlinx.coroutines.sync.Mutex()
+
     private val indexFile get() = File(root, "index.enc")
 
     /** Private, short-lived seekable file for PDF metadata; the caller always deletes it. */

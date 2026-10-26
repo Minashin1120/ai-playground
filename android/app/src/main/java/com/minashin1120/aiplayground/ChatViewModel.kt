@@ -4306,7 +4306,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             .put("enable_mcp", current.enableMcp).put("enable_python", current.enablePython)
                         withContext(Dispatchers.IO) {
                             if (deviceBackend.needsServerTools(options)) {
-                                try { SyncEngine(chats, syncApi) { token() }.uploadAttachment(uploaded) }
+                                try { SyncEngine(chats, syncApi) { token() }.uploadAttachment(uploaded) { sent, total ->
+                                    mutable.update { it.copy(uploadSent = sent, uploadTotal = total) }
+                                } }
                                 catch (e: CancellationException) { throw e }
                                 catch (e: Exception) { Diagnostics.failure("sync.error", e) }
                             }

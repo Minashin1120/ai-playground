@@ -5,6 +5,9 @@ import com.minashin1120.aiplayground.data.PlaygroundApi
 import com.minashin1120.aiplayground.data.local.LocalChatStore
 import com.minashin1120.aiplayground.data.local.textOf
 import com.minashin1120.aiplayground.data.secure.EncryptedFileStore
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -22,6 +25,48 @@ class SyncEngineTest {
     private val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
     private val store by lazy { LocalChatStore(folder.root.resolve("chats"), EncryptedFileStore(byteArrayOf(7)) { key }) }
     private fun json(body: String) = MockResponse.Builder().addHeader("Content-Type", "application/json").body(body).build()
+
+    @Test fun concurrentUploadsShareTheRecordedReferenceAndReportBytes() = runBlocking {
+        val bytes = ByteArray(192 * 1024) { 42 }
+        val file = store.saveFile("attachment.bin", "application/octet-stream", bytes.inputStream(), bytes.size.toLong())
+        MockWebServer().use { server ->
+            server.start()
+            // A duplicate request must fail the assertion rather than wait for a response forever.
+            repeat(2) { server.enqueue(json("""{"filename":"5/attachment.bin"}""")) }
+            val api = PlaygroundApi(server.url("/"))
+            val progress = java.util.Collections.synchronizedList(mutableListOf<Long>())
+            val refs = withTimeout(10_000) {
+                (1..2).map { async {
+                    SyncEngine(store, api) { "token" }.uploadAttachment(file) { sent, total ->
+                        assertEquals(bytes.size.toLong(), total)
+                        progress.add(sent)
+                    }
+                } }.awaitAll()
+            }
+            assertEquals(listOf("5/attachment.bin", "5/attachment.bin"), refs)
+            assertEquals(1, server.requestCount)
+            assertEquals(0L, progress.first())
+            assertEquals(bytes.size.toLong(), progress.last())
+            assertTrue(progress.zipWithNext().all { (a, b) -> b >= a })
+            assertTrue(progress.any { it > 0 && it < bytes.size })
+        }
+    }
+
+    @Test fun failedUploadReleasesTheLockAndDoesNotRecordAReference() = runBlocking {
+        val file = store.saveFile("a.txt", "text/plain", byteArrayOf(1).inputStream(), 1)
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().code(500).body("{}").build())
+            server.enqueue(json("""{"filename":"5/a.txt"}"""))
+            val engine = SyncEngine(store, PlaygroundApi(server.url("/"))) { "token" }
+            try { engine.uploadAttachment(file); fail("Expected a failed upload") }
+            catch (e: ApiException) { assertEquals(500, e.status) }
+            assertTrue(store.fileInfo(file)!!.isNull("server_ref"))
+            assertEquals("5/a.txt", withTimeout(10_000) { engine.uploadAttachment(file) })
+            assertEquals("5/a.txt", engine.uploadAttachment(file))
+            assertEquals(2, server.requestCount)
+        }
+    }
 
     @Test fun reusesMissingServerReferencesWithoutRejectingTheBranch() = runBlocking {
         val thread = store.createThread(false).getString("id")

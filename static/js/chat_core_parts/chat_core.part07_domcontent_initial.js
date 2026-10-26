@@ -466,7 +466,7 @@
                         Array.from(effortSel.options).forEach(opt => {
                             const isGpt56Model = modelLower === 'gpt-5.6' || modelLower.startsWith('gpt-5.6-');
                             const isGpt6Model = modelLower.startsWith('gpt-6');
-                            const gpt6AllowsNone = modelLower === 'gpt-6-sol' || modelLower === 'gpt-6-luna';
+                            const gpt6AllowsNone = modelLower === 'gpt-6-sol' || modelLower === 'gpt-6-luna' || modelLower === 'gpt-6.1-terra';
                             // DeepSeek Flash family shares the low/high/max effort mapping.
                             const isDeepSeekFlash = modelLower === 'deepseek-v4.1-flash' || modelLower === 'deepseek-v4-flash-0731' || modelLower === 'deepseek-v4-flash' || modelLower === 'deepseek-v4-flash-vision-exp';
                             const isDeepSeekPro = modelLower === 'deepseek-v4-pro';

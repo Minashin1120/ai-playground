@@ -200,6 +200,13 @@ class DirectEnginesTest {
 
     @Test fun gpt6AstraAndSolMapUnsupportedNoneToMedium() {
         val engine = OpenAiResponsesDirect(http, baseUrl = "https://api.openai.com")
+        for (effort in listOf("none", "low", "medium", "high", "xhigh", "max")) {
+            val terra = DirectRequest("gpt-6.1-terra", "sk-test", "", listOf(DirectTurn("user", "hi")),
+                JSONObject().put("reasoning_effort", effort).put("enable_thinking", effort != "none"))
+            val payload = engine.buildPayload(terra)
+            assertEquals("gpt-6.1-terra", payload.getString("model"))
+            assertEquals(effort, payload.getJSONObject("reasoning").getString("effort"))
+        }
         val astra = DirectRequest("gpt-6-astra", "sk-test", "", listOf(DirectTurn("user", "hi")),
             JSONObject().put("reasoning_effort", "none").put("enable_thinking", true))
         assertEquals("medium", engine.buildPayload(astra).getJSONObject("reasoning").getString("effort"))

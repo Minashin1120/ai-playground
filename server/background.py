@@ -6757,7 +6757,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         log_force(f"Grok reasoning config: {kwargs['reasoning']}")
                 elif is_grok and enable_reasoning and grok_reasoning_supported:
                     log_force("Grok reasoning_effort not supported for this model; skipping reasoning param")
-                elif is_reasoning_model and enable_reasoning:
+                elif is_reasoning_model and (enable_reasoning or (model_key_l == "gpt-6.1-terra" and req_reasoning_effort == "none")):
                     effort = req_reasoning_effort
                     if not effort:
                         lvl = (options.get('thinking_level') or "medium").lower()

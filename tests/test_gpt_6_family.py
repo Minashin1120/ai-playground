@@ -17,6 +17,7 @@ class Gpt6FamilyRegressionTests(unittest.TestCase):
         for model_id, display_name in (
             ("gpt-6-astra", "GPT-6 Astra"),
             ("gpt-6.1-sol", "GPT-6.1 Sol"),
+            ("gpt-6.1-terra", "GPT-6.1 Terra"),
             ("gpt-6-luna", "GPT-6 Luna"),
             ("gpt-6-sol", "GPT-6 Sol"),
         ):
@@ -36,7 +37,7 @@ class Gpt6FamilyRegressionTests(unittest.TestCase):
         js_source = js_assets[0].read_text(encoding="utf-8")
 
         self.assertIn("const isGpt6Model = modelLower.startsWith('gpt-6');", js_source)
-        self.assertIn("const gpt6AllowsNone = modelLower === 'gpt-6-sol' || modelLower === 'gpt-6-luna';", js_source)
+        self.assertIn("const gpt6AllowsNone = modelLower === 'gpt-6-sol' || modelLower === 'gpt-6-luna' || modelLower === 'gpt-6.1-terra';", js_source)
         self.assertIn("!isGpt56Model && !isGpt6Model && !isDeepSeekFlash", js_source)
         self.assertIn('if effort == "none" and any(x in model_key_l for x in ("gpt-6-astra", "gpt-6.1-sol")):', app_source)
         self.assertIn("'gpt-6'", app_source)

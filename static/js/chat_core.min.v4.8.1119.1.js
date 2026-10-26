@@ -2445,7 +2445,10 @@ a-brain text-green-400",description:"OpenAI's flagship models",items:[{id:"gpt-6
 ched $1.00/1M, Out $50.00/1M (over 272K: In $20.00, Out $75.00)"},{id:"gpt-6.1-sol",implementedAt:"2\
 026-10-02",implementedRank:10442,quickEmoji:"\u{1F506}",name:"GPT-6.1 Sol",desc:"Near-Astra performa\
 nce for complex work at a lower cost, with 1.05M context.",price:"In $2.00/1M, Cached $0.10/1M, Out \
-$10.00/1M (over 272K: In $4.00, Out $15.00)"},{id:"gpt-6-luna",implementedAt:"2026-10-02",implementedRank:10441,
+$10.00/1M (over 272K: In $4.00, Out $15.00)"},{id:"gpt-6.1-terra",implementedAt:"2026-10-27",implementedRank:10444,
+quickEmoji:"\u{1F30D}",name:"GPT-6.1 Terra",desc:"Fast, efficient visual reasoning, precise computer\
+ use, and clear, natural writing with 1.05M context.",price:"In $1.00/1M, Cached $0.05/1M, Out $5.00\
+/1M (over 272K: In $2.00, Out $7.50)"},{id:"gpt-6-luna",implementedAt:"2026-10-02",implementedRank:10441,
 quickEmoji:"\u{1F315}",name:"GPT-6 Luna",desc:"Most efficient GPT-6 model for focused, high-volume t\
 asks with 1.05M context.",price:"In $0.10/1M, Cached $0.01/1M, Out $0.50/1M (over 272K: In $0.20, Ou\
 t $0.75)"},{id:"gpt-6-sol",implementedAt:"2026-10-02",implementedRank:10440,quickEmoji:"\u2600\uFE0F",
@@ -3329,13 +3332,13 @@ g","\u63A8\u8AD6","reasoning effort","low","high");const b=t==="gpt-5.6"||t.star
 startsWith("gpt-6"),w=t.includes("grok-4.6"),v=t.includes("grok-4.3")||t.includes("grok-4.5")||w||t.
 includes("grok-4.20-0309-reasoning")||t.includes("grok-build")||t.includes("multi-agent")||t.includes(
 "gpt-5")||y||t.includes("o1")||t.includes("o3"),k=t.includes("grok-4.3")||t.includes("grok-build")||
-t.includes("gpt-5")||t==="gpt-6-sol"||t==="gpt-6-luna"||i;v&&u("medium"),k&&u("none"),(b||y||i)&&u("\
-max"),(w||t.includes("multi-agent")||b||y)&&u("xhigh")}return t.includes("claude")&&u("thinking","\u601D\u8003",
-"thinking budget","budget"),e.agenticView&&u("agentic view"),[...new Set(n)]}o(getModelCapabilitySearchTerms,
-"getModelCapabilitySearchTerms");const modelListGroups=[];let modelListBanner=null,modelListEmpty=null,
-modelListBuilt=!1,modelListAnimated=!1,modelListRenderFrame=0;function buildModelList(){const e=get(
-"model-list-container");!e||modelListBuilt||(e.innerHTML="",modelListBanner=document.createElement("\
-div"),modelListBanner.className="model-banner hidden",e.appendChild(modelListBanner),MODELS.forEach(
+t.includes("gpt-5")||t==="gpt-6-sol"||t==="gpt-6-luna"||t==="gpt-6.1-terra"||i;v&&u("medium"),k&&u("\
+none"),(b||y||i)&&u("max"),(w||t.includes("multi-agent")||b||y)&&u("xhigh")}return t.includes("claud\
+e")&&u("thinking","\u601D\u8003","thinking budget","budget"),e.agenticView&&u("agentic view"),[...new Set(
+n)]}o(getModelCapabilitySearchTerms,"getModelCapabilitySearchTerms");const modelListGroups=[];let modelListBanner=null,
+modelListEmpty=null,modelListBuilt=!1,modelListAnimated=!1,modelListRenderFrame=0;function buildModelList(){
+const e=get("model-list-container");!e||modelListBuilt||(e.innerHTML="",modelListBanner=document.createElement(
+"div"),modelListBanner.className="model-banner hidden",e.appendChild(modelListBanner),MODELS.forEach(
 t=>{const n=t.items.filter(l=>!l.deprecated);if(!n.length)return;const i=document.createElement("sec\
 tion");i.className="model-list-group",i.innerHTML=`
                     <div class="model-group-header">

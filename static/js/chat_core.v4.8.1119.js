@@ -7849,6 +7849,7 @@
                 items: [
                     { id: "gpt-6-astra", implementedAt: "2026-10-02", implementedRank: 10443, quickEmoji: "🌟", name: "GPT-6 Astra", desc: "Most capable model for demanding reasoning, coding, and professional work with 1.05M context.", price: "In $10.00/1M, Cached $1.00/1M, Out $50.00/1M (over 272K: In $20.00, Out $75.00)" },
                     { id: "gpt-6.1-sol", implementedAt: "2026-10-02", implementedRank: 10442, quickEmoji: "🔆", name: "GPT-6.1 Sol", desc: "Near-Astra performance for complex work at a lower cost, with 1.05M context.", price: "In $2.00/1M, Cached $0.10/1M, Out $10.00/1M (over 272K: In $4.00, Out $15.00)" },
+                    { id: "gpt-6.1-terra", implementedAt: "2026-10-27", implementedRank: 10444, quickEmoji: "🌍", name: "GPT-6.1 Terra", desc: "Fast, efficient visual reasoning, precise computer use, and clear, natural writing with 1.05M context.", price: "In $1.00/1M, Cached $0.05/1M, Out $5.00/1M (over 272K: In $2.00, Out $7.50)" },
                     { id: "gpt-6-luna", implementedAt: "2026-10-02", implementedRank: 10441, quickEmoji: "🌕", name: "GPT-6 Luna", desc: "Most efficient GPT-6 model for focused, high-volume tasks with 1.05M context.", price: "In $0.10/1M, Cached $0.01/1M, Out $0.50/1M (over 272K: In $0.20, Out $0.75)" },
                     { id: "gpt-6-sol", implementedAt: "2026-10-02", implementedRank: 10440, quickEmoji: "☀️", name: "GPT-6 Sol", desc: "GPT-6 model for complex coding and agentic workflows with 1.05M context.", price: "In $2.00/1M, Cached $0.20/1M, Out $10.00/1M (over 272K: In $4.00, Out $15.00)" },
                     { id: "gpt-5.6-sol", implementedAt: "2026-07-31", implementedRank: 6550, quickEmoji: "☀️", name: "GPT-5.6 Sol", desc: "Frontier reasoning model for complex professional work with 1.05M context.", price: "In $5.00/1M, Cached $0.50/1M, Out $30.00/1M (over 272K: In $10.00, Out $45.00)" },
@@ -9742,7 +9743,7 @@
                     || model.includes('grok-4.20-0309-reasoning') || model.includes('grok-build')
                     || model.includes('multi-agent') || model.includes('gpt-5') || isGpt6Model || model.includes('o1') || model.includes('o3');
                 const supportsNone = model.includes('grok-4.3') || model.includes('grok-build')
-                    || model.includes('gpt-5') || model === 'gpt-6-sol' || model === 'gpt-6-luna' || isDeepSeek;
+                    || model.includes('gpt-5') || model === 'gpt-6-sol' || model === 'gpt-6-luna' || model === 'gpt-6.1-terra' || isDeepSeek;
                 if (supportsMedium) add('medium');
                 if (supportsNone) add('none');
                 if (isGpt56Model || isGpt6Model || isDeepSeek) add('max');
@@ -10738,7 +10739,7 @@
                         Array.from(effortSel.options).forEach(opt => {
                             const isGpt56Model = modelLower === 'gpt-5.6' || modelLower.startsWith('gpt-5.6-');
                             const isGpt6Model = modelLower.startsWith('gpt-6');
-                            const gpt6AllowsNone = modelLower === 'gpt-6-sol' || modelLower === 'gpt-6-luna';
+                            const gpt6AllowsNone = modelLower === 'gpt-6-sol' || modelLower === 'gpt-6-luna' || modelLower === 'gpt-6.1-terra';
                             // DeepSeek Flash family shares the low/high/max effort mapping.
                             const isDeepSeekFlash = modelLower === 'deepseek-v4.1-flash' || modelLower === 'deepseek-v4-flash-0731' || modelLower === 'deepseek-v4-flash' || modelLower === 'deepseek-v4-flash-vision-exp';
                             const isDeepSeekPro = modelLower === 'deepseek-v4-pro';

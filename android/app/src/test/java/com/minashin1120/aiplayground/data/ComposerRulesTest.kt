@@ -32,6 +32,7 @@ class ComposerRulesTest {
     }
 
     @Test fun gpt6EffortOptionsFollowEachModel() {
+        assertEquals(listOf("none", "low", "medium", "high", "xhigh", "max"), composerRules("gpt-6.1-terra", mcpEnabledServer = false).effortOptions)
         assertEquals(listOf("low", "medium", "high", "xhigh", "max"), composerRules("gpt-6-astra", mcpEnabledServer = false).effortOptions)
         assertEquals(listOf("low", "medium", "high", "xhigh", "max"), composerRules("gpt-6.1-sol", mcpEnabledServer = false).effortOptions)
         assertEquals(listOf("none", "low", "medium", "high", "xhigh", "max"), composerRules("gpt-6-luna", mcpEnabledServer = false).effortOptions)

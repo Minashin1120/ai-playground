@@ -1540,6 +1540,25 @@
   },
   {
    "capabilities": [
+    "chat",
+    "attachments",
+    "thinking",
+    "search",
+    "prompt_cache",
+    "python",
+    "mcp",
+    "batch"
+   ],
+   "deprecated": false,
+   "id": "gpt-6.1-terra",
+   "mode": "chat",
+   "name": "GPT 6.1 Terra",
+   "provider": "openai",
+   "provider_label": "OpenAI",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "image"
    ],
    "deprecated": false,

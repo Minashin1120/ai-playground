@@ -1016,6 +1016,38 @@
     ]
   },
   {
+    "id": "gpt-6.1-terra",
+    "name": "GPT-6.1 Terra",
+    "description": "Fast, efficient visual reasoning, precise computer use, and clear, natural writing with 1.05M context.",
+    "price": "In $1.00/1M, Cached $0.05/1M, Out $5.00/1M (over 272K: In $2.00, Out $7.50)",
+    "category": "OpenAI GPT",
+    "categoryIcon": "fas fa-brain text-green-400",
+    "categoryDescription": "OpenAI's flagship models",
+    "apiId": "gpt-6.1-terra",
+    "agenticView": false,
+    "implementedAt": "2026-10-27",
+    "implementedRank": 10444,
+    "emoji": "🌍",
+    "deprecated": false,
+    "tags": [
+      "openai",
+      "reasoning",
+      "fast",
+      "agent"
+    ],
+    "searchTerms": [
+      "reasoning",
+      "推論",
+      "reasoning effort",
+      "low",
+      "high",
+      "medium",
+      "none",
+      "max",
+      "xhigh"
+    ]
+  },
+  {
     "id": "gpt-6-luna",
     "name": "GPT-6 Luna",
     "description": "Most efficient GPT-6 model for focused, high-volume tasks with 1.05M context.",

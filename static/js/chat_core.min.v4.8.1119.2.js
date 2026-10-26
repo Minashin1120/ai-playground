@@ -135,17 +135,17 @@ e-prompt-cache"),ee=m==="gpt-5-search-api",he=m.includes("tts"),Ee=isMistralOcrM
 add("opacity-50","pointer-events-none"))),updatePromptCacheUi(),_&&_.classList.add("hidden"),L&&L.classList.
 add("hidden"),T("thinking");const ve=get("vision-model-info");if(ve&&ve.classList.add("hidden"),L){const Se=get(
 "reasoning-effort");if(Se){Array.from(Se.options).forEach(De=>{const ze=g==="gpt-5.6"||g.startsWith(
-"gpt-5.6-"),ct=g.startsWith("gpt-6"),fn=g==="gpt-6-sol"||g==="gpt-6-luna",Xt=g==="deepseek-v4.1-flas\
-h"||g==="deepseek-v4-flash-0731"||g==="deepseek-v4-flash"||g==="deepseek-v4-flash-vision-exp",gn=g===
-"deepseek-v4-pro",Hn=g.includes("grok-4.5"),F=g.includes("grok-4.6");De.value==="max"?De.classList.toggle(
-"hidden",!ze&&!ct&&!Xt&&!gn):De.value==="xhigh"?De.classList.toggle("hidden",!F&&!g.includes("multi-\
-agent")&&!ze&&!ct):De.value==="medium"?De.classList.toggle("hidden",!(g.includes("grok-4.3")||Hn||F||
-g.includes("grok-4.20-0309-reasoning")||g.includes("grok-build")||g.includes("multi-agent")||g.includes(
-"gpt-5")||ct||g.includes("o1")||g.includes("o3"))):De.value==="none"?De.classList.toggle("hidden",!g.
-includes("grok-4.3")&&!g.includes("grok-build")&&!g.includes("gpt-5")&&!fn&&!Xt&&!gn):De.value==="lo\
-w"&&De.classList.toggle("hidden",gn)});const Pe=Se.selectedOptions&&Se.selectedOptions[0];Pe&&Pe.classList.
-contains("hidden")&&(Se.value=h?"high":"medium")}}de&&de.classList.add("hidden"),X&&X.classList.add(
-"hidden"),M&&(M.disabled=!1),O&&(O.disabled=!0,O.classList.add("opacity-50"));const Fe=isGeminiImageModelKey(
+"gpt-5.6-"),ct=g.startsWith("gpt-6"),fn=g==="gpt-6-sol"||g==="gpt-6-luna"||g==="gpt-6.1-terra",Xt=g===
+"deepseek-v4.1-flash"||g==="deepseek-v4-flash-0731"||g==="deepseek-v4-flash"||g==="deepseek-v4-flash\
+-vision-exp",gn=g==="deepseek-v4-pro",Hn=g.includes("grok-4.5"),F=g.includes("grok-4.6");De.value===
+"max"?De.classList.toggle("hidden",!ze&&!ct&&!Xt&&!gn):De.value==="xhigh"?De.classList.toggle("hidde\
+n",!F&&!g.includes("multi-agent")&&!ze&&!ct):De.value==="medium"?De.classList.toggle("hidden",!(g.includes(
+"grok-4.3")||Hn||F||g.includes("grok-4.20-0309-reasoning")||g.includes("grok-build")||g.includes("mu\
+lti-agent")||g.includes("gpt-5")||ct||g.includes("o1")||g.includes("o3"))):De.value==="none"?De.classList.
+toggle("hidden",!g.includes("grok-4.3")&&!g.includes("grok-build")&&!g.includes("gpt-5")&&!fn&&!Xt&&
+!gn):De.value==="low"&&De.classList.toggle("hidden",gn)});const Pe=Se.selectedOptions&&Se.selectedOptions[0];
+Pe&&Pe.classList.contains("hidden")&&(Se.value=h?"high":"medium")}}de&&de.classList.add("hidden"),X&&
+X.classList.add("hidden"),M&&(M.disabled=!1),O&&(O.disabled=!0,O.classList.add("opacity-50"));const Fe=isGeminiImageModelKey(
 m);if(he||Ee)Y&&(get("enable-search").checked=!1,Y.classList.add("opacity-50","pointer-events-none")),
 de&&(get("enable-url-context").checked=!1,de.classList.add("opacity-50","pointer-events-none")),X&&ae&&
 (ae.checked=!1,X.classList.add("opacity-50","pointer-events-none")),W&&(ge.checked=!1,W.classList.add(

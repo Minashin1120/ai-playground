@@ -247,7 +247,7 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
 
     val gpt56 = ml == "gpt-5.6" || ml.startsWith("gpt-5.6-")
     val gpt6 = ml.startsWith("gpt-6")
-    val gpt6AllowsNone = ml == "gpt-6-sol" || ml == "gpt-6-luna"
+    val gpt6AllowsNone = ml == "gpt-6-sol" || ml == "gpt-6-luna" || ml == "gpt-6.1-terra"
     val deepSeekFlash = ml in setOf("deepseek-v4.1-flash", "deepseek-v4-flash-0731", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp")
     val deepSeekPro = ml == "deepseek-v4-pro"
     val grok45 = ml.contains("grok-4.5")

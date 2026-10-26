@@ -793,7 +793,7 @@
                     || model.includes('grok-4.20-0309-reasoning') || model.includes('grok-build')
                     || model.includes('multi-agent') || model.includes('gpt-5') || isGpt6Model || model.includes('o1') || model.includes('o3');
                 const supportsNone = model.includes('grok-4.3') || model.includes('grok-build')
-                    || model.includes('gpt-5') || model === 'gpt-6-sol' || model === 'gpt-6-luna' || isDeepSeek;
+                    || model.includes('gpt-5') || model === 'gpt-6-sol' || model === 'gpt-6-luna' || model === 'gpt-6.1-terra' || isDeepSeek;
                 if (supportsMedium) add('medium');
                 if (supportsNone) add('none');
                 if (isGpt56Model || isGpt6Model || isDeepSeek) add('max');

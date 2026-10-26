@@ -115,7 +115,7 @@ class OpenAiResponsesDirect(
         val effortOption = options.optString("reasoning_effort").lowercase().trim()
         val reasoningRequested = options.flag("enable_thinking") || (effortOption.isNotEmpty() && effortOption != "none")
         val reasoningModel = !xai && listOf("o1", "o3", "o4", "gpt-6", "gpt-5", "reasoning").any { model.contains(it) }
-        if (reasoningModel && reasoningRequested) {
+        if (reasoningModel && (reasoningRequested || (model == "gpt-6.1-terra" && effortOption == "none"))) {
             var effort = effortOption.ifBlank {
                 when (options.optString("thinking_level").lowercase()) { "low" -> "low"; "high" -> "high"; else -> "medium" }
             }

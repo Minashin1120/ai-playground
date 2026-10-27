@@ -222,7 +222,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var localSettings: LocalSettingsStore? = null
     private val directHttp by lazy { DirectHttp() }
     /** Separate client for background sync, so its requests never show the global spinner. */
-    private val syncApi by lazy { PlaygroundApi() }
+    private val syncApi by lazy { PlaygroundApi().also(::observeServerResponses) }
+    private var feedbackApiOrigin: okhttp3.HttpUrl? = null
+    private var feedbackApi: PlaygroundApi? = null
+
+    private fun feedbackClient(origin: okhttp3.HttpUrl): PlaygroundApi {
+        if (feedbackApiOrigin != origin || feedbackApi == null) {
+            feedbackApiOrigin = origin
+            feedbackApi = PlaygroundApi(origin).also(::observeServerResponses)
+        }
+        return feedbackApi!!
+    }
     private var syncJob: Job? = null
     private var syncScheduleJob: Job? = null
     /** Automatic retries in a row after syncs that could not reach the server (reset by a successful sync). */
@@ -234,6 +244,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("navigation", 0)
     private val connectivity = application.getSystemService(ConnectivityManager::class.java)
     private val connectionProbeMutex = Mutex()
+    private val connectionProbeHealth = ConnectionProbeHealth()
     private val mutable = MutableStateFlow(ChatState())
     val state = mutable.asStateFlow()
     private val chatHistory = ChatNavigationHistory()
@@ -241,6 +252,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val progressLabel = api.progress.label
 
     init {
+        observeServerResponses(api)
         // Web `apiFetch`: any request answered with `account_locked` shows the lock overlay (never for admins).
         api.onAccountLocked = { message, seconds ->
             mutable.update { current ->
@@ -258,7 +270,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Separate client for diagnostics, so sending them never shows the global spinner. */
-    private val diagnosticsApi by lazy { PlaygroundApi() }
+    private val diagnosticsApi by lazy { PlaygroundApi().also(::observeServerResponses) }
 
     /**
      * Administrator accounts only ([Diagnostics]): follows the account's admin flag once its settings are
@@ -487,7 +499,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
-            if (foreground) viewModelScope.launch { probeServerConnection() }
+            discardIdleServerConnections()
+            if (foreground) viewModelScope.launch { retryPendingFeedback(); probeServerConnection() }
         }
 
         override fun onLost(network: Network) {
@@ -1551,6 +1564,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "syncing" to state.value.syncing)
         val returning = value && !foreground
         foreground = value
+        if (returning) discardIdleServerConnections()
         if (!value) backgroundedAt = SystemClock.elapsedRealtime()
         // Web keeps reading the answer while the tab is hidden, and the foreground service keeps the app running.
         // If Android still cut the connection without closing it (the service was refused or stopped, or no
@@ -1584,8 +1598,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val manager = connectivity ?: return false
         val active = manager.activeNetwork ?: return false
         val capabilities = manager.getNetworkCapabilities(active) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        // VPNs and filtered networks can reach this server even when Android's validation probe cannot.
+        // Use our HTTP probe to establish reachability instead of treating VALIDATED as a prerequisite.
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     private fun isConnectionOperationActive(): Boolean {
@@ -1603,9 +1618,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (connectionMonitorJob?.isActive == true) return
         connectionMonitorJob = viewModelScope.launch {
+            retryPendingFeedback()
             probeServerConnection()
             while (isActive && foreground) {
                 delay(state.value.connectionStatus.probeIntervalMillis())
+                retryPendingFeedback()
                 probeServerConnection()
             }
         }
@@ -1627,8 +1644,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return@withLock
         }
         val startedAt = SystemClock.elapsedRealtime()
+        val probeStartedNanos = System.nanoTime()
         try {
-            val reply = withTimeout(3_000L) {
+            val reply = withTimeout(15_000L) {
                 backend.get("/api/version?heartbeat=${System.currentTimeMillis()}")
             }
             val latencyMs = SystemClock.elapsedRealtime() - startedAt
@@ -1642,7 +1660,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Parsing also ensures a proxy's non-JSON response is not accepted as a heartbeat.
             reply.optString("version")
         } catch (e: TimeoutCancellationException) {
-            setConnectionUnavailable(ConnectionStatus.OFFLINE)
+            connectionProbeHealth.failed(probeStartedNanos, hasUsableNetwork())?.let { setConnectionUnavailable(it) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: ApiException) {
@@ -1650,7 +1668,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (mode != null) setConnectionUnavailable(mode)
             else setConnectionUnavailable(ConnectionStatus.UNSTABLE, "サーバーでエラーが発生しています（HTTP ${e.status}）")
         } catch (ignored: Exception) {
-            setConnectionUnavailable(ConnectionStatus.OFFLINE)
+            connectionProbeHealth.failed(probeStartedNanos, hasUsableNetwork())?.let { setConnectionUnavailable(it) }
+        }
+    }
+
+    private fun discardIdleServerConnections() {
+        api.discardIdleConnections()
+        syncApi.discardIdleConnections()
+        diagnosticsApi.discardIdleConnections()
+        feedbackApi?.discardIdleConnections()
+    }
+
+    private fun observeServerResponses(client: PlaygroundApi) {
+        client.onSuccessfulServerResponse = { source ->
+            val active = ServerOrigin.current
+            if (source.scheme == active.scheme && source.host == active.host && source.port == active.port) {
+                connectionProbeHealth.succeeded()
+                viewModelScope.launch {
+                    if (foreground && !state.value.localProfile && state.value.connectionStatus != ConnectionStatus.ONLINE) {
+                        markConnectionReachable()
+                    }
+                }
+            }
         }
     }
 
@@ -4256,7 +4295,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         if (LocalChatStore.isLocalReference(reference)) {
             val store = localChats ?: return null
-            return withContext(Dispatchers.IO) { store.loadFile(reference, maxOf(limit, 64L * 1024 * 1024)) }
+            val bytes = withContext(Dispatchers.IO) { store.loadFile(reference, maxOf(limit, 64L * 1024 * 1024)) }
+            if (bytes != null) return bytes
+            val remote = withContext(Dispatchers.IO) { store.serverFileReference(reference) }
+                ?.takeIf { !LocalChatStore.isLocalReference(it) && fileReferencePath(it) != null }
+            Diagnostics.log("store.file_read", "ok" to false, "retry" to (remote != null))
+            if (remote == null) return null
+            return loadAttachmentBytes(remote, thumbnail, limit)
         }
         val accountId = state.value.account?.id ?: return null
         val cached = withContext(Dispatchers.IO) { offlineCache.loadFile(accountId, reference, thumbnail, limit) }
@@ -4523,8 +4568,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val target = File(directory, "${UUID.randomUUID()}.$suffix")
         if (LocalChatStore.isLocalReference(reference)) {
             val store = localChats ?: throw IOException("この添付は別のプロファイルの端末内ファイルです。")
-            val mime = withContext(Dispatchers.IO) { store.materializeFile(reference, target) } ?: throw IOException("添付を開けません。")
-            return target to mime
+            val mime = withContext(Dispatchers.IO) { store.materializeFile(reference, target) }
+            if (mime != null) return target to mime
+            val remote = withContext(Dispatchers.IO) { store.serverFileReference(reference) }
+                ?.takeIf { !LocalChatStore.isLocalReference(it) && fileReferencePath(it) != null } ?: throw IOException("添付を開けません。")
+            return downloadAttachment(remote)
         }
         val cachedMime = withContext(Dispatchers.IO) { offlineCache.materializeFile(accountId, reference, target) }
         if (cachedMime != null) return target to cachedMime
@@ -5022,11 +5070,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 onStored()
                 ActivityLog.log("change", "tab" to "feedback", "state" to "pending", "persisted" to true)
-                if (auth == null || state.value.offline || !hasUsableNetwork()) {
+                if (auth == null) {
                     notify("フィードバックを端末に保存しました。サーバーに接続できると自動送信します。")
                 } else {
                     try {
-                        val sent = feedbackSendMutex.withLock { PendingFeedbackSender(pendingFeedback, getApplication<Application>().cacheDir, PlaygroundApi(origin), auth).send(record) }
+                        val sent = feedbackSendMutex.withLock { PendingFeedbackSender(pendingFeedback, getApplication<Application>().cacheDir, feedbackClient(origin), auth).send(record) }
                         loadFeedback()
                         notify(sent)
                     } catch (e: CancellationException) { throw e }
@@ -5052,7 +5100,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val records = withContext(Dispatchers.IO) { pendingFeedback.records(origin.toString(), account) }
                 for (record in records) {
                     if (state.value.account?.id != account || ServerOrigin.current != origin || session?.token != auth) break
-                    val sent = feedbackSendMutex.withLock { PendingFeedbackSender(pendingFeedback, getApplication<Application>().cacheDir, PlaygroundApi(origin), auth).send(record) }
+                    val sent = feedbackSendMutex.withLock { PendingFeedbackSender(pendingFeedback, getApplication<Application>().cacheDir, feedbackClient(origin), auth).send(record) }
                     notify(sent)
                 }
                 if (records.isNotEmpty()) loadFeedback()

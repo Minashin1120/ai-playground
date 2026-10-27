@@ -144,6 +144,7 @@ class LocalChatStoreTest {
         assertTrue(store.isDeviceThread(device))
         assertEquals(1, store.deviceThreads("").length())
         val file = store.saveFile("a.png", "image/png", byteArrayOf(1).inputStream(), 1)
+        store.setServerReference(file, "1/uploaded.png")
         val user = store.appendMessage(device, LocalChatStore.NewMessage("user", "質問", null, files = listOf(file)))
         val answer = store.appendMessage(device, LocalChatStore.NewMessage("assistant", "回答", user))
         val uuids = store.messages(device).associate { it.getInt("id") to it.getString("uuid") }
@@ -169,6 +170,10 @@ class LocalChatStoreTest {
         assertEquals(2, observed.getJSONArray("messages").length())
         assertNull(store.threadRow(device))
         assertNull(store.loadFile(file, 10))
+        assertEquals("1/uploaded.png", store.serverFileReference(file))
+        // An already open viewer still has the local reference; the alias also survives a restart.
+        assertEquals("1/uploaded.png", LocalChatStore(folder.root.resolve("chats"), crypto).serverFileReference(file))
+        assertNull(LocalChatStore(folder.root.resolve("other-account"), crypto).serverFileReference(file))
         // The selected branch and a draft can still carry the previous pending id after cleanup.
         assertEquals(8, store.resolveMessageId("srvB", LocalChatStore.PENDING_ID_BASE + answer))
         assertEquals("srvB", store.resolveAlias(device))

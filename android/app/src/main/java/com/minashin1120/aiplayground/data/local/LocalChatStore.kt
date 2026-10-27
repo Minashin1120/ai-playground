@@ -911,6 +911,25 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         val index = loadFileIndex()
         index.optJSONObject(reference)?.put("server_ref", serverRef) ?: return
         crypto.writeJson(File(root, "files.enc"), index)
+        // A viewer or draft can still hold the device reference after sync prunes its bytes.
+        val state = loadIndex()
+        val aliases = state.optJSONArray("file_aliases") ?: JSONArray()
+        val kept = (0 until aliases.length()).map { aliases.getJSONObject(it) }
+            .filterNot { it.optString("local") == reference }
+        state.put("file_aliases", JSONArray((kept + JSONObject().put("local", reference).put("server", serverRef)).takeLast(4096)))
+        saveIndex(state)
+    }
+
+    /** Resolve references captured by open UI before sync removed the device file. */
+    @Synchronized
+    fun serverFileReference(reference: String): String? {
+        fileInfo(reference)?.optString("server_ref")?.takeIf { it.isNotBlank() && it != "null" }?.let { return it }
+        val aliases = loadIndex().optJSONArray("file_aliases") ?: return null
+        for (i in aliases.length() - 1 downTo 0) {
+            val alias = aliases.getJSONObject(i)
+            if (alias.optString("local") == reference) return alias.optString("server").takeIf { it.isNotBlank() }
+        }
+        return null
     }
 
     @Synchronized

@@ -12,10 +12,10 @@ enum class ConnectionStatus {
 
 fun ConnectionStatus.isDisconnected(): Boolean = when (this) {
     ConnectionStatus.OFFLINE,
-    ConnectionStatus.UNSTABLE,
     ConnectionStatus.MAINTENANCE,
     ConnectionStatus.SERVER_DOWN -> true
     ConnectionStatus.UNKNOWN,
+    ConnectionStatus.UNSTABLE,
     ConnectionStatus.ONLINE -> false
 }
 
@@ -29,10 +29,27 @@ fun ConnectionStatus.defaultMessage(): String = when (this) {
 }
 
 fun ConnectionStatus.probeIntervalMillis(): Long =
-    if (isDisconnected()) 2_000L else 5_000L
+    if (isDisconnected() || this == ConnectionStatus.UNSTABLE) 2_000L else 5_000L
 
 fun connectionStatusForHttp(code: Int): ConnectionStatus? = when (code) {
     503 -> ConnectionStatus.MAINTENANCE
     502, 504, 520, 521, 522, 523, 524 -> ConnectionStatus.SERVER_DOWN
     else -> null
+}
+
+/** Isolated probe failures must not override successful application traffic. */
+internal class ConnectionProbeHealth {
+    private var lastSuccessNanos = Long.MIN_VALUE
+    private var failures = 0
+
+    @Synchronized fun succeeded(atNanos: Long = System.nanoTime()) {
+        lastSuccessNanos = atNanos
+        failures = 0
+    }
+
+    @Synchronized fun failed(probeStartedNanos: Long, usableNetwork: Boolean): ConnectionStatus? {
+        if (!usableNetwork) return ConnectionStatus.OFFLINE
+        if (lastSuccessNanos >= probeStartedNanos) return null
+        return if (++failures >= 2) ConnectionStatus.UNSTABLE else null
+    }
 }

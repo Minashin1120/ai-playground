@@ -13,6 +13,54 @@ import java.io.ByteArrayInputStream
 import java.io.IOException
 
 class PlaygroundApiTest {
+    @Test fun ordinaryReadsRecoverStaleConnectionsAndReportSuccessfulTraffic() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json").body("{}").build())
+            server.enqueue(MockResponse.Builder().onResponseStart(SocketEffect.CloseSocket()).build())
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json").body("{}").build())
+            val api = PlaygroundApi(server.url("/"))
+            var successes = 0
+            api.onSuccessfulServerResponse = { successes++ }
+            api.get("/api/version")
+            api.get("/api/threads", "test-token")
+            assertEquals(2, successes)
+            val first = server.takeRequest()
+            val interrupted = server.takeRequest()
+            val recovered = server.takeRequest()
+            assertEquals(first.connectionIndex, interrupted.connectionIndex)
+            assertNotEquals(interrupted.connectionIndex, recovered.connectionIndex)
+            assertEquals("Bearer test-token", recovered.headers["Authorization"])
+        }
+    }
+
+    @Test fun clearingIdleConnectionsPreservesActiveReads() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json").body("{}").build())
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                .bodyDelay(1, java.util.concurrent.TimeUnit.SECONDS).body("{}").build())
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json").body("{}").build())
+            val api = PlaygroundApi(server.url("/"))
+            api.get("/api/version")
+            val first = server.takeRequest()
+            val active = async(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { api.get("/active") }
+            val busy = server.takeRequest(5, java.util.concurrent.TimeUnit.SECONDS)!!
+            assertEquals(first.connectionIndex, busy.connectionIndex)
+            api.discardIdleConnections()
+            api.get("/after")
+            val after = server.takeRequest()
+            assertNotEquals(busy.connectionIndex, after.connectionIndex)
+            assertEquals(0, active.await().length())
+            api.discardIdleConnections()
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json").body("{}").build())
+            api.get("/fresh")
+            val fresh = server.takeRequest()
+            assertNotEquals(busy.connectionIndex, fresh.connectionIndex)
+            assertNotEquals(after.connectionIndex, fresh.connectionIndex)
+        }
+    }
+
     @Test fun fullImageRecoversWhenPreviouslyWorkingPooledSocketDies() = runBlocking {
         MockWebServer().use { server ->
             server.start()

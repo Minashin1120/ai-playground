@@ -40,25 +40,13 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
     // A stalled multiplexed connection must not hold settings, heartbeat and release notes together.
     private val normal = OkHttpClient.Builder().protocols(listOf(Protocol.HTTP_1_1)).cookieJar(CookieJar.NO_COOKIES)
         .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
+        .eventListenerFactory { serverCallListener() }
         .connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(120, TimeUnit.SECONDS).callTimeout(180, TimeUnit.SECONDS).build()
-    // File GETs must recover from stale pooled sockets inside OkHttp, before a failed exchange is
-    // surfaced to the image viewer. Keep mutation requests on the non-retrying normal client.
-    private val attachmentReads = normal.newBuilder().retryOnConnectionFailure(true)
-        .eventListenerFactory {
-            object : EventListener() {
-                private val started = System.currentTimeMillis()
-                private fun record(call: Call, failure: IOException) {
-                    ActivityLog.log("http.read_error", "method" to call.request().method,
-                        "path" to call.request().url.encodedPath, "error" to failure.javaClass.simpleName,
-                        "ms" to System.currentTimeMillis() - started)
-                }
-                override fun requestFailed(call: Call, ioe: IOException) { record(call, ioe) }
-                override fun responseFailed(call: Call, ioe: IOException) { record(call, ioe) }
-            }
-        }.build()
-    // Probes must not spend their three-second budget queued behind settings or file transfers.
-    private val heartbeat = normal.newBuilder().dispatcher(okhttp3.Dispatcher())
+    // Read-only calls may recover a stale pooled socket. Mutations are never automatically replayed.
+    private val reads = normal.newBuilder().retryOnConnectionFailure(true).build()
+    // Probes must not queue behind settings or file transfers.
+    private val heartbeat = reads.newBuilder().dispatcher(okhttp3.Dispatcher())
         .connectionPool(okhttp3.ConnectionPool()).build()
     private val streaming = normal.newBuilder().readTimeout(660, TimeUnit.SECONDS)
         .callTimeout(0, TimeUnit.SECONDS).build()
@@ -67,7 +55,7 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
      * carries the token or cookies; only https, and redirects may not leave https.
      */
     private val external = OkHttpClient.Builder().cookieJar(CookieJar.NO_COOKIES)
-        .followRedirects(true).followSslRedirects(false).retryOnConnectionFailure(false)
+        .followRedirects(true).followSslRedirects(false).retryOnConnectionFailure(true)
         .connectTimeout(15, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).callTimeout(40, TimeUnit.SECONDS).build()
 
     internal fun url(path: String): HttpUrl {
@@ -83,6 +71,29 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
 
     /** Web `ProgressSpinner`: requests the user waits for, shown by the global spinner. */
     val progress = ProgressTracker()
+
+    /** A successful application response is stronger evidence than a concurrent failed probe. */
+    @Volatile var onSuccessfulServerResponse: ((HttpUrl) -> Unit)? = null
+
+    /** Drop only idle sockets after a network/lifecycle change; active uploads and streams continue. */
+    fun discardIdleConnections() {
+        setOf(normal.connectionPool, heartbeat.connectionPool, external.connectionPool).forEach { it.evictAll() }
+    }
+
+    private fun serverCallListener(): EventListener = object : EventListener() {
+        private val started = System.currentTimeMillis()
+        override fun requestHeadersStart(call: Call) {
+            ActivityLog.log("http", "phase" to "start", "method" to call.request().method,
+                "path" to call.request().url.encodedPath, "ms" to System.currentTimeMillis() - started)
+        }
+        private fun record(call: Call, failure: IOException) {
+            ActivityLog.log("http.read_error", "method" to call.request().method,
+                "path" to call.request().url.encodedPath, "error" to failure.javaClass.simpleName,
+                "ms" to System.currentTimeMillis() - started)
+        }
+        override fun requestFailed(call: Call, ioe: IOException) { record(call, ioe) }
+        override fun responseFailed(call: Call, ioe: IOException) { record(call, ioe) }
+    }
 
     /**
      * Runs [req]; unless [track] is false (streams with their own flow, file bytes the Web loads through
@@ -112,10 +123,13 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
                     if (continuation.isActive) continuation.resumeWith(Result.failure(e))
                 }
                 override fun onResponse(call: Call, response: Response) {
-                    ActivityLog.log("http", "method" to req.method, "host" to host, "path" to req.url.encodedPath,
+                    ActivityLog.log("http", "phase" to "done", "method" to req.method, "host" to host, "path" to req.url.encodedPath,
                         "op" to response.header("X-Diagnostic-ID"), "status" to response.code, "ms" to System.currentTimeMillis() - started,
                         "type" to response.header("Content-Type")?.substringBefore(';'))
                     val result = runCatching { response.use { consume(it) } }
+                    if (result.isSuccess && response.isSuccessful && client !== external) {
+                        runCatching { onSuccessfulServerResponse?.invoke(req.url) }
+                    }
                     if (result.isFailure) ActivityLog.log("http.read_error", "path" to req.url.encodedPath,
                         "ms" to System.currentTimeMillis() - started, "error" to result.exceptionOrNull()?.javaClass?.simpleName)
                     if (continuation.isActive) continuation.resumeWith(result)
@@ -147,9 +161,9 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
     }
     suspend fun get(path: String, token: String? = null): JSONObject = execute(
         request(path, token).header("Accept", "application/json").build(),
-        client = if (path.startsWith("/api/version?heartbeat=")) heartbeat else normal, consume = ::jsonResponse)
+        client = if (path.startsWith("/api/version?heartbeat=")) heartbeat else reads, consume = ::jsonResponse)
     suspend fun getText(path: String, limit: Int = 1024 * 1024): String = execute(
-        request(path, null).header("Accept", "text/markdown").get().build()
+        request(path, null).header("Accept", "text/markdown").get().build(), client = reads
     ) { response ->
         if (!response.isSuccessful) throw error(response)
         if (response.body.contentType()?.type != "text") throw IOException("テキスト以外の更新履歴です。")
@@ -157,7 +171,7 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
     }
     /** Some existing endpoints (for example `/api/gems`) return a top-level JSON array. */
     suspend fun getArray(path: String, token: String? = null): JSONArray = execute(
-        request(path, token).header("Accept", "application/json").build()
+        request(path, token).header("Accept", "application/json").build(), client = reads
     ) { response ->
         if (!response.isSuccessful) throw error(response)
         if (response.body.contentType()?.subtype != "json") throw IOException("JSON以外の応答です。Webで接続状態を確認してください。")
@@ -341,7 +355,7 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
         // Never attach credentials to a provider URL or another origin.
         val ref = fileReferencePath(reference) ?: throw IOException("添付の参照が不正です。")
         val path = filePath(ref, thumbnail = false)
-        return execute(request(path, token).build(), track = false) { response ->
+        return execute(request(path, token).build(), client = reads, track = false) { response ->
             if (!response.isSuccessful) throw error(response)
             val mime = response.body.contentType()?.let { "${it.type}/${it.subtype}" } ?: "application/octet-stream"
             var count = 0L
@@ -394,7 +408,7 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
         val ref = fileReferencePath(reference) ?: throw IOException("添付の参照が不正です。")
         val req = request(filePath(ref, thumbnail), token).build()
         return retryAttachmentRead {
-            execute(req, client = attachmentReads, track = false) { response ->
+            execute(req, client = reads, track = false) { response ->
                 if (!response.isSuccessful) throw error(response)
                 readBoundedBytes(response.body.byteStream(), limit)
             }

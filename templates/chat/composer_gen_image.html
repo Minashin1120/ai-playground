@@ -113,6 +113,13 @@
                 </div>
                 <div id="ideogram-image-options" class="hidden mt-2 px-3 py-2 bg-gray-800/70 border border-gray-700 rounded-lg text-[10px] text-gray-300 flex flex-wrap items-center gap-3">
                     <div class="flex items-center gap-2">
+                        <label for="ideogram-image-operation" class="text-gray-400">操作</label>
+                        <select id="ideogram-image-operation" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-white outline-none">
+                            <option value="generate">生成・編集</option>
+                            <option value="remove_background">背景を削除</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
                         <span class="text-gray-400">Count</span>
                         <input id="ideogram-image-count" type="number" min="1" max="8" step="1" value="1" class="w-12 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
                     </div>

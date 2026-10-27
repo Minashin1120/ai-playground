@@ -22,6 +22,27 @@ class IdeogramDirectTest {
         }
     }
 
+    @Test fun backgroundRemovalUsesOneImageWithoutPromptOrGenerationSettingsForEveryModel() {
+        val engine = IdeogramImageDirect(http)
+        val options = JSONObject().put("ideogram_operation", "remove_background").put("ideogram_count", "8").put("ideogram_seed", "42")
+        listOf("ideogram-4.5", "ideogram-4.0", "ideogram-3.0", "ideogram-2a", "ideogram-2.0").forEach { model ->
+            val call = engine.buildCall(request(model, "ignored", options), listOf(png))
+            assertTrue(call.url.endsWith("/v2/image/remove-background/ideogram-1"))
+            assertTrue(bodyText(call).contains("name=\"image\""))
+            listOf("prompt", "num_images", "seed", "quality").forEach { key ->
+                assertFalse(bodyText(call).contains("name=\"$key\""))
+            }
+            listOf(emptyList(), listOf(png, png), listOf(png.copy(mime = "image/gif"))).forEach { sources ->
+                assertTrue(runCatching { engine.buildCall(request(model, "", options), sources) }.isFailure)
+            }
+        }
+        val generated = png.copy(name = "generated.png")
+        val followUp = request("ideogram-4.0", "", options).copy(turns = listOf(
+            DirectTurn("assistant", "done", generated = listOf(generated)), DirectTurn("user", "remove", listOf(png))))
+        assertEquals(listOf(png), engine.sourceImages(followUp))
+        assertEquals(listOf(generated), engine.sourceImages(followUp.copy(turns = followUp.turns.dropLast(1) + DirectTurn("user", "remove"))))
+    }
+
     @Test fun ideogram4UsesAnExactResolutionOfTheChosenTier() {
         val engine = IdeogramImageDirect(http)
         val call = engine.buildCall(request("ideogram-4.0", "猫", JSONObject().put("ideogram_aspect", "16:9").put("ideogram_resolution", "2k")

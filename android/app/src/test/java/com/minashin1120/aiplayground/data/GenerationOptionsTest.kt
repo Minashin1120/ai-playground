@@ -7,6 +7,15 @@ class GenerationOptionsTest {
     private fun fields(model: String, values: Map<String, String> = emptyMap()) =
         generationPanels(model, values).flatMap { it.fields }.associateBy { it.key }
 
+    @Test fun backgroundRemovalPanelOffersOnlyTheOperationField() {
+        val options = mapOf("ideogram_operation" to "remove_background")
+        val panel = generationPanels("ideogram-4.0", options).single { it.id == "ideogram-image" }
+        assertEquals(listOf("ideogram_operation"), panel.fields.filter { !it.hidden }.map { it.key })
+        val payload = generationOptionsPayload("ideogram-4.0", options + ("ideogram_count" to "invalid"))
+        assertEquals("remove_background", payload.getString("ideogram_operation"))
+        assertEquals(1, payload.length())
+    }
+
     @Test fun hiddenProviderOptionsAndArbitraryKeysCannotReachTheRequest() {
         val body = generationOptionsPayload("gpt-image-2", mapOf(
             "image_quality" to "high", "grok_image_count" to "10", "model" to "other", "thread_id" to "other"))

@@ -119,6 +119,7 @@ class XaiImageDirect(private val http: DirectHttp, private val baseUrl: String =
         val images = request.imageInputs()
         val endpoint = if (images.isEmpty()) "$baseUrl/v1/images/generations" else "$baseUrl/v1/images/edits"
         val reply = http.postJson(endpoint, mapOf("Authorization" to "Bearer ${request.apiKey}"), buildPayload(request))
+        if (reply.has("error")) throw ideogramError(reply.optInt("status_code", 500), reply.toString())
         val data = reply.optJSONArray("data") ?: JSONArray()
         val encoded = (0 until data.length()).mapNotNull { data.optJSONObject(it)?.optString("b64_json")?.takeIf { v -> v.isNotBlank() } }
             .ifEmpty { listOfNotNull(reply.optString("image").takeIf { it.isNotBlank() }) }
@@ -149,12 +150,12 @@ internal class IdeogramCall(val url: String, val body: RequestBody, val edit: Bo
 
 /**
  * Ideogram images from the device (server `server/ideogram.py`): Ideogram 4.5 generates, or runs Precise Edit
- * when an image is attached (or an earlier image is in the chat); 4.0 / 3.0 / 2a / 2.0 only generate.
+ * when an image is attached (or an earlier image is in the chat). All models offer background removal.
  */
 class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: String = "https://api.ideogram.ai") : DirectEngine {
     override suspend fun run(request: DirectRequest, emit: (JSONObject) -> Unit, onProgress: (String, String) -> Unit): DirectResult {
         val sources = sourceImages(request)
-        emit(event("status", if (sources.isEmpty()) "Ideogram API を呼び出し中..." else "Ideogram API (Precise Edit) を呼び出し中..."))
+        emit(event("status", if (request.options.optString("ideogram_operation") == "remove_background") "Ideogram API (Remove background) を呼び出し中..." else if (sources.isEmpty()) "Ideogram API を呼び出し中..." else "Ideogram API (Precise Edit) を呼び出し中..."))
         val call = buildCall(request, sources)
         val headers = mapOf("Api-Key" to request.apiKey, "Accept" to "application/json")
         val reply = http.execute(http.request(call.url, headers).post(call.body).build()) { response ->
@@ -162,6 +163,7 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
             if (!response.isSuccessful) throw ideogramError(response.code, text)
             runCatching { JSONObject(text) }.getOrElse { throw DirectApiException(0, "Ideogram の応答を読み取れませんでした。") }
         }
+        if (reply.has("error")) throw ideogramError(reply.optInt("status_code", 500), reply.toString())
         val data = reply.optJSONArray("data") ?: JSONArray()
         val files = mutableListOf<DirectOutputFile>()
         var blocked = 0
@@ -187,7 +189,10 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
     /** Last model output in the selected branch is the target; uploads are references. */
     internal fun sourceImages(request: DirectRequest): List<DirectAttachment> {
         val attached = request.inputImages()
-        val chosen = if (request.model.lowercase() == "ideogram-4.5") {
+        val removeBackground = request.options.optString("ideogram_operation") == "remove_background"
+        val chosen = if (removeBackground && attached.isNotEmpty()) {
+            attached
+        } else if (request.model.lowercase() == "ideogram-4.5" || removeBackground) {
             val generated = request.turns.asReversed().filter { it.role == "assistant" }
                 .flatMap { (it.attachments + it.generated).asReversed() }
                 .firstOrNull { it.bytes != null && it.mime.startsWith("image/") }
@@ -210,6 +215,15 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
     internal fun buildCall(request: DirectRequest, sources: List<DirectAttachment>): IdeogramCall {
         val model = request.model.lowercase()
         val (path, family) = MODELS[model] ?: throw DirectApiException(0, "未対応の Ideogram モデルです。")
+        if (request.options.optString("ideogram_operation") == "remove_background") {
+            if (sources.size != 1) throw DirectApiException(0, "背景を削除する画像を1枚指定してください。")
+            val image = sources.single()
+            if (image.mime !in SOURCE_MIMES || (image.bytes == null || image.bytes!!.isEmpty()) || image.bytes!!.size > 25 * 1024 * 1024)
+                throw DirectApiException(0, "背景の削除には25MBまでの PNG・JPEG・WEBP 画像を指定してください。")
+            val form = MultipartBody.Builder().setType(MultipartBody.FORM)
+                .addFormDataPart("image", image.name, image.bytes!!.toRequestBody(image.mime.toMediaType()))
+            return IdeogramCall("$baseUrl/v2/image/remove-background/ideogram-1", form.build(), true)
+        }
         if (sources.isNotEmpty() && family != "v45") {
             throw DirectApiException(0, "画像の編集に対応しているのは Ideogram 4.5 だけです。Ideogram 4.5 を選択するか、添付画像を外してください。")
         }

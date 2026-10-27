@@ -913,13 +913,13 @@ nd); font-weight: bold; }
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),v=w.internal.pageSize.getWidth(),k=w.internal.
 pageSize.getHeight(),S=794,C=Math.floor(k/v*S),T=y.scrollHeight||y.offsetHeight;let I=0,B=!0;const Z=Math.
 ceil(T/C);let J=0;for(;I<T;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const U=Math.min(C,T-I),re=(await new Promise(($,R)=>{const q=setTimeout(()=>R(
+"Aborted","AbortError");const U=Math.min(C,T-I),le=(await new Promise(($,R)=>{const q=setTimeout(()=>R(
 new Error("PDF chunk rendering timed out")),12e4);b(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
 background,logging:!1,imageTimeout:5e3,x:0,y:I,width:S,height:U,windowWidth:S,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:o(P=>{prepareRichPastePdfClone(P,c);const H=P.querySelector(
 ".pdf-root-wrapper");H&&(H.style.position="relative",H.style.left="0",H.style.top="0")},"onclone")}).
 then(P=>{clearTimeout(q),$(P)}).catch(P=>{clearTimeout(q),R(P)})})).toDataURL("image/jpeg",.95),_e=w.
-getImageProperties(re),pe=Math.min(k,_e.height*v/_e.width);B||w.addPage(),w.addImage(re,"JPEG",0,0,v,
+getImageProperties(le),pe=Math.min(k,_e.height*v/_e.width);B||w.addPage(),w.addImage(le,"JPEG",0,0,v,
 pe),B=!1,I+=U,J++;const we=Math.min(100,15+Math.round(J/Z*85));i(we),await new Promise($=>setTimeout(
 $,100))}return i(100),{blob:w.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
@@ -1787,76 +1787,77 @@ uage",tts_speed:"tts-speed",image_size:"gpt-image-size",image_quality:"gpt-image
 gpt-image-format",image_compression:"gpt-image-compression",gemini_image_aspect:"gemini-image-aspect",
 gemini_image_size:"gemini-image-size",grok_image_aspect:"grok-image-aspect",grok_image_resolution:"g\
 rok-image-resolution",grok_image_quality:"grok-image-quality",grok_image_format:"grok-image-format",
-grok_image_count:"grok-image-count",ideogram_aspect:"ideogram-image-aspect",ideogram_resolution:"ide\
-ogram-image-resolution",ideogram_quality:"ideogram-image-quality",ideogram_speed:"ideogram-image-spe\
-ed",ideogram_magic_prompt:"ideogram-image-magic",ideogram_style_type:"ideogram-image-style",ideogram_count:"\
-ideogram-image-count",ideogram_seed:"ideogram-image-seed",xai_temperature:"xai-temperature",xai_top_p:"\
-xai-top-p",xai_max_completion_tokens:"xai-max-completion-tokens",xai_seed:"xai-seed",xai_presence_penalty:"\
-xai-presence-penalty",xai_frequency_penalty:"xai-frequency-penalty",xai_response_format:"xai-respons\
-e-format",xai_tool_choice:"xai-tool-choice",xai_parallel_tool_calls:"xai-parallel-tool-calls",xai_logprobs:"\
-xai-logprobs",xai_top_logprobs:"xai-top-logprobs",grok_video_duration:"grok-video-duration",grok_video_aspect:"\
-grok-video-aspect",grok_video_resolution:"grok-video-resolution",gemini_video_duration:"gemini-video\
--duration",gemini_video_aspect:"gemini-video-aspect",gemini_video_resolution:"gemini-video-resolutio\
-n",music_instrumental:"music-instrumental",ocr_table_format:"ocr-table-format",ocr_extract_header:"o\
-cr-extract-header",ocr_extract_footer:"ocr-extract-footer",ocr_include_blocks:"ocr-include-blocks",ocr_include_image_base64:"\
-ocr-include-images",ocr_pages:"ocr-pages"};for(const[i,a]of Object.entries(n)){if(!Object.prototype.
-hasOwnProperty.call(t,i)||i==="enable_prompt_caching"&&modelChosenManually)continue;const r=get(a);r&&
-(r.type==="checkbox"?r.checked=!!t[i]:r.value=String(t[i]),i==="enable_prompt_caching"?updatePromptCacheUi():
-r.dispatchEvent(new Event("change",{bubbles:!0})))}if(Object.prototype.hasOwnProperty.call(t,"image_\
-vision_model")&&(currentVisionModel=t.image_vision_model),Object.prototype.hasOwnProperty.call(t,"ca\
-nvas_mode")&&syncCanvasModeUi(!!t.canvas_mode,{persist:!1}),Object.prototype.hasOwnProperty.call(t,"\
-coding_mode")&&syncCodingModeUi(!!t.coding_mode,{persist:!1}),Object.prototype.hasOwnProperty.call(t,
-"browser_fast_mode")&&setBrowserFastModeEnabled(!!t.browser_fast_mode),Object.prototype.hasOwnProperty.
-call(t,"batch_mode")){const i=get("enable-batch-mode");i&&(i.checked=!!t.batch_mode,i.dispatchEvent(
-new Event("change",{bubbles:!0})))}typeof window.toggleOptions=="function"&&window.toggleOptions(),applyMcpPromptChipUi()}
-o(restorePromptOptionsForEdit,"restorePromptOptionsForEdit");function beginEditMessage(e,t=!1){const n=messageStore[e];
-if(n==null)return;const i=get("prompt-input");i.value=n||"",i.focus(),i.style.height="auto",i.style.
-height=i.scrollHeight+"px";const a=allMessages.find(u=>u.id==e),r=messageMeta[e]||{};restorePromptOptionsForEdit(
-a),a?currentParentId=a.parent_id===void 0?null:a.parent_id:r.parent_id!==void 0&&(currentParentId=r.
-parent_id),editingMessageId=e,setEditUi(!0);const l=a?a.image_url:r.image_url;if(l)try{const u=JSON.
-parse(l);Array.isArray(u)&&u.length?(currentImageUrls=u.map(f=>{let b="unknown",y=f;f&&typeof f=="ob\
-ject"&&(b=normalizeAttachmentSource(f.source),y=f.filepath||f.path||f.url||f.file||"");const w=normalizeAttachmentPath(
-y);return w&&setAttachmentSourceForPath(w,b),w}).filter(Boolean),get("file-preview").classList.remove(
-"hidden"),get("file-name").innerText=`${currentImageUrls.length} files ready`):(currentImageUrls=[],
-get("file-preview").classList.add("hidden"),get("file-input").value="")}catch{currentImageUrls=[],get(
-"file-preview").classList.add("hidden"),get("file-input").value=""}else currentImageUrls=[],get("fil\
-e-preview").classList.add("hidden"),get("file-input").value="";const c=a?a.quote_text:r.quote_text;c?
-(currentQuote=c,currentQuoteMessageId=null,get("quote-text-display").innerText=currentQuote,get("quo\
-te-bar").classList.add("visible")):clearQuote(),schedulePromptTokenEstimate(!0),t&&sendMessage()}o(beginEditMessage,
-"beginEditMessage");function playSendAnimation(){const e=get("send-btn");e&&(e.classList.remove("fly"),
-e.offsetWidth,e.classList.add("fly"))}o(playSendAnimation,"playSendAnimation");function setSendBtnToStopMode(){
-const e=get("send-btn");if(!e)return;e.onclick=stopGeneration,isStopMode=!0,e.disabled=!1;const t=o(
-()=>{!e||!isStopMode||(e.classList.add("stop-mode"),e.innerHTML='<span style="font-size:20px;line-he\
-ight:1;color:#fff;">\u25A0</span>',e.classList.add("btn-swap"),setTimeout(()=>e.classList.remove("bt\
-n-swap"),300))},"applyStopUi");if(e.classList.contains("fly")){const n=o(i=>{i.animationName==="send\
-BtnPop"&&(e.removeEventListener("animationend",n),t())},"onEnd");e.addEventListener("animationend",n),
-setTimeout(t,700)}else t()}o(setSendBtnToStopMode,"setSendBtnToStopMode");function setSendBtnToSendMode(){
-const e=get("send-btn");e&&(e.classList.remove("stop-mode","fly","btn-swap"),e.innerHTML='<i class="\
-fas fa-paper-plane"></i>',e.classList.add("btn-swap"),setTimeout(()=>e.classList.remove("btn-swap"),
-300),e.onclick=sendMessage,isStopMode=!1)}o(setSendBtnToSendMode,"setSendBtnToSendMode");async function stopGeneration(){
-const e=currentThreadId!=null&&currentThreadId!==""?String(currentThreadId):null,t=normalizeJobIdForUi(
-currentJobId),n=++manualStopSeq,i=captureStoppedPartialBubbleSnapshot(getActiveStreamingBubbleElement());
-manualStopContext={seq:n,threadId:e,jobId:t,partialSnapshot:i},t&&suppressPendingJob(t),abortController&&
-abortController.abort();try{if(t||e){const a={};t&&(a.job_id=t),e&&(a.thread_id=e);const l=await(await apiFetch(
-"/api/stop_chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(a)})).
-json().catch(()=>({})),c=normalizeJobIdForUi(l&&l.job_id);c&&(suppressPendingJob(c),manualStopContext&&
-manualStopContext.seq===n&&(manualStopContext.jobId=c))}manualStopContext&&manualStopContext.seq===n&&
-await syncThreadAfterAbortedStream(e,{retries:2,retryDelayMs:180,notifyOnFailure:!0})&&manualStopContext.
-partialSnapshot&&appendStoppedPartialBubbleSnapshot(manualStopContext.partialSnapshot,e)}finally{manualStopContext&&
-manualStopContext.seq===n&&(manualStopContext=null),setSendBtnToSendMode(),updateFilePreview()}}o(stopGeneration,
-"stopGeneration");async function purgeCaches(){if("caches"in window){const e=await caches.keys();await Promise.
-all(e.map(t=>caches.delete(t)))}if(navigator.serviceWorker){const e=await navigator.serviceWorker.getRegistrations();
-await Promise.all(e.map(t=>t.unregister()))}}o(purgeCaches,"purgeCaches");const SW_CACHE_MODE_STORAGE_KEY="\
-ai_sw_cache_mode_v2";async function applyCacheMode(e,t={}){if("serviceWorker"in navigator)if(e)try{await navigator.
-serviceWorker.register(`/sw.js?v=${encodeURIComponent(appVersion)}`),localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY,
-"enabled")}catch{}else{const n=localStorage.getItem(SW_CACHE_MODE_STORAGE_KEY);(!!t.forceCleanup||n!==
-"disabled")&&await purgeCaches(),localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY,"disabled")}}o(applyCacheMode,
-"applyCacheMode");function checkAndNotifyVersion(e){!e||!appVersion||e===appVersion||(localStorage.getItem(
-"version_notified")||"")===e||(localStorage.setItem("app_version",e),syncVersionUpdateCachePreferenceUi(),
-showModal("version-update-modal"))}o(checkAndNotifyVersion,"checkAndNotifyVersion");async function checkVersion(){
-try{const e=await fetch("/api/version",{cache:"no-store"});if(!e.ok)return;const n=(await e.json()).
-version||"",i=localStorage.getItem("app_version")||"";n&&!i&&localStorage.setItem("app_version",n),n&&
-i&&n!==i&&(await purgeCaches(),checkAndNotifyVersion(n))}catch{}}o(checkVersion,"checkVersion");async function fetchChatStreamWithUnavailableRetry(e,t,n){
+grok_image_count:"grok-image-count",ideogram_operation:"ideogram-image-operation",ideogram_aspect:"i\
+deogram-image-aspect",ideogram_resolution:"ideogram-image-resolution",ideogram_quality:"ideogram-ima\
+ge-quality",ideogram_speed:"ideogram-image-speed",ideogram_magic_prompt:"ideogram-image-magic",ideogram_style_type:"\
+ideogram-image-style",ideogram_count:"ideogram-image-count",ideogram_seed:"ideogram-image-seed",xai_temperature:"\
+xai-temperature",xai_top_p:"xai-top-p",xai_max_completion_tokens:"xai-max-completion-tokens",xai_seed:"\
+xai-seed",xai_presence_penalty:"xai-presence-penalty",xai_frequency_penalty:"xai-frequency-penalty",
+xai_response_format:"xai-response-format",xai_tool_choice:"xai-tool-choice",xai_parallel_tool_calls:"\
+xai-parallel-tool-calls",xai_logprobs:"xai-logprobs",xai_top_logprobs:"xai-top-logprobs",grok_video_duration:"\
+grok-video-duration",grok_video_aspect:"grok-video-aspect",grok_video_resolution:"grok-video-resolut\
+ion",gemini_video_duration:"gemini-video-duration",gemini_video_aspect:"gemini-video-aspect",gemini_video_resolution:"\
+gemini-video-resolution",music_instrumental:"music-instrumental",ocr_table_format:"ocr-table-format",
+ocr_extract_header:"ocr-extract-header",ocr_extract_footer:"ocr-extract-footer",ocr_include_blocks:"\
+ocr-include-blocks",ocr_include_image_base64:"ocr-include-images",ocr_pages:"ocr-pages"};for(const[i,
+a]of Object.entries(n)){if(!Object.prototype.hasOwnProperty.call(t,i)||i==="enable_prompt_caching"&&
+modelChosenManually)continue;const r=get(a);r&&(r.type==="checkbox"?r.checked=!!t[i]:r.value=String(
+t[i]),i==="enable_prompt_caching"?updatePromptCacheUi():r.dispatchEvent(new Event("change",{bubbles:!0})))}
+if(Object.prototype.hasOwnProperty.call(t,"image_vision_model")&&(currentVisionModel=t.image_vision_model),
+Object.prototype.hasOwnProperty.call(t,"canvas_mode")&&syncCanvasModeUi(!!t.canvas_mode,{persist:!1}),
+Object.prototype.hasOwnProperty.call(t,"coding_mode")&&syncCodingModeUi(!!t.coding_mode,{persist:!1}),
+Object.prototype.hasOwnProperty.call(t,"browser_fast_mode")&&setBrowserFastModeEnabled(!!t.browser_fast_mode),
+Object.prototype.hasOwnProperty.call(t,"batch_mode")){const i=get("enable-batch-mode");i&&(i.checked=
+!!t.batch_mode,i.dispatchEvent(new Event("change",{bubbles:!0})))}typeof window.toggleOptions=="func\
+tion"&&window.toggleOptions(),applyMcpPromptChipUi()}o(restorePromptOptionsForEdit,"restorePromptOpt\
+ionsForEdit");function beginEditMessage(e,t=!1){const n=messageStore[e];if(n==null)return;const i=get(
+"prompt-input");i.value=n||"",i.focus(),i.style.height="auto",i.style.height=i.scrollHeight+"px";const a=allMessages.
+find(u=>u.id==e),r=messageMeta[e]||{};restorePromptOptionsForEdit(a),a?currentParentId=a.parent_id===
+void 0?null:a.parent_id:r.parent_id!==void 0&&(currentParentId=r.parent_id),editingMessageId=e,setEditUi(
+!0);const l=a?a.image_url:r.image_url;if(l)try{const u=JSON.parse(l);Array.isArray(u)&&u.length?(currentImageUrls=
+u.map(f=>{let b="unknown",y=f;f&&typeof f=="object"&&(b=normalizeAttachmentSource(f.source),y=f.filepath||
+f.path||f.url||f.file||"");const w=normalizeAttachmentPath(y);return w&&setAttachmentSourceForPath(w,
+b),w}).filter(Boolean),get("file-preview").classList.remove("hidden"),get("file-name").innerText=`${currentImageUrls.
+length} files ready`):(currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-inp\
+ut").value="")}catch{currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").
+value=""}else currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value=
+"";const c=a?a.quote_text:r.quote_text;c?(currentQuote=c,currentQuoteMessageId=null,get("quote-text-\
+display").innerText=currentQuote,get("quote-bar").classList.add("visible")):clearQuote(),schedulePromptTokenEstimate(
+!0),t&&sendMessage()}o(beginEditMessage,"beginEditMessage");function playSendAnimation(){const e=get(
+"send-btn");e&&(e.classList.remove("fly"),e.offsetWidth,e.classList.add("fly"))}o(playSendAnimation,
+"playSendAnimation");function setSendBtnToStopMode(){const e=get("send-btn");if(!e)return;e.onclick=
+stopGeneration,isStopMode=!0,e.disabled=!1;const t=o(()=>{!e||!isStopMode||(e.classList.add("stop-mo\
+de"),e.innerHTML='<span style="font-size:20px;line-height:1;color:#fff;">\u25A0</span>',e.classList.
+add("btn-swap"),setTimeout(()=>e.classList.remove("btn-swap"),300))},"applyStopUi");if(e.classList.contains(
+"fly")){const n=o(i=>{i.animationName==="sendBtnPop"&&(e.removeEventListener("animationend",n),t())},
+"onEnd");e.addEventListener("animationend",n),setTimeout(t,700)}else t()}o(setSendBtnToStopMode,"set\
+SendBtnToStopMode");function setSendBtnToSendMode(){const e=get("send-btn");e&&(e.classList.remove("\
+stop-mode","fly","btn-swap"),e.innerHTML='<i class="fas fa-paper-plane"></i>',e.classList.add("btn-s\
+wap"),setTimeout(()=>e.classList.remove("btn-swap"),300),e.onclick=sendMessage,isStopMode=!1)}o(setSendBtnToSendMode,
+"setSendBtnToSendMode");async function stopGeneration(){const e=currentThreadId!=null&&currentThreadId!==
+""?String(currentThreadId):null,t=normalizeJobIdForUi(currentJobId),n=++manualStopSeq,i=captureStoppedPartialBubbleSnapshot(
+getActiveStreamingBubbleElement());manualStopContext={seq:n,threadId:e,jobId:t,partialSnapshot:i},t&&
+suppressPendingJob(t),abortController&&abortController.abort();try{if(t||e){const a={};t&&(a.job_id=
+t),e&&(a.thread_id=e);const l=await(await apiFetch("/api/stop_chat",{method:"POST",headers:{"Content\
+-Type":"application/json"},body:JSON.stringify(a)})).json().catch(()=>({})),c=normalizeJobIdForUi(l&&
+l.job_id);c&&(suppressPendingJob(c),manualStopContext&&manualStopContext.seq===n&&(manualStopContext.
+jobId=c))}manualStopContext&&manualStopContext.seq===n&&await syncThreadAfterAbortedStream(e,{retries:2,
+retryDelayMs:180,notifyOnFailure:!0})&&manualStopContext.partialSnapshot&&appendStoppedPartialBubbleSnapshot(
+manualStopContext.partialSnapshot,e)}finally{manualStopContext&&manualStopContext.seq===n&&(manualStopContext=
+null),setSendBtnToSendMode(),updateFilePreview()}}o(stopGeneration,"stopGeneration");async function purgeCaches(){
+if("caches"in window){const e=await caches.keys();await Promise.all(e.map(t=>caches.delete(t)))}if(navigator.
+serviceWorker){const e=await navigator.serviceWorker.getRegistrations();await Promise.all(e.map(t=>t.
+unregister()))}}o(purgeCaches,"purgeCaches");const SW_CACHE_MODE_STORAGE_KEY="ai_sw_cache_mode_v2";async function applyCacheMode(e,t={}){
+if("serviceWorker"in navigator)if(e)try{await navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(
+appVersion)}`),localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY,"enabled")}catch{}else{const n=localStorage.
+getItem(SW_CACHE_MODE_STORAGE_KEY);(!!t.forceCleanup||n!=="disabled")&&await purgeCaches(),localStorage.
+setItem(SW_CACHE_MODE_STORAGE_KEY,"disabled")}}o(applyCacheMode,"applyCacheMode");function checkAndNotifyVersion(e){
+!e||!appVersion||e===appVersion||(localStorage.getItem("version_notified")||"")===e||(localStorage.setItem(
+"app_version",e),syncVersionUpdateCachePreferenceUi(),showModal("version-update-modal"))}o(checkAndNotifyVersion,
+"checkAndNotifyVersion");async function checkVersion(){try{const e=await fetch("/api/version",{cache:"\
+no-store"});if(!e.ok)return;const n=(await e.json()).version||"",i=localStorage.getItem("app_version")||
+"";n&&!i&&localStorage.setItem("app_version",n),n&&i&&n!==i&&(await purgeCaches(),checkAndNotifyVersion(
+n))}catch{}}o(checkVersion,"checkVersion");async function fetchChatStreamWithUnavailableRetry(e,t,n){
 let i=0;for(;;){if(t.signal&&t.signal.aborted)throw new DOMException("Aborted","AbortError");try{const a=await apiFetch(
 e,t),r=window.ConnectionMonitor.retryModeForResponse(a);let l=!1;if(a.status===425&&(l=(await a.clone().
 json().catch(()=>({}))).code==="submission_in_progress"),!r&&!l)return window.ConnectionMonitor.markReachable(),
@@ -2893,17 +2894,17 @@ seek")||e.startsWith("glm-")||e.startsWith("deep-research-")||e.startsWith("anti
 del"),isGrokImageModel=o(()=>{const e=(get("model-select").value||"").toLowerCase();return e.includes(
 "grok")&&(e.includes("imagine")||e.includes("image"))&&!e.includes("video")},"isGrokImageModel"),isIdeogramModelKey=o(
 e=>String(e||"").toLowerCase().startsWith("ideogram-"),"isIdeogramModelKey"),isIdeogramModel=o(e=>isIdeogramModelKey(
-e!=null?e:get("model-select").value),"isIdeogramModel"),IDEOGRAM_IMAGE_FIELDS=["count","aspect","res\
-olution","quality","speed","magic","style","negative","seed"],ideogramModelTraits=o(e=>{const t=String(
-e||"").toLowerCase();return{edit:t==="ideogram-4.5",quality:t==="ideogram-4.5",speed:t!=="ideogram-4\
-.5",resolution:t==="ideogram-4.5"||t==="ideogram-4.0",style:t==="ideogram-3.0"||t==="ideogram-2a"||t===
-"ideogram-2.0",negative:t==="ideogram-3.0"||t==="ideogram-2.0",styleOptions:t==="ideogram-3.0"?["aut\
-o","general","realistic","design","fiction","stylized"]:["auto","general","realistic","design","rend\
-er_3d","anime"]}},"ideogramModelTraits"),isGrokVideoModel=o(()=>{const e=(get("model-select").value||
-"").toLowerCase();return e.includes("grok")&&e.includes("video")},"isGrokVideoModel"),isGeminiVideoModelKey=o(
-e=>{const t=(e||"").toLowerCase();return t.startsWith("veo-")||t.includes("omni-flash")||t.includes(
-"omni-1.1-flash")},"isGeminiVideoModelKey"),isGeminiVideoModel=o(()=>isGeminiVideoModelKey(get("mode\
-l-select").value),"isGeminiVideoModel"),isGeminiMusicModelKey=o(e=>(e||"").toLowerCase().startsWith(
+e!=null?e:get("model-select").value),"isIdeogramModel"),IDEOGRAM_IMAGE_FIELDS=["operation","count","\
+aspect","resolution","quality","speed","magic","style","negative","seed"],ideogramModelTraits=o(e=>{
+const t=String(e||"").toLowerCase();return{edit:t==="ideogram-4.5",quality:t==="ideogram-4.5",speed:t!==
+"ideogram-4.5",resolution:t==="ideogram-4.5"||t==="ideogram-4.0",style:t==="ideogram-3.0"||t==="ideo\
+gram-2a"||t==="ideogram-2.0",negative:t==="ideogram-3.0"||t==="ideogram-2.0",styleOptions:t==="ideog\
+ram-3.0"?["auto","general","realistic","design","fiction","stylized"]:["auto","general","realistic",
+"design","render_3d","anime"]}},"ideogramModelTraits"),isGrokVideoModel=o(()=>{const e=(get("model-s\
+elect").value||"").toLowerCase();return e.includes("grok")&&e.includes("video")},"isGrokVideoModel"),
+isGeminiVideoModelKey=o(e=>{const t=(e||"").toLowerCase();return t.startsWith("veo-")||t.includes("o\
+mni-flash")||t.includes("omni-1.1-flash")},"isGeminiVideoModelKey"),isGeminiVideoModel=o(()=>isGeminiVideoModelKey(
+get("model-select").value),"isGeminiVideoModel"),isGeminiMusicModelKey=o(e=>(e||"").toLowerCase().startsWith(
 "lyria-"),"isGeminiMusicModelKey"),isGeminiMusicModel=o(()=>isGeminiMusicModelKey(get("model-select").
 value),"isGeminiMusicModel"),isGeminiEmbeddingModelKey=o(e=>(e||"").toLowerCase().includes("gemini-e\
 mbedding"),"isGeminiEmbeddingModelKey"),isGeminiEmbeddingModel=o(()=>isGeminiEmbeddingModelKey(get("\

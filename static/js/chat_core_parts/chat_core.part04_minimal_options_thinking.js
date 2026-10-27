@@ -330,7 +330,7 @@
                 gemini_image_aspect: 'gemini-image-aspect', gemini_image_size: 'gemini-image-size',
                 grok_image_aspect: 'grok-image-aspect', grok_image_resolution: 'grok-image-resolution',
                 grok_image_quality: 'grok-image-quality', grok_image_format: 'grok-image-format',
-                grok_image_count: 'grok-image-count', ideogram_aspect: 'ideogram-image-aspect',
+                grok_image_count: 'grok-image-count', ideogram_operation: 'ideogram-image-operation', ideogram_aspect: 'ideogram-image-aspect',
                 ideogram_resolution: 'ideogram-image-resolution', ideogram_quality: 'ideogram-image-quality',
                 ideogram_speed: 'ideogram-image-speed', ideogram_magic_prompt: 'ideogram-image-magic',
                 ideogram_style_type: 'ideogram-image-style', ideogram_count: 'ideogram-image-count',

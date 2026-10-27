@@ -1596,7 +1596,7 @@
         };
         const isIdeogramModelKey = (model) => String(model || '').toLowerCase().startsWith('ideogram-');
         const isIdeogramModel = (model) => isIdeogramModelKey(model != null ? model : get('model-select').value);
-        const IDEOGRAM_IMAGE_FIELDS = ['count', 'aspect', 'resolution', 'quality', 'speed', 'magic', 'style', 'negative', 'seed'];
+        const IDEOGRAM_IMAGE_FIELDS = ['operation', 'count', 'aspect', 'resolution', 'quality', 'speed', 'magic', 'style', 'negative', 'seed'];
         const ideogramModelTraits = (model) => {
             const m = String(model || '').toLowerCase();
             return {

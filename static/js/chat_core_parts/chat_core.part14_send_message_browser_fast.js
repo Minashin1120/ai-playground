@@ -667,6 +667,7 @@
                 grok_image_quality: isGrokImageModel() && get('grok-image-quality') ? get('grok-image-quality').value : null,
                 grok_image_format: isGrokImageModel() && get('grok-image-format') ? get('grok-image-format').value : null,
                 grok_image_count: isGrokImageModel() && get('grok-image-count') ? get('grok-image-count').value : null,
+                ideogram_operation: isIdeogramModel() && get('ideogram-image-operation') ? get('ideogram-image-operation').value : null,
                 ideogram_aspect: isIdeogramModel() && get('ideogram-image-aspect') ? get('ideogram-image-aspect').value : null,
                 ideogram_resolution: isIdeogramModel() && get('ideogram-image-resolution') ? get('ideogram-image-resolution').value : null,
                 ideogram_quality: isIdeogramModel() && get('ideogram-image-quality') ? get('ideogram-image-quality').value : null,

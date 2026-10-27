@@ -4647,7 +4647,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     # Edit the last model output in the selected branch; new uploads
                     # are references. Text context limits must not change the target.
                     image_history = None
-                    if ideogram_supports_edit(model_key_l) and (MAX_CONTEXT_MESSAGES or MAX_CONTEXT_TOKENS):
+                    remove_background = options.get("ideogram_operation") == "remove_background"
+                    if (ideogram_supports_edit(model_key_l) or remove_background) and (MAX_CONTEXT_MESSAGES or MAX_CONTEXT_TOKENS):
                         image_history = list(reversed([
                             {"role": node.role, "image_url": node.image_url}
                             for node in _iter_chat_history_ancestors(thread_id, msg.parent_id, user_id)
@@ -4656,7 +4657,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     history_image_parts = _load_history_image_parts(
                         include_roles={"assistant"}, newest_first=True,
                         source_messages=image_history, reverse_within_message=True
-                    ) if ideogram_supports_edit(model_key_l) else []
+                    ) if (ideogram_supports_edit(model_key_l) or remove_background) else []
 
                     def _ideogram_source_entry(raw_bytes, raw_mime, raw_name):
                         entry_bytes = raw_bytes
@@ -4682,8 +4683,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         _ideogram_source_entry(hp['bytes'], hp['mime'], hp['name'])
                         for hp in history_image_parts[:1]
                     ]
-                    ideogram_sources = ideogram_select_sources(current_sources, generated_sources)
-                    if not ideogram_sources and ideogram_supports_edit(model_key_l):
+                    ideogram_sources = (current_sources or generated_sources[:1]) if remove_background else ideogram_select_sources(current_sources, generated_sources)
+                    if not ideogram_sources and (ideogram_supports_edit(model_key_l) or remove_background):
                         fallback_images = _load_history_image_parts(
                             include_roles={"user"}, newest_first=True, source_messages=image_history
                         )
@@ -4691,7 +4692,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             hp = fallback_images[0]
                             ideogram_sources = [_ideogram_source_entry(hp['bytes'], hp['mime'], hp['name'])]
 
-                    if ideogram_sources:
+                    if remove_background:
+                        pub("status", "Ideogram API (Remove background) を呼び出し中...")
+                    elif ideogram_sources:
                         pub("status", "Ideogram API (Precise Edit) を呼び出し中...")
                     else:
                         pub("status", "Ideogram API を呼び出し中...")

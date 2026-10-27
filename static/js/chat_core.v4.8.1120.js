@@ -5566,7 +5566,7 @@
                 gemini_image_aspect: 'gemini-image-aspect', gemini_image_size: 'gemini-image-size',
                 grok_image_aspect: 'grok-image-aspect', grok_image_resolution: 'grok-image-resolution',
                 grok_image_quality: 'grok-image-quality', grok_image_format: 'grok-image-format',
-                grok_image_count: 'grok-image-count', ideogram_aspect: 'ideogram-image-aspect',
+                grok_image_count: 'grok-image-count', ideogram_operation: 'ideogram-image-operation', ideogram_aspect: 'ideogram-image-aspect',
                 ideogram_resolution: 'ideogram-image-resolution', ideogram_quality: 'ideogram-image-quality',
                 ideogram_speed: 'ideogram-image-speed', ideogram_magic_prompt: 'ideogram-image-magic',
                 ideogram_style_type: 'ideogram-image-style', ideogram_count: 'ideogram-image-count',
@@ -8598,7 +8598,7 @@
         };
         const isIdeogramModelKey = (model) => String(model || '').toLowerCase().startsWith('ideogram-');
         const isIdeogramModel = (model) => isIdeogramModelKey(model != null ? model : get('model-select').value);
-        const IDEOGRAM_IMAGE_FIELDS = ['count', 'aspect', 'resolution', 'quality', 'speed', 'magic', 'style', 'negative', 'seed'];
+        const IDEOGRAM_IMAGE_FIELDS = ['operation', 'count', 'aspect', 'resolution', 'quality', 'speed', 'magic', 'style', 'negative', 'seed'];
         const ideogramModelTraits = (model) => {
             const m = String(model || '').toLowerCase();
             return {
@@ -10433,8 +10433,9 @@
             if (wrap) wrap.classList.toggle('hidden', !active);
             if (modalWrap) modalWrap.classList.toggle('hidden', !active);
             if (!active) return;
+            const removeBackground = get('ideogram-image-operation')?.value === 'remove_background';
             IDEOGRAM_IMAGE_FIELDS.forEach((field) => {
-                const show = visibleByField[field] !== false;
+                const show = field === 'operation' || (!removeBackground && visibleByField[field] !== false);
                 ['ideogram-image-', 'modal-ideogram-image-'].forEach((prefix) => {
                     const el = get(prefix + field);
                     if (!el || !el.parentElement) return;
@@ -10455,11 +10456,20 @@
             });
             const note = get('ideogram-image-note');
             if (note) {
-                note.textContent = traits.edit
+                note.textContent = removeBackground
+                    ? '※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は直前の画像。透過PNGで出力（指示文・生成設定は使いません）'
+                    : traits.edit
                     ? '※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ'
                     : '※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）';
             }
         }
+        ['ideogram-image-operation', 'modal-ideogram-image-operation'].forEach((id) => {
+            get(id)?.addEventListener('change', () => {
+                const other = get(id.startsWith('modal-') ? 'ideogram-image-operation' : 'modal-ideogram-image-operation');
+                if (other) other.value = get(id).value;
+                updateIdeogramImageUi();
+            });
+        });
         function updateGrokVideoUi() {
             const wrap = get('grok-video-options');
             if (!wrap) return;
@@ -10614,10 +10624,10 @@
                 html = ideogramModelTraits(model).edit ? [
                     '<div class="font-bold text-gray-300 mb-1">Ideogram 4.5 入力制限</div>',
                     '<div>編集する画像1枚 + 参考画像は最大4枚 / 1枚あたり25MBまで / PNG・JPEG・WEBP</div>',
-                    '<div>画像がない場合は直前の画像を編集します / マスクには対応していません</div>'
+                    '<div>画像がない場合は直前の画像を編集します / マスクには対応していません。背景を削除では画像1枚を透過PNGにします</div>'
                 ].join('') : [
                     '<div class="font-bold text-gray-300 mb-1">Ideogram 入力</div>',
-                    '<div>テキストからの生成のみです。画像入力は Ideogram 4.5 だけが対応しています</div>'
+                    '<div>生成・編集では画像入力は Ideogram 4.5 のみ。背景を削除では全モデルで画像1枚（25MBまで / PNG・JPEG・WEBP）に対応します</div>'
                 ].join('');
             } else if (model.includes('grok') && model.includes('video')) {
                 show = true;
@@ -22337,6 +22347,7 @@
                 grok_image_quality: isGrokImageModel() && get('grok-image-quality') ? get('grok-image-quality').value : null,
                 grok_image_format: isGrokImageModel() && get('grok-image-format') ? get('grok-image-format').value : null,
                 grok_image_count: isGrokImageModel() && get('grok-image-count') ? get('grok-image-count').value : null,
+                ideogram_operation: isIdeogramModel() && get('ideogram-image-operation') ? get('ideogram-image-operation').value : null,
                 ideogram_aspect: isIdeogramModel() && get('ideogram-image-aspect') ? get('ideogram-image-aspect').value : null,
                 ideogram_resolution: isIdeogramModel() && get('ideogram-image-resolution') ? get('ideogram-image-resolution').value : null,
                 ideogram_quality: isIdeogramModel() && get('ideogram-image-quality') ? get('ideogram-image-quality').value : null,

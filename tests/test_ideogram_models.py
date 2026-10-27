@@ -65,7 +65,7 @@ class IdeogramRegistrationTests(unittest.TestCase):
     def test_generation_branch_and_options_are_forwarded(self):
         self.assertIn("elif is_ideogram:", APP_SOURCE)
         self.assertIn("ideogram_request(", APP_SOURCE)
-        for field in ("aspect", "resolution", "quality", "speed", "magic_prompt", "style_type", "negative_prompt", "count", "seed"):
+        for field in ("operation", "aspect", "resolution", "quality", "speed", "magic_prompt", "style_type", "negative_prompt", "count", "seed"):
             self.assertIn(f"'ideogram_{field}': data.get('ideogram_{field}')", APP_SOURCE)
             self.assertIn(f"ideogram_{field}: isIdeogramModel()", CHAT_JS)
         for element in ("ideogram-image-options", "modal-ideogram-image-options", "ideogram-image-aspect", "modal-ideogram-image-aspect"):
@@ -81,7 +81,7 @@ class IdeogramRequestTests(unittest.TestCase):
     def test_worker_edits_last_output_of_selected_branch(self):
         source = (APP_ROOT / "server" / "background.py").read_text(encoding="utf-8")
         start = source.index('                    # Edit the last model output')
-        end = source.index('\n                    if ideogram_sources:', start)
+        end = source.index('\n                    if remove_background:', start)
         selection = textwrap.dedent(source[start:end])
         loader_start = source.index('            def _load_history_image_parts(')
         loader_end = source.index('            def _load_message_history_images(', loader_start)
@@ -94,18 +94,22 @@ class IdeogramRequestTests(unittest.TestCase):
                     message("assistant", "old.png"), message("user", "past-ref.png"),
                     message("assistant", "a1.png", "a2.png"), message("assistant")]
         branch_b = [message("user", "original.png"), message("assistant", "b.png")]
-        for history, current, expected, limited in (
-            (branch_a, ["ref.png"], ["a2.png", "ref.png"], False),
-            (branch_a, [], ["a2.png"], False),
-            (branch_b, ["ref.png"], ["b.png", "ref.png"], False),
-            ([], ["original.png", "ref.png"], ["original.png", "ref.png"], False),
-            ([message("user", "original.png")], [], ["original.png"], False),
-            ([], [], [], False),
-            (branch_a, ["ref.png"], ["a2.png", "ref.png"], True),
+        for history, current, expected, limited, operation, model in (
+            (branch_a, ["ref.png"], ["a2.png", "ref.png"], False, "generate", "ideogram-4.5"),
+            (branch_a, [], ["a2.png"], False, "generate", "ideogram-4.5"),
+            (branch_b, ["ref.png"], ["b.png", "ref.png"], False, "generate", "ideogram-4.5"),
+            ([], ["original.png", "ref.png"], ["original.png", "ref.png"], False, "generate", "ideogram-4.5"),
+            ([message("user", "original.png")], [], ["original.png"], False, "generate", "ideogram-4.5"),
+            ([], [], [], False, "generate", "ideogram-4.5"),
+            (branch_a, ["ref.png"], ["a2.png", "ref.png"], True, "generate", "ideogram-4.5"),
+            (branch_a, ["ref.png"], ["ref.png"], False, "remove_background", "ideogram-4.0"),
+            (branch_a, [], ["a2.png"], True, "remove_background", "ideogram-2.0"),
+            ([], ["one.png", "two.png"], ["one.png", "two.png"], False, "remove_background", "ideogram-4.5"),
+            ([], [], [], False, "remove_background", "ideogram-3.0"),
         ):
-            with self.subTest(expected=expected, limited=limited):
+            with self.subTest(expected=expected, limited=limited, operation=operation):
                 namespace = dict(vars(IDEOGRAM), os=os, json=json, mimetypes=mimetypes,
-                    model_key_l="ideogram-4.5", MAX_CONTEXT_MESSAGES=int(limited), MAX_CONTEXT_TOKENS=0,
+                    options={"ideogram_operation": operation}, model_key_l=model, MAX_CONTEXT_MESSAGES=int(limited), MAX_CONTEXT_TOKENS=0,
                     history=[] if limited else history, _HISTORY_IMAGE_MAX_ITEMS=16, _HISTORY_IMAGE_MAX_BYTES=0,
                     _normalize_upload_ref=lambda ref: ref, _get_file_disk_info=lambda ref: {"exists": True},
                     _load_user_file_bytes=lambda ref, info: ref.encode(), _normalize_media_mime=lambda ref, mime: mime,
@@ -137,6 +141,30 @@ class IdeogramRequestTests(unittest.TestCase):
     @staticmethod
     def form(kwargs):
         return {key: value[1] for key, value in kwargs["files"] if value[0] is None}
+
+    def test_background_removal_uses_one_image_and_no_generation_fields(self):
+        for model in MODEL_IDS:
+            url, kwargs, count, edit = self.build(model, {
+                "ideogram_operation": "remove_background", "ideogram_count": "8",
+                "ideogram_seed": "42", "ideogram_quality": "high"}, [PNG], prompt="ignored")
+            self.assertEqual("https://api.ideogram.ai/v2/image/remove-background/ideogram-1", url)
+            self.assertEqual({"files": [("image", PNG)]}, kwargs)
+            self.assertEqual((1, True), (count, edit))
+
+    def test_background_removal_rejects_missing_multiple_unsupported_and_large_images(self):
+        for images in ([], [PNG, PNG], [("a.gif", b"GIF", "image/gif")],
+                       [("a.png", b"x" * (IDEOGRAM.IDEOGRAM_MAX_IMAGE_BYTES + 1), "image/png")]):
+            with self.subTest(count=len(images)), self.assertRaises(ValueError):
+                self.build("ideogram-4.0", {"ideogram_operation": "remove_background"}, images)
+
+    def test_background_removal_handles_errors_inside_successful_http_response(self):
+        original = httpx.post
+        httpx.post = lambda *args, **kwargs: httpx.Response(200, json={"error": "failed", "status_code": 401})
+        try:
+            with self.assertRaisesRegex(RuntimeError, "APIキー"):
+                IDEOGRAM.ideogram_request("key", "ideogram-4.0", "", {"ideogram_operation": "remove_background"}, [PNG])
+        finally:
+            httpx.post = original
 
     def test_ideogram_45_generate_uses_multipart_size_and_quality(self):
         url, kwargs, count, edit = self.build("ideogram-4.5", {

@@ -213,6 +213,13 @@
                     <h3 class="text-sm font-bold text-pink-400 border-l-2 border-pink-500 pl-2">Ideogram 生成設定</h3>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
+                            <label for="modal-ideogram-image-operation" class="text-xs text-gray-400 block mb-1">操作</label>
+                            <select id="modal-ideogram-image-operation" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
+                                <option value="generate">生成・編集</option>
+                                <option value="remove_background">背景を削除</option>
+                            </select>
+                        </div>
+                        <div>
                             <label class="text-xs text-gray-400 block mb-1">Count</label>
                             <input id="modal-ideogram-image-count" type="number" min="1" max="8" step="1" value="1" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none">
                         </div>

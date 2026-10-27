@@ -40,8 +40,9 @@ class ProgressTextTest {
     @Test fun pendingSkeletonAndReasoningMatchWeb() {
         assertEquals("image", pendingSkeletonKind("gpt-image-2"))
         assertEquals("video", pendingSkeletonKind("grok-imagine-video"))
-        // Like the Web, Veo ids do not contain "video" and use the text skeleton.
-        assertEquals("text", pendingSkeletonKind("veo-3.1-generate-preview"))
+        // Video models show the requested media skeleton even when their ids omit "video".
+        assertEquals("video", pendingSkeletonKind("veo-3.1-generate-preview"))
+        assertEquals("video", pendingSkeletonKind("sora-2"))
         assertEquals("audio", pendingSkeletonKind("gpt-4o-mini-tts"))
         assertEquals("code", pendingSkeletonKind("grok-code-fast-1"))
         assertEquals("text", pendingSkeletonKind("mistral-ocr-4-0"))

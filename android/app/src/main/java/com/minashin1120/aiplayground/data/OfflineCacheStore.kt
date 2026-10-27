@@ -277,7 +277,7 @@ class OfflineCacheStore(private val context: Context) {
                 .getOrElse { listOf(value) }
         }.orEmpty()
         return ChatMessage(row.getString("id"), row.optString("role"), row.optString("content"),
-            reasoningText(row.optString("thought").ifBlank { row.optString("thought_data") }), files,
+            row.optString("thought").ifBlank { row.optString("thought_data") }, files,
             if (row.isNull("parent_id")) null else row.optInt("parent_id"), row.optString("model"),
             tokens = row.nullableInt("tokens"), tokensIn = row.nullableInt("tokens_in"),
             tokensOut = row.nullableInt("tokens_out"), tokensContent = row.nullableInt("tokens_content"),

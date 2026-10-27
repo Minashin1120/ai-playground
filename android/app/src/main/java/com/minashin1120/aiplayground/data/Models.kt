@@ -622,7 +622,7 @@ fun parseMessages(json: JSONObject): List<ChatMessage> {
             JSONArray(attachmentText).strings()
         }.getOrElse { listOf(attachmentText) }
         ChatMessage(row.get("id").toString(), row.optString("role"), row.nullableString("content"),
-            reasoningText(row.nullableString("thought_data")), files,
+            row.nullableString("thought_data"), files,
             parentId = if (row.isNull("parent_id")) null else row.optInt("parent_id"),
             model = row.nullableString("model"),
             tokens = row.nullableInt("tokens"), tokensIn = row.nullableInt("tokens_in"),

@@ -1163,9 +1163,9 @@ private fun TokenEstimate(state: ChatState) {
     var pending by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<JSONObject?>(null) }
     val viewModel = LocalComposerEstimator.current
-    LaunchedEffect(model, message, quote, files, state.uploading, state.streaming, state.editingAttachment) {
+    LaunchedEffect(model, message, quote, files, state.editingAttachment) {
         if (!hasInput || viewModel == null) { pending = false; result = null; return@LaunchedEffect }
-        if (state.uploading || state.streaming || state.editingAttachment != null) {
+        if (state.editingAttachment != null) {
             pending = false
             result = null
             return@LaunchedEffect

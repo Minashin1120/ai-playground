@@ -1292,6 +1292,11 @@
             const el = get(id);
             if (!el) return;
             if (el.classList.contains('modal-open')) return;
+            const quotePopover = get('quote-popover');
+            if (quotePopover) {
+                quotePopover.style.display = 'none';
+                quotePopover.classList.remove('show');
+            }
             cancelModalTransitions(el);
             el.classList.remove('hidden');
             el.style.display = 'flex';

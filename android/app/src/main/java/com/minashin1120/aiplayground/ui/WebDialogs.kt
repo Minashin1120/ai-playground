@@ -67,7 +67,7 @@ internal fun BrowserConfirmDialog(message: String, onResult: (Boolean) -> Unit) 
     NoticeAlertDialog(
         onDismissRequest = { onResult(false) },
         properties = BrowserDialogProperties,
-        title = { Text("$WEB_DIALOG_HOST の内容", fontSize = 18.sp) },
+        title = { Text("AI Playground", fontSize = 18.sp) },
         text = { Text(message, fontSize = 15.sp) },
         confirmButton = { TextButton(onClick = { onResult(true) }) { Text("OK") } },
         dismissButton = { TextButton(onClick = { onResult(false) }) { Text("キャンセル") } },
@@ -83,7 +83,7 @@ internal fun BrowserAlertDialog(message: String, onDismiss: () -> Unit) {
     NoticeAlertDialog(
         onDismissRequest = onDismiss,
         properties = BrowserDialogProperties,
-        title = { Text("$WEB_DIALOG_HOST の内容", fontSize = 18.sp) },
+        title = { Text("AI Playground", fontSize = 18.sp) },
         text = { Text(message, fontSize = 15.sp) },
         confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
     )
@@ -96,7 +96,7 @@ internal fun BrowserPromptDialog(message: String, initial: String = "", onResult
     NoticeAlertDialog(
         onDismissRequest = { onResult(null) },
         properties = BrowserDialogProperties,
-        title = { Text("$WEB_DIALOG_HOST の内容", fontSize = 18.sp) },
+        title = { Text("AI Playground", fontSize = 18.sp) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(message, fontSize = 15.sp)

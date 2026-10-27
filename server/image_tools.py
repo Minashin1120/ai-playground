@@ -353,3 +353,11 @@ def _rasterize_svg_png(svg_bytes, width, height):
         _IMAGE_CONVERT_MAX_OUTPUT,
     )
     return png if _is_png_bytes(png) else None
+
+
+def _compact_vision_image(data, mime):
+    """Reduce native vision upload bytes; the stored original stays intact."""
+    if len(data) <= 256 * 1024:
+        return data, mime
+    compact = _make_thumbnail_webp(data, 1536, 85)
+    return (compact, "image/webp") if compact and len(compact) < len(data) else (data, mime)

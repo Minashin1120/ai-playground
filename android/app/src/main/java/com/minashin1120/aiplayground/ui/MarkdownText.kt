@@ -861,6 +861,16 @@ private fun AnnotatedString.Builder.appendInline(source: String, colors: Markdow
         }
     }
     while (i < source.length) {
+        if (source.startsWith("\\\\(", i) || source.startsWith("\\\\[", i)) {
+            val display = source[i + 2] == '['
+            val closer = if (display) "\\\\]" else "\\\\)"
+            val end = source.indexOf(closer, i + 3)
+            if (end > i + 3) {
+                math(source.substring(i + 3, end), display)
+                i = end + 3
+                continue
+            }
+        }
         val c = source[i]
         val rest = source.substring(i)
         // Escapes

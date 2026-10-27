@@ -135,6 +135,22 @@ class DeepSeekPythonToolTests(unittest.TestCase):
                     else:
                         read_notice.assert_not_called()
 
+    def test_sandbox_returns_generated_images_and_skips_symlinks_and_inputs(self):
+        image = target._encode_png(1, 1, 6, 8, [b"\xff\x00\x00\xff"])
+        outputs = []
+
+        def run(command, **kwargs):
+            work = command[command.index("--bind") + 1]
+            Path(work, "plot.png").write_bytes(image)
+            Path(work, "input_1.png").write_bytes(image)
+            Path(work, "link.png").symlink_to(Path(work, "plot.png"))
+            kwargs["stdout"].write(b"done")
+
+        with patch("subprocess.run", side_effect=run):
+            result = target.safe_execute_python("pass", on_image=outputs.append)
+        self.assertEqual(result, "done")
+        self.assertEqual(outputs, [image])
+
     def test_python_request_calls_runtime_and_returns_real_result_to_model(self):
         self._assert_python_rounds(1)
 
@@ -147,7 +163,7 @@ class DeepSeekPythonToolTests(unittest.TestCase):
         start = source.index('                log_force("Routing: DeepSeek V4 Branch (Chat Completions)")')
         end = source.index('            elif is_kimi or is_zai:', start)
         branch = textwrap.dedent(source[start:end])
-        module = ast.parse("def run_branch():\n    global full_res, thought_accumulated\n" + textwrap.indent(branch, "    "))
+        module = ast.parse("def run_branch():\n    global thought_accumulated\n    full_res = ''\n" + textwrap.indent(branch, "    "))
         requests = []
         events = []
         execute = Mock(return_value="42\n")
@@ -185,7 +201,9 @@ class DeepSeekPythonToolTests(unittest.TestCase):
         namespace["run_branch"]()
         self.assertFalse([event for event in events if event[0] == "error"], events)
         self.assertEqual(execute.call_count, rounds)
-        execute.assert_called_with("print(6 * 7)")
+        self.assertEqual(execute.call_args.args, ("print(6 * 7)",))
+        self.assertTrue(callable(execute.call_args.kwargs["on_image"]))
+        self.assertEqual(execute.call_args.kwargs["input_images"], [])
         self.assertEqual(len(requests), rounds + 1)
         self.assertEqual(requests[-1]["tool_choice"], "none" if rounds == 8 else "auto")
         self.assertEqual(requests[0]["tools"][0]["function"]["name"], "execute_python")
@@ -212,7 +230,7 @@ class DeepSeekPythonToolTests(unittest.TestCase):
         self.assertIn('"name": "execute_python"', deepseek_branch)
         self.assertIn('deepseek_kwargs["tools"] = python_tools', deepseek_branch)
         self.assertIn('assistant_tool_message["reasoning_content"] = round_reasoning', deepseek_branch)
-        self.assertIn("safe_execute_python(code)", deepseek_branch)
+        self.assertIn("safe_execute_python(code, on_image=publish_python_image, input_images=image_files)", deepseek_branch)
         self.assertIn("max_tool_rounds = 8", deepseek_branch)
         self.assertIn('"deepseek_tool_context"', app_source)
 

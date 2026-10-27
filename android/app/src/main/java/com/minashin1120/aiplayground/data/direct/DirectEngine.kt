@@ -23,6 +23,8 @@ data class DirectRequest(
     val system: String,
     val turns: List<DirectTurn>,
     val options: JSONObject,
+    /** Saves a streamed output before exposing its reference in the live answer. */
+    val saveOutput: ((DirectOutputFile) -> String)? = null,
 )
 
 /** A file the model produced (generated image or audio), saved by the caller. */

@@ -600,7 +600,7 @@ private fun AudioPreview(file: File) {
 }
 
 @Composable
-private fun VideoPreview(file: File) {
+internal fun VideoPreview(file: File, autoPlay: Boolean = true) {
     AndroidView(
         factory = { context ->
             FrameLayout(context).apply {
@@ -610,7 +610,7 @@ private fun VideoPreview(file: File) {
                 )
                 val video = VideoView(context).apply {
                     setVideoPath(file.absolutePath)
-                    setOnPreparedListener { start() }
+                    setOnPreparedListener { if (autoPlay) start() }
                 }
                 addView(
                     video,

@@ -20,6 +20,51 @@ class DirectEnginesTest {
         result to events
     }
 
+    @Test fun largeJsonIsWrittenIncrementallyWithValidEscapesAndLength() {
+        val original = JSONObject().put("image", "a".repeat(2 * 1024 * 1024))
+            .put("unicode", "x".repeat(4095) + "😀\n\"\\")
+            .put("array", org.json.JSONArray().put(true).put(JSONObject.NULL).put(42))
+        val body = StreamingJsonBody(original)
+        val sink = okio.Buffer()
+        body.writeTo(sink)
+        assertEquals(sink.size, body.contentLength())
+        val restored = JSONObject(sink.readUtf8())
+        assertEquals(original.getString("image"), restored.getString("image"))
+        assertEquals(original.getString("unicode"), restored.getString("unicode"))
+        assertEquals(original.getJSONArray("array").toString(), restored.getJSONArray("array").toString())
+    }
+
+    @Test fun streamedImageIsSavedBeforeItsLiveReferenceIsEmitted() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(sse(
+                """{"candidates":[{"content":{"parts":[{"inlineData":{"mimeType":"image/png","data":"AQID"}}]}}]}""",
+                """{"candidates":[{"content":{"parts":[{"text":"finished"}]}}]}""",
+            ))
+            var saved = false
+            val req = request().copy(saveOutput = { image ->
+                assertArrayEquals(byteArrayOf(1, 2, 3), image.bytes)
+                saved = true
+                "local/output.png"
+            })
+            val (result, events) = run(GeminiDirect(http, server.url("/").toString().trimEnd('/')), req)
+            assertTrue(saved)
+            assertTrue(result.files.isEmpty())
+            assertTrue(events.any { it.optString("type") == "content" && it.optString("content").contains("local/output.png") })
+            assertTrue(result.content.contains("local/output.png"))
+        }
+    }
+
+    @Test fun geminiIncludesPreviouslyGeneratedImagesInFollowupContext() {
+        val image = DirectAttachment("plot.png", "image/png", byteArrayOf(1, 2, 3))
+        val engine = GeminiDirect(http)
+        val payload = engine.buildPayload(request(turns = listOf(
+            DirectTurn("assistant", "plot", generated = listOf(image)), DirectTurn("user", "Explain it"))))
+        val model = payload.getJSONArray("contents").getJSONObject(0)
+        assertEquals("model", model.getString("role"))
+        assertEquals("AQID", model.getJSONArray("parts").getJSONObject(0).getJSONObject("inlineData").getString("data"))
+    }
+
     @Test fun geminiReceivesCodeExecutionImagesLargerThanEightMiB() {
         MockWebServer().use { server ->
             server.start()

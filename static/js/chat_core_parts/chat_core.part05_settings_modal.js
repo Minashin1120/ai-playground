@@ -664,7 +664,7 @@
             const btn = get('quote-popover');
             if (!btn) return;
             const mobile = isQuoteMobileLayout();
-            if (!sel || sel.rangeCount === 0) {
+            if (!sel || sel.rangeCount === 0 || document.querySelector('.modal-open, .modal-prep')) {
                 btn.style.display = 'none';
                 btn.classList.remove('show');
                 return;

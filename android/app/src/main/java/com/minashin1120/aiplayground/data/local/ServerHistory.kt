@@ -40,7 +40,7 @@ class ServerHistory(
         }
         val cached = cachedThread(id)
         val rows = messageRows(cached?.optJSONArray("messages"))
-        if (cached == null || !complete(rows, parentId)) throw ApiException(400, JSONObject().put("code", "serverless_history_unavailable")
+        if (cached == null || !complete(rows, parentId ?: rows.maxOfOrNull { it.optInt("id") })) throw ApiException(400, JSONObject().put("code", "serverless_history_unavailable")
             .put("error", "サーバーに接続できないため、このチャットの履歴を読み込めません。"))
         return Snapshot(cached, rows)
     }
@@ -77,7 +77,8 @@ class ServerHistory(
         while (true) {
             rows += messageRows(reply.optJSONArray("messages"))
             val oldest = reply.opt("oldest_loaded_id")?.takeIf { it != JSONObject.NULL }?.toString()
-            if (complete(rows, parentId) || !reply.optBoolean("has_older_messages") || oldest == null) break
+            val activeParent = parentId ?: rows.maxOfOrNull { it.optInt("id") }
+            if (complete(rows, activeParent) || !reply.optBoolean("has_older_messages") || oldest == null) break
             reply = server.get("/api/threads/$id?limit=$PAGE&include_meta=0&before_id=$oldest", token())
         }
         return Snapshot(first, rows)

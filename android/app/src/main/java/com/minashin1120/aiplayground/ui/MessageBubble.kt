@@ -110,7 +110,7 @@ internal class MessageActions(
 
 /** Web thought text: stored as JSON `{"text": …}` or as plain text. */
 internal fun thoughtText(raw: String): String =
-    runCatching { JSONObject(raw).optString("text") }.getOrNull()?.takeIf { raw.trimStart().startsWith("{") } ?: raw
+    com.minashin1120.aiplayground.data.reasoningText(raw)
 
 /**
  * `.message-group` + `.message-bubble` (chat_core part13 `renderMessage`): right-aligned theme
@@ -198,7 +198,10 @@ internal fun MessageBubble(
                 val (audio, others) = if (user) emptyList<String>() to files
                     else files.partition { isAudioPath(it) && !isVideoPath(it) && it !in message.missingFiles }
                 audio.forEach { InlineAudioPlayer(it, onFile) }
-                if (others.isNotEmpty()) AttachmentGrid(others, loader, onFile, message.missingFiles)
+                val (videos, cards) = if (user) emptyList<String>() to others
+                    else others.partition { isVideoPath(it) && it !in message.missingFiles }
+                videos.forEach { InlineVideoPlayer(it, onFile) }
+                if (cards.isNotEmpty()) AttachmentGrid(cards, loader, onFile, message.missingFiles)
                 if (branchCount > 1) VersionSwitcher(branchIndex, branchCount, actions.onSwitchBranch)
                 MessageFooter(message, user, actions, pythonRuns)
               } }

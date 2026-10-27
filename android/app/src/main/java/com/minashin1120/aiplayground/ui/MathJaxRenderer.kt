@@ -410,7 +410,7 @@ internal fun inlineMathContent(
     textLayout: () -> TextLayoutResult?,
 ): InlineTextContent {
     val scale = fittedMathScale(svg.widthEm, availableWidth, fontPx)
-    val half = maxOf(svg.ascentEm * scale - TEXT_CENTER_EM, svg.depthEm * scale + TEXT_CENTER_EM)
+    val half = maxOf(svg.ascentEm * scale - TEXT_CENTER_EM, svg.depthEm * scale + TEXT_CENTER_EM, svg.heightEm * scale / 2f) + 0.08f
     // Web `mjx-container[display]` keeps 1em above and below a display formula.
     val margin = if (item.display) 1f else 0f
     val placeholder = Placeholder((svg.widthEm * scale).em, (2 * half + 2 * margin).em, PlaceholderVerticalAlign.TextCenter)

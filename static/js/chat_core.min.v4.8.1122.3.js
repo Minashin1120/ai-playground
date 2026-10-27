@@ -488,23 +488,23 @@ max(MARKER_OPACITY_MIN_ALPHA,Math.min(1,Number(markerState.opacity)||.6));t.clea
 height),t.drawImage(w,0,0),t.save(),t.globalAlpha=I,t.drawImage(k,0,0),t.restore()},"renderDrawPrevi\
 ew"),re=o(()=>{_&&(_.strokeStyle=y,_.fillStyle=y,_.lineWidth=b,_.lineCap="round",_.lineJoin="round")},
 "applyMarkerBrush"),le=o(I=>{if(!I)return!1;if(f.length===0)return f.push(I),!0;const O=f[f.length-1],
-ce=I.x-O.x,oe=I.y-O.y,ee=Math.hypot(ce,oe),ae=Math.max(.35,b*.04);if(ee<ae)return!1;const ne=Math.max(
+ce=I.x-O.x,oe=I.y-O.y,ee=Math.hypot(ce,oe),se=Math.max(.35,b*.04);if(ee<se)return!1;const ne=Math.max(
 1,b*.25),K=Math.max(1,Math.ceil(ee/ne));for(let be=1;be<=K;be++){const W=be/K;f.push({x:O.x+ce*W,y:O.
 y+oe*W})}return!0},"appendStrokePoint"),xe=o(()=>{if(_&&(_.clearRect(0,0,k.width,k.height),f.length!==
 0)){if(re(),f.length===1){const I=f[0];_.beginPath(),_.arc(I.x,I.y,b/2,0,Math.PI*2),_.fill();return}
 if(_.beginPath(),_.moveTo(f[0].x,f[0].y),f.length===2)_.lineTo(f[1].x,f[1].y);else{for(let ce=1;ce<f.
-length-2;ce++){const oe=f[ce],ee=f[ce+1],ae=j(oe,ee);_.quadraticCurveTo(oe.x,oe.y,ae.x,ae.y)}const I=f[f.
+length-2;ce++){const oe=f[ce],ee=f[ce+1],se=j(oe,ee);_.quadraticCurveTo(oe.x,oe.y,se.x,se.y)}const I=f[f.
 length-2],O=f[f.length-1];_.quadraticCurveTo(I.x,I.y,O.x,O.y)}_.stroke()}},"renderStrokeLayer"),me=o(
-(I,O)=>{if(!I||!O)return null;const ce=Math.min(I.x,O.x),oe=Math.min(I.y,O.y),ee=Math.abs(I.x-O.x),ae=Math.
-abs(I.y-O.y);return{x:ce,y:oe,w:ee,h:ae}},"normalizeMosaicRect"),ke=o(I=>{const O=n?Number(n.value||
+(I,O)=>{if(!I||!O)return null;const ce=Math.min(I.x,O.x),oe=Math.min(I.y,O.y),ee=Math.abs(I.x-O.x),se=Math.
+abs(I.y-O.y);return{x:ce,y:oe,w:ee,h:se}},"normalizeMosaicRect"),ke=o(I=>{const O=n?Number(n.value||
 16):16,ce=Math.max(6,Math.floor(O)),oe=Math.floor(ce/2);return{x:I.x-oe,y:I.y-oe,w:ce,h:ce}},"buildM\
 osaicRectFromPoint"),$=o(()=>{const I=document.createElement("canvas");I.width=e.width,I.height=e.height;
 const O=I.getContext("2d");if(!O)return null;markerState.baseCanvas&&O.drawImage(markerState.baseCanvas,
 0,0),O.drawImage(e,0,0);try{return O.getImageData(0,0,e.width,e.height)}catch{return null}},"getMosa\
 icSourceImageData"),B=o(I=>{if(!t||!I)return!1;const O=$();if(!O)return!1;const ce=n?Number(n.value||
-16):16,oe=Math.max(4,Math.floor(ce/2)),ee=Math.max(0,Math.floor(I.x)),ae=Math.max(0,Math.floor(I.y)),
-ne=Math.min(e.width,Math.ceil(I.x+I.w)),K=Math.min(e.height,Math.ceil(I.y+I.h));if(ne<=ee||K<=ae)return!1;
-for(let be=ae;be<K;be+=oe)for(let W=ee;W<ne;W+=oe){const Ee=Math.min(oe,ne-W),ut=Math.min(oe,K-be),mt=Math.
+16):16,oe=Math.max(4,Math.floor(ce/2)),ee=Math.max(0,Math.floor(I.x)),se=Math.max(0,Math.floor(I.y)),
+ne=Math.min(e.width,Math.ceil(I.x+I.w)),K=Math.min(e.height,Math.ceil(I.y+I.h));if(ne<=ee||K<=se)return!1;
+for(let be=se;be<K;be+=oe)for(let W=ee;W<ne;W+=oe){const Ee=Math.min(oe,ne-W),ut=Math.min(oe,K-be),mt=Math.
 min(e.width-1,Math.max(0,W+Math.floor(Ee/2))),$e=(Math.min(e.height-1,Math.max(0,be+Math.floor(ut/2)))*
 e.width+mt)*4,ht=O.data[$e],kt=O.data[$e+1],Tt=O.data[$e+2];t.fillStyle=`rgb(${ht},${kt},${Tt})`,t.fillRect(
 W,be,Ee,ut)}return!0},"applyMosaicRect"),q=o(I=>{if(!t)return;if(i.set(I.pointerId,{x:I.clientX,y:I.
@@ -517,8 +517,8 @@ T=O,markerState.mosaicPreviewRect=ke(O),renderCropOverlay();else{if(Se(),!v||!_)
 y=normalizeMarkerHexColor(markerState.colorHex),f=[],le(O),xe(),markerState.hasStroke=!0,G()}e.setPointerCapture&&
 e.setPointerCapture(I.pointerId),I.preventDefault()},"start"),P=o(I=>{if(i.has(I.pointerId)&&i.set(I.
 pointerId,{x:I.clientX,y:I.clientY}),a&&i.size>=2){const ce=Array.from(i.values()),oe=ce[0],ee=ce[1],
-ae=j(oe,ee),ne=Q(oe,ee)||1,K=l*(ne/r);markerView.scale=Math.min(markerView.maxScale,Math.max(markerView.
-minScale,K)),markerView.offsetX=c.x+(ae.x-u.x),markerView.offsetY=c.y+(ae.y-u.y),applyMarkerTransform(),
+se=j(oe,ee),ne=Q(oe,ee)||1,K=l*(ne/r);markerView.scale=Math.min(markerView.maxScale,Math.max(markerView.
+minScale,K)),markerView.offsetX=c.x+(se.x-u.x),markerView.offsetY=c.y+(se.y-u.y),applyMarkerTransform(),
 I.preventDefault();return}if(!J||!t)return;const O=E(I);if(markerState.mode==="mosaic"){if(!C||!T)return;
 markerState.mosaicPreviewRect=me(T,O)||ke(O),renderCropOverlay()}else le(O)&&(xe(),G());I.preventDefault()},
 "move"),D=o(I=>{const O=J;if(i.delete(I.pointerId),i.size<2&&(a=!1),i.size===0){if(J=!1,O&&t&&markerState.
@@ -546,8 +546,8 @@ offsetY},y=C(me,ke),e.setPointerCapture&&e.setPointerCapture(G.pointerId),G.prev
 if(c)return;i=!0;const re=_(G),le=E();r=j(re,le),a=re,l=le?{x:le.x,y:le.y,w:le.w,h:le.h}:null,renderCropOverlay(),
 e.setPointerCapture&&e.setPointerCapture(G.pointerId),G.preventDefault()},"start"),J=o(G=>{if(markerState.
 mode!=="crop")return;if(n.has(G.pointerId)&&n.set(G.pointerId,{x:G.clientX,y:G.clientY}),c&&n.size>=
-2){const I=Array.from(n.values()),O=I[0],ce=I[1],oe=C(O,ce),ee=T(O,ce)||1,ae=f*(ee/u);markerView.scale=
-Math.min(markerView.maxScale,Math.max(markerView.minScale,ae)),markerView.offsetX=b.x+(oe.x-y.x),markerView.
+2){const I=Array.from(n.values()),O=I[0],ce=I[1],oe=C(O,ce),ee=T(O,ce)||1,se=f*(ee/u);markerView.scale=
+Math.min(markerView.maxScale,Math.max(markerView.minScale,se)),markerView.offsetX=b.x+(oe.x-y.x),markerView.
 offsetY=b.y+(oe.y-y.y),applyMarkerTransform(),renderCropOverlay(),G.preventDefault();return}if(!i||!a||
 !l)return;const re=_(G),le=e.width,xe=e.height,me={x:l.x,y:l.y,w:l.w,h:l.h},ke=l.x+l.w,$=l.y+l.h,B=o(
 ()=>{const I=k(re.x,0,ke-w);me.x=I,me.w=ke-I},"applyW"),q=o(()=>{me.w=k(re.x-l.x,w,le-l.x)},"applyE"),
@@ -1062,8 +1062,8 @@ let ce="";if(l){const ne=l.siblings[l.current-2],K=l.siblings[l.current];ce=`
                     </div>
                 `}const oe=c?"fade-in":"",ee=document.createElement("div");ee.className=`flex ${Se} \
 mb-4 ${oe} relative message-group group`,ee.id=`msg-${e}`,ee.innerHTML=`<div class="message-bubble ${J}\
- text-white p-4 rounded-2xl shadow-md relative">${B}${xe}${me}${I}${ke}${ce}${D}</div>`;const ae=_||
-get("chat-container");return ae&&(ae.appendChild(ee),C&&scrollToBottom(),Q||(queueMessageDecorations(
+ text-white p-4 rounded-2xl shadow-md relative">${B}${xe}${me}${I}${ke}${ce}${D}</div>`;const se=_||
+get("chat-container");return se&&(se.appendChild(ee),C&&scrollToBottom(),Q||(queueMessageDecorations(
 ee,re),syncCodingTargetButtons(ee),syncCodingModeUi(codingModeEnabled,{persist:!1}))),ee}o(renderMessage,
 "renderMessage");function showTokenDetailModal(e=null,t=!1){if(location.pathname!=="/token-details"){
 const n={modal:"token-details"};t&&(n.promptEstimate=!0),e!==null&&(n.messageId=e),history.pushState(
@@ -1461,10 +1461,10 @@ signal}));if(!le.ok){const O=await le.json().catch(()=>({}));throw new Error(O&&
 O.error.message:`Gemini API HTTP ${le.status}`)}window.ConnectionMonitor&&(Se=!0,window.ConnectionMonitor.
 operationStarted()),J&&J.setPhase("waiting"),get("prompt-input").value="",get("prompt-input").style.
 height="auto",(G=window.ActivityLog)==null||G.log("send.stream.start");let xe=!1;const me=le.body.getReader(),
-ke=new TextDecoder;let $="";const B=o(O=>{const ce=O.split(/\r?\n/).filter(ae=>ae.startsWith("data:")).
-map(ae=>ae.slice(5).trim()).join("");if(!ce||ce==="[DONE]")return;const oe=JSON.parse(ce);if(oe.error)
+ke=new TextDecoder;let $="";const B=o(O=>{const ce=O.split(/\r?\n/).filter(se=>se.startsWith("data:")).
+map(se=>se.slice(5).trim()).join("");if(!ce||ce==="[DONE]")return;const oe=JSON.parse(ce);if(oe.error)
 throw new Error(oe.error.message||"Gemini API error");if((Array.isArray(oe.candidates)?oe.candidates:
-[]).forEach(ae=>{(ae&&ae.content&&Array.isArray(ae.content.parts)?ae.content.parts:[]).forEach(K=>{if(K&&
+[]).forEach(se=>{(se&&se.content&&Array.isArray(se.content.parts)?se.content.parts:[]).forEach(K=>{if(K&&
 typeof K.thoughtSignature=="string"&&!v.includes(K.thoughtSignature)&&v.push(K.thoughtSignature),K&&
 K.executableCode&&typeof K.executableCode.code=="string"){const W=K.executableCode.code;y+=`
 \`\`\`python
@@ -1482,7 +1482,7 @@ ${W}
 "",output:W}),T[Ee]||(b.insertAdjacentHTML("afterbegin",browserFastPythonBoxHtml(Ee)),T[Ee]=b.querySelector(
 `[data-py-id="${Ee}"]`)),updateBrowserFastPythonBox(T[Ee],"output",W);return}const be=typeof K.text==
 "string"?K.text:"";be&&(K.thought===!0?w+=be:y+=be)})}),!C&&(y||w)){beginPendingToStreamTransition(b);
-const ae=b.querySelector(".content-area");ae&&ae.remove(),C=!0}w&&(_||(b.insertAdjacentHTML("afterbe\
+const se=b.querySelector(".content-area");se&&se.remove(),C=!0}w&&(_||(b.insertAdjacentHTML("afterbe\
 gin",'<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i c\
 lass="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></\
 div>'),_=b.querySelector(".thought-content")),_.textContent=w),y&&(k||(k=document.createElement("div"),
@@ -1676,9 +1676,9 @@ null,code:U.prompt_source?null:U.code,language:U.language||"text",explicit:U.exp
 canvas_mode:!!canvasModeEnabled};e&&(O.turnstile_token=e);const ce=get("thread-custom-instruction");
 ce&&(O.thread_custom_instruction=ce.value||""),activeGem?(O.system_prompt=activeGem.instruction,O.enable_system_prompt=
 !0,O.gem_uuid=activeGem.uuid):O.gem_uuid=null,setSendBtnToStopMode();const oe="ai-"+Date.now(),ee=String(
-O.model||"").toLowerCase(),ae=!!O.enable_thinking||!!D&&D!=="none",ne=ee.includes("gemini")||ee.includes(
+O.model||"").toLowerCase(),se=!!O.enable_thinking||!!D&&D!=="none",ne=ee.includes("gemini")||ee.includes(
 "o1")||ee.includes("o3")||ee.includes("gpt-5")||ee.includes("reasoning")&&!ee.includes("non-reasonin\
-g"),K=ae&&ne;let be=buildPendingSkeletonHtml(O.model,"API\u306B\u9001\u4FE1\u4E2D...");get("chat-con\
+g"),K=se&&ne;let be=buildPendingSkeletonHtml(O.model,"API\u306B\u9001\u4FE1\u4E2D...");get("chat-con\
 tainer").insertAdjacentHTML("beforeend",`<div class="flex justify-start mb-4 ai-pending-row fade-in"\
 ><div id="${oe}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl roun\
 ded-tl-none shadow-md relative">${be}</div></div>`),resumeChatAutoScroll();const W=get(oe);activeStreamingBubbleId=
@@ -1732,7 +1732,7 @@ s="fas fa-check-circle text-green-400"></i> Search complete',setTimeout(()=>{He&
 _decision_request"){openMcpDecisionModal(ye.content||{});continue}if(ye.type==="status"){he();const Te=ye.
 content===null||ye.content===void 0?"":String(ye.content);if(Et("status",!!Te),ft&&W){const Ke=Te||"\
 \u30E2\u30C7\u30EB\u51E6\u7406\u4E2D...";if(!updatePendingSkeletonStatus(W,Ke,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059")){
-const st=W.querySelector(".content-area");st&&(st.outerHTML=buildPendingSkeletonHtml(O.model,Ke),updatePendingSkeletonStatus(
+const at=W.querySelector(".content-area");at&&(at.outerHTML=buildPendingSkeletonHtml(O.model,Ke),updatePendingSkeletonStatus(
 W,Ke,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059"))}}
 K&&ut(Te||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");continue}if(ft){beginPendingToStreamTransition(
 W);const Te=W.querySelector(".content-area");Te&&(Te.innerHTML=""),ft=!1}if(ye.type==="coding_diff")
@@ -1749,7 +1749,7 @@ age-analysis-box");if(!Ke){const tt='<div class="image-analysis-box mb-2 p-2 bg-
 order-blue-500/30 rounded"><div class="text-[10px] text-blue-300 font-medium mb-1"><i class="fas fa-\
 image mr-1"></i>Image Analysis</div><div class="image-analysis-text text-[11px] text-gray-300"></div\
 ></div>';He?He.insertAdjacentHTML("afterend",tt):W.insertAdjacentHTML("afterbegin",tt),Ke=W.querySelector(
-".image-analysis-box")}const st=Ke.querySelector(".image-analysis-text");st&&(st.textContent=Te)}else if(ye.
+".image-analysis-box")}const at=Ke.querySelector(".image-analysis-text");at&&(at.textContent=Te)}else if(ye.
 type==="python"){const Te=ye.content||{},Ke=Te.id||`py_${Date.now()}`;if(!$t[Ke]){const tt=`<div cla\
 ss="code-wrapper python-box collapsed" data-py-id="${Ke}" data-collapsed="true" data-code-key="${Ke}\
 "><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution<\
@@ -1761,12 +1761,12 @@ code="" title="\u30B3\u30FC\u30C9\u3092\u30B3\u30D4\u30FC" aria-label="\u30B3\u3
 el">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="pyt\
 hon-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-\
 output"></code></pre></div></div></div>`;He?He.insertAdjacentHTML("afterend",tt):W.insertAdjacentHTML(
-"afterbegin",tt),$t[Ke]=W.querySelector(`[data-py-id="${Ke}"]`)}const st=$t[Ke];if(st){if(Te.code!==
-void 0){const tt=Te.code==null?"":String(Te.code),gt=st.querySelector(".python-code");gt&&(gt.textContent=
-tt,gt.removeAttribute("data-highlighted"),queueHighlight(st,tt));const St=st.querySelector('.copy-bt\
+"afterbegin",tt),$t[Ke]=W.querySelector(`[data-py-id="${Ke}"]`)}const at=$t[Ke];if(at){if(Te.code!==
+void 0){const tt=Te.code==null?"":String(Te.code),gt=at.querySelector(".python-code");gt&&(gt.textContent=
+tt,gt.removeAttribute("data-highlighted"),queueHighlight(at,tt));const St=at.querySelector('.copy-bt\
 n[data-copy="code"]');St&&St.setAttribute("data-code",encodeURIComponent(tt).replace(/'/g,"%27"))}if(Te.
-output!==void 0){const tt=Te.output==null?"":String(Te.output),gt=st.querySelector(".python-output");
-gt&&(gt.textContent=tt);const St=st.querySelector('.copy-btn[data-copy="output"]');St&&St.setAttribute(
+output!==void 0){const tt=Te.output==null?"":String(Te.output),gt=at.querySelector(".python-output");
+gt&&(gt.textContent=tt);const St=at.querySelector('.copy-btn[data-copy="output"]');St&&St.setAttribute(
 "data-code",encodeURIComponent(tt).replace(/'/g,"%27"))}}}else if(ye.type==="content"){const Te=ye.content===
 null||ye.content===void 0?"":String(ye.content);rt+=Te,/[`~]/.test(Te)&&activateDeferredCodingModeFromStream(
 rt),Ze||(Ze=W.querySelector(".content-area")||document.createElement("div"),Ze.className="prose pros\
@@ -1852,27 +1852,27 @@ fas fa-globe"></i> Searching web...</div>'),C=a.querySelector(".search-box")):ee
 (C.classList.remove("animate-pulse"),C.innerHTML='<i class="fas fa-check-circle text-green-400"></i>\
  Search complete',setTimeout(()=>{C&&C.remove(),C=null},2e3));continue}if(ee.type==="mcp"){handleMcpStreamEvent(
 a,ee.content||{});continue}if(ee.type==="mcp_decision_request"){openMcpDecisionModal(ee.content||{});
-continue}if(ee.type==="status"){const ae=ee.content===null||ee.content===void 0?"":String(ee.content);
-if(v&&a){const ne=ae||"\u30E2\u30C7\u30EB\u51E6\u7406\u4E2D...";if(!updatePendingSkeletonStatus(a,ne,
+continue}if(ee.type==="status"){const se=ee.content===null||ee.content===void 0?"":String(ee.content);
+if(v&&a){const ne=se||"\u30E2\u30C7\u30EB\u51E6\u7406\u4E2D...";if(!updatePendingSkeletonStatus(a,ne,
 "\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059")){
 const K=a.querySelector(".content-area");K&&(K.outerHTML=buildPendingSkeletonHtml(i,ne),updatePendingSkeletonStatus(
 a,ne,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059"))}}
-c&&f(ae||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");continue}if(v){beginPendingToStreamTransition(
-a);const ae=a.querySelector(".content-area");ae&&(ae.innerHTML=""),v=!1}if(ee.type==="coding_diff")appendCodingLiveDiff(
+c&&f(se||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");continue}if(v){beginPendingToStreamTransition(
+a);const se=a.querySelector(".content-area");se&&(se.innerHTML=""),v=!1}if(ee.type==="coding_diff")appendCodingLiveDiff(
 a,ee.content||{});else if(ee.type==="thought"){if(k||(k=a.querySelector(".thought-content")),w+=ee.content,
-!k){const ae='<div class="thought-container"><div class="thought-header" onclick="toggleThinking(thi\
+!k){const se='<div class="thought-container"><div class="thought-header" onclick="toggleThinking(thi\
 s)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content">\
-</div></div>';C?C.insertAdjacentHTML("afterend",ae):a.insertAdjacentHTML("afterbegin",ae),k=a.querySelector(
+</div></div>';C?C.insertAdjacentHTML("afterend",se):a.insertAdjacentHTML("afterbegin",se),k=a.querySelector(
 ".thought-content")}if(k&&k.getAttribute("data-placeholder")==="1"){if(k.textContent="",k.removeAttribute(
-"data-placeholder"),k){const ae=k.parentElement.querySelector(".thought-header");ae&&ae.classList.remove(
+"data-placeholder"),k){const se=k.parentElement.querySelector(".thought-header");se&&se.classList.remove(
 "thinking-shimmer")}w=ee.content}k.classList.remove("collapsed"),ce=!0}else if(ee.type==="image_anal\
-ysis"){const ae=ee.content===null||ee.content===void 0?"":String(ee.content);if(!a)continue;let ne=a.
+ysis"){const se=ee.content===null||ee.content===void 0?"":String(ee.content);if(!a)continue;let ne=a.
 querySelector(".image-analysis-box");if(!ne){const be='<div class="image-analysis-box mb-2 p-2 bg-bl\
 ue-900/20 border border-blue-500/30 rounded"><div class="text-[10px] text-blue-300 font-medium mb-1"\
 ><i class="fas fa-image mr-1"></i>Image Analysis</div><div class="image-analysis-text text-[11px] te\
 xt-gray-300"></div></div>';C?C.insertAdjacentHTML("afterend",be):a.insertAdjacentHTML("afterbegin",be),
 ne=a.querySelector(".image-analysis-box")}const K=ne.querySelector(".image-analysis-text");K&&(K.textContent=
-ae)}else if(ee.type==="python"){const ae=ee.content||{},ne=ae.id||`py_${Date.now()}`;if(!E[ne]){const be=`\
+se)}else if(ee.type==="python"){const se=ee.content||{},ne=se.id||`py_${Date.now()}`;if(!E[ne]){const be=`\
 <div class="code-wrapper python-box collapsed" data-py-id="${ne}" data-collapsed="true" data-code-ke\
 y="${ne}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Ex\
 ecution</span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="\u5C55\u958B"\
@@ -1883,14 +1883,14 @@ ign-left"></i></button></div></div><div class="code-body"><div class="python-sec
 thon-label">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div cl\
 ass="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext\
  python-output"></code></pre></div></div></div>`;C?C.insertAdjacentHTML("afterend",be):a.insertAdjacentHTML(
-"afterbegin",be),E[ne]=a.querySelector(`[data-py-id="${ne}"]`)}const K=E[ne];if(K){if(ae.code!==void 0){
-const be=ae.code==null?"":String(ae.code),W=K.querySelector(".python-code");W&&(W.textContent=be,W.removeAttribute(
+"afterbegin",be),E[ne]=a.querySelector(`[data-py-id="${ne}"]`)}const K=E[ne];if(K){if(se.code!==void 0){
+const be=se.code==null?"":String(se.code),W=K.querySelector(".python-code");W&&(W.textContent=be,W.removeAttribute(
 "data-highlighted"),queueHighlight(K,be));const Ee=K.querySelector('.copy-btn[data-copy="code"]');Ee&&
-Ee.setAttribute("data-code",encodeURIComponent(be).replace(/'/g,"%27"))}if(ae.output!==void 0){const be=ae.
-output==null?"":String(ae.output),W=K.querySelector(".python-output");W&&(W.textContent=be);const Ee=K.
+Ee.setAttribute("data-code",encodeURIComponent(be).replace(/'/g,"%27"))}if(se.output!==void 0){const be=se.
+output==null?"":String(se.output),W=K.querySelector(".python-output");W&&(W.textContent=be);const Ee=K.
 querySelector('.copy-btn[data-copy="output"]');Ee&&Ee.setAttribute("data-code",encodeURIComponent(be).
-replace(/'/g,"%27"))}}}else if(ee.type==="content"){const ae=ee.content===null||ee.content===void 0?
-"":String(ee.content);y+=ae,/[`~]/.test(ae)&&activateDeferredCodingModeFromStream(y),_||(_=a.querySelector(
+replace(/'/g,"%27"))}}}else if(ee.type==="content"){const se=ee.content===null||ee.content===void 0?
+"":String(ee.content);y+=se,/[`~]/.test(se)&&activateDeferredCodingModeFromStream(y),_||(_=a.querySelector(
 ".content-area")||document.createElement("div"),_.className="prose prose-invert text-sm break-words",
 a.contains(_)||a.appendChild(_)),O=!0}else if(ee.type==="error"){T=!0,Q=!0,a.insertAdjacentHTML("bef\
 oreend",buildChatErrorBubbleHtml(ee.content)),showToast(ee.content||"Unknown error","error",!0);break}}catch{}
@@ -2986,7 +2986,7 @@ identifier)}${K.kind==="cookie"?"\u2026":""}\u30FB${escapeHtml(K.reason||"-")}\u
 created_at))}\uFF09</div>`).join(""),oe=q.length?'<div class="text-gray-400">IP\u30FB\u7AEF\u672B\u306EBAN\u304C\u3042\u308B\u3068\u3001\u540C\u3058IP\u30A2\u30C9\u30EC\u30B9\u3084\
 \u7AEF\u672B\u304B\u3089\u306F\u65B0\u3057\u3044\u30A2\u30AB\u30A6\u30F3\u30C8\u3092\u4F5C\u308C\u307E\u305B\u3093\u3002</div>':
 "",ee=$.turnstile_verified_seconds>0?`\u78BA\u8A8D\u6E08\u307F\uFF08\u6B8B\u308A${y($.turnstile_verified_seconds)}\
-\uFF09`:"\u672A\u78BA\u8A8D",ae=$.appeal_count?`\u30FB\u7570\u8B70\u7533\u3057\u7ACB\u3066 ${escapeHtml(
+\uFF09`:"\u672A\u78BA\u8A8D",se=$.appeal_count?`\u30FB\u7570\u8B70\u7533\u3057\u7ACB\u3066 ${escapeHtml(
 String($.appeal_count))}\u4EF6`:"",ne=[];return B.length&&ne.push('<button class="bot-log-unlock bg-\
 yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded">\u30ED\u30C3\u30AF\u3092\u89E3\u9664</button>'),
 q.length&&ne.push('<button class="bot-log-unblock bg-red-600 hover:bg-red-500 text-white px-2 py-1 r\
@@ -3001,7 +3001,7 @@ ounded">IP\u30FB\u7AEF\u672B\u306EBAN\u3092\u89E3\u9664</button>'),`
 String($.lock_count))} / ${escapeHtml(String($.lock_count_limit))}\u30FBTurnstile: ${escapeHtml(ee)}\
 \u30FB\u5931\u6557 ${escapeHtml(String($.turnstile_fail_count))} / ${escapeHtml(String($.turnstile_fail_limit))}\
 \u30FB\u5224\u5B9A\u30B9\u30B3\u30A2 ${escapeHtml(String(Math.round(($.score||0)*10)/10))}\uFF08\u64CD\u4F5C ${escapeHtml(
-String(Math.round(($.behavior_score||0)*10)/10))}\uFF09${ae}</div>
+String(Math.round(($.behavior_score||0)*10)/10))}\uFF09${se}</div>
                         ${ne.length?`<div class="flex flex-wrap gap-2 pt-1">${ne.join("")}</div>`:""}\
 
                     </div>`},"renderState"),j=o(()=>{const $=o((q,P,D)=>`<button class="bot-log-filt\

@@ -4,6 +4,12 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class MarkdownTextTest {
+    @Test fun doubledMathDelimitersRemainMathInsideParagraphsAndLists() {
+        val colors = markdownColorsFor(webPalette(light = false, themeColor = null))
+        val parsed = parseInlineMarkdown("式 \\\\(x^2\\\\) と \\\\(y\\\\)", colors)
+        assertEquals(listOf("x^2", "y"), parsed.math.map { it.tex })
+    }
+
     @Test fun parsesHeadingsQuotesListsAndCodeWithoutExecutingMarkup() {
         val blocks = parseMarkdownBlocks("""# 見出し
 

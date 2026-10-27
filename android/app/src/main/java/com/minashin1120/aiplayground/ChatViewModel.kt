@@ -1494,13 +1494,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             applyServerlessMode(account)
         }
         mutable.update { it.copy(
-            account = account, model = chosen, pairing = false, userCode = "", offline = false,
+            account = account, model = if (it.account?.id == account.id && account.models.any { m -> m.id == it.model && m.selectable }) it.model else chosen, pairing = false, userCode = "", offline = false,
             setupRequired = false, authBusy = false, authError = null,
             canGoBackInChats = chatHistory.canGoBack,
         ) }
         fetchThreads(false)
         runCatching { fetchGems() }.onFailure { report(it) }
-        runCatching { fetchPreferences(applyDefaults = true) }.onFailure { report(it) }
+        runCatching { fetchPreferences(applyDefaults = state.value.selected == null && !state.value.streaming) }.onFailure { report(it) }
         runCatching { fetchBatchJobs(notify = false) }.onFailure { if (it is CancellationException) throw it }
         // The composer shows the MCP chip only when a server is enabled (Web `applyMcpPromptChipUi`).
         loadMcpServers()
@@ -1655,7 +1655,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (slowConnectionCount >= 3) {
                 setConnectionUnavailable(ConnectionStatus.UNSTABLE, "サーバーとの通信が不安定です（遅延 ${latencyMs}ms）")
             } else {
-                markConnectionReachable(wasDisconnected)
+                markConnectionReachable(wasDisconnected, resetSlowCount = false)
             }
             // Parsing also ensures a proxy's non-JSON response is not accepted as a heartbeat.
             reply.optString("version")
@@ -1682,7 +1682,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun observeServerResponses(client: PlaygroundApi) {
         client.onSuccessfulServerResponse = { source ->
             val active = ServerOrigin.current
-            if (source.scheme == active.scheme && source.host == active.host && source.port == active.port) {
+            if (source.encodedPath != "/api/version" && source.scheme == active.scheme && source.host == active.host && source.port == active.port) {
                 connectionProbeHealth.succeeded()
                 viewModelScope.launch {
                     if (foreground && !state.value.localProfile && state.value.connectionStatus != ConnectionStatus.ONLINE) {
@@ -1700,7 +1700,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val siteOnly = requested == ConnectionStatus.OFFLINE && hasUsableNetwork()
         val status = if (siteOnly) ConnectionStatus.UNSTABLE else requested
         val message = if (siteOnly) "このサイトへの通信が完了しませんでした。接続を再確認しています" else requestedMessage
-        slowConnectionCount = 0
         connectionRecoveredHideJob?.cancel()
         connectionRecoveredHideJob = null
         mutable.update { it.copy(
@@ -1711,8 +1710,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         ) }
     }
 
-    private fun markConnectionReachable(wasDisconnected: Boolean = state.value.connectionStatus.isDisconnected()) {
-        slowConnectionCount = 0
+    private fun markConnectionReachable(wasDisconnected: Boolean = state.value.connectionStatus.isDisconnected(), resetSlowCount: Boolean = true) {
+        if (resetSlowCount) slowConnectionCount = 0
         connectionRecoveredHideJob?.cancel()
         mutable.update { it.copy(
             connectionStatus = ConnectionStatus.ONLINE,
@@ -3298,16 +3297,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 Diagnostics.failure("send.error", e, "ms" to System.currentTimeMillis() - sendStarted, "accepted" to accepted)
                 // Web: before the server accepted the send, the optimistic rows go away and the input,
                 // attachments and quote stay; the error is shown as "Connection Error: …".
-                val userId = "local-${body.optString("client_request_id")}"
-                mutable.update { it.copy(
-                    messages = it.messages.filterNot { m -> m.id == userId },
-                    draft = if (it.draft.isBlank()) body.optString("message") else it.draft,
-                    attachments = if (it.attachments.isEmpty()) submission.files else it.attachments,
-                    quote = if (it.quote.isBlank()) body.optString("quote_text") else it.quote,
-                    imageMask = it.imageMask ?: submission.mask,
-                    editingMessageId = it.editingMessageId ?: submission.editingId,
-                ) }
-                if (state.value.editingMessageId == submission.editingId && submission.editingId != null) pendingParentId = submission.parentId
+                if (!accepted) {
+                    val userId = "local-${body.optString("client_request_id")}"
+                    mutable.update { it.copy(
+                        messages = it.messages.filterNot { m -> m.id == userId },
+                        draft = if (it.draft.isBlank()) body.optString("message") else it.draft,
+                        attachments = if (it.attachments.isEmpty()) submission.files else it.attachments,
+                        quote = if (it.quote.isBlank()) body.optString("quote_text") else it.quote,
+                        imageMask = it.imageMask ?: submission.mask,
+                        editingMessageId = it.editingMessageId ?: submission.editingId,
+                    ) }
+                    if (state.value.editingMessageId == submission.editingId && submission.editingId != null) pendingParentId = submission.parentId
+                }
                 when {
                     e is ApiException && e.code == "api_key_missing" -> {
                         // Web `showApiKeyRequiredModalAsync`: set the key, switch model, or show the error.
@@ -3320,11 +3321,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     e is ApiException -> notify("Connection Error: " + e.payload.optString("error").ifBlank { "HTTP ${e.status}" })
                     else -> notify("Connection Error: " + (e.message ?: "通信に失敗しました"))
                 }
-                if (id.isNotBlank() && session != null) runCatching { loadMessages(id, inPlace = true, streamFinished = true) }
+                if (id.isNotBlank() && session != null) {
+                    mutable.update { it.copy(leafId = null) }
+                    runCatching { loadMessages(id, inPlace = true, streamFinished = true) }
+                }
                 notifyAnswerFinishedIfAway(id, failed = true)
             } finally {
                 flow.finish()
-                if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "", live = LiveAnswer()) }
+                if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "", live = LiveAnswer(), liveContent = "", liveThought = "", cards = emptyList(), jobId = null) }
             }
         }
     }
@@ -3334,13 +3338,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * through `/chat_stream_resume` until it finishes (404 means it already ended).
      */
     private suspend fun reconnectUntilAvailable(threadId: String, jobId: String, owner: Job) {
+        var activeJobId = jobId
         while (true) {
             updateLive { it.copy(pendingStatus = if (it.pendingStatus != null) "サーバーへの再接続を待っています..." else null,
                 pendingSub = "回答処理はバックグラウンドで継続しています") }
             delay(CONNECTION_RETRY_DELAY_MS)
-            if (state.value.selected?.id != threadId || jobId.isBlank()) return
+            if (state.value.selected?.id != threadId) return
             try {
-                backend.stream("/chat_stream_resume", JSONObject().put("thread_id", threadId).put("job_id", jobId), token(),
+                if (activeJobId.isBlank()) {
+                    activeJobId = backend.get("/api/threads/$threadId?limit=1", token())
+                        .optJSONObject("pending_job")?.optString("job_id").orEmpty()
+                    if (activeJobId.isBlank()) return
+                    mutable.update { it.copy(jobId = activeJobId) }
+                }
+                backend.stream("/chat_stream_resume", JSONObject().put("thread_id", threadId).put("job_id", activeJobId), token(),
                     onAccepted = { markConnectionReachable() }) { event -> if (streamJob === owner) acceptEvent(threadId, event) }
                 return
             } catch (e: CancellationException) { throw e }
@@ -3396,7 +3407,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 return
             }
-            "done" -> return
+            "done" -> { mutable.update { it.copy(jobId = null) }; return }
         }
         // Web `beginPendingToStreamTransition`: the first answer event replaces the skeleton.
         updateLive { it.copy(pendingStatus = null, pendingSub = "") }
@@ -3431,7 +3442,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             catch (e: Exception) { if (e !is ApiException || e.status != 404) { failed = true; report(e) } }
             finally {
                 flow.finish()
-                if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "", live = LiveAnswer()) }
+                if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "", live = LiveAnswer(), liveContent = "", liveThought = "", cards = emptyList(), jobId = null) }
             }
             runCatching { loadMessages(id, autoResume = false, inPlace = true) }.onFailure { report(it) }
             notifyAnswerFinishedIfAway(id, failed)
@@ -3447,8 +3458,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val started = System.currentTimeMillis()
                 streamJob?.cancelAndJoin()
                 Diagnostics.log("send.stopped", "thread_id" to id, "wait_ms" to System.currentTimeMillis() - started)
-                mutable.update { it.copy(streaming = false, status = "停止を要求しました。", live = LiveAnswer()) }
-                loadMessages(id)
+                mutable.update { it.copy(streaming = false, status = "停止を要求しました。", live = LiveAnswer(), leafId = null) }
+                loadMessages(id, inPlace = true, streamFinished = true)
                 scheduleSync()
                 return@launch
             }
@@ -3462,12 +3473,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (e.status != 404) throw e
             }
             streamJob?.cancelAndJoin()
-            mutable.update { it.copy(streaming = false, status = "停止を要求しました。", jobId = null) }
+            mutable.update { it.copy(streaming = false, status = "停止を要求しました。", jobId = null, leafId = null) }
             // The server saves the partial answer once the worker notices the stop; reload until the job is gone.
             repeat(STOP_RELOAD_ATTEMPTS) {
                 delay(1000)
                 if (state.value.selected?.id != id || state.value.streaming) return@launch
-                loadMessages(id)
+                loadMessages(id, inPlace = true, streamFinished = true)
                 if (!stoppedJobStillRunning) return@launch
             }
         } catch (e: Exception) { report(e) }
@@ -3509,7 +3520,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(batchBanner = text to first.optString("thread_id")) }
         val current = state.value.selected?.id
         if (current != null && (0 until completed.length()).any { completed.getJSONObject(it).optString("thread_id") == current }) {
-            runCatching { loadMessages(current, autoResume = false) }
+            runCatching { loadMessages(current, autoResume = false, inPlace = true) }
         }
         return true
     }
@@ -4279,7 +4290,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 if (session == null) notify("再接続するにはログインしてください。") else {
                     loadAccount()
-                    state.value.selected?.let { loadMessages(it.id) }
+                    state.value.selected?.let { loadMessages(it.id, inPlace = true) }
                 }
                 probeServerConnection()
             } catch (e: Exception) { report(e) }
@@ -4363,11 +4374,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             val options = JSONObject().put("thread_id", current.selected?.id.orEmpty()).put("model", current.model)
                                 .put("coding_mode", current.codingMode).put("enable_file_creation", current.enableFileCreation)
                                 .put("enable_mcp", current.enableMcp).put("enable_python", current.enablePython)
-                            withContext(Dispatchers.IO) {
+                            viewModelScope.launch(Dispatchers.IO) {
                                 if (deviceBackend.needsServerTools(options)) {
-                                    try { SyncEngine(chats, syncApi) { token() }.uploadAttachment(uploaded) { sent, total ->
-                                        mutable.update { it.copy(uploadSent = sent, uploadTotal = total) }
-                                    } }
+                                    try { SyncEngine(chats, syncApi) { token() }.uploadAttachment(uploaded) }
                                     catch (e: CancellationException) { throw e }
                                     catch (e: Exception) { Diagnostics.failure("sync.error", e) }
                                 }

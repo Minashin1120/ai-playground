@@ -1292,6 +1292,11 @@
             const el = get(id);
             if (!el) return;
             if (el.classList.contains('modal-open')) return;
+            const quotePopover = get('quote-popover');
+            if (quotePopover) {
+                quotePopover.style.display = 'none';
+                quotePopover.classList.remove('show');
+            }
             cancelModalTransitions(el);
             el.classList.remove('hidden');
             el.style.display = 'flex';
@@ -7666,7 +7671,7 @@
             const btn = get('quote-popover');
             if (!btn) return;
             const mobile = isQuoteMobileLayout();
-            if (!sel || sel.rangeCount === 0) {
+            if (!sel || sel.rangeCount === 0 || document.querySelector('.modal-open, .modal-prep')) {
                 btn.style.display = 'none';
                 btn.classList.remove('show');
                 return;

@@ -53,7 +53,7 @@ class DirectHttp(
     private fun hostAllowed(host: String): Boolean = host in allowedHosts ||
         (allowedHosts === PROVIDER_HOSTS && Regex("^[a-z0-9-]+-aiplatform\\.googleapis\\.com$").matches(host))
 
-    fun jsonBody(payload: JSONObject): RequestBody = payload.toString().toRequestBody(jsonType)
+    fun jsonBody(payload: JSONObject): RequestBody = StreamingJsonBody(payload)
 
     /** Runs the call; [consume] reads the response on OkHttp's thread. Cancelling the coroutine cancels the call. */
     suspend fun <T> execute(request: Request, consume: (Response) -> T): T = execute(request, client, consume)
@@ -114,6 +114,8 @@ class DirectHttp(
     suspend fun postSse(url: String, headers: Map<String, String>, payload: JSONObject, maxLine: Long = 8L * 1024 * 1024, onEvent: (SseEvent) -> Boolean) {
         execute(request(url, headers).header("Accept", "text/event-stream").post(jsonBody(payload)).build(), streamingClient) { response ->
             if (!response.isSuccessful) throw providerError(response.code, response.body.string())
+            val type = response.body.contentType()
+            if (type != null && type.subtype != "event-stream") throw IOException("事業者APIからストリーム形式ではない応答が返されました。")
             readSse(response.body.source(), maxLine = maxLine, onEvent = onEvent)
         }
     }

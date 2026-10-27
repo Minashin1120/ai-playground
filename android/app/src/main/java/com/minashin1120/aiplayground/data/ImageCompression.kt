@@ -138,3 +138,22 @@ internal fun mimeForExtension(extension: String): String = when (extension.lower
     "webp" -> "image/webp"
     else -> "image/jpeg"
 }
+
+/** Keep native vision request sizes bounded without altering the saved original. */
+internal fun compactVisionImage(bytes: ByteArray): ByteArray {
+    if (bytes.size <= 256 * 1024) return bytes
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return bytes
+    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
+        BitmapFactory.Options().apply { inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight, 1536) }) ?: return bytes
+    var scaled = bitmap
+    try {
+        val ratio = minOf(1f, 1536f / maxOf(bitmap.width, bitmap.height))
+        if (ratio < 1f) scaled = scaleBitmap(bitmap, (bitmap.width * ratio).toInt(), (bitmap.height * ratio).toInt())
+        val out = java.io.ByteArrayOutputStream()
+        if (!scaled.compress(Bitmap.CompressFormat.WEBP, 85, out)) return bytes
+        val result = out.toByteArray()
+        return if (result.size < bytes.size) result else bytes
+    } finally { if (!scaled.isRecycled) scaled.recycle() }
+}

@@ -622,7 +622,7 @@ fun parseMessages(json: JSONObject): List<ChatMessage> {
             JSONArray(attachmentText).strings()
         }.getOrElse { listOf(attachmentText) }
         ChatMessage(row.get("id").toString(), row.optString("role"), row.nullableString("content"),
-            row.nullableString("thought_data"), files,
+            reasoningText(row.nullableString("thought_data")), files,
             parentId = if (row.isNull("parent_id")) null else row.optInt("parent_id"),
             model = row.nullableString("model"),
             tokens = row.nullableInt("tokens"), tokensIn = row.nullableInt("tokens_in"),
@@ -971,7 +971,7 @@ data class LiveAnswer(
 fun pendingSkeletonKind(model: String): String {
     val m = model.lowercase()
     return when {
-        m.contains("video") -> "video"
+        m.contains("video") || m.startsWith("veo") || m.startsWith("sora") -> "video"
         m.contains("tts") || m.contains("transcribe") || m.contains("realtime") || m.contains("voice") ||
             m.contains("native-audio") || (m.contains("live") && m.contains("gemini")) -> "audio"
         m.contains("gpt-image") || m.contains("imagine-image") || m.startsWith("ideogram-") || (m.contains("image") && !m.contains("vision")) ||
@@ -989,4 +989,23 @@ fun showsReasoningProgress(model: String, enableThinking: Boolean, effort: Strin
     val capable = m.contains("gemini") || m.contains("o1") || m.contains("o3") || m.contains("gpt-5") || m.contains("gpt-6") ||
         (m.contains("reasoning") && !m.contains("non-reasoning"))
     return requested && capable
+}
+
+/** Server thought_data may carry provider metadata; only its text belongs in Thinking Process. */
+internal fun reasoningText(raw: String): String {
+    val value = raw.trim()
+    return when {
+        value.startsWith("{") -> runCatching { JSONObject(value).optString("text").takeUnless { it == "null" }.orEmpty() }.getOrDefault(raw)
+        value.startsWith("[") -> runCatching {
+            val parts = JSONArray(value)
+            (0 until parts.length()).mapNotNull { index ->
+                when (val part = parts.opt(index)) {
+                    is String -> part
+                    is JSONObject -> part.optString("text").takeIf { it.isNotBlank() && it != "null" }
+                    else -> null
+                }
+            }.joinToString("\n")
+        }.getOrDefault(raw)
+        else -> raw
+    }
 }

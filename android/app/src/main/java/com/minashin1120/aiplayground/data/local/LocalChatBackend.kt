@@ -597,12 +597,17 @@ class LocalChatBackend(
             Diagnostics.log("gen.turns", "turns" to turns.size, "attachments" to turns.sumOf { it.attachments.size },
                 "attachment_bytes" to turns.sumOf { turn -> turn.attachments.sumOf { it.bytes?.size?.toLong() ?: 0L } },
                 "ms" to elapsed(), "memory" to Diagnostics.memory())
-            val result = route.engine.run(DirectRequest(model, apiKey, system, turns, body), onEvent) { content, thought ->
+            val streamedOutputs = mutableListOf<String>()
+            val result = route.engine.run(DirectRequest(model, apiKey, system, turns, body, saveOutput = { file ->
+                val ref = store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong())
+                streamedOutputs += ref
+                ref
+            }), onEvent) { content, thought ->
                 partialContent = content; partialThought = thought
                 val now = System.currentTimeMillis()
                 if (now - lastSave > 3000) { lastSave = now; store.updateMessage(chat.outboxId, assistantId, content, thought) }
             }
-            val outputs = result.files.map { file -> store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong()) }
+            val outputs = streamedOutputs + result.files.map { file -> store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong()) }
             val content = withoutInventedAgenticImages(result.content, turns)
             store.updateMessage(chat.outboxId, assistantId, content, result.thought, result.tokensIn, result.tokensOut,
                 files = outputs.takeIf { it.isNotEmpty() }, done = true)

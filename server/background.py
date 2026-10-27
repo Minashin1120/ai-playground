@@ -74,7 +74,7 @@ def _sanitize_python_sandbox_output(value):
     return text
 
 
-def safe_execute_python(code):
+def safe_execute_python(code, on_image=None, input_images=()):
     """Executes Python code in a restricted environment using bubblewrap."""
     import subprocess
     import tempfile
@@ -112,6 +112,17 @@ def safe_execute_python(code):
         code_path = os.path.join(td, "code.py")
         with open(code_path, "w") as f:
             f.write(code)
+        # Fixed names only; no provider-supplied path can escape the disposable sandbox.
+        for image_index, image in enumerate(input_images[:8], 1):
+            data = image.get("bytes") or b""
+            if len(data) > 8 * 1024 * 1024:
+                continue
+            try:
+                image_data, ext = _prepare_agentic_image_bytes(data, image.get("mime"))
+            except ValueError:
+                continue
+            with open(os.path.join(td, f"input_{image_index}.{ext}"), "wb") as image_file:
+                image_file.write(image_data)
         binds = [
             ("--ro-bind", "/usr", "/usr"),
             ("--ro-bind", "/bin", "/bin"),
@@ -157,7 +168,7 @@ def safe_execute_python(code):
         ]
         for b in binds:
             cmd.extend(list(b))
-        cmd.extend(["--bind", td, "/work", py_path, "/work/code.py"])
+        cmd.extend(["--bind", td, "/work", "--chdir", "/work", py_path, "/work/code.py"])
         try:
             with tempfile.TemporaryFile(mode="w+b") as output:
                 subprocess.run(
@@ -171,6 +182,31 @@ def safe_execute_python(code):
             if truncated:
                 out += "\n[Output truncated at 2MB]"
             out = _sanitize_python_sandbox_output(out)
+            if on_image is not None:
+                import stat
+                exported = 0
+                total = 0
+                # Never follow links made by model-written code or read arbitrary host files.
+                with os.scandir(td) as entries:
+                    for entry in entries:
+                        if exported >= 8 or total >= 16 * 1024 * 1024:
+                            break
+                        if entry.name.startswith("input_") or not entry.name.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".svg")):
+                            continue
+                        if not entry.is_file(follow_symlinks=False):
+                            continue
+                        fd = os.open(entry.path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                        with os.fdopen(fd, "rb") as image_file:
+                            info = os.fstat(image_file.fileno())
+                            if not stat.S_ISREG(info.st_mode) or info.st_size > min(8 * 1024 * 1024, 16 * 1024 * 1024 - total):
+                                continue
+                            image_bytes = image_file.read(8 * 1024 * 1024 + 1)
+                        try:
+                            on_image(image_bytes)
+                        except ValueError:
+                            continue
+                        exported += 1
+                        total += len(image_bytes)
             return out if out.strip() else "Success (No output)"
         except subprocess.TimeoutExpired:
             return "Error: Execution timed out (30s limit)"
@@ -857,6 +893,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             # Persist before publish so a client reload right after the error event
             # already finds the saved assistant bubble.
             if dt == "error":
+                d = readable_provider_error(d)
                 _persist_stream_error(d)
             event_payload = {"type": dt, "content": d}
             event_payload.update(metadata)
@@ -6011,10 +6048,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     include_only_images=True
                                 )
                                 for ds_msg_img in ds_msg_images:
-                                    ds_b64 = base64.b64encode(ds_msg_img['bytes']).decode('utf-8')
+                                    ds_bytes, ds_mime = _compact_vision_image(ds_msg_img['bytes'], ds_msg_img['mime'])
+                                    ds_b64 = base64.b64encode(ds_bytes).decode('utf-8')
                                     ds_content_parts.append({
                                         "type": "image_url",
-                                        "image_url": {"url": f"data:{ds_msg_img['mime']};base64,{ds_b64}"}
+                                        "image_url": {"url": f"data:{ds_mime};base64,{ds_b64}"}
                                     })
                                 messages.append({"role": m['role'], "content": ds_content_parts})
                             except Exception as ds_hist_err:
@@ -6081,8 +6119,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         if user_text.strip():
                             deepseek_user_content.append({"type": "text", "text": user_text})
                         for ds_idx, ds_file in enumerate(image_files):
-                            ds_img_b64 = base64.b64encode(ds_file.get('bytes') or b"").decode("utf-8")
-                            ds_img_mime = str(ds_file.get('mime', 'image/png')) or "image/png"
+                            ds_img_bytes, ds_img_mime = _compact_vision_image(ds_file.get('bytes') or b"", str(ds_file.get('mime', 'image/png')) or "image/png")
+                            ds_img_b64 = base64.b64encode(ds_img_bytes).decode("utf-8")
                             deepseek_user_content.append({
                                 "type": "image_url",
                                 "image_url": {"url": f"data:{ds_img_mime};base64,{ds_img_b64}"}
@@ -6101,6 +6139,23 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         req_reasoning_effort != "none"
                         and (bool(options.get('enable_thinking')) or bool(req_reasoning_effort))
                     )
+                    def publish_python_image(data):
+                        nonlocal full_res
+                        image_data, ext = _prepare_agentic_image_bytes(data)
+                        digest = hashlib.sha256(image_data).hexdigest()
+                        if digest in agentic_image_digests:
+                            return
+                        agentic_image_digests.add(digest)
+                        _, url = _save_user_generated_bytes_verified(
+                            user_id, image_data,
+                            lambda: f"agentic_{int(time.time() * 1000)}_{os.urandom(4).hex()}.{ext}",
+                            user_config.get('enable_e2ee'),
+                        )
+                        agentic_saved_urls.append(url)
+                        markdown = f"\n![Agentic View]({url})\n"
+                        full_res += markdown
+                        pub("content", markdown)
+
                     python_tools = []
                     if options.get("enable_python"):
                         if _auto_notice_enabled("deepseek_python"):
@@ -6115,7 +6170,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 "description": (
                                     "Execute Python code for calculations, verification, or data analysis. "
                                     "The isolated environment has no network access. "
-                                    "The code must print every result that should be returned to you."
+                                    "Print text results. Save output images in /work as PNG, JPEG, WebP or SVG; they are displayed immediately. "
+                                    "Attached images are /work/input_1.<ext>, input_2.<ext>, etc.; use glob to locate them."
                                 ),
                                 "parameters": {
                                     "type": "object",
@@ -6371,7 +6427,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     code = parsed_arguments.get("code")
                                     if not isinstance(code, str) or not code.strip():
                                         raise ValueError("code must be a non-empty string")
-                                    result = safe_execute_python(code)
+                                    result = safe_execute_python(code, on_image=publish_python_image, input_images=image_files)
                                 except Exception as tool_exc:
                                     result = f"Error: Invalid execute_python arguments: {tool_exc}"
 
@@ -7386,6 +7442,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 elif enable_reasoning and not thought_accumulated:
                     log_force("Reasoning summary missing after stream and retrieve fallback.")
 
+            if (is_gem or is_deepseek) and not full_res.strip() and not generated_images and not stream_error_persisted:
+                pub("error", "モデルから回答本文が返されませんでした。時間をおいて再試行してください。")
+            # pub(error) has already saved the partial answer and error as the active leaf.
+            # A second normal row would hide that error behind an empty sibling branch.
+            if stream_error_persisted:
+                return
             if is_grok and grok_reasoning_supported and not thought_accumulated:
                 thought_accumulated = " "
             final_content = _strip_invented_agentic_images(

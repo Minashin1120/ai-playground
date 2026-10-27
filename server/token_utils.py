@@ -308,6 +308,17 @@ def build_message_token_details(role, content, thought_text, model_key, tokens_i
         "tokens_thought": tokens_thought,
     }
 
+def readable_provider_error(value):
+    """Do not expose proxy HTML as a chat error; preserve the actionable HTTP status."""
+    text = str(value or "Unknown error")
+    if re.search(r"<\s*(?:html|head|body|!doctype)\b", text, re.I):
+        if re.search(r"\b413\b", text):
+            return "API Error (413): 画像や会話の送信サイズが上限を超えました。画像を圧縮するか、新しいチャットで再試行してください。"
+        status = re.search(r"\b([45]\d{2})\b", text)
+        return f"API Error ({status.group(1)}): 接続先からエラーが返されました。時間をおいて再試行してください。" if status else "API Error: 接続先から読み取れない応答が返されました。"
+    return text
+
+
 @retry(stop=stop_after_attempt(3), wait=wait_fixed(1), retry=retry_if_exception_type(exc.SQLAlchemyError))
 def format_chat_error_content(error_text, partial_content=""):
     """Build assistant content that renders as a persistent chat error bubble.

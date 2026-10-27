@@ -82,8 +82,11 @@ class ChatCompletionsDirect(
             if (acceptsImages && images.isNotEmpty()) {
                 val parts = JSONArray()
                 images.forEach { image ->
+                    val original = image.bytes!!
+                    val bytes = if (request.model.startsWith("deepseek")) com.minashin1120.aiplayground.data.compactVisionImage(original) else original
+                    val mime = if (bytes !== original) "image/webp" else image.mime
                     parts.put(JSONObject().put("type", "image_url").put("image_url", JSONObject()
-                        .put("url", "data:${image.mime};base64," + Base64.getEncoder().encodeToString(image.bytes))))
+                        .put("url", "data:${mime};base64," + Base64.getEncoder().encodeToString(bytes))))
                 }
                 parts.put(JSONObject().put("type", "text").put("text", text))
                 messages.put(JSONObject().put("role", "user").put("content", parts))

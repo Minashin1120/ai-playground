@@ -403,12 +403,13 @@ measureInteractionFrames(!0);const modalCloseTimers=new WeakMap,modalOpenFrames=
 e=>{const t=modalCloseTimers.get(e);t&&(clearTimeout(t),modalCloseTimers.delete(e));const n=modalOpenFrames.
 get(e);n&&(cancelAnimationFrame(n.first),n.second&&cancelAnimationFrame(n.second),modalOpenFrames.delete(
 e))},"cancelModalTransitions"),showModal=o(e=>{const t=get(e);if(!t||t.classList.contains("modal-ope\
-n"))return;cancelModalTransitions(t),t.classList.remove("hidden"),t.style.display="flex",t.classList.
-remove("modal-close"),t.classList.remove("modal-open"),t.classList.add("modal-prep");const n={first:0,
-second:0};n.first=requestAnimationFrame(()=>{n.second=requestAnimationFrame(()=>{modalOpenFrames.delete(
-t),t.classList.remove("modal-prep"),t.classList.add("modal-open")})}),modalOpenFrames.set(t,n)},"sho\
-wModal");window.showModal=showModal;const hideModal=o((e,t={})=>{var l;e==="token-detail-modal"&&typeof cancelPromptTokenDetail==
-"function"&&(cancelPromptTokenDetail(),get("token-detail-estimate")&&!get("token-detail-estimate").classList.
+n"))return;const n=get("quote-popover");n&&(n.style.display="none",n.classList.remove("show")),cancelModalTransitions(
+t),t.classList.remove("hidden"),t.style.display="flex",t.classList.remove("modal-close"),t.classList.
+remove("modal-open"),t.classList.add("modal-prep");const i={first:0,second:0};i.first=requestAnimationFrame(
+()=>{i.second=requestAnimationFrame(()=>{modalOpenFrames.delete(t),t.classList.remove("modal-prep"),
+t.classList.add("modal-open")})}),modalOpenFrames.set(t,i)},"showModal");window.showModal=showModal;
+const hideModal=o((e,t={})=>{var l;e==="token-detail-modal"&&typeof cancelPromptTokenDetail=="functi\
+on"&&(cancelPromptTokenDetail(),get("token-detail-estimate")&&!get("token-detail-estimate").classList.
 contains("hidden")&&((l=get("prompt-token-estimate"))==null||l.focus()));const n=get(e);if(!n)return;
 cancelModalTransitions(n);const i=!!(t&&t.skipConfirm),a=!!(t&&t.skipReset);if(e==="camera-capture-m\
 odal"&&cameraCapturePendingFiles.length>0&&!i&&!cameraCaptureBusy){attachCameraCapturedFiles();return}
@@ -2317,53 +2318,53 @@ return null}o(getSelectionMessageId,"getSelectionMessageId");function showQuoteP
 preview")||(currentQuote="",currentQuoteMessageId=null,t.classList.add("preview")),get("quote-text-d\
 isplay").innerText=e,t.classList.add("visible"),schedulePromptTokenEstimate()}o(showQuotePreview,"sh\
 owQuotePreview");function handleQuotePopover(){const e=window.getSelection(),t=get("quote-popover");
-if(!t)return;const n=isQuoteMobileLayout();if(!e||e.rangeCount===0){t.style.display="none",t.classList.
-remove("show");return}const i=e.toString().trim();if(i.length>0&&get("chat-container").contains(e.anchorNode)){
-if(n){showQuotePreview(i);return}const r=e.getRangeAt(0).getBoundingClientRect(),l=t.style.display===
-"none"||!t.style.display||getComputedStyle(t).display==="none";t.style.display="block",t.style.top=r.
-top-40+"px",t.style.left=r.left+"px",l&&(t.classList.remove("show"),t.offsetWidth,t.classList.add("s\
-how"))}else t.style.display="none",t.classList.remove("show")}o(handleQuotePopover,"handleQuotePopov\
-er"),document.addEventListener("mouseup",handleQuotePopover),document.addEventListener("touchend",()=>setTimeout(
-handleQuotePopover,0),{passive:!0}),document.addEventListener("selectionchange",()=>{window.getSelection&&
-window.getSelection().type==="Range"&&handleQuotePopover()}),get("quote-popover").onclick=()=>{currentQuote=
-window.getSelection().toString().trim(),currentQuoteMessageId=currentQuote?getSelectionMessageId():null,
-currentQuote&&(get("quote-text-display").innerText=currentQuote,get("quote-bar").classList.add("visi\
-ble"),get("prompt-input").focus()),schedulePromptTokenEstimate();const e=get("quote-popover");e&&(e.
-style.display="none",e.classList.remove("show"))},get("quote-confirm-btn").onclick=()=>{if(!quotePreviewText)
-return;currentQuote=quotePreviewText,currentQuoteMessageId=quotePreviewMessageId,quotePreviewText="",
-quotePreviewMessageId=null,get("quote-bar").classList.remove("preview"),get("prompt-input").focus(),
-schedulePromptTokenEstimate()},window.clearQuote=()=>{currentQuote="",currentQuoteMessageId=null,quotePreviewText=
-"",quotePreviewMessageId=null;const e=get("quote-bar");e.classList.remove("preview"),e.classList.remove(
-"visible"),get("quote-text-display").innerText="",schedulePromptTokenEstimate()};const MODELS=[{category:"\
-Gemini 4 / 3.8 / 3.7 / 3.6 / 3.5",icon:"fas fa-star text-yellow-400",description:"Google's latest mu\
-ltimodal models",items:[{id:"gemini-4-argon",implementedAt:"2026-10-16",implementedRank:10921,quickEmoji:"\
-\u269B\uFE0F",name:"Gemini 4 Argon",desc:"Flagship reasoning model for complex coding, agentic workf\
-lows, and multimodal tasks, with a 1M-token context window and long decodes.",price:"In $2.00/1M, Ou\
-t $10.00/1M (through 2026-11-30)",agenticView:!0},{id:"gemini-3.8-flash",implementedAt:"2026-09-05",
-implementedRank:9160,quickEmoji:"\u26A1",name:"Gemini 3.8 Flash",desc:"Most intelligent Flash model \
-for long-horizon software engineering, autonomous agents, and complex enterprise workflows.",price:"\
-In $0.75/1M, Out $3.75/1M (through 2026-12-31)",agenticView:!0},{id:"gemini-3.8-flash-cyber",implementedAt:"\
-2026-09-20",implementedRank:9180,quickEmoji:"\u{1F6E1}\uFE0F",name:"Gemini 3.8 Flash Cyber",desc:"Ge\
-mini 3.8 Flash post-trained for cybersecurity workflows. Vertex AI only; access is allowlisted by Go\
-ogle.",price:"Google Cloud Standard PayGo / Flex PayGo / Priority PayGo",agenticView:!0},{id:"gemini\
--3.7-flash",implementedAt:"2026-08-14",implementedRank:8e3,quickEmoji:"\u26A1",name:"Gemini 3.7 Flas\
-h",desc:"Most capable Flash model for complex coding, agentic workflows, and multimodal tasks.",price:"\
-In $0.75/1M, Out $3.75/1M (introductory)",agenticView:!0},{id:"gemini-3.6-flash",implementedAt:"2026\
--07-30",implementedRank:6411,quickEmoji:"\u26A1",name:"Gemini 3.6 Flash",desc:"Latest Flash model fo\
-r agentic, coding, and multimodal tasks.",price:"In $1.50/1M, Out $7.50/1M",agenticView:!0},{id:"gem\
-ini-3.5-flash",implementedAt:"2026-06-13",implementedRank:5900,quickEmoji:"\u2728",name:"Gemini 3.5 \
-Flash",desc:"Most intelligent Gemini 3.5 model built for speed.",price:"In $1.50/1M, Out $9.00/1M",agenticView:!0},
-{id:"gemini-3.5-flash-lite",implementedAt:"2026-07-30",implementedRank:6410,quickEmoji:"\u{1F680}",name:"\
-Gemini 3.5 Flash-Lite",desc:"Fastest, lowest-cost Gemini 3.5 model for high-throughput execution.",price:"\
-In $0.30/1M, Out $2.50/1M",agenticView:!0}]},{category:"Gemini 3.1 / Previous",icon:"fas fa-star tex\
-t-yellow-400",description:"Previous Gemini 3.x generation models",items:[{id:"gemini-3.1-flash-lite",
-implementedAt:"2026-07-30",implementedRank:6440,quickEmoji:"\u{1F4A8}",name:"Gemini 3.1 Flash-Lite",
-desc:"Stable, cost-efficient model for high-volume lightweight tasks.",price:"In $0.25/1M, Out $1.50\
-/1M",agenticView:!0},{id:"gemini-3.1-pro-preview",implementedAt:"2026-02-20",implementedRank:2430,name:"\
-Gemini 3.1 Pro",desc:"Next-gen native multimodal model.",price:"In $2.00/1M, Out $12.00/1M (\u2264200k)"},
-{id:"gemini-3.1-flash-lite-preview",implementedAt:"2026-03-04",implementedRank:3e3,name:"Gemini 3.1 \
-Flash-Lite Preview",desc:"Retired preview model retained for chat history compatibility.",price:"In \
-$0.25/1M, Out $1.50/1M",deprecated:!0},{id:"gemini-3-flash-preview",implementedAt:"2026-06-13",implementedRank:5930,
+if(!t)return;const n=isQuoteMobileLayout();if(!e||e.rangeCount===0||document.querySelector(".modal-o\
+pen, .modal-prep")){t.style.display="none",t.classList.remove("show");return}const i=e.toString().trim();
+if(i.length>0&&get("chat-container").contains(e.anchorNode)){if(n){showQuotePreview(i);return}const r=e.
+getRangeAt(0).getBoundingClientRect(),l=t.style.display==="none"||!t.style.display||getComputedStyle(
+t).display==="none";t.style.display="block",t.style.top=r.top-40+"px",t.style.left=r.left+"px",l&&(t.
+classList.remove("show"),t.offsetWidth,t.classList.add("show"))}else t.style.display="none",t.classList.
+remove("show")}o(handleQuotePopover,"handleQuotePopover"),document.addEventListener("mouseup",handleQuotePopover),
+document.addEventListener("touchend",()=>setTimeout(handleQuotePopover,0),{passive:!0}),document.addEventListener(
+"selectionchange",()=>{window.getSelection&&window.getSelection().type==="Range"&&handleQuotePopover()}),
+get("quote-popover").onclick=()=>{currentQuote=window.getSelection().toString().trim(),currentQuoteMessageId=
+currentQuote?getSelectionMessageId():null,currentQuote&&(get("quote-text-display").innerText=currentQuote,
+get("quote-bar").classList.add("visible"),get("prompt-input").focus()),schedulePromptTokenEstimate();
+const e=get("quote-popover");e&&(e.style.display="none",e.classList.remove("show"))},get("quote-conf\
+irm-btn").onclick=()=>{if(!quotePreviewText)return;currentQuote=quotePreviewText,currentQuoteMessageId=
+quotePreviewMessageId,quotePreviewText="",quotePreviewMessageId=null,get("quote-bar").classList.remove(
+"preview"),get("prompt-input").focus(),schedulePromptTokenEstimate()},window.clearQuote=()=>{currentQuote=
+"",currentQuoteMessageId=null,quotePreviewText="",quotePreviewMessageId=null;const e=get("quote-bar");
+e.classList.remove("preview"),e.classList.remove("visible"),get("quote-text-display").innerText="",schedulePromptTokenEstimate()};
+const MODELS=[{category:"Gemini 4 / 3.8 / 3.7 / 3.6 / 3.5",icon:"fas fa-star text-yellow-400",description:"\
+Google's latest multimodal models",items:[{id:"gemini-4-argon",implementedAt:"2026-10-16",implementedRank:10921,
+quickEmoji:"\u269B\uFE0F",name:"Gemini 4 Argon",desc:"Flagship reasoning model for complex coding, a\
+gentic workflows, and multimodal tasks, with a 1M-token context window and long decodes.",price:"In \
+$2.00/1M, Out $10.00/1M (through 2026-11-30)",agenticView:!0},{id:"gemini-3.8-flash",implementedAt:"\
+2026-09-05",implementedRank:9160,quickEmoji:"\u26A1",name:"Gemini 3.8 Flash",desc:"Most intelligent \
+Flash model for long-horizon software engineering, autonomous agents, and complex enterprise workflo\
+ws.",price:"In $0.75/1M, Out $3.75/1M (through 2026-12-31)",agenticView:!0},{id:"gemini-3.8-flash-cy\
+ber",implementedAt:"2026-09-20",implementedRank:9180,quickEmoji:"\u{1F6E1}\uFE0F",name:"Gemini 3.8 F\
+lash Cyber",desc:"Gemini 3.8 Flash post-trained for cybersecurity workflows. Vertex AI only; access \
+is allowlisted by Google.",price:"Google Cloud Standard PayGo / Flex PayGo / Priority PayGo",agenticView:!0},
+{id:"gemini-3.7-flash",implementedAt:"2026-08-14",implementedRank:8e3,quickEmoji:"\u26A1",name:"Gemi\
+ni 3.7 Flash",desc:"Most capable Flash model for complex coding, agentic workflows, and multimodal t\
+asks.",price:"In $0.75/1M, Out $3.75/1M (introductory)",agenticView:!0},{id:"gemini-3.6-flash",implementedAt:"\
+2026-07-30",implementedRank:6411,quickEmoji:"\u26A1",name:"Gemini 3.6 Flash",desc:"Latest Flash mode\
+l for agentic, coding, and multimodal tasks.",price:"In $1.50/1M, Out $7.50/1M",agenticView:!0},{id:"\
+gemini-3.5-flash",implementedAt:"2026-06-13",implementedRank:5900,quickEmoji:"\u2728",name:"Gemini 3\
+.5 Flash",desc:"Most intelligent Gemini 3.5 model built for speed.",price:"In $1.50/1M, Out $9.00/1M",
+agenticView:!0},{id:"gemini-3.5-flash-lite",implementedAt:"2026-07-30",implementedRank:6410,quickEmoji:"\
+\u{1F680}",name:"Gemini 3.5 Flash-Lite",desc:"Fastest, lowest-cost Gemini 3.5 model for high-through\
+put execution.",price:"In $0.30/1M, Out $2.50/1M",agenticView:!0}]},{category:"Gemini 3.1 / Previous",
+icon:"fas fa-star text-yellow-400",description:"Previous Gemini 3.x generation models",items:[{id:"g\
+emini-3.1-flash-lite",implementedAt:"2026-07-30",implementedRank:6440,quickEmoji:"\u{1F4A8}",name:"G\
+emini 3.1 Flash-Lite",desc:"Stable, cost-efficient model for high-volume lightweight tasks.",price:"\
+In $0.25/1M, Out $1.50/1M",agenticView:!0},{id:"gemini-3.1-pro-preview",implementedAt:"2026-02-20",implementedRank:2430,
+name:"Gemini 3.1 Pro",desc:"Next-gen native multimodal model.",price:"In $2.00/1M, Out $12.00/1M (\u22642\
+00k)"},{id:"gemini-3.1-flash-lite-preview",implementedAt:"2026-03-04",implementedRank:3e3,name:"Gemi\
+ni 3.1 Flash-Lite Preview",desc:"Retired preview model retained for chat history compatibility.",price:"\
+In $0.25/1M, Out $1.50/1M",deprecated:!0},{id:"gemini-3-flash-preview",implementedAt:"2026-06-13",implementedRank:5930,
 name:"Gemini 3.0 Flash",desc:"Fastest and most cost-efficient.",price:"In $0.50/1M, Out $3.00/1M"},{
 id:"gemini-3-pro-preview",implementedAt:"2026-01-15",implementedRank:100,name:"Gemini 3.0 Pro",desc:"\
 Shut down by Google (March 2026). Retained for chat history compatibility.",price:"In $2.00/1M, Out \

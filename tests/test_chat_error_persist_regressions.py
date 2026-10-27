@@ -43,7 +43,7 @@ class ChatErrorPersistRegressionTests(unittest.TestCase):
         self.assertIn("parent_id=message_id", task)
 
         # Save must happen before clients observe the error event.
-        persist_idx = task.index('if dt == "error":\n                _persist_stream_error(d)')
+        persist_idx = task.index('_persist_stream_error(d)', task.index('def pub('))
         publish_idx = task.index("r.publish(channel, json.dumps(event_payload))", persist_idx)
         self.assertLess(persist_idx, publish_idx)
 

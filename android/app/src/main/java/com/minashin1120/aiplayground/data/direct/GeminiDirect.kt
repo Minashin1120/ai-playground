@@ -36,6 +36,7 @@ class GeminiDirect(
         val thought = StringBuilder()
         val signatures = mutableListOf<String>()
         val files = mutableListOf<DirectOutputFile>()
+        var streamedImages = 0
         var usage: JSONObject? = null
         var searching = false
         val grounding = GeminiGrounding()
@@ -88,7 +89,15 @@ class GeminiDirect(
                         val mime = data.optString("mimeType").ifBlank { "image/png" }
                         val bytes = runCatching { Base64.getDecoder().decode(data.optString("data")) }.getOrNull()
                         if (bytes != null && bytes.isNotEmpty() && part.optBoolean("thought") != true) {
-                            files += DirectOutputFile("gemini_${files.size + 1}.${extensionFor(mime)}", mime, bytes)
+                            val file = DirectOutputFile("gemini_${System.nanoTime()}.${extensionFor(mime)}", mime, bytes)
+                            streamedImages++
+                            val saved = request.saveOutput?.invoke(file)
+                            if (saved == null) files += file
+                            else {
+                                val markdown = "\n![Agentic View]($saved)\n"
+                                content.append(markdown)
+                                emit(event("content", markdown))
+                            }
                         }
                     }
                     val text = part.optString("text")
@@ -103,6 +112,8 @@ class GeminiDirect(
         }
         Diagnostics.log("gemini.stream_end", "chunks" to chunks, "content_chars" to content.length,
             "ms" to System.currentTimeMillis() - requestStarted)
+        if (content.isBlank() && files.isEmpty() && streamedImages == 0) throw DirectApiException(0,
+            "モデルから回答本文が返されませんでした。時間をおいて再試行してください。")
         val answer = grounding.finish(content.toString(), request.options, modelText.toString()) { emit(event("content", it)) }
         if (searching) emit(event("search_status", "done"))
         val meta = usage
@@ -292,7 +303,7 @@ class GeminiDirect(
         val contents = JSONArray()
         request.turns.forEach { turn ->
             val parts = JSONArray()
-            turn.attachments.forEach { attachment ->
+            (turn.attachments + turn.generated).forEach { attachment ->
                 val bytes = attachment.bytes
                 val uploaded = uploads[attachment]
                 when {

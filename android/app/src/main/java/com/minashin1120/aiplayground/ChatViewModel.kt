@@ -1500,7 +1500,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         ) }
         fetchThreads(false)
         runCatching { fetchGems() }.onFailure { report(it) }
-        runCatching { fetchPreferences(applyDefaults = state.value.selected == null && !state.value.streaming) }.onFailure { report(it) }
+        runCatching { fetchPreferences(applyDefaults = state.value.selected == null && !state.value.streaming && !modelChosenManually) }.onFailure { report(it) }
         runCatching { fetchBatchJobs(notify = false) }.onFailure { if (it is CancellationException) throw it }
         // The composer shows the MCP chip only when a server is enabled (Web `applyMcpPromptChipUi`).
         loadMcpServers()
@@ -4374,7 +4374,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             val options = JSONObject().put("thread_id", current.selected?.id.orEmpty()).put("model", current.model)
                                 .put("coding_mode", current.codingMode).put("enable_file_creation", current.enableFileCreation)
                                 .put("enable_mcp", current.enableMcp).put("enable_python", current.enablePython)
-                            viewModelScope.launch(Dispatchers.IO) {
+                            launch(Dispatchers.IO) {
                                 if (deviceBackend.needsServerTools(options)) {
                                     try { SyncEngine(chats, syncApi) { token() }.uploadAttachment(uploaded) }
                                     catch (e: CancellationException) { throw e }

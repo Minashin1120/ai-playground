@@ -384,7 +384,7 @@ fun PlaygroundScreen(
                 val gallery = state.messages.flatMap { message ->
                     (if (message.role == "user") emptyList() else markdownImageReferences(message.content)) +
                         message.files.filter { isImageReference(it) }
-                }.distinct()
+                }.plus(markdownImageReferences(state.liveContent)).distinct()
                 viewingFile = FileViewRequest(reference, gallery = gallery)
             }
             val openPendingAttachment: (String) -> Unit = { reference ->

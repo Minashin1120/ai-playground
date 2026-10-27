@@ -106,7 +106,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | Webの音声ドック（`#sts-panel`）と音声スタジオ、提供元別の音声設定、録音して `/sts` へ送る文字起こし系モデルの振り分け | 音声セッションUIを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LyriaStudio.kt` | Webの「Lyria RealTime Studio」（重み付きプロンプト、音楽設定、再生操作、チャットへ保存） | Lyriaスタジオを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | Webの「リッチ貼り付け」画面の枠（クリップボードHTMLのテキスト化、モデルへの指示、既定値の保存） | リッチ貼り付けを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/ModelPicker.kt` | Webの「Select Model」（検索、固定タグバー、カテゴリ見出し、モデルカード、PromptCacheのロックバナー） | モデル選択画面を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ModelPicker.kt` | Webの「Select Model」（検索、固定タグバー、プロバイダー見出し、LLMを先頭にしたモデルカード、PromptCacheのロックバナー） | モデル選択画面を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/GemDialog.kt` | Webの `#gem-modal`（Gemの作成・編集、固定プロンプトの行）とTailwind風の入力欄 `TwInput` | Gemの編集画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LibraryDialog.kt` | Webの `#lib-modal`（検索、表示順、お気に入りのみ、複数選択の添付・ダウンロード・名前変更・使用チャット・削除、グリッド、使用チャットのモーダル） | ファイルライブラリを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/BranchManager.kt` | Webの `#branch-modal`（ツリー、ブランチ詳細、モデル別内訳、名前・固定、切替、削除、凡例と合計） | ブランチ管理を変更するとき |

@@ -3346,45 +3346,49 @@ t.includes("gpt-5")||t==="gpt-6-sol"||t==="gpt-6-luna"||t==="gpt-6.1-terra"||i;v
 none"),(b||y||i)&&u("max"),(w||t.includes("multi-agent")||b||y)&&u("xhigh")}return t.includes("claud\
 e")&&u("thinking","\u601D\u8003","thinking budget","budget"),e.agenticView&&u("agentic view"),[...new Set(
 n)]}o(getModelCapabilitySearchTerms,"getModelCapabilitySearchTerms");const modelListGroups=[];let modelListBanner=null,
-modelListEmpty=null,modelListBuilt=!1,modelListAnimated=!1,modelListRenderFrame=0;function buildModelList(){
-const e=get("model-list-container");!e||modelListBuilt||(e.innerHTML="",modelListBanner=document.createElement(
-"div"),modelListBanner.className="model-banner hidden",e.appendChild(modelListBanner),MODELS.forEach(
-t=>{const n=t.items.filter(l=>!l.deprecated);if(!n.length)return;const i=document.createElement("sec\
-tion");i.className="model-list-group",i.innerHTML=`
+modelListEmpty=null,modelListBuilt=!1,modelListAnimated=!1,modelListRenderFrame=0;function isLlmModelForDisplay(e){
+const t=String(e&&e.id||"").toLowerCase();return!/(ocr|tts|transcri|realtime|voice-agent|native-audio|\blive\b|image|video|embedding|lyria|veo|omni-|ideogram|deep-research|antigravity|computer-use|robotics)/.
+test(t)}o(isLlmModelForDisplay,"isLlmModelForDisplay");function buildModelList(){const e=get("model-\
+list-container");if(!e||modelListBuilt)return;e.innerHTML="",modelListBanner=document.createElement(
+"div"),modelListBanner.className="model-banner hidden",e.appendChild(modelListBanner);const t=new Map;
+MODELS.forEach(n=>{n.items.filter(i=>!i.deprecated).forEach(i=>{const a=getModelApiProvider(i.id)||"\
+other";t.has(a)||t.set(a,[]),t.get(a).push({model:i,category:n.category})})}),t.forEach((n,i)=>{const a=document.
+createElement("section");a.className="model-list-group";const r=PROVIDER_LABELS[i]||i;a.innerHTML=`
                     <div class="model-group-header">
-                        <i class="${t.icon}"></i>
+                        <i class="fas fa-brain text-green-400"></i>
                         <div>
-                            <h3 class="model-group-title">${t.category}</h3>
-                            <p class="model-group-desc">${t.description}</p>
+                            <h3 class="model-group-title">${r}</h3>
+                            <p class="model-group-desc">LLM models first</p>
                         </div>
                     </div>
                     <div class="model-group-grid"></div>
-                `;const a=i.querySelector(".model-group-grid"),r=n.map(l=>{const c=document.createElement(
-"button"),u=String(l.apiId||l.id||"").trim(),f=l.agenticView?'<span class="inline-flex items-center \
-gap-1 rounded-full border border-teal-500/40 bg-teal-900/20 px-2 py-0.5 text-[9px] font-semibold tex\
-t-teal-200 whitespace-nowrap" title="Agentic View\u5BFE\u5FDC\uFF1A\u753B\u50CF\u3092\u30AF\u30ED\u30C3\u30D7\u3057\u3066\u518D\u89B3\u5BDF\u3057\u306A\u304C\u3089\u63A8\u8AD6\u3092\u7D99\u7D9A\u3067\u304D\u307E\u3059"><i class="fas fa-eye"\
- aria-hidden="true"></i>Agentic View</span>':"",b=u?`<div class="text-[10px] text-cyan-300/90 mt-1.5\
- font-mono break-all"><span class="font-sans text-gray-500 mr-1">API model:</span>${escapeHtml(u)}</\
-div>`:"",y=l.price?`<div class="text-[10px] text-amber-400/90 mt-1.5 font-mono flex items-start gap-\
-1"><i class="fas fa-tag text-[9px] mt-0.5 opacity-70 shrink-0"></i><span>${l.price}</span></div>`:"";
-return c.type="button",c.className="model-card",c.dataset.selected="0",c.onclick=()=>selectModelByUser(
-l.id,l.name),c.innerHTML=`
-                        <div class="flex justify-between items-start gap-2 w-full mb-1">
-                            <div class="flex flex-wrap items-center gap-2 min-w-0">
-                                <span class="model-name font-bold text-sm">${l.name}</span>
-                                ${f}
+                `;const l=a.querySelector(".model-group-grid"),c=n.map(u=>({...u,provider:i})).sort(
+(u,f)=>Number(isLlmModelForDisplay(f.model))-Number(isLlmModelForDisplay(u.model))).map(({model:u,category:f,
+provider:b})=>{const y=document.createElement("button"),w=String(u.apiId||u.id||"").trim(),v=u.agenticView?
+'<span class="inline-flex items-center gap-1 rounded-full border border-teal-500/40 bg-teal-900/20 p\
+x-2 py-0.5 text-[9px] font-semibold text-teal-200 whitespace-nowrap" title="Agentic View\u5BFE\u5FDC\uFF1A\u753B\u50CF\u3092\u30AF\u30ED\u30C3\u30D7\u3057\u3066\
+\u518D\u89B3\u5BDF\u3057\u306A\u304C\u3089\u63A8\u8AD6\u3092\u7D99\u7D9A\u3067\u304D\u307E\u3059"><i class="fas fa-eye" aria-hidden="true"></i>Agentic View</span>':
+"",k=w?`<div class="text-[10px] text-cyan-300/90 mt-1.5 font-mono break-all"><span class="font-sans \
+text-gray-500 mr-1">API model:</span>${escapeHtml(w)}</div>`:"",_=u.price?`<div class="text-[10px] t\
+ext-amber-400/90 mt-1.5 font-mono flex items-start gap-1"><i class="fas fa-tag text-[9px] mt-0.5 opa\
+city-70 shrink-0"></i><span>${u.price}</span></div>`:"";return y.type="button",y.className="model-ca\
+rd",y.dataset.selected="0",y.onclick=()=>selectModelByUser(u.id,u.name),y.innerHTML=`
+                            <div class="flex justify-between items-start gap-2 w-full mb-1">
+                                <div class="flex flex-wrap items-center gap-2 min-w-0">
+                                    <span class="model-name font-bold text-sm">${u.name}</span>
+                                    ${v}
+                                </div>
+                                <i class="model-selected-icon fas fa-check-circle hidden shrink-0 mt\
+-0.5"></i>
                             </div>
-                            <i class="model-selected-icon fas fa-check-circle hidden shrink-0 mt-0.5\
-"></i>
-                        </div>
-                        <span class="model-desc text-[10px]">${l.desc}</span>
-                        ${b}
-                        ${y}
-                    `,a.appendChild(c),{model:l,button:c,searchText:`${l.name} ${l.id} ${u} ${l.agenticView?
-"agentic view":""} ${t.category} ${getModelTags(l,t).join(" ")} ${getModelCapabilitySearchTerms(l).join(
-" ")}`.toLowerCase(),provider:getModelApiProvider(l.id),tags:new Set(getModelTags(l,t))}});modelListGroups.
-push({element:i,entries:r}),e.appendChild(i)}),modelListEmpty=document.createElement("div"),modelListEmpty.
-className="model-list-empty hidden",e.appendChild(modelListEmpty),modelListBuilt=!0)}o(buildModelList,
+                            <span class="model-desc text-[10px]">${u.desc}</span>
+                            ${k}
+                            ${_}
+                        `,l.appendChild(y),{model:u,button:y,searchText:`${u.name} ${u.id} ${w} ${u.
+agenticView?"agentic view":""} ${f} ${getModelTags(u,{category:f}).join(" ")} ${getModelCapabilitySearchTerms(
+u).join(" ")}`.toLowerCase(),provider:b,tags:new Set(getModelTags(u,{category:f}))}});modelListGroups.
+push({element:a,entries:c}),e.appendChild(a)}),modelListEmpty=document.createElement("div"),modelListEmpty.
+className="model-list-empty hidden",e.appendChild(modelListEmpty),modelListBuilt=!0}o(buildModelList,
 "buildModelList");function updateModelButtonSelection(e,t){const n=t===e.model.id;if(e.button.dataset.
 selected===(n?"1":"0"))return;e.button.dataset.selected=n?"1":"0",e.button.classList.toggle("is-sele\
 cted",n);const i=e.button.querySelector(".model-selected-icon");i&&i.classList.toggle("hidden",!n)}o(

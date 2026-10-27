@@ -100,10 +100,13 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("function animateModelCategoryChange()", source)
         self.assertIn("if (nextTag === activeModelTag) return", source)
         self.assertIn("animateModelCategoryChange();", source)
+        self.assertIn("const providerGroups = new Map()", source)
+        self.assertIn("getModelApiProvider(model.id) || 'other'", source)
+        self.assertIn(".sort((a, b) => Number(isLlmModelForDisplay(b.model)) - Number(isLlmModelForDisplay(a.model)))", source)
         self.assertIn(
             "`${m.name} ${m.id} ${apiModelName} "
-            "${m.agenticView ? 'agentic view' : ''} ${group.category} "
-            "${getModelTags(m, group).join(' ')} "
+            "${m.agenticView ? 'agentic view' : ''} ${category} "
+            "${getModelTags(m, { category }).join(' ')} "
             "${getModelCapabilitySearchTerms(m).join(' ')}`.toLowerCase()",
             source,
         )

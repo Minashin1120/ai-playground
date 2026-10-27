@@ -80,7 +80,7 @@ internal fun modelVisible(model: ModelInfo, query: String, tag: String, lockedPr
         (tag == "all" || tag in model.tags)
 }
 
-/** `#model-modal` (Select Model): search, fixed tag bar, category groups and two-column cards. */
+/** `#model-modal` (Select Model): search, fixed tag bar, provider groups and two-column cards. */
 @Composable
 internal fun ModelPicker(
     state: ChatState,
@@ -97,7 +97,9 @@ internal fun ModelPicker(
     val lockedLabel = lockedProvider?.let { PROVIDER_LABELS[it] ?: it }.orEmpty()
     val models = state.account?.models.orEmpty().filter { !it.deprecated && it.category.isNotBlank() }
         .sortedBy { it.webCatalogOrder }
-    val groups = models.filter { modelVisible(it, query.trim(), tag, lockedProvider) }.groupBy { it.category }.toList()
+    val groups = models.filter { modelVisible(it, query.trim(), tag, lockedProvider) }
+        .groupBy { it.provider.ifBlank { modelApiProvider(it.id).orEmpty() } }
+        .map { (provider, items) -> provider to items.sortedByDescending { it.mode == "chat" } }
     val listState = rememberLazyListState()
     LaunchedEffect(Unit) {
         val index = groups.indexOfFirst { (_, items) -> items.any { it.id == selectedId } }
@@ -156,15 +158,15 @@ internal fun ModelPicker(
                             fontSize = 13.sp, color = web.muted, modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
                             textAlign = TextAlign.Center)
                     }
-                    items(groups, key = { it.first }) { (category, items) ->
+                    items(groups, key = { it.first }) { (provider, items) ->
                         Column(Modifier.padding(bottom = 18.dp)) {
                             val first = items.first()
                             Row(Modifier.padding(horizontal = 2.dp).padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                modelGroupIcon(first.categoryIcon)?.let { FaIcon(it, null, size = 13.dp, tint = web.theme300) }
                                 Column {
-                                    Text(category, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.26.sp, color = web.theme300)
-                                    Text(first.categoryDescription, fontSize = 11.sp, color = web.muted)
+                                    Text(first.providerLabel.ifBlank { PROVIDER_LABELS[provider] ?: provider }, fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold, letterSpacing = 0.26.sp, color = web.theme300)
+                                    Text("LLM models first", fontSize = 11.sp, color = web.muted)
                                 }
                             }
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

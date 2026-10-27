@@ -811,6 +811,10 @@
         let modelListBuilt = false;
         let modelListAnimated = false;
         let modelListRenderFrame = 0;
+        function isLlmModelForDisplay(model) {
+            const id = String(model && model.id || '').toLowerCase();
+            return !/(ocr|tts|transcri|realtime|voice-agent|native-audio|\blive\b|image|video|embedding|lyria|veo|omni-|ideogram|deep-research|antigravity|computer-use|robotics)/.test(id);
+        }
         function buildModelList() {
             const container = get('model-list-container');
             if (!container || modelListBuilt) return;
@@ -819,53 +823,62 @@
             modelListBanner.className = 'model-banner hidden';
             container.appendChild(modelListBanner);
 
+            const providerGroups = new Map();
             MODELS.forEach(group => {
-                const availableItems = group.items.filter(m => !m.deprecated);
-                if (!availableItems.length) return;
+                group.items.filter(m => !m.deprecated).forEach(model => {
+                    const provider = getModelApiProvider(model.id) || 'other';
+                    if (!providerGroups.has(provider)) providerGroups.set(provider, []);
+                    providerGroups.get(provider).push({ model, category: group.category });
+                });
+            });
+            providerGroups.forEach((providerItems, provider) => {
                 const groupEl = document.createElement('section');
                 groupEl.className = 'model-list-group';
+                const providerLabel = PROVIDER_LABELS[provider] || provider;
                 groupEl.innerHTML = `
                     <div class="model-group-header">
-                        <i class="${group.icon}"></i>
+                        <i class="fas fa-brain text-green-400"></i>
                         <div>
-                            <h3 class="model-group-title">${group.category}</h3>
-                            <p class="model-group-desc">${group.description}</p>
+                            <h3 class="model-group-title">${providerLabel}</h3>
+                            <p class="model-group-desc">LLM models first</p>
                         </div>
                     </div>
                     <div class="model-group-grid"></div>
                 `;
                 const grid = groupEl.querySelector('.model-group-grid');
-                const entries = availableItems.map(m => {
-                    const item = document.createElement('button');
-                    const apiModelName = String(m.apiId || m.id || '').trim();
-                    const agenticViewHtml = m.agenticView ? `<span class="inline-flex items-center gap-1 rounded-full border border-teal-500/40 bg-teal-900/20 px-2 py-0.5 text-[9px] font-semibold text-teal-200 whitespace-nowrap" title="Agentic View対応：画像をクロップして再観察しながら推論を継続できます"><i class="fas fa-eye" aria-hidden="true"></i>Agentic View</span>` : '';
-                    const apiModelHtml = apiModelName ? `<div class="text-[10px] text-cyan-300/90 mt-1.5 font-mono break-all"><span class="font-sans text-gray-500 mr-1">API model:</span>${escapeHtml(apiModelName)}</div>` : '';
-                    const priceHtml = m.price ? `<div class="text-[10px] text-amber-400/90 mt-1.5 font-mono flex items-start gap-1"><i class="fas fa-tag text-[9px] mt-0.5 opacity-70 shrink-0"></i><span>${m.price}</span></div>` : '';
-                    item.type = 'button';
-                    item.className = 'model-card';
-                    item.dataset.selected = '0';
-                    item.onclick = () => selectModelByUser(m.id, m.name);
-                    item.innerHTML = `
-                        <div class="flex justify-between items-start gap-2 w-full mb-1">
-                            <div class="flex flex-wrap items-center gap-2 min-w-0">
-                                <span class="model-name font-bold text-sm">${m.name}</span>
-                                ${agenticViewHtml}
+                const entries = providerItems.map(itemData => ({ ...itemData, provider }))
+                    .sort((a, b) => Number(isLlmModelForDisplay(b.model)) - Number(isLlmModelForDisplay(a.model)))
+                    .map(({ model: m, category, provider }) => {
+                        const item = document.createElement('button');
+                        const apiModelName = String(m.apiId || m.id || '').trim();
+                        const agenticViewHtml = m.agenticView ? `<span class="inline-flex items-center gap-1 rounded-full border border-teal-500/40 bg-teal-900/20 px-2 py-0.5 text-[9px] font-semibold text-teal-200 whitespace-nowrap" title="Agentic View対応：画像をクロップして再観察しながら推論を継続できます"><i class="fas fa-eye" aria-hidden="true"></i>Agentic View</span>` : '';
+                        const apiModelHtml = apiModelName ? `<div class="text-[10px] text-cyan-300/90 mt-1.5 font-mono break-all"><span class="font-sans text-gray-500 mr-1">API model:</span>${escapeHtml(apiModelName)}</div>` : '';
+                        const priceHtml = m.price ? `<div class="text-[10px] text-amber-400/90 mt-1.5 font-mono flex items-start gap-1"><i class="fas fa-tag text-[9px] mt-0.5 opacity-70 shrink-0"></i><span>${m.price}</span></div>` : '';
+                        item.type = 'button';
+                        item.className = 'model-card';
+                        item.dataset.selected = '0';
+                        item.onclick = () => selectModelByUser(m.id, m.name);
+                        item.innerHTML = `
+                            <div class="flex justify-between items-start gap-2 w-full mb-1">
+                                <div class="flex flex-wrap items-center gap-2 min-w-0">
+                                    <span class="model-name font-bold text-sm">${m.name}</span>
+                                    ${agenticViewHtml}
+                                </div>
+                                <i class="model-selected-icon fas fa-check-circle hidden shrink-0 mt-0.5"></i>
                             </div>
-                            <i class="model-selected-icon fas fa-check-circle hidden shrink-0 mt-0.5"></i>
-                        </div>
-                        <span class="model-desc text-[10px]">${m.desc}</span>
-                        ${apiModelHtml}
-                        ${priceHtml}
-                    `;
-                    grid.appendChild(item);
-                    return {
-                        model: m,
-                        button: item,
-                        searchText: `${m.name} ${m.id} ${apiModelName} ${m.agenticView ? 'agentic view' : ''} ${group.category} ${getModelTags(m, group).join(' ')} ${getModelCapabilitySearchTerms(m).join(' ')}`.toLowerCase(),
-                        provider: getModelApiProvider(m.id),
-                        tags: new Set(getModelTags(m, group)),
-                    };
-                });
+                            <span class="model-desc text-[10px]">${m.desc}</span>
+                            ${apiModelHtml}
+                            ${priceHtml}
+                        `;
+                        grid.appendChild(item);
+                        return {
+                            model: m,
+                            button: item,
+                            searchText: `${m.name} ${m.id} ${apiModelName} ${m.agenticView ? 'agentic view' : ''} ${category} ${getModelTags(m, { category }).join(' ')} ${getModelCapabilitySearchTerms(m).join(' ')}`.toLowerCase(),
+                            provider,
+                            tags: new Set(getModelTags(m, { category })),
+                        };
+                    });
                 modelListGroups.push({ element: groupEl, entries });
                 container.appendChild(groupEl);
             });

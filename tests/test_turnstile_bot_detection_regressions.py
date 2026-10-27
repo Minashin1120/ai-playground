@@ -404,7 +404,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         source = assets[0].read_text(encoding="utf-8")
         self.assertIn("function isBotDetectionActive()", source)
         gate = source[source.index("async function sendMessage()") :]
-        gate = gate[: gate.index("const rawText = get('prompt-input').value")]
+        gate = gate[: gate.index("const rawText = ")]
         self.assertIn("botTurnstileToken = await getTurnstileToken();", gate)
         self.assertIn("安全性の確認を完了できませんでした", gate)
         self.assertIn("botTelemetry.send(true);", gate)
@@ -925,7 +925,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
         source = assets[0].read_text(encoding="utf-8")
         gate = source[source.index("async function sendMessage()") :]
-        gate = gate[: gate.index("const rawText = get('prompt-input').value")]
+        gate = gate[: gate.index("const rawText = ")]
         # ブロック条件は「トークンなし かつ 未検証」のときだけ
         self.assertIn("if (!botTurnstileToken && !botDetectionVerified)", gate)
         self.assertIn("if (botTurnstileToken) await verifyTurnstileOnServer(botTurnstileToken);", gate)
@@ -1127,7 +1127,7 @@ class TurnstileBotDetectionRegressionTests(unittest.TestCase):
         self.assertEqual(len(assets), 1, "Only the latest versioned chat core asset should remain")
         source = assets[0].read_text(encoding="utf-8")
         gate = source[source.index("async function sendMessage()") :]
-        gate = gate[: gate.index("const rawText = get('prompt-input').value")]
+        gate = gate[: gate.index("const rawText = ")]
         self.assertIn("registerSendButtonSpam()", gate)
         self.assertIn("sendCount >= 8", gate)
         self.assertIn("runSendSpamVerification()", gate)

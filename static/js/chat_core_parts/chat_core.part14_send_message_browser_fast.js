@@ -339,10 +339,11 @@
                 }
                 if (botTurnstileToken) await verifyTurnstileOnServer(botTurnstileToken);
             }
-            const rawText = get('prompt-input').value; // RAW INPUT (No trim)
+            const removeBackground = isIdeogramBackgroundRemoval();
+            const rawText = ideogramPromptForSend(get('prompt-input').value); // Keep ordinary prompts untrimmed.
 
             // Handle pending slash command (e.g. after selecting /settings via the palette)
-            if (pendingSlashCommand) {
+            if (pendingSlashCommand && !removeBackground) {
                 const cmd = pendingSlashCommand;
                 const instruction = rawText.trim();
                 const modelForCmd = get('model-select') ? get('model-select').value : null;
@@ -578,7 +579,7 @@
 
             let disableAutoSearch = false;
             const xLinkPattern = /(https?:\/\/)?(x\.com|twitter\.com)\//i;
-            const hasXLink = xLinkPattern.test(t || '') || xLinkPattern.test(currentQuote || '');
+            const hasXLink = !removeBackground && (xLinkPattern.test(t || '') || xLinkPattern.test(currentQuote || ''));
             const grokXModel = "grok-4-fast-reasoning";
             const applyXLinkAuto = () => {
                 get('enable-search').checked = true;

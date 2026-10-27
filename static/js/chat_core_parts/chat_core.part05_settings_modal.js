@@ -1596,6 +1596,26 @@
         };
         const isIdeogramModelKey = (model) => String(model || '').toLowerCase().startsWith('ideogram-');
         const isIdeogramModel = (model) => isIdeogramModelKey(model != null ? model : get('model-select').value);
+        const isIdeogramBackgroundRemoval = (model) => isIdeogramModel(model)
+            && get('ideogram-image-operation')?.value === 'remove_background';
+        const ideogramPromptForSend = (draft) => isIdeogramBackgroundRemoval() ? '背景を削除' : draft;
+        let ideogramDisabledDraft = null;
+        function updateIdeogramPromptInputUi() {
+            const input = get('prompt-input');
+            if (!input) return;
+            const removeBackground = isIdeogramBackgroundRemoval();
+            if (removeBackground && ideogramDisabledDraft === null) {
+                ideogramDisabledDraft = { value: input.value, placeholder: input.placeholder };
+                input.value = '';
+            } else if (!removeBackground && ideogramDisabledDraft !== null) {
+                input.value = ideogramDisabledDraft.value;
+                input.placeholder = ideogramDisabledDraft.placeholder;
+                ideogramDisabledDraft = null;
+            }
+            input.disabled = removeBackground;
+            input.classList.toggle('opacity-50', removeBackground);
+            if (removeBackground) input.placeholder = '背景削除は指示文不要です。送信ボタンで実行';
+        }
         const IDEOGRAM_IMAGE_FIELDS = ['operation', 'count', 'aspect', 'resolution', 'quality', 'speed', 'magic', 'style', 'negative', 'seed'];
         const ideogramModelTraits = (model) => {
             const m = String(model || '').toLowerCase();

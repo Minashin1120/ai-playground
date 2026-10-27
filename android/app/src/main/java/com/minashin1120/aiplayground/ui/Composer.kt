@@ -76,6 +76,7 @@ import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ComposerRules
 import com.minashin1120.aiplayground.data.OptionRule
+import com.minashin1120.aiplayground.data.isIdeogramBackgroundRemoval
 import com.minashin1120.aiplayground.data.SlashCommand
 import com.minashin1120.aiplayground.data.SLASH_COMMANDS
 import com.minashin1120.aiplayground.data.slashPaletteFilter
@@ -210,6 +211,10 @@ fun Composer(
     /** Web `sendMessage` (send button, and Enter when no palette is open). */
     val sendOrSlash: () -> Unit = send@{
         if (!model.beginSend()) return@send
+        if (isIdeogramBackgroundRemoval(state.model, state.generationValues)) {
+            model.send(preChecked = true)
+            return@send
+        }
         val instruction = state.draft.trim()
         val settingsInline = Regex("^/settings(?:\\s|$)", RegexOption.IGNORE_CASE)
         if ((pendingSlash == "settings" || settingsInline.containsMatchIn(instruction)) && isMistralOcrModel(state.model)) {
@@ -1046,7 +1051,9 @@ private fun PromptField(
     val web = LocalWebPalette.current
     val enterToSend = state.preferences?.enterToSend == true
     val pendingCommand = state.pendingSlashCommand?.let { id -> SLASH_COMMANDS.firstOrNull { it.id == id } }
+    val removeBackground = isIdeogramBackgroundRemoval(state.model, state.generationValues)
     val placeholder = when {
+        removeBackground -> "背景削除は指示文不要です。送信ボタンで実行"
         pendingCommand != null -> pendingCommand.argumentHint.ifBlank { "設定変更の指示を入力（例: デフォルトモデルをgemini-2.5-flashに変更）..." }
         state.editingMessageId != null -> "編集中... (Enter送信は設定に従います)"
         enterToSend -> "Enter で送信 (Shift+Enter で改行)"
@@ -1063,8 +1070,11 @@ private fun PromptField(
     LaunchedEffect(field) {
         snapshotFlow { field.text.toString() }.collect { if (it != model.state.value.draft) model.draft(it) }
     }
+    val backgroundField = remember { TextFieldState() }
+    val displayedField = if (removeBackground) backgroundField else field
     BasicTextField(
-        state = field,
+        state = displayedField,
+        enabled = !removeBackground,
         // Pushes each typed edit before the next frame so an older draft never overwrites newer input.
         inputTransformation = remember(model) { InputTransformation { model.draft(asCharSequence().toString()) } },
         textStyle = style,
@@ -1097,7 +1107,7 @@ private fun PromptField(
             .semantics { contentDescription = "メッセージ入力" },
         decorator = { inner ->
             Box(Modifier.padding(horizontal = 6.72.dp, vertical = 7.2.dp), contentAlignment = Alignment.CenterStart) {
-                if (field.text.isEmpty()) Text(placeholder, style = style.copy(color = if (web.isLight) web.muted else Color(0xFF7F8DA4)),
+                if (displayedField.text.isEmpty()) Text(placeholder, style = style.copy(color = if (web.isLight) web.muted else Color(0xFF7F8DA4)),
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 inner()
             }

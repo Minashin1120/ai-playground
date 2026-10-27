@@ -8598,6 +8598,26 @@
         };
         const isIdeogramModelKey = (model) => String(model || '').toLowerCase().startsWith('ideogram-');
         const isIdeogramModel = (model) => isIdeogramModelKey(model != null ? model : get('model-select').value);
+        const isIdeogramBackgroundRemoval = (model) => isIdeogramModel(model)
+            && get('ideogram-image-operation')?.value === 'remove_background';
+        const ideogramPromptForSend = (draft) => isIdeogramBackgroundRemoval() ? '背景を削除' : draft;
+        let ideogramDisabledDraft = null;
+        function updateIdeogramPromptInputUi() {
+            const input = get('prompt-input');
+            if (!input) return;
+            const removeBackground = isIdeogramBackgroundRemoval();
+            if (removeBackground && ideogramDisabledDraft === null) {
+                ideogramDisabledDraft = { value: input.value, placeholder: input.placeholder };
+                input.value = '';
+            } else if (!removeBackground && ideogramDisabledDraft !== null) {
+                input.value = ideogramDisabledDraft.value;
+                input.placeholder = ideogramDisabledDraft.placeholder;
+                ideogramDisabledDraft = null;
+            }
+            input.disabled = removeBackground;
+            input.classList.toggle('opacity-50', removeBackground);
+            if (removeBackground) input.placeholder = '背景削除は指示文不要です。送信ボタンで実行';
+        }
         const IDEOGRAM_IMAGE_FIELDS = ['operation', 'count', 'aspect', 'resolution', 'quality', 'speed', 'magic', 'style', 'negative', 'seed'];
         const ideogramModelTraits = (model) => {
             const m = String(model || '').toLowerCase();
@@ -10432,6 +10452,7 @@
             };
             if (wrap) wrap.classList.toggle('hidden', !active);
             if (modalWrap) modalWrap.classList.toggle('hidden', !active);
+            updateIdeogramPromptInputUi();
             if (!active) return;
             const removeBackground = get('ideogram-image-operation')?.value === 'remove_background';
             IDEOGRAM_IMAGE_FIELDS.forEach((field) => {
@@ -10457,7 +10478,7 @@
             const note = get('ideogram-image-note');
             if (note) {
                 note.textContent = removeBackground
-                    ? '※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は直前の画像。透過PNGで出力（指示文・生成設定は使いません）'
+                    ? '※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は表示中のブランチの最後の画像。送信ボタンだけで実行し、透過PNGで出力'
                     : traits.edit
                     ? '※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ'
                     : '※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）';
@@ -22019,10 +22040,11 @@
                 }
                 if (botTurnstileToken) await verifyTurnstileOnServer(botTurnstileToken);
             }
-            const rawText = get('prompt-input').value; // RAW INPUT (No trim)
+            const removeBackground = isIdeogramBackgroundRemoval();
+            const rawText = ideogramPromptForSend(get('prompt-input').value); // Keep ordinary prompts untrimmed.
 
             // Handle pending slash command (e.g. after selecting /settings via the palette)
-            if (pendingSlashCommand) {
+            if (pendingSlashCommand && !removeBackground) {
                 const cmd = pendingSlashCommand;
                 const instruction = rawText.trim();
                 const modelForCmd = get('model-select') ? get('model-select').value : null;
@@ -22258,7 +22280,7 @@
 
             let disableAutoSearch = false;
             const xLinkPattern = /(https?:\/\/)?(x\.com|twitter\.com)\//i;
-            const hasXLink = xLinkPattern.test(t || '') || xLinkPattern.test(currentQuote || '');
+            const hasXLink = !removeBackground && (xLinkPattern.test(t || '') || xLinkPattern.test(currentQuote || ''));
             const grokXModel = "grok-4-fast-reasoning";
             const applyXLinkAuto = () => {
                 get('enable-search').checked = true;

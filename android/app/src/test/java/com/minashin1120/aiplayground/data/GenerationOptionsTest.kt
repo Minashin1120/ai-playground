@@ -7,6 +7,16 @@ class GenerationOptionsTest {
     private fun fields(model: String, values: Map<String, String> = emptyMap()) =
         generationPanels(model, values).flatMap { it.fields }.associateBy { it.key }
 
+    @Test fun backgroundRemovalNeedsNoPromptAndDoesNotSendAnExistingDraft() {
+        val background = mapOf("ideogram_operation" to "remove_background")
+        assertTrue(isIdeogramBackgroundRemoval("ideogram-4.5", background))
+        assertEquals("背景を削除", ideogramPromptForSend("ideogram-4.5", background, ""))
+        assertEquals("背景を削除", ideogramPromptForSend("ideogram-4.0", background, "/settings private draft"))
+        assertFalse(isIdeogramBackgroundRemoval("gpt-image-2", background))
+        assertEquals("  keep whitespace  ", ideogramPromptForSend("gpt-image-2", background, "  keep whitespace  "))
+        assertEquals("original", ideogramPromptForSend("ideogram-4.5", emptyMap(), "original"))
+    }
+
     @Test fun backgroundRemovalPanelOffersOnlyTheOperationField() {
         val options = mapOf("ideogram_operation" to "remove_background")
         val panel = generationPanels("ideogram-4.0", options).single { it.id == "ideogram-image" }

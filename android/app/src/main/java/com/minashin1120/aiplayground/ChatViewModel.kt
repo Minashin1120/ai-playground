@@ -2643,6 +2643,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun send(xLinkChecked: Boolean = false, disableAutoSearch: Boolean = false, preChecked: Boolean = false) {
         if (!preChecked && !beginSend()) return
         var current = state.value
+        val removeBackground = isIdeogramBackgroundRemoval(current.model, current.generationValues)
+        if (removeBackground) {
+            current = current.copy(draft = ideogramPromptForSend(current.model, current.generationValues, current.draft), quote = "")
+        }
         if (current.banned) return
         // Serverless mode answers on the device, so it can send while the server is out of reach.
         if (current.offline && !uploadsLocal) { mutable.update { it.copy(notice = "オフライン中はメッセージを送信できません。") }; return }
@@ -2760,7 +2764,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         failed = submission
         pendingParentId = null
         // Web `resetUploadState` + `clearQuote`: the mask goes with the attachments.
-        mutable.update { it.copy(draft = "", attachments = emptyList(), editingMessageId = null, quote = "", imageMask = null) }
+        mutable.update { it.copy(draft = if (removeBackground) it.draft else "", attachments = emptyList(), editingMessageId = null, quote = "", imageMask = null) }
         submit(submission)
     }
     fun retry() { failed?.let { submit(it) } }

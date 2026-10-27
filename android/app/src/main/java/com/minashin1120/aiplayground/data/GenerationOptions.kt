@@ -86,6 +86,10 @@ fun isGeminiImageModel(m: String) = m.contains("gemini") && (m.contains("image")
 fun isGrokImageModel(m: String) = m.contains("grok") && (m.contains("imagine") || m.contains("image")) && !m.contains("video")
 fun isGrokVideoModel(m: String) = m.contains("grok") && m.contains("video")
 fun isIdeogramModel(m: String) = m.startsWith("ideogram-")
+fun isIdeogramBackgroundRemoval(model: String, values: Map<String, String>) =
+    isIdeogramModel(model) && values["ideogram_operation"] == "remove_background"
+fun ideogramPromptForSend(model: String, values: Map<String, String>, draft: String) =
+    if (isIdeogramBackgroundRemoval(model, values)) "背景を削除" else draft
 
 /** Web `ideogramModelTraits`: which Ideogram panel fields a model takes. */
 data class IdeogramTraits(
@@ -175,7 +179,7 @@ fun generationPanels(modelId: String, values: Map<String, String> = emptyMap()):
             select("ideogram_style_type", "Style", "auto", *traits.styleOptions.map { option -> option to (if (option == "auto") "Auto" else option) }.toTypedArray(), hidden = removeBackground || !traits.style),
             GenField("ideogram_negative_prompt", "Negative", GenField.Kind.Text, placeholder = "除外したい要素", width = 160, hidden = removeBackground || !traits.negative),
             number("ideogram_seed", "Seed", "", 0.0, 2147483647.0, placeholder = "auto", width = 96, hidden = removeBackground),
-        ).map { if (removeBackground && it.key != "ideogram_operation") it.copy(sent = false) else it }, if (removeBackground) "※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は直前の画像。透過PNGで出力（指示文・生成設定は使いません）"
+        ).map { if (removeBackground && it.key != "ideogram_operation") it.copy(sent = false) else it }, if (removeBackground) "※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は表示中のブランチの最後の画像。送信ボタンだけで実行し、透過PNGで出力"
         else if (traits.edit) "※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ"
         else "※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）"))
     }

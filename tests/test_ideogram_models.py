@@ -1,6 +1,7 @@
 import json
 import os
 import mimetypes
+import subprocess
 import textwrap
 import types
 import unittest
@@ -77,6 +78,52 @@ class IdeogramRegistrationTests(unittest.TestCase):
         self.assertIn('mk.startswith("ideogram-")', source[start:start + 900])
 
 
+class IdeogramComposerTests(unittest.TestCase):
+    def test_background_mode_disables_input_and_sends_without_text_or_attachments(self):
+        source = (APP_ROOT / "static/js/chat_core_parts/chat_core.part05_settings_modal.js").read_text()
+        helpers = source[source.index("        const isIdeogramModelKey"):source.index("        const IDEOGRAM_IMAGE_FIELDS")]
+        script = r"""
+const assert = require('node:assert/strict');
+const input = {value: '/settings private draft', placeholder: 'normal', disabled: false,
+    dataset: {}, classList: {toggle() {}}};
+const model = {value: 'ideogram-4.5'};
+const operation = {value: 'generate'};
+const get = (id) => ({'prompt-input': input, 'model-select': model, 'ideogram-image-operation': operation})[id];
+""" + helpers + r"""
+updateIdeogramPromptInputUi();
+assert.equal(input.disabled, false);
+operation.value = 'remove_background';
+updateIdeogramPromptInputUi();
+assert.equal(input.disabled, true);
+assert.equal(input.value, '');
+assert.match(input.placeholder, /送信ボタン/);
+// The existing send guard now accepts the action with no draft and no uploads.
+const rawText = ideogramPromptForSend(input.value);
+const imageUrlsToSend = [];
+assert.equal(!rawText.trim() && imageUrlsToSend.length === 0, false);
+assert.equal(rawText, '背景を削除');
+updateIdeogramPromptInputUi();
+operation.value = 'generate';
+updateIdeogramPromptInputUi();
+assert.equal(input.value, '/settings private draft');
+assert.equal(input.disabled, false);
+assert.equal(input.placeholder, 'normal');
+assert.equal(ideogramPromptForSend('  normal prompt  '), '  normal prompt  ');
+operation.value = 'remove_background';
+updateIdeogramPromptInputUi();
+model.value = 'gpt-image-2';
+updateIdeogramPromptInputUi();
+assert.equal(input.disabled, false);
+assert.equal(input.value, '/settings private draft');
+assert.equal(ideogramPromptForSend('other provider'), 'other provider');
+"""
+        subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+        send_source = (APP_ROOT / "static/js/chat_core_parts/chat_core.part14_send_message_browser_fast.js").read_text()
+        self.assertIn("const rawText = ideogramPromptForSend(get('prompt-input').value)", send_source)
+        self.assertIn("if (pendingSlashCommand && !removeBackground)", send_source)
+        self.assertIn("updateIdeogramPromptInputUi();", (APP_ROOT / "static/js/chat_core_parts/chat_core.part07_domcontent_initial.js").read_text())
+
+
 class IdeogramRequestTests(unittest.TestCase):
     def test_worker_edits_last_output_of_selected_branch(self):
         source = (APP_ROOT / "server" / "background.py").read_text(encoding="utf-8")
@@ -104,6 +151,7 @@ class IdeogramRequestTests(unittest.TestCase):
             (branch_a, ["ref.png"], ["a2.png", "ref.png"], True, "generate", "ideogram-4.5"),
             (branch_a, ["ref.png"], ["ref.png"], False, "remove_background", "ideogram-4.0"),
             (branch_a, [], ["a2.png"], True, "remove_background", "ideogram-2.0"),
+            (branch_b, [], ["b.png"], False, "remove_background", "ideogram-4.5"),
             ([], ["one.png", "two.png"], ["one.png", "two.png"], False, "remove_background", "ideogram-4.5"),
             ([], [], [], False, "remove_background", "ideogram-3.0"),
         ):

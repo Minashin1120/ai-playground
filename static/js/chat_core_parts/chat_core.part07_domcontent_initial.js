@@ -159,6 +159,7 @@
             };
             if (wrap) wrap.classList.toggle('hidden', !active);
             if (modalWrap) modalWrap.classList.toggle('hidden', !active);
+            updateIdeogramPromptInputUi();
             if (!active) return;
             const removeBackground = get('ideogram-image-operation')?.value === 'remove_background';
             IDEOGRAM_IMAGE_FIELDS.forEach((field) => {
@@ -184,7 +185,7 @@
             const note = get('ideogram-image-note');
             if (note) {
                 note.textContent = removeBackground
-                    ? '※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は直前の画像。透過PNGで出力（指示文・生成設定は使いません）'
+                    ? '※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は表示中のブランチの最後の画像。送信ボタンだけで実行し、透過PNGで出力'
                     : traits.edit
                     ? '※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ'
                     : '※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）';

@@ -1649,6 +1649,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val reply = withTimeout(15_000L) {
                 backend.get("/api/version?heartbeat=${System.currentTimeMillis()}")
             }
+            connectionProbeHealth.succeeded()
             val latencyMs = SystemClock.elapsedRealtime() - startedAt
             val wasDisconnected = state.value.connectionStatus.isDisconnected()
             slowConnectionCount = if (latencyMs >= 2_000L) slowConnectionCount + 1 else 0
@@ -4351,42 +4352,48 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             uploadCompleted = 0, uploadCount = pendingUploads.size) }
         uploadJob = viewModelScope.launch {
             try {
-                while (pendingUploads.isNotEmpty()) {
-                    val (uri, queuedSkipCompression) = pendingUploads.removeFirst()
-                    try {
-                        val resolver = getApplication<Application>().contentResolver
-                        val local = withContext(Dispatchers.IO) { queryLocalAttachment(resolver, uri) }
-                        mutable.update { it.copy(uploadName = local.name, uploadSent = 0,
-                            uploadTotal = if (local.size > 0) local.size else 0) }
-                        val source = withContext(Dispatchers.IO) { if (queuedSkipCompression) LocalUpload(local.name, local.size, local.mime) {
-                            resolver.openInputStream(uri) ?: throw IOException("添付を開けません。")
-                        } else prepareUpload(resolver, uri, local) }
-                        mutable.update { it.copy(uploadName = source.name, uploadSent = 0,
-                            uploadTotal = if (source.size > 0) source.size else 0) }
-                        val uploaded = withContext(Dispatchers.IO) { storeLocalUpload(source.name, source.mime, source.size, source.opener) }
-                            ?: if (source.size > CHUNK_UPLOAD_THRESHOLD_BYTES) uploadInChunks(source) else uploadWhole(source)
-                        // Replace the in-progress row atomically, including while server sync is pending.
-                        mutable.update { it.withUploadedAttachment(Attachment(source.name, uploaded, source.mime)) }
-                        val deviceBackend = localBackend as? LocalChatBackend
-                        val chats = localChats
-                        if (deviceBackend != null && chats != null && state.value.serverless && !state.value.localProfile && !state.value.offline) {
-                            val current = state.value
-                            val options = JSONObject().put("thread_id", current.selected?.id.orEmpty()).put("model", current.model)
-                                .put("coding_mode", current.codingMode).put("enable_file_creation", current.enableFileCreation)
-                                .put("enable_mcp", current.enableMcp).put("enable_python", current.enablePython)
-                            launch(Dispatchers.IO) {
-                                if (deviceBackend.needsServerTools(options)) {
-                                    try { SyncEngine(chats, syncApi) { token() }.uploadAttachment(uploaded) }
-                                    catch (e: CancellationException) { throw e }
-                                    catch (e: Exception) { Diagnostics.failure("sync.error", e) }
+                do {
+                    // Finish this batch's child transfers before clearing uploading or replacing uploadJob.
+                    // New picks queued while transfers finish are prepared in the next pass.
+                    coroutineScope {
+                        while (pendingUploads.isNotEmpty()) {
+                            val (uri, queuedSkipCompression) = pendingUploads.removeFirst()
+                            try {
+                                val resolver = getApplication<Application>().contentResolver
+                                val local = withContext(Dispatchers.IO) { queryLocalAttachment(resolver, uri) }
+                                mutable.update { it.copy(uploadName = local.name, uploadSent = 0,
+                                    uploadTotal = if (local.size > 0) local.size else 0) }
+                                val source = withContext(Dispatchers.IO) { if (queuedSkipCompression) LocalUpload(local.name, local.size, local.mime) {
+                                    resolver.openInputStream(uri) ?: throw IOException("添付を開けません。")
+                                } else prepareUpload(resolver, uri, local) }
+                                mutable.update { it.copy(uploadName = source.name, uploadSent = 0,
+                                    uploadTotal = if (source.size > 0) source.size else 0) }
+                                val uploaded = withContext(Dispatchers.IO) { storeLocalUpload(source.name, source.mime, source.size, source.opener) }
+                                    ?: if (source.size > CHUNK_UPLOAD_THRESHOLD_BYTES) uploadInChunks(source) else uploadWhole(source)
+                                // Replace the in-progress row atomically, including while server sync is pending.
+                                mutable.update { it.withUploadedAttachment(Attachment(source.name, uploaded, source.mime)) }
+                                val deviceBackend = localBackend as? LocalChatBackend
+                                val chats = localChats
+                                if (deviceBackend != null && chats != null && state.value.serverless && !state.value.localProfile && !state.value.offline) {
+                                    val current = state.value
+                                    val options = JSONObject().put("thread_id", current.selected?.id.orEmpty()).put("model", current.model)
+                                        .put("coding_mode", current.codingMode).put("enable_file_creation", current.enableFileCreation)
+                                        .put("enable_mcp", current.enableMcp).put("enable_python", current.enablePython)
+                                    launch(Dispatchers.IO) {
+                                        if (deviceBackend.needsServerTools(options)) {
+                                            try { SyncEngine(chats, syncApi) { token() }.uploadAttachment(uploaded) }
+                                            catch (e: CancellationException) { throw e }
+                                            catch (e: Exception) { Diagnostics.failure("sync.error", e) }
+                                        }
+                                    }
                                 }
-                            }
+                            } catch (e: CancellationException) { throw e }
+                            catch (e: Exception) { report(e) }
+                            finally { mutable.update { it.copy(uploadCompleted = it.uploadCompleted + 1,
+                                uploadName = "", uploadSent = 0, uploadTotal = 0) } }
                         }
-                    } catch (e: CancellationException) { throw e }
-                    catch (e: Exception) { report(e) }
-                    finally { mutable.update { it.copy(uploadCompleted = it.uploadCompleted + 1,
-                        uploadName = "", uploadSent = 0, uploadTotal = 0) } }
-                }
+                    }
+                } while (pendingUploads.isNotEmpty())
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) { report(e) }

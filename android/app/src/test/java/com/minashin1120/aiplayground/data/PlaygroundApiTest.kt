@@ -13,6 +13,39 @@ import java.io.ByteArrayInputStream
 import java.io.IOException
 
 class PlaygroundApiTest {
+    @Test fun idleSocketClosureRunsOffTheCallingThread() = runBlocking {
+        val caller = Thread.currentThread()
+        val closedOn = java.util.concurrent.atomic.AtomicReference<Thread>()
+        val sockets = object : javax.net.SocketFactory() {
+            override fun createSocket(): java.net.Socket = object : java.net.Socket() {
+                override fun close() {
+                    closedOn.set(Thread.currentThread())
+                    // Model Android rejecting TLS close_notify I/O on the UI thread.
+                    check(Thread.currentThread() !== caller) { "Network I/O on lifecycle thread" }
+                    super.close()
+                }
+            }
+            override fun createSocket(host: String, port: Int): java.net.Socket = error("unused")
+            override fun createSocket(host: String, port: Int, local: java.net.InetAddress, localPort: Int): java.net.Socket = error("unused")
+            override fun createSocket(host: java.net.InetAddress, port: Int): java.net.Socket = error("unused")
+            override fun createSocket(host: java.net.InetAddress, port: Int, local: java.net.InetAddress, localPort: Int): java.net.Socket = error("unused")
+        }
+        MockWebServer().use { server ->
+            server.start()
+            val api = PlaygroundApi(server.url("/"), sockets)
+            server.enqueue(MockResponse.Builder().body("{}").build())
+            api.get("/api/threads")
+            val first = server.takeRequest()
+            api.discardIdleConnections()
+            assertNotNull("The idle socket must actually be closed", closedOn.get())
+            assertNotSame(caller, closedOn.get())
+            server.enqueue(MockResponse.Builder().body("{}").build())
+            api.get("/api/threads")
+            assertNotEquals(first.connectionIndex, server.takeRequest().connectionIndex)
+            api.discardIdleConnections()
+        }
+    }
+
     @Test fun ordinaryReadsRecoverStaleConnectionsAndReportSuccessfulTraffic() = runBlocking {
         MockWebServer().use { server ->
             server.start()

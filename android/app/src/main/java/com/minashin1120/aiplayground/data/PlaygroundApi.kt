@@ -4,6 +4,8 @@ import com.minashin1120.aiplayground.BuildConfig
 import com.minashin1120.aiplayground.data.direct.readSse
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.CookieJar
@@ -27,18 +29,23 @@ import java.io.EOFException
 import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
+import javax.net.SocketFactory
 
 /**
  * Cookie-less HTTP client for the Playground server. With no [fixedOrigin] it follows the active server
  * ([ServerOrigin.current]) so switching servers on the login screen does not need a new instance.
  */
-class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
+class PlaygroundApi internal constructor(
+    private val fixedOrigin: HttpUrl?,
+    socketFactory: SocketFactory = SocketFactory.getDefault(),
+) {
     constructor() : this(null)
     private val origin: HttpUrl get() = fixedOrigin ?: ServerOrigin.current
     private val jsonType = "application/json; charset=utf-8".toMediaType()
     // Keep uploads, short requests and streams on separate HTTP/1.1 connections.
     // A stalled multiplexed connection must not hold settings, heartbeat and release notes together.
     private val normal = OkHttpClient.Builder().protocols(listOf(Protocol.HTTP_1_1)).cookieJar(CookieJar.NO_COOKIES)
+        .socketFactory(socketFactory)
         .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
         .eventListenerFactory { serverCallListener() }
         .connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS)
@@ -75,9 +82,16 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
     /** A successful application response is stronger evidence than a concurrent failed probe. */
     @Volatile var onSuccessfulServerResponse: ((HttpUrl) -> Unit)? = null
 
-    /** Drop only idle sockets after a network/lifecycle change; active uploads and streams continue. */
-    fun discardIdleConnections() {
-        setOf(normal.connectionPool, heartbeat.connectionPool, external.connectionPool).forEach { it.evictAll() }
+    /** TLS socket closure can perform network I/O, including when called from Activity.onStart. */
+    suspend fun discardIdleConnections() = withContext(Dispatchers.IO) {
+        setOf(normal.connectionPool, heartbeat.connectionPool, external.connectionPool).forEach { pool ->
+            try {
+                pool.evictAll()
+            } catch (e: Exception) {
+                // Cleanup is best effort; a failed close must not crash a lifecycle callback.
+                Diagnostics.failure("error", e)
+            }
+        }
     }
 
     private fun serverCallListener(): EventListener = object : EventListener() {

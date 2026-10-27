@@ -1673,7 +1673,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun discardIdleServerConnections() {
+    private fun discardIdleServerConnections() = viewModelScope.launch {
         api.discardIdleConnections()
         syncApi.discardIdleConnections()
         diagnosticsApi.discardIdleConnections()

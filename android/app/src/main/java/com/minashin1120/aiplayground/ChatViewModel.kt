@@ -1500,7 +1500,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         ) }
         fetchThreads(false)
         runCatching { fetchGems() }.onFailure { report(it) }
-        runCatching { fetchPreferences(applyDefaults = state.value.selected == null && !state.value.streaming && !modelChosenManually) }.onFailure { report(it) }
+        val savedModel = prefs.getString("model_${account.id}", null).orEmpty()
+        val preserveSavedModel = account.models.any { it.id == savedModel && it.selectable }
+        runCatching {
+            fetchPreferences(
+                applyDefaults = state.value.selected == null && !state.value.streaming && !modelChosenManually,
+                preserveSelectedModel = preserveSavedModel,
+            )
+        }.onFailure { report(it) }
         runCatching { fetchBatchJobs(notify = false) }.onFailure { if (it is CancellationException) throw it }
         // The composer shows the MCP chip only when a server is enabled (Web `applyMcpPromptChipUi`).
         loadMcpServers()
@@ -4894,7 +4901,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- General preferences and this device's session ---
 
-    private suspend fun fetchPreferences(applyDefaults: Boolean = false) {
+    private suspend fun fetchPreferences(applyDefaults: Boolean = false, preserveSelectedModel: Boolean = false) {
         val payload = backend.get("/api/mobile/v1/preferences", token())
         val preferences = parsePreferences(payload)
         state.value.account?.let { account ->
@@ -4914,7 +4921,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val effort = if (useLast) preferences.lastReasoningEffort else preferences.defaultReasoningEffort
         val safety = if (useLast) preferences.lastSafetySetting else preferences.defaultSafetySetting
         mutable.update { it.copy(preferences = preferences,
-            model = selectable.ifBlank { it.model },
+            model = if (preserveSelectedModel || modelChosenManually) it.model else selectable.ifBlank { it.model },
             enableThinking = thinkingOn,
             enableSearch = if (useLast) preferences.lastEnableSearch else preferences.defaultEnableSearch,
             enableUrlContext = if (useLast) preferences.lastEnableUrlContext else preferences.defaultEnableUrlContext,

@@ -4263,12 +4263,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (cached != null) return cached.bytes
         val active = session?.token ?: return null
         return withContext(Dispatchers.IO) {
-            runCatching {
+            try {
                 val bytes = api.loadFileBytes(reference, active, thumbnail, limit)
                 offlineCache.saveFile(accountId, reference, thumbnail, bytes, mimeForReference(reference))
                 refreshOfflineCacheStats(accountId)
                 bytes
-            }.getOrNull()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { null }
         }
     }
     fun upload(uris: List<Uri>) = upload(uris, skipCompression = false)
@@ -4308,7 +4309,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             uploadTotal = if (source.size > 0) source.size else 0) }
                         val uploaded = withContext(Dispatchers.IO) { storeLocalUpload(source.name, source.mime, source.size, source.opener) }
                             ?: if (source.size > CHUNK_UPLOAD_THRESHOLD_BYTES) uploadInChunks(source) else uploadWhole(source)
-                        mutable.update { it.copy(attachments = it.attachments + Attachment(source.name, uploaded, source.mime)) }
+                        // Replace the in-progress row atomically, including while server sync is pending.
+                        mutable.update { it.withUploadedAttachment(Attachment(source.name, uploaded, source.mime)) }
                         val deviceBackend = localBackend as? LocalChatBackend
                         val chats = localChats
                         if (deviceBackend != null && chats != null && state.value.serverless && !state.value.localProfile && !state.value.offline) {
@@ -4328,7 +4330,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     } catch (e: CancellationException) { throw e }
                     catch (e: Exception) { report(e) }
-                    finally { mutable.update { it.copy(uploadCompleted = it.uploadCompleted + 1) } }
+                    finally { mutable.update { it.copy(uploadCompleted = it.uploadCompleted + 1,
+                        uploadName = "", uploadSent = 0, uploadTotal = 0) } }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -5309,3 +5312,8 @@ internal fun shouldRejoinStream(awayMs: Long, keptRunning: Boolean, quietMs: Lon
 /** A running answer that the device itself generates: no server job id, and chats are answered on the device. */
 internal fun isDeviceAnswer(streaming: Boolean, uploadsLocal: Boolean, jobId: String?): Boolean =
     streaming && uploadsLocal && jobId == null
+
+/** Publish the ready attachment and retire its temporary upload row in the same state update. */
+internal fun ChatState.withUploadedAttachment(attachment: Attachment): ChatState = copy(
+    attachments = attachments + attachment, uploadName = "", uploadSent = 0, uploadTotal = 0,
+)

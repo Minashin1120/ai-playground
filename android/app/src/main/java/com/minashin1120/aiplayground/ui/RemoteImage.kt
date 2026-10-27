@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 
 /** Loads same-origin attachment bytes with the Android Bearer token, or null on failure. */
@@ -115,7 +116,9 @@ fun ProtectedImage(
             loadFailed.value?.invoke()
             return@LaunchedEffect
         }
-        val bytes = runCatching { loader(reference, thumbnail, limitBytes) }.getOrNull()
+        val bytes = try { loader(reference, thumbnail, limitBytes) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { null }
         val decoded = bytes?.let { data -> withContext(Dispatchers.Default) { decodeScaled(data, maxDecodeWidth) } }
         if (decoded != null) {
             ProtectedImageCache.put(key, decoded)

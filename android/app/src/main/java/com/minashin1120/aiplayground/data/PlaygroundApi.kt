@@ -3,6 +3,7 @@ package com.minashin1120.aiplayground.data
 import com.minashin1120.aiplayground.BuildConfig
 import com.minashin1120.aiplayground.data.direct.readSse
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.delay
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.CookieJar
@@ -21,6 +22,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.io.EOFException
+import java.net.SocketException
+import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -372,9 +376,25 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
 
     suspend fun loadFileBytes(reference: String, token: String, thumbnail: Boolean, limit: Long): ByteArray {
         val ref = fileReferencePath(reference) ?: throw IOException("添付の参照が不正です。")
-        return execute(request(filePath(ref, thumbnail), token).build(), track = false) { response ->
-            if (!response.isSuccessful) throw error(response)
-            readBoundedBytes(response.body.byteStream(), limit)
+        val req = request(filePath(ref, thumbnail), token).build()
+        return retryAttachmentRead {
+            execute(req, track = false) { response ->
+                if (!response.isSuccessful) throw error(response)
+                readBoundedBytes(response.body.byteStream(), limit)
+            }
+        }
+    }
+}
+
+/** Retry only interrupted attachment GETs; keep HTTP, TLS and byte-budget failures terminal. */
+internal suspend fun <T> retryAttachmentRead(read: suspend () -> T): T {
+    var retries = 0
+    while (true) {
+        try { return read() }
+        catch (e: IOException) {
+            if (retries >= 2 || (e !is SocketException && e !is SocketTimeoutException && e !is EOFException)) throw e
+            // Each attempt retains the normal HTTP start/result/failure logging. Cancellation stops the delay.
+            delay(500L * ++retries)
         }
     }
 }

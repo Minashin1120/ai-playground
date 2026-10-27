@@ -178,7 +178,7 @@ internal fun MessageBubble(
                 liveTop?.invoke()
                 if (!user && message.thought.isNotBlank()) {
                     val thought = remember(message.thought) { thoughtText(message.thought) }
-                    if (thought.isNotBlank()) ThoughtContainer(thought, openInitially = streaming && !thoughtCollapsed)
+                    if (thought.isNotBlank()) ThoughtContainer(thought, openInitially = (streaming || preserveLiveLayout) && !thoughtCollapsed)
                 }
                 if (user) {
                     // User messages are shown as raw text (`whitespace-pre-wrap font-sans text-sm`).

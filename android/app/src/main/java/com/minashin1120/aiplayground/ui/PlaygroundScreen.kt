@@ -1649,6 +1649,7 @@ private fun ConversationContent(
                             ),
                             controlsVisible = activeMessageId == message.id,
                             preserveLiveLayout = keys.isLiveReply(message),
+                            thoughtCollapsed = keys.isLiveReply(message),
                             // Web's tap-to-hover: tapping the bubble again keeps its controls; a tap elsewhere hides them.
                             onToggleControls = { activeMessageId = message.id },
                             branchIndex = if (index < 0) 0 else index,

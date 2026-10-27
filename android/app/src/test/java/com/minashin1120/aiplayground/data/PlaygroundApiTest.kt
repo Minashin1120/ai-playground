@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.async
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
+import mockwebserver3.SocketEffect
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -12,6 +13,58 @@ import java.io.ByteArrayInputStream
 import java.io.IOException
 
 class PlaygroundApiTest {
+    @Test fun fullImageRecoversWhenPreviouslyWorkingPooledSocketDies() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                .body("{}").build())
+            server.enqueue(MockResponse.Builder().onResponseStart(SocketEffect.CloseSocket()).build())
+            server.enqueue(MockResponse.Builder().body("full-image").build())
+            val api = PlaygroundApi(server.url("/"))
+            api.get("/api/version") // Leave a working socket in the shared pool.
+            val bytes = api.loadFileBytes("1/generated.png", "test-token", thumbnail = false, limit = 100)
+            assertEquals("full-image", bytes.toString(Charsets.UTF_8))
+            val warmup = server.takeRequest()
+            val interrupted = server.takeRequest()
+            val recovered = server.takeRequest()
+            assertEquals(warmup.connectionIndex, interrupted.connectionIndex)
+            assertNotEquals(interrupted.connectionIndex, recovered.connectionIndex)
+            assertEquals("/files/1/generated.png", recovered.target)
+            assertEquals("Bearer test-token", recovered.headers["Authorization"])
+        }
+    }
+
+    @Test fun interruptedMutationIsNotAutomaticallyRepeated() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                .body("{}").build())
+            server.enqueue(MockResponse.Builder().onResponseStart(SocketEffect.CloseSocket()).build())
+            val api = PlaygroundApi(server.url("/"))
+            api.get("/api/version")
+            val failure = runCatching { api.post("/api/threads", JSONObject(), "test-token") }.exceptionOrNull()
+            assertTrue(failure is IOException)
+            assertEquals(2, server.requestCount)
+        }
+    }
+
+    @Test fun imageRecoveryPreservesAuthenticationErrorsAndByteBudget() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            val api = PlaygroundApi(server.url("/"))
+            server.enqueue(MockResponse.Builder().code(401).addHeader("Content-Type", "application/json")
+                .body("{}").build())
+            val denied = runCatching { api.loadFileBytes("1/image.png", "test-token", false, 10) }.exceptionOrNull()
+            assertTrue(denied is ApiException)
+            assertEquals(401, (denied as ApiException).status)
+            assertEquals(1, server.requestCount)
+            server.enqueue(MockResponse.Builder().body("too large").build())
+            val oversized = runCatching { api.loadFileBytes("1/image.png", "test-token", false, 2) }.exceptionOrNull()
+            assertTrue(oversized is IOException)
+            assertEquals(2, server.requestCount)
+        }
+    }
+
     @Test fun serverFailureDoesNotClaimAccountRestriction() {
         val failure = ApiException(500, JSONObject().put("error", "request_blocked"))
         assertEquals("サーバーでエラーが発生しました。しばらくしてからお試しください。", failure.message)

@@ -7,6 +7,7 @@ import kotlinx.coroutines.delay
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.CookieJar
+import okhttp3.EventListener
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
@@ -41,6 +42,21 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
         .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
         .connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(120, TimeUnit.SECONDS).callTimeout(180, TimeUnit.SECONDS).build()
+    // File GETs must recover from stale pooled sockets inside OkHttp, before a failed exchange is
+    // surfaced to the image viewer. Keep mutation requests on the non-retrying normal client.
+    private val attachmentReads = normal.newBuilder().retryOnConnectionFailure(true)
+        .eventListenerFactory {
+            object : EventListener() {
+                private val started = System.currentTimeMillis()
+                private fun record(call: Call, failure: IOException) {
+                    ActivityLog.log("http.read_error", "method" to call.request().method,
+                        "path" to call.request().url.encodedPath, "error" to failure.javaClass.simpleName,
+                        "ms" to System.currentTimeMillis() - started)
+                }
+                override fun requestFailed(call: Call, ioe: IOException) { record(call, ioe) }
+                override fun responseFailed(call: Call, ioe: IOException) { record(call, ioe) }
+            }
+        }.build()
     // Probes must not spend their three-second budget queued behind settings or file transfers.
     private val heartbeat = normal.newBuilder().dispatcher(okhttp3.Dispatcher())
         .connectionPool(okhttp3.ConnectionPool()).build()
@@ -378,7 +394,7 @@ class PlaygroundApi internal constructor(private val fixedOrigin: HttpUrl?) {
         val ref = fileReferencePath(reference) ?: throw IOException("添付の参照が不正です。")
         val req = request(filePath(ref, thumbnail), token).build()
         return retryAttachmentRead {
-            execute(req, track = false) { response ->
+            execute(req, client = attachmentReads, track = false) { response ->
                 if (!response.isSuccessful) throw error(response)
                 readBoundedBytes(response.body.byteStream(), limit)
             }

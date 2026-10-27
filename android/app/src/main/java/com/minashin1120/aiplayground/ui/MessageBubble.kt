@@ -190,7 +190,7 @@ internal fun MessageBubble(
                 } else {
                     message.batch?.let { BatchStatusCard(it) }
                     if (display.isNotEmpty()) MarkdownText(com.minashin1120.aiplayground.data.missingFileMarkup(display, message.missingFiles), loader, onFile,
-                        startCollapsed = !streaming, canvasMode = LocalCanvasMode.current)
+                        startCollapsed = true, canvasMode = LocalCanvasMode.current)
                 }
                 liveBottom?.invoke()
                 val files = message.files.filterNot { !user && message.content.contains(it) }

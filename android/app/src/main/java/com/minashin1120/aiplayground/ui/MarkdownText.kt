@@ -1165,9 +1165,9 @@ internal fun InlineRichText(source: InlineMarkdown, style: TextStyle, codeBackgr
 
 @Composable
 private fun CodeBlock(block: MarkdownBlock.Code, colors: MarkdownColors, startCollapsed: Boolean) {
-    // Web `snapshotCodeCollapseByMessage`: the open/closed state survives scrolling away and reloads.
-    // Include the stream lifecycle so a block that was open while generating collapses after completion.
-    var collapsed by rememberSaveable(block.text, block.language, startCollapsed) { mutableStateOf(startCollapsed) }
+    // Web renders new code blocks collapsed and reapplies their prior state by block position on each stream update.
+    // The parent keys blocks by position, so keep this state while the code text changes and the live row is handed off.
+    var collapsed by rememberSaveable { mutableStateOf(startCollapsed) }
     var previewOpen by rememberSaveable { mutableStateOf(false) }
     var copied by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(copied) { if (copied != null) { delay(2000); copied = null } }

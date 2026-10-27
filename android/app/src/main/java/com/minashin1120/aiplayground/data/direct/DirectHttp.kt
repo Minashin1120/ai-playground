@@ -17,7 +17,10 @@ import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONObject
+import java.io.EOFException
 import java.io.IOException
+import java.net.SocketException
+import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 
 /** An AI provider answered with an error (HTTP status and the provider's message). */
@@ -141,18 +144,39 @@ class DirectHttp(
             val send = if (hostAllowed(target.host) || local) credentials else emptyMap()
             val req = Request.Builder().url(target).header("User-Agent", "AIPlayground-Android/${BuildConfig.VERSION_NAME}")
                 .apply { send.forEach { (name, value) -> header(name, value) } }.get().build()
-            val (bytes, location) = execute(req) { response ->
-                if (response.isRedirect) null to response.header("Location")
-                else {
-                    if (!response.isSuccessful) throw providerError(response.code, response.body.string())
-                    response.body.byteStream().use { input -> input.readNBytesCompat(limit) } to null
+            var result: Pair<ByteArray?, String?>? = null
+            var retries = 0
+            while (result == null) {
+                try {
+                    result = execute(req) { response ->
+                        if (response.isRedirect) null to response.header("Location")
+                        else {
+                            if (!response.isSuccessful) throw providerError(response.code, response.body.string())
+                            response.body.byteStream().use { input -> input.readNBytesCompat(limit) } to null
+                        }
+                    }
+                } catch (error: IOException) {
+                    if (retries >= 1 || !isRetryableDownloadFailure(error)) throw error
+                    retries++
                 }
             }
+            val (bytes, location) = result ?: throw IOException("ダウンロードに失敗しました。")
             if (bytes != null) return bytes
             target = location?.let { target.resolve(it) } ?: throw IOException("ダウンロードのリダイレクト先が不正です。")
             credentials = emptyMap()
         }
         throw IOException("リダイレクトが多すぎます。")
+    }
+
+    /** Generated files use short-lived URLs; retry a transient GET failure once without regenerating. */
+    private fun isRetryableDownloadFailure(error: IOException): Boolean {
+        var cause: Throwable? = error
+        repeat(8) {
+            val current = cause ?: return false
+            if (current is SocketException || current is SocketTimeoutException || current is EOFException) return true
+            cause = current.cause
+        }
+        return false
     }
 
     companion object {

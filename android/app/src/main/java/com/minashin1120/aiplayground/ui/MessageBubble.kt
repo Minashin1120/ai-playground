@@ -178,7 +178,7 @@ internal fun MessageBubble(
                 liveTop?.invoke()
                 if (!user && message.thought.isNotBlank()) {
                     val thought = remember(message.thought) { thoughtText(message.thought) }
-                    if (thought.isNotBlank()) ThoughtContainer(thought, openInitially = (streaming || preserveLiveLayout) && !thoughtCollapsed)
+                    if (thought.isNotBlank()) ThoughtContainer(thought, openInitially = streaming && !thoughtCollapsed)
                 }
                 if (user) {
                     // User messages are shown as raw text (`whitespace-pre-wrap font-sans text-sm`).
@@ -190,7 +190,7 @@ internal fun MessageBubble(
                 } else {
                     message.batch?.let { BatchStatusCard(it) }
                     if (display.isNotEmpty()) MarkdownText(com.minashin1120.aiplayground.data.missingFileMarkup(display, message.missingFiles), loader, onFile,
-                        startCollapsed = !streaming && !preserveLiveLayout, canvasMode = LocalCanvasMode.current)
+                        startCollapsed = !streaming, canvasMode = LocalCanvasMode.current)
                 }
                 liveBottom?.invoke()
                 val files = message.files.filterNot { !user && message.content.contains(it) }

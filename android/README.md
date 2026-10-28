@@ -93,7 +93,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ConfirmDialogs.kt` | Webの確認モーダル（外部ツール操作の確認、ローカルPython実行に切替） | 送信前・生成中の確認ダイアログを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/CanvasPanel.kt` | Webの `#canvas-panel`（スマートフォンは全画面、1024dp以上は右側。Blocks／Source、Copy、Clear、×） | Canvasの表示や操作を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/CanvasBlocks.kt` | Canvasモードのコードブロック抽出（Web `parseCanvasMarkdown`）、選択、見出し・状態の文言 | Canvasに出すブロックや文言を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMarkerEditor.kt` | 「画像編集」（マーカー、モザイク、トリミング、左右90度の回転、二本指の拡大、保存して反映）とObject Remover用マスク作成 | 画像編集・マスク作成の画面や保存を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ImageMarkerEditor.kt` | 「画像編集」（マーカー、モザイク、トリミング、左右90度の回転、二本指の拡大、保存して反映）とObject Remover用マスク作成（近似色の自動塗り） | 画像編集・マスク作成の画面や保存を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageMarker.kt` | 画像編集の計算（線の補間、モザイク範囲、トリミングの掴み位置、拡大時の位置制限、回転の座標変換、保存名） | 画像編集の操作の決まりを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ImageSplitDialog.kt` | Webと共通の「画像を分割」ダイアログ（プレビュー、分割数、重なり、元画像の扱い、添付／共有／保存） | 画像分割の画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SharedTextPreviewDialog.kt`、`data/SharedTextMath.kt` | Android版だけの「メッセージとしてプレビュー」ダイアログ（共有されたテキストをAIの回答として `MessageBubble` で全画面に表示）と、数式の区切りが落ちたテキストへの区切りの補完 | 共有テキストのプレビューを変更するとき |

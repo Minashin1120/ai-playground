@@ -1309,8 +1309,13 @@
                 };
             }
             if (get('marker-tool-draw')) get('marker-tool-draw').onclick = () => setMarkerMode('draw');
+            if (get('marker-tool-auto')) get('marker-tool-auto').onclick = () => setMarkerMode('auto');
             if (get('marker-tool-mosaic')) get('marker-tool-mosaic').onclick = () => setMarkerMode('mosaic');
             if (get('marker-tool-crop')) get('marker-tool-crop').onclick = () => setMarkerMode('crop');
+            if (get('marker-auto-tolerance')) get('marker-auto-tolerance').oninput = (e) => {
+                const label = get('marker-auto-tolerance-value');
+                if (label) label.textContent = String(e.target.value);
+            };
             const markerColorPicker = get('marker-color-picker');
             if (markerColorPicker) {
                 markerColorPicker.oninput = (e) => setMarkerColor(e.target.value);

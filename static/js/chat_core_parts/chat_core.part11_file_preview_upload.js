@@ -224,7 +224,7 @@
             if (btnCrop) btnCrop.classList.toggle('active', mode === 'crop');
             const hint = get('marker-tool-hint');
             if (hint) hint.textContent = markerState.maskMode
-                ? '白く塗った部分が削除対象になります / 二本指で拡大'
+                ? (mode === 'auto' ? '画像をタップすると近似色のつながった範囲を塗ります' : '白く塗った部分が削除対象になります / 二本指で拡大')
                 : (markerToolHints[mode] || '');
             const cropReset = get('marker-crop-reset');
             if (cropReset) cropReset.classList.toggle('hidden', mode !== 'crop');
@@ -233,6 +233,18 @@
             const crop = get('marker-tool-crop');
             if (mosaic) mosaic.classList.toggle('hidden', markerState.maskMode);
             if (crop) crop.classList.toggle('hidden', markerState.maskMode);
+            const draw = get('marker-tool-draw');
+            const auto = get('marker-tool-auto');
+            if (draw) draw.textContent = markerState.maskMode ? 'ブラシ' : 'マーカー';
+            if (auto) {
+                auto.classList.toggle('hidden', !markerState.maskMode);
+                auto.classList.toggle('active', mode === 'auto');
+            }
+            if (draw) draw.classList.toggle('active', mode === 'draw');
+            const brushControl = get('marker-brush-control');
+            if (brushControl) brushControl.classList.toggle('hidden', markerState.maskMode && mode === 'auto');
+            const toleranceControl = get('marker-auto-tolerance-control');
+            if (toleranceControl) toleranceControl.classList.toggle('hidden', !markerState.maskMode || mode !== 'auto');
             const title = get('marker-modal-title');
             const description = get('marker-modal-description');
             const save = get('marker-save');
@@ -240,7 +252,7 @@
                 ? '<i class="fas fa-mask text-yellow-300"></i> マスク作成'
                 : '<i class="fas fa-highlighter text-yellow-300"></i> 画像編集';
             if (description) description.textContent = markerState.maskMode
-                ? '白く塗った領域が削除対象になります。マスクは対象画像と同じサイズで作成されます。'
+                ? '白く塗った領域が削除対象です。ブラシまたは自動塗りを使えます。マスクは対象画像と同じサイズで作成されます。'
                 : 'マーカー・モザイク・トリミングが可能です。送信時に編集済み画像の確認を促します。';
             if (save) save.textContent = markerState.maskMode ? 'マスクを作成' : '保存して反映';
             const drawCanvas = get('marker-canvas');

@@ -58,12 +58,14 @@ import com.minashin1120.aiplayground.data.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import java.util.ArrayDeque
 import kotlin.math.max
 import kotlin.math.min
 
 /** One undoable edit, replayed onto the marker layer (Web `saveMarkerHistory` snapshots). */
 internal sealed interface MarkerOp {
     data class StrokeOp(val points: List<MarkerPoint>, val width: Float, val color: Color) : MarkerOp
+    data class FillOp(val spans: IntArray) : MarkerOp
     data class MosaicOp(val rect: MarkerRect, val block: Int) : MarkerOp
     data class RotateOp(val turns: Int) : MarkerOp
     data object ClearOp : MarkerOp
@@ -124,6 +126,15 @@ private fun drawOp(layer: Bitmap, base: Bitmap, op: MarkerOp) {
             }
             source.recycle()
         }
+        is MarkerOp.FillOp -> {
+            val paint = AndroidPaint().apply { color = android.graphics.Color.WHITE }
+            var i = 0
+            while (i + 2 < op.spans.size) {
+                val y = op.spans[i]
+                canvas.drawRect(op.spans[i + 1].toFloat(), y.toFloat(), op.spans[i + 2].toFloat(), (y + 1).toFloat(), paint)
+                i += 3
+            }
+        }
         is MarkerOp.RotateOp -> Unit // The whole composite is rotated, including the crop and marker layer.
         MarkerOp.ClearOp -> canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
     }
@@ -155,6 +166,8 @@ internal fun ImageMarkerEditor(
         }
     }
     var mode by remember { mutableStateOf(MarkerMode.DRAW) }
+    var autoFill by remember(attachment.reference, maskMode) { mutableStateOf(false) }
+    var autoFillTolerance by remember { mutableFloatStateOf(32f) }
     var brushSize by remember { mutableFloatStateOf(16f) }
     var colorHex by remember { mutableStateOf(MARKER_DEFAULT_COLOR) }
     var opacityPct by remember { mutableDoubleStateOf(60.0) }
@@ -183,7 +196,7 @@ internal fun ImageMarkerEditor(
                 FaIcon(R.drawable.fa_solid_times, "閉じる", size = 14.dp, tint = Tw.gray400)
             }
         }
-        Text(if (maskMode) "白く塗った領域が削除対象になります。元画像と同じサイズのマスクを作成します。"
+        Text(if (maskMode) "白く塗った領域が削除対象です。ブラシか自動塗りを使って範囲を指定できます。"
             else "マーカー・モザイク・トリミング・回転が可能です。送信時に編集済み画像の確認を促します。", fontSize = 12.sp, color = Tw.gray400,
             modifier = Modifier.padding(bottom = 12.dp))
         val source = image
@@ -243,7 +256,7 @@ internal fun ImageMarkerEditor(
             val brushPx = brushSize * density
             Box(
                 Modifier.fillMaxWidth().height(with(LocalDensity.current) { stageH.toDp() })
-                    .pointerInput(mode, brushPx, colorHex, opacityPct, canvasW, canvasH, rotation, viewFit) {
+                    .pointerInput(mode, maskMode, autoFill, autoFillTolerance, brushPx, colorHex, opacityPct, canvasW, canvasH, rotation, viewFit) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             if (saving) return@awaitEachGesture
@@ -251,9 +264,14 @@ internal fun ImageMarkerEditor(
                             var cropMode = "move"
                             var cropStart: MarkerRect? = null
                             val start = toCanvas(down.position)
+                            val startInsideImage = start.x >= 0f && start.y >= 0f && start.x < canvasW && start.y < canvasH
+                            var autoPoint: MarkerPoint? = null
                             var last = start
-                            when (mode) {
-                                MarkerMode.DRAW -> { livePoints.clear(); appendStrokePoint(livePoints, start, brushPx) }
+                            if (startInsideImage) when (mode) {
+                                MarkerMode.DRAW -> {
+                                    livePoints.clear()
+                                    if (maskMode && autoFill) autoPoint = start else appendStrokePoint(livePoints, start, brushPx)
+                                }
                                 MarkerMode.MOSAIC -> liveMosaic = mosaicRectAt(start, brushPx)
                                 MarkerMode.CROP -> {
                                     val rect = cropRect ?: MarkerRect(0f, 0f, canvasW.toFloat(), canvasH.toFloat())
@@ -270,11 +288,11 @@ internal fun ImageMarkerEditor(
                                     if (!pinching) { pinching = true; livePoints.clear(); liveMosaic = null }
                                     scale = (scale * event.calculateZoom()).coerceIn(1f, MARKER_MAX_SCALE)
                                     offset = clampOffset(offset + event.calculatePan())
-                                } else if (!pinching) {
+                                } else if (!pinching && startInsideImage) {
                                     val p = toCanvas(pressed[0].position)
                                     last = p
                                     when (mode) {
-                                        MarkerMode.DRAW -> appendStrokePoint(livePoints, p, brushPx)
+                                        MarkerMode.DRAW -> if (!(maskMode && autoFill)) appendStrokePoint(livePoints, p, brushPx)
                                         MarkerMode.MOSAIC -> liveMosaic = normalizeMosaicRect(start, p)
                                         MarkerMode.CROP -> cropStart?.let { rect ->
                                             cropRect = dragCropRect(cropMode, rect, start, p, canvasW.toFloat(), canvasH.toFloat(),
@@ -284,8 +302,15 @@ internal fun ImageMarkerEditor(
                                 }
                                 event.changes.forEach { it.consume() }
                             }
-                            if (!pinching) when (mode) {
-                                MarkerMode.DRAW -> if (livePoints.isNotEmpty()) {
+                            if (!pinching && startInsideImage) when (mode) {
+                                MarkerMode.DRAW -> if (maskMode && autoFill && autoPoint != null) {
+                                    val point = checkNotNull(autoPoint)
+                                    val spans = withContext(Dispatchers.Default) {
+                                        findSimilarColorSpans(base, point.x.toInt(), point.y.toInt(), autoFillTolerance.toInt())
+                                    }
+                                    if (spans == null) onError("範囲が複雑です。許容差を下げてください")
+                                    else if (spans.isNotEmpty()) push(MarkerOp.FillOp(spans))
+                                } else if (livePoints.isNotEmpty()) {
                                     val strokeColor = if (maskMode) Color.White else colorOf(colorHex, (opacityPct / 100).toFloat())
                                     push(MarkerOp.StrokeOp(livePoints.toList(), brushPx, strokeColor))
                                 }
@@ -313,7 +338,7 @@ internal fun ImageMarkerEditor(
                             translationY = offset.y + rotationOrigin.y * renderScale
                         },
                 ) {
-                    Image(base.asImageBitmap(), null, Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.FillBounds)
+                    Image(base.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
                     Canvas(Modifier.fillMaxSize()) {
                         layerVersion.let { drawImage(layer.asImageBitmap()) }
                         if (livePoints.isNotEmpty()) {
@@ -329,6 +354,8 @@ internal fun ImageMarkerEditor(
         }
         MarkerToolbar(
             mode = mode, onMode = { if (!maskMode) mode = it }, maskMode = maskMode,
+            autoFill = autoFill, onAutoFill = { autoFill = it }, tolerance = autoFillTolerance,
+            onTolerance = { autoFillTolerance = it },
             size = brushSize, onSize = { brushSize = it },
             colorHex = colorHex, onColor = { colorHex = normalizeMarkerHex(it) }, onPickColor = { pickingColor = true },
             opacityPct = opacityPct, onOpacity = { opacityPct = clampMarkerOpacityPct(it) },
@@ -355,7 +382,7 @@ internal fun ImageMarkerEditor(
                 if (saving) return@save
                 saving = true
                 val ops = history.toList()
-                if (maskMode && ops.drop(ops.indexOfLast { it == MarkerOp.ClearOp } + 1).none { it is MarkerOp.StrokeOp }) {
+                if (maskMode && ops.drop(ops.indexOfLast { it == MarkerOp.ClearOp } + 1).none { it is MarkerOp.StrokeOp || it is MarkerOp.FillOp }) {
                     onError("削除する範囲を白く塗ってください")
                     saving = false
                     return@save
@@ -390,6 +417,67 @@ private fun onSaveRequest(
     }.start()
 }
 
+private fun findSimilarColorSpans(bitmap: Bitmap, seedX: Int, seedY: Int, tolerance: Int): IntArray? {
+    val width = bitmap.width
+    val height = bitmap.height
+    if (seedX !in 0 until width || seedY !in 0 until height) return IntArray(0)
+    val pixels = IntArray(width * height)
+    bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+    val seed = pixels[seedY * width + seedX]
+    if ((seed ushr 24) < 16) return IntArray(0)
+    val red = (seed shr 16) and 0xFF
+    val green = (seed shr 8) and 0xFF
+    val blue = seed and 0xFF
+    val limit = tolerance.coerceIn(0, 100)
+    fun matches(index: Int): Boolean {
+        val color = pixels[index]
+        if ((color ushr 24) < 16) return false
+        return maxOf(kotlin.math.abs(((color shr 16) and 0xFF) - red),
+            kotlin.math.abs(((color shr 8) and 0xFF) - green), kotlin.math.abs((color and 0xFF) - blue)) <= limit
+    }
+    val visited = ByteArray(width * height)
+    val pending = ArrayDeque<Int>()
+    val maxSpans = 100_000
+    val spans = IntArray(maxSpans * 3)
+    var spanCount = 0
+    val seedIndex = seedY * width + seedX
+    visited[seedIndex] = 1
+    pending.addLast(seedIndex)
+    while (pending.isNotEmpty()) {
+        val index = pending.removeLast()
+        if (visited[index].toInt() == 2 || !matches(index)) continue
+        val y = index / width
+        var left = index % width
+        var right = left
+        while (left > 0 && visited[y * width + left - 1].toInt() != 2 && matches(y * width + left - 1)) left--
+        while (right + 1 < width && visited[y * width + right + 1].toInt() != 2 && matches(y * width + right + 1)) right++
+        for (x in left..right) visited[y * width + x] = 2
+        if (spanCount >= maxSpans) return null
+        val spanOffset = spanCount * 3
+        spans[spanOffset] = y
+        spans[spanOffset + 1] = left
+        spans[spanOffset + 2] = right + 1
+        spanCount++
+        for (nextY in intArrayOf(y - 1, y + 1)) {
+            if (nextY !in 0 until height) continue
+            var x = left
+            while (x <= right) {
+                val nextIndex = nextY * width + x
+                if (visited[nextIndex].toInt() == 0 && matches(nextIndex)) {
+                    visited[nextIndex] = 1
+                    pending.addLast(nextIndex)
+                    while (x + 1 <= right && visited[nextY * width + x + 1].toInt() == 0 && matches(nextY * width + x + 1)) {
+                        x++
+                        visited[nextY * width + x] = 1
+                    }
+                }
+                x++
+            }
+        }
+    }
+    return spans.copyOf(spanCount * 3)
+}
+
 private fun renderMask(ops: List<MarkerOp>, canvasSize: Pair<Int, Int>, outputSize: Pair<Int, Int>): ByteArray {
     require(outputSize.first > 0 && outputSize.second > 0)
     val layer = Bitmap.createBitmap(canvasSize.first, canvasSize.second, Bitmap.Config.ARGB_8888)
@@ -397,9 +485,7 @@ private fun renderMask(ops: List<MarkerOp>, canvasSize: Pair<Int, Int>, outputSi
     try {
         layer.eraseColor(android.graphics.Color.TRANSPARENT)
         val start = ops.indexOfLast { it == MarkerOp.ClearOp } + 1
-        ops.drop(start).forEach { op ->
-            if (op is MarkerOp.StrokeOp) drawOp(layer, layer, op)
-        }
+        ops.drop(start).forEach { op -> if (op is MarkerOp.StrokeOp || op is MarkerOp.FillOp) drawOp(layer, layer, op) }
         output = Bitmap.createBitmap(outputSize.first, outputSize.second, Bitmap.Config.ARGB_8888)
         val rendered = checkNotNull(output)
         rendered.eraseColor(android.graphics.Color.BLACK)
@@ -497,6 +583,7 @@ private fun DrawScope.drawMarkerOverlay(mode: MarkerMode, crop: MarkerRect?, mos
 private fun MarkerToolbar(
     mode: MarkerMode, onMode: (MarkerMode) -> Unit,
     maskMode: Boolean,
+    autoFill: Boolean, onAutoFill: (Boolean) -> Unit, tolerance: Float, onTolerance: (Float) -> Unit,
     size: Float, onSize: (Float) -> Unit,
     colorHex: String, onColor: (String) -> Unit, onPickColor: () -> Unit,
     opacityPct: Double, onOpacity: (Double) -> Unit,
@@ -522,9 +609,25 @@ private fun MarkerToolbar(
                         .clickable(role = Role.Button) { onMode(tool) }.padding(horizontal = 12.dp, vertical = 4.dp))
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (maskMode) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(false to "ブラシ", true to "自動塗り").forEach { (selected, label) ->
+                val active = autoFill == selected
+                val shape = RoundedCornerShape(4.dp)
+                Text(label, fontSize = 11.sp, color = if (active) Color(0xFFFDE68A) else web.twText(Color(0xFFE5E7EB)),
+                    modifier = Modifier.clip(shape)
+                        .background(if (active) Color(250, 204, 21).copy(alpha = 0.2f) else web.twBg(Color(55, 65, 81), 0.85f))
+                        .border(1.dp, if (active) Color(250, 204, 21).copy(alpha = 0.5f) else Color(107, 114, 128).copy(alpha = 0.5f), shape)
+                        .clickable(role = Role.Button) { onAutoFill(selected) }.padding(horizontal = 12.dp, vertical = 4.dp))
+            }
+        }
+        if (!maskMode || !autoFill) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("太さ", fontSize = 12.sp, color = Tw.gray400)
             YellowSlider(size, 1f..40f, 1f, Modifier.width(128.dp)) { onSize(it) }
+        }
+        if (maskMode && autoFill) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("許容差", fontSize = 12.sp, color = Tw.gray400)
+            YellowSlider(tolerance, 0f..100f, 1f, Modifier.width(128.dp), onTolerance)
+            Text(tolerance.toInt().toString(), fontSize = 12.sp, color = web.twText(Tw.slate300), modifier = Modifier.widthIn(min = 24.dp))
         }
         if (!maskMode) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("色", fontSize = 12.sp, color = Tw.gray400)
@@ -555,7 +658,8 @@ private fun MarkerToolbar(
             WebCheckbox(attachOriginal, onAttachOriginal, accent = yellow, size = 12.dp)
             Text("元画像も添付", fontSize = 10.sp, color = Tw.gray400)
         }
-        Text(if (maskMode) "白く塗った領域を削除 / 二本指で拡大" else MARKER_TOOL_HINTS[mode].orEmpty(), fontSize = 10.sp, color = Tw.gray500)
+        Text(if (maskMode && autoFill) "タップした色に近い、つながった範囲を塗ります"
+            else if (maskMode) "白く塗った領域を削除 / 二本指で拡大" else MARKER_TOOL_HINTS[mode].orEmpty(), fontSize = 10.sp, color = Tw.gray500)
         // Web `ml-auto flex`: wraps on narrow phones so "保存して反映" is never squeezed out of view.
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),

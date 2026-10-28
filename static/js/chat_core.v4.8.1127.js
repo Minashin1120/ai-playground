@@ -13525,8 +13525,13 @@
                 };
             }
             if (get('marker-tool-draw')) get('marker-tool-draw').onclick = () => setMarkerMode('draw');
+            if (get('marker-tool-auto')) get('marker-tool-auto').onclick = () => setMarkerMode('auto');
             if (get('marker-tool-mosaic')) get('marker-tool-mosaic').onclick = () => setMarkerMode('mosaic');
             if (get('marker-tool-crop')) get('marker-tool-crop').onclick = () => setMarkerMode('crop');
+            if (get('marker-auto-tolerance')) get('marker-auto-tolerance').oninput = (e) => {
+                const label = get('marker-auto-tolerance-value');
+                if (label) label.textContent = String(e.target.value);
+            };
             const markerColorPicker = get('marker-color-picker');
             if (markerColorPicker) {
                 markerColorPicker.oninput = (e) => setMarkerColor(e.target.value);
@@ -17196,7 +17201,7 @@
             if (btnCrop) btnCrop.classList.toggle('active', mode === 'crop');
             const hint = get('marker-tool-hint');
             if (hint) hint.textContent = markerState.maskMode
-                ? '白く塗った部分が削除対象になります / 二本指で拡大'
+                ? (mode === 'auto' ? '画像をタップすると近似色のつながった範囲を塗ります' : '白く塗った部分が削除対象になります / 二本指で拡大')
                 : (markerToolHints[mode] || '');
             const cropReset = get('marker-crop-reset');
             if (cropReset) cropReset.classList.toggle('hidden', mode !== 'crop');
@@ -17205,6 +17210,18 @@
             const crop = get('marker-tool-crop');
             if (mosaic) mosaic.classList.toggle('hidden', markerState.maskMode);
             if (crop) crop.classList.toggle('hidden', markerState.maskMode);
+            const draw = get('marker-tool-draw');
+            const auto = get('marker-tool-auto');
+            if (draw) draw.textContent = markerState.maskMode ? 'ブラシ' : 'マーカー';
+            if (auto) {
+                auto.classList.toggle('hidden', !markerState.maskMode);
+                auto.classList.toggle('active', mode === 'auto');
+            }
+            if (draw) draw.classList.toggle('active', mode === 'draw');
+            const brushControl = get('marker-brush-control');
+            if (brushControl) brushControl.classList.toggle('hidden', markerState.maskMode && mode === 'auto');
+            const toleranceControl = get('marker-auto-tolerance-control');
+            if (toleranceControl) toleranceControl.classList.toggle('hidden', !markerState.maskMode || mode !== 'auto');
             const title = get('marker-modal-title');
             const description = get('marker-modal-description');
             const save = get('marker-save');
@@ -17212,7 +17229,7 @@
                 ? '<i class="fas fa-mask text-yellow-300"></i> マスク作成'
                 : '<i class="fas fa-highlighter text-yellow-300"></i> 画像編集';
             if (description) description.textContent = markerState.maskMode
-                ? '白く塗った領域が削除対象になります。マスクは対象画像と同じサイズで作成されます。'
+                ? '白く塗った領域が削除対象です。ブラシまたは自動塗りを使えます。マスクは対象画像と同じサイズで作成されます。'
                 : 'マーカー・モザイク・トリミングが可能です。送信時に編集済み画像の確認を促します。';
             if (save) save.textContent = markerState.maskMode ? 'マスクを作成' : '保存して反映';
             const drawCanvas = get('marker-canvas');
@@ -18649,6 +18666,7 @@
             let strokePoints = [];
             let strokeSize = 16;
             let strokeStyle = '';
+            let autoFillPoint = null;
             let drawBaseCanvas = null;
             let drawBaseCtx = null;
             let drawLayerCanvas = null;
@@ -18684,7 +18702,7 @@
             };
             const renderDrawPreview = () => {
                 if (!ctx || !drawBaseCanvas || !drawLayerCanvas) return;
-                const alpha = Math.max(MARKER_OPACITY_MIN_ALPHA, Math.min(1, Number(markerState.opacity) || 0.6));
+                const alpha = markerState.maskMode ? 1 : Math.max(MARKER_OPACITY_MIN_ALPHA, Math.min(1, Number(markerState.opacity) || 0.6));
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(drawBaseCanvas, 0, 0);
                 ctx.save();
@@ -18821,6 +18839,7 @@
                     strokePoints = [];
                     mosaicSelecting = false;
                     mosaicStartPoint = null;
+                    autoFillPoint = null;
                     markerState.mosaicPreviewRect = null;
                     pinchStartDist = getDist(p1, p2) || 1;
                     pinchStartScale = markerView.scale;
@@ -18835,7 +18854,9 @@
                 if (markerState.mode === 'crop') return;
                 drawing = true;
                 const p = getPoint(e);
-                if (markerState.mode === 'mosaic') {
+                if (markerState.mode === 'auto' && markerState.maskMode) {
+                    autoFillPoint = p;
+                } else if (markerState.mode === 'mosaic') {
                     mosaicSelecting = true;
                     mosaicStartPoint = p;
                     markerState.mosaicPreviewRect = buildMosaicRectFromPoint(p);
@@ -18876,6 +18897,10 @@
                     return;
                 }
                 if (!drawing || !ctx) return;
+                if (markerState.mode === 'auto' && markerState.maskMode) {
+                    e.preventDefault();
+                    return;
+                }
                 const p = getPoint(e);
                 if (markerState.mode === 'mosaic') {
                     if (!mosaicSelecting || !mosaicStartPoint) return;
@@ -18898,6 +18923,9 @@
                 }
                 if (activePointers.size === 0) {
                     drawing = false;
+                    const autoFillApplied = wasDrawing && e.type !== 'pointercancel' && markerState.mode === 'auto'
+                        && markerState.maskMode && autoFillPoint ? fillMaskSimilarRegion(autoFillPoint) : false;
+                    autoFillPoint = null;
                     if (
                         wasDrawing &&
                         ctx &&
@@ -18923,7 +18951,7 @@
                     mosaicStartPoint = null;
                     markerState.mosaicPreviewRect = null;
                     renderCropOverlay();
-                    if (wasDrawing) {
+                    if (wasDrawing && (markerState.mode !== 'auto' || autoFillApplied)) {
                         saveMarkerHistory();
                     }
                 }
@@ -18934,6 +18962,84 @@
             canvas.addEventListener('pointermove', move);
             canvas.addEventListener('pointerup', end);
             canvas.addEventListener('pointercancel', end);
+        }
+        function fillMaskSimilarRegion(point) {
+            const canvas = get('marker-canvas');
+            const source = markerState.baseImageData;
+            if (!canvas || !source) {
+                showToast("画像の色を読み取れませんでした", "error", true);
+                return false;
+            }
+            const width = source.width;
+            const height = source.height;
+            const seedX = Math.floor(point.x);
+            const seedY = Math.floor(point.y);
+            if (seedX < 0 || seedY < 0 || seedX >= width || seedY >= height) return false;
+            const pixels = source.data;
+            const seedIndex = seedY * width + seedX;
+            const colorOffset = seedIndex * 4;
+            if (pixels[colorOffset + 3] < 16) return false;
+            const red = pixels[colorOffset];
+            const green = pixels[colorOffset + 1];
+            const blue = pixels[colorOffset + 2];
+            const tolerance = Number(get('marker-auto-tolerance')?.value || 32);
+            const visited = new Uint8Array(width * height);
+            const pending = [seedIndex];
+            const spans = [];
+            const MAX_SPANS = 250000;
+            const matches = (index) => {
+                const offset = index * 4;
+                return pixels[offset + 3] >= 16
+                    && Math.max(Math.abs(pixels[offset] - red), Math.abs(pixels[offset + 1] - green), Math.abs(pixels[offset + 2] - blue)) <= tolerance;
+            };
+            visited[seedIndex] = 1;
+            while (pending.length) {
+                const index = pending.pop();
+                if (visited[index] === 2 || !matches(index)) continue;
+                const y = Math.floor(index / width);
+                let left = index % width;
+                let right = left;
+                while (left > 0 && visited[y * width + left - 1] !== 2 && matches(y * width + left - 1)) left--;
+                while (right + 1 < width && visited[y * width + right + 1] !== 2 && matches(y * width + right + 1)) right++;
+                for (let x = left; x <= right; x++) visited[y * width + x] = 2;
+                spans.push(y, left, right + 1);
+                if (spans.length / 3 > MAX_SPANS) {
+                    showToast("範囲が複雑です。許容差を下げてください", "error", true);
+                    return false;
+                }
+                for (const nextY of [y - 1, y + 1]) {
+                    if (nextY < 0 || nextY >= height) continue;
+                    let x = left;
+                    while (x <= right) {
+                        const nextIndex = nextY * width + x;
+                        if (visited[nextIndex] === 0 && matches(nextIndex)) {
+                            visited[nextIndex] = 1;
+                            pending.push(nextIndex);
+                            while (x + 1 <= right && visited[nextY * width + x + 1] === 0 && matches(nextY * width + x + 1)) {
+                                x++;
+                                visited[nextY * width + x] = 1;
+                            }
+                        }
+                        x++;
+                    }
+                }
+            }
+            if (!spans.length) return false;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return false;
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+            for (let i = 0; i < spans.length; i += 3) {
+                const offset = spans[i] * width + spans[i + 1];
+                const end = spans[i] * width + spans[i + 2];
+                for (let pixel = offset; pixel < end; pixel++) {
+                    const p = pixel * 4;
+                    data[p] = data[p + 1] = data[p + 2] = data[p + 3] = 255;
+                }
+            }
+            ctx.putImageData(imageData, 0, 0);
+            markerState.hasStroke = true;
+            return true;
         }
         function initCropCanvas() {
             const cropCanvas = get('marker-crop-canvas');

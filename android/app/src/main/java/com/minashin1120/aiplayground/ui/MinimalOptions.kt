@@ -59,6 +59,8 @@ import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ComposerRules
 import com.minashin1120.aiplayground.data.OptionRule
+import com.minashin1120.aiplayground.data.isGptImageModel
+import com.minashin1120.aiplayground.data.isIdeogramObjectRemoval
 import com.minashin1120.aiplayground.data.THINKING_LEVELS
 import com.minashin1120.aiplayground.data.EFFORT_LEVELS
 import kotlinx.coroutines.delay
@@ -105,6 +107,7 @@ internal fun MinimalOptionsPopup(
     bottomInset: Dp,
     onDismiss: () -> Unit,
     onAttach: () -> Unit,
+    onMask: () -> Unit,
     onVoice: () -> Unit,
     onRichPaste: () -> Unit,
     onShowThinkingSlider: () -> Unit,
@@ -128,6 +131,9 @@ internal fun MinimalOptionsPopup(
     val temporary = state.selected?.isTemporary ?: state.newThreadTemporary
     val items = buildList {
         add(MinimalItem("attach", R.drawable.fa_solid_paperclip, "ファイルを添付", MinimalAction.Run(onAttach, upload = true)))
+        if (rules.mask && (isGptImageModel(state.model) || isIdeogramObjectRemoval(state.model, state.generationValues))) {
+            add(MinimalItem("mask", R.drawable.fa_solid_mask, "マスクを作成", MinimalAction.Run(onMask)))
+        }
         add(MinimalItem("voice-input", R.drawable.fa_solid_microphone, "Voice Input", MinimalAction.Run(onVoice)))
         add(MinimalItem("rich-paste", R.drawable.fa_solid_paste, "リッチ貼り付け", MinimalAction.Run(onRichPaste)))
         if (rules.canvas.visible) add(MinimalItem("canvas", R.drawable.fa_solid_window_restore, "Canvas",

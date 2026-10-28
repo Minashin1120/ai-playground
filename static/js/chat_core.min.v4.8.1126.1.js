@@ -1568,53 +1568,55 @@ ns","grok-image-options","ideogram-image-options","xai-chat-options","grok-video
 cr-options","image-input-limits","audio-gen-options"],THINKING_LEVELS=[{value:"minimal",label:"Min"},
 {value:"low",label:"Low"},{value:"medium",label:"Mid"},{value:"high",label:"High"}],MINIMAL_POPUP_ITEMS=[
 {key:"attach",icon:"fa-paperclip",label:"\u30D5\u30A1\u30A4\u30EB\u3092\u6DFB\u4ED8",action:"upload"},
-{key:"voice-input",icon:"fa-microphone",label:"Voice Input",action:"button",buttonId:"mic-btn"},{key:"\
-rich-paste",icon:"fa-paste",label:"\u30EA\u30C3\u30C1\u8CBC\u308A\u4ED8\u3051",action:"button",buttonId:"\
-rich-paste-btn"},{key:"canvas",icon:"fa-window-restore",label:"Canvas",checkboxId:"enable-canvas-mod\
-e",containerId:"canvas-mode-container"},{key:"coding",icon:"fa-code-branch",label:"Coding",checkboxId:"\
-enable-coding-mode",containerId:"coding-mode-container"},{key:"fast",icon:"fa-bolt",label:"\u9AD8\u901F",
-checkboxId:"enable-browser-fast-mode",containerId:"browser-fast-mode-container"},{key:"batch",icon:"\
-fa-layer-group",label:"Batch",checkboxId:"enable-batch-mode",containerId:"batch-mode-container"},{key:"\
-search",icon:"fa-search",label:"Search",checkboxId:"enable-search",containerId:"search-container"},{
-key:"urls",icon:"fa-link",label:"URLs",checkboxId:"enable-url-context",containerId:"url-context-cont\
-ainer"},{key:"maps",icon:"fa-map-location-dot",label:"Maps",checkboxId:"enable-maps",containerId:"ma\
-ps-grounding-container"},{key:"python",icon:"fa-code",label:"Python",checkboxId:"enable-python",containerId:"\
-python-container"},{key:"file",icon:"fa-file-lines",label:"File",checkboxId:"enable-file-creation",containerId:"\
-file-creation-container"},{key:"mcp",icon:"fa-plug",label:"MCP",checkboxId:"enable-mcp",containerId:"\
-mcp-container"},{key:"sysprompt",icon:"fa-terminal",label:"SysPrompt",checkboxId:"enable-sys-prompt",
-containerId:"sys-prompt-option",gear:!0,gearAction:o(()=>{window.openThreadModal&&window.openThreadModal()},
-"gearAction")},{key:"thinking",icon:"fa-brain",label:"Thinking",checkboxId:"enable-thinking",containerId:"\
-thinking-options",special:"thinking"},{key:"safety",icon:"fa-shield-halved",label:"Safety",selectId:"\
-safety-setting"},{key:"promptcache",icon:"fa-database",label:"PromptCache",checkboxId:"enable-prompt\
--cache",containerId:"prompt-cache-container"},{key:"compress",icon:"fa-compress-alt",label:"Compress",
-checkboxId:"enable-compression",containerId:"compression-option",gear:!0,gearAction:o(()=>{window.openCompressionModal&&
-window.openCompressionModal()},"gearAction")},{key:"tempchat",icon:"fa-hourglass-half",label:"\u4E00\u6642\u30C1\u30E3\u30C3\u30C8",
-checkboxId:"enable-temporary-chat",containerId:"temporary-chat-container",gear:!0,gearAction:o(()=>openTemporaryChatSettings(),
+{key:"mask",icon:"fa-mask",label:"\u30DE\u30B9\u30AF\u3092\u4F5C\u6210",action:"button",buttonId:"ma\
+sk-btn",requiresMask:!0},{key:"voice-input",icon:"fa-microphone",label:"Voice Input",action:"button",
+buttonId:"mic-btn"},{key:"rich-paste",icon:"fa-paste",label:"\u30EA\u30C3\u30C1\u8CBC\u308A\u4ED8\u3051",
+action:"button",buttonId:"rich-paste-btn"},{key:"canvas",icon:"fa-window-restore",label:"Canvas",checkboxId:"\
+enable-canvas-mode",containerId:"canvas-mode-container"},{key:"coding",icon:"fa-code-branch",label:"\
+Coding",checkboxId:"enable-coding-mode",containerId:"coding-mode-container"},{key:"fast",icon:"fa-bo\
+lt",label:"\u9AD8\u901F",checkboxId:"enable-browser-fast-mode",containerId:"browser-fast-mode-contai\
+ner"},{key:"batch",icon:"fa-layer-group",label:"Batch",checkboxId:"enable-batch-mode",containerId:"b\
+atch-mode-container"},{key:"search",icon:"fa-search",label:"Search",checkboxId:"enable-search",containerId:"\
+search-container"},{key:"urls",icon:"fa-link",label:"URLs",checkboxId:"enable-url-context",containerId:"\
+url-context-container"},{key:"maps",icon:"fa-map-location-dot",label:"Maps",checkboxId:"enable-maps",
+containerId:"maps-grounding-container"},{key:"python",icon:"fa-code",label:"Python",checkboxId:"enab\
+le-python",containerId:"python-container"},{key:"file",icon:"fa-file-lines",label:"File",checkboxId:"\
+enable-file-creation",containerId:"file-creation-container"},{key:"mcp",icon:"fa-plug",label:"MCP",checkboxId:"\
+enable-mcp",containerId:"mcp-container"},{key:"sysprompt",icon:"fa-terminal",label:"SysPrompt",checkboxId:"\
+enable-sys-prompt",containerId:"sys-prompt-option",gear:!0,gearAction:o(()=>{window.openThreadModal&&
+window.openThreadModal()},"gearAction")},{key:"thinking",icon:"fa-brain",label:"Thinking",checkboxId:"\
+enable-thinking",containerId:"thinking-options",special:"thinking"},{key:"safety",icon:"fa-shield-ha\
+lved",label:"Safety",selectId:"safety-setting"},{key:"promptcache",icon:"fa-database",label:"PromptC\
+ache",checkboxId:"enable-prompt-cache",containerId:"prompt-cache-container"},{key:"compress",icon:"f\
+a-compress-alt",label:"Compress",checkboxId:"enable-compression",containerId:"compression-option",gear:!0,
+gearAction:o(()=>{window.openCompressionModal&&window.openCompressionModal()},"gearAction")},{key:"t\
+empchat",icon:"fa-hourglass-half",label:"\u4E00\u6642\u30C1\u30E3\u30C3\u30C8",checkboxId:"enable-te\
+mporary-chat",containerId:"temporary-chat-container",gear:!0,gearAction:o(()=>openTemporaryChatSettings(),
 "gearAction")}];let minimalOptionsOpen=!1,thinkingSliderOpen=!1,thinkingSliderTimer=null,thinkingSliderStartY=0,
 thinkingSliderStartX=0,thinkingSliderDragging=!1,thinkingSliderAxis=null,popupSwipeStartY=0,popupSwipeStartX=0,
 popupSwipeDragging=!1,popupSwipeAtTop=!1,popupSwipeAxis=null;const minimalPanelOrigins=new Map;function minimalOptionVisible(e){
-if(e.containerId){const t=get(e.containerId);if(!t||t.classList.contains("hidden"))return!1}return!0}
-o(minimalOptionVisible,"minimalOptionVisible");function minimalOptionDisabled(e){if(e.special==="thi\
-nking"){const t=get(e.containerId);return!!(t&&t.classList.contains("pointer-events-none"))}if(e.checkboxId){
-const t=get(e.checkboxId);if(t&&t.disabled)return!0}if(e.containerId){const t=get(e.containerId);if(t&&
-t.classList.contains("pointer-events-none"))return!0}return!1}o(minimalOptionDisabled,"minimalOption\
-Disabled");function minimalOptionChecked(e){if(!e.checkboxId)return!1;if(e.special==="thinking"){const n=get(
-"thinking-options");if(n&&n.dataset.thinkingMode==="effort"){const i=get("reasoning-effort");return!!i&&
-String(i.value||"").toLowerCase()!=="none"}}const t=get(e.checkboxId);return!!t&&t.checked}o(minimalOptionChecked,
-"minimalOptionChecked");function activeThinkingSelect(){const e=get("thinking-options");return e&&e.
-dataset.thinkingMode==="effort"?get("reasoning-effort"):get("thinking-level")}o(activeThinkingSelect,
-"activeThinkingSelect");function thinkingUsesLevelSlider(){var e,t;return((e=get("thinking-options"))==
-null?void 0:e.dataset.thinkingMode)==="effort"?!0:!!((t=get("thinking-budget"))!=null&&t.disabled)&&
-thinkingOptionsList().length>0}o(thinkingUsesLevelSlider,"thinkingUsesLevelSlider");function thinkingSliderOptions(){
-var n;const e=thinkingOptionsList(),t=get("enable-thinking");return((n=get("thinking-options"))==null?
-void 0:n.dataset.thinkingMode)!=="effort"&&t&&!t.disabled?[{value:"off",textContent:"Off"},...e]:e}o(
-thinkingSliderOptions,"thinkingSliderOptions");function thinkingSliderValue(){var t,n;const e=get("e\
-nable-thinking");return((t=get("thinking-options"))==null?void 0:t.dataset.thinkingMode)!=="effort"&&
-e&&!e.checked?"off":(n=activeThinkingSelect())==null?void 0:n.value}o(thinkingSliderValue,"thinkingS\
-liderValue");function thinkingOptionsList(){const e=activeThinkingSelect();return e?Array.from(e.options).
-filter(t=>!t.disabled&&!t.classList.contains("hidden")):[]}o(thinkingOptionsList,"thinkingOptionsLis\
-t");function currentThinkingLevelLabel(){const e=activeThinkingSelect();if(thinkingSliderValue()==="\
-off")return"Off";if(!e)return THINKING_LEVELS[3].label;if(e.selectedOptions&&e.selectedOptions[0])return e.
+if(e.requiresMask){const t=get(e.buttonId);if(!t||t.classList.contains("hidden"))return!1}if(e.containerId){
+const t=get(e.containerId);if(!t||t.classList.contains("hidden"))return!1}return!0}o(minimalOptionVisible,
+"minimalOptionVisible");function minimalOptionDisabled(e){if(e.special==="thinking"){const t=get(e.containerId);
+return!!(t&&t.classList.contains("pointer-events-none"))}if(e.checkboxId){const t=get(e.checkboxId);
+if(t&&t.disabled)return!0}if(e.containerId){const t=get(e.containerId);if(t&&t.classList.contains("p\
+ointer-events-none"))return!0}return!1}o(minimalOptionDisabled,"minimalOptionDisabled");function minimalOptionChecked(e){
+if(!e.checkboxId)return!1;if(e.special==="thinking"){const n=get("thinking-options");if(n&&n.dataset.
+thinkingMode==="effort"){const i=get("reasoning-effort");return!!i&&String(i.value||"").toLowerCase()!==
+"none"}}const t=get(e.checkboxId);return!!t&&t.checked}o(minimalOptionChecked,"minimalOptionChecked");
+function activeThinkingSelect(){const e=get("thinking-options");return e&&e.dataset.thinkingMode==="\
+effort"?get("reasoning-effort"):get("thinking-level")}o(activeThinkingSelect,"activeThinkingSelect");
+function thinkingUsesLevelSlider(){var e,t;return((e=get("thinking-options"))==null?void 0:e.dataset.
+thinkingMode)==="effort"?!0:!!((t=get("thinking-budget"))!=null&&t.disabled)&&thinkingOptionsList().
+length>0}o(thinkingUsesLevelSlider,"thinkingUsesLevelSlider");function thinkingSliderOptions(){var n;
+const e=thinkingOptionsList(),t=get("enable-thinking");return((n=get("thinking-options"))==null?void 0:
+n.dataset.thinkingMode)!=="effort"&&t&&!t.disabled?[{value:"off",textContent:"Off"},...e]:e}o(thinkingSliderOptions,
+"thinkingSliderOptions");function thinkingSliderValue(){var t,n;const e=get("enable-thinking");return((t=
+get("thinking-options"))==null?void 0:t.dataset.thinkingMode)!=="effort"&&e&&!e.checked?"off":(n=activeThinkingSelect())==
+null?void 0:n.value}o(thinkingSliderValue,"thinkingSliderValue");function thinkingOptionsList(){const e=activeThinkingSelect();
+return e?Array.from(e.options).filter(t=>!t.disabled&&!t.classList.contains("hidden")):[]}o(thinkingOptionsList,
+"thinkingOptionsList");function currentThinkingLevelLabel(){const e=activeThinkingSelect();if(thinkingSliderValue()===
+"off")return"Off";if(!e)return THINKING_LEVELS[3].label;if(e.selectedOptions&&e.selectedOptions[0])return e.
 selectedOptions[0].textContent.trim();const t=THINKING_LEVELS.find(n=>n.value===e.value);return t?t.
 label:THINKING_LEVELS[3].label}o(currentThinkingLevelLabel,"currentThinkingLevelLabel");function buildMinimalOptionItem(e){
 const t=document.createElement("div");t.className="minimal-option-item",t.dataset.key=e.key,e.action&&

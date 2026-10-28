@@ -1335,6 +1335,7 @@
         ];
         const MINIMAL_POPUP_ITEMS = [
             { key: 'attach', icon: 'fa-paperclip', label: 'ファイルを添付', action: 'upload' },
+            { key: 'mask', icon: 'fa-mask', label: 'マスクを作成', action: 'button', buttonId: 'mask-btn', requiresMask: true },
             { key: 'voice-input', icon: 'fa-microphone', label: 'Voice Input', action: 'button', buttonId: 'mic-btn' },
             { key: 'rich-paste', icon: 'fa-paste', label: 'リッチ貼り付け', action: 'button', buttonId: 'rich-paste-btn' },
             { key: 'canvas', icon: 'fa-window-restore', label: 'Canvas', checkboxId: 'enable-canvas-mode', containerId: 'canvas-mode-container' },
@@ -1369,6 +1370,10 @@
         const minimalPanelOrigins = new Map();
 
         function minimalOptionVisible(item) {
+            if (item.requiresMask) {
+                const button = get(item.buttonId);
+                if (!button || button.classList.contains('hidden')) return false;
+            }
             if (item.containerId) {
                 const cont = get(item.containerId);
                 if (!cont || cont.classList.contains('hidden')) return false;

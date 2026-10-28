@@ -100,7 +100,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplit.kt` | 画像分割の計算（行列の決め方、重なり付きの範囲、EXIFの向きの逆変換、ファイル名、座標の帯の文言） | 画像分割の決まりを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplitCompression.kt` | 画像分割専用の圧縮設定の保存と、添付・保存・共有で共通の圧縮処理 | 分割画像の圧縮設定・適用を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ImageSplitRenderer.kt` | 画像分割の描画と保存（メモリ上限付きの元画像共有／部分デコード、番号・分割線・重なり、直接圧縮、添付用URI、Pictures／選択フォルダーへの保存） | 分割画像の見た目や保存先を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/MinimalOptions.kt` | ミニマル表示の上部モデルバー、＋の「オプション」ポップアップ、Thinkingのスライドバー | ミニマル表示を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MinimalOptions.kt` | ミニマル表示の上部モデルバー、＋の「オプション」ポップアップ（対応モデルのマスク作成を含む）、Thinkingのスライドバー | ミニマル表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/MessageExtras.kt` | 回答からのPython実行結果とMCP実行メモの取り出し、Batch状態カードの文言 | 回答本文の前処理やBatchカードを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/UploadSheet.kt` | Webの「ファイルアップロード」画面（ボタン、Vision Model、進行状況、ファイルごとの画像編集・送信名・削除）と「画像を分割」ボタン | 添付の追加画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RealtimeStudio.kt` | Webの音声ドック（`#sts-panel`）と音声スタジオ、提供元別の音声設定、録音して `/sts` へ送る文字起こし系モデルの振り分け | 音声セッションUIを変更するとき |

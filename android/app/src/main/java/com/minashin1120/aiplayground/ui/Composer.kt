@@ -274,7 +274,7 @@ fun Composer(
             state, model, rules,
             bottomInset = with(LocalDensity.current) { dockHeight.toDp() },
             onDismiss = { minimalOptionsOpen = false },
-            onAttach = pickFiles, onVoice = onVoice, onRichPaste = onRichPaste,
+            onAttach = pickFiles, onMask = onMask, onVoice = onVoice, onRichPaste = onRichPaste,
             onShowThinkingSlider = { thinkingSliderOpen = true },
             onChatInstructions = onChatInstructions, onCompressionSettings = onCompressionSettings,
             onTemporarySettings = onTemporarySettings, onLyria = onLyria,

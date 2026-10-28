@@ -2105,6 +2105,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             draft = "", attachments = emptyList(), quote = "", enablePromptCache = false,
             chatTransitionId = transition.first, chatTransitionKind = transition.second,
             chatNavigationId = transition.first, chatNavigationKind = transition.second) }
+        state.value.preferences?.let { preferences ->
+            val model = if (preferences.useLastChatSettings && preferences.lastModel.isNotBlank()) preferences.lastModel else preferences.defaultModel
+            chooseModel(model)
+        }
     }
     /**
      * Web `loadMessages`: the composer is cleared (`cancelEdit`), the branch pinned in ブランチ管理 or else the
@@ -4921,12 +4925,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     // --- General preferences and this device's session ---
 
     private suspend fun fetchPreferences(applyDefaults: Boolean = false, preserveSelectedModel: Boolean = false) {
+        val transitionId = state.value.chatTransitionId
+        val accountId = state.value.account?.id
         val payload = backend.get("/api/mobile/v1/preferences", token())
+        if (state.value.account?.id != accountId) return
         val preferences = parsePreferences(payload)
         state.value.account?.let { account ->
             withContext(Dispatchers.IO) { offlineCache.savePreferences(account.id, payload) }
         }
-        if (!applyDefaults) {
+        if (!applyDefaults || state.value.chatTransitionId != transitionId || state.value.selected != null || state.value.streaming) {
             mutable.update { it.copy(preferences = preferences) }
             return
         }

@@ -870,6 +870,12 @@
                 applyActiveGem(activeGem);
             }
             loadThreads();
+            const defaultModelSequence = threadLoadSequence;
+            fetchSettingsSnapshot().then(settings => {
+                if (threadLoadSequence !== defaultModelSequence || currentThreadId || modelChosenManually || (opts.preserveGem && activeGem)) return;
+                const model = (settings.use_last_chat_settings && settings.last_model) || settings.default_model;
+                if (model && MODELS.some(group => group.items.some(item => item.id === model))) selectModelById(model);
+            }).catch(err => console.warn('Failed to load chat defaults', err));
 
             if(window.innerWidth < 768) get('overlay').click();
         }

@@ -152,7 +152,7 @@ lti-agent")||g.includes("gpt-5")||ct||g.includes("o1")||g.includes("o3"))):qe.va
 toggle("hidden",!g.includes("grok-4.3")&&!g.includes("grok-build")&&!g.includes("gpt-5")&&!hn&&!Xt&&
 !bn):qe.value==="low"&&qe.classList.toggle("hidden",bn)});const Oe=_e.selectedOptions&&_e.selectedOptions[0];
 Oe&&Oe.classList.contains("hidden")&&(_e.value=h?"high":"medium")}}oe&&oe.classList.add("hidden"),V&&
-V.classList.add("hidden"),M&&(M.disabled=!1),O&&(O.disabled=!0,O.classList.add("opacity-50"));const je=isGeminiImageModelKey(
+V.classList.add("hidden"),M&&(M.disabled=!1),O&&(O.disabled=!0,O.classList.add("opacity-50"));const Fe=isGeminiImageModelKey(
 m);if(he||Ie)X&&(get("enable-search").checked=!1,X.classList.add("opacity-50","pointer-events-none")),
 oe&&(get("enable-url-context").checked=!1,oe.classList.add("opacity-50","pointer-events-none")),V&&se&&
 (se.checked=!1,V.classList.add("opacity-50","pointer-events-none")),J&&(ge.checked=!1,J.classList.add(
@@ -162,7 +162,7 @@ S.classList.remove("hidden"),st?(Array.from(A.options).forEach(_e=>{_e.disabled=
 "minimal","medium","high"].includes(A.value)||(A.value="medium")):(Array.from(A.options).forEach(_e=>{
 ["low","medium"].includes(_e.value)&&(_e.disabled=!0),["minimal","high"].includes(_e.value)&&(_e.disabled=
 !1)}),["minimal","high"].includes(A.value)||(A.value=Pe?"minimal":"high")),M&&(M.disabled=!1),Pe&&(R&&
-(R.checked=!1,R.disabled=!0),X&&X.classList.add("opacity-50","pointer-events-none"));else if(je)V&&se&&
+(R.checked=!1,R.disabled=!0),X&&X.classList.add("opacity-50","pointer-events-none"));else if(Fe)V&&se&&
 (se.checked=!1,V.classList.add("hidden","opacity-50","pointer-events-none"));else if(dt)S.classList.
 remove("hidden"),O&&(O.disabled=!1,O.classList.remove("opacity-50")),Array.from(A.options).forEach(_e=>{
 _e.disabled=!0}),J&&(ge.checked=!1,J.classList.add("opacity-50","pointer-events-none"));else if(Ct){
@@ -171,7 +171,7 @@ disabled=!["low","medium","high"].includes(Oe.value)}),["low","medium","high"].i
 value="medium"),[X,oe,V,J].forEach(Oe=>{Oe&&Oe.classList.add("opacity-50","pointer-events-none")}),[
 R,se,ge].forEach(Oe=>{Oe&&(Oe.checked=!1,Oe.disabled=!0)});const _e=get("enable-url-context");_e&&(_e.
 checked=!1,_e.disabled=!0),de&&H&&(de.disabled=!1,H.classList.remove("opacity-50"))}else if(m.includes(
-"gemini")&&!je){S.classList.remove("hidden"),oe&&oe.classList.remove("hidden","opacity-50","pointer-\
+"gemini")&&!Fe){S.classList.remove("hidden"),oe&&oe.classList.remove("hidden","opacity-50","pointer-\
 events-none");const _e=m.includes("gemini-3")||m.includes("gemini-4");V&&(_e?V.classList.remove("hid\
 den","opacity-50","pointer-events-none"):(se&&(se.checked=!1),V.classList.add("hidden","opacity-50",
 "pointer-events-none")));const Oe=m.includes("flash");Array.from(A.options).forEach(qe=>{m==="gemini\
@@ -194,8 +194,8 @@ ty-50","pointer-events-none"),oe){const Oe=get("enable-url-context");Oe&&(Oe.che
 add("opacity-50","pointer-events-none")}V&&se&&(se.checked=!1,V.classList.add("opacity-50","pointer-\
 events-none"))}else Ie||(X&&X.classList.remove("opacity-50","pointer-events-none"),V&&se&&(se.checked=
 !1,V.classList.add("hidden","opacity-50","pointer-events-none")));if(he?J&&J.classList.add("opacity-\
-50","pointer-events-none"):(J&&J.classList.remove("opacity-50","pointer-events-none"),(!je||Ue)&&!m.
-includes("gpt-image")&&(de.disabled=!1,H.classList.remove("opacity-50"))),(je&&!Ue||m.includes("gpt-\
+50","pointer-events-none"):(J&&J.classList.remove("opacity-50","pointer-events-none"),(!Fe||Ue)&&!m.
+includes("gpt-image")&&(de.disabled=!1,H.classList.remove("opacity-50"))),(Fe&&!Ue||m.includes("gpt-\
 image")||isGrokImageModel()||isIdeogramModel(m)||isGrokVideoModel()||Ie)&&de&&H&&(de.checked=!1,de.disabled=
 !0,H.classList.add("opacity-50")),J&&(isLlmModel()?(J.classList.remove("hidden"),ge.disabled=!1):(ge.
 checked=!1,ge.disabled=!0,J.classList.add("hidden"))),te?(R&&(R.checked=!0,R.disabled=!0),X&&X.classList.
@@ -232,8 +232,8 @@ g,{focus:!1})}),get("canvas-panel-copy-btn")&&get("canvas-panel-copy-btn").addEv
 ()=>{const d=getCanvasModeElements(),m=d&&d.code&&d.code.textContent||"";if(!m.trim()){showToast("\u30B3\u30D4\
 \u30FC\u3059\u308B\u30B3\u30FC\u30C9\u304C\u3042\u308A\u307E\u305B\u3093","info",!1);return}copyToClipboard(
 m,()=>showToast("Canvas\u30B3\u30FC\u30C9\u3092\u30B3\u30D4\u30FC\u3057\u307E\u3057\u305F","success"),
-()=>showToast("\u30B3\u30D4\u30FC\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error",!0))});const G=get(
-"prompt-controls-toggle-btn");G&&(G.onclick=()=>togglePromptControlDetails()),get("tts-voice")&&get(
+()=>showToast("\u30B3\u30D4\u30FC\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error",!0))});const q=get(
+"prompt-controls-toggle-btn");q&&(q.onclick=()=>togglePromptControlDetails()),get("tts-voice")&&get(
 "tts-voice").addEventListener("change",updateTtsUi),get("gpt-image-format")&&get("gpt-image-format").
 addEventListener("change",()=>l()),get("gemini-image-size")&&get("gemini-image-size").addEventListener(
 "change",()=>c()),get("tts-speed")&&get("tts-speed-label")&&get("tts-speed").addEventListener("input",
@@ -353,8 +353,8 @@ const xe=get("vision-model-change-btn");xe&&(xe.onclick=()=>_openVisionModelSele
 d.checked)||(setTemporaryChatUiState(m),ensureTemporaryChatHeartbeat(!1))})},"bindTemporaryChatToggl\
 e");N(),document.addEventListener("visibilitychange",()=>{document.visibilityState==="visible"&&ensureTemporaryChatHeartbeat(
 !0)}),window.addEventListener("focus",()=>{ensureTemporaryChatHeartbeat(!0)}),window.addEventListener(
-"beforeunload",()=>{stopTemporaryChatHeartbeat(),stopCameraCaptureStream()});const q=get("storage-us\
-age-refresh");q&&(q.onclick=()=>loadStorageUsage());let P=null;const D=o(()=>{const d=new Uint8Array(
+"beforeunload",()=>{stopTemporaryChatHeartbeat(),stopCameraCaptureStream()});const G=get("storage-us\
+age-refresh");G&&(G.onclick=()=>loadStorageUsage());let P=null;const D=o(()=>{const d=new Uint8Array(
 16);return window.crypto.getRandomValues(d),Array.from(d,m=>m.toString(16).padStart(2,"0")).join("")},
 "createAccountTransferId"),I=o((d={})=>{const m=get("account-transfer-progress"),g=get("account-tran\
 sfer-progress-bar"),h=get("account-transfer-progress-percent"),x=get("account-transfer-progress-text"),
@@ -442,10 +442,10 @@ $e.selection.delete(m.archive_path),g.classList.toggle("border-blue-500",x.check
 m=>{if($e={files:d.files||[],selection:new Set((d.files||[]).map(g=>g.archive_path)),available_bytes:d.
 available_bytes,resolve:m},kt(),!get("import-files-modal")){m(null);return}showModal("import-files-m\
 odal")}),"showImportFileSelection"),Bt=o(d=>{if(hideModal("import-files-modal"),$e){const m=$e.resolve;
-$e=null,m(d)}},"closeImportFileSelection"),jt=get("import-files-close");jt&&(jt.onclick=()=>Bt(null));
+$e=null,m(d)}},"closeImportFileSelection"),Ft=get("import-files-close");Ft&&(Ft.onclick=()=>Bt(null));
 const Mt=get("import-files-cancel");Mt&&(Mt.onclick=()=>Bt(null));const gt=get("import-files-confirm");
 gt&&(gt.onclick=()=>{if(!$e)return;const d=Array.from($e.selection);Bt(d.length?d.join(","):"__none_\
-_")});const Ft=get("import-files-select-all");Ft&&(Ft.onclick=()=>{$e&&($e.files.forEach(d=>$e.selection.
+_")});const jt=get("import-files-select-all");jt&&(jt.onclick=()=>{$e&&($e.files.forEach(d=>$e.selection.
 add(d.archive_path)),kt())});const At=get("import-files-none");At&&(At.onclick=()=>{$e&&($e.selection.
 clear(),kt())});const ht={system_prompt:"\u30B7\u30B9\u30C6\u30E0\u30D7\u30ED\u30F3\u30D7\u30C8",system_prompt_enabled:"\
 \u30B7\u30B9\u30C6\u30E0\u30D7\u30ED\u30F3\u30D7\u30C8\u3092\u4F7F\u7528",apply_global_system_prompt:"\
@@ -521,9 +521,9 @@ size/10485760)),de=await apiFetch("/api/account/import/upload/start",manualSpinn
 POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({size:m.size}),signal:R.controller.
 signal})),H=await de.json().catch(()=>({}));if(!de.ok)throw new Error(H.error||"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u3092\u958B\u59CB\u3067\u304D\u307E\u305B\u3093");
 R.uploadId=H.upload_id;const ge=H.chunk_size||10485760;let J=0,pe=0;const ve=o(async()=>{for(;;){const Ce=pe++;
-if(Ce>=V)return;const we=m.slice(Ce*ge,Math.min(m.size,(Ce+1)*ge)),je=new FormData;je.append("chunk",
-we,m.name),je.append("index",String(Ce));const Qe=await apiFetch(`/api/account/import/upload/${encodeURIComponent(
-R.uploadId)}/chunk`,manualSpinnerRequestOptions({method:"POST",body:je,signal:R.controller.signal})),
+if(Ce>=V)return;const we=m.slice(Ce*ge,Math.min(m.size,(Ce+1)*ge)),Fe=new FormData;Fe.append("chunk",
+we,m.name),Fe.append("index",String(Ce));const Qe=await apiFetch(`/api/account/import/upload/${encodeURIComponent(
+R.uploadId)}/chunk`,manualSpinnerRequestOptions({method:"POST",body:Fe,signal:R.controller.signal})),
 ot=await Qe.json().catch(()=>({}));if(!Qe.ok)throw new Error(ot.error||"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
 J++,I({progress:Math.min(35,Math.round(J/V*35)),phase:"uploading",message:`ZIP\u3092\u4E26\u5217\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u3057\u3066\u3044\u307E\u3059\uFF08${J}\
 /${V}\uFF09`}),window.ConnectionMonitor&&window.ConnectionMonitor.reportActivity()}},"uploadWorker");
@@ -534,8 +534,8 @@ catch(()=>({}));if(!Ce.ok)throw new Error(we.error||"\u30A2\u30C3\u30D7\u30ED\u3
 I({progress:35,phase:"validating",message:"ZIP\u3092\u691C\u8A3C\u3057\u3066\u3044\u307E\u3059"})}finally{
 te&&window.ConnectionMonitor&&window.ConnectionMonitor.operationEnded()}let he="",Ie=!1,Pe=0;const st=o(
 async()=>{let Ce=!1;const we=o(()=>{Ce||(Ce=!0,setTimeout(()=>{location.reload()},1100))},"scheduleR\
-eload");try{const je=await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery,{cache:"no-store"}),Qe=await je.
-json().catch(()=>null);if(!je.ok||!Qe){we();return}cacheUserSettings(Qe);const ot=get("settings-moda\
+eload");try{const Fe=await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery,{cache:"no-store"}),Qe=await Fe.
+json().catch(()=>null);if(!Fe.ok||!Qe){we();return}cacheUserSettings(Qe);const ot=get("settings-moda\
 l");if(ot&&ot.classList.contains("modal-open"))try{zn(Qe)}catch{}Qe.theme_color&&applyThemeColor(Qe.
 theme_color,!0),Object.prototype.hasOwnProperty.call(Qe,"minimal_prompt_mode")&&Qe.minimal_prompt_mode?
 setMinimalPromptMode(!0):Object.prototype.hasOwnProperty.call(Qe,"compact_prompt_mode")&&setCompactPromptMode(
@@ -558,8 +558,8 @@ R.uploadId&&apiFetch(`/api/account/import/upload/${encodeURIComponent(R.uploadId
 settings_changes})?(A=!0,{status:"reselect"}):(I({progress:0,phase:"cancelled",message:"\u8A2D\u5B9A\u306E\u30A4\u30F3\u30DD\u30FC\u30C8\u3092\u30AD\u30E3\u30F3\
 \u30BB\u30EB\u3057\u307E\u3057\u305F"}),R.uploadId&&apiFetch(`/api/account/import/upload/${encodeURIComponent(
 R.uploadId)}`,manualSpinnerRequestOptions({method:"DELETE"})).catch(()=>null),{status:"cancelled"});
-if(Ce.state==="running"){const we=await Promise.race([oe.catch(()=>null),new Promise(je=>setTimeout(
-()=>je(null),6e4))]);if(we&&we.state==="completed")return Ue(we),{status:"done"};throw we&&["failed",
+if(Ce.state==="running"){const we=await Promise.race([oe.catch(()=>null),new Promise(Fe=>setTimeout(
+()=>Fe(null),6e4))]);if(we&&we.state==="completed")return Ue(we),{status:"done"};throw we&&["failed",
 "cancelled","expired"].includes(we.state)?new Error(we.message||"\u30A4\u30F3\u30DD\u30FC\u30C8\u306B\u5931\u6557\u3057\u307E\u3057\u305F"):
 new Error("\u30A4\u30F3\u30DD\u30FC\u30C8\u51E6\u7406\u304C\u30B5\u30FC\u30D0\u30FC\u5074\u3067\u7D99\u7D9A\u4E2D\u3067\u3059\u3002\u3057\u3070\u3089\u304F\u3057\u3066\u304B\u3089\u30DA\u30FC\u30B8\u3092\u518D\u8AAD\u307F\u8FBC\u307F\u3057\u3066\u78BA\u8A8D\u3057\u3066\u304F\u3060\u3055\u3044")}
 return{status:"unknown"}},"settleUnreadableImport");for(;!Ie;){R.stopped=!0,await oe.catch(()=>null),
@@ -581,9 +581,9 @@ Array.isArray(we.settings_changes)){if(!await _t(we)){I({progress:0,phase:"cance
 \u30DD\u30FC\u30C8\u3092\u30AD\u30E3\u30F3\u30BB\u30EB\u3057\u307E\u3057\u305F"}),R.uploadId&&apiFetch(
 `/api/account/import/upload/${encodeURIComponent(R.uploadId)}`,manualSpinnerRequestOptions({method:"\
 DELETE"})).catch(()=>null);return}A=!0;continue}if(!Ce.ok)throw new Error(we.error||"\u30A4\u30F3\u30DD\u30FC\u30C8\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
-const je=we.imported||{},Qe=[`\u8A2D\u5B9A ${je.settings||0}\u4EF6`,`API\u8A8D\u8A3C ${je.api_credentials||
-0}\u4EF6`,`\u30C1\u30E3\u30C3\u30C8 ${je.chats||0}\u4EF6`,`Gem ${je.gems||0}\u4EF6`,`\u30D5\u30A1\u30A4\u30EB ${je.
-files||0}\u4EF6`,`\u30D5\u30A3\u30FC\u30C9\u30D0\u30C3\u30AF ${je.feedback||0}\u4EF6`,`\u8A3A\u65AD\u30C7\u30FC\u30BF ${je.
+const Fe=we.imported||{},Qe=[`\u8A2D\u5B9A ${Fe.settings||0}\u4EF6`,`API\u8A8D\u8A3C ${Fe.api_credentials||
+0}\u4EF6`,`\u30C1\u30E3\u30C3\u30C8 ${Fe.chats||0}\u4EF6`,`Gem ${Fe.gems||0}\u4EF6`,`\u30D5\u30A1\u30A4\u30EB ${Fe.
+files||0}\u4EF6`,`\u30D5\u30A3\u30FC\u30C9\u30D0\u30C3\u30AF ${Fe.feedback||0}\u4EF6`,`\u8A3A\u65AD\u30C7\u30FC\u30BF ${Fe.
 diagnostics||0}\u4EF6`].join(" / "),ot=we.duplicates||{},_e={chats:"\u30C1\u30E3\u30C3\u30C8",gems:"\
 Gem",files:"\u30D5\u30A1\u30A4\u30EB",feedback:"\u30D5\u30A3\u30FC\u30C9\u30D0\u30C3\u30AF",diagnostics:"\
 \u8A3A\u65AD\u30C7\u30FC\u30BF"},Oe=[];for(const ze of Object.keys(_e)){const ct=Number(ot[ze])||0;ct>
@@ -1601,7 +1601,7 @@ await this._stopped;const m=new Blob(this.assistantAudioChunks),g=await this._bl
 this.userAudioChunks),x=await this._blobToBase64(h);return{user_text:this.inputTranscript,assistant_text:this.
 assistantText,assistant_thought:this.assistantThought,audio_base64:g,user_audio_base64:x}}_blobToBase64(m){
 return new Promise(g=>{const h=new FileReader;h.onloadend=()=>g(h.result.split(",")[1]),h.readAsDataURL(
-m)})}};o(Dn,"GeminiLiveClient");let jn=Dn;const Hn=class Hn{constructor(m=24e3){const g=window.AudioContext||
+m)})}};o(Dn,"GeminiLiveClient");let Fn=Dn;const Hn=class Hn{constructor(m=24e3){const g=window.AudioContext||
 window.webkitAudioContext;this.ctx=new g({sampleRate:m}),this.nextStartTime=0,this.bufferDelay=.1,this.
 started=!1}async addChunk(m){if(!this.ctx)return;const g=atob(m),h=new Uint8Array(g.length);for(let O=0;O<
 g.length;O++)h[O]=g.charCodeAt(O);const x=new Int16Array(h.buffer),S=new Float32Array(x.length);for(let O=0;O<
@@ -1707,13 +1707,13 @@ json"},body:JSON.stringify({session_id:this.sessionId})}).catch(()=>{}),this._cl
 capturing=!1,this.stopping=!1,this.audioQueue=[],this._stopCapture(),this._stopPlayback(),this.abortCtrl){
 try{this.abortCtrl.abort()}catch{}this.abortCtrl=null}this.reader=null,this.sessionId=null;const m=get(
 "mic-btn");m&&(m.classList.remove("bg-red-600","animate-pulse"),m.classList.add("bg-gray-700"))}};o(
-qn,"RealtimeVoiceSession");let Fn=qn;function mi(d,m){const g=window.AudioContext||window.webkitAudioContext;
+qn,"RealtimeVoiceSession");let jn=qn;function mi(d,m){const g=window.AudioContext||window.webkitAudioContext;
 if(!g)throw new Error("AudioContext not supported");let h=null;try{return h=new g({sampleRate:m}),{ctx:h,
 source:h.createMediaStreamSource(d)}}catch{if(h)try{h.close()}catch{}return h=new g,{ctx:h,source:h.
 createMediaStreamSource(d)}}}o(mi,"openMicAudioSource");function pi(d,m,g){let h=d;if(m!==g&&m>0&&g>
 0){const S=m/g,L=Math.floor(h.length/S),M=new Float32Array(L);for(let A=0;A<L;A++)M[A]=h[Math.min(Math.
 floor(A*S),h.length-1)];h=M}const x=new Int16Array(h.length);for(let S=0;S<h.length;S++){const L=Math.
-max(-1,Math.min(1,h[S]));x[S]=L<0?L*32768:L*32767}return x.buffer}o(pi,"pcm16FromFloat32");const fn=new Fn,
+max(-1,Math.min(1,h[S]));x[S]=L<0?L*32768:L*32767}return x.buffer}o(pi,"pcm16FromFloat32");const fn=new jn,
 fi=(()=>{const g={idle:"bg-gray-600",connecting:"bg-amber-500 animate-pulse",streaming:"bg-emerald-6\
 00 animate-pulse",paused:"bg-amber-500",stopped:"bg-gray-600",error:"bg-red-600",closed:"bg-gray-600"};
 let h=null,x=null,S=!1,L=null,M=!1,A=0,O=0,R=null,X="idle",oe=!1,se=null;const V=o(B=>document.getElementById(
@@ -1726,9 +1726,9 @@ textContent=B),ue&&(ue.className="w-2 h-2 rounded-full inline-block "+(g[Y]||g.i
 now());const B=V("lyria-elapsed");B&&(B.textContent=ge()),R||(R=window.setInterval(()=>{const Y=V("l\
 yria-elapsed");Y&&(Y.textContent=ge())},1e3))}o(J,"startElapsedTimer");function pe(){R&&(window.clearInterval(
 R),R=null)}o(pe,"stopElapsedTimer");function ve(){const B=V("lyria-play-btn"),Y=V("lyria-pause-btn"),
-Te=V("lyria-stop-btn"),ue=V("lyria-reset-btn"),Ae=!!h,Fe=X==="streaming"||X==="connecting";if(B){B.disabled=
-oe;const Ze=B.querySelector("i");Ze&&(Ze.className="fas fa-play")}Y&&(Y.disabled=oe||!Fe),Te&&(Te.disabled=
-oe||!Ae||!Fe),ue&&(ue.disabled=oe||!Ae||!Fe)}o(ve,"updateTransportButtons");function te(){const B=V(
+Te=V("lyria-stop-btn"),ue=V("lyria-reset-btn"),Ae=!!h,je=X==="streaming"||X==="connecting";if(B){B.disabled=
+oe;const Ze=B.querySelector("i");Ze&&(Ze.className="fas fa-play")}Y&&(Y.disabled=oe||!je),Te&&(Te.disabled=
+oe||!Ae||!je),ue&&(ue.disabled=oe||!Ae||!je)}o(ve,"updateTransportButtons");function te(){const B=V(
 "lyria-save-btn");if(!B)return;const Y=!!h&&X!=="idle"&&X!=="connecting"&&X!=="error";B.classList.toggle(
 "hidden",!Y)}o(te,"updateSaveButton");function he(B,Y){const Te=V("lyria-prompt-rows");if(!Te)return;
 const ue=document.createElement("div");ue.className="flex items-center gap-2",ue.innerHTML=`
@@ -1745,32 +1745,32 @@ ber"?Y:1}" class="accent-purple-400 w-16">
                         <button type="button" data-progress-no-spinner="true" class="lyria-prompt-re\
 move shrink-0 w-6 h-6 rounded-full bg-gray-800 hover:bg-red-600 text-gray-400 hover:text-white text-\
 [10px] flex items-center justify-center transition btn-hover"><i class="fas fa-times"></i></button>
-                    `;const Ae=ue.querySelector('input[type="range"]'),Fe=ue.querySelector(".lyria-w\
-eight-label");Ae&&Fe&&Ae.addEventListener("input",()=>{Fe.textContent=parseFloat(Ae.value).toFixed(1)});
+                    `;const Ae=ue.querySelector('input[type="range"]'),je=ue.querySelector(".lyria-w\
+eight-label");Ae&&je&&Ae.addEventListener("input",()=>{je.textContent=parseFloat(Ae.value).toFixed(1)});
 const Ze=ue.querySelector(".lyria-prompt-remove");Ze&&Ze.addEventListener("click",()=>{Te.querySelectorAll(
 ".lyria-prompt-row-wrap").length<=1||ue.remove()}),ue.classList.add("lyria-prompt-row-wrap"),Te.appendChild(
 ue)}o(he,"addPromptRow");function Ie(){const B=document.querySelectorAll("#lyria-prompt-rows .lyria-\
 prompt-row-wrap"),Y=[];return B.forEach(Te=>{const ue=Te.querySelector('input[type="text"]'),Ae=Te.querySelector(
-'input[type="range"]'),Fe=(ue?ue.value:"").trim();Fe&&Y.push({text:Fe,weight:parseFloat(Ae?Ae.value:
+'input[type="range"]'),je=(ue?ue.value:"").trim();je&&Y.push({text:je,weight:parseFloat(Ae?Ae.value:
 1)||1})}),Y}o(Ie,"collectPrompts");function Pe(){const B={},Y=o(Ni=>{const Un=V(Ni);return Un&&Un.value!==
 ""?parseFloat(Un.value):void 0},"num"),Te=Y("lyria-bpm");Te!==void 0&&(B.bpm=Math.round(Te));const ue=Y(
 "lyria-guidance");ue!==void 0&&(B.guidance=ue);const Ae=Y("lyria-density");Ae!==void 0&&(B.density=Ae);
-const Fe=Y("lyria-brightness");Fe!==void 0&&(B.brightness=Fe);const Ze=Y("lyria-temperature");Ze!==void 0&&
+const je=Y("lyria-brightness");je!==void 0&&(B.brightness=je);const Ze=Y("lyria-temperature");Ze!==void 0&&
 (B.temperature=Ze);const Ge=V("lyria-scale");Ge&&Ge.value&&(B.scale=Ge.value);const nt=V("lyria-mode");
 nt&&nt.value&&(B.music_generation_mode=nt.value);const ut=V("lyria-mute-bass"),Rt=V("lyria-mute-drum\
 s"),wi=V("lyria-only-bass-drums");return ut&&(B.mute_bass=ut.checked),Rt&&(B.mute_drums=Rt.checked),
 wi&&(B.only_bass_and_drums=wi.checked),B}o(Pe,"collectConfig");function st(){[["lyria-bpm","lyria-bp\
 m-label"],["lyria-guidance","lyria-guidance-label"],["lyria-density","lyria-density-label"],["lyria-\
 brightness","lyria-brightness-label"],["lyria-temperature","lyria-temperature-label"]].forEach(([Y,Te])=>{
-const ue=V(Y),Ae=V(Te);!ue||!Ae||ue.addEventListener("input",()=>{const Fe=parseFloat(ue.value);Ae.textContent=
-Y==="lyria-bpm"?String(Math.round(Fe)):Fe.toFixed(1)})})}o(st,"bindRangeLabels");function Ue(){if(L){
+const ue=V(Y),Ae=V(Te);!ue||!Ae||ue.addEventListener("input",()=>{const je=parseFloat(ue.value);Ae.textContent=
+Y==="lyria-bpm"?String(Math.round(je)):je.toFixed(1)})})}o(st,"bindRangeLabels");function Ue(){if(L){
 try{L.close()}catch{}L=null}M=!1,A=0}o(Ue,"resetPlayback");function dt(){if(S=!1,x&&typeof x.abort==
 "function")try{x.abort()}catch{}x=null}o(dt,"closeStream");async function Ct(){dt(),x=new AbortController,
 S=!0;try{const B=await fetch(`/api/gemini/music/stream?session_id=${encodeURIComponent(h)}`,de({method:"\
 GET",signal:x.signal,headers:{Accept:"text/event-stream"},cache:"no-store"}));if(!B.ok){const Ae=await B.
 json().catch(()=>({}));throw new Error(Ae.error||"\u30B9\u30C8\u30EA\u30FC\u30E0\u63A5\u7D9A\u306B\u5931\u6557\u3057\u307E\u3057\u305F")}
-const Y=B.body.getReader(),Te=new TextDecoder;let ue="";for(;S;){const{done:Ae,value:Fe}=await Y.read();
-if(Ae)break;ue+=Te.decode(Fe,{stream:!0});const Ze=ue.split(`
+const Y=B.body.getReader(),Te=new TextDecoder;let ue="";for(;S;){const{done:Ae,value:je}=await Y.read();
+if(Ae)break;ue+=Te.decode(je,{stream:!0});const Ze=ue.split(`
 
 `);ue=Ze.pop();for(const Ge of Ze){const nt=Ge.split(`
 `).find(Rt=>Rt.startsWith("data: "));if(!nt)continue;const ut=nt.slice(6);try{const Rt=JSON.parse(ut);
@@ -1785,35 +1785,35 @@ if(!B)return;if(!L){const Ge=window.AudioContext||window.webkitAudioContext;if(!
 sampleRate:48e3}),M=!1,A=0}let Y;try{const Ge=atob(B);Y=new Uint8Array(Ge.length);for(let nt=0;nt<Ge.
 length;nt++)Y[nt]=Ge.charCodeAt(nt)}catch{return}const Te=new Int16Array(Y.buffer),ue=Math.floor(Te.
 length/2);if(ue<1)return;const Ae=L.createBuffer(2,ue,48e3);for(let Ge=0;Ge<2;Ge++){const nt=Ae.getChannelData(
-Ge);for(let ut=0;ut<ue;ut++)nt[ut]=Te[ut*2+Ge]/32768}L.state==="suspended"&&L.resume();const Fe=L.createBufferSource();
-Fe.buffer=Ae,Fe.connect(L.destination),M||(A=L.currentTime+.08,M=!0);const Ze=Math.max(L.currentTime,
-A);Fe.start(Ze),A=Ze+Ae.duration}o(we,"playChunk");async function je(B,Y){const Te=await fetch("/api\
+Ge);for(let ut=0;ut<ue;ut++)nt[ut]=Te[ut*2+Ge]/32768}L.state==="suspended"&&L.resume();const je=L.createBufferSource();
+je.buffer=Ae,je.connect(L.destination),M||(A=L.currentTime+.08,M=!0);const Ze=Math.max(L.currentTime,
+A);je.start(Ze),A=Ze+Ae.duration}o(we,"playChunk");async function Fe(B,Y){const Te=await fetch("/api\
 /gemini/music/command",de({method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(
 Object.assign({session_id:h,type:B},Y||{}))})),ue=await Te.json().catch(()=>({}));if(!Te.ok)throw new Error(
 ue.error||"\u30B3\u30DE\u30F3\u30C9\u9001\u4FE1\u306B\u5931\u6557\u3057\u307E\u3057\u305F");return ue}
-o(je,"apiCommand");async function Qe(){if(oe)return;const B=Ie();if(!B.length){showToast("\u30D7\u30ED\u30F3\u30D7\u30C8\u3092\u5165\u529B\u3057\u3066\
+o(Fe,"apiCommand");async function Qe(){if(oe)return;const B=Ie();if(!B.length){showToast("\u30D7\u30ED\u30F3\u30D7\u30C8\u3092\u5165\u529B\u3057\u3066\
 \u304F\u3060\u3055\u3044","warning",!0);return}oe=!0,ve(),H("\u63A5\u7D9A\u4E2D...","connecting");try{
 const Y=await fetch("/api/gemini/music/start",de({method:"POST",headers:{"Content-Type":"application\
 /json"},body:JSON.stringify({weighted_prompts:B,config:Pe()})})),Te=await Y.json().catch(()=>({}));if(!Y.
 ok)throw new Error(Te.error||"\u30BB\u30C3\u30B7\u30E7\u30F3\u958B\u59CB\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
 h=Te.session_id,se=Pe(),H("\u63A5\u7D9A\u4E2D...","connecting"),Ct()}catch(Y){H("\u30A8\u30E9\u30FC: "+
 Y.message,"error"),showToast("Lyria RealTime: "+Y.message,"error",!0)}finally{oe=!1,ve()}}o(Qe,"star\
-tSession");async function ot(B){if(h){oe=!0,ve();try{await je("control",{action:B}),B==="PLAY"?H("\u518D\u751F\
+tSession");async function ot(B){if(h){oe=!0,ve();try{await Fe("control",{action:B}),B==="PLAY"?H("\u518D\u751F\
 \u4E2D...","streaming"):B==="PAUSE"?H("\u4E00\u6642\u505C\u6B62\u4E2D","paused"):B==="STOP"?H("\u505C\u6B62\u4E2D",
 "stopped"):B==="RESET_CONTEXT"&&H("\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u3092\u30EA\u30BB\u30C3\u30C8...",
 "connecting")}catch(Y){showToast("Lyria RealTime: "+Y.message,"error",!0),H("\u30A8\u30E9\u30FC: "+Y.
 message,"error")}finally{oe=!1,ve()}}}o(ot,"control");async function _e(){if(!h)return;const B=Ie();
 if(!B.length){showToast("\u30D7\u30ED\u30F3\u30D7\u30C8\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044",
-"warning",!0);return}oe=!0;try{await je("prompts",{weighted_prompts:B}),H("\u30D7\u30ED\u30F3\u30D7\u30C8\u3092\u9069\u7528\u3057\u307E\u3057\u305F",
+"warning",!0);return}oe=!0;try{await Fe("prompts",{weighted_prompts:B}),H("\u30D7\u30ED\u30F3\u30D7\u30C8\u3092\u9069\u7528\u3057\u307E\u3057\u305F",
 X==="paused"?"paused":"streaming"),showToast("\u30D7\u30ED\u30F3\u30D7\u30C8\u3092\u9069\u7528\u3057\u307E\u3057\u305F",
 "success")}catch(Y){showToast("Lyria RealTime: "+Y.message,"error",!0)}finally{oe=!1,ve()}}o(_e,"app\
 lyPrompts");async function Oe(){if(!h)return;const B=Pe(),Y=se||{},Te=B.bpm!==void 0&&B.bpm!==Y.bpm,
-ue=B.scale!==void 0&&B.scale!==Y.scale,Ae=Te||ue;oe=!0;try{await je("config",{config:B,reset_context:Ae}),
+ue=B.scale!==void 0&&B.scale!==Y.scale,Ae=Te||ue;oe=!0;try{await Fe("config",{config:B,reset_context:Ae}),
 se=B,H(Ae?"\u8A2D\u5B9A\u3092\u9069\u7528\u3057\u307E\u3057\u305F\uFF08\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u3092\u30EA\u30BB\u30C3\u30C8\uFF09":
 "\u8A2D\u5B9A\u3092\u9069\u7528\u3057\u307E\u3057\u305F",X==="paused"?"paused":"streaming"),showToast(
 Ae?"\u8A2D\u5B9A\u3092\u9069\u7528\u3057\u307E\u3057\u305F\uFF08\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u3092\u30EA\u30BB\u30C3\u30C8\uFF09":
-"\u8A2D\u5B9A\u3092\u9069\u7528\u3057\u307E\u3057\u305F","success")}catch(Fe){showToast("Lyria RealT\
-ime: "+Fe.message,"error",!0)}finally{oe=!1,ve()}}o(Oe,"applyConfig");async function qe(){if(h){oe=!0,
+"\u8A2D\u5B9A\u3092\u9069\u7528\u3057\u307E\u3057\u305F","success")}catch(je){showToast("Lyria RealT\
+ime: "+je.message,"error",!0)}finally{oe=!1,ve()}}o(Oe,"applyConfig");async function qe(){if(h){oe=!0,
 H("\u4FDD\u5B58\u4E2D...","connecting"),ve();try{const B=await fetch("/api/gemini/music/save",de({method:"\
 POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({session_id:h,thread_id:currentThreadId||
 null})})),Y=await B.json().catch(()=>({}));if(!B.ok)throw new Error(Y.error||"\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
@@ -1841,7 +1841,7 @@ const B=V("lyria-open-studio-btn");B&&B.addEventListener("click",()=>Xt(""));con
 -close");Y&&Y.addEventListener("click",()=>hn(!1));const Te=V("lyria-play-btn");Te&&Te.addEventListener(
 "click",()=>{if(!h){Qe();return}ot("PLAY")});const ue=V("lyria-pause-btn");ue&&ue.addEventListener("\
 click",()=>ot("PAUSE"));const Ae=V("lyria-stop-btn");Ae&&Ae.addEventListener("click",()=>ot("STOP"));
-const Fe=V("lyria-reset-btn");Fe&&Fe.addEventListener("click",()=>ot("RESET_CONTEXT"));const Ze=V("l\
+const je=V("lyria-reset-btn");je&&je.addEventListener("click",()=>ot("RESET_CONTEXT"));const Ze=V("l\
 yria-add-prompt-btn");Ze&&Ze.addEventListener("click",()=>he("",1));const Ge=V("lyria-apply-prompts-\
 btn");Ge&&Ge.addEventListener("click",_e);const nt=V("lyria-apply-config-btn");nt&&nt.addEventListener(
 "click",Oe);const ut=V("lyria-save-btn");ut&&ut.addEventListener("click",qe),st(),ct(),window.openLyriaStudio=
@@ -1884,8 +1884,8 @@ click",()=>J());const Ie=S("sts-settings-toggle");Ie&&Ie.addEventListener("click
 ts-panel");X(!(Pe&&Pe.classList.contains("settings-open")))}),window.VoiceStudio={open:ge,close:J,closeIfOpen:pe,
 log:R,isStudioMode:L,syncDock:V},V()}return o(ve,"init"),{init:ve}})().init();let Kt=null;function gi(){
 if(Kt&&(Kt.stop(),Kt=null),un){try{un.pause()}catch{}try{un.src=""}catch{}un=null}}o(gi,"stopStsPlay\
-back");async function ji(d){gi();const m=new Audio;return m.src=d,m.preload="auto",m.autoplay=!0,m.playsInline=
-!0,un=m,await m.play(),new Promise(g=>{m.onended=()=>g("ended"),m.onerror=()=>g("error")})}o(ji,"pla\
+back");async function Fi(d){gi();const m=new Audio;return m.src=d,m.preload="auto",m.autoplay=!0,m.playsInline=
+!0,un=m,await m.play(),new Promise(g=>{m.onended=()=>g("ended"),m.onerror=()=>g("error")})}o(Fi,"pla\
 yStsAudio");function $i(){if(fn.isActive()){fn._cancel();return}if(Ne){Ne.stop(),Ne=null,gi(),get("m\
 ic-btn").classList.remove("bg-red-600","animate-pulse"),get("mic-btn").classList.add("bg-gray-700"),
 setStsStatus("Canceled",!1),setTimeout(()=>setStsStatus("Tap to speak",!1),800),Nt();return}at&&at.state===
@@ -1935,7 +1935,7 @@ resumePromise}catch{}g={stream:S,ctx:g.ctx,source:g.ctx.createMediaStreamSource(
 x)});if(!L.ok)throw new Error("Failed to get session token");const{token:M,url:A}=await L.json(),O=get(
 "model-select").value,R=get("sts-voice")?get("sts-voice").value:"Kore",X=get("sts-thinking-level")?get(
 "sts-thinking-level").value:"minimal",oe=get("sts-include-thoughts")?get("sts-include-thoughts").checked:
-!1;if(Ne=new jn,stsOpt("sts-auto-play")&&!isGeminiLiveTranscribeModel()&&(Ne.rtPlayer=new pn),isGeminiLiveTranscribeModel()){
+!1;if(Ne=new Fn,stsOpt("sts-auto-play")&&!isGeminiLiveTranscribeModel()&&(Ne.rtPlayer=new pn),isGeminiLiveTranscribeModel()){
 const H=get("sts-transcribe-mode")?get("sts-transcribe-mode").value:"VERBATIM",ge={languageCodes:[]};
 if((H==="SMART"||H==="VERBATIM")&&(ge.mode=H),get("sts-custom-vocab")){const J=get("sts-custom-vocab").
 value.split(/[,、\n]/).map(pe=>pe.trim()).filter(Boolean);J.length&&(ge.customVocabulary=J.slice(0,

@@ -447,7 +447,7 @@
                     drawBaseCtx.drawImage(canvas, 0, 0);
                     drawLayerCtx.clearRect(0, 0, drawLayerCanvas.width, drawLayerCanvas.height);
                     strokeSize = sizeInput ? Number(sizeInput.value || 16) : 16;
-                    strokeStyle = normalizeMarkerHexColor(markerState.colorHex);
+                    strokeStyle = markerState.maskMode ? '#ffffff' : normalizeMarkerHexColor(markerState.colorHex);
                     strokePoints = [];
                     appendStrokePoint(p);
                     renderStrokeLayer();
@@ -747,6 +747,33 @@
             let out = document.createElement('canvas');
             const w = markerState.naturalWidth || img.naturalWidth || canvas.width;
             const h = markerState.naturalHeight || img.naturalHeight || canvas.height;
+            if (markerState.maskMode) {
+                if (!markerState.hasStroke) {
+                    showToast("削除する範囲を白く塗ってください", "error", true);
+                    return;
+                }
+                const mask = document.createElement('canvas');
+                mask.width = w;
+                mask.height = h;
+                const maskCtx = mask.getContext('2d');
+                if (!maskCtx) return;
+                maskCtx.fillStyle = '#000000';
+                maskCtx.fillRect(0, 0, w, h);
+                maskCtx.drawImage(canvas, 0, 0, w, h);
+                const blob = await new Promise((resolve) => mask.toBlob(resolve, 'image/png'));
+                if (!blob) {
+                    showToast("マスク画像の生成に失敗しました", "error", true);
+                    return;
+                }
+                const base = (markerState.filename || 'image').replace(/\.[^/.]+$/, '');
+                const uploaded = await uploadMaskFile(new File([blob], `${base}_mask.png`, { type: 'image/png' }));
+                if (uploaded) {
+                    window.closeMarkerModal();
+                    markerState.row = null;
+                    markerState.maskMode = false;
+                }
+                return;
+            }
             out.width = w;
             out.height = h;
             const octx = out.getContext('2d');
@@ -803,6 +830,7 @@
             updateFilePreview();
             window.closeMarkerModal();
             markerState.row = null;
+            markerState.maskMode = false;
         }
         async function extractAudioFromVideo(file, row) {
             if (!isVideoFile(file)) return null;
@@ -1004,6 +1032,16 @@
         }
         if (get('mask-btn') && get('mask-input')) {
             get('mask-btn').onclick = () => {
+                if (isIdeogramObjectRemoval()) {
+                    const row = Array.from(document.querySelectorAll('#upload-list .upload-row'))
+                        .find((candidate) => getRowImageSource(candidate));
+                    if (!row) {
+                        showToast("先にマスク対象の画像を添付してください", "error", true);
+                        return;
+                    }
+                    openMarkerModalForRow(row, true);
+                    return;
+                }
                 get('mask-input').click();
             };
             get('mask-input').addEventListener('change', async (e) => {

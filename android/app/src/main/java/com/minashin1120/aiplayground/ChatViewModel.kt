@@ -1954,13 +1954,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val bytes = withContext(Dispatchers.IO) { resolver.openInputStream(uri)?.use { it.readBytes() } }
                     ?: throw IOException("Mask upload failed")
                 val mime = local.mime.ifBlank { "image/png" }
-                val uploaded = withContext(Dispatchers.IO) { storeLocalUpload(local.name, mime, bytes.size.toLong()) { bytes.inputStream() } }
-                    ?: api.upload(local.name, bytes.toRequestBody(mime.toMediaType()), token()).getString("filename")
-                setImageMask(uploaded)
+                uploadImageMaskBytes(local.name, mime, bytes)
             } catch (e: CancellationException) { throw e }
             catch (e: ApiException) { notify(e.payload.optString("error").ifBlank { "Mask upload failed" }) }
             catch (e: Exception) { notify("Mask upload failed") }
         }
+    }
+    fun uploadImageMask(png: ByteArray) {
+        if (state.value.banned || (state.value.offline && !uploadsLocal)) return
+        viewModelScope.launch {
+            try { uploadImageMaskBytes("object_mask.png", "image/png", png) }
+            catch (e: CancellationException) { throw e }
+            catch (e: ApiException) { notify(e.payload.optString("error").ifBlank { "Mask upload failed" }) }
+            catch (e: Exception) { notify("Mask upload failed") }
+        }
+    }
+    private suspend fun uploadImageMaskBytes(name: String, mime: String, bytes: ByteArray) {
+        val uploaded = withContext(Dispatchers.IO) { storeLocalUpload(name, mime, bytes.size.toLong()) { bytes.inputStream() } }
+            ?: api.upload(name, bytes.toRequestBody(mime.toMediaType()), token()).getString("filename")
+        setImageMask(uploaded)
     }
     /** Web `selectModel` while the vision picker is active. */
     fun setVisionModel(id: String) { mutable.update { it.copy(visionModel = id) } }

@@ -913,15 +913,15 @@ nd); font-weight: bold; }
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const w=new f(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),v=w.internal.pageSize.getWidth(),k=w.internal.
 pageSize.getHeight(),_=794,C=Math.floor(k/v*_),T=y.scrollHeight||y.offsetHeight;let E=0,F=!0;const Q=Math.
-ceil(T/C);let G=0;for(;E<T;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const W=Math.min(C,T-E),ce=(await new Promise(($,N)=>{const q=setTimeout(()=>N(
+ceil(T/C);let q=0;for(;E<T;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
+"Aborted","AbortError");const W=Math.min(C,T-E),ce=(await new Promise(($,N)=>{const G=setTimeout(()=>N(
 new Error("PDF chunk rendering timed out")),12e4);b(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
 background,logging:!1,imageTimeout:5e3,x:0,y:E,width:_,height:W,windowWidth:_,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:o(P=>{prepareRichPastePdfClone(P,c);const D=P.querySelector(
 ".pdf-root-wrapper");D&&(D.style.position="relative",D.style.left="0",D.style.top="0")},"onclone")}).
-then(P=>{clearTimeout(q),$(P)}).catch(P=>{clearTimeout(q),N(P)})})).toDataURL("image/jpeg",.95),Le=w.
+then(P=>{clearTimeout(G),$(P)}).catch(P=>{clearTimeout(G),N(P)})})).toDataURL("image/jpeg",.95),Le=w.
 getImageProperties(ce),me=Math.min(k,Le.height*v/Le.width);F||w.addPage(),w.addImage(ce,"JPEG",0,0,v,
-me),F=!1,E+=W,G++;const xe=Math.min(100,15+Math.round(G/Q*85));i(xe),await new Promise($=>setTimeout(
+me),F=!1,E+=W,q++;const xe=Math.min(100,15+Math.round(q/Q*85));i(xe),await new Promise($=>setTimeout(
 $,100))}return i(100),{blob:w.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=o(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -1059,11 +1059,11 @@ cameraCaptureStream=null,cameraCaptureFacingMode="environment",cameraCaptureBusy
 const cameraCapturePendingFiles=[],cameraCapturePendingPreviewUrls=[];let modalThreadId=null;const MARKER_HINT_TEXT="\
 \u7DE8\u96C6\u6E08\u307F\u306E\u753B\u50CF\u3092\u898B\u3066\u304F\u3060\u3055\u3044\u3002",MARKER_OPACITY_MIN_PCT=.1,
 MARKER_OPACITY_MAX_PCT=100,MARKER_OPACITY_MIN_ALPHA=MARKER_OPACITY_MIN_PCT/100,markerState={row:null,
-filename:"",hasStroke:!1,naturalWidth:0,naturalHeight:0,colorHex:"#facc15",opacity:.6,history:[],mode:"\
-draw",cropRect:null,mosaicRects:[],mosaicPreviewRect:null,baseCanvas:null,baseImageData:null},markerView={
-scale:1,offsetX:0,offsetY:0,minScale:1,maxScale:4},threadGemMap={};let pendingGemForNewThread=null,loadedGems=[],
-currentJobId=null,currentThreadPending=null,currentVisionModel=null,activeStreamingBubbleId=null,manualStopContext=null,
-manualStopSeq=0,isStopMode=!1;const suppressedPendingJobIds=new Set,pendingStreamReconnectJobs=new Set;
+filename:"",maskMode:!1,hasStroke:!1,naturalWidth:0,naturalHeight:0,colorHex:"#facc15",opacity:.6,history:[],
+mode:"draw",cropRect:null,mosaicRects:[],mosaicPreviewRect:null,baseCanvas:null,baseImageData:null},
+markerView={scale:1,offsetX:0,offsetY:0,minScale:1,maxScale:4},threadGemMap={};let pendingGemForNewThread=null,
+loadedGems=[],currentJobId=null,currentThreadPending=null,currentVisionModel=null,activeStreamingBubbleId=null,
+manualStopContext=null,manualStopSeq=0,isStopMode=!1;const suppressedPendingJobIds=new Set,pendingStreamReconnectJobs=new Set;
 let editingMessageId=null,modelChosenManually=!1;const messageStore={},lib={modal:get("lib-modal"),grid:get(
 "lib-grid"),files:[],selected:new Set,attachMode:!1,searchQuery:"",favoritesOnly:!1,totalCount:0,hasMore:!1,
 loading:!1,nextOffset:0},LIBRARY_PAGE_SIZE=40,LIB_SORT_KEY="lib_sort_order",LIB_FAVORITES_ONLY_KEY="\
@@ -2012,8 +2012,8 @@ ordKey"),l=o(w=>{const v=performance.now();if(!(v-e.lastMoveSample<80)){if(e.las
 sqrt(k*k+_*_)/(C/1e3);e.speedMax=Math.max(e.speedMax,T),e.speedSum+=T,e.speedSamples+=1}}e.lastMove=
 {x:w.clientX,y:w.clientY,t:v}}},"recordMove"),c=o(()=>{const w=Math.max(1,performance.now()-e.windowStart),
 v=e.clickTimes.length,k=e.keyTimes.length,_=e.speedSamples?e.speedSum/e.speedSamples:0;let C=0,T=1;if(e.
-clickIntervals.length>=3){const E=e.clickIntervals.reduce((Q,G)=>Q+G,0)/e.clickIntervals.length,F=e.
-clickIntervals.reduce((Q,G)=>Q+Math.pow(G-E,2),0)/e.clickIntervals.length;C=E,T=E>0?Math.sqrt(F)/E:1}
+clickIntervals.length>=3){const E=e.clickIntervals.reduce((Q,q)=>Q+q,0)/e.clickIntervals.length,F=e.
+clickIntervals.reduce((Q,q)=>Q+Math.pow(q-E,2),0)/e.clickIntervals.length;C=E,T=E>0?Math.sqrt(F)/E:1}
 return{window_ms:Math.round(w),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
 fastKeys,untrusted_input:!!e.untrustedInput,click_burst:v,key_burst:k,avg_click_ms:C,click_cv:T,event_rate:(e.
 clicks+e.keys+e.moves)/(w/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:_}},"computeStats"),u=o(

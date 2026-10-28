@@ -1360,6 +1360,7 @@
         const markerState = {
             row: null,
             filename: '',
+            maskMode: false,
             hasStroke: false,
             naturalWidth: 0,
             naturalHeight: 0,

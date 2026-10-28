@@ -223,9 +223,26 @@
             if (btnMosaic) btnMosaic.classList.toggle('active', mode === 'mosaic');
             if (btnCrop) btnCrop.classList.toggle('active', mode === 'crop');
             const hint = get('marker-tool-hint');
-            if (hint) hint.textContent = markerToolHints[mode] || '';
+            if (hint) hint.textContent = markerState.maskMode
+                ? '白く塗った部分が削除対象になります / 二本指で拡大'
+                : (markerToolHints[mode] || '');
             const cropReset = get('marker-crop-reset');
             if (cropReset) cropReset.classList.toggle('hidden', mode !== 'crop');
+            document.querySelectorAll('.marker-edit-only').forEach((el) => el.classList.toggle('hidden', markerState.maskMode));
+            const mosaic = get('marker-tool-mosaic');
+            const crop = get('marker-tool-crop');
+            if (mosaic) mosaic.classList.toggle('hidden', markerState.maskMode);
+            if (crop) crop.classList.toggle('hidden', markerState.maskMode);
+            const title = get('marker-modal-title');
+            const description = get('marker-modal-description');
+            const save = get('marker-save');
+            if (title) title.innerHTML = markerState.maskMode
+                ? '<i class="fas fa-mask text-yellow-300"></i> マスク作成'
+                : '<i class="fas fa-highlighter text-yellow-300"></i> 画像編集';
+            if (description) description.textContent = markerState.maskMode
+                ? '白く塗った領域が削除対象になります。マスクは対象画像と同じサイズで作成されます。'
+                : 'マーカー・モザイク・トリミングが可能です。送信時に編集済み画像の確認を促します。';
+            if (save) save.textContent = markerState.maskMode ? 'マスクを作成' : '保存して反映';
             const drawCanvas = get('marker-canvas');
             if (drawCanvas) drawCanvas.style.pointerEvents = (mode === 'crop') ? 'none' : 'auto';
             const cropCanvas = get('marker-crop-canvas');
@@ -622,13 +639,14 @@
                 history.back();
             }
         };
-        function openMarkerModalForRow(row) {
+        function openMarkerModalForRow(row, maskMode = false) {
             const src = getRowImageSource(row);
             if (!src) {
                 showToast("画像が読み込めませんでした", "error", true);
                 return;
             }
             markerState.row = row;
+            markerState.maskMode = maskMode;
             const nameEl = row ? row.querySelector('.truncate') : null;
             markerState.filename = nameEl ? nameEl.textContent.trim() : 'image.png';
             markerState.hasStroke = false;
@@ -745,7 +763,7 @@
         }
 
         async function uploadMaskFile(file) {
-            if (!file) return;
+            if (!file) return false;
             const fd = new FormData();
             fd.append('file', file);
             try {
@@ -754,12 +772,14 @@
                 if (r.ok && d.filename) {
                     currentMaskImage = d.filename;
                     updateMaskPreview();
+                    return true;
                 } else {
                     showToast(d.error || "Mask upload failed", "error", true);
                 }
             } catch (e) {
                 showToast("Mask upload failed", "error", true);
             }
+            return false;
         }
         function setCameraCaptureStatus(text, isError = false) {
             const el = get('camera-status');

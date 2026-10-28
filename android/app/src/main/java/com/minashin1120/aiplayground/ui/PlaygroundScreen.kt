@@ -100,6 +100,7 @@ import com.minashin1120.aiplayground.data.BanAppealState
 import com.minashin1120.aiplayground.data.ChatAutoScroll
 import com.minashin1120.aiplayground.data.Attachment
 import com.minashin1120.aiplayground.data.isImageReference
+import com.minashin1120.aiplayground.data.isIdeogramObjectRemoval
 import com.minashin1120.aiplayground.data.IMAGE_SPLIT_MAX_IMAGES
 import com.minashin1120.aiplayground.data.ImageSplitOptions
 import com.minashin1120.aiplayground.data.LibraryFile
@@ -289,6 +290,7 @@ fun PlaygroundScreen(
             var startDockAfterMic by remember { mutableStateOf(false) }
             var richPasteOpen by remember { mutableStateOf(false) }
             var markerTarget by remember { mutableStateOf<Attachment?>(null) }
+            var markerMaskMode by remember { mutableStateOf(false) }
             var composerHeight by remember { mutableIntStateOf(0) }
             var visionPicker by remember { mutableStateOf(false) }
             var cameraOpen by remember { mutableStateOf(false) }
@@ -417,7 +419,7 @@ fun PlaygroundScreen(
                     model.notify("画像URLをコピーしました")
                 },
                 onReuse = { reference -> model.reuseImage(reference) },
-                onEdit = { reference -> markerTarget = state.attachments.firstOrNull { it.reference == reference } },
+                onEdit = { reference -> markerMaskMode = false; markerTarget = state.attachments.firstOrNull { it.reference == reference } },
             )
             val sharePdf: () -> Unit = {
                 model.exportPdf { file ->
@@ -587,7 +589,13 @@ fun PlaygroundScreen(
                         if (showThreads) CompositionLocalProvider(LocalComposerEstimator provides model::estimatePromptTokens,
                             LocalComposerDetailsEstimator provides model::estimatePromptTokenDetails) {
                         Composer(state, model, { modelPicker = true }, { attachMenu = true }, launchSpeech,
-                            onRichPaste = { richPasteOpen = true }, onMask = { maskPicker.launch("image/*") },
+                            onRichPaste = { richPasteOpen = true }, onMask = {
+                                if (isIdeogramObjectRemoval(state.model, state.generationValues)) {
+                                    val image = state.attachments.firstOrNull { it.mime.startsWith("image/") || isImageReference(it.name) }
+                                    if (image == null) model.notify("先にマスク対象の画像を添付してください")
+                                    else { markerMaskMode = true; markerTarget = image }
+                                } else maskPicker.launch("image/*")
+                            },
                             onSettings = { settingsTab = "一般"; settingsOpen = true },
                             onChatInstructions = { model.ensureThread { threadSettings = true } },
                             onCompressionSettings = { compressionOpen = true },
@@ -821,7 +829,7 @@ fun PlaygroundScreen(
                 onLibrary = { libraryOpen = true },
                 onChangeVisionModel = { visionPicker = true },
                 onOpenFile = openPendingAttachment,
-                onEditImage = { markerTarget = it },
+                onEditImage = { markerMaskMode = false; markerTarget = it },
             )
             ModalValueHost(sharedTextPreview.takeIf { startupSplashFinished }) { text ->
                 // The chat's code-block actions, so code blocks get the same buttons as in an answer.
@@ -857,8 +865,12 @@ fun PlaygroundScreen(
                     selectedId = state.visionModel ?: state.preferences?.defaultVisionModel.orEmpty(), lockToPromptCache = false)
             }
             ModalValueHost(markerTarget) { target ->
-                ImageMarkerEditor(target, loader, onDismiss = { markerTarget = null },
-                    onSave = { png, attachOriginal -> model.applyImageEdit(target.reference, png, attachOriginal); markerTarget = null },
+                ImageMarkerEditor(target, loader, maskMode = markerMaskMode, onDismiss = { markerTarget = null; markerMaskMode = false },
+                    onSave = { png, attachOriginal ->
+                        if (markerMaskMode) model.uploadImageMask(png) else model.applyImageEdit(target.reference, png, attachOriginal)
+                        markerTarget = null
+                        markerMaskMode = false
+                    },
                     onError = model::notify)
             }
             ModalHost(threadSettings && state.selected != null) {

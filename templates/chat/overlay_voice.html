@@ -111,10 +111,10 @@
     <div id="marker-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
         <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[85vh] max-h-none modal-panel">
             <div class="flex items-center justify-between mb-2">
-                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-highlighter text-yellow-300"></i> 画像編集</h2>
+                <h2 id="marker-modal-title" class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-highlighter text-yellow-300"></i> 画像編集</h2>
                 <button id="marker-modal-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
             </div>
-            <div class="text-xs text-gray-400 mb-3">マーカー・モザイク・トリミングが可能です。送信時に編集済み画像の確認を促します。</div>
+            <div id="marker-modal-description" class="text-xs text-gray-400 mb-3">マーカー・モザイク・トリミングが可能です。送信時に編集済み画像の確認を促します。</div>
             <div id="marker-stage" class="marker-stage mb-4">
                 <div id="marker-viewport">
                     <img id="marker-image" alt="marker target">
@@ -123,7 +123,7 @@
                 </div>
             </div>
             <div id="marker-toolbar" class="flex flex-wrap items-center gap-3 text-xs text-gray-300">
-                <div class="flex items-center gap-2">
+                <div class="marker-edit-only flex items-center gap-2">
                     <button id="marker-tool-draw" data-progress-no-spinner="true" class="marker-tool-btn px-3 py-1 rounded text-[11px]">マーカー</button>
                     <button id="marker-tool-mosaic" data-progress-no-spinner="true" class="marker-tool-btn px-3 py-1 rounded text-[11px]">モザイク</button>
                     <button id="marker-tool-crop" data-progress-no-spinner="true" class="marker-tool-btn px-3 py-1 rounded text-[11px]">トリミング</button>
@@ -132,7 +132,7 @@
                     <span class="text-gray-400">太さ</span>
                     <input id="marker-size" type="range" min="1" max="40" value="16">
                 </label>
-                <label class="flex items-center gap-1">
+                <label class="marker-edit-only flex items-center gap-1">
                     <span class="text-gray-400">色</span>
                     <button type="button" class="marker-color-chip" data-marker-color="#ef4444" style="background:#ef4444;" title="赤"></button>
                     <button type="button" class="marker-color-chip" data-marker-color="#3b82f6" style="background:#3b82f6;" title="青"></button>
@@ -140,17 +140,17 @@
                     <button type="button" class="marker-color-chip active" data-marker-color="#facc15" style="background:#facc15;" title="黄色"></button>
                     <button type="button" class="marker-color-chip" data-marker-color="#ec4899" style="background:#ec4899;" title="ピンク"></button>
                 </label>
-                <label class="flex items-center gap-1">
+                <label class="marker-edit-only flex items-center gap-1">
                     <span class="text-gray-400">任意</span>
                     <input id="marker-color-picker" type="color" value="#facc15" aria-label="マーカー色">
                 </label>
-                <label class="flex items-center gap-2">
+                <label class="marker-edit-only flex items-center gap-2">
                     <span class="text-gray-400">透明度</span>
                     <input id="marker-opacity" type="range" min="0.1" max="100" step="0.1" value="60">
                     <input id="marker-opacity-number" type="number" min="0.1" max="100" step="0.1" value="60" aria-label="マーカー透明度(%)">
                     <span id="marker-opacity-value">60%</span>
                 </label>
-                <label class="flex items-center gap-2 text-[10px] text-gray-400">
+                <label class="marker-edit-only flex items-center gap-2 text-[10px] text-gray-400">
                     <input type="checkbox" id="marker-attach-original" class="accent-yellow-400 w-3 h-3">
                     <span>元画像も添付</span>
                 </label>

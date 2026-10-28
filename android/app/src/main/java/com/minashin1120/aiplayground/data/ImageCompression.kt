@@ -20,6 +20,7 @@ data class CompressionSettings(
 }
 
 data class CompressedImage(val file: File, val name: String, val mime: String)
+internal data class CompressedImageBytes(val bytes: ByteArray, val mime: String)
 
 fun compressionSettingsFrom(prefs: SharedPreferences): CompressionSettings = CompressionSettings(
     enabled = prefs.getBoolean("compression_enabled", true),
@@ -102,6 +103,59 @@ internal fun writeCompressedBitmap(bitmap: Bitmap, target: File, format: Bitmap.
             current = scaleBitmap(current, (current.width * 0.8).toInt(), (current.height * 0.8).toInt())
             quality = 80
         }
+    } finally {
+        current.recycle()
+    }
+}
+
+/** Applies the user's attachment compression settings to bytes being sent directly to a provider. */
+internal fun compressImageBytes(bytes: ByteArray, mime: String, settings: CompressionSettings): CompressedImageBytes? {
+    if (!settings.enabled || !mime.startsWith("image/") || mime == "image/gif") return null
+    if (settings.formatOnly && settings.outputType == "original") return null
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    val width = bounds.outWidth
+    val height = bounds.outHeight
+    if (width <= 0 || height <= 0) return null
+    val formatChange = settings.outputType != "original"
+    val dimensionsTooLarge = !settings.formatOnly && maxOf(width, height) > settings.maxDimension
+    val sizeTooLarge = !settings.formatOnly && bytes.size > settings.maxSizeBytes
+    if (!formatChange && !dimensionsTooLarge && !sizeTooLarge) return null
+
+    val (format, extension) = resolveOutputType(settings.outputType, mime)
+    val sample = if (settings.formatOnly) 1 else sampleSize(width, height, settings.maxDimension)
+    val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
+        BitmapFactory.Options().apply { inSampleSize = sample }) ?: return null
+    val encoded = encodeCompressedBitmap(bitmap, format, settings)
+    if (encoded.isEmpty() || (encoded.size >= bytes.size && !formatChange && !dimensionsTooLarge)) return null
+    return CompressedImageBytes(encoded, mimeForExtension(extension))
+}
+
+/** Encodes an already decoded image with the same limits used by [compressImage]. Always consumes [bitmap]. */
+private fun encodeCompressedBitmap(bitmap: Bitmap, format: Bitmap.CompressFormat, settings: CompressionSettings): ByteArray {
+    var current = bitmap
+    try {
+        if (!settings.formatOnly && maxOf(current.width, current.height) > settings.maxDimension) {
+            val scale = settings.maxDimension.toFloat() / maxOf(current.width, current.height)
+            current = scaleBitmap(current, (current.width * scale).toInt(), (current.height * scale).toInt())
+        }
+        var quality = if (settings.formatOnly) 100 else 90
+        var shrinkAttempts = 0
+        while (true) {
+            val output = java.io.ByteArrayOutputStream()
+            if (!current.compress(format, quality, output)) throw java.io.IOException("画像を圧縮できません。")
+            val encoded = output.toByteArray()
+            if (settings.formatOnly || encoded.size <= settings.maxSizeBytes) return encoded
+            // PNG is lossless: Android ignores quality, so retrying it only repeats the same work.
+            if (format != Bitmap.CompressFormat.PNG && quality > 35) { quality -= 15; continue }
+            if (shrinkAttempts >= 4) break
+            shrinkAttempts++
+            current = scaleBitmap(current, (current.width * 0.8).toInt(), (current.height * 0.8).toInt())
+            quality = 80
+        }
+        val output = java.io.ByteArrayOutputStream()
+        if (!current.compress(format, quality, output)) throw java.io.IOException("画像を圧縮できません。")
+        return output.toByteArray()
     } finally {
         current.recycle()
     }

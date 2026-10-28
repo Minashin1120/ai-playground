@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.data.direct
 
+import com.minashin1120.aiplayground.data.CompressionSettings
 import org.json.JSONObject
 
 /** One attachment sent to a provider: raw bytes (images, PDF, audio) or text extracted on the device. */
@@ -23,6 +24,8 @@ data class DirectRequest(
     val system: String,
     val turns: List<DirectTurn>,
     val options: JSONObject,
+    /** User-configured attachment compression; null leaves image bytes unchanged. */
+    val imageCompression: CompressionSettings? = null,
     /** Uploaded image mask for Ideogram Object Remover. */
     val maskImage: DirectAttachment? = null,
     /** Saves a streamed output before exposing its reference in the live answer. */

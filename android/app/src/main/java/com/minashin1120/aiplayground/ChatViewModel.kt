@@ -3186,7 +3186,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Web `markApiAccepted`: once, the skeleton says the connection is up and the model is being awaited. */
     private fun markApiAccepted() = updateLive { live ->
         if (live.accepted || live.pendingStatus == null) live.copy(accepted = true)
-        else live.copy(accepted = true, pendingStatus = "接続完了。モデル応答を待機中...", pendingSub = "キュー待機や初期化中の可能性があります")
+        else live.copy(accepted = true, pendingStatus = "接続しました。応答を待っています...", pendingSub = "応答開始までの状況を表示しています")
     }
 
     private fun submit(submission: Submission) {
@@ -3200,6 +3200,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(streaming = true, retryAvailable = false, status = "", liveContent = "", liveThought = "",
                 cards = emptyList(), mcpDecision = null,
                 live = LiveAnswer(model = modelId, pendingStatus = "APIに送信中...",
+                    pendingStartedAt = if (body.optBoolean("batch_mode")) null else SystemClock.elapsedRealtime(),
                     thoughtPlaceholder = if (reasoning) "推論プロセスを準備中..." else null)) }
             val flow = api.progress.startFlow("chat")
             var id = body.nullableString("thread_id")

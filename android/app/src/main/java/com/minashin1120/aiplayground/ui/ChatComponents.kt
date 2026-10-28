@@ -163,7 +163,7 @@ fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) ->
     val coding = state.cards.filter { it.kind == CardKind.CODING }
     val pending = live.pendingStatus
     val skeleton: (@Composable () -> Unit)? =
-        if (pending != null) { { PendingSkeleton(live.model.ifBlank { state.model }, pending, live.pendingSub) } } else null
+        if (pending != null) { { PendingSkeleton(live.model.ifBlank { state.model }, pending, live.pendingSub, live.pendingStartedAt) } } else null
     MessageBubble(
         ChatMessage("live", "assistant", state.liveContent, thought), onFile, loader,
         MessageActions(), controlsVisible = false, onToggleControls = {}, streaming = true,

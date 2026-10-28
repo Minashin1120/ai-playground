@@ -20,7 +20,7 @@
             };
         }
 
-        async function sendBrowserFastMessage(rawText) {
+        async function sendBrowserFastMessage(rawText, pendingStartedAt) {
             const model = String(get('model-select').value || '').trim();
             const bootstrap = await fetchBrowserFastBootstrap(false);
             if (!browserFastApiKey || browserFastApiKeyModel !== model) {
@@ -60,6 +60,7 @@
             const aid = `browser-fast-${Date.now()}`;
             get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 ai-pending-row fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${buildPendingSkeletonHtml(model, 'Geminiへ直接送信中...')}</div></div>`);
             const adiv = get(aid);
+            const stopPendingElapsed = startPendingElapsed(adiv, pendingStartedAt);
             activeStreamingBubbleId = aid;
             setSendBtnToStopMode();
             resumeChatAutoScroll();
@@ -274,6 +275,7 @@
                     }
                 }
             } finally {
+                if (stopPendingElapsed) stopPendingElapsed();
                 if (browserFastOpStarted && window.ConnectionMonitor) window.ConnectionMonitor.operationEnded();
                 if (finishProgress) finishProgress();
                 setSendBtnToSendMode();
@@ -288,6 +290,7 @@
             return window.ActivityLog.operation('send', () => sendMessageLogged());
         }
         async function sendMessageLogged() {
+            const pendingStartedAt = performance.now();
             vibrateHelper(50);
             if (abortController) {
                 showToast("回答生成中です。完了までお待ちいただくか、停止してください。", "warning", true);
@@ -396,7 +399,7 @@
                 const reason = browserFastModeIneligibility(rawText);
                 if (!reason) {
                     try {
-                        await sendBrowserFastMessage(rawText);
+                        await sendBrowserFastMessage(rawText, pendingStartedAt);
                     } catch (error) {
                         showToast(`高速モード: ${error.message || '開始準備に失敗しました'}`, 'error', true);
                     }
@@ -762,6 +765,7 @@
             get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 ai-pending-row fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`);
             resumeChatAutoScroll();
             const adiv = get(aid);
+            const stopPendingElapsed = !batchModeRequested ? startPendingElapsed(adiv, pendingStartedAt) : null;
             activeStreamingBubbleId = aid;
             if (canvasModeEnabled) {
                 resetCanvasPreviewPanel();
@@ -875,11 +879,11 @@
                     if (!ca) return;
                     if (ca.getAttribute('data-api-accepted') === '1') return;
                     ca.setAttribute('data-api-accepted', '1');
-                    if (!updatePendingSkeletonStatus(adiv, '接続完了。モデル応答を待機中...', 'キュー待機や初期化中の可能性があります')) {
-                        ca.outerHTML = buildPendingSkeletonHtml(p.model, '接続完了。モデル応答を待機中...');
+                    if (!updatePendingSkeletonStatus(adiv, '接続しました。応答を待っています...', '応答開始までの状況を表示しています')) {
+                        ca.outerHTML = buildPendingSkeletonHtml(p.model, '接続しました。応答を待っています...');
                         const newCa = adiv.querySelector('.content-area');
                         if (newCa) newCa.setAttribute('data-api-accepted', '1');
-                        updatePendingSkeletonStatus(adiv, '接続完了。モデル応答を待機中...', 'キュー待機や初期化中の可能性があります');
+                        updatePendingSkeletonStatus(adiv, '接続しました。応答を待っています...', '応答開始までの状況を表示しています');
                     }
                 };
                 markApiAccepted();
@@ -1181,7 +1185,8 @@
                     resumeAcceptedSubmission = {
                         job_id: e.acceptedJobId,
                         thread_id: String(e.acceptedThreadId),
-                        model: p.model
+                        model: p.model,
+                        pendingStartedAt: batchModeRequested ? null : pendingStartedAt
                     };
                     get('prompt-input').value = '';
                     get('prompt-input').style.height = 'auto';
@@ -1191,7 +1196,8 @@
                     reconnectAfterStreamDisconnect = {
                         job_id: normalizeJobIdForUi(currentJobId),
                         thread_id: currentThreadId !== null && currentThreadId !== undefined ? String(currentThreadId) : null,
-                        model: p.model
+                        model: p.model,
+                        pendingStartedAt: batchModeRequested ? null : pendingStartedAt
                     };
                     window.ConnectionMonitor.setUnavailable('offline');
                     showToast('回答への接続が切れました。バックグラウンド処理へ自動再接続します。', 'warning', false);
@@ -1221,6 +1227,7 @@
                 // Restore old message if error occurred during edit
                 if (editingId && !syncedAfterAbort) restoreHiddenBranch();
             } finally {
+                if (stopPendingElapsed) stopPendingElapsed();
                 if (streamOpStarted && window.ConnectionMonitor) window.ConnectionMonitor.operationEnded();
                 if (finishStreamProgress) finishStreamProgress();
                 setSendBtnToSendMode();
@@ -1267,6 +1274,7 @@
                 if (ca) ca.outerHTML = buildPendingSkeletonHtml(pendingModelRaw, '回答を生成中...');
                 else adiv.insertAdjacentHTML('afterbegin', buildPendingSkeletonHtml(pendingModelRaw, '回答を生成中...'));
             }
+            const stopPendingElapsed = startPendingElapsed(adiv, pending.pendingStartedAt);
             currentJobId = jobId;
             setSendBtnToStopMode();
             resumeChatAutoScroll();
@@ -1522,6 +1530,7 @@
                     showToast('回答への再接続が切れました。自動的に再試行します。', 'warning', false);
                 }
             } finally {
+                if (stopPendingElapsed) stopPendingElapsed();
                 if (resumeOpStarted && window.ConnectionMonitor) window.ConnectionMonitor.operationEnded();
                 if (finishResumeProgress) finishResumeProgress();
                 setSendBtnToSendMode();
@@ -1533,7 +1542,7 @@
             }
             if (reconnectAfterResumeDisconnect) {
                 return reconnectPendingStreamUntilAvailable(
-                    { job_id: jobId, model: pendingModelRaw },
+                    { job_id: jobId, model: pendingModelRaw, pendingStartedAt: pending.pendingStartedAt },
                     resumeStartedThreadId
                 );
             }

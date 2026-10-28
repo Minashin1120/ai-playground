@@ -83,7 +83,14 @@ private fun skeletonBrush(userBubble: Boolean = false): Brush {
  * code window) with the `.skeleton-status` line and its sub line.
  */
 @Composable
-internal fun PendingSkeleton(model: String, status: String, sub: String) {
+internal fun PendingSkeleton(model: String, status: String, sub: String, startedAt: Long? = null) {
+    var elapsed by remember(startedAt) { mutableLongStateOf(0L) }
+    LaunchedEffect(startedAt) {
+        if (startedAt != null) while (true) {
+            elapsed = ((android.os.SystemClock.elapsedRealtime() - startedAt) / 1000).coerceAtLeast(0)
+            delay(1000)
+        }
+    }
     val kind = remember(model) { pendingSkeletonKind(model) }
     val brush = skeletonBrush()
     Column(Modifier.widthIn(min = 280.dp).padding(vertical = 2.dp)) {
@@ -102,6 +109,7 @@ internal fun PendingSkeleton(model: String, status: String, sub: String) {
             else -> if (LocalWebPalette.current.isLight) LocalWebPalette.current.muted else Color(203, 213, 225).copy(alpha = 0.72f)
         }
         Text(status, fontSize = 11.2.sp, lineHeight = 15.7.sp, letterSpacing = 0.11.sp, color = statusColor, modifier = Modifier.padding(top = 12.dp))
+        if (startedAt != null) Text("経過時間: ${elapsed / 60}分${elapsed % 60}秒", fontSize = 10.4.sp, lineHeight = 14.6.sp, color = Color(148, 163, 184).copy(alpha = 0.65f), modifier = Modifier.padding(top = 3.2.dp))
         if (sub.isNotEmpty()) Text(sub, fontSize = 10.4.sp, lineHeight = 14.6.sp, color = Color(148, 163, 184).copy(alpha = 0.65f),
             modifier = Modifier.padding(top = 3.2.dp))
     }

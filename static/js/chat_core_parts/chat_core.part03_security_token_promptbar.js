@@ -449,6 +449,26 @@
             return `<div class="content-area pending-shimmer skeleton-pending" data-skeleton-kind="${escapeHtml(kind)}">${buildPendingSkeletonBody(kind)}<div class="skeleton-status">${escapeHtml(status)}</div></div>`;
         }
 
+        // A monotonic timestamp is kept only while this page owns the submission.
+        function startPendingElapsed(bubbleEl, startedAt) {
+            if (!bubbleEl || !Number.isFinite(startedAt)) return;
+            const tick = () => {
+                const pending = bubbleEl.querySelector('.content-area.skeleton-pending');
+                if (!bubbleEl.isConnected || !pending) { clearInterval(timer); return; }
+                let elapsed = pending.querySelector('.pending-elapsed');
+                if (!elapsed) {
+                    elapsed = document.createElement('div');
+                    elapsed.className = 'skeleton-status-sub pending-elapsed';
+                    pending.appendChild(elapsed);
+                }
+                const seconds = Math.max(0, Math.floor((performance.now() - startedAt) / 1000));
+                elapsed.textContent = `経過時間: ${Math.floor(seconds / 60)}分${seconds % 60}秒`;
+            };
+            const timer = setInterval(tick, 1000);
+            tick();
+            return () => clearInterval(timer);
+        }
+
         function updatePendingSkeletonStatus(bubbleEl, statusText, subText) {
             if (!bubbleEl) return false;
             const ca = bubbleEl.querySelector('.content-area.skeleton-pending');

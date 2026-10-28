@@ -1677,10 +1677,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             reasoning_requested = bool(options.get('enable_thinking')) or (req_reasoning_effort and req_reasoning_effort != "none")
             if is_deepseek and req_reasoning_effort == "none":
                 reasoning_requested = False
-            if reasoning_requested:
-                pub("status", "推論プロセスを準備中です。モデルの初回トークンを待機しています...")
-            else:
-                pub("status", "モデルに接続中です。初回トークンを待機しています...")
+            pub("status", "モデルへの入力を準備中です...")
 
             def _is_gemini_text_model(m):
                 if "gemini" not in m:
@@ -6887,7 +6884,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         logger.exception('OpenAI Batch submission failed')
                         _persist_batch_failure(str(batch_error))
                     return
-                pub("status", "APIへ送信完了。モデルが応答を生成中です...")
+                pub("status", "APIへの送信を開始しています...")
                 _mark_provider_request_started()
                 stream = client.responses.create(**kwargs)
                 search_reported = False

@@ -658,6 +658,7 @@
                     if (latestPending && latestPending.job_id && !isPendingJobSuppressed(latestPending.job_id)) {
                         if (abortController === reconnectController) abortController = null;
                         handedOffToResume = true;
+                        latestPending.pendingStartedAt = pending.pendingStartedAt;
                         resumePendingStream(latestPending);
                     } else {
                         window.ConnectionMonitor.markReachable();

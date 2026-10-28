@@ -957,6 +957,7 @@ data class LiveAnswer(
     /** `.skeleton-status`; null once the first answer event arrived (`beginPendingToStreamTransition`). */
     val pendingStatus: String? = null,
     val pendingSub: String = "",
+    val pendingStartedAt: Long? = null,
     /** `markApiAccepted` ran (the status only moves to 接続完了 once). */
     val accepted: Boolean = false,
     /** `search_status`: "searching", "done" (Search complete, removed after 2s) or "". */

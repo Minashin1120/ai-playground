@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.data.direct
 
+import com.minashin1120.aiplayground.data.compactVisionImage
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Base64
@@ -89,12 +90,19 @@ class OpenAiResponsesDirect(
             val parts = JSONArray()
             val assistant = turn.role == "assistant"
             if (!assistant) turn.attachments.forEach { attachment ->
-                val bytes = attachment.bytes
+                val original = attachment.bytes
                 when {
-                    bytes != null && attachment.mime.startsWith("image/") -> parts.put(JSONObject().put("type", "input_image")
-                        .put("image_url", "data:${attachment.mime};base64," + Base64.getEncoder().encodeToString(bytes)))
-                    bytes != null && attachment.mime == "application/pdf" && !xai -> parts.put(JSONObject().put("type", "input_file")
-                        .put("filename", attachment.name).put("file_data", "data:application/pdf;base64," + Base64.getEncoder().encodeToString(bytes)))
+                    original != null && attachment.mime in setOf("image/jpeg", "image/png", "image/webp") -> {
+                        // Keep large vision payloads bounded on device while preserving the saved original.
+                        val bytes = compactVisionImage(original)
+                        val mime = if (bytes !== original) "image/webp" else attachment.mime
+                        parts.put(JSONObject().put("type", "input_image")
+                            .put("image_url", "data:${mime};base64," + Base64.getEncoder().encodeToString(bytes)))
+                    }
+                    original != null && attachment.mime.startsWith("image/") -> parts.put(JSONObject().put("type", "input_image")
+                        .put("image_url", "data:${attachment.mime};base64," + Base64.getEncoder().encodeToString(original)))
+                    original != null && attachment.mime == "application/pdf" && !xai -> parts.put(JSONObject().put("type", "input_file")
+                        .put("filename", attachment.name).put("file_data", "data:application/pdf;base64," + Base64.getEncoder().encodeToString(original)))
                     attachment.text != null -> parts.put(JSONObject().put("type", "input_text").put("text", attachmentText(attachment)))
                 }
             }

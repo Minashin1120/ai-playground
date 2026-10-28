@@ -1502,12 +1502,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         ) }
         fetchThreads(false)
         runCatching { fetchGems() }.onFailure { report(it) }
-        val savedModel = prefs.getString("model_${account.id}", null).orEmpty()
-        val preserveSavedModel = account.models.any { it.id == savedModel && it.selectable }
         runCatching {
             fetchPreferences(
                 applyDefaults = state.value.selected == null && !state.value.streaming && !modelChosenManually,
-                preserveSelectedModel = preserveSavedModel,
             )
         }.onFailure { report(it) }
         runCatching { fetchBatchJobs(notify = false) }.onFailure { if (it is CancellationException) throw it }
@@ -1552,6 +1549,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             nextPage = null,
             pairing = false,
         ).let { restored ->
+            // Apply cached defaults before exposing the startup composer, including while offline.
+            if (current.account == null && !modelChosenManually && restored.selected == null && !restored.streaming)
+                restored.withNewChatDefaults().withModelRules() else restored
+        }.let { restored ->
             if (!asOffline) restored else restored.copy(
                 offline = true,
                 connectionStatus = ConnectionStatus.OFFLINE,
@@ -2110,11 +2111,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             // Web `startNewChat`: cancelEdit + resetUploadState, and PromptCache starts off.
             draft = "", attachments = emptyList(), quote = "", enablePromptCache = false,
             chatTransitionId = transition.first, chatTransitionKind = transition.second,
-            chatNavigationId = transition.first, chatNavigationKind = transition.second) }
-        state.value.preferences?.let { preferences ->
-            val model = if (preferences.useLastChatSettings && preferences.lastModel.isNotBlank()) preferences.lastModel else preferences.defaultModel
-            chooseModel(model)
-        }
+            chatNavigationId = transition.first, chatNavigationKind = transition.second).withNewChatDefaults().withModelRules() }
     }
     /**
      * Web `loadMessages`: the composer is cleared (`cancelEdit`), the branch pinned in ブランチ管理 or else the
@@ -4993,7 +4990,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     // --- General preferences and this device's session ---
 
-    private suspend fun fetchPreferences(applyDefaults: Boolean = false, preserveSelectedModel: Boolean = false) {
+    private suspend fun fetchPreferences(applyDefaults: Boolean = false) {
         val transitionId = state.value.chatTransitionId
         val accountId = state.value.account?.id
         val payload = backend.get("/api/mobile/v1/preferences", token())
@@ -5006,32 +5003,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             mutable.update { it.copy(preferences = preferences) }
             return
         }
-        val useLast = preferences.useLastChatSettings && preferences.lastModel.isNotBlank()
-        val modelId = if (useLast) preferences.lastModel else preferences.defaultModel
-        val selectable = state.value.account?.models?.firstOrNull { it.id == modelId && it.selectable }?.id
-            ?: state.value.model
-        val thinkingOn = if (useLast) preferences.lastEnableThinking else preferences.defaultEnableThinking
-        val thinkingLevel = if (useLast) preferences.lastThinkingLevel else preferences.defaultThinkingLevel
-        val thinkingBudget = if (useLast) preferences.lastThinkingBudget else preferences.defaultThinkingBudget
-        val effort = if (useLast) preferences.lastReasoningEffort else preferences.defaultReasoningEffort
-        val safety = if (useLast) preferences.lastSafetySetting else preferences.defaultSafetySetting
-        mutable.update { it.copy(preferences = preferences,
-            model = if (preserveSelectedModel || modelChosenManually) it.model else selectable.ifBlank { it.model },
-            enableThinking = thinkingOn,
-            enableSearch = if (useLast) preferences.lastEnableSearch else preferences.defaultEnableSearch,
-            enableUrlContext = if (useLast) preferences.lastEnableUrlContext else preferences.defaultEnableUrlContext,
-            enableMaps = if (useLast) preferences.lastEnableMaps else preferences.defaultEnableMaps,
-            enablePython = if (useLast) preferences.lastEnablePython else preferences.defaultEnablePython,
-            enableFileCreation = if (useLast) preferences.lastEnableFileCreation else preferences.defaultEnableFileCreation,
-            enableSystemPrompt = if (useLast) preferences.lastEnableSystemPrompt else preferences.defaultEnableSystemPrompt,
-            enableMcp = if (useLast) preferences.lastEnableMcp else preferences.defaultEnableMcp,
-            chipValues = it.chipValues + mapOf(
-                "thinking_level" to thinkingLevel,
-                "thinking_budget" to thinkingBudget.toString(),
-                "reasoning_effort" to effort,
-                "safety_setting" to safety,
-            ),
-        ).withModelRules() }
+        mutable.update { it.copy(preferences = preferences)
+            .withNewChatDefaults(preserveSelectedModel = modelChosenManually).withModelRules() }
     }
 
     fun loadPreferences() {

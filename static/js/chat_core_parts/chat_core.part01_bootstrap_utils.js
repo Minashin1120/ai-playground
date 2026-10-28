@@ -7,6 +7,10 @@
         // form's default/unpopulated values (which used to silently toggle E2EE).
         let settingsModalLoaded = false;
         const setSettingsSaveEnabled = (enabled) => {
+            ['set-default-model-picker', 'set-default-vision-model-picker'].forEach(id => {
+                const button = get(id);
+                if (button) button.disabled = !enabled;
+            });
             const saveBtn = get('save-settings-btn');
             if (!saveBtn) return;
             saveBtn.disabled = !enabled;

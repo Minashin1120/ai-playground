@@ -89,13 +89,16 @@ internal fun ModelPicker(
     selectedId: String = state.model,
     /** The PromptCache lock applies to the chat model, not to other pickers. */
     lockToPromptCache: Boolean = true,
+    allowedModelIds: Set<String>? = null,
 ) {
     val web = LocalWebPalette.current
     var query by remember { mutableStateOf("") }
     var tag by remember { mutableStateOf("all") }
     val lockedProvider = if (lockToPromptCache && state.enablePromptCache) modelApiProvider(state.model) else null
     val lockedLabel = lockedProvider?.let { PROVIDER_LABELS[it] ?: it }.orEmpty()
-    val models = state.account?.models.orEmpty().filter { !it.deprecated && it.category.isNotBlank() }
+    val models = state.account?.models.orEmpty().filter {
+        !it.deprecated && it.category.isNotBlank() && (allowedModelIds == null || it.id in allowedModelIds)
+    }
         .sortedBy { it.webCatalogOrder }
     val groups = models.filter { modelVisible(it, query.trim(), tag, lockedProvider) }
         .groupBy { it.provider.ifBlank { modelApiProvider(it.id).orEmpty() } }

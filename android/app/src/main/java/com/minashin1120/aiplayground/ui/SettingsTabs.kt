@@ -79,6 +79,24 @@ internal fun visionModelOptions(models: List<ModelInfo>): List<WebOption> =
             id in setOf("glm-5.3-flash", "glm-5.3-flashx", "glm-4.6v", "glm-4.6v-flashx", "glm-4.6v-flash", "glm-4.5v")
     }.map { WebOption(it.id, "${it.name} ★", it.category.ifBlank { null }) }
 
+/** Share the composer's picker while keeping the selection in the settings draft. */
+@Composable
+private fun SettingsModelPickerField(state: ChatState, value: String, options: List<WebOption>, onChange: (String) -> Unit) {
+    var picking by remember { mutableStateOf(false) }
+    SettingsSmallButton(
+        options.firstOrNull { it.value == value }?.label ?: value.ifBlank { "モデルを選択" },
+        { picking = true }, icon = R.drawable.fa_solid_robot, fill = true, enabled = options.isNotEmpty(),
+    )
+    ModalHost(picking) {
+        ModelPicker(
+            state, onDismiss = { picking = false },
+            onSelect = { id -> onChange(id); picking = false },
+            selectedId = value, lockToPromptCache = false,
+            allowedModelIds = options.map { it.value }.toSet(),
+        )
+    }
+}
+
 internal fun generalCards(
     state: ChatState,
     form: SettingsForm,
@@ -117,12 +135,12 @@ internal fun generalCards(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column {
                     SettingsFieldLabel("既定のモデル", Modifier.padding(bottom = 4.dp))
-                    SettingsSelect(form.defaultModel, defaultModelOptions(models), { form.defaultModel = it })
+                    SettingsModelPickerField(state, form.defaultModel, defaultModelOptions(models)) { form.defaultModel = it }
                     SettingsDesc("新規チャット開始時に適用されるモデルです。", Modifier.padding(top = 4.dp))
                 }
                 Column {
                     SettingsFieldLabel("Vision Model（画像解析用）", Modifier.padding(bottom = 4.dp))
-                    SettingsSelect(form.visionModel, visionModelOptions(models), { form.visionModel = it })
+                    SettingsModelPickerField(state, form.visionModel, visionModelOptions(models)) { form.visionModel = it }
                     SettingsDesc("DeepSeek V4 Pro などの画像非対応モデルで画像が添付された場合、このモデルで解析します。V4.1 Flash は画像入力に対応しています。",
                         Modifier.padding(top = 4.dp))
                 }

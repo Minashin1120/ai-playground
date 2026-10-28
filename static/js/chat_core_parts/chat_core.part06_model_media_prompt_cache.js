@@ -805,6 +805,38 @@
             return [...new Set(terms)];
         }
 
+        // The settings form owns its draft. Reuse the picker without changing chat state.
+        let settingsModelPickerTarget = null;
+        const settingsModelPickerTargets = ['set-default-model', 'set-default-vision-model'];
+        function syncSettingsModelPickerLabels() {
+            settingsModelPickerTargets.forEach(target => {
+                const select = get(target);
+                const label = get(target + '-label');
+                if (select && label) label.textContent = select.selectedOptions[0]?.textContent || select.value || 'モデルを選択';
+            });
+        }
+        function modelPickerSelectedId() {
+            return get(settingsModelPickerTarget || 'model-select')?.value || '';
+        }
+        function settingsModelPickerAllows(id) {
+            if (!settingsModelPickerTarget) return true;
+            return Array.from(get(settingsModelPickerTarget)?.options || []).some(option => option.value === id);
+        }
+        function openSettingsModelPicker(target, skipHistory = false) {
+            const settings = get('settings-modal');
+            if (!settingsModalLoaded || !settingsModelPickerTargets.includes(target)
+                || !(settings?.classList.contains('modal-open') || settings?.classList.contains('modal-prep'))) return;
+            const select = get(target);
+            if (!select || select.disabled || !select.options.length) return;
+            settingsModelPickerTarget = target;
+            window._visionPickerActive = false;
+            if (!skipHistory) history.pushState({ ...history.state, settingsModelPicker: target }, '', '/settings');
+            get('settings-modal').inert = true;
+            activeModelTag = 'all';
+            openModelModal();
+        }
+        window.openSettingsModelPicker = openSettingsModelPicker;
+
         const modelListGroups = [];
         let modelListBanner = null;
         let modelListEmpty = null;
@@ -903,9 +935,9 @@
             if (!container) return;
             buildModelList();
             const f = filter.toLowerCase();
-            const lockedProvider = window._visionPickerActive ? null : getPromptCacheLockedProvider();
+            const lockedProvider = settingsModelPickerTarget || window._visionPickerActive ? null : getPromptCacheLockedProvider();
             const lockedLabel = lockedProvider ? (PROVIDER_LABELS[lockedProvider] || lockedProvider) : '';
-            const selectedModel = get('model-select') ? get('model-select').value : '';
+            const selectedModel = modelPickerSelectedId();
             let visibleCount = 0;
 
             modelListBanner.classList.toggle('hidden', !lockedProvider);
@@ -916,7 +948,7 @@
             modelListGroups.forEach(group => {
                 let groupVisibleCount = 0;
                 group.entries.forEach(entry => {
-                    const visible = entry.searchText.includes(f)
+                    const visible = settingsModelPickerAllows(entry.model.id) && entry.searchText.includes(f)
                         && (!lockedProvider || entry.provider === lockedProvider)
                         && (activeModelTag === 'all' || entry.tags.has(activeModelTag));
                     entry.button.classList.toggle('hidden', !visible);
@@ -958,7 +990,7 @@
         let modelListScrollFrame = 0;
         function scrollSelectedModelIntoView() {
             const container = get('model-list-container');
-            const selectedModel = get('model-select') ? get('model-select').value : '';
+            const selectedModel = modelPickerSelectedId();
             const entry = modelListGroups.flatMap(group => group.entries)
                 .find(item => item.model.id === selectedModel);
             if (!container || !entry || entry.button.classList.contains('hidden')) return;
@@ -999,7 +1031,7 @@
         }
 
         function openModelModal() {
-            if (location.pathname !== '/model') {
+            if (!settingsModelPickerTarget && location.pathname !== '/model') {
                 history.pushState({ modal: 'model' }, '', '/model');
             }
             const search = get('model-search');
@@ -1016,14 +1048,31 @@
             }
         }
         window.closeModelModal = (skipHistory = false) => {
+            const settingsTarget = settingsModelPickerTarget;
+            settingsModelPickerTarget = null;
             window._visionPickerActive = false;
             hideModal('model-modal');
+            if (settingsTarget) {
+                get('settings-modal').inert = false;
+                if (!skipHistory && history.state?.settingsModelPicker) history.back();
+                get(settingsTarget + '-picker')?.focus({ preventScroll: true });
+                return;
+            }
             if (!skipHistory && location.pathname === '/model') {
                 history.back();
             }
         };
 
         function selectModel(id, name) {
+            if (settingsModelPickerTarget) {
+                if (!settingsModelPickerAllows(id)) return;
+                const select = get(settingsModelPickerTarget);
+                select.value = id;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                syncSettingsModelPickerLabels();
+                window.closeModelModal();
+                return;
+            }
             if (window._visionPickerActive) {
                 currentVisionModel = id;
                 window._visionPickerActive = false;
@@ -1057,7 +1106,7 @@
             selectModel(id, name);
         }
         function selectModelByUser(id, name) {
-            const forVision = !!window._visionPickerActive;
+            const forVision = !!window._visionPickerActive || !!settingsModelPickerTarget;
             selectModel(id, name);
             const el = get('model-select');
             // PromptCache can refuse a switch to another provider; only a real change counts.
@@ -1070,6 +1119,7 @@
             try {
                 if (get('set-default-model')) get('set-default-model').value = d.default_model || get('set-default-model').value;
                 if (get('set-default-vision-model')) get('set-default-vision-model').value = d.default_vision_model || 'gemini-3-flash-preview';
+                syncSettingsModelPickerLabels();
                 if (get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
                 if (get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
                 if (get('set-default-maps')) get('set-default-maps').checked = !!d.default_enable_maps;

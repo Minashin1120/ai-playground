@@ -44,14 +44,16 @@
 <div class="settings-card"><h3 class="settings-card-title">チャット既定値</h3><div class="space-y-3 text-xs text-gray-300">
     <div>
         <label class="text-xs text-gray-500 block mb-1">既定のモデル</label>
-        <select id="set-default-model" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white">
+        <button type="button" id="set-default-model-picker" onclick="openSettingsModelPicker('set-default-model')" data-progress-no-spinner="true" aria-haspopup="dialog" aria-controls="model-modal" aria-label="既定のモデルを選択" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white flex items-center justify-between gap-2"><span id="set-default-model-label"></span><i class="fas fa-chevron-down" aria-hidden="true"></i></button>
+        <select id="set-default-model" hidden aria-hidden="true" tabindex="-1">
             <!-- Populated via JS -->
         </select>
         <div class="text-[10px] text-gray-500 mt-1">新規チャット開始時に適用されるモデルです。</div>
     </div>
     <div>
         <label class="text-xs text-gray-500 block mb-1">Vision Model（画像解析用）</label>
-        <select id="set-default-vision-model" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white">
+        <button type="button" id="set-default-vision-model-picker" onclick="openSettingsModelPicker('set-default-vision-model')" data-progress-no-spinner="true" aria-haspopup="dialog" aria-controls="model-modal" aria-label="Vision Model（画像解析用）を選択" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white flex items-center justify-between gap-2"><span id="set-default-vision-model-label"></span><i class="fas fa-chevron-down" aria-hidden="true"></i></button>
+        <select id="set-default-vision-model" hidden aria-hidden="true" tabindex="-1">
             <!-- Populated via JS -->
         </select>
         <div class="text-[10px] text-gray-500 mt-1">DeepSeek V4 Pro などの画像非対応モデルで画像が添付された場合、このモデルで解析します。V4.1 Flash は画像入力に対応しています。</div>

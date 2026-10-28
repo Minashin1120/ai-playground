@@ -553,6 +553,7 @@
                 });
                 const stored = (userSettingsSnapshot && userSettingsSnapshot.default_model) || current || 'gemini-3.6-flash';
                 if (stored && Array.from(sel.options).some(o => o.value === stored)) sel.value = stored;
+                syncSettingsModelPickerLabels();
             };
             const populateDefaultVisionModelOptions = () => {
                 const sel = get('set-default-vision-model');
@@ -577,6 +578,7 @@
                 });
                 const stored = (userSettingsSnapshot && userSettingsSnapshot.default_vision_model) || current || 'gemini-3-flash-preview';
                 if (stored && Array.from(sel.options).some(o => o.value === stored)) sel.value = stored;
+                syncSettingsModelPickerLabels();
             };
             // Populate every settings-modal control from a settings payload.  Shared
             // by openSettingsModal and the account-import flow so imported settings
@@ -651,6 +653,7 @@
             if(get('set-use-last-settings')) get('set-use-last-settings').checked = !!d.use_last_chat_settings;
             if(get('set-default-model')) get('set-default-model').value = d.default_model || 'gemini-3.6-flash';
             if(get('set-default-vision-model')) get('set-default-vision-model').value = d.default_vision_model || 'gemini-3-flash-preview';
+            syncSettingsModelPickerLabels();
             applyTemporaryChatTimeoutSeconds(d.temp_chat_timeout_seconds);
             if(get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
             if(get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
@@ -797,6 +800,7 @@
                 try { loadMcpServers(); } catch (e) {}
             };
             const closeSettingsModal = (skipHistory = false) => {
+                if (settingsModelPickerTarget) window.closeModelModal(true);
                 snapshotSidebarHistory('settings-close-before');
                 hideModal('settings-modal');
                 revealPersistentSidebarLists();

@@ -1,5 +1,16 @@
 
             window.addEventListener('popstate', (e) => {
+                // A settings child has its own history entry, even though the URL stays /settings.
+                const pickerTarget = e.state?.settingsModelPicker;
+                if (location.pathname === '/settings' && settingsModelPickerTargets.includes(pickerTarget)) {
+                    const restorePicker = () => openSettingsModelPicker(pickerTarget, true);
+                    if (get('settings-modal')?.classList.contains('modal-open')) restorePicker();
+                    else window.openSettingsModal().then(() => {
+                        if (location.pathname === '/settings' && history.state?.settingsModelPicker === pickerTarget) restorePicker();
+                    });
+                    return;
+                }
+                if (settingsModelPickerTarget) window.closeModelModal(true);
                 let modalClosed = false;
                 Object.values(MODAL_CONFIG).forEach(cfg => {
                     const el = get(cfg.id);
@@ -32,6 +43,13 @@
                     if (el && !el.classList.contains('modal-open')) {
                         config.open();
                     }
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && settingsModelPickerTarget) {
+                    e.preventDefault();
+                    window.closeModelModal();
                 }
             });
 

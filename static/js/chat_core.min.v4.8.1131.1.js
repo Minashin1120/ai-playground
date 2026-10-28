@@ -1,8 +1,9 @@
 var Ri=Object.defineProperty;var o=(e,t)=>Ri(e,"name",{value:t,configurable:!0});const get=o(e=>document.getElementById(e),"get"),nativeConsoleLog=typeof console.log=="function"?console.
 log.bind(console):function(){},nativeConsoleInfo=typeof console.info=="function"?console.info.bind(console):
-nativeConsoleLog;let settingsModalLoaded=!1;const setSettingsSaveEnabled=o(e=>{const t=get("save-set\
-tings-btn");t&&(t.disabled=!e,t.classList.toggle("opacity-60",!e),t.classList.toggle("cursor-not-all\
-owed",!e),t.setAttribute("title",e?"":"\u8A2D\u5B9A\u306E\u8AAD\u307F\u8FBC\u307F\u5B8C\u4E86\u5F8C\u306B\u4FDD\u5B58\u3067\u304D\u307E\u3059"))},
+nativeConsoleLog;let settingsModalLoaded=!1;const setSettingsSaveEnabled=o(e=>{["set-default-model-p\
+icker","set-default-vision-model-picker"].forEach(n=>{const i=get(n);i&&(i.disabled=!e)});const t=get(
+"save-settings-btn");t&&(t.disabled=!e,t.classList.toggle("opacity-60",!e),t.classList.toggle("curso\
+r-not-allowed",!e),t.setAttribute("title",e?"":"\u8A2D\u5B9A\u306E\u8AAD\u307F\u8FBC\u307F\u5B8C\u4E86\u5F8C\u306B\u4FDD\u5B58\u3067\u304D\u307E\u3059"))},
 "setSettingsSaveEnabled");(function(){const t=o(l=>/(\/files\/thumb\/|\/files\/)/.test(String(l||"")),
 "isFileUrl"),n=o(l=>fetch(l,{method:"GET",headers:{Range:"bytes=0-0"},cache:"no-store"}).then(c=>c.status).
 catch(()=>-1),"fileUrlStatus");document.addEventListener("load",l=>{const c=l.target;if(!c||c.tagName!==
@@ -24,15 +25,15 @@ replace("/files/thumb/","/files/"),"fullFileUrl");document.addEventListener("err
 if(!c||c.tagName!=="IMG")return;const u=c.currentSrc||c.src||"";if(!t(u)){const S=c.closest&&c.closest(
 ".svg-code-render");if(S){S.dataset.svgState="error";return}const L=c.closest&&c.closest(".chat-imag\
 e-frame");if(L){L.dataset.chatImageState="error",L.removeAttribute("aria-busy");const T=L.querySelector(
-".chat-image-loading"),E=T&&T.querySelector("span");E&&(E.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
+".chat-image-loading"),$=T&&T.querySelector("span");$&&($.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
 const B=T&&T.querySelector("i");B&&(B.className="fas fa-image")}return}l.stopImmediatePropagation(),
 l.preventDefault();const f=String(u).split("?")[0],b=c.getAttribute("data-viewer-filename")||f.split(
 "/").pop(),y=o(S=>{const L=c.closest&&c.closest(".chat-image-frame");L&&(L.dataset.chatImageState="f\
 ailed",L.removeAttribute("aria-busy"));const T=i(b,!!S);try{c.replaceWith(T)}catch{}},"showWarning"),
 w=o(()=>{const S=c.closest&&c.closest(".chat-image-frame");S&&(S.dataset.chatImageState="busy",S.removeAttribute(
 "aria-busy"));const L=a(b);try{c.replaceWith(L)}catch{}},"showBusyWarning"),v=o((S,L)=>{const T=c.cloneNode(
-!1);T.setAttribute("data-file-retry",String(L));const E=S+(S.includes("?")?"&":"?")+"retry="+Date.now()+
-"_"+L;T.setAttribute("src",E);try{c.replaceWith(T)}catch{}},"retryLoad"),k=o(S=>{if(S===429||S===503){
+!1);T.setAttribute("data-file-retry",String(L));const $=S+(S.includes("?")?"&":"?")+"retry="+Date.now()+
+"_"+L;T.setAttribute("src",$);try{c.replaceWith(T)}catch{}},"retryLoad"),k=o(S=>{if(S===429||S===503){
 w();return}if(S===409){y(!0);return}if(S===404||S===410||S===403){y(!1);return}const L=parseInt(c.getAttribute&&
 c.getAttribute("data-file-retry")||"0",10);if(L<2){v(u,L+1);return}if(u.includes("/files/thumb/")&&!c.
 getAttribute("data-file-fallback")){c.setAttribute("data-file-fallback","1"),v(r(u),0);return}y(!1)},
@@ -531,10 +532,10 @@ ransparent",a.appendChild(i.content.cloneNode(!0)),document.body.appendChild(a);
 from(a.querySelectorAll("*")).slice(0,5e3)],l=[],c=new Map;let u=0;const f=o(k=>Array.from(k.childNodes||
 []).reduce((S,L)=>L&&L.nodeType===Node.TEXT_NODE?S+String(L.textContent||"").replace(/\s+/g," ").trim().
 length:S,0),"directTextLength");r.forEach(k=>{if(!k||k===a||!k.style)return;const S=window.getComputedStyle(
-k),L=f(k);if(L>0){const E=parseRichPasteCssColor(S.color);if(E&&E.a>=.5){const B=richPasteColorCss(E),
-te=c.get(B)||{color:E,weight:0};te.weight+=L,c.set(B,te),u+=L}}if(!!(String(k.style.backgroundColor||
-"").trim()||String(k.style.background||"").trim())){const E=parseRichPasteCssColor(S.backgroundColor);
-if(E&&E.a>=.72){const B=String(k.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:E,
+k),L=f(k);if(L>0){const $=parseRichPasteCssColor(S.color);if($&&$.a>=.5){const B=richPasteColorCss($),
+te=c.get(B)||{color:$,weight:0};te.weight+=L,c.set(B,te),u+=L}}if(!!(String(k.style.backgroundColor||
+"").trim()||String(k.style.background||"").trim())){const $=parseRichPasteCssColor(S.backgroundColor);
+if($&&$.a>=.72){const B=String(k.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:$,
 weight:Math.max(1,B)})}}});const b=Array.from(c.values()).sort((k,S)=>S.weight-k.weight),y=b.length?
 b[0].color:null,w=b.reduce((k,S)=>k+(richPasteColorLuminance(S.color)>=.6?S.weight:0),0);l.sort((k,S)=>S.
 weight-k.weight);let v=l.length?l[0].color:null;return v||(v=u>0&&w/u>=.55?{r:11,g:11,b:12,a:1}:t),makeRichPasteTheme(
@@ -912,16 +913,16 @@ nd); font-weight: bold; }
                 </div>
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const w=new f(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),v=w.internal.pageSize.getWidth(),k=w.internal.
-pageSize.getHeight(),S=794,L=Math.floor(k/v*S),T=y.scrollHeight||y.offsetHeight;let E=0,B=!0;const te=Math.
-ceil(T/L);let H=0;for(;E<T;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const F=Math.min(L,T-E),me=(await new Promise((A,P)=>{const U=setTimeout(()=>P(
+pageSize.getHeight(),S=794,L=Math.floor(k/v*S),T=y.scrollHeight||y.offsetHeight;let $=0,B=!0;const te=Math.
+ceil(T/L);let H=0;for(;$<T;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
+"Aborted","AbortError");const F=Math.min(L,T-$),me=(await new Promise((A,P)=>{const U=setTimeout(()=>P(
 new Error("PDF chunk rendering timed out")),12e4);b(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
-background,logging:!1,imageTimeout:5e3,x:0,y:E,width:S,height:F,windowWidth:S,scrollX:0,scrollY:0,signal:richPasteAbortController?
+background,logging:!1,imageTimeout:5e3,x:0,y:$,width:S,height:F,windowWidth:S,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:o(I=>{prepareRichPastePdfClone(I,c);const j=I.querySelector(
 ".pdf-root-wrapper");j&&(j.style.position="relative",j.style.left="0",j.style.top="0")},"onclone")}).
 then(I=>{clearTimeout(U),A(I)}).catch(I=>{clearTimeout(U),P(I)})})).toDataURL("image/jpeg",.95),he=w.
 getImageProperties(me),ne=Math.min(k,he.height*v/he.width);B||w.addPage(),w.addImage(me,"JPEG",0,0,v,
-ne),B=!1,E+=F,H++;const _e=Math.min(100,15+Math.round(H/te*85));i(_e),await new Promise(A=>setTimeout(
+ne),B=!1,$+=F,H++;const _e=Math.min(100,15+Math.round(H/te*85));i(_e),await new Promise(A=>setTimeout(
 A,100))}return i(100),{blob:w.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=o(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -2020,8 +2021,8 @@ ordKey"),l=o(w=>{const v=performance.now();if(!(v-e.lastMoveSample<80)){if(e.las
 sqrt(k*k+S*S)/(L/1e3);e.speedMax=Math.max(e.speedMax,T),e.speedSum+=T,e.speedSamples+=1}}e.lastMove=
 {x:w.clientX,y:w.clientY,t:v}}},"recordMove"),c=o(()=>{const w=Math.max(1,performance.now()-e.windowStart),
 v=e.clickTimes.length,k=e.keyTimes.length,S=e.speedSamples?e.speedSum/e.speedSamples:0;let L=0,T=1;if(e.
-clickIntervals.length>=3){const E=e.clickIntervals.reduce((te,H)=>te+H,0)/e.clickIntervals.length,B=e.
-clickIntervals.reduce((te,H)=>te+Math.pow(H-E,2),0)/e.clickIntervals.length;L=E,T=E>0?Math.sqrt(B)/E:
+clickIntervals.length>=3){const $=e.clickIntervals.reduce((te,H)=>te+H,0)/e.clickIntervals.length,B=e.
+clickIntervals.reduce((te,H)=>te+Math.pow(H-$,2),0)/e.clickIntervals.length;L=$,T=$>0?Math.sqrt(B)/$:
 1}return{window_ms:Math.round(w),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,
 fast_keys:e.fastKeys,untrusted_input:!!e.untrustedInput,click_burst:v,key_burst:k,avg_click_ms:L,click_cv:T,
 event_rate:(e.clicks+e.keys+e.moves)/(w/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:S}},"com\
@@ -2266,8 +2267,8 @@ mx:(n.clientX+i.clientX)/2,my:(n.clientY+i.clientY)/2,x:vX,y:vY},s=null,e.preven
 touches.length!==1)return;const t=e.touches[0];if(z>1){s={startX:t.clientX,startY:t.clientY,dx:vX,dy:vY};
 return}s={startX:t.clientX,startY:t.clientY,lastX:t.clientX,dx:0,dy:0,vx:0,dir:0,active:!1,resist:!1,
 adjacent:null,lastTime:Date.now()}}o(onViewerTouchStart,"onViewerTouchStart");function onViewerTouchMove(e){
-if(e.touches.length>=2){if(!p){const E=e.touches[0],B=e.touches[1];p={d:Math.hypot(E.clientX-B.clientX,
-E.clientY-B.clientY)||1,s:z,mx:(E.clientX+B.clientX)/2,my:(E.clientY+B.clientY)/2,x:vX,y:vY},s=null}
+if(e.touches.length>=2){if(!p){const $=e.touches[0],B=e.touches[1];p={d:Math.hypot($.clientX-B.clientX,
+$.clientY-B.clientY)||1,s:z,mx:($.clientX+B.clientX)/2,my:($.clientY+B.clientY)/2,x:vX,y:vY},s=null}
 const w=e.touches[0],v=e.touches[1],k=Math.hypot(w.clientX-v.clientX,w.clientY-v.clientY)||1,S=(w.clientX+
 v.clientX)/2,L=(w.clientY+v.clientY)/2;z=Math.min(6,Math.max(1,p.s*k/p.d)),z<=1.0001?(z=1,vX=0,vY=0):
 (vX=p.x+S-p.mx,vY=p.y+L-p.my);const T=get("image-viewer-img");if(!T)return;e.preventDefault(),T.style.
@@ -2962,8 +2963,8 @@ w=get("sts-auto-play-wrap"),v=get("sts-mode-label"),k=isTranscriptionModel()||is
 isXaiLiveTranscribeModel(),S=get("sts-lang-wrap"),L=get("sts-reasoning-wrap");if(L&&L.classList.toggle(
 "hidden",!OPENAI_REASONING_STS_MODELS.has(e)),k){v&&(v.textContent="Realtime Speech-to-Text"),y&&y.classList.
 add("hidden"),w&&w.classList.add("hidden"),i&&i.classList.add("hidden"),l&&l.classList.add("hidden"),
-f&&f.classList.add("hidden"),S&&S.classList.add("hidden");const T=get("sts-transcribe-wrap"),E=get("\
-sts-custom-vocab-wrap");T&&T.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),E&&E.classList.
+f&&f.classList.add("hidden"),S&&S.classList.add("hidden");const T=get("sts-transcribe-wrap"),$=get("\
+sts-custom-vocab-wrap");T&&T.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),$&&$.classList.
 toggle("hidden",!isGeminiLiveTranscribeModel()&&!isXaiLiveTranscribeModel()),b&&(b.textContent=isGeminiLiveTranscribeModel()?
 "\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u4F4E\u9045\u5EF6\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM / \u6700\u592710\u5206\uFF09":
 isXaiLiveTranscribeModel()?"xAI \u30B9\u30C8\u30EA\u30FC\u30DF\u30F3\u30B0\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM\uFF09":
@@ -2992,13 +2993,13 @@ textContent="Speech-to-Speech Live"),y&&y.classList.remove("hidden"),w&&w.classL
 setSelectOptions(n,GEMINI_STS_VOICES,n.value||"Kore"),i&&i.classList.add("hidden"),l&&l.classList.add(
 "hidden"),f&&f.classList.remove("hidden"),S&&S.classList.add("hidden"),b&&(b.textContent="Gemini Liv\
 e\u306F\u97F3\u58F0\u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC");const T=get("sts-thinking-level");if(Array.
-from(T&&T.options||[]).forEach(E=>{E.disabled=!1}),e==="gemini-2.5-flash-native-audio-preview-12-202\
+from(T&&T.options||[]).forEach($=>{$.disabled=!1}),e==="gemini-2.5-flash-native-audio-preview-12-202\
 5")f&&f.classList.add("hidden");else if(e==="gemini-3.8-live")f&&f.classList.add("hidden"),b&&(b.textContent=
 "Gemini 3.8 Flash Live\u306F\u56FA\u5B9A\u30EC\u30A4\u30C6\u30F3\u30B7\u306ELive API\u30E2\u30C7\u30EB\uFF08Thinking level\u975E\u5BFE\u5FDC\uFF09");else if(e===
 "gemini-3.8-live-extended-thinking"){b&&(b.textContent="Gemini 3.8 Live Extended Thinking\u306Flow / medi\
-um / high\u306E\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u63A8\u8AD6\u306B\u5BFE\u5FDC");const E=get(
-"sts-thinking-level");Array.from(E&&E.options||[]).forEach(B=>{B.disabled=B.value==="minimal"}),E&&![
-"low","medium","high"].includes(E.value)&&(E.value="medium")}e==="gemini-3.5-live-translate-preview"&&
+um / high\u306E\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u63A8\u8AD6\u306B\u5BFE\u5FDC");const $=get(
+"sts-thinking-level");Array.from($&&$.options||[]).forEach(B=>{B.disabled=B.value==="minimal"}),$&&![
+"low","medium","high"].includes($.value)&&($.value="medium")}e==="gemini-3.5-live-translate-preview"&&
 (v&&(v.textContent="Realtime Translation"),f&&f.classList.add("hidden"),y&&y.classList.add("hidden"),
 S&&S.classList.remove("hidden"),b&&(b.textContent="70\u4EE5\u4E0A\u306E\u8A00\u8A9E\u306B\u5BFE\u5FDC\u3059\u308B\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u97F3\u58F0\u7FFB\u8A33\uFF08Think\u975E\u5BFE\u5FDC\u30FB\u97F3\u58F0\u9078\u629E\u4E0D\u53EF\uFF09"))}
 i&&r&&a&&!i.classList.contains("hidden")&&(r.textContent=`${Number(a.value||1).toFixed(2)}x`)}o(updateStsOptions,
@@ -3357,9 +3358,23 @@ includes("grok-4.20-0309-reasoning")||t.includes("grok-build")||t.includes("mult
 t.includes("gpt-5")||t==="gpt-6-sol"||t==="gpt-6-luna"||t==="gpt-6.1-terra"||i;v&&u("medium"),k&&u("\
 none"),(b||y||i)&&u("max"),(w||t.includes("multi-agent")||b||y)&&u("xhigh")}return t.includes("claud\
 e")&&u("thinking","\u601D\u8003","thinking budget","budget"),e.agenticView&&u("agentic view"),[...new Set(
-n)]}o(getModelCapabilitySearchTerms,"getModelCapabilitySearchTerms");const modelListGroups=[];let modelListBanner=null,
-modelListEmpty=null,modelListBuilt=!1,modelListAnimated=!1,modelListRenderFrame=0;function isLlmModelForDisplay(e){
-const t=String(e&&e.id||"").toLowerCase();return!/(ocr|tts|transcri|realtime|voice-agent|native-audio|\blive\b|image|video|embedding|lyria|veo|omni-|ideogram|deep-research|antigravity|computer-use|robotics)/.
+n)]}o(getModelCapabilitySearchTerms,"getModelCapabilitySearchTerms");let settingsModelPickerTarget=null;
+const settingsModelPickerTargets=["set-default-model","set-default-vision-model"];function syncSettingsModelPickerLabels(){
+settingsModelPickerTargets.forEach(e=>{var i;const t=get(e),n=get(e+"-label");t&&n&&(n.textContent=((i=
+t.selectedOptions[0])==null?void 0:i.textContent)||t.value||"\u30E2\u30C7\u30EB\u3092\u9078\u629E")})}
+o(syncSettingsModelPickerLabels,"syncSettingsModelPickerLabels");function modelPickerSelectedId(){var e;
+return((e=get(settingsModelPickerTarget||"model-select"))==null?void 0:e.value)||""}o(modelPickerSelectedId,
+"modelPickerSelectedId");function settingsModelPickerAllows(e){var t;return settingsModelPickerTarget?
+Array.from(((t=get(settingsModelPickerTarget))==null?void 0:t.options)||[]).some(n=>n.value===e):!0}
+o(settingsModelPickerAllows,"settingsModelPickerAllows");function openSettingsModelPicker(e,t=!1){const n=get(
+"settings-modal");if(!settingsModalLoaded||!settingsModelPickerTargets.includes(e)||!(n!=null&&n.classList.
+contains("modal-open")||n!=null&&n.classList.contains("modal-prep")))return;const i=get(e);!i||i.disabled||
+!i.options.length||(settingsModelPickerTarget=e,window._visionPickerActive=!1,t||history.pushState({
+...history.state,settingsModelPicker:e},"","/settings"),get("settings-modal").inert=!0,activeModelTag=
+"all",openModelModal())}o(openSettingsModelPicker,"openSettingsModelPicker"),window.openSettingsModelPicker=
+openSettingsModelPicker;const modelListGroups=[];let modelListBanner=null,modelListEmpty=null,modelListBuilt=!1,
+modelListAnimated=!1,modelListRenderFrame=0;function isLlmModelForDisplay(e){const t=String(e&&e.id||
+"").toLowerCase();return!/(ocr|tts|transcri|realtime|voice-agent|native-audio|\blive\b|image|video|embedding|lyria|veo|omni-|ideogram|deep-research|antigravity|computer-use|robotics)/.
 test(t)}o(isLlmModelForDisplay,"isLlmModelForDisplay");function buildModelList(){const e=get("model-\
 list-container");if(!e||modelListBuilt)return;e.innerHTML="",modelListBanner=document.createElement(
 "div"),modelListBanner.className="model-banner hidden",e.appendChild(modelListBanner);const t=new Map;
@@ -3405,64 +3420,68 @@ className="model-list-empty hidden",e.appendChild(modelListEmpty),modelListBuilt
 selected===(n?"1":"0"))return;e.button.dataset.selected=n?"1":"0",e.button.classList.toggle("is-sele\
 cted",n);const i=e.button.querySelector(".model-selected-icon");i&&i.classList.toggle("hidden",!n)}o(
 updateModelButtonSelection,"updateModelButtonSelection");function renderModelList(e="",t={}){const n=get(
-"model-list-container");if(!n)return;buildModelList();const i=e.toLowerCase(),a=window._visionPickerActive?
-null:getPromptCacheLockedProvider(),r=a?PROVIDER_LABELS[a]||a:"",l=get("model-select")?get("model-se\
-lect").value:"";let c=0;modelListBanner.classList.toggle("hidden",!a),a&&(modelListBanner.innerHTML=
-`<i class="fas fa-database mr-1.5"></i>PromptCache \u6709\u52B9\u4E2D: <strong>${r}</strong> \u306E\u30E2\u30C7\u30EB\u306E\u307F\u9078\
-\u629E\u3067\u304D\u307E\u3059\uFF08\u4ED6API\u3078\u306E\u5207\u66FF\u306F\u4E0D\u53EF\uFF09`),modelListGroups.
-forEach(u=>{let f=0;u.entries.forEach(b=>{const y=b.searchText.includes(i)&&(!a||b.provider===a)&&(activeModelTag===
-"all"||b.tags.has(activeModelTag));b.button.classList.toggle("hidden",!y),updateModelButtonSelection(
-b,l),y&&(f+=1)}),u.element.classList.toggle("hidden",f===0),c+=f}),modelListEmpty.classList.toggle("\
-hidden",c!==0),c===0&&(modelListEmpty.textContent=a?`No ${r} models found.`:"No models found."),t.animate&&
-!modelListAnimated&&(modelListAnimated=!0,n.classList.add("model-list-animate"))}o(renderModelList,"\
-renderModelList");function scheduleModelListRender(e){modelListRenderFrame&&cancelAnimationFrame(modelListRenderFrame),
-modelListRenderFrame=requestAnimationFrame(()=>{modelListRenderFrame=0,renderModelList(e)})}o(scheduleModelListRender,
-"scheduleModelListRender");function animateModelCategoryChange(){const e=get("model-list-container");
-e&&(e.classList.remove("model-category-enter"),e.offsetWidth,e.classList.add("model-category-enter"))}
-o(animateModelCategoryChange,"animateModelCategoryChange");let modelListScrollFrame=0;function scrollSelectedModelIntoView(){
-const e=get("model-list-container"),t=get("model-select")?get("model-select").value:"",n=modelListGroups.
-flatMap(w=>w.entries).find(w=>w.model.id===t);if(!e||!n||n.button.classList.contains("hidden"))return;
-const i=e.getBoundingClientRect(),a=n.button.getBoundingClientRect(),r=12;let l=e.scrollTop;if(a.top<
-i.top+r?l+=a.top-i.top-r:a.bottom>i.bottom-r&&(l+=a.bottom-i.bottom+r),l=Math.max(0,Math.min(l,e.scrollHeight-
-e.clientHeight)),Math.abs(l-e.scrollTop)<1)return;if(modelListScrollFrame&&cancelAnimationFrame(modelListScrollFrame),
-window.matchMedia("(prefers-reduced-motion: reduce)").matches){e.scrollTop=l;return}const c=e.scrollTop,
-u=l-c,f=performance.now(),b=160,y=o(w=>{const v=Math.min(1,(w-f)/b),k=1-Math.pow(1-v,3);e.scrollTop=
-c+u*k,v<1?modelListScrollFrame=requestAnimationFrame(y):modelListScrollFrame=0},"step");modelListScrollFrame=
-requestAnimationFrame(y)}o(scrollSelectedModelIntoView,"scrollSelectedModelIntoView");function openModelModal(){
+"model-list-container");if(!n)return;buildModelList();const i=e.toLowerCase(),a=settingsModelPickerTarget||
+window._visionPickerActive?null:getPromptCacheLockedProvider(),r=a?PROVIDER_LABELS[a]||a:"",l=modelPickerSelectedId();
+let c=0;modelListBanner.classList.toggle("hidden",!a),a&&(modelListBanner.innerHTML=`<i class="fas f\
+a-database mr-1.5"></i>PromptCache \u6709\u52B9\u4E2D: <strong>${r}</strong> \u306E\u30E2\u30C7\u30EB\u306E\u307F\u9078\u629E\u3067\u304D\u307E\u3059\uFF08\u4ED6API\u3078\u306E\u5207\u66FF\u306F\u4E0D\
+\u53EF\uFF09`),modelListGroups.forEach(u=>{let f=0;u.entries.forEach(b=>{const y=settingsModelPickerAllows(
+b.model.id)&&b.searchText.includes(i)&&(!a||b.provider===a)&&(activeModelTag==="all"||b.tags.has(activeModelTag));
+b.button.classList.toggle("hidden",!y),updateModelButtonSelection(b,l),y&&(f+=1)}),u.element.classList.
+toggle("hidden",f===0),c+=f}),modelListEmpty.classList.toggle("hidden",c!==0),c===0&&(modelListEmpty.
+textContent=a?`No ${r} models found.`:"No models found."),t.animate&&!modelListAnimated&&(modelListAnimated=
+!0,n.classList.add("model-list-animate"))}o(renderModelList,"renderModelList");function scheduleModelListRender(e){
+modelListRenderFrame&&cancelAnimationFrame(modelListRenderFrame),modelListRenderFrame=requestAnimationFrame(
+()=>{modelListRenderFrame=0,renderModelList(e)})}o(scheduleModelListRender,"scheduleModelListRender");
+function animateModelCategoryChange(){const e=get("model-list-container");e&&(e.classList.remove("mo\
+del-category-enter"),e.offsetWidth,e.classList.add("model-category-enter"))}o(animateModelCategoryChange,
+"animateModelCategoryChange");let modelListScrollFrame=0;function scrollSelectedModelIntoView(){const e=get(
+"model-list-container"),t=modelPickerSelectedId(),n=modelListGroups.flatMap(w=>w.entries).find(w=>w.
+model.id===t);if(!e||!n||n.button.classList.contains("hidden"))return;const i=e.getBoundingClientRect(),
+a=n.button.getBoundingClientRect(),r=12;let l=e.scrollTop;if(a.top<i.top+r?l+=a.top-i.top-r:a.bottom>
+i.bottom-r&&(l+=a.bottom-i.bottom+r),l=Math.max(0,Math.min(l,e.scrollHeight-e.clientHeight)),Math.abs(
+l-e.scrollTop)<1)return;if(modelListScrollFrame&&cancelAnimationFrame(modelListScrollFrame),window.matchMedia(
+"(prefers-reduced-motion: reduce)").matches){e.scrollTop=l;return}const c=e.scrollTop,u=l-c,f=performance.
+now(),b=160,y=o(w=>{const v=Math.min(1,(w-f)/b),k=1-Math.pow(1-v,3);e.scrollTop=c+u*k,v<1?modelListScrollFrame=
+requestAnimationFrame(y):modelListScrollFrame=0},"step");modelListScrollFrame=requestAnimationFrame(
+y)}o(scrollSelectedModelIntoView,"scrollSelectedModelIntoView");function openModelModal(){!settingsModelPickerTarget&&
 location.pathname!=="/model"&&history.pushState({modal:"model"},"","/model");const e=get("model-sear\
 ch");e&&(e.value=""),updateModelTagUi(),syncModelSearchClear(),renderModelList("",{animate:!0}),showModal(
 "model-modal"),requestAnimationFrame(()=>requestAnimationFrame(scrollSelectedModelIntoView)),e&&window.
 innerWidth>768&&requestAnimationFrame(()=>e.focus({preventScroll:!0}))}o(openModelModal,"openModelMo\
-dal"),window.closeModelModal=(e=!1)=>{window._visionPickerActive=!1,hideModal("model-modal"),!e&&location.
-pathname==="/model"&&history.back()};function selectModel(e,t){if(window._visionPickerActive){currentVisionModel=
-e,window._visionPickerActive=!1,window.closeModelModal(),_syncVisionModelDisplay();return}if(isPromptCacheEnabled()){
-const a=getModelApiProvider(get("model-select")?get("model-select").value:""),r=getModelApiProvider(
-e);if(a&&r&&a!==r){const l=PROVIDER_LABELS[a]||a,c=PROVIDER_LABELS[r]||r;showToast(`PromptCache \u6709\u52B9\u4E2D\u306F\
-\u4ED6API\uFF08${c}\uFF09\u306E\u30E2\u30C7\u30EB\u306B\u5909\u66F4\u3067\u304D\u307E\u305B\u3093\u3002\u73FE\u5728: ${l}`,
+dal"),window.closeModelModal=(e=!1)=>{var n,i;const t=settingsModelPickerTarget;if(settingsModelPickerTarget=
+null,window._visionPickerActive=!1,hideModal("model-modal"),t){get("settings-modal").inert=!1,!e&&((n=
+history.state)!=null&&n.settingsModelPicker)&&history.back(),(i=get(t+"-picker"))==null||i.focus({preventScroll:!0});
+return}!e&&location.pathname==="/model"&&history.back()};function selectModel(e,t){if(settingsModelPickerTarget){
+if(!settingsModelPickerAllows(e))return;const a=get(settingsModelPickerTarget);a.value=e,a.dispatchEvent(
+new Event("change",{bubbles:!0})),syncSettingsModelPickerLabels(),window.closeModelModal();return}if(window.
+_visionPickerActive){currentVisionModel=e,window._visionPickerActive=!1,window.closeModelModal(),_syncVisionModelDisplay();
+return}if(isPromptCacheEnabled()){const a=getModelApiProvider(get("model-select")?get("model-select").
+value:""),r=getModelApiProvider(e);if(a&&r&&a!==r){const l=PROVIDER_LABELS[a]||a,c=PROVIDER_LABELS[r]||
+r;showToast(`PromptCache \u6709\u52B9\u4E2D\u306F\u4ED6API\uFF08${c}\uFF09\u306E\u30E2\u30C7\u30EB\u306B\u5909\u66F4\u3067\u304D\u307E\u305B\u3093\u3002\u73FE\u5728: ${l}`,
 "warning",!0);return}}const n=get("model-select");n.value=e,get("model-selector-text").innerText=t,window.
 closeModelModal();const i=new Event("change");n.dispatchEvent(i)}o(selectModel,"selectModel");function selectModelById(e){
 let t=e;for(const n of MODELS){const i=n.items.find(a=>a.id===e);if(i){t=i.name;break}}selectModel(e,
-t)}o(selectModelById,"selectModelById");function selectModelByUser(e,t){const n=!!window._visionPickerActive;
-selectModel(e,t);const i=get("model-select");!n&&i&&i.value===e&&(modelChosenManually=!0)}o(selectModelByUser,
-"selectModelByUser");function populateAiSafeFormFields(e){if(e)try{get("set-default-model")&&(get("s\
-et-default-model").value=e.default_model||get("set-default-model").value),get("set-default-vision-mo\
-del")&&(get("set-default-vision-model").value=e.default_vision_model||"gemini-3-flash-preview"),get(
-"set-default-search")&&(get("set-default-search").checked=!!e.default_enable_search),get("set-defaul\
-t-url-context")&&(get("set-default-url-context").checked=!!e.default_enable_url_context),get("set-de\
-fault-maps")&&(get("set-default-maps").checked=!!e.default_enable_maps),get("set-default-python")&&(get(
-"set-default-python").checked=!!e.default_enable_python),get("set-default-file-creation")&&(get("set\
--default-file-creation").checked=!!e.default_enable_file_creation),get("set-default-thinking")&&(get(
-"set-default-thinking").checked=!!e.default_enable_thinking),get("set-default-sys-prompt")&&(get("se\
-t-default-sys-prompt").checked=!!e.default_enable_system_prompt),get("set-default-mcp")&&(get("set-d\
-efault-mcp").checked=e.default_enable_mcp!==!1),get("set-default-thinking-level")&&(get("set-default\
--thinking-level").value=e.default_thinking_level||"high"),get("set-default-thinking-budget")&&(get("\
-set-default-thinking-budget").value=e.default_thinking_budget||4096),get("set-default-reasoning-effo\
-rt")&&(get("set-default-reasoning-effort").value=e.default_reasoning_effort||"medium"),get("set-defa\
-ult-safety")&&(get("set-default-safety").value=e.default_safety_setting||"default"),get("sys-prompt-\
-text")&&(get("sys-prompt-text").value=e.system_prompt||""),get("set-global-sys-prompt-enabled")&&(get(
-"set-global-sys-prompt-enabled").checked=e.system_prompt_enabled!==!1),get("set-apply-global-sys-pro\
-mpt")&&(get("set-apply-global-sys-prompt").checked=e.apply_global_system_prompt!==!1),get("set-apply\
--auto-sys-prompt-notices")&&(get("set-apply-auto-sys-prompt-notices").checked=e.apply_auto_system_prompt_notices!==
+t)}o(selectModelById,"selectModelById");function selectModelByUser(e,t){const n=!!window._visionPickerActive||
+!!settingsModelPickerTarget;selectModel(e,t);const i=get("model-select");!n&&i&&i.value===e&&(modelChosenManually=
+!0)}o(selectModelByUser,"selectModelByUser");function populateAiSafeFormFields(e){if(e)try{get("set-\
+default-model")&&(get("set-default-model").value=e.default_model||get("set-default-model").value),get(
+"set-default-vision-model")&&(get("set-default-vision-model").value=e.default_vision_model||"gemini-\
+3-flash-preview"),syncSettingsModelPickerLabels(),get("set-default-search")&&(get("set-default-searc\
+h").checked=!!e.default_enable_search),get("set-default-url-context")&&(get("set-default-url-context").
+checked=!!e.default_enable_url_context),get("set-default-maps")&&(get("set-default-maps").checked=!!e.
+default_enable_maps),get("set-default-python")&&(get("set-default-python").checked=!!e.default_enable_python),
+get("set-default-file-creation")&&(get("set-default-file-creation").checked=!!e.default_enable_file_creation),
+get("set-default-thinking")&&(get("set-default-thinking").checked=!!e.default_enable_thinking),get("\
+set-default-sys-prompt")&&(get("set-default-sys-prompt").checked=!!e.default_enable_system_prompt),get(
+"set-default-mcp")&&(get("set-default-mcp").checked=e.default_enable_mcp!==!1),get("set-default-thin\
+king-level")&&(get("set-default-thinking-level").value=e.default_thinking_level||"high"),get("set-de\
+fault-thinking-budget")&&(get("set-default-thinking-budget").value=e.default_thinking_budget||4096),
+get("set-default-reasoning-effort")&&(get("set-default-reasoning-effort").value=e.default_reasoning_effort||
+"medium"),get("set-default-safety")&&(get("set-default-safety").value=e.default_safety_setting||"def\
+ault"),get("sys-prompt-text")&&(get("sys-prompt-text").value=e.system_prompt||""),get("set-global-sy\
+s-prompt-enabled")&&(get("set-global-sys-prompt-enabled").checked=e.system_prompt_enabled!==!1),get(
+"set-apply-global-sys-prompt")&&(get("set-apply-global-sys-prompt").checked=e.apply_global_system_prompt!==
+!1),get("set-apply-auto-sys-prompt-notices")&&(get("set-apply-auto-sys-prompt-notices").checked=e.apply_auto_system_prompt_notices!==
 !1),get("set-mic-transcribe-mode")&&(get("set-mic-transcribe-mode").value=e.mic_transcribe_mode||"st\
 t_api"),get("set-stt-model")&&(get("set-stt-model").value=e.stt_model||"gpt-4o-mini-transcribe"),get(
 "set-llm-transcribe-prompt")&&(get("set-llm-transcribe-prompt").value=e.llm_transcribe_prompt||""),get(

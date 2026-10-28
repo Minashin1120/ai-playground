@@ -8,6 +8,22 @@ import org.junit.Test
 
 class SettingsFormTest {
     @Test
+    fun modelPickerChangesStayInDraftUntilSaveAndCancelRestoresPreferences() {
+        val prefs = parsePreferences(JSONObject()
+            .put("default_model", "gpt-5.5")
+            .put("default_vision_model", "gemini-3.6-flash"))
+        val draft = SettingsForm(prefs)
+        draft.defaultModel = "claude-sonnet-4-6"
+        draft.visionModel = "gpt-4o"
+        assertEquals("gpt-5.5", prefs.defaultModel)
+        assertEquals("claude-sonnet-4-6", draft.payload().getString("default_model"))
+        assertEquals("gpt-4o", draft.payload().getString("default_vision_model"))
+        val reopened = SettingsForm(prefs)
+        assertEquals("gpt-5.5", reopened.defaultModel)
+        assertEquals("gemini-3.6-flash", reopened.visionModel)
+    }
+
+    @Test
     fun reloadKeysTakesImportedKeysIntoOpenForm() {
         val form = SettingsForm(parsePreferences(JSONObject().put("username", "user")))
         form.providerKeys["openai_key"] = "sk-typed"

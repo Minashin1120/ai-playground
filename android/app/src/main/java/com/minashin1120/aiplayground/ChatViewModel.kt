@@ -2138,7 +2138,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             chatTransitionId = transition.first, chatTransitionKind = transition.second,
             threadLoadingId = transition.first, threadLoadFailedId = null,
             chatNavigationId = transition.first, chatNavigationKind = transition.second) }
-        generations.forThread(thread.id)?.let { answer -> mutable.update { answer.render(it) } }
+        generations.restore(mutable, thread.id)
         navigationJob = viewModelScope.launch {
             val started = System.currentTimeMillis()
             Diagnostics.log("thread.open", "thread_id" to thread.id)
@@ -2186,9 +2186,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (inPlace && !streamFinished && (state.value.streaming || state.value.busy)) return
         val fetchGeneration = if (older) messageFetchGeneration else ++messageFetchGeneration
         val id = serverIdOf(requestedId)
-        if (inPlace && state.value.offline && !deviceChat(id)) return
+        if (inPlace && state.value.offline && !deviceChat(id) && !state.value.serverless) return
         if (state.value.offline && !deviceChat(id)) {
-            loadCachedMessages(id, older, fetchGeneration = fetchGeneration)
+            loadCachedMessages(id, older, fetchGeneration = fetchGeneration, streamFinished = streamFinished)
             return
         }
         val before = if (older) "&before_id=${state.value.oldestId ?: return}" else
@@ -2214,7 +2214,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             setConnectionUnavailable(
                 if (e is ApiException) ConnectionStatus.SERVER_DOWN else ConnectionStatus.OFFLINE,
             )
-            loadCachedMessages(id, older, cached, fetchGeneration)
+            loadCachedMessages(id, older, cached, fetchGeneration, streamFinished = streamFinished)
             return
         }
         Diagnostics.log("thread.fetched", "thread_id" to id, "rows" to (reply.optJSONArray("messages")?.length() ?: 0),
@@ -2296,14 +2296,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             refreshOfflineCacheStats(account.id)
         }
         if (!older && !chatLocal) syncHeartbeat()
-        generations.forThread(id)?.let { answer ->
-            mutable.update { if (answer.matches(it)) answer.render(it) else it }
-        }
+        generations.restore(mutable, id, finished = streamFinished)
         // Web `loadMessages`: an answer still running on the server is rejoined automatically.
         if (!older && autoResume && state.value.jobId != null && !state.value.streaming) resume()
     }
 
-    private suspend fun loadCachedMessages(id: String, older: Boolean, cachedPayload: JSONObject? = null, fetchGeneration: Long) {
+    private suspend fun loadCachedMessages(id: String, older: Boolean, cachedPayload: JSONObject? = null, fetchGeneration: Long, streamFinished: Boolean = false) {
         val accountId = state.value.account?.id ?: return
         val outbox = localChats?.takeIf { state.value.serverless }
         val stored = cachedPayload ?: withContext(Dispatchers.IO) { offlineCache.loadThread(accountId, id) }
@@ -2313,7 +2311,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ?: JSONObject().put("messages", JSONArray()).takeIf { outbox.outboxIdFor(id) != null }
             base?.let { outbox.overlayPending(id, it, observedOnServer = false, encrypted = state.value.account?.encrypted) }
         } ?: return
-        val parsed = generations.history(cached, id)
+        val parsed = generations.history(cached, id, finished = streamFinished)
         val all = if (older) (parsed + state.value.allMessages).distinctBy { it.id } else parsed
         val selectedLeaf = state.value.leafId?.let { candidate ->
             withContext(Dispatchers.IO) { localChats?.resolveMessageId(id, candidate) ?: candidate }
@@ -2339,7 +2337,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             offline = true,
         ) }
         if (!older) mutable.update { it.withLatestPromptOptions() }
-        generations.forThread(id)?.let { answer -> mutable.update { if (answer.matches(it)) answer.render(it) else it } }
+        generations.restore(mutable, id, finished = streamFinished)
     }
 
     private fun syncHeartbeat() {
@@ -3366,7 +3364,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 throw e
             }
             catch (e: Exception) {
-                Diagnostics.failure("send.error", "op" to answer.operationId, e, "ms" to System.currentTimeMillis() - sendStarted, "accepted" to accepted)
+                Diagnostics.failure("send.error", e, "op" to answer.operationId, "ms" to System.currentTimeMillis() - sendStarted, "accepted" to accepted)
                 // Web: before the server accepted the send, the optimistic rows go away and the input,
                 // attachments and quote stay; the error is shown as "Connection Error: …".
                 if (!accepted) {

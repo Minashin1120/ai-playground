@@ -145,6 +145,17 @@ class ChatGenerationsTest {
         assertEquals(2, generations.history(payload, "a").size)
     }
 
+    @Test fun completedHistoryDoesNotBringBackTheLiveBubbleBeforeCleanupFinishes() {
+        val generations = ChatGenerations()
+        generations.begin(screen("a").copy(streaming = true, liveContent = "answer"))
+        val finalRows = listOf(ChatMessage("2", "assistant", "answer"))
+        val ui = MutableStateFlow(screen("a").copy(messages = finalRows))
+        generations.restore(ui, "a", finished = true)
+        assertFalse(ui.value.streaming)
+        assertEquals("", ui.value.liveContent)
+        assertEquals(finalRows, ui.value.messages)
+    }
+
     @Test fun failureReleasesOnlyTheFailingAnswersProtection() = runBlocking {
         val generations = ChatGenerations()
         val tracker = GenerationTracker()

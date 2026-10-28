@@ -60,6 +60,15 @@ internal class ChatGenerations {
         }
     }
 
+    fun restore(screen: MutableStateFlow<ChatState>, threadId: String, finished: Boolean = false) {
+        if (finished) return
+        forThread(threadId)?.let { answer ->
+            synchronized(answer) {
+                screen.update { if (contains(answer) && answer.matches(it)) answer.render(it) else it }
+            }
+        }
+    }
+
     /** Register before starting; release protection even on cancellation or an early exception. */
     fun launch(answer: Answer, scope: CoroutineScope, keepAlive: GenerationKeepAlive, block: suspend () -> Unit) {
         answer.job = scope.launch(start = CoroutineStart.LAZY) {

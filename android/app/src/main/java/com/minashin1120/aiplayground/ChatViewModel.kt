@@ -623,8 +623,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             onChanged = { if (fallback != null) refreshPendingCount() },
             remote = remote,
             keepAlive = GenerationService.keepAlive(getApplication<Application>()),
-            uploadAttachment = { reference -> SyncEngine(profile.chats, syncApi) { token() }.uploadAttachment(reference) },
-            imageCompression = { state.value.compression })
+            uploadAttachment = { reference -> SyncEngine(profile.chats, syncApi) { token() }.uploadAttachment(reference) })
     }
 
     /** Attachment bytes from the offline cache (serverless mode answering while the server is out of reach). */

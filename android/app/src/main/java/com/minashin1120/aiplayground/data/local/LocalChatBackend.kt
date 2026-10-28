@@ -1,7 +1,6 @@
 package com.minashin1120.aiplayground.data.local
 
 import com.minashin1120.aiplayground.data.ApiException
-import com.minashin1120.aiplayground.data.CompressionSettings
 import com.minashin1120.aiplayground.data.Diagnostics
 import com.minashin1120.aiplayground.data.backend.ChatBackend
 import com.minashin1120.aiplayground.data.direct.AttachmentExtractor
@@ -55,8 +54,6 @@ class LocalChatBackend(
     private val keepAlive: GenerationKeepAlive = GenerationKeepAlive.None,
     /** Uploads a device attachment to the account and returns its server reference (null: the server cannot take it). */
     private val uploadAttachment: suspend (String) -> String? = { null },
-    /** Current user-configured attachment compression settings for direct provider requests. */
-    private val imageCompression: () -> CompressionSettings = { CompressionSettings(enabled = false) },
 ) : ChatBackend {
 
     // Every call runs on the IO dispatcher: the store reads and writes encrypted files.
@@ -611,8 +608,7 @@ class LocalChatBackend(
                         info.optString("mime").ifBlank { "image/png" }, bytes)
                 }
             }
-            val result = route.engine.run(DirectRequest(model, apiKey, system, turns, body,
-                imageCompression = imageCompression(), maskImage = maskImage, saveOutput = { file ->
+            val result = route.engine.run(DirectRequest(model, apiKey, system, turns, body, maskImage = maskImage, saveOutput = { file ->
                 val ref = store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong())
                 streamedOutputs += ref
                 ref

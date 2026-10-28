@@ -1,6 +1,5 @@
 package com.minashin1120.aiplayground.data.direct
 
-import com.minashin1120.aiplayground.data.compressImageBytes
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Base64
@@ -90,19 +89,12 @@ class OpenAiResponsesDirect(
             val parts = JSONArray()
             val assistant = turn.role == "assistant"
             if (!assistant) turn.attachments.forEach { attachment ->
-                val original = attachment.bytes
+                val bytes = attachment.bytes
                 when {
-                    original != null && attachment.mime.startsWith("image/") -> {
-                        val compressed = request.imageCompression?.let { settings ->
-                            runCatching { compressImageBytes(original, attachment.mime, settings) }.getOrNull()
-                        }
-                        val bytes = compressed?.bytes ?: original
-                        val mime = compressed?.mime ?: attachment.mime
-                        parts.put(JSONObject().put("type", "input_image")
-                            .put("image_url", "data:${mime};base64," + Base64.getEncoder().encodeToString(bytes)))
-                    }
-                    original != null && attachment.mime == "application/pdf" && !xai -> parts.put(JSONObject().put("type", "input_file")
-                        .put("filename", attachment.name).put("file_data", "data:application/pdf;base64," + Base64.getEncoder().encodeToString(original)))
+                    bytes != null && attachment.mime.startsWith("image/") -> parts.put(JSONObject().put("type", "input_image")
+                        .put("image_url", "data:${attachment.mime};base64," + Base64.getEncoder().encodeToString(bytes)))
+                    bytes != null && attachment.mime == "application/pdf" && !xai -> parts.put(JSONObject().put("type", "input_file")
+                        .put("filename", attachment.name).put("file_data", "data:application/pdf;base64," + Base64.getEncoder().encodeToString(bytes)))
                     attachment.text != null -> parts.put(JSONObject().put("type", "input_text").put("text", attachmentText(attachment)))
                 }
             }

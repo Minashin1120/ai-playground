@@ -94,14 +94,26 @@ class PlaygroundApi internal constructor(
         }
     }
 
+    private class HttpTrace(val op: String = java.util.UUID.randomUUID().toString())
+
     private fun serverCallListener(): EventListener = object : EventListener() {
         private val started = System.currentTimeMillis()
         override fun requestHeadersStart(call: Call) {
             ActivityLog.log("http", "phase" to "start", "method" to call.request().method,
+                "parent_op" to call.request().tag(HttpTrace::class.java)?.op,
                 "path" to call.request().url.encodedPath, "ms" to System.currentTimeMillis() - started)
         }
+        override fun requestBodyStart(call: Call) {
+            ActivityLog.log("http", "type" to "start", "phase" to "start", "parent_op" to call.request().tag(HttpTrace::class.java)?.op,
+                "method" to call.request().method, "path" to call.request().url.encodedPath, "ms" to System.currentTimeMillis() - started)
+        }
+        override fun requestBodyEnd(call: Call, byteCount: Long) {
+            ActivityLog.log("http", "type" to "start", "phase" to "done", "parent_op" to call.request().tag(HttpTrace::class.java)?.op,
+                "method" to call.request().method, "path" to call.request().url.encodedPath,
+                "bytes" to byteCount, "ms" to System.currentTimeMillis() - started)
+        }
         private fun record(call: Call, failure: IOException) {
-            ActivityLog.log("http.read_error", "method" to call.request().method,
+            ActivityLog.log("http.read_error", "parent_op" to call.request().tag(HttpTrace::class.java)?.op, "method" to call.request().method,
                 "path" to call.request().url.encodedPath, "error" to failure.javaClass.simpleName,
                 "ms" to System.currentTimeMillis() - started)
         }
@@ -121,31 +133,34 @@ class PlaygroundApi internal constructor(
 
     private suspend fun <T> executeUntracked(req: Request, client: OkHttpClient, consume: (Response) -> T): T =
         suspendCancellableCoroutine { continuation ->
-            val call = client.newCall(req)
+            val trace = HttpTrace()
+            val call = client.newCall(req.newBuilder().tag(HttpTrace::class.java, trace).build())
             val started = System.currentTimeMillis()
             // ログの収集を強化: method, path (no query), status and time; never the body.
             val host = if (client === external) req.url.host else null
             continuation.invokeOnCancellation {
                 call.cancel()
-                ActivityLog.log("http.cancel", "method" to req.method, "host" to host, "path" to req.url.encodedPath,
+                ActivityLog.log("http.cancel", "parent_op" to trace.op, "method" to req.method, "host" to host, "path" to req.url.encodedPath,
                     "ms" to System.currentTimeMillis() - started)
             }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    ActivityLog.log("http.error", "method" to req.method, "host" to host, "path" to req.url.encodedPath,
+                    ActivityLog.log("http.error", "parent_op" to trace.op, "method" to req.method, "host" to host, "path" to req.url.encodedPath,
                         "ms" to System.currentTimeMillis() - started, "error" to e.javaClass.simpleName, "message" to e.message)
                     if (continuation.isActive) continuation.resumeWith(Result.failure(e))
                 }
                 override fun onResponse(call: Call, response: Response) {
-                    ActivityLog.log("http", "phase" to "done", "method" to req.method, "host" to host, "path" to req.url.encodedPath,
+                    ActivityLog.log("http", "phase" to "done", "parent_op" to trace.op, "method" to req.method, "host" to host, "path" to req.url.encodedPath,
                         "op" to response.header("X-Diagnostic-ID"), "status" to response.code, "ms" to System.currentTimeMillis() - started,
                         "type" to response.header("Content-Type")?.substringBefore(';'))
                     val result = runCatching { response.use { consume(it) } }
                     if (result.isSuccess && response.isSuccessful && client !== external) {
                         runCatching { onSuccessfulServerResponse?.invoke(req.url) }
                     }
-                    if (result.isFailure) ActivityLog.log("http.read_error", "path" to req.url.encodedPath,
+                    if (result.isFailure) ActivityLog.log("http.read_error", "parent_op" to trace.op, "path" to req.url.encodedPath,
                         "ms" to System.currentTimeMillis() - started, "error" to result.exceptionOrNull()?.javaClass?.simpleName)
+                    else ActivityLog.log("http", "type" to "done", "phase" to "done", "parent_op" to trace.op,
+                        "method" to req.method, "path" to req.url.encodedPath, "ms" to System.currentTimeMillis() - started)
                     if (continuation.isActive) continuation.resumeWith(result)
                 }
             })

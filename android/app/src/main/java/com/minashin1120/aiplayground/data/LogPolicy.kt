@@ -45,7 +45,7 @@ internal object LogPolicy {
         "api.ideogram.ai" -> "ideogram"
         "api.moonshot.ai" -> "kimi"
         "api.z.ai" -> "zai"
-        else -> null
+        else -> if (Regex("^[a-z0-9-]+-aiplatform\\.googleapis\\.com$").matches(host)) "vertex_ai" else null
     }
     fun entry(raw: JSONObject): JSONObject? {
         val event = raw.optString("ev")

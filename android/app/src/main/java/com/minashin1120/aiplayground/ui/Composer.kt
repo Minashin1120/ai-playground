@@ -76,6 +76,7 @@ import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ComposerRules
 import com.minashin1120.aiplayground.data.OptionRule
+import com.minashin1120.aiplayground.data.isGptImageModel
 import com.minashin1120.aiplayground.data.isIdeogramBackgroundRemoval
 import com.minashin1120.aiplayground.data.isIdeogramObjectRemoval
 import com.minashin1120.aiplayground.data.SlashCommand

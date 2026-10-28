@@ -2,6 +2,11 @@ package com.minashin1120.aiplayground.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -49,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.semantics.Role
@@ -178,7 +185,9 @@ internal fun MessageBubble(
                 liveTop?.invoke()
                 if (!user && message.thought.isNotBlank()) {
                     val thought = remember(message.thought) { thoughtText(message.thought) }
-                    if (thought.isNotBlank()) ThoughtContainer(thought, openInitially = (streaming || preserveLiveLayout) && !thoughtCollapsed)
+                    if (thought.isNotBlank()) ThoughtContainer(thought,
+                        openInitially = (streaming || preserveLiveLayout) && !thoughtCollapsed,
+                        preparing = streaming && thoughtCollapsed)
                 }
                 if (user) {
                     // User messages are shown as raw text (`whitespace-pre-wrap font-sans text-sm`).
@@ -287,7 +296,7 @@ private fun QuoteStrip(quote: String) {
 
 /** `.thought-container`: "Thinking Process" header that toggles the monospace reasoning text. */
 @Composable
-private fun ThoughtContainer(thought: String, openInitially: Boolean) {
+private fun ThoughtContainer(thought: String, openInitially: Boolean, preparing: Boolean) {
     val web = LocalWebPalette.current
     var open by remember { mutableStateOf(openInitially) }
     LaunchedEffect(openInitially) { if (!openInitially) open = false }
@@ -304,6 +313,7 @@ private fun ThoughtContainer(thought: String, openInitially: Boolean) {
             Modifier
                 .fillMaxWidth()
                 .background(web.theme.rgb(0.10f))
+                .then(thinkingShimmer(preparing))
                 .clickable(onClickLabel = "Thinking Process", role = Role.Button) { open = !open }
                 .padding(horizontal = 13.6.dp, vertical = 8.8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -330,6 +340,38 @@ private fun ThoughtContainer(thought: String, openInitially: Boolean) {
                         fontFamily = FontFamily.Monospace)
                 }
             }
+        }
+    }
+}
+
+/** Web `.thinking-shimmer`: only the reasoning placeholder sweeps; received thoughts are static. */
+@Composable
+private fun thinkingShimmer(preparing: Boolean): Modifier {
+    if (!preparing || LocalReduceMotion.current) return Modifier
+    val highlight = LocalWebPalette.current.theme.rgb(0.15f)
+    val sweep = rememberInfiniteTransition(label = "thinking shimmer").animateFloat(
+        initialValue = -1.2f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(tween(1900, easing = CubicBezierEasing(0.45f, 0f, 0.15f, 1f))),
+        label = "thinking shimmer sweep",
+    )
+    return Modifier.drawWithContent {
+        drawContent()
+        val left = size.width * sweep.value
+        val width = size.width * 0.6f
+        if (width > 0f) clipRect {
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    0f to Color.Transparent,
+                    0.3f to Color.White.copy(alpha = 0.01f),
+                    0.5f to highlight,
+                    0.7f to Color.White.copy(alpha = 0.01f),
+                    1f to Color.Transparent,
+                    startX = left, endX = left + width,
+                ),
+                topLeft = Offset(left, 0f),
+                size = androidx.compose.ui.geometry.Size(width, size.height),
+            )
         }
     }
 }

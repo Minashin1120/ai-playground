@@ -367,15 +367,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var session: StoredSession? = null
     private var foreground = false
     private var backgroundedAt = 0L
-    /** `elapsedRealtime` of the newest event of the answer being received. */
-    @Volatile private var lastStreamEventAt = 0L
     /** Keeps the app running (foreground service and its notification) while an answer streams. */
     private val answerKeepAlive by lazy { GenerationService.keepAlive(getApplication<Application>()) }
-    private var answerHold: AutoCloseable? = null
     private var pairingJob: Job? = null
     private var messageFetchGeneration = 0L
     private var navigationJob: Job? = null
-    private var streamJob: Job? = null
+    private val generations = ChatGenerations()
+    private val streamJob: Job? get() = generations.current(state.value)?.job
     /** Web `suppressedPendingJobIds`: jobs the user stopped are not rejoined while the server winds them down. */
     private val suppressedPendingJobIds = mutableSetOf<String>()
     private var stoppedJobStillRunning = false
@@ -408,6 +406,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val parentId: Int? = null,
     )
     private var failed: Submission? = null
+    private val failedByThread = mutableMapOf<String, Submission>()
     private var pendingParentId: Int? = null
     /** Web `modelChosenManually`: a model the user picked in this chat survives edit/regenerate/branch restores. */
     private var modelChosenManually = false
@@ -415,6 +414,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Stops account work at the same BAN boundary enforced by the Web server. */
     private fun enterBannedState(error: ApiException) {
+        generations.cancelAll()
+        failedByThread.clear()
         val alreadyBanned = state.value.banned
         listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, cacheSyncJob, batchPollJob,
             realtimeStreamJob, realtimeCaptureJob, lyriaStreamJob, importJob).forEach { it?.cancel() }
@@ -543,14 +544,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init { viewModelScope.launch {
-        // Leaving the app or turning the screen off must not stop the answer being generated or received.
-        state.map { it.streaming }.distinctUntilChanged().collect { streaming ->
-            answerHold?.close()
-            answerHold = if (streaming) answerKeepAlive.begin("chat") else null
-        }
-    } }
-
-    init { viewModelScope.launch {
         mutable.update { it.copy(compression = compressionSettingsFrom(prefs),
             lowBandwidthPreference = normalizeLowBandwidthPreference(prefs.getString(LOW_BANDWIDTH_PREF_KEY, "auto"))) }
         recomputeLowBandwidth(notify = false)
@@ -648,6 +641,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun serverIdOf(id: String): String {
         val store = localChats?.takeIf { state.value.serverless && LocalChatStore.isDeviceThreadId(id) } ?: return id
         val serverId = withContext(Dispatchers.IO) { store.resolveAlias(id) }
+        if (serverId != id) generations.rebind(id, serverId)
         if (serverId != id) mutable.update { current ->
             if (current.selected?.id == id) current.copy(selected = current.selected?.copy(id = serverId)) else current
         }
@@ -713,6 +707,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             Diagnostics.log("sync.start", "manual" to manual)
             try {
                 val report = SyncEngine(store, syncApi) { token() }.run()
+                for (answer in generations.all()) {
+                    answer.threadId?.let { id ->
+                        val mapped = withContext(Dispatchers.IO) { store.resolveAlias(id) }
+                        if (mapped != id) answer.bind(mapped)
+                    }
+                }
                 Diagnostics.log("sync.done", "ms" to System.currentTimeMillis() - started, "uploaded" to report.uploadedMessages,
                     "skipped_attachments" to report.skippedAttachments, "rejected" to report.rejected, "pending" to report.pending)
                 syncRetryAttempt = 0
@@ -799,7 +799,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Leaves the no-account profile for the login screen; the device chats stay for a later upload. */
     fun leaveLocalProfile() { viewModelScope.launch {
-        streamJob?.cancel(); navigationJob?.cancel()
+        generations.cancelAll().joinAll(); navigationJob?.cancel()
+        failedByThread.clear()
         chatHistory.clear()
         prefs.edit().putString(PREF_PROFILE_MODE, PROFILE_SERVER).apply()
         closeLocalChats()
@@ -816,7 +817,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Settings "接続" card: serverless mode of the signed-in account (answers from the providers, chats on the device). */
     fun setServerless(enabled: Boolean) {
         val account = state.value.account ?: return
-        if (state.value.localProfile || state.value.streaming) return
+        if (state.value.localProfile) return
+        if (generations.active) { notify("回答生成中です。完了までお待ちいただくか、停止してください。"); return }
         viewModelScope.launch {
             prefs.edit().putBoolean(serverlessPrefKey(account.id), enabled).apply()
             applyServerlessMode(account)
@@ -1580,11 +1582,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val now = SystemClock.elapsedRealtime()
         if (returning && state.value.streaming && !answeringOnDevice() && state.value.jobId != null &&
             shouldRejoinStream(awayMs = now - backgroundedAt, keptRunning = GenerationService.keptRunningSince(backgroundedAt),
-                quietMs = now - lastStreamEventAt, afterMs = STREAM_REJOIN_AFTER_MS)) {
-            Diagnostics.log("send.rejoin", "away_ms" to now - backgroundedAt, "quiet_ms" to now - lastStreamEventAt,
+                quietMs = now - (generations.current(state.value)?.lastEventAt ?: now), afterMs = STREAM_REJOIN_AFTER_MS)) {
+            Diagnostics.log("send.rejoin", "away_ms" to now - backgroundedAt, "quiet_ms" to now - (generations.current(state.value)?.lastEventAt ?: now),
                 "kept_running" to GenerationService.keptRunningSince(backgroundedAt))
-            streamJob?.cancel()
-            mutable.update { it.copy(streaming = false, status = "") }
+            val id = state.value.selected?.id
+            val job = streamJob
+            viewModelScope.launch {
+                job?.cancelAndJoin()
+                if (state.value.selected?.id == id && !state.value.streaming) refreshInPlace()
+            }
         }
         if (!value && state.value.realtime.active) stopRealtime(save = false)
         if (!value && state.value.lyria.active) stopLyria(save = false)
@@ -1742,7 +1748,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     override fun onCleared() {
-        answerHold?.close(); answerHold = null
+        generations.cancelAll()
         stopConnectionMonitor()
         connectionRecoveredHideJob?.cancel()
         super.onCleared()
@@ -2090,14 +2096,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun newChat(temporary: Boolean = false, recordHistory: Boolean = true) {
         if (recordHistory) recordChatNavigation(ChatLocation(null, temporary))
-        navigationJob?.cancel(); streamJob?.cancel(); failed = null
+        navigationJob?.cancel(); failed = null
         heartbeatJob?.cancel()
         pendingParentId = null
         modelChosenManually = false
         val transition = nextChatTransition(ChatTransitionKind.NEW_CHAT)
         mutable.update { it.withLatestPromptOptions().copy(selected = null, messages = emptyList(), allMessages = emptyList(), leafId = null, settingsBubbles = emptyList(),
             editingMessageId = null, jobId = null, streaming = false,
-            liveContent = "", liveThought = "", status = "", busy = false, retryAvailable = false,
+            liveContent = "", liveThought = "", live = LiveAnswer(), mcpDecision = null, status = "", busy = false, retryAvailable = false,
             cards = emptyList(), branchOrigin = null, hasOlder = false, oldestId = null, customInstruction = "",
             includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null, tempChatTimeoutSeconds = null,
             selectedGem = null, codingTarget = null, imageMask = null,
@@ -2116,7 +2122,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun openThread(thread: ThreadItem, recordHistory: Boolean = true, focusMessageId: Int? = null) {
         if (recordHistory) recordChatNavigation(ChatLocation(thread))
-        navigationJob?.cancel(); streamJob?.cancel(); heartbeatJob?.cancel(); failed = null
+        navigationJob?.cancel(); heartbeatJob?.cancel(); failed = null
         pendingParentId = null
         if (state.value.selected?.id != thread.id) modelChosenManually = false
         val transition = nextChatTransition(ChatTransitionKind.OPEN_THREAD)
@@ -2125,18 +2131,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(selected = thread, messages = emptyList(), allMessages = emptyList(), settingsBubbles = emptyList(),
             branchOrigin = null, leafId = focusMessageId ?: pinnedLeaf, editingMessageId = null, streaming = false, busy = true,
             draft = "", attachments = emptyList(), quote = "",
-            liveContent = "", liveThought = "", jobId = null, retryAvailable = false,
+            liveContent = "", liveThought = "", live = LiveAnswer(), mcpDecision = null, jobId = null, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null,
             // Web `playChatTransition('history')` + `buildChatLoadingSkeletonHtml`: swap to the new chat now
             // and show the skeleton there; the messages replace it in place when they arrive.
             chatTransitionId = transition.first, chatTransitionKind = transition.second,
             threadLoadingId = transition.first, threadLoadFailedId = null,
             chatNavigationId = transition.first, chatNavigationKind = transition.second) }
+        generations.forThread(thread.id)?.let { answer -> mutable.update { answer.render(it) } }
         navigationJob = viewModelScope.launch {
             val started = System.currentTimeMillis()
             Diagnostics.log("thread.open", "thread_id" to thread.id)
             try {
                 loadMessages(thread.id)
+                failedByThread[state.value.selected?.id]?.let { submission ->
+                    failed = submission
+                    mutable.update { it.copy(draft = submission.body.optString("message"), attachments = submission.files,
+                        quote = submission.body.optString("quote_text"), imageMask = submission.mask,
+                        editingMessageId = submission.editingId) }
+                    pendingParentId = submission.parentId
+                }
                 Diagnostics.log("thread.opened", "thread_id" to thread.id, "ms" to System.currentTimeMillis() - started,
                     "messages" to state.value.messages.size)
                 mutable.update { it.copy(busy = if (it.selected?.id == thread.id) false else it.busy,
@@ -2168,6 +2182,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * that started meanwhile leaves the chat as it is.
      */
     private suspend fun loadMessages(requestedId: String, older: Boolean = false, autoResume: Boolean = true, inPlace: Boolean = false, streamFinished: Boolean = false) {
+        if (state.value.selected?.id != requestedId) return
         if (inPlace && !streamFinished && (state.value.streaming || state.value.busy)) return
         val fetchGeneration = if (older) messageFetchGeneration else ++messageFetchGeneration
         val id = serverIdOf(requestedId)
@@ -2218,7 +2233,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 resolved to (message.conversationKey ?: message.id)
             }
         } else emptyMap()
-        val parsed = parseMessages(reply).map { message ->
+        val parsed = generations.history(reply, id, finished = streamFinished).map { message ->
             conversationKeys[message.id]?.let { message.copy(conversationKey = it) } ?: message
         }
         val parsedOldest = parsed.mapNotNull { numericId(it) }.filterNot { LocalChatStore.isPendingId(it) }.minOrNull()
@@ -2281,6 +2296,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             refreshOfflineCacheStats(account.id)
         }
         if (!older && !chatLocal) syncHeartbeat()
+        generations.forThread(id)?.let { answer ->
+            mutable.update { if (answer.matches(it)) answer.render(it) else it }
+        }
         // Web `loadMessages`: an answer still running on the server is rejoined automatically.
         if (!older && autoResume && state.value.jobId != null && !state.value.streaming) resume()
     }
@@ -2295,7 +2313,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 ?: JSONObject().put("messages", JSONArray()).takeIf { outbox.outboxIdFor(id) != null }
             base?.let { outbox.overlayPending(id, it, observedOnServer = false, encrypted = state.value.account?.encrypted) }
         } ?: return
-        val parsed = parseMessages(cached)
+        val parsed = generations.history(cached, id)
         val all = if (older) (parsed + state.value.allMessages).distinctBy { it.id } else parsed
         val selectedLeaf = state.value.leafId?.let { candidate ->
             withContext(Dispatchers.IO) { localChats?.resolveMessageId(id, candidate) ?: candidate }
@@ -2321,6 +2339,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             offline = true,
         ) }
         if (!older) mutable.update { it.withLatestPromptOptions() }
+        generations.forThread(id)?.let { answer -> mutable.update { if (answer.matches(it)) answer.render(it) else it } }
     }
 
     private fun syncHeartbeat() {
@@ -2379,7 +2398,20 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         Diagnostics.log("thread.delete", "thread_id" to thread.id, "offline" to state.value.offline)
         if (state.value.offline && !deviceChat(thread.id)) { notify("オフライン中は履歴を削除できません。"); return@launch }
         try {
+            generations.forThread(thread.id)?.let { answer ->
+                val jobId = answer.snapshot.value.jobId
+                if (!uploadsLocal || jobId != null) {
+                    jobId?.let { suppressedPendingJobIds.add(it) }
+                    try {
+                        backend.post("/api/stop_chat", JSONObject().put("thread_id", thread.id).apply {
+                            jobId?.let { put("job_id", it) }
+                        }, token())
+                    } catch (e: ApiException) { if (e.status != 404) throw e }
+                }
+                answer.job?.cancelAndJoin()
+            }
             backend.delete("/api/threads/${thread.id}", token())
+            failedByThread.remove(thread.id)
             Diagnostics.log("thread.deleted", "thread_id" to thread.id)
             state.value.account?.let { account -> withContext(Dispatchers.IO) { offlineCache.deleteThread(account.id, thread.id) } }
             chatHistory.removeThread(thread.id)
@@ -3161,7 +3193,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-    private var searchClearJob: Job? = null
 
     /** Web `fetchChatStreamWithUnavailableRetry`: which responses keep the send waiting instead of failing. */
     private fun waitingStatusFor(error: Throwable): String? = when {
@@ -3181,23 +3212,31 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         notifyAnswerFinished(getApplication<Application>(), title, failed)
     }
 
-    private fun updateLive(transform: (LiveAnswer) -> LiveAnswer) = mutable.update { it.copy(live = transform(it.live)) }
+    private fun updateAnswer(answer: ChatGenerations.Answer, transform: (ChatState) -> ChatState) {
+        generations.update(answer, mutable, transform)
+    }
+
+    private fun updateLive(answer: ChatGenerations.Answer, transform: (LiveAnswer) -> LiveAnswer) =
+        updateAnswer(answer) { it.copy(live = transform(it.live)) }
 
     /** Web `markApiAccepted`: once, the skeleton says the connection is up and the model is being awaited. */
-    private fun markApiAccepted() = updateLive { live ->
+    private fun markApiAccepted(answer: ChatGenerations.Answer) = updateLive(answer) { live ->
         if (live.accepted || live.pendingStatus == null) live.copy(accepted = true)
         else live.copy(accepted = true, pendingStatus = "接続しました。応答を待っています...", pendingSub = "応答開始までの状況を表示しています")
     }
 
     private fun submit(submission: Submission) {
+        if (generations.current(state.value) != null) return
         ++messageFetchGeneration
-        streamJob?.cancel()
-        streamJob = viewModelScope.launch {
-            val owner = currentCoroutineContext().job
+        val answerBackend = backend
+        val answerToken = token()
+        val answer = generations.begin(state.value)
+        answer.threadId?.let { failedByThread.remove(it) }
+        generations.launch(answer, viewModelScope, answerKeepAlive) {
             val body = submission.body
             val modelId = body.optString("model")
             val reasoning = showsReasoningProgress(modelId, body.optBoolean("enable_thinking"), body.optString("reasoning_effort"))
-            mutable.update { it.copy(streaming = true, retryAvailable = false, status = "", liveContent = "", liveThought = "",
+            updateAnswer(answer) { it.copy(streaming = true, retryAvailable = false, status = "", liveContent = "", liveThought = "",
                 cards = emptyList(), mcpDecision = null,
                 live = LiveAnswer(model = modelId, pendingStatus = "APIに送信中...",
                     pendingStartedAt = if (body.optBoolean("batch_mode")) null else SystemClock.elapsedRealtime(),
@@ -3206,25 +3245,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             var id = body.nullableString("thread_id")
             var accepted = false
             val sendStarted = System.currentTimeMillis()
-            Diagnostics.log("send.start", "model" to modelId, "serverless" to state.value.serverless, "new_thread" to id.isBlank(),
+            Diagnostics.log("send.start", "op" to answer.operationId, "model" to modelId, "serverless" to state.value.serverless, "new_thread" to id.isBlank(),
                 "attachments" to submission.files.map { it.mime.ifBlank { "unknown" } }, "text_chars" to body.optString("message").length,
                 "prompt_cache" to body.optBoolean("enable_prompt_caching"), "memory" to Diagnostics.memory())
             val seenEvents = java.util.Collections.synchronizedSet(HashSet<String>())
             try {
                 if (id.isBlank()) {
-                    val created = backend.post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
+                    val created = answerBackend.post("/api/threads", JSONObject().put("is_temporary", answer.snapshot.value.newThreadTemporary), answerToken)
                     id = created.get("id").toString()
                     body.put("thread_id", id)
-                    mutable.update { it.copy(selected = ThreadItem(id, created.nullableString("title"), it.model,
+                    updateAnswer(answer) { it.copy(selected = ThreadItem(id, created.nullableString("title"), it.model,
                         isTemporary = created.optBoolean("is_temporary")), newThreadTemporary = false) }
-                    syncHeartbeat()
+                    answer.bind(id)
+                    if (answer.matches(state.value)) syncHeartbeat()
                 }
                 if (body.optBoolean("parent_id_explicit")) {
                     // Branching send (edit-and-resend, regenerate): drop the old branch's tail
                     // from the visible path immediately, instead of leaving the previous
                     // prompt/reply bubbles on screen until the new answer finishes streaming.
                     val parentId = body.opt("parent_id") as? Int
-                    mutable.update { current ->
+                    updateAnswer(answer) { current ->
                         val truncated = if (parentId == null) emptyList()
                         else current.messages.indexOfFirst { numericId(it) == parentId }
                             .let { idx -> if (idx >= 0) current.messages.subList(0, idx + 1) else current.messages }
@@ -3232,7 +3272,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 val userId = "local-${body.getString("client_request_id")}"
-                mutable.update { it.copy(messages = it.messages.filterNot { m -> m.id == userId } + ChatMessage(userId, "user",
+                updateAnswer(answer) { it.copy(messages = it.messages.filterNot { m -> m.id == userId } + ChatMessage(userId, "user",
                     body.getString("message"), files = submission.files.map { a -> a.reference },
                     quote = body.optString("quote_text"), gemName = it.selectedGem?.name.orEmpty(),
                     promptOptions = submission.mask?.let { mask -> JSONObject().put("image_mask", mask) })) }
@@ -3241,74 +3281,74 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     val type = event.optString("type")
                     if (type == "status" || type == "error" || seenEvents.add(type)) {
                         // Only the fixed event type is diagnostic; status/error text may contain private content.
-                        Diagnostics.log("send.event", "type" to type, "ms" to System.currentTimeMillis() - sendStarted,
+                        Diagnostics.log("send.event", "op" to answer.operationId, "type" to type, "ms" to System.currentTimeMillis() - sendStarted,
                             "failed" to (type == "error"))
                     }
-                    if (streamJob === owner) {
+                    if (generations.contains(answer)) {
                         flow.setPhase("receiving")
-                        acceptEvent(threadId, event)
+                        acceptEvent(answer, event)
                     }
                 }
                 val onAccepted: () -> Unit = {
                     accepted = true
                     flow.setPhase("waiting")
                     markConnectionReachable()
-                    markApiAccepted()
+                    markApiAccepted(answer)
                 }
                 var retryCount = 0
                 while (true) {
                     try {
-                        backend.stream("/chat_stream", body, token(), onAccepted, onEvent)
+                        answerBackend.stream("/chat_stream", body, answerToken, onAccepted, onEvent)
                         break
                     } catch (e: CancellationException) { throw e }
                     catch (e: ApiException) {
                         if (e.code == "request_already_accepted") {
                             accepted = true
                             val jobId = e.payload.optString("job_id")
-                            mutable.update { it.copy(jobId = jobId.ifBlank { it.jobId }) }
-                            reconnectUntilAvailable(threadId, jobId, owner)
+                            updateAnswer(answer) { it.copy(jobId = jobId.ifBlank { it.jobId }) }
+                            reconnectUntilAvailable(answer, threadId, jobId, answerBackend, answerToken)
                             break
                         }
                         val waiting = waitingStatusFor(e) ?: throw e
                         retryCount += 1
                         connectionStatusForHttp(e.status)?.let { setConnectionUnavailable(it) }
-                        updateLive { it.copy(pendingStatus = waiting, pendingSub = "送信内容を保持して自動再試行中（${retryCount}回目）") }
+                        updateLive(answer) { it.copy(pendingStatus = waiting, pendingSub = "送信内容を保持して自動再試行中（${retryCount}回目）") }
                     } catch (e: IOException) {
                         if (accepted) {
                             // Web: the answer keeps running on the server; reconnect to it in the background.
                             setConnectionUnavailable(ConnectionStatus.OFFLINE)
                             notify("回答への接続が切れました。バックグラウンド処理へ自動再接続します。")
-                            reconnectUntilAvailable(threadId, state.value.jobId.orEmpty(), owner)
+                            reconnectUntilAvailable(answer, threadId, answer.snapshot.value.jobId.orEmpty(), answerBackend, answerToken)
                             break
                         }
                         retryCount += 1
                         setConnectionUnavailable(ConnectionStatus.OFFLINE)
-                        updateLive { it.copy(pendingStatus = "インターネット接続の復帰を待っています...",
+                        updateLive(answer) { it.copy(pendingStatus = "インターネット接続の復帰を待っています...",
                             pendingSub = "送信内容を保持して自動再試行中（${retryCount}回目）") }
                     }
                     delay(CONNECTION_RETRY_DELAY_MS)
                 }
-                val answerFailed = state.value.live.error != null
-                Diagnostics.log("send.done", "ms" to System.currentTimeMillis() - sendStarted)
+                val answerFailed = answer.snapshot.value.live.error != null
+                Diagnostics.log("send.done", "op" to answer.operationId, "ms" to System.currentTimeMillis() - sendStarted)
                 vibrate(100, 50, 100)
-                failed = null
+                if (answer.matches(state.value)) failed = null
                 // The response may add a new leaf even for a normal continuation. Drop the old
                 // leafId so loadMessages() selects the newest path instead of restoring the
                 // previously active branch and hiding the just-sent exchange.
-                mutable.update { current ->
-                    if (current.selected?.id == id) current.copy(leafId = null) else current
+                updateAnswer(answer) { it.copy(leafId = null) }
+                if (answer.matches(state.value)) state.value.selected?.id?.let {
+                    loadMessages(it, inPlace = true, streamFinished = true)
                 }
-                loadMessages(id, inPlace = true, streamFinished = true)
                 fetchThreads(false)
                 if (!answerFailed && !deviceChat(id) && state.value.selected?.id == id &&
                     state.value.selected?.title in listOf("New Chat", "新しいチャット", "No Title")) {
                     // Match Web: title generation must not delay completion of the answer.
                     viewModelScope.launch {
                         try {
-                            val reply = backend.post("/api/generate_title", JSONObject()
-                                .put("thread_id", id).put("model_id", modelId), token())
+                            val reply = answerBackend.post("/api/generate_title", JSONObject()
+                                .put("thread_id", id).put("model_id", modelId), answerToken)
                             reply.nullableString("title").takeIf { it.isNotBlank() }?.let { title ->
-                                mutable.update { current -> current.copy(selected = current.selected?.let {
+                                if (session?.token == answerToken) mutable.update { current -> current.copy(selected = current.selected?.let {
                                     if (it.id == id) it.copy(title = title) else it
                                 }) }
                                 fetchThreads(false)
@@ -3322,16 +3362,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     startBatchPolling()
                 } else notifyAnswerFinishedIfAway(id, answerFailed)
             } catch (e: CancellationException) {
-                Diagnostics.log("send.cancelled", "ms" to System.currentTimeMillis() - sendStarted, "accepted" to accepted)
+                Diagnostics.log("send.cancelled", "op" to answer.operationId, "ms" to System.currentTimeMillis() - sendStarted, "accepted" to accepted)
                 throw e
             }
             catch (e: Exception) {
-                Diagnostics.failure("send.error", e, "ms" to System.currentTimeMillis() - sendStarted, "accepted" to accepted)
+                Diagnostics.failure("send.error", "op" to answer.operationId, e, "ms" to System.currentTimeMillis() - sendStarted, "accepted" to accepted)
                 // Web: before the server accepted the send, the optimistic rows go away and the input,
                 // attachments and quote stay; the error is shown as "Connection Error: …".
                 if (!accepted) {
+                    if (id.isNotBlank()) failedByThread[id] = submission
                     val userId = "local-${body.optString("client_request_id")}"
-                    mutable.update { it.copy(
+                    updateAnswer(answer) { it.copy(
                         messages = it.messages.filterNot { m -> m.id == userId },
                         draft = if (it.draft.isBlank()) body.optString("message") else it.draft,
                         attachments = if (it.attachments.isEmpty()) submission.files else it.attachments,
@@ -3339,13 +3380,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         imageMask = it.imageMask ?: submission.mask,
                         editingMessageId = it.editingMessageId ?: submission.editingId,
                     ) }
-                    if (state.value.editingMessageId == submission.editingId && submission.editingId != null) pendingParentId = submission.parentId
+                    if (answer.matches(state.value) && state.value.editingMessageId == submission.editingId && submission.editingId != null) pendingParentId = submission.parentId
                 }
                 when {
                     e is ApiException && e.code == "api_key_missing" -> {
                         // Web `showApiKeyRequiredModalAsync`: set the key, switch model, or show the error.
                         apiKeyMissingMessage = e.payload.optString("error").ifBlank { null }
-                        mutable.update { it.copy(apiKeyPrompt = e.payload.optString("model").ifBlank { modelId }) }
+                        updateAnswer(answer) { it.copy(apiKeyPrompt = e.payload.optString("model").ifBlank { modelId }) }
                     }
                     // Web re-runs Turnstile, then asks to send again.
                     e is ApiException && e.code == "turnstile_required" -> startSessionTurnstile()
@@ -3353,14 +3394,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     e is ApiException -> notify("Connection Error: " + e.payload.optString("error").ifBlank { "HTTP ${e.status}" })
                     else -> notify("Connection Error: " + (e.message ?: "通信に失敗しました"))
                 }
-                if (id.isNotBlank() && session != null) {
-                    mutable.update { it.copy(leafId = null) }
+                if (id.isNotBlank() && answer.matches(state.value) && (session != null || chatLocal)) {
+                    updateAnswer(answer) { it.copy(leafId = null) }
                     runCatching { loadMessages(id, inPlace = true, streamFinished = true) }
                 }
                 notifyAnswerFinishedIfAway(id, failed = true)
             } finally {
                 flow.finish()
-                if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "", live = LiveAnswer(), liveContent = "", liveThought = "", cards = emptyList(), jobId = null) }
+                if (generations.contains(answer)) updateAnswer(answer) { it.copy(streaming = false, status = "", live = LiveAnswer(), liveContent = "", liveThought = "", cards = emptyList(), jobId = null, mcpDecision = null) }
             }
         }
     }
@@ -3369,22 +3410,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * Web `reconnectPendingStreamUntilAvailable`: while the answer runs on the server, wait and rejoin it
      * through `/chat_stream_resume` until it finishes (404 means it already ended).
      */
-    private suspend fun reconnectUntilAvailable(threadId: String, jobId: String, owner: Job) {
+    private suspend fun reconnectUntilAvailable(answer: ChatGenerations.Answer, threadId: String, jobId: String, answerBackend: ChatBackend, answerToken: String) {
         var activeJobId = jobId
         while (true) {
-            updateLive { it.copy(pendingStatus = if (it.pendingStatus != null) "サーバーへの再接続を待っています..." else null,
+            updateLive(answer) { it.copy(pendingStatus = if (it.pendingStatus != null) "サーバーへの再接続を待っています..." else null,
                 pendingSub = "回答処理はバックグラウンドで継続しています") }
             delay(CONNECTION_RETRY_DELAY_MS)
-            if (state.value.selected?.id != threadId) return
+            if (!generations.contains(answer)) return
             try {
                 if (activeJobId.isBlank()) {
-                    activeJobId = backend.get("/api/threads/$threadId?limit=1", token())
+                    activeJobId = answerBackend.get("/api/threads/$threadId?limit=1", answerToken)
                         .optJSONObject("pending_job")?.optString("job_id").orEmpty()
                     if (activeJobId.isBlank()) return
-                    mutable.update { it.copy(jobId = activeJobId) }
+                    updateAnswer(answer) { it.copy(jobId = activeJobId) }
                 }
-                backend.stream("/chat_stream_resume", JSONObject().put("thread_id", threadId).put("job_id", activeJobId), token(),
-                    onAccepted = { markConnectionReachable() }) { event -> if (streamJob === owner) acceptEvent(threadId, event) }
+                answerBackend.stream("/chat_stream_resume", JSONObject().put("thread_id", threadId).put("job_id", activeJobId), answerToken,
+                    onAccepted = { markConnectionReachable() }) { event -> if (generations.contains(answer)) acceptEvent(answer, event) }
                 return
             } catch (e: CancellationException) { throw e }
             catch (e: ApiException) {
@@ -3394,26 +3435,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun acceptEvent(threadId: String, event: JSONObject) {
-        lastStreamEventAt = SystemClock.elapsedRealtime()
-        if (state.value.selected?.id != threadId) return
+    private fun acceptEvent(answer: ChatGenerations.Answer, event: JSONObject) {
+        answer.lastEventAt = SystemClock.elapsedRealtime()
+        if (!generations.contains(answer)) return
         val type = event.optString("type")
         val content = event.opt("content")?.takeIf { it != JSONObject.NULL }?.toString().orEmpty()
         when (type) {
-            "thread_id" -> { markApiAccepted(); return }
-            "job_id" -> { markApiAccepted(); mutable.update { it.copy(jobId = content) }; return }
+            "thread_id" -> { markApiAccepted(answer); return }
+            "job_id" -> { markApiAccepted(answer); updateAnswer(answer) { it.copy(jobId = content) }; return }
             "search_status" -> {
-                if (content == "searching") updateLive { if (it.search.isEmpty()) it.copy(search = "searching") else it }
-                else if (content == "done" && state.value.live.search == "searching") {
-                    updateLive { it.copy(search = "done") }
-                    searchClearJob?.cancel()
-                    searchClearJob = viewModelScope.launch { delay(2000); updateLive { if (it.search == "done") it.copy(search = "") else it } }
+                if (content == "searching") updateLive(answer) { if (it.search.isEmpty()) it.copy(search = "searching") else it }
+                else if (content == "done" && answer.snapshot.value.live.search == "searching") {
+                    updateLive(answer) { it.copy(search = "done") }
+                    answer.searchClearJob?.cancel()
+                    answer.searchClearJob = viewModelScope.launch { delay(2000); updateLive(answer) { if (it.search == "done") it.copy(search = "") else it } }
                 }
                 return
             }
             "mcp", "mcp_decision_request", "mcp_decision_resolved" -> {
                 val payload = event.optJSONObject("content")
-                mutable.update { current -> current.copy(
+                updateAnswer(answer) { current -> current.copy(
                     cards = upsertToolCard(current.cards, type, event.opt("content")),
                     mcpDecision = when (type) {
                         "mcp_decision_request" -> payload?.let { McpDecision(
@@ -3429,8 +3470,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 return
             }
             "status" -> {
-                if (event.optString("phase") != "uploading") markApiAccepted()
-                updateLive { live ->
+                if (event.optString("phase") != "uploading") markApiAccepted(answer)
+                updateLive(answer) { live ->
                     live.copy(
                         pendingStatus = live.pendingStatus?.let { content.ifBlank { "モデル処理中..." } },
                         pendingSub = if (live.pendingStatus != null) "応答開始までの進捗を表示しています" else live.pendingSub,
@@ -3439,73 +3480,99 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 return
             }
-            "done" -> { mutable.update { it.copy(jobId = null) }; return }
+            "done" -> { updateAnswer(answer) { it.copy(jobId = null) }; return }
         }
         // Web `beginPendingToStreamTransition`: the first answer event replaces the skeleton.
-        updateLive { it.copy(pendingStatus = null, pendingSub = "") }
+        updateLive(answer) { it.copy(pendingStatus = null, pendingSub = "") }
         when (type) {
-            "python" -> event.optJSONObject("content")?.let { payload -> mutable.update { it.copy(cards = upsertPythonCard(it.cards, payload)) } }
-            "coding_diff" -> mutable.update { it.copy(cards = upsertToolCard(it.cards, type, event.opt("content"))) }
-            "image_analysis" -> updateLive { it.copy(imageAnalysis = content) }
-            "thought" -> mutable.update { it.copy(liveThought = it.liveThought + content, live = it.live.copy(thoughtPlaceholder = null)) }
-            "content" -> mutable.update { it.copy(liveContent = it.liveContent + content) }
-            "error" -> mutable.update { it.copy(live = it.live.copy(error = content.ifBlank { "Unknown error" }), notice = content.ifBlank { "Unknown error" }.take(500)) }
+            "python" -> event.optJSONObject("content")?.let { payload -> updateAnswer(answer) { it.copy(cards = upsertPythonCard(it.cards, payload)) } }
+            "coding_diff" -> updateAnswer(answer) { it.copy(cards = upsertToolCard(it.cards, type, event.opt("content"))) }
+            "image_analysis" -> updateLive(answer) { it.copy(imageAnalysis = content) }
+            "thought" -> updateAnswer(answer) { it.copy(liveThought = it.liveThought + content, live = it.live.copy(thoughtPlaceholder = null)) }
+            "content" -> updateAnswer(answer) { it.copy(liveContent = it.liveContent + content) }
+            "error" -> updateAnswer(answer) { it.copy(live = it.live.copy(error = content.ifBlank { "Unknown error" }), notice = content.ifBlank { "Unknown error" }.take(500)) }
         }
     }
 
     /** Web `resumePendingStream`: rejoin an answer still running on the server when the thread is opened. */
     fun resume() {
+        generations.current(state.value)?.let { answer ->
+            mutable.update { answer.render(it) }
+            return
+        }
         if (state.value.streaming) return
         val id = state.value.selected?.id ?: return
         val jobId = state.value.jobId ?: return
-        streamJob = viewModelScope.launch {
-            val owner = currentCoroutineContext().job
+        val answerBackend = backend
+        val answerToken = token()
+        val answer = generations.begin(state.value)
+        generations.launch(answer, viewModelScope, answerKeepAlive) {
             val flow = api.progress.startFlow("chatResume")
-            mutable.update { it.copy(streaming = true, liveContent = "", liveThought = "", status = "",
+            updateAnswer(answer) { it.copy(streaming = true, liveContent = "", liveThought = "", status = "",
                 live = LiveAnswer(model = it.model, pendingStatus = "回答を生成中...")) }
             var failed = false
+            Diagnostics.log("send.stream.start", "op" to answer.operationId)
             try {
-                backend.stream("/chat_stream_resume", JSONObject().put("thread_id", id).put("job_id", jobId), token(),
+                answerBackend.stream("/chat_stream_resume", JSONObject().put("thread_id", id).put("job_id", jobId), answerToken,
                     onAccepted = { flow.setPhase("waiting") }) { event ->
-                    if (streamJob === owner) { flow.setPhase("receiving"); acceptEvent(id, event) }
+                    if (generations.contains(answer)) { flow.setPhase("receiving"); acceptEvent(answer, event) }
                 }
-                failed = state.value.live.error != null
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { if (e !is ApiException || e.status != 404) { failed = true; report(e) } }
+                failed = answer.snapshot.value.live.error != null
+            } catch (e: CancellationException) {
+                Diagnostics.log("send.cancelled", "op" to answer.operationId)
+                throw e
+            }
+            catch (e: Exception) {
+                Diagnostics.failure("send.stream.error", e, "op" to answer.operationId)
+                if (waitingStatusFor(e) != null) {
+                    try {
+                        reconnectUntilAvailable(answer, id, answer.snapshot.value.jobId ?: jobId, answerBackend, answerToken)
+                        failed = answer.snapshot.value.live.error != null
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (retryError: Exception) { failed = true; report(retryError) }
+                } else if (e !is ApiException || e.status != 404) { failed = true; report(e) }
+            }
             finally {
                 flow.finish()
-                if (streamJob === owner) mutable.update { it.copy(streaming = false, status = "", live = LiveAnswer(), liveContent = "", liveThought = "", cards = emptyList(), jobId = null) }
+                if (generations.contains(answer)) updateAnswer(answer) { it.copy(streaming = false, status = "", live = LiveAnswer(), liveContent = "", liveThought = "", cards = emptyList(), jobId = null, mcpDecision = null) }
+                generations.finish(answer)
             }
             runCatching { loadMessages(id, autoResume = false, inPlace = true) }.onFailure { report(it) }
+            Diagnostics.log("send.stream.done", "op" to answer.operationId, "failed" to failed)
             notifyAnswerFinishedIfAway(id, failed)
         }
     }
     fun stop() { viewModelScope.launch {
         val id = state.value.selected?.id ?: return@launch
+        val answer = generations.forThread(id)
+        val targetJob = answer?.job
+        val targetJobId = answer?.snapshot?.value?.jobId ?: state.value.jobId
+        val targetBackend = backend
+        val targetToken = token()
         Diagnostics.log("send.stop", "thread_id" to id, "streaming" to state.value.streaming, "job" to (state.value.jobId != null))
         try {
             // The answer is generated on the device (a server job is only rejoined, with its job id):
             // cancelling the request saves what arrived so far, and serverless mode then uploads it.
-            if (uploadsLocal && state.value.jobId == null) {
+            if (uploadsLocal && targetJobId == null) {
                 val started = System.currentTimeMillis()
-                streamJob?.cancelAndJoin()
+                targetJob?.cancelAndJoin()
                 Diagnostics.log("send.stopped", "thread_id" to id, "wait_ms" to System.currentTimeMillis() - started)
-                mutable.update { it.copy(streaming = false, status = "停止を要求しました。", live = LiveAnswer(), leafId = null) }
+                mutable.update { if (it.selected?.id == id && generations.forThread(id) == null) it.copy(streaming = false, status = "停止を要求しました。", live = LiveAnswer(), leafId = null) else it }
                 loadMessages(id, inPlace = true, streamFinished = true)
                 scheduleSync()
                 return@launch
             }
             // Web `stopGeneration`: the stopped job is never rejoined, even while the server still lists it as running.
-            state.value.jobId?.let { suppressedPendingJobIds.add(it) }
+            targetJobId?.let { suppressedPendingJobIds.add(it) }
             try {
-                val stopped = backend.post("/api/stop_chat", JSONObject().put("thread_id", id).apply { state.value.jobId?.let { put("job_id", it) } }, token())
+                val stopped = targetBackend.post("/api/stop_chat", JSONObject().put("thread_id", id).apply { targetJobId?.let { put("job_id", it) } }, targetToken)
                 stopped.optString("job_id").takeIf { it.isNotBlank() }?.let { suppressedPendingJobIds.add(it) }
             } catch (e: ApiException) {
                 // Web ignores the answer to the stop request: 404 means the job already ended on the server.
                 if (e.status != 404) throw e
             }
-            streamJob?.cancelAndJoin()
-            mutable.update { it.copy(streaming = false, status = "停止を要求しました。", jobId = null, leafId = null) }
+            targetJob?.cancelAndJoin()
+            mutable.update { if (it.selected?.id == id && generations.forThread(id) == null) it.copy(streaming = false, status = "停止を要求しました。", jobId = null, leafId = null) else it }
             // The server saves the partial answer once the worker notices the stop; reload until the job is gone.
             repeat(STOP_RELOAD_ATTEMPTS) {
                 delay(1000)
@@ -3520,7 +3587,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (state.value.offline) { notify("オフライン中はMCPの確認に応答できません。"); return@launch }
         val decision = state.value.mcpDecision ?: return@launch
         if (decision.jobId.isBlank()) return@launch
-        mutable.update { it.copy(mcpDecision = null) }
+        generations.current(state.value)?.let { answer -> updateAnswer(answer) { it.copy(mcpDecision = null) } }
+            ?: mutable.update { it.copy(mcpDecision = null) }
         try {
             backend.post("/api/mcp/chat/${URLEncoder.encode(decision.jobId, "UTF-8")}/decision",
                 JSONObject().put("decision", if (allow) "allow" else "deny").put("id", decision.id), token())
@@ -4145,6 +4213,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun clearSession() {
         chatHistory.clear()
         val caller = currentCoroutineContext().job
+        generations.cancelAll(except = caller).filter { it !== caller }.joinAll()
+        failedByThread.clear()
         listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, cacheSyncJob, batchPollJob,
             realtimeStreamJob, realtimeCaptureJob, lyriaStreamJob, importJob).forEach { if (it !== caller) it?.cancel() }
         realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null

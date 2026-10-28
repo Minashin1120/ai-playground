@@ -213,6 +213,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         .put("prompt_options", row.opt("prompt_options") ?: JSONObject.NULL)
         .put("id", row.getInt("id")).put("role", row.optString("role")).put("content", row.optString("content"))
         .put("image_url", row.opt("image_url") ?: JSONObject.NULL).put("model", row.opt("model") ?: JSONObject.NULL)
+        .put("generating", row.optBoolean("generating"))
         .put("thought_data", row.opt("thought_data") ?: JSONObject.NULL)
         .put("tokens", row.opt("tokens") ?: JSONObject.NULL).put("tokens_in", row.opt("tokens_in") ?: JSONObject.NULL)
         .put("tokens_out", row.opt("tokens_out") ?: JSONObject.NULL).put("tokens_content", JSONObject.NULL)

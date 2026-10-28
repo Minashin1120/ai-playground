@@ -17,7 +17,8 @@
 | 処理 | 呼び出し元 | 実装 | 失敗したとき |
 |---|---|---|---|
 | サムネイル（WebP） | `routes_files.py` の `serve_file_thumb` | `_make_thumbnail_webp`。PNG・JPEG・静止画WebPは `cwebp`、GIF・BMP・AVIFと、`cwebp` が失敗した場合は `ffmpeg`（`libwebp`） | 元ファイルへリダイレクトする |
-| DeepSeekの画像送信、Android直接送信のOpenAI Responses画像 | `background.py` とAndroid直接送信 | 256KBを超えるJPEG・PNG・WebP画像は長辺1536px・品質85のWebPへ縮小してから送信。元ファイルは変更しない | 縮小できなければ元データを送る |
+| DeepSeekの画像送信 | `background.py` とAndroid直接送信 | 256KBを超える画像は長辺1536px・品質85のWebPへ縮小してから送信。元ファイルは変更しない | 縮小できなければ元データを送る |
+| Android直接送信のOpenAI／xAI Responses画像 | `OpenAiResponsesDirect.kt` | Androidの「添付画像のクライアント側圧縮」設定（有効・上限容量・最大辺・形式・形式のみ）に従って送信時に圧縮する。保存済み原画像は変更しない | 圧縮できなければ元データを送る |
 | PNGへの変換（Grok、OpenAIの画像編集） | `background.py` | `_convert_image_to_png`。静止画WebPは `dwebp`、それ以外は `ffmpeg`（先頭フレームだけ） | 元データのまま送る |
 | マスク（OpenAIの画像編集） | `background.py` | 8ビットのRGBA PNGで構造が正しければ、そのまま使う。それ以外は `_convert_image_to_png(..., rgba=True)` | `Failed to process mask file.` |
 | 縦横比（Grokの画像→動画） | `background.py` | `_probe_image` | 縦横比を指定しない |

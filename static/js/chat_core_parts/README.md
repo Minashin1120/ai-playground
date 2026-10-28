@@ -14,7 +14,7 @@
 | `chat_core.part10_domcontent_final.js` | Lyria RealTime スタジオ、音声スタジオUI（`VoiceStudio`）、ファイルライブラリ／Gemモーダルの閉じる・選択更新 | 音声スタジオ・ライブラリの初期化を変更するとき |
 | `chat_core.part11_file_preview_upload.js` | ファイルプレビュー・画像ビューア、画像編集・Object Remover用マスク作成モーダル、カメラキャプチャ、アップロード行の描画 | ファイル表示・アップロード・マスク作成を変更するとき |
 | `chat_core.part12_upload_camera_canvas.js` | アップロード進捗、カメラストリーム制御、画像編集（ブラシ・モザイク・切り抜き）とObject Remover用マスク描画（近似色の自動塗りを含む）、Canvasモバイル表示、音声キャプチャ | 画像編集・マスク・Canvas・音声入力を変更するとき |
-| `chat_core.part13_canvas_coding_stream.js` | Canvasプレビュー生成、Codingモード、ストリーム描画（ペンディング・Batch状態表示）、スラッシュコマンドパレット、Gem候補（`@`）、Python実行モーダル | 吹き出し・Canvas・ストリーム表示を変更するとき |
+| `chat_core.part13_canvas_coding_stream.js` | メッセージ吹き出し（本文・添付画像・マスク画像・フッター）、Canvasプレビュー生成、Codingモード、ストリーム描画（ペンディング・Batch状態表示）、スラッシュコマンドパレット、Gem候補（`@`）、Python実行モーダル | 吹き出し・添付・Canvas・ストリーム表示を変更するとき |
 | `chat_core.part14_send_message_browser_fast.js` | 送信処理 `sendMessage`、ブラウザ直接送信・高速モード・各プロバイダのBatch送信、プル更新、Xリンク自動検索、`/settings`（AI設定アシスタント）、引用・返信 | 送信・直接送信・履歴一覧を変更するとき |
 | `chat_core.part15_slash_tempchat_threads.js` | 一時チャット（ハートビート・タイムアウト）、各プロバイダのBatch状態ポーリング・完了通知、スレッド設定モーダル、圧縮設定モーダル、PDFエクスポート、Gem適用、ブランチ集計 | 履歴読み込み・一時チャット・スレッド設定を変更するとき |
 | `chat_core.part16_gems_branch_debug.js` | ファイルライブラリ操作、ブランチ管理UI、Batch処理一覧モーダル（取得・停止・履歴削除・チャットを開く）、メッセージコピー、規約・Alpha案内モーダル、Thinking表示切替、クライアントデバッグログ、管理者のBot検出ログ画面（`BotAdminLog`：記録のあるアカウントの一覧・一括削除、アカウントごとの状態と記録。開閉とURLは part08） | ブランチ管理・ライブラリ・Batch一覧を変更するとき |

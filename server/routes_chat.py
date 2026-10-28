@@ -316,7 +316,7 @@ def bootstrap_browser_fast_mode():
     response.headers['Pragma'] = 'no-cache'
     return response
 
-# プロンプトバーで選んだ設定を、プロンプトごとに Message.prompt_options へ記録するための許可リスト。
+# プロンプトバーの設定と送信時のマスク参照を、プロンプトごとに Message.prompt_options へ記録するための許可リスト。
 # 歯車ボタンから開く項目（SysPrompt・Compress・一時チャットの設定）と、
 # 自由記述の項目（TTSスタイル・ネガティブプロンプト・stop文字列など）は記録しない。
 _PROMPT_OPTION_KEYS = (
@@ -324,7 +324,7 @@ _PROMPT_OPTION_KEYS = (
     'enable_search', 'enable_url_context', 'enable_maps', 'enable_python',
     'enable_file_creation', 'enable_mcp', 'enable_thinking', 'thinking_level',
     'thinking_budget', 'reasoning_effort', 'safety_setting', 'enable_prompt_caching',
-    'image_vision_model',
+    'image_vision_model', 'image_mask',
     'tts_voice', 'tts_voice_custom', 'tts_language', 'tts_speed',
     'image_size', 'image_quality', 'image_format', 'image_compression',
     'gemini_image_aspect', 'gemini_image_size',
@@ -344,14 +344,14 @@ _PROMPT_OPTION_KEYS = (
 
 
 def _build_prompt_options_record(source, overrides=None):
-    """Return the prompt-bar settings of one prompt as a JSON string (None when empty)."""
+    """Return the prompt-bar settings and mask reference of one prompt as JSON (None when empty)."""
     if not isinstance(source, dict):
         source = {}
     record = {}
     for key in _PROMPT_OPTION_KEYS:
         value = source.get(key)
         if isinstance(value, str):
-            value = value.strip()[:80]
+            value = value.strip()[:512 if key == 'image_mask' else 80]
             if not value:
                 continue
         elif value is None or not isinstance(value, (bool, int, float)):

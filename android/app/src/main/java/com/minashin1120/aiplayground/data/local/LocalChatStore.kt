@@ -264,6 +264,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         val quote: String = "",
         val gemUuid: String = "",
         val gemName: String = "",
+        val promptOptions: JSONObject? = null,
         val tokensIn: Int? = null,
         val tokensOut: Int? = null,
         val tokensThought: Int? = null,
@@ -299,6 +300,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
             .put("quote_text", message.quote.ifBlank { null } ?: JSONObject.NULL)
             .put("gem_uuid", message.gemUuid.ifBlank { null } ?: JSONObject.NULL)
             .put("gem_name", message.gemName.ifBlank { null } ?: JSONObject.NULL)
+            .put("prompt_options", message.promptOptions ?: JSONObject.NULL)
             .put("tokens_in", message.tokensIn ?: JSONObject.NULL).put("tokens_out", message.tokensOut ?: JSONObject.NULL)
             .put("tokens_thought", message.tokensThought ?: JSONObject.NULL)
             .put("tokens", listOfNotNull(message.tokensIn, message.tokensOut).takeIf { it.isNotEmpty() }?.sum() ?: JSONObject.NULL)

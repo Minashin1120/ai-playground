@@ -391,7 +391,7 @@
                 frame.appendChild(svg);
             });
         }
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null, batchInfo = null) {
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null, batchInfo = null, maskImageUrl = null) {
             const isUser = role === 'user';
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
             const align = isUser ? 'justify-end' : 'justify-start';
@@ -418,6 +418,7 @@
                 parent_id: parentId,
                 quote_text: quoteText,
                 image_url: imgUrl,
+                image_mask: maskImageUrl,
                 gem_name: gemName,
                 batch_job: batchInfo,
                 python_executions: isUser ? [] : (pythonExtract.executions || [])
@@ -474,6 +475,18 @@
                         }
                     }
                 } catch(e){}
+            }
+
+            let maskAt = '';
+            if (isUser && maskImageUrl) {
+                try {
+                    const path = normalizeAttachmentPath(maskImageUrl) || String(maskImageUrl);
+                    const displayPath = path.replace(/^\d+\//, '');
+                    const url = buildFileUrl(displayPath);
+                    const previewUrl = buildAttachmentPreviewUrl(displayPath);
+                    const filename = path.split('/').pop();
+                    maskAt = `<div class="mt-2 max-w-xs rounded-lg border border-amber-300/40 bg-black/10 p-2"><div class="mb-1 text-[10px] font-semibold text-amber-100"><i class="fas fa-mask mr-1" aria-hidden="true"></i>マスク画像（削除範囲）</div>${buildChatImageHtml(previewUrl, { viewerSrc: url, alt: 'Object Remover mask', title: 'マスク画像（削除範囲）', filename })}</div>`;
+                } catch (e) {}
             }
 
             const regenBtn = !isUser ? `<button class="ctrl-btn" onclick="regenerateMessage('${id}')"><i class="fas fa-rotate-right"></i></button>` : '';
@@ -563,7 +576,7 @@
             const msgEl = document.createElement('div');
             msgEl.className = `flex ${align} mb-4 ${fadeClass} relative message-group group`;
             msgEl.id = `msg-${id}`;
-            msgEl.innerHTML = `<div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${qh}${th}${contentHtml}${at}${versionSwitcher}${mHtml}</div>`;
+            msgEl.innerHTML = `<div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${qh}${th}${contentHtml}${at}${maskAt}${versionSwitcher}${mHtml}</div>`;
 
             const container = target || get('chat-container');
             if (container) {

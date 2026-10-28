@@ -37,7 +37,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/TokenEstimateBreakdown.kt` | 詳細を開いたときの本文・引用・添付の増分計測と結合時の差の算出 | 端末内の入力トークン見積の内訳を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PromptTokenEstimateDialog.kt` | 入力見積の詳細（開いた時点の入力、計測方法、本文・引用・添付ごとの内訳、再試行） | 入力見積をタップしたときの詳細画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/AttachmentTokenEstimator.kt` | 入力見積の添付トークン計算（Geminiの画像・PDF・音声・動画、テキスト抽出） | 端末内の添付トークン計算を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/local/` | 端末内プロファイル：チャット・添付の暗号化保存とサーバー不使用モードの送信待ち（`LocalChatStore.kt`）、設定・Gem・APIキー（`LocalSettingsStore.kt`）、プロファイルの切り替え（`LocalProfiles.kt`）、サーバーと同じ形で応答する窓口（`LocalChatBackend.kt`）、回答の生成に使うサーバーの履歴・添付の読み込み（`ServerHistory.kt`） | アカウントなし利用・サーバー不使用モードの保存や応答を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/local/` | 端末内プロファイル：チャット・添付・プロンプト設定とマスク参照の暗号化保存、サーバー不使用モードの送信待ち（`LocalChatStore.kt`）、設定・Gem・APIキー（`LocalSettingsStore.kt`）、プロファイルの切り替え（`LocalProfiles.kt`）、サーバーと同じ形で応答する窓口（`LocalChatBackend.kt`）、回答の生成に使うサーバーの履歴・添付の読み込み（`ServerHistory.kt`） | アカウントなし利用・サーバー不使用モードの保存や応答を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/sync/SyncEngine.kt` | サーバー不使用モードの送信待ちの保存（添付の先行アップロード、メッセージの送信、新しいチャットのタイトル、旧版の削除の反映） | 回答をアカウントへ送る手順・失敗時の扱いを変更するとき |
 | `app/src/main/assets/serverless-defaults.json`, `ci/sync-serverless-defaults.py` | サーバーから生成したモデル一覧・自動注入プロンプト・Coding Mode指示（`--check` で差分検査） | サーバーのモデル一覧や自動注入プロンプトを変えたとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ServerlessSettings.kt` | 設定の「接続」カード（サーバー不使用モード、アカウントなしの説明とサーバーへのログイン） | 接続モードの設定画面を変更するとき |
@@ -135,7 +135,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/HtmlCodePreviewDialog.kt`, `app/src/main/assets/html-preview-security.js` | HTMLコードブロックのプレビュー（専用URLから読み込む隔離したWebView、Webと共通の危険スクリプト除去） | HTMLプレビューの表示・安全対策を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | Webの `marked`（GFM・`breaks`）と `pre-wrap` 表示を再現するMarkdown（リスト、引用、表、コード、`chat_error`、色分け、インラインコード）、回答中の生HTML（`<details>`・表を含む）とSVG | メッセージ本文表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InlineAudioPlayer.kt` | 回答内の `<audio controls src>`（TTS・音楽・Lyriaの出力）を再生するインラインプレーヤー（初回タップで取得、再生・シーク・再生速度の切り替え。Web版の専用プレーヤーと同じ見た目）と、画面が渡す添付ダウンローダー `LocalAttachmentDownloader` | 回答内の音声の再生を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/MessageBubble.kt` | Webの `.message-bubble`（吹き出し、タップで出る操作ボタン、引用、Thinking、添付グリッド、分岐切替、フッター）、合計トークン帯、トークン詳細・暗号化モーダル、Welcome、一番下へ | メッセージの見た目を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MessageBubble.kt` | Webの `.message-bubble`（吹き出し、タップで出る操作ボタン、引用、Thinking、添付グリッドとObject Removerマスク画像、分岐切替、フッター）、合計トークン帯、トークン詳細・暗号化モーダル、Welcome、一番下へ | メッセージの見た目を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MathJaxRenderer.kt` | 同梱MathJaxを画面に出さないWebViewで動かしてTeXをSVGへ組版、キャッシュ、文中・独立行の数式の配置と描画 | 数式の組版・配置を編集するとき |
 | `app/src/main/assets/mathjax/` | MathJax 3.2.2（`tex-svg.js`、TeX拡張、`LICENSE`）と実行用の `host.html` | MathJaxの版や設定を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LatexText.kt` | LaTeXの読みやすい近似（MathJaxの読み込み中・組版できない式・コピー時の文字） | 近似表示を編集するとき |

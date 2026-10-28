@@ -557,7 +557,9 @@ class LocalChatBackend(
             parentId = if (chat.serverId != null && parent != null && !onServerParent) parent - LocalChatStore.PENDING_ID_BASE
                 else if (chat.serverId == null) parent else null,
             parentServerId = if (onServerParent) parent else null,
-            model = model, files = files, quote = quote, gemUuid = gemUuid, gemName = gemName))
+            model = model, files = files, quote = quote, gemUuid = gemUuid, gemName = gemName,
+            promptOptions = body.optString("image_mask").takeIf { it.isNotBlank() && it != "null" }
+                ?.let { JSONObject().put("image_mask", it) }))
         // Server `chat_stream`: the first message names a new chat.
         val title = chat.settings.optString("title")
         val newTitle = if (title == "New Chat" && message.isNotBlank()) {

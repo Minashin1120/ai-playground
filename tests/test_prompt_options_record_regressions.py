@@ -1,4 +1,4 @@
-"""Regression tests: prompt-bar settings are recorded per user prompt (Message.prompt_options)."""
+"""Regression tests: prompt settings and an optional mask reference are stored per user prompt."""
 import json
 import unittest
 
@@ -35,7 +35,7 @@ class PromptOptionsRecordTests(unittest.TestCase):
             "ideogram_negative_prompt": "secret",
             "xai_stop": "secret",
             "message": "secret",
-            "image_mask": "secret",
+            "image_mask": "uploads/object_mask.png",
             "image_urls": ["a"],
             "coding_candidates": [{"code": "secret"}],
         }, {"browser_fast_mode": False, "batch_mode": True}))
@@ -45,6 +45,7 @@ class PromptOptionsRecordTests(unittest.TestCase):
             "thinking_level": "high",
             "thinking_budget": "4096",
             "canvas_mode": True,
+            "image_mask": "uploads/object_mask.png",
             "browser_fast_mode": False,
             "batch_mode": True,
         })
@@ -57,6 +58,9 @@ class PromptOptionsRecordTests(unittest.TestCase):
         self.assertIsNone(build({"enable_search": [1], "safety_setting": {"a": 1}}))
         self.assertEqual(
             json.loads(build({"ocr_pages": "9" * 500}))["ocr_pages"], "9" * 80
+        )
+        self.assertEqual(
+            json.loads(build({"image_mask": "m" * 700}))["image_mask"], "m" * 512
         )
         forced = json.loads(build({"enable_search": "ignored-by-override"}, {"enable_search": False}))
         self.assertIs(forced["enable_search"], False)

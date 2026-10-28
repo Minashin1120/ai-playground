@@ -371,7 +371,8 @@
                     false,
                     m.parent_id,
                     m.gem_name,
-                    m.batch_job
+                    m.batch_job,
+                    m.prompt_options && typeof m.prompt_options === 'object' ? m.prompt_options.image_mask : null
                 );
             });
             const pending = currentThreadPending;

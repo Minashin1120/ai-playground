@@ -390,6 +390,8 @@
             const msg = allMessages.find(m => m.id == id);
             const meta = messageMeta[id] || {};
             restorePromptOptionsForEdit(msg);
+            currentMaskImage = (msg && msg.prompt_options && msg.prompt_options.image_mask) || meta.image_mask || null;
+            updateMaskPreview();
 
             // Set parent_id for branching
             if (msg) {

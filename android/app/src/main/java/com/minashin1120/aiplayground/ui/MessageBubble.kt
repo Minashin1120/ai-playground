@@ -194,6 +194,7 @@ internal fun MessageBubble(
                 }
                 liveBottom?.invoke()
                 val files = message.files.filterNot { !user && message.content.contains(it) }
+                val maskImage = if (user) message.promptOptions?.optString("image_mask").orEmpty() else ""
                 // An answer's audio file plays in place (ANDROID_ONLY §2); `.webm` may be video, so it stays a card.
                 val (audio, others) = if (user) emptyList<String>() to files
                     else files.partition { isAudioPath(it) && !isVideoPath(it) && it !in message.missingFiles }
@@ -202,6 +203,7 @@ internal fun MessageBubble(
                     else others.partition { isVideoPath(it) && it !in message.missingFiles }
                 videos.forEach { InlineVideoPlayer(it, onFile) }
                 if (cards.isNotEmpty()) AttachmentGrid(cards, loader, onFile, message.missingFiles)
+                if (maskImage.isNotBlank()) MaskAttachmentPreview(maskImage, loader, onFile)
                 if (branchCount > 1) VersionSwitcher(branchIndex, branchCount, actions.onSwitchBranch)
                 MessageFooter(message, user, actions, pythonRuns)
               } }
@@ -230,6 +232,18 @@ internal fun MessageBubble(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MaskAttachmentPreview(file: String, loader: FileBytesLoader?, onFile: (String) -> Unit) {
+    val web = LocalWebPalette.current
+    Column(Modifier.padding(top = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            FaIcon(R.drawable.fa_solid_mask, null, size = 11.dp, tint = web.twText(Tw.amber200))
+            Text("マスク画像（削除範囲）", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = web.twText(Tw.amber200))
+        }
+        AttachmentGrid(listOf(file), loader, onFile)
     }
 }
 

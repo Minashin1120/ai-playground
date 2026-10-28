@@ -5637,6 +5637,8 @@
             const msg = allMessages.find(m => m.id == id);
             const meta = messageMeta[id] || {};
             restorePromptOptionsForEdit(msg);
+            currentMaskImage = (msg && msg.prompt_options && msg.prompt_options.image_mask) || meta.image_mask || null;
+            updateMaskPreview();
 
             // Set parent_id for branching
             if (msg) {
@@ -20575,7 +20577,7 @@
                 frame.appendChild(svg);
             });
         }
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null, batchInfo = null) {
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null, batchInfo = null, maskImageUrl = null) {
             const isUser = role === 'user';
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
             const align = isUser ? 'justify-end' : 'justify-start';
@@ -20602,6 +20604,7 @@
                 parent_id: parentId,
                 quote_text: quoteText,
                 image_url: imgUrl,
+                image_mask: maskImageUrl,
                 gem_name: gemName,
                 batch_job: batchInfo,
                 python_executions: isUser ? [] : (pythonExtract.executions || [])
@@ -20658,6 +20661,18 @@
                         }
                     }
                 } catch(e){}
+            }
+
+            let maskAt = '';
+            if (isUser && maskImageUrl) {
+                try {
+                    const path = normalizeAttachmentPath(maskImageUrl) || String(maskImageUrl);
+                    const displayPath = path.replace(/^\d+\//, '');
+                    const url = buildFileUrl(displayPath);
+                    const previewUrl = buildAttachmentPreviewUrl(displayPath);
+                    const filename = path.split('/').pop();
+                    maskAt = `<div class="mt-2 max-w-xs rounded-lg border border-amber-300/40 bg-black/10 p-2"><div class="mb-1 text-[10px] font-semibold text-amber-100"><i class="fas fa-mask mr-1" aria-hidden="true"></i>マスク画像（削除範囲）</div>${buildChatImageHtml(previewUrl, { viewerSrc: url, alt: 'Object Remover mask', title: 'マスク画像（削除範囲）', filename })}</div>`;
+                } catch (e) {}
             }
 
             const regenBtn = !isUser ? `<button class="ctrl-btn" onclick="regenerateMessage('${id}')"><i class="fas fa-rotate-right"></i></button>` : '';
@@ -20747,7 +20762,7 @@
             const msgEl = document.createElement('div');
             msgEl.className = `flex ${align} mb-4 ${fadeClass} relative message-group group`;
             msgEl.id = `msg-${id}`;
-            msgEl.innerHTML = `<div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${qh}${th}${contentHtml}${at}${versionSwitcher}${mHtml}</div>`;
+            msgEl.innerHTML = `<div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${qh}${th}${contentHtml}${at}${maskAt}${versionSwitcher}${mHtml}</div>`;
 
             const container = target || get('chat-container');
             if (container) {
@@ -22479,7 +22494,8 @@
 
             // Render UI immediately to reduce perceived latency.
             const optimisticUserId = Date.now();
-            const optimisticUserMessageEl = renderMessage(optimisticUserId, 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, true, currentQuote, null, null, null, null, null, null, null, true, capturedParentId, activeGem ? activeGem.name : null);
+            const maskImageToSend = (isGptImageModel() || ideogramObjectRemoval) ? currentMaskImage : null;
+            const optimisticUserMessageEl = renderMessage(optimisticUserId, 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, true, currentQuote, null, null, null, null, null, null, null, true, capturedParentId, activeGem ? activeGem.name : null, null, maskImageToSend);
 
             let disableAutoSearch = false;
             const xLinkPattern = /(https?:\/\/)?(x\.com|twitter\.com)\//i;
@@ -22564,7 +22580,7 @@
                 image_quality: isGptImageModel() && get('gpt-image-quality') ? get('gpt-image-quality').value : null,
                 image_format: isGptImageModel() && get('gpt-image-format') ? get('gpt-image-format').value : null,
                 image_compression: isGptImageModel() && get('gpt-image-compression') ? get('gpt-image-compression').value : null,
-                image_mask: (isGptImageModel() || ideogramObjectRemoval) ? currentMaskImage : null,
+                image_mask: maskImageToSend,
                 gemini_image_aspect: isGeminiImageModel() && get('gemini-image-aspect') ? get('gemini-image-aspect').value : null,
                 gemini_image_size: isGeminiImageModel() && get('gemini-image-size') ? get('gemini-image-size').value : null,
                 grok_image_aspect: isGrokImageModel() && get('grok-image-aspect') ? get('grok-image-aspect').value : null,
@@ -24189,7 +24205,8 @@
                     false,
                     m.parent_id,
                     m.gem_name,
-                    m.batch_job
+                    m.batch_job,
+                    m.prompt_options && typeof m.prompt_options === 'object' ? m.prompt_options.image_mask : null
                 );
             });
             const pending = currentThreadPending;

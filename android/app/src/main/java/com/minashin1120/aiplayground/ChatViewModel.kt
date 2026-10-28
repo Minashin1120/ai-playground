@@ -2628,6 +2628,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             if (options?.has(key) == true && !options.isNull(key)) options.optBoolean(key) else current
         return copy(
             model = modelId,
+            imageMask = options?.optString("image_mask")?.takeIf { it.isNotBlank() },
             enableSearch = savedBoolean("enable_search", enableSearch),
             enableUrlContext = savedBoolean("enable_url_context", enableUrlContext),
             enableMaps = savedBoolean("enable_maps", enableMaps),
@@ -3228,7 +3229,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val userId = "local-${body.getString("client_request_id")}"
                 mutable.update { it.copy(messages = it.messages.filterNot { m -> m.id == userId } + ChatMessage(userId, "user",
                     body.getString("message"), files = submission.files.map { a -> a.reference },
-                    quote = body.optString("quote_text"), gemName = it.selectedGem?.name.orEmpty())) }
+                    quote = body.optString("quote_text"), gemName = it.selectedGem?.name.orEmpty(),
+                    promptOptions = submission.mask?.let { mask -> JSONObject().put("image_mask", mask) })) }
                 val threadId = id
                 val onEvent: (JSONObject) -> Unit = { event ->
                     val type = event.optString("type")

@@ -580,7 +580,8 @@
 
             // Render UI immediately to reduce perceived latency.
             const optimisticUserId = Date.now();
-            const optimisticUserMessageEl = renderMessage(optimisticUserId, 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, true, currentQuote, null, null, null, null, null, null, null, true, capturedParentId, activeGem ? activeGem.name : null);
+            const maskImageToSend = (isGptImageModel() || ideogramObjectRemoval) ? currentMaskImage : null;
+            const optimisticUserMessageEl = renderMessage(optimisticUserId, 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, true, currentQuote, null, null, null, null, null, null, null, true, capturedParentId, activeGem ? activeGem.name : null, null, maskImageToSend);
 
             let disableAutoSearch = false;
             const xLinkPattern = /(https?:\/\/)?(x\.com|twitter\.com)\//i;
@@ -665,7 +666,7 @@
                 image_quality: isGptImageModel() && get('gpt-image-quality') ? get('gpt-image-quality').value : null,
                 image_format: isGptImageModel() && get('gpt-image-format') ? get('gpt-image-format').value : null,
                 image_compression: isGptImageModel() && get('gpt-image-compression') ? get('gpt-image-compression').value : null,
-                image_mask: (isGptImageModel() || ideogramObjectRemoval) ? currentMaskImage : null,
+                image_mask: maskImageToSend,
                 gemini_image_aspect: isGeminiImageModel() && get('gemini-image-aspect') ? get('gemini-image-aspect').value : null,
                 gemini_image_size: isGeminiImageModel() && get('gemini-image-size') ? get('gemini-image-size').value : null,
                 grok_image_aspect: isGrokImageModel() && get('grok-image-aspect') ? get('grok-image-aspect').value : null,

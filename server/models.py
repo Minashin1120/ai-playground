@@ -175,7 +175,7 @@ class Message(db.Model):
     thought_signature = db.Column(MESSAGE_PAYLOAD_TEXT, nullable=True)
     gem_uuid = db.Column(db.String(36), nullable=True)
     gem_name = db.Column(db.String(100), nullable=True)
-    # 送信時のプロンプトバー設定（JSON。ユーザー発言のみ。E2EEでも暗号化しない設定値だけを保存する）
+    # 送信時のプロンプト設定と添付参照（JSON。ユーザー発言のみ。本文・画像そのものではなく設定とファイル参照を保存する）
     prompt_options = db.Column(db.Text, nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('message.id'), nullable=True)
     children = db.relationship('Message', backref=db.backref('parent', remote_side=[id]), lazy=True)

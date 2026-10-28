@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.util.ArrayDeque
@@ -174,6 +175,8 @@ internal fun ImageMarkerEditor(
     var attachOriginal by remember { mutableStateOf(attachment.attachOriginal) }
     var pickingColor by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
+    var filling by remember { mutableStateOf(false) }
+    val editorScope = rememberCoroutineScope()
     val history = remember { mutableStateListOf<MarkerOp>() }
     // Web keeps 40 snapshots: edits older than the last 39 can no longer be undone.
     var undoFloor by remember { mutableIntStateOf(0) }
@@ -256,10 +259,10 @@ internal fun ImageMarkerEditor(
             val brushPx = brushSize * density
             Box(
                 Modifier.fillMaxWidth().height(with(LocalDensity.current) { stageH.toDp() })
-                    .pointerInput(mode, maskMode, autoFill, autoFillTolerance, brushPx, colorHex, opacityPct, canvasW, canvasH, rotation, viewFit) {
+                    .pointerInput(mode, maskMode, autoFill, autoFillTolerance, filling, brushPx, colorHex, opacityPct, canvasW, canvasH, rotation, viewFit) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
-                            if (saving) return@awaitEachGesture
+                            if (saving || filling) return@awaitEachGesture
                             var pinching = false
                             var cropMode = "move"
                             var cropStart: MarkerRect? = null
@@ -305,11 +308,18 @@ internal fun ImageMarkerEditor(
                             if (!pinching && startInsideImage) when (mode) {
                                 MarkerMode.DRAW -> if (maskMode && autoFill && autoPoint != null) {
                                     val point = checkNotNull(autoPoint)
-                                    val spans = withContext(Dispatchers.Default) {
-                                        findSimilarColorSpans(base, point.x.toInt(), point.y.toInt(), autoFillTolerance.toInt())
+                                    editorScope.launch {
+                                        filling = true
+                                        try {
+                                            val spans = withContext(Dispatchers.Default) {
+                                                findSimilarColorSpans(base, point.x.toInt(), point.y.toInt(), autoFillTolerance.toInt())
+                                            }
+                                            if (spans == null) onError("範囲が複雑です。許容差を下げてください")
+                                            else if (spans.isNotEmpty()) push(MarkerOp.FillOp(spans))
+                                        } finally {
+                                            filling = false
+                                        }
                                     }
-                                    if (spans == null) onError("範囲が複雑です。許容差を下げてください")
-                                    else if (spans.isNotEmpty()) push(MarkerOp.FillOp(spans))
                                 } else if (livePoints.isNotEmpty()) {
                                     val strokeColor = if (maskMode) Color.White else colorOf(colorHex, (opacityPct / 100).toFloat())
                                     push(MarkerOp.StrokeOp(livePoints.toList(), brushPx, strokeColor))
@@ -363,23 +373,23 @@ internal fun ImageMarkerEditor(
             onResetView = resetView,
             onResetCrop = { canvasSize?.let { (w, h) -> cropRect = MarkerRect(0f, 0f, w.toFloat(), h.toFloat()) } },
             onUndo = {
-                if (!saving && history.size > undoFloor) {
+                if (!saving && !filling && history.size > undoFloor) {
                     if (history.removeAt(history.lastIndex) is MarkerOp.RotateOp) resetView()
                 }
             },
             onRotate = { turns ->
-                if (!saving && image != null) {
+                if (!saving && !filling && image != null) {
                     push(MarkerOp.RotateOp(turns))
                     resetView()
                     ActivityLog.log("change", "control" to "marker-modal", "marker" to true)
                 }
             },
-            onClear = { if (!saving) push(MarkerOp.ClearOp) },
-            saving = saving,
+            onClear = { if (!saving && !filling) push(MarkerOp.ClearOp) },
+            saving = saving || filling,
             onSave = save@{
                 val original = image ?: return@save
                 val edited = canvasSize ?: return@save
-                if (saving) return@save
+                if (saving || filling) return@save
                 saving = true
                 val ops = history.toList()
                 if (maskMode && ops.drop(ops.indexOfLast { it == MarkerOp.ClearOp } + 1).none { it is MarkerOp.StrokeOp || it is MarkerOp.FillOp }) {

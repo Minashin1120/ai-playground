@@ -292,7 +292,7 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
         canvas = OptionRule(dimmed = chipDim),
         coding = OptionRule(dimmed = chipDim),
         batch = OptionRule(visible = isBatchModelKey(model), disabled = !isBatchModelKey(model)),
-        mask = model.contains("gpt-image"),
+        mask = model.contains("gpt-image") || isIdeogramModelKey(model),
         effortAsThinking = effortAsThinking,
     )
 }

@@ -77,6 +77,7 @@ import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ComposerRules
 import com.minashin1120.aiplayground.data.OptionRule
 import com.minashin1120.aiplayground.data.isIdeogramBackgroundRemoval
+import com.minashin1120.aiplayground.data.isIdeogramObjectRemoval
 import com.minashin1120.aiplayground.data.SlashCommand
 import com.minashin1120.aiplayground.data.SLASH_COMMANDS
 import com.minashin1120.aiplayground.data.slashPaletteFilter
@@ -986,7 +987,7 @@ private fun InputRow(
         if (!minimal) {
             ToolButton(R.drawable.fa_solid_paste, "リッチ貼り付け → PDF化", toolSize, toolShape, onClick = onRichPaste,
                 tint = Color(0xFFFBBF24), plain = true)
-            if (rules.mask) ToolButton(R.drawable.fa_solid_mask, "Mask (GPT-Image)", toolSize, toolShape, onClick = onMask,
+            if (rules.mask && (isGptImageModel(state.model) || isIdeogramObjectRemoval(state.model, state.generationValues))) ToolButton(R.drawable.fa_solid_mask, "Mask", toolSize, toolShape, onClick = onMask,
                 enabled = !uploadActive, tint = Color(0xFFA9B5C7))
             ToolButton(R.drawable.fa_solid_microphone, "Voice Input", toolSize, toolShape, onClick = onVoice, enabled = !uploadActive,
                 active = state.micMode == "recording")
@@ -1052,8 +1053,10 @@ private fun PromptField(
     val enterToSend = state.preferences?.enterToSend == true
     val pendingCommand = state.pendingSlashCommand?.let { id -> SLASH_COMMANDS.firstOrNull { it.id == id } }
     val removeBackground = isIdeogramBackgroundRemoval(state.model, state.generationValues)
+    val removeObject = isIdeogramObjectRemoval(state.model, state.generationValues)
     val placeholder = when {
         removeBackground -> "背景削除は指示文不要です。送信ボタンで実行"
+        removeObject -> "Object Remover は画像とマスクが必要です。送信ボタンで実行"
         pendingCommand != null -> pendingCommand.argumentHint.ifBlank { "設定変更の指示を入力（例: デフォルトモデルをgemini-2.5-flashに変更）..." }
         state.editingMessageId != null -> "編集中... (Enter送信は設定に従います)"
         enterToSend -> "Enter で送信 (Shift+Enter で改行)"
@@ -1071,10 +1074,11 @@ private fun PromptField(
         snapshotFlow { field.text.toString() }.collect { if (it != model.state.value.draft) model.draft(it) }
     }
     val backgroundField = remember { TextFieldState() }
-    val displayedField = if (removeBackground) backgroundField else field
+    val removeAction = removeBackground || removeObject
+    val displayedField = if (removeAction) backgroundField else field
     BasicTextField(
         state = displayedField,
-        enabled = !removeBackground,
+        enabled = !removeAction,
         // Pushes each typed edit before the next frame so an older draft never overwrites newer input.
         inputTransformation = remember(model) { InputTransformation { model.draft(asCharSequence().toString()) } },
         textStyle = style,

@@ -88,8 +88,14 @@ fun isGrokVideoModel(m: String) = m.contains("grok") && m.contains("video")
 fun isIdeogramModel(m: String) = m.startsWith("ideogram-")
 fun isIdeogramBackgroundRemoval(model: String, values: Map<String, String>) =
     isIdeogramModel(model) && values["ideogram_operation"] == "remove_background"
+fun isIdeogramObjectRemoval(model: String, values: Map<String, String>) =
+    isIdeogramModel(model) && values["ideogram_operation"] == "remove_object"
 fun ideogramPromptForSend(model: String, values: Map<String, String>, draft: String) =
-    if (isIdeogramBackgroundRemoval(model, values)) "背景を削除" else draft
+    when {
+        isIdeogramBackgroundRemoval(model, values) -> "背景を削除"
+        isIdeogramObjectRemoval(model, values) -> "オブジェクトを削除"
+        else -> draft
+    }
 
 /** Web `ideogramModelTraits`: which Ideogram panel fields a model takes. */
 data class IdeogramTraits(
@@ -167,19 +173,22 @@ fun generationPanels(modelId: String, values: Map<String, String> = emptyMap()):
     if (isIdeogramModel(m)) {
         val traits = ideogramTraits(m)
         val removeBackground = values["ideogram_operation"] == "remove_background"
+        val removeObject = values["ideogram_operation"] == "remove_object"
+        val removeAction = removeBackground || removeObject
         add(GenPanel("ideogram-image", listOf(
-            select("ideogram_operation", "操作", "generate", "generate" to "生成・編集", "remove_background" to "背景を削除"),
-            number("ideogram_count", "Count", "1", 1.0, 8.0, width = 48, hidden = removeBackground),
+            select("ideogram_operation", "操作", "generate", "generate" to "生成・編集", "remove_background" to "背景を削除", "remove_object" to "Object Remover"),
+            number("ideogram_count", "Count", "1", 1.0, 8.0, width = 48, hidden = removeAction),
             select("ideogram_aspect", "Aspect", "auto", "auto" to "Auto", "1:1" to "1:1 (Square)", "4:5" to "4:5", "5:4" to "5:4", "3:4" to "3:4", "4:3" to "4:3",
-                "2:3" to "2:3", "3:2" to "3:2", "9:16" to "9:16 (Portrait)", "16:9" to "16:9 (Landscape)", *plain("10:16", "16:10", "1:2", "2:1", "1:3", "3:1"), hidden = removeBackground),
-            select("ideogram_resolution", "Res", "1k", "1k" to "1K", "2k" to "2K", hidden = removeBackground || !traits.resolution),
-            select("ideogram_quality", "Quality", "", "" to "Auto", "very_low" to "Very low", "low" to "Low", "medium" to "Medium", "high" to "High", hidden = removeBackground || !traits.quality),
-            select("ideogram_speed", "Speed", "default", "default" to "Default", "turbo" to "Turbo", "quality" to "Quality", hidden = removeBackground || !traits.speed),
-            select("ideogram_magic_prompt", "Magic", "auto", "auto" to "Auto", "on" to "On", "off" to "Off", hidden = removeBackground),
-            select("ideogram_style_type", "Style", "auto", *traits.styleOptions.map { option -> option to (if (option == "auto") "Auto" else option) }.toTypedArray(), hidden = removeBackground || !traits.style),
-            GenField("ideogram_negative_prompt", "Negative", GenField.Kind.Text, placeholder = "除外したい要素", width = 160, hidden = removeBackground || !traits.negative),
+                "2:3" to "2:3", "3:2" to "3:2", "9:16" to "9:16 (Portrait)", "16:9" to "16:9 (Landscape)", *plain("10:16", "16:10", "1:2", "2:1", "1:3", "3:1"), hidden = removeAction),
+            select("ideogram_resolution", "Res", "1k", "1k" to "1K", "2k" to "2K", hidden = removeAction || !traits.resolution),
+            select("ideogram_quality", "Quality", "", "" to "Auto", "very_low" to "Very low", "low" to "Low", "medium" to "Medium", "high" to "High", hidden = removeAction || !traits.quality),
+            select("ideogram_speed", "Speed", "default", "default" to "Default", "turbo" to "Turbo", "quality" to "Quality", hidden = removeAction || !traits.speed),
+            select("ideogram_magic_prompt", "Magic", "auto", "auto" to "Auto", "on" to "On", "off" to "Off", hidden = removeAction),
+            select("ideogram_style_type", "Style", "auto", *traits.styleOptions.map { option -> option to (if (option == "auto") "Auto" else option) }.toTypedArray(), hidden = removeAction || !traits.style),
+            GenField("ideogram_negative_prompt", "Negative", GenField.Kind.Text, placeholder = "除外したい要素", width = 160, hidden = removeAction || !traits.negative),
             number("ideogram_seed", "Seed", "", 0.0, 2147483647.0, placeholder = "auto", width = 96, hidden = removeBackground),
-        ).map { if (removeBackground && it.key != "ideogram_operation") it.copy(sent = false) else it }, if (removeBackground) "※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は表示中のブランチの最後の画像。送信ボタンだけで実行し、透過PNGで出力"
+        ).map { if (removeAction && it.key != "ideogram_operation" && !(removeObject && it.key == "ideogram_seed")) it.copy(sent = false) else it }, if (removeBackground) "※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は表示中のブランチの最後の画像。送信ボタンだけで実行し、透過PNGで出力"
+        else if (removeObject) "※ Object Remover: 画像1枚 + 同じサイズの白黒マスク画像が必要です。マスクの白い部分を削除します"
         else if (traits.edit) "※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ"
         else "※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）"))
     }
@@ -291,8 +300,8 @@ fun imageInputLimits(model: String): Pair<String, List<String>>? {
             "最大 512MB / 会話履歴は送信しません / チャット補完・Search・Python・Canvas 非対応")
         isIdeogramModel(m) -> if (ideogramTraits(m).edit) "Ideogram 4.5 入力制限" to listOf(
             "編集する画像1枚 + 参考画像は最大4枚 / 1枚あたり25MBまで / PNG・JPEG・WEBP",
-            "画像がない場合は直前の画像を編集します / マスクには対応していません。背景を削除では画像1枚を透過PNGにします")
-        else "Ideogram 入力" to listOf("生成・編集では画像入力は Ideogram 4.5 のみ。背景を削除では全モデルで画像1枚（25MBまで / PNG・JPEG・WEBP）に対応します")
+            "画像がない場合は直前の画像を編集します。背景削除と Object Remover も利用できます")
+        else "Ideogram 入力" to listOf("生成・編集では画像入力は Ideogram 4.5 のみ。背景削除と Object Remover は全モデルで利用できます")
         m.contains("grok") -> "Grok 画像入力制限" to listOf("最大 20MiB / PNG・JPG のみ / 枚数制限なし")
         else -> null
     }

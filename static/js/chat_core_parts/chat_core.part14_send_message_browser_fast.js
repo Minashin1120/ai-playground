@@ -534,8 +534,13 @@
             );
             const t = rawText;
             const markerSysPrompt = hasMarkerHint() ? MARKER_HINT_TEXT : null;
+            const ideogramObjectRemoval = isIdeogramObjectRemoval();
             if (isGptImageModel() && currentMaskImage && imageUrlsToSend.length === 0) {
                 showToast("Mask は画像入力が必要です", "error", true);
+                return;
+            }
+            if (ideogramObjectRemoval && !currentMaskImage) {
+                showToast("Object Remover にはマスク画像が必要です", "error", true);
                 return;
             }
             const editingId = editingMessageId;
@@ -660,7 +665,7 @@
                 image_quality: isGptImageModel() && get('gpt-image-quality') ? get('gpt-image-quality').value : null,
                 image_format: isGptImageModel() && get('gpt-image-format') ? get('gpt-image-format').value : null,
                 image_compression: isGptImageModel() && get('gpt-image-compression') ? get('gpt-image-compression').value : null,
-                image_mask: isGptImageModel() ? currentMaskImage : null,
+                image_mask: (isGptImageModel() || ideogramObjectRemoval) ? currentMaskImage : null,
                 gemini_image_aspect: isGeminiImageModel() && get('gemini-image-aspect') ? get('gemini-image-aspect').value : null,
                 gemini_image_size: isGeminiImageModel() && get('gemini-image-size') ? get('gemini-image-size').value : null,
                 grok_image_aspect: isGrokImageModel() && get('grok-image-aspect') ? get('grok-image-aspect').value : null,

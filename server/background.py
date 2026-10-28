@@ -4685,7 +4685,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     # are references. Text context limits must not change the target.
                     image_history = None
                     remove_background = options.get("ideogram_operation") == "remove_background"
-                    if (ideogram_supports_edit(model_key_l) or remove_background) and (MAX_CONTEXT_MESSAGES or MAX_CONTEXT_TOKENS):
+                    remove_object = options.get("ideogram_operation") == "remove_object"
+                    if (ideogram_supports_edit(model_key_l) or remove_background or remove_object) and (MAX_CONTEXT_MESSAGES or MAX_CONTEXT_TOKENS):
                         image_history = list(reversed([
                             {"role": node.role, "image_url": node.image_url}
                             for node in _iter_chat_history_ancestors(thread_id, msg.parent_id, user_id)
@@ -4694,7 +4695,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     history_image_parts = _load_history_image_parts(
                         include_roles={"assistant"}, newest_first=True,
                         source_messages=image_history, reverse_within_message=True
-                    ) if (ideogram_supports_edit(model_key_l) or remove_background) else []
+                    ) if (ideogram_supports_edit(model_key_l) or remove_background or remove_object) else []
 
                     def _ideogram_source_entry(raw_bytes, raw_mime, raw_name):
                         entry_bytes = raw_bytes
@@ -4720,8 +4721,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         _ideogram_source_entry(hp['bytes'], hp['mime'], hp['name'])
                         for hp in history_image_parts[:1]
                     ]
-                    ideogram_sources = (current_sources or generated_sources[:1]) if remove_background else ideogram_select_sources(current_sources, generated_sources)
-                    if not ideogram_sources and (ideogram_supports_edit(model_key_l) or remove_background):
+                    ideogram_sources = (current_sources or generated_sources[:1]) if (remove_background or remove_object) else ideogram_select_sources(current_sources, generated_sources)
+                    if not ideogram_sources and (ideogram_supports_edit(model_key_l) or remove_background or remove_object):
                         fallback_images = _load_history_image_parts(
                             include_roles={"user"}, newest_first=True, source_messages=image_history
                         )
@@ -4729,8 +4730,51 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             hp = fallback_images[0]
                             ideogram_sources = [_ideogram_source_entry(hp['bytes'], hp['mime'], hp['name'])]
 
+                    if remove_object:
+                        mask_name = options.get("image_mask")
+                        if not mask_name:
+                            raise RuntimeError("Object Remover にはマスク画像が必要です。")
+                        if not ideogram_sources:
+                            raise RuntimeError("Object Remover には入力画像が必要です。")
+                        norm = os.path.normpath(str(mask_name))
+                        if norm.startswith("..") or os.path.isabs(norm) or not norm.startswith(f"{user_id}/"):
+                            raise RuntimeError("Invalid mask path.")
+                        mask_path = os.path.join(app.config['UPLOAD_FOLDER'], norm)
+                        encrypted_mask_path = mask_path + '.enc'
+                        mask_bytes = None
+                        if os.path.exists(mask_path):
+                            with open(mask_path, 'rb') as f:
+                                mask_bytes = f.read()
+                        elif os.path.exists(encrypted_mask_path):
+                            with open(encrypted_mask_path, 'rb') as f:
+                                mask_bytes = decrypt_bytes(f.read())
+                        if not mask_bytes:
+                            raise RuntimeError("Mask file not found.")
+                        try:
+                            source_info = _probe_image(ideogram_sources[0][1])
+                            mask_info = _probe_image(mask_bytes)
+                            if not source_info or not mask_info:
+                                raise ValueError("Unreadable mask or input image.")
+                            if (source_info['width'], source_info['height']) != (mask_info['width'], mask_info['height']):
+                                raise RuntimeError("マスク画像は入力画像と同じサイズにしてください。")
+                            mask_mime = mimetypes.guess_type(str(mask_name))[0]
+                            if mask_mime not in IDEOGRAM_SOURCE_MIMES:
+                                mask_bytes = _convert_image_to_png(mask_bytes)
+                                mask_mime = 'image/png' if mask_bytes else None
+                            if not mask_bytes or mask_mime not in IDEOGRAM_SOURCE_MIMES:
+                                raise ValueError("Unsupported mask image.")
+                            if len(mask_bytes) > IDEOGRAM_MAX_IMAGE_BYTES:
+                                raise RuntimeError("マスク画像は25MBまでです。")
+                            options['_ideogram_mask_image'] = (os.path.basename(str(mask_name)), mask_bytes, mask_mime)
+                        except RuntimeError:
+                            raise
+                        except Exception:
+                            raise RuntimeError("Failed to process mask file.")
+
                     if remove_background:
                         pub("status", "Ideogram API (Remove background) を呼び出し中...")
+                    elif remove_object:
+                        pub("status", "Ideogram API (Object Remover) を呼び出し中...")
                     elif ideogram_sources:
                         pub("status", "Ideogram API (Precise Edit) を呼び出し中...")
                     else:

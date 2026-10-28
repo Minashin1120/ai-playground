@@ -8605,23 +8605,28 @@
         const isIdeogramModel = (model) => isIdeogramModelKey(model != null ? model : get('model-select').value);
         const isIdeogramBackgroundRemoval = (model) => isIdeogramModel(model)
             && get('ideogram-image-operation')?.value === 'remove_background';
-        const ideogramPromptForSend = (draft) => isIdeogramBackgroundRemoval() ? '背景を削除' : draft;
+        const isIdeogramObjectRemoval = (model) => isIdeogramModel(model)
+            && get('ideogram-image-operation')?.value === 'remove_object';
+        const ideogramPromptForSend = (draft) => isIdeogramBackgroundRemoval() ? '背景を削除'
+            : isIdeogramObjectRemoval() ? 'オブジェクトを削除' : draft;
         let ideogramDisabledDraft = null;
         function updateIdeogramPromptInputUi() {
             const input = get('prompt-input');
             if (!input) return;
-            const removeBackground = isIdeogramBackgroundRemoval();
-            if (removeBackground && ideogramDisabledDraft === null) {
+            const removeAction = isIdeogramBackgroundRemoval() || isIdeogramObjectRemoval();
+            if (removeAction && ideogramDisabledDraft === null) {
                 ideogramDisabledDraft = { value: input.value, placeholder: input.placeholder };
                 input.value = '';
-            } else if (!removeBackground && ideogramDisabledDraft !== null) {
+            } else if (!removeAction && ideogramDisabledDraft !== null) {
                 input.value = ideogramDisabledDraft.value;
                 input.placeholder = ideogramDisabledDraft.placeholder;
                 ideogramDisabledDraft = null;
             }
-            input.disabled = removeBackground;
-            input.classList.toggle('opacity-50', removeBackground);
-            if (removeBackground) input.placeholder = '背景削除は指示文不要です。送信ボタンで実行';
+            input.disabled = removeAction;
+            input.classList.toggle('opacity-50', removeAction);
+            if (removeAction) input.placeholder = isIdeogramObjectRemoval()
+                ? 'Object Remover は画像とマスクが必要です。送信ボタンで実行'
+                : '背景削除は指示文不要です。送信ボタンで実行';
         }
         const IDEOGRAM_IMAGE_FIELDS = ['operation', 'count', 'aspect', 'resolution', 'quality', 'speed', 'magic', 'style', 'negative', 'seed'];
         const ideogramModelTraits = (model) => {
@@ -10473,8 +10478,10 @@
             updateIdeogramPromptInputUi();
             if (!active) return;
             const removeBackground = get('ideogram-image-operation')?.value === 'remove_background';
+            const removeObject = get('ideogram-image-operation')?.value === 'remove_object';
             IDEOGRAM_IMAGE_FIELDS.forEach((field) => {
-                const show = field === 'operation' || (!removeBackground && visibleByField[field] !== false);
+                const show = field === 'operation' || (removeObject && field === 'seed')
+                    || (!(removeBackground || removeObject) && visibleByField[field] !== false);
                 ['ideogram-image-', 'modal-ideogram-image-'].forEach((prefix) => {
                     const el = get(prefix + field);
                     if (!el || !el.parentElement) return;
@@ -10497,6 +10504,8 @@
             if (note) {
                 note.textContent = removeBackground
                     ? '※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は表示中のブランチの最後の画像。送信ボタンだけで実行し、透過PNGで出力'
+                    : removeObject
+                    ? '※ Object Remover: 画像1枚 + 同じサイズの白黒マスク画像が必要です。マスクの白い部分を削除します'
                     : traits.edit
                     ? '※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ'
                     : '※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）';
@@ -10507,6 +10516,7 @@
                 const other = get(id.startsWith('modal-') ? 'ideogram-image-operation' : 'modal-ideogram-image-operation');
                 if (other) other.value = get(id).value;
                 updateIdeogramImageUi();
+                toggleOptions();
             });
         });
         function updateGrokVideoUi() {
@@ -10663,10 +10673,10 @@
                 html = ideogramModelTraits(model).edit ? [
                     '<div class="font-bold text-gray-300 mb-1">Ideogram 4.5 入力制限</div>',
                     '<div>編集する画像1枚 + 参考画像は最大4枚 / 1枚あたり25MBまで / PNG・JPEG・WEBP</div>',
-                    '<div>画像がない場合は直前の画像を編集します / マスクには対応していません。背景を削除では画像1枚を透過PNGにします</div>'
+                    '<div>画像がない場合は直前の画像を編集します。背景削除と Object Remover も利用できます</div>'
                 ].join('') : [
                     '<div class="font-bold text-gray-300 mb-1">Ideogram 入力</div>',
-                    '<div>生成・編集では画像入力は Ideogram 4.5 のみ。背景を削除では全モデルで画像1枚（25MBまで / PNG・JPEG・WEBP）に対応します</div>'
+                    '<div>生成・編集では画像入力は Ideogram 4.5 のみ。背景削除と Object Remover は全モデルで利用できます</div>'
                 ].join('');
             } else if (model.includes('grok') && model.includes('video')) {
                 show = true;
@@ -11013,7 +11023,7 @@
                 }
                 const maskBtn = get('mask-btn');
                 if (maskBtn) {
-                    if (isGptImageModel()) {
+                    if (isGptImageModel() || isIdeogramObjectRemoval()) {
                         maskBtn.classList.remove('hidden');
                     } else {
                         maskBtn.classList.add('hidden');
@@ -22253,8 +22263,13 @@
             );
             const t = rawText;
             const markerSysPrompt = hasMarkerHint() ? MARKER_HINT_TEXT : null;
+            const ideogramObjectRemoval = isIdeogramObjectRemoval();
             if (isGptImageModel() && currentMaskImage && imageUrlsToSend.length === 0) {
                 showToast("Mask は画像入力が必要です", "error", true);
+                return;
+            }
+            if (ideogramObjectRemoval && !currentMaskImage) {
+                showToast("Object Remover にはマスク画像が必要です", "error", true);
                 return;
             }
             const editingId = editingMessageId;
@@ -22379,7 +22394,7 @@
                 image_quality: isGptImageModel() && get('gpt-image-quality') ? get('gpt-image-quality').value : null,
                 image_format: isGptImageModel() && get('gpt-image-format') ? get('gpt-image-format').value : null,
                 image_compression: isGptImageModel() && get('gpt-image-compression') ? get('gpt-image-compression').value : null,
-                image_mask: isGptImageModel() ? currentMaskImage : null,
+                image_mask: (isGptImageModel() || ideogramObjectRemoval) ? currentMaskImage : null,
                 gemini_image_aspect: isGeminiImageModel() && get('gemini-image-aspect') ? get('gemini-image-aspect').value : null,
                 gemini_image_size: isGeminiImageModel() && get('gemini-image-size') ? get('gemini-image-size').value : null,
                 grok_image_aspect: isGrokImageModel() && get('grok-image-aspect') ? get('grok-image-aspect').value : null,

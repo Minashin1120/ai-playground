@@ -1,3 +1,5 @@
+import time
+
 IDEOGRAM_API_BASE = "https://api.ideogram.ai"
 IDEOGRAM_TIMEOUT_SECONDS = 300.0
 IDEOGRAM_MAX_IMAGE_BYTES = 25 * 1024 * 1024
@@ -47,6 +49,7 @@ IDEOGRAM_MAGIC_PROMPTS = ("auto", "on", "off")
 IDEOGRAM_STYLE_TYPES_V3 = ("auto", "general", "realistic", "design", "fiction", "stylized")
 IDEOGRAM_STYLE_TYPES_V2 = ("auto", "general", "realistic", "design", "render_3d", "anime")
 IDEOGRAM_SOURCE_MIMES = ("image/png", "image/jpeg", "image/webp")
+IDEOGRAM_OBJECT_MAX_IMAGE_BYTES = 50 * 1024 * 1024
 
 
 def is_ideogram_model_key(model_key):
@@ -108,7 +111,7 @@ def ideogram_build_request(model_key, prompt, options, source_images=None):
     """Return (url, request kwargs for httpx.post, n_images, edit_mode).
 
     ``source_images`` is a list of (name, bytes, mime) already limited to PNG/JPEG/WEBP.
-    Precise Edit requires Ideogram 4.5; background removal accepts one image with any model.
+    Precise Edit requires Ideogram 4.5; background and object removal accept one image with any model.
     """
     mk = str(model_key or "").strip().lower()
     spec = IDEOGRAM_MODELS.get(mk)
@@ -125,6 +128,23 @@ def ideogram_build_request(model_key, prompt, options, source_images=None):
             raise ValueError("背景の削除には25MBまでの PNG・JPEG・WEBP 画像を指定してください。")
         return (f"{IDEOGRAM_API_BASE}/v2/image/remove-background/ideogram-1",
                 {"files": [("image", (name, blob, mime))]}, 1, True)
+    if options.get("ideogram_operation") == "remove_object":
+        if len(source_images) != 1:
+            raise ValueError("オブジェクトを削除する画像を1枚指定してください。")
+        mask_image = options.get("_ideogram_mask_image")
+        if not isinstance(mask_image, (tuple, list)) or len(mask_image) != 3:
+            raise ValueError("Object Remover には画像とマスク画像が必要です。")
+        name, blob, mime = source_images[0]
+        mask_name, mask_blob, mask_mime = mask_image
+        for label, data, data_mime in (("入力画像", blob, mime), ("マスク画像", mask_blob, mask_mime)):
+            if data_mime not in IDEOGRAM_SOURCE_MIMES or not data or len(data) > IDEOGRAM_OBJECT_MAX_IMAGE_BYTES:
+                raise ValueError(f"Object Remover の{label}には50MBまでの PNG・JPEG・WEBP 画像を指定してください。")
+        files = [("image", (name, blob, mime)), ("mask", (mask_name, mask_blob, mask_mime))]
+        seed = _ideogram_int(options.get("ideogram_seed"), 0, 2147483647)
+        if seed is not None:
+            files.append(("seed", (None, str(seed))))
+        return (f"{IDEOGRAM_API_BASE}/v2/image/remove-object/ideogram-1",
+                {"files": files}, 1, True)
     if source_images and family != "v45":
         raise ValueError("画像の編集に対応しているのは Ideogram 4.5 だけです。Ideogram 4.5 を選択するか、添付画像を外してください。")
     n_images = _ideogram_int(options.get("ideogram_count"), 1, IDEOGRAM_MAX_IMAGES) or 1
@@ -230,6 +250,29 @@ def ideogram_request(api_key, model_key, prompt, options, source_images=None):
     payload = resp.json()
     if isinstance(payload, dict) and payload.get("error"):
         raise RuntimeError(ideogram_error_message(int(payload.get("status_code") or 500), json.dumps(payload)))
+    if (options or {}).get("ideogram_operation") == "remove_object":
+        generation_id = payload.get("generation_id") if isinstance(payload, dict) else None
+        if not generation_id:
+            raise RuntimeError("Ideogram Object Remover の受付結果を読み取れませんでした。")
+        poll_url = f"{IDEOGRAM_API_BASE}/v2/generations/{generation_id}"
+        deadline = time.monotonic() + IDEOGRAM_TIMEOUT_SECONDS
+        while time.monotonic() < deadline:
+            time.sleep(min(2.0, max(0.0, deadline - time.monotonic())))
+            poll = httpx.get(poll_url, headers=headers, timeout=30.0)
+            if poll.status_code >= 400:
+                raise RuntimeError(ideogram_error_message(poll.status_code, poll.text))
+            status_payload = poll.json()
+            status = status_payload.get("status") if isinstance(status_payload, dict) else None
+            if status == "completed":
+                payload = status_payload
+                break
+            if status == "failed":
+                reason = str(status_payload.get("failure_reason") or "").strip()
+                raise RuntimeError(f"Ideogram Object Remover の処理に失敗しました。{reason}".strip())
+            if status != "pending":
+                raise RuntimeError("Ideogram Object Remover の状態を読み取れませんでした。")
+        else:
+            raise RuntimeError("Ideogram Object Remover の処理がタイムアウトしました。")
     items = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(items, list):
         raise RuntimeError("Ideogram から画像データが返されませんでした。")

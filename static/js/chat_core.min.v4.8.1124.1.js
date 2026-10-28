@@ -25,7 +25,7 @@ if(!c||c.tagName!=="IMG")return;const u=c.currentSrc||c.src||"";if(!t(u)){const 
 ".svg-code-render");if(_){_.dataset.svgState="error";return}const C=c.closest&&c.closest(".chat-imag\
 e-frame");if(C){C.dataset.chatImageState="error",C.removeAttribute("aria-busy");const T=C.querySelector(
 ".chat-image-loading"),E=T&&T.querySelector("span");E&&(E.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
-const j=T&&T.querySelector("i");j&&(j.className="fas fa-image")}return}l.stopImmediatePropagation(),
+const F=T&&T.querySelector("i");F&&(F.className="fas fa-image")}return}l.stopImmediatePropagation(),
 l.preventDefault();const f=String(u).split("?")[0],b=c.getAttribute("data-viewer-filename")||f.split(
 "/").pop(),y=o(_=>{const C=c.closest&&c.closest(".chat-image-frame");C&&(C.dataset.chatImageState="f\
 ailed",C.removeAttribute("aria-busy"));const T=i(b,!!_);try{c.replaceWith(T)}catch{}},"showWarning"),
@@ -531,11 +531,11 @@ ransparent",a.appendChild(i.content.cloneNode(!0)),document.body.appendChild(a);
 from(a.querySelectorAll("*")).slice(0,5e3)],l=[],c=new Map;let u=0;const f=o(k=>Array.from(k.childNodes||
 []).reduce((_,C)=>C&&C.nodeType===Node.TEXT_NODE?_+String(C.textContent||"").replace(/\s+/g," ").trim().
 length:_,0),"directTextLength");r.forEach(k=>{if(!k||k===a||!k.style)return;const _=window.getComputedStyle(
-k),C=f(k);if(C>0){const E=parseRichPasteCssColor(_.color);if(E&&E.a>=.5){const j=richPasteColorCss(E),
-Q=c.get(j)||{color:E,weight:0};Q.weight+=C,c.set(j,Q),u+=C}}if(!!(String(k.style.backgroundColor||"").
+k),C=f(k);if(C>0){const E=parseRichPasteCssColor(_.color);if(E&&E.a>=.5){const F=richPasteColorCss(E),
+Q=c.get(F)||{color:E,weight:0};Q.weight+=C,c.set(F,Q),u+=C}}if(!!(String(k.style.backgroundColor||"").
 trim()||String(k.style.background||"").trim())){const E=parseRichPasteCssColor(_.backgroundColor);if(E&&
-E.a>=.72){const j=String(k.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:E,weight:Math.
-max(1,j)})}}});const b=Array.from(c.values()).sort((k,_)=>_.weight-k.weight),y=b.length?b[0].color:null,
+E.a>=.72){const F=String(k.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:E,weight:Math.
+max(1,F)})}}});const b=Array.from(c.values()).sort((k,_)=>_.weight-k.weight),y=b.length?b[0].color:null,
 w=b.reduce((k,_)=>k+(richPasteColorLuminance(_.color)>=.6?_.weight:0),0);l.sort((k,_)=>_.weight-k.weight);
 let v=l.length?l[0].color:null;return v||(v=u>0&&w/u>=.55?{r:11,g:11,b:12,a:1}:t),makeRichPasteTheme(
 v,y||n)}catch{return makeRichPasteTheme(t,n)}finally{a.parentNode&&a.parentNode.removeChild(a)}},"de\
@@ -912,16 +912,16 @@ nd); font-weight: bold; }
                 </div>
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const w=new f(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),v=w.internal.pageSize.getWidth(),k=w.internal.
-pageSize.getHeight(),_=794,C=Math.floor(k/v*_),T=y.scrollHeight||y.offsetHeight;let E=0,j=!0;const Q=Math.
-ceil(T/C);let J=0;for(;E<T;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const G=Math.min(C,T-E),le=(await new Promise(($,B)=>{const q=setTimeout(()=>B(
+pageSize.getHeight(),_=794,C=Math.floor(k/v*_),T=y.scrollHeight||y.offsetHeight;let E=0,F=!0;const Q=Math.
+ceil(T/C);let G=0;for(;E<T;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
+"Aborted","AbortError");const W=Math.min(C,T-E),ce=(await new Promise(($,N)=>{const q=setTimeout(()=>N(
 new Error("PDF chunk rendering timed out")),12e4);b(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
-background,logging:!1,imageTimeout:5e3,x:0,y:E,width:_,height:G,windowWidth:_,scrollX:0,scrollY:0,signal:richPasteAbortController?
+background,logging:!1,imageTimeout:5e3,x:0,y:E,width:_,height:W,windowWidth:_,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:o(P=>{prepareRichPastePdfClone(P,c);const D=P.querySelector(
 ".pdf-root-wrapper");D&&(D.style.position="relative",D.style.left="0",D.style.top="0")},"onclone")}).
-then(P=>{clearTimeout(q),$(P)}).catch(P=>{clearTimeout(q),B(P)})})).toDataURL("image/jpeg",.95),xe=w.
-getImageProperties(le),me=Math.min(k,xe.height*v/xe.width);j||w.addPage(),w.addImage(le,"JPEG",0,0,v,
-me),j=!1,E+=G,J++;const ke=Math.min(100,15+Math.round(J/Q*85));i(ke),await new Promise($=>setTimeout(
+then(P=>{clearTimeout(q),$(P)}).catch(P=>{clearTimeout(q),N(P)})})).toDataURL("image/jpeg",.95),Le=w.
+getImageProperties(ce),me=Math.min(k,Le.height*v/Le.width);F||w.addPage(),w.addImage(ce,"JPEG",0,0,v,
+me),F=!1,E+=W,G++;const xe=Math.min(100,15+Math.round(G/Q*85));i(xe),await new Promise($=>setTimeout(
 $,100))}return i(100),{blob:w.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=o(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -2012,8 +2012,8 @@ ordKey"),l=o(w=>{const v=performance.now();if(!(v-e.lastMoveSample<80)){if(e.las
 sqrt(k*k+_*_)/(C/1e3);e.speedMax=Math.max(e.speedMax,T),e.speedSum+=T,e.speedSamples+=1}}e.lastMove=
 {x:w.clientX,y:w.clientY,t:v}}},"recordMove"),c=o(()=>{const w=Math.max(1,performance.now()-e.windowStart),
 v=e.clickTimes.length,k=e.keyTimes.length,_=e.speedSamples?e.speedSum/e.speedSamples:0;let C=0,T=1;if(e.
-clickIntervals.length>=3){const E=e.clickIntervals.reduce((Q,J)=>Q+J,0)/e.clickIntervals.length,j=e.
-clickIntervals.reduce((Q,J)=>Q+Math.pow(J-E,2),0)/e.clickIntervals.length;C=E,T=E>0?Math.sqrt(j)/E:1}
+clickIntervals.length>=3){const E=e.clickIntervals.reduce((Q,G)=>Q+G,0)/e.clickIntervals.length,F=e.
+clickIntervals.reduce((Q,G)=>Q+Math.pow(G-E,2),0)/e.clickIntervals.length;C=E,T=E>0?Math.sqrt(F)/E:1}
 return{window_ms:Math.round(w),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
 fastKeys,untrusted_input:!!e.untrustedInput,click_burst:v,key_burst:k,avg_click_ms:C,click_cv:T,event_rate:(e.
 clicks+e.keys+e.moves)/(w/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:_}},"computeStats"),u=o(
@@ -2258,8 +2258,8 @@ mx:(n.clientX+i.clientX)/2,my:(n.clientY+i.clientY)/2,x:vX,y:vY},s=null,e.preven
 touches.length!==1)return;const t=e.touches[0];if(z>1){s={startX:t.clientX,startY:t.clientY,dx:vX,dy:vY};
 return}s={startX:t.clientX,startY:t.clientY,lastX:t.clientX,dx:0,dy:0,vx:0,dir:0,active:!1,resist:!1,
 adjacent:null,lastTime:Date.now()}}o(onViewerTouchStart,"onViewerTouchStart");function onViewerTouchMove(e){
-if(e.touches.length>=2){if(!p){const E=e.touches[0],j=e.touches[1];p={d:Math.hypot(E.clientX-j.clientX,
-E.clientY-j.clientY)||1,s:z,mx:(E.clientX+j.clientX)/2,my:(E.clientY+j.clientY)/2,x:vX,y:vY},s=null}
+if(e.touches.length>=2){if(!p){const E=e.touches[0],F=e.touches[1];p={d:Math.hypot(E.clientX-F.clientX,
+E.clientY-F.clientY)||1,s:z,mx:(E.clientX+F.clientX)/2,my:(E.clientY+F.clientY)/2,x:vX,y:vY},s=null}
 const w=e.touches[0],v=e.touches[1],k=Math.hypot(w.clientX-v.clientX,w.clientY-v.clientY)||1,_=(w.clientX+
 v.clientX)/2,C=(w.clientY+v.clientY)/2;z=Math.min(6,Math.max(1,p.s*k/p.d)),z<=1.0001?(z=1,vX=0,vY=0):
 (vX=p.x+_-p.mx,vY=p.y+C-p.my);const T=get("image-viewer-img");if(!T)return;e.preventDefault(),T.style.
@@ -2897,12 +2897,16 @@ del"),isGrokImageModel=o(()=>{const e=(get("model-select").value||"").toLowerCas
 e=>String(e||"").toLowerCase().startsWith("ideogram-"),"isIdeogramModelKey"),isIdeogramModel=o(e=>isIdeogramModelKey(
 e!=null?e:get("model-select").value),"isIdeogramModel"),isIdeogramBackgroundRemoval=o(e=>{var t;return isIdeogramModel(
 e)&&((t=get("ideogram-image-operation"))==null?void 0:t.value)==="remove_background"},"isIdeogramBac\
-kgroundRemoval"),ideogramPromptForSend=o(e=>isIdeogramBackgroundRemoval()?"\u80CC\u666F\u3092\u524A\u9664":
-e,"ideogramPromptForSend");let ideogramDisabledDraft=null;function updateIdeogramPromptInputUi(){const e=get(
-"prompt-input");if(!e)return;const t=isIdeogramBackgroundRemoval();t&&ideogramDisabledDraft===null?(ideogramDisabledDraft=
-{value:e.value,placeholder:e.placeholder},e.value=""):!t&&ideogramDisabledDraft!==null&&(e.value=ideogramDisabledDraft.
-value,e.placeholder=ideogramDisabledDraft.placeholder,ideogramDisabledDraft=null),e.disabled=t,e.classList.
-toggle("opacity-50",t),t&&(e.placeholder="\u80CC\u666F\u524A\u9664\u306F\u6307\u793A\u6587\u4E0D\u8981\u3067\u3059\u3002\u9001\u4FE1\u30DC\u30BF\u30F3\u3067\u5B9F\u884C")}
+kgroundRemoval"),isIdeogramObjectRemoval=o(e=>{var t;return isIdeogramModel(e)&&((t=get("ideogram-im\
+age-operation"))==null?void 0:t.value)==="remove_object"},"isIdeogramObjectRemoval"),ideogramPromptForSend=o(
+e=>isIdeogramBackgroundRemoval()?"\u80CC\u666F\u3092\u524A\u9664":isIdeogramObjectRemoval()?"\u30AA\u30D6\u30B8\u30A7\u30AF\u30C8\u3092\
+\u524A\u9664":e,"ideogramPromptForSend");let ideogramDisabledDraft=null;function updateIdeogramPromptInputUi(){
+const e=get("prompt-input");if(!e)return;const t=isIdeogramBackgroundRemoval()||isIdeogramObjectRemoval();
+t&&ideogramDisabledDraft===null?(ideogramDisabledDraft={value:e.value,placeholder:e.placeholder},e.value=
+""):!t&&ideogramDisabledDraft!==null&&(e.value=ideogramDisabledDraft.value,e.placeholder=ideogramDisabledDraft.
+placeholder,ideogramDisabledDraft=null),e.disabled=t,e.classList.toggle("opacity-50",t),t&&(e.placeholder=
+isIdeogramObjectRemoval()?"Object Remover \u306F\u753B\u50CF\u3068\u30DE\u30B9\u30AF\u304C\u5FC5\u8981\u3067\u3059\u3002\u9001\u4FE1\u30DC\u30BF\u30F3\u3067\u5B9F\u884C":
+"\u80CC\u666F\u524A\u9664\u306F\u6307\u793A\u6587\u4E0D\u8981\u3067\u3059\u3002\u9001\u4FE1\u30DC\u30BF\u30F3\u3067\u5B9F\u884C")}
 o(updateIdeogramPromptInputUi,"updateIdeogramPromptInputUi");const IDEOGRAM_IMAGE_FIELDS=["operation",
 "count","aspect","resolution","quality","speed","magic","style","negative","seed"],ideogramModelTraits=o(
 e=>{const t=String(e||"").toLowerCase();return{edit:t==="ideogram-4.5",quality:t==="ideogram-4.5",speed:t!==
@@ -2985,7 +2989,7 @@ from(T&&T.options||[]).forEach(E=>{E.disabled=!1}),e==="gemini-2.5-flash-native-
 "Gemini 3.8 Flash Live\u306F\u56FA\u5B9A\u30EC\u30A4\u30C6\u30F3\u30B7\u306ELive API\u30E2\u30C7\u30EB\uFF08Thinking level\u975E\u5BFE\u5FDC\uFF09");else if(e===
 "gemini-3.8-live-extended-thinking"){b&&(b.textContent="Gemini 3.8 Live Extended Thinking\u306Flow / medi\
 um / high\u306E\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u63A8\u8AD6\u306B\u5BFE\u5FDC");const E=get(
-"sts-thinking-level");Array.from(E&&E.options||[]).forEach(j=>{j.disabled=j.value==="minimal"}),E&&![
+"sts-thinking-level");Array.from(E&&E.options||[]).forEach(F=>{F.disabled=F.value==="minimal"}),E&&![
 "low","medium","high"].includes(E.value)&&(E.value="medium")}e==="gemini-3.5-live-translate-preview"&&
 (v&&(v.textContent="Realtime Translation"),f&&f.classList.add("hidden"),y&&y.classList.add("hidden"),
 _&&_.classList.remove("hidden"),b&&(b.textContent="70\u4EE5\u4E0A\u306E\u8A00\u8A9E\u306B\u5BFE\u5FDC\u3059\u308B\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u97F3\u58F0\u7FFB\u8A33\uFF08Think\u975E\u5BFE\u5FDC\u30FB\u97F3\u58F0\u9078\u629E\u4E0D\u53EF\uFF09"))}

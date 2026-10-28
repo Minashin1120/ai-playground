@@ -162,8 +162,10 @@
             updateIdeogramPromptInputUi();
             if (!active) return;
             const removeBackground = get('ideogram-image-operation')?.value === 'remove_background';
+            const removeObject = get('ideogram-image-operation')?.value === 'remove_object';
             IDEOGRAM_IMAGE_FIELDS.forEach((field) => {
-                const show = field === 'operation' || (!removeBackground && visibleByField[field] !== false);
+                const show = field === 'operation' || (removeObject && field === 'seed')
+                    || (!(removeBackground || removeObject) && visibleByField[field] !== false);
                 ['ideogram-image-', 'modal-ideogram-image-'].forEach((prefix) => {
                     const el = get(prefix + field);
                     if (!el || !el.parentElement) return;
@@ -186,6 +188,8 @@
             if (note) {
                 note.textContent = removeBackground
                     ? '※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は表示中のブランチの最後の画像。送信ボタンだけで実行し、透過PNGで出力'
+                    : removeObject
+                    ? '※ Object Remover: 画像1枚 + 同じサイズの白黒マスク画像が必要です。マスクの白い部分を削除します'
                     : traits.edit
                     ? '※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ'
                     : '※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）';
@@ -196,6 +200,7 @@
                 const other = get(id.startsWith('modal-') ? 'ideogram-image-operation' : 'modal-ideogram-image-operation');
                 if (other) other.value = get(id).value;
                 updateIdeogramImageUi();
+                toggleOptions();
             });
         });
         function updateGrokVideoUi() {
@@ -352,10 +357,10 @@
                 html = ideogramModelTraits(model).edit ? [
                     '<div class="font-bold text-gray-300 mb-1">Ideogram 4.5 入力制限</div>',
                     '<div>編集する画像1枚 + 参考画像は最大4枚 / 1枚あたり25MBまで / PNG・JPEG・WEBP</div>',
-                    '<div>画像がない場合は直前の画像を編集します / マスクには対応していません。背景を削除では画像1枚を透過PNGにします</div>'
+                    '<div>画像がない場合は直前の画像を編集します。背景削除と Object Remover も利用できます</div>'
                 ].join('') : [
                     '<div class="font-bold text-gray-300 mb-1">Ideogram 入力</div>',
-                    '<div>生成・編集では画像入力は Ideogram 4.5 のみ。背景を削除では全モデルで画像1枚（25MBまで / PNG・JPEG・WEBP）に対応します</div>'
+                    '<div>生成・編集では画像入力は Ideogram 4.5 のみ。背景削除と Object Remover は全モデルで利用できます</div>'
                 ].join('');
             } else if (model.includes('grok') && model.includes('video')) {
                 show = true;
@@ -702,7 +707,7 @@
                 }
                 const maskBtn = get('mask-btn');
                 if (maskBtn) {
-                    if (isGptImageModel()) {
+                    if (isGptImageModel() || isIdeogramObjectRemoval()) {
                         maskBtn.classList.remove('hidden');
                     } else {
                         maskBtn.classList.add('hidden');

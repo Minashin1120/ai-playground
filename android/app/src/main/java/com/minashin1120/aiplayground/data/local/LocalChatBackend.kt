@@ -598,7 +598,15 @@ class LocalChatBackend(
                 "attachment_bytes" to turns.sumOf { turn -> turn.attachments.sumOf { it.bytes?.size?.toLong() ?: 0L } },
                 "ms" to elapsed(), "memory" to Diagnostics.memory())
             val streamedOutputs = mutableListOf<String>()
-            val result = route.engine.run(DirectRequest(model, apiKey, system, turns, body, saveOutput = { file ->
+            val maskReference = body.optString("image_mask").takeIf { it.isNotBlank() && it != "null" }
+            val maskImage = maskReference?.let { reference ->
+                val info = store.fileInfo(reference) ?: JSONObject()
+                store.loadFile(reference, 50L * 1024 * 1024)?.let { bytes ->
+                    DirectAttachment(info.optString("name").ifBlank { "mask.png" },
+                        info.optString("mime").ifBlank { "image/png" }, bytes)
+                }
+            }
+            val result = route.engine.run(DirectRequest(model, apiKey, system, turns, body, maskImage = maskImage, saveOutput = { file ->
                 val ref = store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong())
                 streamedOutputs += ref
                 ref

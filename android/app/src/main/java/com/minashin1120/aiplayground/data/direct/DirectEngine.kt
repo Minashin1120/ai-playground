@@ -23,6 +23,8 @@ data class DirectRequest(
     val system: String,
     val turns: List<DirectTurn>,
     val options: JSONObject,
+    /** Uploaded image mask for Ideogram Object Remover. */
+    val maskImage: DirectAttachment? = null,
     /** Saves a streamed output before exposing its reference in the live answer. */
     val saveOutput: ((DirectOutputFile) -> String)? = null,
 )

@@ -1827,7 +1827,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Web keeps each option's checkbox when the model changes; only the per-model rules force values
-     * (applied when sending). OCR turns Canvas/Coding off and non GPT-Image models drop the mask, as on Web.
+     * (applied when sending). OCR turns Canvas/Coding off; GPT Image and Ideogram Object Remover retain the mask.
      */
     fun chooseModel(model: String) {
         val info = state.value.account?.models?.firstOrNull { it.id == model && it.selectable } ?: return
@@ -1844,7 +1844,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             canvasMode = it.canvasMode && !ocr,
             codingMode = it.codingMode && !ocr,
             codingTarget = if (ocr) null else it.codingTarget,
-            imageMask = if (info.id.contains("gpt-image")) it.imageMask else null).withModelRules() }
+            imageMask = if (info.id.contains("gpt-image") || isIdeogramObjectRemoval(info.id, it.generationValues)) it.imageMask else null).withModelRules() }
         state.value.account?.let { prefs.edit().putString("model_${it.id}", model).apply() }
     }
 
@@ -2690,7 +2690,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (!preChecked && !beginSend()) return
         var current = state.value
         val removeBackground = isIdeogramBackgroundRemoval(current.model, current.generationValues)
-        if (removeBackground) {
+        val removeObject = isIdeogramObjectRemoval(current.model, current.generationValues)
+        if (removeBackground || removeObject) {
             current = current.copy(draft = ideogramPromptForSend(current.model, current.generationValues, current.draft), quote = "")
         }
         if (current.banned) return
@@ -2743,6 +2744,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val items = attachmentItemsForSend(current.attachments)
         if (current.imageMask != null && isGptImageModel(current.model) && items.isEmpty()) {
             notify("Mask は画像入力が必要です")
+            return
+        }
+        if (removeObject && current.imageMask == null) {
+            notify("Object Remover にはマスク画像が必要です")
             return
         }
         val body = JSONObject().put("model", current.model).put("message", current.draft)
@@ -2810,7 +2815,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         failed = submission
         pendingParentId = null
         // Web `resetUploadState` + `clearQuote`: the mask goes with the attachments.
-        mutable.update { it.copy(draft = if (removeBackground) it.draft else "", attachments = emptyList(), editingMessageId = null, quote = "", imageMask = null) }
+        mutable.update { it.copy(draft = if (removeBackground || removeObject) it.draft else "", attachments = emptyList(), editingMessageId = null, quote = "", imageMask = null) }
         submit(submission)
     }
     fun retry() { failed?.let { submit(it) } }

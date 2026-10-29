@@ -6,7 +6,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.unit.dp
+import com.github.takahirom.roborazzi.captureRoboImage
 import com.minashin1120.aiplayground.ChatState
 import org.junit.Assert.*
 import org.junit.Rule
@@ -51,6 +54,11 @@ class PromptSendMotionUiTest {
         render()
         rule.runOnIdle { state = state.copy(promptSendMotionId = "local-test") }
         repeat(4) { rule.mainClock.advanceTimeByFrame(); rule.waitForIdle() }
+        // Robolectric advances composition/layout independently of Android's draw pass.
+        // Exercise the actual drawWithContent/GraphicsLayer recording before checking it.
+        rule.onAllNodes(isRoot()).onFirst().captureRoboImage("build/outputs/roborazzi/prompt_send_flight.png")
+        rule.mainClock.advanceTimeByFrame()
+        rule.waitForIdle()
         rule.runOnIdle {
             assertEquals("local-test", motion.id)
             assertTrue(motion.ready)
@@ -65,6 +73,7 @@ class PromptSendMotionUiTest {
         render()
         rule.runOnIdle { state = state.copy(promptSendMotionId = "local-test") }
         repeat(4) { rule.mainClock.advanceTimeByFrame(); rule.waitForIdle() }
+        rule.onAllNodes(isRoot()).onFirst().captureRoboImage("build/outputs/roborazzi/prompt_send_cancel.png")
         rule.runOnIdle { state = state.copy(chatNavigationId = state.chatNavigationId + 1L) }
         rule.mainClock.advanceTimeByFrame()
         rule.waitForIdle()

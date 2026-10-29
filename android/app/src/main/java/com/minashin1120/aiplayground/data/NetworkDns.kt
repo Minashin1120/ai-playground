@@ -2,6 +2,9 @@ package com.minashin1120.aiplayground.data
 
 import com.minashin1120.aiplayground.BuildConfig
 import com.minashin1120.aiplayground.data.direct.DirectHttp
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import okhttp3.CookieJar
 import okhttp3.Dns
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -53,9 +56,11 @@ internal class RecoveringDns(
 internal class DnsFallbackNotice(
     private val emit: () -> Unit,
     private val now: () -> Long = { System.nanoTime() / 1_000_000 },
+    private val canShow: () -> Boolean = { true },
 ) {
     private var last: Long? = null
     @Synchronized fun show() {
+        if (!canShow()) return
         val time = now()
         if (last?.let { time - it < 30_000 } == true) return
         last = time
@@ -63,10 +68,18 @@ internal class DnsFallbackNotice(
     }
 }
 
+/** Only resumed in-app notice hosts subscribe. Background events have no replay or cooldown cost. */
+internal class DnsFallbackNotifications(now: () -> Long = { System.nanoTime() / 1_000_000 }) {
+    private val events = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    val notices = events.asSharedFlow()
+    private val limiter = DnsFallbackNotice({ events.tryEmit(Unit) }, now, { events.subscriptionCount.value > 0 })
+    fun show() = limiter.show()
+}
+
 object NetworkDns : Dns {
     const val NOTICE = "端末のDNSに失敗したため、DNS補助（Cloudflare）を使用しています。"
-    @Volatile var onFallbackNotice: () -> Unit = {}
-    private val notice = DnsFallbackNotice({ onFallbackNotice() })
+    private val notifications = DnsFallbackNotifications()
+    val notices = notifications.notices
     private val resolver by lazy {
         // A dedicated client has no credentials or cookies and cannot recursively use this resolver.
         // Bootstrap IPs keep the resolver reachable even when Android cannot resolve its hostname.
@@ -82,7 +95,7 @@ object NetworkDns : Dns {
                 InetAddress.getByName("2606:4700:4700::1111"),
                 InetAddress.getByName("2606:4700:4700::1001"),
             ).build()
-        RecoveringDns(Dns.SYSTEM, encrypted, ::allowsFallback, notice::show)
+        RecoveringDns(Dns.SYSTEM, encrypted, ::allowsFallback, notifications::show)
     }
     override fun lookup(hostname: String): List<InetAddress> = resolver.lookup(hostname)
 

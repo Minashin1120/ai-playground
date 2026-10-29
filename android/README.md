@@ -21,7 +21,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateDownloadService.kt` | ダウンロード中のフォアグラウンドサービス、進捗・完了通知、更新通知チャンネル | アプリ外でのダウンロード継続・通知を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/GenerationService.kt`, `app/src/main/java/com/minashin1120/aiplayground/data/local/GenerationTracker.kt` | 回答の生成・受信中のフォアグラウンドサービス（通知とCPUの保持）と通知チャンネル、実行中の生成の数え上げ（サーバー不使用モードで回答の保存後まで保護する画像・動画のmodeは `needsKeepAlive` で判定） | 生成中のアプリ保護・アプリを離れたときの継続・通知を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppChangelogViewModel.kt` | Android版更新履歴Markdownの取得状態・再試行 | アプリ版更新履歴の取得を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/NetworkDns.kt` | 端末DNS失敗時のCloudflare DNS over HTTPS補助、対象ドメイン制限、通知の間隔、DNSエラー文言 | 名前解決の復旧・補助通知を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/NetworkDns.kt` | 端末DNS失敗時のCloudflare DNS over HTTPS補助、対象ドメイン制限、前面画面への通知配信と間隔、DNSエラー文言 | 名前解決の復旧・補助通知を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/AppUpdateChecker.kt`, `AppUpdateDownloader.kt` | GitHub Release資産の確認、APK取得、SHA-256検証 | 更新元・資産名・ダウンロードを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/PendingFeedbackStore.kt`, `PendingFeedbackSender.kt` | 接続できないときのフィードバックと選択した添付の暗号化保存、送信済み段階の保存、自動再送 | フィードバックの送信保留・再送を変更するとき |
 | `docs/PENDING_FEEDBACK.md` | フィードバックの端末保存、再送のタイミング、添付とログの扱い | フィードバック送信保留の動作を確認するとき |
@@ -120,7 +120,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ChatInstructionsDialog.kt` | Webの `#thread-modal`（Chat Instructions：チャット専用の指示、全体プロンプトの参照、ユーザーシステムプロンプト、自動注入の簡易版） | SysPromptの⚙から開く画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundDialog.kt` | Webモーダル（オーバーレイ、ぼかし、パネル、見出し、下部）の共通枠 | 設定・Gems・ライブラリ・Batchの画面枠を調整するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InAppNoticeState.kt` | アプリ内通知の新着順・個別期限・消去状態・画面回転時の復元と表示先ウィンドウの管理 | 通知の保持・表示期限・モーダル間の引き継ぎを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/InAppNoticeHost.kt` | アプリ内通知の共通Provider、通常画面・モーダルの表示ホスト、通知を前面に出す確認ダイアログ | 通知の重なり・安全領域・表示するウィンドウを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/InAppNoticeHost.kt` | アプリ内通知の共通Provider、通常画面・モーダルの表示ホスト、DNS補助通知の前面受信、通知を前面に出す確認ダイアログ | 通知の重なり・安全領域・表示するウィンドウを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InAppNoticeBanner.kt` | 画面上部に積む通知の描画、上下スワイプ、登場・退出・位置変更の動きと読み上げ | 通知の見た目・閉じる操作・アニメーションを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundMotion.kt` | 共通の時間・イージング、アニメーション削除設定への追従、モーダルの開閉・予測型「戻る」、一覧・登場・押下の動きの部品 | 画面の動き・遷移を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AppChangelogDialog.kt` | Android版更新履歴のネイティブMarkdown表示、読み込み・再試行・戻る操作 | 更新履歴画面を編集するとき |

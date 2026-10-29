@@ -1,5 +1,11 @@
 package com.minashin1120.aiplayground.data
 
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import okhttp3.Dns
 import org.junit.Assert.*
 import org.junit.Test
@@ -59,6 +65,44 @@ class NetworkDnsTest {
         val dns = RecoveringDns(Dns { throw certificate }, Dns { error("Must not bypass TLS failure") }, { true })
         assertSame(certificate, runCatching { dns.lookup("github.com") }.exceptionOrNull())
         assertNull(dnsFailureMessage(certificate))
+    }
+
+    @Test fun backgroundNoticesAreDroppedWithoutDelayingTheNextForegroundNotice() = runBlocking {
+        var time = 0L
+        val notifications = DnsFallbackNotifications { time }
+        var received = 0
+        notifications.show() // No visible app: do not emit or consume the cooldown.
+        val visible = launch(start = CoroutineStart.UNDISPATCHED) { notifications.notices.collect { received++ } }
+        notifications.show()
+        yield()
+        assertEquals(1, received)
+        visible.cancelAndJoin()
+        time = 30_000
+        notifications.show() // Background polling may still resolve a host; it must stay silent.
+        val resumed = launch(start = CoroutineStart.UNDISPATCHED) { notifications.notices.collect { received++ } }
+        yield()
+        assertEquals(1, received) // Returning never replays background notifications.
+        notifications.show()
+        yield()
+        assertEquals(2, received)
+        resumed.cancelAndJoin()
+    }
+
+    @Test fun leavingBeforeDeliveryDoesNotQueueAnOldNoticeForTheNextWindow() = runBlocking {
+        var time = 0L
+        val notifications = DnsFallbackNotifications { time }
+        var received = 0
+        val leaving = launch(start = CoroutineStart.UNDISPATCHED) { notifications.notices.collect { received++ } }
+        notifications.show()
+        leaving.cancelAndJoin() // Cancel before the suspended UI collector runs.
+        val returned = launch(start = CoroutineStart.UNDISPATCHED) { notifications.notices.collect { received++ } }
+        yield()
+        assertEquals(0, received)
+        time = 30_000
+        notifications.show()
+        yield()
+        assertEquals(1, received)
+        returned.cancelAndJoin()
     }
 
     @Test fun repeatedOrParallelLookupsDoNotFloodNotices() {

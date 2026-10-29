@@ -14,6 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -28,6 +29,11 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import com.minashin1120.aiplayground.data.NetworkDns
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.delay
 
 internal val LocalInAppNotices = compositionLocalOf<InAppNoticeState?> { null }
@@ -39,6 +45,18 @@ private val LocalNoticeWindowLayout = compositionLocalOf { NoticeWindowLayout(0.
 @Composable
 internal fun InAppNoticeProvider(content: @Composable () -> Unit) {
     val state = rememberSaveable(saver = InAppNoticeState.Saver) { InAppNoticeState() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val accessibility = LocalAccessibilityManager.current
+    LaunchedEffect(state, lifecycle, accessibility) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            NetworkDns.notices.collect {
+                val duration = accessibility?.calculateRecommendedTimeoutMillis(
+                    NOTICE_DURATION_MILLIS, containsText = true, containsControls = true,
+                ) ?: NOTICE_DURATION_MILLIS
+                state.add(NetworkDns.NOTICE, duration)
+            }
+        }
+    }
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
     val insets = WindowInsets.safeDrawing

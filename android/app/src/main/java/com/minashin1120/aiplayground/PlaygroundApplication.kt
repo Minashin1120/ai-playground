@@ -20,12 +20,6 @@ class PlaygroundApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        com.minashin1120.aiplayground.data.NetworkDns.onFallbackNotice = {
-            android.os.Handler(mainLooper).post {
-                android.widget.Toast.makeText(this, com.minashin1120.aiplayground.data.NetworkDns.NOTICE,
-                    android.widget.Toast.LENGTH_LONG).show()
-            }
-        }
         ActivityLog.init(this)
         Diagnostics.init(this)
         useQuoteSelectionToolbar()

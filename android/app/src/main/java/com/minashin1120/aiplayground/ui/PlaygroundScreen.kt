@@ -1520,6 +1520,7 @@ private fun ConversationContent(
     val sendMotion = LocalPromptSendMotion.current
     val scope = rememberCoroutineScope()
     val keys = remember { ConversationKeyTracker() }
+    val answerMotions = remember(state.chatNavigationId) { AnswerBubbleMotions() }
     val streamActive = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty() || state.cards.isNotEmpty()
     // Web `buildChatLoadingSkeletonHtml` in `#chat-container` while an opened chat's history loads.
     val loadingThread = state.threadLoadingId != 0L && state.threadLoadingId == state.chatTransitionId && state.messages.isEmpty()
@@ -1659,7 +1660,8 @@ private fun ConversationContent(
                 val siblings = siblingGroup(state.allMessages, message)
                 val index = siblings.indexOfFirst { it.id == message.id }
                 Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
-                    StaggerIn(0, animate = entering && message.id != state.promptSendMotionId) {
+                    ConversationMessageEntry(keys.keyAt(row, message), answer = message.role == "assistant",
+                        animate = entering && message.id != state.promptSendMotionId, answers = answerMotions) {
                         // Web sends `quote_message_id`: a selection inside this bubble remembers which message it came from.
                         ProvideQuoteSelection({ quoted -> model.quoteMessage(quoted, numericId(message)) }) {
                         MessageBubble(
@@ -1689,7 +1691,7 @@ private fun ConversationContent(
                 if (live) item(key = keys.liveKey) {
                     val entering = remember { keys.consumeFresh(keys.liveKey) }
                     Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
-                        StaggerIn(0, animate = entering) {
+                        ConversationMessageEntry(keys.liveKey, answer = true, animate = entering, answers = answerMotions) {
                             LiveMessage(state, onFile, { quoted -> model.quoteMessage(quoted) }, loader, model::resolveMcpDecision)
                         }
                     }

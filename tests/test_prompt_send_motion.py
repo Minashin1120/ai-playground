@@ -1,5 +1,6 @@
 """Exercise the real send presentation helpers in Chromium, without network or account data."""
 import unittest
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,12 +54,17 @@ class PromptSendMotionTests(unittest.TestCase):
             let currentQuote = 'Quote', currentQuoteMessageId = 7, userAutoScroll = true, threadLoadSequence = 0;
             const browserFastLocalFiles = new Map(), markerAppliedUploads = new Set(['test.pdf']);
             let uploadProgressState = { total: 1, completed: 1, active: 0, perFilePct: {} };
+            const uploadCancelTokens = new Set();
+            let uploadGeneration = 0;
             function clearQuote() { currentQuote = ''; currentQuoteMessageId = null; get('quote-bar').classList.remove('visible'); }
             function updateFilePreview() {}
             function updateMaskPreview() {}
             function schedulePromptTokenEstimate() {}
         ''')
         self.page.add_script_tag(content=MOTION.read_text())
+        uploads = (ROOT / 'static/js/chat_core_parts/chat_core.part11_file_preview_upload.js').read_text()
+        cancelled = re.search(r'function isUploadCancelled\(row\) \{.*?\n        \}', uploads, re.S)
+        self.page.add_script_tag(content=cancelled.group())
 
     def start(self, follow=True):
         self.page.evaluate('''follow => {
@@ -142,3 +148,31 @@ class PromptSendMotionTests(unittest.TestCase):
         self.assertEqual(self.page.input_value('#prompt-input'), '')
         self.assertEqual(self.page.evaluate('currentImageUrls'), [])
         self.assertFalse(self.page.evaluate('tx.canRetry()'))
+
+    def test_fast_mode_can_upload_held_rows_without_using_the_next_drafts_files(self):
+        source = (ROOT / 'static/js/chat_core_parts/chat_core.part13_canvas_coding_stream.js').read_text()
+        start = source.index('async function uploadBrowserFastLocalFiles(')
+        end = source.index('function browserFastThinkingConfig', start)
+        self.page.add_script_tag(content=source[start:end])
+        self.page.evaluate('''() => {
+            const row = get('upload-list').querySelector('.upload-row');
+            browserFastLocalFiles.set('local', { file: new Blob(['image']), rowObj: { row, generation: 0 } });
+            window.uploadFileWithProgress = async (file, row) => {
+                if (isUploadCancelled(row)) return false;
+                row.row.setAttribute('data-filename', 'saved.png');
+                currentImageUrls.push('saved.png');
+                return true;
+            };
+        }''')
+        self.start(False)
+        result = self.page.evaluate('''async () => {
+            tx.accept(false);
+            currentImageUrls.push('next.png');
+            const row = tx.files.get('local').rowObj;
+            const connected = row.row.isConnected;
+            const cancelled = isUploadCancelled(row);
+            const refs = await uploadBrowserFastLocalFiles(tx.files, true);
+            tx.releaseFiles();
+            return { connected, cancelled, refs, next: currentImageUrls, held: document.querySelectorAll('.prompt-send-held-files').length };
+        }''')
+        self.assertEqual(result, {'connected': True, 'cancelled': False, 'refs': ['saved.png'], 'next': ['next.png'], 'held': 0})

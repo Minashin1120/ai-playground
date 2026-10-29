@@ -1,6 +1,6 @@
 # AI Chat Playground
 
-[![Version](https://img.shields.io/badge/version-V4.8.1132-2563eb)](static/changelogs/20261029_v4.8.1132.md)
+[![Version](https://img.shields.io/badge/version-V4.8.1133-2563eb)](static/changelogs/20261029_v4.8.1133.md)
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b)](LICENSE)
 

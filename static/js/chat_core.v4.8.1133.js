@@ -27421,6 +27421,14 @@
                 files: new Map(browserFastLocalFiles), markers: new Set(markerAppliedUploads),
                 progress: uploadProgressState,
             };
+            // Local-file uploads treat disconnected rows as cancelled. Keep their DOM alive
+            // outside the active composer until the fast-mode answer has been saved.
+            const heldRows = document.createElement('div');
+            heldRows.hidden = true;
+            heldRows.className = 'prompt-send-held-files';
+            heldRows.setAttribute('aria-hidden', 'true');
+            heldRows.append(...saved.rows);
+            document.body.appendChild(heldRows);
             let edited = false, settled = false, restored = false;
             const onInput = () => { edited = true; };
             input.addEventListener('input', onInput);
@@ -27448,6 +27456,7 @@
                     const url = entry?.rowObj?.row?.getAttribute('data-local-url');
                     if (url) URL.revokeObjectURL(url);
                 });
+                heldRows.remove();
             };
             const finish = (restore, release = true) => {
                 if (settled) return;
@@ -27466,6 +27475,7 @@
                     saved.files.forEach((value, key) => browserFastLocalFiles.set(key, value));
                     saved.markers.forEach((value) => markerAppliedUploads.add(value));
                     if (preview) preview.prepend(...saved.rows);
+                    heldRows.remove();
                     if (!currentQuote && saved.quote) {
                         currentQuote = saved.quote;
                         currentQuoteMessageId = saved.quoteId;

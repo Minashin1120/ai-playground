@@ -66,6 +66,7 @@ class AnswerBubbleMotionUiTest {
         repeat(4) { rule.mainClock.advanceTimeByFrame(); rule.waitForIdle() }
         rule.runOnIdle { assertSame(original, progress); assertEquals(0f, progress.value, 0f) }
         rule.runOnIdle { prompt.finish() }
+        repeat(4) { rule.mainClock.advanceTimeByFrame(); rule.waitForIdle() }
         rule.mainClock.advanceTimeBy(500L)
         rule.waitForIdle()
         rule.runOnIdle { assertEquals(1f, progress.value, 0f); revision++ }

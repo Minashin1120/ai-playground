@@ -18,7 +18,7 @@ class LocalChatStoreTest {
 
     @Test fun committedPushIsRecognizedBeforeAcknowledgementWithoutDuplicateBranches() {
         val outbox = store.ensureOutboxThread("srvEarly")
-        val question = store.appendMessage(outbox, LocalChatStore.NewMessage("user", "same text", parentServerId = 10))
+        val question = store.appendMessage(outbox, LocalChatStore.NewMessage("user", "same text", null, parentServerId = 10))
         val answer = store.appendMessage(outbox, LocalChatStore.NewMessage("assistant", "answer", question))
         val followup = store.appendMessage(outbox, LocalChatStore.NewMessage("user", "next", answer))
         val uuids = store.messages(outbox).associate { it.getInt("id") to it.getString("uuid") }
@@ -40,7 +40,7 @@ class LocalChatStoreTest {
 
     @Test fun cachedUuidsCannotAcknowledgeUploadsAndEqualTextDoesNotMergeBranches() {
         val outbox = store.ensureOutboxThread("srvCache")
-        val local = store.appendMessage(outbox, LocalChatStore.NewMessage("assistant", "same text", parentServerId = 10))
+        val local = store.appendMessage(outbox, LocalChatStore.NewMessage("assistant", "same text", null, parentServerId = 10))
         val uuid = store.messages(outbox).single().getString("uuid")
         val row = JSONObject().put("id", 11).put("client_uuid", uuid).put("content", "same text")
         store.reconcileServerMessages("srvCache", listOf(row), observedOnServer = false)
@@ -54,7 +54,7 @@ class LocalChatStoreTest {
 
     @Test fun historyReconciliationPreservesParentsAcrossPartialPagesAndRestart() {
         val outbox = store.ensureOutboxThread("srvPage")
-        val question = store.appendMessage(outbox, LocalChatStore.NewMessage("user", "question", parentServerId = 10))
+        val question = store.appendMessage(outbox, LocalChatStore.NewMessage("user", "question", null, parentServerId = 10))
         val answer = store.appendMessage(outbox, LocalChatStore.NewMessage("assistant", "answer", question))
         val uuid = store.messages(outbox).first().getString("uuid")
         store.reconcileServerMessages("srvPage", listOf(JSONObject().put("id", 11).put("client_uuid", uuid)))

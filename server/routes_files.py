@@ -227,6 +227,14 @@ def handle_thread_item(thread_id):
         except Exception:
             # The startup schema migration may still be completing on a fresh install.
             batch_by_assistant = {}
+        sync_uuids = {
+            ref.message_id: ref.client_uuid
+            for ref in SyncMessageRef.query.filter(
+                SyncMessageRef.user_id == current_user.id,
+                SyncMessageRef.thread_id == t.id,
+                SyncMessageRef.message_id.in_([m.id for m in ms]),
+            ).all()
+        } if ms else {}
         res = []
         for m in ms:
             cnt = decrypt_val(m.content) if m.is_encrypted else m.content
@@ -271,7 +279,8 @@ def handle_thread_item(thread_id):
             batch_row = batch_by_assistant.get(m.id)
             res.append({
                 'missing_files': _missing_message_files(m, current_user.id),
-                'id': m.id, 
+                'id': m.id,
+                'client_uuid': sync_uuids.get(m.id),
                 'role': m.role, 
                 'content': cnt, 
                 'image_url': m.image_url, 

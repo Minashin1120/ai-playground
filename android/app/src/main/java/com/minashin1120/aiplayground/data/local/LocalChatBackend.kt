@@ -513,6 +513,7 @@ class LocalChatBackend(
             serverParent = if (row.isNull("parent_id")) null else row.optInt("parent_id")
         }
         val snapshot = history.thread(threadId, serverParent?.takeIf { !LocalChatStore.isPendingId(it) })
+        store.reconcileServerMessages(threadId, snapshot.messages, snapshot.observedOnServer)
         // Sync can finish while the server history is being fetched. Resolve both ends again.
         val rows = (snapshot.messages + store.pendingRows(threadId)).distinctBy { it.optInt("id") }
         val resolvedParent = requested?.let { store.resolveMessageId(threadId, it) }
@@ -634,7 +635,9 @@ class LocalChatBackend(
             val text = when (e) {
                 is DirectApiException -> "API Error${if (e.status > 0) " (${e.status})" else ""}: ${e.message}"
                 is ApiException -> e.payload.optString("error").ifBlank { e.message }
-                else -> "Connection Error: ${e.message ?: e.javaClass.simpleName}"
+                else -> if (com.minashin1120.aiplayground.data.direct.isSslFailure(e))
+                    "安全な通信が中断されました。回答を再生成してください。"
+                else "Connection Error: ${e.message ?: e.javaClass.simpleName}"
             }
             store.updateMessage(chat.outboxId, assistantId, errorContent(text, partialContent), partialThought, done = true)
             JSONObject().put("type", "error").put("content", text)

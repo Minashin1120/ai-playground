@@ -16,6 +16,57 @@ class LocalChatStoreTest {
     private val crypto = EncryptedFileStore(byteArrayOf('T'.code.toByte(), 1)) { key }
     private val store by lazy { LocalChatStore(folder.root.resolve("chats"), crypto) }
 
+    @Test fun committedPushIsRecognizedBeforeAcknowledgementWithoutDuplicateBranches() {
+        val outbox = store.ensureOutboxThread("srvEarly")
+        val question = store.appendMessage(outbox, LocalChatStore.NewMessage("user", "same text", parentServerId = 10))
+        val answer = store.appendMessage(outbox, LocalChatStore.NewMessage("assistant", "answer", question))
+        val followup = store.appendMessage(outbox, LocalChatStore.NewMessage("user", "next", answer))
+        val uuids = store.messages(outbox).associate { it.getInt("id") to it.getString("uuid") }
+        val serverRows = org.json.JSONArray()
+            .put(JSONObject().put("id", 11).put("parent_id", 10).put("client_uuid", uuids.getValue(question)))
+            .put(JSONObject().put("id", 12).put("parent_id", 11).put("client_uuid", uuids.getValue(answer)))
+        store.overlayPending("srvEarly", JSONObject().put("messages", serverRows))
+        assertEquals(3, serverRows.length())
+        assertEquals(12, serverRows.getJSONObject(2).getInt("parent_id"))
+        assertEquals(12, store.resolveMessageId("srvEarly", LocalChatStore.PENDING_ID_BASE + answer))
+        assertEquals(1, store.pendingCount())
+        // Delayed push response after GET removed accepted local rows must be harmless.
+        store.markPushed(outbox, "srvEarly", mapOf(uuids.getValue(question) to 11, uuids.getValue(answer) to 12), true)
+        val pending = store.pendingPush().single().entry.getJSONArray("messages")
+        assertEquals(1, pending.length())
+        assertEquals(12, pending.getJSONObject(0).getJSONObject("parent").getInt("id"))
+        assertEquals(LocalChatStore.PENDING_ID_BASE + followup, store.pendingRows("srvEarly").single().getInt("id"))
+    }
+
+    @Test fun cachedUuidsCannotAcknowledgeUploadsAndEqualTextDoesNotMergeBranches() {
+        val outbox = store.ensureOutboxThread("srvCache")
+        val local = store.appendMessage(outbox, LocalChatStore.NewMessage("assistant", "same text", parentServerId = 10))
+        val uuid = store.messages(outbox).single().getString("uuid")
+        val row = JSONObject().put("id", 11).put("client_uuid", uuid).put("content", "same text")
+        store.reconcileServerMessages("srvCache", listOf(row), observedOnServer = false)
+        assertEquals(1, store.pendingCount())
+        assertEquals(LocalChatStore.PENDING_ID_BASE + local, store.resolveMessageId("srvCache", LocalChatStore.PENDING_ID_BASE + local))
+        val payload = JSONObject().put("messages", org.json.JSONArray().put(JSONObject(row.toString()).put("client_uuid", "different")))
+        store.overlayPending("srvCache", payload)
+        assertEquals(2, payload.getJSONArray("messages").length())
+        assertEquals(1, store.pendingCount())
+    }
+
+    @Test fun historyReconciliationPreservesParentsAcrossPartialPagesAndRestart() {
+        val outbox = store.ensureOutboxThread("srvPage")
+        val question = store.appendMessage(outbox, LocalChatStore.NewMessage("user", "question", parentServerId = 10))
+        val answer = store.appendMessage(outbox, LocalChatStore.NewMessage("assistant", "answer", question))
+        val uuid = store.messages(outbox).first().getString("uuid")
+        store.reconcileServerMessages("srvPage", listOf(JSONObject().put("id", 11).put("client_uuid", uuid)))
+        val reopened = LocalChatStore(folder.root.resolve("chats"), crypto)
+        assertEquals(11, reopened.resolveMessageId("srvPage", LocalChatStore.PENDING_ID_BASE + question))
+        assertEquals(11, reopened.pendingRows("srvPage").first { it.getInt("id") == LocalChatStore.PENDING_ID_BASE + answer }.getInt("parent_id"))
+        val combined = reopened.overlayPending("srvPage", JSONObject().put("messages", org.json.JSONArray()
+            .put(JSONObject().put("id", 11).put("client_uuid", uuid)))).getJSONArray("messages")
+        assertEquals(2, combined.length())
+        assertEquals(11, combined.getJSONObject(1).getInt("parent_id"))
+    }
+
     @Test fun branchesShareFilesAndSurviveSourceDeletion() {
         val source = store.createThread(false, "Source").getString("id")
         val file = store.saveFile("a.txt", "text/plain", "hello".byteInputStream(), 5)

@@ -97,6 +97,21 @@ class MobileSyncApiTests(unittest.TestCase):
             'meta_changed_at_ms': int(time.time() * 1000), 'messages': messages, **meta,
         }]})
 
+    def test_history_uuid_is_null_for_server_messages_and_other_accounts_are_denied(self):
+        token = self.token()
+        with target.app.app_context():
+            mine = target.Thread(user_id=self.user_id, public_id=target.generate_thread_public_id(), title='Mine')
+            other = target.Thread(user_id=self.other_id, public_id=target.generate_thread_public_id(), title='Other')
+            target.db.session.add_all([mine, other])
+            target.db.session.flush()
+            target.db.session.add(target.Message(thread_id=mine.id, role='user', content='server message', is_encrypted=False))
+            target.db.session.commit()
+            mine_id, other_id = mine.public_id, other.public_id
+        rows = self.call(f'/api/threads/{mine_id}', token).json['messages']
+        self.assertEqual(len(rows), 1)
+        self.assertIsNone(rows[0]['client_uuid'])
+        self.assertEqual(self.call(f'/api/threads/{other_id}', token).status_code, 403)
+
     def test_push_creates_chats_idempotently_with_parent_links(self):
         token = self.token()
         thread_uuid, first, second = self.uid(), self.uid(), self.uid()
@@ -116,6 +131,11 @@ class MobileSyncApiTests(unittest.TestCase):
         self.assertEqual({m['client_uuid']: m['id'] for m in again['messages']}, ids)
         thread = self.call(f'/api/threads/{public_id}', token).json
         self.assertEqual(len(thread['messages']), 2)
+        self.assertEqual({m['client_uuid']: m['id'] for m in thread['messages']}, ids)
+        newest = self.call(f'/api/threads/{public_id}?limit=1', token).json['messages']
+        self.assertEqual([(m['id'], m['client_uuid']) for m in newest], [(ids[second], second)])
+        older = self.call(f'/api/threads/{public_id}?limit=1&before_id={ids[second]}&include_meta=0', token).json['messages']
+        self.assertEqual([(m['id'], m['client_uuid']) for m in older], [(ids[first], first)])
         self.assertEqual(thread['messages'][1]['parent_id'], ids[first])
         self.assertEqual(json.loads(thread['messages'][1]['thought_data'])['text'], '考え')
         self.assertEqual(thread['title'], 'Device chat')

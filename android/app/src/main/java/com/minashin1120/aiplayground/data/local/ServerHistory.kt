@@ -24,7 +24,7 @@ class ServerHistory(
     val afterAnswer: suspend () -> Unit,
 ) {
     /** A server chat: its `GET /api/threads/<id>` settings and the messages loaded (enough for the parent's ancestors). */
-    class Snapshot(val thread: JSONObject, val messages: List<JSONObject>)
+    class Snapshot(val thread: JSONObject, val messages: List<JSONObject>, val observedOnServer: Boolean = true)
 
     /**
      * Reads server chat [id] from the newest message back until every ancestor of [parentId] is loaded
@@ -42,7 +42,7 @@ class ServerHistory(
         val rows = messageRows(cached?.optJSONArray("messages"))
         if (cached == null || !complete(rows, parentId ?: rows.maxOfOrNull { it.optInt("id") })) throw ApiException(400, JSONObject().put("code", "serverless_history_unavailable")
             .put("error", "サーバーに接続できないため、このチャットの履歴を読み込めません。"))
-        return Snapshot(cached, rows)
+        return Snapshot(cached, rows, observedOnServer = false)
     }
 
     /** Branching needs every route, rather than only the active parent's ancestors. */

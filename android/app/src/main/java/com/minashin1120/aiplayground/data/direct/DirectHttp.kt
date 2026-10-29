@@ -24,6 +24,18 @@ import java.net.SocketException
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
 import java.util.UUID
+import javax.net.ssl.SSLException
+
+/** Transport wrappers can carry the SSL failure in their cause; never match provider error text. */
+internal fun isSslFailure(error: Throwable): Boolean {
+    val seen = HashSet<Throwable>()
+    var cause: Throwable? = error
+    while (cause != null && seen.add(cause)) {
+        if (cause is SSLException) return true
+        cause = cause.cause
+    }
+    return false
+}
 
 /** An AI provider answered with an error (HTTP status and the provider's message). */
 class DirectApiException(val status: Int, override val message: String) : IOException(message)
@@ -97,6 +109,8 @@ class DirectHttp(
             }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
+                    if (call.isCanceled()) return
+                    discardSslConnections(e, httpClient)
                     ActivityLog.log("direct.error", "op" to trace.op, "method" to request.method, "provider" to LogPolicy.provider(host), "path" to path,
                         "ms" to trace.ms(), "error" to e.javaClass.simpleName)
                     if (continuation.isActive) continuation.resumeWith(Result.failure(e))
@@ -106,6 +120,8 @@ class DirectHttp(
                     ActivityLog.log("direct", "op" to trace.op, "type" to "status", "phase" to "done", "method" to request.method, "provider" to LogPolicy.provider(host), "path" to path,
                         "status" to response.code, "ms" to trace.ms())
                     val result = runCatching { response.use { consume(it) } }
+                    result.exceptionOrNull()?.let { discardSslConnections(it, httpClient) }
+                    if (call.isCanceled()) return
                     if (result.isFailure) ActivityLog.log("direct.read_error", "op" to trace.op, "provider" to LogPolicy.provider(host), "path" to path,
                         "ms" to trace.ms(), "error" to result.exceptionOrNull()?.javaClass?.simpleName)
                     else record(call, trace, "done", "done")
@@ -113,6 +129,12 @@ class DirectHttp(
                 }
             })
         }
+
+    private fun discardSslConnections(error: Throwable, httpClient: OkHttpClient) {
+        // Do not replay a POST whose body may already have reached the provider. Evict only idle
+        // connections; concurrent active generations must keep their sockets and cancellation scope.
+        if (isSslFailure(error)) httpClient.connectionPool.evictAll()
+    }
 
     suspend fun postJson(url: String, headers: Map<String, String>, payload: JSONObject): JSONObject =
         execute(request(url, headers).post(jsonBody(payload)).build()) { response ->

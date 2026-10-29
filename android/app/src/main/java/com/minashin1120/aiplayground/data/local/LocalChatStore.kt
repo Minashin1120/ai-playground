@@ -485,10 +485,11 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
      */
     @Synchronized
     fun overlayPending(serverId: String, payload: JSONObject, observedOnServer: Boolean = true, encrypted: Boolean? = null): JSONObject {
+        val messages = payload.optJSONArray("messages") ?: JSONArray().also { payload.put("messages", it) }
+        reconcileServerMessages(serverId, (0 until messages.length()).map { messages.getJSONObject(it) }, observedOnServer)
         val localId = outboxIdFor(serverId) ?: return payload
         val rows = loadMessages(localId)
         if (rows.isEmpty()) return payload
-        val messages = payload.optJSONArray("messages") ?: JSONArray().also { payload.put("messages", it) }
         val visibleIds = (0 until messages.length()).map { messages.getJSONObject(it).optInt("id") }.toSet()
         // A fetch can start before a push completes. Keep accepted rows (and their files)
         // until a server response actually contains them, so that snapshot cannot lose a turn.
@@ -500,6 +501,21 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
             .forEach { row -> pendingView(row).takeIf { it.optInt("id") !in visibleIds }?.let { messages.put(publicMessage(it, encrypted)) } }
         pruneOutboxRow(localId)
         return payload
+    }
+
+    /** A GET can observe a committed push before its response arrives. UUIDs identify those rows
+     * without comparing conversation text; cached payloads cannot acknowledge a new upload. */
+    @Synchronized
+    fun reconcileServerMessages(serverId: String, messages: List<JSONObject>, observedOnServer: Boolean = true) {
+        if (!observedOnServer) return
+        val localId = outboxIdFor(serverId) ?: return
+        val localUuids = loadMessages(localId).map { it.getString("uuid") }.toSet()
+        val accepted = messages.mapNotNull { row ->
+            val uuid = row.textOf("client_uuid")
+            val id = row.optInt("id")
+            if (uuid in localUuids && id > 0 && !isPendingId(id)) uuid to id else null
+        }.toMap()
+        if (accepted.isNotEmpty()) markPushed(localId, serverId, accepted, allAccepted = false)
     }
 
     /** Unsent or not yet observed messages, under ids shared with the server once accepted. */

@@ -31,6 +31,8 @@ import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
@@ -577,6 +579,7 @@ fun PlaygroundScreen(
             )
 
             val content: @Composable () -> Unit = {
+                PromptSendMotionHost(state) {
                 Scaffold(
                     modifier = Modifier.imePadding(),
                     containerColor = Color.Transparent,
@@ -667,6 +670,7 @@ fun PlaygroundScreen(
                 }
             }
 
+            }
             if (showThreads && wide) {
                 Row(Modifier.fillMaxSize()) {
                     Sidebar(state, versionLabel, sidebarActions {})
@@ -1513,6 +1517,7 @@ private fun ConversationContent(
 ) {
     val reduce = LocalReduceMotion.current
     val scroll = rememberLazyListState()
+    val sendMotion = LocalPromptSendMotion.current
     val scope = rememberCoroutineScope()
     val keys = remember { ConversationKeyTracker() }
     val streamActive = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty() || state.cards.isNotEmpty()
@@ -1551,13 +1556,16 @@ private fun ConversationContent(
         }.collect { if (follow.following) jumpToBottom() }
     }
     LaunchedEffect(follow) { snapshotFlow { distanceToBottom() }.collect { follow.onPosition(it) } }
-    // Sending (and reconnecting to an answer) always goes back to following.
-    LaunchedEffect(state.streaming) { if (state.streaming) { follow.resume(); jumpToBottom() } }
+    // Preserve a reader's paused position when sending; only existing followers jump.
+    LaunchedEffect(state.streaming) { if (state.streaming && follow.following) jumpToBottom() }
+    SideEffect { sendMotion?.following = follow.following }
+    DisposableEffect(follow) { onDispose { sendMotion?.finish() } }
     val showScrollToBottom by remember(follow) { derivedStateOf { follow.showsJumpButton(distanceToBottom()) } }
     val followConnection = remember(follow) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (source == NestedScrollSource.UserInput && available.y != 0f) {
+                    sendMotion?.finish()
                     follow.onUserScroll(towardTop = available.y > 0f, canScrollBackward = scroll.canScrollBackward)
                 }
                 return Offset.Zero
@@ -1615,7 +1623,13 @@ private fun ConversationContent(
             listPosition = { scroll.firstVisibleItemIndex to scroll.firstVisibleItemScrollOffset })) {
             LazyColumn(
                 state = scroll,
-                modifier = Modifier.fillMaxSize().widthIn(max = 832.dp).align(Alignment.TopCenter).nestedScroll(followConnection),
+                modifier = Modifier.fillMaxSize().widthIn(max = 832.dp).align(Alignment.TopCenter).nestedScroll(followConnection)
+                    .onGloballyPositioned { coordinates ->
+                        val next = coordinates.boundsInWindow()
+                        val old = sendMotion?.viewport
+                        if (old != null && old.width != next.width) sendMotion?.finish()
+                        sendMotion?.viewport = next
+                    },
                 // `#chat-container`: 12px padding on phones, 20px between message groups.
                 contentPadding = PaddingValues(12.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -1645,11 +1659,12 @@ private fun ConversationContent(
                 val siblings = siblingGroup(state.allMessages, message)
                 val index = siblings.indexOfFirst { it.id == message.id }
                 Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
-                    StaggerIn(0, animate = entering) {
+                    StaggerIn(0, animate = entering && message.id != state.promptSendMotionId) {
                         // Web sends `quote_message_id`: a selection inside this bubble remembers which message it came from.
                         ProvideQuoteSelection({ quoted -> model.quoteMessage(quoted, numericId(message)) }) {
                         MessageBubble(
                             message = message,
+                            sendMotion = promptSendBubbleModifier(message.id),
                             onFile = onFile,
                             loader = loader,
                             actions = MessageActions(

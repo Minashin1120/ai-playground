@@ -56,14 +56,26 @@
 
             playSendAnimation();
             get('welcome-screen').classList.add('hidden');
-            renderMessage(Date.now(), 'user', rawText, null, null, null, null, true, null, null, null, null, null, null, null, null, true);
+            const followSend = userAutoScroll && isChatNearBottom();
+            if (!followSend) pauseChatAutoScroll();
+            const fastImageRefs = collectImageUrlsForSend();
+            const fastThumbnails = Array.from(get('file-preview-thumbs')?.querySelectorAll('img') || []).map((img) => img.cloneNode(true));
+            const fastUserRow = renderMessage(Date.now(), 'user', rawText, JSON.stringify(collectImageUrlsForSend()), null, null, null, false, currentQuote, null, null, null, null, null, null, null, followSend);
+            if (fastThumbnails.length && !fastImageRefs.length) {
+                const thumbnails = document.createElement('div');
+                thumbnails.className = 'flex gap-2 flex-wrap';
+                fastThumbnails.forEach((img) => { img.removeAttribute('onclick'); thumbnails.appendChild(img); });
+                fastUserRow.querySelector('.message-bubble').appendChild(thumbnails);
+            }
+            const sentPrompt = takePromptForSend();
+            const stopSendMotion = animatePromptToMessage(fastUserRow, sentPrompt, followSend);
             const aid = `browser-fast-${Date.now()}`;
             get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 ai-pending-row fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${buildPendingSkeletonHtml(model, 'Geminiへ直接送信中...')}</div></div>`);
             const adiv = get(aid);
             const stopPendingElapsed = startPendingElapsed(adiv, pendingStartedAt);
             activeStreamingBubbleId = aid;
             setSendBtnToStopMode();
-            resumeChatAutoScroll();
+            if (followSend) resumeChatAutoScroll();
             abortController = new AbortController();
             let content = '';
             let thought = '';
@@ -93,8 +105,7 @@
                     window.ConnectionMonitor.operationStarted();
                 }
                 if (finishProgress) finishProgress.setPhase('waiting');
-                get('prompt-input').value = '';
-                get('prompt-input').style.height = 'auto';
+                sentPrompt.accept(false);
                 window.ActivityLog?.log('send.stream.start');
                 let loggedFirstChunk = false;
                 const reader = response.body.getReader();
@@ -185,13 +196,14 @@
                     content += pyExecPayloads.map((payload) => `\n\`\`\`pyexec\n${JSON.stringify(payload)}\n\`\`\`\n`).join('');
                 }
 
+                let fastUploadedRefs = [];
                 if (localEntries.length) {
                     if (finishProgress) finishProgress.setPhase('saving');
                     showToast('回答が完了しました。画像と履歴をサーバーへ保存しています。', 'info', false);
-                    await uploadBrowserFastLocalFiles();
+                    fastUploadedRefs = await uploadBrowserFastLocalFiles(sentPrompt.files, true);
                 }
                 if (finishProgress) finishProgress.setPhase('saving');
-                const refs = collectImageUrlsForSend();
+                const refs = [...fastImageRefs, ...fastUploadedRefs];
                 const saveResponse = await fetchChatStreamWithUnavailableRetry('/api/browser_fast_mode/save', manualSpinnerRequestOptions({
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -217,13 +229,14 @@
                 currentThreadId = String(saved.thread_id);
                 currentParentId = saved.assistant_message_id || null;
                 currentLeafId = saved.assistant_message_id || null;
-                resetUploadState();
                 browserFastBootstrap = null;
                 await loadMessages(currentThreadId, { preserveDraft: true, silent: true, skipHistory: !createdThread });
                 applyBrowserFastModeRestrictions();
                 loadThreads(false);
                 showToast('高速モードの回答を履歴へ保存しました', 'success', false);
             } catch (error) {
+                stopSendMotion();
+                sentPrompt.restore();
                 if (error.name !== 'AbortError') {
                     showToast(`高速モード: ${error.message}`, 'error', true);
                     if (!get('prompt-input').value) get('prompt-input').value = rawText;
@@ -237,7 +250,7 @@
                         }
                         const assistantContent = buildChatErrorMarkdown(errMsg, partial);
                         // Local images may not be on the server yet; skip attachments on error path.
-                        const refs = localEntries.length ? [] : collectImageUrlsForSend();
+                        const refs = localEntries.length ? [] : fastImageRefs;
                         const saveResponse = await fetchChatStreamWithUnavailableRetry('/api/browser_fast_mode/save', manualSpinnerRequestOptions({
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -263,7 +276,6 @@
                             currentThreadId = String(saved.thread_id);
                             currentParentId = saved.assistant_message_id || null;
                             currentLeafId = saved.assistant_message_id || null;
-                            resetUploadState();
                             browserFastBootstrap = null;
                             await loadMessages(currentThreadId, { preserveDraft: true, silent: true, skipHistory: !createdThread });
                             applyBrowserFastModeRestrictions();
@@ -275,6 +287,7 @@
                     }
                 }
             } finally {
+                sentPrompt.releaseFiles();
                 if (stopPendingElapsed) stopPendingElapsed();
                 if (browserFastOpStarted && window.ConnectionMonitor) window.ConnectionMonitor.operationEnded();
                 if (finishProgress) finishProgress();
@@ -289,7 +302,7 @@
             if (!window.ActivityLog) return sendMessageLogged();
             return window.ActivityLog.operation('send', () => sendMessageLogged());
         }
-        async function sendMessageLogged() {
+        async function sendMessageLogged(options = {}) {
             const pendingStartedAt = performance.now();
             vibrateHelper(50);
             if (abortController) {
@@ -546,6 +559,8 @@
                 showToast("Object Remover にはマスク画像が必要です", "error", true);
                 return;
             }
+            const followSend = userAutoScroll && isChatNearBottom();
+            if (!followSend) pauseChatAutoScroll();
             const editingId = editingMessageId;
             const capturedParentId = currentParentId;
             const parentIdExplicit = (editingId !== null && editingId !== undefined);
@@ -584,7 +599,7 @@
             // Render UI immediately to reduce perceived latency.
             const optimisticUserId = Date.now();
             const maskImageToSend = (isGptImageModel() || ideogramObjectRemoval) ? currentMaskImage : null;
-            const optimisticUserMessageEl = renderMessage(optimisticUserId, 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, true, currentQuote, null, null, null, null, null, null, null, true, capturedParentId, activeGem ? activeGem.name : null, null, maskImageToSend);
+            const optimisticUserMessageEl = renderMessage(optimisticUserId, 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, false, currentQuote, null, null, null, null, null, null, null, followSend, capturedParentId, activeGem ? activeGem.name : null, null, maskImageToSend);
 
             let disableAutoSearch = false;
             const xLinkPattern = /(https?:\/\/)?(x\.com|twitter\.com)\//i;
@@ -750,6 +765,8 @@
                 p.thread_custom_instruction = threadCustomInstructionEl.value || '';
             }
             if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; p.gem_uuid = activeGem.uuid; } else { p.gem_uuid = null; }
+            const sentPrompt = takePromptForSend(options.animate !== false);
+            const stopSendMotion = animatePromptToMessage(optimisticUserMessageEl, sentPrompt, followSend && options.animate !== false);
             setSendBtnToStopMode(); const aid = 'ai-' + Date.now();
             const modelLower = String(p.model || '').toLowerCase();
             const reasoningRequested = !!p.enable_thinking || (!!effortLower && effortLower !== 'none');
@@ -763,7 +780,7 @@
 
             let initialHtml = buildPendingSkeletonHtml(p.model, 'APIに送信中...');
             get('chat-container').insertAdjacentHTML('beforeend', `<div class="flex justify-start mb-4 ai-pending-row fade-in"><div id="${aid}" class="message-bubble ai-pending-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${initialHtml}</div></div>`);
-            resumeChatAutoScroll();
+            if (followSend) resumeChatAutoScroll();
             const adiv = get(aid);
             const stopPendingElapsed = !batchModeRequested ? startPendingElapsed(adiv, pendingStartedAt) : null;
             activeStreamingBubbleId = aid;
@@ -865,14 +882,10 @@
                     window.ConnectionMonitor.operationStarted();
                 }
                 if (finishStreamProgress) finishStreamProgress.setPhase('waiting');
-                get('prompt-input').value = '';
-                get('prompt-input').style.height = 'auto';
-                schedulePromptTokenEstimate(true);
+                sentPrompt.accept();
                 if (codingModeEnabled) {
                     syncCodingModeUi(true, { persist: false });
                 }
-                resetUploadState();
-                clearQuote();
                 const markApiAccepted = () => {
                     if (!adiv) return;
                     const ca = adiv.querySelector('.content-area');
@@ -1167,6 +1180,7 @@
 
             } catch(e){
                 window.ActivityLog?.log(e.name === 'AbortError' ? 'send.cancelled' : 'send.error');
+                stopSendMotion();
                 let syncedAfterAbort = false;
                 const manuallyStopped = e.name === 'AbortError' && isManualStopAbortForThread(streamStartedThreadId);
                 if (e.name === 'AbortError' && !manuallyStopped) {
@@ -1188,10 +1202,7 @@
                         model: p.model,
                         pendingStartedAt: batchModeRequested ? null : pendingStartedAt
                     };
-                    get('prompt-input').value = '';
-                    get('prompt-input').style.height = 'auto';
-                    resetUploadState();
-                    clearQuote();
+                    sentPrompt.accept();
                 } else if (requestAccepted && !manuallyStopped) {
                     reconnectAfterStreamDisconnect = {
                         job_id: normalizeJobIdForUi(currentJobId),
@@ -1224,6 +1235,7 @@
                     const msg = "Connection Error: " + e.message;
                     showToast(msg, "error", true);
                 }
+                if (!requestAccepted) sentPrompt.restore();
                 // Restore old message if error occurred during edit
                 if (editingId && !syncedAfterAbort) restoreHiddenBranch();
             } finally {
@@ -1251,7 +1263,7 @@
                     reconnectAfterStreamDisconnect.thread_id
                 );
             }
-            if (retryAfterApiKeySetup) return sendMessage();
+            if (retryAfterApiKeySetup && sentPrompt.canRetry()) return sendMessageLogged({ animate: false });
         }
 
         async function resumePendingStream(pending) {

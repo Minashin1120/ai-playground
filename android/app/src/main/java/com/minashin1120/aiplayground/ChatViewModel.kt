@@ -107,6 +107,8 @@ data class ChatState(
     val newThreadTemporary: Boolean = false, val tempChatRemainingSeconds: Long? = null,
     /** The open chat's temporary-chat timeout (`timeout_seconds`); null falls back to the setting. */
     val tempChatTimeoutSeconds: Int? = null,
+    /** One-shot UI identity; never serialized or synchronized. */
+    val promptSendMotionId: String? = null,
     val draft: String = "", val model: String = "", val attachments: List<Attachment> = emptyList(),
     val enableThinking: Boolean = false, val enableSearch: Boolean = false,
     val enableUrlContext: Boolean = false, val enableMaps: Boolean = false,
@@ -2859,7 +2861,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         failed = submission
         pendingParentId = null
         // Web `resetUploadState` + `clearQuote`: the mask goes with the attachments.
-        mutable.update { it.copy(draft = if (removeBackground || removeObject) it.draft else "", attachments = emptyList(), editingMessageId = null, quote = "", imageMask = null) }
+        mutable.update { it.copy(promptSendMotionId = "local-${body.getString("client_request_id")}", draft = if (removeBackground || removeObject) it.draft else "", attachments = emptyList(), editingMessageId = null, quote = "", imageMask = null) }
         submit(submission)
     }
     fun retry() { failed?.let { submit(it) } }
@@ -3245,15 +3247,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 "prompt_cache" to body.optBoolean("enable_prompt_caching"), "memory" to Diagnostics.memory())
             val seenEvents = java.util.Collections.synchronizedSet(HashSet<String>())
             try {
-                if (id.isBlank()) {
-                    val created = answerBackend.post("/api/threads", JSONObject().put("is_temporary", answer.snapshot.value.newThreadTemporary), answerToken)
-                    id = created.get("id").toString()
-                    body.put("thread_id", id)
-                    updateAnswer(answer) { it.copy(selected = ThreadItem(id, created.nullableString("title"), it.model,
-                        isTemporary = created.optBoolean("is_temporary")), newThreadTemporary = false) }
-                    answer.bind(id)
-                    if (answer.matches(state.value)) syncHeartbeat()
-                }
                 if (body.optBoolean("parent_id_explicit")) {
                     // Branching send (edit-and-resend, regenerate): drop the old branch's tail
                     // from the visible path immediately, instead of leaving the previous
@@ -3271,6 +3264,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     body.getString("message"), files = submission.files.map { a -> a.reference },
                     quote = body.optString("quote_text"), gemName = it.selectedGem?.name.orEmpty(),
                     promptOptions = submission.mask?.let { mask -> JSONObject().put("image_mask", mask) })) }
+                if (id.isBlank()) {
+                    val created = answerBackend.post("/api/threads", JSONObject().put("is_temporary", answer.snapshot.value.newThreadTemporary), answerToken)
+                    id = created.get("id").toString()
+                    body.put("thread_id", id)
+                    updateAnswer(answer) { it.copy(selected = ThreadItem(id, created.nullableString("title"), it.model,
+                        isTemporary = created.optBoolean("is_temporary")), newThreadTemporary = false) }
+                    answer.bind(id)
+                    if (answer.matches(state.value)) syncHeartbeat()
+                }
                 val threadId = id
                 val onEvent: (JSONObject) -> Unit = { event ->
                     val type = event.optString("type")

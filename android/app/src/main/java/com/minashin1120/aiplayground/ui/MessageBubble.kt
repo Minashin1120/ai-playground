@@ -52,6 +52,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
@@ -143,6 +144,7 @@ internal fun MessageBubble(
     /** The reasoning placeholder is shown collapsed (`.thought-content.collapsed`). */
     thoughtCollapsed: Boolean = false,
     preserveLiveLayout: Boolean = false,
+    sendMotion: Modifier = Modifier,
 ) {
     val web = LocalWebPalette.current
     val user = message.role == "user"
@@ -153,9 +155,13 @@ internal fun MessageBubble(
         else com.minashin1120.aiplayground.data.extractPythonExecutions(message.content)
             .let { (text, runs) -> com.minashin1120.aiplayground.data.moveMcpNotesToEnd(text) to runs }
     }
-    val shape = if (user) RoundedCornerShape(20.dp, 20.dp, 8.dp, 20.dp) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 8.dp)
+    val flight = LocalPromptSendMotion.current?.takeIf { it.id == message.id }
+    val morph = flight?.let { PlaygroundMotion.WebEaseOut.transform(it.progress.value) } ?: 1f
+    val corner = (12f + 8f * morph).dp
+    val smallCorner = (12f - 4f * morph).dp
+    val shape = if (user) RoundedCornerShape(corner, corner, smallCorner, corner) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 8.dp)
     val background = when {
-        user -> SolidColor(web.theme.t600)
+        user -> SolidColor(if (flight == null) web.theme.t600 else lerp(if (web.isLight) Color.White else Color(0xFF151F37), web.theme.t600, morph))
         web.isLight -> Brush.verticalGradient(listOf(Color.White, Color(0xFFF4F7FB)))
         else -> Brush.verticalGradient(listOf(Color(16, 22, 40).copy(alpha = 0.82f), Color(10, 14, 26).copy(alpha = 0.86f)))
     }
@@ -169,7 +175,7 @@ internal fun MessageBubble(
         val maxBubble = maxWidth * (if (maxWidth >= PlaygroundDimens.breakpoint) 0.8f else 0.9f)
         Box(Modifier.widthIn(max = maxBubble)) {
             Column(
-                Modifier
+                sendMotion
                     .then(if (user) Modifier else Modifier.shadow(14.dp, shape,
                         ambientColor = Color.Black.copy(alpha = 0.18f),
                         spotColor = Color.Black.copy(alpha = 0.18f)))

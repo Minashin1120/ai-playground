@@ -1676,15 +1676,20 @@
             return contents;
         }
 
-        async function uploadBrowserFastLocalFiles() {
-            const entries = Array.from(browserFastLocalFiles.entries());
+        async function uploadBrowserFastLocalFiles(files = browserFastLocalFiles, detached = false) {
+            const entries = Array.from(files.entries());
+            const uploaded = [];
             for (const [uploadId, entry] of entries) {
                 if (!entry || !entry.file || !entry.rowObj) throw new Error('ローカル画像の状態が失われました');
                 if (entry.rowObj.status) entry.rowObj.status.textContent = '回答完了・サーバー保存中...';
                 const ok = await uploadFileWithProgress(entry.file, entry.rowObj);
                 if (!ok) throw new Error(`${entry.file.name || '画像'}をサーバーへ保存できませんでした`);
-                browserFastLocalFiles.delete(uploadId);
+                const path = entry.rowObj.row.getAttribute('data-filename');
+                if (path) uploaded.push(path);
+                if (detached) currentImageUrls = currentImageUrls.filter((value) => value !== path);
+                else browserFastLocalFiles.delete(uploadId);
             }
+            return uploaded;
         }
 
         function browserFastThinkingConfig(model) {

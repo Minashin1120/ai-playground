@@ -66,6 +66,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/ActivityLog.kt` | 「ログの収集を強化」の操作ログ（通信・画面・状態の変化・タップ・エラーと診断ログの各段階。入力した本文・回答・ファイルの中身は含めない）をアプリのデータ領域に直近1時間ぶん記録し、フィードバック送信時に渡す | 操作ログの記録項目・保存・送信を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/Diagnostics.kt` | 管理者アカウントだけの診断ログ（処理の段階・所要時間・サイズ・固定エラー分類・停滞時のアプリコード位置。入力した本文・ファイルの中身は含めない）の端末への記録 | サーバー不使用モードの不具合調査で記録する項目を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ProgressText.kt` | Web `progress_spinner.js` の文言表と通信中の処理一覧（`PlaygroundApi.progress`） | 通信スピナーの文言や対象を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/PromptSendMotion.kt` | 送信内容の移動・縮小・吹き出しへの切替、描画レイヤーと座標の一時管理、動きの削減・中断時の後始末 | プロンプト送信アニメーションを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/Composer.kt` | Webのプロンプトバー（引用・Coding対象・編集バー、モデルボタン、Canvas／Coding／Batch、詳細チップ、添付プレビュー、固定プロンプト、Gem表示、`/`・`@` 候補、入力シェル、送信・停止、トークン見積もり） | 入力欄の見た目や操作を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InteractionDiagnostics.kt` | 選択・数式操作の受動的なログ観測（ランダムID、フォーカス、メニュー、400ms後の状態、横スクロール・描画状態） | 選択や数式操作のログを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/QuoteSelection.kt` | 会話の範囲選択に「Quote」を加える選択ツールバー | 引用の操作を変更するとき |

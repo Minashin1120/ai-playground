@@ -141,6 +141,51 @@ class ChatCoreBundleTests(unittest.TestCase):
         for text in later:
             self.assertNotIn('=Object.defineProperty;var ', text[:200])
 
+    def test_send_clears_immediately_and_failure_preserves_the_next_draft(self):
+        context = self.browser.new_context(service_workers='block')
+        self.addCleanup(context.close)
+        page = context.new_page()
+        html = self.html.replace('"globalEnabled": true', '"globalEnabled": false')
+        pending = []
+        errors = []
+        page.on('pageerror', lambda error: errors.append(str(error).splitlines()[0]))
+
+        def handle(route):
+            url = urlparse(route.request.url)
+            if f'{url.scheme}://{url.netloc}' != ORIGIN:
+                return route.abort()
+            if url.path == '/':
+                return route.fulfill(status=200, content_type='text/html', body=html)
+            if url.path.startswith('/static/'):
+                path = (APP_ROOT / url.path.lstrip('/')).resolve()
+                if path.is_file() and (APP_ROOT / 'static') in path.parents:
+                    return route.fulfill(status=200, path=str(path))
+                return route.fulfill(status=404, body='')
+            if url.path == '/chat_stream':
+                pending.append(route)
+                return
+            return route.fulfill(status=200, content_type='application/json', body='{}')
+
+        page.route('**/*', handle)
+        page.goto(ORIGIN + '/', wait_until='load')
+        page.wait_for_timeout(1500)
+        errors.clear()
+        page.evaluate("selectModelById('gemini-3.6-flash'); currentThreadId = 'test-thread'; browserFastModeEnabled = false; botConfig.globalEnabled = false; get('enable-python').checked = false")
+        page.fill('#prompt-input', 'First prompt')
+        try:
+            with page.expect_request('**/chat_stream', timeout=7000):
+                page.evaluate("void sendMessage().catch(e => window.sendTestError = e.message)")
+        except Exception:
+            self.fail(str(page.evaluate("({error: window.sendTestError, model: get('model-select').value, bot: isBotDetectionActive(), text: get('prompt-input').value, modal: document.querySelector('.modal:not(.hidden)')?.id})")) + str(errors))
+        page.wait_for_function("document.getElementById('prompt-input').value === ''")
+        page.fill('#prompt-input', 'Next prompt')
+        self.assertEqual(len(pending), 1)
+        pending[0].fulfill(status=400, content_type='application/json', body='{"error":"Synthetic failure"}')
+        page.wait_for_function('abortController === null')
+        self.assertEqual(page.input_value('#prompt-input'), 'Next prompt')
+        self.assertEqual(page.locator('.prompt-send-overlay').count(), 0)
+        self.assertEqual(errors, [])
+
 
 if __name__ == '__main__':
     unittest.main()

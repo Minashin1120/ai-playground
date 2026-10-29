@@ -6895,3 +6895,11 @@ body:not(.liquid-glass-mode) #send-btn.stop-mode:hover {
 body:not(.liquid-glass-mode) #send-btn.pulse-ready {
     animation-name: send-pulse-flat;
 }
+
+/* The temporary send card has no controls, focus targets, or accessibility duplicate. */
+.prompt-send-hidden { visibility: hidden; }
+.prompt-send-overlay {
+    position: fixed !important; z-index: 35; margin: 0 !important;
+    pointer-events: none !important; transform-origin: top left;
+    overflow: hidden; will-change: transform, opacity; box-sizing: border-box;
+}

@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.RepeatMode
@@ -53,6 +54,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalConfiguration
@@ -131,6 +134,7 @@ fun Composer(
 ) {
     val web = LocalWebPalette.current
     val reduce = LocalReduceMotion.current
+    val sendMotion = LocalPromptSendMotion.current
     val phone = LocalConfiguration.current.screenWidthDp <= 640
     val promptMode = state.preferences?.effectivePromptBarMode ?: "normal"
     val minimal = promptMode == "minimal"
@@ -269,7 +273,7 @@ fun Composer(
     }
     val codingSelection = state.codingTarget?.takeIf { selected -> history.any { it.messageId == selected.messageId } }
 
-    Box(Modifier.fillMaxWidth().composerDock(web, minimal, phone).onSizeChanged { dockHeight = it.height; onDockHeight(it.height) }) {
+    Box(Modifier.fillMaxWidth().animateContentSize(motionTween(reduce, if (state.draft.isEmpty() && state.promptSendMotionId != null) 350 else 0)).composerDock(web, minimal, phone).onSizeChanged { dockHeight = it.height; onDockHeight(it.height) }) {
         if (minimalOptionsOpen) MinimalOptionsPopup(
             state, model, rules,
             bottomInset = with(LocalDensity.current) { dockHeight.toDp() },
@@ -291,7 +295,10 @@ fun Composer(
         ) {
             val shownQuote = rememberRetained(state.quote.takeIf { it.isNotBlank() })
             AnimatedVisibility(state.quote.isNotBlank(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
-                QuoteBar(shownQuote.orEmpty(), onClear = model::clearQuote)
+                Box(Modifier.onGloballyPositioned { sendMotion?.quoteSource = it.boundsInWindow() }) {
+                    DisposableEffect(Unit) { onDispose { sendMotion?.quoteSource = null } }
+                    QuoteBar(shownQuote.orEmpty(), onClear = model::clearQuote)
+                }
             }
             AnimatedVisibility(state.codingMode, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                 CodingTargetBar(
@@ -774,11 +781,14 @@ private fun BudgetField(value: String, enabled: Boolean, onChange: (String) -> U
 /** `#file-preview`: thumbnails, then "N files ready" / "Preparing... (x/y)" with the clear button. */
 @Composable
 private fun AttachmentPreview(state: ChatState, model: ChatViewModel, loader: FileBytesLoader?, onOpen: (String) -> Unit, onEdit: () -> Unit) {
+    val sendMotion = LocalPromptSendMotion.current
     val web = LocalWebPalette.current
     val reduce = LocalReduceMotion.current
     val visible = state.attachments.isNotEmpty() || state.uploading
     AnimatedVisibility(visible, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        DisposableEffect(Unit) { onDispose { sendMotion?.filesSource = null } }
+        Column(Modifier.onGloballyPositioned { sendMotion?.filesSource = it.boundsInWindow() },
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (state.attachments.isNotEmpty()) Row(
                 Modifier.horizontalScroll(rememberScrollState()).padding(start = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1051,6 +1061,7 @@ private fun PromptField(
     modifier: Modifier = Modifier,
 ) {
     val web = LocalWebPalette.current
+    val sendMotion = LocalPromptSendMotion.current
     val enterToSend = state.preferences?.enterToSend == true
     val pendingCommand = state.pendingSlashCommand?.let { id -> SLASH_COMMANDS.firstOrNull { it.id == id } }
     val removeBackground = isIdeogramBackgroundRemoval(state.model, state.generationValues)
@@ -1088,6 +1099,7 @@ private fun PromptField(
         keyboardOptions = KeyboardOptions(imeAction = if (enterToSend) ImeAction.Send else ImeAction.Default),
         onKeyboardAction = { defaultAction -> if (enterToSend) onSend() else defaultAction() },
         modifier = modifier
+            .onGloballyPositioned { sendMotion?.source = it.boundsInWindow() }
             .heightIn(min = 37.6.dp, max = 150.dp)
             .focusRequester(focusRequester)
             // Web `#prompt-input` paste: files (keyboard images, screenshots, copied files) become attachments.

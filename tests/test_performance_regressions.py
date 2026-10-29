@@ -140,7 +140,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         ]
 
         direct_pos = fast_source.index("generativelanguage.googleapis.com")
-        upload_pos = fast_source.index("await uploadBrowserFastLocalFiles()")
+        upload_pos = fast_source.index("await uploadBrowserFastLocalFiles(sentPrompt.files, true)")
         save_pos = fast_source.index("/api/browser_fast_mode/save")
         self.assertLess(direct_pos, upload_pos)
         self.assertLess(upload_pos, save_pos)

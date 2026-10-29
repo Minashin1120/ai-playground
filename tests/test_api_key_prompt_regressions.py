@@ -31,15 +31,20 @@ class ApiKeyPromptRegressionTests(unittest.TestCase):
         self.assertNotIn("const checkApiKeyForModel", source)
         self.assertIn("if (e.serverCode === 'api_key_missing')", source)
         self.assertIn("showApiKeyRequiredModalAsync(missingKeyModel)", source)
-        self.assertIn("if (retryAfterApiKeySetup) return sendMessage()", source)
+        self.assertTrue("retryAfterApiKeySetup && sentPrompt.canRetry()" in source,
+                        "API key setup must not automatically send a newly edited draft")
+        self.assertTrue("return sendMessageLogged({ animate: false })" in source,
+                        "Automatic API key retries must not replay the send animation")
 
     def test_failed_preflight_preserves_prompt_and_attachments_for_retry(self):
         source = _current_chat_js()
         fetch_at = source.index("const r = await fetchChatStreamWithUnavailableRetry(")
         accepted_at = source.index("requestAccepted = true", fetch_at)
 
-        self.assertGreater(source.index("resetUploadState();", fetch_at), accepted_at)
-        self.assertGreater(source.index("get('prompt-input').value = ''", fetch_at), accepted_at)
+        self.assertLess(source.index("const sentPrompt = takePromptForSend(options.animate !== false)"), fetch_at)
+        self.assertGreater(source.index("sentPrompt.accept();", fetch_at), accepted_at)
+        self.assertTrue("if (!requestAccepted) sentPrompt.restore()" in source,
+                        "A rejected send must restore its held composer state")
         self.assertIn("if (!requestAccepted)", source[fetch_at:])
         self.assertIn("optimisticUserMessageEl.remove()", source[fetch_at:])
 

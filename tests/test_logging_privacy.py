@@ -28,6 +28,13 @@ def test_no_free_text_nested_objects_or_unknown_values():
     assert safe_entry({'ev': 'http', 'ms': float('nan'), 'status': '200'}) == {'ev': 'http'}
 
 
+def test_dns_fallback_records_phases_without_names_addresses_or_notifications():
+    for phase in ('start', 'done', 'error'):
+        entry = safe_entry(dict(ev='dns.fallback', phase=phase, ms=12, count=2,
+            hostname=SECRET, address=SECRET, message=SECRET, response=SECRET))
+        assert entry == {'ev': 'dns.fallback', 'phase': phase, 'ms': 12, 'count': 2}
+
+
 def test_operations_log_never_formats_args_or_exception():
     class SensitiveObject:
         def __str__(self):

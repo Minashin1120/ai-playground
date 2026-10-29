@@ -81,6 +81,7 @@ internal fun latestAndroidUpdateFromJson(payload: String, currentVersion: String
 
 class AppUpdateChecker(
     private val client: OkHttpClient = OkHttpClient.Builder()
+        .dns(NetworkDns)
         .followRedirects(false)
         .followSslRedirects(false)
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -109,7 +110,7 @@ class AppUpdateChecker(
                     // A call that hits callTimeout is already canceled. Ignoring that used to leave
                     // the settings row on 「確認中…」 with the button disabled.
                     if (ticket != generation.get()) return
-                    onResult(AppUpdateCheckResult.Failed("更新情報を取得できませんでした。通信状態を確認してください。"))
+                    onResult(AppUpdateCheckResult.Failed(dnsFailureMessage(e) ?: "更新情報を取得できませんでした。通信状態を確認してください。"))
                 }
 
                 override fun onResponse(call: Call, response: Response) {

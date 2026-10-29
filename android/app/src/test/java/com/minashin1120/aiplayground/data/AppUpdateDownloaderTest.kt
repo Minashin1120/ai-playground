@@ -64,6 +64,54 @@ class AppUpdateDownloaderTest {
         }
     }
 
+    @Test fun downloadsAndVerifiesApkWhenSystemDnsCannotResolveTheAssetHost() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            val apk = "verified apk after DNS recovery".toByteArray()
+            server.enqueue(MockResponse.Builder().body(sha256(apk)).build())
+            server.enqueue(MockResponse.Builder().body(apk.decodeToString()).build())
+            val base = server.url("/").newBuilder().host("assets.test").build().toString()
+            var notices = 0
+            val resolver = RecoveringDns(
+                okhttp3.Dns { throw java.net.UnknownHostException("fake DNS failure") },
+                okhttp3.Dns { listOf(java.net.InetAddress.getByAddress(byteArrayOf(127, 0, 0, 1))) },
+                { it == "assets.test" }, { notices++ },
+            )
+            val client = okhttp3.OkHttpClient.Builder().dns(resolver).build()
+            val directory = createTempDir(prefix = "app-update-dns-test")
+            try {
+                val update = AppUpdate("1.70.53", "android-v1.70.53", "${base}apk", "${base}sha", apk.size.toLong())
+                val file = AppUpdateDownloader(client, { it.startsWith(base) }).download(update, directory) {}
+                assertArrayEquals(apk, file.readBytes())
+                assertTrue(notices > 0)
+                assertEquals(2, server.requestCount)
+                repeat(2) {
+                    val request = server.takeRequest()
+                    assertNull(request.headers["Authorization"])
+                    assertNull(request.headers["Cookie"])
+                }
+            } finally {
+                directory.deleteRecursively()
+            }
+        }
+    }
+
+    @Test fun exhaustedDnsFailureHasUsefulMessageAndLeavesNoApk() = runBlocking {
+        val client = okhttp3.OkHttpClient.Builder().dns(okhttp3.Dns {
+            throw java.net.UnknownHostException("fake private hostname")
+        }).build()
+        val directory = createTempDir(prefix = "app-update-dns-failure")
+        try {
+            val update = AppUpdate("1.70.53", "android-v1.70.53", "https://github.com/apk", "https://github.com/sha", 10L)
+            val error = runCatching { AppUpdateDownloader(client).download(update, directory) {} }.exceptionOrNull()
+            assertTrue(error?.message?.contains("名前を解決") == true)
+            assertTrue(error?.message?.contains("fake private hostname") == false)
+            assertTrue(directory.listFiles().orEmpty().isEmpty())
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
     private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
         .digest(bytes).joinToString("") { byte -> "%02x".format(byte) }
 }

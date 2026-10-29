@@ -69,7 +69,8 @@ class DirectHttp(
         }
     }
 
-    private val client = OkHttpClient.Builder().protocols(listOf(Protocol.HTTP_1_1)).cookieJar(CookieJar.NO_COOKIES)
+    private val client = OkHttpClient.Builder()
+        .dns(com.minashin1120.aiplayground.data.NetworkDns).protocols(listOf(Protocol.HTTP_1_1)).cookieJar(CookieJar.NO_COOKIES)
         .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
         .eventListenerFactory { call -> listener(call) }
         .connectTimeout(20, TimeUnit.SECONDS).readTimeout(660, TimeUnit.SECONDS)

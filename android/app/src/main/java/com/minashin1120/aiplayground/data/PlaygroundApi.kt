@@ -44,7 +44,8 @@ class PlaygroundApi internal constructor(
     private val jsonType = "application/json; charset=utf-8".toMediaType()
     // Keep uploads, short requests and streams on separate HTTP/1.1 connections.
     // A stalled multiplexed connection must not hold settings, heartbeat and release notes together.
-    private val normal = OkHttpClient.Builder().protocols(listOf(Protocol.HTTP_1_1)).cookieJar(CookieJar.NO_COOKIES)
+    private val normal = OkHttpClient.Builder()
+        .dns(NetworkDns).protocols(listOf(Protocol.HTTP_1_1)).cookieJar(CookieJar.NO_COOKIES)
         .socketFactory(socketFactory)
         .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
         .eventListenerFactory { serverCallListener() }

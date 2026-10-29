@@ -21,6 +21,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/AppUpdateDownloadService.kt` | ダウンロード中のフォアグラウンドサービス、進捗・完了通知、更新通知チャンネル | アプリ外でのダウンロード継続・通知を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/GenerationService.kt`, `app/src/main/java/com/minashin1120/aiplayground/data/local/GenerationTracker.kt` | 回答の生成・受信中のフォアグラウンドサービス（通知とCPUの保持）と通知チャンネル、実行中の生成の数え上げ（サーバー不使用モードで回答の保存後まで保護する画像・動画のmodeは `needsKeepAlive` で判定） | 生成中のアプリ保護・アプリを離れたときの継続・通知を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/AppChangelogViewModel.kt` | Android版更新履歴Markdownの取得状態・再試行 | アプリ版更新履歴の取得を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/NetworkDns.kt` | 端末DNS失敗時のCloudflare DNS over HTTPS補助、対象ドメイン制限、通知の間隔、DNSエラー文言 | 名前解決の復旧・補助通知を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/AppUpdateChecker.kt`, `AppUpdateDownloader.kt` | GitHub Release資産の確認、APK取得、SHA-256検証 | 更新元・資産名・ダウンロードを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/PendingFeedbackStore.kt`, `PendingFeedbackSender.kt` | 接続できないときのフィードバックと選択した添付の暗号化保存、送信済み段階の保存、自動再送 | フィードバックの送信保留・再送を変更するとき |
 | `docs/PENDING_FEEDBACK.md` | フィードバックの端末保存、再送のタイミング、添付とログの扱い | フィードバック送信保留の動作を確認するとき |

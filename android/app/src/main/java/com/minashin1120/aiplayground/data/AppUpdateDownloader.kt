@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.data
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
@@ -20,6 +21,7 @@ data class AppUpdateDownloadProgress(
 
 class AppUpdateDownloader internal constructor(
     private val client: OkHttpClient = OkHttpClient.Builder()
+        .dns(NetworkDns)
         .cookieJar(CookieJar.NO_COOKIES)
         .followRedirects(true)
         .followSslRedirects(true)
@@ -94,7 +96,8 @@ class AppUpdateDownloader internal constructor(
         } catch (error: Throwable) {
             partial.delete()
             target.delete()
-            throw error
+            if (error is CancellationException) throw error
+            throw dnsFailureMessage(error)?.let { IOException(it, error) } ?: error
         }
     }
 

@@ -23,6 +23,7 @@
     "direct.cancel",
     "direct.error",
     "direct.read_error",
+    "dns.fallback",
     "error",
     "error.unhandled_rejection",
     "feedback.chat_file",

@@ -635,7 +635,7 @@ class LocalChatBackend(
             val text = when (e) {
                 is DirectApiException -> "API Error${if (e.status > 0) " (${e.status})" else ""}: ${e.message}"
                 is ApiException -> e.payload.optString("error").ifBlank { e.message }
-                else -> if (com.minashin1120.aiplayground.data.direct.isSslFailure(e))
+                else -> com.minashin1120.aiplayground.data.dnsFailureMessage(e) ?: if (com.minashin1120.aiplayground.data.direct.isSslFailure(e))
                     "安全な通信が中断されました。回答を再生成してください。"
                 else "Connection Error: ${e.message ?: e.javaClass.simpleName}"
             }

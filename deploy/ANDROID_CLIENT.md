@@ -305,7 +305,7 @@ Bearer認証でHTMLのエラー応答を受けた場合はJSONへ変換します
 
 IDは文字列として扱います。古い履歴の数値IDを受け取る場合もあります。`limit` は最大200。`before_id` を使って古いメッセージをページングし、初期表示で全履歴を要求しないでください。
 
-分岐元情報は同期のチャットメタデータ `branch_origin` でも送受信します。端末だけの分岐元は `thread_client_uuid`・`message_client_uuid` で同期後のIDを解決します。同期メッセージは `prompt_options` を保持します。削除済みの本人所有ファイルは `missing_files` に列挙すると参照を残して同期できます。端末だけで欠損したファイルは `missing_local_files: [{reference: "local/...", attached: true/false}]` を送り、サーバーが本人の名前空間の欠損参照へ置き換えます。
+分岐元情報は同期のチャットメタデータ `branch_origin` でも送受信します。端末だけの分岐元は `thread_client_uuid`・`message_client_uuid` で同期後のIDを解決します。同期メッセージは `prompt_options` を保持します。回答の `search_used: true` は検索実行済みの印として `thought_data` の同名フィールドへ保存し、Web・Androidとも履歴の回答に「Search complete」を表示します。思考本文がない回答でも保存され、省略した旧クライアントは従来どおり扱います。削除済みの本人所有ファイルは `missing_files` に列挙すると参照を残して同期できます。端末だけで欠損したファイルは `missing_local_files: [{reference: "local/...", attached: true/false}]` を送り、サーバーが本人の名前空間の欠損参照へ置き換えます。
 
 ### 4.1 送信JSONの最小例
 

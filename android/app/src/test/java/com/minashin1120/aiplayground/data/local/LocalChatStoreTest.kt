@@ -16,6 +16,19 @@ class LocalChatStoreTest {
     private val crypto = EncryptedFileStore(byteArrayOf('T'.code.toByte(), 1)) { key }
     private val store by lazy { LocalChatStore(folder.root.resolve("chats"), crypto) }
 
+    @Test fun searchCompletionWithoutThoughtsSurvivesRestartAndSyncPayload() {
+        val thread = store.createThread(false, "test").getString("id")
+        val answer = store.appendMessage(thread, LocalChatStore.NewMessage("assistant", "answer", null, generating = true))
+        store.updateMessage(thread, answer, "answer", "", done = true, searchUsed = true)
+        val restarted = LocalChatStore(folder.root.resolve("chats"), crypto)
+        val thought = restarted.messages(thread).single().getString("thought_data")
+        assertTrue(com.minashin1120.aiplayground.data.reasoningSearchUsed(thought))
+        assertEquals("", com.minashin1120.aiplayground.data.reasoningText(thought))
+        val pending = restarted.pendingPush().single().entry.getJSONArray("messages").getJSONObject(0)
+        assertTrue(pending.getBoolean("search_used"))
+        assertEquals("", pending.getString("thought"))
+    }
+
     @Test fun committedPushIsRecognizedBeforeAcknowledgementWithoutDuplicateBranches() {
         val outbox = store.ensureOutboxThread("srvEarly")
         val question = store.appendMessage(outbox, LocalChatStore.NewMessage("user", "same text", null, parentServerId = 10))

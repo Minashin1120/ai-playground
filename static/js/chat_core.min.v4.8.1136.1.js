@@ -471,31 +471,32 @@ a&&(a.checked=!!(e&&e.rich_paste_prompt_use_custom_default)),i&&!richPastePrompt
 e||null,syncRichPastePromptPreferencesUi(userSettingsSnapshot,t),userSettingsSnapshot),"cacheUserSet\
 tings"),SETTINGS_LOAD_TIMEOUT_MS=15e3,fetchSettingsSnapshot=o(async()=>{const e=new AbortController,
 t=setTimeout(()=>e.abort(),SETTINGS_LOAD_TIMEOUT_MS);try{const n=await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery,
-{cache:"no-store",signal:e.signal});if(!n.ok)throw new Error("HTTP "+n.status);const i=await n.json();
-if(!i||typeof i!="object")throw new Error("Invalid settings response");return cacheUserSettings(i)}finally{
-clearTimeout(t)}},"fetchSettingsSnapshot"),ensureUserSettingsSnapshot=o(async()=>userSettingsSnapshot||
-(userSettingsSnapshotPromise||(userSettingsSnapshotPromise=fetchSettingsSnapshot().catch(()=>null).finally(
-()=>{userSettingsSnapshotPromise=null})),await userSettingsSnapshotPromise),"ensureUserSettingsSnaps\
-hot"),isUserSystemPromptActive=o(e=>!!(e&&String(e.system_prompt||"").trim()&&e.system_prompt_enabled!==
-!1),"isUserSystemPromptActive");window.applySavedUserSystemPromptSettings=e=>{if(!e)return;const t=userSettingsSnapshot||
-null,n=Object.assign({},t||{},e);cacheUserSettings(n);try{const i=document.getElementById("enable-sy\
-s-prompt"),a=!t||String(t.system_prompt||"")!==String(n.system_prompt||"")||t.system_prompt_enabled!==
-!1!=(n.system_prompt_enabled!==!1);if(i&&a){const r=isUserSystemPromptActive(n);i.disabled?r?i.dataset.
-restoreChecked="1":delete i.dataset.restoreChecked:i.checked!==r&&(i.checked=r,i.dispatchEvent(new Event(
-"change",{bubbles:!0})))}}catch{}fetchSettingsSnapshot().catch(()=>{})};const saveRichPastePromptPreferences=o(
-async()=>{const e=getRichPastePrompt(),t=getRichPasteUseDefaultCheckbox();if(!e||!t)return;const n={
-rich_paste_prompt_default:e.value||"",rich_paste_prompt_use_custom_default:!!t.checked};try{await apiFetch(
-CHAT_CONFIG.urls.handleSettings,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.
-stringify(n)}),cacheUserSettings(Object.assign({},userSettingsSnapshot||{},n),{preservePrompt:!0})}catch{}},
-"saveRichPastePromptPreferences"),queueRichPastePromptPreferenceSave=o(()=>{richPastePromptSaveTimer&&
-clearTimeout(richPastePromptSaveTimer),richPastePromptSaveTimer=setTimeout(()=>{richPastePromptSaveTimer=
-null,saveRichPastePromptPreferences()},500)},"queueRichPastePromptPreferenceSave"),hasRichPasteContent=o(
-()=>{const e=getRichPasteEditor();return e?(e.textContent||"").trim()?!0:!!e.querySelector("img,tabl\
-e,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre,code"):!1},"hasRichPasteContent"),updateRichPasteStatus=o(()=>{
-const e=getRichPasteEditor(),t=getRichPasteStatus();if(!t||!e)return;const n=(e.innerText||"").trim();
-if(!n){t.textContent="\u307E\u3060\u5185\u5BB9\u304C\u3042\u308A\u307E\u305B\u3093\u3002";return}const i=e.
-querySelectorAll("img").length,a=e.querySelectorAll("table").length,r=e.querySelectorAll("a").length,
-l=e.querySelectorAll("h1,h2,h3,h4,h5,h6").length;t.textContent=`${n.length} \u6587\u5B57 / \u753B\u50CF ${i}\
+{cache:"no-store",signal:e.signal});if(!n.ok){const a=new Error("HTTP "+n.status);throw a.retryable=
+n.status>=500||n.status===429,a}const i=await n.json();if(!i||typeof i!="object")throw new Error("In\
+valid settings response");return cacheUserSettings(i)}finally{clearTimeout(t)}},"fetchSettingsSnapsh\
+ot"),ensureUserSettingsSnapshot=o(async()=>userSettingsSnapshot||(userSettingsSnapshotPromise||(userSettingsSnapshotPromise=
+(async()=>{for(let e=0;e<2;e++)try{return await fetchSettingsSnapshot()}catch(t){if(t.retryable===!1||
+e===1)return null;await new Promise(n=>setTimeout(n,500))}return null})().finally(()=>{userSettingsSnapshotPromise=
+null})),await userSettingsSnapshotPromise),"ensureUserSettingsSnapshot"),isUserSystemPromptActive=o(
+e=>!!(e&&String(e.system_prompt||"").trim()&&e.system_prompt_enabled!==!1),"isUserSystemPromptActive");
+window.applySavedUserSystemPromptSettings=e=>{if(!e)return;const t=userSettingsSnapshot||null,n=Object.
+assign({},t||{},e);cacheUserSettings(n);try{const i=document.getElementById("enable-sys-prompt"),a=!t||
+String(t.system_prompt||"")!==String(n.system_prompt||"")||t.system_prompt_enabled!==!1!=(n.system_prompt_enabled!==
+!1);if(i&&a){const r=isUserSystemPromptActive(n);i.disabled?r?i.dataset.restoreChecked="1":delete i.
+dataset.restoreChecked:i.checked!==r&&(i.checked=r,i.dispatchEvent(new Event("change",{bubbles:!0})))}}catch{}
+fetchSettingsSnapshot().catch(()=>{})};const saveRichPastePromptPreferences=o(async()=>{const e=getRichPastePrompt(),
+t=getRichPasteUseDefaultCheckbox();if(!e||!t)return;const n={rich_paste_prompt_default:e.value||"",rich_paste_prompt_use_custom_default:!!t.
+checked};try{await apiFetch(CHAT_CONFIG.urls.handleSettings,{method:"POST",headers:{"Content-Type":"\
+application/json"},body:JSON.stringify(n)}),cacheUserSettings(Object.assign({},userSettingsSnapshot||
+{},n),{preservePrompt:!0})}catch{}},"saveRichPastePromptPreferences"),queueRichPastePromptPreferenceSave=o(
+()=>{richPastePromptSaveTimer&&clearTimeout(richPastePromptSaveTimer),richPastePromptSaveTimer=setTimeout(
+()=>{richPastePromptSaveTimer=null,saveRichPastePromptPreferences()},500)},"queueRichPastePromptPref\
+erenceSave"),hasRichPasteContent=o(()=>{const e=getRichPasteEditor();return e?(e.textContent||"").trim()?
+!0:!!e.querySelector("img,table,ul,ol,blockquote,h1,h2,h3,h4,h5,h6,pre,code"):!1},"hasRichPasteConte\
+nt"),updateRichPasteStatus=o(()=>{const e=getRichPasteEditor(),t=getRichPasteStatus();if(!t||!e)return;
+const n=(e.innerText||"").trim();if(!n){t.textContent="\u307E\u3060\u5185\u5BB9\u304C\u3042\u308A\u307E\u305B\u3093\u3002";
+return}const i=e.querySelectorAll("img").length,a=e.querySelectorAll("table").length,r=e.querySelectorAll(
+"a").length,l=e.querySelectorAll("h1,h2,h3,h4,h5,h6").length;t.textContent=`${n.length} \u6587\u5B57 / \u753B\u50CF ${i}\
  / \u8868 ${a} / \u30EA\u30F3\u30AF ${r} / \u898B\u51FA\u3057 ${l}`},"updateRichPasteStatus"),focusRichPasteEditor=o(
 ()=>{const e=getRichPasteCapture();if(!e)return;e.focus(),e.value=e.value||"",window.getSelection&&window.
 getSelection()&&e.select&&e.select()},"focusRichPasteEditor"),clearRichPasteEditor=o((e=!0)=>{const t=getRichPasteEditor();
@@ -915,14 +916,14 @@ nd); font-weight: bold; }
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),v=w.internal.pageSize.getWidth(),x=w.internal.
 pageSize.getHeight(),S=794,L=Math.floor(x/v*S),C=y.scrollHeight||y.offsetHeight;let A=0,I=!0;const J=Math.
 ceil(C/L);let D=0;for(;A<C;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const j=Math.min(L,C-A),le=(await new Promise((E,R)=>{const Z=setTimeout(()=>R(
+"Aborted","AbortError");const j=Math.min(L,C-A),ce=(await new Promise((E,R)=>{const Z=setTimeout(()=>R(
 new Error("PDF chunk rendering timed out")),12e4);h(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
 background,logging:!1,imageTimeout:5e3,x:0,y:A,width:S,height:j,windowWidth:S,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:o(O=>{prepareRichPastePdfClone(O,c);const H=O.querySelector(
 ".pdf-root-wrapper");H&&(H.style.position="relative",H.style.left="0",H.style.top="0")},"onclone")}).
 then(O=>{clearTimeout(Z),E(O)}).catch(O=>{clearTimeout(Z),R(O)})})).toDataURL("image/jpeg",.95),me=w.
-getImageProperties(le),ae=Math.min(x,me.height*v/me.width);I||w.addPage(),w.addImage(le,"JPEG",0,0,v,
-ae),I=!1,A+=j,D++;const Ae=Math.min(100,15+Math.round(D/J*85));i(Ae),await new Promise(E=>setTimeout(
+getImageProperties(ce),ae=Math.min(x,me.height*v/me.width);I||w.addPage(),w.addImage(ce,"JPEG",0,0,v,
+ae),I=!1,A+=j,D++;const Te=Math.min(100,15+Math.round(D/J*85));i(Te),await new Promise(E=>setTimeout(
 E,100))}return i(100),{blob:w.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=o(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),

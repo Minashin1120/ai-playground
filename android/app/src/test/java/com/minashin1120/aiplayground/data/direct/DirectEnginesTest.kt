@@ -20,6 +20,38 @@ class DirectEnginesTest {
         result to events
     }
 
+    @Test fun searchCitationsRemainInTheSavedAnswer() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(sse(
+                """{"type":"response.output_text.delta","delta":"answer"}""",
+                """{"type":"response.output_text.annotation.added","annotation":{"type":"url_citation","url":"https://example.com/source","title":"Source"}}""",
+                """{"type":"response.output_item.done","item":{"type":"message","content":[{"annotations":[{"type":"url_citation","url":"https://example.com/source","title":"Source"}]}]}}""",
+            ))
+            val (result, events) = run(OpenAiResponsesDirect(http, baseUrl = server.url("/").toString().trimEnd('/')), request())
+            assertTrue(result.content.contains("**Sources:**"))
+            assertEquals(1, Regex("example.com/source").findAll(result.content).count())
+            assertEquals(result.content, events.filter { it.optString("type") == "content" }.joinToString("") { it.getString("content") })
+        }
+    }
+
+    @Test fun responseReasoningSnapshotsAreRetainedWithoutDuplicatingDeltas() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(sse(
+                """{"type":"response.reasoning_summary_text.delta","item_id":"r1","summary_index":0,"delta":"first"}""",
+                """{"type":"response.reasoning_summary_text.done","item_id":"r1","summary_index":0,"text":"first thought"}""",
+                """{"type":"response.reasoning_summary_part.done","item_id":"r1","summary_index":0,"part":{"type":"summary_text","text":"first thought"}}""",
+                """{"type":"response.output_item.done","item":{"id":"r1","type":"reasoning","summary":[{"type":"summary_text","text":"first thought"}]}}""",
+                """{"type":"response.output_item.done","item":{"id":"r2","type":"reasoning","summary":[{"type":"summary_text","text":"second thought"}]}}""",
+                """{"type":"response.output_text.delta","delta":"answer"}""",
+            ))
+            val (result, events) = run(OpenAiResponsesDirect(http, baseUrl = server.url("/").toString().trimEnd('/')), request())
+            assertEquals("first thought\n\nsecond thought", result.thought)
+            assertEquals(result.thought, events.filter { it.optString("type") == "thought" }.joinToString("") { it.getString("content") })
+        }
+    }
+
     @Test fun largeJsonIsWrittenIncrementallyWithValidEscapesAndLength() {
         val original = JSONObject().put("image", "a".repeat(2 * 1024 * 1024))
             .put("unicode", "x".repeat(4095) + "😀\n\"\\")

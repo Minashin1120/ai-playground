@@ -1010,3 +1010,27 @@ internal fun reasoningText(raw: String): String {
         else -> raw
     }
 }
+
+/** Match the server prompt-options allowlist; never persist request text or credentials here. */
+internal fun promptOptionsRecord(body: JSONObject): JSONObject = JSONObject().apply {
+    listOf(
+        "canvas_mode", "coding_mode", "browser_fast_mode", "batch_mode", "enable_search",
+        "enable_url_context", "enable_maps", "enable_python", "enable_file_creation", "enable_mcp",
+        "enable_thinking", "thinking_level", "thinking_budget", "reasoning_effort", "safety_setting",
+        "enable_prompt_caching", "image_vision_model", "image_mask", "tts_voice", "tts_voice_custom",
+        "tts_language", "tts_speed", "image_size", "image_quality", "image_format",
+        "image_compression", "gemini_image_aspect", "gemini_image_size", "grok_image_aspect", "grok_image_resolution",
+        "grok_image_quality", "grok_image_format", "grok_image_count", "ideogram_operation", "ideogram_aspect",
+        "ideogram_resolution", "ideogram_quality", "ideogram_speed", "ideogram_magic_prompt", "ideogram_style_type",
+        "ideogram_count", "ideogram_seed", "xai_temperature", "xai_top_p", "xai_max_completion_tokens",
+        "xai_seed", "xai_presence_penalty", "xai_frequency_penalty", "xai_response_format", "xai_tool_choice",
+        "xai_parallel_tool_calls", "xai_logprobs", "xai_top_logprobs", "grok_video_duration", "grok_video_aspect",
+        "grok_video_resolution", "gemini_video_duration", "gemini_video_aspect", "gemini_video_resolution", "music_instrumental",
+        "ocr_table_format", "ocr_extract_header", "ocr_extract_footer", "ocr_include_blocks", "ocr_include_image_base64",
+        "ocr_pages"
+    ).forEach { key -> if (body.has(key) && !body.isNull(key)) put(key, body.get(key)) }
+}
+
+/** Search completion is message metadata, independent of whether the provider exposes thoughts. */
+internal fun reasoningSearchUsed(raw: String): Boolean =
+    runCatching { JSONObject(raw).optBoolean("search_used") }.getOrDefault(false)

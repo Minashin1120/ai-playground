@@ -189,6 +189,10 @@ internal fun MessageBubble(
               MessageSelection { Column {
                 if (message.quote.isNotBlank()) QuoteStrip(message.quote)
                 liveTop?.invoke()
+                if (!user && liveTop == null) {
+                    val searched = remember(message.thought) { com.minashin1120.aiplayground.data.reasoningSearchUsed(message.thought) }
+                    if (searched) LiveSearchBox("done")
+                }
                 if (!user && message.thought.isNotBlank()) {
                     val thought = remember(message.thought) { thoughtText(message.thought) }
                     if (thought.isNotBlank()) ThoughtContainer(thought,

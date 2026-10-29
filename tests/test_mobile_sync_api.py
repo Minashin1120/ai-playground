@@ -112,12 +112,22 @@ class MobileSyncApiTests(unittest.TestCase):
         self.assertIsNone(rows[0]['client_uuid'])
         self.assertEqual(self.call(f'/api/threads/{other_id}', token).status_code, 403)
 
+    def test_search_completion_survives_sync_without_reasoning_text(self):
+        token = self.token()
+        response = self.push_chat(token, self.uid(), [
+            {'client_uuid': self.uid(), 'role': 'assistant', 'content': 'answer', 'search_used': True},
+        ])
+        self.assertEqual(response.status_code, 200)
+        public_id = response.json['threads'][0]['id']
+        message = self.call(f'/api/threads/{public_id}', token).json['messages'][0]
+        self.assertEqual(json.loads(message['thought_data']), {'search_used': True})
+
     def test_push_creates_chats_idempotently_with_parent_links(self):
         token = self.token()
         thread_uuid, first, second = self.uid(), self.uid(), self.uid()
         messages = [
             {'client_uuid': first, 'role': 'user', 'content': 'こんにちは', 'model': 'gemini-3.6-flash', 'created_at_ms': 1_700_000_000_000},
-            {'client_uuid': second, 'role': 'assistant', 'content': '回答', 'thought': '考え', 'model': 'gemini-3.6-flash',
+            {'client_uuid': second, 'role': 'assistant', 'content': '回答', 'thought': '考え', 'search_used': True, 'model': 'gemini-3.6-flash',
              'parent': {'client_uuid': first}, 'tokens_in': 5, 'tokens_out': 7, 'created_at_ms': 1_700_000_001_000},
         ]
         response = self.push_chat(token, thread_uuid, messages)
@@ -137,7 +147,7 @@ class MobileSyncApiTests(unittest.TestCase):
         older = self.call(f'/api/threads/{public_id}?limit=1&before_id={ids[second]}&include_meta=0', token).json['messages']
         self.assertEqual([(m['id'], m['client_uuid']) for m in older], [(ids[first], first)])
         self.assertEqual(thread['messages'][1]['parent_id'], ids[first])
-        self.assertEqual(json.loads(thread['messages'][1]['thought_data'])['text'], '考え')
+        self.assertEqual(json.loads(thread['messages'][1]['thought_data']), {'text': '考え', 'search_used': True})
         self.assertEqual(thread['title'], 'Device chat')
         # A child of an unknown parent and another user's attachment are rejected.
         rejected = self.push_chat(token, thread_uuid, [

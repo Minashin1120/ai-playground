@@ -951,14 +951,7 @@
                                 continue;
                             }
                             if (j.type === 'search_status') {
-                                if (j.content === 'searching' && !searchBox) {
-                                     adiv.insertAdjacentHTML('afterbegin', `<div class="search-box visible animate-pulse mb-2"><i class="fas fa-globe"></i> Searching web...</div>`);
-                                     searchBox = adiv.querySelector('.search-box');
-                                } else if (j.content === 'done' && searchBox) {
-                                     searchBox.classList.remove('animate-pulse');
-                                     searchBox.innerHTML = '<i class="fas fa-check-circle text-green-400"></i> Search complete';
-                                     setTimeout(() => { if(searchBox) searchBox.remove(); searchBox=null; }, 2000);
-                                }
+                                searchBox = updateSearchBox(adiv, searchBox, j.content);
                                 continue;
                             }
                             if (j.type === 'mcp') {
@@ -1368,14 +1361,7 @@
                             const j = JSON.parse(l);
                             if (j.type === 'job_id') { currentJobId = j.content || jobId; continue; }
                             if (j.type === 'search_status') {
-                                if (j.content === 'searching' && !searchBox) {
-                                     adiv.insertAdjacentHTML('afterbegin', `<div class="search-box visible animate-pulse mb-2"><i class="fas fa-globe"></i> Searching web...</div>`);
-                                     searchBox = adiv.querySelector('.search-box');
-                                } else if (j.content === 'done' && searchBox) {
-                                     searchBox.classList.remove('animate-pulse');
-                                     searchBox.innerHTML = '<i class="fas fa-check-circle text-green-400"></i> Search complete';
-                                     setTimeout(() => { if(searchBox) searchBox.remove(); searchBox=null; }, 2000);
-                                }
+                                searchBox = updateSearchBox(adiv, searchBox, j.content);
                                 continue;
                             }
                             if (j.type === 'mcp') {

@@ -23,7 +23,6 @@ internal class ChatGenerations {
         @Volatile var threadId: String? = initial.selected?.id
         private val aliases = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
         var job: Job? = null
-        var searchClearJob: Job? = null
         @Volatile var lastEventAt = 0L
 
         fun owns(id: String): Boolean = threadId == id || id in aliases
@@ -91,11 +90,9 @@ internal class ChatGenerations {
 
     fun finish(answer: Answer) {
         answers.remove(answer)
-        answer.searchClearJob?.cancel()
     }
     fun cancelAll(except: Job? = null): List<Job> {
         val jobs = answers.mapNotNull { it.job }
-        answers.forEach { it.searchClearJob?.cancel() }
         answers.clear()
         jobs.filter { it !== except }.forEach { it.cancel() }
         return jobs

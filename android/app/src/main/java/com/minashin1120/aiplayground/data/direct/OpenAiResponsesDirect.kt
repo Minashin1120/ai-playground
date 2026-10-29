@@ -18,7 +18,27 @@ class OpenAiResponsesDirect(
         val payload = buildPayload(request)
         val content = StringBuilder()
         val thought = StringBuilder()
+        val reasoningParts = HashMap<String, String>()
+        fun reasoning(data: JSONObject, text: String, snapshot: Boolean = false, index: Int? = null) {
+            if (text.isEmpty()) return
+            val key = data.optString("item_id").ifBlank { data.optString("id", "reasoning") } + ":" +
+                (index ?: data.optInt("summary_index", data.optInt("content_index", 0)))
+            val newPart = key !in reasoningParts
+            val previous = reasoningParts[key].orEmpty()
+            val delta = if (snapshot) text.takeIf { it.startsWith(previous) }?.removePrefix(previous).orEmpty() else text
+            reasoningParts[key] = if (snapshot) text else previous + text
+            if (delta.isNotEmpty()) {
+                if (newPart && thought.isNotEmpty()) { thought.append("\n\n"); emit(event("thought", "\n\n")) }
+                thought.append(delta); emit(event("thought", delta))
+            }
+        }
         val files = mutableListOf<DirectOutputFile>()
+        val sources = LinkedHashMap<String, String>()
+        fun citation(annotation: JSONObject) {
+            val url = annotation.optString("url")
+            if (url.startsWith("https://") || url.startsWith("http://"))
+                sources[url] = annotation.optString("title").ifBlank { url }
+        }
         var usage: JSONObject? = null
         var searching = false
         val codes = LinkedHashMap<String, StringBuilder>()
@@ -27,13 +47,18 @@ class OpenAiResponsesDirect(
             if (sse.data == "[DONE]") return@postSse false
             val data = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true
             when (val type = data.optString("type").ifBlank { sse.event.orEmpty() }) {
+                "response.output_text.annotation.added" -> data.optJSONObject("annotation")?.let(::citation)
                 "response.output_text.delta" -> data.optString("delta").takeIf { it.isNotEmpty() }?.let {
                     content.append(it); emit(event("content", it))
                 }
                 "response.reasoning_summary_text.delta", "response.reasoning_text.delta" -> data.optString("delta").takeIf { it.isNotEmpty() }?.let {
-                    thought.append(it); emit(event("thought", it))
+                    reasoning(data, it)
                 }
-                "response.reasoning_summary_part.done" -> if (thought.isNotEmpty()) { thought.append("\n\n"); emit(event("thought", "\n\n")) }
+                "response.reasoning_text.done", "response.reasoning_summary_text.done" -> reasoning(data, data.optString("text"), snapshot = true)
+                "response.reasoning_summary_part.done", "response.content_part.done" -> data.optJSONObject("part")?.let { part ->
+                    if (part.optString("type") in listOf("summary_text", "reasoning_text"))
+                        reasoning(data, part.optString("text"), snapshot = true)
+                }
                 "response.web_search_call.in_progress", "response.web_search_call.searching" ->
                     if (!searching) { searching = true; emit(event("search_status", "searching")) }
                 "response.web_search_call.completed" -> if (searching) emit(event("search_status", "done"))
@@ -42,7 +67,22 @@ class OpenAiResponsesDirect(
                     codes.getOrPut(id) { StringBuilder() }.append(data.optString("delta"))
                     emit(event("python", JSONObject().put("id", id).put("code", codes[id].toString())))
                 }
-                "response.output_item.done" -> data.optJSONObject("item")?.let { item -> outputItem(item, codes, content, files, emit) }
+                "response.output_item.done" -> data.optJSONObject("item")?.let { item ->
+                    if (item.optString("type") == "reasoning") {
+                        val summary = item.optJSONArray("summary") ?: JSONArray()
+                        for (index in 0 until summary.length()) summary.optJSONObject(index)?.let { part ->
+                            reasoning(item, part.optString("text"), snapshot = true, index = index)
+                        }
+                    }
+                    if (item.optString("type") == "message") {
+                        val parts = item.optJSONArray("content") ?: JSONArray()
+                        for (index in 0 until parts.length()) {
+                            val annotations = parts.optJSONObject(index)?.optJSONArray("annotations") ?: continue
+                            for (a in 0 until annotations.length()) annotations.optJSONObject(a)?.let(::citation)
+                        }
+                    }
+                    outputItem(item, codes, content, files, emit)
+                }
                 "response.completed", "response.incomplete" -> usage = data.optJSONObject("response")?.optJSONObject("usage")
                 "response.failed", "error" -> {
                     val error = data.optJSONObject("response")?.optJSONObject("error") ?: data.optJSONObject("error") ?: data
@@ -52,12 +92,21 @@ class OpenAiResponsesDirect(
             onProgress(content.toString(), thought.toString())
             true
         }
+        if (sources.isNotEmpty()) {
+            fun label(text: String) = text.replace("\n", " ").replace("\r", " ").replace("[", "\\[").replace("]", "\\]")
+            val sourceText = "\n\n**Sources:**\n" + sources.entries.mapIndexed { index, (url, title) ->
+                "- [${index + 1}] [${label(title)}](<${url.replace(">", "%3E").replace("<", "%3C").replace("\n", "").replace("\r", "")}>)"
+            }.joinToString("\n") + "\n"
+            content.append(sourceText)
+            emit(event("content", sourceText))
+            onProgress(content.toString(), thought.toString())
+        }
         val meta = usage
-        val reasoning = meta?.optJSONObject("output_tokens_details")?.optInt("reasoning_tokens")?.takeIf { it > 0 }
+        val reasoningTokens = meta?.optJSONObject("output_tokens_details")?.optInt("reasoning_tokens")?.takeIf { it > 0 }
         return DirectResult(content.toString(), thought.toString(),
             tokensIn = meta?.optInt("input_tokens")?.takeIf { it > 0 },
             tokensOut = meta?.optInt("output_tokens")?.takeIf { it > 0 },
-            tokensThought = reasoning, files = files)
+            tokensThought = reasoningTokens, files = files)
     }
 
     private fun outputItem(item: JSONObject, codes: Map<String, StringBuilder>, content: StringBuilder,

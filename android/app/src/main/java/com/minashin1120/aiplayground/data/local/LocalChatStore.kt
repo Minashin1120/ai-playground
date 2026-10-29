@@ -322,11 +322,14 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     /** Replaces the text of a message being generated (saved every few seconds and at the end). */
     @Synchronized
     fun updateMessage(threadId: String, id: Int, content: String, thought: String, tokensIn: Int? = null, tokensOut: Int? = null,
-                      files: List<String>? = null, done: Boolean = false) {
+                      files: List<String>? = null, done: Boolean = false, searchUsed: Boolean = false) {
         val rows = loadMessages(threadId)
         val row = rows.firstOrNull { it.optInt("id") == id } ?: return
+        val thoughtMetadata = JSONObject()
+        if (thought.isNotBlank()) thoughtMetadata.put("text", thought)
+        if (searchUsed) thoughtMetadata.put("search_used", true)
         row.put("content", content)
-            .put("thought_data", if (thought.isBlank()) JSONObject.NULL else JSONObject().put("text", thought).toString())
+            .put("thought_data", if (thoughtMetadata.length() == 0) JSONObject.NULL else thoughtMetadata.toString())
             .put("synced", false)
         if (tokensIn != null) row.put("tokens_in", tokensIn)
         if (tokensOut != null) row.put("tokens_out", tokensOut)
@@ -644,6 +647,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
                     .put("content", row.optString("content")).put("model", row.opt("model") ?: JSONObject.NULL)
                     .put("thought", row.opt("thought_data")?.takeIf { it != JSONObject.NULL }?.toString()
                         ?.let { raw -> runCatching { JSONObject(raw).optString("text") }.getOrDefault(raw) }.orEmpty())
+                    .put("search_used", com.minashin1120.aiplayground.data.reasoningSearchUsed(row.textOf("thought_data")))
                     .put("quote_text", row.opt("quote_text") ?: JSONObject.NULL)
                     .put("gem_uuid", row.opt("gem_uuid") ?: JSONObject.NULL).put("gem_name", row.opt("gem_name") ?: JSONObject.NULL)
                     .put("tokens_in", row.opt("tokens_in") ?: JSONObject.NULL).put("tokens_out", row.opt("tokens_out") ?: JSONObject.NULL)

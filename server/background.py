@@ -832,10 +832,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 final_content = format_chat_error_content(error_text, partial)
                 is_enc = bool(user_config.get("enable_e2ee", False))
                 content_to_store = encrypt_val(final_content) if is_enc else final_content
-                thought_data = None
-                if thought_text and str(thought_text).strip():
-                    thought_payload = json.dumps({"text": thought_text}, ensure_ascii=False)
-                    thought_data = encrypt_val(thought_payload) if is_enc else thought_payload
+                thought_metadata = {"text": thought_text} if thought_text and str(thought_text).strip() else {}
+                if search_used:
+                    thought_metadata["search_used"] = True
+                thought_payload = json.dumps(thought_metadata, ensure_ascii=False) if thought_metadata else None
+                thought_data = encrypt_val(thought_payload) if is_enc and thought_payload else thought_payload
 
                 gem_uuid_val = options.get("gem_uuid")
                 gem_name_val = None
@@ -875,7 +876,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     pass
 
         _diagnostic_first_types = set()
+        search_used = False
         def pub(dt, d, **metadata):
+            nonlocal search_used
+            if dt == "search_status" and d in ("searching", "done"):
+                search_used = True
             if dt in ('content', 'thought', 'status', 'done', 'error') and dt not in _diagnostic_first_types:
                 _diagnostic_first_types.add(dt)
                 _record_server_diagnostic(user_id, 'server.stream.error' if dt == 'error' else 'server.stream.end' if dt == 'done' else 'server.stream.first', job=job_id, type=dt)
@@ -7671,7 +7676,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if sig_kept_count < sig_original_count:
                     log_force(f"Trimmed thought_signature for DB storage: kept {sig_kept_count}/{sig_original_count}")
 
-            thought_payload = {}
+            thought_payload = {"search_used": True} if search_used else {}
             if thought_accumulated:
                 thought_payload["text"] = thought_accumulated
             if deepseek_tool_context:

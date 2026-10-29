@@ -671,16 +671,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * After an answer on the device: the outbox goes to the server, but the answer is finished without
-     * waiting for a server that is out of reach. A sync still running after [AFTER_ANSWER_SYNC_WAIT_MS]
-     * continues in the background; a failed one is tried again later ([scheduleSyncRetry]).
+     * waiting for uploads or a server that is out of reach. Sync continues in the background;
+     * a failed one is tried again later ([scheduleSyncRetry]).
      */
     private suspend fun syncAfterAnswer() {
         withContext(Dispatchers.Main.immediate) {
             if (state.value.offline || !hasUsableNetwork()) {
                 scheduleSyncRetry()
             } else {
-                val job = viewModelScope.launch { syncJob?.join(); runSync(manual = false) }
-                withTimeoutOrNull(AFTER_ANSWER_SYNC_WAIT_MS) { job.join() }
+                viewModelScope.launch { syncJob?.join(); runSync(manual = false) }
             }
         }
     }
@@ -3263,7 +3262,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 updateAnswer(answer) { it.copy(messages = it.messages.filterNot { m -> m.id == userId } + ChatMessage(userId, "user",
                     body.getString("message"), files = submission.files.map { a -> a.reference },
                     quote = body.optString("quote_text"), gemName = it.selectedGem?.name.orEmpty(),
-                    promptOptions = submission.mask?.let { mask -> JSONObject().put("image_mask", mask) })) }
+                    promptOptions = com.minashin1120.aiplayground.data.promptOptionsRecord(body))) }
                 if (id.isBlank()) {
                     val created = answerBackend.post("/api/threads", JSONObject().put("is_temporary", answer.snapshot.value.newThreadTemporary), answerToken)
                     id = created.get("id").toString()
@@ -3441,11 +3440,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "thread_id" -> { markApiAccepted(answer); return }
             "job_id" -> { markApiAccepted(answer); updateAnswer(answer) { it.copy(jobId = content) }; return }
             "search_status" -> {
-                if (content == "searching") updateLive(answer) { if (it.search.isEmpty()) it.copy(search = "searching") else it }
+                if (content == "searching") updateLive(answer) { it.copy(search = "searching") }
                 else if (content == "done" && answer.snapshot.value.live.search == "searching") {
                     updateLive(answer) { it.copy(search = "done") }
-                    answer.searchClearJob?.cancel()
-                    answer.searchClearJob = viewModelScope.launch { delay(2000); updateLive(answer) { if (it.search == "done") it.copy(search = "") else it } }
+
                 }
                 return
             }
@@ -5423,7 +5421,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         /** Away from the app at least this long, a server answer is rejoined rather than read on. */
         const val STREAM_REJOIN_AFTER_MS = 30_000L
         /** Longest wait for the outbox to go up before a device answer is finished (the sync then continues in the background). */
-        const val AFTER_ANSWER_SYNC_WAIT_MS = 3000L
         const val DIAGNOSTICS_INTERVAL_MS = 10_000L
         /** No diagnostics entry for this long while work runs: the thread stacks are recorded. */
         const val DIAGNOSTICS_STALL_MS = 20_000L

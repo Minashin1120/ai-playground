@@ -1473,7 +1473,11 @@
                     cache: 'no-store',
                     signal: controller.signal
                 });
-                if (!response.ok) throw new Error('HTTP ' + response.status);
+                if (!response.ok) {
+                    const error = new Error('HTTP ' + response.status);
+                    error.retryable = response.status >= 500 || response.status === 429;
+                    throw error;
+                }
                 const data = await response.json();
                 if (!data || typeof data !== 'object') throw new Error('Invalid settings response');
                 return cacheUserSettings(data);
@@ -1484,8 +1488,16 @@
         const ensureUserSettingsSnapshot = async () => {
             if (userSettingsSnapshot) return userSettingsSnapshot;
             if (!userSettingsSnapshotPromise) {
-                userSettingsSnapshotPromise = fetchSettingsSnapshot()
-                    .catch(() => null)
+                userSettingsSnapshotPromise = (async () => {
+                    for (let attempt = 0; attempt < 2; attempt++) {
+                        try { return await fetchSettingsSnapshot(); }
+                        catch (error) {
+                            if (error.retryable === false || attempt === 1) return null;
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    }
+                    return null;
+                })()
                     .finally(() => {
                         userSettingsSnapshotPromise = null;
                     });
@@ -20674,6 +20686,20 @@
                 frame.appendChild(svg);
             });
         }
+        const SEARCH_COMPLETE_HTML = '<div class="search-box visible mb-2"><i class="fas fa-check-circle text-green-400"></i> Search complete</div>';
+        function updateSearchBox(bubble, box, phase) {
+            if (phase !== 'searching' && phase !== 'done') return box;
+            if (!box) {
+                bubble.insertAdjacentHTML('afterbegin', SEARCH_COMPLETE_HTML);
+                box = bubble.querySelector('.search-box');
+            }
+            box.classList.toggle('animate-pulse', phase === 'searching');
+            box.innerHTML = phase === 'searching'
+                ? '<i class="fas fa-globe"></i> Searching web...'
+                : '<i class="fas fa-check-circle text-green-400"></i> Search complete';
+            return box;
+        }
+
         function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null, batchInfo = null, maskImageUrl = null) {
             const isUser = role === 'user';
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
@@ -20715,8 +20741,12 @@
             let th = '';
             if (thoughtData && !isUser) {
                 let tx = "";
-                try { const o = JSON.parse(thoughtData); tx = o.text || ""; } catch(e) { tx = thoughtData; }
-                if (tx) th = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed">${escapeHtml(tx)}</div></div>`;
+                try {
+                    const o = JSON.parse(thoughtData);
+                    tx = o.text || "";
+                    if (o.search_used === true) th = SEARCH_COMPLETE_HTML;
+                } catch(e) { tx = thoughtData; }
+                if (tx) th += `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed">${escapeHtml(tx)}</div></div>`;
             }
 
             let at = '';
@@ -22967,14 +22997,7 @@
                                 continue;
                             }
                             if (j.type === 'search_status') {
-                                if (j.content === 'searching' && !searchBox) {
-                                     adiv.insertAdjacentHTML('afterbegin', `<div class="search-box visible animate-pulse mb-2"><i class="fas fa-globe"></i> Searching web...</div>`);
-                                     searchBox = adiv.querySelector('.search-box');
-                                } else if (j.content === 'done' && searchBox) {
-                                     searchBox.classList.remove('animate-pulse');
-                                     searchBox.innerHTML = '<i class="fas fa-check-circle text-green-400"></i> Search complete';
-                                     setTimeout(() => { if(searchBox) searchBox.remove(); searchBox=null; }, 2000);
-                                }
+                                searchBox = updateSearchBox(adiv, searchBox, j.content);
                                 continue;
                             }
                             if (j.type === 'mcp') {
@@ -23384,14 +23407,7 @@
                             const j = JSON.parse(l);
                             if (j.type === 'job_id') { currentJobId = j.content || jobId; continue; }
                             if (j.type === 'search_status') {
-                                if (j.content === 'searching' && !searchBox) {
-                                     adiv.insertAdjacentHTML('afterbegin', `<div class="search-box visible animate-pulse mb-2"><i class="fas fa-globe"></i> Searching web...</div>`);
-                                     searchBox = adiv.querySelector('.search-box');
-                                } else if (j.content === 'done' && searchBox) {
-                                     searchBox.classList.remove('animate-pulse');
-                                     searchBox.innerHTML = '<i class="fas fa-check-circle text-green-400"></i> Search complete';
-                                     setTimeout(() => { if(searchBox) searchBox.remove(); searchBox=null; }, 2000);
-                                }
+                                searchBox = updateSearchBox(adiv, searchBox, j.content);
                                 continue;
                             }
                             if (j.type === 'mcp') {

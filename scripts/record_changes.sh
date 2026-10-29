@@ -101,12 +101,18 @@ blocked_count="$(printf '%s' "$STATUS_JSON" | "$PYTHON" -c 'import json,sys; d=j
 allowed_count="$(printf '%s' "$STATUS_JSON" | "$PYTHON" -c 'import json,sys; print(len(json.load(sys.stdin).get("allowed") or []))')"
 android_build_count="$(printf '%s' "$STATUS_JSON" | "$PYTHON" -c 'import json,sys; print(len(json.load(sys.stdin).get("android_build") or []))')"
 if [[ "$TARGET" == "android" && "$android_build_count" != "0" ]]; then
-    # Android CI publishes a GitHub Release only for a new VERSION_NAME; otherwise it just verifies.
+    # Match release.yml: an unchanged version without a remote tag resumes its release.
     HEAD_VERSION_NAME="$(git_in show HEAD:android/version.properties 2>/dev/null | sed -n 's/^VERSION_NAME=//p')"
     if [[ "$VERSION_NAME" != "$HEAD_VERSION_NAME" ]]; then
         echo "  Android Release: android-v$VERSION_NAME will be published"
     else
-        echo "  Android Release: none (VERSION_NAME unchanged; Actions only verify the build)"
+        TAG_STATUS=0
+        git_in ls-remote --exit-code --tags origin "refs/tags/android-v$VERSION_NAME" >/dev/null || TAG_STATUS=$?
+        case "$TAG_STATUS" in
+            0) echo "  Android Release: none (VERSION_NAME unchanged; remote tag already exists; Actions only verify the build)" ;;
+            2) echo "  Android Release: android-v$VERSION_NAME will be published (unfinished release; remote tag is missing)" ;;
+            *) die "cannot determine Android release plan: remote tag lookup failed" ;;
+        esac
     fi
 fi
 if [[ "$android_build_count" != "0" ]]; then

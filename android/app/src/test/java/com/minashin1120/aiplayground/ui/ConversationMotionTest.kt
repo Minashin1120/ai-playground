@@ -9,6 +9,28 @@ import org.junit.Test
 class ConversationMotionTest {
     private val history = listOf(ChatMessage("10", "user", "前の質問"), ChatMessage("11", "assistant", "前の回答"))
 
+    @Test fun synchronizationKeepsTheLiveReplyKeyAndExpandedLayout() {
+        val keys = ConversationKeyTracker()
+        keys.update(history, false, false)
+        val local = ChatMessage("local-request", "user", "question")
+        keys.update(history + local, true, true)
+        val liveKey = keys.liveKey
+        keys.consumeFresh(liveKey)
+        val pending = history + ChatMessage("1000001", "user", "question") +
+            ChatMessage("1000002", "assistant", "answer", thought = "reasoning")
+        keys.update(pending, false, false)
+        assertEquals(liveKey, keys.keyOf(pending.last()))
+        val synced = history + pending[2].copy(id = "12", conversationKey = "1000001") +
+            pending[3].copy(id = "13", conversationKey = "1000002")
+        keys.update(synced, false, false)
+        assertEquals(liveKey, keys.keyOf(synced.last()))
+        assertEquals("local-request", keys.keyOf(synced[2]))
+        assertTrue(keys.isLiveReply(synced.last()))
+        assertFalse(keys.consumeFresh(liveKey))
+        keys.update(synced.map { it.copy() }, false, false)
+        assertEquals(liveKey, keys.keyOf(synced.last()))
+    }
+
     @Test
     fun openedHistoryDoesNotPlayEntryMotion() {
         val keys = ConversationKeyTracker()

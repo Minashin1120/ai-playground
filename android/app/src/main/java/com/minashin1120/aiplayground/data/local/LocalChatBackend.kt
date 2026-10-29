@@ -559,8 +559,7 @@ class LocalChatBackend(
                 else if (chat.serverId == null) parent else null,
             parentServerId = if (onServerParent) parent else null,
             model = model, files = files, quote = quote, gemUuid = gemUuid, gemName = gemName,
-            promptOptions = body.optString("image_mask").takeIf { it.isNotBlank() && it != "null" }
-                ?.let { JSONObject().put("image_mask", it) }))
+            promptOptions = com.minashin1120.aiplayground.data.promptOptionsRecord(body)))
         // Server `chat_stream`: the first message names a new chat.
         val title = chat.settings.optString("title")
         val newTitle = if (title == "New Chat" && message.isNotBlank()) {
@@ -593,6 +592,7 @@ class LocalChatBackend(
         Diagnostics.log("gen.saved_question", "ms" to elapsed())
         var partialContent = ""
         var partialThought = ""
+        var searchUsed = false
         var lastSave = 0L
         val last: JSONObject = try {
             // Attachments that cannot be read (a server file out of reach) end the answer with an error.
@@ -613,21 +613,24 @@ class LocalChatBackend(
                 val ref = store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong())
                 streamedOutputs += ref
                 ref
-            }), onEvent) { content, thought ->
+            }), { event ->
+                if (event.optString("type") == "search_status") searchUsed = true
+                onEvent(event)
+            }) { content, thought ->
                 partialContent = content; partialThought = thought
                 val now = System.currentTimeMillis()
-                if (now - lastSave > 3000) { lastSave = now; store.updateMessage(chat.outboxId, assistantId, content, thought) }
+                if (now - lastSave > 3000) { lastSave = now; store.updateMessage(chat.outboxId, assistantId, content, thought, searchUsed = searchUsed) }
             }
             val outputs = streamedOutputs + result.files.map { file -> store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong()) }
             val content = withoutInventedAgenticImages(result.content, turns)
             store.updateMessage(chat.outboxId, assistantId, content, result.thought, result.tokensIn, result.tokensOut,
-                files = outputs.takeIf { it.isNotEmpty() }, done = true)
+                files = outputs.takeIf { it.isNotEmpty() }, done = true, searchUsed = searchUsed)
             Diagnostics.log("gen.done", "content_chars" to content.length, "files" to outputs.size, "ms" to elapsed())
             JSONObject().put("type", "done")
         } catch (e: CancellationException) {
             Diagnostics.log("gen.cancelled", "content_chars" to partialContent.length, "ms" to elapsed())
             // Stopped: what arrived so far is kept; the chat screen asks for the upload.
-            withContext(NonCancellable) { store.updateMessage(chat.outboxId, assistantId, partialContent, partialThought, done = true) }
+            withContext(NonCancellable) { store.updateMessage(chat.outboxId, assistantId, partialContent, partialThought, done = true, searchUsed = searchUsed) }
             onChanged()
             throw e
         } catch (e: Exception) {
@@ -639,12 +642,11 @@ class LocalChatBackend(
                     "安全な通信が中断されました。回答を再生成してください。"
                 else "Connection Error: ${e.message ?: e.javaClass.simpleName}"
             }
-            store.updateMessage(chat.outboxId, assistantId, errorContent(text, partialContent), partialThought, done = true)
+            store.updateMessage(chat.outboxId, assistantId, errorContent(text, partialContent), partialThought, done = true, searchUsed = searchUsed)
             JSONObject().put("type", "error").put("content", text)
         }
         onChanged()
-        // The finished question and answer go to the server before the screen reloads the chat; a server out of
-        // reach does not hold the answer open (the sync continues or is retried in the background).
+        // Schedule the finished question and answer for background sync without delaying completion.
         remote?.let { history ->
             try { history.afterAnswer() } catch (e: CancellationException) { throw e } catch (_: Exception) {}
             Diagnostics.log("gen.after_answer_sync", "ms" to elapsed())

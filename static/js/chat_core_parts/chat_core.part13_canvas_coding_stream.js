@@ -391,6 +391,20 @@
                 frame.appendChild(svg);
             });
         }
+        const SEARCH_COMPLETE_HTML = '<div class="search-box visible mb-2"><i class="fas fa-check-circle text-green-400"></i> Search complete</div>';
+        function updateSearchBox(bubble, box, phase) {
+            if (phase !== 'searching' && phase !== 'done') return box;
+            if (!box) {
+                bubble.insertAdjacentHTML('afterbegin', SEARCH_COMPLETE_HTML);
+                box = bubble.querySelector('.search-box');
+            }
+            box.classList.toggle('animate-pulse', phase === 'searching');
+            box.innerHTML = phase === 'searching'
+                ? '<i class="fas fa-globe"></i> Searching web...'
+                : '<i class="fas fa-check-circle text-green-400"></i> Search complete';
+            return box;
+        }
+
         function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null, batchInfo = null, maskImageUrl = null) {
             const isUser = role === 'user';
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
@@ -432,8 +446,12 @@
             let th = '';
             if (thoughtData && !isUser) {
                 let tx = "";
-                try { const o = JSON.parse(thoughtData); tx = o.text || ""; } catch(e) { tx = thoughtData; }
-                if (tx) th = `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed">${escapeHtml(tx)}</div></div>`;
+                try {
+                    const o = JSON.parse(thoughtData);
+                    tx = o.text || "";
+                    if (o.search_used === true) th = SEARCH_COMPLETE_HTML;
+                } catch(e) { tx = thoughtData; }
+                if (tx) th += `<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed">${escapeHtml(tx)}</div></div>`;
             }
 
             let at = '';

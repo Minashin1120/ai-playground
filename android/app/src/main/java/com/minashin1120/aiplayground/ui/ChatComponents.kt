@@ -206,7 +206,7 @@ internal class ConversationKeyTracker {
     val liveKey: String get() = "live-$liveSerial"
 
     /** True while the stored row is taking over the live bubble's expanded layout. */
-    fun isLiveReply(message: ChatMessage): Boolean = message.id == liveReplyId
+    fun isLiveReply(message: ChatMessage): Boolean = liveReplyId?.let { resolved[it] ?: resolveAlias(it) } == keyOf(message)
 
     private var resolved: Map<String, String> = emptyMap()
     private var resolvedList: List<String> = emptyList()
@@ -217,7 +217,14 @@ internal class ConversationKeyTracker {
     /** LazyColumn key for the row at [index] of the list last passed to [update]; unique within it. */
     fun keyAt(index: Int, message: ChatMessage): String = resolvedList.getOrNull(index) ?: aliasOf(message)
 
-    private fun aliasOf(message: ChatMessage): String = message.conversationKey ?: aliases[message.id] ?: message.id
+    private fun resolveAlias(id: String): String {
+        var key = id
+        val seen = HashSet<String>()
+        while (seen.add(key)) key = aliases[key] ?: return key
+        return id
+    }
+
+    private fun aliasOf(message: ChatMessage): String = resolveAlias(message.conversationKey ?: message.id)
 
     /** Returns true only the first time a newly added key asks, so re-composition never replays the entry. */
     fun consumeFresh(key: String): Boolean = fresh.remove(key)

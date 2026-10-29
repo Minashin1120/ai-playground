@@ -1473,7 +1473,11 @@
                     cache: 'no-store',
                     signal: controller.signal
                 });
-                if (!response.ok) throw new Error('HTTP ' + response.status);
+                if (!response.ok) {
+                    const error = new Error('HTTP ' + response.status);
+                    error.retryable = response.status >= 500 || response.status === 429;
+                    throw error;
+                }
                 const data = await response.json();
                 if (!data || typeof data !== 'object') throw new Error('Invalid settings response');
                 return cacheUserSettings(data);
@@ -1484,8 +1488,16 @@
         const ensureUserSettingsSnapshot = async () => {
             if (userSettingsSnapshot) return userSettingsSnapshot;
             if (!userSettingsSnapshotPromise) {
-                userSettingsSnapshotPromise = fetchSettingsSnapshot()
-                    .catch(() => null)
+                userSettingsSnapshotPromise = (async () => {
+                    for (let attempt = 0; attempt < 2; attempt++) {
+                        try { return await fetchSettingsSnapshot(); }
+                        catch (error) {
+                            if (error.retryable === false || attempt === 1) return null;
+                            await new Promise(resolve => setTimeout(resolve, 500));
+                        }
+                    }
+                    return null;
+                })()
                     .finally(() => {
                         userSettingsSnapshotPromise = null;
                     });

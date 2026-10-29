@@ -305,7 +305,7 @@ private fun SkeletonCode(brush: Brush) {
     }
 }
 
-/** `.search-box`: "Searching web..." (pulsing) and then "Search complete" for two seconds. */
+/** `.search-box`: "Searching web..." (pulsing) and then the saved "Search complete" indicator. */
 @Composable
 internal fun LiveSearchBox(state: String) {
     val web = LocalWebPalette.current

@@ -26,6 +26,7 @@ class PromptSendMotionUiTest {
     @get:Rule val rule = createComposeRule()
     private var state by mutableStateOf(ChatState())
     private lateinit var motion: PromptSendMotion
+    private val composedFlights = mutableListOf<Triple<String?, String?, Float>>()
 
     private var hostHeight by mutableStateOf(800)
 
@@ -36,12 +37,13 @@ class PromptSendMotionUiTest {
                 Box(Modifier.height(hostHeight.dp)) {
                 PromptSendMotionHost(state) {
                     motion = checkNotNull(LocalPromptSendMotion.current)
+                    composedFlights += Triple(state.promptSendMotionId, motion.id, motion.progress.value)
                     SideEffect {
                         motion.source = Rect(0f, 600f, 300f, 650f)
                         motion.viewport = Rect(0f, 0f, 1000f, 1000f)
                     }
                     if (state.promptSendMotionId != null) {
-                        Column(Modifier.wrapContentHeight(unbounded = true).padding(20.dp).width(200.dp).then(promptSendBubbleModifier("local-test"))) {
+                        Column(Modifier.wrapContentHeight(unbounded = true).padding(20.dp).width(200.dp).then(promptSendBubbleModifier(checkNotNull(state.promptSendMotionId)))) {
                             Text(if (longPrompt) (1..80).joinToString("\n") { "長いプロンプト $it" } else "本文\n2行目")
                             Text("引用と添付ファイル")
                         }
@@ -90,6 +92,34 @@ class PromptSendMotionUiTest {
         rule.mainClock.advanceTimeBy(450L)
         rule.waitForIdle()
         rule.runOnIdle { assertNull(motion.id); assertNull(motion.layer) }
+    }
+
+    @Test fun firstCompositionHidesTheDestinationForInitialAndSubsequentSends() {
+        render(longPrompt = true)
+        fun assertPreparedBeforeRow(request: String) {
+            val first = composedFlights.first { it.first == request }
+            assertEquals("The row must be hidden in its first composition", request, first.second)
+            assertEquals("A new send must start at the composer", 0f, first.third, 0f)
+        }
+        rule.runOnIdle { state = state.copy(promptSendMotionId = "local-test") }
+        rule.mainClock.advanceTimeByFrame()
+        rule.waitForIdle()
+        rule.runOnIdle { assertPreparedBeforeRow("local-test") }
+        rule.onAllNodes(isRoot()).onFirst().captureRoboImage("build/outputs/roborazzi/prompt_send_first_frame.png")
+        rule.mainClock.advanceTimeBy(500L)
+        rule.waitForIdle()
+        rule.runOnIdle {
+            assertNull(motion.id)
+            assertEquals(1f, motion.progress.value, 0f)
+            state = state.copy(promptSendMotionId = "local-second")
+        }
+        rule.mainClock.advanceTimeByFrame()
+        rule.waitForIdle()
+        rule.runOnIdle { assertPreparedBeforeRow("local-second") }
+        rule.onAllNodes(isRoot()).onFirst().captureRoboImage("build/outputs/roborazzi/prompt_send_second_first_frame.png")
+        rule.mainClock.advanceTimeBy(500L)
+        rule.waitForIdle()
+        rule.runOnIdle { assertNull(motion.id) }
     }
 
     @Test fun navigationCancelsAndDoesNotReplayTheRequest() {

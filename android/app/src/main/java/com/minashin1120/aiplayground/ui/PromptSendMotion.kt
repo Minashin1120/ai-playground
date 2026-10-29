@@ -43,11 +43,15 @@ internal class PromptSendMotion {
     var ready by mutableStateOf(false)
     var layer: GraphicsLayer? = null
     var origin: Rect? = null
-    val progress = Animatable(0f)
+    var progress = Animatable(0f)
+        private set
 
     fun finish() { id = null; layer = null; target = null; ready = false }
     fun begin(request: String?, reduce: Boolean) {
         finish()
+        // Reset synchronously: a new request must never draw the previous flight's
+        // completed progress while its animation coroutine is waiting to start.
+        progress = Animatable(0f)
         val regions = listOfNotNull(source, quoteSource, filesSource).filterNot { it.isEmpty }
         origin = if (regions.isEmpty()) null else Rect(regions.minOf { it.left }, regions.minOf { it.top },
             regions.maxOf { it.right }, regions.maxOf { it.bottom })
@@ -80,24 +84,24 @@ internal fun PromptSendMotionHost(state: ChatState, content: @Composable () -> U
     LaunchedEffect(state.draft) { if (state.draft.isNotEmpty()) motion.finish() }
     // Initial composition/restoration must not replay an old send request.
     var seen by remember { mutableStateOf(state.promptSendMotionId) }
-    LaunchedEffect(state.promptSendMotionId, state.chatNavigationId, reduce) {
-        val request = state.promptSendMotionId
-        if (seen == request) { motion.finish(); return@LaunchedEffect }
-        seen = request
-        motion.begin(request, reduce)
+    // Prepare before composing the row. LaunchedEffect runs after composition,
+    // leaving the newly inserted bubble visible at its destination for a frame.
+    remember(state.chatNavigationId, reduce) { motion.finish(); Unit }
+    if (seen != state.promptSendMotionId) {
+        seen = state.promptSendMotionId
+        motion.begin(state.promptSendMotionId, reduce)
     }
-    LaunchedEffect(state.chatNavigationId) { motion.finish() }
     LaunchedEffect(motion.id) {
         val request = motion.id ?: return@LaunchedEffect
         try {
-            motion.progress.snapTo(0f)
+            val progress = motion.progress
             // No network wait: the optimistic row is inserted before thread creation.
             repeat(12) { if (!motion.ready) withFrameNanos { } }
             val target = motion.target
             val viewport = motion.viewport
             if (!motion.ready || target == null || viewport == null || !target.overlaps(viewport)) return@LaunchedEffect
             ActivityLog.log("ui.show")
-            motion.progress.animateTo(1f, tween(350, easing = LinearEasing))
+            progress.animateTo(1f, tween(350, easing = LinearEasing))
         } catch (e: CancellationException) { throw e }
         catch (_: Exception) { ActivityLog.log("console.warn") }
         finally { if (motion.id == request) motion.finish(); ActivityLog.log("ui.hide") }

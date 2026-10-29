@@ -102,8 +102,7 @@ class PromptSendMotionUiTest {
             assertEquals("A new send must start at the composer", 0f, first.third, 0f)
         }
         rule.runOnIdle { state = state.copy(promptSendMotionId = "local-test") }
-        rule.mainClock.advanceTimeByFrame()
-        rule.waitForIdle()
+        repeat(4) { rule.mainClock.advanceTimeByFrame(); rule.waitForIdle() }
         rule.runOnIdle { assertPreparedBeforeRow("local-test") }
         rule.onAllNodes(isRoot()).onFirst().captureRoboImage("build/outputs/roborazzi/prompt_send_first_frame.png")
         rule.mainClock.advanceTimeBy(500L)
@@ -113,8 +112,7 @@ class PromptSendMotionUiTest {
             assertEquals(1f, motion.progress.value, 0f)
             state = state.copy(promptSendMotionId = "local-second")
         }
-        rule.mainClock.advanceTimeByFrame()
-        rule.waitForIdle()
+        repeat(4) { rule.mainClock.advanceTimeByFrame(); rule.waitForIdle() }
         rule.runOnIdle { assertPreparedBeforeRow("local-second") }
         rule.onAllNodes(isRoot()).onFirst().captureRoboImage("build/outputs/roborazzi/prompt_send_second_first_frame.png")
         rule.mainClock.advanceTimeBy(500L)

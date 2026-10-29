@@ -86,7 +86,12 @@ internal fun PromptSendMotionHost(state: ChatState, content: @Composable () -> U
     var seen by remember { mutableStateOf(state.promptSendMotionId) }
     // Prepare before composing the row. LaunchedEffect runs after composition,
     // leaving the newly inserted bubble visible at its destination for a frame.
-    remember(state.chatNavigationId, reduce) { motion.finish(); Unit }
+    var environment by remember { mutableStateOf(state.chatNavigationId to reduce) }
+    val nextEnvironment = state.chatNavigationId to reduce
+    if (environment != nextEnvironment) {
+        environment = nextEnvironment
+        motion.finish()
+    }
     if (seen != state.promptSendMotionId) {
         seen = state.promptSendMotionId
         motion.begin(state.promptSendMotionId, reduce)

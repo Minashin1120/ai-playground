@@ -30,10 +30,20 @@ class PromptSendMotionTest {
         assertFalse(motion.ready)
     }
 
-    @Test fun realBubbleOnlyRevealsDuringTheLastSeventyMilliseconds() {
-        assertEquals(0f, promptSendReveal(0f), 0.001f)
-        assertEquals(0f, promptSendReveal(0.8f), 0.001f)
-        assertEquals(0.5f, promptSendReveal(0.9f), 0.001f)
-        assertEquals(1f, promptSendReveal(1f), 0.001f)
+    @Test fun bubbleHandoffDoesNotCrossfadeTwoTranslucentCopies() {
+        assertFalse(promptSendShowsBubble(0f))
+        assertFalse(promptSendShowsBubble(0.8f))
+        assertFalse(promptSendShowsBubble(0.99f))
+        assertTrue(promptSendShowsBubble(1f))
+    }
+
+    @Test fun tallBubbleArrivesInsideTheConversationViewport() {
+        val origin = Rect(20f, 600f, 300f, 750f)
+        val viewport = Rect(0f, 50f, 320f, 590f)
+        val start = promptSendClip(origin, viewport, 0f)
+        assertTrue(start.contains(origin.topLeft))
+        assertEquals(750f, start.bottom)
+        assertEquals(viewport, promptSendClip(origin, viewport, 1f))
+        assertEquals(670f, promptSendClip(origin, viewport, 0.5f).bottom)
     }
 }

@@ -6,9 +6,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.ime
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.*
@@ -16,11 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Paint
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.positionInWindow
@@ -41,7 +37,7 @@ internal class PromptSendMotion {
     var quoteSource: Rect? = null
     var filesSource: Rect? = null
     var following = true
-    var viewport: Rect? = null
+    var viewport by mutableStateOf<Rect?>(null)
     var target by mutableStateOf<Rect?>(null)
     var id by mutableStateOf<String?>(null)
     var ready by mutableStateOf(false)
@@ -61,7 +57,19 @@ internal class PromptSendMotion {
 
 internal val LocalPromptSendMotion = staticCompositionLocalOf<PromptSendMotion?> { null }
 
-internal fun promptSendReveal(progress: Float): Float = ((progress - 0.8f) / 0.2f).coerceIn(0f, 1f)
+// Use one opaque drawing at a time. Crossfading two copies reduces opacity even
+// when their combined alpha is one, which makes text and tall bubbles flash.
+internal fun promptSendShowsBubble(progress: Float): Boolean = progress >= 1f
+
+internal fun promptSendClip(origin: Rect, viewport: Rect, progress: Float): Rect {
+    val start = Rect(minOf(origin.left, viewport.left), minOf(origin.top, viewport.top),
+        maxOf(origin.right, viewport.right), maxOf(origin.bottom, viewport.bottom))
+    val p = progress.coerceIn(0f, 1f)
+    return Rect(start.left + (viewport.left - start.left) * p,
+        start.top + (viewport.top - start.top) * p,
+        start.right + (viewport.right - start.right) * p,
+        start.bottom + (viewport.bottom - start.bottom) * p)
+}
 
 @Composable
 internal fun PromptSendMotionHost(state: ChatState, content: @Composable () -> Unit) {
@@ -69,8 +77,6 @@ internal fun PromptSendMotionHost(state: ChatState, content: @Composable () -> U
     val reduce = LocalReduceMotion.current
     var root by remember { mutableStateOf(Offset.Zero) }
     var rootSize by remember { mutableStateOf(IntSize.Zero) }
-    val keyboardHeight = WindowInsets.ime.getBottom(LocalDensity.current)
-    LaunchedEffect(keyboardHeight) { motion.finish() }
     LaunchedEffect(state.draft) { if (state.draft.isNotEmpty()) motion.finish() }
     // Initial composition/restoration must not replay an old send request.
     var seen by remember { mutableStateOf(state.promptSendMotionId) }
@@ -104,27 +110,33 @@ internal fun PromptSendMotionHost(state: ChatState, content: @Composable () -> U
     }
     CompositionLocalProvider(LocalPromptSendMotion provides motion) {
         Box(Modifier.fillMaxSize().onSizeChanged {
-            if (rootSize != IntSize.Zero && rootSize != it) motion.finish()
+            // IME animation changes height; keep the flight and track the target.
+            if (rootSize != IntSize.Zero && rootSize.width != it.width) motion.finish()
             rootSize = it
         }.onGloballyPositioned {
             val next = it.boundsInWindow().topLeft
-            if (next != root) motion.finish()
             root = next
         }) {
             content()
             val target = motion.target
             val origin = motion.origin
             val layer = motion.layer
-            if (motion.id != null && motion.ready && target != null && origin != null && layer != null) {
-                Canvas(Modifier.fillMaxSize().zIndex(35f).clearAndSetSemantics { }
-                    .graphicsLayer { alpha = 1f - promptSendReveal(motion.progress.value) }) {
+            val viewport = motion.viewport
+            if (motion.id != null && motion.ready && target != null && origin != null && layer != null && viewport != null) {
+                Canvas(Modifier.fillMaxSize().zIndex(35f).clearAndSetSemantics { }) {
+                    if (promptSendShowsBubble(motion.progress.value)) return@Canvas
                     val p = PlaygroundMotion.WebEaseOut.transform(motion.progress.value)
                     val startScale = minOf(origin.width / target.width, origin.height.coerceAtLeast(42f) / target.height, 1f)
                     val cardScale = startScale + (1f - startScale) * p
                     val from = Offset(origin.left + (origin.width - target.width * startScale) / 2f,
                         origin.top + (origin.height - target.height * startScale) / 2f)
                     val position = from + (target.topLeft - from) * p - root
-                    withTransform({ translate(position.x, position.y); scale(cardScale, cardScale, Offset.Zero) }) { drawLayer(layer) }
+                    // Match LazyColumn clipping at arrival, including a bubble taller
+                    // than the viewport. The initial clip also includes the composer.
+                    val clip = promptSendClip(origin, viewport, p).translate(-root)
+                    clipRect(clip.left, clip.top, clip.right, clip.bottom) {
+                        withTransform({ translate(position.x, position.y); scale(cardScale, cardScale, Offset.Zero) }) { drawLayer(layer) }
+                    }
                 }
             }
         }
@@ -148,11 +160,6 @@ internal fun promptSendBubbleModifier(messageId: String): Modifier {
         layer.record { this@drawWithContent.drawContent() }
         motion.layer = layer
         motion.ready = true
-        val alpha = promptSendReveal(motion.progress.value)
-        if (alpha > 0f) {
-            drawContext.canvas.saveLayer(Rect(Offset.Zero, size), Paint().apply { this.alpha = alpha })
-            drawLayer(layer)
-            drawContext.canvas.restore()
-        }
+        if (promptSendShowsBubble(motion.progress.value)) drawContent()
     }
 }

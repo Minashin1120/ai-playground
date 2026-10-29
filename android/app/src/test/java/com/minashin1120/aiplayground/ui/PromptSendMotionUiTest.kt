@@ -27,10 +27,13 @@ class PromptSendMotionUiTest {
     private var state by mutableStateOf(ChatState())
     private lateinit var motion: PromptSendMotion
 
-    private fun render() {
+    private var hostHeight by mutableStateOf(800)
+
+    private fun render(longPrompt: Boolean = false) {
         rule.mainClock.autoAdvance = false
         rule.setContent {
             CompositionLocalProvider(LocalReduceMotion provides false) {
+                Box(Modifier.height(hostHeight.dp)) {
                 PromptSendMotionHost(state) {
                     motion = checkNotNull(LocalPromptSendMotion.current)
                     SideEffect {
@@ -38,11 +41,12 @@ class PromptSendMotionUiTest {
                         motion.viewport = Rect(0f, 0f, 1000f, 1000f)
                     }
                     if (state.promptSendMotionId != null) {
-                        Column(Modifier.padding(20.dp).width(200.dp).then(promptSendBubbleModifier("local-test"))) {
-                            Text("本文\n2行目")
+                        Column(Modifier.wrapContentHeight(unbounded = true).padding(20.dp).width(200.dp).then(promptSendBubbleModifier("local-test"))) {
+                            Text(if (longPrompt) (1..80).joinToString("\n") { "長いプロンプト $it" } else "本文\n2行目")
                             Text("引用と添付ファイル")
                         }
                     }
+                }
                 }
             }
         }
@@ -63,7 +67,26 @@ class PromptSendMotionUiTest {
             assertEquals("local-test", motion.id)
             assertTrue(motion.ready)
             assertNotNull(motion.layer)
+            hostHeight = 500
         }
+        repeat(2) { rule.mainClock.advanceTimeByFrame(); rule.waitForIdle() }
+        rule.runOnIdle { assertEquals("local-test", motion.id) }
+        rule.mainClock.advanceTimeBy(450L)
+        rule.waitForIdle()
+        rule.runOnIdle { assertNull(motion.id); assertNull(motion.layer) }
+    }
+
+    @Test fun keyboardResizeKeepsTheFlightForALongPrompt() {
+        // A height-only root resize is what adjustResize/IME animation delivers.
+        render(longPrompt = true)
+        rule.runOnIdle { state = state.copy(promptSendMotionId = "local-test") }
+        repeat(4) { rule.mainClock.advanceTimeByFrame(); rule.waitForIdle() }
+        rule.onAllNodes(isRoot()).onFirst().captureRoboImage("build/outputs/roborazzi/prompt_send_long.png")
+        rule.mainClock.advanceTimeByFrame()
+        rule.waitForIdle()
+        rule.runOnIdle { assertTrue(motion.ready); hostHeight = 500 }
+        repeat(2) { rule.mainClock.advanceTimeByFrame(); rule.waitForIdle() }
+        rule.runOnIdle { assertEquals("local-test", motion.id); assertNotNull(motion.layer) }
         rule.mainClock.advanceTimeBy(450L)
         rule.waitForIdle()
         rule.runOnIdle { assertNull(motion.id); assertNull(motion.layer) }

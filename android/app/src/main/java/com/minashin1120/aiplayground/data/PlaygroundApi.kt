@@ -48,7 +48,7 @@ class PlaygroundApi internal constructor(
         .dns(NetworkDns).protocols(listOf(Protocol.HTTP_1_1)).cookieJar(CookieJar.NO_COOKIES)
         .socketFactory(socketFactory)
         .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false)
-        .eventListenerFactory { serverCallListener() }
+        .eventListenerFactory { NetworkTrace(serverCallListener(), 1, { call -> call.request().tag(HttpTrace::class.java)?.op }) }
         .connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(120, TimeUnit.SECONDS).callTimeout(180, TimeUnit.SECONDS).build()
     // Read-only calls may recover a stale pooled socket. Mutations are never automatically replayed.

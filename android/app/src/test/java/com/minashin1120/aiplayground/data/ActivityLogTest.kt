@@ -18,6 +18,28 @@ class ActivityLogTest {
         dir.deleteRecursively()
     }
 
+    @Test fun transportLoggingHonorsConsentAndDoesNotStoreExceptionText() {
+        val call = okhttp3.OkHttpClient().newCall(okhttp3.Request.Builder().url("https://private.invalid/").build())
+        ActivityLog.initFile(file, enabledAtStart = false)
+        NetworkTrace(context = 1).apply { callStart(call); callEnd(call) }
+        ActivityLog.drain()
+        assertFalse(file.exists())
+        ActivityLog.initFile(file, enabledAtStart = true)
+        NetworkTrace(context = 1).apply {
+            callStart(call)
+            dnsStart(call, "private-host")
+            callFailed(call, java.net.UnknownHostException("private-secret"))
+        }
+        val entries = ActivityLog.recent()
+        assertTrue(entries.length() >= 3)
+        assertFalse(entries.toString().contains("private"))
+        assertEquals(1, entries.getJSONObject(entries.length() - 1).getInt("error_code"))
+        ActivityLog.setEnabled(false)
+        NetworkTrace(context = 1).apply { callStart(call); callEnd(call) }
+        ActivityLog.drain()
+        assertFalse(file.exists())
+    }
+
     @Test fun recordsOnlyWhileEnabledAndKeepsTheLastHour() {
         ActivityLog.initFile(file, enabledAtStart = false)
         ActivityLog.log("ignored")

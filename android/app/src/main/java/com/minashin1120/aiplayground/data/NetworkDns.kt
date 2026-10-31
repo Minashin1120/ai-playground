@@ -45,7 +45,7 @@ internal class RecoveringDns(
                 "ms" to (System.nanoTime() - started) / 1_000_000)
             return addresses
         } catch (error: UnknownHostException) {
-            ActivityLog.log("dns.fallback", "op" to op, "phase" to "error",
+            ActivityLog.log("dns.fallback", "op" to op, "phase" to "error", "error_code" to NetworkTrace.failureCode(error),
                 "ms" to (System.nanoTime() - started) / 1_000_000)
             if (error !== original) original.addSuppressed(error)
             throw original
@@ -70,7 +70,7 @@ internal class FailoverDns(private val resolvers: List<Dns>) : Dns {
                     "count" to addresses.size, "ms" to (System.nanoTime() - started) / 1_000_000)
                 return addresses
             } catch (error: UnknownHostException) {
-                ActivityLog.log("dns.fallback", "op" to op, "index" to index, "phase" to "error",
+                ActivityLog.log("dns.fallback", "op" to op, "index" to index, "phase" to "error", "error_code" to NetworkTrace.failureCode(error),
                     "ms" to (System.nanoTime() - started) / 1_000_000)
                 if (failure == null) failure = error
                 else if (failure !== error) failure.addSuppressed(error)
@@ -112,6 +112,7 @@ object NetworkDns : Dns {
         // A dedicated client has no credentials or cookies and cannot recursively use this resolver.
         // Bootstrap IPs keep the resolver reachable even when Android cannot resolve its hostname.
         val transport = OkHttpClient.Builder().cookieJar(CookieJar.NO_COOKIES)
+            .eventListenerFactory { NetworkTrace(context = 4) }
             .protocols(listOf(Protocol.HTTP_1_1))
             .followRedirects(false).followSslRedirects(false)
             .connectTimeout(3, TimeUnit.SECONDS).readTimeout(3, TimeUnit.SECONDS)

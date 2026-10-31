@@ -82,6 +82,7 @@ internal fun latestAndroidUpdateFromJson(payload: String, currentVersion: String
 class AppUpdateChecker(
     private val client: OkHttpClient = OkHttpClient.Builder()
         .dns(NetworkDns)
+        .eventListenerFactory { NetworkTrace(context = 3) }
         .followRedirects(false)
         .followSslRedirects(false)
         .connectTimeout(10, TimeUnit.SECONDS)

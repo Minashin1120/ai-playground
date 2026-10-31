@@ -22,6 +22,7 @@ data class AppUpdateDownloadProgress(
 class AppUpdateDownloader internal constructor(
     private val client: OkHttpClient = OkHttpClient.Builder()
         .dns(NetworkDns)
+        .eventListenerFactory { NetworkTrace(context = 3) }
         .cookieJar(CookieJar.NO_COOKIES)
         .followRedirects(true)
         .followSslRedirects(true)
@@ -48,10 +49,19 @@ class AppUpdateDownloader internal constructor(
         val target = File(directory, "app-release-${update.versionName}.apk")
         val partial = File(directory, "${target.name}.part")
         partial.delete()
+        val op = java.util.UUID.randomUUID().toString()
+        var stage = 200
+        fun trace(phase: String, error: Throwable? = null) {
+            ActivityLog.log("app_update.state", "op" to op, "reason_code" to stage, "phase" to phase,
+                "error_code" to error?.let(NetworkTrace::failureCode))
+        }
+        trace("start")
         try {
-            val expectedHash = fetchExpectedHash(update.checksumUrl)
+            val expectedHash = fetchExpectedHash(update.checksumUrl, op)
+            trace("done"); stage = 201; trace("start")
             val request = Request.Builder()
                 .url(update.apkUrl)
+                .tag(NetworkTraceParent::class.java, NetworkTraceParent(op))
                 .header("Accept", "application/octet-stream")
                 .header("User-Agent", "AIPlayground-Android/${update.versionName}")
                 .get()
@@ -87,13 +97,17 @@ class AppUpdateDownloader internal constructor(
                 }
             }
 
+            trace("done"); stage = 202; trace("start")
             if (sha256(partial) != expectedHash) {
                 throw IOException("更新APKの検証に失敗しました。")
             }
+            trace("done"); stage = 203; trace("start")
             target.delete()
             if (!partial.renameTo(target)) throw IOException("更新APKを保存できませんでした。")
+            trace("done")
             return target
         } catch (error: Throwable) {
+            trace(if (error is CancellationException) "cancelled" else "error", error)
             partial.delete()
             target.delete()
             if (error is CancellationException) throw error
@@ -101,10 +115,11 @@ class AppUpdateDownloader internal constructor(
         }
     }
 
-    private suspend fun fetchExpectedHash(url: String): String {
+    private suspend fun fetchExpectedHash(url: String, op: String): String {
         val response = execute(
             Request.Builder()
                 .url(url)
+                .tag(NetworkTraceParent::class.java, NetworkTraceParent(op))
                 .header("Accept", "text/plain")
                 .header("User-Agent", "AIPlayground-Android/update")
                 .get()

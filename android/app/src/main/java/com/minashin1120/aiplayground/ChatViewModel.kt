@@ -502,17 +502,44 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return chatTransitionSequence to kind
     }
 
+    private var lastNetworkLog: List<Any?>? = null
+    private fun recordNetworkCapabilities(capabilities: NetworkCapabilities?) {
+        if (!ActivityLog.enabled) return
+        val transport = when {
+            capabilities == null -> 0
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> 4
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> 2
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> 1
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> 3
+            else -> 5
+        }
+        val online = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        val validated = capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+        val metered = capabilities != null && !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+        val restriction = connectivity?.restrictBackgroundStatus ?: 0
+        val values = listOf(transport, online, validated, metered, restriction)
+        synchronized(this) {
+            if (values == lastNetworkLog) return
+            lastNetworkLog = values
+        }
+        ActivityLog.log("state", "reason_code" to 110, "from" to transport, "online" to online,
+            "accepted" to validated, "to" to if (metered) 1 else 0, "status" to restriction)
+    }
+
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
+            recordNetworkCapabilities(connectivity?.getNetworkCapabilities(network))
             discardIdleServerConnections()
             if (foreground) viewModelScope.launch { retryPendingFeedback(); probeServerConnection() }
         }
 
         override fun onLost(network: Network) {
+            recordNetworkCapabilities(connectivity?.activeNetwork?.let { connectivity?.getNetworkCapabilities(it) })
             if (!hasUsableNetwork()) setConnectionUnavailable(ConnectionStatus.OFFLINE)
         }
 
         override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) {
+            recordNetworkCapabilities(networkCapabilities)
             // Web recomputes on `navigator.connection` change and toasts when the mode flips in auto.
             viewModelScope.launch { recomputeLowBandwidth(notify = state.value.lowBandwidthPreference == "auto") }
         }

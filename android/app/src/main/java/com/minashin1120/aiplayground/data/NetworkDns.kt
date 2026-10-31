@@ -9,6 +9,7 @@ import okhttp3.CookieJar
 import okhttp3.Dns
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.dnsoverhttps.DnsOverHttps
 import java.net.InetAddress
 import java.net.UnknownHostException
@@ -52,6 +53,33 @@ internal class RecoveringDns(
     }
 }
 
+/** A resolver outage must not make all allowed API and update hosts unresolvable. */
+internal class FailoverDns(private val resolvers: List<Dns>) : Dns {
+    init { require(resolvers.isNotEmpty()) }
+
+    override fun lookup(hostname: String): List<InetAddress> {
+        val op = UUID.randomUUID().toString()
+        var failure: UnknownHostException? = null
+        for ((index, resolver) in resolvers.withIndex()) {
+            val started = System.nanoTime()
+            ActivityLog.log("dns.fallback", "op" to op, "index" to index, "phase" to "start")
+            try {
+                val addresses = resolver.lookup(hostname)
+                if (addresses.isEmpty()) throw UnknownHostException("Empty DNS response")
+                ActivityLog.log("dns.fallback", "op" to op, "index" to index, "phase" to "done",
+                    "count" to addresses.size, "ms" to (System.nanoTime() - started) / 1_000_000)
+                return addresses
+            } catch (error: UnknownHostException) {
+                ActivityLog.log("dns.fallback", "op" to op, "index" to index, "phase" to "error",
+                    "ms" to (System.nanoTime() - started) / 1_000_000)
+                if (failure == null) failure = error
+                else if (failure !== error) failure.addSuppressed(error)
+            }
+        }
+        throw checkNotNull(failure)
+    }
+}
+
 /** Coalesces parallel lookups and repeated failures into one visible notice per 30 seconds. */
 internal class DnsFallbackNotice(
     private val emit: () -> Unit,
@@ -77,17 +105,18 @@ internal class DnsFallbackNotifications(now: () -> Long = { System.nanoTime() / 
 }
 
 object NetworkDns : Dns {
-    const val NOTICE = "端末のDNSに失敗したため、DNS補助（Cloudflare）を使用しています。"
+    const val NOTICE = "端末のDNSに失敗したため、DNS補助（Cloudflare／Google）を使用しています。"
     private val notifications = DnsFallbackNotifications()
     val notices = notifications.notices
     private val resolver by lazy {
         // A dedicated client has no credentials or cookies and cannot recursively use this resolver.
         // Bootstrap IPs keep the resolver reachable even when Android cannot resolve its hostname.
         val transport = OkHttpClient.Builder().cookieJar(CookieJar.NO_COOKIES)
+            .protocols(listOf(Protocol.HTTP_1_1))
             .followRedirects(false).followSslRedirects(false)
             .connectTimeout(3, TimeUnit.SECONDS).readTimeout(3, TimeUnit.SECONDS)
             .callTimeout(5, TimeUnit.SECONDS).build()
-        val encrypted = DnsOverHttps.Builder().client(transport)
+        val cloudflare = DnsOverHttps.Builder().client(transport)
             .url("https://cloudflare-dns.com/dns-query".toHttpUrl()).post(true)
             .bootstrapDnsHosts(
                 InetAddress.getByAddress(byteArrayOf(1, 1, 1, 1)),
@@ -95,7 +124,15 @@ object NetworkDns : Dns {
                 InetAddress.getByName("2606:4700:4700::1111"),
                 InetAddress.getByName("2606:4700:4700::1001"),
             ).build()
-        RecoveringDns(Dns.SYSTEM, encrypted, ::allowsFallback, notifications::show)
+        val google = DnsOverHttps.Builder().client(transport)
+            .url("https://dns.google/dns-query".toHttpUrl()).post(true)
+            .bootstrapDnsHosts(
+                InetAddress.getByAddress(byteArrayOf(8, 8, 8, 8)),
+                InetAddress.getByAddress(byteArrayOf(8, 8, 4, 4)),
+                InetAddress.getByName("2001:4860:4860::8888"),
+                InetAddress.getByName("2001:4860:4860::8844"),
+            ).build()
+        RecoveringDns(Dns.SYSTEM, FailoverDns(listOf(cloudflare, google)), ::allowsFallback, notifications::show)
     }
     override fun lookup(hostname: String): List<InetAddress> = resolver.lookup(hostname)
 

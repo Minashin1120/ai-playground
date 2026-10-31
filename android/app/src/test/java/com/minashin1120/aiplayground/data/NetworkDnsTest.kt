@@ -60,6 +60,40 @@ class NetworkDnsTest {
         assertFalse(dnsFailureMessage(error)!!.contains("fake private hostname"))
     }
 
+    @Test fun failedCloudflareUsesGoogleForApiAndApkHosts() {
+        val queried = mutableListOf<String>()
+        val google = Dns { queried.add(it); listOf(address) }
+        val dns = RecoveringDns(failed, FailoverDns(listOf(failed, google)), NetworkDns::allowsFallback)
+        for (host in listOf("api.openai.com", "generativelanguage.googleapis.com", "github.com", "release-assets.githubusercontent.com")) {
+            assertEquals(listOf(address), dns.lookup(host))
+        }
+        assertEquals(4, queried.size)
+    }
+
+    @Test fun successfulFirstSupplementDoesNotContactSecond() {
+        val dns = FailoverDns(listOf(Dns { listOf(address) }, Dns { error("Unexpected second query") }))
+        assertEquals(listOf(address), dns.lookup("github.com"))
+    }
+
+    @Test fun emptyFirstSupplementContinuesToSecond() {
+        val dns = FailoverDns(listOf(Dns { emptyList() }, Dns { listOf(address) }))
+        assertEquals(listOf(address), dns.lookup("github.com"))
+    }
+
+    @Test fun allSupplementsFailWithTheirCausesPreserved() {
+        val first = UnknownHostException("fake first error")
+        val second = UnknownHostException("fake second error")
+        val dns = FailoverDns(listOf(Dns { throw first }, Dns { throw second }))
+        assertSame(first, runCatching { dns.lookup("github.com") }.exceptionOrNull())
+        assertEquals(listOf(second), first.suppressed.toList())
+    }
+
+    @Test fun certificateFailureDoesNotAdvanceToAnotherSupplement() {
+        val certificate = SSLHandshakeException("fake certificate error")
+        val dns = FailoverDns(listOf(Dns { throw certificate }, Dns { error("Must not bypass TLS failure") }))
+        assertSame(certificate, runCatching { dns.lookup("github.com") }.exceptionOrNull())
+    }
+
     @Test fun certificateFailureIsNeverTreatedAsDnsFailure() {
         val certificate = SSLHandshakeException("fake certificate error")
         val dns = RecoveringDns(Dns { throw certificate }, Dns { error("Must not bypass TLS failure") }, { true })

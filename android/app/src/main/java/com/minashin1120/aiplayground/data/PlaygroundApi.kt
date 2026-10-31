@@ -56,6 +56,11 @@ class PlaygroundApi internal constructor(
     // Probes must not queue behind settings or file transfers.
     private val heartbeat = reads.newBuilder().dispatcher(okhttp3.Dispatcher())
         .connectionPool(okhttp3.ConnectionPool()).build()
+    // Mobile sends can finish locally before the proxy has delivered the entire body.
+    // Keep slow uploads away from ordinary reads and allow the server's final response to arrive.
+    // Mutations still have a total deadline and must never be replayed automatically.
+    private val uploads = normal.newBuilder().dispatcher(okhttp3.Dispatcher())
+        .connectionPool(okhttp3.ConnectionPool()).readTimeout(120, TimeUnit.SECONDS).build()
     private val streaming = normal.newBuilder().readTimeout(660, TimeUnit.SECONDS)
         .callTimeout(0, TimeUnit.SECONDS).build()
     /**
@@ -85,7 +90,7 @@ class PlaygroundApi internal constructor(
 
     /** TLS socket closure can perform network I/O, including when called from Activity.onStart. */
     suspend fun discardIdleConnections() = withContext(Dispatchers.IO) {
-        setOf(normal.connectionPool, heartbeat.connectionPool, external.connectionPool).forEach { pool ->
+        setOf(normal.connectionPool, uploads.connectionPool, heartbeat.connectionPool, external.connectionPool).forEach { pool ->
             try {
                 pool.evictAll()
             } catch (e: Exception) {
@@ -268,7 +273,7 @@ class PlaygroundApi internal constructor(
     suspend fun upload(name: String, body: RequestBody, token: String): JSONObject {
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("file", name, body).build()
-        return execute(request("/upload", token).post(multipart).build(), consume = ::jsonResponse)
+        return execute(request("/upload", token).post(multipart).build(), client = uploads, consume = ::jsonResponse)
     }
 
     /**
@@ -316,11 +321,12 @@ class PlaygroundApi internal constructor(
             .addFormDataPart("total", total.toString())
             .addFormDataPart("chunk", "chunk", uploadBytesBody(chunk, "application/octet-stream", onProgress))
             .build()
-        return execute(request("/upload/chunk", token).post(multipart).build(), consume = ::jsonResponse)
+        return execute(request("/upload/chunk", token).post(multipart).build(), client = uploads, consume = ::jsonResponse)
     }
 
     suspend fun uploadComplete(uploadId: String, token: String): JSONObject =
-        post("/upload/complete", JSONObject().put("upload_id", uploadId), token)
+        execute(request("/upload/complete", token).post(JSONObject().put("upload_id", uploadId).toString().toRequestBody(jsonType)).build(),
+            client = uploads, consume = ::jsonResponse)
 
     /** Account ZIP import reuses the Web chunked-upload routes with the bearer token. */
     suspend fun accountImportStart(size: Long, token: String): JSONObject =

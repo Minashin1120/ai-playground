@@ -5,6 +5,7 @@ import kotlinx.coroutines.async
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.SocketEffect
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
@@ -13,6 +14,21 @@ import java.io.ByteArrayInputStream
 import java.io.IOException
 
 class PlaygroundApiTest {
+    @Test fun uploadWaitsForAResponseBeyondTheOrdinaryReadTimeout() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                .headersDelay(31, java.util.concurrent.TimeUnit.SECONDS)
+                .body("{\"filename\":\"1/upload.bin\"}").build())
+            val api = PlaygroundApi(server.url("/"))
+            val body = byteArrayOf(1, 2, 3).toRequestBody(null)
+            assertEquals("1/upload.bin", api.upload("sample.bin", body, "fake-token").getString("filename"))
+            assertEquals("/upload", server.takeRequest().url.encodedPath)
+            assertEquals(1, server.requestCount)
+            api.discardIdleConnections()
+        }
+    }
+
     @Test fun idleSocketClosureRunsOffTheCallingThread() = runBlocking {
         val caller = Thread.currentThread()
         val closedOn = java.util.concurrent.atomic.AtomicReference<Thread>()

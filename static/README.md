@@ -5,7 +5,7 @@ Flaskの `/static/` から配信するCSS、JavaScript、PWA資産、公開変�
 - `css/`：画面スタイルとバージョン付きチャットCSS
 - `js/`：クライアントロジックとバージョン付きチャットコア
 - `pwa/`：PWAアイコン
-- `docs/`：機能解説の文書（Batch処理）
+- `docs/`：機能解説の文書（Batch処理、プロンプトバーの設定復元）
 - `changelogs/`：アプリ内で公開する更新履歴
 - `legal/`：利用規約とプライバシーポリシー
 - `vendor/`：リポジトリへ同梱する第三者JavaScriptとアイコンサブセット

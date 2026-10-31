@@ -1,6 +1,7 @@
 package com.minashin1120.aiplayground.data
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.async
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import org.junit.Assert.assertArrayEquals
@@ -11,6 +12,39 @@ import org.junit.Test
 import java.security.MessageDigest
 
 class AppUpdateDownloaderTest {
+    @Test fun cancellingDuringApkBodyReadClosesTheCallWithoutWaitingForReadTimeout() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            val apk = "ab".toByteArray()
+            server.enqueue(MockResponse.Builder().body(sha256(apk)).build())
+            server.enqueue(MockResponse.Builder().throttleBody(1, 5, java.util.concurrent.TimeUnit.SECONDS)
+                .body(apk.decodeToString()).build())
+            val base = server.url("/").toString()
+            val directory = createTempDir(prefix = "app-update-cancel-body")
+            val receivedFirstByte = kotlinx.coroutines.CompletableDeferred<Unit>()
+            val cancelled = java.util.concurrent.atomic.AtomicBoolean(false)
+            val client = okhttp3.OkHttpClient.Builder().eventListener(object : okhttp3.EventListener() {
+                override fun canceled(call: okhttp3.Call) { cancelled.set(true) }
+            }).build()
+            val job = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).async {
+                AppUpdateDownloader(client, { it.startsWith(base) }).download(
+                    AppUpdate("1.70.65", "android-v1.70.65", "${base}apk", "${base}sha", 2), directory,
+                ) { receivedFirstByte.complete(Unit) }
+            }
+            try {
+                kotlinx.coroutines.withTimeout(5_000) { receivedFirstByte.await() }
+                kotlinx.coroutines.withTimeout(2_000) { job.cancel(); job.join() }
+                assertTrue(cancelled.get())
+                assertTrue(directory.listFiles().orEmpty().isEmpty())
+                assertEquals(2, server.requestCount)
+            } finally {
+                job.cancel(); job.join()
+                client.connectionPool.evictAll()
+                directory.deleteRecursively()
+            }
+        }
+    }
+
     @Test fun downloadsAndVerifiesGithubAsset() = runBlocking {
         MockWebServer().use { server ->
             server.start()

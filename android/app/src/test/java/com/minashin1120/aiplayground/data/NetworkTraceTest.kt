@@ -11,6 +11,51 @@ import java.net.UnknownHostException
 import java.util.Collections
 
 class NetworkTraceTest {
+    @Test fun queuedCallsAreDistinguishedFromDnsAndConnectDelays() {
+        val entries = Collections.synchronizedList(mutableListOf<Map<String, Any?>>())
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val queued = java.util.concurrent.CountDownLatch(1)
+        val finished = java.util.concurrent.CountDownLatch(2)
+        MockWebServer().use { server ->
+            server.start()
+            repeat(2) { server.enqueue(MockResponse.Builder().body("{}").build()) }
+            val client = OkHttpClient.Builder().dispatcher(Dispatcher().apply { maxRequestsPerHost = 1 })
+                .eventListenerFactory {
+                    NetworkTrace(context = 1, emit = { entry ->
+                        entries.add(entry)
+                        if (entry["reason_code"] == 111 && entry["phase"] == "start") queued.countDown()
+                    })
+                }.build()
+            val first = client.newCall(Request.Builder().url(server.url("/first")).build())
+            val second = client.newCall(Request.Builder().url(server.url("/second")).build())
+            fun callback(block: Boolean) = object : Callback {
+                override fun onFailure(call: Call, e: IOException) { finished.countDown() }
+                override fun onResponse(call: Call, response: Response) {
+                    try {
+                        response.use {
+                            if (block) { entered.countDown(); release.await(5, java.util.concurrent.TimeUnit.SECONDS) }
+                            it.body.string()
+                        }
+                    } finally { finished.countDown() }
+                }
+            }
+            try {
+                first.enqueue(callback(true))
+                assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                second.enqueue(callback(false))
+                assertTrue(queued.await(2, java.util.concurrent.TimeUnit.SECONDS))
+                release.countDown()
+                assertTrue(finished.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                val queueEntries = entries.filter { it["reason_code"] == 111 }
+                assertEquals(listOf("start", "done"), queueEntries.map { it["phase"] })
+                assertEquals(1, queueEntries.map { it["op"] }.distinct().size)
+            } finally {
+                release.countDown(); first.cancel(); second.cancel(); client.connectionPool.evictAll()
+            }
+        }
+    }
+
     @Test fun recordsTransportStagesAndReuseWithoutRecordingRequestOrResponseSecrets() {
         val entries = Collections.synchronizedList(mutableListOf<Map<String, Any?>>())
         MockWebServer().use { server ->

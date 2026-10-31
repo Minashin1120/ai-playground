@@ -1,6 +1,11 @@
 package com.minashin1120.aiplayground.data
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
@@ -13,6 +18,7 @@ import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class AppUpdateDownloadProgress(
     val downloadedBytes: Long,
@@ -66,9 +72,8 @@ class AppUpdateDownloader internal constructor(
                 .header("User-Agent", "AIPlayground-Android/${update.versionName}")
                 .get()
                 .build()
-            val response = execute(request)
             var downloaded = 0L
-            response.use {
+            execute(request) {
                 if (!it.isSuccessful) throw IOException("GitHubからAPKを取得できませんでした（HTTP ${it.code}）。")
                 val body = it.body ?: throw IOException("GitHubから空のAPKが返されました。")
                 // The GitHub API asset size remains stable across the release-asset redirect,
@@ -116,7 +121,7 @@ class AppUpdateDownloader internal constructor(
     }
 
     private suspend fun fetchExpectedHash(url: String, op: String): String {
-        val response = execute(
+        return execute(
             Request.Builder()
                 .url(url)
                 .tag(NetworkTraceParent::class.java, NetworkTraceParent(op))
@@ -124,8 +129,7 @@ class AppUpdateDownloader internal constructor(
                 .header("User-Agent", "AIPlayground-Android/update")
                 .get()
                 .build(),
-        )
-        return response.use {
+        ) {
             if (!it.isSuccessful) throw IOException("更新の検証情報を取得できませんでした（HTTP ${it.code}）。")
             val body = it.body ?: throw IOException("更新の検証情報が空です。")
             val text = readBoundedUtf8(body.byteStream(), CHECKSUM_LIMIT)
@@ -134,8 +138,23 @@ class AppUpdateDownloader internal constructor(
         }
     }
 
-    private suspend fun execute(request: Request): Response = suspendCancellableCoroutine { continuation ->
+    /** Keep cancellation attached until the body is consumed, not just until headers arrive. */
+    private suspend fun <T> execute(request: Request, consume: suspend (Response) -> T): T = coroutineScope {
         val call = client.newCall(request)
+        val finished = AtomicBoolean(false)
+        val cancellation = launch(Dispatchers.IO, start = CoroutineStart.UNDISPATCHED) {
+            try { awaitCancellation() }
+            finally { if (!finished.get()) call.cancel() }
+        }
+        try {
+            awaitResponse(call).use { consume(it) }
+        } finally {
+            finished.set(true)
+            cancellation.cancel()
+        }
+    }
+
+    private suspend fun awaitResponse(call: Call): Response = suspendCancellableCoroutine { continuation ->
         continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
@@ -143,8 +162,7 @@ class AppUpdateDownloader internal constructor(
             }
 
             override fun onResponse(call: Call, response: Response) {
-                if (continuation.isActive) continuation.resumeWith(Result.success(response))
-                else response.close()
+                continuation.resume(response) { _, abandoned, _ -> abandoned.close() }
             }
         })
     }

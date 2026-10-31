@@ -1,6 +1,55 @@
 # -----------------------------------------------------------
 # API Routes
 # -----------------------------------------------------------
+from contextlib import contextmanager
+
+
+@contextmanager
+def _chat_stream_subscription(job_id):
+    """Own the subscription even if the client leaves during the initial replay."""
+    pubsub = redis_conn.pubsub()
+    started = time.monotonic()
+    phase = 'done'
+    op = getattr(g, 'diagnostic_op', None)
+    _record_server_diagnostic(current_user.id, 'server.stream.first', op=op,
+                              job=job_id, phase='start', reason_code=120)
+    try:
+        pubsub.subscribe(f"ai_chat:channel:{job_id}")
+        yield pubsub, started
+    except GeneratorExit:
+        phase = 'cancelled'
+        raise
+    except Exception:
+        phase = 'error'
+        raise
+    finally:
+        try:
+            pubsub.close()
+        finally:
+            _record_server_diagnostic(current_user.id,
+                'server.stream.error' if phase == 'error' else 'server.stream.end',
+                op=op, job=job_id, phase=phase, reason_code=120,
+                ms=round((time.monotonic() - started) * 1000))
+
+
+def _chat_stream_messages(pubsub, started, timeout=600, heartbeat=15):
+    """Poll within the deadline; blank-line heartbeats expose disconnected readers."""
+    deadline = started + timeout
+    next_heartbeat = time.monotonic() + heartbeat
+    while True:
+        now = time.monotonic()
+        if now >= deadline:
+            _record_server_diagnostic(current_user.id, 'server.stream.error',
+                op=getattr(g, 'diagnostic_op', None), reason_code=123,
+                ms=round((now - started) * 1000))
+            return
+        message = pubsub.get_message(timeout=min(1.0, deadline - now))
+        if message is not None and message['type'] == 'message':
+            yield message
+            next_heartbeat = time.monotonic() + heartbeat
+        elif time.monotonic() >= next_heartbeat:
+            yield None
+            next_heartbeat = time.monotonic() + heartbeat
 
 def _resolve_quote_source(thread_id, parent_id, quote_message_id):
     """Return {"role", "number"} for the message a quote was taken from, or None.
@@ -1138,75 +1187,73 @@ def chat_stream():
         return resp
 
     def generate():
-        pubsub = redis_conn.pubsub()
-        channel = f"ai_chat:channel:{job_id}"
-        pubsub.subscribe(channel)
-        start_time = time.time()
-        _latency_mark_once(job_id, "route_stream_open_ms")
-        if thread_stream_id:
-            yield json.dumps({"type": "thread_id", "content": thread_stream_id}) + "\n"
-        yield json.dumps({"type": "job_id", "content": job_id}) + "\n"
-        replayed_final = False
-        try:
-            cached_status = redis_conn.get(f"stream_acc:{job_id}:status")
-            if cached_status:
-                _latency_mark_once(job_id, "stream_first_status_to_client_ms")
-                yield json.dumps({"type": "status", "content": cached_status.decode("utf-8", "ignore")}) + "\n"
-            cached_coding_diffs = redis_conn.lrange(f"stream_acc:{job_id}:coding_diff", 0, -1)
-            for raw_diff in cached_coding_diffs:
-                try:
-                    yield json.dumps({
-                        "type": "coding_diff",
-                        "content": json.loads(raw_diff),
-                    }, ensure_ascii=False) + "\n"
-                except Exception:
-                    continue
-            cached_mcp = redis_conn.lrange(f"stream_acc:{job_id}:mcp", 0, -1)
-            for raw_mcp in cached_mcp:
-                try:
-                    entry = json.loads(raw_mcp)
-                    if isinstance(entry, dict):
-                        yield json.dumps(entry, ensure_ascii=False) + "\n"
-                except Exception:
-                    continue
-            # The job may have ended before this stream subscribed; its events are not on the channel any more.
-            replayed_final = bool((yield from _replay_finished_stream_events(job_id)))
-        except Exception:
-            pass
-        try:
-            refresh_count = 0
-            for message in (() if replayed_final else pubsub.listen()):
-                if time.time() - start_time > 600: break
-                refresh_count += 1
-                if refresh_count % 20 == 0:
+        with _chat_stream_subscription(job_id) as (pubsub, start_time):
+            _latency_mark_once(job_id, "route_stream_open_ms")
+            if thread_stream_id:
+                yield json.dumps({"type": "thread_id", "content": thread_stream_id}) + "\n"
+            yield json.dumps({"type": "job_id", "content": job_id}) + "\n"
+            replayed_final = False
+            try:
+                cached_status = redis_conn.get(f"stream_acc:{job_id}:status")
+                if cached_status:
+                    _latency_mark_once(job_id, "stream_first_status_to_client_ms")
+                    yield json.dumps({"type": "status", "content": cached_status.decode("utf-8", "ignore")}) + "\n"
+                cached_coding_diffs = redis_conn.lrange(f"stream_acc:{job_id}:coding_diff", 0, -1)
+                for raw_diff in cached_coding_diffs:
                     try:
-                        redis_conn.expire(f"pending_job:{current_user.id}:{thread_id}", 600)
+                        yield json.dumps({
+                            "type": "coding_diff",
+                            "content": json.loads(raw_diff),
+                        }, ensure_ascii=False) + "\n"
                     except Exception:
-                        pass
-                if message['type'] == 'message':
-                    _latency_mark_once(job_id, "stream_first_pubsub_ms")
-                    evt = json.loads(message['data'])
-                    evt_type = str(evt.get('type') or '')
-                    if evt_type == "status":
-                        _latency_mark_once(job_id, "stream_first_status_to_client_ms")
-                    elif evt_type == "thought":
-                        _latency_mark_once(job_id, "stream_first_thought_to_client_ms")
-                    elif evt_type == "content":
-                        _latency_mark_once(job_id, "stream_first_content_to_client_ms")
-                    yield json.dumps(evt) + "\n"
-                    if evt_type in ['done', 'error']:
-                        _latency_mark_once(job_id, "stream_done_ms")
-                        break
-        finally:
-            _latency_mark_once(job_id, "stream_done_ms")
-            pubsub.unsubscribe()
-            _upsert_chat_latency_trace(
-                job_id=job_id,
-                user_id=current_user.id,
-                thread_public_id=thread_stream_id,
-                model=model_key,
-                execution_path=execution_path
-            )
+                        continue
+                cached_mcp = redis_conn.lrange(f"stream_acc:{job_id}:mcp", 0, -1)
+                for raw_mcp in cached_mcp:
+                    try:
+                        entry = json.loads(raw_mcp)
+                        if isinstance(entry, dict):
+                            yield json.dumps(entry, ensure_ascii=False) + "\n"
+                    except Exception:
+                        continue
+                # The job may have ended before this stream subscribed; its events are not on the channel any more.
+                replayed_final = bool((yield from _replay_finished_stream_events(job_id)))
+            except Exception:
+                pass
+            try:
+                refresh_count = 0
+                for message in (() if replayed_final else _chat_stream_messages(pubsub, start_time)):
+                    if message is None:
+                        yield "\n"
+                        continue
+                    refresh_count += 1
+                    if refresh_count % 20 == 0:
+                        try:
+                            redis_conn.expire(f"pending_job:{current_user.id}:{thread_id}", 600)
+                        except Exception:
+                            pass
+                    if message['type'] == 'message':
+                        _latency_mark_once(job_id, "stream_first_pubsub_ms")
+                        evt = json.loads(message['data'])
+                        evt_type = str(evt.get('type') or '')
+                        if evt_type == "status":
+                            _latency_mark_once(job_id, "stream_first_status_to_client_ms")
+                        elif evt_type == "thought":
+                            _latency_mark_once(job_id, "stream_first_thought_to_client_ms")
+                        elif evt_type == "content":
+                            _latency_mark_once(job_id, "stream_first_content_to_client_ms")
+                        yield json.dumps(evt) + "\n"
+                        if evt_type in ['done', 'error']:
+                            _latency_mark_once(job_id, "stream_done_ms")
+                            break
+            finally:
+                _latency_mark_once(job_id, "stream_done_ms")
+                _upsert_chat_latency_trace(
+                    job_id=job_id,
+                    user_id=current_user.id,
+                    thread_public_id=thread_stream_id,
+                    model=model_key,
+                    execution_path=execution_path
+                )
     resp = Response(stream_with_context(generate()), mimetype='application/x-ndjson')
     resp.headers['Cache-Control'] = 'no-cache, no-transform'
     resp.headers['X-Accel-Buffering'] = 'no'
@@ -2076,67 +2123,65 @@ def chat_stream_resume():
         return jsonify({'error': 'job mismatch'}), 404
 
     def generate():
-        pubsub = redis_conn.pubsub()
-        channel = f"ai_chat:channel:{job_id}"
-        pubsub.subscribe(channel)
-        start_time = time.time()
-        yield json.dumps({"type": "job_id", "content": job_id}) + "\n"
-        try:
-            cached_status = redis_conn.get(f"stream_acc:{job_id}:status")
-            if cached_status:
-                yield json.dumps({"type": "status", "content": cached_status.decode("utf-8", "ignore")}) + "\n"
-            cached_thought = redis_conn.get(f"stream_acc:{job_id}:thought")
-            if cached_thought:
-                yield json.dumps({"type": "thought", "content": cached_thought.decode("utf-8", "ignore")}) + "\n"
-            cached_content = redis_conn.get(f"stream_acc:{job_id}:content")
-            if cached_content:
-                yield json.dumps({"type": "content", "content": cached_content.decode("utf-8", "ignore")}) + "\n"
-            cached_coding_diffs = redis_conn.lrange(f"stream_acc:{job_id}:coding_diff", 0, -1)
-            for raw_diff in cached_coding_diffs:
-                try:
-                    yield json.dumps({
-                        "type": "coding_diff",
-                        "content": json.loads(raw_diff),
-                    }, ensure_ascii=False) + "\n"
-                except Exception:
-                    continue
-            cached_search = redis_conn.get(f"stream_acc:{job_id}:search")
-            if cached_search:
-                yield json.dumps({"type": "search_status", "content": cached_search.decode("utf-8", "ignore")}) + "\n"
-            cached_py = redis_conn.hgetall(f"stream_acc:{job_id}:python")
-            if cached_py:
-                for _, raw in cached_py.items():
+        with _chat_stream_subscription(job_id) as (pubsub, start_time):
+            yield json.dumps({"type": "job_id", "content": job_id}) + "\n"
+            try:
+                cached_status = redis_conn.get(f"stream_acc:{job_id}:status")
+                if cached_status:
+                    yield json.dumps({"type": "status", "content": cached_status.decode("utf-8", "ignore")}) + "\n"
+                cached_thought = redis_conn.get(f"stream_acc:{job_id}:thought")
+                if cached_thought:
+                    yield json.dumps({"type": "thought", "content": cached_thought.decode("utf-8", "ignore")}) + "\n"
+                cached_content = redis_conn.get(f"stream_acc:{job_id}:content")
+                if cached_content:
+                    yield json.dumps({"type": "content", "content": cached_content.decode("utf-8", "ignore")}) + "\n"
+                cached_coding_diffs = redis_conn.lrange(f"stream_acc:{job_id}:coding_diff", 0, -1)
+                for raw_diff in cached_coding_diffs:
                     try:
-                        py = json.loads(raw)
-                        yield json.dumps({"type": "python", "content": py}) + "\n"
+                        yield json.dumps({
+                            "type": "coding_diff",
+                            "content": json.loads(raw_diff),
+                        }, ensure_ascii=False) + "\n"
                     except Exception:
                         continue
-            cached_mcp = redis_conn.lrange(f"stream_acc:{job_id}:mcp", 0, -1)
-            for raw_mcp in cached_mcp:
-                try:
-                    entry = json.loads(raw_mcp)
-                    if isinstance(entry, dict):
-                        yield json.dumps(entry, ensure_ascii=False) + "\n"
-                except Exception:
-                    continue
-            cached_final = redis_conn.get(f"stream_acc:{job_id}:final")
-            if cached_final:
-                final_type = cached_final.decode("utf-8", "ignore").strip().lower()
-                if final_type == "error":
-                    cached_error = redis_conn.get(f"stream_acc:{job_id}:error")
-                    if cached_error:
-                        yield cached_error.decode("utf-8", "ignore") + "\n"
+                cached_search = redis_conn.get(f"stream_acc:{job_id}:search")
+                if cached_search:
+                    yield json.dumps({"type": "search_status", "content": cached_search.decode("utf-8", "ignore")}) + "\n"
+                cached_py = redis_conn.hgetall(f"stream_acc:{job_id}:python")
+                if cached_py:
+                    for _, raw in cached_py.items():
+                        try:
+                            py = json.loads(raw)
+                            yield json.dumps({"type": "python", "content": py}) + "\n"
+                        except Exception:
+                            continue
+                cached_mcp = redis_conn.lrange(f"stream_acc:{job_id}:mcp", 0, -1)
+                for raw_mcp in cached_mcp:
+                    try:
+                        entry = json.loads(raw_mcp)
+                        if isinstance(entry, dict):
+                            yield json.dumps(entry, ensure_ascii=False) + "\n"
+                    except Exception:
+                        continue
+                cached_final = redis_conn.get(f"stream_acc:{job_id}:final")
+                if cached_final:
+                    final_type = cached_final.decode("utf-8", "ignore").strip().lower()
+                    if final_type == "error":
+                        cached_error = redis_conn.get(f"stream_acc:{job_id}:error")
+                        if cached_error:
+                            yield cached_error.decode("utf-8", "ignore") + "\n"
+                        else:
+                            yield json.dumps({"type": "error", "content": "The job has ended with an error. Please reload."}) + "\n"
                     else:
-                        yield json.dumps({"type": "error", "content": "The job has ended with an error. Please reload."}) + "\n"
-                else:
-                    yield json.dumps({"type": "done", "content": "OK"}) + "\n"
-                return
-        except Exception:
-            pass
-        try:
+                        yield json.dumps({"type": "done", "content": "OK"}) + "\n"
+                    return
+            except Exception:
+                pass
             refresh_count = 0
-            for message in pubsub.listen():
-                if time.time() - start_time > 600: break
+            for message in _chat_stream_messages(pubsub, start_time):
+                if message is None:
+                    yield "\n"
+                    continue
                 refresh_count += 1
                 if refresh_count % 20 == 0:
                     try:
@@ -2147,8 +2192,6 @@ def chat_stream_resume():
                     data = json.loads(message['data'])
                     yield json.dumps(data) + "\n"
                     if data.get('type') in ['done', 'error']: break
-        finally:
-            pubsub.unsubscribe()
     resp = Response(stream_with_context(generate()), mimetype='application/x-ndjson')
     resp.headers['Cache-Control'] = 'no-cache, no-transform'
     resp.headers['X-Accel-Buffering'] = 'no'

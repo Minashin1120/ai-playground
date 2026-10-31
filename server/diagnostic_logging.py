@@ -145,11 +145,12 @@ def _diagnostic_request_start():
     try:
         if not current_user.is_authenticated or not _server_diagnostic_enabled(current_user.id):
             return
-        g.diagnostic_started = time.monotonic()
+        g.diagnostic_started = getattr(g, 'request_started_monotonic', time.monotonic())
         # Generated locally, never trust a content-bearing request header.
         g.diagnostic_op = secrets.token_hex(16)
         _record_server_diagnostic(current_user.id, 'server.request.start', op=g.diagnostic_op,
-                                  route=request.url_rule.rule if request.url_rule else None, method=request.method)
+                                  route=request.url_rule.rule if request.url_rule else None, method=request.method,
+                                  ms=round((time.monotonic() - g.diagnostic_started) * 1000))
     except Exception:
         pass
 

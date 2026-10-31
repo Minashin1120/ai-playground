@@ -69,8 +69,8 @@ class StreamLateSubscriberRegressionTests(unittest.TestCase):
         route = APP_SOURCE[APP_SOURCE.index("def chat_stream():") :]
         route = route[: route.index("@app.route('/chat_stream_resume'")]
         replay = route.index("_replay_finished_stream_events(job_id)")
-        self.assertLess(route.index("pubsub.subscribe(channel)"), replay)
-        self.assertLess(replay, route.index("pubsub.listen()"))
+        self.assertLess(route.index("_chat_stream_subscription(job_id)"), replay)
+        self.assertLess(replay, route.index("_chat_stream_messages(pubsub, start_time)"))
 
 
 if __name__ == "__main__":

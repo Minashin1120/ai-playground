@@ -19,6 +19,29 @@ import javax.net.ssl.SSLException
 class DirectHttpTest {
     private val http = DirectHttp(allowedHosts = emptySet(), allowCleartextLocalhost = true)
 
+    @Test fun ordinaryProviderCallsAreNotQueuedBehindFiveOpenStreams() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            repeat(5) { server.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/event-stream")
+                .throttleBody(1, 1, java.util.concurrent.TimeUnit.SECONDS).body(" ".repeat(128) + "\n").build()) }
+            val streams = (1..5).map {
+                async(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                    http.postSse(server.url("/stream").toString(), emptyMap(), JSONObject()) { true }
+                }
+            }
+            try {
+                repeat(5) { assertNotNull(server.takeRequest(5, java.util.concurrent.TimeUnit.SECONDS)) }
+                server.enqueue(MockResponse.Builder().body("{\"ok\":true}").build())
+                val response = withTimeout(2_000) { http.getJson(server.url("/status").toString(), emptyMap()) }
+                assertTrue(response.getBoolean("ok"))
+                assertEquals(6, server.requestCount)
+            } finally {
+                streams.forEach { it.cancel() }
+                streams.forEach { it.join() }
+            }
+        }
+    }
+
     @Test fun sslReadFailureDoesNotReplayPostAndManualRetryUsesNewConnection() = runBlocking {
         MockWebServer().use { server ->
             server.start()

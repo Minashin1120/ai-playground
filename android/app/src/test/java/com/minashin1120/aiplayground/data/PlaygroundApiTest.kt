@@ -14,6 +14,36 @@ import java.io.ByteArrayInputStream
 import java.io.IOException
 
 class PlaygroundApiTest {
+    @Test fun settingsAndStopAreNotQueuedBehindFiveOpenAnswerStreams() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            repeat(5) { server.enqueue(MockResponse.Builder()
+                .addHeader("Content-Type", "application/x-ndjson")
+                .throttleBody(1, 1, java.util.concurrent.TimeUnit.SECONDS)
+                .body(" ".repeat(128) + "\n").build()) }
+            val api = PlaygroundApi(server.url("/"))
+            val streams = (1..5).map {
+                async(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                    api.stream("/chat_stream", JSONObject(), "test-token") {}
+                }
+            }
+            try {
+                repeat(5) { assertNotNull(server.takeRequest(5, java.util.concurrent.TimeUnit.SECONDS)) }
+                repeat(2) { server.enqueue(MockResponse.Builder()
+                    .addHeader("Content-Type", "application/json").body("{\"ok\":true}").build()) }
+                kotlinx.coroutines.withTimeout(2_000) {
+                    assertTrue(api.get("/api/mobile/v1/preferences", "test-token").getBoolean("ok"))
+                    assertTrue(api.post("/api/stop_chat", JSONObject(), "test-token").getBoolean("ok"))
+                }
+                assertEquals(7, server.requestCount)
+            } finally {
+                streams.forEach { it.cancel() }
+                streams.forEach { it.join() }
+                api.discardIdleConnections()
+            }
+        }
+    }
+
     @Test fun uploadWaitsForAResponseBeyondTheOrdinaryReadTimeout() = runBlocking {
         MockWebServer().use { server ->
             server.start()

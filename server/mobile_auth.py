@@ -170,6 +170,9 @@ def _load_mobile_user(req):
 
 @app.before_request
 def mobile_request_guard():
+    # Timing only: persist nothing until the authenticated account's log consent is checked.
+    # This is the first application hook, for both native and browser requests.
+    g.request_started_monotonic = time.monotonic()
     endpoint = request.endpoint
     header = request.headers.get('Authorization', '')
     is_mobile_path = request.path.startswith('/api/mobile/') or endpoint == 'mobile_connect'

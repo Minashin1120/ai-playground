@@ -61,7 +61,8 @@ class PlaygroundApi internal constructor(
     // Mutations still have a total deadline and must never be replayed automatically.
     private val uploads = normal.newBuilder().dispatcher(okhttp3.Dispatcher())
         .connectionPool(okhttp3.ConnectionPool()).readTimeout(120, TimeUnit.SECONDS).build()
-    private val streaming = normal.newBuilder().readTimeout(660, TimeUnit.SECONDS)
+    private val streaming = normal.newBuilder().dispatcher(okhttp3.Dispatcher())
+        .connectionPool(okhttp3.ConnectionPool()).readTimeout(660, TimeUnit.SECONDS)
         .callTimeout(0, TimeUnit.SECONDS).build()
     /**
      * Images from other sites inside answers (Web renders them with `<img>`). A separate client that never
@@ -90,7 +91,7 @@ class PlaygroundApi internal constructor(
 
     /** TLS socket closure can perform network I/O, including when called from Activity.onStart. */
     suspend fun discardIdleConnections() = withContext(Dispatchers.IO) {
-        setOf(normal.connectionPool, uploads.connectionPool, heartbeat.connectionPool, external.connectionPool).forEach { pool ->
+        setOf(normal.connectionPool, streaming.connectionPool, uploads.connectionPool, heartbeat.connectionPool, external.connectionPool).forEach { pool ->
             try {
                 pool.evictAll()
             } catch (e: Exception) {

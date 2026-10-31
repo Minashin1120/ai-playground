@@ -75,8 +75,9 @@ class DirectHttp(
         .eventListenerFactory { call -> com.minashin1120.aiplayground.data.NetworkTrace(listener(call), 2, { it.request().tag(Trace::class.java)?.op }) }
         .connectTimeout(20, TimeUnit.SECONDS).readTimeout(660, TimeUnit.SECONDS)
         .writeTimeout(180, TimeUnit.SECONDS).callTimeout(0, TimeUnit.SECONDS).build()
-    // Use the same transport for binary uploads and SSE so an HTTP/2 connection cannot stall either.
-    private val streamingClient = client.newBuilder().protocols(listOf(Protocol.HTTP_1_1)).build()
+    // Long-lived SSE readers must not occupy the dispatch slots needed by uploads and ordinary calls.
+    private val streamingClient = client.newBuilder().dispatcher(okhttp3.Dispatcher())
+        .connectionPool(okhttp3.ConnectionPool()).build()
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
     fun request(url: String, headers: Map<String, String>): Request.Builder {

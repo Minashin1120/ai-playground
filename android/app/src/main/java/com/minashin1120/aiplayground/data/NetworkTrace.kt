@@ -36,6 +36,12 @@ internal class NetworkTrace(
         if (counted.compareAndSet(false, true)) active.incrementAndGet()
         start(call, 100); delegate.callStart(call)
     }
+    override fun dispatcherQueueStart(call: Call, dispatcher: Dispatcher) {
+        start(call, 111); delegate.dispatcherQueueStart(call, dispatcher)
+    }
+    override fun dispatcherQueueEnd(call: Call, dispatcher: Dispatcher) {
+        record(call, 111, "done"); delegate.dispatcherQueueEnd(call, dispatcher)
+    }
     override fun dnsStart(call: Call, domainName: String) { start(call, 101); delegate.dnsStart(call, domainName) }
     override fun dnsEnd(call: Call, domainName: String, inetAddressList: List<InetAddress>) {
         record(call, 101, "done", "count" to inetAddressList.size); delegate.dnsEnd(call, domainName, inetAddressList)

@@ -352,6 +352,8 @@ AIが返した外部画像URL、リダイレクト先、任意リンクにはAnd
 
 `/chat_stream` と `/chat_stream_resume` の形式は `application/x-ndjson`。UTF-8のJSONオブジェクトを改行で区切ります。SSEの `data:`、`event:`、`[DONE]` を前提にした実装は使用できません。
 
+生成イベントがない間は約15秒ごとに空行を送ります。空行は回答の内容・完了イベントとして扱わず読み飛ばします。配信は通知がなくても開始から600秒で終了し、切断・終了時にはRedisの購読を閉じます。`done`／`error` なしの切断は、既存の履歴照合・再接続の対象です。
+
 ```text
 {"type":"thread_id","content":"abc123"}
 {"type":"job_id","content":"job_..."}

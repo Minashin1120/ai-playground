@@ -19,6 +19,51 @@ class PendingFeedbackSenderTest {
     private fun response(body: String, code: Int = 200) = MockResponse.Builder().code(code)
         .addHeader("Content-Type", "application/json").body(body).build()
 
+    @Test fun missingChatCopyPausesUploadsAcrossRestartWithoutLosingTheAttachment() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            val origin = server.url("/")
+            val record = store().enqueue(origin.toString(), 1, JSONObject().put("message", "test"),
+                listOf(PendingFeedbackStore.Attachment("image/png", "image", "local-ref") { "image".byteInputStream() }))
+            server.enqueue(response("{\"public_id\":\"accepted\",\"chat_copy_saved\":true}"))
+            server.enqueue(response("{\"error\":\"not_found\"}", 404))
+            try { PendingFeedbackSender(store(), folder.root, PlaygroundApi(origin), "token").send(record)
+                fail("Expected rejected attachment") } catch (_: ApiException) { }
+            val restored = store().records(origin.toString(), 1).single()
+            assertFalse(PendingFeedbackSender.canRetry(restored, Long.MAX_VALUE))
+            assertEquals(0, restored.data.getInt("next_file"))
+            val copy = folder.root.resolve("preserved")
+            store().materialize(restored, 0, copy)
+            assertEquals("image", copy.readText())
+            assertEquals(2, server.requestCount)
+            val next = store().enqueue(origin.toString(), 1, JSONObject().put("message", "next"), emptyList())
+            assertTrue(PendingFeedbackSender.canRetry(next))
+            server.enqueue(response("{\"public_id\":\"next\"}"))
+            PendingFeedbackSender(store(), folder.root, PlaygroundApi(origin), "token").send(next)
+            assertEquals(1, store().records(origin.toString(), 1).size)
+        }
+    }
+
+    @Test fun temporaryFailuresPersistIncreasingRetryDelays() = runBlocking {
+        MockWebServer().use { server ->
+            server.start()
+            val origin = server.url("/")
+            var record = store().enqueue(origin.toString(), 1, JSONObject().put("message", "test"), emptyList())
+            repeat(7) { attempt ->
+                server.enqueue(response("{}", 503))
+                val before = System.currentTimeMillis()
+                try { PendingFeedbackSender(store(), folder.root, PlaygroundApi(origin), "token").send(record)
+                    fail("Expected outage") } catch (_: ApiException) { }
+                record = store().records(origin.toString(), 1).single()
+                val due = record.data.getLong("retry_after")
+                val expected = (30_000L * (1L shl attempt)).coerceAtMost(600_000L)
+                assertTrue(due >= before + expected)
+                assertFalse(PendingFeedbackSender.canRetry(record, due - 1))
+                assertTrue(PendingFeedbackSender.canRetry(record, due))
+            }
+        }
+    }
+
     @Test fun serverOutageKeepsFeedbackUntilSuccessfulRetry() = runBlocking {
         MockWebServer().use { server ->
             server.start()

@@ -13,7 +13,27 @@ internal class PendingFeedbackSender(
     private val client: PlaygroundApi,
     private val auth: String,
 ) {
-    suspend fun send(record: PendingFeedbackStore.Record): String {
+    suspend fun send(record: PendingFeedbackStore.Record): String = try {
+        sendNow(record)
+    } catch (error: IOException) {
+        val attempts = (record.data.optInt("retry_attempts").coerceIn(0, 20) + 1).coerceAtMost(20)
+        val waitMillis = (30_000L * (1L shl (attempts - 1).coerceAtMost(5))).coerceAtMost(600_000L)
+        val status = (error as? ApiException)?.status
+        val paused = status in setOf(400, 404, 409, 413, 422)
+        record.data.put("retry_attempts", attempts).put("retry_after", System.currentTimeMillis() + waitMillis)
+            .put("retry_paused", paused)
+        withContext(Dispatchers.IO) { pendingFeedback.save(record) }
+        ActivityLog.log("error", "tab" to "feedback", "state" to "pending", "failed" to true,
+            "retry" to !paused, "status" to status, "wait_ms" to waitMillis)
+        throw error
+    }
+
+    companion object {
+        fun canRetry(record: PendingFeedbackStore.Record, now: Long = System.currentTimeMillis()): Boolean =
+            !record.data.optBoolean("retry_paused") && record.data.optLong("retry_after") <= now
+    }
+
+    private suspend fun sendNow(record: PendingFeedbackStore.Record): String {
         ActivityLog.log("change", "tab" to "feedback", "state" to "start", "retry" to true)
         val data = record.data
         if (data.optString("feedback_id").isBlank()) {

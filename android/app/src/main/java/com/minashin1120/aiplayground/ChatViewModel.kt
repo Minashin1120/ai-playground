@@ -5190,7 +5190,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     } catch (e: CancellationException) { throw e }
                     catch (e: Exception) {
                         Diagnostics.failure("error", e, "tab" to "feedback", "state" to "pending", "retry" to true)
-                        notify("フィードバックを端末に保存しました。サーバーに接続できると再送します。")
+                        if (record.data.optBoolean("retry_paused"))
+                            notify("フィードバックの送信が拒否されたため、自動再送を停止しました。送信待ちの内容は端末に保存されています。")
+                        else notify("フィードバックを端末に保存しました。時間を空けて再送します。")
                     }
                 }
             } catch (e: CancellationException) { throw e }
@@ -5208,12 +5210,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         feedbackRetryJob = viewModelScope.launch {
             try {
                 val records = withContext(Dispatchers.IO) { pendingFeedback.records(origin.toString(), account) }
+                var sentAny = false
                 for (record in records) {
                     if (state.value.account?.id != account || ServerOrigin.current != origin || session?.token != auth) break
-                    val sent = feedbackSendMutex.withLock { PendingFeedbackSender(pendingFeedback, getApplication<Application>().cacheDir, feedbackClient(origin), auth).send(record) }
-                    notify(sent)
+                    try {
+                        val sent = feedbackSendMutex.withLock {
+                            if (!PendingFeedbackSender.canRetry(record)) null
+                            else PendingFeedbackSender(pendingFeedback, getApplication<Application>().cacheDir, feedbackClient(origin), auth).send(record)
+                        }
+                        if (sent != null) { sentAny = true; notify(sent) }
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) {
+                        Diagnostics.failure("error", e, "tab" to "feedback", "state" to "pending", "retry" to !record.data.optBoolean("retry_paused"))
+                        if (record.data.optBoolean("retry_paused"))
+                            notify("フィードバックの送信が拒否されたため、自動再送を停止しました。送信待ちの内容は端末に保存されています。")
+                    }
                 }
-                if (records.isNotEmpty()) loadFeedback()
+                if (sentAny) loadFeedback()
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { Diagnostics.failure("error", e, "tab" to "feedback", "state" to "pending", "retry" to true) }
         }

@@ -562,6 +562,8 @@
             const followSend = userAutoScroll && isChatNearBottom();
             if (!followSend) pauseChatAutoScroll();
             const editingId = editingMessageId;
+            const settingsBeforeSubmission = promptSettingsBeforeEdit;
+            promptSettingsBeforeEdit = null;
             const capturedParentId = currentParentId;
             const parentIdExplicit = (editingId !== null && editingId !== undefined);
             if (editingId) {
@@ -1228,7 +1230,16 @@
                     const msg = "Connection Error: " + e.message;
                     showToast(msg, "error", true);
                 }
-                if (!requestAccepted) sentPrompt.restore();
+                if (!requestAccepted) {
+                    const restoreEditing = editingId && sentPrompt.canRetry() && !editingMessageId;
+                    sentPrompt.restore();
+                    if (restoreEditing) {
+                        editingMessageId = editingId;
+                        currentParentId = capturedParentId;
+                        promptSettingsBeforeEdit = settingsBeforeSubmission;
+                        setEditUi(true);
+                    }
+                }
                 // Restore old message if error occurred during edit
                 if (editingId && !syncedAfterAbort) restoreHiddenBranch();
             } finally {
@@ -1238,7 +1249,7 @@
                 setSendBtnToSendMode();
                 updateFilePreview();
                 if (activeStreamingBubbleId === aid) activeStreamingBubbleId = null;
-                abortController=null; currentJobId=null; editingMessageId=null; setEditUi(false);
+                abortController=null; currentJobId=null; setEditUi(!!editingMessageId);
             }
             if (resumeAcceptedSubmission) {
                 const previousThreadId = currentThreadId !== null && currentThreadId !== undefined

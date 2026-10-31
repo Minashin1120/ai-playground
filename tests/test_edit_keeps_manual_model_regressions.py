@@ -32,7 +32,8 @@ class WebEditKeepsManualModelTests(unittest.TestCase):
         restore = _between(part04, "function restorePromptOptionsForEdit(message) {", "function beginEditMessage(")
         self.assertIn("if (!modelChosenManually && message.model", restore)
         self.assertIn("key === 'enable_prompt_caching' && modelChosenManually", restore)
-        self.assertIn("enable_search: 'enable-search'", restore)
+        self.assertIn("const ids = PROMPT_OPTION_INPUT_IDS;", restore)
+        self.assertIn("enable_search: 'enable-search'", part04)
 
     def test_flag_resets_only_for_another_or_new_chat(self):
         part15 = _part("chat_core.part15")

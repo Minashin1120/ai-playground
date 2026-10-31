@@ -113,6 +113,7 @@
                 draftHeight = input ? input.style.height : '';
                 draftImages = currentImageUrls ? currentImageUrls.slice() : [];
                 editingMessageId = null;
+                promptSettingsBeforeEdit = null;
                 setEditUi(false);
             } else {
                 cancelEdit();
@@ -831,8 +832,8 @@
             playChatTransition('new');
             threadLoadSequence++;
             if(abortController) abortController.abort();
-            modelChosenManually = false;
             cancelEdit();
+            modelChosenManually = false;
             restoreLatestPromptOptions();
             resetUploadState();
             stopTemporaryChatHeartbeat();

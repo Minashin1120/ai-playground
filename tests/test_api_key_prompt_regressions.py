@@ -43,8 +43,8 @@ class ApiKeyPromptRegressionTests(unittest.TestCase):
 
         self.assertLess(source.index("const sentPrompt = takePromptForSend(options.animate !== false)"), fetch_at)
         self.assertGreater(source.index("sentPrompt.accept();", fetch_at), accepted_at)
-        self.assertTrue("if (!requestAccepted) sentPrompt.restore()" in source,
-                        "A rejected send must restore its held composer state")
+        self.assertRegex(source, r"if \(!requestAccepted\) \{\s+const restoreEditing = [^;]+;\s+sentPrompt\.restore\(\);",
+                         "A rejected send must restore its held composer state")
         self.assertIn("if (!requestAccepted)", source[fetch_at:])
         self.assertIn("optimisticUserMessageEl.remove()", source[fetch_at:])
 

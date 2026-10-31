@@ -915,15 +915,15 @@ nd); font-weight: bold; }
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const w=new f(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),v=w.internal.pageSize.getWidth(),x=w.internal.
 pageSize.getHeight(),S=794,L=Math.floor(x/v*S),C=y.scrollHeight||y.offsetHeight;let A=0,I=!0;const J=Math.
-ceil(C/L);let D=0;for(;A<C;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const j=Math.min(L,C-A),ce=(await new Promise((E,R)=>{const Z=setTimeout(()=>R(
+ceil(C/L);let H=0;for(;A<C;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
+"Aborted","AbortError");const j=Math.min(L,C-A),ue=(await new Promise((E,R)=>{const X=setTimeout(()=>R(
 new Error("PDF chunk rendering timed out")),12e4);h(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
 background,logging:!1,imageTimeout:5e3,x:0,y:A,width:S,height:j,windowWidth:S,scrollX:0,scrollY:0,signal:richPasteAbortController?
-richPasteAbortController.signal:void 0,onclone:o(O=>{prepareRichPastePdfClone(O,c);const H=O.querySelector(
-".pdf-root-wrapper");H&&(H.style.position="relative",H.style.left="0",H.style.top="0")},"onclone")}).
-then(O=>{clearTimeout(Z),E(O)}).catch(O=>{clearTimeout(Z),R(O)})})).toDataURL("image/jpeg",.95),me=w.
-getImageProperties(ce),ae=Math.min(x,me.height*v/me.width);I||w.addPage(),w.addImage(ce,"JPEG",0,0,v,
-ae),I=!1,A+=j,D++;const Te=Math.min(100,15+Math.round(D/J*85));i(Te),await new Promise(E=>setTimeout(
+richPasteAbortController.signal:void 0,onclone:o(N=>{prepareRichPastePdfClone(N,c);const D=N.querySelector(
+".pdf-root-wrapper");D&&(D.style.position="relative",D.style.left="0",D.style.top="0")},"onclone")}).
+then(N=>{clearTimeout(X),E(N)}).catch(N=>{clearTimeout(X),R(N)})})).toDataURL("image/jpeg",.95),me=w.
+getImageProperties(ue),oe=Math.min(x,me.height*v/me.width);I||w.addPage(),w.addImage(ue,"JPEG",0,0,v,
+oe),I=!1,A+=j,H++;const Le=Math.min(100,15+Math.round(H/J*85));i(Le),await new Promise(E=>setTimeout(
 E,100))}return i(100),{blob:w.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=o(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -1778,16 +1778,7 @@ ty-setting")&&(get("safety-setting").value=i(n.safety_setting,get("safety-settin
 chatDefaultsLoaded=!0,typeof window.toggleOptions=="function"&&window.toggleOptions(),applyMcpPromptChipUi()}
 o(applyChatDefaults,"applyChatDefaults");function setEditUi(e){const t=get("edit-bar");t&&(e?(t.classList.
 remove("hidden"),t.classList.add("flex")):(t.classList.add("hidden"),t.classList.remove("flex")),updatePromptPlaceholder(),
-syncCodingModeUi(codingModeEnabled,{persist:!1}))}o(setEditUi,"setEditUi");function cancelEdit(){const e=!!editingMessageId;
-editingMessageId=null,currentParentId=currentLeafId||null;const t=get("prompt-input");t&&(t.value="",
-t.style.height="auto"),currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-inp\
-ut").value="",clearQuote(),setEditUi(!1),e&&restoreLatestPromptOptions()}o(cancelEdit,"cancelEdit");
-function restoreLatestPromptOptions(){if(editingMessageId||!currentLeafId||!allMessages.length)return;
-const e=new Map(allMessages.map(n=>[String(n.id),n]));let t=e.get(String(currentLeafId));for(;t&&t.role!==
-"user";)t=e.get(String(t.parent_id));t&&t.prompt_options&&restorePromptOptionsForEdit(t)}o(restoreLatestPromptOptions,
-"restoreLatestPromptOptions");function restorePromptOptionsForEdit(e){const t=e&&e.prompt_options;if(!modelChosenManually&&
-e.model&&get("model-select")&&get("model-select").value!==e.model){const i=get("enable-prompt-cache");
-i&&(i.checked=!1),selectModelById(e.model)}if(!t||typeof t!="object"||Array.isArray(t))return;const n={
+syncCodingModeUi(codingModeEnabled,{persist:!1}))}o(setEditUi,"setEditUi");const PROMPT_OPTION_INPUT_IDS={
 enable_search:"enable-search",enable_url_context:"enable-url-context",enable_maps:"enable-maps",enable_python:"\
 enable-python",enable_file_creation:"enable-file-creation",enable_mcp:"enable-mcp",enable_thinking:"\
 enable-thinking",thinking_level:"thinking-level",thinking_budget:"thinking-budget",reasoning_effort:"\
@@ -1809,66 +1800,90 @@ grok-video-duration",grok_video_aspect:"grok-video-aspect",grok_video_resolution
 ion",gemini_video_duration:"gemini-video-duration",gemini_video_aspect:"gemini-video-aspect",gemini_video_resolution:"\
 gemini-video-resolution",music_instrumental:"music-instrumental",ocr_table_format:"ocr-table-format",
 ocr_extract_header:"ocr-extract-header",ocr_extract_footer:"ocr-extract-footer",ocr_include_blocks:"\
-ocr-include-blocks",ocr_include_image_base64:"ocr-include-images",ocr_pages:"ocr-pages"};for(const[i,
-a]of Object.entries(n)){if(!Object.prototype.hasOwnProperty.call(t,i)||i==="enable_prompt_caching"&&
-modelChosenManually)continue;const r=get(a);r&&(r.type==="checkbox"?r.checked=!!t[i]:r.value=String(
-t[i]),i==="enable_prompt_caching"?updatePromptCacheUi():r.dispatchEvent(new Event("change",{bubbles:!0})))}
-if(Object.prototype.hasOwnProperty.call(t,"image_vision_model")&&(currentVisionModel=t.image_vision_model),
-Object.prototype.hasOwnProperty.call(t,"canvas_mode")&&syncCanvasModeUi(!!t.canvas_mode,{persist:!1}),
-Object.prototype.hasOwnProperty.call(t,"coding_mode")&&syncCodingModeUi(!!t.coding_mode,{persist:!1}),
-Object.prototype.hasOwnProperty.call(t,"browser_fast_mode")&&setBrowserFastModeEnabled(!!t.browser_fast_mode),
-Object.prototype.hasOwnProperty.call(t,"batch_mode")){const i=get("enable-batch-mode");i&&(i.checked=
-!!t.batch_mode,i.dispatchEvent(new Event("change",{bubbles:!0})))}typeof window.toggleOptions=="func\
-tion"&&window.toggleOptions(),applyMcpPromptChipUi()}o(restorePromptOptionsForEdit,"restorePromptOpt\
-ionsForEdit");function beginEditMessage(e,t=!1){const n=messageStore[e];if(n==null)return;const i=get(
-"prompt-input");i.value=n||"",i.focus(),i.style.height="auto",i.style.height=i.scrollHeight+"px";const a=allMessages.
-find(u=>u.id==e),r=messageMeta[e]||{};restorePromptOptionsForEdit(a),currentMaskImage=a&&a.prompt_options&&
-a.prompt_options.image_mask||r.image_mask||null,updateMaskPreview(),a?currentParentId=a.parent_id===
-void 0?null:a.parent_id:r.parent_id!==void 0&&(currentParentId=r.parent_id),editingMessageId=e,setEditUi(
-!0);const l=a?a.image_url:r.image_url;if(l)try{const u=JSON.parse(l);Array.isArray(u)&&u.length?(currentImageUrls=
-u.map(f=>{let h="unknown",y=f;f&&typeof f=="object"&&(h=normalizeAttachmentSource(f.source),y=f.filepath||
-f.path||f.url||f.file||"");const w=normalizeAttachmentPath(y);return w&&setAttachmentSourceForPath(w,
-h),w}).filter(Boolean),get("file-preview").classList.remove("hidden"),get("file-name").innerText=`${currentImageUrls.
-length} files ready`):(currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-inp\
-ut").value="")}catch{currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").
-value=""}else currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value=
-"";const c=a?a.quote_text:r.quote_text;c?(currentQuote=c,currentQuoteMessageId=null,get("quote-text-\
-display").innerText=currentQuote,get("quote-bar").classList.add("visible")):clearQuote(),schedulePromptTokenEstimate(
-!0),t&&sendMessage()}o(beginEditMessage,"beginEditMessage");function playSendAnimation(){const e=get(
-"send-btn");e&&(e.classList.remove("fly"),e.offsetWidth,e.classList.add("fly"))}o(playSendAnimation,
-"playSendAnimation");function setSendBtnToStopMode(){const e=get("send-btn");if(!e)return;e.onclick=
-stopGeneration,isStopMode=!0,e.disabled=!1;const t=o(()=>{!e||!isStopMode||(e.classList.add("stop-mo\
-de"),e.innerHTML='<span style="font-size:20px;line-height:1;color:#fff;">\u25A0</span>',e.classList.
-add("btn-swap"),setTimeout(()=>e.classList.remove("btn-swap"),300))},"applyStopUi");if(e.classList.contains(
-"fly")){const n=o(i=>{i.animationName==="sendBtnPop"&&(e.removeEventListener("animationend",n),t())},
-"onEnd");e.addEventListener("animationend",n),setTimeout(t,700)}else t()}o(setSendBtnToStopMode,"set\
-SendBtnToStopMode");function setSendBtnToSendMode(){const e=get("send-btn");e&&(e.classList.remove("\
-stop-mode","fly","btn-swap"),e.innerHTML='<i class="fas fa-paper-plane"></i>',e.classList.add("btn-s\
-wap"),setTimeout(()=>e.classList.remove("btn-swap"),300),e.onclick=sendMessage,isStopMode=!1)}o(setSendBtnToSendMode,
-"setSendBtnToSendMode");async function stopGeneration(){const e=currentThreadId!=null&&currentThreadId!==
-""?String(currentThreadId):null,t=normalizeJobIdForUi(currentJobId),n=++manualStopSeq,i=captureStoppedPartialBubbleSnapshot(
-getActiveStreamingBubbleElement());manualStopContext={seq:n,threadId:e,jobId:t,partialSnapshot:i},t&&
-suppressPendingJob(t),abortController&&abortController.abort();try{if(t||e){const a={};t&&(a.job_id=
-t),e&&(a.thread_id=e);const l=await(await apiFetch("/api/stop_chat",{method:"POST",headers:{"Content\
--Type":"application/json"},body:JSON.stringify(a)})).json().catch(()=>({})),c=normalizeJobIdForUi(l&&
-l.job_id);c&&(suppressPendingJob(c),manualStopContext&&manualStopContext.seq===n&&(manualStopContext.
-jobId=c))}manualStopContext&&manualStopContext.seq===n&&await syncThreadAfterAbortedStream(e,{retries:2,
-retryDelayMs:180,notifyOnFailure:!0})&&manualStopContext.partialSnapshot&&appendStoppedPartialBubbleSnapshot(
-manualStopContext.partialSnapshot,e)}finally{manualStopContext&&manualStopContext.seq===n&&(manualStopContext=
-null),setSendBtnToSendMode(),updateFilePreview()}}o(stopGeneration,"stopGeneration");async function purgeCaches(){
-if("caches"in window){const e=await caches.keys();await Promise.all(e.map(t=>caches.delete(t)))}if(navigator.
-serviceWorker){const e=await navigator.serviceWorker.getRegistrations();await Promise.all(e.map(t=>t.
-unregister()))}}o(purgeCaches,"purgeCaches");const SW_CACHE_MODE_STORAGE_KEY="ai_sw_cache_mode_v2";async function applyCacheMode(e,t={}){
-if("serviceWorker"in navigator)if(e)try{await navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(
-appVersion)}`),localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY,"enabled")}catch{}else{const n=localStorage.
-getItem(SW_CACHE_MODE_STORAGE_KEY);(!!t.forceCleanup||n!=="disabled")&&await purgeCaches(),localStorage.
-setItem(SW_CACHE_MODE_STORAGE_KEY,"disabled")}}o(applyCacheMode,"applyCacheMode");function checkAndNotifyVersion(e){
-!e||!appVersion||e===appVersion||(localStorage.getItem("version_notified")||"")===e||(localStorage.setItem(
-"app_version",e),syncVersionUpdateCachePreferenceUi(),showModal("version-update-modal"))}o(checkAndNotifyVersion,
-"checkAndNotifyVersion");async function checkVersion(){try{const e=await fetch("/api/version",{cache:"\
-no-store"});if(!e.ok)return;const n=(await e.json()).version||"",i=localStorage.getItem("app_version")||
-"";n&&!i&&localStorage.setItem("app_version",n),n&&i&&n!==i&&(await purgeCaches(),checkAndNotifyVersion(
-n))}catch{}}o(checkVersion,"checkVersion");async function fetchChatStreamWithUnavailableRetry(e,t,n){
+ocr-include-blocks",ocr_include_image_base64:"ocr-include-images",ocr_pages:"ocr-pages"};let promptSettingsBeforeEdit=null;
+function capturePromptSettingsBeforeEdit(){var n,i;const e={};for(const[a,r]of Object.entries(PROMPT_OPTION_INPUT_IDS)){
+const l=get(r);l&&(e[a]=l.type==="checkbox"?!!l.checked:l.value)}Object.assign(e,{canvas_mode:!!canvasModeEnabled,
+coding_mode:!!codingModeEnabled,browser_fast_mode:!!browserFastModeEnabled,batch_mode:!!((n=get("ena\
+ble-batch-mode"))!=null&&n.checked)});const t=get("enable-sys-prompt");return{model:(i=get("model-se\
+lect"))==null?void 0:i.value,prompt_options:e,modelChosenManually,visionModel:currentVisionModel,mask:currentMaskImage,
+codingTarget:codingTargetSelection,systemPrompt:t?{checked:t.checked,restoreChecked:t.dataset.restoreChecked}:
+null}}o(capturePromptSettingsBeforeEdit,"capturePromptSettingsBeforeEdit");function restorePromptSettingsBeforeEdit(e){
+modelChosenManually=!1;try{restorePromptOptionsForEdit(e)}finally{modelChosenManually=e.modelChosenManually}
+currentVisionModel=e.visionModel,currentMaskImage=e.mask,codingTargetSelection=e.codingTarget;const t=get(
+"enable-sys-prompt");t&&e.systemPrompt&&(t.checked=e.systemPrompt.checked,e.systemPrompt.restoreChecked===
+void 0?delete t.dataset.restoreChecked:t.dataset.restoreChecked=e.systemPrompt.restoreChecked,t.dispatchEvent(
+new Event("change",{bubbles:!0}))),updateMaskPreview(),syncCodingModeUi(codingModeEnabled,{persist:!1}),
+schedulePromptTokenEstimate(!0)}o(restorePromptSettingsBeforeEdit,"restorePromptSettingsBeforeEdit");
+function cancelEdit(){const e=!!editingMessageId,t=promptSettingsBeforeEdit;promptSettingsBeforeEdit=
+null,editingMessageId=null,currentParentId=currentLeafId||null;const n=get("prompt-input");n&&(n.value=
+"",n.style.height="auto"),currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-\
+input").value="",clearQuote(),setEditUi(!1),e&&t&&restorePromptSettingsBeforeEdit(t)}o(cancelEdit,"c\
+ancelEdit");function restoreLatestPromptOptions(){if(editingMessageId||!currentLeafId||!allMessages.
+length)return;const e=new Map(allMessages.map(n=>[String(n.id),n]));let t=e.get(String(currentLeafId));
+for(;t&&t.role!=="user";)t=e.get(String(t.parent_id));t&&t.prompt_options&&restorePromptOptionsForEdit(
+t)}o(restoreLatestPromptOptions,"restoreLatestPromptOptions");function restorePromptOptionsForEdit(e){
+const t=e&&e.prompt_options;if(!modelChosenManually&&e.model&&get("model-select")&&get("model-select").
+value!==e.model){const i=get("enable-prompt-cache");i&&(i.checked=!1),selectModelById(e.model)}if(!t||
+typeof t!="object"||Array.isArray(t))return;const n=PROMPT_OPTION_INPUT_IDS;for(const[i,a]of Object.
+entries(n)){if(!Object.prototype.hasOwnProperty.call(t,i)||i==="enable_prompt_caching"&&modelChosenManually)
+continue;const r=get(a);r&&(r.type==="checkbox"?r.checked=!!t[i]:r.value=String(t[i]),i==="enable_pr\
+ompt_caching"?updatePromptCacheUi():r.dispatchEvent(new Event("change",{bubbles:!0})))}if(Object.prototype.
+hasOwnProperty.call(t,"image_vision_model")&&(currentVisionModel=t.image_vision_model),Object.prototype.
+hasOwnProperty.call(t,"canvas_mode")&&syncCanvasModeUi(!!t.canvas_mode,{persist:!1}),Object.prototype.
+hasOwnProperty.call(t,"coding_mode")&&syncCodingModeUi(!!t.coding_mode,{persist:!1}),Object.prototype.
+hasOwnProperty.call(t,"browser_fast_mode")&&setBrowserFastModeEnabled(!!t.browser_fast_mode),Object.
+prototype.hasOwnProperty.call(t,"batch_mode")){const i=get("enable-batch-mode");i&&(i.checked=!!t.batch_mode,
+i.dispatchEvent(new Event("change",{bubbles:!0})))}typeof window.toggleOptions=="function"&&window.toggleOptions(),
+applyMcpPromptChipUi()}o(restorePromptOptionsForEdit,"restorePromptOptionsForEdit");function beginEditMessage(e,t=!1){
+const n=messageStore[e];if(n==null)return;(!editingMessageId||!promptSettingsBeforeEdit)&&(promptSettingsBeforeEdit=
+capturePromptSettingsBeforeEdit());const i=get("prompt-input");i.value=n||"",i.focus(),i.style.height=
+"auto",i.style.height=i.scrollHeight+"px";const a=allMessages.find(u=>u.id==e),r=messageMeta[e]||{};
+restorePromptOptionsForEdit(a),currentMaskImage=a&&a.prompt_options&&a.prompt_options.image_mask||r.
+image_mask||null,updateMaskPreview(),a?currentParentId=a.parent_id===void 0?null:a.parent_id:r.parent_id!==
+void 0&&(currentParentId=r.parent_id),editingMessageId=e,setEditUi(!0);const l=a?a.image_url:r.image_url;
+if(l)try{const u=JSON.parse(l);Array.isArray(u)&&u.length?(currentImageUrls=u.map(f=>{let h="unknown",
+y=f;f&&typeof f=="object"&&(h=normalizeAttachmentSource(f.source),y=f.filepath||f.path||f.url||f.file||
+"");const w=normalizeAttachmentPath(y);return w&&setAttachmentSourceForPath(w,h),w}).filter(Boolean),
+get("file-preview").classList.remove("hidden"),get("file-name").innerText=`${currentImageUrls.length}\
+ files ready`):(currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value=
+"")}catch{currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value=""}else
+currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value="";const c=a?
+a.quote_text:r.quote_text;c?(currentQuote=c,currentQuoteMessageId=null,get("quote-text-display").innerText=
+currentQuote,get("quote-bar").classList.add("visible")):clearQuote(),schedulePromptTokenEstimate(!0),
+t&&sendMessage()}o(beginEditMessage,"beginEditMessage");function playSendAnimation(){const e=get("se\
+nd-btn");e&&(e.classList.remove("fly"),e.offsetWidth,e.classList.add("fly"))}o(playSendAnimation,"pl\
+aySendAnimation");function setSendBtnToStopMode(){const e=get("send-btn");if(!e)return;e.onclick=stopGeneration,
+isStopMode=!0,e.disabled=!1;const t=o(()=>{!e||!isStopMode||(e.classList.add("stop-mode"),e.innerHTML=
+'<span style="font-size:20px;line-height:1;color:#fff;">\u25A0</span>',e.classList.add("btn-swap"),setTimeout(
+()=>e.classList.remove("btn-swap"),300))},"applyStopUi");if(e.classList.contains("fly")){const n=o(i=>{
+i.animationName==="sendBtnPop"&&(e.removeEventListener("animationend",n),t())},"onEnd");e.addEventListener(
+"animationend",n),setTimeout(t,700)}else t()}o(setSendBtnToStopMode,"setSendBtnToStopMode");function setSendBtnToSendMode(){
+const e=get("send-btn");e&&(e.classList.remove("stop-mode","fly","btn-swap"),e.innerHTML='<i class="\
+fas fa-paper-plane"></i>',e.classList.add("btn-swap"),setTimeout(()=>e.classList.remove("btn-swap"),
+300),e.onclick=sendMessage,isStopMode=!1)}o(setSendBtnToSendMode,"setSendBtnToSendMode");async function stopGeneration(){
+const e=currentThreadId!=null&&currentThreadId!==""?String(currentThreadId):null,t=normalizeJobIdForUi(
+currentJobId),n=++manualStopSeq,i=captureStoppedPartialBubbleSnapshot(getActiveStreamingBubbleElement());
+manualStopContext={seq:n,threadId:e,jobId:t,partialSnapshot:i},t&&suppressPendingJob(t),abortController&&
+abortController.abort();try{if(t||e){const a={};t&&(a.job_id=t),e&&(a.thread_id=e);const l=await(await apiFetch(
+"/api/stop_chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(a)})).
+json().catch(()=>({})),c=normalizeJobIdForUi(l&&l.job_id);c&&(suppressPendingJob(c),manualStopContext&&
+manualStopContext.seq===n&&(manualStopContext.jobId=c))}manualStopContext&&manualStopContext.seq===n&&
+await syncThreadAfterAbortedStream(e,{retries:2,retryDelayMs:180,notifyOnFailure:!0})&&manualStopContext.
+partialSnapshot&&appendStoppedPartialBubbleSnapshot(manualStopContext.partialSnapshot,e)}finally{manualStopContext&&
+manualStopContext.seq===n&&(manualStopContext=null),setSendBtnToSendMode(),updateFilePreview()}}o(stopGeneration,
+"stopGeneration");async function purgeCaches(){if("caches"in window){const e=await caches.keys();await Promise.
+all(e.map(t=>caches.delete(t)))}if(navigator.serviceWorker){const e=await navigator.serviceWorker.getRegistrations();
+await Promise.all(e.map(t=>t.unregister()))}}o(purgeCaches,"purgeCaches");const SW_CACHE_MODE_STORAGE_KEY="\
+ai_sw_cache_mode_v2";async function applyCacheMode(e,t={}){if("serviceWorker"in navigator)if(e)try{await navigator.
+serviceWorker.register(`/sw.js?v=${encodeURIComponent(appVersion)}`),localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY,
+"enabled")}catch{}else{const n=localStorage.getItem(SW_CACHE_MODE_STORAGE_KEY);(!!t.forceCleanup||n!==
+"disabled")&&await purgeCaches(),localStorage.setItem(SW_CACHE_MODE_STORAGE_KEY,"disabled")}}o(applyCacheMode,
+"applyCacheMode");function checkAndNotifyVersion(e){!e||!appVersion||e===appVersion||(localStorage.getItem(
+"version_notified")||"")===e||(localStorage.setItem("app_version",e),syncVersionUpdateCachePreferenceUi(),
+showModal("version-update-modal"))}o(checkAndNotifyVersion,"checkAndNotifyVersion");async function checkVersion(){
+try{const e=await fetch("/api/version",{cache:"no-store"});if(!e.ok)return;const n=(await e.json()).
+version||"",i=localStorage.getItem("app_version")||"";n&&!i&&localStorage.setItem("app_version",n),n&&
+i&&n!==i&&(await purgeCaches(),checkAndNotifyVersion(n))}catch{}}o(checkVersion,"checkVersion");async function fetchChatStreamWithUnavailableRetry(e,t,n){
 let i=0;for(;;){if(t.signal&&t.signal.aborted)throw new DOMException("Aborted","AbortError");try{const a=await apiFetch(
 e,t),r=window.ConnectionMonitor.retryModeForResponse(a);let l=!1;if(a.status===425&&(l=(await a.clone().
 json().catch(()=>({}))).code==="submission_in_progress"),!r&&!l)return window.ConnectionMonitor.markReachable(),
@@ -2022,8 +2037,8 @@ ordKey"),l=o(w=>{const v=performance.now();if(!(v-e.lastMoveSample<80)){if(e.las
 sqrt(x*x+S*S)/(L/1e3);e.speedMax=Math.max(e.speedMax,C),e.speedSum+=C,e.speedSamples+=1}}e.lastMove=
 {x:w.clientX,y:w.clientY,t:v}}},"recordMove"),c=o(()=>{const w=Math.max(1,performance.now()-e.windowStart),
 v=e.clickTimes.length,x=e.keyTimes.length,S=e.speedSamples?e.speedSum/e.speedSamples:0;let L=0,C=1;if(e.
-clickIntervals.length>=3){const A=e.clickIntervals.reduce((J,D)=>J+D,0)/e.clickIntervals.length,I=e.
-clickIntervals.reduce((J,D)=>J+Math.pow(D-A,2),0)/e.clickIntervals.length;L=A,C=A>0?Math.sqrt(I)/A:1}
+clickIntervals.length>=3){const A=e.clickIntervals.reduce((J,H)=>J+H,0)/e.clickIntervals.length,I=e.
+clickIntervals.reduce((J,H)=>J+Math.pow(H-A,2),0)/e.clickIntervals.length;L=A,C=A>0?Math.sqrt(I)/A:1}
 return{window_ms:Math.round(w),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
 fastKeys,untrusted_input:!!e.untrustedInput,click_burst:v,key_burst:x,avg_click_ms:L,click_cv:C,event_rate:(e.
 clicks+e.keys+e.moves)/(w/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:S}},"computeStats"),u=o(

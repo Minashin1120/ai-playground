@@ -406,12 +406,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val mask: String? = null,
         val editingId: String? = null,
         val parentId: Int? = null,
+        val settingsBeforeEdit: PromptEditSettings? = null,
     )
     private var failed: Submission? = null
     private val failedByThread = mutableMapOf<String, Submission>()
     private var pendingParentId: Int? = null
     /** Web `modelChosenManually`: a model the user picked in this chat survives edit/regenerate/branch restores. */
     private var modelChosenManually = false
+    private var promptSettingsBeforeEdit: PromptEditSettings? = null
     private var chatTransitionSequence = 0L
 
     /** Stops account work at the same BAN boundary enforced by the Web server. */
@@ -806,6 +808,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         prefs.edit().putString(PREF_PROFILE_MODE, PROFILE_SERVER).apply()
         closeLocalChats()
         val server = state.value
+        promptSettingsBeforeEdit = null
         mutable.value = ChatState(starting = false, serverLabel = server.serverLabel, serverInfo = server.serverInfo,
             savedServers = server.savedServers, googleServerClientId = server.googleServerClientId,
             integrityProjectNumber = server.integrityProjectNumber, historyCacheMode = server.historyCacheMode,
@@ -2101,6 +2104,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         navigationJob?.cancel(); failed = null
         heartbeatJob?.cancel()
         pendingParentId = null
+        promptSettingsBeforeEdit = null
         modelChosenManually = false
         val transition = nextChatTransition(ChatTransitionKind.NEW_CHAT)
         mutable.update { it.withLatestPromptOptions().copy(selected = null, messages = emptyList(), allMessages = emptyList(), leafId = null, settingsBubbles = emptyList(),
@@ -2122,6 +2126,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (recordHistory) recordChatNavigation(ChatLocation(thread))
         navigationJob?.cancel(); heartbeatJob?.cancel(); failed = null
         pendingParentId = null
+        promptSettingsBeforeEdit = null
         if (state.value.selected?.id != thread.id) modelChosenManually = false
         val transition = nextChatTransition(ChatTransitionKind.OPEN_THREAD)
         val pinnedLeaf = getApplication<Application>().getSharedPreferences("branches", Context.MODE_PRIVATE)
@@ -2144,6 +2149,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 loadMessages(thread.id)
                 failedByThread[state.value.selected?.id]?.let { submission ->
                     failed = submission
+                    promptSettingsBeforeEdit = submission.settingsBeforeEdit
                     mutable.update { it.copy(draft = submission.body.optString("message"), attachments = submission.files,
                         quote = submission.body.optString("quote_text"), imageMask = submission.mask,
                         editingMessageId = submission.editingId) }
@@ -2482,6 +2488,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (state.value.selected?.id == thread.id) {
                     // Web reloads the chat without `preserveDraft`, which runs `cancelEdit`.
                     pendingParentId = null
+                    promptSettingsBeforeEdit = null
                     mutable.update { it.copy(leafId = null, editingMessageId = null, draft = "", attachments = emptyList(), quote = "") }
                     loadMessages(thread.id)
                 }
@@ -2686,6 +2693,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** Prepares the composer to edit a user message, branching from its parent. */
     fun beginEdit(message: ChatMessage) {
         if (message.role != "user") return
+        if (state.value.editingMessageId == null || promptSettingsBeforeEdit == null)
+            promptSettingsBeforeEdit = PromptEditSettings.capture(state.value, modelChosenManually)
         pendingParentId = message.parentId
         // Web `beginEditMessage`: the message's own quote comes back (or the quote bar clears) and the input gets focus.
         mutable.update { it.withPromptOptionsFrom(message).copy(
@@ -2709,9 +2718,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun cancelEdit() {
+        val saved = promptSettingsBeforeEdit.takeIf { state.value.editingMessageId != null }
+        promptSettingsBeforeEdit = null
         pendingParentId = null
-        mutable.update { it.copy(editingMessageId = null, draft = "", attachments = emptyList(), quote = "")
-            .withLatestPromptOptions() }
+        if (saved != null) modelChosenManually = saved.modelChosenManually
+        mutable.update { current ->
+            val cleared = current.copy(editingMessageId = null, draft = "", attachments = emptyList(), quote = "")
+            saved?.restore(cleared) ?: cleared
+        }
     }
 
     /** Switches the active path to the branch that contains [targetMessageId]. */
@@ -2856,7 +2870,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             current.leafId?.let { body.put("parent_id", it) }
         }
         current.selected?.let { body.put("thread_id", it.id) }
-        val submission = Submission(body, current.attachments, current.imageMask, current.editingMessageId, pendingParentId)
+        val submission = Submission(body, current.attachments, current.imageMask, current.editingMessageId, pendingParentId, promptSettingsBeforeEdit)
+        promptSettingsBeforeEdit = null
         failed = submission
         pendingParentId = null
         // Web `resetUploadState` + `clearQuote`: the mask goes with the attachments.
@@ -3376,7 +3391,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         imageMask = it.imageMask ?: submission.mask,
                         editingMessageId = it.editingMessageId ?: submission.editingId,
                     ) }
-                    if (answer.matches(state.value) && state.value.editingMessageId == submission.editingId && submission.editingId != null) pendingParentId = submission.parentId
+                    if (answer.matches(state.value) && state.value.editingMessageId == submission.editingId && submission.editingId != null) {
+                        pendingParentId = submission.parentId
+                        if (promptSettingsBeforeEdit == null) promptSettingsBeforeEdit = submission.settingsBeforeEdit
+                    }
                 }
                 when {
                     e is ApiException && e.code == "api_key_missing" -> {
@@ -4220,6 +4238,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         cancelChatBubble(getApplication())
         session = null; failed = null
         val server = state.value
+        promptSettingsBeforeEdit = null
         mutable.value = ChatState(
             starting = false,
             serverLabel = server.serverLabel, serverInfo = server.serverInfo, savedServers = server.savedServers,

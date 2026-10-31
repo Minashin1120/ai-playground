@@ -38,7 +38,7 @@ assert.equal(isUploadCancelled({generation: uploadGeneration, row: {isConnected:
 
 
 def test_restoring_prompt_cache_setting_never_sends_manual_change():
-    source = section('04', 'function restorePromptOptionsForEdit', 'function beginEditMessage')
+    source = section('04', 'const PROMPT_OPTION_INPUT_IDS', '// Kept in memory') + section('04', 'function restorePromptOptionsForEdit', 'function beginEditMessage')
     run_js('''
 const assert = require('node:assert/strict');
 let modelChosenManually = false, refreshed = 0, changed = 0;

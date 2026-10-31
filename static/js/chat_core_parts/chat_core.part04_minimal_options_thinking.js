@@ -311,7 +311,9 @@
             music_instrumental: 'music-instrumental', ocr_table_format: 'ocr-table-format',
             ocr_extract_header: 'ocr-extract-header', ocr_extract_footer: 'ocr-extract-footer',
             ocr_include_blocks: 'ocr-include-blocks', ocr_include_image_base64: 'ocr-include-images',
-            ocr_pages: 'ocr-pages'
+            ocr_pages: 'ocr-pages',
+            // Free-text fields are included in ephemeral edit snapshots, never in saved prompt options.
+            tts_style: 'tts-style', ideogram_negative_prompt: 'ideogram-image-negative', xai_stop: 'xai-stop'
         };
         // Kept in memory for this edit only, never persisted or sent with the prompt.
         let promptSettingsBeforeEdit = null;

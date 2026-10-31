@@ -1800,7 +1800,8 @@ grok-video-duration",grok_video_aspect:"grok-video-aspect",grok_video_resolution
 ion",gemini_video_duration:"gemini-video-duration",gemini_video_aspect:"gemini-video-aspect",gemini_video_resolution:"\
 gemini-video-resolution",music_instrumental:"music-instrumental",ocr_table_format:"ocr-table-format",
 ocr_extract_header:"ocr-extract-header",ocr_extract_footer:"ocr-extract-footer",ocr_include_blocks:"\
-ocr-include-blocks",ocr_include_image_base64:"ocr-include-images",ocr_pages:"ocr-pages"};let promptSettingsBeforeEdit=null;
+ocr-include-blocks",ocr_include_image_base64:"ocr-include-images",ocr_pages:"ocr-pages",tts_style:"t\
+ts-style",ideogram_negative_prompt:"ideogram-image-negative",xai_stop:"xai-stop"};let promptSettingsBeforeEdit=null;
 function capturePromptSettingsBeforeEdit(){var n,i;const e={};for(const[a,r]of Object.entries(PROMPT_OPTION_INPUT_IDS)){
 const l=get(r);l&&(e[a]=l.type==="checkbox"?!!l.checked:l.value)}Object.assign(e,{canvas_mode:!!canvasModeEnabled,
 coding_mode:!!codingModeEnabled,browser_fast_mode:!!browserFastModeEnabled,batch_mode:!!((n=get("ena\

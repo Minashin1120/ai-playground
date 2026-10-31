@@ -162,7 +162,7 @@ class AppUpdateDownloader internal constructor(
             }
 
             override fun onResponse(call: Call, response: Response) {
-                continuation.resume(response) { _, abandoned, _ -> abandoned.close() }
+                continuation.resume(response) { response.close() }
             }
         })
     }

@@ -409,4 +409,81 @@ class DirectEnginesTest {
         assertEquals("openai", router.route("gpt-image-2", "image")?.provider)
         assertNull(router.route("lyria-3.5", "music"))
     }
+
+    @Test fun openAiPythonToolCarriesContainerFileIdsOnlyWhenProvided() {
+        val engine = OpenAiResponsesDirect(http, baseUrl = "https://api.openai.com")
+        val withFiles = engine.buildPayload(request(JSONObject().put("enable_python", true)), listOf("file-abc"))
+        val container = withFiles.getJSONArray("tools").getJSONObject(0).getJSONObject("container")
+        assertEquals("auto", container.getString("type"))
+        assertEquals("file-abc", container.getJSONArray("file_ids").getString(0))
+        val plain = engine.buildPayload(request(JSONObject().put("enable_python", true)))
+        assertFalse(plain.getJSONArray("tools").getJSONObject(0).getJSONObject("container").has("file_ids"))
+        assertFalse(engine.buildPayload(request(), listOf("file-abc")).has("tools"))
+        val xai = OpenAiResponsesDirect(http, xai = true, baseUrl = "https://api.x.ai")
+        assertFalse(xai.buildPayload(request(JSONObject().put("enable_python", true)), listOf("file-abc")).has("tools"))
+    }
+
+    @Test fun openAiCodeInterpreterReceivesImageFilesAndSavesCitedImages() {
+        MockWebServer().use { server ->
+            server.start()
+            val base = server.url("/").toString().trimEnd('/')
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json").body("""{"id":"file-abc"}""").build())
+            server.enqueue(sse(
+                """{"type":"response.output_text.delta","delta":"zoomed"}""",
+                """{"type":"response.output_text.annotation.added","annotation":{"type":"container_file_citation","container_id":"cntr_abc","file_id":"cfile_xyz","filename":"crop.png"}}""",
+                """{"type":"response.completed","response":{"output":[{"type":"message","content":[{"type":"output_text","annotations":[{"type":"container_file_citation","container_id":"cntr_abc","file_id":"cfile_xyz","filename":"crop.png"}]}]}],"usage":{"input_tokens":2,"output_tokens":3}}}""",
+            ))
+            server.enqueue(MockResponse.Builder().body(byteArrayOf(9, 8, 7).toString(Charsets.ISO_8859_1)).build())
+            val engine = OpenAiResponsesDirect(http, baseUrl = base)
+            var saved: ByteArray? = null
+            val image = DirectAttachment("shot.png", "image/png", byteArrayOf(1, 2, 3))
+            val req = DirectRequest(
+                "gpt-6-astra", "sk-test", "",
+                listOf(DirectTurn("user", "拡大して", listOf(image))),
+                JSONObject().put("enable_python", true),
+                saveOutput = { file -> saved = file.bytes; "local/crop.png" },
+            )
+            val (result, events) = run(engine, req)
+            val upload = server.takeRequest()
+            assertEquals("/v1/files", upload.target)
+            assertEquals("Bearer sk-test", upload.headers["Authorization"])
+            val form = upload.body!!.utf8()
+            assertTrue(form.contains("user_data"))
+            assertTrue(form.contains("input_1.png"))
+            val responses = server.takeRequest()
+            assertEquals("/v1/responses", responses.target)
+            val payload = JSONObject(responses.body!!.utf8())
+            val container = payload.getJSONArray("tools").getJSONObject(0).getJSONObject("container")
+            assertEquals("file-abc", container.getJSONArray("file_ids").getString(0))
+            assertTrue(payload.toString().contains("input_image"))
+            val download = server.takeRequest()
+            assertEquals("/v1/containers/cntr_abc/files/cfile_xyz/content", download.target)
+            assertEquals("Bearer sk-test", download.headers["Authorization"])
+            assertArrayEquals(byteArrayOf(9, 8, 7), saved)
+            assertEquals(1, Regex("Agentic View").findAll(result.content).count())
+            assertTrue(result.content.contains("local/crop.png"))
+            assertTrue(events.any { it.optString("type") == "status" && it.optString("content").contains("コード実行環境") })
+        }
+    }
+
+    @Test fun openAiSavesCodeInterpreterImagesFromTheCompletedResponse() {
+        MockWebServer().use { server ->
+            server.start()
+            val base = server.url("/").toString().trimEnd('/')
+            val imageUrl = "$base/v1/files/file-out/content"
+            server.enqueue(sse(
+                """{"type":"response.completed","response":{"output":[{"type":"code_interpreter_call","id":"ci_1","container_id":"cntr_done","code":"print(1)","outputs":[{"type":"logs","logs":"1"},{"type":"image","url":"$imageUrl"}]}]}}""",
+            ))
+            server.enqueue(MockResponse.Builder().body(byteArrayOf(4, 5).toString(Charsets.ISO_8859_1)).build())
+            var saved: ByteArray? = null
+            val req = request().copy(saveOutput = { file -> saved = file.bytes; "local/out.png" })
+            val (result, _) = run(OpenAiResponsesDirect(http, baseUrl = base), req)
+            assertTrue(result.content.contains("```python\nprint(1)"))
+            assertTrue(result.content.contains("**Output:**"))
+            assertArrayEquals(byteArrayOf(4, 5), saved)
+            assertEquals(1, Regex("local/out.png").findAll(result.content).count())
+            assertTrue(server.takeRequest().target.startsWith("/v1/responses"))
+            assertEquals("/v1/files/file-out/content", server.takeRequest().target)
+        }
+    }
 }

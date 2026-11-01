@@ -1722,7 +1722,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     pass
                 return True
 
-            def _openai_upload_with_retry(client, data, suffix, rel_path, mime=None, size=None, mtime=None):
+            def _openai_upload_with_retry(client, data, suffix, rel_path, mime=None, size=None, mtime=None, upload_name=None):
                 max_attempts = 2
                 try:
                     max_attempts = int(os.getenv("OPENAI_FILE_UPLOAD_RETRIES", "2") or "2")
@@ -1744,7 +1744,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             tmp.write(data)
                             tmp.flush()
                             tmp.seek(0)
-                            up = client.files.create(file=tmp, purpose="user_data")
+                            if upload_name:
+                                up = client.files.create(
+                                    file=(upload_name, tmp, mime or "application/octet-stream"),
+                                    purpose="user_data",
+                                )
+                            else:
+                                up = client.files.create(file=tmp, purpose="user_data")
                         file_id = getattr(up, "id", None) or (up.get("id") if isinstance(up, dict) else None)
                         if not file_id:
                             last_err = "file_id missing"
@@ -6673,6 +6679,58 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 history_img_bytes = 0
                 text_type = "input_text"
                 image_type = "input_image"
+                # Thinking with images: the model crops, zooms, and rotates with the
+                # hosted code interpreter. input_image is vision-only; the container
+                # receives files named in container.file_ids (max 16, under 50MB).
+                openai_ci_file_ids = []
+                openai_ci_keys = set()
+                response_python_images = []
+                openai_ci_status_sent = False
+
+                def _queue_openai_code_interpreter_image(data, mime, cache_key):
+                    nonlocal openai_ci_status_sent
+                    if is_grok or not options.get('enable_python'):
+                        return
+                    key = str(cache_key or "")
+                    if not key or key in openai_ci_keys or len(openai_ci_file_ids) >= 16:
+                        return
+                    if not data or len(data) > 50 * 1024 * 1024:
+                        log_force("OpenAI code interpreter image skipped: size")
+                        return
+                    openai_ci_keys.add(key)
+                    try:
+                        prepared, ext = _prepare_agentic_image_bytes(data, mime)
+                    except Exception:
+                        log_force("OpenAI code interpreter image skipped: unsupported")
+                        return
+                    if ext not in ("png", "jpg", "gif"):
+                        converted = _convert_image_to_png(prepared)
+                        if not converted:
+                            log_force("OpenAI code interpreter image skipped: convert")
+                            return
+                        prepared, ext = converted, "png"
+                    if not openai_ci_status_sent:
+                        openai_ci_status_sent = True
+                        pub("status", "画像をコード実行環境へ送っています...")
+                    filename = f"input_{len(openai_ci_file_ids) + 1}.{ext}"
+                    image_mime = "image/jpeg" if ext == "jpg" else f"image/{ext}"
+                    rel = "openai-ci:" + hashlib.sha256(prepared).hexdigest()
+                    cache = _get_file_cache(user_id, rel, "openai")
+                    file_id = cache.file_id if _openai_cache_fresh(cache, len(prepared), None, image_mime) else None
+                    if not file_id:
+                        file_id, up_err = _openai_upload_with_retry(
+                            client, prepared, f".{ext}", rel,
+                            mime=image_mime, size=len(prepared), upload_name=filename,
+                        )
+                        if not file_id:
+                            log_force(f"OpenAI code interpreter image upload failed: {str(up_err or '')[:120]}")
+                            return
+                    if file_id not in openai_ci_file_ids:
+                        openai_ci_file_ids.append(file_id)
+
+                def _remember_python_image(data, mime):
+                    if data and len(response_python_images) < 8:
+                        response_python_images.append({"bytes": data, "mime": mime})
 
                 for m in history:
                     if m.get('image_url'):
@@ -6687,6 +6745,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             for msg_img in msg_images:
                                 b64 = base64.b64encode(msg_img['bytes']).decode('utf-8')
                                 content_parts.append({"type": image_type, "image_url": f"data:{msg_img['mime']};base64,{b64}"})
+                                _remember_python_image(msg_img['bytes'], msg_img.get('mime'))
+                                _queue_openai_code_interpreter_image(
+                                    msg_img['bytes'], msg_img.get('mime'), msg_img.get('ref') or msg_img.get('name'),
+                                )
                             input_data.append({"role": m['role'], "content": content_parts})
                         except Exception as e:
                             log_force(f"Error processing history image: {e}")
@@ -6761,7 +6823,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 img_mime = 'image/png'
                         b64 = base64.b64encode(img_bytes).decode('utf-8')
                         curr_content.append({"type": image_type, "image_url": f"data:{img_mime};base64,{b64}"})
+                        _remember_python_image(img_bytes, img_mime)
                         img_label = fi.get('send_name') or fi.get('name') or f"画像{len(current_image_names) + 1}"
+                        _queue_openai_code_interpreter_image(
+                            img_bytes, img_mime, fi.get('path') or fi.get('name') or img_label,
+                        )
                         current_image_names.append(os.path.basename(str(img_label)))
                 name_block = _build_attachment_name_block(current_image_names)
                 if name_block:
@@ -6807,18 +6873,27 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
                 if options.get('enable_python'):
                     if 'tools' not in kwargs: kwargs['tools'] = []
-                    kwargs['tools'].append({
-                        "type": "function",
-                        "name": "execute_python",
-                        "description": "Execute Python code for calculations or data analysis. Isolated environment, no internet access.",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "code": {"type": "string", "description": "Python code to run."}
-                            },
-                            "required": ["code"]
-                        }
-                    })
+                    if is_grok:
+                        kwargs['tools'].append({
+                            "type": "function",
+                            "name": "execute_python",
+                            "description": "Execute Python code for calculations or data analysis. Isolated environment, no internet access. Attached images are /work/input_1.<ext>, input_2.<ext>, and so on.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "code": {"type": "string", "description": "Python code to run."}
+                                },
+                                "required": ["code"]
+                            }
+                        })
+                    else:
+                        # Official python tool. The model uses it inside its reasoning
+                        # to crop, zoom, and rotate images (thinking with images).
+                        container = {"type": "auto"}
+                        if openai_ci_file_ids:
+                            container["file_ids"] = openai_ci_file_ids
+                        kwargs['tools'].append({"type": "code_interpreter", "container": container})
+                        log_force(f"OpenAI code interpreter images={len(openai_ci_file_ids)}")
 
                 if options.get('enable_file_creation'):
                     if 'tools' not in kwargs: kwargs['tools'] = []
@@ -7071,6 +7146,170 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     pub("content", sources_text)
                     return full_res_add
 
+                ci_saved_files = set()
+                ci_published_calls = set()
+                ci_seen_output_urls = set()
+                ci_container_id = None
+
+                def _download_openai_api_bytes(url):
+                    parsed = urlparse(str(url or ""))
+                    if parsed.scheme != "https" or (parsed.hostname or "").lower() != "api.openai.com":
+                        return None
+                    if not (parsed.path.startswith("/v1/containers/") or parsed.path.startswith("/v1/files/")):
+                        return None
+                    api_key = getattr(client, "api_key", None)
+                    if not api_key:
+                        return None
+                    try:
+                        with httpx.Client(timeout=60, follow_redirects=False) as http:
+                            resp = http.get(url, headers={"Authorization": f"Bearer {api_key}"})
+                            if resp.status_code in (301, 302, 303, 307, 308):
+                                location = resp.headers.get("location") or ""
+                                if not location.startswith("https://"):
+                                    return None
+                                resp = http.get(location)
+                            if resp.status_code != 200:
+                                log_force(f"OpenAI code interpreter download failed: status={resp.status_code}")
+                                return None
+                            data = resp.content
+                    except Exception as download_exc:
+                        log_force(f"OpenAI code interpreter download failed: {type(download_exc).__name__}")
+                        return None
+                    if not data or len(data) > 20 * 1024 * 1024:
+                        return None
+                    return data
+
+                def _emit_code_interpreter_image(data, filename):
+                    nonlocal full_res
+                    if not data:
+                        return
+                    try:
+                        image_data, ext = _prepare_agentic_image_bytes(data)
+                    except Exception:
+                        log_force("OpenAI code interpreter output skipped: not an image")
+                        return
+                    digest = hashlib.sha256(image_data).hexdigest()
+                    if digest in agentic_image_digests:
+                        return
+                    agentic_image_digests.add(digest)
+                    _, url = _save_user_generated_bytes_verified(
+                        user_id, image_data,
+                        lambda: f"agentic_{int(time.time() * 1000)}_{os.urandom(4).hex()}.{ext}",
+                        user_config.get('enable_e2ee'),
+                    )
+                    agentic_saved_urls.append(url)
+                    base = os.path.basename(str(filename or "")).lower()
+                    if base:
+                        agentic_filename_url_map[base] = url
+                    if not (base and base in full_res.lower()):
+                        markdown = f"\n![Agentic View]({url})\n"
+                        full_res += markdown
+                        pub("content", markdown)
+
+                def _save_container_file(container_id, file_id, filename):
+                    if file_id in ci_saved_files:
+                        return
+                    if not (isinstance(container_id, str) and container_id.startswith("cntr_") and re.fullmatch(r"cntr_[A-Za-z0-9]+", container_id)):
+                        return
+                    if not (isinstance(file_id, str) and file_id.startswith("cfile_") and re.fullmatch(r"cfile_[A-Za-z0-9]+", file_id)):
+                        return
+                    ci_saved_files.add(file_id)
+                    data = _download_openai_api_bytes(
+                        f"https://api.openai.com/v1/containers/{container_id}/files/{file_id}/content"
+                    )
+                    _emit_code_interpreter_image(data, filename)
+
+                def _consume_container_citation(ann):
+                    nonlocal ci_container_id
+                    if isinstance(ann, dict):
+                        ann_type = ann.get("type")
+                        container_id = ann.get("container_id") or ci_container_id
+                        file_id = ann.get("file_id")
+                        filename = ann.get("filename")
+                    else:
+                        ann_type = getattr(ann, "type", None)
+                        container_id = getattr(ann, "container_id", None) or ci_container_id
+                        file_id = getattr(ann, "file_id", None)
+                        filename = getattr(ann, "filename", None)
+                    if ann_type != "container_file_citation":
+                        return False
+                    _save_container_file(container_id, file_id, filename)
+                    return True
+
+                def _publish_local_python_image(data):
+                    nonlocal full_res
+                    try:
+                        image_data, ext = _prepare_agentic_image_bytes(data)
+                    except Exception:
+                        return
+                    digest = hashlib.sha256(image_data).hexdigest()
+                    if digest in agentic_image_digests:
+                        return
+                    agentic_image_digests.add(digest)
+                    _, url = _save_user_generated_bytes_verified(
+                        user_id, image_data,
+                        lambda: f"agentic_{int(time.time() * 1000)}_{os.urandom(4).hex()}.{ext}",
+                        user_config.get('enable_e2ee'),
+                    )
+                    agentic_saved_urls.append(url)
+                    markdown = f"\n![Agentic View]({url})\n"
+                    full_res += markdown
+                    pub("content", markdown)
+
+                def _publish_code_interpreter_call(item):
+                    nonlocal full_res, ci_container_id
+                    if isinstance(item, dict):
+                        code = item.get("code") or ""
+                        container_id = item.get("container_id")
+                        outputs = item.get("outputs") or []
+                        call_id = item.get("id")
+                    else:
+                        code = getattr(item, "code", None) or ""
+                        container_id = getattr(item, "container_id", None)
+                        outputs = getattr(item, "outputs", None) or []
+                        call_id = getattr(item, "id", None)
+                    already = bool(call_id and call_id in ci_published_calls)
+                    if call_id:
+                        ci_published_calls.add(call_id)
+                    if isinstance(container_id, str) and container_id.startswith("cntr_"):
+                        ci_container_id = container_id
+                    logs = []
+                    for output in outputs:
+                        if isinstance(output, dict):
+                            out_type = output.get("type")
+                            out_logs = output.get("logs")
+                            out_url = output.get("url")
+                            out_file = output.get("file_id")
+                        else:
+                            out_type = getattr(output, "type", None)
+                            out_logs = getattr(output, "logs", None)
+                            out_url = getattr(output, "url", None)
+                            out_file = getattr(output, "file_id", None)
+                        if out_type == "logs" and out_logs and not already:
+                            logs.append(str(out_logs))
+                        elif out_type == "image" and isinstance(out_file, str) and out_file.startswith("cfile_"):
+                            _save_container_file(container_id or ci_container_id, out_file, "output.png")
+                        elif out_type == "image" and out_url and out_url not in ci_seen_output_urls:
+                            ci_seen_output_urls.add(out_url)
+                            _emit_code_interpreter_image(_download_openai_api_bytes(out_url), "output.png")
+                    if already:
+                        return
+                    if code:
+                        block = f"\n```python\n{code}\n```\n"
+                        full_res += block
+                        pub("content", block)
+                    output_text = "\n".join(logs)
+                    if output_text:
+                        out_md = f"\n**Output:**\n```\n{output_text}\n```\n"
+                        full_res += out_md
+                        pub("content", out_md)
+                    pub("python", {
+                        "id": call_id or f"py_{int(time.time()*1000)}_{os.urandom(3).hex()}",
+                        "code": code,
+                        "output": output_text or "(no output)",
+                    })
+
+                ci_sandbox_buf = [""]
                 for chunk in stream:
                     _latency_mark_once(job_id, "provider_first_chunk_ms")
                     if check_stop(): break
@@ -7108,6 +7347,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             search_reported = False
                     elif event_type == "response.output_text.delta":
                         text_delta = chunk.get('delta') if isinstance(chunk, dict) else getattr(chunk, 'delta', None)
+                        if text_delta and not is_grok and options.get('enable_python'):
+                            text_delta = _rewrite_streamed_sandbox_refs(
+                                text_delta, ci_sandbox_buf, agentic_saved_urls, agentic_consumed_urls, agentic_filename_url_map,
+                            )
                         if text_delta:
                             if search_reported:
                                 pub("search_status", "done")
@@ -7116,7 +7359,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             pub("content", text_delta)
                     elif event_type == "response.output_text.annotation.added":
                         ann = chunk.get('annotation') if isinstance(chunk, dict) else getattr(chunk, 'annotation', None)
-                        if ann:
+                        if ann and not _consume_container_citation(ann):
                             _collect_sources_from_annotations([ann])
                     elif event_type in ("response.reasoning_text.delta", "response.reasoning_summary_text.delta"):
                         reasoning_delta = chunk.get('delta') if isinstance(chunk, dict) else getattr(chunk, 'delta', None)
@@ -7202,6 +7445,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         # MCPの継続リクエストは、元のResponsesストリームを読み切って
                         # response.completed を受け取ってから送る。ストリーム途中で
                         # responses.create を再入すると、ツール後の回答が欠落する。
+                        if item_type == "code_interpreter_call" and not is_grok:
+                            _publish_code_interpreter_call(item)
+                            continue
+
                         if item_type == "function_call" and str(call_name or "").startswith("mcp__"):
                             _queue_response_mcp_call(tool_call_id, call_name, call_args)
                             continue
@@ -7246,7 +7493,11 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     code = args_json.get('code', '')
                                     if code:
                                         pub("content", f"\n```python\n{code}\n```\n")
-                                        result = safe_execute_python(code)
+                                        result = safe_execute_python(
+                                            code,
+                                            on_image=_publish_local_python_image,
+                                            input_images=response_python_images,
+                                        )
                                         pub("content", f"\n**Output:**\n```\n{result}\n```\n")
                                         full_res += f"\n```python\n{code}\n```\n\n**Output:**\n```\n{result}\n```\n"
                                         full_res += f"\n```pyexec\n{json.dumps({'code': code, 'output': result})}\n```\n"
@@ -7347,6 +7598,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             for item in output_items:
                                 item_type, item_call_id, item_name, item_args = _response_item_fields(item)
                                 content_parts = item.get('content') if isinstance(item, dict) else getattr(item, 'content', None)
+                                if item_type == "code_interpreter_call" and not is_grok:
+                                    _publish_code_interpreter_call(item)
                                 if item_type == "function_call":
                                     _queue_response_mcp_call(item_call_id, item_name, item_args)
                                 if item_type == "web_search_call":
@@ -7360,7 +7613,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             p_type = getattr(part, 'type', None)
                                             p_anns = getattr(part, 'annotations', None)
                                         if p_type in ("output_text", "text") and p_anns:
-                                            _collect_sources_from_annotations(p_anns)
+                                            for ann in p_anns:
+                                                if not _consume_container_citation(ann):
+                                                    _collect_sources_from_annotations([ann])
                         if output_items and not saw_reasoning_summary_delta:
                             for item in output_items:
                                 if isinstance(item, dict):
@@ -7467,6 +7722,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             if p_type == "reasoning_text" and p_text:
                                                 thought_accumulated += p_text
                                                 pub("thought", p_text)
+                                if item_type == "code_interpreter_call" and not is_grok:
+                                    _publish_code_interpreter_call(item)
                                 if item_type == "web_search_call":
                                     _collect_sources_from_web_search_call(item)
                                 if content_parts:
@@ -7478,7 +7735,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             p_type = getattr(part, 'type', None)
                                             p_anns = getattr(part, 'annotations', None)
                                         if p_type in ("output_text", "text") and p_anns:
-                                            _collect_sources_from_annotations(p_anns)
+                                            for ann in p_anns:
+                                                if not _consume_container_citation(ann):
+                                                    _collect_sources_from_annotations([ann])
                             if collected_sources and not sources_emitted:
                                 appended = _emit_sources_once()
                                 if appended:
@@ -7487,6 +7746,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         log_force(f"Reasoning retrieve fallback failed: {e}")
                 elif enable_reasoning and not thought_accumulated:
                     log_force("Reasoning summary missing after stream and retrieve fallback.")
+                if not is_grok and options.get('enable_python') and ci_sandbox_buf[0]:
+                    full_res += ci_sandbox_buf[0]
+                    pub("content", ci_sandbox_buf[0])
+                    ci_sandbox_buf[0] = ""
 
             if (is_gem or is_deepseek) and not full_res.strip() and not generated_images and not stream_error_persisted:
                 pub("error", "モデルから回答本文が返されませんでした。時間をおいて再試行してください。")

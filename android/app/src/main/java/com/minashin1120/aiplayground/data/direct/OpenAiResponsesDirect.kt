@@ -1,7 +1,13 @@
 package com.minashin1120.aiplayground.data.direct
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.util.Base64
 
 /**
@@ -15,7 +21,14 @@ class OpenAiResponsesDirect(
     private val baseUrl: String = if (xai) "https://api.x.ai" else "https://api.openai.com",
 ) : DirectEngine {
     override suspend fun run(request: DirectRequest, emit: (JSONObject) -> Unit, onProgress: (String, String) -> Unit): DirectResult {
-        val payload = buildPayload(request)
+        // input_image is vision only. The python tool (code interpreter) can crop,
+        // zoom, and rotate an image only after that image is a container file.
+        val containerFileIds = if (!xai && request.options.flag("enable_python")) {
+            uploadContainerImages(request, emit)
+        } else {
+            emptyList()
+        }
+        val payload = buildPayload(request, containerFileIds)
         val content = StringBuilder()
         val thought = StringBuilder()
         val reasoningParts = HashMap<String, String>()
@@ -34,6 +47,9 @@ class OpenAiResponsesDirect(
         }
         val files = mutableListOf<DirectOutputFile>()
         val sources = LinkedHashMap<String, String>()
+        val remoteImages = mutableListOf<RemoteImage>()
+        val seenItems = HashSet<String>()
+        var containerId = ""
         fun citation(annotation: JSONObject) {
             val url = annotation.optString("url")
             if (url.startsWith("https://") || url.startsWith("http://"))
@@ -42,12 +58,47 @@ class OpenAiResponsesDirect(
         var usage: JSONObject? = null
         var searching = false
         val codes = LinkedHashMap<String, StringBuilder>()
+        fun absorbItem(item: JSONObject) {
+            when (item.optString("type")) {
+                "code_interpreter_call" -> {
+                    item.optString("container_id").takeIf { it.isNotBlank() }?.let { containerId = it }
+                    val id = item.optString("id").ifBlank { "py" }
+                    if (seenItems.add("ci:$id")) outputItem(item, codes, content, files, emit)
+                    val outputs = item.optJSONArray("outputs") ?: return
+                    for (index in 0 until outputs.length()) {
+                        val output = outputs.optJSONObject(index) ?: continue
+                        if (output.optString("type") != "image") continue
+                        val fileId = output.optString("file_id")
+                        val url = output.optString("url")
+                        if (fileId.isNotBlank() && containerId.isNotBlank()) {
+                            remoteImages += RemoteImage(containerId = containerId, fileId = fileId, filename = "output.png")
+                        } else if (url.isNotBlank()) {
+                            remoteImages += RemoteImage(url = url, filename = "output.png")
+                        }
+                    }
+                }
+                "message" -> {
+                    val parts = item.optJSONArray("content") ?: return
+                    for (index in 0 until parts.length()) {
+                        val annotations = parts.optJSONObject(index)?.optJSONArray("annotations") ?: continue
+                        for (a in 0 until annotations.length()) annotations.optJSONObject(a)?.let { annotation ->
+                            if (!collectContainerCitation(annotation, containerId, remoteImages)) citation(annotation)
+                        }
+                    }
+                }
+                else -> if (seenItems.add(item.optString("type") + ":" + item.optString("id"))) {
+                    outputItem(item, codes, content, files, emit)
+                }
+            }
+        }
         emit(event("status", "APIへ送信完了。モデルが応答を生成中です..."))
         http.postSse("$baseUrl/v1/responses", mapOf("Authorization" to "Bearer ${request.apiKey}"), payload) { sse ->
             if (sse.data == "[DONE]") return@postSse false
             val data = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true
             when (val type = data.optString("type").ifBlank { sse.event.orEmpty() }) {
-                "response.output_text.annotation.added" -> data.optJSONObject("annotation")?.let(::citation)
+                "response.output_text.annotation.added" -> data.optJSONObject("annotation")?.let { annotation ->
+                    if (!collectContainerCitation(annotation, containerId, remoteImages)) citation(annotation)
+                }
                 "response.output_text.delta" -> data.optString("delta").takeIf { it.isNotEmpty() }?.let {
                     content.append(it); emit(event("content", it))
                 }
@@ -74,16 +125,16 @@ class OpenAiResponsesDirect(
                             reasoning(item, part.optString("text"), snapshot = true, index = index)
                         }
                     }
-                    if (item.optString("type") == "message") {
-                        val parts = item.optJSONArray("content") ?: JSONArray()
-                        for (index in 0 until parts.length()) {
-                            val annotations = parts.optJSONObject(index)?.optJSONArray("annotations") ?: continue
-                            for (a in 0 until annotations.length()) annotations.optJSONObject(a)?.let(::citation)
-                        }
-                    }
-                    outputItem(item, codes, content, files, emit)
+                    absorbItem(item)
                 }
-                "response.completed", "response.incomplete" -> usage = data.optJSONObject("response")?.optJSONObject("usage")
+                "response.completed", "response.incomplete" -> {
+                    val response = data.optJSONObject("response")
+                    usage = response?.optJSONObject("usage")
+                    val output = response?.optJSONArray("output")
+                    if (output != null) {
+                        for (index in 0 until output.length()) output.optJSONObject(index)?.let { absorbItem(it) }
+                    }
+                }
                 "response.failed", "error" -> {
                     val error = data.optJSONObject("response")?.optJSONObject("error") ?: data.optJSONObject("error") ?: data
                     throw DirectApiException(0, error.optString("message").ifBlank { type })
@@ -92,6 +143,32 @@ class OpenAiResponsesDirect(
             onProgress(content.toString(), thought.toString())
             true
         }
+        val savedRemote = HashSet<String>()
+        for (remote in remoteImages) {
+            val key = remote.fileId ?: remote.url ?: continue
+            if (!savedRemote.add(key)) continue
+            val url = when {
+                remote.containerId != null && remote.fileId != null &&
+                    CONTAINER_ID.matches(remote.containerId) && CONTAINER_FILE_ID.matches(remote.fileId) ->
+                    "$baseUrl/v1/containers/${remote.containerId}/files/${remote.fileId}/content"
+                !remote.url.isNullOrBlank() -> remote.url
+                else -> continue
+            }
+            val bytes = runCatching {
+                http.download(url, mapOf("Authorization" to "Bearer ${request.apiKey}"), 20L * 1024 * 1024)
+            }.getOrNull()
+            if (bytes == null || bytes.isEmpty()) continue
+            val ext = remote.filename?.substringAfterLast('.', "png")?.lowercase()?.takeIf { it.length in 3..4 } ?: "png"
+            val file = DirectOutputFile("openai_ci_${files.size + 1}.$ext", "image/$ext", bytes)
+            val saved = request.saveOutput?.invoke(file)
+            if (saved == null) files += file
+            else {
+                val markdown = "\n![Agentic View]($saved)\n"
+                content.append(markdown)
+                emit(event("content", markdown))
+            }
+        }
+        if (remoteImages.isNotEmpty()) onProgress(content.toString(), thought.toString())
         if (sources.isNotEmpty()) {
             fun label(text: String) = text.replace("\n", " ").replace("\r", " ").replace("[", "\\[").replace("]", "\\]")
             val sourceText = "\n\n**Sources:**\n" + sources.entries.mapIndexed { index, (url, title) ->
@@ -130,7 +207,7 @@ class OpenAiResponsesDirect(
         }
     }
 
-    internal fun buildPayload(request: DirectRequest): JSONObject {
+    internal fun buildPayload(request: DirectRequest, containerFileIds: List<String> = emptyList()): JSONObject {
         val options = request.options
         val model = request.model.lowercase()
         val input = JSONArray()
@@ -159,7 +236,11 @@ class OpenAiResponsesDirect(
             tools.put(JSONObject().put("type", "web_search"))
             if (xai) tools.put(JSONObject().put("type", "x_search"))
         }
-        if (options.flag("enable_python") && !xai) tools.put(JSONObject().put("type", "code_interpreter").put("container", JSONObject().put("type", "auto")))
+        if (options.flag("enable_python") && !xai) {
+            val container = JSONObject().put("type", "auto")
+            if (containerFileIds.isNotEmpty()) container.put("file_ids", JSONArray(containerFileIds))
+            tools.put(JSONObject().put("type", "code_interpreter").put("container", container))
+        }
         if (tools.length() > 0) payload.put("tools", tools)
         val effortOption = options.optString("reasoning_effort").lowercase().trim()
         val reasoningRequested = options.flag("enable_thinking") || (effortOption.isNotEmpty() && effortOption != "none")
@@ -175,5 +256,76 @@ class OpenAiResponsesDirect(
             payload.put("reasoning", JSONObject().put("effort", effortOption))
         }
         return payload
+    }
+
+    /** Uploads images so the code interpreter container can open them. Vision still uses input_image. */
+    private suspend fun uploadContainerImages(request: DirectRequest, emit: (JSONObject) -> Unit): List<String> {
+        val images = request.turns.filter { it.role != "assistant" }.flatMap { it.attachments }
+            .filter { attachment ->
+                val bytes = attachment.bytes
+                bytes != null && bytes.isNotEmpty() && attachment.mime.startsWith("image/") && bytes.size <= 50 * 1024 * 1024
+            }
+            .take(16)
+        val prepared = images.mapNotNull { image -> containerImage(image.bytes ?: return@mapNotNull null, image.mime) }
+        if (prepared.isEmpty()) return emptyList()
+        emit(event("status", "画像をコード実行環境へ送っています..."))
+        val ids = mutableListOf<String>()
+        prepared.forEachIndexed { index, (bytes, ext) ->
+            val mime = if (ext == "jpg") "image/jpeg" else "image/$ext"
+            val form = MultipartBody.Builder().setType(MultipartBody.FORM)
+                .addFormDataPart("purpose", "user_data")
+                .addFormDataPart("file", "input_${index + 1}.$ext", bytes.toRequestBody(mime.toMediaType()))
+                .build()
+            val uploaded = runCatching {
+                val (body, _) = http.postBytes(
+                    "$baseUrl/v1/files",
+                    mapOf("Authorization" to "Bearer ${request.apiKey}"),
+                    form,
+                )
+                JSONObject(body.toString(Charsets.UTF_8)).optString("id")
+            }.getOrNull()
+            if (!uploaded.isNullOrBlank()) ids += uploaded
+        }
+        return ids
+    }
+
+    /** PNG, JPEG, and GIF are container files as-is. Other images are converted to PNG. */
+    private fun containerImage(bytes: ByteArray, mime: String): Pair<ByteArray, String>? {
+        when (mime.substringBefore(';').lowercase()) {
+            "image/png" -> return bytes to "png"
+            "image/jpeg", "image/jpg" -> return bytes to "jpg"
+            "image/gif" -> return bytes to "gif"
+        }
+        val bitmap = runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull() ?: return null
+        return try {
+            val out = ByteArrayOutputStream()
+            if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) return null
+            val png = out.toByteArray()
+            if (png.isEmpty() || png.size > 50 * 1024 * 1024) null else png to "png"
+        } finally {
+            runCatching { bitmap.recycle() }
+        }
+    }
+
+    private data class RemoteImage(
+        val url: String? = null,
+        val containerId: String? = null,
+        val fileId: String? = null,
+        val filename: String? = null,
+    )
+
+    private companion object {
+        val CONTAINER_ID = Regex("cntr_[A-Za-z0-9]+")
+        val CONTAINER_FILE_ID = Regex("cfile_[A-Za-z0-9]+")
+
+        fun collectContainerCitation(annotation: JSONObject, containerId: String, into: MutableList<RemoteImage>): Boolean {
+            if (annotation.optString("type") != "container_file_citation") return false
+            val fileId = annotation.optString("file_id")
+            val container = annotation.optString("container_id").ifBlank { containerId }
+            if (fileId.isNotBlank() && container.isNotBlank()) {
+                into += RemoteImage(containerId = container, fileId = fileId, filename = annotation.optString("filename").ifBlank { null })
+            }
+            return true
+        }
     }
 }

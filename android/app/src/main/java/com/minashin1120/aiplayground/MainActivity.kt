@@ -47,13 +47,6 @@ open class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // Android 10+ can add a contrast scrim over the navigation area. Keep gesture navigation
-        // fully transparent while leaving the system's contrast treatment intact for button nav.
-        val interactionModeId = resources.getIdentifier("config_navBarInteractionMode", "integer", "android")
-        val isGestureNavigation = interactionModeId != 0 && resources.getInteger(interactionModeId) == 2
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && isGestureNavigation) {
-            window.isNavigationBarContrastEnforced = false
-        }
         handleBubbleIntent(intent)
         handleAuthIntent(intent)
         handleShareIntent(intent)

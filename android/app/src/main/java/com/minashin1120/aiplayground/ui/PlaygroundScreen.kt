@@ -175,11 +175,20 @@ fun PlaygroundScreen(
     val state by model.state.collectAsStateWithLifecycle()
     val imageSplit by model.imageSplit.collectAsStateWithLifecycle()
     val sharedTextPreview by model.sharedTextPreview.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val gestureNavigation = remember(context) {
+        val modeId = context.resources.getIdentifier("config_navBarInteractionMode", "integer", "android")
+        modeId != 0 && context.resources.getInteger(modeId) == 2
+    }
+    val contentInsets = if (gestureNavigation) {
+        WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+    } else {
+        WindowInsets.safeDrawing
+    }
     // Web applies the light theme for a light system setting (theme-light.css) or manual light mode.
     PlaygroundTheme(darkTheme = isSystemInDarkTheme() && state.preferences?.lightModeEnabled != true,
         themeColor = state.preferences?.themeColor, liquidGlass = state.preferences?.liquidGlassEnabled == true) {
         val colors = MaterialTheme.colorScheme
-        val context = LocalContext.current
         val reduceMotion = rememberReduceMotion()
         val animationsEnabled = !reduceMotion
         val startupSplashEnabled = playStartupAnimation && !reduceMotion
@@ -584,6 +593,7 @@ fun PlaygroundScreen(
                 Scaffold(
                     modifier = Modifier.imePadding(),
                     containerColor = Color.Transparent,
+                    contentWindowInsets = contentInsets,
                     topBar = {
                         // Web shows `header.main-chrome-header` below the md breakpoint only.
                         if (showThreads && !wide) MobileChatHeader(state, onMenu = openDrawer, onNewChat = { model.newChat() }, onPdf = sharePdf,

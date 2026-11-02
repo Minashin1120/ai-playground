@@ -94,9 +94,18 @@ internal class InAppCameraSession(private val context: Context) {
 
     private fun focusAt(view: PreviewView, x: Float, y: Float) {
         val activeCamera = camera ?: return
-        val point = view.meteringPointFactory.createPoint(x, y)
         // FIT_CENTER can leave black bars outside the actual camera image.
-        if (point.x !in 0f..1f || point.y !in 0f..1f) return
+        val info = preview.resolutionInfo ?: return
+        val crop = info.cropRect
+        val rotated = info.rotationDegrees % 180 != 0
+        val imageWidth = (if (rotated) crop.height() else crop.width()).toFloat()
+        val imageHeight = (if (rotated) crop.width() else crop.height()).toFloat()
+        if (imageWidth <= 0f || imageHeight <= 0f || view.width <= 0 || view.height <= 0) return
+        val scale = minOf(view.width / imageWidth, view.height / imageHeight)
+        val left = (view.width - imageWidth * scale) / 2f
+        val top = (view.height - imageHeight * scale) / 2f
+        if (x < left || x > view.width - left || y < top || y > view.height - top) return
+        val point = view.meteringPointFactory.createPoint(x, y)
         cancelFocusLog()
         val state = CameraFocusState(++focusRequest, x, y)
         focusState.value = state

@@ -5894,15 +5894,23 @@ body.minimal-prompt-mode .composer-dock {
     bottom: env(safe-area-inset-bottom, 0px);
     z-index: 30;
 }
+body.minimal-prompt-mode {
+    --minimal-nav-clearance: 0px;
+}
+@media (max-width: 768px) {
+    body.minimal-prompt-mode {
+        --minimal-nav-clearance: env(safe-area-max-inset-bottom, 36px);
+    }
+}
 body.minimal-prompt-mode #chat-container {
-    padding-bottom: calc(var(--composer-h, 0px) + 0.75rem);
-    scroll-padding-bottom: calc(var(--composer-h, 0px) + 1rem);
+    padding-bottom: calc(var(--composer-h, 0px) + var(--minimal-nav-clearance) + 0.75rem);
+    scroll-padding-bottom: calc(var(--composer-h, 0px) + var(--minimal-nav-clearance) + 1rem);
 }
 body.minimal-prompt-mode .chat-scroll-to-bottom {
-    bottom: calc(var(--composer-h, 0px) + 1.25rem);
+    bottom: calc(var(--composer-h, 0px) + env(safe-area-inset-bottom, 0px) + 1.25rem);
 }
 body.minimal-prompt-mode #welcome-screen {
-    padding-bottom: calc(var(--composer-h, 0px) + 1rem);
+    padding-bottom: calc(var(--composer-h, 0px) + var(--minimal-nav-clearance) + 1rem);
 }
 
 /* Desktop has no system navigation bar to supply a safe-area inset, so give

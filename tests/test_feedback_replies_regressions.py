@@ -181,5 +181,75 @@ class FeedbackRepliesTests(unittest.TestCase):
             self.assertEqual(self.target.FeedbackReply.query.count(), 0)
 
 
+
+    def test_reply_chat_copies_are_opt_in_and_preserve_the_original(self):
+        sender, admin = self.client(self.sender_id), self.client(self.admin_id)
+        public_id = self.send_feedback(sender)
+        copy = {'client': 'android', 'thread_id': 'local-chat',
+                'thread': {'messages': [{'role': 'user', 'content': 'synthetic content'}]}}
+        original = os.path.join(self.root, public_id, 'chat.jsonl')
+        with open(original, 'w') as handle:
+            handle.write('original copy\n')
+        self.assertEqual(self.reply(sender, public_id, {'message': 'invalid', 'chat_copy': []}).status_code, 400)
+        plain = self.reply(sender, public_id, {'message': 'no copy'}).get_json()
+        self.assertNotIn('chat_copy_saved', plain)
+        first = self.reply(sender, public_id, {'message': 'with copy', 'chat_copy': copy}).get_json()
+        second = self.reply(admin, public_id, {'message': 'admin copy', 'chat_copy': copy}).get_json()
+        self.assertTrue(first['chat_copy_saved'])
+        self.assertTrue(second['chat_copy_saved'])
+        with open(original) as handle:
+            self.assertEqual(handle.read(), 'original copy\n')
+        for result in (first, second):
+            path = os.path.join(self.root, public_id, f"reply-{result['reply_id']}-chat.jsonl")
+            with open(path) as handle:
+                self.assertEqual(json.loads(handle.readline())['reply_id'], result['reply_id'])
+        self.assertIsNone(self.listed(sender, public_id)['replies'][1]['chat_file'])
+        self.assertTrue(self.listed(admin, public_id)['replies'][1]['chat_file'].endswith(
+            f"reply-{first['reply_id']}-chat.jsonl"))
+        self.assertEqual(self.info(public_id)['replies'][1]['chat_copy'], f"reply-{first['reply_id']}-chat.jsonl")
+
+    def test_reply_device_files_require_the_reply_author_and_use_its_deadline(self):
+        from datetime import datetime, timedelta
+        sender, admin = self.client(self.sender_id), self.client(self.admin_id)
+        public_id = self.send_feedback(sender)
+        with self.target.app.app_context():
+            fb = self.target.Feedback.query.filter_by(public_id=public_id).one()
+            fb.created_at = datetime.utcnow() - timedelta(days=2)
+            self.target.db.session.commit()
+        copy = {'client': 'android', 'thread_id': 'local-chat', 'thread': {'messages': []}}
+        result = self.reply(admin, public_id, {'message': 'copy', 'chat_copy': copy}).get_json()
+        reply_id = result['reply_id']
+        def upload(client):
+            return client.post(f'/api/feedback/{public_id}/chat_files',
+                               data={'reply_id': str(reply_id), 'ref': 'local/file.txt',
+                                     'file': (io.BytesIO(b'synthetic attachment'), 'file.txt')},
+                               headers=CSRF, base_url=BASE)
+        self.assertEqual(upload(sender).status_code, 404)
+        self.assertTrue(upload(admin).get_json()['saved'])
+        with self.target.app.app_context():
+            self.target.db.session.get(self.target.FeedbackReply, reply_id).created_at = datetime.utcnow() - timedelta(hours=2)
+            self.target.db.session.commit()
+        self.assertEqual(upload(admin).status_code, 409)
+
+    def test_reply_chat_copy_failures_do_not_lose_the_reply(self):
+        sender = self.client(self.sender_id)
+        public_id = self.send_feedback(sender)
+        with mock.patch.object(self.target, '_save_feedback_chat_copy', side_effect=OSError('synthetic')):
+            result = self.reply(sender, public_id, {'message': 'saved text', 'chat_copy': {}})
+        self.assertEqual(result.status_code, 200)
+        self.assertFalse(result.get_json()['chat_copy_saved'])
+        self.assertEqual(self.listed(sender, public_id)['replies'][0]['message'], 'saved text')
+
+    def test_reply_chat_copies_share_the_retention_limit(self):
+        sender = self.client(self.sender_id)
+        public_id = self.send_feedback(sender)
+        copy = {'client': 'android', 'thread_id': 'local-chat', 'thread': {'messages': []}}
+        first = self.reply(sender, public_id, {'message': 'first', 'chat_copy': copy}).get_json()
+        with mock.patch.object(self.target, '_FEEDBACK_CHAT_KEEP_FILES', 1):
+            second = self.reply(sender, public_id, {'message': 'second', 'chat_copy': copy}).get_json()
+        self.assertFalse(os.path.exists(os.path.join(self.root, public_id, f"reply-{first['reply_id']}-chat.jsonl")))
+        self.assertTrue(os.path.exists(os.path.join(self.root, public_id, f"reply-{second['reply_id']}-chat.jsonl")))
+
+
 if __name__ == '__main__':
     unittest.main()

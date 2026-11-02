@@ -209,14 +209,16 @@ fun feedbackSentText(
 }
 
 /** Web `.fb-reply-send`: the message after a reply was accepted; [logCount] is null when no log went with it. */
-fun feedbackReplySentText(logCount: Int?, logsSaved: Boolean, imageCount: Int = 0, imagesSaved: Boolean = true): String {
+fun feedbackReplySentText(logCount: Int?, logsSaved: Boolean, imageCount: Int = 0, imagesSaved: Boolean = true, withChat: Boolean = false, chatSaved: Boolean = true): String {
     val failed = buildList {
         if (logCount != null && !logsSaved) add("ログ")
         if (imageCount > 0 && !imagesSaved) add("画像")
+        if (withChat && !chatSaved) add("チャットのコピー")
     }
     if (failed.isNotEmpty()) return "返信を送信しました（${failed.joinToString("と")}は保存できませんでした）"
     val sent = buildList {
         add("返信")
+        if (withChat) add("チャットのコピー")
         if (logCount != null) add("保存期間内のログ（${logCount}件）")
         if (imageCount > 0) add("画像（${imageCount}枚）")
     }

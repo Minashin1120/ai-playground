@@ -16,6 +16,15 @@ class LocalChatStoreTest {
     private val crypto = EncryptedFileStore(byteArrayOf('T'.code.toByte(), 1)) { key }
     private val store by lazy { LocalChatStore(folder.root.resolve("chats"), crypto) }
 
+    @Test fun reusingAnUploadedAttachmentRestoresItsImageIdentity() {
+        val file = store.saveFile("a.png", "image/png", byteArrayOf(1).inputStream(), 1)
+        store.setServerReference(file, "1/uploaded.png")
+        val restarted = LocalChatStore(folder.root.resolve("chats"), crypto)
+        // Sync checks this metadata before reusing an upload made before the process restarted.
+        assertEquals("1/uploaded.png", restarted.fileInfo(file)?.getString("server_ref"))
+        assertEquals(restarted.imageCacheReference(file), restarted.imageCacheReference("/files/1/uploaded.png"))
+    }
+
     @Test fun searchCompletionWithoutThoughtsSurvivesRestartAndSyncPayload() {
         val thread = store.createThread(false, "test").getString("id")
         val answer = store.appendMessage(thread, LocalChatStore.NewMessage("assistant", "answer", null, generating = true))
@@ -208,7 +217,13 @@ class LocalChatStoreTest {
         assertTrue(store.isDeviceThread(device))
         assertEquals(1, store.deviceThreads("").length())
         val file = store.saveFile("a.png", "image/png", byteArrayOf(1).inputStream(), 1)
+        val imageIdentity = store.imageCacheReference(file)
         store.setServerReference(file, "1/uploaded.png")
+        assertEquals(imageIdentity, store.imageCacheReference("1/uploaded.png"))
+        assertEquals(imageIdentity, store.imageCacheReference("/files/1/uploaded.png"))
+        assertEquals("1/unrelated.png", store.imageCacheReference("/files/1/unrelated.png"))
+        assertEquals("1/uploaded.png", LocalChatStore(folder.root.resolve("other-account"), crypto)
+            .imageCacheReference("/files/1/uploaded.png"))
         val user = store.appendMessage(device, LocalChatStore.NewMessage("user", "質問", null, files = listOf(file)))
         val answer = store.appendMessage(device, LocalChatStore.NewMessage("assistant", "回答", user))
         val uuids = store.messages(device).associate { it.getInt("id") to it.getString("uuid") }
@@ -234,6 +249,7 @@ class LocalChatStoreTest {
         assertEquals(2, observed.getJSONArray("messages").length())
         assertNull(store.threadRow(device))
         assertNull(store.loadFile(file, 10))
+        assertEquals(imageIdentity, store.imageCacheReference("/files/1/uploaded.png"))
         assertEquals("1/uploaded.png", store.serverFileReference(file))
         // An already open viewer still has the local reference; the alias also survives a restart.
         assertEquals("1/uploaded.png", LocalChatStore(folder.root.resolve("chats"), crypto).serverFileReference(file))

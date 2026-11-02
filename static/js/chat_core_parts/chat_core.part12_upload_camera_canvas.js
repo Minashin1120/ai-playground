@@ -1,4 +1,4 @@
-        function uploadFileWithProgress(file, row) {
+        function uploadFileWithProgress(file, row, opts = {}) {
             return new Promise((resolve) => {
                 if (file && file.size > CHUNK_THRESHOLD_BYTES) {
                     uploadFileChunked(file, row).then(resolve);
@@ -71,6 +71,15 @@
                         finishUploadOp();
                         resolve(true);
                     } else {
+                        // Camera JPEGs can be rejected by the proxy before /upload reaches Flask.
+                        // Try the existing chunk transport once; application errors stay final.
+                        const proxyFailure = [502, 503, 504].includes(xhr.status) || (xhr.status >= 520 && xhr.status <= 527);
+                        if (opts.cameraCapture && proxyFailure && !d.error && !isUploadCancelled(row)) {
+                            if (row && row.status) row.status.textContent = '分割して再送中...';
+                            finishUploadOp();
+                            uploadFileChunked(file, row).then(resolve);
+                            return;
+                        }
                         const msg = (d && d.error) ? d.error : "アップロードに失敗しました";
                         if (row && row.status) row.status.textContent = '失敗';
                         showToast(msg, "error", true);
@@ -1081,7 +1090,23 @@
                         if (rowObj.row) rowObj.row.dataset.browserFastLocal = '1';
                         return true;
                     }
-                    return await uploadFileWithProgress(t, rowObj);
+                    const success = await uploadFileWithProgress(t, rowObj, opts);
+                    if (!success && opts.cameraCapture && !isUploadCancelled(rowObj)) {
+                        // Keep the captured bytes reachable until the user retries or removes the row.
+                        const retry = document.createElement('button');
+                        retry.className = 'text-xs border border-gray-700 rounded px-2 py-1';
+                        retry.textContent = '再試行';
+                        retry.onclick = () => {
+                            if (isUploadCancelled(rowObj)) return;
+                            retry.disabled = true;
+                            const localUrl = rowObj.row.getAttribute('data-local-url');
+                            if (localUrl) URL.revokeObjectURL(localUrl);
+                            rowObj.row.remove();
+                            handleFiles([t], { ...opts, openModal: true, skipCompression: true });
+                        };
+                        rowObj.row.appendChild(retry);
+                    }
+                    return success;
                 } finally {
                     if (generation === uploadGeneration) {
                         if (currentUploadId) {
@@ -1101,16 +1126,18 @@
                     }
                 }
             };
+            const results = new Array(allowedIncoming.length).fill(false);
             let cursor = 0;
             const workerCount = Math.min(UPLOAD_CONCURRENCY, allowedIncoming.length);
             const workers = Array.from({ length: workerCount }).map(async () => {
                 while (true) {
                     const idx = cursor++;
                     if (idx >= allowedIncoming.length) break;
-                    await processOne(allowedIncoming[idx]);
+                    results[idx] = await processOne(allowedIncoming[idx]);
                 }
             });
             await Promise.all(workers);
+            return results;
         }
         get('clear-file-btn').onclick = (e) => { e.stopPropagation(); resetUploadState(); };
         if (get('clear-mask-btn')) {

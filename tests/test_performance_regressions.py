@@ -221,7 +221,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         source = chat_files[0].read_text(encoding="utf-8")
         upload_branch = source[
             source.index("if (browserFastModeEnabled) {", source.index("async function handleFiles")):
-            source.index("return await uploadFileWithProgress(t, rowObj);")
+            source.index("const success = await uploadFileWithProgress(t, rowObj, opts);")
         ]
 
         self.assertIn("browserFastLocalFiles.set", upload_branch)

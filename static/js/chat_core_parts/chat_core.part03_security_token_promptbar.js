@@ -31,7 +31,7 @@
         function queueMathTypeset(container, text = '', opts = {}) {
             if (lowBandwidthMode && !opts.force) return;
             if (!container || !maybeNeedsMathJax(text)) return;
-            ensureMathJaxLoaded()
+            return ensureMathJaxLoaded()
                 .then(() => {
                     if (!window.MathJax || typeof window.MathJax.typesetPromise !== 'function') return;
                     // ストリーム再描画で DOM が差し替わったあとに古い math リストが残ると typeset が失敗するためクリア
@@ -40,9 +40,11 @@
                             window.MathJax.typesetClear([container]);
                         }
                     } catch (e) {}
-                    return window.MathJax.typesetPromise([container]).catch(() => {});
+                    return window.MathJax.typesetPromise([container]).catch(() => {
+                        console.warn('Math typesetting failed');
+                    });
                 })
-                .catch(() => {});
+                .catch(() => { console.warn('Math renderer loading failed'); });
         }
         function queueIncrementalMathTypeset(elements) {
             const candidates = Array.from(elements || []).filter((el) => (
@@ -923,6 +925,11 @@
                 tokens_thought: hasThought ? totals.tokens_thought : null
             };
         }
+        function syncTokenBarVisibility() {
+            const bar = get('total-token-bar');
+            const estimate = get('prompt-token-estimate');
+            if (bar) bar.classList.toggle('hidden', bar.dataset.hasTotals !== 'true' && (!estimate || estimate.classList.contains('hidden')));
+        }
         function updateTotalTokenBar(total, details = null, allBranchDetails = null) {
             const bar = get('total-token-bar');
             const count = get('total-token-count');
@@ -931,7 +938,7 @@
             const val = Number(total || 0);
             const allBranchVal = Number((allBranchDetails && allBranchDetails.tokens_total) || 0);
             if (val > 0 || allBranchVal > 0) {
-                bar.classList.remove('hidden');
+                bar.dataset.hasTotals = 'true';
                 count.innerText = `Total: ${val} tokens`;
                 if (details) {
                     count.classList.add('cursor-pointer', 'underline', 'decoration-dotted');
@@ -976,7 +983,7 @@
                     }
                 }
             } else {
-                bar.classList.add('hidden');
+                bar.dataset.hasTotals = 'false';
                 count.innerText = 'Total: 0 tokens';
                 count.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
                 count.onclick = null;
@@ -989,6 +996,7 @@
                 }
                 delete messageMeta.__total_all_branches__;
             }
+            syncTokenBarVisibility();
         }
         const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS = 700;
         let promptTokenEstimateTimer = null;
@@ -1013,11 +1021,13 @@
             if (!text) {
                 el.classList.add('hidden');
                 el.innerText = '';
+                syncTokenBarVisibility();
                 return;
             }
-            el.className = `mt-1 px-1 text-left text-[10px] hover:underline rounded ${colorClass}`;
+            el.className = `text-left text-xs rounded ${colorClass}`;
             el.classList.remove('hidden');
             el.innerText = text;
+            syncTokenBarVisibility();
         }
         function buildPromptTokenEstimatePayload() {
             return {
@@ -1048,20 +1058,11 @@
                 return;
             }
             const total = Number(data.tokens_total || 0);
-            const prompt = Number(data.tokens_prompt || 0);
-            const files = Number(data.tokens_files || 0);
             const incomplete = Number(data.files_non_text || 0) + Number(data.files_missing || 0) + Number(data.files_error || 0) > 0;
-            const notes = [];
-            if (Number(data.files_non_text || 0) > 0) notes.push(`未計測${data.files_non_text}件`);
-            if (Number(data.files_missing || 0) > 0) notes.push(`未検出${data.files_missing}件`);
-            if (Number(data.files_error || 0) > 0) notes.push(`失敗${data.files_error}件`);
-            if (data.estimate_method) notes.push(data.estimate_method === 'provider' ? 'プロバイダー計測' : '概算');
-            if (data.estimate_scope === 'draft') notes.push('入力欄のみ（履歴・SysPrompt除外）');
-            const noteText = notes.length ? ` ・ ${notes.join(' / ')}` : '';
-            setPromptTokenEstimateText(`入力見積: ${incomplete ? '一部のみ ' : ''}${total} tokens (本文 ${prompt} / ファイル ${files})${noteText}`, 'text-cyan-300');
+            setPromptTokenEstimateText(`入力見積: ${incomplete ? '一部のみ ' : ''}${total.toLocaleString('en-US')} tokens · 詳細`, 'text-cyan-300');
             promptTokenEstimateVisible = { data, payload: p };
             const trigger = get('prompt-token-estimate');
-            if (trigger) { trigger.disabled = false; trigger.classList.add('underline'); }
+            if (trigger) { trigger.disabled = false; trigger.setAttribute('aria-label', `入力トークン見積の詳細: ${incomplete ? '一部のみ ' : ''}${total} tokens`); }
         }
         function renderPromptTokenDetail(data, payload, pending = false, failed = false) {
             const body = get('token-detail-estimate');

@@ -23,7 +23,17 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.MutableLiveData
 import com.minashin1120.aiplayground.data.ActivityLog
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.Executor
+
+internal data class CameraFocusState(
+    val request: Int,
+    val x: Float,
+    val y: Float,
+    val finished: Boolean = false,
+    val success: Boolean = false,
+    val op: String = java.util.UUID.randomUUID().toString(),
+)
 
 /** Own the capture use case so its rotation follows the sensor even with screen rotation locked. */
 internal class InAppCameraSession(private val context: Context) {
@@ -36,6 +46,8 @@ internal class InAppCameraSession(private val context: Context) {
             .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY).build())
         .build()
     val zoomState = MutableLiveData<ZoomState>()
+    val focusState = MutableLiveData<CameraFocusState?>()
+    private var focusRequest = 0
     private var camera: Camera? = null
     private var desiredRotation = android.view.Surface.ROTATION_0
     private var captureRotationLocked = false
@@ -61,20 +73,59 @@ internal class InAppCameraSession(private val context: Context) {
                 return true
             }
         })
+        var multiTouch = false
         val tap = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(event: android.view.MotionEvent) = true
             override fun onSingleTapUp(event: android.view.MotionEvent): Boolean {
-                val point = view.meteringPointFactory.createPoint(event.x, event.y)
-                camera?.cameraControl?.startFocusAndMetering(FocusMeteringAction.Builder(point).build())
+                if (multiTouch) return false
+                focusAt(view, event.x, event.y)
                 view.performClick()
                 return true
             }
         })
         view.setOnTouchListener { _, event ->
+            if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) multiTouch = false
+            if (event.pointerCount > 1) multiTouch = true
             pinch.onTouchEvent(event)
             tap.onTouchEvent(event)
             true
         }
+    }
+
+    private fun focusAt(view: PreviewView, x: Float, y: Float) {
+        val activeCamera = camera ?: return
+        val point = view.meteringPointFactory.createPoint(x, y)
+        // FIT_CENTER can leave black bars outside the actual camera image.
+        if (point.x !in 0f..1f || point.y !in 0f..1f) return
+        cancelFocusLog()
+        val state = CameraFocusState(++focusRequest, x, y)
+        focusState.value = state
+        ActivityLog.log("media.start", "source" to "camera", "type" to "image", "interaction_stage" to "focus", "op" to state.op)
+        fun finish(success: Boolean) {
+            if (state.request != focusRequest || camera !== activeCamera) return
+            focusState.value = state.copy(finished = true, success = success)
+            ActivityLog.log(if (success) "media.ready" else "media.error", "source" to "camera",
+                "type" to "image", "interaction_stage" to "focus", "op" to state.op)
+        }
+        try {
+            val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+                .setAutoCancelDuration(5, TimeUnit.SECONDS).build()
+            if (!activeCamera.cameraInfo.isFocusMeteringSupported(action)) {
+                finish(false)
+                return
+            }
+            val future = activeCamera.cameraControl.startFocusAndMetering(action)
+            future.addListener({
+                try { finish(future.get().isFocusSuccessful) }
+                catch (_: Exception) { finish(false) }
+            }, ContextCompat.getMainExecutor(context))
+        } catch (_: Exception) { finish(false) }
+    }
+
+    private fun cancelFocusLog() {
+        val state = focusState.value ?: return
+        if (!state.finished) ActivityLog.log("media.close", "source" to "camera", "type" to "image",
+            "interaction_stage" to "focus", "phase" to "cancelled", "op" to state.op)
     }
 
     @SuppressLint("MissingPermission")
@@ -107,8 +158,11 @@ internal class InAppCameraSession(private val context: Context) {
             owner.lifecycle.removeObserver(observer)
             orientationListener.disable()
             camera?.cameraInfo?.zoomState?.removeObservers(owner)
+            cancelFocusLog()
+            focusRequest++
             provider?.unbind(preview, imageCapture)
             camera = null
+            focusState.value = null
             ActivityLog.log("state", "camera" to false, "phase" to "done")
         }
     }

@@ -584,12 +584,12 @@ private fun Modifier.dottedUnderline(color: Color): Modifier = drawBehind {
         pathEffect = PathEffect.dashPathEffect(floatArrayOf(1.dp.toPx(), 2.dp.toPx())))
 }
 
-/** `#total-token-bar`: coins glyph, path total and the all-branches total (both open the token details). */
+/** `#total-token-bar`: confirmed totals and the current input estimate, each opening its own details. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun TotalTokenBar(path: TokenTotals, all: TokenTotals, onDetail: (TokenDetail) -> Unit) {
+internal fun TotalTokenBar(path: TokenTotals, all: TokenTotals, showEstimate: Boolean = false, estimate: @Composable () -> Unit = {}, onDetail: (TokenDetail) -> Unit) {
     val web = LocalWebPalette.current
-    if (path.total <= 0 && all.total <= 0) return
+    if (path.total <= 0 && all.total <= 0 && !showEstimate) return
     val text = if (web.isLight) web.text else Tw.slate200
     Column(Modifier.fillMaxWidth().background(if (web.isLight) Color.White.copy(alpha = 0.9f) else Color(8, 14, 28).copy(alpha = 0.55f))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -601,6 +601,7 @@ internal fun TotalTokenBar(path: TokenTotals, all: TokenTotals, onDetail: (Token
                     modifier = Modifier.dottedUnderline(text).clickable(role = Role.Button) { onDetail(path.detail(allBranches = false)) })
                 if (all.total > 0) Text("All branches: ${all.total} tokens", style = style,
                     modifier = Modifier.dottedUnderline(text).clickable(role = Role.Button) { onDetail(all.detail(allBranches = true)) })
+                if (showEstimate) estimate()
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(if (web.isLight) Color(15, 23, 42).copy(alpha = 0.10f) else web.lineSoft))

@@ -252,9 +252,10 @@ class PlaygroundApi internal constructor(
     }
 
     /** Web `chat_copy`: an attachment kept only on this device, added to the chat copy of feedback [feedbackId]. */
-    suspend fun uploadFeedbackChatFile(feedbackId: String, reference: String, name: String, file: File, mime: String, token: String): JSONObject {
+    suspend fun uploadFeedbackChatFile(feedbackId: String, reference: String, name: String, file: File, mime: String, token: String, replyId: Int? = null): JSONObject {
         val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("ref", reference)
+            .apply { if (replyId != null) addFormDataPart("reply_id", replyId.toString()) }
             .addFormDataPart("file", name, file.asRequestBody(mime.ifBlank { "application/octet-stream" }.toMediaType())).build()
         return execute(request("/api/feedback/$feedbackId/chat_files", token).post(multipart).build(), client = streaming, consume = ::jsonResponse)
     }

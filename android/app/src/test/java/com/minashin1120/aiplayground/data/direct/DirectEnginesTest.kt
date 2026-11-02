@@ -66,6 +66,50 @@ class DirectEnginesTest {
         assertEquals(original.getJSONArray("array").toString(), restored.getJSONArray("array").toString())
     }
 
+    @Test fun responseCompletionRetainsReasoningWhenIntermediateEventsAreMissing() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(sse(
+                """{"type":"response.output_text.delta","delta":"answer"}""",
+                """{"type":"response.completed","response":{"output":[{"id":"r1","type":"reasoning","summary":[{"type":"summary_text","text":"first thought"}]},{"id":"r2","type":"reasoning","content":[{"type":"reasoning_text","text":"second thought"}]}],"usage":{"output_tokens_details":{"reasoning_tokens":7}}}}""",
+            ))
+            val (result, events) = run(OpenAiResponsesDirect(http, baseUrl = server.url("/").toString().trimEnd('/')), request())
+            assertEquals("first thought\n\nsecond thought", result.thought)
+            assertEquals(7, result.tokensThought)
+            assertEquals(result.thought, events.filter { it.optString("type") == "thought" }.joinToString("") { it.getString("content") })
+        }
+    }
+
+    @Test fun responseCompletionDoesNotRepeatStreamedReasoning() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(sse(
+                """{"type":"response.reasoning_summary_text.delta","item_id":"r1","summary_index":0,"delta":"first"}""",
+                """{"type":"response.output_item.done","item":{"id":"r1","type":"reasoning","summary":[{"type":"summary_text","text":"first thought"}]}}""",
+                """{"type":"response.completed","response":{"output":[{"id":"r1","type":"reasoning","summary":[{"type":"summary_text","text":"first thought"}]}]}}""",
+            ))
+            val (result, events) = run(OpenAiResponsesDirect(http, baseUrl = server.url("/").toString().trimEnd('/')), request())
+            assertEquals("first thought", result.thought)
+            assertEquals(result.thought, events.filter { it.optString("type") == "thought" }.joinToString("") { it.getString("content") })
+        }
+    }
+
+    @Test fun pythonImageUploadFailureDoesNotSilentlyContinueWithoutContainerFiles() {
+        for (status in listOf(200, 500)) MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().code(status).body("{}").build())
+            server.enqueue(sse("""{"type":"response.output_text.delta","delta":"vision only"}"""))
+            val req = request(JSONObject().put("enable_python", true), listOf(DirectTurn("user", "crop",
+                listOf(DirectAttachment("shot.png", "image/png", byteArrayOf(1, 2, 3))))))
+            val error = runCatching {
+                run(OpenAiResponsesDirect(http, baseUrl = server.url("/").toString().trimEnd('/')), req)
+            }.exceptionOrNull()
+            assertTrue(error is DirectApiException)
+            assertEquals(1, server.requestCount)
+            assertEquals("/v1/files", server.takeRequest().target)
+        }
+    }
+
     @Test fun streamedImageIsSavedBeforeItsLiveReferenceIsEmitted() {
         MockWebServer().use { server ->
             server.start()
@@ -416,6 +460,7 @@ class DirectEnginesTest {
         val container = withFiles.getJSONArray("tools").getJSONObject(0).getJSONObject("container")
         assertEquals("auto", container.getString("type"))
         assertEquals("file-abc", container.getJSONArray("file_ids").getString(0))
+        assertEquals("code_interpreter_call.outputs", withFiles.getJSONArray("include").getString(0))
         val plain = engine.buildPayload(request(JSONObject().put("enable_python", true)))
         assertFalse(plain.getJSONArray("tools").getJSONObject(0).getJSONObject("container").has("file_ids"))
         assertFalse(engine.buildPayload(request(), listOf("file-abc")).has("tools"))

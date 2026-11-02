@@ -117,6 +117,7 @@ def _feedback_reply_json(reply, public_id, is_admin):
         'author': (reply.author or '') if is_admin else '',
         'created_at': reply.created_at.isoformat() if reply.created_at else None,
         'log_file': _feedback_display_path(log_path) if log_path else None,
+        'chat_file': _feedback_display_path(_feedback_chat_copy_path(public_id, reply.id)) if is_admin and reply.id else None,
         'image_count': len(images),
         'image_dir': os.path.relpath(image_dir, app.root_path) if is_admin and images else None,
     }
@@ -163,6 +164,7 @@ def _write_feedback_info(fb, **extra):
             'id': r.id, 'role': r.role, 'user_id': r.user_id, 'author': r.author or '', 'message': r.message,
             'created_at': r.created_at.isoformat(timespec='seconds') + 'Z' if r.created_at else None,
             'activity_log': f'logs/reply-{r.id}.jsonl' if r.activity_log_saved else None,
+            'chat_copy': os.path.basename(_feedback_chat_copy_path(fb.public_id, r.id)) if r.id and os.path.isfile(_feedback_chat_copy_path(fb.public_id, r.id)) else None,
             'images': [f'images/reply-{r.id}/{name}' for name in _feedback_image_names_in(
                 _feedback_reply_images_path(fb.public_id, r.id))] if r.id else [],
         } for r in replies],
@@ -445,6 +447,9 @@ def feedback_reply(fid):
     client_logs = data.get('client_logs')
     if client_logs is not None and not isinstance(client_logs, dict):
         return jsonify({'error': 'Invalid client logs'}), 400
+    chat_copy = data.get('chat_copy')
+    if chat_copy is not None and not isinstance(chat_copy, dict):
+        return jsonify({'error': 'Invalid chat copy'}), 400
     if not rate_limit(f"rl:feedback_reply:user:{current_user.id}", 30, 3600):
         return jsonify({'error': 'rate_limit'}), 429
     _ensure_feedback_public_id(fb)
@@ -473,6 +478,12 @@ def feedback_reply(fid):
             result['logs_saved'] = False
         reply.activity_log_saved = result['logs_saved']
         safe_db_commit()
+    if chat_copy is not None:
+        try:
+            result['chat_copy_saved'] = _save_feedback_chat_copy(fb.public_id, current_user.id, chat_copy, reply_id=reply.id) is not None
+        except Exception as e:
+            log_force(f"FEEDBACK-CHAT-ERROR: user={current_user.id} feedback={fb.public_id} reply={reply.id} err={e}")
+            result['chat_copy_saved'] = False
     try:
         _write_feedback_info(fb)
     except Exception as e:

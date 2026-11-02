@@ -60,6 +60,15 @@ class OpenAiResponsesDirect(
         val codes = LinkedHashMap<String, StringBuilder>()
         fun absorbItem(item: JSONObject) {
             when (item.optString("type")) {
+                "reasoning" -> {
+                    for (field in listOf("summary", "content")) {
+                        val parts = item.optJSONArray(field) ?: continue
+                        for (index in 0 until parts.length()) parts.optJSONObject(index)?.let { part ->
+                            if (part.optString("type") in listOf("summary_text", "reasoning_text"))
+                                reasoning(item, part.optString("text"), snapshot = true, index = index)
+                        }
+                    }
+                }
                 "code_interpreter_call" -> {
                     item.optString("container_id").takeIf { it.isNotBlank() }?.let { containerId = it }
                     val id = item.optString("id").ifBlank { "py" }
@@ -119,12 +128,6 @@ class OpenAiResponsesDirect(
                     emit(event("python", JSONObject().put("id", id).put("code", codes[id].toString())))
                 }
                 "response.output_item.done" -> data.optJSONObject("item")?.let { item ->
-                    if (item.optString("type") == "reasoning") {
-                        val summary = item.optJSONArray("summary") ?: JSONArray()
-                        for (index in 0 until summary.length()) summary.optJSONObject(index)?.let { part ->
-                            reasoning(item, part.optString("text"), snapshot = true, index = index)
-                        }
-                    }
                     absorbItem(item)
                 }
                 "response.completed", "response.incomplete" -> {
@@ -240,6 +243,7 @@ class OpenAiResponsesDirect(
             val container = JSONObject().put("type", "auto")
             if (containerFileIds.isNotEmpty()) container.put("file_ids", JSONArray(containerFileIds))
             tools.put(JSONObject().put("type", "code_interpreter").put("container", container))
+            payload.put("include", JSONArray().put("code_interpreter_call.outputs"))
         }
         if (tools.length() > 0) payload.put("tools", tools)
         val effortOption = options.optString("reasoning_effort").lowercase().trim()
@@ -276,15 +280,16 @@ class OpenAiResponsesDirect(
                 .addFormDataPart("purpose", "user_data")
                 .addFormDataPart("file", "input_${index + 1}.$ext", bytes.toRequestBody(mime.toMediaType()))
                 .build()
-            val uploaded = runCatching {
-                val (body, _) = http.postBytes(
-                    "$baseUrl/v1/files",
-                    mapOf("Authorization" to "Bearer ${request.apiKey}"),
-                    form,
-                )
-                JSONObject(body.toString(Charsets.UTF_8)).optString("id")
-            }.getOrNull()
-            if (!uploaded.isNullOrBlank()) ids += uploaded
+            // A failed upload must not silently turn Python image analysis into vision-only input.
+            // Let DirectHttp report the failure and preserve coroutine cancellation.
+            val (body, _) = http.postBytes(
+                "$baseUrl/v1/files",
+                mapOf("Authorization" to "Bearer ${request.apiKey}"),
+                form,
+            )
+            val uploaded = JSONObject(body.toString(Charsets.UTF_8)).optString("id")
+            if (uploaded.isBlank()) throw DirectApiException(0, "画像をコード実行環境へ送れませんでした。再試行してください。")
+            ids += uploaded
         }
         return ids
     }

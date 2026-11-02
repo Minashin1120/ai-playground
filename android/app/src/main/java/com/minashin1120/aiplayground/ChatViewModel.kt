@@ -200,6 +200,10 @@ data class ChatState(
     val quote: String = "",
     /** Id of the message [quote] was selected from (Web `currentQuoteMessageId`), sent as `quote_message_id`. */
     val quoteMessageId: Int? = null,
+    /** Local or server message key used only to navigate back to a quote. */
+    val quoteSourceId: String? = null,
+    val quoteSourceScrollOffset: Int = 0,
+    val quoteNavigationRequest: Long = 0L,
     /** Incremented to ask the screen to open the settings modal (e.g. from the encryption status dialog). */
     val settingsRequest: Long = 0L,
     /** Tab (id or label) and card key the latest [settingsRequest] opens at; null keeps the last tab. */
@@ -374,6 +378,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var pairingJob: Job? = null
     private var messageFetchGeneration = 0L
     private var navigationJob: Job? = null
+    private var threadListJob: Job? = null
+    private var threadListFetchGeneration = 0L
     private val generations = ChatGenerations()
     private val streamJob: Job? get() = generations.current(state.value)?.job
     /** Web `suppressedPendingJobIds`: jobs the user stopped are not rejoined while the server winds them down. */
@@ -421,7 +427,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         generations.cancelAll()
         failedByThread.clear()
         val alreadyBanned = state.value.banned
-        listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, cacheSyncJob, batchPollJob,
+        listOf(pairingJob, navigationJob, threadListJob, streamJob, uploadJob, heartbeatJob, libraryJob, cacheSyncJob, batchPollJob,
             realtimeStreamJob, realtimeCaptureJob, lyriaStreamJob, importJob).forEach { it?.cancel() }
         realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
         lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
@@ -829,7 +835,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Leaves the no-account profile for the login screen; the device chats stay for a later upload. */
     fun leaveLocalProfile() { viewModelScope.launch {
-        generations.cancelAll().joinAll(); navigationJob?.cancel()
+        generations.cancelAll().joinAll(); navigationJob?.cancel(); threadListJob?.cancel()
         failedByThread.clear()
         chatHistory.clear()
         prefs.edit().putString(PREF_PROFILE_MODE, PROFILE_SERVER).apply()
@@ -1806,12 +1812,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 composerFocusRequest = it.composerFocusRequest + 1)
         }
     }
-    fun quoteMessage(text: String, sourceMessageId: Int? = null) {
+    fun quoteMessage(text: String, sourceMessageId: Int? = null, sourceKey: String? = sourceMessageId?.toString(), sourceScrollOffset: Int = 0) {
         val quoted = text.trim()
         if (quoted.isBlank()) return
-        mutable.update { it.copy(quote = quoted, quoteMessageId = sourceMessageId, composerFocusRequest = it.composerFocusRequest + 1) }
+        mutable.update { it.copy(quote = quoted, quoteMessageId = sourceMessageId, quoteSourceId = sourceKey, quoteSourceScrollOffset = sourceScrollOffset.coerceAtLeast(0), composerFocusRequest = it.composerFocusRequest + 1) }
     }
-    fun clearQuote() { mutable.update { it.copy(quote = "", quoteMessageId = null) } }
+    fun navigateToQuote() {
+        val current = state.value
+        if (current.quote.isBlank() || current.quoteSourceId == null) return
+        mutable.update { it.copy(quoteNavigationRequest = it.quoteNavigationRequest + 1) }
+    }
+    fun clearQuote() { mutable.update { it.copy(quote = "", quoteSourceId = null, quoteMessageId = null) } }
     /**
      * Web `applySavedUserSystemPromptSettings`: after the user system prompt is saved from Settings or
      * Chat Instructions, the composer's SysPrompt switch follows it when its text or on/off changed.
@@ -2057,16 +2068,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun removeAttachment(reference: String) { mutable.update { it.copy(attachments = it.attachments.filterNot { a -> a.reference == reference }) } }
     fun search(query: String) {
-        mutable.update { it.copy(search = query) }
-        navigationJob?.cancel()
-        navigationJob = viewModelScope.launch {
+        threadListFetchGeneration++
+        mutable.update { it.copy(search = query, nextPage = null) }
+        threadListJob?.cancel()
+        threadListJob = viewModelScope.launch {
             delay(300)
             try {
                 if (state.value.offline && !chatLocal) applyCachedThreads(query) else fetchThreads(false)
-            } catch (e: Exception) { report(e) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { report(e) }
         }
     }
     private suspend fun fetchThreads(more: Boolean) {
+        val fetchGeneration = ++threadListFetchGeneration
         if (state.value.offline && !chatLocal) {
             applyCachedThreads(state.value.search)
             return
@@ -2083,13 +2097,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             applyCachedThreads(current.search)
             return
         }
-        if (current.search != state.value.search) return
+        if (fetchGeneration != threadListFetchGeneration || current.search != state.value.search) return
         val rows = reply.getJSONArray("threads")
         val items = (0 until rows.length()).map { parseThreadItem(rows.getJSONObject(it)) }
         if (!chatLocal) state.value.account?.let { account ->
             withContext(Dispatchers.IO) { offlineCache.saveThreads(account.id, items.filterNot { LocalChatStore.isDeviceThreadId(it.id) }) }
             refreshOfflineCacheStats(account.id)
         }
+        if (fetchGeneration != threadListFetchGeneration || current.search != state.value.search) return
         mutable.update { it.copy(threads = if (more) (it.threads + items).distinctBy { t -> t.id } else items,
             nextPage = if (reply.optBoolean("has_next")) reply.optInt("next_page", page + 1) else null,
             offline = false) }
@@ -2106,11 +2121,16 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             val rows = withContext(Dispatchers.IO) { store.deviceThreads(normalized) }
             (0 until rows.length()).map { parseThreadItem(rows.getJSONObject(it)) }
         }.orEmpty()
+        if (query != state.value.search || accountId != state.value.account?.id) return
         mutable.update { it.copy(threads = device + visible, nextPage = null, offline = true) }
     }
     fun moreThreads() {
-        if (state.value.offline && !chatLocal) return
-        navigationJob?.cancel(); navigationJob = viewModelScope.launch { try { fetchThreads(true) } catch (e: Exception) { report(e) } }
+        if ((state.value.offline && !chatLocal) || state.value.nextPage == null || threadListJob?.isActive == true) return
+        threadListJob = viewModelScope.launch {
+            try { fetchThreads(true) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { report(e) }
+        }
     }
     private fun currentChatLocation() = ChatLocation(state.value.selected, state.value.newThreadTemporary)
 
@@ -2141,7 +2161,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null, tempChatTimeoutSeconds = null,
             selectedGem = null, codingTarget = null, imageMask = null,
             // Web `startNewChat`: cancelEdit + resetUploadState, and PromptCache starts off.
-            draft = "", attachments = emptyList(), quote = "", enablePromptCache = false,
+            draft = "", attachments = emptyList(), quote = "", quoteSourceId = null, quoteNavigationRequest = 0L, enablePromptCache = false,
             chatTransitionId = transition.first, chatTransitionKind = transition.second,
             chatNavigationId = transition.first, chatNavigationKind = transition.second).withNewChatDefaults().withModelRules() }
     }
@@ -2160,7 +2180,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .getString("fixed_branch_${thread.id}", null)?.toIntOrNull()
         mutable.update { it.copy(selected = thread, messages = emptyList(), allMessages = emptyList(), settingsBubbles = emptyList(),
             branchOrigin = null, leafId = focusMessageId ?: pinnedLeaf, editingMessageId = null, streaming = false, busy = true,
-            draft = "", attachments = emptyList(), quote = "",
+            draft = "", attachments = emptyList(), quote = "", quoteSourceId = null, quoteNavigationRequest = 0L,
             liveContent = "", liveThought = "", live = LiveAnswer(), mcpDecision = null, jobId = null, retryAvailable = false,
             cards = emptyList(), hasOlder = false, oldestId = null,
             // Web `playChatTransition('history')` + `buildChatLoadingSkeletonHtml`: swap to the new chat now
@@ -2729,6 +2749,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             draft = message.content,
             attachments = message.files.map { reference -> Attachment(reference.substringAfterLast('/'), reference) },
             quote = message.quote,
+            quoteSourceId = null,
             quoteMessageId = null,
             composerFocusRequest = it.composerFocusRequest + 1,
         ) }
@@ -4255,7 +4276,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val caller = currentCoroutineContext().job
         generations.cancelAll(except = caller).filter { it !== caller }.joinAll()
         failedByThread.clear()
-        listOf(pairingJob, navigationJob, streamJob, uploadJob, heartbeatJob, libraryJob, cacheSyncJob, batchPollJob,
+        listOf(pairingJob, navigationJob, threadListJob, streamJob, uploadJob, heartbeatJob, libraryJob, cacheSyncJob, batchPollJob,
             realtimeStreamJob, realtimeCaptureJob, lyriaStreamJob, importJob).forEach { if (it !== caller) it?.cancel() }
         realtimeTrack?.let { track -> runCatching { track.stop(); track.release() } }; realtimeTrack = null
         lyriaTrack?.let { track -> runCatching { track.stop(); track.release() } }; lyriaTrack = null
@@ -4439,6 +4460,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) { report(e) }
         }
     }
+    /** Account/profile-scoped decoded-image identity; safe to call from composition without IO. */
+    fun attachmentImageCacheKey(reference: String): String {
+        val identity = localChats?.imageCacheReference(reference) ?: fileReferencePath(reference) ?: reference
+        val profile = if (state.value.localProfile) "local" else state.value.account?.id.toString()
+        return "${ServerOrigin.current}|$profile|$identity"
+    }
+
     /** Loads same-origin attachment bytes for preview; returns null when unavailable. */
     suspend fun loadAttachmentBytes(reference: String, thumbnail: Boolean, limit: Long = 8L * 1024 * 1024): ByteArray? {
         if (state.value.banned) return null
@@ -5132,7 +5160,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
      * ticked box: the last hour of the activity log goes with the reply (only while ログの収集を強化 is on);
      * [images] follow the reply once it was accepted.
      */
-    fun replyFeedback(item: FeedbackItem, message: String, withLogs: Boolean, images: List<Uri> = emptyList()) {
+    fun replyFeedback(item: FeedbackItem, message: String, withLogs: Boolean, images: List<Uri> = emptyList(), withChat: Boolean = false) {
+        val chatId = if (withChat) state.value.selected?.id else null
+        if (withChat && chatId == null) { notify("コピーを送信するチャットが開かれていません"); return }
         if (message.isBlank()) return
         viewModelScope.launch {
             if (state.value.offline) { notify("オフライン中はフィードバックに返信できません。"); return@launch }
@@ -5142,12 +5172,32 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val logs = if (!withLogs) null else if (ActivityLog.enabled) withContext(Dispatchers.IO) { ActivityLog.recent() } else if (state.value.preferences?.enableServerDiagnosticLog == true) JSONArray() else null
                 if (logs != null) payload.put("client_logs", JSONObject().put("client", "android")
                     .put("version", BuildConfig.VERSION_NAME).put("window_seconds", ActivityLog.WINDOW_MS / 1000).put("entries", logs))
+                val chatCopy = chatId?.let { feedbackChatCopy(it) }
+                if (chatCopy != null) payload.put("chat_copy", chatCopy.payload)
                 val feedbackId = item.publicId.ifBlank { item.id.toString() }
                 val reply = backend.post("/api/feedback/$feedbackId/replies", payload, token())
                 val replyId = reply.optInt("reply_id", 0)
                 val imagesSaved = images.isEmpty() || (replyId > 0 && uploadFeedbackImages(feedbackId, images, replyId))
+                var chatSaved = reply.optBoolean("chat_copy_saved", false)
+                if (chatSaved && chatCopy != null) {
+                    for (reference in chatCopy.deviceFiles) {
+                        val temporary = File(getApplication<Application>().cacheDir, "feedback-" + java.util.UUID.randomUUID())
+                        try {
+                            val store = localChats ?: throw IOException("添付ファイルを読み込めません")
+                            val info = withContext(Dispatchers.IO) { store.fileInfo(reference) }
+                            val mime = withContext(Dispatchers.IO) { store.materializeFile(reference, temporary) }
+                                ?: throw IOException("添付ファイルを読み込めません")
+                            val saved = api.uploadFeedbackChatFile(feedbackId, reference,
+                                info?.optString("name").orEmpty().ifBlank { reference.substringAfterLast('/') },
+                                temporary, mime, token(), replyId)
+                            if (!saved.optBoolean("saved")) chatSaved = false
+                        } catch (e: CancellationException) { throw e }
+                        catch (e: Exception) { Diagnostics.failure("error", e, "tab" to "feedback"); chatSaved = false }
+                        finally { temporary.delete() }
+                    }
+                }
                 loadFeedback()
-                notify(feedbackReplySentText(logs?.let { reply.optInt("logs_count", it.length()) }, reply.optBoolean("logs_saved", true), images.size, imagesSaved))
+                notify(feedbackReplySentText(logs?.let { reply.optInt("logs_count", it.length()) }, reply.optBoolean("logs_saved", true), images.size, imagesSaved, chatCopy != null, chatSaved))
             } catch (e: Exception) { report(e, "返信を送信できませんでした") }
             finally { mutable.update { it.copy(feedbackBusy = false) } }
         }

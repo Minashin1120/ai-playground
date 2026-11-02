@@ -157,13 +157,13 @@ function setPromptTokenEstimateText(value) { text = value; }
 ''' + renderer + '''
 renderPromptTokenEstimate({countable:true,tokens_total:123,tokens_prompt:23,tokens_files:100,
 files_non_text:1,estimate_method:'approximate',estimate_scope:'draft'}, {message:'text'});
-assert(text.includes('未計測1件'));
-assert(text.includes('概算'));
-assert(text.includes('履歴・SysPrompt除外'));
+assert(text.includes('一部のみ'));
+assert(text.includes('123 tokens'));
+assert.equal(promptTokenEstimateVisible.data.files_non_text, 1);
 assert(!text.includes('0換算'));
 renderPromptTokenEstimate({countable:true,tokens_total:123,tokens_prompt:23,tokens_files:100,
 estimate_method:'provider',estimate_scope:'draft'}, {message:'text'});
-assert(text.includes('プロバイダー計測'));
+assert.equal(promptTokenEstimateVisible.data.estimate_method, 'provider');
 '''
     subprocess.run(['node', '-e', script], check=True, capture_output=True, text=True)
 

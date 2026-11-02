@@ -23,8 +23,9 @@ _FEEDBACK_CHAT_JOURNAL_UNITS = ('ai-chat.service', 'ai-chat-worker@*.service')
 _FEEDBACK_CHAT_FILE_URL_RE = re.compile(r'/files/(?:thumb/)?([^\s"\'()<>?#\\]+)')
 
 
-def _feedback_chat_copy_path(feedback_id):
-    return os.path.join(_feedback_dir(feedback_id), 'chat.jsonl')
+def _feedback_chat_copy_path(feedback_id, reply_id=None):
+    name = 'chat.jsonl' if reply_id is None else f'reply-{int(reply_id)}-chat.jsonl'
+    return os.path.join(_feedback_dir(feedback_id), name)
 
 
 def _feedback_chat_files_dir(path):
@@ -58,6 +59,14 @@ def _remove_feedback_chat_copy(path):
 def _prune_feedback_chat_files(keep=None):
     """Keeps the newest copies within the count and total size limits (never ``keep``)."""
     paths = [p for p in map(_feedback_chat_copy_path, _feedback_dir_ids()) if os.path.isfile(p)]
+    for feedback_id in _feedback_dir_ids():
+        directory = _feedback_dir(feedback_id)
+        try:
+            names = os.listdir(directory)
+        except OSError:
+            continue
+        paths.extend(os.path.join(directory, name) for name in names
+                     if re.fullmatch(r'reply-[0-9]+-chat\.jsonl', name))
     entries = []
     for path in paths:
         try:
@@ -436,7 +445,7 @@ def _feedback_chat_client_rows(payload):
                 yield {'kind': 'client_diagnostics', 'entry': entry}
 
 
-def _save_feedback_chat_copy(feedback_id, user_id, payload):
+def _save_feedback_chat_copy(feedback_id, user_id, payload, reply_id=None):
     """Writes the copy of the chat in ``payload``; returns the file path (None when there is no chat)."""
     client = str(payload.get('client') or 'unknown').lower()
     if not re.fullmatch(r'[a-z]{1,16}', client):
@@ -447,7 +456,7 @@ def _save_feedback_chat_copy(feedback_id, user_id, payload):
     if not thread and not has_client_thread:
         return None
     received = datetime.utcnow()
-    path = _feedback_chat_copy_path(feedback_id)
+    path = _feedback_chat_copy_path(feedback_id, reply_id)
     os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     files_dir = _feedback_chat_files_dir(path)
     # Rows go to a side file first so a long chat is never held in memory; the meta line needs the counts.
@@ -473,7 +482,7 @@ def _save_feedback_chat_copy(feedback_id, user_id, payload):
                 counts[kind] = counts.get(kind, 0) + 1
                 body.write(line)
         meta = {
-            'kind': 'meta', 'feedback_id': feedback_id, 'user_id': user_id, 'client': client,
+            'kind': 'meta', 'feedback_id': feedback_id, 'reply_id': reply_id, 'user_id': user_id, 'client': client,
             'client_version': str(payload.get('version') or '')[:64],
             'server_version': app.config.get('SYSTEM_VERSION'),
             'source': 'server' if thread else 'device',
@@ -503,12 +512,23 @@ def _save_feedback_chat_copy(feedback_id, user_id, payload):
 def feedback_chat_file(fid):
     """An attachment kept only on the device, added to the chat copy of the user's feedback ``fid``."""
     fb = _feedback_by_ref(fid)
-    if not fb or fb.user_id != current_user.id or not fb.public_id:
+    if not fb or not fb.public_id:
         return jsonify({'error': 'not_found'}), 404
-    path = _feedback_chat_copy_path(fb.public_id)
+    reply_id = request.form.get('reply_id')
+    created_at = fb.created_at
+    if reply_id is not None:
+        if not re.fullmatch(r'[0-9]{1,18}', reply_id):
+            return jsonify({'error': 'invalid_reply'}), 400
+        reply = FeedbackReply.query.filter_by(id=int(reply_id), feedback_id=fb.id, user_id=current_user.id).first()
+        if reply is None:
+            return jsonify({'error': 'not_found'}), 404
+        created_at = reply.created_at
+    elif fb.user_id != current_user.id:
+        return jsonify({'error': 'not_found'}), 404
+    path = _feedback_chat_copy_path(fb.public_id, reply_id)
     if not os.path.isfile(path):
         return jsonify({'error': 'not_found'}), 404
-    if fb.created_at and (datetime.utcnow() - fb.created_at).total_seconds() > _FEEDBACK_CHAT_DEVICE_FILE_WINDOW:
+    if created_at and (datetime.utcnow() - created_at).total_seconds() > _FEEDBACK_CHAT_DEVICE_FILE_WINDOW:
         return jsonify({'error': 'expired'}), 409
     upload = request.files.get('file')
     if upload is None:

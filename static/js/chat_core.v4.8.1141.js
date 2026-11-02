@@ -3532,7 +3532,7 @@
         function queueMathTypeset(container, text = '', opts = {}) {
             if (lowBandwidthMode && !opts.force) return;
             if (!container || !maybeNeedsMathJax(text)) return;
-            ensureMathJaxLoaded()
+            return ensureMathJaxLoaded()
                 .then(() => {
                     if (!window.MathJax || typeof window.MathJax.typesetPromise !== 'function') return;
                     // ストリーム再描画で DOM が差し替わったあとに古い math リストが残ると typeset が失敗するためクリア
@@ -3541,9 +3541,11 @@
                             window.MathJax.typesetClear([container]);
                         }
                     } catch (e) {}
-                    return window.MathJax.typesetPromise([container]).catch(() => {});
+                    return window.MathJax.typesetPromise([container]).catch(() => {
+                        console.warn('Math typesetting failed');
+                    });
                 })
-                .catch(() => {});
+                .catch(() => { console.warn('Math renderer loading failed'); });
         }
         function queueIncrementalMathTypeset(elements) {
             const candidates = Array.from(elements || []).filter((el) => (
@@ -4424,6 +4426,11 @@
                 tokens_thought: hasThought ? totals.tokens_thought : null
             };
         }
+        function syncTokenBarVisibility() {
+            const bar = get('total-token-bar');
+            const estimate = get('prompt-token-estimate');
+            if (bar) bar.classList.toggle('hidden', bar.dataset.hasTotals !== 'true' && (!estimate || estimate.classList.contains('hidden')));
+        }
         function updateTotalTokenBar(total, details = null, allBranchDetails = null) {
             const bar = get('total-token-bar');
             const count = get('total-token-count');
@@ -4432,7 +4439,7 @@
             const val = Number(total || 0);
             const allBranchVal = Number((allBranchDetails && allBranchDetails.tokens_total) || 0);
             if (val > 0 || allBranchVal > 0) {
-                bar.classList.remove('hidden');
+                bar.dataset.hasTotals = 'true';
                 count.innerText = `Total: ${val} tokens`;
                 if (details) {
                     count.classList.add('cursor-pointer', 'underline', 'decoration-dotted');
@@ -4477,7 +4484,7 @@
                     }
                 }
             } else {
-                bar.classList.add('hidden');
+                bar.dataset.hasTotals = 'false';
                 count.innerText = 'Total: 0 tokens';
                 count.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
                 count.onclick = null;
@@ -4490,6 +4497,7 @@
                 }
                 delete messageMeta.__total_all_branches__;
             }
+            syncTokenBarVisibility();
         }
         const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS = 700;
         let promptTokenEstimateTimer = null;
@@ -4514,11 +4522,13 @@
             if (!text) {
                 el.classList.add('hidden');
                 el.innerText = '';
+                syncTokenBarVisibility();
                 return;
             }
-            el.className = `mt-1 px-1 text-left text-[10px] hover:underline rounded ${colorClass}`;
+            el.className = `text-left text-xs rounded ${colorClass}`;
             el.classList.remove('hidden');
             el.innerText = text;
+            syncTokenBarVisibility();
         }
         function buildPromptTokenEstimatePayload() {
             return {
@@ -4549,20 +4559,11 @@
                 return;
             }
             const total = Number(data.tokens_total || 0);
-            const prompt = Number(data.tokens_prompt || 0);
-            const files = Number(data.tokens_files || 0);
             const incomplete = Number(data.files_non_text || 0) + Number(data.files_missing || 0) + Number(data.files_error || 0) > 0;
-            const notes = [];
-            if (Number(data.files_non_text || 0) > 0) notes.push(`未計測${data.files_non_text}件`);
-            if (Number(data.files_missing || 0) > 0) notes.push(`未検出${data.files_missing}件`);
-            if (Number(data.files_error || 0) > 0) notes.push(`失敗${data.files_error}件`);
-            if (data.estimate_method) notes.push(data.estimate_method === 'provider' ? 'プロバイダー計測' : '概算');
-            if (data.estimate_scope === 'draft') notes.push('入力欄のみ（履歴・SysPrompt除外）');
-            const noteText = notes.length ? ` ・ ${notes.join(' / ')}` : '';
-            setPromptTokenEstimateText(`入力見積: ${incomplete ? '一部のみ ' : ''}${total} tokens (本文 ${prompt} / ファイル ${files})${noteText}`, 'text-cyan-300');
+            setPromptTokenEstimateText(`入力見積: ${incomplete ? '一部のみ ' : ''}${total.toLocaleString('en-US')} tokens · 詳細`, 'text-cyan-300');
             promptTokenEstimateVisible = { data, payload: p };
             const trigger = get('prompt-token-estimate');
-            if (trigger) { trigger.disabled = false; trigger.classList.add('underline'); }
+            if (trigger) { trigger.disabled = false; trigger.setAttribute('aria-label', `入力トークン見積の詳細: ${incomplete ? '一部のみ ' : ''}${total} tokens`); }
         }
         function renderPromptTokenDetail(data, payload, pending = false, failed = false) {
             const body = get('token-detail-estimate');
@@ -14193,7 +14194,7 @@
                 if (!replies.length) return '';
                 return `<div class="fb-replies mt-2 space-y-2 border-l-2 border-gray-700 pl-2">${replies.map(r => {
                     const who = r.role === 'admin' ? (isAdmin && r.author ? `管理者 (${r.author})` : '管理者') : (isAdmin ? '送信者' : 'あなた');
-                    const files = isAdmin ? [r.log_file && `操作ログ: ${r.log_file}`, r.image_dir && `添付画像（${r.image_count}枚）: ${r.image_dir}`] : [r.image_count && `添付画像: ${r.image_count}枚`];
+                    const files = isAdmin ? [r.log_file && `操作ログ: ${r.log_file}`, r.chat_file && `チャットのコピー: ${r.chat_file}`, r.image_dir && `添付画像（${r.image_count}枚）: ${r.image_dir}`] : [r.image_count && `添付画像: ${r.image_count}枚`];
                     return `<div class="text-[11px]"><div class="text-gray-400">${escapeHtml(who)} / ${escapeHtml(r.created_at || '')}</div><div class="text-sm whitespace-pre-wrap ${r.role === 'admin' ? 'text-green-300' : 'text-gray-200'}">${escapeHtml(r.message)}</div>${files.filter(Boolean).map(t => `<div class="${isAdmin ? 'text-amber-300' : 'text-gray-400'}">${escapeHtml(t)}</div>`).join('')}</div>`;
                 }).join('')}</div>`;
             }
@@ -14212,6 +14213,10 @@
                             <span class="block text-xs font-bold text-white">${FB_REPLY_LOGS_LABEL}</span>
                             <span class="fb-reply-logs-note block text-[10px] text-gray-500 mt-1"></span>
                         </span>
+                    </label>
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" class="fb-reply-chat accent-amber-500 mt-0.5 shrink-0">
+                        <span class="text-xs text-white">現在開いているチャットのコピーを送信する<span class="block text-[10px] text-gray-500">開いているチャットのメッセージ、回答、思考過程、添付ファイル、チャットの設定と、そのチャットに関するエラーログなどの記録を復号して、不具合の調査用に送信します。送信したコピーは、チャットを削除しても残ります。</span></span>
                     </label>
                     <button type="button" class="fb-reply-send bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">返信</button>
                 </div>`;
@@ -14235,6 +14240,9 @@
                     const payload = {message, client: 'web', version: (window.CHAT_CONFIG && window.CHAT_CONFIG.appVersion) || ''};
                     const clientLogs = logs.checked && window.ActivityLog ? window.ActivityLog.feedbackPayload() : null;
                     if (clientLogs) payload.client_logs = clientLogs;
+                    const chatCopy = form.querySelector('.fb-reply-chat').checked;
+                    if (chatCopy && !currentThreadId) { showToast("コピーを送信するチャットが開かれていません", "error", true); return; }
+                    if (chatCopy) payload.chat_copy = window.ActivityLog ? window.ActivityLog.chatCopyPayload(currentThreadId) : {client: 'web', thread_id: String(currentThreadId)};
                     const files = picker.files();
                     send.disabled = true;
                     try {
@@ -14245,10 +14253,12 @@
                         const failed = [];
                         if (clientLogs && data.logs_saved === false) failed.push('ログ');
                         if (!imagesSaved) failed.push('画像');
+                        if (chatCopy && data.chat_copy_saved !== true) failed.push('チャットのコピー');
                         if (failed.length) {
                             showToast(`返信を送信しました（${failed.join('と')}は保存できませんでした）`, "error", true);
                         } else {
                             const sent = ['返信'];
+                            if (chatCopy) sent.push('チャットのコピー');
                             if (clientLogs) sent.push(`保存期間内のログ（${typeof data.logs_count === 'number' ? data.logs_count : clientLogs.entries.length}件）`);
                             if (files.length) sent.push(`画像（${files.length}枚）`);
                             showToast(sent.join(sent.length > 2 ? '、' : 'と') + 'を送信しました', "success");
@@ -18163,9 +18173,14 @@
                 if (get('camera-split-enabled').checked) {
                     await openImageSplit(filesToUpload);
                 } else {
-                    await handleFiles(filesToUpload, { openModal: false });
+                    const results = await handleFiles(filesToUpload, { openModal: false, cameraCapture: true });
+                    const attached = results.filter(Boolean).length;
+                    if (attached > 0) showToast(`${attached}枚の画像を添付しました`, 'success');
+                    if (attached < filesToUpload.length) {
+                        showToast('添付できなかった画像はアップロード画面から再試行できます。', 'warning', true);
+                        openUploadModal();
+                    }
                 }
-                if (!get('camera-split-enabled').checked) showToast(`${filesToUpload.length}枚の画像を添付しました`, 'success');
             } catch (e) {
                 const msg = (e && e.message) ? e.message : '撮影画像の添付に失敗しました';
                 showToast(msg, 'error', true);
@@ -18567,7 +18582,7 @@
                 if (uploadOpStarted && window.ConnectionMonitor) window.ConnectionMonitor.operationEnded();
             }
         }
-        function uploadFileWithProgress(file, row) {
+        function uploadFileWithProgress(file, row, opts = {}) {
             return new Promise((resolve) => {
                 if (file && file.size > CHUNK_THRESHOLD_BYTES) {
                     uploadFileChunked(file, row).then(resolve);
@@ -18640,6 +18655,15 @@
                         finishUploadOp();
                         resolve(true);
                     } else {
+                        // Camera JPEGs can be rejected by the proxy before /upload reaches Flask.
+                        // Try the existing chunk transport once; application errors stay final.
+                        const proxyFailure = [502, 503, 504].includes(xhr.status) || (xhr.status >= 520 && xhr.status <= 527);
+                        if (opts.cameraCapture && proxyFailure && !d.error && !isUploadCancelled(row)) {
+                            if (row && row.status) row.status.textContent = '分割して再送中...';
+                            finishUploadOp();
+                            uploadFileChunked(file, row).then(resolve);
+                            return;
+                        }
                         const msg = (d && d.error) ? d.error : "アップロードに失敗しました";
                         if (row && row.status) row.status.textContent = '失敗';
                         showToast(msg, "error", true);
@@ -19650,7 +19674,23 @@
                         if (rowObj.row) rowObj.row.dataset.browserFastLocal = '1';
                         return true;
                     }
-                    return await uploadFileWithProgress(t, rowObj);
+                    const success = await uploadFileWithProgress(t, rowObj, opts);
+                    if (!success && opts.cameraCapture && !isUploadCancelled(rowObj)) {
+                        // Keep the captured bytes reachable until the user retries or removes the row.
+                        const retry = document.createElement('button');
+                        retry.className = 'text-xs border border-gray-700 rounded px-2 py-1';
+                        retry.textContent = '再試行';
+                        retry.onclick = () => {
+                            if (isUploadCancelled(rowObj)) return;
+                            retry.disabled = true;
+                            const localUrl = rowObj.row.getAttribute('data-local-url');
+                            if (localUrl) URL.revokeObjectURL(localUrl);
+                            rowObj.row.remove();
+                            handleFiles([t], { ...opts, openModal: true, skipCompression: true });
+                        };
+                        rowObj.row.appendChild(retry);
+                    }
+                    return success;
                 } finally {
                     if (generation === uploadGeneration) {
                         if (currentUploadId) {
@@ -19670,16 +19710,18 @@
                     }
                 }
             };
+            const results = new Array(allowedIncoming.length).fill(false);
             let cursor = 0;
             const workerCount = Math.min(UPLOAD_CONCURRENCY, allowedIncoming.length);
             const workers = Array.from({ length: workerCount }).map(async () => {
                 while (true) {
                     const idx = cursor++;
                     if (idx >= allowedIncoming.length) break;
-                    await processOne(allowedIncoming[idx]);
+                    results[idx] = await processOne(allowedIncoming[idx]);
                 }
             });
             await Promise.all(workers);
+            return results;
         }
         get('clear-file-btn').onclick = (e) => { e.stopPropagation(); resetUploadState(); };
         if (get('clear-mask-btn')) {
@@ -20937,7 +20979,7 @@
                 container.appendChild(msgEl);
                 if (doScroll) scrollToBottom();
                 if (!isUser) {
-                    queueMessageDecorations(msgEl, displayText);
+                    if (msgEl.isConnected) queueMessageDecorations(msgEl, displayText);
                     syncCodingTargetButtons(msgEl);
                     syncCodingModeUi(codingModeEnabled, { persist: false });
                 }
@@ -24319,6 +24361,10 @@
             // streamed answer completes), preserve its scroll position. Build the new
             // tree offscreen and replace the old children in one operation, so the
             // scroll range never collapses to zero during the rebuild.
+            // Raw TeX is much shorter than the typeset answer. Keep each message's
+            // height until MathJax finishes, otherwise the browser clamps scrollTop.
+            const previousChildren = keepScroll ? Array.from(container.children) : [];
+            const previousHeights = previousChildren.map(el => el.getBoundingClientRect().height);
             let previousScrollTop = null;
             if (keepScroll) {
                 previousScrollTop = container.scrollTop;
@@ -24414,6 +24460,18 @@
                 }
             }
 
+            const heldMessages = [];
+            if (keepScroll && !lowBandwidthMode) {
+                Array.from(fragment.children).forEach((el, index) => {
+                    const old = previousChildren.find(child => child.id && child.id === el.id)
+                        || (previousChildren.length === fragment.children.length ? previousChildren[index] : null);
+                    const height = old ? previousHeights[previousChildren.indexOf(old)] : 0;
+                    if (height > 0) {
+                        el.style.minHeight = `${height}px`;
+                        heldMessages.push(el);
+                    }
+                });
+            }
             container.replaceChildren(fragment);
             displayMissingMessageFiles(container, path);
 
@@ -24429,8 +24487,13 @@
             } else {
                 queueHighlight(container);
                 if (path.length) {
-                    const latestText = path[path.length - 1] && path[path.length - 1].content;
-                    queueMathTypeset(container, latestText);
+                    const mathReady = queueMathTypeset(container, path.map(message => message.content || '').join('\n'));
+                    Promise.resolve(mathReady).finally(() => {
+                        if (!heldMessages.length || !heldMessages[0].isConnected) return;
+                        const top = container.scrollTop;
+                        heldMessages.forEach(el => { el.style.minHeight = ''; });
+                        restoreThreadTreeScroll(container, top);
+                    });
                 }
             }
         }

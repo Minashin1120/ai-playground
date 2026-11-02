@@ -23,9 +23,7 @@ class ChatAutoScroll(private val thresholdPx: Float) {
     fun onUserScroll(towardTop: Boolean, canScrollBackward: Boolean) {
         if (towardTop) {
             if (!canScrollBackward) return
-            paused = true
-            resumeArmed = false
-            following = false
+            pause()
         } else if (paused) {
             resumeArmed = true
         }
@@ -39,6 +37,13 @@ class ChatAutoScroll(private val thresholdPx: Float) {
         } else if (near) {
             following = true
         }
+    }
+
+    /** Pause following when navigating to a quoted message, including the last long answer. */
+    fun pause() {
+        paused = true
+        resumeArmed = false
+        following = false
     }
 
     /** Web `resumeChatAutoScroll` / `scrollToBottom(true)`. */

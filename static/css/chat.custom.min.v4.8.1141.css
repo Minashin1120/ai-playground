@@ -5175,8 +5175,23 @@ html.performance-lite-mode #sidebar:not(.compact) .sidebar-gems {
     line-height: 1.45;
 }
 #prompt-token-estimate {
-    padding-left: 0.35rem;
+    display: block;
+    max-width: 100%;
+    min-width: 0;
+    padding: 0;
+    font-size: 12px;
+    line-height: 1.3334;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-decoration: none;
     opacity: 0.85;
+}
+#prompt-token-estimate.hidden { display: none; }
+#prompt-token-estimate:enabled:hover,
+#prompt-token-estimate:focus-visible {
+    background: rgba(128, 128, 128, 0.08);
+    opacity: 1;
 }
 
 /* Quote / edit / coding bars — compact pills */
@@ -6902,4 +6917,19 @@ body:not(.liquid-glass-mode) #send-btn.pulse-ready {
     position: fixed !important; z-index: 35; margin: 0 !important;
     pointer-events: none !important; transform-origin: top left;
     overflow: hidden; will-change: transform, opacity; box-sizing: border-box;
+}
+
+/* MathJax display equations keep their natural width inside the message. */
+.message-bubble { min-width: 0; }
+.message-bubble mjx-container[display="true"] {
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    touch-action: pan-x pan-y;
+    -webkit-overflow-scrolling: touch;
+}
+.message-bubble mjx-container,
+.message-bubble mjx-container * {
+    -webkit-user-select: text;
+    user-select: text;
 }

@@ -1034,9 +1034,14 @@
                 if (get('camera-split-enabled').checked) {
                     await openImageSplit(filesToUpload);
                 } else {
-                    await handleFiles(filesToUpload, { openModal: false });
+                    const results = await handleFiles(filesToUpload, { openModal: false, cameraCapture: true });
+                    const attached = results.filter(Boolean).length;
+                    if (attached > 0) showToast(`${attached}枚の画像を添付しました`, 'success');
+                    if (attached < filesToUpload.length) {
+                        showToast('添付できなかった画像はアップロード画面から再試行できます。', 'warning', true);
+                        openUploadModal();
+                    }
                 }
-                if (!get('camera-split-enabled').checked) showToast(`${filesToUpload.length}枚の画像を添付しました`, 'success');
             } catch (e) {
                 const msg = (e && e.message) ? e.message : '撮影画像の添付に失敗しました';
                 showToast(msg, 'error', true);

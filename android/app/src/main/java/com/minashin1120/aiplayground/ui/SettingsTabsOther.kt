@@ -498,7 +498,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
                     if (item.imageCount > 0) Text("添付画像: ${item.imageCount}枚", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.padding(top = 4.dp))
                     FeedbackReplies(item, admin = false)
                     key(item.id) {
-                        FeedbackReplyForm(!state.feedbackBusy, notify, serverLogs = state.preferences?.enableServerDiagnosticLog == true) { message, withLogs, images -> model.replyFeedback(item, message, withLogs, images) }
+                        FeedbackReplyForm(!state.feedbackBusy, notify, chatAvailable = state.selected != null, serverLogs = state.preferences?.enableServerDiagnosticLog == true) { message, withLogs, images, withChat -> model.replyFeedback(item, message, withLogs, images, withChat) }
                     }
                     SettingsSmallButton("削除", { deleting = item }, modifier = Modifier.padding(top = 8.dp),
                         tone = SettingsButtonTone.Red, fontSize = 10.sp, enabled = !state.feedbackBusy)
@@ -527,7 +527,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
             filteredItems.forEach { item ->
                 key(item.id) {
                     AdminFeedbackRow(item, !state.feedbackBusy, notify, { status -> model.updateFeedback(item, status) },
-                        { message, withLogs, images -> model.replyFeedback(item, message, withLogs, images) }, serverLogs = state.preferences?.enableServerDiagnosticLog == true) { deleting = item }
+                        { message, withLogs, images, withChat -> model.replyFeedback(item, message, withLogs, images, withChat) }, chatAvailable = state.selected != null, serverLogs = state.preferences?.enableServerDiagnosticLog == true) { deleting = item }
                 }
             }
         }
@@ -558,6 +558,7 @@ private fun FeedbackReplies(item: FeedbackItem, admin: Boolean) {
                     Text("$who / ${reply.createdAt}", fontSize = 11.sp, color = Tw.gray400)
                     Text(reply.message, fontSize = 14.sp, color = if (reply.role == "admin") Tw.green300 else web.twText(Tw.gray200))
                     if (admin) {
+                        if (reply.chatFile.isNotBlank()) Text("チャットのコピー: ${reply.chatFile}", fontSize = 11.sp, color = Tw.amber300)
                         if (reply.logFile.isNotBlank()) Text("操作ログ: ${reply.logFile}", fontSize = 11.sp, color = Tw.amber300)
                         if (reply.imageDir.isNotBlank()) Text("添付画像（${reply.imageCount}枚）: ${reply.imageDir}", fontSize = 11.sp, color = Tw.amber300)
                     } else if (reply.imageCount > 0) Text("添付画像: ${reply.imageCount}枚", fontSize = 11.sp, color = Tw.gray400)
@@ -598,10 +599,11 @@ private fun FeedbackImagesField(images: List<Uri>, notify: (String) -> Unit, onC
 
 /** Web `feedbackReplyFormHtml`: the reply box under the history; each 返信 adds to it. The log box needs ログの収集を強化. */
 @Composable
-private fun FeedbackReplyForm(enabled: Boolean, notify: (String) -> Unit, serverLogs: Boolean = false, onSend: (String, Boolean, List<Uri>) -> Unit) {
+private fun FeedbackReplyForm(enabled: Boolean, notify: (String) -> Unit, serverLogs: Boolean = false, chatAvailable: Boolean = true, onSend: (String, Boolean, List<Uri>, Boolean) -> Unit) {
     val web = LocalWebPalette.current
     var message by remember { mutableStateOf("") }
     var withLogs by remember { mutableStateOf(false) }
+    var withChat by remember { mutableStateOf(false) }
     var images by remember { mutableStateOf<List<Uri>>(emptyList()) }
     val logsOn = ActivityLog.enabled || serverLogs
     Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -612,9 +614,14 @@ private fun FeedbackReplyForm(enabled: Boolean, notify: (String) -> Unit, server
             SettingsCheck(FEEDBACK_REPLY_LOGS_LABEL, withLogs && logsOn, { withLogs = it }, enabled = logsOn, boxSize = 14.dp, labelColor = web.text)
             SettingsDesc(if (logsOn) FEEDBACK_REPLY_LOGS_ON else FEEDBACK_REPLY_LOGS_OFF, Modifier.padding(start = 22.dp, top = 4.dp))
         }
+        Column {
+            SettingsCheck(FEEDBACK_CHAT_COPY_LABEL, withChat, { withChat = it }, boxSize = 14.dp, labelColor = web.text)
+            SettingsDesc(FEEDBACK_CHAT_COPY_DESCRIPTION, Modifier.padding(start = 22.dp, top = 4.dp))
+        }
         SettingsSmallButton("返信", {
             if (message.isBlank()) notify("返信内容を入力してください")
-            else { onSend(message.trim(), withLogs && logsOn, images); message = ""; withLogs = false; images = emptyList() }
+            else if (withChat && !chatAvailable) notify("コピーを送信するチャットが開かれていません")
+            else { onSend(message.trim(), withLogs && logsOn, images, withChat); message = ""; withLogs = false; withChat = false; images = emptyList() }
         }, tone = SettingsButtonTone.Blue, enabled = enabled)
     }
 }
@@ -623,7 +630,7 @@ private fun FeedbackReplyForm(enabled: Boolean, notify: (String) -> Unit, server
 @Composable
 private fun AdminFeedbackRow(
     item: FeedbackItem, enabled: Boolean, notify: (String) -> Unit, onSave: (String) -> Unit,
-    onReply: (String, Boolean, List<Uri>) -> Unit, serverLogs: Boolean = false, onDelete: () -> Unit,
+    onReply: (String, Boolean, List<Uri>, Boolean) -> Unit, serverLogs: Boolean = false, chatAvailable: Boolean = true, onDelete: () -> Unit,
 ) {
     val web = LocalWebPalette.current
     val shape = RoundedCornerShape(4.dp)
@@ -650,7 +657,7 @@ private fun AdminFeedbackRow(
             SettingsSmallButton("削除", onDelete, tone = SettingsButtonTone.Red, enabled = enabled)
         }
         FeedbackReplies(item, admin = true)
-        FeedbackReplyForm(enabled, notify, serverLogs, onReply)
+        FeedbackReplyForm(enabled, notify, serverLogs, chatAvailable, onReply)
     }
 }
 

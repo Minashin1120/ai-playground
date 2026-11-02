@@ -196,7 +196,7 @@
                 if (!replies.length) return '';
                 return `<div class="fb-replies mt-2 space-y-2 border-l-2 border-gray-700 pl-2">${replies.map(r => {
                     const who = r.role === 'admin' ? (isAdmin && r.author ? `管理者 (${r.author})` : '管理者') : (isAdmin ? '送信者' : 'あなた');
-                    const files = isAdmin ? [r.log_file && `操作ログ: ${r.log_file}`, r.image_dir && `添付画像（${r.image_count}枚）: ${r.image_dir}`] : [r.image_count && `添付画像: ${r.image_count}枚`];
+                    const files = isAdmin ? [r.log_file && `操作ログ: ${r.log_file}`, r.chat_file && `チャットのコピー: ${r.chat_file}`, r.image_dir && `添付画像（${r.image_count}枚）: ${r.image_dir}`] : [r.image_count && `添付画像: ${r.image_count}枚`];
                     return `<div class="text-[11px]"><div class="text-gray-400">${escapeHtml(who)} / ${escapeHtml(r.created_at || '')}</div><div class="text-sm whitespace-pre-wrap ${r.role === 'admin' ? 'text-green-300' : 'text-gray-200'}">${escapeHtml(r.message)}</div>${files.filter(Boolean).map(t => `<div class="${isAdmin ? 'text-amber-300' : 'text-gray-400'}">${escapeHtml(t)}</div>`).join('')}</div>`;
                 }).join('')}</div>`;
             }
@@ -215,6 +215,10 @@
                             <span class="block text-xs font-bold text-white">${FB_REPLY_LOGS_LABEL}</span>
                             <span class="fb-reply-logs-note block text-[10px] text-gray-500 mt-1"></span>
                         </span>
+                    </label>
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="checkbox" class="fb-reply-chat accent-amber-500 mt-0.5 shrink-0">
+                        <span class="text-xs text-white">現在開いているチャットのコピーを送信する<span class="block text-[10px] text-gray-500">開いているチャットのメッセージ、回答、思考過程、添付ファイル、チャットの設定と、そのチャットに関するエラーログなどの記録を復号して、不具合の調査用に送信します。送信したコピーは、チャットを削除しても残ります。</span></span>
                     </label>
                     <button type="button" class="fb-reply-send bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">返信</button>
                 </div>`;
@@ -238,6 +242,9 @@
                     const payload = {message, client: 'web', version: (window.CHAT_CONFIG && window.CHAT_CONFIG.appVersion) || ''};
                     const clientLogs = logs.checked && window.ActivityLog ? window.ActivityLog.feedbackPayload() : null;
                     if (clientLogs) payload.client_logs = clientLogs;
+                    const chatCopy = form.querySelector('.fb-reply-chat').checked;
+                    if (chatCopy && !currentThreadId) { showToast("コピーを送信するチャットが開かれていません", "error", true); return; }
+                    if (chatCopy) payload.chat_copy = window.ActivityLog ? window.ActivityLog.chatCopyPayload(currentThreadId) : {client: 'web', thread_id: String(currentThreadId)};
                     const files = picker.files();
                     send.disabled = true;
                     try {
@@ -248,10 +255,12 @@
                         const failed = [];
                         if (clientLogs && data.logs_saved === false) failed.push('ログ');
                         if (!imagesSaved) failed.push('画像');
+                        if (chatCopy && data.chat_copy_saved !== true) failed.push('チャットのコピー');
                         if (failed.length) {
                             showToast(`返信を送信しました（${failed.join('と')}は保存できませんでした）`, "error", true);
                         } else {
                             const sent = ['返信'];
+                            if (chatCopy) sent.push('チャットのコピー');
                             if (clientLogs) sent.push(`保存期間内のログ（${typeof data.logs_count === 'number' ? data.logs_count : clientLogs.entries.length}件）`);
                             if (files.length) sent.push(`画像（${files.length}枚）`);
                             showToast(sent.join(sent.length > 2 ? '、' : 'と') + 'を送信しました', "success");

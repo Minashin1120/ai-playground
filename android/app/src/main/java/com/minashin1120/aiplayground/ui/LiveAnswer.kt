@@ -56,8 +56,10 @@ import kotlinx.coroutines.delay
 private fun skeletonBrush(userBubble: Boolean = false): Brush {
     val web = LocalWebPalette.current
     val reduce = LocalReduceMotion.current
+    // CSS's oversized background moves right as background-position goes from 100% to -100%.
+    // Shader coordinates are direct positions, so their values increase for the same sweep.
     val shift = if (reduce) 0.5f else rememberInfiniteTransition(label = "skeleton").animateFloat(
-        1f, -1f, infiniteRepeatable(tween(1550, easing = LinearEasing), RepeatMode.Restart), label = "skeleton shift",
+        -1f, 1f, infiniteRepeatable(tween(1550, easing = LinearEasing), RepeatMode.Restart), label = "skeleton shift",
     ).value
     val base = if (userBubble) Color(191, 219, 254) else Color(148, 163, 184)
     val highlight = if (userBubble) Color.White.copy(alpha = 0.38f) else web.theme.rgb(0.28f)

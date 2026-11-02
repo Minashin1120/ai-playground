@@ -67,7 +67,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -297,7 +296,7 @@ fun Composer(
             AnimatedVisibility(state.quote.isNotBlank(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                 Box(Modifier.onGloballyPositioned { sendMotion?.quoteSource = it.boundsInWindow() }) {
                     DisposableEffect(Unit) { onDispose { sendMotion?.quoteSource = null } }
-                    QuoteBar(shownQuote.orEmpty(), onClear = model::clearQuote)
+                    QuoteBar(shownQuote.orEmpty(), canNavigate = state.messages.any { it.id == state.quoteSourceId }, onNavigate = model::navigateToQuote, onClear = model::clearQuote)
                 }
             }
             AnimatedVisibility(state.codingMode, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
@@ -375,7 +374,6 @@ fun Composer(
                     onPlus = { thinkingSliderOpen = false; minimalOptionsOpen = !minimalOptionsOpen }, onSend = sendOrSlash,
                     onEnter = onEnter, onKey = onPaletteKey, interaction = inputInteraction, focusRequester = focusRequester)
                 if (state.micMode == "preparing" || state.micMode == "recording") MicRecordingIndicator(state.micMode, state.micLevels, phone)
-                TokenEstimate(state)
             }
         }
     }
@@ -400,7 +398,7 @@ private fun Modifier.composerDock(web: WebPalette, minimal: Boolean, phone: Bool
 
 /** `#quote-bar`: the quoted text with its left rule, and × to drop it. */
 @Composable
-private fun QuoteBar(text: String, onClear: () -> Unit) {
+private fun QuoteBar(text: String, canNavigate: Boolean, onNavigate: () -> Unit, onClear: () -> Unit) {
     val web = LocalWebPalette.current
     ComposerBar(
         background = if (web.isLight) Color.White.copy(alpha = 0.9f) else Color(8, 14, 28).copy(alpha = 0.9f),
@@ -412,6 +410,7 @@ private fun QuoteBar(text: String, onClear: () -> Unit) {
             fontSize = 12.sp, fontStyle = FontStyle.Italic, maxLines = 1, overflow = TextOverflow.Ellipsis,
             color = if (web.isLight) web.text else Color(0xFFCBD5F5),
             modifier = Modifier.weight(1f)
+                .clickable(enabled = canNavigate, role = Role.Button, onClickLabel = "引用元へ移動", onClick = onNavigate)
                 .drawBehind { drawRect(web.theme.t500, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) }
                 .padding(start = 8.dp),
         )
@@ -1164,9 +1163,9 @@ private fun SendStopButton(state: ChatState, phone: Boolean, onSend: () -> Unit,
     }
 }
 
-/** `#prompt-token-estimate`, refreshed 700 ms after the input settles (Web `schedulePromptTokenEstimate`). */
+/** Input estimate in the conversation token bar, refreshed 700 ms after the input settles. */
 @Composable
-private fun TokenEstimate(state: ChatState) {
+internal fun PromptTokenEstimate(state: ChatState) {
     val web = LocalWebPalette.current
     val model = state.model
     val message = state.draft
@@ -1202,11 +1201,11 @@ private fun TokenEstimate(state: ChatState) {
         else -> if (web.isLight) Color(105, 117, 136) else Tw.gray500
     }
     val canOpen = !pending && result?.optBoolean("countable") == true && estimatedInput == inputKey
-    Text(line.text, textDecoration = if (canOpen) TextDecoration.Underline else null, fontSize = 10.sp, lineHeight = 20.sp, color = color, maxLines = 2,
+    Text(line.text, fontSize = 12.sp, lineHeight = 16.sp, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis,
         modifier = Modifier.clickable(enabled = canOpen,
             role = Role.Button, onClickLabel = "入力トークン見積の詳細") {
             result?.let { snapshot = PromptTokenEstimateSnapshot(model, message, quote, files.toList(), it) }
-        }.padding(top = 4.dp, start = 5.6.dp, end = 4.dp).alpha(0.85f))
+        }.alpha(0.85f))
 }
 
 /** Supplies the token-estimate request so previews and tests can render the composer without a network. */

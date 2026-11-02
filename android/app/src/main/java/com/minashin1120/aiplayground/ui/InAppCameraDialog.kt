@@ -11,6 +11,7 @@ import androidx.camera.view.PreviewView
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ZoomState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -47,6 +50,7 @@ import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -92,11 +96,22 @@ internal fun InAppCameraDialog(
         if (permissionGranted) {
             val session = remember(context) { InAppCameraSession(context) }
             var zoomState by remember(session) { mutableStateOf<ZoomState?>(null) }
+            var focusState by remember(session) { mutableStateOf<CameraFocusState?>(null) }
+            LaunchedEffect(focusState) {
+                val focus = focusState ?: return@LaunchedEffect
+                if (focus.finished) {
+                    delay(1800)
+                    focusState = null
+                }
+            }
             DisposableEffect(session, lifecycleOwner) {
                 val unbind = session.bind(lifecycleOwner) { onError("カメラを起動できません。") }
                 val zoomObserver = Observer<ZoomState> { zoomState = it }
                 session.zoomState.observe(lifecycleOwner, zoomObserver)
+                val focusObserver = Observer<CameraFocusState?> { focusState = it }
+                session.focusState.observe(lifecycleOwner, focusObserver)
                 onDispose {
+                    session.focusState.removeObserver(focusObserver)
                     session.zoomState.removeObserver(zoomObserver)
                     unbind()
                 }
@@ -110,6 +125,12 @@ internal fun InAppCameraDialog(
                     } },
                     modifier = Modifier.fillMaxSize(),
                 )
+                focusState?.let { focus ->
+                    Canvas(Modifier.fillMaxSize()) {
+                        val color = if (!focus.finished) Color.Yellow else if (focus.success) Color.Green else Color.Red
+                        drawCircle(color, radius = 30.dp.toPx(), center = Offset(focus.x, focus.y), style = Stroke(2.dp.toPx()))
+                    }
+                }
                 Text(
                     "閉じる", color = Color.White, modifier = Modifier.align(Alignment.TopStart)
                         .statusBarsPadding().padding(20.dp).clickable(onClick = close),
@@ -128,6 +149,17 @@ internal fun InAppCameraDialog(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
+                    Text(
+                        focusState?.let { focus ->
+                            if (!focus.finished) "ピントを合わせています..."
+                            else if (focus.success) "ピントが合いました"
+                            else "ピントを合わせられませんでした。もう一度タップしてください。"
+                        } ?: "映像をタップしてピントを合わせる",
+                        color = Color.White, fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                            .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
                     if (shots.isNotEmpty()) {
                         Text(
                             "${shots.size}枚撮影済み。続けて撮影するか「添付」を押してください。",

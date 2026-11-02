@@ -265,6 +265,7 @@ data class FeedbackReply(
     val logFile: String = "",
     val imageCount: Int = 0,
     val imageDir: String = "",
+    val chatFile: String = "",
 )
 
 /** GET `/api/feedback?all=1`: every feedback for an administrator, otherwise the user's own. */
@@ -469,6 +470,7 @@ private fun parseFeedbackReplies(row: JSONObject): List<FeedbackReply> {
             createdAt = reply.nullableString("created_at"),
             author = reply.nullableString("author"),
             logFile = reply.nullableString("log_file"),
+            chatFile = reply.nullableString("chat_file"),
             imageCount = reply.optInt("image_count"),
             imageDir = reply.nullableString("image_dir"),
         )

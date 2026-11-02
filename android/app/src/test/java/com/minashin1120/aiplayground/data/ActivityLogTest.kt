@@ -108,6 +108,12 @@ class ActivityLogTest {
         assertEquals("フィードバックを送信しました（画像は保存できませんでした）", feedbackSentText(null, true, false, false, 2, false))
     }
 
+    @Test fun feedbackReplyReportsChatCopyFailuresSeparately() {
+        assertEquals("返信とチャットのコピーを送信しました", feedbackReplySentText(null, true, withChat = true))
+        assertEquals("返信を送信しました（チャットのコピーは保存できませんでした）",
+            feedbackReplySentText(null, true, withChat = true, chatSaved = false))
+    }
+
     @Test fun feedbackReplySentTextNamesTheLogsOnlyWhenTheyWentWithIt() {
         assertEquals("返信を送信しました", feedbackReplySentText(null, true))
         assertEquals("返信と保存期間内のログ（4件）を送信しました", feedbackReplySentText(4, true))

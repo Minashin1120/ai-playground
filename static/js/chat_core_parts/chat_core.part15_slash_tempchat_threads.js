@@ -294,6 +294,10 @@
             // streamed answer completes), preserve its scroll position. Build the new
             // tree offscreen and replace the old children in one operation, so the
             // scroll range never collapses to zero during the rebuild.
+            // Raw TeX is much shorter than the typeset answer. Keep each message's
+            // height until MathJax finishes, otherwise the browser clamps scrollTop.
+            const previousChildren = keepScroll ? Array.from(container.children) : [];
+            const previousHeights = previousChildren.map(el => el.getBoundingClientRect().height);
             let previousScrollTop = null;
             if (keepScroll) {
                 previousScrollTop = container.scrollTop;
@@ -389,6 +393,18 @@
                 }
             }
 
+            const heldMessages = [];
+            if (keepScroll && !lowBandwidthMode) {
+                Array.from(fragment.children).forEach((el, index) => {
+                    const old = previousChildren.find(child => child.id && child.id === el.id)
+                        || (previousChildren.length === fragment.children.length ? previousChildren[index] : null);
+                    const height = old ? previousHeights[previousChildren.indexOf(old)] : 0;
+                    if (height > 0) {
+                        el.style.minHeight = `${height}px`;
+                        heldMessages.push(el);
+                    }
+                });
+            }
             container.replaceChildren(fragment);
             displayMissingMessageFiles(container, path);
 
@@ -404,8 +420,13 @@
             } else {
                 queueHighlight(container);
                 if (path.length) {
-                    const latestText = path[path.length - 1] && path[path.length - 1].content;
-                    queueMathTypeset(container, latestText);
+                    const mathReady = queueMathTypeset(container, path.map(message => message.content || '').join('\n'));
+                    Promise.resolve(mathReady).finally(() => {
+                        if (!heldMessages.length || !heldMessages[0].isConnected) return;
+                        const top = container.scrollTop;
+                        heldMessages.forEach(el => { el.style.minHeight = ''; });
+                        restoreThreadTreeScroll(container, top);
+                    });
                 }
             }
         }

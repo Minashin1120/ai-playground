@@ -601,7 +601,7 @@
                 container.appendChild(msgEl);
                 if (doScroll) scrollToBottom();
                 if (!isUser) {
-                    queueMessageDecorations(msgEl, displayText);
+                    if (msgEl.isConnected) queueMessageDecorations(msgEl, displayText);
                     syncCodingTargetButtons(msgEl);
                     syncCodingModeUi(codingModeEnabled, { persist: false });
                 }

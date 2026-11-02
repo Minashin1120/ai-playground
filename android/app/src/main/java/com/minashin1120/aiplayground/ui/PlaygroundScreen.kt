@@ -190,6 +190,7 @@ fun PlaygroundScreen(
             LocalContentColor provides colors.onBackground,
             LocalReduceMotion provides reduceMotion,
             LocalAttachmentDownloader provides model::downloadAttachment,
+            LocalImageCacheKey provides model::attachmentImageCacheKey,
         ) {
             InAppNoticeProvider {
             BoxWithConstraints(
@@ -1561,6 +1562,25 @@ private fun ConversationContent(
     LaunchedEffect(state.streaming) { if (state.streaming && follow.following) jumpToBottom() }
     SideEffect { sendMotion?.following = follow.following }
     DisposableEffect(follow) { onDispose { sendMotion?.finish() } }
+    val quoteFocusManager = LocalFocusManager.current
+    LaunchedEffect(state.quoteNavigationRequest) {
+        if (state.quoteNavigationRequest == 0L || state.quote.isBlank()) return@LaunchedEffect
+        val row = state.messages.indexOfFirst { it.id == state.quoteSourceId }
+        val op = java.util.UUID.randomUUID().toString()
+        fun trace(phase: String) = com.minashin1120.aiplayground.data.ActivityLog.log("ui.interaction",
+            "op" to op, "ui_element" to "message", "interaction_stage" to "scroll", "phase" to phase)
+        trace("start")
+        if (row < 0) { trace("error"); return@LaunchedEffect }
+        quoteFocusManager.clearFocus()
+        follow.pause()
+        try {
+            val index = row + (if (loadingThread) 1 else 0) + (if (state.hasOlder) 1 else 0)
+            if (reduce) scroll.scrollToItem(index, state.quoteSourceScrollOffset)
+            else scroll.animateScrollToItem(index, state.quoteSourceScrollOffset)
+            trace("done")
+        } catch (e: CancellationException) { trace("cancelled"); throw e }
+        catch (e: Exception) { trace("error") }
+    }
     val showScrollToBottom by remember(follow) { derivedStateOf { follow.showsJumpButton(distanceToBottom()) } }
     val followConnection = remember(follow) {
         object : NestedScrollConnection {
@@ -1612,7 +1632,12 @@ private fun ConversationContent(
                 Box(Modifier.fillMaxWidth().height(1.dp).background(if (palette.isLight) Color(15, 23, 42).copy(alpha = 0.10f) else Tw.gray700))
             }
         }
-        TotalTokenBar(pathTotals, allTotals) { tokenDetail = it }
+        CompositionLocalProvider(LocalComposerEstimator provides model::estimatePromptTokens,
+            LocalComposerDetailsEstimator provides model::estimatePromptTokenDetails) {
+            val hasDraft = state.editingAttachment == null && (state.draft.isNotBlank() || state.quote.isNotBlank() || state.attachments.isNotEmpty())
+            TotalTokenBar(pathTotals, allTotals, showEstimate = hasDraft,
+                estimate = { PromptTokenEstimate(state) }) { tokenDetail = it }
+        }
         state.batchBanner?.let { (text, _) ->
             BatchCompletionBanner(text, onOpen = { model.dismissBatchBanner(open = true) }, onClose = { model.dismissBatchBanner(open = false) })
         }
@@ -1663,7 +1688,12 @@ private fun ConversationContent(
                     ConversationMessageEntry(keys.keyAt(row, message), answer = message.role == "assistant",
                         animate = entering && message.id != state.promptSendMotionId, answers = answerMotions) {
                         // Web sends `quote_message_id`: a selection inside this bubble remembers which message it came from.
-                        ProvideQuoteSelection({ quoted -> model.quoteMessage(quoted, numericId(message)) }) {
+                        ProvideQuoteSelection({ quoted ->
+                            // Preserve the visible part of a long answer, rather than returning to its heading.
+                            val offset = scroll.layoutInfo.visibleItemsInfo.firstOrNull { it.key == keys.keyAt(row, message) }
+                                ?.offset?.let { -it } ?: 0
+                            model.quoteMessage(quoted, numericId(message), message.id, offset)
+                        }) {
                         MessageBubble(
                             message = message,
                             sendMotion = promptSendBubbleModifier(message.id),

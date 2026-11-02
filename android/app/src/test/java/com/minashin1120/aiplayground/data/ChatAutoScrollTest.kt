@@ -35,6 +35,17 @@ class ChatAutoScrollTest {
         assertTrue(follow.following)
     }
 
+    @Test fun navigatingToAQuoteInTheLastAnswerKeepsFollowingPaused() {
+        val follow = ChatAutoScroll(thresholdPx = 64f)
+        follow.pause()
+        follow.onPosition(0f)
+        assertFalse(follow.following)
+        follow.onPosition(500f)
+        assertTrue(follow.showsJumpButton(500f))
+        follow.resume()
+        assertTrue(follow.following)
+    }
+
     @Test fun sendingOrTheJumpButtonResumes() {
         val follow = ChatAutoScroll(thresholdPx = 64f)
         follow.onUserScroll(towardTop = true, canScrollBackward = true)

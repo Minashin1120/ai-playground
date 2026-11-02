@@ -18,6 +18,23 @@ import java.util.UUID
  * (messages) and `files/<digest>.enc` with `files.enc` (attachment bytes).
  */
 class LocalChatStore(private val root: File, private val crypto: EncryptedFileStore) {
+    // UI cache identities only: no disk access during composition, and no retained image bytes here.
+    private val imageReferences = LinkedHashMap<String, String>()
+
+    @Synchronized
+    private fun rememberImageReference(reference: String, serverRef: String) {
+        val remote = com.minashin1120.aiplayground.data.fileReferencePath(serverRef) ?: return
+        imageReferences[remote] = reference
+        while (imageReferences.size > 4096) imageReferences.remove(imageReferences.keys.first())
+    }
+
+    /** Keep a decoded device image when sync replaces its reference with the uploaded filename. */
+    @Synchronized
+    fun imageCacheReference(reference: String): String {
+        val remote = com.minashin1120.aiplayground.data.fileReferencePath(reference) ?: return reference
+        return imageReferences[remote] ?: remote
+    }
+
     /** Shared by eager upload, send and outbox sync; never holds a JVM monitor across network IO. */
     internal val attachmentUploadMutex = kotlinx.coroutines.sync.Mutex()
 
@@ -902,7 +919,10 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     fun fileExists(reference: String): Boolean = fileTarget(reference).isFile
 
     @Synchronized
-    fun fileInfo(reference: String): JSONObject? = loadFileIndex().optJSONObject(reference)
+    fun fileInfo(reference: String): JSONObject? = loadFileIndex().optJSONObject(reference)?.also { info ->
+        info.optString("server_ref").takeIf { it.isNotBlank() && it != "null" }
+            ?.let { rememberImageReference(reference, it) }
+    }
 
     /** Attachment bytes, or null; [cancelled] lets a stopped answer or sync leave a long read. */
     fun loadFile(reference: String, limit: Long, cancelled: () -> Boolean = { false }): ByteArray? {
@@ -941,6 +961,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
             .filterNot { it.optString("local") == reference }
         state.put("file_aliases", JSONArray((kept + JSONObject().put("local", reference).put("server", serverRef)).takeLast(4096)))
         saveIndex(state)
+        rememberImageReference(reference, serverRef)
     }
 
     /** Resolve references captured by open UI before sync removed the device file. */

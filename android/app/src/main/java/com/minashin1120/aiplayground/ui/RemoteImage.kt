@@ -51,6 +51,9 @@ import kotlinx.coroutines.withContext
 /** Loads same-origin attachment bytes with the Android Bearer token, or null on failure. */
 typealias FileBytesLoader = suspend (reference: String, thumbnail: Boolean, limit: Long) -> ByteArray?
 
+/** The host resolves device/upload aliases and separates account and server caches. */
+internal val LocalImageCacheKey = androidx.compose.runtime.staticCompositionLocalOf<(String) -> String> { { it } }
+
 internal object ProtectedImageCache {
     private val cache = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap): Int = value.byteCount
@@ -104,7 +107,8 @@ fun ProtectedImage(
     /** Where the fitted frame sits in the available width (Web `object-fit: contain` centers it). */
     fitAlignment: Alignment = Alignment.TopStart,
 ) {
-    val key = "$reference|${if (thumbnail) "t" else "f"}|$maxDecodeWidth"
+    val identity = LocalImageCacheKey.current(reference)
+    val key = "$identity|${if (thumbnail) "t" else "f"}|$maxDecodeWidth"
     var bitmap by remember(key) { mutableStateOf(ProtectedImageCache.get(key)) }
     LaunchedEffect(bitmap) { bitmap?.let { onImageSize?.invoke(IntSize(it.width, it.height)) } }
     var failed by remember(key) { mutableStateOf(false) }

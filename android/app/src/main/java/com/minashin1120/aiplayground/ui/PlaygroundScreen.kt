@@ -176,11 +176,12 @@ fun PlaygroundScreen(
     val imageSplit by model.imageSplit.collectAsStateWithLifecycle()
     val sharedTextPreview by model.sharedTextPreview.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val minimalPromptMode = state.preferences?.effectivePromptBarMode == "minimal"
     val gestureNavigation = remember(context) {
         val modeId = context.resources.getIdentifier("config_navBarInteractionMode", "integer", "android")
         modeId != 0 && context.resources.getInteger(modeId) == 2
     }
-    val contentInsets = if (gestureNavigation) {
+    val contentInsets = if (gestureNavigation && minimalPromptMode) {
         WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
     } else {
         WindowInsets.safeDrawing

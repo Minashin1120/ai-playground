@@ -3809,7 +3809,7 @@ button.bg-blue-600:not(.message-bubble) {
     }
     .composer-dock,
     .bg-gray-800.border-t.border-gray-700 {
-        padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+        padding-bottom: max(0.75rem, env(safe-area-max-inset-bottom, 0px));
     }
 }
 
@@ -5865,7 +5865,7 @@ body.liquid-glass-mode .message-bubble.bg-gray-700 {
 /* Mobile sidebar drawer footer stays above the gesture navigation bar. */
 @media (max-width: 768px) {
     .sidebar-footer {
-        padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+        padding-bottom: calc(0.75rem + env(safe-area-max-inset-bottom, 0px));
     }
 }
 
@@ -5886,10 +5886,12 @@ html.performance-lite-mode body.minimal-prompt-mode .composer-dock {
 /* Float the prompt bar over the conversation so the area around it is
    transparent and messages scroll behind it (edge-to-edge minimal mode). */
 body.minimal-prompt-mode .composer-dock {
+    /* Chrome requires dynamic safe-area offsets on bottom, never padding. */
+    padding-bottom: 0.75rem;
     position: absolute;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: env(safe-area-inset-bottom, 0px);
     z-index: 30;
 }
 body.minimal-prompt-mode #chat-container {

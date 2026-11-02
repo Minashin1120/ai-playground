@@ -77,6 +77,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.text.AnnotatedString
@@ -181,7 +182,8 @@ fun PlaygroundScreen(
         val modeId = context.resources.getIdentifier("config_navBarInteractionMode", "integer", "android")
         modeId != 0 && context.resources.getInteger(modeId) == 2
     }
-    val contentInsets = if (gestureNavigation && minimalPromptMode) {
+    val edgeToEdgeMinimal = gestureNavigation && minimalPromptMode
+    val contentInsets = if (edgeToEdgeMinimal) {
         WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
     } else {
         WindowInsets.safeDrawing
@@ -631,7 +633,14 @@ fun PlaygroundScreen(
                         }
                     }
                 ) { padding ->
-                    Column(Modifier.fillMaxSize().padding(padding)) {
+                    // The minimal composer floats above the list. Reserving bottomBar height here
+                    // would clip the list before it can draw behind the transparent gesture area.
+                    Column(Modifier.fillMaxSize().padding(
+                        top = padding.calculateTopPadding(),
+                        bottom = if (edgeToEdgeMinimal) 0.dp else padding.calculateBottomPadding(),
+                        start = padding.calculateStartPadding(LocalLayoutDirection.current),
+                        end = padding.calculateEndPadding(LocalLayoutDirection.current),
+                    )) {
                         val screen = when {
                             state.starting -> PlaygroundScreenKind.Starting
                             state.setupRequired -> PlaygroundScreenKind.Setup
@@ -664,6 +673,7 @@ fun PlaygroundScreen(
                                         Conversation(
                                             state, model, openInApp, loader,
                                             animationsEnabled = animationsEnabled,
+                                            bottomOverlay = if (edgeToEdgeMinimal) with(LocalDensity.current) { composerHeight.toDp() } else 0.dp,
                                             onSettingJump = { key ->
                                                 val target = AI_SETTING_JUMP_TARGETS[key]
                                                 if (target?.richPaste == true) richPasteOpen = true
@@ -1427,6 +1437,7 @@ private fun Conversation(
     onFile: (String) -> Unit,
     loader: FileBytesLoader?,
     animationsEnabled: Boolean,
+    bottomOverlay: androidx.compose.ui.unit.Dp = 0.dp,
     onSettingJump: (String) -> Unit = {},
 ) {
     // What each chat pane last showed, so a leaving pane keeps its own chat while the next one fades in.
@@ -1452,7 +1463,7 @@ private fun Conversation(
         label = "chat conversation transition",
     ) { transitionId ->
         val contentState = if (transitionId == state.chatTransitionId) state else shownByTransition[transitionId] ?: state
-        ProvideQuoteSelection({ quoted -> model.quoteMessage(quoted) }) { ConversationContent(contentState, model, onFile, loader, onSettingJump) }
+        ProvideQuoteSelection({ quoted -> model.quoteMessage(quoted) }) { ConversationContent(contentState, model, onFile, loader, onSettingJump, bottomOverlay) }
     }
 }
 
@@ -1526,6 +1537,7 @@ private fun ConversationContent(
     onFile: (String) -> Unit,
     loader: FileBytesLoader?,
     onSettingJump: (String) -> Unit = {},
+    bottomOverlay: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     val reduce = LocalReduceMotion.current
     val scroll = rememberLazyListState()
@@ -1668,7 +1680,7 @@ private fun ConversationContent(
                         sendMotion?.viewport = next
                     },
                 // `#chat-container`: 12px padding on phones, 20px between message groups.
-                contentPadding = PaddingValues(12.dp),
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp + bottomOverlay),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
             if (loadingThread) item(key = CHAT_LOAD_SKELETON_KEY) { ChatLoadingSkeleton() }
@@ -1747,6 +1759,7 @@ private fun ConversationContent(
             val showWelcome = state.messages.isEmpty() && !state.busy && !loadingThread && !loadFailed && !live && !welcomeDismissed
             androidx.compose.animation.AnimatedVisibility(
                 visible = showWelcome,
+                modifier = Modifier.padding(bottom = bottomOverlay),
                 enter = fadeIn(motionTween(reduce)),
                 exit = fadeOut(motionTween(reduce, PlaygroundMotion.SHORT)),
                 label = "welcome",
@@ -1761,7 +1774,7 @@ private fun ConversationContent(
             // Qualified so the outer Column's scoped overload is not picked inside this Box.
             androidx.compose.animation.AnimatedVisibility(
                 visible = showScrollToBottom && !showWelcome,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp + bottomOverlay),
                 enter = popIn(reduce),
                 exit = popOut(reduce),
                 label = "scroll to bottom",

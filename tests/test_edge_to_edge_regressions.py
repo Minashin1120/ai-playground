@@ -46,7 +46,10 @@ class EdgeToEdgeRegressionTests(unittest.TestCase):
         minimal = css[css.index("Edge-to-edge") :]
         self.assertIn("body.minimal-prompt-mode .composer-dock {", minimal)
         self.assertIn("position: absolute;", minimal)
-        self.assertIn("bottom: 0;", minimal)
+        self.assertIn("bottom: env(safe-area-inset-bottom, 0px);", minimal)
+        # Chrome keeps its opaque chin when dynamic safe-area padding is used.
+        self.assertNotIn("padding-bottom: max(0.75rem, env(safe-area-inset-bottom))", css)
+        self.assertIn("env(safe-area-max-inset-bottom, 0px)", css)
         self.assertIn("z-index: 30;", minimal)
         self.assertIn("--composer-h", minimal)
         self.assertIn("body.minimal-prompt-mode #chat-container", minimal)

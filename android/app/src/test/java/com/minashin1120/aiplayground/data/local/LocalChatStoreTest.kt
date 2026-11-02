@@ -18,7 +18,7 @@ class LocalChatStoreTest {
 
     @Test fun promptTextSurvivesRestartAndSyncWithoutBecomingThoughts() {
         val thread = store.createThread(false, "test").getString("id")
-        val question = store.appendMessage(thread, LocalChatStore.NewMessage("user", "question", quote = "quote"))
+        val question = store.appendMessage(thread, LocalChatStore.NewMessage("user", "question", parentId = null, quote = "quote"))
         store.savePromptText(thread, question, "quote + question + fixed turn context")
         val restarted = LocalChatStore(folder.root.resolve("chats"), crypto)
         val row = restarted.messages(thread).single()

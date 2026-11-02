@@ -359,6 +359,31 @@ def build_global_system_prompt(now=None):
         now = datetime.now().astimezone()
     return f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC{now.strftime('%z')})"
 
+def _prompt_context_record(raw):
+    """Read optional turn metadata without rejecting older or damaged records."""
+    try:
+        record = json.loads(raw) if isinstance(raw, str) else raw
+        return record if isinstance(record, dict) else {}
+    except (ValueError, TypeError):
+        return {}
+
+
+def _append_turn_time_notice(text, raw):
+    notice = _prompt_context_record(raw).get('turn_time_notice')
+    if isinstance(notice, str) and notice.startswith('Current time: ') and len(notice) <= 80:
+        return f"{text or ''}\n\n[Turn context]\n{notice}"
+    return text
+
+
+def _saved_prompt_text(raw, content, quote):
+    record = _prompt_context_record(raw)
+    text = record.get('prompt_text')
+    if (isinstance(text, str) and record.get('prompt_source') == (content or '')
+            and record.get('prompt_quote') == (quote or '')):
+        return text
+    return None
+
+
 @app.before_request
 def ensure_client_token():
     if request.endpoint == 'static':

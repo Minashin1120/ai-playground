@@ -192,6 +192,7 @@ class DeepSeekPythonToolTests(unittest.TestCase):
             _ensure_mcp_env=lambda: None, _deepseek_api_model_id=target._deepseek_api_model_id,
             _deepseek_reasoning_effort=lambda: "high", _mark_provider_request_started=lambda: None,
             _latency_mark_once=lambda *a: None, job_id="test", _refresh_pending_job=lambda: None,
+            final_message_text="Calculate 6 * 7",
             thought_accumulated="", full_res="", deepseek_tool_context=[],
             accumulate_deepseek_tool_call_deltas=target.accumulate_deepseek_tool_call_deltas,
             safe_execute_python=execute, _markdown_fence_for_code=target._markdown_fence_for_code,

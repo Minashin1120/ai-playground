@@ -131,3 +131,14 @@ def test_concurrent_cache_writes_and_evictions_respect_byte_budget(kind):
         actual = sum(map(len, cache.values()))
         assert getattr(target, prefix + '_CACHE_SIZE') == actual
         assert actual <= 128
+
+
+def test_prompt_context_does_not_cross_branch(history_db):
+    session, _engine = history_db
+    model = session.query(target.Thread).first().messages[0].__class__
+    session.query(model).filter(model.id == 500).update({
+        'thought_data': '{"prompt_text":"other branch","prompt_source":"other","prompt_quote":""}'})
+    session.commit()
+    rows = list(target._iter_chat_history_ancestors(1, 150, 7))
+    assert 500 not in [row.id for row in rows]
+    assert all('other branch' not in (row.thought_data or '') for row in rows)

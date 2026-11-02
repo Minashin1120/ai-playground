@@ -271,6 +271,12 @@ def _browser_fast_mode_history(thread, parent_message):
         raw_content = current.content or ''
         content = decrypt_val(raw_content) if current.is_encrypted else raw_content
         content = str(content or '')
+        if current.role == 'user':
+            raw_context = getattr(current, 'thought_data', None)
+            if raw_context and current.is_encrypted:
+                raw_context = decrypt_val(raw_context)
+            saved_text = _saved_prompt_text(raw_context, content, getattr(current, 'quote_text', None))
+            content = saved_text if isinstance(saved_text, str) else _append_turn_time_notice(content, getattr(current, 'prompt_options', None))
         if total_chars + len(content) > 1_000_000:
             break
         images = []
@@ -369,6 +375,7 @@ def bootstrap_browser_fast_mode():
 # 歯車ボタンから開く項目（SysPrompt・Compress・一時チャットの設定）と、
 # 自由記述の項目（TTSスタイル・ネガティブプロンプト・stop文字列など）は記録しない。
 _PROMPT_OPTION_KEYS = (
+    'turn_time_notice',
     'canvas_mode', 'coding_mode', 'browser_fast_mode', 'batch_mode',
     'enable_search', 'enable_url_context', 'enable_maps', 'enable_python',
     'enable_file_creation', 'enable_mcp', 'enable_thinking', 'thinking_level',

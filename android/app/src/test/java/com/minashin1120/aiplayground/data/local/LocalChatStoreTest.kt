@@ -16,6 +16,20 @@ class LocalChatStoreTest {
     private val crypto = EncryptedFileStore(byteArrayOf('T'.code.toByte(), 1)) { key }
     private val store by lazy { LocalChatStore(folder.root.resolve("chats"), crypto) }
 
+    @Test fun promptTextSurvivesRestartAndSyncWithoutBecomingThoughts() {
+        val thread = store.createThread(false, "test").getString("id")
+        val question = store.appendMessage(thread, LocalChatStore.NewMessage("user", "question", quote = "quote"))
+        store.savePromptText(thread, question, "quote + question + fixed turn context")
+        val restarted = LocalChatStore(folder.root.resolve("chats"), crypto)
+        val row = restarted.messages(thread).single()
+        assertEquals("quote + question + fixed turn context", com.minashin1120.aiplayground.data.savedPromptText(row))
+        assertEquals("", com.minashin1120.aiplayground.data.reasoningText(row.getString("thought_data")))
+        val pending = restarted.pendingPush().single().entry.getJSONArray("messages").getJSONObject(0)
+        assertEquals("quote + question + fixed turn context", pending.getString("prompt_text"))
+        row.put("content", "edited")
+        assertNull(com.minashin1120.aiplayground.data.savedPromptText(row))
+    }
+
     @Test fun reusingAnUploadedAttachmentRestoresItsImageIdentity() {
         val file = store.saveFile("a.png", "image/png", byteArrayOf(1).inputStream(), 1)
         store.setServerReference(file, "1/uploaded.png")

@@ -163,12 +163,14 @@ class MobileSyncApiTests(unittest.TestCase):
             user.enable_e2ee = True
             target.db.session.commit()
         token = self.token()
-        self.push_chat(token, self.uid(), [{'client_uuid': self.uid(), 'role': 'user', 'content': '秘密の本文'}])
+        self.push_chat(token, self.uid(), [{'client_uuid': self.uid(), 'role': 'user', 'content': '秘密の本文', 'prompt_text': '秘密の送信テキスト'}])
         with target.app.app_context():
             message = target.Message.query.one()
             self.assertTrue(message.is_encrypted)
             self.assertNotIn('秘密', message.content)
             self.assertEqual(target.decrypt_val(message.content), '秘密の本文')
+            self.assertNotIn('秘密', message.thought_data)
+            self.assertEqual(target._saved_prompt_text(target.decrypt_val(message.thought_data), '秘密の本文', None), '秘密の送信テキスト')
 
     def test_changes_report_new_edited_and_deleted_chats(self):
         token = self.token()

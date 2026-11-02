@@ -1192,6 +1192,36 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if not isinstance(img_list, list):
                         img_list = [img_list]
                 except: pass
+            def _is_non_llm_model(m):
+                mk = str(m or "").lower().strip()
+                if not mk:
+                    return False
+                if is_mistral_ocr_model_key(mk):
+                    return True
+                if "gpt-image" in mk:
+                    return True
+                if is_ideogram_model_key(mk):
+                    return True
+                if mk in (
+                    "grok-imagine-image-2.0",
+                    "grok-imagine-image",
+                    "grok-imagine-image-pro",
+                    "grok-imagine-image-quality",
+                    "grok-imagine-video-1.5-lite",
+                    "grok-imagine-video-1.5",
+                    "grok-imagine-video",
+                ):
+                    return True
+                if "tts" in mk:
+                    return True
+                if is_gemini_image_model_key(mk):
+                    return True
+                if "gemini" in mk and "native-audio" in mk:
+                    return True
+                if is_gemini_video_model_key(mk) or is_gemini_music_model_key(mk) or is_gemini_embedding_model_key(mk):
+                    return True
+                return False
+
             # System Prompt Construction
             base_sys_prompt = options.get('system_prompt')
             if not base_sys_prompt:
@@ -1294,14 +1324,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             options['system_prompt'] = f"{curr_p}\n\n{marker_notice}"
                     else:
                         options['system_prompt'] = marker_notice
-            if use_time_notice:
-                time_notice = build_global_system_prompt()
-                curr_p = options.get('system_prompt') or ""
-                if curr_p.strip():
-                    options['system_prompt'] = f"{time_notice}\n\n{curr_p}"
-                else:
-                    options['system_prompt'] = time_notice
-            
+            # Media-only models retain their existing prompt contract.
+            if use_time_notice and _is_non_llm_model(model_key.lower()):
+                options['system_prompt'] = f"{build_global_system_prompt()}\n\n{options.get('system_prompt') or ''}".strip()
+            else:
+                prompt_record = _prompt_context_record(getattr(msg, 'prompt_options', None))
+                if use_time_notice and 'turn_time_notice' not in prompt_record:
+                    prompt_record['turn_time_notice'] = build_global_system_prompt()
+                    msg.prompt_options = json.dumps(prompt_record, ensure_ascii=False)
+                    safe_db_commit()
+                message_text = _append_turn_time_notice(message_text, prompt_record)
+
             if _auto_notice_enabled("mathjax"):
                 mathjax_notice = _auto_notice_text("mathjax")
                 curr_p = options.get('system_prompt') or ""
@@ -1397,6 +1430,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     deepseek_tool_context = candidate_context
                         except Exception:
                             deepseek_tool_context = None
+                    if current_node.role == 'user':
+                        raw_context = getattr(current_node, 'thought_data', None)
+                        if raw_context and current_node.is_encrypted:
+                            raw_context = decrypt_val(raw_context)
+                        saved_text = _saved_prompt_text(raw_context, cnt, getattr(current_node, 'quote_text', None))
+                        cnt = saved_text if isinstance(saved_text, str) else _append_turn_time_notice(cnt, getattr(current_node, 'prompt_options', None))
                     history_rev.append({
                         'role': current_node.role, 
                         'content': cnt, 
@@ -1567,35 +1606,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             is_mistral_ocr = is_mistral_ocr_model_key(model_key_l)
             is_ideogram = is_ideogram_model_key(model_key_l)
             gemini_backend_mode = "gemini_api"
-            def _is_non_llm_model(m):
-                mk = str(m or "").lower().strip()
-                if not mk:
-                    return False
-                if is_mistral_ocr_model_key(mk):
-                    return True
-                if "gpt-image" in mk:
-                    return True
-                if is_ideogram_model_key(mk):
-                    return True
-                if mk in (
-                    "grok-imagine-image-2.0",
-                    "grok-imagine-image",
-                    "grok-imagine-image-pro",
-                    "grok-imagine-image-quality",
-                    "grok-imagine-video-1.5-lite",
-                    "grok-imagine-video-1.5",
-                    "grok-imagine-video",
-                ):
-                    return True
-                if "tts" in mk:
-                    return True
-                if is_gemini_image_model_key(mk):
-                    return True
-                if "gemini" in mk and "native-audio" in mk:
-                    return True
-                if is_gemini_video_model_key(mk) or is_gemini_music_model_key(mk) or is_gemini_embedding_model_key(mk):
-                    return True
-                return False
             is_llm_model = not _is_non_llm_model(model_key_l)
 
             def _append_history_document_text():
@@ -2224,6 +2234,18 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             final_message_text = message_text
             if quote_text:
                 final_message_text = f"Context (User Quote):\n\"\"\"\n{quote_text}\n\"\"\"\n\nUser Message:\n{message_text}"
+
+            if is_llm_model:
+                image_names = [os.path.basename(str(fi.get('send_name') or fi.get('name') or 'image'))
+                               for fi in loaded_files if fi.get('bytes') and str(fi.get('mime', '')).startswith('image/')]
+                attachment_notice = _build_attachment_name_block(image_names)
+                if attachment_notice:
+                    final_message_text += f"\n\n{attachment_notice}"
+                prompt_context = json.dumps({'prompt_text': final_message_text,
+                    'prompt_source': decrypt_val(msg.content) if msg.is_encrypted else msg.content,
+                    'prompt_quote': msg.quote_text or ''}, ensure_ascii=False)
+                msg.thought_data = encrypt_val(prompt_context) if msg.is_encrypted else prompt_context
+                safe_db_commit()
 
             auto_enable_search = options.get('enable_search')
             auto_enable_url_context = options.get('enable_url_context')
@@ -4134,9 +4156,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         # Skip unsupported binary inputs for Gemini text models
                         pass
 
-                    name_block = _build_attachment_name_block(current_image_names)
-                    if name_block:
-                        curr_parts.insert(1, types.Part(text=name_block))
 
                     if pending_file_error:
                         if batch_mode:
@@ -5458,12 +5477,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         curr_user_content.append(x_image(d_uri))
                         img_label = fi.get('send_name') or fi.get('name') or f"画像{len(current_image_names) + 1}"
                         current_image_names.append(os.path.basename(str(img_label)))
-                name_block = _build_attachment_name_block(current_image_names)
-                if name_block:
-                    if curr_user_content:
-                        curr_user_content[0] += f"\n\n{name_block}"
-                    else:
-                        curr_user_content.append(name_block)
                 
                 chat_session.append(x_user(*curr_user_content))
                 
@@ -5924,10 +5937,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         else:
                             messages.append({"role": m['role'], "content": m['content']})
 
-                    user_text = ""
-                    if quote_text:
-                        user_text += f"User Quote:\n{quote_text}\n---\n"
-                    user_text += message_text
+                    user_text = final_message_text
                     file_parts = []
                     file_attach_errors = []
                     file_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for file inputs
@@ -6113,10 +6123,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         else:
                             messages.append({"role": m['role'], "content": m['content']})
 
-                    user_text = ""
-                    if quote_text:
-                        user_text += f"User Quote:\n{quote_text}\n---\n"
-                    user_text += message_text
+                    user_text = final_message_text
 
                     # Separate image files from text files
                     image_files = [fi for fi in loaded_files if fi.get('bytes') and str(fi.get('mime', '')).startswith('image/')]
@@ -6529,10 +6536,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     for m in history:
                         messages.append({"role": m['role'], "content": m['content']})
 
-                    user_text = ""
-                    if quote_text:
-                        user_text += f"User Quote:\n{quote_text}\n---\n"
-                    user_text += message_text
+                    user_text = final_message_text
 
                     # Separate image files from text files
                     image_files = [fi for fi in loaded_files if fi.get('bytes') and str(fi.get('mime', '')).startswith('image/')]
@@ -6757,9 +6761,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         input_data.append({"role": m['role'], "content": m['content']})
 
                 curr_content = []
-                if quote_text: curr_content.append({"type": text_type, "text": f"User Quote:\n{quote_text}\n---"})
-                if message_text and str(message_text).strip():
-                    curr_content.append({"type": text_type, "text": message_text})
+                if final_message_text and str(final_message_text).strip():
+                    curr_content.append({"type": text_type, "text": final_message_text})
                 file_inline_limit = 20 * 1024 * 1024  # 20MiB inline limit for file inputs
                 file_attach_errors = []
                 current_image_names = []
@@ -6829,12 +6832,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             img_bytes, img_mime, fi.get('path') or fi.get('name') or img_label,
                         )
                         current_image_names.append(os.path.basename(str(img_label)))
-                name_block = _build_attachment_name_block(current_image_names)
-                if name_block:
-                    for part in reversed(curr_content):
-                        if part.get('type') == text_type:
-                            part['text'] += f"\n\n{name_block}"
-                            break
                 if file_attach_errors:
                     parts = file_attach_errors[:5]
                     if len(file_attach_errors) > 5:

@@ -1016,7 +1016,7 @@ internal fun reasoningText(raw: String): String {
 /** Match the server prompt-options allowlist; never persist request text or credentials here. */
 internal fun promptOptionsRecord(body: JSONObject): JSONObject = JSONObject().apply {
     listOf(
-        "canvas_mode", "coding_mode", "browser_fast_mode", "batch_mode", "enable_search",
+        "turn_time_notice", "canvas_mode", "coding_mode", "browser_fast_mode", "batch_mode", "enable_search",
         "enable_url_context", "enable_maps", "enable_python", "enable_file_creation", "enable_mcp",
         "enable_thinking", "thinking_level", "thinking_budget", "reasoning_effort", "safety_setting",
         "enable_prompt_caching", "image_vision_model", "image_mask", "tts_voice", "tts_voice_custom",
@@ -1036,3 +1036,11 @@ internal fun promptOptionsRecord(body: JSONObject): JSONObject = JSONObject().ap
 /** Search completion is message metadata, independent of whether the provider exposes thoughts. */
 internal fun reasoningSearchUsed(raw: String): Boolean =
     runCatching { JSONObject(raw).optBoolean("search_used") }.getOrDefault(false)
+
+/** Replay only the text belonging to this unchanged user turn. */
+internal fun savedPromptText(row: JSONObject): String? = runCatching {
+    val record = JSONObject(row.optString("thought_data"))
+    val text = record.opt("prompt_text")
+    if (text is String && record.optString("prompt_source") == row.optString("content") &&
+        record.optString("prompt_quote") == row.optString("quote_text").takeIf { it != "null" }.orEmpty()) text else null
+}.getOrNull()

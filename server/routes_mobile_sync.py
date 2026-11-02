@@ -257,6 +257,11 @@ def _sync_insert_messages(thread, entry, result):
                 created = parent_row.timestamp + timedelta(milliseconds=1)
         quote = str(item.get('quote_text') or '')[:200_000] or None
         thought_metadata = {'text': thought} if thought else {}
+        prompt_text = item.get('prompt_text')
+        if role == 'user' and isinstance(prompt_text, str) and len(prompt_text) <= 1_000_000:
+            thought_metadata['prompt_text'] = prompt_text
+            thought_metadata['prompt_source'] = content
+            thought_metadata['prompt_quote'] = quote or ''
         if role == 'assistant' and item.get('search_used') is True:
             thought_metadata['search_used'] = True
         thought_payload = json.dumps(thought_metadata, ensure_ascii=False) if thought_metadata else None

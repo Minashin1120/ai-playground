@@ -357,6 +357,18 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         markDirty(threadId)
     }
 
+    /** The exact user text sent to the provider; encrypted with the message store. */
+    @Synchronized
+    fun savePromptText(threadId: String, id: Int, text: String) {
+        val rows = loadMessages(threadId)
+        val row = rows.firstOrNull { it.optInt("id") == id && it.optString("role") == "user" } ?: return
+        row.put("thought_data", JSONObject().put("prompt_text", text)
+            .put("prompt_source", row.optString("content"))
+            .put("prompt_quote", row.optString("quote_text").takeIf { it != "null" }.orEmpty()).toString()).put("synced", false)
+        saveMessages(threadId, rows)
+        markDirty(threadId)
+    }
+
     private fun markDirty(threadId: String) {
         val index = loadIndex()
         val rows = threads(index)
@@ -664,6 +676,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
                     .put("content", row.optString("content")).put("model", row.opt("model") ?: JSONObject.NULL)
                     .put("thought", row.opt("thought_data")?.takeIf { it != JSONObject.NULL }?.toString()
                         ?.let { raw -> runCatching { JSONObject(raw).optString("text") }.getOrDefault(raw) }.orEmpty())
+                    .put("prompt_text", com.minashin1120.aiplayground.data.savedPromptText(row) ?: JSONObject.NULL)
                     .put("search_used", com.minashin1120.aiplayground.data.reasoningSearchUsed(row.textOf("thought_data")))
                     .put("quote_text", row.opt("quote_text") ?: JSONObject.NULL)
                     .put("gem_uuid", row.opt("gem_uuid") ?: JSONObject.NULL).put("gem_name", row.opt("gem_name") ?: JSONObject.NULL)

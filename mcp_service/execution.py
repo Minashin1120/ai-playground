@@ -259,7 +259,7 @@ class McpRuntime:
         out = []
         for s in self.servers:
             out.extend(s["tools"])
-        return out
+        return sorted(out, key=lambda meta: meta.internal_name)
 
     def empty(self):
         try:

@@ -21,6 +21,7 @@ object SystemPromptBuilder {
         defaults: ServerlessDefaults,
         provider: String,
         now: ZonedDateTime = ZonedDateTime.now(),
+        cacheableConversation: Boolean = true,
     ): String {
         val includeGlobal = thread.includeGlobalInstruction
         val applyGlobal = preferences.optBoolean("apply_global_system_prompt", true)
@@ -54,8 +55,12 @@ object SystemPromptBuilder {
             if (combined.isBlank()) combined = text else if (!combined.contains(text.trim())) combined = "$combined\n\n$text"
         }
         if (useTimeNotice) {
-            val notice = timeNotice(now)
-            combined = if (combined.isBlank()) notice else "$notice\n\n$combined"
+            if (cacheableConversation) {
+                if (!body.has("turn_time_notice")) body.put("turn_time_notice", timeNotice(now))
+            } else {
+                val notice = timeNotice(now)
+                combined = if (combined.isBlank()) notice else "$notice\n\n$combined"
+            }
         }
         if (notices.enabled("mathjax") && !combined.contains("MathJax")) {
             val text = notices.text("mathjax")

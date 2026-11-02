@@ -50,8 +50,8 @@ class ImageOnlySendRegressionTests(unittest.TestCase):
     def test_responses_api_branch_skips_empty_text_part(self):
         branch = APP_SOURCE[APP_SOURCE.index("log_force(\"Routing: Responses API Branch\")") :]
         build = branch[: branch.index("input_data.append({\"role\": \"user\", \"content\": curr_content})")]
-        self.assertIn('curr_content.append({"type": text_type, "text": message_text})', build)
-        self.assertIn("if message_text and str(message_text).strip():", build)
+        self.assertIn('curr_content.append({"type": text_type, "text": final_message_text})', build)
+        self.assertIn("if final_message_text and str(final_message_text).strip():", build)
 
     def test_grok_native_branch_guards_empty_text(self):
         branch = APP_SOURCE[APP_SOURCE.index("log_force(\"Routing: Grok Branch (Native SDK)\")") :]

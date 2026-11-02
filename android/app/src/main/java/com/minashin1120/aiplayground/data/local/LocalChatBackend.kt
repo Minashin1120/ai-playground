@@ -554,6 +554,11 @@ class LocalChatBackend(
         // In a server chat the parent is a server message or an unsent one (pending range).
         val parent = chat.parentId
         val onServerParent = chat.serverId != null && parent != null && !LocalChatStore.isPendingId(parent)
+        val preferences = promptPreferences()
+        val system = SystemPromptBuilder.build(body, preferences,
+            SystemPromptBuilder.ThreadSettings(chat.settings.optString("custom_instruction").takeIf { it != "null" }.orEmpty(),
+                chat.settings.optBoolean("include_global_instruction", true)),
+            defaults, route.provider, cacheableConversation = modeOf(model) !in setOf("image", "tts", "transcription", "video", "music"))
         val userId = store.appendMessage(chat.outboxId, LocalChatStore.NewMessage("user", message,
             parentId = if (chat.serverId != null && parent != null && !onServerParent) parent - LocalChatStore.PENDING_ID_BASE
                 else if (chat.serverId == null) parent else null,
@@ -574,11 +579,6 @@ class LocalChatBackend(
             }
         } else newTitle?.let { store.setPendingTitle(chat.serverId, it) }
         onChanged()
-        val preferences = promptPreferences()
-        val system = SystemPromptBuilder.build(body, preferences,
-            SystemPromptBuilder.ThreadSettings(chat.settings.optString("custom_instruction").takeIf { it != "null" }.orEmpty(),
-                chat.settings.optBoolean("include_global_instruction", true)),
-            defaults, route.provider)
         val all: List<JSONObject>
         val userScreenId: Int
         if (chat.serverId == null) {
@@ -597,6 +597,7 @@ class LocalChatBackend(
         val last: JSONObject = try {
             // Attachments that cannot be read (a server file out of reach) end the answer with an error.
             val turns = history(all, userScreenId, preferences, quote, body.optInt("quote_message_id", -1).takeIf { it > 0 })
+            turns.lastOrNull()?.takeIf { it.role == "user" }?.let { store.savePromptText(chat.outboxId, userId, it.text) }
             Diagnostics.log("gen.turns", "turns" to turns.size, "attachments" to turns.sumOf { it.attachments.size },
                 "attachment_bytes" to turns.sumOf { turn -> turn.attachments.sumOf { it.bytes?.size?.toLong() ?: 0L } },
                 "ms" to elapsed(), "memory" to Diagnostics.memory())
@@ -745,6 +746,8 @@ class LocalChatBackend(
             }
             var text = row.optString("content")
             if (role == "user") {
+                val notice = row.optJSONObject("prompt_options")?.optString("turn_time_notice").orEmpty()
+                if (notice.startsWith("Current time: ") && notice.length <= 80) text = "$text\n\n[Turn context]\n$notice"
                 if (current && quote.isNotEmpty()) {
                     val quoted = if (quoteSource.isEmpty()) quote else "$quoteSource\n\n$quote"
                     text = "Context (User Quote):\n\"\"\"\n$quoted\n\"\"\"\n\nUser Message:\n$text"
@@ -753,6 +756,9 @@ class LocalChatBackend(
                 val block = if (current) SystemPromptBuilder.attachmentNamesBlock(names, preferences, defaults) else ""
                 if (block.isNotEmpty()) text = "$text\n\n$block"
             } else text = stripErrorFence(text)
+            if (role == "user" && !current) {
+                com.minashin1120.aiplayground.data.savedPromptText(row)?.let { text = it }
+            }
             // An answer's generated images go only to the image models, which edit the previous image (server `_build_non_llm_image_context`).
             if (role == "user") DirectTurn(role, text, attachments)
             else DirectTurn(role, text, generated = attachments.filter { it.bytes != null && it.mime.startsWith("image/") })

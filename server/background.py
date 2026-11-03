@@ -675,6 +675,8 @@ def _gemini_combines_builtin_and_function_tools(tools):
 
 
 def background_chat_task(job_id, thread_id, model_key, message_id, options, user_id, user_config):
+    import re
+
     with app.app_context():
         g.diagnostic_user_id = user_id
         _record_server_diagnostic(user_id, 'server.worker.start', job=job_id)
@@ -2285,7 +2287,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 auto_enable_maps = False
             if is_grok and not is_mistral_ocr and not grok_enable_search and user_auto_search and not disable_auto:
                 try:
-                    import re
                     check_text = f"{message_text} {original_quote_text or ''}"
                     if re.search(r'https?://', check_text) or "x.com/" in check_text or "twitter.com/" in check_text:
                         grok_enable_search = True
@@ -2295,7 +2296,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     pass
             if not is_mistral_ocr and not is_grok and not auto_enable_search and user_auto_search and not disable_auto:
                 try:
-                    import re
                     check_text = f"{message_text} {original_quote_text or ''}"
                     if re.search(r'https?://', check_text) or "x.com/" in check_text or "twitter.com/" in check_text:
                         auto_enable_search = True
@@ -2304,7 +2304,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     pass
             if is_gem and not is_mistral_ocr and not auto_enable_url_context and user_auto_search and not disable_auto:
                 try:
-                    import re
                     check_text = f"{message_text} {original_quote_text or ''}"
                     if re.search(r'https?://', check_text):
                         auto_enable_url_context = True

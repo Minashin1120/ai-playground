@@ -3,7 +3,8 @@ from pathlib import Path
 import ast
 import base64
 import re
-from unittest.mock import Mock
+from types import SimpleNamespace
+from unittest.mock import Mock, MagicMock
 from urllib.parse import urlparse
 import unittest
 
@@ -12,6 +13,41 @@ APP_ROOT = Path(__file__).resolve().parents[1]
 
 
 class OpenAICodeInterpreterImageTests(unittest.TestCase):
+    def test_image_downloads_work_without_entering_auto_search_branches(self):
+        source = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
+        task = next(n for n in ast.parse(source).body
+                    if isinstance(n, ast.FunctionDef) and n.name == "background_chat_task")
+        helpers = {n.name: n for n in ast.walk(task) if isinstance(n, ast.FunctionDef)
+                   and n.name in ("_download_openai_api_bytes", "_save_container_file")}
+        # Keep the entire task body for Python's real lexical scope, including imports
+        # inside search branches, but return its image helpers before app/DB/network setup.
+        leading = 0
+        while isinstance(task.body[leading], (ast.Import, ast.ImportFrom)):
+            leading += 1
+        setup = ast.parse("""
+client = test_client
+ci_saved_files = {}
+_emit_code_interpreter_image = test_emit
+return _download_openai_api_bytes, _save_container_file
+""").body
+        task.body = task.body[:leading] + list(helpers.values()) + setup + task.body[leading:]
+        http = MagicMock()
+        response = http.Client.return_value.__enter__.return_value.get.return_value
+        response.status_code = 200
+        response.content = b"image bytes"
+        emit = Mock(return_value="/files/test/result.png")
+        scope = dict(base64=base64, re=re, urlparse=urlparse, httpx=http, log_force=Mock(),
+                     test_client=SimpleNamespace(api_key="test-key"), test_emit=emit)
+        exec(compile(ast.fix_missing_locations(ast.Module(body=[task], type_ignores=[])),
+                     "<task-image-scope>", "exec"), scope)
+        download, save = scope[task.name]("job", None, "gpt-test", None, {"enable_search": False}, 1, {})
+        self.assertEqual(download("data:image/png;base64,AQID"), b"\x01\x02\x03")
+        http.Client.assert_not_called()
+        self.assertEqual(save("cntr_test", "cfile_test", "result.png"), "/files/test/result.png")
+        emit.assert_called_once_with(b"image bytes", "result.png")
+        self.assertEqual(save("cntr_test", "cfile_test", "result.png"), "/files/test/result.png")
+        http.Client.return_value.__enter__.return_value.get.assert_called_once()
+
     def test_inline_interpreter_images_are_decoded_without_an_http_request(self):
         source = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
         node = next(n for n in ast.walk(ast.parse(source))

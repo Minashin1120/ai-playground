@@ -3,7 +3,13 @@ package com.minashin1120.aiplayground.data
 import org.json.JSONObject
 
 /** One Python run saved in an answer (```` ```pyexec {"code","output"} ```` fence). */
-data class PythonExecution(val code: String, val output: String)
+data class PythonExecution(val code: String, val output: String, val images: List<String> = emptyList())
+
+fun pythonExecutionMarkdown(run: PythonExecution): String = "\n```pyexec\n" + JSONObject()
+    .put("code", run.code).put("output", run.output).put("images", org.json.JSONArray(run.images))
+    .toString().replace("\\/", "/") + "\n```\n"
+
+private val AGENTIC_VIEW = Regex("!\\[Agentic View]\\(([^)]+)\\)")
 
 private fun normalizeNewlines(text: String) = text.replace("\r\n", "\n").replace('\r', '\n')
 
@@ -52,9 +58,27 @@ fun extractPythonExecutions(raw: String): Pair<String, List<PythonExecution>> {
         runs += runCatching {
             val obj = JSONObject(body)
             PythonExecution(if (obj.isNull("code")) "" else obj.opt("code")?.toString().orEmpty(),
-                if (obj.isNull("output")) "" else obj.opt("output")?.toString().orEmpty())
+                if (obj.isNull("output")) "" else obj.opt("output")?.toString().orEmpty(),
+                obj.optJSONArray("images")?.let { images -> (0 until images.length()).mapNotNull { images.optString(it).takeIf(String::isNotBlank) } }.orEmpty())
         }.getOrElse { PythonExecution(body, "") }
         "\n"
+    }
+    // Older direct answers saved only the visible code and Agentic View images.
+    // Ordinary Python examples without execution images remain in the answer.
+    if (runs.isEmpty() && AGENTIC_VIEW.containsMatchIn(source)) {
+        val legacy = Regex("(?:^|\\n)```python\\n([\\s\\S]*?)\\n```(?:\\n+\\*\\*Output:\\*\\*\\n```\\n([\\s\\S]*?)\\n```)?")
+        cleaned = legacy.replace(cleaned) { match ->
+            runs += PythonExecution(match.groupValues[1], match.groupValues[2]); "\n"
+        }
+    }
+    if (runs.isNotEmpty()) {
+        val known = runs.flatMap { it.images }.toSet()
+        val images = AGENTIC_VIEW.findAll(cleaned).map { it.groupValues[1] }.filterNot { it in known }.toList()
+        if (images.isNotEmpty()) {
+            val last = runs.last()
+            runs[runs.lastIndex] = last.copy(images = (last.images + images).distinct())
+        }
+        cleaned = AGENTIC_VIEW.replace(cleaned, "")
     }
     runs.forEach { run ->
         if (run.code.isNotEmpty()) {
@@ -62,6 +86,9 @@ fun extractPythonExecutions(raw: String): Pair<String, List<PythonExecution>> {
             cleaned = stripExactFencedBlock(cleaned, "py", run.code)
         }
         cleaned = stripVisiblePythonOutputBlock(cleaned, run.output)
+    }
+    runs.flatMap { it.images }.lastOrNull()?.let { lastImage ->
+        if (!cleaned.contains(lastImage)) cleaned += "\n\n**Pythonの最後の画像**\n\n![Pythonの最後の画像]($lastImage)"
     }
     return tidy(cleaned) to runs
 }

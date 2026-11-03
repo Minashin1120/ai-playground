@@ -96,6 +96,10 @@ if (!r.text.includes('Answer text.') || !r.text.includes('Done.')) process.exit(
 const plain = '```python\\nprint(9)\\n```\\n';
 const r2 = extractPythonExecutionsFromContent(plain);
 if (r2.executions.length !== 0 || !r2.text.includes('print(9)')) process.exit(6);
+const withImages = extractPythonExecutionsFromContent('Done.\\n```pyexec\\n' + JSON.stringify({{code:'display(crop)',output:'',images:['/files/1/step.png','/files/1/result.png']}}) + '\\n```');
+if (withImages.executions[0].images.length !== 2 || withImages.text.includes('step.png') || !withImages.text.includes('result.png')) process.exit(7);
+const legacy = extractPythonExecutionsFromContent('```python\\ndisplay(crop)\\n```\\n**Output:**\\n```\\nok\\n```\\nDone.\\n![Agentic View](/files/1/crop.png)');
+if (legacy.executions.length !== 1 || legacy.executions[0].output !== 'ok' || legacy.text.includes('display(crop)') || legacy.text.includes('Agentic View')) process.exit(8);
 console.log('OK');
 """
         with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:

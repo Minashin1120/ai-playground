@@ -1,6 +1,8 @@
 package com.minashin1120.aiplayground.data.direct
 
 import android.graphics.Bitmap
+import com.minashin1120.aiplayground.data.PythonExecution
+import com.minashin1120.aiplayground.data.pythonExecutionMarkdown
 import android.graphics.BitmapFactory
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -58,6 +60,7 @@ class OpenAiResponsesDirect(
         var usage: JSONObject? = null
         var searching = false
         val codes = LinkedHashMap<String, StringBuilder>()
+        val runs = LinkedHashMap<String, PythonExecution>()
         fun absorbItem(item: JSONObject) {
             when (item.optString("type")) {
                 "reasoning" -> {
@@ -72,7 +75,12 @@ class OpenAiResponsesDirect(
                 "code_interpreter_call" -> {
                     item.optString("container_id").takeIf { it.isNotBlank() }?.let { containerId = it }
                     val id = item.optString("id").ifBlank { "py" }
-                    if (seenItems.add("ci:$id")) outputItem(item, codes, content, files, emit)
+                    if (seenItems.add("ci:$id")) {
+                        outputItem(item, codes, content, files, emit)
+                        val outputs = item.optJSONArray("outputs") ?: JSONArray()
+                        runs[id] = PythonExecution(item.optString("code").ifBlank { codes[id]?.toString().orEmpty() },
+                            (0 until outputs.length()).mapNotNull { outputs.optJSONObject(it)?.optString("logs")?.takeIf(String::isNotBlank) }.joinToString("\n"))
+                    }
                     val outputs = item.optJSONArray("outputs") ?: return
                     for (index in 0 until outputs.length()) {
                         val output = outputs.optJSONObject(index) ?: continue
@@ -80,9 +88,9 @@ class OpenAiResponsesDirect(
                         val fileId = output.optString("file_id")
                         val url = output.optString("url")
                         if (fileId.isNotBlank() && containerId.isNotBlank()) {
-                            remoteImages += RemoteImage(containerId = containerId, fileId = fileId, filename = "output.png")
+                            remoteImages += RemoteImage(containerId = containerId, fileId = fileId, filename = "output.png", runId = id)
                         } else if (url.isNotBlank()) {
-                            remoteImages += RemoteImage(url = url, filename = "output.png")
+                            remoteImages += RemoteImage(url = url, filename = "output.png", runId = id)
                         }
                     }
                 }
@@ -101,7 +109,7 @@ class OpenAiResponsesDirect(
             }
         }
         emit(event("status", "APIへ送信完了。モデルが応答を生成中です..."))
-        http.postSse("$baseUrl/v1/responses", mapOf("Authorization" to "Bearer ${request.apiKey}"), payload) { sse ->
+        http.postSse("$baseUrl/v1/responses", mapOf("Authorization" to "Bearer ${request.apiKey}"), payload, maxLine = 32L * 1024 * 1024) { sse ->
             if (sse.data == "[DONE]") return@postSse false
             val data = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true
             when (val type = data.optString("type").ifBlank { sse.event.orEmpty() }) {
@@ -146,10 +154,19 @@ class OpenAiResponsesDirect(
             onProgress(content.toString(), thought.toString())
             true
         }
-        val savedRemote = HashSet<String>()
+        val savedRemote = HashMap<String, String?>()
+        fun resolveCitation(remote: RemoteImage, saved: String) {
+            val name = remote.filename?.substringAfterLast('/') ?: return
+            val rewritten = content.toString().replace("sandbox:/mnt/data/$name", saved)
+                .replace("sandbox:/mnt/data/${name.replace(" ", "%20")}", saved)
+            content.setLength(0); content.append(rewritten)
+        }
         for (remote in remoteImages) {
             val key = remote.fileId ?: remote.url ?: continue
-            if (!savedRemote.add(key)) continue
+            if (savedRemote.containsKey(key)) {
+                savedRemote[key]?.let { saved -> resolveCitation(remote, saved); remote.runId?.let { id -> runs[id]?.let { runs[id] = it.copy(images = (it.images + saved).distinct()) } } }
+                continue
+            }
             val url = when {
                 remote.containerId != null && remote.fileId != null &&
                     CONTAINER_ID.matches(remote.containerId) && CONTAINER_FILE_ID.matches(remote.fileId) ->
@@ -157,21 +174,32 @@ class OpenAiResponsesDirect(
                 !remote.url.isNullOrBlank() -> remote.url
                 else -> continue
             }
-            val bytes = runCatching {
+            val bytes = if (url.startsWith("data:")) decodeInterpreterImage(url)
+                ?: throw DirectApiException(0, "Pythonの画像出力を読み取れませんでした。") else
                 http.download(url, mapOf("Authorization" to "Bearer ${request.apiKey}"), 20L * 1024 * 1024)
-            }.getOrNull()
             if (bytes == null || bytes.isEmpty()) continue
             val ext = remote.filename?.substringAfterLast('.', "png")?.lowercase()?.takeIf { it.length in 3..4 } ?: "png"
-            val file = DirectOutputFile("openai_ci_${files.size + 1}.$ext", "image/$ext", bytes)
+            val file = DirectOutputFile("openai_ci_${savedRemote.size + 1}.$ext", "image/$ext", bytes)
             val saved = request.saveOutput?.invoke(file)
+            savedRemote[key] = saved
+            if (saved != null) resolveCitation(remote, saved)
             if (saved == null) files += file
-            else {
+            else if (remote.runId != null && runs.containsKey(remote.runId)) {
+                val run = runs.getValue(remote.runId)
+                runs[remote.runId] = run.copy(images = (run.images + saved).distinct())
+            } else {
                 val markdown = "\n![Agentic View]($saved)\n"
                 content.append(markdown)
                 emit(event("content", markdown))
             }
         }
-        if (remoteImages.isNotEmpty()) onProgress(content.toString(), thought.toString())
+        for ((id, run) in runs) {
+            val markdown = pythonExecutionMarkdown(run)
+            content.append(markdown); emit(event("content", markdown))
+            emit(event("python", JSONObject().put("id", id).put("code", run.code).put("output", run.output)
+                .put("images", JSONArray(run.images))))
+        }
+        if (remoteImages.isNotEmpty() || runs.isNotEmpty()) onProgress(content.toString(), thought.toString())
         if (sources.isNotEmpty()) {
             fun label(text: String) = text.replace("\n", " ").replace("\r", " ").replace("[", "\\[").replace("]", "\\]")
             val sourceText = "\n\n**Sources:**\n" + sources.entries.mapIndexed { index, (url, title) ->
@@ -317,13 +345,21 @@ class OpenAiResponsesDirect(
         val containerId: String? = null,
         val fileId: String? = null,
         val filename: String? = null,
+        val runId: String? = null,
     )
 
-    private companion object {
-        val CONTAINER_ID = Regex("cntr_[A-Za-z0-9]+")
-        val CONTAINER_FILE_ID = Regex("cfile_[A-Za-z0-9]+")
+    internal companion object {
+        fun decodeInterpreterImage(url: String): ByteArray? {
+            val match = Regex("^data:image/(?:png|jpeg|webp|gif);base64,([A-Za-z0-9+/=\\r\\n]+)$").matchEntire(url) ?: return null
+            if (match.groupValues[1].length > 28 * 1024 * 1024) return null
+            return runCatching { Base64.getMimeDecoder().decode(match.groupValues[1]) }.getOrNull()
+                ?.takeIf { it.isNotEmpty() && it.size <= 20 * 1024 * 1024 }
+        }
 
-        fun collectContainerCitation(annotation: JSONObject, containerId: String, into: MutableList<RemoteImage>): Boolean {
+        private val CONTAINER_ID = Regex("cntr_[A-Za-z0-9]+")
+        private val CONTAINER_FILE_ID = Regex("cfile_[A-Za-z0-9]+")
+
+        private fun collectContainerCitation(annotation: JSONObject, containerId: String, into: MutableList<RemoteImage>): Boolean {
             if (annotation.optString("type") != "container_file_citation") return false
             val fileId = annotation.optString("file_id")
             val container = annotation.optString("container_id").ifBlank { containerId }

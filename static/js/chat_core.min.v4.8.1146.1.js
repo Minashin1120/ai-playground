@@ -22,23 +22,23 @@ l&&u.setAttribute("data-file-name",String(l)),u},"buildWarning"),a=o(l=>{const c
 color:#bfdbfe;font-weight:700;line-height:1.3">\u4E00\u6642\u7684\u306B\u6DF7\u96D1\u3057\u3066\u3044\u307E\u3059<br>\u6642\u9593\u3092\u304A\u3044\u3066\u518D\u8AAD\u307F\u8FBC\u307F\u3057\u3066\u304F\u3060\u3055\u3044</div>',
 l&&c.setAttribute("data-file-name",String(l)),c},"buildBusyWarning"),r=o(l=>String(l||"").split("?")[0].
 replace("/files/thumb/","/files/"),"fullFileUrl");document.addEventListener("error",l=>{const c=l.target;
-if(!c||c.tagName!=="IMG")return;const u=c.currentSrc||c.src||"";if(!t(u)){const L=c.closest&&c.closest(
-".svg-code-render");if(L){L.dataset.svgState="error";return}const S=c.closest&&c.closest(".chat-imag\
-e-frame");if(S){S.dataset.chatImageState="error",S.removeAttribute("aria-busy");const C=S.querySelector(
+if(!c||c.tagName!=="IMG")return;const u=c.currentSrc||c.src||"";if(!t(u)){const S=c.closest&&c.closest(
+".svg-code-render");if(S){S.dataset.svgState="error";return}const L=c.closest&&c.closest(".chat-imag\
+e-frame");if(L){L.dataset.chatImageState="error",L.removeAttribute("aria-busy");const C=L.querySelector(
 ".chat-image-loading"),A=C&&C.querySelector("span");A&&(A.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
 const I=C&&C.querySelector("i");I&&(I.className="fas fa-image")}return}l.stopImmediatePropagation(),
 l.preventDefault();const f=String(u).split("?")[0],h=c.getAttribute("data-viewer-filename")||f.split(
-"/").pop(),y=o(L=>{const S=c.closest&&c.closest(".chat-image-frame");S&&(S.dataset.chatImageState="f\
-ailed",S.removeAttribute("aria-busy"));const C=i(h,!!L);try{c.replaceWith(C)}catch{}},"showWarning"),
-v=o(()=>{const L=c.closest&&c.closest(".chat-image-frame");L&&(L.dataset.chatImageState="busy",L.removeAttribute(
-"aria-busy"));const S=a(h);try{c.replaceWith(S)}catch{}},"showBusyWarning"),w=o((L,S)=>{const C=c.cloneNode(
-!1);C.setAttribute("data-file-retry",String(S));const A=L+(L.includes("?")?"&":"?")+"retry="+Date.now()+
-"_"+S;C.setAttribute("src",A);try{c.replaceWith(C)}catch{}},"retryLoad"),x=o(L=>{if(L===429||L===503){
-v();return}if(L===409){y(!0);return}if(L===404||L===410||L===403){y(!1);return}const S=parseInt(c.getAttribute&&
-c.getAttribute("data-file-retry")||"0",10);if(S<2){w(u,S+1);return}if(u.includes("/files/thumb/")&&!c.
+"/").pop(),y=o(S=>{const L=c.closest&&c.closest(".chat-image-frame");L&&(L.dataset.chatImageState="f\
+ailed",L.removeAttribute("aria-busy"));const C=i(h,!!S);try{c.replaceWith(C)}catch{}},"showWarning"),
+v=o(()=>{const S=c.closest&&c.closest(".chat-image-frame");S&&(S.dataset.chatImageState="busy",S.removeAttribute(
+"aria-busy"));const L=a(h);try{c.replaceWith(L)}catch{}},"showBusyWarning"),w=o((S,L)=>{const C=c.cloneNode(
+!1);C.setAttribute("data-file-retry",String(L));const A=S+(S.includes("?")?"&":"?")+"retry="+Date.now()+
+"_"+L;C.setAttribute("src",A);try{c.replaceWith(C)}catch{}},"retryLoad"),x=o(S=>{if(S===429||S===503){
+v();return}if(S===409){y(!0);return}if(S===404||S===410||S===403){y(!1);return}const L=parseInt(c.getAttribute&&
+c.getAttribute("data-file-retry")||"0",10);if(L<2){w(u,L+1);return}if(u.includes("/files/thumb/")&&!c.
 getAttribute("data-file-fallback")){c.setAttribute("data-file-fallback","1"),w(r(u),0);return}y(!1)},
-"handleStatus");n(u).then(x).catch(()=>{const L=parseInt(c.getAttribute&&c.getAttribute("data-file-r\
-etry")||"0",10);if(L<2){w(u,L+1);return}if(u.includes("/files/thumb/")){v();return}y(!1)})},!0)})();
+"handleStatus");n(u).then(x).catch(()=>{const S=parseInt(c.getAttribute&&c.getAttribute("data-file-r\
+etry")||"0",10);if(S<2){w(u,S+1);return}if(u.includes("/files/thumb/")){v();return}y(!1)})},!0)})();
 function buildChatImageHtml(e,t={}){const n=String(e||""),i=String(t.alt||""),a=String(t.title||""),
 r=String(t.viewerSrc||n),l=String(t.filename||"");if(n.startsWith("sandbox:"))return`<span class="te\
 xt-xs text-gray-500" title="${escapeHtml(n)}">${escapeHtml(i)||"\uFF08\u753B\u50CF\u30C7\u30FC\u30BF\u306F\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\uFF09"}\
@@ -187,12 +187,12 @@ const c=document.createElement("button");c.type="button",c.className="aip-speed"
 a-label","\u518D\u751F\u901F\u5EA6");const u=document.createElement("span");u.className="aip-failed",
 u.textContent="\u97F3\u58F0\u3092\u518D\u751F\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002",
 n.append(i,r,l,c,u),t.insertBefore(n,e),n.appendChild(e);let f=!1;const h=o(()=>Number.isFinite(e.duration)&&
-e.duration>0?e.duration:0,"duration"),y=o(()=>{const x=h(),L=f?Number(l.value)/1e3*x:e.currentTime;r.
-textContent=`${formatAudioPlayerTime(L)} / ${formatAudioPlayerTime(x)}`,f||(l.value=x?String(Math.min(
+e.duration>0?e.duration:0,"duration"),y=o(()=>{const x=h(),S=f?Number(l.value)/1e3*x:e.currentTime;r.
+textContent=`${formatAudioPlayerTime(S)} / ${formatAudioPlayerTime(x)}`,f||(l.value=x?String(Math.min(
 1e3,e.currentTime/x*1e3)):"0"),l.disabled=!x,l.style.setProperty("--aip-progress",`${Number(l.value)/
 10}%`)},"refresh"),v=o(()=>{const x=!e.paused&&!e.ended;a.className=n.classList.contains("is-loading")?
-"fas fa-spinner fa-spin":x?"fas fa-pause":"fas fa-play";const L=x?"\u4E00\u6642\u505C\u6B62":"\u518D\u751F";
-i.setAttribute("aria-label",L),i.title=L,c.textContent=`${e.playbackRate}x`},"syncState"),w=o(x=>{n.
+"fas fa-spinner fa-spin":x?"fas fa-pause":"fas fa-play";const S=x?"\u4E00\u6642\u505C\u6B62":"\u518D\u751F";
+i.setAttribute("aria-label",S),i.title=S,c.textContent=`${e.playbackRate}x`},"syncState"),w=o(x=>{n.
 classList.toggle("is-loading",x),v()},"setLoading");i.addEventListener("click",()=>{if(n.classList.contains(
 "is-failed")&&(n.classList.remove("is-failed"),e.load()),e.paused||e.ended){e.readyState<3&&w(!0);const x=e.
 play();x&&typeof x.catch=="function"&&x.catch(()=>{w(!1)})}else e.pause()}),c.addEventListener("clic\
@@ -531,14 +531,14 @@ n","true"),a.style.position="fixed",a.style.left="-100000px",a.style.top="0",a.s
 style.visibility="hidden",a.style.pointerEvents="none",a.style.color="#111827",a.style.background="t\
 ransparent",a.appendChild(i.content.cloneNode(!0)),document.body.appendChild(a);try{const r=[a,...Array.
 from(a.querySelectorAll("*")).slice(0,5e3)],l=[],c=new Map;let u=0;const f=o(x=>Array.from(x.childNodes||
-[]).reduce((L,S)=>S&&S.nodeType===Node.TEXT_NODE?L+String(S.textContent||"").replace(/\s+/g," ").trim().
-length:L,0),"directTextLength");r.forEach(x=>{if(!x||x===a||!x.style)return;const L=window.getComputedStyle(
-x),S=f(x);if(S>0){const A=parseRichPasteCssColor(L.color);if(A&&A.a>=.5){const I=richPasteColorCss(A),
-G=c.get(I)||{color:A,weight:0};G.weight+=S,c.set(I,G),u+=S}}if(!!(String(x.style.backgroundColor||"").
-trim()||String(x.style.background||"").trim())){const A=parseRichPasteCssColor(L.backgroundColor);if(A&&
+[]).reduce((S,L)=>L&&L.nodeType===Node.TEXT_NODE?S+String(L.textContent||"").replace(/\s+/g," ").trim().
+length:S,0),"directTextLength");r.forEach(x=>{if(!x||x===a||!x.style)return;const S=window.getComputedStyle(
+x),L=f(x);if(L>0){const A=parseRichPasteCssColor(S.color);if(A&&A.a>=.5){const I=richPasteColorCss(A),
+G=c.get(I)||{color:A,weight:0};G.weight+=L,c.set(I,G),u+=L}}if(!!(String(x.style.backgroundColor||"").
+trim()||String(x.style.background||"").trim())){const A=parseRichPasteCssColor(S.backgroundColor);if(A&&
 A.a>=.72){const I=String(x.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:A,weight:Math.
-max(1,I)})}}});const h=Array.from(c.values()).sort((x,L)=>L.weight-x.weight),y=h.length?h[0].color:null,
-v=h.reduce((x,L)=>x+(richPasteColorLuminance(L.color)>=.6?L.weight:0),0);l.sort((x,L)=>L.weight-x.weight);
+max(1,I)})}}});const h=Array.from(c.values()).sort((x,S)=>S.weight-x.weight),y=h.length?h[0].color:null,
+v=h.reduce((x,S)=>x+(richPasteColorLuminance(S.color)>=.6?S.weight:0),0);l.sort((x,S)=>S.weight-x.weight);
 let w=l.length?l[0].color:null;return w||(w=u>0&&v/u>=.55?{r:11,g:11,b:12,a:1}:t),makeRichPasteTheme(
 w,y||n)}catch{return makeRichPasteTheme(t,n)}finally{a.parentNode&&a.parentNode.removeChild(a)}},"de\
 tectRichPasteTheme"),prepareRichPastePdfClone=o((e,t)=>{if(!e)return;const n=e.head||e.querySelector(
@@ -583,9 +583,9 @@ u=>{if(!u||!u.style)return;const f=String(u.tagName||"").toLowerCase(),h=[];Stri
 tyle")||"").split(";").forEach(y=>{if(!y||y.indexOf(":")<0)return;const v=y.indexOf(":"),w=y.slice(0,
 v).trim().toLowerCase();let x=y.slice(v+1).trim();if(!(!w||!x||r.has(w))&&!["height","max-height","m\
 in-height","overflow","overflow-x","overflow-y"].includes(w)&&!(["width","min-width"].includes(w)&&l.
-has(f))){if(c.has(w)&&l.has(f)&&Array.from(x.matchAll(/(-?\d+(?:\.\d+)?)px/gi)).map(S=>Math.abs(Number(
-S[1])||0)).some(S=>S>=96)&&(x="0px"),w==="display"){const L=x.toLowerCase();["flex","grid"].includes(
-L)?x="block":["inline-flex","inline-grid"].includes(L)&&(x="inline-block")}h.push(`${w}: ${x}`)}}),h.
+has(f))){if(c.has(w)&&l.has(f)&&Array.from(x.matchAll(/(-?\d+(?:\.\d+)?)px/gi)).map(L=>Math.abs(Number(
+L[1])||0)).some(L=>L>=96)&&(x="0px"),w==="display"){const S=x.toLowerCase();["flex","grid"].includes(
+S)?x="block":["inline-flex","inline-grid"].includes(S)&&(x="inline-block")}h.push(`${w}: ${x}`)}}),h.
 length?u.setAttribute("style",h.join("; ")):u.removeAttribute("style")}),t.innerHTML},"normalizeRich\
 PastePrintHtml"),getRichPasteSelectionRange=o(e=>{const t=window.getSelection&&window.getSelection();
 if(!t||!t.rangeCount)return null;const n=t.getRangeAt(0);if(e&&e.contains(n.commonAncestorContainer))
@@ -914,11 +914,11 @@ nd); font-weight: bold; }
                 </div>
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const v=new f(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),w=v.internal.pageSize.getWidth(),x=v.internal.
-pageSize.getHeight(),L=794,S=Math.floor(x/w*L),C=y.scrollHeight||y.offsetHeight;let A=0,I=!0;const G=Math.
-ceil(C/S);let H=0;for(;A<C;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const j=Math.min(S,C-A),ue=(await new Promise((E,R)=>{const X=setTimeout(()=>R(
+pageSize.getHeight(),S=794,L=Math.floor(x/w*S),C=y.scrollHeight||y.offsetHeight;let A=0,I=!0;const G=Math.
+ceil(C/L);let H=0;for(;A<C;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
+"Aborted","AbortError");const j=Math.min(L,C-A),ue=(await new Promise((E,R)=>{const X=setTimeout(()=>R(
 new Error("PDF chunk rendering timed out")),12e4);h(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
-background,logging:!1,imageTimeout:5e3,x:0,y:A,width:L,height:j,windowWidth:L,scrollX:0,scrollY:0,signal:richPasteAbortController?
+background,logging:!1,imageTimeout:5e3,x:0,y:A,width:S,height:j,windowWidth:S,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:o(N=>{prepareRichPastePdfClone(N,c);const D=N.querySelector(
 ".pdf-root-wrapper");D&&(D.style.position="relative",D.style.left="0",D.style.top="0")},"onclone")}).
 then(N=>{clearTimeout(X),E(N)}).catch(N=>{clearTimeout(X),R(N)})})).toDataURL("image/jpeg",.95),me=v.
@@ -961,8 +961,8 @@ throw new Error("\u30B5\u30FC\u30D0\u30FC\u5074PDF\u751F\u6210\u306EURL\u304C\u8
 const f=buildRichPasteServerPayload();setRichPasteProgress(10,"\u30B5\u30FC\u30D0\u30FC\u3078\u9001\u4FE1\u4E2D...");
 const h=await apiFetch(RICH_PASTE_PDF_SERVER_ROUTE,{method:"POST",headers:{"Content-Type":"applicati\
 on/json"},body:JSON.stringify(f),signal:richPasteAbortController.signal});if(setRichPasteProgress(60,
-"PDF\u3092\u53D7\u4FE1\u4E2D..."),!h.ok){let x="";try{const L=await h.json();x=L&&(L.message||L.error)?
-String(L.message||L.error):""}catch{try{x=await h.text()}catch{x=""}}throw x==="missing_html"?new Error(
+"PDF\u3092\u53D7\u4FE1\u4E2D..."),!h.ok){let x="";try{const S=await h.json();x=S&&(S.message||S.error)?
+String(S.message||S.error):""}catch{try{x=await h.text()}catch{x=""}}throw x==="missing_html"?new Error(
 "\u30B5\u30FC\u30D0\u30FC\u3078\u9001\u308BHTML\u304C\u7A7A\u3067\u3059\u3002\u30AF\u30EA\u30C3\u30D7\u30DC\u30FC\u30C9\u5185\u5BB9\u306E\u53D6\u308A\u8FBC\u307F\u3092\u5148\u306B\u884C\u3063\u3066\u304F\u3060\u3055\u3044"):
 new Error(x?`\u30B5\u30FC\u30D0\u30FCPDF\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F: ${x}`:
 "\u30B5\u30FC\u30D0\u30FCPDF\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F")}setRichPasteProgress(
@@ -2034,23 +2034,23 @@ clickTimes=e.clickTimes.filter(x=>w-x<=2e3),e.fastClicks>=4&&f(!0)},"recordClick
 !1){e.untrustedInput=!0,f(!0);return}const w=performance.now();e.keys+=1,e.lastKeyTs&&w-e.lastKeyTs<
 50&&(e.fastKeys+=1),e.lastKeyTs=w,e.keyTimes.push(w),e.keyTimes=e.keyTimes.filter(x=>w-x<=2e3)},"rec\
 ordKey"),l=o(v=>{const w=performance.now();if(!(w-e.lastMoveSample<80)){if(e.lastMoveSample=w,e.moves+=
-1,e.lastMove){const x=v.clientX-e.lastMove.x,L=v.clientY-e.lastMove.y,S=w-e.lastMove.t;if(S>0){const C=Math.
-sqrt(x*x+L*L)/(S/1e3);e.speedMax=Math.max(e.speedMax,C),e.speedSum+=C,e.speedSamples+=1}}e.lastMove=
+1,e.lastMove){const x=v.clientX-e.lastMove.x,S=v.clientY-e.lastMove.y,L=w-e.lastMove.t;if(L>0){const C=Math.
+sqrt(x*x+S*S)/(L/1e3);e.speedMax=Math.max(e.speedMax,C),e.speedSum+=C,e.speedSamples+=1}}e.lastMove=
 {x:v.clientX,y:v.clientY,t:w}}},"recordMove"),c=o(()=>{const v=Math.max(1,performance.now()-e.windowStart),
-w=e.clickTimes.length,x=e.keyTimes.length,L=e.speedSamples?e.speedSum/e.speedSamples:0;let S=0,C=1;if(e.
+w=e.clickTimes.length,x=e.keyTimes.length,S=e.speedSamples?e.speedSum/e.speedSamples:0;let L=0,C=1;if(e.
 clickIntervals.length>=3){const A=e.clickIntervals.reduce((G,H)=>G+H,0)/e.clickIntervals.length,I=e.
-clickIntervals.reduce((G,H)=>G+Math.pow(H-A,2),0)/e.clickIntervals.length;S=A,C=A>0?Math.sqrt(I)/A:1}
+clickIntervals.reduce((G,H)=>G+Math.pow(H-A,2),0)/e.clickIntervals.length;L=A,C=A>0?Math.sqrt(I)/A:1}
 return{window_ms:Math.round(v),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
-fastKeys,untrusted_input:!!e.untrustedInput,click_burst:w,key_burst:x,avg_click_ms:S,click_cv:C,event_rate:(e.
-clicks+e.keys+e.moves)/(v/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:L}},"computeStats"),u=o(
+fastKeys,untrusted_input:!!e.untrustedInput,click_burst:w,key_burst:x,avg_click_ms:L,click_cv:C,event_rate:(e.
+clicks+e.keys+e.moves)/(v/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:S}},"computeStats"),u=o(
 v=>v.fast_clicks>=4||v.fast_keys>=8||v.click_burst>=8||v.key_burst>=14||v.event_rate>=20||v.avg_click_ms>
 0&&v.avg_click_ms<160&&v.click_cv<.08,"isSuspicious"),f=o(async(v=!1,w={})=>{if(!e.enabled)return;const x=performance.
-now();if(!v&&x-e.lastSend<3e3)return;e.lastSend=x;const L=c();if(!(!w.forceReport&&L.clicks+L.keys+L.
-moves===0&&!L.untrusted_input)&&!(!v&&!L.untrusted_input&&!u(L))){L.turnstile_token=await getTurnstileToken(),
-botConfig&&botConfig.turnstileSiteKey&&!L.turnstile_token&&!botDetectionVerified&&botDetectionOverlayShown&&
-(L.turnstile_failed=!0,L.challenged=!0);try{const S=await apiFetch("/api/bot-telemetry",{method:"POS\
-T",headers:{"Content-Type":"application/json"},body:JSON.stringify(L)});if(S.status===403){let C=null;
-try{C=await S.json()}catch{}if(C&&C.error==="banned"){showToast("\u30DC\u30C3\u30C8\u5224\u5B9A\u306B\u3088\u308ABAN\u3055\u308C\u307E\u3057\u305F\u3002",
+now();if(!v&&x-e.lastSend<3e3)return;e.lastSend=x;const S=c();if(!(!w.forceReport&&S.clicks+S.keys+S.
+moves===0&&!S.untrusted_input)&&!(!v&&!S.untrusted_input&&!u(S))){S.turnstile_token=await getTurnstileToken(),
+botConfig&&botConfig.turnstileSiteKey&&!S.turnstile_token&&!botDetectionVerified&&botDetectionOverlayShown&&
+(S.turnstile_failed=!0,S.challenged=!0);try{const L=await apiFetch("/api/bot-telemetry",{method:"POS\
+T",headers:{"Content-Type":"application/json"},body:JSON.stringify(S)});if(L.status===403){let C=null;
+try{C=await L.json()}catch{}if(C&&C.error==="banned"){showToast("\u30DC\u30C3\u30C8\u5224\u5B9A\u306B\u3088\u308ABAN\u3055\u308C\u307E\u3057\u305F\u3002",
 "error",!0),setTimeout(()=>{location.href="/banned"},800);return}}}catch{}resetTurnstileToken(),n()}},
 "send");return{start:o(()=>{t(),e.enabled&&(typeof window.PointerEvent!="undefined"?document.addEventListener(
 "pointerdown",a,!0):document.addEventListener("click",a,!0),document.addEventListener("keydown",r,!0),
@@ -2131,17 +2131,17 @@ const u=document.createElement("div");u.className="settings-empty-sub",u.textCon
 \u81F4\u3059\u308B\u8A2D\u5B9A\u9805\u76EE\u306F\u3042\u308A\u307E\u305B\u3093\u3002",c.appendChild(
 u),l.appendChild(c)}else{const c=document.createElement("div");c.className="settings-search-count",c.
 textContent=i.length+"\u4EF6\u306E\u4E00\u81F4",l.appendChild(c);let u=null;i.forEach((f,h)=>{if(f.tabId!==
-u){if(u!==null){const S=document.createElement("div");S.className="border-t border-gray-700/50 my-1.\
-5",l.appendChild(S)}if(f.tabId!==a){const S=document.createElement("div");S.className="text-[10px] t\
-ext-gray-500 px-1 pb-1 font-bold",S.textContent="\u25BC "+(TAB_LABELS[f.tabId]||f.tabId),l.appendChild(
-S)}u=f.tabId}const y=document.createElement("div");y.className="settings-search-result-item flex ite\
+u){if(u!==null){const L=document.createElement("div");L.className="border-t border-gray-700/50 my-1.\
+5",l.appendChild(L)}if(f.tabId!==a){const L=document.createElement("div");L.className="text-[10px] t\
+ext-gray-500 px-1 pb-1 font-bold",L.textContent="\u25BC "+(TAB_LABELS[f.tabId]||f.tabId),l.appendChild(
+L)}u=f.tabId}const y=document.createElement("div");y.className="settings-search-result-item flex ite\
 ms-start gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150",y.style.animation=
 "fadeIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",y.style.animationDelay=h*30+"ms";const v=document.
 createElement("span");v.className="settings-result-tab-badge shrink-0 mt-0.5",v.textContent=TAB_LABELS[f.
 tabId]||f.tabId;const w=document.createElement("div");w.className="min-w-0 flex-1";const x=document.
-createElement("div");x.className="text-sm font-bold text-white truncate",x.textContent=f.title;const L=document.
-createElement("div");L.className="text-[11px] text-gray-400 truncate mt-0.5",L.textContent=f.snippet,
-w.appendChild(x),w.appendChild(L),y.appendChild(v),y.appendChild(w),y.addEventListener("click",()=>jumpToSetting(
+createElement("div");x.className="text-sm font-bold text-white truncate",x.textContent=f.title;const S=document.
+createElement("div");S.className="text-[11px] text-gray-400 truncate mt-0.5",S.textContent=f.snippet,
+w.appendChild(x),w.appendChild(S),y.appendChild(v),y.appendChild(w),y.addEventListener("click",()=>jumpToSetting(
 f.tabId,f.element)),l.appendChild(y)})}r.insertBefore(l,r.firstChild)}o(filterSettings,"filterSettin\
 gs");function jumpToSetting(e,t){const n=get("settings-search");n&&(n.value=""),removeSearchOverlays(),
 filterSettings(),e!==activeSettingsTab&&switchTab(e),setTimeout(()=>{t.scrollIntoView({behavior:"smo\
@@ -2176,19 +2176,19 @@ syncSettingsTabsOverflow()}o(refreshSettingsTabsScroll,"refreshSettingsTabsScrol
 const e=get("settings-tabs-wrap"),t=get("settings-tabs"),n=get("settings-tabs-arrow-left"),i=get("se\
 ttings-tabs-arrow-right");if(!e||!t||!n||!i)return;if(e.dataset.scrollBound==="1"){syncSettingsTabsOverflow();
 return}e.dataset.scrollBound="1";const a=56;let r=0,l=0,c=0;const u=o(w=>{const x=e.getBoundingClientRect();
-if(!x.width)return;const L=w-x.left;e.classList.toggle("is-edge-left",L>=0&&L<=a),e.classList.toggle(
-"is-edge-right",L>=x.width-a&&L<=x.width)},"updateEdgeHover"),f=o(()=>{c||e.classList.remove("is-edg\
-e-left","is-edge-right")},"clearEdgeHover"),h=o((w,x)=>{const L=getSettingsTabsMaxScroll(t);if(L<=0||
-!w)return;const S=Math.max(0,Math.min(L,t.scrollLeft+w));x&&typeof t.scrollTo=="function"?t.scrollTo(
-{left:S,behavior:"smooth"}):t.scrollLeft=S,syncSettingsTabsOverflow()},"scrollTabsBy"),y=o(()=>{c=0,
+if(!x.width)return;const S=w-x.left;e.classList.toggle("is-edge-left",S>=0&&S<=a),e.classList.toggle(
+"is-edge-right",S>=x.width-a&&S<=x.width)},"updateEdgeHover"),f=o(()=>{c||e.classList.remove("is-edg\
+e-left","is-edge-right")},"clearEdgeHover"),h=o((w,x)=>{const S=getSettingsTabsMaxScroll(t);if(S<=0||
+!w)return;const L=Math.max(0,Math.min(S,t.scrollLeft+w));x&&typeof t.scrollTo=="function"?t.scrollTo(
+{left:L,behavior:"smooth"}):t.scrollLeft=L,syncSettingsTabsOverflow()},"scrollTabsBy"),y=o(()=>{c=0,
 r&&(clearTimeout(r),r=0),l&&(cancelAnimationFrame(l),l=0)},"stopHold"),v=o(w=>{y(),c=w,e.classList.toggle(
 "is-edge-left",w<0),e.classList.toggle("is-edge-right",w>0),h(w*Math.max(120,t.clientWidth*.55),!0),
 r=setTimeout(()=>{const x=o(()=>{c&&(h(c*14,!1),l=requestAnimationFrame(x))},"step");l=requestAnimationFrame(
 x)},280)},"startHold");if(e.addEventListener("pointermove",w=>{w.pointerType!=="touch"&&u(w.clientX)}),
 e.addEventListener("pointerenter",w=>{w.pointerType!=="touch"&&u(w.clientX)}),e.addEventListener("po\
 interleave",w=>{w.pointerType!=="touch"&&(y(),f())}),e.addEventListener("wheel",w=>{const x=getSettingsTabsMaxScroll(
-t);if(x<=2)return;const S=Math.abs(w.deltaY)>=Math.abs(w.deltaX)?w.deltaY:w.deltaX;if(!S)return;const C=Math.
-max(0,Math.min(x,t.scrollLeft+S));C!==t.scrollLeft&&(w.preventDefault(),t.scrollLeft=C,syncSettingsTabsOverflow())},
+t);if(x<=2)return;const L=Math.abs(w.deltaY)>=Math.abs(w.deltaX)?w.deltaY:w.deltaX;if(!L)return;const C=Math.
+max(0,Math.min(x,t.scrollLeft+L));C!==t.scrollLeft&&(w.preventDefault(),t.scrollLeft=C,syncSettingsTabsOverflow())},
 {passive:!1}),n.addEventListener("pointerdown",w=>{w.button!=null&&w.button!==0||(w.preventDefault(),
 v(-1))}),i.addEventListener("pointerdown",w=>{w.button!=null&&w.button!==0||(w.preventDefault(),v(1))}),
 n.addEventListener("click",w=>{w.preventDefault(),w.stopPropagation()}),i.addEventListener("click",w=>{
@@ -2286,9 +2286,9 @@ return}s={startX:t.clientX,startY:t.clientY,lastX:t.clientX,dx:0,dy:0,vx:0,dir:0
 adjacent:null,lastTime:Date.now()}}o(onViewerTouchStart,"onViewerTouchStart");function onViewerTouchMove(e){
 if(e.touches.length>=2){if(!p){const A=e.touches[0],I=e.touches[1];p={d:Math.hypot(A.clientX-I.clientX,
 A.clientY-I.clientY)||1,s:z,mx:(A.clientX+I.clientX)/2,my:(A.clientY+I.clientY)/2,x:vX,y:vY},s=null}
-const v=e.touches[0],w=e.touches[1],x=Math.hypot(v.clientX-w.clientX,v.clientY-w.clientY)||1,L=(v.clientX+
-w.clientX)/2,S=(v.clientY+w.clientY)/2;z=Math.min(6,Math.max(1,p.s*x/p.d)),z<=1.0001?(z=1,vX=0,vY=0):
-(vX=p.x+L-p.mx,vY=p.y+S-p.my);const C=get("image-viewer-img");if(!C)return;e.preventDefault(),C.style.
+const v=e.touches[0],w=e.touches[1],x=Math.hypot(v.clientX-w.clientX,v.clientY-w.clientY)||1,S=(v.clientX+
+w.clientX)/2,L=(v.clientY+w.clientY)/2;z=Math.min(6,Math.max(1,p.s*x/p.d)),z<=1.0001?(z=1,vX=0,vY=0):
+(vX=p.x+S-p.mx,vY=p.y+L-p.my);const C=get("image-viewer-img");if(!C)return;e.preventDefault(),C.style.
 transition="none",applyViewerTransform();return}if(p)return;if(z>1&&s&&!s.active){const v=e.touches[0];
 if(!v)return;e.preventDefault(),vX=s.dx+v.clientX-s.startX,vY=s.dy+v.clientY-s.startY,applyViewerTransform();
 return}if(!s)return;const t=e.touches[0];if(!t)return;const n=t.clientX-s.startX,i=t.clientY-s.startY,
@@ -2977,10 +2977,10 @@ if(!isStsModel())return;const e=get("model-select").value||"",t=getStsProvider(e
 i=get("sts-speed-wrap"),a=get("sts-speed"),r=get("sts-speed-label"),l=get("sts-rate-wrap"),c=get("st\
 s-rate-in"),u=get("sts-rate-out"),f=get("sts-thinking-wrap"),h=get("sts-note"),y=get("sts-voice-wrap"),
 v=get("sts-auto-play-wrap"),w=get("sts-mode-label"),x=isTranscriptionModel()||isGeminiLiveTranscribeModel()||
-isXaiLiveTranscribeModel(),L=get("sts-lang-wrap"),S=get("sts-reasoning-wrap");if(S&&S.classList.toggle(
+isXaiLiveTranscribeModel(),S=get("sts-lang-wrap"),L=get("sts-reasoning-wrap");if(L&&L.classList.toggle(
 "hidden",!OPENAI_REASONING_STS_MODELS.has(e)),x){w&&(w.textContent="Realtime Speech-to-Text"),y&&y.classList.
 add("hidden"),v&&v.classList.add("hidden"),i&&i.classList.add("hidden"),l&&l.classList.add("hidden"),
-f&&f.classList.add("hidden"),L&&L.classList.add("hidden");const C=get("sts-transcribe-wrap"),A=get("\
+f&&f.classList.add("hidden"),S&&S.classList.add("hidden");const C=get("sts-transcribe-wrap"),A=get("\
 sts-custom-vocab-wrap");C&&C.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),A&&A.classList.
 toggle("hidden",!isGeminiLiveTranscribeModel()&&!isXaiLiveTranscribeModel()),h&&(h.textContent=isGeminiLiveTranscribeModel()?
 "\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u4F4E\u9045\u5EF6\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM / \u6700\u592710\u5206\uFF09":
@@ -2992,23 +2992,23 @@ e==="gpt-realtime-whisper"?"\u30B9\u30C8\u30EA\u30FC\u30DF\u30F3\u30B0\u97F3\u58
 "openai")w&&(w.textContent="Speech-to-Speech Live"),y&&y.classList.remove("hidden"),v&&v.classList.remove(
 "hidden"),setSelectOptions(n,OPENAI_STS_VOICES,n.value||"alloy"),i&&i.classList.remove("hidden"),a&&
 (a.min=.25,a.max=1.5,a.step=.05,a.value||(a.value=1),Number(a.value)<.25&&(a.value=.25),Number(a.value)>
-1.5&&(a.value=1.5)),l&&l.classList.add("hidden"),f&&f.classList.add("hidden"),L&&L.classList.add("hi\
+1.5&&(a.value=1.5)),l&&l.classList.add("hidden"),f&&f.classList.add("hidden"),S&&S.classList.add("hi\
 dden"),h&&(h.textContent="OpenAI Realtime\u306F24kHz PCM\u56FA\u5B9A"),OPENAI_REASONING_STS_MODELS.has(
 e)&&h&&(h.textContent="OpenAI Realtime\u306F24kHz PCM\u56FA\u5B9A\uFF08Reasoning\u3067\u63A8\u8AD6\u306E\u5F37\u3055\u3092\u6307\u5B9A\uFF09"),
 OPENAI_LIVE_STS_MODELS.has(e)&&(setSelectOptions(n,OPENAI_LIVE_VOICES,OPENAI_LIVE_VOICES.includes(n.
 value)?n.value:"marin"),i&&i.classList.add("hidden"),h&&(h.textContent="GPT-Live\u306F\u5168\u4E8C\u91CD\u306E\u97F3\u58F0\u4F1A\u8A71\uFF0824kHz PCM\u30FB\
 \u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC\u30FB\u63A8\u8AD6\u306Fgpt-5.6-luna\u306B\u59D4\u4EFB\uFF09")),
 e==="gpt-realtime-translate"&&(w&&(w.textContent="Realtime Translation"),y&&y.classList.add("hidden"),
-i&&i.classList.add("hidden"),L&&L.classList.remove("hidden"),h&&(h.textContent="\u8A71\u3057\u305F\u5185\u5BB9\u3092\u9078\u629E\u3057\u305F\u8A00\u8A9E\u3078\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u3067\
+i&&i.classList.add("hidden"),S&&S.classList.remove("hidden"),h&&(h.textContent="\u8A71\u3057\u305F\u5185\u5BB9\u3092\u9078\u629E\u3057\u305F\u8A00\u8A9E\u3078\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u3067\
 \u97F3\u58F0\u7FFB\u8A33\uFF0824kHz PCM\u30FB\u97F3\u58F0\u9078\u629E\u4E0D\u53EF\uFF09"));else if(t===
 "xai")w&&(w.textContent="Speech-to-Speech Live"),y&&y.classList.remove("hidden"),v&&v.classList.remove(
 "hidden"),setSelectOptions(n,GROK_STS_VOICES,n.value||"Ara"),i&&i.classList.add("hidden"),l&&l.classList.
-remove("hidden"),f&&f.classList.add("hidden"),L&&L.classList.add("hidden"),setSelectOptions(c,GROK_PCM_RATES,
+remove("hidden"),f&&f.classList.add("hidden"),S&&S.classList.add("hidden"),setSelectOptions(c,GROK_PCM_RATES,
 Number(c.value||24e3)),setSelectOptions(u,GROK_PCM_RATES,Number(u.value||24e3)),h&&(h.textContent="x\
 AI\u306FPCM\u30B5\u30F3\u30D7\u30EB\u30EC\u30FC\u30C8\u5909\u66F4\u53EF");else if(t==="gemini"){w&&(w.
 textContent="Speech-to-Speech Live"),y&&y.classList.remove("hidden"),v&&v.classList.remove("hidden"),
 setSelectOptions(n,GEMINI_STS_VOICES,n.value||"Kore"),i&&i.classList.add("hidden"),l&&l.classList.add(
-"hidden"),f&&f.classList.remove("hidden"),L&&L.classList.add("hidden"),h&&(h.textContent="Gemini Liv\
+"hidden"),f&&f.classList.remove("hidden"),S&&S.classList.add("hidden"),h&&(h.textContent="Gemini Liv\
 e\u306F\u97F3\u58F0\u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC");const C=get("sts-thinking-level");if(Array.
 from(C&&C.options||[]).forEach(A=>{A.disabled=!1}),e==="gemini-2.5-flash-native-audio-preview-12-202\
 5")f&&f.classList.add("hidden");else if(e==="gemini-3.8-live")f&&f.classList.add("hidden"),h&&(h.textContent=
@@ -3018,7 +3018,7 @@ um / high\u306E\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u63A8\u8AD6\u306
 "sts-thinking-level");Array.from(A&&A.options||[]).forEach(I=>{I.disabled=I.value==="minimal"}),A&&![
 "low","medium","high"].includes(A.value)&&(A.value="medium")}e==="gemini-3.5-live-translate-preview"&&
 (w&&(w.textContent="Realtime Translation"),f&&f.classList.add("hidden"),y&&y.classList.add("hidden"),
-L&&L.classList.remove("hidden"),h&&(h.textContent="70\u4EE5\u4E0A\u306E\u8A00\u8A9E\u306B\u5BFE\u5FDC\u3059\u308B\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u97F3\u58F0\u7FFB\u8A33\uFF08Think\u975E\u5BFE\u5FDC\u30FB\u97F3\u58F0\u9078\u629E\u4E0D\u53EF\uFF09"))}
+S&&S.classList.remove("hidden"),h&&(h.textContent="70\u4EE5\u4E0A\u306E\u8A00\u8A9E\u306B\u5BFE\u5FDC\u3059\u308B\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u97F3\u58F0\u7FFB\u8A33\uFF08Think\u975E\u5BFE\u5FDC\u30FB\u97F3\u58F0\u9078\u629E\u4E0D\u53EF\uFF09"))}
 i&&r&&a&&!i.classList.contains("hidden")&&(r.textContent=`${Number(a.value||1).toFixed(2)}x`)}o(updateStsOptions,
 "updateStsOptions");function stsOpt(e){const t=get(e);return e==="sts-auto-play"||e==="sts-auto-rest\
 art"?t?!!t.checked:!0:t?!!t.checked:!1}o(stsOpt,"stsOpt");function getStsSilenceMs(){const e=get("st\
@@ -3413,7 +3413,7 @@ provider:h})=>{const y=document.createElement("button"),v=String(u.apiId||u.id||
 x-2 py-0.5 text-[9px] font-semibold text-teal-200 whitespace-nowrap" title="Agentic View\u5BFE\u5FDC\uFF1A\u753B\u50CF\u3092\u30AF\u30ED\u30C3\u30D7\u3057\u3066\
 \u518D\u89B3\u5BDF\u3057\u306A\u304C\u3089\u63A8\u8AD6\u3092\u7D99\u7D9A\u3067\u304D\u307E\u3059"><i class="fas fa-eye" aria-hidden="true"></i>Agentic View</span>':
 "",x=v?`<div class="text-[10px] text-cyan-300/90 mt-1.5 font-mono break-all"><span class="font-sans \
-text-gray-500 mr-1">API model:</span>${escapeHtml(v)}</div>`:"",L=u.price?`<div class="text-[10px] t\
+text-gray-500 mr-1">API model:</span>${escapeHtml(v)}</div>`:"",S=u.price?`<div class="text-[10px] t\
 ext-amber-400/90 mt-1.5 font-mono flex items-start gap-1"><i class="fas fa-tag text-[9px] mt-0.5 opa\
 city-70 shrink-0"></i><span>${u.price}</span></div>`:"";return y.type="button",y.className="model-ca\
 rd",y.dataset.selected="0",y.onclick=()=>selectModelByUser(u.id,u.name),y.innerHTML=`
@@ -3427,7 +3427,7 @@ rd",y.dataset.selected="0",y.onclick=()=>selectModelByUser(u.id,u.name),y.innerH
                             </div>
                             <span class="model-desc text-[10px]">${u.desc}</span>
                             ${x}
-                            ${L}
+                            ${S}
                         `,l.appendChild(y),{model:u,button:y,searchText:`${u.name} ${u.id} ${v} ${u.
 agenticView?"agentic view":""} ${f} ${getModelTags(u,{category:f}).join(" ")} ${getModelCapabilitySearchTerms(
 u).join(" ")}`.toLowerCase(),provider:h,tags:new Set(getModelTags(u,{category:f}))}});modelListGroups.

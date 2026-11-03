@@ -182,13 +182,29 @@
                     const obj = JSON.parse(raw);
                     executions.push({
                         code: obj && obj.code != null ? String(obj.code) : '',
-                        output: obj && obj.output != null ? String(obj.output) : ''
+                        output: obj && obj.output != null ? String(obj.output) : '',
+                        images: obj && Array.isArray(obj.images) ? obj.images.filter(u => typeof u === 'string') : []
                     });
                 } catch (e) {
                     executions.push({ code: raw, output: '' });
                 }
                 return '\n';
             });
+
+            const agenticRe = /!\[Agentic View\]\(([^)]+)\)/g;
+            if (!executions.length && /!\[Agentic View\]\(/.test(source)) {
+                cleaned = cleaned.replace(/(?:^|\n)```python\n([\s\S]*?)\n```(?:\n+\*\*Output:\*\*\n```\n([\s\S]*?)\n```)?/g,
+                    (match, code, output) => { executions.push({ code, output: output || '', images: [] }); return '\n'; });
+            }
+            if (executions.length) {
+                const known = new Set(executions.flatMap(ex => ex.images || []));
+                const images = Array.from(cleaned.matchAll(agenticRe), m => m[1]).filter(u => !known.has(u));
+                if (images.length) {
+                    const last = executions[executions.length - 1];
+                    last.images = Array.from(new Set([...(last.images || []), ...images]));
+                }
+                cleaned = cleaned.replace(agenticRe, '');
+            }
 
             executions.forEach((ex) => {
                 if (ex.code) {
@@ -197,6 +213,11 @@
                 }
                 cleaned = stripVisiblePythonOutputBlock(cleaned, ex.output);
             });
+
+            const lastImage = executions.flatMap(ex => ex.images || []).slice(-1)[0];
+            if (lastImage && /^\/files\/[A-Za-z0-9_./%-]+$/.test(lastImage) && !cleaned.includes(lastImage)) {
+                cleaned += `\n\n**Pythonの最後の画像**\n\n![Pythonの最後の画像](${lastImage})`;
+            }
 
             cleaned = cleaned
                 .replace(/[ \t]+\n/g, '\n')
@@ -252,6 +273,9 @@
             } catch (e) {
                 codeHtml = escapeHtml(codeRaw);
             }
+            const imageMarkdown = (ex.images || []).filter(u => /^\/files\/[A-Za-z0-9_./%-]+$/.test(u))
+                .map(u => `![Python output](${u})`).join('\n');
+            const imageHtml = imageMarkdown ? `<div class="python-section"><div class="python-label">Images</div>${sanitizeMarkdownHtml(marked.parse(imageMarkdown))}</div>` : '';
             const outputHtml = escapeHtml(outputRaw);
             const encCode = encodeURIComponent(codeRaw).replace(/'/g, '%27');
             const encOut = encodeURIComponent(outputRaw).replace(/'/g, '%27');
@@ -259,7 +283,7 @@
             const label = total > 1 ? `Python Execution ${index + 1}/${total}` : 'Python Execution';
             const downloadBtn = `<button class="download-btn" data-code="${encCode}" data-lang="python" title="コードをダウンロード" aria-label="コードをダウンロード"><i class="fas fa-download"></i></button>`;
             const codingBtn = `<button class="coding-target-btn" data-code="${encCode}" data-code-key="${codeKey}" data-coding-lang="python" aria-pressed="false" title="Coding Modeの編集対象に指定" aria-label="編集対象に指定"><i class="fas fa-quote-right"></i></button>`;
-            return `<div class="code-wrapper python-box" data-collapsed="false" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> ${escapeHtml(label)}</span><div class="code-actions">${codingBtn}${downloadBtn}<button class="copy-btn" data-copy="code" data-code="${encCode}" title="コードをコピー" aria-label="コードをコピー"><i class="fas fa-copy"></i></button><button class="copy-btn" data-copy="output" data-code="${encOut}" title="出力をコピー" aria-label="出力をコピー"><i class="fas fa-align-left"></i></button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code">${codeHtml}</code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output">${outputHtml}</code></pre></div></div></div>`;
+            return `<div class="code-wrapper python-box" data-collapsed="false" data-code-key="${codeKey}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> ${escapeHtml(label)}</span><div class="code-actions">${codingBtn}${downloadBtn}<button class="copy-btn" data-copy="code" data-code="${encCode}" title="コードをコピー" aria-label="コードをコピー"><i class="fas fa-copy"></i></button><button class="copy-btn" data-copy="output" data-code="${encOut}" title="出力をコピー" aria-label="出力をコピー"><i class="fas fa-align-left"></i></button></div></div><div class="code-body"><div class="python-section"><div class="python-label">Code</div><pre><code class="hljs language-python python-code">${codeHtml}</code></pre></div><div class="python-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-output">${outputHtml}</code></pre></div>${imageHtml}</div></div>`;
         }
 
         function showPythonExecDetailModal(messageId = null) {
@@ -287,6 +311,9 @@
                 title.textContent = `Python 実行結果${countLabel}`;
             }
             body.innerHTML = executions.map((ex, i) => buildPythonExecDetailBoxHtml(ex, i, executions.length)).join('');
+            body.querySelectorAll('img').forEach(img => {
+                img.addEventListener('click', () => openImageViewer(img.dataset.viewerSrc || img.src, '#python-exec-modal-body img'));
+            });
             if (codingModeEnabled) {
                 syncCodingTargetButtons(body);
                 syncCodingModeUi(true, { persist: false });

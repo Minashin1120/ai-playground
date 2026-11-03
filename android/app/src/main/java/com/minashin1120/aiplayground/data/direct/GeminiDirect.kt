@@ -83,12 +83,14 @@ class GeminiDirect(
                     part.optJSONObject("codeExecutionResult")?.let { result ->
                         val output = result.optString("output")
                         content.append("\n**Output:**\n```\n").append(output).append("\n```\n")
+                        content.append(com.minashin1120.aiplayground.data.pythonExecutionMarkdown(
+                            com.minashin1120.aiplayground.data.PythonExecution(pythonCode, output)))
                         emit(event("python", JSONObject().put("id", pythonId ?: "py_${System.nanoTime()}").put("code", pythonCode).put("output", output)))
                     }
                     part.optJSONObject("inlineData")?.let { data ->
                         val mime = data.optString("mimeType").ifBlank { "image/png" }
                         val bytes = runCatching { Base64.getDecoder().decode(data.optString("data")) }.getOrNull()
-                        if (bytes != null && bytes.isNotEmpty() && part.optBoolean("thought") != true) {
+                        if (bytes != null && bytes.isNotEmpty() && (!part.optBoolean("thought") || pythonId != null)) {
                             val file = DirectOutputFile("gemini_${System.nanoTime()}.${extensionFor(mime)}", mime, bytes)
                             streamedImages++
                             val saved = request.saveOutput?.invoke(file)

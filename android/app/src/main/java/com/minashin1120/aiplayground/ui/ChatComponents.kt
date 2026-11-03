@@ -170,7 +170,7 @@ fun LiveMessage(state: ChatState, onFile: (String) -> Unit, onQuote: (String) ->
         thoughtCollapsed = state.liveThought.isBlank(),
         liveTop = {
             if (live.search.isNotEmpty()) LiveSearchBox(live.search)
-            python.asReversed().forEach { card -> key(card.id) { PythonExecutionBox(card) } }
+            python.asReversed().forEach { card -> key(card.id) { PythonExecutionBox(card, loader = loader, onFile = onFile) } }
             live.imageAnalysis?.let { LiveImageAnalysis(it) }
         },
         liveSkeleton = skeleton,

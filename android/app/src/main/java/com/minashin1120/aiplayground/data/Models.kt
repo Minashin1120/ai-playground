@@ -537,6 +537,7 @@ data class StatusCard(
     val failed: Boolean = false,
     /** The dashed note under an MCP card: the result summary or the error message. */
     val note: String = "",
+    val images: List<String> = emptyList(),
 )
 
 data class McpDecision(
@@ -733,7 +734,10 @@ fun upsertPythonCard(cards: List<StatusCard>, payload: JSONObject): List<StatusC
         id = id, kind = CardKind.PYTHON, label = "Python",
         code = code.ifBlank { previous?.code.orEmpty() },
         output = output.ifBlank { previous?.output.orEmpty() },
-        done = output.isNotBlank(),
+        done = payload.has("output") || previous?.done == true,
+        images = payload.optJSONArray("images")?.let { images ->
+            (0 until images.length()).mapNotNull { images.optString(it).takeIf(String::isNotBlank) }
+        } ?: previous?.images.orEmpty(),
     )
     return if (index >= 0) cards.toMutableList().also { it[index] = card } else cards + card
 }

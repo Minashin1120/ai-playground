@@ -169,6 +169,8 @@ class DirectEnginesTest {
             assertTrue(result.content.endsWith("答え"))
             assertTrue(result.content.contains("```python\nprint(1)"))
             assertEquals("考え", result.thought)
+            assertEquals(listOf(com.minashin1120.aiplayground.data.PythonExecution("print(1)", "1")),
+                com.minashin1120.aiplayground.data.extractPythonExecutions(result.content).second)
             assertEquals(listOf("sig1"), result.thoughtSignatures)
             assertEquals(10, result.tokensIn)
             assertEquals(7, result.tokensOut)
@@ -530,5 +532,32 @@ class DirectEnginesTest {
             assertTrue(server.takeRequest().target.startsWith("/v1/responses"))
             assertEquals("/v1/files/file-out/content", server.takeRequest().target)
         }
+    }
+
+    @Test fun openAiInlineThinkingImagesAreSavedOnceAndAttachedToThePythonRun() {
+        MockWebServer().use { server ->
+            server.start()
+            val item = """{"type":"code_interpreter_call","id":"ci_inline","code":"display(crop)","outputs":[{"type":"image","url":"data:image/png;base64,AQID"},{"type":"image","url":"data:image/png;base64,BAUG"}]}"""
+            server.enqueue(sse(
+                """{"type":"response.output_item.done","item":$item}""",
+                """{"type":"response.output_text.delta","delta":"解析しました。"}""",
+                """{"type":"response.completed","response":{"output":[$item]}}""",
+            ))
+            val images = mutableListOf<ByteArray>()
+            val req = request().copy(saveOutput = { file -> images += file.bytes; "local/step${images.size}.png" })
+            val (result, events) = run(OpenAiResponsesDirect(http, baseUrl = server.url("/").toString().trimEnd('/')), req)
+            assertEquals(2, images.size)
+            assertArrayEquals(byteArrayOf(1, 2, 3), images[0])
+            assertArrayEquals(byteArrayOf(4, 5, 6), images[1])
+            val (text, runs) = com.minashin1120.aiplayground.data.extractPythonExecutions(result.content)
+            assertEquals(1, runs.size)
+            assertEquals(listOf("local/step1.png", "local/step2.png"), runs.single().images)
+            assertFalse(text.contains("step1.png"))
+            assertTrue(text.contains("step2.png"))
+            assertTrue(events.any { it.optString("type") == "python" && it.getJSONObject("content").optJSONArray("images")?.length() == 2 })
+            assertEquals(1, server.requestCount)
+        }
+        assertNull(OpenAiResponsesDirect.decodeInterpreterImage("data:image/png;base64,%%%"))
+        assertNull(OpenAiResponsesDirect.decodeInterpreterImage("data:text/html;base64,AQID"))
     }
 }

@@ -351,7 +351,8 @@ internal fun LiveImageAnalysis(text: String) {
  * target and download buttons instead of expand.
  */
 @Composable
-internal fun PythonExecutionBox(card: StatusCard, label: String = "Python Execution", detail: Boolean = false) {
+internal fun PythonExecutionBox(card: StatusCard, label: String = "Python Execution", detail: Boolean = false,
+                                loader: FileBytesLoader? = null, onFile: (String) -> Unit = {}) {
     val colors = markdownColors()
     val actions = LocalMarkdownCodeActions.current
     var collapsed by remember(card.id) { mutableStateOf(!detail) }
@@ -402,6 +403,10 @@ internal fun PythonExecutionBox(card: StatusCard, label: String = "Python Execut
             Column(Modifier.padding(horizontal = 11.2.dp, vertical = 8.8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PythonSection("Code", card.code, colors)
                 PythonSection("Output", card.output, colors)
+                if (card.images.isNotEmpty()) {
+                    Text("Images", color = colors.codeHeaderText, fontSize = 11.sp)
+                    AttachmentGrid(card.images, loader, onFile)
+                }
             }
         }
     }
@@ -500,7 +505,8 @@ private fun SettingsResultRows(entries: List<Pair<String, String>>, onJump: (Str
 
 /** Web `#python-exec-modal` (`openPythonExecDetail`): every Python run saved in the answer. */
 @Composable
-internal fun PythonExecutionDialog(runs: List<com.minashin1120.aiplayground.data.PythonExecution>, onDismiss: () -> Unit) {
+internal fun PythonExecutionDialog(runs: List<com.minashin1120.aiplayground.data.PythonExecution>, onDismiss: () -> Unit,
+                                   loader: FileBytesLoader? = null, onFile: (String) -> Unit = {}) {
     val web = LocalWebPalette.current
     WebOverlayModal(onDismiss, grayOverlay(), 4.dp) { _ ->
         val shape = RoundedCornerShape(12.dp)
@@ -517,9 +523,10 @@ internal fun PythonExecutionDialog(runs: List<com.minashin1120.aiplayground.data
                 Column(Modifier.padding(top = 12.dp).heightIn(max = 640.dp).verticalScroll(rememberScrollState())) {
                     runs.forEachIndexed { index, run ->
                         PythonExecutionBox(
-                            StatusCard("pyexec-detail-$index", CardKind.PYTHON, "", code = run.code, output = run.output, done = true),
+                            StatusCard("pyexec-detail-$index", CardKind.PYTHON, "", code = run.code, output = run.output, done = true, images = run.images),
                             label = if (runs.size > 1) "Python Execution ${index + 1}/${runs.size}" else "Python Execution",
                             detail = true,
+                            loader = loader, onFile = onFile,
                         )
                     }
                 }

@@ -1,5 +1,10 @@
 """OpenAI thinking with images uses the hosted code interpreter, not the local sandbox."""
 from pathlib import Path
+import ast
+import base64
+import re
+from unittest.mock import Mock
+from urllib.parse import urlparse
 import unittest
 
 
@@ -7,6 +12,20 @@ APP_ROOT = Path(__file__).resolve().parents[1]
 
 
 class OpenAICodeInterpreterImageTests(unittest.TestCase):
+    def test_inline_interpreter_images_are_decoded_without_an_http_request(self):
+        source = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
+        node = next(n for n in ast.walk(ast.parse(source))
+                    if isinstance(n, ast.FunctionDef) and n.name == "_download_openai_api_bytes")
+        http = Mock()
+        scope = dict(base64=base64, re=re, httpx=http, log_force=Mock(), urlparse=urlparse)
+        exec(compile(ast.Module(body=[node], type_ignores=[]), "<image-download>", "exec"), scope)
+        download = scope[node.name]
+        self.assertEqual(download("data:image/png;base64,AQID"), b"\x01\x02\x03")
+        self.assertEqual(download("data:image/jpeg;base64,AQ\r\nID"), b"\x01\x02\x03")
+        for invalid in ("data:text/html;base64,AQID", "data:image/png;base64,%%%%", "data:image/png;base64,A"):
+            self.assertIsNone(download(invalid))
+        http.Client.assert_not_called()
+
     def test_responses_branch_mounts_images_on_the_hosted_python_tool(self):
         background = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
         start = background.index('log_force("Routing: Responses API Branch")')

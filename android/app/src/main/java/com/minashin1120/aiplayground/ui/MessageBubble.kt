@@ -388,7 +388,7 @@ private fun thinkingShimmer(preparing: Boolean): Modifier {
 
 /** `.image-grid` (grid-1 … grid-4, grid-multi) with file thumbnails for non-images. */
 @Composable
-private fun AttachmentGrid(files: List<String>, loader: FileBytesLoader?, onFile: (String) -> Unit, missing: Set<String> = emptySet()) {
+internal fun AttachmentGrid(files: List<String>, loader: FileBytesLoader?, onFile: (String) -> Unit, missing: Set<String> = emptySet()) {
     val count = files.size
     val shape = RoundedCornerShape(14.dp)
     Box(

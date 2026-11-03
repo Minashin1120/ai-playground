@@ -1801,7 +1801,7 @@ private fun ConversationContent(
         }
     }
     ModalValueHost(tokenDetail) { detail -> TokenDetailDialog(detail, onDismiss = { tokenDetail = null }) }
-    ModalValueHost(pythonRuns) { runs -> PythonExecutionDialog(runs, onDismiss = { pythonRuns = null }) }
+    ModalValueHost(pythonRuns) { runs -> PythonExecutionDialog(runs, onDismiss = { pythonRuns = null }, loader = loader, onFile = onFile) }
     ModalValueHost(encryptionState) { encrypted ->
         EncryptionStatusDialog(
             encrypted,

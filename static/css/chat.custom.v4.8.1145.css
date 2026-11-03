@@ -5883,6 +5883,12 @@ html.performance-lite-mode body.minimal-prompt-mode .composer-dock {
     -webkit-backdrop-filter: none !important;
 }
 
+/* One opaque backing surface for everything hosted above the lower dock gap.
+   The dock's bottom padding and gesture navigation area remain transparent. */
+body.minimal-prompt-mode .composer-shell {
+    background: var(--bg-1) !important;
+}
+
 /* Float the prompt bar over the conversation so the area around it is
    transparent and messages scroll behind it (edge-to-edge minimal mode). */
 body.minimal-prompt-mode .composer-dock {
@@ -5907,7 +5913,9 @@ body.minimal-prompt-mode #chat-container {
     scroll-padding-bottom: calc(var(--composer-h, 0px) + var(--minimal-nav-clearance) + 1rem);
 }
 body.minimal-prompt-mode .chat-scroll-to-bottom {
-    bottom: calc(var(--composer-h, 0px) + env(safe-area-inset-bottom, 0px) + 1.25rem);
+    /* Chromium's safe-area fast path requires env() as the FIRST calc operand.
+       Reordering this sum opts the page out of edge-to-edge via a safe-area constraint. */
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--composer-h, 0px) + 1.25rem);
 }
 body.minimal-prompt-mode #welcome-screen {
     padding-bottom: calc(var(--composer-h, 0px) + var(--minimal-nav-clearance) + 1rem);

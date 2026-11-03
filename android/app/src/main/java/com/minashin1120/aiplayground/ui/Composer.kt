@@ -289,7 +289,11 @@ fun Composer(
                 .widthIn(max = 832.dp)
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(start = 8.8.dp, end = 8.8.dp, top = if (minimal) 7.2.dp else 8.dp, bottom = 12.dp),
+                // The shared backing ends above the lower gap and the system gesture area.
+                // Child surfaces can retain their own styling without exposing messages beneath them.
+                .padding(bottom = 12.dp)
+                .background(if (minimal) web.bg1.copy(alpha = 1f) else Color.Transparent)
+                .padding(start = 8.8.dp, end = 8.8.dp, top = if (minimal) 7.2.dp else 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             val shownQuote = rememberRetained(state.quote.takeIf { it.isNotBlank() })

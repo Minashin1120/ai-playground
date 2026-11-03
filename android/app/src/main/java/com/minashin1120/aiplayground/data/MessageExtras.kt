@@ -10,6 +10,22 @@ fun pythonExecutionMarkdown(run: PythonExecution): String = "\n```pyexec\n" + JS
     .toString().replace("\\/", "/") + "\n```\n"
 
 private val AGENTIC_VIEW = Regex("!\\[Agentic View]\\(([^)]+)\\)")
+private val MARKDOWN_CODE = Regex("`{3,}[\\s\\S]*?`{3,}|~{3,}[\\s\\S]*?~{3,}|`[^`\\n]*`")
+private val GENERATED_IMAGE_LINK = Regex("(${MARKDOWN_CODE.pattern})|(?<!!)\\[([^]\\n]*)]\\(([^)\\s]+)\\)")
+private val INLINE_IMAGE = Regex("!\\[[^]\\n]*]\\(([^)\\s]+)\\)")
+private val IMAGE_URL_EXTENSION = Regex("(?i)\\.(?:png|jpe?g|webp|gif|bmp)(?:[?#].*)?$")
+
+/** Display confirmed Python output images inline, preserving code and non-image links. */
+fun inlineGeneratedImageLinks(text: String, images: Collection<String>): String {
+    if (images.isEmpty()) return text
+    val known = images.toSet()
+    return GENERATED_IMAGE_LINK.replace(text) { match ->
+        val url = match.groupValues[3]
+        if (match.groupValues[1].isEmpty() && url in known && IMAGE_URL_EXTENSION.containsMatchIn(url))
+            "![${match.groupValues[2]}]($url)"
+        else match.value
+    }
+}
 
 private fun normalizeNewlines(text: String) = text.replace("\r\n", "\n").replace('\r', '\n')
 
@@ -94,8 +110,10 @@ fun extractPythonExecutions(raw: String): Pair<String, List<PythonExecution>> {
         }
         cleaned = stripVisiblePythonOutputBlock(cleaned, run.output)
     }
+    cleaned = inlineGeneratedImageLinks(cleaned, runs.flatMap { it.images })
     runs.lastOrNull { it.images.isNotEmpty() }?.let { lastRun ->
-        val images = lastRun.images.filterNot { cleaned.contains(it) }
+        val shown = INLINE_IMAGE.findAll(MARKDOWN_CODE.replace(cleaned, "")).map { it.groupValues[1] }.toSet()
+        val images = lastRun.images.filterNot { it in shown }
         if (images.isNotEmpty()) cleaned += "\n\n**Pythonの最後の実行画像**\n\n" +
             images.joinToString("\n\n") { "![Pythonの最後の実行画像]($it)" }
     }

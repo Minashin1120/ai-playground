@@ -476,7 +476,7 @@ class DirectEnginesTest {
             val base = server.url("/").toString().trimEnd('/')
             server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json").body("""{"id":"file-abc"}""").build())
             server.enqueue(sse(
-                """{"type":"response.output_text.delta","delta":"zoomed"}""",
+                """{"type":"response.output_text.delta","delta":"[切り抜き](sandbox:/mnt/data/crop.png)"}""",
                 """{"type":"response.output_text.annotation.added","annotation":{"type":"container_file_citation","container_id":"cntr_abc","file_id":"cfile_xyz","filename":"crop.png"}}""",
                 """{"type":"response.completed","response":{"output":[{"type":"message","content":[{"type":"output_text","annotations":[{"type":"container_file_citation","container_id":"cntr_abc","file_id":"cfile_xyz","filename":"crop.png"}]}]}],"usage":{"input_tokens":2,"output_tokens":3}}}""",
             ))
@@ -509,6 +509,8 @@ class DirectEnginesTest {
             assertArrayEquals(byteArrayOf(9, 8, 7), saved)
             assertEquals(1, Regex("Agentic View").findAll(result.content).count())
             assertTrue(result.content.contains("local/crop.png"))
+            assertTrue(result.content.contains("![切り抜き](local/crop.png)"))
+            assertFalse(result.content.contains("sandbox:"))
             assertTrue(events.any { it.optString("type") == "status" && it.optString("content").contains("コード実行環境") })
         }
     }

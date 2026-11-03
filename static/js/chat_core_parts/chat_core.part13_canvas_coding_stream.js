@@ -221,8 +221,15 @@
                 cleaned = stripVisiblePythonOutputBlock(cleaned, ex.output);
             });
 
+            const generatedImages = new Set(executions.flatMap(ex => ex.images || []));
+            cleaned = cleaned.replace(/(`{3,}[\s\S]*?`{3,}|~{3,}[\s\S]*?~{3,}|`[^`\n]*`)|(?<!!)\[([^\]\n]*)\]\(([^)\s]+)\)/g,
+                (match, code, label, url) => !code && generatedImages.has(url) && /\.(?:png|jpe?g|webp|gif|bmp)(?:[?#].*)?$/i.test(url)
+                    ? `![${label}](${url})` : match);
+
             const lastRun = executions.slice().reverse().find(ex => ex.images && ex.images.length);
-            const finalImages = (lastRun ? lastRun.images : []).filter(u => /^\/files\/[A-Za-z0-9_./%-]+$/.test(u) && !cleaned.includes(u));
+            const visibleText = cleaned.replace(/`{3,}[\s\S]*?`{3,}|~{3,}[\s\S]*?~{3,}|`[^`\n]*`/g, '');
+            const shownImages = new Set(Array.from(visibleText.matchAll(/!\[[^\]\n]*\]\(([^)\s]+)\)/g), m => m[1]));
+            const finalImages = (lastRun ? lastRun.images : []).filter(u => /^\/files\/[A-Za-z0-9_./%-]+$/.test(u) && !shownImages.has(u));
             if (finalImages.length) {
                 cleaned += '\n\n**Pythonの最後の実行画像**\n\n' + finalImages.map(u => `![Pythonの最後の実行画像](${u})`).join('\n\n');
             }

@@ -6,6 +6,17 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class MessageExtrasTest {
+    @Test fun generatedImageLinksDisplayInlineWithoutChangingOtherLinksOrCode() {
+        val image = "/files/1/result.png"
+        val run = PythonExecution("display(result)", "", listOf(image))
+        val others = "[PDF](/files/1/result.pdf) [external](https://example.com/result.png)"
+        val (text, _) = extractPythonExecutions("[切り抜いた画像をダウンロード]($image)\n" + others + pythonExecutionMarkdown(run))
+        assertEquals("![切り抜いた画像をダウンロード]($image)\n$others", text)
+        val code = "```md\n[example]($image)\n```\n`[example]($image)`"
+        val (withCode, _) = extractPythonExecutions(code + pythonExecutionMarkdown(run))
+        assertEquals(code + "\n\n**Pythonの最後の実行画像**\n\n![Pythonの最後の実行画像]($image)", withCode)
+    }
+
     @Test fun allThreeImagesFromTheLastImageRunAppearBelowTheAnswer() {
         val step = PythonExecution("display(step)", "", listOf("/files/1/step.png"))
         val run = PythonExecution("display(a); display(b); display(c)", "", (1..3).map { "/files/1/result$it.png" })

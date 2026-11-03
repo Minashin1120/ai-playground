@@ -159,7 +159,8 @@ class OpenAiResponsesDirect(
             val name = remote.filename?.substringAfterLast('/') ?: return
             val rewritten = content.toString().replace("sandbox:/mnt/data/$name", saved)
                 .replace("sandbox:/mnt/data/${name.replace(" ", "%20")}", saved)
-            content.setLength(0); content.append(rewritten)
+            content.setLength(0)
+            content.append(com.minashin1120.aiplayground.data.inlineGeneratedImageLinks(rewritten, listOf(saved)))
         }
         for (remote in remoteImages) {
             val key = remote.fileId ?: remote.url ?: continue

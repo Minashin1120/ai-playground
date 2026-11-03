@@ -1,6 +1,8 @@
 import base64
+import ast
 import json
 import os
+from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
@@ -124,6 +126,41 @@ class AgenticImageRegressionTests(unittest.TestCase):
         )
         self.assertNotIn("sandbox:", out)
         self.assertIn("画像データを取得できませんでした", out)
+
+    def test_python_image_download_links_become_images_and_other_links_stay_links(self):
+        saved = "/files/1/agentic_result.png"
+        code = "```md\n[code example](sandbox:/mnt/data/result.png)\n```"
+        other = "[PDF](sandbox:/mnt/data/result.pdf) [web](https://example.com/result.png)"
+        text = f"{code}\n[result](sandbox:/mnt/data/result.png)\n{other}"
+        consumed = []
+        out = target._rewrite_sandbox_image_refs(text, [], consumed, {"result.png": saved})
+        self.assertEqual(out, f"{code}\n![result]({saved})\n{other}")
+        self.assertEqual(consumed, [saved])
+
+    def test_download_link_split_before_late_image_arrival_resolves_in_final_pass(self):
+        buffer = [""]
+        text = "".join(target._rewrite_streamed_sandbox_refs(part, buffer, [], [])
+                       for part in ["[cropped image]", "(sandbox:/mnt/data/crop.png)"])
+        saved = "/files/1/agentic_crop.png"
+        self.assertEqual(target._rewrite_sandbox_image_refs(text, [], [], {"crop.png": saved}),
+                         f"![cropped image]({saved})")
+
+    def test_prior_python_image_download_link_becomes_inline_image(self):
+        self.assertEqual(target._resolve_prior_sandbox_image_refs("[download](result.png)",
+                         {"result.png": "/files/1/agentic_result.png"}),
+                         "![download](/files/1/agentic_result.png)")
+
+    def test_completed_answer_resolves_image_citation_received_after_the_download_link(self):
+        source = (Path(__file__).resolve().parents[1] / "server/background.py").read_text()
+        block = next(n for n in ast.walk(ast.parse(source)) if isinstance(n, ast.If)
+                     and ast.unparse(n.test) == "agentic_filename_url_map or agentic_saved_urls")
+        saved = "/files/1/agentic_result.png"
+        scope = dict(full_res=f"[result](sandbox:/mnt/data/result.png)\n![Agentic View]({saved})",
+                     agentic_saved_urls=[saved], agentic_consumed_urls=[],
+                     agentic_filename_url_map={"result.png": saved},
+                     _rewrite_sandbox_image_refs=target._rewrite_sandbox_image_refs)
+        exec(compile(ast.Module(body=[block], type_ignores=[]), "<completed-image-answer>", "exec"), scope)
+        self.assertEqual(scope["full_res"].strip(), f"![result]({saved})")
 
     def test_non_sandbox_text_is_untouched(self):
         buffer_state = [""]

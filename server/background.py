@@ -7777,6 +7777,14 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 return
             if is_grok and grok_reasoning_supported and not thought_accumulated:
                 thought_accumulated = " "
+            # Container citations can arrive after the text referring to their files.
+            # Resolve the completed answer now that every returned image is saved.
+            if agentic_filename_url_map or agentic_saved_urls:
+                full_res = _rewrite_sandbox_image_refs(
+                    full_res, agentic_saved_urls, agentic_consumed_urls, agentic_filename_url_map,
+                )
+                for image_url in agentic_consumed_urls:
+                    full_res = full_res.replace(f"![Agentic View]({image_url})", "")
             final_content = _strip_invented_agentic_images(
                 full_res,
                 set(agentic_saved_urls) | set(agentic_consumed_urls),

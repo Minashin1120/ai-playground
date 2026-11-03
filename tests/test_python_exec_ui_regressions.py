@@ -109,6 +109,14 @@ for (const structured of [false, true]) {{
     const cited = extractPythonExecutionsFromContent(output + '\\n![final](/files/1/final1.png)');
     if ((cited.text.match(/final1.png/g) || []).length !== 1 || (cited.text.match(/!\\[/g) || []).length !== 3) process.exit(11);
 }}
+const image = '/files/1/result.png';
+const details = '\\n```pyexec\\n' + JSON.stringify({{code:'display(result)',output:'',images:[image]}}) + '\\n```';
+const otherLinks = '[PDF](/files/1/result.pdf) [external](https://example.com/result.png)';
+const linked = extractPythonExecutionsFromContent('[切り抜き](' + image + ')\\n' + otherLinks + details);
+if (linked.text !== '![切り抜き](' + image + ')\\n' + otherLinks) process.exit(12);
+const codeSample = '```md\\n[example](' + image + ')\\n```\\n`[example](' + image + ')`';
+const protectedCode = extractPythonExecutionsFromContent(codeSample + details);
+if (!protectedCode.text.startsWith(codeSample) || !protectedCode.text.includes('![Pythonの最後の実行画像](' + image + ')')) process.exit(13);
 console.log('OK');
 """
         with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:

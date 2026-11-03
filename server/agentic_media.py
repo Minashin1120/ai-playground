@@ -112,9 +112,14 @@ def _prepare_agentic_image_bytes(data, declared_mime=None):
 
 
 _SANDBOX_IMG_REF_RE = re.compile(
+    r"!?\[([^\]]*)\]\(\s*((?:sandbox:/mnt/data/|/mnt/data/)?[\w.\-]+\.(?:png|jpe?g|webp|gif|bmp))[^)\s]*\)",
+    re.I,
+)
+_SANDBOX_STREAM_IMG_REF_RE = re.compile(
     r"!\[([^\]]*)\]\(\s*((?:sandbox:/mnt/data/|/mnt/data/)?[\w.\-]+\.(?:png|jpe?g|webp|gif|bmp))[^)\s]*\)",
     re.I,
 )
+_AGENTIC_MARKDOWN_CODE_RE = re.compile(r"`{3,}[\s\S]*?`{3,}|~{3,}[\s\S]*?~{3,}|`[^`\n]*`")
 
 _SANDBOX_IMAGE_EXTENSIONS = frozenset({"png", "jpg", "jpeg", "webp", "gif", "bmp"})
 
@@ -167,10 +172,13 @@ def _rewrite_sandbox_image_refs(text, saved_urls, consumed_urls, filename_url_ma
     unresolved bare filenames are left as-is because they may be a legitimate
     relative link.
     """
-    if not text or "![" not in text:
+    if not text or "[" not in text:
         return text
+    code_spans = [m.span() for m in _AGENTIC_MARKDOWN_CODE_RE.finditer(text)]
 
     def _repl(match):
+        if any(start <= match.start() < end for start, end in code_spans):
+            return match.group(0)
         alt = match.group(1) or ""
         url = match.group(2)
         basename = _sandbox_ref_basename(url)
@@ -231,7 +239,7 @@ def _rewrite_streamed_sandbox_refs(delta, buffer_state, saved_urls, consumed_url
     pending = buffer_state[0] + delta
     out = []
     while True:
-        match = _SANDBOX_IMG_REF_RE.search(pending)
+        match = _SANDBOX_STREAM_IMG_REF_RE.search(pending)
         if not match:
             break
         out.append(pending[:match.start()])
@@ -328,10 +336,13 @@ def _resolve_prior_sandbox_image_refs(text, names):
     returning an image becomes a short note instead of an unloadable image;
     names no earlier answer produced are left unchanged.
     """
-    if not text or not names or "![" not in text:
+    if not text or not names or "[" not in text:
         return text
+    code_spans = [m.span() for m in _AGENTIC_MARKDOWN_CODE_RE.finditer(text)]
 
     def _repl(match):
+        if any(start <= match.start() < end for start, end in code_spans):
+            return match.group(0)
         basename = _sandbox_ref_basename(match.group(2))
         key = basename.lower() if basename else None
         if not key or key not in names:
@@ -346,7 +357,7 @@ def _resolve_prior_sandbox_image_refs(text, names):
 
 
 def _has_bare_sandbox_image_ref(text):
-    return bool(text) and "![" in text and _SANDBOX_IMG_REF_RE.search(text) is not None
+    return bool(text) and "[" in text and _SANDBOX_IMG_REF_RE.search(text) is not None
 
 
 def _sandbox_history_rows(thread_id, before_id=None):

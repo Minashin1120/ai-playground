@@ -552,7 +552,7 @@ class DirectEnginesTest {
             val (text, runs) = com.minashin1120.aiplayground.data.extractPythonExecutions(result.content)
             assertEquals(1, runs.size)
             assertEquals(listOf("local/step1.png", "local/step2.png"), runs.single().images)
-            assertFalse(text.contains("step1.png"))
+            assertTrue(text.contains("step1.png"))
             assertTrue(text.contains("step2.png"))
             assertTrue(events.any { it.optString("type") == "python" && it.getJSONObject("content").optJSONArray("images")?.length() == 2 })
             assertEquals(1, server.requestCount)

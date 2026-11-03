@@ -53,7 +53,9 @@ fun extractPythonExecutions(raw: String): Pair<String, List<PythonExecution>> {
     val source = normalizeNewlines(raw)
     if (source.isEmpty()) return "" to emptyList()
     val runs = mutableListOf<PythonExecution>()
+    val runOffsets = mutableListOf<Int>()
     var cleaned = PYEXEC.replace(source) { match ->
+        runOffsets += match.range.first
         val body = match.groupValues[2].trim()
         runs += runCatching {
             val obj = JSONObject(body)
@@ -67,16 +69,21 @@ fun extractPythonExecutions(raw: String): Pair<String, List<PythonExecution>> {
     // Ordinary Python examples without execution images remain in the answer.
     if (runs.isEmpty() && AGENTIC_VIEW.containsMatchIn(source)) {
         val legacy = Regex("(?:^|\\n)```python\\n([\\s\\S]*?)\\n```(?:\\n+\\*\\*Output:\\*\\*\\n```\\n([\\s\\S]*?)\\n```)?")
-        cleaned = legacy.replace(cleaned) { match ->
+        cleaned = legacy.replace(source) { match ->
+            runOffsets += match.range.first
             runs += PythonExecution(match.groupValues[1], match.groupValues[2]); "\n"
         }
     }
     if (runs.isNotEmpty()) {
         val known = runs.flatMap { it.images }.toSet()
-        val images = AGENTIC_VIEW.findAll(cleaned).map { it.groupValues[1] }.filterNot { it in known }.toList()
-        if (images.isNotEmpty()) {
-            val last = runs.last()
-            runs[runs.lastIndex] = last.copy(images = (last.images + images).distinct())
+        // Use positions in the original answer; removing code/metadata changes the offsets.
+        AGENTIC_VIEW.findAll(source).forEach { match ->
+            val image = match.groupValues[1]
+            if (image !in known) {
+                val index = runOffsets.indexOfLast { it <= match.range.first }.coerceAtLeast(0)
+                val run = runs[index]
+                runs[index] = run.copy(images = (run.images + image).distinct())
+            }
         }
         cleaned = AGENTIC_VIEW.replace(cleaned, "")
     }
@@ -87,8 +94,10 @@ fun extractPythonExecutions(raw: String): Pair<String, List<PythonExecution>> {
         }
         cleaned = stripVisiblePythonOutputBlock(cleaned, run.output)
     }
-    runs.flatMap { it.images }.lastOrNull()?.let { lastImage ->
-        if (!cleaned.contains(lastImage)) cleaned += "\n\n**Pythonの最後の画像**\n\n![Pythonの最後の画像]($lastImage)"
+    runs.lastOrNull { it.images.isNotEmpty() }?.let { lastRun ->
+        val images = lastRun.images.filterNot { cleaned.contains(it) }
+        if (images.isNotEmpty()) cleaned += "\n\n**Pythonの最後の実行画像**\n\n" +
+            images.joinToString("\n\n") { "![Pythonの最後の実行画像]($it)" }
     }
     return tidy(cleaned) to runs
 }

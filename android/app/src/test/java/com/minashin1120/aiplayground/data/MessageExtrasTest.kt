@@ -6,19 +6,37 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class MessageExtrasTest {
-    @Test fun executionImagesStayInDetailsAndOnlyTheLastImageAppearsBelowTheAnswer() {
-        val run = PythonExecution("display(crop)", "", listOf("/files/1/step.png", "/files/1/result.png"))
-        val (text, runs) = extractPythonExecutions("完了。" + pythonExecutionMarkdown(run))
-        assertEquals(listOf(run), runs)
-        assertEquals("完了。\n\n**Pythonの最後の画像**\n\n![Pythonの最後の画像](/files/1/result.png)", text)
-        val (cited, _) = extractPythonExecutions("![結果](/files/1/result.png)" + pythonExecutionMarkdown(run))
-        assertEquals("![結果](/files/1/result.png)", cited)
+    @Test fun allThreeImagesFromTheLastImageRunAppearBelowTheAnswer() {
+        val step = PythonExecution("display(step)", "", listOf("/files/1/step.png"))
+        val run = PythonExecution("display(a); display(b); display(c)", "", (1..3).map { "/files/1/result$it.png" })
+        val raw = "完了。" + pythonExecutionMarkdown(step) + pythonExecutionMarkdown(run) +
+            pythonExecutionMarkdown(PythonExecution("print('done')", "done"))
+        val (text, runs) = extractPythonExecutions(raw)
+        assertEquals(listOf(step, run, PythonExecution("print('done')", "done")), runs)
+        assertEquals("完了。\n\n**Pythonの最後の実行画像**\n\n" +
+            run.images.joinToString("\n\n") { "![Pythonの最後の実行画像]($it)" }, text)
+        val explicit = run.images.joinToString("\n") { "![結果]($it)" }
+        assertEquals(explicit, extractPythonExecutions(explicit + pythonExecutionMarkdown(step) + pythonExecutionMarkdown(run)).first)
+    }
+
+    @Test fun imagesAreAssociatedWithTheirPrecedingExecutionInLegacyAndStructuredAnswers() {
+        for (structured in listOf(false, true)) {
+            fun execution(code: String) = if (structured) pythonExecutionMarkdown(PythonExecution(code, ""))
+                else "\n```python\n$code\n```\n**Output:**\n```\n\n```\n"
+            val raw = execution("display(step)") + "![Agentic View](/files/1/step.png)\n" +
+                execution("display(a); display(b); display(c)") +
+                (1..3).joinToString("\n") { "![Agentic View](/files/1/final$it.png)" } + "\n完了。"
+            val (text, runs) = extractPythonExecutions(raw)
+            assertEquals(listOf(listOf("/files/1/step.png"), (1..3).map { "/files/1/final$it.png" }), runs.map { it.images })
+            assertEquals("完了。\n\n**Pythonの最後の実行画像**\n\n" +
+                (1..3).joinToString("\n\n") { "![Pythonの最後の実行画像](/files/1/final$it.png)" }, text)
+        }
     }
 
     @Test fun olderDirectPythonAnswersAreRecoveredWithoutHidingOrdinaryExamples() {
         val (text, runs) = extractPythonExecutions("```python\ndisplay(crop)\n```\n**Output:**\n```\nok\n```\n答え。\n![Agentic View](/files/1/crop.png)")
         assertEquals(listOf(PythonExecution("display(crop)", "ok", listOf("/files/1/crop.png"))), runs)
-        assertEquals("答え。\n\n**Pythonの最後の画像**\n\n![Pythonの最後の画像](/files/1/crop.png)", text)
+        assertEquals("答え。\n\n**Pythonの最後の実行画像**\n\n![Pythonの最後の実行画像](/files/1/crop.png)", text)
         val plain = "```python\nprint(1)\n```"
         assertEquals(plain to emptyList<PythonExecution>(), extractPythonExecutions(plain))
     }

@@ -172,11 +172,13 @@
         function extractPythonExecutionsFromContent(rawText) {
             const source = normalizeMarkdownNewlines(rawText);
             const executions = [];
+            const runOffsets = [];
             if (!source) return { text: '', executions };
 
             // ```pyexec ... ``` (fences of length >= 3)
             const pyexecRe = /(?:^|\n)(`{3,}|~{3,})pyexec[ \t]*\n([\s\S]*?)\n\1[ \t]*(?=\n|$)/g;
-            let cleaned = source.replace(pyexecRe, (match, fence, body) => {
+            let cleaned = source.replace(pyexecRe, (match, fence, body, offset) => {
+                runOffsets.push(offset);
                 const raw = String(body || '').trim();
                 try {
                     const obj = JSON.parse(raw);
@@ -193,15 +195,20 @@
 
             const agenticRe = /!\[Agentic View\]\(([^)]+)\)/g;
             if (!executions.length && /!\[Agentic View\]\(/.test(source)) {
-                cleaned = cleaned.replace(/(?:^|\n)```python\n([\s\S]*?)\n```(?:\n+\*\*Output:\*\*\n```\n([\s\S]*?)\n```)?/g,
-                    (match, code, output) => { executions.push({ code, output: output || '', images: [] }); return '\n'; });
+                cleaned = source.replace(/(?:^|\n)```python\n([\s\S]*?)\n```(?:\n+\*\*Output:\*\*\n```\n([\s\S]*?)\n```)?/g,
+                    (match, code, output, offset) => {
+                        runOffsets.push(offset);
+                        executions.push({ code, output: output || '', images: [] }); return '\n';
+                    });
             }
             if (executions.length) {
                 const known = new Set(executions.flatMap(ex => ex.images || []));
-                const images = Array.from(cleaned.matchAll(agenticRe), m => m[1]).filter(u => !known.has(u));
-                if (images.length) {
-                    const last = executions[executions.length - 1];
-                    last.images = Array.from(new Set([...(last.images || []), ...images]));
+                for (const match of source.matchAll(agenticRe)) {
+                    if (known.has(match[1])) continue;
+                    let index = runOffsets.length - 1;
+                    while (index > 0 && runOffsets[index] > match.index) index--;
+                    const run = executions[index];
+                    run.images = Array.from(new Set([...(run.images || []), match[1]]));
                 }
                 cleaned = cleaned.replace(agenticRe, '');
             }
@@ -214,9 +221,10 @@
                 cleaned = stripVisiblePythonOutputBlock(cleaned, ex.output);
             });
 
-            const lastImage = executions.flatMap(ex => ex.images || []).slice(-1)[0];
-            if (lastImage && /^\/files\/[A-Za-z0-9_./%-]+$/.test(lastImage) && !cleaned.includes(lastImage)) {
-                cleaned += `\n\n**Pythonの最後の画像**\n\n![Pythonの最後の画像](${lastImage})`;
+            const lastRun = executions.slice().reverse().find(ex => ex.images && ex.images.length);
+            const finalImages = (lastRun ? lastRun.images : []).filter(u => /^\/files\/[A-Za-z0-9_./%-]+$/.test(u) && !cleaned.includes(u));
+            if (finalImages.length) {
+                cleaned += '\n\n**Pythonの最後の実行画像**\n\n' + finalImages.map(u => `![Pythonの最後の実行画像](${u})`).join('\n\n');
             }
 
             cleaned = cleaned

@@ -497,6 +497,20 @@
             }
 
             let at = '';
+            const representedImages = new Set();
+            if (!isUser) {
+                const visibleText = String(displayText || '').replace(/`{3,}[\s\S]*?`{3,}|~{3,}[\s\S]*?~{3,}|`[^`\n]*`/g, '');
+                const refs = Array.from(visibleText.matchAll(/!\[[^\]\n]*\]\(([^)\s]+)\)/g), m => m[1]);
+                refs.push(...(pythonExtract.executions || []).flatMap(ex => ex.images || []));
+                refs.forEach(ref => {
+                    if (/^https?:\/\//i.test(ref) && !ref.startsWith(FILE_BASE_URL)) {
+                        try { if (new URL(ref).origin !== window.location.origin) return; }
+                        catch (e) { return; }
+                    }
+                    const path = normalizeAttachmentPath(ref);
+                    if (path) representedImages.add(path);
+                });
+            }
             if(imgUrl) {
                 try {
                     const imgs = JSON.parse(imgUrl);
@@ -511,6 +525,7 @@
                             }
                             path = normalizeAttachmentPath(path) || path;
                             if (!path) return;
+                            if (!isUser && representedImages.has(path)) return;
                             setAttachmentSourceForPath(path, source);
                             const displayPath = path.replace(/^\d+\//, '');
                             const url = buildFileUrl(displayPath);

@@ -915,15 +915,15 @@ nd); font-weight: bold; }
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const v=new f(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),w=v.internal.pageSize.getWidth(),x=v.internal.
 pageSize.getHeight(),_=794,S=Math.floor(x/w*_),C=y.scrollHeight||y.offsetHeight;let A=0,I=!0;const G=Math.
-ceil(C/S);let H=0;for(;A<C;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const j=Math.min(S,C-A),ue=(await new Promise((E,R)=>{const X=setTimeout(()=>R(
+ceil(C/S);let F=0;for(;A<C;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
+"Aborted","AbortError");const D=Math.min(S,C-A),le=(await new Promise((E,R)=>{const X=setTimeout(()=>R(
 new Error("PDF chunk rendering timed out")),12e4);h(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
-background,logging:!1,imageTimeout:5e3,x:0,y:A,width:_,height:j,windowWidth:_,scrollX:0,scrollY:0,signal:richPasteAbortController?
-richPasteAbortController.signal:void 0,onclone:o(N=>{prepareRichPastePdfClone(N,c);const D=N.querySelector(
-".pdf-root-wrapper");D&&(D.style.position="relative",D.style.left="0",D.style.top="0")},"onclone")}).
-then(N=>{clearTimeout(X),E(N)}).catch(N=>{clearTimeout(X),R(N)})})).toDataURL("image/jpeg",.95),me=v.
-getImageProperties(ue),le=Math.min(x,me.height*w/me.width);I||v.addPage(),v.addImage(ue,"JPEG",0,0,w,
-le),I=!1,A+=j,H++;const Le=Math.min(100,15+Math.round(H/G*85));i(Le),await new Promise(E=>setTimeout(
+background,logging:!1,imageTimeout:5e3,x:0,y:A,width:_,height:D,windowWidth:_,scrollX:0,scrollY:0,signal:richPasteAbortController?
+richPasteAbortController.signal:void 0,onclone:o(N=>{prepareRichPastePdfClone(N,c);const U=N.querySelector(
+".pdf-root-wrapper");U&&(U.style.position="relative",U.style.left="0",U.style.top="0")},"onclone")}).
+then(N=>{clearTimeout(X),E(N)}).catch(N=>{clearTimeout(X),R(N)})})).toDataURL("image/jpeg",.95),ue=v.
+getImageProperties(le),re=Math.min(x,ue.height*w/ue.width);I||v.addPage(),v.addImage(le,"JPEG",0,0,w,
+re),I=!1,A+=D,F++;const Le=Math.min(100,15+Math.round(F/G*85));i(Le),await new Promise(E=>setTimeout(
 E,100))}return i(100),{blob:v.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=o(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -2038,8 +2038,8 @@ ordKey"),l=o(v=>{const w=performance.now();if(!(w-e.lastMoveSample<80)){if(e.las
 sqrt(x*x+_*_)/(S/1e3);e.speedMax=Math.max(e.speedMax,C),e.speedSum+=C,e.speedSamples+=1}}e.lastMove=
 {x:v.clientX,y:v.clientY,t:w}}},"recordMove"),c=o(()=>{const v=Math.max(1,performance.now()-e.windowStart),
 w=e.clickTimes.length,x=e.keyTimes.length,_=e.speedSamples?e.speedSum/e.speedSamples:0;let S=0,C=1;if(e.
-clickIntervals.length>=3){const A=e.clickIntervals.reduce((G,H)=>G+H,0)/e.clickIntervals.length,I=e.
-clickIntervals.reduce((G,H)=>G+Math.pow(H-A,2),0)/e.clickIntervals.length;S=A,C=A>0?Math.sqrt(I)/A:1}
+clickIntervals.length>=3){const A=e.clickIntervals.reduce((G,F)=>G+F,0)/e.clickIntervals.length,I=e.
+clickIntervals.reduce((G,F)=>G+Math.pow(F-A,2),0)/e.clickIntervals.length;S=A,C=A>0?Math.sqrt(I)/A:1}
 return{window_ms:Math.round(v),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
 fastKeys,untrusted_input:!!e.untrustedInput,click_burst:w,key_burst:x,avg_click_ms:S,click_cv:C,event_rate:(e.
 clicks+e.keys+e.moves)/(v/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:_}},"computeStats"),u=o(

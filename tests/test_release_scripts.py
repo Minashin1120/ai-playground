@@ -1,5 +1,7 @@
 import datetime as dt
 import importlib.util
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -166,11 +168,11 @@ class ReleaseScriptContractTests(unittest.TestCase):
     def test_static_assets_must_be_readable_by_the_web_server(self):
         # Apache serves /static directly: a private (0600) versioned asset makes the site answer 403
         # while gunicorn, which owns the file, still passes the live checks.
-        self.assertIn("chmod a+r", read("prepare_version.sh"))
+        self.assertIn("chmod a+r", read("_prepare_checks.sh"))
         self.assertIn("-perm -004", read("verify_changes.sh"))
 
     def test_prepare_requires_notes_and_does_not_publish(self):
-        source = read("prepare_version.sh")
+        source = read("prepare_version.sh") + read("_prepare_checks.sh")
         self.assertIn("--notes", source)
         self.assertIn("--dry-run", source)
         self.assertIn("build_frontend.sh", source)
@@ -242,6 +244,25 @@ class ReleaseScriptContractTests(unittest.TestCase):
             ["scripts/record_changes.sh", "server/models.py"], "operations"
         )
         self.assertIn("server/models.py", mixed["outside_target"])
+
+    def test_operations_include_test_guides_but_not_arbitrary_test_code(self):
+        for path in ("tests/README.md", "tests/docs/frontend.md", "tests/test_prepare_preflight.py"):
+            self.assertTrue(COMMON.is_record_target_path(path, "operations"), path)
+        for path in ("tests/docs/anything.py", "tests/test_unrelated_feature.py"):
+            self.assertFalse(COMMON.is_record_target_path(path, "operations"), path)
+
+    def test_new_guides_are_reviewed_as_files_instead_of_directory_placeholders(self):
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            guides = repo / "tests/docs"
+            guides.mkdir(parents=True)
+            (guides / "frontend.md").write_text("guide")
+            (guides / "unrelated.py").write_text("pass")
+            paths = COMMON.git_status_paths(repo)
+            self.assertEqual(set(paths), {"tests/docs/frontend.md", "tests/docs/unrelated.py"})
+            self.assertTrue(COMMON.is_record_target_path("tests/docs/frontend.md", "operations"))
+            self.assertFalse(COMMON.is_record_target_path("tests/docs/unrelated.py", "operations"))
 
     def test_deploy_server_restarts_without_version_bump(self):
         source = read("deploy_server.sh")

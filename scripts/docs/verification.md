@@ -1,0 +1,19 @@
+# 検証と版更新の順序
+
+テストの選定は [tests/README.md](../../tests/README.md) が入口です。関係する分野の文書だけを読み、通常の実装の前提を知るためにテスト本体を通読しません。
+
+`prepare_version.sh` は引数と公開向けnotesを確認した後、`_prepare_checks.sh` の次の処理を呼びます。
+
+| 段階 | 処理 | 失敗した場合 |
+|---|---|---|
+| `prepare_preflight` | 現在の版のソースからビルド、静的資産の読み取り権限の調整、構文・資産・文書・全回帰テスト | 版番号・changelogを変えずに停止 |
+| `run_common prepare` | 版番号・公開文書・changelog・版付き資産名を更新 | 生成処理の失敗として停止 |
+| `prepare_check_new_assets` | 新版のソースから再ビルド、構文・資産・文書・参照を `--skip-tests` で確認 | 再度版を進めず修正・ビルド・検証 |
+
+全回帰テストは版更新前の1回です。新版確認と公開時の `verify_changes.sh --skip-tests` は、資産生成・参照・構文の確認に使います。`--dry-run` は計画だけで、ビルド・検証・版変更を実行しません。
+
+テスト省略が明示された場合の `--skip-verify` は、版更新前のpytestを省きます。構文・資産・文書の確認は版更新前後の両方で残します。更新後作業全体の省略とは別です。
+
+失敗箇所は短い終了出力で確認します。詳細が必要なときだけ該当ログの失敗付近を読みます。版更新前のログは `scripts/verify.preflight.last.log`、版更新後・単独検証のログは `scripts/verify.last.log` です。
+
+`prepare_version.sh` を運用変更のテストとして実リポジトリで実行しません。手順の変更は `tests/test_prepare_preflight.py` の一時ディレクトリによる統合テスト、関連する `test_release_scripts.py`、`bash -n` で検証します。

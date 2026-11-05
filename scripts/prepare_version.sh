@@ -6,6 +6,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$SCRIPT_DIR/_release_lib.sh"
+# shellcheck source=/dev/null
+source "$SCRIPT_DIR/_prepare_checks.sh"
 
 NOTES=""
 NOTES_FILE=""
@@ -18,16 +20,20 @@ usage() {
 Usage: scripts/prepare_version.sh --notes "..." [--handoff-notes "..."]
        scripts/prepare_version.sh --notes-file PATH
 
-Advances the current version to the next one:
+Before advancing the version, rebuilds the edited sources and runs regression
+tests and static checks. A failure leaves versions and changelogs unchanged.
+Then advances the current version to the next one:
   - copies the edited chat_core / CSS sources to the new version name
   - updates app.py, README.md, and MODELS.md
   - writes the public changelog from --notes
   - deletes the previous versioned assets
   - rebuilds minified files
-  - runs verify_changes.sh
+  - verifies new assets, syntax, and references without repeating regression tests
 
 Does not restart services or record the version in the remote repository.
 Use --dry-run to print the plan without changing files.
+Use --skip-verify only when regression tests were explicitly waived; static
+checks still run before and after advancing the version.
 EOF
 }
 
@@ -69,22 +75,8 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     exit 0
 fi
 
+prepare_preflight
+
 info "preparing the next version"
 run_common prepare "${COMMON_ARGS[@]}"
-
-info "building minified frontend assets"
-"$ROOT/scripts/build_frontend.sh"
-
-# The web server (www-data) serves /static directly. A shell with a strict umask would
-# leave the new versioned files unreadable to it, and the site would answer 403.
-info "making static assets readable by the web server"
-find "$ROOT/static" -type f ! -perm -004 -exec chmod a+r {} +
-find "$ROOT/static" -type d ! -perm -005 -exec chmod a+rx {} +
-
-if [[ "$SKIP_VERIFY" -eq 1 ]]; then
-    warn "verify skipped"
-    exit 0
-fi
-
-info "verifying the new version"
-"$ROOT/scripts/verify_changes.sh"
+prepare_check_new_assets

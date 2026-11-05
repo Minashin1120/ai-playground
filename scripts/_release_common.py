@@ -96,6 +96,8 @@ OPERATIONS_RECORD_EXACT = {
     "tests/test_mcp_release_allowlist.py",
     "tests/test_production_schema_guard_regressions.py",
     "tests/test_release_scripts.py",
+    "tests/test_prepare_preflight.py",
+    "tests/README.md",
 }
 OPERATIONS_RECORD_PREFIXES = ("scripts/",)
 # Server-only fixes deployed without a Web version bump (scripts/deploy_server.sh).
@@ -353,6 +355,8 @@ def is_record_target_path(path: str, target: str) -> bool:
     if target == "android":
         return normalized.startswith("android/") or normalized in ANDROID_RECORD_EXACT
     if target == "operations":
+        if normalized.startswith("tests/docs/"):
+            return normalized.endswith(".md")
         return normalized in OPERATIONS_RECORD_EXACT or any(
             normalized.startswith(prefix) for prefix in OPERATIONS_RECORD_PREFIXES
         )
@@ -474,7 +478,7 @@ def porcelain_paths(lines: list[str]) -> list[str]:
 def git_status_paths(repo: Path | None = None) -> list[str]:
     repo = repo or ROOT
     result = subprocess.run(
-        ["git", "status", "--porcelain"],
+        ["git", "status", "--porcelain", "--untracked-files=all"],
         cwd=repo,
         check=True,
         capture_output=True,

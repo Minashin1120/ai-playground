@@ -22284,6 +22284,7 @@
             let content = '';
             let thought = '';
             let pricingUsage = null;
+            const pricingQueries = new Set();
             const thoughtSignatures = [];
             let contentEl = null;
             let thoughtEl = null;
@@ -22321,11 +22322,17 @@
                     if (!dataText || dataText === '[DONE]') return;
                     const evt = JSON.parse(dataText);
                     if (Number.isInteger(evt.usageMetadata?.promptTokenCount)) {
-                        pricingUsage = {};
-                        for (const key of ['promptTokenCount', 'candidatesTokenCount', 'thoughtsTokenCount']) {
+                        pricingUsage = pricingUsage || {};
+                        for (const key of ['promptTokenCount', 'candidatesTokenCount', 'thoughtsTokenCount', 'cachedContentTokenCount']) {
                             if (Number.isInteger(evt.usageMetadata[key]) && evt.usageMetadata[key] >= 0) pricingUsage[key] = evt.usageMetadata[key];
                         }
                     }
+                    for (const candidate of evt.candidates || []) {
+                        for (const query of candidate.groundingMetadata?.webSearchQueries || []) {
+                            if (typeof query === 'string' && query.trim()) pricingQueries.add(query);
+                        }
+                    }
+                    if (pricingQueries.size) { pricingUsage = pricingUsage || {}; pricingUsage.grounding_queries = pricingQueries.size; }
                     if (evt.error) throw new Error(evt.error.message || 'Gemini API error');
                     const candidates = Array.isArray(evt.candidates) ? evt.candidates : [];
                     candidates.forEach((candidate) => {
@@ -27796,7 +27803,7 @@
         let costBarPath = [];
         let costBarAll = [];
         let costBarReady = false;
-        const COST_ESTIMATE_NOTE = '有料APIの通常料金による概算（USD）。回答ごとの保存済みモデルで計算します。入力使用量がない回答は会話履歴から推定します。モデルAPIの呼び出しごとに入力・出力（Thinkingを含む）を合算します。Ideogram 4.5は生成・編集の画像枚数と品質で計算します。使用量未取得の呼び出しは一部未算入です。キャッシュ割引・保存料、検索・ツールの追加料金、その他の画像・音声・動画生成、税、無料枠・個別契約は含みません。時間帯や入力種別で単価が異なる場合は範囲で表示します。過去の請求額を再現するものではありません。';
+        const COST_ESTIMATE_NOTE = '有料APIの通常料金による概算（USD）。回答ごとの保存済みモデルで計算します。入力使用量がない回答は会話履歴から推定します。モデルAPIの呼び出しごとに入力・出力（Thinkingを含む）を合算します。Ideogramはモデル・品質・速度・処理別の単価と画像枚数で計算します。単価未公表の設定は公表最安値を下限として「以上・一部未算入」で表示します。使用量未取得の呼び出しは一部未算入です。API報告のキャッシュ読込・書込と検索などの追加料金を含みます。保存時間や実行時間など取得できない課金情報は一部未算入です。その他の画像・音声・動画生成、税、無料枠・個別契約は含みません。時間帯や入力種別で単価が異なる場合は範囲で表示します。過去の請求額を再現するものではありません。';
 
         function costTokenNumber(value) {
             if (value === null || value === undefined || value === '') return null;
@@ -27815,16 +27822,27 @@
 
         function addRequestCost(result, request, pricing, date, batch = false) {
             result.requests++;
+            if (String(request.model).startsWith('grok-') && Number.isSafeInteger(request.cost_in_usd_ticks) && request.cost_in_usd_ticks >= 0) {
+                result.low += request.cost_in_usd_ticks / 1e10; result.high += request.cost_in_usd_ticks / 1e10;
+                result.priced++;
+                if (request.complete === false) result.unpriced++;
+                return;
+            }
             const rate = costRate(pricing, request.model, date);
             if (!rate) { result.unpriced++; return; }
             if (rate.unit === 'image') {
                 const count = costTokenNumber(request.images);
-                const unit = rate.image_rates?.[request.operation]?.[request.quality];
+                const prices = rate.image_rates?.[request.operation];
+                const selected = prices?.[rate.image_selector === 'speed' ? request.speed : request.quality];
+                const minimum = selected?.minimum ?? prices?.minimum;
+                const unit = typeof prices === 'number' ? prices : typeof selected === 'number' ? selected : minimum;
+                const lowerBound = Number.isFinite(unit) && typeof prices !== 'number' && typeof selected !== 'number';
                 if (count === null || !Number.isFinite(unit)) { result.unpriced++; return; }
                 result.low += count * unit;
                 result.high += count * unit;
                 result.priced++;
-                if (request.complete === false) result.unpriced++;
+                if (lowerBound) result.lowerBound = true;
+                if (request.complete === false || lowerBound) result.unpriced++;
                 return;
             }
             const input = costTokenNumber(request.input_tokens);
@@ -27832,14 +27850,12 @@
             if (input === null && output === null) { result.unpriced++; return; }
             const long = rate.threshold != null && (rate.threshold_inclusive ? (input || 0) >= rate.threshold : (input || 0) > rate.threshold);
             if (long) result.long++;
-            const inRate = long ? rate.long_input : rate.input;
-            const outRate = long ? rate.long_output : rate.output;
-            const multiplier = batch ? (rate.batch_multiplier ?? 1) : 1;
-            result.low += ((input || 0) * inRate + (output || 0) * outRate) * multiplier / 1e6;
-            result.high += ((input || 0) * (long ? inRate : (rate.max_input ?? inRate))
-                + (output || 0) * (rate.max_output ?? outRate)) * multiplier / 1e6;
+            const cost = requestTokenCost(request, rate, long, batch);
+            result.low += cost.low; result.high += cost.high;
+            if (cost.lowerBound) result.lowerBound = true;
             result.priced++;
-            if (input === null || output === null || request.complete === false) result.unpriced++;
+            if (input === null || output === null || request.complete === false || cost.incomplete) result.unpriced++;
+
         }
 
         function legacyImageRequest(message, rows) {
@@ -27858,12 +27874,13 @@
                 if (node?.role === 'assistant' && node.image_url && node.image_url !== '[]' && node.image_url !== 'null') hasSource = true;
             }
             const operation = ['remove_object', 'remove_background'].includes(options.ideogram_operation)
-                ? options.ideogram_operation : hasSource ? 'edit' : 'generate';
+                ? options.ideogram_operation : hasSource && message.model === 'ideogram-4.5' ? 'edit' : 'generate';
             let quality = options.ideogram_quality;
             if (!['very_low', 'low', 'medium', 'high'].includes(quality) || (quality === 'very_low' && operation === 'generate')) {
                 quality = operation === 'edit' ? 'medium' : 'high';
             }
-            return { model: message.model, images: count || null, operation, quality, complete: !!parent };
+            const speed = parent ? (['turbo', 'default', 'quality'].includes(options.ideogram_speed) ? options.ideogram_speed : 'default') : null;
+            return { model: message.model, images: count || null, operation, quality, speed, complete: !!parent };
         }
 
         function estimateConversationCost(messages, pricing = costPricing, context = messages) {
@@ -27882,7 +27899,11 @@
                     for (const call of metadata.pricing_calls) {
                         if (!call || typeof call !== 'object') { result.unpriced++; continue; }
                         const callDate = /^\d{4}-\d{2}-\d{2}/.exec(call.created_at || '')?.[0] || date;
-                        addRequestCost(result, call, pricing, callDate, batch);
+                        // Older image call records predate speed capture; recover only from their saved prompt.
+                        const rate = costRate(pricing, call.model, callDate);
+                        const request = rate?.image_selector === 'speed' && !call.speed && call.model === m.model
+                            ? { ...call, speed: legacyImageRequest(m, rows).speed } : call;
+                        addRequestCost(result, request, pricing, callDate, batch);
                     }
                     continue;
                 }
@@ -27922,7 +27943,8 @@
         function costEstimateLabel(cost, prefix = '費用予想') {
             if (!cost || !cost.priced) return `${prefix}: 算出不可`;
             const money = n => n > 0 && n < 0.000001 ? '<$0.000001' : `$${n.toFixed(6)}`;
-            const amount = cost.high - cost.low > 1e-12 ? `${money(cost.low)}〜${money(cost.high)}` : money(cost.low);
+            const amount = cost.lowerBound ? `${money(cost.low)}以上`
+                : cost.high - cost.low > 1e-12 ? `${money(cost.low)}〜${money(cost.high)}` : money(cost.low);
             return `${prefix}: ${amount}${cost.unpriced ? '（一部未算入）' : ''}`;
         }
 
@@ -27952,3 +27974,64 @@
             .then(response => { if (!response.ok) throw new Error('pricing_unavailable'); return response.json(); })
             .then(data => { costPricing = data; if (costBarReady) refreshCostBar(); })
             .catch(() => { costPricingFailed = true; if (costBarReady) refreshCostBar(); });
+        // Cache portions replace ordinary input, while hosted tool fees are added once.
+        function requestTokenCost(request, rate, long, batch) {
+            const input = costTokenNumber(request.input_tokens) || 0;
+            const output = costTokenNumber(request.output_tokens) || 0;
+            const read = costTokenNumber(request.cache_read_tokens) || 0;
+            const writes = costTokenNumber(request.cache_write_tokens) || 0;
+            const ttl = ['5m', '1h', '30m', '12h'];
+            const parts = ttl.map(t => costTokenNumber(request[`cache_write_${t}_tokens`]) || 0);
+            const written = Math.max(writes, parts.reduce((a, b) => a + b, 0));
+            const ordinary = Math.max(0, input - read - written);
+            const inRate = long ? rate.long_input : rate.input;
+            const outRate = long ? rate.long_output : rate.output;
+            const cached = long ? rate.long_cached_input ?? rate.cached_input : rate.cached_input;
+            const writeRates = rate.cache_write_multipliers || {};
+            const multiplier = batch ? rate.batch_multiplier ?? 1 : 1;
+            const unknownWrites = Math.max(0, written - parts.reduce((a, b) => a + b, 0));
+            const possible = Object.values(writeRates);
+            let incomplete = !!request.pricing_incomplete || read + written > input || !!request.explicit_cache;
+            if (read && cached == null) incomplete = true;
+            let lowInput = ordinary * inRate + read * (cached ?? inRate);
+            let highInput = ordinary * (long ? inRate : rate.max_input ?? inRate) + read * (long ? cached ?? inRate : rate.max_cached_input ?? cached ?? inRate);
+            for (let i = 0; i < ttl.length; i++) {
+                const factor = writeRates[ttl[i]];
+                if (parts[i] && factor == null) incomplete = true;
+                lowInput += parts[i] * inRate * (factor ?? 1);
+                highInput += parts[i] * (long ? inRate : rate.max_input ?? inRate) * (factor ?? 1);
+            }
+            if (unknownWrites) {
+                incomplete = true;
+                lowInput += unknownWrites * inRate * (possible.length ? Math.min(...possible) : 1);
+                highInput += unknownWrites * (long ? inRate : rate.max_input ?? inRate) * (possible.length ? Math.max(...possible) : 1);
+            }
+            let low = (lowInput + output * outRate) * multiplier / 1e6;
+            let high = (highInput + output * (rate.max_output ?? outRate)) * multiplier / 1e6;
+            let lowerBound = false;
+            const tools = rate.tool_rates || {};
+            const add = (count, name) => {
+                if (!count) return;
+                if (tools[name] == null) { incomplete = true; return; }
+                low += count * tools[name]; high += count * tools[name];
+            };
+            const searches = costTokenNumber(request.web_search_calls) || 0;
+            add(searches, request.search_preview ? 'web_search_preview' : 'web_search');
+            if (searches && !request.search_preview && rate.search_content_tokens) {
+                low += searches * rate.search_content_tokens * inRate / 1e6;
+                high += searches * rate.search_content_tokens * inRate / 1e6;
+            }
+            add(costTokenNumber(request.file_search_calls), 'file_search');
+            const grounding = costTokenNumber(request.grounding_queries) || 0;
+            add(tools.grounding_prompt != null ? Math.min(1, grounding) : grounding, tools.grounding_prompt != null ? 'grounding_prompt' : 'grounding_query');
+            const code = costTokenNumber(request.code_execution_calls) || 0;
+            if (code && !request.code_execution_free) {
+                if (rate.provider === 'openai') {
+                    add((costTokenNumber(request.container_sessions) ?? 1) * (costTokenNumber(request.container_memory_gb) || 1), 'container_session');
+                    incomplete = true; // Runtime/eligible prorating is not returned in generation usage.
+                } else if (rate.provider === 'anthropic') {
+                    add(1, 'code_execution_minimum'); incomplete = true; lowerBound = true;
+                } else add(code, 'code_execution');
+            }
+            return { low, high, incomplete, lowerBound };
+        }

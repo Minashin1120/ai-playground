@@ -163,7 +163,9 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
         val operation = if (action in setOf("remove_object", "remove_background")) action else if (sources.isEmpty()) "generate" else "edit"
         var quality = request.options.optString("ideogram_quality").trim().lowercase()
         if (quality !in setOf("very_low", "low", "medium", "high") || (quality == "very_low" && operation == "generate")) quality = if (operation == "edit") "medium" else "high"
-        usage?.row?.put("operation", operation)?.put("quality", quality)?.put("resolution", request.options.optString("ideogram_resolution"))
+        usage?.row?.put("operation", operation)?.put("quality", quality)
+            ?.put("speed", request.options.optString("ideogram_speed").trim().lowercase().takeIf { it in setOf("turbo", "default", "quality") } ?: "default")
+            ?.put("resolution", request.options.optString("ideogram_resolution"))
         val headers = mapOf("Api-Key" to request.apiKey, "Accept" to "application/json")
         var reply = http.execute(http.request(call.url, headers).post(call.body).build()) { response ->
             val text = response.body.string()

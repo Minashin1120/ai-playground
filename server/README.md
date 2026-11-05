@@ -34,6 +34,7 @@
 | `token_estimation.py` | 入力欄の本文・引用・添付を公式APIで計測、短時間キャッシュ、概算への切替、詳細の増分内訳 | 入力見積の精度・計測APIを変更するとき |
 | `token_utils.py` | レート制限、アカウント単位の認証失敗制限（Web・Android共通）とTOTPコードの再利用防止、モデル別トークン計測、Thinking集計、チャットエラー整形 | トークン数、レート制限、ログイン・2FAの総当たり対策、Botスコア評価 |
 | `model_usage.py` | モデルAPI呼び出しごとの数値使用量、累積usageの統合、Thinking・同期メタデータの正規化 | 費用予想の呼び出し記録とトークン集計を変更するとき |
+| `model_usage_pricing.py` | キャッシュの読込・書込、検索・ホスト実行ツール、xAI請求額の数値使用量 | 追加料金の観測と課金内訳を変更するとき |
 | `model_usage_http.py` | HTTPXのリクエスト・応答をストリームのまま観測し、SDK自動ツール呼び出し・再試行も記録 | HTTP通信と使用量の対応付けを変更するとき |
 | `background.py` | RQ のチャット生成本体、Gemini／OpenAI／xAI／Z.AI Batch送信、E2EE 移行、Coding Mode、ストリームの Redis 蓄積 | 生成ジョブ、Batch送信、ストリーム、コーディングモード |
 | `routes_pages.py` | `/`, `/c/<id>`, help, changelog, `/api/version`, `sw.js` などページと入口 | 画面ルート、版 API、PWA |

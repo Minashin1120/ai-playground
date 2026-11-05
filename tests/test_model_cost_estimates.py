@@ -7,7 +7,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 PRICING = json.loads((ROOT / 'static/model_pricing.json').read_text())
-SOURCE = (ROOT / 'static/js/chat_core_parts/chat_core.part20_cost_estimate.js').read_text()
+SOURCE = (ROOT / 'static/js/chat_core_parts/chat_core.part21_cost_pricing.js').read_text() + (ROOT / 'static/js/chat_core_parts/chat_core.part20_cost_estimate.js').read_text()
 
 
 def estimate(messages, context=None):
@@ -112,15 +112,18 @@ def test_batch_usage_is_saved_with_existing_encryption_without_changing_display_
     scope = dict(json=json, encrypt_val=lambda value: 'ENCRYPTED:' + value,
                  sum_token_counts=lambda a, b: (a or 0) + (b or 0))
     exec(compile((ROOT / 'server/model_usage.py').read_text(), 'model_usage.py', 'exec'), scope)
+    exec(compile((ROOT / 'server/model_usage_pricing.py').read_text(), 'model_usage_pricing.py', 'exec'), scope)
     exec(compile(ast.Module(body=[usage, payload], type_ignores=[]), 'cost-batch', 'exec'), scope)
     message = SimpleNamespace(is_encrypted=encrypted, model='gpt-6.1-sol')
     scope['_set_message_payload'](message, 'answer', thought='reasoning', tokens_out=1000,
                                   tokens_thought=500, usage={'input_tokens': 272001, 'output_tokens': 1000,
-                                      'output_tokens_details': {'reasoning_tokens': 500}, 'secret': 'DO_NOT_KEEP'})
+                                      'output_tokens_details': {'reasoning_tokens': 500}, 'secret': 'DO_NOT_KEEP'}, billing_payload={'output': [{'id': 'PRIVATE_TOOL', 'type': 'web_search_call', 'status': 'completed', 'action': {'type': 'search', 'query': 'DO_NOT_KEEP'}}]})
     stored = message.thought_data.removeprefix('ENCRYPTED:')
     metadata = json.loads(stored)
     assert metadata['text'] == 'reasoning' and metadata['pricing_input_tokens'] == 272001
     assert metadata['pricing_calls'][0]['thought_tokens'] == 500
+    assert metadata['pricing_calls'][0]['web_search_calls'] == 1
+    assert 'PRIVATE_TOOL' not in stored
     assert metadata['pricing_calls'][0]['complete'] is True
     assert 'DO_NOT_KEEP' not in stored
     assert message.thought_data.startswith('ENCRYPTED:') == encrypted

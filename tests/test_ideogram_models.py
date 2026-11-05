@@ -26,6 +26,7 @@ def _load_ideogram():
     """Run server/ideogram.py in its own namespace, as app.py does with every server part."""
     namespace = {"json": json, "httpx": httpx}
     exec(compile((APP_ROOT / "server/model_usage.py").read_text(), "model_usage.py", "exec"), namespace)
+    exec(compile((APP_ROOT / 'server/model_usage_pricing.py').read_text(), 'model_usage_pricing.py', 'exec'), namespace)
     source = (APP_ROOT / "server" / "ideogram.py").read_text(encoding="utf-8")
     exec(compile(source, "server/ideogram.py", "exec"), namespace)
     return types.SimpleNamespace(**namespace)

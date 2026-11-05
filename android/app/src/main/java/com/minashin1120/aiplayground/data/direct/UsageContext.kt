@@ -23,5 +23,5 @@ internal suspend fun beginUsage(url: String, payload: JSONObject): ModelUsageLed
         model.startsWith("grok") -> "xai"
         else -> "openai"
     }
-    return context.ledger.begin(model, provider)
+    return context.ledger.begin(model, provider).also { com.minashin1120.aiplayground.data.ModelUsagePricing.configure(it, payload) }
 }

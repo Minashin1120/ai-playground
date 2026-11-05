@@ -426,7 +426,7 @@ DNS失敗時の補助は `data/NetworkDns.kt` で共通化しています。通�
 
 Android直接通信も同じ記録を暗号化チャット内に保存します。`POST /api/mobile/v1/sync/push` の各メッセージは省略可能な `pricing_calls` と `tokens_thought` を送れます。サーバーは列挙値・数値などの許可項目だけを取り込み、配列は最大1,024件まで保存し、超過分は未算入の記録を残します。これらは操作ログ・診断ログではなく、通常のチャット保存・同期の対象です。未知の項目を無視する旧クライアントと互換です。
 
-Ideogram 4.5は1画像あたりの品質・生成／編集の単価を実際の生成枚数へ掛けます。現行の公式単価は1K／2Kで同額です。既存の回答は保存された親プロンプトのオプションと画像から推定します。未保存の過去のAPI呼び出し回数やThinkingの正確な使用量は復元しません。
+Ideogramの選択可能な5モデルは、品質・速度・処理ごとの単価を実際の生成枚数へ掛けます。`speed` は `turbo`／`default`／`quality` だけを同期します。背景削除は専用API単価を使います。オブジェクト削除および2a／2.0のQualityは、公式表で確定単価が示されていないため、公表最安値を下限にして「以上・一部未算入」と表示します。既存の回答は保存された親プロンプトのオプションと画像から推定します。未保存の過去のAPI呼び出し回数やThinkingの正確な使用量は復元しません。
 
 ## 同期API（サーバー `server/routes_mobile_sync.py`、`sync_api_version: 1`）
 
@@ -862,3 +862,9 @@ APIの具体的な契約は本書と現行サーバーコードが正本です�
 ### 調査ログの保存時間
 
 `/api/mobile/v1/preferences` の `server_diagnostic_log_retention_hours` は1〜8760の整数（時間、既定1）で、Web設定とアカウント内で共有します。省略時は現在値を維持します。不正な型・範囲は400で拒否します。端末操作ログの保存時間は端末別に保存し、即時反映します。
+
+##### キャッシュ・ツールの費用内訳
+
+`pricing_calls` は省略可能な数値項目 `cache_read_tokens`、`cache_write_tokens`、TTLごとの `cache_write_5m_tokens`／`cache_write_1h_tokens`／`cache_write_30m_tokens`／`cache_write_12h_tokens`、`web_search_calls`、`file_search_calls`、`grounding_queries`、`code_execution_calls`、`container_sessions`、`container_memory_gb` を持てます。xAIの `cost_in_usd_ticks` は10^10分の1ドル単位の非負整数（最大9×10^15）で、他の料金を含むAPI報告額として優先します。真偽値 `search_preview`、`explicit_cache`、`code_execution_free`、`pricing_incomplete` も許可した意味だけで使います。検索文・URL・ツールID・コンテナID・APIキーは記録しません。
+
+キャッシュ読込・書込は通常入力から差し引き、モデルとTTLの別単価で算出します。ツール料金にはBatchのトークン割引を掛けません。同じ生成内で同じコンテナを再利用した場合はセッション料金を重複加算しません。Batchの結果も使用量・検索内訳を保存します。OpenAIの課金対象は検索アクションで、ページを開く・ページ内で探す操作を別の検索として課金しません。Geminiは3以降では空文字を除いた検索クエリ数、2.5では検索を使ったプロンプト数により標準料金を算出します。無料枠・個別契約は差し引きません。コンテナの標準セッション料金または実行時間の公表下限を表示し、実行時間・保存時間などAPIから取得できない部分は一部未算入にします。キャッシュ割引やツール利用数が未保存の過去分は復元できません。

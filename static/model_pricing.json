@@ -10,7 +10,7 @@
     "deepseek": "https://api-docs.deepseek.com/quick_start/pricing/",
     "kimi": "https://www.kimi.ai/blog/kimi-k3",
     "mistral": "https://docs.mistral.ai/inference/pricing",
-    "ideogram": "https://ideogram.ai/models/4.5/"
+    "ideogram": "https://ideogram.ai/pricing/?pricing_tab=api"
   },
   "aliases": {
     "Gemini 4 Argon": "gemini-4-argon",
@@ -82,7 +82,11 @@
     "Grok 4.20 (Non-Reasoning)": "grok-4.20-non-reasoning",
     "Grok 4.20 Multi-Agent": "grok-4.20-multi-agent",
     "Kimi K3": "kimi-k3",
-    "Ideogram 4.5": "ideogram-4.5"
+    "Ideogram 4.5": "ideogram-4.5",
+    "Ideogram 4.0": "ideogram-4.0",
+    "Ideogram 3.0": "ideogram-3.0",
+    "Ideogram 2a": "ideogram-2a",
+    "Ideogram 2.0": "ideogram-2.0"
   },
   "models": {
     "gpt-6-astra": {
@@ -92,7 +96,19 @@
       "threshold": 272000,
       "long_input": 20,
       "long_output": 75.0,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 1.0,
+      "long_cached_input": 2.0,
+      "cache_write_multipliers": {
+        "30m": 1.25,
+        "12h": 2.5
+      },
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-6.1-sol": {
       "provider": "openai",
@@ -101,7 +117,19 @@
       "threshold": 272000,
       "long_input": 4,
       "long_output": 15.0,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.1,
+      "long_cached_input": 0.2,
+      "cache_write_multipliers": {
+        "30m": 1.25,
+        "12h": 2.5
+      },
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-6-sol": {
       "provider": "openai",
@@ -110,7 +138,19 @@
       "threshold": 272000,
       "long_input": 4,
       "long_output": 15.0,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.2,
+      "long_cached_input": 0.4,
+      "cache_write_multipliers": {
+        "30m": 1.25,
+        "12h": 2.5
+      },
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-6.1-terra": {
       "provider": "openai",
@@ -119,7 +159,19 @@
       "threshold": 272000,
       "long_input": 2,
       "long_output": 7.5,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.05,
+      "long_cached_input": 0.1,
+      "cache_write_multipliers": {
+        "30m": 1.25,
+        "12h": 2.5
+      },
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-6-luna": {
       "provider": "openai",
@@ -128,7 +180,19 @@
       "threshold": 272000,
       "long_input": 0.2,
       "long_output": 0.75,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.010000000000000002,
+      "long_cached_input": 0.020000000000000004,
+      "cache_write_multipliers": {
+        "30m": 1.25,
+        "12h": 2.5
+      },
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-5.6-sol": {
       "provider": "openai",
@@ -144,9 +208,23 @@
           "input": 5,
           "output": 30,
           "long_input": 10,
-          "long_output": 45
+          "long_output": 45,
+          "cached_input": 0.5,
+          "long_cached_input": 1.0
         }
-      ]
+      ],
+      "cached_input": 0.4,
+      "long_cached_input": 0.8,
+      "cache_write_multipliers": {
+        "30m": 1.25,
+        "12h": 2.5
+      },
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-5.6-terra": {
       "provider": "openai",
@@ -155,7 +233,19 @@
       "threshold": 272000,
       "long_input": 4,
       "long_output": 18.0,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.2,
+      "long_cached_input": 0.4,
+      "cache_write_multipliers": {
+        "30m": 1.25,
+        "12h": 2.5
+      },
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-5.6-luna": {
       "provider": "openai",
@@ -164,7 +254,19 @@
       "threshold": 272000,
       "long_input": 0.4,
       "long_output": 1.7999999999999998,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.020000000000000004,
+      "long_cached_input": 0.04000000000000001,
+      "cache_write_multipliers": {
+        "30m": 1.25,
+        "12h": 2.5
+      },
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-5.5": {
       "provider": "openai",
@@ -173,7 +275,15 @@
       "threshold": 272000,
       "long_input": 10,
       "long_output": 45.0,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.5,
+      "long_cached_input": 1.0,
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-5.5-pro": {
       "provider": "openai",
@@ -182,7 +292,13 @@
       "threshold": 272000,
       "long_input": 60,
       "long_output": 270.0,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-5.4-pro": {
       "provider": "openai",
@@ -191,7 +307,13 @@
       "threshold": 272000,
       "long_input": 60,
       "long_output": 270.0,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-5.4": {
       "provider": "openai",
@@ -200,49 +322,107 @@
       "threshold": 272000,
       "long_input": 5.0,
       "long_output": 22.5,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.25,
+      "long_cached_input": 0.5,
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-4o": {
       "provider": "openai",
       "input": 2.5,
       "output": 10,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 1.25,
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.025,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-4o-mini": {
       "provider": "openai",
       "input": 0.15,
       "output": 0.6,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.075,
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.025,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      },
+      "search_content_tokens": 8000
     },
     "gpt-5.4-mini": {
       "provider": "openai",
       "input": 0.75,
       "output": 4.5,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.07500000000000001,
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-5.4-nano": {
       "provider": "openai",
       "input": 0.2,
       "output": 1.25,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.020000000000000004,
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-5.2": {
       "provider": "openai",
       "input": 1.75,
       "output": 14,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.17500000000000002,
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-5.1": {
       "provider": "openai",
       "input": 1.25,
       "output": 10,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.125,
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gpt-5-mini": {
       "provider": "openai",
       "input": 0.25,
       "output": 2,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.025,
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01,
+        "file_search": 0.0025,
+        "container_session": 0.03
+      }
     },
     "gemini-4-argon": {
       "provider": "google",
@@ -252,10 +432,15 @@
         {
           "from": "2026-12-01",
           "input": 4,
-          "output": 20
+          "output": 20,
+          "cached_input": 0.2
         }
       ],
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.1,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
     },
     "gemini-3.8-flash": {
       "provider": "google",
@@ -265,10 +450,15 @@
         {
           "from": "2027-01-01",
           "input": 1.5,
-          "output": 7.5
+          "output": 7.5,
+          "cached_input": 0.15000000000000002
         }
       ],
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.07500000000000001,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
     },
     "gemini-3.6-flash": {
       "provider": "google",
@@ -278,43 +468,71 @@
         {
           "from": "2027-01-01",
           "input": 1.5,
-          "output": 7.5
+          "output": 7.5,
+          "cached_input": 0.15000000000000002
         }
       ],
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.07500000000000001,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
     },
     "gemini-3.5-flash": {
       "provider": "google",
       "input": 1.5,
       "output": 9,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.15000000000000002,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
     },
     "gemini-3.5-flash-lite": {
       "provider": "google",
       "input": 0.3,
       "output": 2.5,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.03,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
     },
     "gemini-3.1-flash-lite": {
       "provider": "google",
       "input": 0.25,
       "output": 1.5,
       "max_input": 0.5,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.025,
+      "max_cached_input": 0.05,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
     },
     "gemini-3.1-flash-lite-preview": {
       "provider": "google",
       "input": 0.25,
       "output": 1.5,
       "max_input": 0.5,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.025,
+      "max_cached_input": 0.05,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
     },
     "gemini-3-flash-preview": {
       "provider": "google",
       "input": 0.5,
       "output": 3,
       "max_input": 1,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.05,
+      "max_cached_input": 0.1,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
     },
     "gemini-3.1-pro-preview": {
       "provider": "google",
@@ -323,7 +541,12 @@
       "threshold": 200000,
       "long_input": 4,
       "long_output": 18,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.2,
+      "long_cached_input": 0.4,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
     },
     "gemini-3-pro-preview": {
       "provider": "google",
@@ -332,7 +555,12 @@
       "threshold": 200000,
       "long_input": 4,
       "long_output": 18,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.2,
+      "long_cached_input": 0.4,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
     },
     "gemini-2.5-pro": {
       "provider": "google",
@@ -349,28 +577,45 @@
           "output": 3.75,
           "threshold": null,
           "long_input": null,
-          "long_output": null
+          "long_output": null,
+          "cached_input": 0.07500000000000001
         },
         {
           "from": "2027-01-01",
           "input": 1.5,
-          "output": 7.5
+          "output": 7.5,
+          "cached_input": 0.15000000000000002
         }
-      ]
+      ],
+      "cached_input": 0.125,
+      "long_cached_input": 0.25,
+      "tool_rates": {
+        "grounding_prompt": 0.035
+      }
     },
     "gemini-2.5-flash": {
       "provider": "google",
       "input": 0.3,
       "output": 2.5,
       "max_input": 1,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.03,
+      "max_cached_input": 0.1,
+      "tool_rates": {
+        "grounding_prompt": 0.035
+      }
     },
     "gemini-2.5-flash-lite": {
       "provider": "google",
       "input": 0.1,
       "output": 0.4,
       "max_input": 0.3,
-      "batch_multiplier": 0.5
+      "batch_multiplier": 0.5,
+      "cached_input": 0.010000000000000002,
+      "max_cached_input": 0.03,
+      "tool_rates": {
+        "grounding_prompt": 0.035
+      }
     },
     "grok-4.7": {
       "provider": "xai",
@@ -380,7 +625,14 @@
       "threshold_inclusive": true,
       "long_input": 4,
       "long_output": 12,
-      "batch_multiplier": 0.8
+      "batch_multiplier": 0.8,
+      "cached_input": 0.5,
+      "long_cached_input": 1.0,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      }
     },
     "grok-4.6": {
       "provider": "xai",
@@ -390,7 +642,14 @@
       "threshold_inclusive": true,
       "long_input": 4,
       "long_output": 12,
-      "batch_multiplier": 0.8
+      "batch_multiplier": 0.8,
+      "cached_input": 0.5,
+      "long_cached_input": 1.0,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      }
     },
     "grok-4.5": {
       "provider": "xai",
@@ -400,7 +659,14 @@
       "threshold_inclusive": true,
       "long_input": 4,
       "long_output": 12,
-      "batch_multiplier": 0.8
+      "batch_multiplier": 0.8,
+      "cached_input": 0.3,
+      "long_cached_input": 0.6,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      }
     },
     "grok-4.3": {
       "provider": "xai",
@@ -410,7 +676,14 @@
       "threshold_inclusive": true,
       "long_input": 2.5,
       "long_output": 5.0,
-      "batch_multiplier": 0.8
+      "batch_multiplier": 0.8,
+      "cached_input": 0.2,
+      "long_cached_input": 0.4,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      }
     },
     "grok-4.20-multi-agent-0309": {
       "provider": "xai",
@@ -420,7 +693,14 @@
       "threshold_inclusive": true,
       "long_input": 2.5,
       "long_output": 5.0,
-      "batch_multiplier": 0.8
+      "batch_multiplier": 0.8,
+      "cached_input": 0.2,
+      "long_cached_input": 0.4,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      }
     },
     "grok-4.20-0309-reasoning": {
       "provider": "xai",
@@ -430,7 +710,14 @@
       "threshold_inclusive": true,
       "long_input": 2.5,
       "long_output": 5.0,
-      "batch_multiplier": 0.8
+      "batch_multiplier": 0.8,
+      "cached_input": 0.2,
+      "long_cached_input": 0.4,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      }
     },
     "grok-4.20-0309-non-reasoning": {
       "provider": "xai",
@@ -440,7 +727,14 @@
       "threshold_inclusive": true,
       "long_input": 2.5,
       "long_output": 5.0,
-      "batch_multiplier": 0.8
+      "batch_multiplier": 0.8,
+      "cached_input": 0.2,
+      "long_cached_input": 0.4,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      }
     },
     "grok-4.20-reasoning": {
       "provider": "xai",
@@ -449,7 +743,14 @@
       "threshold": 200000,
       "threshold_inclusive": true,
       "long_input": 2.5,
-      "long_output": 5.0
+      "long_output": 5.0,
+      "cached_input": 0.2,
+      "long_cached_input": 0.4,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      }
     },
     "grok-4.20-non-reasoning": {
       "provider": "xai",
@@ -458,7 +759,14 @@
       "threshold": 200000,
       "threshold_inclusive": true,
       "long_input": 2.5,
-      "long_output": 5.0
+      "long_output": 5.0,
+      "cached_input": 0.2,
+      "long_cached_input": 0.4,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      }
     },
     "grok-4.20-multi-agent": {
       "provider": "xai",
@@ -467,7 +775,14 @@
       "threshold": 200000,
       "threshold_inclusive": true,
       "long_input": 2.5,
-      "long_output": 5.0
+      "long_output": 5.0,
+      "cached_input": 0.2,
+      "long_cached_input": 0.4,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      }
     },
     "grok-build-0.1": {
       "provider": "xai",
@@ -476,158 +791,277 @@
       "threshold": 200000,
       "threshold_inclusive": true,
       "long_input": 2,
-      "long_output": 4
+      "long_output": 4,
+      "cached_input": 0.2,
+      "long_cached_input": 0.4,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      }
     },
     "glm-5.3": {
       "provider": "zai",
       "input": 1.4,
-      "output": 4.4
+      "output": 4.4,
+      "cached_input": 0.26,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-5.2": {
       "provider": "zai",
       "input": 1.4,
-      "output": 4.4
+      "output": 4.4,
+      "cached_input": 0.26,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-5.1": {
       "provider": "zai",
       "input": 1.4,
-      "output": 4.4
+      "output": 4.4,
+      "cached_input": 0.26,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-5.3-flash": {
       "provider": "zai",
       "input": 0.15,
-      "output": 0.5
+      "output": 0.5,
+      "cached_input": 0.03,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-5.3-flashx": {
       "provider": "zai",
       "input": 0.37,
-      "output": 1.25
+      "output": 1.25,
+      "cached_input": 0.075,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-5": {
       "provider": "zai",
       "input": 1,
-      "output": 3.2
+      "output": 3.2,
+      "cached_input": 0.2,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.7": {
       "provider": "zai",
       "input": 0.6,
-      "output": 2.2
+      "output": 2.2,
+      "cached_input": 0.11,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.6": {
       "provider": "zai",
       "input": 0.6,
-      "output": 2.2
+      "output": 2.2,
+      "cached_input": 0.11,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.5": {
       "provider": "zai",
       "input": 0.6,
-      "output": 2.2
+      "output": 2.2,
+      "cached_input": 0.11,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.7-flashx": {
       "provider": "zai",
       "input": 0.07,
-      "output": 0.4
+      "output": 0.4,
+      "cached_input": 0.01,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.5-x": {
       "provider": "zai",
       "input": 2.2,
-      "output": 8.9
+      "output": 8.9,
+      "cached_input": 0.45,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.5-air": {
       "provider": "zai",
       "input": 0.2,
-      "output": 1.1
+      "output": 1.1,
+      "cached_input": 0.03,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.5-airx": {
       "provider": "zai",
       "input": 1.1,
-      "output": 4.5
+      "output": 4.5,
+      "cached_input": 0.22,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4-32b-0414-128k": {
       "provider": "zai",
       "input": 0.1,
-      "output": 0.1
+      "output": 0.1,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.7-flash": {
       "provider": "zai",
       "input": 0,
-      "output": 0
+      "output": 0,
+      "cached_input": 0,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.5-flash": {
       "provider": "zai",
       "input": 0,
-      "output": 0
+      "output": 0,
+      "cached_input": 0,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.6v-flash": {
       "provider": "zai",
       "input": 0,
-      "output": 0
+      "output": 0,
+      "cached_input": 0,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.6v": {
       "provider": "zai",
       "input": 0.3,
-      "output": 0.9
+      "output": 0.9,
+      "cached_input": 0.05,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.6v-flashx": {
       "provider": "zai",
       "input": 0.04,
-      "output": 0.4
+      "output": 0.4,
+      "cached_input": 0.004,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "glm-4.5v": {
       "provider": "zai",
       "input": 0.6,
-      "output": 1.8
+      "output": 1.8,
+      "cached_input": 0.11,
+      "tool_rates": {
+        "web_search": 0.01
+      }
     },
     "claude-opus-4-6": {
       "provider": "anthropic",
       "input": 5,
-      "output": 25
+      "output": 25,
+      "cached_input": 0.5,
+      "cache_write_multipliers": {
+        "5m": 1.25,
+        "1h": 2
+      },
+      "tool_rates": {
+        "web_search": 0.01,
+        "code_execution_minimum": 0.004166666666666667
+      }
     },
     "claude-sonnet-4-6": {
       "provider": "anthropic",
       "input": 3,
-      "output": 15
+      "output": 15,
+      "cached_input": 0.30000000000000004,
+      "cache_write_multipliers": {
+        "5m": 1.25,
+        "1h": 2
+      },
+      "tool_rates": {
+        "web_search": 0.01,
+        "code_execution_minimum": 0.004166666666666667
+      }
     },
     "deepseek-v4.1-flash": {
       "provider": "deepseek",
       "input": 0.15,
       "output": 0.6,
       "max_input": 0.3,
-      "max_output": 1.2
+      "max_output": 1.2,
+      "cached_input": 0.003,
+      "max_cached_input": 0.006
     },
     "deepseek-flash": {
       "provider": "deepseek",
       "input": 0.15,
       "output": 0.6,
       "max_input": 0.3,
-      "max_output": 1.2
+      "max_output": 1.2,
+      "cached_input": 0.003,
+      "max_cached_input": 0.006
     },
     "deepseek-v4-flash": {
       "provider": "deepseek",
       "input": 0.15,
       "output": 0.6,
       "max_input": 0.3,
-      "max_output": 1.2
+      "max_output": 1.2,
+      "cached_input": 0.003,
+      "max_cached_input": 0.006
     },
     "deepseek-v4-flash-vision-exp": {
       "provider": "deepseek",
       "input": 0.15,
       "output": 0.6,
       "max_input": 0.3,
-      "max_output": 1.2
+      "max_output": 1.2,
+      "cached_input": 0.003,
+      "max_cached_input": 0.006
     },
     "deepseek-v4-pro": {
       "provider": "deepseek",
       "input": 0.66,
       "output": 1.98,
       "max_input": 1.32,
-      "max_output": 3.96
+      "max_output": 3.96,
+      "cached_input": 0.022,
+      "max_cached_input": 0.044
     },
     "kimi-k3": {
       "provider": "kimi",
       "input": 3,
       "output": 15,
-      "batch_multiplier": 0.6
+      "batch_multiplier": 0.6,
+      "cached_input": 0.3,
+      "cache_write_multipliers": {
+        "5m": 1,
+        "1h": 2
+      }
     },
     "ideogram-4.5": {
       "provider": "ideogram",
@@ -643,6 +1077,82 @@
           "low": 0.03,
           "medium": 0.06,
           "high": 0.22
+        },
+        "remove_background": 0.01,
+        "remove_object": {
+          "minimum": 0.03
+        }
+      }
+    },
+    "ideogram-4.0": {
+      "provider": "ideogram",
+      "unit": "image",
+      "image_selector": "speed",
+      "image_rates": {
+        "generate": {
+          "turbo": 0.03,
+          "default": 0.06,
+          "quality": 0.1,
+          "minimum": 0.03
+        },
+        "remove_background": 0.01,
+        "remove_object": {
+          "minimum": 0.03
+        }
+      }
+    },
+    "ideogram-3.0": {
+      "provider": "ideogram",
+      "unit": "image",
+      "image_selector": "speed",
+      "image_rates": {
+        "generate": {
+          "turbo": 0.03,
+          "default": 0.06,
+          "quality": 0.09,
+          "minimum": 0.03
+        },
+        "remove_background": 0.01,
+        "remove_object": {
+          "minimum": 0.03
+        }
+      }
+    },
+    "ideogram-2a": {
+      "provider": "ideogram",
+      "unit": "image",
+      "image_selector": "speed",
+      "image_rates": {
+        "generate": {
+          "turbo": 0.025,
+          "default": 0.04,
+          "quality": {
+            "minimum": 0.025
+          },
+          "minimum": 0.025
+        },
+        "remove_background": 0.01,
+        "remove_object": {
+          "minimum": 0.03
+        }
+      }
+    },
+    "ideogram-2.0": {
+      "provider": "ideogram",
+      "unit": "image",
+      "image_selector": "speed",
+      "image_rates": {
+        "generate": {
+          "turbo": 0.05,
+          "default": 0.08,
+          "quality": {
+            "minimum": 0.05
+          },
+          "minimum": 0.05
+        },
+        "remove_background": 0.01,
+        "remove_object": {
+          "minimum": 0.03
         }
       }
     }

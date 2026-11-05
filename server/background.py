@@ -5488,6 +5488,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 chat_session.append(x_user(*curr_user_content))
                 
                 _mark_provider_request_started()
+                grok_usage_call = usage_ledger.begin(model_key, 'xai')
                 stream = chat_session.stream()
                 search_reported = False
                 last_response = None
@@ -5497,6 +5498,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 for resp, chunk in stream:
                     _latency_mark_once(job_id, "provider_first_chunk_ms")
                     last_response = resp
+                    if getattr(resp, 'usage', None) is not None:
+                        grok_usage_call.update_usage(resp.usage)
                     if check_stop(): break
                     tool_calls = getattr(chunk, 'tool_calls', None)
                     if tool_calls:
@@ -5525,6 +5528,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         pub("content", c_content)
                 if search_reported:
                     pub("search_status", "done")
+                grok_usage_call.finished = not check_stop()
                 if last_response and getattr(last_response, 'citations', None):
                     citations_text = "\n\n**Sources:**\n"
                     inline_citations = getattr(last_response, 'inline_citations', None)

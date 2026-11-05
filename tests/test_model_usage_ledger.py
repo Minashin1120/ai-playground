@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def usage_scope(handler=None):
     scope = {}
     exec(compile((ROOT / 'server/model_usage.py').read_text(), 'model_usage.py', 'exec'), scope)
+    exec(compile((ROOT / 'server/model_usage_pricing.py').read_text(), 'model_usage_pricing.py', 'exec'), scope)
     handler = handler or (lambda request: httpx.Response(200, json={}))
     clients = [httpx.Client(transport=httpx.MockTransport(handler)) for _ in range(2)]
     scope.update(_OPENAI_HTTPX_CLIENT=clients[0], _GEMINI_HTTPX_CLIENT=clients[1])

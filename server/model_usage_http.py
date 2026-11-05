@@ -77,13 +77,19 @@ def _observe_usage_request(request):
         return
     host = request.url.host
     provider = 'anthropic' if host.endswith('anthropic.com') else 'xai' if host.endswith('x.ai') else 'google' if '/models/' in request.url.path else 'openai'
-    request.extensions['model_usage_call'] = ledger.begin(model, provider)
+    call = ledger.begin(model, provider)
+    _configure_pricing_request(call, request)
+    request.extensions['model_usage_call'] = call
 
 
 def _observe_usage_response(response):
     call = response.request.extensions.pop('model_usage_call', None)
     if call is None:
         return
+    for header, field in [('Msh-Usage-Cache-Write-Tokens-5m', 'cache_write_5m_tokens'), ('Msh-Usage-Cache-Write-Tokens-1h', 'cache_write_1h_tokens')]:
+        value = response.headers.get(header, '')
+        if value.isdigit() and len(value) <= 10 and int(value) <= 2_147_483_647:
+            call.record[field] = int(value)
     if 400 <= response.status_code < 500:
         call.rejected = True  # Explicitly rejected requests are not assumed to be charged.
         return

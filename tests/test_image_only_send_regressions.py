@@ -55,7 +55,7 @@ class ImageOnlySendRegressionTests(unittest.TestCase):
 
     def test_grok_native_branch_guards_empty_text(self):
         branch = APP_SOURCE[APP_SOURCE.index("log_force(\"Routing: Grok Branch (Native SDK)\")") :]
-        build = branch[: branch.index("_mark_provider_request_started()\n                stream = chat_session.stream()")]
+        build = branch[: branch.index("stream = chat_session.stream()")]
         self.assertIn("curr_user_content = []", build)
         self.assertIn("if curr_user_content:", build)
         self.assertIn("chat_session.append(x_user(*curr_user_content))", build)

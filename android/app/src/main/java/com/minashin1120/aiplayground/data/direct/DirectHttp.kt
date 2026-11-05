@@ -161,6 +161,9 @@ class DirectHttp(
         val usage = beginUsage(url, payload)
         return execute(request(url, headers).post(jsonBody(payload)).build()) { response ->
             val text = response.body.string()
+            for ((header, field) in listOf("Msh-Usage-Cache-Write-Tokens-5m" to "cache_write_5m_tokens", "Msh-Usage-Cache-Write-Tokens-1h" to "cache_write_1h_tokens")) {
+                response.header(header)?.toIntOrNull()?.takeIf { it >= 0 }?.let { usage?.row?.put(field, it) }
+            }
             if (response.code in 400..499) usage?.rejected = true
             if (!response.isSuccessful) throw providerError(response.code, text)
             val reply = runCatching { JSONObject(text) }.getOrElse { throw IOException("事業者APIの応答を読み取れませんでした。") }
@@ -189,6 +192,9 @@ class DirectHttp(
     suspend fun postSse(url: String, headers: Map<String, String>, payload: JSONObject, maxLine: Long = 8L * 1024 * 1024, onEvent: (SseEvent) -> Boolean) {
         val usage = beginUsage(url, payload)
         execute(request(url, headers).header("Accept", "text/event-stream").post(jsonBody(payload)).build(), streamingClient) { response ->
+            for ((header, field) in listOf("Msh-Usage-Cache-Write-Tokens-5m" to "cache_write_5m_tokens", "Msh-Usage-Cache-Write-Tokens-1h" to "cache_write_1h_tokens")) {
+                response.header(header)?.toIntOrNull()?.takeIf { it >= 0 }?.let { usage?.row?.put(field, it) }
+            }
             if (response.code in 400..499) usage?.rejected = true
             if (!response.isSuccessful) throw providerError(response.code, response.body.string())
             val type = response.body.contentType()

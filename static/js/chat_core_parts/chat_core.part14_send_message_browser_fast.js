@@ -80,6 +80,7 @@
             let content = '';
             let thought = '';
             let pricingUsage = null;
+            const pricingQueries = new Set();
             const thoughtSignatures = [];
             let contentEl = null;
             let thoughtEl = null;
@@ -117,11 +118,17 @@
                     if (!dataText || dataText === '[DONE]') return;
                     const evt = JSON.parse(dataText);
                     if (Number.isInteger(evt.usageMetadata?.promptTokenCount)) {
-                        pricingUsage = {};
-                        for (const key of ['promptTokenCount', 'candidatesTokenCount', 'thoughtsTokenCount']) {
+                        pricingUsage = pricingUsage || {};
+                        for (const key of ['promptTokenCount', 'candidatesTokenCount', 'thoughtsTokenCount', 'cachedContentTokenCount']) {
                             if (Number.isInteger(evt.usageMetadata[key]) && evt.usageMetadata[key] >= 0) pricingUsage[key] = evt.usageMetadata[key];
                         }
                     }
+                    for (const candidate of evt.candidates || []) {
+                        for (const query of candidate.groundingMetadata?.webSearchQueries || []) {
+                            if (typeof query === 'string' && query.trim()) pricingQueries.add(query);
+                        }
+                    }
+                    if (pricingQueries.size) { pricingUsage = pricingUsage || {}; pricingUsage.grounding_queries = pricingQueries.size; }
                     if (evt.error) throw new Error(evt.error.message || 'Gemini API error');
                     const candidates = Array.isArray(evt.candidates) ? evt.candidates : [];
                     candidates.forEach((candidate) => {

@@ -251,7 +251,7 @@ def ideogram_request(api_key, model_key, prompt, options, source_images=None):
         quality = _ideogram_pick(options.get('ideogram_quality'), IDEOGRAM_QUALITIES)
         if not quality or (quality == 'very_low' and operation == 'generate'):
             quality = 'medium' if operation == 'edit' else 'high'
-        call.record.update(operation=operation, quality=quality, resolution='2k' if _ideogram_tier_index(options) else '1k')
+        call.record.update(operation=operation, quality=quality, speed=_ideogram_pick(options.get('ideogram_speed'), IDEOGRAM_SPEEDS) or 'default', resolution='2k' if _ideogram_tier_index(options) else '1k')
     headers = {"Api-Key": api_key, "Accept": "application/json"}
     resp = httpx.post(url, headers=headers, timeout=IDEOGRAM_TIMEOUT_SECONDS, **kwargs)
     if call is not None and 400 <= resp.status_code < 500:

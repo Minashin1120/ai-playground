@@ -41,3 +41,5 @@
 部品構成を変更した場合は `test_chat_core_parts_regressions.py` と `test_chat_core_bundles.py`、機能本体の関連テストを選びます。ChromiumやPlaywrightがない環境ではブラウザー検証がスキップされるため、成功と区別して報告します。
 
 実行・失敗時の手順は [workflow.md](workflow.md) を参照してください。
+
+費用予想の内訳計算は連番の `chat_core.part21_cost_pricing.js` に分離します。Grokの添付のみ送信のテストは `chat_session.stream()` を抽出境界にし、直前へ使用量の記録などが追加されても空本文の検証を維持します。

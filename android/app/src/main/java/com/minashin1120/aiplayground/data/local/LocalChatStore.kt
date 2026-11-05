@@ -233,7 +233,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         .put("generating", row.optBoolean("generating"))
         .put("thought_data", row.opt("thought_data") ?: JSONObject.NULL)
         .put("tokens", row.opt("tokens") ?: JSONObject.NULL).put("tokens_in", row.opt("tokens_in") ?: JSONObject.NULL)
-        .put("tokens_out", row.opt("tokens_out") ?: JSONObject.NULL).put("tokens_content", JSONObject.NULL)
+        .put("tokens_out", row.opt("tokens_out") ?: JSONObject.NULL).put("tokens_content", row.opt("tokens_content") ?: JSONObject.NULL)
         .put("tokens_thought", row.opt("tokens_thought") ?: JSONObject.NULL)
         .put("is_encrypted", encrypted ?: JSONObject.NULL).put("quote_text", row.opt("quote_text") ?: JSONObject.NULL)
         .put("parent_id", row.opt("parent_id") ?: JSONObject.NULL)
@@ -293,6 +293,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         val parentServerId: Int? = null,
         /** An answer still being generated: not uploaded until it is finished. */
         val generating: Boolean = false,
+        val pricingCalls: JSONArray? = null,
     )
 
     /** Appends a message and returns its local id; the thread moves to the top of the list. */
@@ -308,9 +309,12 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         val serverParent = message.parentServerId ?: message.parentId?.takeIf { serverThread != null }?.let { parent ->
             resolveMessageId(serverThread!!, PENDING_ID_BASE + parent).takeUnless { isPendingId(it) }
         }
+        val thoughtMetadata = JSONObject()
+        if (message.thought.isNotBlank()) thoughtMetadata.put("text", message.thought)
+        if (message.pricingCalls != null) thoughtMetadata.put("pricing_calls", message.pricingCalls)
         rows += JSONObject().put("id", id).put("uuid", message.uuid ?: UUID.randomUUID().toString())
             .put("role", message.role).put("content", message.content)
-            .put("thought_data", if (message.thought.isBlank()) JSONObject.NULL else JSONObject().put("text", message.thought).toString())
+            .put("thought_data", if (thoughtMetadata.length() == 0) JSONObject.NULL else thoughtMetadata.toString())
             .put("model", message.model.ifBlank { null } ?: JSONObject.NULL)
             .put("image_url", if (message.files.isEmpty()) JSONObject.NULL else JSONArray(message.files).toString())
             .put("parent_id", message.parentId?.takeIf { serverParent == null } ?: JSONObject.NULL)
@@ -339,17 +343,22 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     /** Replaces the text of a message being generated (saved every few seconds and at the end). */
     @Synchronized
     fun updateMessage(threadId: String, id: Int, content: String, thought: String, tokensIn: Int? = null, tokensOut: Int? = null,
-                      files: List<String>? = null, done: Boolean = false, searchUsed: Boolean = false) {
+                      files: List<String>? = null, done: Boolean = false, searchUsed: Boolean = false,
+                      tokensThought: Int? = null, pricingCalls: JSONArray? = null) {
         val rows = loadMessages(threadId)
         val row = rows.firstOrNull { it.optInt("id") == id } ?: return
         val thoughtMetadata = JSONObject()
         if (thought.isNotBlank()) thoughtMetadata.put("text", thought)
         if (searchUsed) thoughtMetadata.put("search_used", true)
+        val calls = pricingCalls ?: runCatching { JSONObject(row.optString("thought_data")).optJSONArray("pricing_calls") }.getOrNull()
+        if (calls != null) thoughtMetadata.put("pricing_calls", calls)
         row.put("content", content)
             .put("thought_data", if (thoughtMetadata.length() == 0) JSONObject.NULL else thoughtMetadata.toString())
             .put("synced", false)
         if (tokensIn != null) row.put("tokens_in", tokensIn)
         if (tokensOut != null) row.put("tokens_out", tokensOut)
+        if (tokensThought != null) row.put("tokens_thought", tokensThought)
+        if (!row.isNull("tokens_out")) row.put("tokens_content", (row.optInt("tokens_out") - row.optInt("tokens_thought")).coerceAtLeast(0))
         if (tokensIn != null || tokensOut != null) row.put("tokens", (tokensIn ?: 0) + (tokensOut ?: 0))
         if (files != null) row.put("image_url", if (files.isEmpty()) JSONObject.NULL else JSONArray(files).toString())
         if (done) row.put("generating", false)
@@ -681,6 +690,8 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
                     .put("quote_text", row.opt("quote_text") ?: JSONObject.NULL)
                     .put("gem_uuid", row.opt("gem_uuid") ?: JSONObject.NULL).put("gem_name", row.opt("gem_name") ?: JSONObject.NULL)
                     .put("tokens_in", row.opt("tokens_in") ?: JSONObject.NULL).put("tokens_out", row.opt("tokens_out") ?: JSONObject.NULL)
+                    .put("tokens_thought", row.opt("tokens_thought") ?: JSONObject.NULL)
+                    .put("pricing_calls", runCatching { JSONObject(row.optString("thought_data")).optJSONArray("pricing_calls") }.getOrNull() ?: JSONObject.NULL)
                     .put("created_at_ms", row.optLong("created_ms"))
                 if (!row.isNull("parent_server_id")) {
                     item.put("parent", JSONObject().put("id", row.optInt("parent_server_id")))
@@ -868,6 +879,8 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
                         model = message.optString("model").takeIf { it != "null" }.orEmpty(), thought = thought, files = files,
                         quote = message.optString("quote_text").takeIf { it != "null" }.orEmpty(),
                         tokensIn = message.opt("tokens_in") as? Int, tokensOut = message.opt("tokens_out") as? Int,
+                        tokensThought = message.opt("tokens_thought") as? Int,
+                        pricingCalls = runCatching { JSONObject(message.optString("thought_data")).optJSONArray("pricing_calls") }.getOrNull(),
                         createdMs = message.optLong("created_ms"), uuid = message.optString("uuid").ifBlank { null }))
                 }
             imported++

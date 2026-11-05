@@ -117,7 +117,10 @@
                     if (!dataText || dataText === '[DONE]') return;
                     const evt = JSON.parse(dataText);
                     if (Number.isInteger(evt.usageMetadata?.promptTokenCount)) {
-                        pricingUsage = { promptTokenCount: evt.usageMetadata.promptTokenCount };
+                        pricingUsage = {};
+                        for (const key of ['promptTokenCount', 'candidatesTokenCount', 'thoughtsTokenCount']) {
+                            if (Number.isInteger(evt.usageMetadata[key]) && evt.usageMetadata[key] >= 0) pricingUsage[key] = evt.usageMetadata[key];
+                        }
                     }
                     if (evt.error) throw new Error(evt.error.message || 'Gemini API error');
                     const candidates = Array.isArray(evt.candidates) ? evt.candidates : [];
@@ -263,6 +266,7 @@
                                 client_request_id: createClientRequestId(),
                                 message: rawText,
                                 assistant_content: assistantContent,
+                                pricing_usage: pricingUsage,
                                 thought_content: thought || '',
                                 model,
                                 image_urls: refs,

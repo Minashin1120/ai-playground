@@ -264,6 +264,9 @@ def _sync_insert_messages(thread, entry, result):
             thought_metadata['prompt_quote'] = quote or ''
         if role == 'assistant' and item.get('search_used') is True:
             thought_metadata['search_used'] = True
+        pricing_calls = _sanitize_pricing_calls(item.get('pricing_calls')) if role == 'assistant' else None
+        if pricing_calls is not None:
+            thought_metadata['pricing_calls'] = pricing_calls
         thought_payload = json.dumps(thought_metadata, ensure_ascii=False) if thought_metadata else None
         message = Message(
             thread_id=thread.id, role=role,
@@ -275,6 +278,7 @@ def _sync_insert_messages(thread, entry, result):
             tokens=count_tokens(content, model or 'gpt-4') if role == 'user' else count_tokens_for_display(content, model or 'gpt-4', thought or None),
             tokens_in=_sync_ms(item.get('tokens_in')) or 0,
             tokens_out=_sync_ms(item.get('tokens_out')) or 0,
+            tokens_thought=_usage_value(item, 'tokens_thought') or 0,
             thought_data=(encrypt_val(thought_payload) if is_enc and thought_payload else thought_payload),
             quote_text=quote, is_encrypted=is_enc,
             gem_uuid=(str(item.get('gem_uuid') or '').strip()[:36] or None),

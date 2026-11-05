@@ -158,9 +158,16 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
         val removeObject = request.options.optString("ideogram_operation") == "remove_object"
         emit(event("status", if (request.options.optString("ideogram_operation") == "remove_background") "Ideogram API (Remove background) を呼び出し中..." else if (removeObject) "Ideogram API (Object Remover) を呼び出し中..." else if (sources.isEmpty()) "Ideogram API を呼び出し中..." else "Ideogram API (Precise Edit) を呼び出し中..."))
         val call = buildCall(request, sources)
+        val usage = kotlin.coroutines.coroutineContext[UsageContext]?.ledger?.begin(request.model, "ideogram")
+        val action = request.options.optString("ideogram_operation")
+        val operation = if (action in setOf("remove_object", "remove_background")) action else if (sources.isEmpty()) "generate" else "edit"
+        var quality = request.options.optString("ideogram_quality").trim().lowercase()
+        if (quality !in setOf("very_low", "low", "medium", "high") || (quality == "very_low" && operation == "generate")) quality = if (operation == "edit") "medium" else "high"
+        usage?.row?.put("operation", operation)?.put("quality", quality)?.put("resolution", request.options.optString("ideogram_resolution"))
         val headers = mapOf("Api-Key" to request.apiKey, "Accept" to "application/json")
         var reply = http.execute(http.request(call.url, headers).post(call.body).build()) { response ->
             val text = response.body.string()
+            if (response.code in 400..499) usage?.rejected = true
             if (!response.isSuccessful) throw ideogramError(response.code, text)
             runCatching { JSONObject(text) }.getOrElse { throw DirectApiException(0, "Ideogram の応答を読み取れませんでした。") }
         }
@@ -187,6 +194,8 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
         }
         if (reply.has("error")) throw ideogramError(reply.optInt("status_code", 500), reply.toString())
         val data = reply.optJSONArray("data") ?: JSONArray()
+        usage?.row?.put("images", data.length())
+        usage?.finished = true
         val files = mutableListOf<DirectOutputFile>()
         var blocked = 0
         for (index in 0 until data.length()) {

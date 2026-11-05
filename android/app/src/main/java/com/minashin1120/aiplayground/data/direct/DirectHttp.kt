@@ -157,12 +157,18 @@ class DirectHttp(
         if (isSslFailure(error)) httpClient.connectionPool.evictAll()
     }
 
-    suspend fun postJson(url: String, headers: Map<String, String>, payload: JSONObject): JSONObject =
-        execute(request(url, headers).post(jsonBody(payload)).build()) { response ->
+    suspend fun postJson(url: String, headers: Map<String, String>, payload: JSONObject): JSONObject {
+        val usage = beginUsage(url, payload)
+        return execute(request(url, headers).post(jsonBody(payload)).build()) { response ->
             val text = response.body.string()
+            if (response.code in 400..499) usage?.rejected = true
             if (!response.isSuccessful) throw providerError(response.code, text)
-            runCatching { JSONObject(text) }.getOrElse { throw IOException("事業者APIの応答を読み取れませんでした。") }
+            val reply = runCatching { JSONObject(text) }.getOrElse { throw IOException("事業者APIの応答を読み取れませんでした。") }
+            usage?.observe(reply)
+            usage?.finished = true
+            reply
         }
+    }
 
     suspend fun getJson(url: String, headers: Map<String, String>): JSONObject =
         execute(request(url, headers).get().build()) { response ->
@@ -181,7 +187,9 @@ class DirectHttp(
 
     /** POSTs [payload] and hands each Server-Sent Event to [onEvent] until it returns false or the stream ends. */
     suspend fun postSse(url: String, headers: Map<String, String>, payload: JSONObject, maxLine: Long = 8L * 1024 * 1024, onEvent: (SseEvent) -> Boolean) {
+        val usage = beginUsage(url, payload)
         execute(request(url, headers).header("Accept", "text/event-stream").post(jsonBody(payload)).build(), streamingClient) { response ->
+            if (response.code in 400..499) usage?.rejected = true
             if (!response.isSuccessful) throw providerError(response.code, response.body.string())
             val type = response.body.contentType()
             if (type != null && type.subtype != "event-stream") throw IOException("事業者APIからストリーム形式ではない応答が返されました。")
@@ -189,7 +197,10 @@ class DirectHttp(
             val trace = response.request.tag(Trace::class.java)
             val diagnostics = trace?.stream
             val source = diagnostics?.source(response.body.source()) ?: response.body.source()
+            var complete = true
             readSse(source, maxLine = maxLine, onLine = diagnostics?.let { it::line }) { event ->
+                val data = runCatching { JSONObject(event.data) }.getOrNull()
+                if (data != null) usage?.observe(data)
                 diagnostics?.event(DirectStreamTrace.category(event))
                 if (first) {
                     first = false
@@ -197,8 +208,13 @@ class DirectHttp(
                         "method" to response.request.method, "provider" to LogPolicy.provider(response.request.url.host),
                         "path" to response.request.url.encodedPath, "ms" to trace.ms())
                 }
-                try { onEvent(event) } finally { diagnostics?.stage(5) }
+                try {
+                    val keep = onEvent(event)
+                    if (!keep && event.data.trim() != "[DONE]" && data?.optString("type") !in setOf("response.completed", "response.incomplete", "message_stop")) complete = false
+                    keep
+                } finally { diagnostics?.stage(5) }
             }
+            usage?.finished = complete
         }
     }
 

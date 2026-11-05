@@ -111,12 +111,18 @@ def test_batch_usage_is_saved_with_existing_encryption_without_changing_display_
     payload = next(n for n in ast.walk(route) if isinstance(n, ast.FunctionDef) and n.name == '_set_message_payload')
     scope = dict(json=json, encrypt_val=lambda value: 'ENCRYPTED:' + value,
                  sum_token_counts=lambda a, b: (a or 0) + (b or 0))
+    exec(compile((ROOT / 'server/model_usage.py').read_text(), 'model_usage.py', 'exec'), scope)
     exec(compile(ast.Module(body=[usage, payload], type_ignores=[]), 'cost-batch', 'exec'), scope)
-    message = SimpleNamespace(is_encrypted=encrypted)
+    message = SimpleNamespace(is_encrypted=encrypted, model='gpt-6.1-sol')
     scope['_set_message_payload'](message, 'answer', thought='reasoning', tokens_out=1000,
-                                  tokens_thought=500, usage={'input_tokens': 272001, 'secret': 'DO_NOT_KEEP'})
+                                  tokens_thought=500, usage={'input_tokens': 272001, 'output_tokens': 1000,
+                                      'output_tokens_details': {'reasoning_tokens': 500}, 'secret': 'DO_NOT_KEEP'})
     stored = message.thought_data.removeprefix('ENCRYPTED:')
-    assert json.loads(stored) == {'text': 'reasoning', 'pricing_input_tokens': 272001}
+    metadata = json.loads(stored)
+    assert metadata['text'] == 'reasoning' and metadata['pricing_input_tokens'] == 272001
+    assert metadata['pricing_calls'][0]['thought_tokens'] == 500
+    assert metadata['pricing_calls'][0]['complete'] is True
+    assert 'DO_NOT_KEEP' not in stored
     assert message.thought_data.startswith('ENCRYPTED:') == encrypted
     assert message.tokens == message.tokens_out == 1000
 
@@ -169,5 +175,5 @@ def test_dates_are_from_saved_answer_and_not_wall_clock():
 
 def test_android_and_web_use_identical_official_rate_data():
     assert (ROOT / 'static/model_pricing.json').read_bytes() == (ROOT / 'android/app/src/main/assets/model-pricing.json').read_bytes()
-    assert PRICING['checked_at'] == '2026-11-05'
+    assert PRICING['checked_at'] == '2026-11-06'
     assert all(model['provider'] in PRICING['sources'] for model in PRICING['models'].values())

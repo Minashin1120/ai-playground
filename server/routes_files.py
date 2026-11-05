@@ -277,6 +277,8 @@ def handle_thread_item(thread_id):
                 token_out = token_out if token_out is not None else legacy_token_out
                 token_total = legacy_token_total
             batch_row = batch_by_assistant.get(m.id)
+            if token_out is not None:
+                tokens_content = max(0, token_out - (tokens_thought or 0))
             res.append({
                 'missing_files': _missing_message_files(m, current_user.id),
                 'id': m.id,

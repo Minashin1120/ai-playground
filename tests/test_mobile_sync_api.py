@@ -122,6 +122,23 @@ class MobileSyncApiTests(unittest.TestCase):
         message = self.call(f'/api/threads/{public_id}', token).json['messages'][0]
         self.assertEqual(json.loads(message['thought_data']), {'search_used': True})
 
+    def test_request_usage_and_thinking_survive_server_sync(self):
+        token = self.token()
+        response = self.push_chat(token, self.uid(), [
+            {'client_uuid': self.uid(), 'role': 'assistant', 'content': 'answer', 'model': 'gpt-6.1-sol',
+             'tokens_in': 100, 'tokens_out': 1000, 'tokens_thought': 900,
+             'pricing_calls': [{'model': 'gpt-6.1-sol', 'input_tokens': 100, 'output_tokens': 1000,
+                                'thought_tokens': 900, 'complete': True, 'prompt': 'DO_NOT_COPY'}]},
+        ])
+        self.assertEqual(response.status_code, 200)
+        public_id = response.json['threads'][0]['id']
+        message = self.call(f'/api/threads/{public_id}', token).json['messages'][0]
+        self.assertEqual(message['tokens_thought'], 900)
+        self.assertEqual(message['tokens_content'], 100)
+        metadata = json.loads(message['thought_data'])
+        self.assertEqual(metadata['pricing_calls'][0]['thought_tokens'], 900)
+        self.assertNotIn('DO_NOT_COPY', message['thought_data'])
+
     def test_push_creates_chats_idempotently_with_parent_links(self):
         token = self.token()
         thread_uuid, first, second = self.uid(), self.uid(), self.uid()

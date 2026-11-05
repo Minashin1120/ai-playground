@@ -632,6 +632,7 @@ internal fun TokenDetailDialog(detail: TokenDetail, onDismiss: () -> Unit) {
             ).forEach { (label, v) -> InfoRow(label, v) }
             detail.cost?.let { cost ->
                 Text(cost.label(), color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
+                Text("集計したAPI呼び出し: ${cost.requests}回", color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
                 Text(com.minashin1120.aiplayground.data.COST_ESTIMATE_NOTE, color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
                 Text("公式料金確認日: ${detail.pricing?.checkedAt ?: "取得できませんでした"}", color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
                 val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current

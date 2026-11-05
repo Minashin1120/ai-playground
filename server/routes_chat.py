@@ -500,6 +500,12 @@ def save_browser_fast_mode_chat():
     pricing_input = _cost_input_tokens(data.get('pricing_usage'))
     if pricing_input is not None:
         thought_record['pricing_input_tokens'] = pricing_input
+    pricing_call = None
+    if 'pricing_usage' in data:
+        pricing_call = ModelUsageCall(model_key, 'google')
+        pricing_call.update_usage(data.get('pricing_usage') or {})
+        pricing_call.finished = True
+        thought_record['pricing_calls'] = [pricing_call.snapshot()]
     thought_payload = json.dumps(thought_record, ensure_ascii=False) if thought_record else None
     assistant_content = assistant_text
     if is_enc:
@@ -510,6 +516,11 @@ def save_browser_fast_mode_chat():
     user_tokens = count_tokens(user_text, model_key)
     thought_tokens = count_tokens(thought_text, model_key) if thought_text else 0
     assistant_tokens = count_tokens_for_display(assistant_text, model_key, thought_text)
+    if pricing_call is not None:
+        if pricing_call.record['output_tokens'] is not None:
+            assistant_tokens = pricing_call.record['output_tokens']
+        if pricing_call.record['thought_tokens'] is not None:
+            thought_tokens = pricing_call.record['thought_tokens']
     thread_ref = data.get('thread_id')
     parent_raw = data.get('parent_id')
     if not thread_ref and parent_raw is not None and str(parent_raw).strip():
@@ -1296,6 +1307,17 @@ def gemini_batch_status_api():
         pricing_input = _cost_input_tokens(usage)
         if pricing_input is not None:
             thought_record['pricing_input_tokens'] = pricing_input
+        if usage is not None:
+            model = getattr(message, 'model', '') or ''
+            provider = 'google' if model.startswith('gemini') else 'xai' if model.startswith('grok') else 'openai'
+            call = ModelUsageCall(model, provider)
+            call.update_usage(usage)
+            call.finished = True
+            thought_record['pricing_calls'] = [call.snapshot()]
+            if call.record['output_tokens'] is not None:
+                tokens_out = call.record['output_tokens']
+            if call.record['thought_tokens'] is not None:
+                tokens_thought = call.record['thought_tokens']
         if thought_record:
             thought_payload = json.dumps(thought_record, ensure_ascii=False)
             message.thought_data = encrypt_val(thought_payload) if is_enc else thought_payload

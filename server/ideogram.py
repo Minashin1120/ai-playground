@@ -243,8 +243,19 @@ def ideogram_error_message(status_code, body_text):
 def ideogram_request(api_key, model_key, prompt, options, source_images=None):
     """Run one synchronous Ideogram request and return the list of image dicts."""
     url, kwargs, _n_images, edit_mode = ideogram_build_request(model_key, prompt, options, source_images)
+    ledger = _MODEL_USAGE_CONTEXT.get()
+    call = ledger.begin(model_key, 'ideogram') if ledger is not None else None
+    if call is not None:
+        operation = options.get('ideogram_operation')
+        operation = operation if operation in ('remove_background', 'remove_object') else 'edit' if edit_mode else 'generate'
+        quality = _ideogram_pick(options.get('ideogram_quality'), IDEOGRAM_QUALITIES)
+        if not quality or (quality == 'very_low' and operation == 'generate'):
+            quality = 'medium' if operation == 'edit' else 'high'
+        call.record.update(operation=operation, quality=quality, resolution='2k' if _ideogram_tier_index(options) else '1k')
     headers = {"Api-Key": api_key, "Accept": "application/json"}
     resp = httpx.post(url, headers=headers, timeout=IDEOGRAM_TIMEOUT_SECONDS, **kwargs)
+    if call is not None and 400 <= resp.status_code < 500:
+        call.rejected = True
     if resp.status_code >= 400:
         raise RuntimeError(ideogram_error_message(resp.status_code, resp.text))
     payload = resp.json()
@@ -276,4 +287,7 @@ def ideogram_request(api_key, model_key, prompt, options, source_images=None):
     items = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(items, list):
         raise RuntimeError("Ideogram から画像データが返されませんでした。")
+    if call is not None:
+        call.record['images'] = len(items)
+        call.finished = True
     return [item for item in items if isinstance(item, dict)], edit_mode

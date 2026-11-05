@@ -14,6 +14,8 @@
 | [test_gpt_5_6_family.py](../test_gpt_5_6_family.py) | gpt / 5 / 6 / family |
 | [test_gpt_6_family.py](../test_gpt_6_family.py) | gpt / 6 / family |
 | [test_grok_45_46_family.py](../test_grok_45_46_family.py) | grok / 45 / 46 / family |
+| [test_model_usage_ledger.py](../test_model_usage_ledger.py) | HTTP通信単位の使用量、SDK自動ツール呼び出し・再試行、累積イベント・再取得の重複防止 |
+| [test_cost_request_accounting.py](../test_cost_request_accounting.py) | API呼び出し別の長文料金・モデル・Thinking・Ideogram 4.5画像単価 |
 | [test_model_cost_estimates.py](../test_model_cost_estimates.py) | 回答ごとの料金・長文の境界・分岐・公式入力使用量 |
 | [test_no_hardcoded_model_prompts_regressions.py](../test_no_hardcoded_model_prompts_regressions.py) | モデルへの固定指示の直書き防止 |
 | [test_openai_batch_regressions.py](../test_openai_batch_regressions.py) | openai / batch |
@@ -32,3 +34,5 @@
 モデルへの新しい指示文は自動注入システムプロンプトの設定項目にします。固定文言をコードへ追加したり、直書き禁止テストの許可リストを拡大して回避したりしません。
 
 実行・失敗時の手順は [workflow.md](workflow.md) を参照してください。
+
+モデルAPIの使用量は回答内の `pricing_calls` に通信ごとに保存します。同じストリームの累積usageは更新し、別リクエストは加算します。長文料金は各リクエストで判定します。再取得のGETは生成回数に加えず、使用量未取得の通信は一部未算入にします。Thinkingは出力に含めたまま内訳へ記録します。Ideogram 4.5は生成と編集の品質別単価×実際の画像枚数で検証します。

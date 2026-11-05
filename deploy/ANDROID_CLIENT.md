@@ -418,7 +418,17 @@ DNS失敗時の補助は `data/NetworkDns.kt` で共通化しています。通�
 - 回答の生成中は `GenerationService`（`dataSync` のフォアグラウンドサービス、低重要度の通知）でプロセスを保護し、他のアプリへ移ってもOSに終了されにくくします（5.1の末尾）。画像・動画（カタログのmodeが `image`／`video`）の回答は数分かかるため、`LocalChatBackend` が `/chat_stream` の開始から回答の保存・アカウントへの送信までの間も保護を取り、通知は「画像を生成中」「動画を生成中」になります。複数の保護は `GenerationTracker` で数えて最後の1件が終わるとサービスを止めます。Androidがフォアグラウンドサービスを拒否した場合も、アプリが開いている間は生成を続けます。通知権限が未許可でもサービスは動きますが通知は出ません。最近使ったアプリから消した場合は、画面と一緒にViewModelが破棄されるため生成は中断されます。
 - 停止は通信の切断で行い、途中までの回答を保存します。生成中は数秒ごとに途中保存します。エラーはサーバーと同じ `chat_error` の囲みで回答として保存します。
 
-#### 同期API（サーバー `server/routes_mobile_sync.py`、`sync_api_version: 1`）
+##### 費用予想と使用量の保存
+
+回答の `thought_data` のJSONには、従来の `text`・`search_used`・`pricing_input_tokens` に加え、省略可能な `pricing_calls` 配列を保存します。各要素はモデルAPIの1リクエストです。`model`、`created_at`、`input_tokens`、`output_tokens`、`thought_tokens`、`complete` を持ち、画像では `images`・`operation`・`quality`・`resolution` を使用します。本文・APIキー・リクエストIDは含めません。モデルと数量は送信時の記録を使い、現在のモデル選択には依存しません。
+
+同じストリームのusageは累積値として更新し、ツール後の再送・再試行は別の呼び出しとして加算します。Responsesの再取得は生成回数に追加しません。入力・出力が取得できなかった通信は `complete: false` とし、費用は一部未算入として表示します。明示的に拒否された4xxの通信を課金済みと仮定しません。Thinkingは出力に含まれ、`tokens_thought` にも内訳として保存・表示します。出力料金に二重加算しません。
+
+Android直接通信も同じ記録を暗号化チャット内に保存します。`POST /api/mobile/v1/sync/push` の各メッセージは省略可能な `pricing_calls` と `tokens_thought` を送れます。サーバーは列挙値・数値などの許可項目だけを取り込み、配列は最大1,024件まで保存し、超過分は未算入の記録を残します。これらは操作ログ・診断ログではなく、通常のチャット保存・同期の対象です。未知の項目を無視する旧クライアントと互換です。
+
+Ideogram 4.5は1画像あたりの品質・生成／編集の単価を実際の生成枚数へ掛けます。現行の公式単価は1K／2Kで同額です。既存の回答は保存された親プロンプトのオプションと画像から推定します。未保存の過去のAPI呼び出し回数やThinkingの正確な使用量は復元しません。
+
+## 同期API（サーバー `server/routes_mobile_sync.py`、`sync_api_version: 1`）
 
 サーバー不使用モードで端末に残っている回答（送信待ち）を、アカウントへ保存します（`data/sync/SyncEngine.kt`）。どちらもAndroid用Bearerだけで呼べ、WebのCookieでは使えません。
 

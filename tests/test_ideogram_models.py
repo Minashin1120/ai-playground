@@ -25,6 +25,7 @@ MODEL_IDS = ("ideogram-4.5", "ideogram-4.0", "ideogram-3.0", "ideogram-2a", "ide
 def _load_ideogram():
     """Run server/ideogram.py in its own namespace, as app.py does with every server part."""
     namespace = {"json": json, "httpx": httpx}
+    exec(compile((APP_ROOT / "server/model_usage.py").read_text(), "model_usage.py", "exec"), namespace)
     source = (APP_ROOT / "server" / "ideogram.py").read_text(encoding="utf-8")
     exec(compile(source, "server/ideogram.py", "exec"), namespace)
     return types.SimpleNamespace(**namespace)

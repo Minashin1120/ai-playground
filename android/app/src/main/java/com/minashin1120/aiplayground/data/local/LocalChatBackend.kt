@@ -594,6 +594,7 @@ class LocalChatBackend(
         var partialThought = ""
         var searchUsed = false
         var lastSave = 0L
+        val generationUsage = com.minashin1120.aiplayground.data.ModelUsageLedger()
         val last: JSONObject = try {
             // Attachments that cannot be read (a server file out of reach) end the answer with an error.
             val turns = history(all, userScreenId, preferences, quote, body.optInt("quote_message_id", -1).takeIf { it > 0 })
@@ -610,7 +611,8 @@ class LocalChatBackend(
                         info.optString("mime").ifBlank { "image/png" }, bytes)
                 }
             }
-            val result = route.engine.run(DirectRequest(model, apiKey, system, turns, body, maskImage = maskImage, saveOutput = { file ->
+            val result = withContext(com.minashin1120.aiplayground.data.direct.UsageContext(generationUsage, model)) {
+            route.engine.run(DirectRequest(model, apiKey, system, turns, body, maskImage = maskImage, saveOutput = { file ->
                 val ref = store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong())
                 streamedOutputs += ref
                 ref
@@ -620,18 +622,24 @@ class LocalChatBackend(
             }) { content, thought ->
                 partialContent = content; partialThought = thought
                 val now = System.currentTimeMillis()
-                if (now - lastSave > 3000) { lastSave = now; store.updateMessage(chat.outboxId, assistantId, content, thought, searchUsed = searchUsed) }
+                if (now - lastSave > 3000) { lastSave = now; store.updateMessage(chat.outboxId, assistantId, content, thought,
+                    tokensOut = generationUsage.total("output_tokens"), tokensThought = generationUsage.total("thought_tokens"),
+                    pricingCalls = generationUsage.records(), searchUsed = searchUsed) }
+            }
             }
             val outputs = streamedOutputs + result.files.map { file -> store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong()) }
             val content = withoutInventedAgenticImages(result.content, turns)
-            store.updateMessage(chat.outboxId, assistantId, content, result.thought, result.tokensIn, result.tokensOut,
+            store.updateMessage(chat.outboxId, assistantId, content, result.thought, result.tokensIn, generationUsage.total("output_tokens") ?: result.tokensOut,
+                tokensThought = generationUsage.total("thought_tokens") ?: result.tokensThought, pricingCalls = generationUsage.records(),
                 files = outputs.takeIf { it.isNotEmpty() }, done = true, searchUsed = searchUsed)
             Diagnostics.log("gen.done", "content_chars" to content.length, "files" to outputs.size, "ms" to elapsed())
             JSONObject().put("type", "done")
         } catch (e: CancellationException) {
             Diagnostics.log("gen.cancelled", "content_chars" to partialContent.length, "ms" to elapsed())
             // Stopped: what arrived so far is kept; the chat screen asks for the upload.
-            withContext(NonCancellable) { store.updateMessage(chat.outboxId, assistantId, partialContent, partialThought, done = true, searchUsed = searchUsed) }
+            withContext(NonCancellable) { store.updateMessage(chat.outboxId, assistantId, partialContent, partialThought,
+                tokensOut = generationUsage.total("output_tokens"), tokensThought = generationUsage.total("thought_tokens"),
+                pricingCalls = generationUsage.records(), done = true, searchUsed = searchUsed) }
             onChanged()
             throw e
         } catch (e: Exception) {
@@ -643,7 +651,9 @@ class LocalChatBackend(
                     "安全な通信が中断されました。回答を再生成してください。"
                 else "Connection Error: ${e.message ?: e.javaClass.simpleName}"
             }
-            store.updateMessage(chat.outboxId, assistantId, errorContent(text, partialContent), partialThought, done = true, searchUsed = searchUsed)
+            store.updateMessage(chat.outboxId, assistantId, errorContent(text, partialContent), partialThought,
+                tokensOut = generationUsage.total("output_tokens"), tokensThought = generationUsage.total("thought_tokens"),
+                pricingCalls = generationUsage.records(), done = true, searchUsed = searchUsed)
             JSONObject().put("type", "error").put("content", text)
         }
         onChanged()

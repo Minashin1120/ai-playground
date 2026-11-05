@@ -17,3 +17,5 @@ Gradleによる単体テスト・lint・コンパイル・署名はActionsだけ
 Androidの文書・配布経路は [android/README.md](../../android/README.md) と [Android検証・配布](../../scripts/docs/android_checks.md) を参照してください。
 
 実行・失敗時の手順は [workflow.md](workflow.md) を参照してください。
+
+`test_mobile_sync_api.py` は `pricing_calls` と `tokens_thought` の保存・再取得、任意の本文などが数値メタデータへ混ざらないことも検証します。ネイティブ側の記録・保存・HTTP経路は `ModelUsageLedgerTest.kt`、`local/ModelUsageStorageTest.kt`、`direct/DirectUsageTest.kt` をActionsで実行します。

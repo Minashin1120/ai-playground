@@ -679,6 +679,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
 
     with app.app_context():
         g.diagnostic_user_id = user_id
+        usage_ledger = ModelUsageLedger()
         _record_server_diagnostic(user_id, 'server.worker.start', job=job_id)
         channel = f"ai_chat:channel:{job_id}"
         r = redis.from_url(REDIS_URL)
@@ -835,6 +836,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 is_enc = bool(user_config.get("enable_e2ee", False))
                 content_to_store = encrypt_val(final_content) if is_enc else final_content
                 thought_metadata = {"text": thought_text} if thought_text and str(thought_text).strip() else {}
+                if usage_ledger.calls:
+                    thought_metadata['pricing_calls'] = usage_ledger.snapshot()
                 if search_used:
                     thought_metadata["search_used"] = True
                 thought_payload = json.dumps(thought_metadata, ensure_ascii=False) if thought_metadata else None
@@ -853,8 +856,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     content=content_to_store,
                     model=model_key,
                     thought_data=thought_data,
-                    tokens_out=0,
-                    tokens=0,
+                    tokens_out=usage_ledger.token_totals()['output_tokens'] or 0,
+                    tokens=usage_ledger.token_totals()['output_tokens'] or 0,
+                    tokens_thought=usage_ledger.token_totals()['thought_tokens'] or 0,
                     is_encrypted=is_enc,
                     parent_id=message_id,
                     gem_uuid=gem_uuid_val,
@@ -1178,6 +1182,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
         def _decode_text_bytes(raw):
             return _decode_text_bytes_for_prompt(raw)
 
+        usage_context_token = _MODEL_USAGE_CONTEXT.set(usage_ledger)
         try:
             log_force(f"Task Start: model={model_key}, user={user_id}")
             pub("status", "ワーカーがジョブを受信しました。入力を処理中です...")
@@ -1912,7 +1917,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if not ANTHROPIC_AVAILABLE:
                     pub("error", "Anthropic SDK is not installed on the server.")
                     return
-                c_client = Anthropic(api_key=key)
+                c_client = Anthropic(api_key=key, http_client=httpx.Client(
+                    timeout=httpx.Timeout(600, connect=5),
+                    event_hooks={'request': [_observe_usage_request], 'response': [_observe_usage_response]},
+                ))
             elif is_grok:
                 x_client = _get_xai_client(key)
                 o_client = _get_openai_client(key, base_url=f"https://{_XAI_API_HOST}/v1")
@@ -7966,6 +7974,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     log_force(f"Trimmed thought_signature for DB storage: kept {sig_kept_count}/{sig_original_count}")
 
             thought_payload = {"search_used": True} if search_used else {}
+            if usage_ledger.calls:
+                thought_payload['pricing_calls'] = usage_ledger.snapshot()
             pricing_input = _cost_input_tokens(locals().get('final_usage_metadata') if is_gem else locals().get('final_openai_usage'))
             if pricing_input is not None:
                 thought_payload['pricing_input_tokens'] = pricing_input
@@ -8027,6 +8037,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 elif completion_tokens_val is not None:
                     assistant_tokens_out = int(completion_tokens_val or 0) + int(reasoning_tokens_val or 0)
 
+            usage_totals = usage_ledger.token_totals()
+            if usage_totals['output_tokens'] is not None:
+                assistant_tokens_out = usage_totals['output_tokens']
+            if usage_totals['thought_tokens'] is not None:
+                tokens_thought_val = usage_totals['thought_tokens']
+
             gem_uuid_val = options.get('gem_uuid')
             gem_name_val = None
             if gem_uuid_val:
@@ -8069,6 +8085,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             else:
                 pub("error", err_msg)
         finally:
+            _MODEL_USAGE_CONTEXT.reset(usage_context_token)
+            if locals().get('c_client') is not None:
+                try:
+                    c_client.close()
+                except Exception:
+                    log_force('Provider client close failed')
             _record_server_diagnostic(user_id, 'server.worker.end', job=job_id)
             _latency_mark_once(job_id, "worker_done_ms")
             r.delete(f"stop_job:{job_id}")

@@ -701,7 +701,8 @@
                 costDetail.replaceChildren();
                 costDetail.classList.toggle('hidden', meta.role !== 'total');
                 if (meta.role === 'total') {
-                    for (const text of [costEstimateLabel(meta.cost_estimate), COST_ESTIMATE_NOTE,
+                    for (const text of [costEstimateLabel(meta.cost_estimate),
+                        `集計したAPI呼び出し: ${meta.cost_estimate?.requests || 0}回`, COST_ESTIMATE_NOTE,
                         `公式料金確認日: ${costPricing?.checked_at || '取得できませんでした'}`]) {
                         const p = document.createElement('p'); p.textContent = text; costDetail.appendChild(p);
                     }

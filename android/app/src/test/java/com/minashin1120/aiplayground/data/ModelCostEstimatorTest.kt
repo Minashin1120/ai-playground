@@ -5,6 +5,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ModelCostEstimatorTest {
+    @Test fun eachCallKeepsItsOwnLongContextTier() {
+        val calls = """{"pricing_calls":[{"model":"grok-4.6","input_tokens":150000,"output_tokens":1000,"complete":true},{"model":"grok-4.6","input_tokens":150000,"output_tokens":1000,"complete":true}]}"""
+        val row = ChatMessage("1", "assistant", "answer", model = "gpt-6-astra", thought = calls)
+        val cost = estimator.estimate(listOf(row))
+        assertEquals(2 * (150000 * 2.0 + 1000 * 6) / 1e6, cost.low, 1e-12)
+        assertEquals(0, cost.long)
+        assertEquals(2, cost.requests)
+    }
+
+    @Test fun ideogram45UsesImageQuantityQualityAndOperationInsteadOfTokens() {
+        for ((operation, quality, unit) in listOf(Triple("generate", "high", .10), Triple("edit", "high", .22), Triple("edit", "very_low", .008))) {
+            val metadata = """{"pricing_calls":[{"model":"ideogram-4.5","images":3,"operation":"$operation","quality":"$quality","complete":true}]}"""
+            val row = ChatMessage("1", "assistant", "answer", model = "ideogram-4.5", thought = metadata)
+            assertEquals(3 * unit, estimator.estimate(listOf(row)).low, 1e-12)
+        }
+    }
     private val estimator = ModelCostEstimator(File("src/main/assets/model-pricing.json").readText())
     private fun answer(model: String, input: Int?, output: Int = 1000) =
         ChatMessage("2", "assistant", "test", model = model, tokensIn = input, tokensOut = output)

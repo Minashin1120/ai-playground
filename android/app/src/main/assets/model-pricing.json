@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-11-05",
+  "checked_at": "2026-11-06",
   "currency": "USD",
   "sources": {
     "openai": "https://developers.openai.com/api/docs/pricing",
@@ -10,7 +10,7 @@
     "deepseek": "https://api-docs.deepseek.com/quick_start/pricing/",
     "kimi": "https://www.kimi.ai/blog/kimi-k3",
     "mistral": "https://docs.mistral.ai/inference/pricing",
-    "ideogram": "https://ideogram.ai/pricing/?pricing_tab=api"
+    "ideogram": "https://ideogram.ai/models/4.5/"
   },
   "aliases": {
     "Gemini 4 Argon": "gemini-4-argon",
@@ -81,7 +81,8 @@
     "Grok 4.20 (Reasoning)": "grok-4.20-reasoning",
     "Grok 4.20 (Non-Reasoning)": "grok-4.20-non-reasoning",
     "Grok 4.20 Multi-Agent": "grok-4.20-multi-agent",
-    "Kimi K3": "kimi-k3"
+    "Kimi K3": "kimi-k3",
+    "Ideogram 4.5": "ideogram-4.5"
   },
   "models": {
     "gpt-6-astra": {
@@ -627,6 +628,24 @@
       "input": 3,
       "output": 15,
       "batch_multiplier": 0.6
+    },
+    "ideogram-4.5": {
+      "provider": "ideogram",
+      "unit": "image",
+      "image_rates": {
+        "generate": {
+          "low": 0.03,
+          "medium": 0.06,
+          "high": 0.1
+        },
+        "edit": {
+          "very_low": 0.008,
+          "low": 0.03,
+          "medium": 0.06,
+          "high": 0.22
+        }
+      }
     }
-  }
+  },
+  "image_checked_at": "2026-11-06"
 }

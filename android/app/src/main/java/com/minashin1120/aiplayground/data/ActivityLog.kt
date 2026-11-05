@@ -41,7 +41,9 @@ object ActivityLog {
     @Volatile var enabled: Boolean = false
         private set
     private var seq = 0L
-    private var generation = 0L
+    @Volatile private var generation = 0L
+    /** A long-running diagnostic must stop when consent or the log's account changes. */
+    internal val collectionGeneration: Long get() = generation
     private var writesSincePrune = 0
     private val listeners = mutableListOf<(Boolean) -> Unit>()
     /** Writes leave the calling thread (taps and state changes are logged on the main thread). */

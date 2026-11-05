@@ -64,6 +64,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/CapturedPhotoOrientation.kt` | 撮影したJPEGのEXIFの向きを画素へ反映 | 撮影後の画像の向きを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ChatAutoScroll.kt` | Web `part05` の会話の自動追従（上へのスクロールで停止、下端付近で再開、「一番下へ」の表示条件） | 生成中のスクロールの動きを変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InlineVideoPlayer.kt` | 回答バブル内の動画取得・再試行とネイティブ動画プレイヤー | 回答内の動画再生を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/direct/DirectStreamTrace.kt` | 直接通信の段階・受信バイト・空行とSSEイベント件数を、内容を渡さず集計する診断 | 送信後の空白時間やThinking受信の停滞を調べるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/StreamingJsonBody.kt` | 大きな事業者APIリクエストのJSONを分割して書き出す | 送信時のメモリ使用量やJSON符号化を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LiveAnswer.kt` | 生成待ち・チャット読み込み中のスケルトン、チャット読み込み失敗のカード、Searching web／Search complete、Image Analysis、Python Execution、右下の通信スピナー | 生成中の表示を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/LogPolicy.kt` | 共通スキーマによる機密除外・ルート正規化・処理段階の記録 | 許可イベント・項目、処理の記録方法を変更するとき |

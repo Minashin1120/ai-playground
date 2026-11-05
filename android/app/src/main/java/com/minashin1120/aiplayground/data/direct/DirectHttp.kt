@@ -52,6 +52,7 @@ class DirectHttp(
 ) {
     private class Trace(val started: Long = System.nanoTime(), val op: String = UUID.randomUUID().toString()) {
         fun ms(): Long = (System.nanoTime() - started) / 1_000_000
+        var stream: DirectStreamTrace? = null
     }
 
     private fun record(call: Call, trace: Trace, type: String, phase: String, bytes: Long? = null) {
@@ -64,8 +65,15 @@ class DirectHttp(
         val trace = call.request().tag(Trace::class.java) ?: return EventListener.NONE
         return object : EventListener() {
             override fun callStart(call: Call) = record(call, trace, "accepted", "start")
-            override fun requestBodyStart(call: Call) = record(call, trace, "start", "start")
-            override fun requestBodyEnd(call: Call, byteCount: Long) = record(call, trace, "start", "done", byteCount)
+            override fun requestBodyStart(call: Call) {
+                trace.stream?.stage(1)
+                record(call, trace, "start", "start")
+            }
+            override fun requestBodyEnd(call: Call, byteCount: Long) {
+                trace.stream?.stage(2)
+                record(call, trace, "start", "done", byteCount)
+            }
+            override fun responseHeadersEnd(call: Call, response: Response) { trace.stream?.stage(3) }
         }
     }
 
@@ -100,17 +108,27 @@ class DirectHttp(
     private suspend fun <T> execute(request: Request, httpClient: OkHttpClient, consume: (Response) -> T): T =
         suspendCancellableCoroutine { continuation ->
             val trace = Trace()
+            if (httpClient === streamingClient && ActivityLog.enabled) {
+                val generation = ActivityLog.collectionGeneration
+                trace.stream = DirectStreamTrace(trace::ms,
+                    { ActivityLog.enabled && ActivityLog.collectionGeneration == generation }, { fields ->
+                    ActivityLog.log("direct", "op" to trace.op,
+                        "provider" to LogPolicy.provider(request.url.host), *fields.toList().toTypedArray())
+                })
+            }
             val call = httpClient.newCall(request.newBuilder().tag(Trace::class.java, trace).build())
             // ログの収集を強化: provider host, path (no query, so no key), status and time; never headers or bodies.
             val host = request.url.host
             val path = request.url.encodedPath
             continuation.invokeOnCancellation {
                 call.cancel()
+                trace.stream?.finish("cancelled")
                 ActivityLog.log("direct.cancel", "op" to trace.op, "method" to request.method, "provider" to LogPolicy.provider(host), "path" to path,
                     "ms" to trace.ms())
             }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
+                    trace.stream?.finish(if (call.isCanceled()) "cancelled" else "error")
                     if (call.isCanceled()) return
                     discardSslConnections(e, httpClient)
                     ActivityLog.log("direct.error", "op" to trace.op, "method" to request.method, "provider" to LogPolicy.provider(host), "path" to path,
@@ -122,6 +140,7 @@ class DirectHttp(
                     ActivityLog.log("direct", "op" to trace.op, "type" to "status", "phase" to "done", "method" to request.method, "provider" to LogPolicy.provider(host), "path" to path,
                         "status" to response.code, "ms" to trace.ms())
                     val result = runCatching { response.use { consume(it) } }
+                    trace.stream?.finish(if (call.isCanceled()) "cancelled" else if (result.isFailure) "error" else "done")
                     result.exceptionOrNull()?.let { discardSslConnections(it, httpClient) }
                     if (call.isCanceled()) return
                     if (result.isFailure) ActivityLog.log("direct.read_error", "op" to trace.op, "provider" to LogPolicy.provider(host), "path" to path,
@@ -168,14 +187,17 @@ class DirectHttp(
             if (type != null && type.subtype != "event-stream") throw IOException("事業者APIからストリーム形式ではない応答が返されました。")
             var first = true
             val trace = response.request.tag(Trace::class.java)
-            readSse(response.body.source(), maxLine = maxLine) { event ->
+            val diagnostics = trace?.stream
+            val source = diagnostics?.source(response.body.source()) ?: response.body.source()
+            readSse(source, maxLine = maxLine, onLine = diagnostics?.let { it::line }) { event ->
+                diagnostics?.event(DirectStreamTrace.category(event))
                 if (first) {
                     first = false
                     if (trace != null) ActivityLog.log("direct", "op" to trace.op, "type" to "message", "phase" to "done",
                         "method" to response.request.method, "provider" to LogPolicy.provider(response.request.url.host),
                         "path" to response.request.url.encodedPath, "ms" to trace.ms())
                 }
-                onEvent(event)
+                try { onEvent(event) } finally { diagnostics?.stage(5) }
             }
         }
     }

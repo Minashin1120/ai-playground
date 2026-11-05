@@ -11,11 +11,13 @@ data class SseEvent(val event: String?, val data: String)
  * providers' streaming APIs). `data:` lines of one block are joined with `\n`; a blank line ends the
  * block. [onEvent] returns false to stop reading early (for example after a terminal `[DONE]`).
  */
-fun readSse(source: BufferedSource, maxLine: Long = 8L * 1024 * 1024, onEvent: (SseEvent) -> Boolean) {
+fun readSse(source: BufferedSource, maxLine: Long = 8L * 1024 * 1024,
+            onLine: ((Int) -> Unit)? = null, onEvent: (SseEvent) -> Boolean) {
     var data = StringBuilder()
     var event: String? = null
     while (!source.exhausted()) {
         val line = source.readLineBounded(maxLine)
+        onLine?.invoke(when { line.isBlank() -> 0; line.startsWith(":") -> 1; else -> 2 })
         when {
             line.startsWith("data:") -> data.append(line.removePrefix("data:").removePrefix(" ")).append('\n')
             line.startsWith("event:") -> event = line.removePrefix("event:").trim()

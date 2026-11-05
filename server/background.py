@@ -7966,6 +7966,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     log_force(f"Trimmed thought_signature for DB storage: kept {sig_kept_count}/{sig_original_count}")
 
             thought_payload = {"search_used": True} if search_used else {}
+            pricing_input = _cost_input_tokens(locals().get('final_usage_metadata') if is_gem else locals().get('final_openai_usage'))
+            if pricing_input is not None:
+                thought_payload['pricing_input_tokens'] = pricing_input
             if thought_accumulated:
                 thought_payload["text"] = thought_accumulated
             if deepseek_tool_context:

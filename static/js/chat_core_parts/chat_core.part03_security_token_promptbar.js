@@ -918,6 +918,7 @@
                 }
             });
             return {
+                cost_messages: messages || [],
                 tokens_total: hasTotal ? totals.tokens_total : 0,
                 tokens_in: hasIn ? totals.tokens_in : null,
                 tokens_out: hasOut ? totals.tokens_out : null,
@@ -996,6 +997,7 @@
                 }
                 delete messageMeta.__total_all_branches__;
             }
+            refreshCostBar(details?.cost_messages || [], allBranchDetails?.cost_messages || []);
             syncTokenBarVisibility();
         }
         const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS = 700;

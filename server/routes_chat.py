@@ -496,7 +496,11 @@ def save_browser_fast_mode_chat():
 
     is_enc = bool(getattr(current_user, 'enable_e2ee', False))
     user_content = encrypt_val(user_text) if is_enc else user_text
-    thought_payload = json.dumps({'text': thought_text}, ensure_ascii=False) if thought_text else None
+    thought_record = {'text': thought_text} if thought_text else {}
+    pricing_input = _cost_input_tokens(data.get('pricing_usage'))
+    if pricing_input is not None:
+        thought_record['pricing_input_tokens'] = pricing_input
+    thought_payload = json.dumps(thought_record, ensure_ascii=False) if thought_record else None
     assistant_content = assistant_text
     if is_enc:
         assistant_content = encrypt_val(assistant_content)
@@ -1285,11 +1289,15 @@ def gemini_batch_status_api():
     completed = []
     active = []
 
-    def _set_message_payload(message, content, thought=None, image_refs=None, tokens_out=None, tokens_thought=0):
+    def _set_message_payload(message, content, thought=None, image_refs=None, tokens_out=None, tokens_thought=0, usage=None):
         is_enc = bool(message.is_encrypted)
         message.content = encrypt_val(content) if is_enc else content
-        if thought:
-            thought_payload = json.dumps({'text': thought}, ensure_ascii=False)
+        thought_record = {'text': thought} if thought else {}
+        pricing_input = _cost_input_tokens(usage)
+        if pricing_input is not None:
+            thought_record['pricing_input_tokens'] = pricing_input
+        if thought_record:
+            thought_payload = json.dumps(thought_record, ensure_ascii=False)
             message.thought_data = encrypt_val(thought_payload) if is_enc else thought_payload
         message.image_url = json.dumps(image_refs, ensure_ascii=False) if image_refs else None
         if tokens_out is not None:
@@ -1353,6 +1361,7 @@ def gemini_batch_status_api():
                 image_refs,
                 tokens_out,
                 tokens_thought,
+                usage=usage,
             )
         else:
             detail = str(error_text or _batch_state_label(state))[:4000]
@@ -1372,7 +1381,7 @@ def gemini_batch_status_api():
                 content = 'Batch処理が完了しましたが、回答本文はありませんでした。'
             usage = _batch_field(body, 'usage') or {}
             tokens_out = _batch_field(usage, 'output_tokens')
-            _set_message_payload(message, content, tokens_out=tokens_out)
+            _set_message_payload(message, content, tokens_out=tokens_out, usage=usage)
         else:
             detail = str(error_text or _batch_state_label(state))[:4000]
             _set_message_payload(message, f'**{_batch_state_label(state)}**\n\n{detail}')
@@ -1412,6 +1421,7 @@ def gemini_batch_status_api():
                 str(thought).strip() if thought else None,
                 tokens_out=tokens_out,
                 tokens_thought=tokens_thought,
+                usage=usage,
             )
         else:
             detail = str(error_text or _batch_state_label(state))[:4000]
@@ -1470,6 +1480,7 @@ def gemini_batch_status_api():
                 str(thought).strip() if thought else None,
                 tokens_out=tokens_out,
                 tokens_thought=tokens_thought,
+                usage=usage,
             )
         else:
             detail = str(error_text or _batch_state_label(state))[:4000]

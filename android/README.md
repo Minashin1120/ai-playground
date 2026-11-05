@@ -132,6 +132,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/GenerationOptionsPanel.kt` | Webの生成パネル（`composer_gen_image.html`／`composer_gen_media.html`）の描画、Lyria RealTimeの案内バー、入力制限の注記 | 詳細設定の表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/GenerationOptions.kt` | Webの生成パネルの項目とモデル別の表示規則（`p07` の `update*Ui` 相当）、値検証、送信対象の限定。File／SysPrompt／URLs／Thinking／Effort／SafetyはComposerのチップが持つ | 画像・動画・OCR・TTSの設定を追加するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/RealtimeModels.kt` | Realtime／Lyriaのセッション状態 | 音声・音楽ストリームの状態表示を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/ModelCostEstimator.kt`, `app/src/main/assets/model-pricing.json` | Webと共通の公式料金表、回答単位の費用予想・長文料金・会話と全分岐の合算 | トークンバーの費用予想を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/WebModelCatalog.kt`, `app/src/main/assets/web-model-catalog.json` | Webの表示名・説明・価格・タグ・追加順をネイティブAPIのモデル一覧に合成 | モデル情報の表示差を確認するとき |
 | `ci/sync-web-catalog.mjs` | Webモデル定義からAndroid表示用JSONを生成・`--check`で一致検証 | Webのモデル定義変更をAndroidへ同期するとき |
 | `ci/audit-web-strings.py` | Androidの日本語文字列のうち、Webのテンプレート・JS・サーバー文言にないものを一覧表示 | 文言をWebと突き合わせるとき |

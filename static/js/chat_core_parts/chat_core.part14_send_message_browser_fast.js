@@ -79,6 +79,7 @@
             abortController = new AbortController();
             let content = '';
             let thought = '';
+            let pricingUsage = null;
             const thoughtSignatures = [];
             let contentEl = null;
             let thoughtEl = null;
@@ -115,6 +116,9 @@
                     const dataText = block.split(/\r?\n/).filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).join('');
                     if (!dataText || dataText === '[DONE]') return;
                     const evt = JSON.parse(dataText);
+                    if (Number.isInteger(evt.usageMetadata?.promptTokenCount)) {
+                        pricingUsage = { promptTokenCount: evt.usageMetadata.promptTokenCount };
+                    }
                     if (evt.error) throw new Error(evt.error.message || 'Gemini API error');
                     const candidates = Array.isArray(evt.candidates) ? evt.candidates : [];
                     candidates.forEach((candidate) => {
@@ -211,6 +215,7 @@
                         client_request_id: createClientRequestId(),
                         message: rawText,
                         assistant_content: content,
+                        pricing_usage: pricingUsage,
                         thought_content: thought,
                         model,
                         image_urls: refs,

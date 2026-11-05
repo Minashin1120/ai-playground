@@ -230,7 +230,7 @@ Bearer認証でHTMLのエラー応答を受けた場合はJSONへ変換します
 |---|---|---|
 | GET `/api/threads` | `page=1&q=検索語`。ページは1始まり | `threads`, `has_next`, `next_page`。1ページ20件 |
 | POST `/api/threads` | `{}` または `{"is_temporary":true}` | `id`, `title`, 一時チャットのメタデータ |
-| GET `/api/threads/<id>` | `limit=50&before_id=<最古ID>&include_meta=1` | `messages`（各メッセージの `created_at` はUTCのISO形式。ブランチ管理の「作成」に表示）, `has_older_messages`, `oldest_loaded_id`, `pending_job`, `branch_origin`（分岐元の `thread_id`, `message_id`, `available`）等。メッセージの `missing_files` は実体のない参照の配列で、表示位置に「ファイルがありません」と出す |
+| GET `/api/threads/<id>` | `limit=50&before_id=<最古ID>&include_meta=1` | `messages`（各メッセージの `created_at` はUTCのISO形式。ブランチ管理の「作成」に表示）, `has_older_messages`, `oldest_loaded_id`, `pending_job`, `branch_origin`（分岐元の `thread_id`, `message_id`, `available`）等。メッセージの `missing_files` は実体のない参照の配列で、表示位置に「ファイルがありません」と出す。回答の `thought_data` のJSONには、省略可能な非負整数 `pricing_input_tokens`（APIが返した入力使用量）が含まれる場合がある。費用予想の長文料金判定に優先利用し、表示用の `tokens_in` の意味やトークン合計は変えない。未知のJSON項目を無視する旧クライアントと互換 |
 | POST `/api/threads/<id>/branch` | `message_id`, `request_id`（16〜80文字の英数字・`_`・`-`）、`confirm_persist_temporary` | 選択した発言の作成日時・IDまでの全分岐を通常チャットへコピーする。`id`, `title`, `leaf_id` を返す。同じリクエストIDの再送は同じ結果。一時チャットは保存確認がなければ409 `confirmation_required`。実行中の回答を含む場合は409。ファイル実体は共有する |
 | DELETE `/api/threads/<id>` | 本文不要 | `{"status":"deleted"}`。履歴を削除し、共有ファイルは残る会話で使われている間保持する（Webと同じ `confirm("Delete?")` 相当の確認後） |
 | GET `/api/threads/<id>/settings` | なし | スレッド指示、共通指示の有無、一時チャットの期限情報 |

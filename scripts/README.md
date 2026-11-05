@@ -10,7 +10,7 @@
 - `restart_services.sh`：再起動前のリソース余力を確認してから `ai-chat.service` と `ai-chat-worker@1..2.service` を再起動し、PID変更とWeb応答を確認（RQワーカーはメモリ負荷対策で2つのみ有効）
 - `wait_for_restart_headroom.sh`：空きメモリ、memory/I/O PSI、swap-inを短時間監視し、圧迫中のサービス再起動を防ぐ内部ヘルパ
 - `purge_cloudflare_cache.sh`：指定ゾーンのホストキャッシュを削除
-- `build_frontend.sh`：バージョン付きチャットJS/CSSと補助スクリプトを圧縮する
+- `build_frontend.sh`：バージョン付きチャットJS/CSSと補助スクリプトの圧縮、WebとAndroidの公式料金表の同期
 - `rebuild_chat_core_parts.sh`（`_rebuild_chat_core_parts.js`）：`verify_changes.sh` がチャットコア部品の行数超過を警告したときに、部品を再分割して `static/js/chat_core_parts/README.md` の表を作り直す（概要は手で確認して直す）
 - `rotate_encryption_key.py`：`secret.key` の安全なローテーション（手順は [../deploy/KEY_ROTATION.md](../deploy/KEY_ROTATION.md)）
 - `send_agent_feedback.py`：開発作業中に見つけて、その作業では直さなかった問題を、管理者アカウントのフィードバックとして、`--agent` のエージェント名を付けて登録する（同じ件名と、キー・パスワードらしき文字列があれば停止。`--dry-run` で確認だけ）

@@ -232,6 +232,23 @@ def gemini_video_tokens(profile, seconds, has_audio=True):
         tokens += gemini_audio_tokens(profile, seconds)
     return tokens
 
+def _cost_input_tokens(usage):
+    """Keep only provider-reported numeric usage, independent of display token totals."""
+    if usage is None:
+        return None
+    def field(name):
+        value = usage.get(name) if isinstance(usage, dict) else getattr(usage, name, None)
+        return value if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 2_147_483_647 else None
+    for key in ('prompt_token_count', 'promptTokenCount', 'prompt_tokens', 'input_tokens'):
+        value = field(key)
+        if value is not None:
+            # Anthropic excludes cache reads/writes from input_tokens.
+            if key == 'input_tokens':
+                value += (field('cache_read_input_tokens') or 0) + (field('cache_creation_input_tokens') or 0)
+            return value if value <= 2_147_483_647 else None
+    return None
+
+
 def extract_reasoning_text(thought_data):
     if not thought_data:
         return ""

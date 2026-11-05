@@ -696,6 +696,21 @@
             get('token-detail-content').innerText = tContent;
             get('token-detail-thought').innerText = tThought;
             get('token-detail-encrypted').innerText = enc;
+            const costDetail = get('token-detail-cost');
+            if (costDetail) {
+                costDetail.replaceChildren();
+                costDetail.classList.toggle('hidden', meta.role !== 'total');
+                if (meta.role === 'total') {
+                    for (const text of [costEstimateLabel(meta.cost_estimate), COST_ESTIMATE_NOTE,
+                        `公式料金確認日: ${costPricing?.checked_at || '取得できませんでした'}`]) {
+                        const p = document.createElement('p'); p.textContent = text; costDetail.appendChild(p);
+                    }
+                    for (const [provider, url] of Object.entries(costPricing?.sources || {})) {
+                        const link = document.createElement('a'); link.href = url; link.textContent = `${provider} 公式料金 `;
+                        link.target = '_blank'; link.rel = 'noopener noreferrer'; link.className = 'underline'; costDetail.appendChild(link);
+                    }
+                }
+            }
             const title = meta.model ? `${meta.model} (${meta.role})` : `${meta.role}`;
             get('token-detail-title').innerText = title;
             showTokenDetailModal(id);

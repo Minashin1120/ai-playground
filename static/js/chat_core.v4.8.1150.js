@@ -4419,6 +4419,7 @@
                 }
             });
             return {
+                cost_messages: messages || [],
                 tokens_total: hasTotal ? totals.tokens_total : 0,
                 tokens_in: hasIn ? totals.tokens_in : null,
                 tokens_out: hasOut ? totals.tokens_out : null,
@@ -4497,6 +4498,7 @@
                 }
                 delete messageMeta.__total_all_branches__;
             }
+            refreshCostBar(details?.cost_messages || [], allBranchDetails?.cost_messages || []);
             syncTokenBarVisibility();
         }
         const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS = 700;
@@ -7848,7 +7850,7 @@
                     { id: "gemini-3.8-flash", implementedAt: "2026-09-05", implementedRank: 9160, quickEmoji: "⚡", name: "Gemini 3.8 Flash", desc: "Most intelligent Flash model for long-horizon software engineering, autonomous agents, and complex enterprise workflows.", price: "In $0.75/1M, Out $3.75/1M (through 2026-12-31)", agenticView: true },
                     { id: "gemini-3.8-flash-cyber", implementedAt: "2026-09-20", implementedRank: 9180, quickEmoji: "🛡️", name: "Gemini 3.8 Flash Cyber", desc: "Gemini 3.8 Flash post-trained for cybersecurity workflows. Vertex AI only; access is allowlisted by Google.", price: "Google Cloud Standard PayGo / Flex PayGo / Priority PayGo", agenticView: true },
                     { id: "gemini-3.7-flash", implementedAt: "2026-08-14", implementedRank: 8000, quickEmoji: "⚡", name: "Gemini 3.7 Flash", desc: "Most capable Flash model for complex coding, agentic workflows, and multimodal tasks.", price: "In $0.75/1M, Out $3.75/1M (introductory)", agenticView: true },
-                    { id: "gemini-3.6-flash", implementedAt: "2026-07-30", implementedRank: 6411, quickEmoji: "⚡", name: "Gemini 3.6 Flash", desc: "Latest Flash model for agentic, coding, and multimodal tasks.", price: "In $1.50/1M, Out $7.50/1M", agenticView: true },
+                    { id: "gemini-3.6-flash", implementedAt: "2026-07-30", implementedRank: 6411, quickEmoji: "⚡", name: "Gemini 3.6 Flash", desc: "Latest Flash model for agentic, coding, and multimodal tasks.", price: "In $0.75/1M, Out $3.75/1M (through 2026-12-31)", agenticView: true },
                     { id: "gemini-3.5-flash", implementedAt: "2026-06-13", implementedRank: 5900, quickEmoji: "✨", name: "Gemini 3.5 Flash", desc: "Most intelligent Gemini 3.5 model built for speed.", price: "In $1.50/1M, Out $9.00/1M", agenticView: true },
                     { id: "gemini-3.5-flash-lite", implementedAt: "2026-07-30", implementedRank: 6410, quickEmoji: "🚀", name: "Gemini 3.5 Flash-Lite", desc: "Fastest, lowest-cost Gemini 3.5 model for high-throughput execution.", price: "In $0.30/1M, Out $2.50/1M", agenticView: true },
                 ]
@@ -7944,7 +7946,7 @@
                     { id: "gpt-6.1-terra", implementedAt: "2026-10-27", implementedRank: 10444, quickEmoji: "🌍", name: "GPT-6.1 Terra", desc: "Fast, efficient visual reasoning, precise computer use, and clear, natural writing with 1.05M context.", price: "In $1.00/1M, Cached $0.05/1M, Out $5.00/1M (over 272K: In $2.00, Out $7.50)" },
                     { id: "gpt-6-luna", implementedAt: "2026-10-02", implementedRank: 10441, quickEmoji: "🌕", name: "GPT-6 Luna", desc: "Most efficient GPT-6 model for focused, high-volume tasks with 1.05M context.", price: "In $0.10/1M, Cached $0.01/1M, Out $0.50/1M (over 272K: In $0.20, Out $0.75)" },
                     { id: "gpt-6-sol", implementedAt: "2026-10-02", implementedRank: 10440, quickEmoji: "☀️", name: "GPT-6 Sol", desc: "GPT-6 model for complex coding and agentic workflows with 1.05M context.", price: "In $2.00/1M, Cached $0.20/1M, Out $10.00/1M (over 272K: In $4.00, Out $15.00)" },
-                    { id: "gpt-5.6-sol", implementedAt: "2026-07-31", implementedRank: 6550, quickEmoji: "☀️", name: "GPT-5.6 Sol", desc: "Frontier reasoning model for complex professional work with 1.05M context.", price: "In $5.00/1M, Cached $0.50/1M, Out $30.00/1M (over 272K: In $10.00, Out $45.00)" },
+                    { id: "gpt-5.6-sol", implementedAt: "2026-07-31", implementedRank: 6550, quickEmoji: "☀️", name: "GPT-5.6 Sol", desc: "Frontier reasoning model for complex professional work with 1.05M context.", price: "In $4.00/1M, Cached $0.40/1M, Out $20.00/1M (through 2026-11-30; over 272K: In $8.00, Out $30.00)" },
                     { id: "gpt-5.6-terra", implementedAt: "2026-07-31", implementedRank: 6560, quickEmoji: "🌍", name: "GPT-5.6 Terra", desc: "Balanced intelligence and cost for everyday work with 1.05M context.", price: "In $2.00/1M, Cached $0.20/1M, Out $12.00/1M (over 272K: In $4.00, Out $18.00)" },
                     { id: "gpt-5.6-luna", implementedAt: "2026-07-31", implementedRank: 6561, quickEmoji: "🌙", name: "GPT-5.6 Luna", desc: "Cost-efficient model for high-volume workloads with 1.05M context.", price: "In $0.20/1M, Cached $0.02/1M, Out $1.20/1M (over 272K: In $0.40, Out $1.80)" },
                     { id: "gpt-4o", implementedAt: "2026-06-04", implementedRank: 5820, name: "GPT-4o", desc: "Multimodal flagship model.", price: "In $2.50/1M, Out $10.00/1M" },
@@ -21074,6 +21076,21 @@
             get('token-detail-content').innerText = tContent;
             get('token-detail-thought').innerText = tThought;
             get('token-detail-encrypted').innerText = enc;
+            const costDetail = get('token-detail-cost');
+            if (costDetail) {
+                costDetail.replaceChildren();
+                costDetail.classList.toggle('hidden', meta.role !== 'total');
+                if (meta.role === 'total') {
+                    for (const text of [costEstimateLabel(meta.cost_estimate), COST_ESTIMATE_NOTE,
+                        `公式料金確認日: ${costPricing?.checked_at || '取得できませんでした'}`]) {
+                        const p = document.createElement('p'); p.textContent = text; costDetail.appendChild(p);
+                    }
+                    for (const [provider, url] of Object.entries(costPricing?.sources || {})) {
+                        const link = document.createElement('a'); link.href = url; link.textContent = `${provider} 公式料金 `;
+                        link.target = '_blank'; link.rel = 'noopener noreferrer'; link.className = 'underline'; costDetail.appendChild(link);
+                    }
+                }
+            }
             const title = meta.model ? `${meta.model} (${meta.role})` : `${meta.role}`;
             get('token-detail-title').innerText = title;
             showTokenDetailModal(id);
@@ -22265,6 +22282,7 @@
             abortController = new AbortController();
             let content = '';
             let thought = '';
+            let pricingUsage = null;
             const thoughtSignatures = [];
             let contentEl = null;
             let thoughtEl = null;
@@ -22301,6 +22319,9 @@
                     const dataText = block.split(/\r?\n/).filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).join('');
                     if (!dataText || dataText === '[DONE]') return;
                     const evt = JSON.parse(dataText);
+                    if (Number.isInteger(evt.usageMetadata?.promptTokenCount)) {
+                        pricingUsage = { promptTokenCount: evt.usageMetadata.promptTokenCount };
+                    }
                     if (evt.error) throw new Error(evt.error.message || 'Gemini API error');
                     const candidates = Array.isArray(evt.candidates) ? evt.candidates : [];
                     candidates.forEach((candidate) => {
@@ -22397,6 +22418,7 @@
                         client_request_id: createClientRequestId(),
                         message: rawText,
                         assistant_content: content,
+                        pricing_usage: pricingUsage,
                         thought_content: thought,
                         model,
                         image_urls: refs,
@@ -27763,3 +27785,106 @@
             } catch (_) { console.warn('Prompt send animation failed'); stop(); }
             return stop;
         }
+        // Costs use each saved answer's model, never the composer selection.
+        let costPricing = null;
+        let costPricingFailed = false;
+        let costBarPath = [];
+        let costBarAll = [];
+        let costBarReady = false;
+        const COST_ESTIMATE_NOTE = '有料APIの通常料金による概算（USD）。回答ごとの保存済みモデルで計算します。入力使用量がない回答は会話履歴から推定します。キャッシュ割引・保存料、検索・ツール・画像・音声・動画生成、税、無料枠・個別契約は含みません。時間帯や入力種別で単価が異なる場合は範囲で表示します。過去の請求額を再現するものではありません。';
+
+        function costTokenNumber(value) {
+            if (value === null || value === undefined || value === '') return null;
+            const n = Number(value);
+            return Number.isFinite(n) && n >= 0 ? n : null;
+        }
+
+        function estimateConversationCost(messages, pricing = costPricing, context = messages) {
+            const result = { low: 0, high: 0, priced: 0, unpriced: 0, inferred: 0, long: 0 };
+            const rows = new Map((context || []).filter(Boolean).map(m => [String(m.id), m]));
+            const seen = new Set();
+            for (const m of messages || []) {
+                if (!m || m.role !== 'assistant' || seen.has(String(m.id))) continue;
+                seen.add(String(m.id));
+                const out = costTokenNumber(m.tokens_out);
+                if (out === null && !m.content && !m.tokens) continue; // Pending answers are not expenses.
+                const key = pricing && (pricing.aliases[m.model] || m.model);
+                let rate = pricing && pricing.models[key];
+                if (!rate || out === null) { result.unpriced++; continue; }
+                rate = { ...rate };
+                // Fixed reference date is intentional: opening an old chat tomorrow must not reprice it.
+                const date = /^\d{4}-\d{2}-\d{2}/.exec(m.created_at || '')?.[0] || pricing.checked_at;
+                for (const change of rate.changes || []) if (date >= change.from) Object.assign(rate, change);
+                let usage = null;
+                try { usage = typeof m.thought_data === 'string' ? JSON.parse(m.thought_data) : m.thought_data; } catch (_) { /* Legacy plain reasoning. */ }
+                let input = costTokenNumber(usage?.pricing_input_tokens) ?? costTokenNumber(m.tokens_in);
+                let incomplete = false;
+                if (input === null) {
+                    result.inferred++;
+                    input = 0;
+                    let parent = m.parent_id;
+                    const ancestors = new Set([String(m.id)]);
+                    if (parent === null || parent === undefined) incomplete = true;
+                    while (parent !== null && parent !== undefined) {
+                        const id = String(parent);
+                        if (ancestors.has(id) || !rows.has(id)) { incomplete = true; break; }
+                        ancestors.add(id);
+                        const ancestor = rows.get(id);
+                        const count = ancestor.role === 'user' ? costTokenNumber(ancestor.tokens_in)
+                            : costTokenNumber(ancestor.tokens_content) ?? (costTokenNumber(ancestor.tokens_out) === null ? null
+                                : Math.max(0, Number(ancestor.tokens_out) - (costTokenNumber(ancestor.tokens_thought) || 0)));
+                        if (count === null) incomplete = true;
+                        else input += count;
+                        parent = ancestor.parent_id;
+                    }
+                }
+                // A threshold applies to the whole request, not just the excess tokens.
+                const long = rate.threshold != null && (rate.threshold_inclusive ? input >= rate.threshold : input > rate.threshold);
+                if (long) result.long++;
+                const inRate = long ? rate.long_input : rate.input;
+                const outRate = long ? rate.long_output : rate.output;
+                const batch = m.batch_job && m.batch_job.state === 'JOB_STATE_SUCCEEDED';
+                // Unverified discounts are not guessed.
+                const multiplier = batch ? (rate.batch_multiplier ?? 1) : 1;
+                result.low += (input * inRate + out * outRate) * multiplier / 1e6;
+                result.high += (input * (long ? inRate : (rate.max_input ?? inRate))
+                    + out * (rate.max_output ?? outRate)) * multiplier / 1e6;
+                result.priced++;
+                if (incomplete) result.unpriced++;
+            }
+            return result;
+        }
+
+        function costEstimateLabel(cost, prefix = '費用予想') {
+            if (!cost || !cost.priced) return `${prefix}: 算出不可`;
+            const money = n => n > 0 && n < 0.000001 ? '<$0.000001' : `$${n.toFixed(6)}`;
+            const amount = cost.high - cost.low > 1e-12 ? `${money(cost.low)}〜${money(cost.high)}` : money(cost.low);
+            return `${prefix}: ${amount}${cost.unpriced ? '（一部未算入）' : ''}`;
+        }
+
+        function refreshCostBar(path = costBarPath, all = costBarAll) {
+            costBarReady = true;
+            costBarPath = path;
+            costBarAll = all;
+            for (const [id, rows, metaId, prefix] of [
+                ['total-cost-estimate', path, '__total__', '費用予想'],
+                ['total-cost-estimate-all', all, '__total_all_branches__', '全分岐の費用予想']
+            ]) {
+                const el = get(id);
+                if (!el) continue;
+                const answers = rows.some(m => m && m.role === 'assistant' && (m.content || Number(m.tokens_out) > 0));
+                el.classList.toggle('hidden', !answers);
+                const cost = estimateConversationCost(rows, costPricing, all.length ? all : path);
+                el.textContent = costPricing ? costEstimateLabel(cost, prefix)
+                    : `${prefix}: ${costPricingFailed ? '算出不可' : '料金を読み込み中…'}`;
+                el.title = COST_ESTIMATE_NOTE;
+                if (messageMeta[metaId]) messageMeta[metaId].cost_estimate = costPricing ? cost : null;
+                el.onclick = () => openTokenDetail(metaId);
+            }
+        }
+
+        // Static official-rate data only; no chat data is sent by this request.
+        fetch('/static/model_pricing.json?checked=2026-11-05', { credentials: 'same-origin' })
+            .then(response => { if (!response.ok) throw new Error('pricing_unavailable'); return response.json(); })
+            .then(data => { costPricing = data; if (costBarReady) refreshCostBar(); })
+            .catch(() => { costPricingFailed = true; if (costBarReady) refreshCostBar(); });

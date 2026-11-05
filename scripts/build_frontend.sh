@@ -7,6 +7,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Android consumes the same verified official rates, including context thresholds.
+cp static/model_pricing.json android/app/src/main/assets/model-pricing.json
+
 if ! command -v npx >/dev/null 2>&1; then
   echo "npx (Node.js) is required to minify frontend assets." >&2
   exit 1

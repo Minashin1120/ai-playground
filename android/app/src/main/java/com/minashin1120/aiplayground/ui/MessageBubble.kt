@@ -90,6 +90,8 @@ internal data class TokenDetail(
     val tokensContent: Int?,
     val tokensThought: Int?,
     val encrypted: Boolean?,
+    val cost: com.minashin1120.aiplayground.data.CostEstimate? = null,
+    val pricing: com.minashin1120.aiplayground.data.ModelCostEstimator? = null,
 )
 
 internal fun ChatMessage.tokenDetail(): TokenDetail {
@@ -97,9 +99,10 @@ internal fun ChatMessage.tokenDetail(): TokenDetail {
     return TokenDetail(if (model.isNotBlank()) "$model ($role)" else role, total, tokensIn, tokensOut, tokensContent, tokensThought, encrypted)
 }
 
-internal fun TokenTotals.detail(allBranches: Boolean): TokenDetail = TokenDetail(
+internal fun TokenTotals.detail(allBranches: Boolean, cost: com.minashin1120.aiplayground.data.CostEstimate? = null,
+                               pricing: com.minashin1120.aiplayground.data.ModelCostEstimator? = null): TokenDetail = TokenDetail(
     if (allBranches) "Conversation (All branches) (total)" else "Conversation (total)",
-    total, tokensIn, tokensOut, tokensContent, tokensThought, null,
+    total, tokensIn, tokensOut, tokensContent, tokensThought, null, cost, pricing,
 )
 
 /** Callbacks of the controls above a bubble (`.msg-controls`) and its footer. */
@@ -587,7 +590,10 @@ private fun Modifier.dottedUnderline(color: Color): Modifier = drawBehind {
 /** `#total-token-bar`: confirmed totals and the current input estimate, each opening its own details. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun TotalTokenBar(path: TokenTotals, all: TokenTotals, showEstimate: Boolean = false, estimate: @Composable () -> Unit = {}, onDetail: (TokenDetail) -> Unit) {
+internal fun TotalTokenBar(path: TokenTotals, all: TokenTotals, showEstimate: Boolean = false, estimate: @Composable () -> Unit = {},
+                          pathCost: com.minashin1120.aiplayground.data.CostEstimate? = null,
+                          allCost: com.minashin1120.aiplayground.data.CostEstimate? = null,
+                          pricing: com.minashin1120.aiplayground.data.ModelCostEstimator? = null, onDetail: (TokenDetail) -> Unit) {
     val web = LocalWebPalette.current
     if (path.total <= 0 && all.total <= 0 && !showEstimate) return
     val text = if (web.isLight) web.text else Tw.slate200
@@ -598,9 +604,13 @@ internal fun TotalTokenBar(path: TokenTotals, all: TokenTotals, showEstimate: Bo
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 val style = TextStyle(color = text, fontSize = 12.sp, lineHeight = 16.sp, fontFamily = WebFonts.sans)
                 Text("Total: ${path.total} tokens", style = style,
-                    modifier = Modifier.dottedUnderline(text).clickable(role = Role.Button) { onDetail(path.detail(allBranches = false)) })
+                    modifier = Modifier.dottedUnderline(text).clickable(role = Role.Button) { onDetail(path.detail(false, pathCost, pricing)) })
+                pathCost?.let { cost -> Text(cost.label(), style = style,
+                    modifier = Modifier.dottedUnderline(text).clickable(role = Role.Button) { onDetail(path.detail(false, cost, pricing)) }) }
                 if (all.total > 0) Text("All branches: ${all.total} tokens", style = style,
-                    modifier = Modifier.dottedUnderline(text).clickable(role = Role.Button) { onDetail(all.detail(allBranches = true)) })
+                    modifier = Modifier.dottedUnderline(text).clickable(role = Role.Button) { onDetail(all.detail(true, allCost, pricing)) })
+                allCost?.let { cost -> Text(cost.label("全分岐の費用予想"), style = style,
+                    modifier = Modifier.dottedUnderline(text).clickable(role = Role.Button) { onDetail(all.detail(true, cost, pricing)) }) }
                 if (showEstimate) estimate()
             }
         }
@@ -613,13 +623,23 @@ internal fun TotalTokenBar(path: TokenTotals, all: TokenTotals, showEstimate: Bo
 internal fun TokenDetailDialog(detail: TokenDetail, onDismiss: () -> Unit) {
     SmallInfoModal(onDismiss) {
         Text(detail.title, color = Tw.blue300, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-        Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(top = 12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             fun value(v: Int?) = v?.toString() ?: "-"
             listOf(
                 "Total" to value(detail.total), "In" to value(detail.tokensIn), "Out" to value(detail.tokensOut),
                 "Content" to value(detail.tokensContent), "Thought" to value(detail.tokensThought),
                 "Encryption" to when (detail.encrypted) { null -> "-"; true -> "Encrypted"; false -> "Plain" },
             ).forEach { (label, v) -> InfoRow(label, v) }
+            detail.cost?.let { cost ->
+                Text(cost.label(), color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
+                Text(com.minashin1120.aiplayground.data.COST_ESTIMATE_NOTE, color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
+                Text("公式料金確認日: ${detail.pricing?.checkedAt ?: "取得できませんでした"}", color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
+                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                detail.pricing?.sources?.forEach { (provider, url) ->
+                    Text("$provider 公式料金", color = Tw.blue400, fontSize = 12.sp,
+                        modifier = Modifier.clickable(role = Role.Button) { uriHandler.openUri(url) })
+                }
+            }
         }
     }
 }

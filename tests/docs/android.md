@@ -20,4 +20,4 @@ Androidの文書・配布経路は [android/README.md](../../android/README.md) 
 
 `test_mobile_sync_api.py` は `pricing_calls` と `tokens_thought` の保存・再取得、任意の本文などが数値メタデータへ混ざらないことも検証します。ネイティブ側の記録・保存・HTTP経路は `ModelUsageLedgerTest.kt`、`local/ModelUsageStorageTest.kt`、`direct/DirectUsageTest.kt` をActionsで実行します。
 
-キャッシュ・ツール料金とIdeogram全モデルの単価・速度・下限表示は `data/CacheToolCostTest.kt` と `data/IdeogramCostTest.kt` でWebと同じ契約を検証します。キャッシュのTTL別書込、32bitを超えるxAI請求ticks、検索の重複イベントを数値メタデータとして保存・同期し、本文・検索文・ツールIDは保存しません。
+キャッシュ・ツール料金とIdeogram全モデルの単価・速度・下限表示は `data/CacheToolCostTest.kt` と `data/IdeogramCostTest.kt` でWebと同じ契約を検証します。Batchのキャッシュ読込単価は `data/ModelCostEstimatorTest.kt` で事業者別に検証します。キャッシュのTTL別書込、32bitを超えるxAI請求ticks、検索の重複イベントを数値メタデータとして保存・同期し、本文・検索文・ツールIDは保存しません。

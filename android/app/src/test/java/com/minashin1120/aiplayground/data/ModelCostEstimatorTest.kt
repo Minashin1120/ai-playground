@@ -62,7 +62,7 @@ class ModelCostEstimatorTest {
     }
 
     @Test fun batchDiscountsAndDateChangesFollowEachSavedAnswer() {
-        for ((model, multiplier) in listOf("gpt-6.1-sol" to .5, "grok-4.6" to .8, "kimi-k3" to .6)) {
+        for ((model, multiplier) in listOf("gpt-6.1-sol" to .5, "grok-4.6" to .8, "claude-sonnet-4-6" to .5, "kimi-k3" to .6)) {
             val row = answer(model, 300000)
             assertEquals(estimator.estimate(listOf(row)).low * multiplier,
                 estimator.estimate(listOf(row.copy(batch = BatchInfo("JOB_STATE_SUCCEEDED")))).low, 1e-12)
@@ -70,5 +70,17 @@ class ModelCostEstimatorTest {
         val row = answer("gemini-4-argon", 1000000, 0)
         assertEquals(2.0, estimator.estimate(listOf(row)).low, 1e-12)
         assertEquals(4.0, estimator.estimate(listOf(row.copy(createdAt = "2026-12-01T00:00:00Z"))).low, 1e-12)
+    }
+
+    @Test fun batchCacheReadPricingFollowsEachProvider() {
+        fun batchCost(model: String, input: Int, read: Int, output: Int): CostEstimate {
+            val call = """{"model":"$model","input_tokens":$input,"cache_read_tokens":$read,"output_tokens":$output,"complete":true}"""
+            val row = answer(model, input, output).copy(thought = """{"pricing_calls":[$call]}""", batch = BatchInfo("JOB_STATE_SUCCEEDED"))
+            return estimator.estimate(listOf(row))
+        }
+        assertEquals((50000 * 1.0 + 50000 * .2 + 1000 * 6) / 1e6,
+            batchCost("gemini-3.1-pro-preview", 100000, 50000, 1000).low, 1e-12)
+        assertEquals((50000 * 1.0 + 50000 * .05 + 1000 * 5) / 1e6,
+            batchCost("gpt-6.1-sol", 100000, 50000, 1000).low, 1e-12)
     }
 }

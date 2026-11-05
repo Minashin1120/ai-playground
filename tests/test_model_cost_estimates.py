@@ -162,10 +162,25 @@ def test_deepseek_and_audio_input_have_explicit_ranges():
 
 
 def test_batch_discount_is_provider_specific():
-    for model, multiplier in [('gpt-6.1-sol', .5), ('grok-4.6', .8), ('kimi-k3', .6)]:
+    for model, multiplier in [('gpt-6.1-sol', .5), ('grok-4.6', .8), ('claude-sonnet-4-6', .5), ('kimi-k3', .6)]:
         normal = estimate([answer(model, 300000)])
         batch = estimate([answer(model, 300000, batch_job={'state': 'JOB_STATE_SUCCEEDED'})])
         assert batch['low'] == pytest.approx(normal['low'] * multiplier)
+
+
+def test_batch_cache_read_pricing_follows_each_provider():
+    def batch_cost(model, input_tokens, cache_read_tokens, output_tokens):
+        call = {'model': model, 'input_tokens': input_tokens, 'cache_read_tokens': cache_read_tokens,
+                'output_tokens': output_tokens, 'complete': True}
+        return estimate([answer(model, input_tokens, output_tokens,
+                                thought_data=json.dumps({'pricing_calls': [call]}),
+                                batch_job={'state': 'JOB_STATE_SUCCEEDED'})])
+    # Gemini 3.1 Pro keeps standard cache-read pricing in Batch; ordinary input and output are halved.
+    gemini = batch_cost('gemini-3.1-pro-preview', 100000, 50000, 1000)
+    assert gemini['low'] == pytest.approx((50000 * 1 + 50000 * .2 + 1000 * 6) / 1e6)
+    # OpenAI applies the Batch discount to cache reads as well.
+    openai = batch_cost('gpt-6.1-sol', 100000, 50000, 1000)
+    assert openai['low'] == pytest.approx((50000 * 1 + 50000 * .05 + 1000 * 5) / 1e6)
 
 
 def test_dates_are_from_saved_answer_and_not_wall_clock():

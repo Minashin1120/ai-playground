@@ -21,8 +21,12 @@ internal object ModelCostPricing {
         val writes = rate.optJSONObject("cache_write_multipliers") ?: JSONObject()
         var incomplete = call.optBoolean("pricing_incomplete") || call.optBoolean("explicit_cache") || read + written > input
         if (read > 0 && rate.isNull("cached_input")) incomplete = true
-        var lowInput = ordinary * inRate + read * cached
-        var highInput = ordinary * maxInput + read * maxCached
+        val multiplier = if (batch) rate.optDouble("batch_multiplier", 1.0) else 1.0
+        // Some providers keep cache-read pricing at the standard rate in Batch.
+        val cachedMultiplier = if (batch) rate.optDouble("batch_cached_multiplier", multiplier) else 1.0
+        val cachedFactor = if (batch && !rate.isNull("cached_input") && multiplier > 0.0) cachedMultiplier / multiplier else 1.0
+        var lowInput = ordinary * inRate + read * cached * cachedFactor
+        var highInput = ordinary * maxInput + read * maxCached * cachedFactor
         for ((i, ttl) in lifetimes.withIndex()) {
             if (portions[i] > 0 && writes.isNull(ttl)) incomplete = true
             lowInput += portions[i] * inRate * writes.optDouble(ttl, 1.0)
@@ -35,7 +39,6 @@ internal object ModelCostPricing {
             lowInput += unknown * inRate * (possible.minOrNull() ?: 1.0)
             highInput += unknown * maxInput * (possible.maxOrNull() ?: 1.0)
         }
-        val multiplier = if (batch) rate.optDouble("batch_multiplier", 1.0) else 1.0
         var low = (lowInput + output * outRate) * multiplier / 1e6
         var high = (highInput + output * price("max_output", outRate)) * multiplier / 1e6
         var lowerBound = false

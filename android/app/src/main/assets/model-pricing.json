@@ -8,7 +8,7 @@
     "zai": "https://docs.z.ai/guides/overview/pricing",
     "anthropic": "https://platform.claude.com/docs/en/about-claude/pricing",
     "deepseek": "https://api-docs.deepseek.com/quick_start/pricing/",
-    "kimi": "https://www.kimi.ai/blog/kimi-k3",
+    "kimi": "https://platform.kimi.ai/pricing/chat",
     "mistral": "https://docs.mistral.ai/inference/pricing",
     "ideogram": "https://ideogram.ai/pricing/?pricing_tab=api"
   },
@@ -528,6 +528,7 @@
       "output": 3,
       "max_input": 1,
       "batch_multiplier": 0.5,
+      "batch_cached_multiplier": 1,
       "cached_input": 0.05,
       "max_cached_input": 0.1,
       "tool_rates": {
@@ -542,6 +543,7 @@
       "long_input": 4,
       "long_output": 18,
       "batch_multiplier": 0.5,
+      "batch_cached_multiplier": 1,
       "cached_input": 0.2,
       "long_cached_input": 0.4,
       "tool_rates": {
@@ -556,6 +558,7 @@
       "long_input": 4,
       "long_output": 18,
       "batch_multiplier": 0.5,
+      "batch_cached_multiplier": 1,
       "cached_input": 0.2,
       "long_cached_input": 0.4,
       "tool_rates": {
@@ -570,6 +573,7 @@
       "long_input": 2.5,
       "long_output": 15,
       "batch_multiplier": 0.5,
+      "batch_cached_multiplier": 1,
       "changes": [
         {
           "from": "2026-12-01",
@@ -599,6 +603,7 @@
       "output": 2.5,
       "max_input": 1,
       "batch_multiplier": 0.5,
+      "batch_cached_multiplier": 1,
       "cached_input": 0.03,
       "max_cached_input": 0.1,
       "tool_rates": {
@@ -611,6 +616,7 @@
       "output": 0.4,
       "max_input": 0.3,
       "batch_multiplier": 0.5,
+      "batch_cached_multiplier": 1,
       "cached_input": 0.010000000000000002,
       "max_cached_input": 0.03,
       "tool_rates": {
@@ -983,6 +989,7 @@
       "provider": "anthropic",
       "input": 5,
       "output": 25,
+      "batch_multiplier": 0.5,
       "cached_input": 0.5,
       "cache_write_multipliers": {
         "5m": 1.25,
@@ -997,6 +1004,7 @@
       "provider": "anthropic",
       "input": 3,
       "output": 15,
+      "batch_multiplier": 0.5,
       "cached_input": 0.30000000000000004,
       "cache_write_multipliers": {
         "5m": 1.25,

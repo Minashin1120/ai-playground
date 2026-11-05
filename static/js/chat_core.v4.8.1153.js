@@ -27803,7 +27803,7 @@
         let costBarPath = [];
         let costBarAll = [];
         let costBarReady = false;
-        const COST_ESTIMATE_NOTE = '有料APIの通常料金による概算（USD）。回答ごとの保存済みモデルで計算します。入力使用量がない回答は会話履歴から推定します。モデルAPIの呼び出しごとに入力・出力（Thinkingを含む）を合算します。Ideogramはモデル・品質・速度・処理別の単価と画像枚数で計算します。単価未公表の設定は公表最安値を下限として「以上・一部未算入」で表示します。使用量未取得の呼び出しは一部未算入です。API報告のキャッシュ読込・書込と検索などの追加料金を含みます。保存時間や実行時間など取得できない課金情報は一部未算入です。その他の画像・音声・動画生成、税、無料枠・個別契約は含みません。時間帯や入力種別で単価が異なる場合は範囲で表示します。過去の請求額を再現するものではありません。';
+        const COST_ESTIMATE_NOTE = '有料APIの通常料金による概算（USD）。回答ごとの保存済みモデルで計算します。入力使用量がない回答は会話履歴から推定します。モデルAPIの呼び出しごとに入力・出力（Thinkingを含む）を合算します。Ideogramはモデル・品質・速度・処理別の単価と画像枚数で計算します。単価未公表の設定は公表最安値を下限として「以上・一部未算入」で表示します。使用量未取得の呼び出しは一部未算入です。API報告のキャッシュ読込・書込と検索などの追加料金を含みます。Batch APIは事業者ごとの割引率（割引のない事業者を含む）で計算し、割引対象外のキャッシュ読込は通常単価のままです。保存時間や実行時間など取得できない課金情報は一部未算入です。その他の画像・音声・動画生成、税、無料枠・個別契約は含みません。時間帯や入力種別で単価が異なる場合は範囲で表示します。過去の請求額を再現するものではありません。';
 
         function costTokenNumber(value) {
             if (value === null || value === undefined || value === '') return null;
@@ -27989,12 +27989,15 @@
             const cached = long ? rate.long_cached_input ?? rate.cached_input : rate.cached_input;
             const writeRates = rate.cache_write_multipliers || {};
             const multiplier = batch ? rate.batch_multiplier ?? 1 : 1;
+            // Some providers keep cache-read pricing at the standard rate in Batch.
+            const cachedMultiplier = batch ? rate.batch_cached_multiplier ?? multiplier : 1;
+            const cachedFactor = cached != null && multiplier > 0 ? cachedMultiplier / multiplier : 1;
             const unknownWrites = Math.max(0, written - parts.reduce((a, b) => a + b, 0));
             const possible = Object.values(writeRates);
             let incomplete = !!request.pricing_incomplete || read + written > input || !!request.explicit_cache;
             if (read && cached == null) incomplete = true;
-            let lowInput = ordinary * inRate + read * (cached ?? inRate);
-            let highInput = ordinary * (long ? inRate : rate.max_input ?? inRate) + read * (long ? cached ?? inRate : rate.max_cached_input ?? cached ?? inRate);
+            let lowInput = ordinary * inRate + read * (cached ?? inRate) * cachedFactor;
+            let highInput = ordinary * (long ? inRate : rate.max_input ?? inRate) + read * (long ? cached ?? inRate : rate.max_cached_input ?? cached ?? inRate) * cachedFactor;
             for (let i = 0; i < ttl.length; i++) {
                 const factor = writeRates[ttl[i]];
                 if (parts[i] && factor == null) incomplete = true;

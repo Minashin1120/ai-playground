@@ -13,12 +13,15 @@
             const cached = long ? rate.long_cached_input ?? rate.cached_input : rate.cached_input;
             const writeRates = rate.cache_write_multipliers || {};
             const multiplier = batch ? rate.batch_multiplier ?? 1 : 1;
+            // Some providers keep cache-read pricing at the standard rate in Batch.
+            const cachedMultiplier = batch ? rate.batch_cached_multiplier ?? multiplier : 1;
+            const cachedFactor = cached != null && multiplier > 0 ? cachedMultiplier / multiplier : 1;
             const unknownWrites = Math.max(0, written - parts.reduce((a, b) => a + b, 0));
             const possible = Object.values(writeRates);
             let incomplete = !!request.pricing_incomplete || read + written > input || !!request.explicit_cache;
             if (read && cached == null) incomplete = true;
-            let lowInput = ordinary * inRate + read * (cached ?? inRate);
-            let highInput = ordinary * (long ? inRate : rate.max_input ?? inRate) + read * (long ? cached ?? inRate : rate.max_cached_input ?? cached ?? inRate);
+            let lowInput = ordinary * inRate + read * (cached ?? inRate) * cachedFactor;
+            let highInput = ordinary * (long ? inRate : rate.max_input ?? inRate) + read * (long ? cached ?? inRate : rate.max_cached_input ?? cached ?? inRate) * cachedFactor;
             for (let i = 0; i < ttl.length; i++) {
                 const factor = writeRates[ttl[i]];
                 if (parts[i] && factor == null) incomplete = true;

@@ -28,9 +28,15 @@ class ServerHistory(
 
     /**
      * Reads server chat [id] from the newest message back until every ancestor of [parentId] is loaded
-     * (the whole chat is not read). Out of reach, the offline cache is used when it holds those ancestors.
+     * (the whole chat is not read). An explicit parent's complete cached ancestry can be reused
+     * immediately. Without an explicit parent, ask the server for the latest branch first.
      */
     suspend fun thread(id: String, parentId: Int?): Snapshot {
+        val cached = cachedThread(id)
+        val rows = messageRows(cached?.optJSONArray("messages"))
+        if (cached != null && parentId != null && complete(rows, parentId)) {
+            return Snapshot(cached, rows, observedOnServer = false)
+        }
         if (!isOffline()) {
             try {
                 return fromServer(id, parentId)
@@ -38,8 +44,6 @@ class ServerHistory(
                 if (!unreachable(e)) throw e
             }
         }
-        val cached = cachedThread(id)
-        val rows = messageRows(cached?.optJSONArray("messages"))
         if (cached == null || !complete(rows, parentId ?: rows.maxOfOrNull { it.optInt("id") })) throw ApiException(400, JSONObject().put("code", "serverless_history_unavailable")
             .put("error", "サーバーに接続できないため、このチャットの履歴を読み込めません。"))
         return Snapshot(cached, rows, observedOnServer = false)
@@ -112,7 +116,8 @@ class ServerHistory(
             val byId = rows.associateBy { it.optInt("id") }
             var cursor: Int? = parentId
             val seen = HashSet<Int>()
-            while (cursor != null && seen.add(cursor)) {
+            while (cursor != null) {
+                if (!seen.add(cursor)) return false
                 val row = byId[cursor] ?: return false
                 cursor = if (row.isNull("parent_id")) null else row.optInt("parent_id")
             }

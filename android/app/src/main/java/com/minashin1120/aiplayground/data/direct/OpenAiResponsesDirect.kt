@@ -103,56 +103,86 @@ class OpenAiResponsesDirect(
                         }
                     }
                 }
+                "function_call" -> Unit
                 else -> if (seenItems.add(item.optString("type") + ":" + item.optString("id"))) {
                     outputItem(item, codes, content, files, emit)
                 }
             }
         }
         emit(event("status", "APIへ送信完了。モデルが応答を生成中です..."))
-        http.postSse("$baseUrl/v1/responses", mapOf("Authorization" to "Bearer ${request.apiKey}"), payload, maxLine = 32L * 1024 * 1024) { sse ->
-            if (sse.data == "[DONE]") return@postSse false
-            val data = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true
-            when (val type = data.optString("type").ifBlank { sse.event.orEmpty() }) {
-                "response.output_text.annotation.added" -> data.optJSONObject("annotation")?.let { annotation ->
-                    if (!collectContainerCitation(annotation, containerId, remoteImages)) citation(annotation)
-                }
-                "response.output_text.delta" -> data.optString("delta").takeIf { it.isNotEmpty() }?.let {
-                    content.append(it); emit(event("content", it))
-                }
-                "response.reasoning_summary_text.delta", "response.reasoning_text.delta" -> data.optString("delta").takeIf { it.isNotEmpty() }?.let {
-                    reasoning(data, it)
-                }
-                "response.reasoning_text.done", "response.reasoning_summary_text.done" -> reasoning(data, data.optString("text"), snapshot = true)
-                "response.reasoning_summary_part.done", "response.content_part.done" -> data.optJSONObject("part")?.let { part ->
-                    if (part.optString("type") in listOf("summary_text", "reasoning_text"))
-                        reasoning(data, part.optString("text"), snapshot = true)
-                }
-                "response.web_search_call.in_progress", "response.web_search_call.searching" ->
-                    if (!searching) { searching = true; emit(event("search_status", "searching")) }
-                "response.web_search_call.completed" -> if (searching) emit(event("search_status", "done"))
-                "response.code_interpreter_call_code.delta" -> {
-                    val id = data.optString("item_id").ifBlank { "py" }
-                    codes.getOrPut(id) { StringBuilder() }.append(data.optString("delta"))
-                    emit(event("python", JSONObject().put("id", id).put("code", codes[id].toString())))
-                }
-                "response.output_item.done" -> data.optJSONObject("item")?.let { item ->
-                    absorbItem(item)
-                }
-                "response.completed", "response.incomplete" -> {
-                    val response = data.optJSONObject("response")
-                    usage = response?.optJSONObject("usage")
-                    val output = response?.optJSONArray("output")
-                    if (output != null) {
-                        for (index in 0 until output.length()) output.optJSONObject(index)?.let { absorbItem(it) }
+        val skills = request.options.optJSONArray("skills")
+        var responseId = ""
+        var activePayload = payload
+        var round = 0
+        while (true) {
+            var nextSkillCall: JSONObject? = null
+            http.postSse("$baseUrl/v1/responses", mapOf("Authorization" to "Bearer ${request.apiKey}"), activePayload, maxLine = 32L * 1024 * 1024) { sse ->
+                if (sse.data == "[DONE]") return@postSse false
+                val data = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true
+                when (val type = data.optString("type").ifBlank { sse.event.orEmpty() }) {
+                    "response.created" -> responseId = data.optJSONObject("response")?.optString("id").orEmpty().ifBlank { responseId }
+                    "response.output_text.annotation.added" -> data.optJSONObject("annotation")?.let { annotation ->
+                        if (!collectContainerCitation(annotation, containerId, remoteImages)) citation(annotation)
+                    }
+                    "response.output_text.delta" -> data.optString("delta").takeIf { it.isNotEmpty() }?.let {
+                        content.append(it); emit(event("content", it))
+                    }
+                    "response.reasoning_summary_text.delta", "response.reasoning_text.delta" -> data.optString("delta").takeIf { it.isNotEmpty() }?.let {
+                        reasoning(data, it)
+                    }
+                    "response.reasoning_text.done", "response.reasoning_summary_text.done" -> reasoning(data, data.optString("text"), snapshot = true)
+                    "response.reasoning_summary_part.done", "response.content_part.done" -> data.optJSONObject("part")?.let { part ->
+                        if (part.optString("type") in listOf("summary_text", "reasoning_text"))
+                            reasoning(data, part.optString("text"), snapshot = true)
+                    }
+                    "response.web_search_call.in_progress", "response.web_search_call.searching" ->
+                        if (!searching) { searching = true; emit(event("search_status", "searching")) }
+                    "response.web_search_call.completed" -> if (searching) emit(event("search_status", "done"))
+                    "response.code_interpreter_call_code.delta" -> {
+                        val id = data.optString("item_id").ifBlank { "py" }
+                        codes.getOrPut(id) { StringBuilder() }.append(data.optString("delta"))
+                        emit(event("python", JSONObject().put("id", id).put("code", codes[id].toString())))
+                    }
+                    "response.output_item.done" -> data.optJSONObject("item")?.let { item ->
+                        if (item.optString("type") == "function_call" && item.optString("name") == SkillTool.NAME && nextSkillCall == null) {
+                            nextSkillCall = item
+                        } else absorbItem(item)
+                    }
+                    "response.completed", "response.incomplete" -> {
+                        val response = data.optJSONObject("response")
+                        responseId = response?.optString("id").orEmpty().ifBlank { responseId }
+                        usage = response?.optJSONObject("usage")
+                        val output = response?.optJSONArray("output")
+                        if (output != null) {
+                            for (index in 0 until output.length()) output.optJSONObject(index)?.let { item ->
+                                if (item.optString("type") == "function_call" && item.optString("name") == SkillTool.NAME && nextSkillCall == null) {
+                                    nextSkillCall = item
+                                } else absorbItem(item)
+                            }
+                        }
+                    }
+                    "response.failed", "error" -> {
+                        val error = data.optJSONObject("response")?.optJSONObject("error") ?: data.optJSONObject("error") ?: data
+                        throw DirectApiException(0, error.optString("message").ifBlank { type })
                     }
                 }
-                "response.failed", "error" -> {
-                    val error = data.optJSONObject("response")?.optJSONObject("error") ?: data.optJSONObject("error") ?: data
-                    throw DirectApiException(0, error.optString("message").ifBlank { type })
-                }
+                onProgress(content.toString(), thought.toString())
+                true
             }
-            onProgress(content.toString(), thought.toString())
-            true
+            val call = nextSkillCall
+            if (call == null || responseId.isBlank() || round >= 3) break
+            round++
+            val callId = call.optString("call_id").ifBlank { call.optString("id") }
+            val arguments = call.optString("arguments").ifBlank { "{}" }
+            val skillName = runCatching { JSONObject(arguments).optString("name") }.getOrDefault("")
+            val result = SkillTool.execute(skills, skillName)
+            activePayload = JSONObject().put("model", request.model)
+                .put("previous_response_id", responseId)
+                .put("input", JSONArray().put(JSONObject().put("type", "function_call_output")
+                    .put("call_id", callId).put("output", result)))
+                .put("stream", true).put("store", false)
+            payload.optJSONArray("tools")?.let { activePayload.put("tools", it) }
+            payload.optString("instructions").takeIf { it.isNotBlank() }?.let { activePayload.put("instructions", it) }
         }
         val savedRemote = HashMap<String, String?>()
         fun resolveCitation(remote: RemoteImage, saved: String) {
@@ -274,6 +304,8 @@ class OpenAiResponsesDirect(
             tools.put(JSONObject().put("type", "code_interpreter").put("container", container))
             payload.put("include", JSONArray().put("code_interpreter_call.outputs"))
         }
+        val skills = options.optJSONArray("skills")
+        if (skills != null && skills.length() > 0) tools.put(SkillTool.openAiResponsesDefinition())
         if (tools.length() > 0) payload.put("tools", tools)
         val effortOption = options.optString("reasoning_effort").lowercase().trim()
         val reasoningRequested = options.flag("enable_thinking") || (effortOption.isNotEmpty() && effortOption != "none")

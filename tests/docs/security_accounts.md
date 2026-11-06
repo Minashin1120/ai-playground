@@ -17,6 +17,7 @@
 | [test_security_regressions.py](../test_security_regressions.py) | security |
 | [test_setup_import_regressions.py](../test_setup_import_regressions.py) | setup / import |
 | [test_signup_session_regressions.py](../test_signup_session_regressions.py) | signup / session |
+| [test_skills_api_regressions.py](../test_skills_api_regressions.py) | Skill API・旧Gem互換・gem→skill DB移行 |
 | [test_turnstile_bot_detection_regressions.py](../test_turnstile_bot_detection_regressions.py) | turnstile / bot / detection |
 
 実行・失敗時の手順は [workflow.md](workflow.md) を参照してください。

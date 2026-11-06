@@ -1327,7 +1327,7 @@
         const TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS = 90;
         const TEMP_CHAT_HEARTBEAT_MIN_MS = 4000;
         const TEMP_CHAT_HEARTBEAT_MAX_MS = 15000;
-        let activeGem = null, editingGemUuid = null, currentImageUrls = [], currentMaskImage = null, abortController = null, richPasteAbortController = null, userAutoScroll = true, searchTimeout;
+        let activeSkill = null, editingSkillUuid = null, currentImageUrls = [], currentMaskImage = null, abortController = null, richPasteAbortController = null, userAutoScroll = true, searchTimeout;
 
         // Prompt History
         let promptHistory = [];
@@ -1375,9 +1375,9 @@
             baseImageData: null
         };
         const markerView = { scale: 1, offsetX: 0, offsetY: 0, minScale: 1, maxScale: 4 };
-        const threadGemMap = {};
-        let pendingGemForNewThread = null;
-        let loadedGems = [];
+        const threadSkillMap = {};
+        let pendingSkillForNewThread = null;
+        let loadedSkills = [];
         let currentJobId = null;
         let currentThreadPending = null;
         let currentVisionModel = null;

@@ -1,11 +1,12 @@
 package com.minashin1120.aiplayground.data.direct
 
+import org.json.JSONArray
 import org.json.JSONObject
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 /**
- * Port of the server's system prompt assembly (`background.py` "System Prompt Construction"): the Gem
+ * Port of the server's system prompt assembly (`background.py` "System Prompt Construction"): the Skill
  * instruction sent by the client, the operator's global prompt (or the current-time notice), the user's
  * own prompt, the chat-specific instructions, Coding Mode, then the automatic notices (Python, marker,
  * MathJax, search). [preferences] is the `/api/mobile/v1/preferences` shape (cached from the server, or
@@ -45,6 +46,16 @@ object SystemPromptBuilder {
             combined = if (combined.isNotEmpty()) "$combined\n\n${defaults.codingModePrompt}" else defaults.codingModePrompt
         }
         val notices = Notices(preferences, defaults)
+        if (notices.enabled("skills")) {
+            val skills = body.optJSONArray("skills")
+            if (skills != null && skills.length() > 0) {
+                val catalog = buildSkillCatalog(skills)
+                if (catalog.isNotBlank()) {
+                    val rendered = renderSkillNotice(notices.text("skills"), catalog, skills.length())
+                    combined = if (combined.isBlank()) rendered else "$rendered\n\n$combined"
+                }
+            }
+        }
         if (body.flag("enable_python") && notices.enabled("python")) {
             val text = notices.text("python")
             if (combined.isBlank()) combined = text
@@ -111,6 +122,32 @@ object SystemPromptBuilder {
         val rendered = notices.text("quote_source").replace("\r\n", "\n").trim()
         val regex = Regex("\\{\\{\\s*quote_source\\s*\\}\\}|\\{quote_source\\}")
         return (if (regex.containsMatchIn(rendered)) regex.replace(rendered, Regex.escapeReplacement(source)) else "$rendered $source").trim()
+    }
+
+    /** Server `skills.py`: name + short description for tool-capable serverless engines. */
+    private fun buildSkillCatalog(skills: JSONArray): String =
+        (0 until skills.length()).mapNotNull { index ->
+            val row = skills.optJSONObject(index) ?: return@mapNotNull null
+            val name = row.optString("name").trim()
+            if (name.isEmpty()) return@mapNotNull null
+            val description = row.optString("description").replace("\r\n", "\n").trim()
+                .let { if (it.length > 300) it.take(300).trimEnd() + "…" else it }
+            if (description.isEmpty()) "- $name" else "- $name: $description"
+        }.joinToString("\n")
+
+    /** Server `render_skill_notice`: expands `{{skills}}` / `{{skill_count}}`. */
+    private fun renderSkillNotice(template: String, catalog: String, count: Int): String {
+        var rendered = template.replace("\r\n", "\n").trim()
+        var replaced = false
+        listOf("{{skills}}", "{skills}").forEach { token ->
+            if (rendered.contains(token)) { rendered = rendered.replace(token, catalog); replaced = true }
+        }
+        listOf("{{skill_count}}", "{skill_count}").forEach { token ->
+            if (rendered.contains(token)) { rendered = rendered.replace(token, count.toString()); replaced = true }
+        }
+        return if (!replaced && catalog.isNotBlank()) {
+            if (rendered.isEmpty()) catalog else "$rendered\n\n$catalog"
+        } else rendered
     }
 
     /** Server `build_global_system_prompt`. */

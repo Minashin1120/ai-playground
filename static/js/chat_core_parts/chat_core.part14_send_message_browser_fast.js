@@ -617,7 +617,7 @@
             // Render UI immediately to reduce perceived latency.
             const optimisticUserId = Date.now();
             const maskImageToSend = (isGptImageModel() || ideogramObjectRemoval) ? currentMaskImage : null;
-            const optimisticUserMessageEl = renderMessage(optimisticUserId, 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, false, currentQuote, null, null, null, null, null, null, null, followSend, capturedParentId, activeGem ? activeGem.name : null, null, maskImageToSend);
+            const optimisticUserMessageEl = renderMessage(optimisticUserId, 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, false, currentQuote, null, null, null, null, null, null, null, followSend, capturedParentId, activeSkill ? activeSkill.name : null, null, maskImageToSend);
 
             let disableAutoSearch = false;
             const xLinkPattern = /(https?:\/\/)?(x\.com|twitter\.com)\//i;
@@ -785,7 +785,7 @@
             if (threadCustomInstructionEl) {
                 p.thread_custom_instruction = threadCustomInstructionEl.value || '';
             }
-            if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; p.gem_uuid = activeGem.uuid; } else { p.gem_uuid = null; }
+            if (activeSkill) { p.system_prompt = activeSkill.instruction; p.enable_system_prompt = true; p.skill_uuid = activeSkill.uuid; } else { p.skill_uuid = null; }
             const sentPrompt = takePromptForSend(options.animate !== false);
             const stopSendMotion = animatePromptToMessage(optimisticUserMessageEl, sentPrompt, followSend && options.animate !== false);
             setSendBtnToStopMode(); const aid = 'ai-' + Date.now();
@@ -878,9 +878,9 @@
             let reconnectAfterStreamDisconnect = null;
             let streamOpStarted = false;
             try {
-                if (p.thread_id && activeGem) {
-                    threadGemMap[p.thread_id] = activeGem;
-                    pendingGemForNewThread = null;
+                if (p.thread_id && activeSkill) {
+                    threadSkillMap[p.thread_id] = activeSkill;
+                    pendingSkillForNewThread = null;
                 }
                 const r = await fetchChatStreamWithUnavailableRetry(
                     CHAT_CONFIG.urls.chatStream,
@@ -955,9 +955,9 @@
                                         currentThreadId = streamThreadId;
                                         history.pushState({}, '', '/c/' + streamThreadId);
                                     }
-                                    if (activeGem) {
-                                        threadGemMap[streamThreadId] = activeGem;
-                                        pendingGemForNewThread = null;
+                                    if (activeSkill) {
+                                        threadSkillMap[streamThreadId] = activeSkill;
+                                        pendingSkillForNewThread = null;
                                     }
                                     ensureTemporaryChatHeartbeat(true);
                                 }
@@ -1800,11 +1800,11 @@
         }
 
         const initThreadPullToRefresh = () => initPullToRefresh('thread-list', () => loadThreads(false));
-        const initGemPullToRefresh = () => initPullToRefresh('gem-list', () => loadGems());
+        const initSkillPullToRefresh = () => initPullToRefresh('skill-list', () => loadSkills());
 
         const initPullToRefreshAll = () => {
             initThreadPullToRefresh();
-            initGemPullToRefresh();
+            initSkillPullToRefresh();
         };
 
         /* ================= MCP チャット中イベント（実行カード・確認ダイアログ） ================= */

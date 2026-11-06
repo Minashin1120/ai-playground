@@ -56,10 +56,10 @@ fun main() = runBlocking {
         ChatMessage("102", "assistant", answer, thought = "ユーザーはコルーチンの概要を求めている。", parentId = 101, model = "gemini-3.6-flash",
             tokens = 1523, tokensIn = 210, tokensOut = 1313, tokensContent = 900, tokensThought = 413, encrypted = true),
         ChatMessage("103", "user", "ありがとう。asyncの例もお願いします。", parentId = 102, quote = "構造化された並行性を持ちます",
-            gemName = "翻訳アシスタント", encrypted = false),
+            skillName = "翻訳アシスタント", encrypted = false),
         ChatMessage("104", "assistant", "`async` は `Deferred` を返します。\n\n```kotlin\nval x = async { 1 + 2 }\nprintln(x.await())\n```",
             parentId = 103, model = "gemini-3.6-flash", tokens = 320, tokensIn = 1600, tokensOut = 120, tokensThought = 0,
-            gemName = "翻訳アシスタント", encrypted = false),
+            skillName = "翻訳アシスタント", encrypted = false),
     )
 
     @Test

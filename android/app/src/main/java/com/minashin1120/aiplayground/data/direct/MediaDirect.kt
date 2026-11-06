@@ -122,7 +122,7 @@ class OpenAiImageDirect(private val http: DirectHttp, private val baseUrl: Strin
         fun pick(key: String, allowed: Set<String>, fallback: String) = options.optString(key).takeIf { it in allowed } ?: fallback
         val format = imageOutputFormat(request)
         val images = request.imageInputs()
-        // Like the server, only the Gem / client system prompt goes in front of the image prompt.
+        // Like the server, only the Skill / client system prompt goes in front of the image prompt.
         val prompt = listOf(options.optString("system_prompt"), request.imageContextPrompt())
             .filter { it.isNotBlank() && it != "null" }.joinToString("\n\n")
         val payload = JSONObject().put("model", request.model).put("prompt", prompt)
@@ -162,7 +162,7 @@ class OpenAiImageDirect(private val http: DirectHttp, private val baseUrl: Strin
             .put("action", if (images.isEmpty()) "generate" else "edit")
         // Like the server: PNG is lossless and the API rejects output_compression below 100 for it.
         if (format != "png") options.optString("image_compression").toIntOrNull()?.takeIf { it in 0..100 }?.let { tool.put("output_compression", it) }
-        // Like the server, only the Gem / client system prompt goes in front of the image prompt.
+        // Like the server, only the Skill / client system prompt goes in front of the image prompt.
         val prompt = listOf(options.optString("system_prompt"), request.imageContextPrompt()).filter { it.isNotBlank() && it != "null" }.joinToString("\n\n")
         val content = JSONArray().put(JSONObject().put("type", "input_text").put("text", prompt))
         images.forEach { image ->

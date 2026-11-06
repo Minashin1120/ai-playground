@@ -448,7 +448,7 @@ internal fun twoFactorCards(state: ChatState, form: SettingsForm, ctx: AccountSe
 }
 
 private val IMPORT_CATEGORIES = listOf(
-    "settings" to "設定", "api_credentials" to "APIキー・クラウド認証", "chats" to "チャット履歴", "gems" to "Gem",
+    "settings" to "設定", "api_credentials" to "APIキー・クラウド認証", "chats" to "チャット履歴", "skills" to "Skill",
     "files" to "アップロードファイル", "feedback" to "フィードバック", "diagnostics" to "診断メトリクス",
 )
 
@@ -463,11 +463,11 @@ internal class ImportFormState {
 
 internal fun accountDataCard(transfer: TransferUiState, importForm: ImportFormState, ctx: AccountSettingsContext): SettingsCardSpec =
     SettingsCardSpec(SettingsTab.Data, "account-data", "アカウントデータ",
-        "アカウントデータ 設定、チャット、Gem、ファイルなどをZIPで保存・復元できます。 エクスポートZIPを作成 インポートするデータを選択 選択したデータをインポート 重複データの修復 重複データを確認して修復") {
+        "アカウントデータ 設定、チャット、Skill、ファイルなどをZIPで保存・復元できます。 エクスポートZIPを作成 インポートするデータを選択 選択したデータをインポート 重複データの修復 重複データを確認して修復") {
         val web = LocalWebPalette.current
         val controller = ctx.model.accountTransfer
         val rule = web.twBorder(Tw.gray700)
-        SettingsDesc("設定、チャット、Gem、ファイルなどをZIPで保存・復元できます。ユーザー名、パスワード、2FA、パスキー、ログイン連携・セッション、権限、BAN情報は対象外です。",
+        SettingsDesc("設定、チャット、Skill、ファイルなどをZIPで保存・復元できます。ユーザー名、パスワード、2FA、パスキー、ログイン連携・セッション、権限、BAN情報は対象外です。",
             Modifier.padding(bottom = 12.dp), color = Tw.gray400)
         SettingsSmallButton("エクスポートZIPを作成", controller::startExport, tone = SettingsButtonTone.Blue, enabled = !transfer.running,
             icon = R.drawable.fa_solid_file_export, fill = true)
@@ -525,7 +525,7 @@ internal fun accountDataCard(transfer: TransferUiState, importForm: ImportFormSt
                 FaIcon(R.drawable.fa_solid_trash, null, size = 12.dp, tint = Tw.amber300)
                 Text("重複データの修復", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Tw.gray300)
             }
-            SettingsDesc("インポートの重複で作成されたチャット、Gem、ファイル、フィードバック、診断データを検出して削除します。同じ内容のデータは最も古い1件だけ残し、チャットやファイルへの参照は壊れないよう保護します。")
+            SettingsDesc("インポートの重複で作成されたチャット、Skill、ファイル、フィードバック、診断データを検出して削除します。同じ内容のデータは最も古い1件だけ残し、チャットやファイルへの参照は壊れないよう保護します。")
             SettingsSmallButton("重複データを確認して修復", controller::previewDedupe, tone = SettingsButtonTone.Orange, enabled = !transfer.dedupeBusy,
                 icon = R.drawable.fa_solid_trash, fill = true)
             transfer.dedupeResult?.let { Text(it, fontSize = 11.sp, color = if (transfer.dedupeError) Tw.red300 else Tw.emerald300) }

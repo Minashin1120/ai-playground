@@ -183,7 +183,7 @@ APIキーはこのBatchテーブルには保存しません。送信、状態確
 | `static/js/chat_core_parts/chat_core.part13_canvas_coding_stream.js` | Batch状態を含む会話表示 | 待機中の回答欄を調べるとき |
 | `static/js/chat_core_parts/chat_core.part14_send_message_browser_fast.js` | `sendMessage`の`batch_mode`送信、受付後の処理 | ブラウザーの送信経路を調べるとき |
 | `static/js/chat_core_parts/chat_core.part15_slash_tempchat_threads.js` | `refreshGeminiBatchStatus`、`showGeminiBatchCompletionBanner` | ポーリングと通知を調べるとき |
-| `static/js/chat_core_parts/chat_core.part16_gems_branch_debug.js` | `loadBatchJobs`、`renderBatchJobs`、停止・履歴削除 | 一覧画面の動作を調べるとき |
+| `static/js/chat_core_parts/chat_core.part16_library_branch_debug.js` | `loadBatchJobs`、`renderBatchJobs`、停止・履歴削除 | 一覧画面の動作を調べるとき |
 | `templates/chat/composer_controls.html` | Batchチェックボックス | 送信オプションのHTMLを調べるとき |
 | `templates/chat/sidebar.html` | Batch一覧へのボタン | 一覧の入口を調べるとき |
 | `templates/chat/overlay_thread.html` | Batch一覧モーダル | 一覧のHTMLを調べるとき |

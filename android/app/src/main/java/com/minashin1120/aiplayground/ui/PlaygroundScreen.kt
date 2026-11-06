@@ -107,7 +107,7 @@ import com.minashin1120.aiplayground.data.isIdeogramObjectRemoval
 import com.minashin1120.aiplayground.data.IMAGE_SPLIT_MAX_IMAGES
 import com.minashin1120.aiplayground.data.ImageSplitOptions
 import com.minashin1120.aiplayground.data.LibraryFile
-import com.minashin1120.aiplayground.data.Gem
+import com.minashin1120.aiplayground.data.Skill
 import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.buildTokenTotals
@@ -284,9 +284,9 @@ fun PlaygroundScreen(
             var attachMenu by remember { mutableStateOf(false) }
             var libraryOpen by remember { mutableStateOf(false) }
             var viewingFile by remember { mutableStateOf<FileViewRequest?>(null) }
-            var gemEditorOpen by remember { mutableStateOf(false) }
-            var gemEditing by remember { mutableStateOf<Gem?>(null) }
-            var gemDeleting by remember { mutableStateOf<Gem?>(null) }
+            var skillEditorOpen by remember { mutableStateOf(false) }
+            var skillEditing by remember { mutableStateOf<Skill?>(null) }
+            var skillDeleting by remember { mutableStateOf<Skill?>(null) }
             var historyOpen by remember { mutableStateOf(false) }
             var branchOpen by remember { mutableStateOf(false) }
             var alphaOpen by remember { mutableStateOf(false) }
@@ -313,8 +313,8 @@ fun PlaygroundScreen(
             // ログの収集を強化: which modals and panels are open (names only).
             val panelStates = listOf(
                 "model_picker" to modelPicker, "thread_settings" to threadSettings, "attach_menu" to attachMenu,
-                "library" to libraryOpen, "file_view" to (viewingFile != null), "gem_editor" to gemEditorOpen,
-                "gem_delete" to (gemDeleting != null), "history" to historyOpen, "branch" to branchOpen, "alpha" to alphaOpen,
+                "library" to libraryOpen, "file_view" to (viewingFile != null), "skill_editor" to skillEditorOpen,
+                "skill_delete" to (skillDeleting != null), "history" to historyOpen, "branch" to branchOpen, "alpha" to alphaOpen,
                 "legal" to (legalKind != null), "rename" to (renaming != null), "delete_thread" to (deleting != null),
                 "settings" to settingsOpen, "compression" to compressionOpen, "changelog" to changelogOpen,
                 "advanced" to advancedOpen, "realtime" to realtimeOpen, "lyria" to lyriaOpen, "rich_paste" to richPasteOpen,
@@ -493,13 +493,13 @@ fun PlaygroundScreen(
                     allowDrawerOpen = false
                     deleting = null
                     renaming = null
-                    gemDeleting = null
+                    skillDeleting = null
                     modelPicker = false
                     threadSettings = false
                     attachMenu = false
                     libraryOpen = false
                     viewingFile = null
-                    gemEditorOpen = false
+                    skillEditorOpen = false
                     historyOpen = false
                     branchOpen = false
                     alphaOpen = false
@@ -516,7 +516,7 @@ fun PlaygroundScreen(
                 }
             }
             val hasOverlay = modelPicker || threadSettings || attachMenu || libraryOpen || viewingFile != null ||
-                gemEditorOpen || historyOpen || branchOpen || alphaOpen || legalKind != null ||
+                skillEditorOpen || historyOpen || branchOpen || alphaOpen || legalKind != null ||
                 settingsOpen || changelogOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || markerTarget != null || visionPicker || compressionOpen
             BackHandler(enabled = hasOverlay || (!wide && drawer.currentValue == DrawerValue.Open) || state.canGoBackInChats) {
                 when {
@@ -534,7 +534,7 @@ fun PlaygroundScreen(
                     richPasteOpen -> richPasteOpen = false
                     viewingFile != null -> viewingFile = null
                     libraryOpen -> libraryOpen = false
-                    gemEditorOpen -> gemEditorOpen = false
+                    skillEditorOpen -> skillEditorOpen = false
                     alphaOpen -> alphaOpen = false
                     legalKind != null -> legalKind = null
                     historyOpen -> historyOpen = false
@@ -580,11 +580,11 @@ fun PlaygroundScreen(
                 onDeleteThread = { deleting = it },
                 onMoreThreads = model::moreThreads,
                 onRefreshThreads = model::reloadThreads,
-                onChooseGem = { gem -> model.chooseGem(gem) },
-                onNewGem = { gemEditing = null; gemEditorOpen = true },
-                onEditGem = { gem -> gemEditing = gem; gemEditorOpen = true },
-                onDeleteGem = { gemDeleting = it },
-                onRefreshGems = model::reloadGems,
+                onChooseSkill = { skill -> model.chooseSkill(skill) },
+                onNewSkill = { skillEditing = null; skillEditorOpen = true },
+                onEditSkill = { skill -> skillEditing = skill; skillEditorOpen = true },
+                onDeleteSkill = { skillDeleting = it },
+                onRefreshSkills = model::reloadSkills,
                 onHelp = { onWeb("/help") },
                 onLegal = { legalKind = it },
                 onAlphaInfo = { alphaOpen = true },
@@ -758,10 +758,10 @@ fun PlaygroundScreen(
                     imageActions = imageActions,
                 )
             }
-            ModalHost(gemEditorOpen) {
-                val editing = gemEditing
-                GemEditorDialog(gem = editing, models = state.account?.models.orEmpty(), onDismiss = { gemEditorOpen = false }) { n, d, i, m, prompts, done ->
-                    model.saveGem(editing?.uuid, n, d, i, m, prompts) { ok -> if (ok) gemEditorOpen = false; done(ok) }
+            ModalHost(skillEditorOpen) {
+                val editing = skillEditing
+                SkillEditorDialog(skill = editing, onDismiss = { skillEditorOpen = false }) { n, d, i, done ->
+                    model.saveSkill(editing?.uuid, n, d, i) { ok -> if (ok) skillEditorOpen = false; done(ok) }
                 }
             }
             state.mcpDecision?.let { decision -> key(decision.id) { McpDecisionDialog(decision, model::resolveMcpDecision) } }
@@ -799,8 +799,8 @@ fun PlaygroundScreen(
             ModalHost(historyOpen) { HistoryDialog(state, sidebarActions(closeDrawer), onDismiss = { historyOpen = false }) }
             ModalHost(alphaOpen) { AlphaInfoDialog(onDismiss = { alphaOpen = false }) }
             ModalValueHost(legalKind) { kind -> LegalDialog(kind, model::legalMarkdown, onDismiss = { legalKind = null }) }
-            // Web `confirm("Delete?")` / `prompt("Title:")` for Gems and threads.
-            gemDeleting?.let { gem -> BrowserConfirmDialog("Delete?") { ok -> if (ok) model.deleteGem(gem); gemDeleting = null } }
+            // Web `confirm("Delete?")` / `prompt("Title:")` for Skills and threads.
+            skillDeleting?.let { skill -> BrowserConfirmDialog("Delete?") { ok -> if (ok) model.deleteSkill(skill); skillDeleting = null } }
             renaming?.let { thread ->
                 ThreadRenameDialog(thread.title) { title -> if (!title.isNullOrBlank()) model.renameThread(thread, title.trim()); renaming = null }
             }

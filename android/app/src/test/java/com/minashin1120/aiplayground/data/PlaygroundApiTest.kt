@@ -413,21 +413,21 @@ class PlaygroundApiTest {
         assertEquals("", extensionForMime("application/zip"))
     }
 
-    @Test fun libraryGemsAndMentionsParse() {
+    @Test fun librarySkillsAndMentionsParse() {
         val library = parseLibraryFiles(JSONObject("""{"files":[{"filename":"renamed.txt","original_filename":"note.txt","filepath":"1/abc.txt","url":"/files/1/abc.txt","thumbnail_url":null,"type":"file","ext":"txt","is_favorite":true,"ts":123}],"total":1,"has_more":false}"""))
         assertEquals("renamed.txt", library.single().displayName)
         assertEquals("1/abc.txt", library.single().filepath)
         assertTrue(library.single().isFavorite)
         assertFalse(library.single().isImage)
-        val gems = parseGems(JSONArray("""[{"uuid":"g1","name":"Brief","description":"d","instruction":"be brief","default_model":"gpt-5.6-sol"}]"""))
-        assertEquals("Brief", gems.single().name)
-        assertEquals("gpt-5.6-sol", gems.single().defaultModel)
-        assertEquals("bri", gemMentionQuery("@bri"))
-        assertEquals("brief writer", gemMentionQuery("  @brief writer "))
-        assertNull(gemMentionQuery("hello @bri"))
-        assertNull(gemMentionQuery("hello world"))
-        assertEquals("", replaceGemMention("@bri"))
-        assertEquals("note", replaceGemMention("note @bri"))
+        val skills = parseSkills(JSONArray("""[{"uuid":"g1","name":"Brief","description":"d","instruction":"be brief","default_model":"gpt-5.6-sol"}]"""))
+        assertEquals("Brief", skills.single().name)
+        assertEquals("be brief", skills.single().instruction)
+        assertEquals("bri", skillMentionQuery("@bri"))
+        assertEquals("brief writer", skillMentionQuery("  @brief writer "))
+        assertNull(skillMentionQuery("hello @bri"))
+        assertNull(skillMentionQuery("hello world"))
+        assertEquals("", replaceSkillMention("@bri"))
+        assertEquals("note", replaceSkillMention("note @bri"))
     }
 
     @Test fun preferencesParseSafeFields() {

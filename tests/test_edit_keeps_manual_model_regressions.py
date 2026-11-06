@@ -37,7 +37,7 @@ class WebEditKeepsManualModelTests(unittest.TestCase):
 
     def test_flag_resets_only_for_another_or_new_chat(self):
         part15 = _part("chat_core.part15")
-        load = _between(part15, "async function loadMessages(tid, opts = {}) {", "async function loadGems()")
+        load = _between(part15, "async function loadMessages(tid, opts = {}) {", "async function loadSkills()")
         self.assertIn("if (nextThreadId !== currentThreadId) modelChosenManually = false;", load)
         self.assertIn("if (threadData.last_model && !modelChosenManually) {", load)
         new_chat = _between(part15, "function startNewChat(opts = {}) {", "restoreLatestPromptOptions();")

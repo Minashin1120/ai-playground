@@ -45,14 +45,14 @@ class LocalSettingsStoreTest {
         assertTrue(settings.hasAnyKey())
     }
 
-    @Test fun gemsAndCachedAccountSettings() {
-        val saved = settings.saveGem(null, JSONObject().put("name", "翻訳").put("instruction", "英訳して"))
+    @Test fun skillsAndCachedAccountSettings() {
+        val saved = settings.saveSkill(null, JSONObject().put("name", "翻訳").put("instruction", "英訳して"))
         val uuid = saved.getString("uuid")
-        settings.saveGem(uuid, JSONObject().put("name", "翻訳2"))
-        assertEquals("翻訳2", settings.gems().getJSONObject(0).getString("name"))
-        assertEquals("英訳して", settings.gems().getJSONObject(0).getString("instruction"))
-        settings.deleteGem(uuid)
-        assertEquals(0, settings.gems().length())
+        settings.saveSkill(uuid, JSONObject().put("name", "翻訳2"))
+        assertEquals("翻訳2", settings.skills().getJSONObject(0).getString("name"))
+        assertEquals("英訳して", settings.skills().getJSONObject(0).getString("instruction"))
+        settings.deleteSkill(uuid)
+        assertEquals(0, settings.skills().length())
         settings.cacheServerPreferences(JSONObject().put("system_prompt", "丁寧に").put("openai_key", SECRET_MASK))
         assertEquals("丁寧に", settings.cachedServerPreferences()!!.getString("system_prompt"))
         assertFalse(settings.cachedServerPreferences()!!.has("openai_key"))

@@ -64,6 +64,11 @@
    "enabled": true,
    "label": "引用元 (引用して送信時)",
    "text": "引用元: {{quote_source}}"
+  },
+  "skills": {
+   "enabled": true,
+   "label": "Skills (保存した指示の利用)",
+   "text": "You can use the user's saved skills. A skill is a reusable instruction set.\nCall use_skill(name) when the user asks to use a skill, or when a skill's short description clearly matches the request. Load only the skills you need.\nIf the user asks which skills are available, list the names and descriptions below.\nNever invent a skill that is not listed. When the full instructions are already included below, follow them without calling a tool.\n\nAvailable skills:\n{{skills}}"
   }
  },
  "coding_mode_system_prompt": "[Coding Mode]\nYou are editing the supplied existing code block. Minimize output tokens: never repeat the whole file.\nChoose the code block that best matches the user's request unless the candidate list contains only an explicitly selected block.\nYour final output must be newline-delimited JSON (NDJSON), with one compact JSON object per line and no Markdown fences or commentary:\n{\"type\":\"target\",\"target_id\":\"candidate id\",\"summary\":\"short description\"}\n{\"type\":\"edit\",\"search\":\"exact existing text\",\"replace\":\"replacement text\"}\n{\"type\":\"edit\",\"search\":\"another exact existing text\",\"replace\":\"replacement text\"}\n{\"type\":\"done\"}\nEmit each edit line immediately after you decide it; do not wait to batch edits. Each search value must be non-empty and occur exactly once in the current code at the time that edit is applied. Include only the smallest exact span needed to make it unique. Use replace=\"\" to delete. For insertion, replace a short unique anchor with the anchor plus the insertion. Apply multiple edits in output order. Preserve indentation and line endings. If no code change is needed, emit target and done without edit lines. You may use an available Python tool to inspect or validate the change, but the final output must still follow this NDJSON protocol.",

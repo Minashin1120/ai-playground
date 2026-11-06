@@ -66,7 +66,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.R
-import com.minashin1120.aiplayground.data.Gem
+import com.minashin1120.aiplayground.data.Skill
 import com.minashin1120.aiplayground.data.ThreadItem
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -86,11 +86,11 @@ internal data class SidebarColors(
     val searchBorder: Color,
     val searchText: Color,
     val searchIcon: Color,
-    val gemsLabel: Color,
-    val addGem: Color,
-    val gemBackground: Color,
-    val gemText: Color,
-    val gemAction: Color,
+    val skillsLabel: Color,
+    val addSkill: Color,
+    val skillBackground: Color,
+    val skillText: Color,
+    val skillAction: Color,
     val threadText: Color,
     val threadSelected: Color,
     val threadIdle: Color,
@@ -120,11 +120,11 @@ internal fun sidebarColors(): SidebarColors {
         searchBorder = slate.copy(alpha = 0.10f),
         searchText = web.text,
         searchIcon = Color(0xFF697588),
-        gemsLabel = web.muted,
-        addGem = Color(0xFF1D4ED8),
-        gemBackground = slate.copy(alpha = 0.035f),
-        gemText = Color(0xFF3F4A5C),
-        gemAction = Color(0xFF5B6675),
+        skillsLabel = web.muted,
+        addSkill = Color(0xFF1D4ED8),
+        skillBackground = slate.copy(alpha = 0.035f),
+        skillText = Color(0xFF3F4A5C),
+        skillAction = Color(0xFF5B6675),
         threadText = Color(0xFF3F4A5C),
         threadSelected = Color(0xFFE7EDF6),
         threadIdle = Color(0xFFE7EDF6),
@@ -149,11 +149,11 @@ internal fun sidebarColors(): SidebarColors {
         searchBorder = Color.White.copy(alpha = 0.07f),
         searchText = web.text,
         searchIcon = Tw.gray500,
-        gemsLabel = web.muted,
-        addGem = web.theme300,
-        gemBackground = Color(10, 14, 26).copy(alpha = 0.55f),
-        gemText = Tw.gray300,
-        gemAction = Tw.gray400,
+        skillsLabel = web.muted,
+        addSkill = web.theme300,
+        skillBackground = Color(10, 14, 26).copy(alpha = 0.55f),
+        skillText = Tw.gray300,
+        skillAction = Tw.gray400,
         threadText = Tw.gray300,
         threadSelected = Tw.gray700.copy(alpha = 0.6f),
         threadIdle = Color.Transparent,
@@ -191,11 +191,11 @@ internal class SidebarActions(
     val onDeleteThread: (ThreadItem) -> Unit,
     val onMoreThreads: () -> Unit,
     val onRefreshThreads: (() -> Unit) -> Unit,
-    val onChooseGem: (Gem) -> Unit,
-    val onNewGem: () -> Unit,
-    val onEditGem: (Gem) -> Unit,
-    val onDeleteGem: (Gem) -> Unit,
-    val onRefreshGems: (() -> Unit) -> Unit,
+    val onChooseSkill: (Skill) -> Unit,
+    val onNewSkill: () -> Unit,
+    val onEditSkill: (Skill) -> Unit,
+    val onDeleteSkill: (Skill) -> Unit,
+    val onRefreshSkills: (() -> Unit) -> Unit,
     val onHelp: () -> Unit,
     val onLegal: (String) -> Unit,
     val onAlphaInfo: () -> Unit,
@@ -204,7 +204,7 @@ internal class SidebarActions(
 
 internal const val WEB_GITHUB_URL = "https://github.com/Minashin1120/ai-playground"
 
-/** The Web `#sidebar` (templates/chat/sidebar.html): header with toolbar and search, Gems, threads, footer. */
+/** The Web `#sidebar` (templates/chat/sidebar.html): header with toolbar and search, Skills, threads, footer. */
 @Composable
 internal fun Sidebar(state: ChatState, versionName: String, actions: SidebarActions, modifier: Modifier = Modifier) {
     val colors = sidebarColors()
@@ -213,7 +213,7 @@ internal fun Sidebar(state: ChatState, versionName: String, actions: SidebarActi
             Modifier.weight(1f).fillMaxHeight().background(colors.background),
         ) {
             SidebarHeader(state, colors, actions)
-            SidebarGems(state, colors, actions)
+            SidebarSkills(state, colors, actions)
             Box(Modifier.fillMaxWidth().height(1.dp).graphicsLayer { alpha = 0.85f }.background(colors.rule))
             ThreadList(
                 state = state,
@@ -370,37 +370,37 @@ internal fun SidebarSearch(value: String, placeholder: String, colors: SidebarCo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SidebarGems(state: ChatState, colors: SidebarColors, actions: SidebarActions) {
+private fun SidebarSkills(state: ChatState, colors: SidebarColors, actions: SidebarActions) {
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 6.dp).padding(bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("GEMS", color = colors.gemsLabel, fontSize = 10.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold,
+            Text("SKILLS", color = colors.skillsLabel, fontSize = 10.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold,
                 letterSpacing = 0.14.em, modifier = Modifier.weight(1f))
             Row(
                 Modifier
                     .border(1.dp, Color.White.copy(alpha = 0.06f))
                     .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.04f), Color.Black.copy(alpha = 0.06f))))
-                    .clickable(onClickLabel = "Gemを作成", role = Role.Button) { actions.onNewGem() }
+                    .clickable(onClickLabel = "Skillを作成", role = Role.Button) { actions.onNewSkill() }
                     .padding(horizontal = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FaIcon(R.drawable.fa_solid_plus, null, size = 12.dp, tint = colors.addGem)
-                Text(" New", color = colors.addGem, fontSize = 12.sp, lineHeight = 16.sp)
+                FaIcon(R.drawable.fa_solid_plus, null, size = 12.dp, tint = colors.addSkill)
+                Text(" New", color = colors.addSkill, fontSize = 12.sp, lineHeight = 16.sp)
             }
         }
-        PullToRefreshArea(onRefresh = actions.onRefreshGems, modifier = Modifier.heightIn(max = 160.dp)) {
+        PullToRefreshArea(onRefresh = actions.onRefreshSkills, modifier = Modifier.heightIn(max = 160.dp)) {
             LazyColumn(Modifier.fillMaxWidth()) {
-                items(state.gems, key = { it.uuid }) { gem -> GemRow(gem, colors, actions) }
+                items(state.skills, key = { it.uuid }) { skill -> SkillRow(skill, colors, actions) }
             }
         }
     }
 }
 
-/** `.gem-item`: gem glyph, name, then edit / delete glyphs (always visible on touch screens). */
+/** `.skill-item`: skill glyph, name, then edit / delete glyphs (always visible on touch screens). */
 @Composable
-private fun GemRow(gem: Gem, colors: SidebarColors, actions: SidebarActions) {
+private fun SkillRow(skill: Skill, colors: SidebarColors, actions: SidebarActions) {
     val web = LocalWebPalette.current
     val shape = RoundedCornerShape(12.dp)
     Row(
@@ -408,23 +408,23 @@ private fun GemRow(gem: Gem, colors: SidebarColors, actions: SidebarActions) {
             .fillMaxWidth()
             .padding(top = 4.dp)
             .clip(shape)
-            .background(colors.gemBackground)
+            .background(colors.skillBackground)
             .border(1.dp, colors.rule, shape)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                actions.onChooseGem(gem)
+                actions.onChooseSkill(skill)
             }
             .padding(horizontal = 8.dp, vertical = 5.6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        FaIcon(R.drawable.fa_solid_gem, null, size = 14.dp, tint = web.theme300)
+        FaIcon(R.drawable.fa_solid_wand_magic_sparkles, null, size = 14.dp, tint = web.theme300)
         Spacer(Modifier.width(8.dp))
-        Text(gem.name, color = colors.gemText, fontSize = 14.sp, lineHeight = 20.sp, maxLines = 1,
+        Text(skill.name, color = colors.skillText, fontSize = 14.sp, lineHeight = 20.sp, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        RowGlyphButton(R.drawable.fa_solid_pencil_alt, "Gemを編集", 10.dp, colors.gemAction, horizontal = 8.dp) {
-            actions.onEditGem(gem)
+        RowGlyphButton(R.drawable.fa_solid_pencil_alt, "Skillを編集", 10.dp, colors.skillAction, horizontal = 8.dp) {
+            actions.onEditSkill(skill)
         }
         Spacer(Modifier.width(4.dp))
-        RowGlyphButton(R.drawable.fa_solid_trash, "Gemを削除", 10.dp, colors.gemAction, horizontal = 8.dp) { actions.onDeleteGem(gem) }
+        RowGlyphButton(R.drawable.fa_solid_trash, "Skillを削除", 10.dp, colors.skillAction, horizontal = 8.dp) { actions.onDeleteSkill(skill) }
     }
 }
 

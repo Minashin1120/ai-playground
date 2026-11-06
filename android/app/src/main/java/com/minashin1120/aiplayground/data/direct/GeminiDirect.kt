@@ -55,62 +55,93 @@ class GeminiDirect(
             ?: "$baseUrl/v1beta/models/${URLEncoder.encode(model, "UTF-8")}:streamGenerateContent?alt=sse"
         val headers = if (vertex != null) mapOf("Authorization" to "Bearer ${vertex.token()}") else mapOf("x-goog-api-key" to request.apiKey)
         val requestStarted = System.currentTimeMillis()
-        // Code execution can return a base64 image larger than an ordinary text delta.
-        http.postSse(url, headers, payload, maxLine = 32L * 1024 * 1024) { sse ->
-            if (chunks++ == 0) Diagnostics.log("gemini.first_chunk", "ms" to System.currentTimeMillis() - requestStarted)
-            if (sse.data.isBlank() || sse.data == "[DONE]") return@postSse true
-            val chunk = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true
-            chunk.optJSONObject("error")?.let { throw DirectApiException(it.optInt("code"), it.optString("message").ifBlank { "Gemini API error" }) }
-            chunk.optJSONObject("usageMetadata")?.let { usage = it }
-            val candidates = chunk.optJSONArray("candidates") ?: JSONArray()
-            for (c in 0 until candidates.length()) {
-                val candidate = candidates.optJSONObject(c) ?: continue
-                if (candidate.has("groundingMetadata") && !searching) {
-                    searching = true
-                    emit(event("search_status", "searching"))
-                }
-                grounding.collect(candidate)
-                val parts = candidate.optJSONObject("content")?.optJSONArray("parts") ?: continue
-                for (p in 0 until parts.length()) {
-                    val part = parts.optJSONObject(p) ?: continue
-                    part.optString("thoughtSignature").takeIf { it.isNotBlank() && it !in signatures }?.let { signatures += it }
-                    part.optJSONObject("executableCode")?.let { code ->
-                        pythonId = "py_${System.nanoTime()}"
-                        pythonCode = code.optString("code")
-                        content.append("\n```python\n").append(pythonCode).append("\n```\n")
-                        emit(event("python", JSONObject().put("id", pythonId).put("code", pythonCode)))
+        val skills = request.options.optJSONArray("skills")
+        val contents = payload.optJSONArray("contents") ?: JSONArray()
+        var activePayload = payload
+        var round = 0
+        while (true) {
+            val skillCalls = mutableListOf<JSONObject>()
+            // Code execution can return a base64 image larger than an ordinary text delta.
+            http.postSse(url, headers, activePayload, maxLine = 32L * 1024 * 1024) { sse ->
+                if (chunks++ == 0) Diagnostics.log("gemini.first_chunk", "ms" to System.currentTimeMillis() - requestStarted)
+                if (sse.data.isBlank() || sse.data == "[DONE]") return@postSse true
+                val chunk = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true
+                chunk.optJSONObject("error")?.let { throw DirectApiException(it.optInt("code"), it.optString("message").ifBlank { "Gemini API error" }) }
+                chunk.optJSONObject("usageMetadata")?.let { usage = it }
+                val candidates = chunk.optJSONArray("candidates") ?: JSONArray()
+                for (c in 0 until candidates.length()) {
+                    val candidate = candidates.optJSONObject(c) ?: continue
+                    if (candidate.has("groundingMetadata") && !searching) {
+                        searching = true
+                        emit(event("search_status", "searching"))
                     }
-                    part.optJSONObject("codeExecutionResult")?.let { result ->
-                        val output = result.optString("output")
-                        content.append("\n**Output:**\n```\n").append(output).append("\n```\n")
-                        content.append(com.minashin1120.aiplayground.data.pythonExecutionMarkdown(
-                            com.minashin1120.aiplayground.data.PythonExecution(pythonCode, output)))
-                        emit(event("python", JSONObject().put("id", pythonId ?: "py_${System.nanoTime()}").put("code", pythonCode).put("output", output)))
-                    }
-                    part.optJSONObject("inlineData")?.let { data ->
-                        val mime = data.optString("mimeType").ifBlank { "image/png" }
-                        val bytes = runCatching { Base64.getDecoder().decode(data.optString("data")) }.getOrNull()
-                        if (bytes != null && bytes.isNotEmpty() && (!part.optBoolean("thought") || pythonId != null)) {
-                            val file = DirectOutputFile("gemini_${System.nanoTime()}.${extensionFor(mime)}", mime, bytes)
-                            streamedImages++
-                            val saved = request.saveOutput?.invoke(file)
-                            if (saved == null) files += file
-                            else {
-                                val markdown = "\n![Agentic View]($saved)\n"
-                                content.append(markdown)
-                                emit(event("content", markdown))
+                    grounding.collect(candidate)
+                    val parts = candidate.optJSONObject("content")?.optJSONArray("parts") ?: continue
+                    for (p in 0 until parts.length()) {
+                        val part = parts.optJSONObject(p) ?: continue
+                        part.optString("thoughtSignature").takeIf { it.isNotBlank() && it !in signatures }?.let { signatures += it }
+                        part.optJSONObject("functionCall")?.let { call ->
+                            val name = call.optString("name")
+                            if (name == SkillTool.NAME && skills != null && skills.length() > 0) {
+                                skillCalls += JSONObject().put("name", name)
+                                    .put("args", call.optJSONObject("args") ?: JSONObject())
                             }
                         }
-                    }
-                    val text = part.optString("text")
-                    if (text.isNotEmpty()) {
-                        if (part.optBoolean("thought")) { thought.append(text); emit(event("thought", text)) }
-                        else { content.append(text); modelText.append(text); emit(event("content", text)) }
+                        part.optJSONObject("executableCode")?.let { code ->
+                            pythonId = "py_${System.nanoTime()}"
+                            pythonCode = code.optString("code")
+                            content.append("\n```python\n").append(pythonCode).append("\n```\n")
+                            emit(event("python", JSONObject().put("id", pythonId).put("code", pythonCode)))
+                        }
+                        part.optJSONObject("codeExecutionResult")?.let { result ->
+                            val output = result.optString("output")
+                            content.append("\n**Output:**\n```\n").append(output).append("\n```\n")
+                            content.append(com.minashin1120.aiplayground.data.pythonExecutionMarkdown(
+                                com.minashin1120.aiplayground.data.PythonExecution(pythonCode, output)))
+                            emit(event("python", JSONObject().put("id", pythonId ?: "py_${System.nanoTime()}").put("code", pythonCode).put("output", output)))
+                        }
+                        part.optJSONObject("inlineData")?.let { data ->
+                            val mime = data.optString("mimeType").ifBlank { "image/png" }
+                            val bytes = runCatching { Base64.getDecoder().decode(data.optString("data")) }.getOrNull()
+                            if (bytes != null && bytes.isNotEmpty() && (!part.optBoolean("thought") || pythonId != null)) {
+                                val file = DirectOutputFile("gemini_${System.nanoTime()}.${extensionFor(mime)}", mime, bytes)
+                                streamedImages++
+                                val saved = request.saveOutput?.invoke(file)
+                                if (saved == null) files += file
+                                else {
+                                    val markdown = "\n![Agentic View]($saved)\n"
+                                    content.append(markdown)
+                                    emit(event("content", markdown))
+                                }
+                            }
+                        }
+                        val text = part.optString("text")
+                        if (text.isNotEmpty()) {
+                            if (part.optBoolean("thought")) { thought.append(text); emit(event("thought", text)) }
+                            else { content.append(text); modelText.append(text); emit(event("content", text)) }
+                        }
                     }
                 }
+                onProgress(content.toString(), thought.toString())
+                true
             }
-            onProgress(content.toString(), thought.toString())
-            true
+            if (skillCalls.isEmpty() || round >= 3) break
+            round++
+            val modelParts = JSONArray()
+            skillCalls.forEach { call ->
+                modelParts.put(JSONObject().put("functionCall", JSONObject()
+                    .put("name", call.optString("name")).put("args", call.optJSONObject("args") ?: JSONObject())))
+            }
+            contents.put(JSONObject().put("role", "model").put("parts", modelParts))
+            val responseParts = JSONArray()
+            skillCalls.forEach { call ->
+                val skillName = call.optJSONObject("args")?.optString("name").orEmpty()
+                responseParts.put(JSONObject().put("functionResponse", JSONObject()
+                    .put("name", SkillTool.NAME)
+                    .put("response", JSONObject().put("response", SkillTool.execute(skills, skillName)))))
+            }
+            contents.put(JSONObject().put("role", "user").put("parts", responseParts))
+            activePayload = JSONObject(payload.toString()).put("contents", contents)
         }
         Diagnostics.log("gemini.stream_end", "chunks" to chunks, "content_chars" to content.length,
             "ms" to System.currentTimeMillis() - requestStarted)
@@ -347,6 +378,10 @@ class GeminiDirect(
             if (options.flag("enable_maps")) tools.put(JSONObject().put("google_maps", JSONObject()))
             val hasNonImage = request.turns.lastOrNull()?.attachments?.any { !it.mime.startsWith("image/") && it.bytes != null } == true
             if (options.flag("enable_python") && !hasNonImage) tools.put(JSONObject().put("codeExecution", JSONObject()))
+        }
+        val skills = options.optJSONArray("skills")
+        if (!isImageModel(model) && skills != null && skills.length() > 0) {
+            tools.put(JSONObject().put("functionDeclarations", JSONArray().put(SkillTool.geminiDeclaration())))
         }
         if (tools.length() > 0) payload.put("tools", tools)
         safetySettings(options.optString("safety_setting"))?.let { payload.put("safetySettings", it) }

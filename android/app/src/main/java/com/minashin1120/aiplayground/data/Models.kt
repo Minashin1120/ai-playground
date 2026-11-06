@@ -17,10 +17,10 @@ data class ThreadItem(
 data class ChatMessage(val id: String, val role: String, val content: String,
                        val thought: String = "", val files: List<String> = emptyList(),
                        val parentId: Int? = null, val model: String = "",
-                       /** Web message meta: token counts, encryption, quote and Gem shown in the bubble footer. */
+                       /** Web message meta: token counts, encryption, quote and Skill shown in the bubble footer. */
                        val tokens: Int? = null, val tokensIn: Int? = null, val tokensOut: Int? = null,
                        val tokensContent: Int? = null, val tokensThought: Int? = null,
-                       val encrypted: Boolean? = null, val quote: String = "", val gemName: String = "",
+                       val encrypted: Boolean? = null, val quote: String = "", val skillName: String = "",
                        /** Web `batch_job`: shown as the Batch card above the answer. */
                        val batch: BatchInfo? = null,
                        /** `created_at` (UTC ISO), shown as 作成 in the branch manager. */
@@ -91,31 +91,13 @@ data class LibraryFile(
     val isImage: Boolean get() = type == "image" || thumbnailUrl.isNotBlank()
 }
 
-data class FixedPrompt(val name: String, val content: String)
-
 data class CodingTarget(val id: String, val code: String, val language: String, val messageId: String)
 
-fun parseFixedPrompts(value: Any?): List<FixedPrompt> {
-    val rows = when (value) {
-        is JSONArray -> value
-        is String -> runCatching { JSONArray(value) }.getOrNull()
-        else -> null
-    } ?: return emptyList()
-    return (0 until rows.length()).mapNotNull { index ->
-        val row = rows.optJSONObject(index) ?: return@mapNotNull null
-        val name = row.nullableString("name").trim()
-        val content = row.nullableString("content").trim()
-        if (name.isBlank() || content.isBlank()) null else FixedPrompt(name, content)
-    }
-}
-
-data class Gem(
+data class Skill(
     val uuid: String,
     val name: String,
     val description: String,
     val instruction: String,
-    val defaultModel: String,
-    val fixedPrompts: List<FixedPrompt> = emptyList(),
 )
 
 data class Preferences(
@@ -399,6 +381,7 @@ val AUTO_SYSTEM_PROMPT_ITEMS = listOf(
     Triple("mathjax", "MathJax（LaTeX数式）", ""),
     Triple("image_analysis", "画像解析（Vision Model指示文）", ""),
     Triple("mcp", "MCP（外部ツール接続）", "利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）"),
+    Triple("skills", "Skills（保存した指示の利用）", "利用可能変数: {{skills}} / {{skill_count}}"),
 )
 
 fun parseAutoSystemPrompts(json: JSONObject): List<AutoSystemPrompt> = AUTO_SYSTEM_PROMPT_ITEMS.map { (key, label, hint) ->
@@ -504,23 +487,21 @@ fun parseLibraryFiles(json: JSONObject): List<LibraryFile> {
     }
 }
 
-fun parseGems(rows: JSONArray): List<Gem> = (0 until rows.length()).map { index ->
+fun parseSkills(rows: JSONArray): List<Skill> = (0 until rows.length()).map { index ->
     val row = rows.getJSONObject(index)
-    Gem(
+    Skill(
         uuid = row.nullableString("uuid"),
-        name = row.nullableString("name").ifBlank { "Gem" },
+        name = row.nullableString("name").ifBlank { "Skill" },
         description = row.nullableString("description"),
         instruction = row.nullableString("instruction"),
-        defaultModel = row.nullableString("default_model"),
-        fixedPrompts = parseFixedPrompts(row.opt("fixed_prompts")),
     )
 }
 
-/** Web: the Gem candidates show while the whole (trimmed) input starts with `@`; the rest is the filter. */
-fun gemMentionQuery(text: String): String? = text.trim().takeIf { it.startsWith("@") }?.substring(1)
+/** Web: the Skill candidates show while the whole (trimmed) input starts with `@`; the rest is the filter. */
+fun skillMentionQuery(text: String): String? = text.trim().takeIf { it.startsWith("@") }?.substring(1)
 
-/** Web `selectGemSuggestion`: the input keeps only the text before its last `@`. */
-fun replaceGemMention(text: String): String = text.substringBeforeLast('@', "").trimEnd()
+/** Web `selectSkillSuggestion`: the input keeps only the text before its last `@`. */
+fun replaceSkillMention(text: String): String = text.substringBeforeLast('@', "").trimEnd()
 
 /** Live-only progress cards for streamed search and tool execution. */
 enum class CardKind { PYTHON, MCP, CODING, TOOL }
@@ -632,7 +613,8 @@ fun parseMessages(json: JSONObject): List<ChatMessage> {
             tokensOut = row.nullableInt("tokens_out"), tokensContent = row.nullableInt("tokens_content"),
             tokensThought = row.nullableInt("tokens_thought"),
             encrypted = if (row.has("is_encrypted") && !row.isNull("is_encrypted")) row.optBoolean("is_encrypted") else null,
-            quote = row.nullableString("quote_text"), gemName = row.nullableString("gem_name"),
+            quote = row.nullableString("quote_text"),
+            skillName = row.nullableString("skill_name").ifBlank { row.nullableString("skill_name") },
             batch = parseBatchInfo(row), createdAt = row.nullableString("created_at"),
             promptOptions = row.optJSONObject("prompt_options"),
             missingFiles = row.optJSONArray("missing_files")?.strings()?.toSet() ?: emptySet())

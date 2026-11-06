@@ -738,7 +738,7 @@ class SecurityRegressionTests(unittest.TestCase):
             script = script_file.read()
         template = read_chat_markup()
         self.assertIn('${escapeHtml(t.title || "No Title")}', script)
-        self.assertIn('${escapeHtml(g.name)}', script)
+        self.assertIn('${escapeHtml(skill.name)}', script)
         # Stream/history errors are rendered via buildChatErrorBubbleHtml (escapeHtml).
         self.assertIn("function buildChatErrorBubbleHtml(errorText)", script)
         self.assertIn("Error: ${escapeHtml(msg)}", script)
@@ -1025,8 +1025,8 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn('id="admin-enc-card"', html)
         self.assertNotIn("admin-enc-username", html)
 
-    def test_frontend_escapes_gem_suggestions_and_branch_tree(self):
-        # V4.8.799: Gem候補ドロップダウンとブランチツリー表示は、保存値を
+    def test_frontend_escapes_skill_suggestions_and_branch_tree(self):
+        # V4.8.799: Skill候補ドロップダウンとブランチツリー表示は、保存値を
         # escapeHtml に通してから innerHTML へ埋め込む必要がある。
         root = os.path.dirname(os.path.dirname(__file__))
         version = target.app.config["SYSTEM_VERSION"].lower()
@@ -1034,9 +1034,9 @@ class SecurityRegressionTests(unittest.TestCase):
         with open(script_path, encoding="utf-8") as script_file:
             script = script_file.read()
 
-        suggestions = script[script.index("function showGemSuggestions"):]
-        self.assertIn("${escapeHtml(gem.name)}", suggestions)
-        self.assertIn("${escapeHtml(gem.description)}", suggestions)
+        suggestions = script[script.index("function showSkillSuggestions"):]
+        self.assertIn("${escapeHtml(skill.name)}", suggestions)
+        self.assertIn("${escapeHtml(skill.description)}", suggestions)
 
         branch = script[script.index("function renderBranchTreeVisualization"):]
         self.assertIn("${escapeHtml(name)}", branch)

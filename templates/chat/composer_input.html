@@ -1,8 +1,7 @@
                 <div id="input-container" class="relative">
-                <div id="fixed-prompts-bar" class="hidden mb-2 flex gap-2 overflow-x-auto no-scrollbar select-none bg-transparent pb-1"></div>
-                <div id="gem-active-indicator" class="hidden mb-2 p-2 bg-blue-900/40 text-blue-200 text-xs rounded-lg border border-blue-700/50 flex items-center gap-2 fade-in animate-fadeIn">
-                    <i class="fas fa-gem"></i> Using Gem: <span id="active-gem-name" class="font-bold"></span>
-                    <button onclick="clearActiveGem()" class="ml-auto hover:text-white px-2">×</button>
+                <div id="skill-active-indicator" class="hidden mb-2 p-2 bg-blue-900/40 text-blue-200 text-xs rounded-lg border border-blue-700/50 flex items-center gap-2 fade-in animate-fadeIn">
+                    <i class="fas fa-wand-magic-sparkles"></i> Using Skill: <span id="active-skill-name" class="font-bold"></span>
+                    <button onclick="clearActiveSkill()" class="ml-auto hover:text-white px-2">×</button>
                 </div>
 
                 <!-- Slash command pending indicator (shows when a /command has been selected) -->
@@ -28,12 +27,12 @@
                     <div id="slash-command-list" class="overflow-y-auto py-1" style="max-height: 260px;"></div>
                 </div>
 
-                <!-- Gem suggestions (triggered by @) -->
-                <div id="gem-suggestions" class="hidden fixed z-[80] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl overflow-hidden text-sm min-w-[200px] max-w-[320px]">
+                <!-- Skill suggestions (triggered by @) -->
+                <div id="skill-suggestions" class="hidden fixed z-[80] bg-gray-800 border border-gray-700 rounded-lg shadow-2xl overflow-hidden text-sm min-w-[200px] max-w-[320px]">
                     <div class="px-3 py-1.5 text-[10px] text-gray-500 border-b border-gray-700 flex items-center gap-2">
-                        <span>Gem</span>
+                        <span>Skill</span>
                         <span class="ml-auto text-gray-400">↑↓ 選択 / Enter 確定 / Esc 閉じる</span>
                     </div>
-                    <div id="gem-suggestions-list" class="overflow-y-auto py-1" style="max-height: 260px;"></div>
+                    <div id="skill-suggestions-list" class="overflow-y-auto py-1" style="max-height: 260px;"></div>
                 </div>
             </div>

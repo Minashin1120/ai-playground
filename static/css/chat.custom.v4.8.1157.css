@@ -628,7 +628,7 @@
         .ctrl-btn:hover { background: rgba(var(--theme-rgb),0.18); color: #e2e8f0; }
         
         .welcome-btn { width: 100%; text-align: left; border: 1px solid var(--line); background: rgba(0,0,0,0.3); }
-        .gem-item.active { background-color: rgba(var(--theme-rgb),0.18); border-left: 3px solid var(--accent); }
+        .skill-item.active { background-color: rgba(var(--theme-rgb),0.18); border-left: 3px solid var(--accent); }
         .theme-swatch { width: 22px; height: 22px; border-radius: 999px; border: 2px solid rgba(148,163,184,0.4); cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease; }
         .theme-swatch:hover { transform: translateY(-1px); box-shadow: 0 0 0 2px rgba(var(--theme-rgb),0.35); }
         .theme-swatch.active { box-shadow: 0 0 0 2px rgba(var(--theme-rgb),0.6); border-color: rgba(255,255,255,0.6); }
@@ -2119,7 +2119,7 @@
             transition: transform 0.38s var(--ease-out), opacity 0.3s var(--ease-standard), background-color 0.3s var(--ease-standard), width 0.34s var(--ease-out);
         }
         #chat-container { background: radial-gradient(820px 420px at 50% 0%, rgba(var(--theme-rgb),0.055), transparent 62%); }
-        #settings-modal > div, #model-modal > div, #gem-modal > div { border: 1px solid var(--line-soft); box-shadow: var(--shadow); border-radius: var(--radius-lg); background: var(--panel-elevated); backdrop-filter: blur(var(--blur-modal)) saturate(180%); -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(180%); }
+        #settings-modal > div, #model-modal > div, #skill-modal > div { border: 1px solid var(--line-soft); box-shadow: var(--shadow); border-radius: var(--radius-lg); background: var(--panel-elevated); backdrop-filter: blur(var(--blur-modal)) saturate(180%); -webkit-backdrop-filter: blur(var(--blur-modal)) saturate(180%); }
         #prompt-input { background: transparent; border: none; border-radius: var(--radius-md); transition: height 0.1s; box-shadow: none; }
         #prompt-input:focus { box-shadow: none; border-color: transparent; outline: none; }
         #send-btn { box-shadow: var(--shadow-glow); border: 1px solid rgba(var(--theme-rgb),0.35); background: linear-gradient(135deg, var(--theme-500), var(--theme-600)); }
@@ -2127,7 +2127,7 @@
         #sts-mic-btn { box-shadow: 0 16px 30px rgba(var(--theme-rgb),0.18); border: 1px solid rgba(var(--theme-rgb),0.3); }
         #sts-mic-btn.animate-pulse { box-shadow: 0 0 0 6px rgba(249,112,141,0.15), 0 16px 30px rgba(249,112,141,0.2); }
         #upload-btn, #mic-btn { border: 1px solid var(--line); }
-        #send-btn, #new-chat-btn, #upload-select-btn, #save-gem-btn, #save-settings-btn,
+        #send-btn, #new-chat-btn, #upload-select-btn, #save-skill-btn, #save-settings-btn,
         #fb-submit, #session-refresh-btn, #session-revoke-others-btn, #session-revoke-all-btn,
         #bot-unban-btn, #bot-admin-open, #easy-login-generate, #easy-login-cancel, #lib-del-btn, #lib-rename-btn,
         #auto-search-on-btn, #auto-search-off-btn, #sts-cancel-btn, #upload-clear-btn {
@@ -2136,7 +2136,7 @@
             box-shadow: 0 12px 24px rgba(2,6,23,0.4);
             transition: transform 0.26s var(--ease-out), box-shadow 0.26s var(--ease-standard), filter 0.2s var(--ease-standard), background 0.26s var(--ease-standard), border-color 0.26s var(--ease-standard), color 0.2s var(--ease-standard);
         }
-        #new-chat-btn, #send-btn, #upload-select-btn, #save-gem-btn, #save-settings-btn, #fb-submit {
+        #new-chat-btn, #send-btn, #upload-select-btn, #save-skill-btn, #save-settings-btn, #fb-submit {
             background: linear-gradient(135deg, var(--theme-500), var(--theme-600)) !important;
             color: #031413 !important;
             border-color: rgba(var(--theme-rgb),0.4);
@@ -2177,9 +2177,9 @@
         #thread-list > div { border: 1px solid transparent; border-radius: var(--radius-sm); transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease; }
         #thread-list > div:hover { border-color: rgba(var(--theme-rgb),0.28); background: rgba(12, 20, 42, 0.8); box-shadow: inset 0 0 0 1px rgba(var(--theme-rgb), 0.06); }
 
-        /* Pull-to-refresh indicators for the chat history and Gems lists */
+        /* Pull-to-refresh indicators for the chat history and Skills lists */
         #thread-list,
-        #gem-list { overscroll-behavior-y: contain; }
+        #skill-list { overscroll-behavior-y: contain; }
         .ptr-pull-indicator {
             display: flex;
             align-items: center;
@@ -2214,8 +2214,8 @@
             .ptr-pull-indicator { transition: none; }
             .ptr-pull-indicator .ptr-pull-icon { transition: none; }
         }
-        #gem-list .gem-item { border: 1px solid var(--line-soft); background: rgba(10, 16, 30, 0.65); border-radius: var(--radius-sm); }
-        #gem-list .gem-item:hover { background: rgba(var(--theme-rgb),0.12); border-color: rgba(var(--theme-rgb), 0.25); }
+        #skill-list .skill-item { border: 1px solid var(--line-soft); background: rgba(10, 16, 30, 0.65); border-radius: var(--radius-sm); }
+        #skill-list .skill-item:hover { background: rgba(var(--theme-rgb),0.12); border-color: rgba(var(--theme-rgb), 0.25); }
         #model-selector-btn { border: 1px solid var(--line-soft); background: rgba(10, 16, 30, 0.55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03); border-radius: var(--radius-sm); }
         #prompt-controls-row.compact-collapsed { justify-content: center; }
         #prompt-controls-row.compact-collapsed #prompt-primary-controls { margin-inline: auto; }
@@ -2370,7 +2370,7 @@
         #settings-modal input, #settings-modal textarea, #settings-modal select { background: rgba(8, 14, 26, 0.8); border: 1px solid var(--line); }
         #settings-modal input:focus, #settings-modal textarea:focus, #settings-modal select:focus { box-shadow: 0 0 0 2px rgba(var(--theme-rgb),0.18); outline: none; }
         #settings-modal #settings-search { padding-left: 36px; padding-right: 36px; }
-        #model-modal input, #gem-modal input, #gem-modal textarea { background: rgba(8, 14, 26, 0.8); border: 1px solid var(--line); }
+        #model-modal input, #skill-modal input, #skill-modal textarea { background: rgba(8, 14, 26, 0.8); border: 1px solid var(--line); }
         .text-blue-200 { color: var(--theme-200) !important; }
         .text-blue-300, .text-blue-400 { color: var(--theme-300) !important; }
         .text-blue-500 { color: var(--theme-500) !important; }
@@ -2393,7 +2393,7 @@
         .message-bubble { transition: transform var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-standard); }
         .message-bubble:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(0,0,0,0.26); }
         #thread-list > div { transition: transform var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard); }
-        #gem-list .gem-item { transition: transform var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard); }
+        #skill-list .skill-item { transition: transform var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard); }
         .model-tag-btn { transition: transform var(--dur-fast) var(--ease-out), background var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard); }
         .model-tag-btn:hover { transform: translateY(-1px); }
         ::-webkit-scrollbar { height: 10px; width: 10px; }
@@ -2855,7 +2855,7 @@ body.liquid-glass-mode .modal-panel,
 body.liquid-glass-mode .modal-glass-panel,
 body.liquid-glass-mode #settings-modal > div,
 body.liquid-glass-mode #model-modal > div,
-body.liquid-glass-mode #gem-modal > div {
+body.liquid-glass-mode #skill-modal > div {
     --glass-fill-top: rgba(255,255,255,0.29);
     --glass-fill-middle: rgba(60,83,116,0.2);
     --glass-fill-bottom: rgba(5,12,24,0.68);
@@ -3974,31 +3974,31 @@ input[type="checkbox"]::after {
     animation: uiEnterUp 0.28s var(--ease-out) both;
 }
 
-/* Slash / Gem suggestion popovers */
+/* Slash / Skill suggestion popovers */
 #slash-command-suggestions:not(.hidden),
-#gem-suggestions:not(.hidden) {
+#skill-suggestions:not(.hidden) {
     animation: uiEnterScale 0.24s var(--ease-out) both;
     transform-origin: bottom left;
     will-change: transform, opacity;
 }
 #slash-command-list > div,
-#gem-suggestions-list > div {
+#skill-suggestions-list > div {
     animation: uiEnterLeft 0.22s var(--ease-out) both;
 }
 #slash-command-list > div:nth-child(1),
-#gem-suggestions-list > div:nth-child(1) { animation-delay: 0.01s; }
+#skill-suggestions-list > div:nth-child(1) { animation-delay: 0.01s; }
 #slash-command-list > div:nth-child(2),
-#gem-suggestions-list > div:nth-child(2) { animation-delay: 0.03s; }
+#skill-suggestions-list > div:nth-child(2) { animation-delay: 0.03s; }
 #slash-command-list > div:nth-child(3),
-#gem-suggestions-list > div:nth-child(3) { animation-delay: 0.05s; }
+#skill-suggestions-list > div:nth-child(3) { animation-delay: 0.05s; }
 #slash-command-list > div:nth-child(4),
-#gem-suggestions-list > div:nth-child(4) { animation-delay: 0.07s; }
+#skill-suggestions-list > div:nth-child(4) { animation-delay: 0.07s; }
 #slash-command-list > div:nth-child(5),
-#gem-suggestions-list > div:nth-child(5) { animation-delay: 0.09s; }
+#skill-suggestions-list > div:nth-child(5) { animation-delay: 0.09s; }
 #slash-command-list > div:nth-child(6),
-#gem-suggestions-list > div:nth-child(6) { animation-delay: 0.11s; }
+#skill-suggestions-list > div:nth-child(6) { animation-delay: 0.11s; }
 #slash-command-list > div:nth-child(n+7),
-#gem-suggestions-list > div:nth-child(n+7) { animation-delay: 0.13s; }
+#skill-suggestions-list > div:nth-child(n+7) { animation-delay: 0.13s; }
 
 /* Drop overlay */
 #drop-overlay {
@@ -4027,16 +4027,9 @@ input[type="checkbox"]::after {
 #low-bandwidth-status-pill:not(.hidden) {
     animation: uiEnterUp 0.26s var(--ease-out) both;
 }
-#gem-active-indicator:not(.hidden),
+#skill-active-indicator:not(.hidden),
 #slash-command-indicator:not(.hidden) {
     animation: uiEnterUp 0.28s var(--ease-out) both !important;
-}
-#fixed-prompts-bar:not(.hidden) {
-    animation: uiEnterUp 0.26s var(--ease-out) both;
-}
-#fixed-prompts-bar button,
-#fixed-prompts-bar .fixed-prompt-chip {
-    animation: tagPopIn 0.26s var(--ease-out) both;
 }
 
 /* Edit bar re-trigger on show */
@@ -4066,11 +4059,11 @@ input[type="checkbox"]::after {
 #session-list > div:nth-child(5) { animation-delay: 0.14s; }
 #session-list > div:nth-child(n+6) { animation-delay: 0.16s; }
 
-/* Thread/gem list already use model-list-animate; ensure list items soft hover lift */
+/* Thread/skill list already use model-list-animate; ensure list items soft hover lift */
 #thread-list > div:hover {
     transform: translateY(-1px);
 }
-#gem-list .gem-item:hover {
+#skill-list .skill-item:hover {
     transform: translateY(-1px);
 }
 
@@ -4155,15 +4148,14 @@ input[type="checkbox"]::after {
     #coding-target-bar.visible,
     #quote-popover.show,
     #slash-command-suggestions:not(.hidden),
-    #gem-suggestions:not(.hidden),
+    #skill-suggestions:not(.hidden),
     #slash-command-list > div,
-    #gem-suggestions-list > div,
+    #skill-suggestions-list > div,
     #file-preview:not(.hidden),
     #total-token-bar:not(.hidden),
     #low-bandwidth-status-pill:not(.hidden),
-    #gem-active-indicator:not(.hidden),
+    #skill-active-indicator:not(.hidden),
     #slash-command-indicator:not(.hidden),
-    #fixed-prompts-bar:not(.hidden),
     #edit-bar:not(.hidden),
     #sts-panel:not(.hidden),
     .upload-row,
@@ -4263,7 +4255,7 @@ body.liquid-glass-mode .modal-panel,
 body.liquid-glass-mode .modal-glass-panel,
 body.liquid-glass-mode #settings-modal > div,
 body.liquid-glass-mode #model-modal > div,
-body.liquid-glass-mode #gem-modal > div {
+body.liquid-glass-mode #skill-modal > div {
     background: linear-gradient(145deg, rgba(255,255,255,0.13), rgba(10,20,40,0.58)) !important;
     border: 1px solid rgba(255,255,255,0.2) !important;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.24), inset 0 -1px 0 rgba(255,255,255,0.05), 0 28px 80px rgba(0,0,0,0.44) !important;
@@ -4421,7 +4413,7 @@ body.liquid-glass-mode .modal-panel,
 body.liquid-glass-mode .modal-glass-panel,
 body.liquid-glass-mode #settings-modal > div,
 body.liquid-glass-mode #model-modal > div,
-body.liquid-glass-mode #gem-modal > div {
+body.liquid-glass-mode #skill-modal > div {
     border-radius: 32px !important;
     --glass-fill-top: rgba(255,255,255,0.17);
     --glass-fill-bottom: rgba(10,19,37,0.62);
@@ -4469,7 +4461,7 @@ body.liquid-glass-mode #settings-modal .settings-footer {
     -webkit-backdrop-filter: none;
 }
 body.liquid-glass-mode #slash-command-list,
-body.liquid-glass-mode #gem-suggestions > div:last-child {
+body.liquid-glass-mode #skill-suggestions > div:last-child {
     background: transparent !important;
     border-color: transparent !important;
     box-shadow: none !important;
@@ -4512,7 +4504,7 @@ body.liquid-glass-mode #prompt-controls-toggle-btn {
 body.liquid-glass-mode #send-btn,
 body.liquid-glass-mode #new-chat-btn,
 body.liquid-glass-mode #save-settings-btn,
-body.liquid-glass-mode #save-gem-btn,
+body.liquid-glass-mode #save-skill-btn,
 body.liquid-glass-mode #upload-select-btn {
     background:
         radial-gradient(circle at 34% 18%, rgba(255,255,255,0.42), transparent 32%),
@@ -4614,7 +4606,7 @@ body.liquid-glass-mode #sidebar a:active {
     body.liquid-glass-mode .modal-glass-panel,
     body.liquid-glass-mode #settings-modal > div,
     body.liquid-glass-mode #model-modal > div,
-    body.liquid-glass-mode #gem-modal > div {
+    body.liquid-glass-mode #skill-modal > div {
         border-radius: 16px !important;
     }
 }
@@ -4650,7 +4642,7 @@ body.liquid-glass-mode .modal-panel,
 body.liquid-glass-mode .modal-glass-panel,
 body.liquid-glass-mode #settings-modal > div,
 body.liquid-glass-mode #model-modal > div,
-body.liquid-glass-mode #gem-modal > div {
+body.liquid-glass-mode #skill-modal > div {
     --glass-fill-top: rgba(255,255,255,0.29);
     --glass-fill-middle: rgba(60,83,116,0.2);
     --glass-fill-bottom: rgba(5,12,24,0.68);
@@ -4746,7 +4738,7 @@ body.liquid-glass-mode .modal-panel,
 body.liquid-glass-mode .modal-glass-panel,
 body.liquid-glass-mode #settings-modal > div,
 body.liquid-glass-mode #model-modal > div,
-body.liquid-glass-mode #gem-modal > div {
+body.liquid-glass-mode #skill-modal > div {
     --glass-fill-top: rgba(255,255,255,0.22);
     --glass-fill-middle: rgba(55,76,105,0.15);
     --glass-fill-bottom: rgba(5,12,24,0.58);
@@ -4806,7 +4798,7 @@ body.liquid-glass-mode .modal-panel,
 body.liquid-glass-mode .modal-glass-panel,
 body.liquid-glass-mode #settings-modal > div,
 body.liquid-glass-mode #model-modal > div,
-body.liquid-glass-mode #gem-modal > div {
+body.liquid-glass-mode #skill-modal > div {
     backdrop-filter: blur(22px) saturate(170%) contrast(1.03) !important;
     -webkit-backdrop-filter: blur(22px) saturate(170%) contrast(1.03) !important;
 }
@@ -4973,10 +4965,10 @@ html.performance-lite-mode body:not(.liquid-glass-mode) .fade-in,
 html.performance-lite-mode body:not(.liquid-glass-mode) .slide-in-animate,
 html.performance-lite-mode body:not(.liquid-glass-mode) .model-list-animate,
 html.performance-lite-mode #thread-list > [data-thread-id],
-html.performance-lite-mode #gem-list > .gem-item,
+html.performance-lite-mode #skill-list > .skill-item,
 html.performance-lite-mode #sidebar:not(.compact) #thread-list,
-html.performance-lite-mode #sidebar:not(.compact) #gem-list,
-html.performance-lite-mode #sidebar:not(.compact) .sidebar-gems {
+html.performance-lite-mode #sidebar:not(.compact) #skill-list,
+html.performance-lite-mode #sidebar:not(.compact) .sidebar-skills {
         opacity: 1 !important;
         transform: none !important;
         visibility: visible !important;
@@ -4984,8 +4976,8 @@ html.performance-lite-mode #sidebar:not(.compact) .sidebar-gems {
 }
 @media (max-width: 768px) {
     html.performance-lite-mode #sidebar #thread-list,
-    html.performance-lite-mode #sidebar #gem-list,
-    html.performance-lite-mode #sidebar .sidebar-gems {
+    html.performance-lite-mode #sidebar #skill-list,
+    html.performance-lite-mode #sidebar .sidebar-skills {
         opacity: 1 !important;
         visibility: visible !important;
         animation: none !important;
@@ -5391,7 +5383,7 @@ body.liquid-glass-mode #top-model-bar {
     background: rgba(14, 22, 44, 0.72) !important;
     border-color: rgba(var(--theme-rgb), 0.22) !important;
 }
-#gem-list .gem-item {
+#skill-list .skill-item {
     border-radius: 10px !important;
     padding: 0.35rem 0.5rem;
 }
@@ -5546,14 +5538,6 @@ body.liquid-glass-mode #top-model-bar {
 .main-chrome-header {
     backdrop-filter: blur(var(--blur-panel)) saturate(160%);
     -webkit-backdrop-filter: blur(var(--blur-panel)) saturate(160%);
-}
-
-/* Fixed prompts chips */
-#fixed-prompts-bar button,
-#fixed-prompts-bar .fixed-prompt-chip {
-    border-radius: 999px !important;
-    font-size: 11px;
-    padding: 0.28rem 0.7rem;
 }
 
 /* Soften oversized shadows on primary chrome buttons inside composer */
@@ -5720,7 +5704,7 @@ body.liquid-glass-mode .composer-tool-btn:hover {
 #thread-list > div:not(.ptr-pull-indicator):not(#scroll-sentinel):hover {
     background: rgba(255, 255, 255, 0.045) !important;
 }
-#gem-list .gem-item {
+#skill-list .skill-item {
     border-radius: 12px !important;
     background: rgba(10, 14, 26, 0.55);
 }
@@ -5782,7 +5766,7 @@ header.bg-gray-800 {
 
 #settings-modal > div,
 #model-modal > div,
-#gem-modal > div {
+#skill-modal > div {
     border-radius: 22px;
     border-color: rgba(255, 255, 255, 0.08);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), var(--shadow);

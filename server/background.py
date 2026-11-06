@@ -903,12 +903,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 thought_payload = json.dumps(thought_metadata, ensure_ascii=False) if thought_metadata else None
                 thought_data = encrypt_val(thought_payload) if is_enc and thought_payload else thought_payload
 
-                gem_uuid_val = options.get("gem_uuid")
-                gem_name_val = None
-                if gem_uuid_val:
-                    gem = Gem.query.filter_by(uuid=gem_uuid_val).first()
-                    if gem:
-                        gem_name_val = gem.name
+                skill_uuid_val = options.get("skill_uuid") or options.get("gem_uuid")
+                skill_name_val = None
+                if skill_uuid_val:
+                    skill = Skill.query.filter_by(uuid=skill_uuid_val).first()
+                    if skill:
+                        skill_name_val = skill.name
+                if not skill_uuid_val and _used_skills:
+                    skill_uuid_val = _used_skills[0].get("uuid")
+                    skill_name_val = _used_skills[0].get("name")
 
                 msg_entry = Message(
                     thread_id=thread_id,
@@ -921,16 +924,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     tokens_thought=usage_ledger.token_totals()['thought_tokens'] or 0,
                     is_encrypted=is_enc,
                     parent_id=message_id,
-                    gem_uuid=gem_uuid_val,
-                    gem_name=gem_name_val,
+                    skill_uuid=skill_uuid_val,
+                    skill_name=skill_name_val,
                 )
                 db.session.add(msg_entry)
                 th = Thread.query.get(thread_id)
                 if th:
                     th.updated_at = datetime.utcnow()
                     th.last_model = model_key
-                    if gem_uuid_val:
-                        th.last_gem_uuid = gem_uuid_val
+                    if skill_uuid_val:
+                        th.last_skill_uuid = skill_uuid_val
                 safe_db_commit()
             except Exception as exc:
                 logger.exception(
@@ -1314,6 +1317,27 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 )
             def _auto_notice_text(notice_key):
                 return get_user_auto_system_prompt_notice_text(user, notice_key, auto_notice_config)
+            # Skill catalog / use_skill tool state.  Filled after the model type
+            # and attachment checks are known; defined here so every later
+            # branch (including stream-error persistence) can reference it.
+            _skills_for_tools = []
+            _used_skills = []
+            _skill_active_uuid = options.get('skill_uuid') or options.get('gem_uuid')
+            _skills_tool_enabled = False
+
+            def _record_skill_meta(meta):
+                if meta.get("ok"):
+                    if not any(item.get("uuid") == meta.get("uuid") for item in _used_skills):
+                        _used_skills.append({"uuid": meta.get("uuid"), "name": meta.get("name")})
+                    log_force(f"Skill tool used: {meta.get('name')}")
+                else:
+                    log_force(f"Skill tool not found: {str(meta.get('name') or '')[:100]}")
+
+            def _execute_skill_tool(skill_name):
+                text, meta = execute_skill_tool(_skills_for_tools, skill_name)
+                _record_skill_meta(meta)
+                return text
+
             def _build_attachment_name_block(names):
                 if not (is_llm_model and _auto_notice_enabled("attachment_names")):
                     return ""
@@ -2240,6 +2264,42 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     curr_p = options.get('system_prompt') or ""
                     if local_py_notice not in str(curr_p):
                         options['system_prompt'] = f"{local_py_notice}\n\n{curr_p}" if str(curr_p).strip() else local_py_notice
+            # Skill catalog: name + short description for tool-capable routes,
+            # with the full instructions embedded where tools cannot run.
+            if is_llm_model and _auto_notice_enabled("skills"):
+                try:
+                    _skills_for_tools = (
+                        Skill.query
+                        .filter_by(user_id=user_id)
+                        .order_by(Skill.name.asc())
+                        .all()
+                    )
+                    if _skills_for_tools:
+                        _skills_tool_enabled = skill_tool_supported(
+                            model_key,
+                            batch_mode=batch_mode,
+                            gemini_local_python=gemini_local_python,
+                        )
+                        _skill_notice = render_skill_notice(
+                            _auto_notice_text("skills"),
+                            _skills_for_tools,
+                            include_instructions=not _skills_tool_enabled,
+                            active_uuid=_skill_active_uuid,
+                        )
+                        if _skill_notice:
+                            _curr_p = options.get('system_prompt') or ""
+                            if "Available skills:" not in str(_curr_p):
+                                options['system_prompt'] = (
+                                    f"{_skill_notice}\n\n{_curr_p}".strip()
+                                    if str(_curr_p).strip() else _skill_notice
+                                )
+                        log_force(
+                            f"Skill catalog injected: count={len(_skills_for_tools)} "
+                            f"tool={_skills_tool_enabled}"
+                        )
+                except Exception as _skill_exc:
+                    log_force(f"Skill prompt inject failed: {_skill_exc}")
+
             if (has_audio and not supports_audio_inputs) or (has_video and not supports_video_inputs):
                 pub("error", "This model does not support audio/video inputs. Please remove them and retry.")
                 return
@@ -3561,7 +3621,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 return _node
 
                             if 'tools' not in conf: conf['tools'] = []
-                            conf['tools'].append(types.Tool(function_declarations=[
+                            _gemini_manual_decls = [
                                 {
                                     "name": create_schema["name"],
                                     "description": create_schema.get("description", ""),
@@ -3572,7 +3632,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                     "description": edit_schema.get("description", ""),
                                     "parameters": _strip_additional_properties(edit_schema.get("parameters", {})),
                                 },
-                            ]))
+                            ]
+                            if _skills_tool_enabled:
+                                _skill_decl = build_skill_tool_definition()
+                                _gemini_manual_decls.append({
+                                    "name": _skill_decl["name"],
+                                    "description": _skill_decl["description"],
+                                    "parameters": _strip_additional_properties(_skill_decl["parameters"]),
+                                })
+                            conf['tools'].append(types.Tool(function_declarations=_gemini_manual_decls))
 
                     # MCP外部ツール（google-genai の Automatic Function Calling 用の
                     # callable として追加。function_declarations は AFC を無効化するため使わない）
@@ -3608,6 +3676,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 log_force(f"Gemini MCP tools attached: {len(_gemini_mcp_callables)}")
                         except Exception as _mcp_e:
                             log_force(f"Gemini MCP tool attach failed: {_mcp_e}")
+                    if _skills_tool_enabled and not _gemini_manual_function_tools:
+                        try:
+                            if 'tools' not in conf: conf['tools'] = []
+                            conf['tools'].append(build_gemini_skill_tool(
+                                _skills_for_tools,
+                                on_result=lambda _text, _meta: _record_skill_meta(_meta),
+                            ))
+                            log_force(f"Gemini skill tool attached: {len(_skills_for_tools)}")
+                        except Exception as _skill_tool_exc:
+                            log_force(f"Gemini skill tool attach failed: {_skill_tool_exc}")
                     # Gemini 3 は、組み込みツール（検索・URL Context・マップ・コード実行）と
                     # 関数ツール（File・MCP）を同時に渡すとき、この指定がないと 400 を返す。
                     # 応答の toolCall / toolResponse パートは、SDK の自動関数呼び出しと
@@ -4458,7 +4536,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         call_name = getattr(function_call, "name", None)
                                         call_args = getattr(function_call, "args", None) or getattr(function_call, "arguments", None) or {}
                                         call_id = getattr(function_call, "id", None)
-                                    if call_name in ("create_file", "edit_file"):
+                                    if call_name in ("create_file", "edit_file") or (
+                                        call_name == SKILL_TOOL_NAME and _skills_tool_enabled
+                                    ):
                                         calls.append((call_name, call_args, call_id))
                             if not calls:
                                 break
@@ -4471,6 +4551,10 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         raise ValueError("function arguments must be an object")
                                     if call_name == "create_file":
                                         result_text = _gemini_create_file_tool(**call_args)
+                                    elif call_name == SKILL_TOOL_NAME:
+                                        result_text = _execute_skill_tool(
+                                            str((call_args or {}).get("name") or "")
+                                        )
                                     else:
                                         result_text = _gemini_edit_file_tool(**call_args)
                                 except Exception as tool_exc:
@@ -5302,11 +5386,18 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             claude_mcp_tools = claude_mcp_env.serialize_anthropic()
                         except Exception:
                             claude_mcp_tools = []
-                    if claude_mcp_tools:
-                        claude_kwargs["tools"] = claude_mcp_tools
-                        log_force(f"Claude MCP tools attached: {len(claude_mcp_tools)}")
+                    claude_skill_tools = (
+                        [build_skill_tool_anthropic()] if _skills_tool_enabled else []
+                    )
+                    claude_tools = list(claude_mcp_tools) + claude_skill_tools
+                    if claude_tools:
+                        claude_kwargs["tools"] = claude_tools
+                        log_force(
+                            f"Claude tools attached: mcp={len(claude_mcp_tools)} "
+                            f"skill={len(claude_skill_tools)}"
+                        )
 
-                    claude_max_rounds = 20 if claude_mcp_tools else 1
+                    claude_max_rounds = 20 if claude_tools else 1
                     for _claude_round in range(claude_max_rounds):
                         _mark_provider_request_started()
                         _stopped_claude = False
@@ -5333,12 +5424,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             if thought_accumulated:
                                 pub("thought_stop", "")
                             final_message = None
-                            if claude_mcp_tools and not _stopped_claude:
+                            if claude_tools and not _stopped_claude:
                                 try:
                                     final_message = stream.get_final_message()
                                 except Exception:
                                     final_message = None
-                        if _stopped_claude or not claude_mcp_tools or final_message is None:
+                        if _stopped_claude or not claude_tools or final_message is None:
                             break
                         stop_reason = getattr(final_message, "stop_reason", None)
                         if stop_reason != "tool_use":
@@ -5365,15 +5456,29 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                         for tu in tool_uses:
                             tu_id = getattr(tu, "id", "") or ""
                             tu_name = getattr(tu, "name", "") or ""
+                            _args_in = getattr(tu, "input", None) or {}
+                            if tu_name == SKILL_TOOL_NAME:
+                                try:
+                                    _skill_text = _execute_skill_tool(str(_args_in.get("name") or ""))
+                                    tool_result_blocks.append({
+                                        "type": "tool_result", "tool_use_id": tu_id,
+                                        "content": _skill_text or "Tool executed.",
+                                    })
+                                except Exception as _te:
+                                    tool_result_blocks.append({
+                                        "type": "tool_result", "tool_use_id": tu_id,
+                                        "content": f"Error executing skill tool: {_te}",
+                                        "is_error": True,
+                                    })
+                                continue
                             if not tu_id or not str(tu_name).startswith("mcp__"):
                                 tool_result_blocks.append({
                                     "type": "tool_result", "tool_use_id": tu_id,
-                                    "content": "Error: unknown MCP tool",
+                                    "content": "Error: unknown tool",
                                     "is_error": True,
                                 })
                                 continue
                             try:
-                                _args_in = getattr(tu, "input", None) or {}
                                 mcp_txt, mcp_out = claude_mcp_env.execute(tu_name, _args_in)
                                 if mcp_out.get("ok"):
                                     _md = f"\n\n> 🔧 **MCPツール実行:** `{tu_name}` を実行しました。\n"
@@ -6411,6 +6516,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if options.get("enable_file_creation"):
                         python_tools.append(_build_create_file_tool_schema())
                         python_tools.append(_build_edit_file_tool_schema())
+                    if _skills_tool_enabled:
+                        python_tools.append(build_skill_tool_openai_chat())
 
                     # MCP外部ツールの定義を追加（ユーザーが有効化＆認証済みのサーバーのみ）
                     ds_mcp_env = None
@@ -6566,7 +6673,17 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             call_name = function_data.get("name")
                             call_arguments = function_data.get("arguments") or ""
                             code = ""
-                            if call_name == "create_file":
+                            if call_name == SKILL_TOOL_NAME:
+                                try:
+                                    parsed_arguments = json.loads(call_arguments or "{}")
+                                    if not isinstance(parsed_arguments, dict):
+                                        raise ValueError("arguments must be a JSON object")
+                                    result = _execute_skill_tool(
+                                        str(parsed_arguments.get("name") or "")
+                                    )
+                                except Exception as tool_exc:
+                                    result = f"Error: Invalid use_skill arguments: {tool_exc}"
+                            elif call_name == "create_file":
                                 try:
                                     parsed_arguments = json.loads(call_arguments)
                                     if not isinstance(parsed_arguments, dict):
@@ -6841,49 +6958,109 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             _persist_batch_failure(str(batch_error))
                         return
 
+                    kimi_tools = []
+                    if _skills_tool_enabled:
+                        kimi_tools.append(build_skill_tool_openai_chat())
                     _mark_provider_request_started()
                     final_openai_usage = None
-                    stream = client.chat.completions.create(**kimi_kwargs)
-                    chunk_count = 0
-                    for chunk in stream:
-                        _latency_mark_once(job_id, "provider_first_chunk_ms")
-                        if check_stop():
+                    kimi_max_rounds = 8
+                    for kimi_round in range(kimi_max_rounds + 1):
+                        if kimi_tools:
+                            kimi_kwargs["tools"] = kimi_tools
+                            kimi_kwargs["tool_choice"] = "none" if kimi_round == kimi_max_rounds else "auto"
+                        stream = client.chat.completions.create(**kimi_kwargs)
+                        chunk_count = 0
+                        round_content = ""
+                        streamed_tool_calls = {}
+                        for chunk in stream:
+                            _latency_mark_once(job_id, "provider_first_chunk_ms")
+                            if check_stop():
+                                break
+
+                            chunk_count += 1
+                            if chunk_count % 20 == 0:
+                                _refresh_pending_job()
+
+                            usage = getattr(chunk, 'usage', None)
+                            if usage:
+                                final_openai_usage = usage
+
+                            choices = getattr(chunk, 'choices', None)
+                            if not choices:
+                                continue
+
+                            delta = choices[0].delta
+
+                            # Extract reasoning_content
+                            r_content = None
+                            try:
+                                r_content = delta.reasoning_content
+                            except AttributeError:
+                                pass
+                            if not r_content:
+                                try:
+                                    extra = getattr(delta, '__pydantic_extra__', None) or {}
+                                    r_content = extra.get('reasoning_content')
+                                except Exception:
+                                    pass
+                            if r_content:
+                                thought_accumulated += r_content
+                                pub("thought", r_content)
+
+                            c_content = getattr(delta, 'content', None)
+                            if c_content:
+                                round_content += c_content
+                                full_res += c_content
+                                pub("content", c_content)
+
+                            accumulate_deepseek_tool_call_deltas(
+                                streamed_tool_calls,
+                                getattr(delta, 'tool_calls', None) or [],
+                            )
+
+                        if not streamed_tool_calls:
+                            break
+                        if kimi_round == kimi_max_rounds:
                             break
 
-                        chunk_count += 1
-                        if chunk_count % 20 == 0:
-                            _refresh_pending_job()
-
-                        usage = getattr(chunk, 'usage', None)
-                        if usage:
-                            final_openai_usage = usage
-
-                        choices = getattr(chunk, 'choices', None)
-                        if not choices:
-                            continue
-
-                        delta = choices[0].delta
-
-                        # Extract reasoning_content
-                        r_content = None
-                        try:
-                            r_content = delta.reasoning_content
-                        except AttributeError:
-                            pass
-                        if not r_content:
-                            try:
-                                extra = getattr(delta, '__pydantic_extra__', None) or {}
-                                r_content = extra.get('reasoning_content')
-                            except Exception:
-                                pass
-                        if r_content:
-                            thought_accumulated += r_content
-                            pub("thought", r_content)
-
-                        c_content = getattr(delta, 'content', None)
-                        if c_content:
-                            full_res += c_content
-                            pub("content", c_content)
+                        assistant_tool_calls = []
+                        for tool_index in sorted(streamed_tool_calls):
+                            tool_state = streamed_tool_calls[tool_index]
+                            assistant_tool_calls.append({
+                                "id": tool_state["id"] or f"kimi_tool_{kimi_round}_{tool_index}",
+                                "type": "function",
+                                "function": {
+                                    "name": tool_state["name"],
+                                    "arguments": tool_state["arguments"],
+                                },
+                            })
+                        messages.append({
+                            "role": "assistant",
+                            "content": round_content,
+                            "tool_calls": assistant_tool_calls,
+                        })
+                        for tool_call in assistant_tool_calls:
+                            call_id = tool_call["id"]
+                            function_data = tool_call["function"]
+                            call_name = function_data.get("name")
+                            call_arguments = function_data.get("arguments") or ""
+                            if call_name == SKILL_TOOL_NAME:
+                                try:
+                                    parsed_arguments = json.loads(call_arguments or "{}")
+                                    if not isinstance(parsed_arguments, dict):
+                                        raise ValueError("arguments must be a JSON object")
+                                    result = _execute_skill_tool(
+                                        str(parsed_arguments.get("name") or "")
+                                    )
+                                except Exception as tool_exc:
+                                    result = f"Error: Invalid use_skill arguments: {tool_exc}"
+                            else:
+                                result = f"Error: Unsupported tool: {call_name or '(missing name)'}"
+                            messages.append({
+                                "role": "tool",
+                                "tool_call_id": call_id,
+                                "content": result,
+                            })
                 except Exception as e:
                     pub("error", f"{'Z.AI' if is_zai else 'Kimi'} Error: {str(e)}")
 
@@ -7110,6 +7287,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if 'tools' not in kwargs: kwargs['tools'] = []
                     kwargs['tools'].append(_build_create_file_tool_schema())
                     kwargs['tools'].append(_build_edit_file_tool_schema())
+                if _skills_tool_enabled:
+                    if 'tools' not in kwargs: kwargs['tools'] = []
+                    kwargs['tools'].append(build_skill_tool_openai_responses())
 
                 # MCP外部ツール（Responses API の function tool として追加）
                 resp_mcp_env = None
@@ -7686,7 +7866,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             _queue_response_mcp_call(tool_call_id, call_name, call_args)
                             continue
 
-                        if item_type == "function_call" and call_name in ("execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images"):
+                        if item_type == "function_call" and call_name in (SKILL_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images"):
                             try:
                                 def _handle_direct_tool_call(name, args_str, call_id):
                                     nonlocal full_res, generated_images
@@ -7726,6 +7906,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             full_res += file_link_md
                                             pub("content", file_link_md)
                                         return res_text
+                                    elif name == SKILL_TOOL_NAME:
+                                        return _execute_skill_tool(str(args_json.get("name") or ""))
                                     elif name == "list_branch_images":
                                         imported_keys = set(openai_ci_keys)
                                         return _execute_list_branch_images(
@@ -7789,7 +7971,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                         }],
                                         "stream": True,
                                     }
-                                    if options.get('enable_python') and not is_grok:
+                                    if (options.get('enable_python') and not is_grok) or _skills_tool_enabled:
                                         followup_tools = []
                                         for t in kwargs.get('tools', []):
                                             t_copy = dict(t)
@@ -7833,7 +8015,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             elif t_type == "function_call":
                                                 if str(t_cname or "").startswith("mcp__"):
                                                     _queue_response_mcp_call(t_cid, t_cname, t_cargs)
-                                                elif t_cname in ("execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images"):
+                                                elif t_cname in (SKILL_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images"):
                                                     next_call = (t_cid, t_cname, t_cargs)
                                         elif t_event == "response.completed":
                                             t_resp = tchunk.get('response') if isinstance(tchunk, dict) else getattr(tchunk, 'response', None)
@@ -7850,7 +8032,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                                     elif out_type == "function_call":
                                                         if str(out_cname or "").startswith("mcp__"):
                                                             _queue_response_mcp_call(out_cid, out_cname, out_cargs)
-                                                        elif out_cname in ("execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images") and not next_call:
+                                                        elif out_cname in (SKILL_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images") and not next_call:
                                                             next_call = (out_cid, out_cname, out_cargs)
                                     if next_call:
                                         cur_tool_id, cur_call_name, cur_call_args = next_call
@@ -8271,6 +8453,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     log_force(f"Trimmed thought_signature for DB storage: kept {sig_kept_count}/{sig_original_count}")
 
             thought_payload = {"search_used": True} if search_used else {}
+            if _used_skills:
+                thought_payload['used_skills'] = list(_used_skills)
             if usage_ledger.calls:
                 thought_payload['pricing_calls'] = usage_ledger.snapshot()
             pricing_input = _cost_input_tokens(locals().get('final_usage_metadata') if is_gem else locals().get('final_openai_usage'))
@@ -8340,12 +8524,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if usage_totals['thought_tokens'] is not None:
                 tokens_thought_val = usage_totals['thought_tokens']
 
-            gem_uuid_val = options.get('gem_uuid')
-            gem_name_val = None
-            if gem_uuid_val:
-                gem = Gem.query.filter_by(uuid=gem_uuid_val).first()
-                if gem:
-                    gem_name_val = gem.name
+            skill_uuid_val = options.get('skill_uuid') or options.get('gem_uuid')
+            skill_name_val = None
+            if skill_uuid_val:
+                skill = Skill.query.filter_by(uuid=skill_uuid_val).first()
+                if skill:
+                    skill_name_val = skill.name
+            if not skill_uuid_val and _used_skills:
+                skill_uuid_val = _used_skills[0].get('uuid')
+                skill_name_val = _used_skills[0].get('name')
             msg_entry = Message(
                 thread_id=thread_id, role='assistant', content=final_content, 
                 model=model_key, image_url=json.dumps(generated_images) if generated_images else None, 
@@ -8353,15 +8540,15 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 is_encrypted=is_enc, thought_signature=final_signature,
                 parent_id=message_id,
                 tokens_thought=tokens_thought_val,
-                gem_uuid=gem_uuid_val,
-                gem_name=gem_name_val
+                skill_uuid=skill_uuid_val,
+                skill_name=skill_name_val
             )
             db.session.add(msg_entry)
             th = Thread.query.get(thread_id)
             if th:
                 th.updated_at = datetime.utcnow()
                 th.last_model = model_key
-                th.last_gem_uuid = options.get('gem_uuid')
+                th.last_skill_uuid = skill_uuid_val
             safe_db_commit()
             pub("done", "OK")
 

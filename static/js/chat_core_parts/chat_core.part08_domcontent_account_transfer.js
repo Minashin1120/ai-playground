@@ -22,8 +22,8 @@
                             return;
                         }
                         const parts = [];
-                        const labels = {chats: 'チャット', gems: 'Gem', files: 'ファイル', feedback: 'フィードバック', diagnostics: '診断データ'};
-                        for (const key of ['chats', 'gems', 'files', 'feedback', 'diagnostics']) {
+                        const labels = {chats: 'チャット', skills: 'Skill', files: 'ファイル', feedback: 'フィードバック', diagnostics: '診断データ'};
+                        for (const key of ['chats', 'skills', 'files', 'feedback', 'diagnostics']) {
                             const count = Number(preview.duplicates && preview.duplicates[key]) || 0;
                             if (count > 0) parts.push(`${labels[key]} ${count}件`);
                         }
@@ -41,7 +41,7 @@
                         const executed = await execRes.json().catch(() => null);
                         if (!execRes.ok || !executed) throw new Error((executed && executed.error) || '重複データの修復に失敗しました');
                         const removedParts = [];
-                        for (const key of ['chats', 'gems', 'files', 'feedback', 'diagnostics']) {
+                        for (const key of ['chats', 'skills', 'files', 'feedback', 'diagnostics']) {
                             const count = Number(executed.removed && executed.removed[key]) || 0;
                             if (count > 0) removedParts.push(`${labels[key]} ${count}件`);
                         }
@@ -50,7 +50,7 @@
                             : '';
                         showDedupeResult(`重複データを修復しました: ${removedParts.join('、') || '0件'}${keptAfter}`);
                         loadThreads();
-                        loadGems();
+                        loadSkills();
                         loadStorageUsage();
                     };
                     if (accountDedupeBtn.disabled) return;
@@ -405,7 +405,8 @@
                 { key: 'quote_source', label: '引用元（引用して送信時）', hint: '利用可能変数: {{quote_source}}（引用元の発言者と会話内の番号が入ります）' },
                 { key: 'mathjax', label: 'MathJax（LaTeX数式）' },
                 { key: 'image_analysis', label: '画像解析（Vision Model指示文）' },
-                { key: 'mcp', label: 'MCP（外部ツール接続）', hint: '利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）', mcpLocked: true }
+                { key: 'mcp', label: 'MCP（外部ツール接続）', hint: '利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）', mcpLocked: true },
+                { key: 'skills', label: 'Skills（保存した指示の利用）', hint: '利用可能変数: {{skills}} / {{skill_count}}' }
             ];
             window.buildAutoSystemPromptRows = (prefix, compact = false) => {
                 const textClass = compact
@@ -1603,11 +1604,13 @@
                 } },
                 '/encryption-status': { id: 'encryption-status-modal', open: () => showEncryptionStatusModal() },
                 '/python-execution': { id: 'python-exec-modal', open: () => showPythonExecDetailModal() },
-                '/gem': { id: 'gem-modal', open: () => { editingGemUuid = null; get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`; showModal('gem-modal'); } },
+                '/skill': { id: 'skill-modal', open: () => { editingSkillUuid = null; get('skill-modal-title').innerHTML = `<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Create New Skill`; showModal('skill-modal'); } },
                 '/compression': { id: 'compression-modal', open: () => window.openCompressionModal() },
                 '/admin-bots': { id: 'bot-admin-modal', open: () => openBotAdminModal() },
                 '/admin-bot-logs': { id: 'bot-log-modal', open: () => openBotLogModal() }
             };
+            // Legacy URL alias for bookmarks and old links.
+            MODAL_CONFIG['/gem'] = MODAL_CONFIG['/skill'];
 
             const closeModalById = (id, skipHistory = false) => {
                 switch (id) {
@@ -1627,7 +1630,7 @@
                     case 'token-detail-modal': closeTokenDetail(skipHistory); break;
                     case 'encryption-status-modal': closeEncryptionModal(skipHistory); break;
                     case 'python-exec-modal': closePythonExecDetail(skipHistory); break;
-                    case 'gem-modal': if (window.closeGemModal) window.closeGemModal(skipHistory); break;
+                    case 'skill-modal': if (window.closeSkillModal) window.closeSkillModal(skipHistory); break;
                     case 'compression-modal': if (window.closeCompressionModal) window.closeCompressionModal(skipHistory); break;
                     case 'bot-admin-modal': if (window.closeBotAdminModal) window.closeBotAdminModal(skipHistory); break;
                     case 'bot-log-modal': if (window.closeBotLogModal) window.closeBotLogModal(skipHistory); break;

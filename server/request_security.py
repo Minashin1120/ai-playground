@@ -88,6 +88,16 @@ AUTO_SYSTEM_PROMPT_NOTICE_MCP = (
     "Connected MCP tools:\n{{mcp_tools}}"
 )
 
+AUTO_SYSTEM_PROMPT_NOTICE_SKILLS = (
+    "You can use the user's saved skills. A skill is a reusable instruction set.\n"
+    "Call use_skill(name) when the user asks to use a skill, or when a skill's "
+    "short description clearly matches the request. Load only the skills you need.\n"
+    "If the user asks which skills are available, list the names and descriptions below.\n"
+    "Never invent a skill that is not listed. When the full instructions are already "
+    "included below, follow them without calling a tool.\n\n"
+    "Available skills:\n{{skills}}"
+)
+
 AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "python",
     "deepseek_python",
@@ -102,6 +112,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "mathjax",
     "image_analysis",
     "mcp",
+    "skills",
 )
 
 AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
@@ -118,6 +129,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
     "mathjax": "MathJax (LaTeX数式)",
     "image_analysis": "画像解析 (Vision Model指示文)",
     "mcp": "MCP (外部ツール接続)",
+    "skills": "Skills (保存した指示の利用)",
 }
 
 AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
@@ -134,6 +146,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
     "mathjax": AUTO_SYSTEM_PROMPT_NOTICE_MATHJAX,
     "image_analysis": AUTO_SYSTEM_PROMPT_NOTICE_IMAGE_ANALYSIS,
     "mcp": AUTO_SYSTEM_PROMPT_NOTICE_MCP,
+    "skills": AUTO_SYSTEM_PROMPT_NOTICE_SKILLS,
 }
 
 AUTO_SYSTEM_PROMPT_NOTICE_MAX_CHARS = 4000

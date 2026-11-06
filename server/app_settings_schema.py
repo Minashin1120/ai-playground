@@ -92,6 +92,93 @@ def try_alter(sql):
     except Exception:
         pass
 
+def _skill_quote(name):
+    if db.engine.dialect.name in ('mysql', 'mariadb'):
+        return f"`{name}`"
+    return f'"{name}"'
+
+
+def _skill_table_columns(conn, table):
+    return {c['name'] for c in inspect(conn).get_columns(table)}
+
+
+def _rename_skill_column_if_needed(conn, table, old_name, new_name, legacy_type):
+    """Rename a legacy ``gem`` column to its ``skill`` name (idempotent)."""
+    columns = _skill_table_columns(conn, table)
+    if old_name not in columns or new_name in columns:
+        return
+    try:
+        if db.engine.dialect.name in ('mysql', 'mariadb'):
+            conn.execute(text(
+                f"ALTER TABLE `{table}` CHANGE COLUMN `{old_name}` `{new_name}` {legacy_type}"
+            ))
+        else:
+            conn.execute(text(
+                f'ALTER TABLE "{table}" RENAME COLUMN "{old_name}" TO "{new_name}"'
+            ))
+    except Exception:
+        # Another worker may have completed the rename first.
+        with db.engine.connect() as check_conn:
+            if new_name in _skill_table_columns(check_conn, table):
+                return
+        raise
+
+
+def ensure_skill_schema():
+    """Rename the legacy ``gem`` table and columns to ``skill`` before ``db.create_all()``.
+
+    This must run before ``db.create_all()``: otherwise a fresh ``skill`` table
+    would be created next to the populated legacy ``gem`` table and the data
+    would become unreachable.  Every step is idempotent so repeated worker
+    startups are safe.
+    """
+    engine = db.engine
+    try:
+        with engine.begin() as conn:
+            tables = set(inspect(conn).get_table_names())
+            if 'gem' in tables:
+                if 'skill' not in tables:
+                    if engine.dialect.name in ('mysql', 'mariadb'):
+                        conn.execute(text("RENAME TABLE `gem` TO `skill`"))
+                    else:
+                        conn.execute(text('ALTER TABLE "gem" RENAME TO "skill"'))
+                else:
+                    gem_count = conn.execute(text(
+                        f"SELECT COUNT(*) FROM {_skill_quote('gem')}"
+                    )).scalar() or 0
+                    skill_count = conn.execute(text(
+                        f"SELECT COUNT(*) FROM {_skill_quote('skill')}"
+                    )).scalar() or 0
+                    # A previous partial startup may have created an empty
+                    # ``skill`` table before the migration ran.
+                    if gem_count and not skill_count:
+                        conn.execute(text('DROP TABLE "skill"'))
+                        if engine.dialect.name in ('mysql', 'mariadb'):
+                            conn.execute(text("RENAME TABLE `gem` TO `skill`"))
+                        else:
+                            conn.execute(text('ALTER TABLE "gem" RENAME TO "skill"'))
+            tables = set(inspect(conn).get_table_names())
+            if 'user' in tables:
+                _rename_skill_column_if_needed(conn, 'user', 'last_gem_uuid', 'last_skill_uuid', 'VARCHAR(36)')
+            if 'thread' in tables:
+                _rename_skill_column_if_needed(conn, 'thread', 'last_gem_uuid', 'last_skill_uuid', 'VARCHAR(36)')
+            if 'message' in tables:
+                _rename_skill_column_if_needed(conn, 'message', 'gem_uuid', 'skill_uuid', 'VARCHAR(36)')
+                _rename_skill_column_if_needed(conn, 'message', 'gem_name', 'skill_name', 'VARCHAR(100)')
+    except Exception as exc:
+        # Multiple gunicorn/worker processes start at once; another process may
+        # have completed the table rename between our inspection and DDL.
+        try:
+            table_names = set(inspect(db.engine).get_table_names())
+        except Exception:
+            table_names = set()
+        if 'skill' in table_names and 'gem' not in table_names:
+            logger.info("Skill schema migration was already applied by another worker")
+            return
+        logger.exception("SKILL-SCHEMA-MIGRATION-ERROR: %s", exc)
+        raise
+
+
 def _ensure_required_user_flags(columns, column_type="BOOLEAN DEFAULT 0"):
     # Inspect and alter on the same connection: SQLite may otherwise prepare DDL
     # using a pooled connection's stale schema after another connection changed it.
@@ -228,7 +315,7 @@ def ensure_import_signature_columns():
     """
     candidates = [
         ("thread", "import_signature", "ALTER TABLE thread ADD COLUMN import_signature VARCHAR(64)"),
-        ("gem", "import_signature", "ALTER TABLE gem ADD COLUMN import_signature VARCHAR(64)"),
+        ("skill", "import_signature", "ALTER TABLE skill ADD COLUMN import_signature VARCHAR(64)"),
         ("feedback", "import_signature", "ALTER TABLE feedback ADD COLUMN import_signature VARCHAR(64)"),
         ("file_cache", "import_signature", "ALTER TABLE file_cache ADD COLUMN import_signature VARCHAR(64)"),
         ("first_token_latency_metric", "import_signature", "ALTER TABLE first_token_latency_metric ADD COLUMN import_signature VARCHAR(64)"),
@@ -737,22 +824,22 @@ def ensure_user_voice_studio_ui_column():
     except Exception:
         pass
 
-def ensure_gem_fixed_prompts_column():
+def ensure_skill_fixed_prompts_column():
     try:
         from sqlalchemy import text
-        db.session.execute(text("ALTER TABLE gem ADD COLUMN fixed_prompts_json TEXT"))
+        db.session.execute(text("ALTER TABLE skill ADD COLUMN fixed_prompts_json TEXT"))
         db.session.commit()
-        logger.info("Column fixed_prompts_json added to gem table.")
+        logger.info("Column fixed_prompts_json added to skill table.")
     except Exception:
         db.session.rollback()
 
 
-def ensure_gem_default_model_column():
+def ensure_skill_default_model_column():
     try:
         from sqlalchemy import text
-        db.session.execute(text("ALTER TABLE gem ADD COLUMN default_model VARCHAR(64)"))
+        db.session.execute(text("ALTER TABLE skill ADD COLUMN default_model VARCHAR(64)"))
         db.session.commit()
-        logger.info("Column default_model added to gem table.")
+        logger.info("Column default_model added to skill table.")
     except Exception:
         db.session.rollback()
 def ensure_chat_latency_trace_columns():

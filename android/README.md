@@ -43,7 +43,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/TokenEstimateBreakdown.kt` | 詳細を開いたときの本文・引用・添付の増分計測と結合時の差の算出 | 端末内の入力トークン見積の内訳を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PromptTokenEstimateDialog.kt` | 入力見積の詳細（開いた時点の入力、計測方法、本文・引用・添付ごとの内訳、再試行） | 入力見積をタップしたときの詳細画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/AttachmentTokenEstimator.kt` | 入力見積の添付トークン計算（Geminiの画像・PDF・音声・動画、テキスト抽出） | 端末内の添付トークン計算を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/local/` | 端末内プロファイル：チャット・添付・プロンプト設定とマスク参照の暗号化保存、サーバー不使用モードの送信待ち（`LocalChatStore.kt`）、設定・Gem・APIキー（`LocalSettingsStore.kt`）、プロファイルの切り替え（`LocalProfiles.kt`）、サーバーと同じ形で応答する窓口（`LocalChatBackend.kt`）、回答の生成に使うサーバーの履歴・添付の読み込み（`ServerHistory.kt`） | アカウントなし利用・サーバー不使用モードの保存や応答を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/local/` | 端末内プロファイル：チャット・添付・プロンプト設定とマスク参照の暗号化保存、サーバー不使用モードの送信待ち（`LocalChatStore.kt`）、設定・Skill・APIキー（`LocalSettingsStore.kt`）、プロファイルの切り替え（`LocalProfiles.kt`）、サーバーと同じ形で応答する窓口（`LocalChatBackend.kt`）、回答の生成に使うサーバーの履歴・添付の読み込み（`ServerHistory.kt`） | アカウントなし利用・サーバー不使用モードの保存や応答を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/sync/SyncEngine.kt` | サーバー不使用モードの送信待ちの保存（添付の先行アップロード、メッセージの送信、新しいチャットのタイトル、旧版の削除の反映） | 回答をアカウントへ送る手順・失敗時の扱いを変更するとき |
 | `app/src/main/assets/serverless-defaults.json`, `ci/sync-serverless-defaults.py` | サーバーから生成したモデル一覧・自動注入プロンプト・Coding Mode指示（`--check` で差分検査） | サーバーのモデル一覧や自動注入プロンプトを変えたとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ServerlessSettings.kt` | 設定の「接続」カード（サーバー不使用モード、アカウントなしの説明とサーバーへのログイン） | 接続モードの設定画面を変更するとき |
@@ -73,12 +73,12 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/ProgressText.kt` | Web `progress_spinner.js` の文言表と通信中の処理一覧（`PlaygroundApi.progress`） | 通信スピナーの文言や対象を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AnswerBubbleMotion.kt` | プロンプト到着後の回答バブルの横スライド、回答待ちから保存済み回答への登場状態の引き継ぎ | 回答バブルの登場順序・アニメーションを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PromptSendMotion.kt` | 送信内容の移動・縮小・吹き出しへの切替、描画レイヤーと座標の一時管理、動きの削減・中断時の後始末 | プロンプト送信アニメーションを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/Composer.kt` | Webのプロンプトバー（引用・Coding対象・編集バー、モデルボタン、Canvas／Coding／Batch、詳細チップ、添付プレビュー、固定プロンプト、Gem表示、`/`・`@` 候補、入力シェル、送信・停止、トークン見積もり） | 入力欄の見た目や操作を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/Composer.kt` | Webのプロンプトバー（引用・Coding対象・編集バー、モデルボタン、Canvas／Coding／Batch、詳細チップ、添付プレビュー、Skill表示、`/`・`@` 候補、入力シェル、送信・停止、トークン見積もり） | 入力欄の見た目や操作を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InteractionDiagnostics.kt` | 選択・数式操作の受動的なログ観測（ランダムID、フォーカス、メニュー、400ms後の状態、横スクロール・描画状態） | 選択や数式操作のログを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/QuoteSelection.kt` | 会話の範囲選択に「Quote」を加える選択ツールバー | 引用の操作を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ComposerRules.kt` | Webの `toggleOptions()` 相当（モデル別のチップ表示・強制値・Thinking levelの候補。EffortのモデルはThinkingボタン内にEffortを表示）、PromptCacheの提供元、トークン見積もりの文言 | モデル追加でチップの表示条件を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/CodingTargets.kt` | Coding Modeの対象候補の抽出、対象バーの文言、送信時の候補と上限 | Coding Modeの送信内容を変えるとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/Sidebar.kt` | Webの `#sidebar` 相当（ツールバー、検索、Gems、スレッド一覧、引っ張って更新、フッター） | サイドバーを編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/Sidebar.kt` | Webの `#sidebar` 相当（ツールバー、検索、Skills、スレッド一覧、引っ張って更新、フッター） | サイドバーを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ChatHeader.kt` | スマートフォン用の上部バー（Webの `header.main-chrome-header`） | 上部バーを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/WebDialogs.kt` | チャット名の変更、Webの `confirm()`／`prompt()` 相当、チャット履歴・アルファ版・利用規約のモーダル、共通オーバーレイ | 確認ダイアログや小さなモーダルを編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/LowBandwidth.kt` | Web相当の低速回線モードの判定・設定の切り替え・表示文言 | 低速回線モードを変更するとき |
@@ -116,14 +116,14 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LyriaStudio.kt` | Webの「Lyria RealTime Studio」（重み付きプロンプト、音楽設定、再生操作、チャットへ保存） | Lyriaスタジオを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RichPasteDialog.kt` | Webの「リッチ貼り付け」画面の枠（クリップボードHTMLのテキスト化、モデルへの指示、既定値の保存） | リッチ貼り付けを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ModelPicker.kt` | Webの「Select Model」（検索、固定タグバー、プロバイダー見出し、LLMを先頭にしたモデルカード、PromptCacheのロックバナー） | モデル選択画面を編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/GemDialog.kt` | Webの `#gem-modal`（Gemの作成・編集、固定プロンプトの行）とTailwind風の入力欄 `TwInput` | Gemの編集画面を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/SkillDialog.kt` | Webの `#skill-modal`（Skillの作成・編集）とTailwind風の入力欄 `TwInput` | Skillの編集画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LibraryDialog.kt` | Webの `#lib-modal`（検索、表示順、お気に入りのみ、複数選択の添付・ダウンロード・名前変更・使用チャット・削除、グリッド、使用チャットのモーダル） | ファイルライブラリを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/BranchManager.kt` | Webの `#branch-modal`（ツリー、ブランチ詳細、モデル別内訳、名前・固定、切替、削除、凡例と合計） | ブランチ管理を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/Library.kt` | ライブラリの並び順、音声・動画の判定、モデルの音声・動画入力対応（Web `getModelMediaSupport`） | ライブラリの添付規則を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BranchSnapshot.kt` | 指定時点までの全分岐抽出、ファイル参照抽出、欠損リンク表示 | 別チャットへの分岐・共有ファイルを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BranchTree.kt` | ブランチツリーの配置計算とパス累計トークン | ブランチ管理の表示計算を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ChatInstructionsDialog.kt` | Webの `#thread-modal`（Chat Instructions：チャット専用の指示、全体プロンプトの参照、ユーザーシステムプロンプト、自動注入の簡易版） | SysPromptの⚙から開く画面を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundDialog.kt` | Webモーダル（オーバーレイ、ぼかし、パネル、見出し、下部）の共通枠 | 設定・Gems・ライブラリ・Batchの画面枠を調整するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundDialog.kt` | Webモーダル（オーバーレイ、ぼかし、パネル、見出し、下部）の共通枠 | 設定・Skills・ライブラリ・Batchの画面枠を調整するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InAppNoticeState.kt` | アプリ内通知の新着順・個別期限・消去状態・画面回転時の復元と表示先ウィンドウの管理 | 通知の保持・表示期限・モーダル間の引き継ぎを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InAppNoticeHost.kt` | アプリ内通知の共通Provider、通常画面・モーダルの表示ホスト、DNS補助通知の前面受信、通知を前面に出す確認ダイアログ | 通知の重なり・安全領域・表示するウィンドウを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InAppNoticeBanner.kt` | 画面上部に積む通知の描画、上下スワイプ、登場・退出・位置変更の動きと読み上げ | 通知の見た目・閉じる操作・アニメーションを変更するとき |

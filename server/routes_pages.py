@@ -29,6 +29,7 @@ def index():
 @app.route('/token-details')
 @app.route('/encryption-status')
 @app.route('/python-execution')
+@app.route('/skill')
 @app.route('/gem')
 @app.route('/compression')
 @app.route('/admin-bots')

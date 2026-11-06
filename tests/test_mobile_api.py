@@ -497,48 +497,72 @@ class MobileApiTests(unittest.TestCase):
         deleted = self.call('/api/files/delete', token, 'POST', json={'filenames': [filename]})
         self.assertEqual(deleted.status_code, 200)
         self.assertFalse(self.call('/files/' + filename, token).status_code == 200)
-        # Gems CRUD is owner scoped as well.
-        created = self.call('/api/gems', token, 'POST', json={'name': 'Android Gem', 'instruction': 'Be brief'})
+        # Skill CRUD is owner scoped as well.  The legacy /api/gems alias stays.
+        created = self.call('/api/skills', token, 'POST', json={'name': 'Android Skill', 'instruction': 'Be brief'})
         self.assertEqual(created.status_code, 200)
-        gem_uuid = created.json['uuid']
-        listed = self.call('/api/gems', token)
+        skill_uuid = created.json['uuid']
+        listed = self.call('/api/skills', token)
         self.assertEqual(listed.status_code, 200)
-        self.assertTrue(any(gem['uuid'] == gem_uuid for gem in listed.json))
-        updated = self.call('/api/gems/' + gem_uuid, token, 'PUT', json={'name': 'Renamed Gem'})
+        self.assertTrue(any(skill['uuid'] == skill_uuid for skill in listed.json))
+        updated = self.call('/api/skills/' + skill_uuid, token, 'PUT', json={'name': 'Renamed Skill'})
         self.assertEqual(updated.status_code, 200)
-        self.assertEqual(updated.json['name'], 'Renamed Gem')
+        self.assertEqual(updated.json['name'], 'Renamed Skill')
+        legacy_created = self.call('/api/gems', token, 'POST', json={'name': 'Legacy Gem', 'instruction': 'Old'})
+        self.assertEqual(legacy_created.status_code, 200)
+        legacy_uuid = legacy_created.json['uuid']
+        legacy_listed = self.call('/api/gems', token)
+        self.assertEqual(legacy_listed.status_code, 200)
+        self.assertIn('fixed_prompts', next(row for row in legacy_listed.json if row['uuid'] == legacy_uuid))
         with target.app.app_context():
-            foreign_gem = target.Gem(uuid='11111111-1111-1111-1111-111111111111',
+            foreign_skill = target.Skill(uuid='11111111-1111-1111-1111-111111111111',
                                      user_id=self.other_id, name='Foreign', instruction='No')
-            target.db.session.add(foreign_gem)
+            target.db.session.add(foreign_skill)
             target.db.session.commit()
-        for method in ['GET', 'PUT', 'DELETE']:
-            payload = {'name': 'No'} if method == 'PUT' else None
-            response = self.call('/api/gems/11111111-1111-1111-1111-111111111111', token, method,
-                                 **({'json': payload} if payload is not None else {}))
-            self.assertEqual(response.status_code, 403, method)
-        self.assertEqual(self.call('/api/gems/' + gem_uuid, token, 'DELETE').status_code, 200)
+        for endpoint in ('/api/skills/', '/api/gems/'):
+            for method in ['GET', 'PUT', 'DELETE']:
+                payload = {'name': 'No'} if method == 'PUT' else None
+                response = self.call(endpoint + '11111111-1111-1111-1111-111111111111', token, method,
+                                     **({'json': payload} if payload is not None else {}))
+                self.assertEqual(response.status_code, 403, (endpoint, method))
+        self.assertEqual(self.call('/api/skills/' + skill_uuid, token, 'DELETE').status_code, 200)
+        self.assertEqual(self.call('/api/gems/' + legacy_uuid, token, 'DELETE').status_code, 200)
 
     def test_native_thread_gem_is_saved_like_web_settings(self):
         # Web `saveThreadGemUuid`: applying or clearing a Gem stores it on the open chat right away.
         with target.app.app_context():
-            mine = target.Gem(uuid='22222222-2222-2222-2222-222222222222', user_id=self.user_id, name='Mine', instruction='Yes')
-            foreign = target.Gem(uuid='33333333-3333-3333-3333-333333333333', user_id=self.other_id, name='Foreign', instruction='No')
+            mine = target.Skill(uuid='22222222-2222-2222-2222-222222222222', user_id=self.user_id, name='Mine', instruction='Yes')
+            foreign = target.Skill(uuid='33333333-3333-3333-3333-333333333333', user_id=self.other_id, name='Foreign', instruction='No')
             thread = target.Thread(user_id=self.user_id, public_id=target.generate_thread_public_id())
             target.db.session.add_all([mine, foreign, thread])
             target.db.session.commit()
             thread_id = thread.public_id
         token = self.token()
         saved = self.call('/api/mobile/v1/preferences', token, 'PUT',
-                          json={'last_gem_uuid': '22222222-2222-2222-2222-222222222222', 'thread_id': thread_id})
+                          json={'last_skill_uuid': '22222222-2222-2222-2222-222222222222', 'thread_id': thread_id})
         self.assertEqual(saved.status_code, 200)
-        self.assertEqual(self.call(f'/api/threads/{thread_id}', token).json['last_gem_uuid'], '22222222-2222-2222-2222-222222222222')
+        self.assertEqual(self.call(f'/api/threads/{thread_id}', token).json['last_skill_uuid'], '22222222-2222-2222-2222-222222222222')
         rejected = self.call('/api/mobile/v1/preferences', token, 'PUT',
-                             json={'last_gem_uuid': '33333333-3333-3333-3333-333333333333', 'thread_id': thread_id})
+                             json={'last_skill_uuid': '33333333-3333-3333-3333-333333333333', 'thread_id': thread_id})
         self.assertEqual(rejected.status_code, 403)
-        cleared = self.call('/api/mobile/v1/preferences', token, 'PUT', json={'last_gem_uuid': None, 'thread_id': thread_id})
+        cleared = self.call('/api/mobile/v1/preferences', token, 'PUT', json={'last_skill_uuid': None, 'thread_id': thread_id})
         self.assertEqual(cleared.status_code, 200)
-        self.assertIsNone(self.call(f'/api/threads/{thread_id}', token).json['last_gem_uuid'])
+        self.assertIsNone(self.call(f'/api/threads/{thread_id}', token).json['last_skill_uuid'])
+
+    def test_native_thread_legacy_gem_field_is_accepted(self):
+        with target.app.app_context():
+            skill = target.Skill(uuid='44444444-4444-4444-4444-444444444444',
+                                 user_id=self.user_id, name='Legacy Field Skill', instruction='Yes')
+            thread = target.Thread(user_id=self.user_id, public_id=target.generate_thread_public_id())
+            target.db.session.add_all([skill, thread])
+            target.db.session.commit()
+            thread_id = thread.public_id
+        token = self.token()
+        saved = self.call('/api/mobile/v1/preferences', token, 'PUT',
+                          json={'last_gem_uuid': '44444444-4444-4444-4444-444444444444', 'thread_id': thread_id})
+        self.assertEqual(saved.status_code, 200)
+        payload = self.call(f'/api/threads/{thread_id}', token).json
+        self.assertEqual(payload['last_skill_uuid'], '44444444-4444-4444-4444-444444444444')
+        self.assertEqual(payload['last_gem_uuid'], '44444444-4444-4444-4444-444444444444')
 
     def test_native_preferences_are_limited_and_validated(self):
         token = self.token()

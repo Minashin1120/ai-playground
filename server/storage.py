@@ -943,6 +943,35 @@ def _normalize_gem_payload(data, existing=None):
         'default_model': default_model,
     }
 
+def _normalize_skill_payload(data, existing=None):
+    """Validate the fields exposed by the Skill UI / new API.
+
+    The legacy ``fixed_prompts_json`` and ``default_model`` columns are kept on
+    the row for older ``/api/gems`` clients, but neither the new UI nor the new
+    API writes them.
+    """
+    if not isinstance(data, dict):
+        raise ValueError("invalid_payload")
+
+    def value_for(key, default):
+        if key in data:
+            return data.get(key)
+        return getattr(existing, key, default) if existing is not None else default
+
+    name = str(value_for('name', 'My Skill') or '').replace('\x00', '').replace('<', '').replace('>', '').strip()
+    description = str(value_for('description', '') or '').replace('\x00', '').strip()
+    instruction = str(value_for('instruction', '') or '').replace('\x00', '').strip()
+    if not name or len(name) > 100:
+        raise ValueError("invalid_name")
+    if len(description) > 4000 or len(instruction) > 100_000:
+        raise ValueError("payload_too_large")
+    return {
+        'name': name,
+        'description': description,
+        'instruction': instruction,
+    }
+
+
 def _normalize_display_name_for_path(rel_path, raw_name):
     base = os.path.basename(rel_path or "")
     if not base:

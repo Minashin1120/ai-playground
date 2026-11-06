@@ -369,7 +369,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertIn("transform: none !important", lite_css)
 
     def test_lite_mode_does_not_hide_thread_and_gem_list_items(self):
-        # V4.8.690 / V4.8.801: thread/gem list items rely on model-list-animate.
+        # V4.8.690 / V4.8.801: thread/skill list items rely on model-list-animate.
         # Static opacity-0 was removed in V4.8.801 so items do not get stuck invisible
         # when animations are disabled in lite mode or toggled back to normal.
         source = _current_asset("css", "chat.custom.v4.8.*.css")
@@ -380,10 +380,10 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
 
         script = _current_asset("js", "chat_core.v4.8.*.js")
         thread_item = script[script.index("async function loadThreads(append=false) {") :]
-        thread_item = thread_item[: thread_item.index("async function loadGems()")]
+        thread_item = thread_item[: thread_item.index("async function loadSkills()")]
         self.assertNotIn("model-list-animate", thread_item)
-        gem_item = script[script.index("async function loadGems() {") :]
-        gem_item = gem_item[: gem_item.index("async function openEditGemModal")]
+        gem_item = script[script.index("async function loadSkills() {") :]
+        gem_item = gem_item[: gem_item.index("async function openEditSkillModal")]
         self.assertNotIn("model-list-animate", gem_item)
 
     def test_opening_settings_does_not_blank_sidebar_history(self):
@@ -393,7 +393,7 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         script = _current_asset("js", "chat_core.v4.8.*.js")
 
         self.assertIn("html.performance-lite-mode #thread-list > [data-thread-id]", css)
-        self.assertIn("html.performance-lite-mode #gem-list > .gem-item", css)
+        self.assertIn("html.performance-lite-mode #skill-list > .skill-item", css)
         self.assertIn("revealPersistentSidebarLists", script)
         self.assertIn("showModal('settings-modal');", script)
         self.assertIn("restoreThreadSearchValue(preservedThreadSearch", script)
@@ -405,8 +405,8 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         self.assertNotIn("model-list-animate", thread_item)
         self.assertIn("searchEl ? searchEl.value : ''", thread_item)
 
-        gem_item = script[script.index("async function loadGems() {") :]
-        gem_item = gem_item[: gem_item.index("async function openEditGemModal")]
+        gem_item = script[script.index("async function loadSkills() {") :]
+        gem_item = gem_item[: gem_item.index("async function openEditSkillModal")]
         self.assertNotIn("model-list-animate", gem_item)
 
     def test_admin_sidebar_debug_logs_are_admin_only(self):

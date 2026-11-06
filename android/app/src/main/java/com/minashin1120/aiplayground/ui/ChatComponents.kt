@@ -60,7 +60,7 @@ import com.minashin1120.aiplayground.data.StatusCard
 import com.minashin1120.aiplayground.data.attachmentKind
 import com.minashin1120.aiplayground.data.attachmentKindIcon
 import com.minashin1120.aiplayground.data.formatByteSize
-import com.minashin1120.aiplayground.data.gemMentionQuery
+import com.minashin1120.aiplayground.data.skillMentionQuery
 import com.minashin1120.aiplayground.data.isImageReference
 import com.minashin1120.aiplayground.data.SlashCommand
 import com.minashin1120.aiplayground.data.numericId

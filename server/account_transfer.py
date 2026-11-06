@@ -5,7 +5,9 @@
 ACCOUNT_EXPORT_FORMAT = "ai-playground-account-export"
 ACCOUNT_EXPORT_VERSION = 1
 ACCOUNT_IMPORT_CATEGORIES = frozenset({
-    "settings", "api_credentials", "chats", "gems", "files", "feedback", "diagnostics"
+    "settings", "api_credentials", "chats", "skills", "files", "feedback", "diagnostics",
+    # Legacy alias accepted when importing archives created before the rename.
+    "gems",
 })
 ACCOUNT_SETTING_FIELDS = (
     "system_prompt", "system_prompt_enabled", "apply_global_system_prompt",
@@ -424,8 +426,11 @@ def _account_export_threads(user_id):
                 "quote_text": message.quote_text,
                 "thought_signature": message.thought_signature,
                 "prompt_options": message.prompt_options,
-                "gem_uuid": message.gem_uuid,
-                "gem_name": message.gem_name,
+                "skill_uuid": message.skill_uuid,
+                "skill_name": message.skill_name,
+                # Legacy aliases so older app versions can import new archives.
+                "gem_uuid": message.skill_uuid,
+                "gem_name": message.skill_name,
             })
         rows.append({
             "branch_origin": _branch_origin(thread),
@@ -437,7 +442,8 @@ def _account_export_threads(user_id):
             "custom_instruction": thread.custom_instruction,
             "include_global_instruction": bool(thread.include_global_instruction),
             "last_model": thread.last_model,
-            "last_gem_uuid": thread.last_gem_uuid,
+            "last_skill_uuid": thread.last_skill_uuid,
+            "last_gem_uuid": thread.last_skill_uuid,
             "enable_prompt_caching": bool(thread.enable_prompt_caching),
             "prompt_cache_provider": thread.prompt_cache_provider,
             "prompt_cache_nonce": thread.prompt_cache_nonce,
@@ -447,16 +453,17 @@ def _account_export_threads(user_id):
     return rows
 
 
-def _account_export_gems(user_id):
+def _account_export_skills(user_id):
     return [{
         "uuid": row.uuid,
         "name": row.name,
         "description": row.description,
         "instruction": row.instruction,
+        # Kept for lossless legacy restores; the Skill UI no longer edits them.
         "fixed_prompts_json": row.fixed_prompts_json,
         "default_model": row.default_model,
         "created_at": _portable_datetime(row.created_at),
-    } for row in Gem.query.filter_by(user_id=user_id).order_by(Gem.id.asc()).all()]
+    } for row in Skill.query.filter_by(user_id=user_id).order_by(Skill.id.asc()).all()]
 
 
 def _account_export_feedback(user_id):
@@ -614,6 +621,8 @@ def _build_account_export_archive(user, job_id, export_path):
             "settings": _account_export_settings(user),
             "api_credentials": _account_export_secrets(user),
             "chats": [],
+            "skills": [],
+            # Legacy alias for older importers.
             "gems": [],
             "feedback": [],
             "diagnostics": {},
@@ -623,8 +632,9 @@ def _build_account_export_archive(user, job_id, export_path):
     }
     _account_transfer_checkpoint(user.id, job_id, 5, "preparing", "チャット履歴を読み込んでいます")
     manifest["data"]["chats"] = _account_export_threads(user.id)
-    _account_transfer_checkpoint(user.id, job_id, 12, "preparing", "Gemとフィードバックを読み込んでいます")
-    manifest["data"]["gems"] = _account_export_gems(user.id)
+    _account_transfer_checkpoint(user.id, job_id, 12, "preparing", "Skillとフィードバックを読み込んでいます")
+    manifest["data"]["skills"] = _account_export_skills(user.id)
+    manifest["data"]["gems"] = manifest["data"]["skills"]
     manifest["data"]["feedback"] = _account_export_feedback(user.id)
     _account_transfer_checkpoint(user.id, job_id, 16, "preparing", "診断データを読み込んでいます")
     manifest["data"]["diagnostics"] = _account_export_diagnostics(user.id)
@@ -785,7 +795,12 @@ def _coerce_account_import_categories(raw):
         raw = [part.strip() for part in raw.split(",")]
     if not isinstance(raw, list):
         return set()
-    return {str(item).strip() for item in raw if str(item).strip() in ACCOUNT_IMPORT_CATEGORIES}
+    values = {str(item).strip() for item in raw if str(item).strip() in ACCOUNT_IMPORT_CATEGORIES}
+    # Older clients send ``gems``; normalise it to the current category name.
+    if "gems" in values:
+        values.discard("gems")
+        values.add("skills")
+    return values
 
 
 IMPORT_SELECTED_FILES_NONE = "__none__"

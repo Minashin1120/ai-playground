@@ -212,7 +212,7 @@
                     streamController = new AbortController();
                     streamOpen = true;
                     try {
-                        const res = await fetch(`/api/gemini/music/stream?session_id=${encodeURIComponent(sessionId)}`, noSpinner({
+                        const res = await fetch(`/api/skillini/music/stream?session_id=${encodeURIComponent(sessionId)}`, noSpinner({
                             method: 'GET',
                             signal: streamController.signal,
                             headers: { 'Accept': 'text/event-stream' },
@@ -329,7 +329,7 @@
                 }
 
                 async function apiCommand(type, payload) {
-                    const res = await fetch('/api/gemini/music/command', noSpinner({
+                    const res = await fetch('/api/skillini/music/command', noSpinner({
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(Object.assign({ session_id: sessionId, type }, payload || {}))
@@ -350,7 +350,7 @@
                     updateTransportButtons();
                     setStatus('接続中...', 'connecting');
                     try {
-                        const res = await fetch('/api/gemini/music/start', noSpinner({
+                        const res = await fetch('/api/skillini/music/start', noSpinner({
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ weighted_prompts: prompts, config: collectConfig() })
@@ -438,7 +438,7 @@
                     setStatus('保存中...', 'connecting');
                     updateTransportButtons();
                     try {
-                        const res = await fetch('/api/gemini/music/save', noSpinner({
+                        const res = await fetch('/api/skillini/music/save', noSpinner({
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ session_id: sessionId, thread_id: currentThreadId || null })
@@ -468,7 +468,7 @@
                     closeStream();
                     if (sessionId) {
                         try {
-                            await fetch('/api/gemini/music/cancel', noSpinner({
+                            await fetch('/api/skillini/music/cancel', noSpinner({
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ session_id: sessionId })
@@ -506,7 +506,7 @@
                 function closeAndCleanup(keepThread) {
                     closeStream();
                     if (sessionId) {
-                        fetch('/api/gemini/music/cancel', noSpinner({
+                        fetch('/api/skillini/music/cancel', noSpinner({
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ session_id: sessionId })
@@ -914,7 +914,7 @@
                         finalData.thread_id = currentThreadId;
                         finalData.model = get('model-select').value;
 
-                        await apiFetch('/api/gemini/save_sts', {
+                        await apiFetch('/api/skillini/save_sts', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(finalData)
@@ -985,7 +985,7 @@
                                 ctx: liveMic.ctx,
                                 source: liveMic.ctx.createMediaStreamSource(micStream)
                             };
-                            const res = await apiFetch('/api/gemini/session', {
+                            const res = await apiFetch('/api/skillini/session', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(sessionBody)
@@ -1196,9 +1196,9 @@
                                     history.pushState({}, '', '/c/' + d.id);
                                     get('welcome-screen').classList.add('hidden');
                                 }
-                                if (currentThreadId && activeGem) {
-                                    threadGemMap[currentThreadId] = activeGem;
-                                    pendingGemForNewThread = null;
+                                if (currentThreadId && activeSkill) {
+                                    threadSkillMap[currentThreadId] = activeSkill;
+                                    pendingSkillForNewThread = null;
                                 }
                                 fd.append('model', get('model-select').value);
                                 fd.append('thread_id', currentThreadId);
@@ -1421,49 +1421,43 @@
             };
         }
         if (get('lib-load-more-btn')) get('lib-load-more-btn').onclick = () => loadLibraryFiles(true);
-            if (get('add-gem-fixed-prompt-row')) {
-                get('add-gem-fixed-prompt-row').onclick = () => addGemFixedPromptRow();
-            }
 
-        const openGemModal = () => {
-            editingGemUuid = null;
-            get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`;
-            get('save-gem-btn').innerText = "Create Gem";
-            showModal('gem-modal');
-            get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; setGemDefaultModelSelect('');
-            if (get('gem-fixed-prompts-container')) get('gem-fixed-prompts-container').innerHTML = '';
-            if (location.pathname !== '/gem') {
-                history.pushState({ modal: 'gem' }, '', '/gem');
+        const openSkillModal = () => {
+            editingSkillUuid = null;
+            get('skill-modal-title').innerHTML = `<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Create New Skill`;
+            get('save-skill-btn').innerText = "Create Skill";
+            showModal('skill-modal');
+            get('skill-name').value=''; get('skill-desc').value=''; get('skill-inst').value='';
+            if (location.pathname !== '/skill') {
+                history.pushState({ modal: 'skill' }, '', '/skill');
             }
         };
-        window.closeGemModal = (skipHistory = false) => {
-            hideModal('gem-modal');
-            if (!skipHistory && location.pathname === '/gem') {
+        window.closeSkillModal = (skipHistory = false) => {
+            hideModal('skill-modal');
+            if (!skipHistory && location.pathname === '/skill') {
                 history.back();
             }
         };
-        get('add-gem-btn').onclick = () => openGemModal();
-            get('save-gem-btn').onclick = async () => {
-                const name = get('gem-name').value;
-                const desc = get('gem-desc').value;
-                const inst = get('gem-inst').value;
-                const fixed_prompts = collectGemFixedPrompts();
+        get('add-skill-btn').onclick = () => openSkillModal();
+            get('save-skill-btn').onclick = async () => {
+                const name = get('skill-name').value;
+                const desc = get('skill-desc').value;
+                const inst = get('skill-inst').value;
 
                 if(name && inst) {
-                    const method = editingGemUuid ? 'PUT' : 'POST';
-                    const url = editingGemUuid ? `/api/gems/${editingGemUuid}` : CHAT_CONFIG.urls.handleGems;
+                    const method = editingSkillUuid ? 'PUT' : 'POST';
+                    const url = editingSkillUuid ? `/api/skills/${editingSkillUuid}` : CHAT_CONFIG.urls.handleSkills;
                     await apiFetch(url, {
                         method: method,
                         headers:{'Content-Type':'application/json'},
-                        body:JSON.stringify({name, description:desc, instruction:inst, fixed_prompts, default_model: get('gem-default-model').value || null})
+                        body:JSON.stringify({name, description:desc, instruction:inst})
                     });
-                    window.closeGemModal();
-                    loadGems();
-                    if (editingGemUuid && activeGem && activeGem.uuid === editingGemUuid) {
-                       activeGem.name = name;
-                       activeGem.instruction = inst;
-                       activeGem.fixed_prompts = fixed_prompts;
-                       applyActiveGem(activeGem);
+                    window.closeSkillModal();
+                    loadSkills();
+                    if (editingSkillUuid && activeSkill && activeSkill.uuid === editingSkillUuid) {
+                       activeSkill.name = name;
+                       activeSkill.instruction = inst;
+                       applyActiveSkill(activeSkill);
                     }
                 } else alert("Name and Instruction are required.");
             };

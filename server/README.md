@@ -23,7 +23,7 @@
 | `settings_ai.py` | 設定モーダルの AI アシスタント、文字起こし設定、Vision 解析、Realtime 音声の補助 | 設定の AI 更新、文字起こしプロンプト |
 | `lyria.py` | Lyria RealTime のサーバー側セッション（Google へ WebSocket、ブラウザへ SSE）、ワーカー間の Redis 中継、保存 | リアルタイム音楽 |
 | `realtime.py` | OpenAI Realtime（会話・翻訳）/ GPT-Live / Grok Voice / Gemini Live のサーバー側 STS セッション、ワーカー間の Redis 中継、会話の保存 | リアルタイム音声会話 |
-| `models.py` | SQLAlchemy モデル（`User`, `Thread`, `Message`, `GeminiBatchJob`、各プロバイダのBatch状態、`Gem`、セッション、BAN 等）。`mcp_service` のモデルもここで `db` に載せる | カラム追加、ユーザー設定、チャット保存形式、Batch状態 |
+| `models.py` | SQLAlchemy モデル（`User`, `Thread`, `Message`, `GeminiBatchJob`、各プロバイダのBatch状態、`Skill`、セッション、BAN 等）。旧 `gem` テーブル／カラムの移行は `app_settings_schema.py` の `ensure_skill_schema()`。`mcp_service` のモデルもここで `db` に載せる | カラム追加、ユーザー設定、チャット保存形式、Batch状態 |
 | `account_transfer.py` | アカウント輸出入の形式・ジョブ、設定・秘密情報・スレッド・ファイルの移行処理 | エクスポート、インポート、移行アーカイブ |
 | `request_identity.py` | ユーザー読込、CSRFトークン、接続元情報、チャット遅延トレース | ユーザー識別、CSRF取得、レイテンシ計測 |
 | `account_security.py` | クライアントトークン、関連アカウントBAN・解除、アカウント即時削除 | BAN連鎖、識別子、アカウント削除 |
@@ -31,6 +31,7 @@
 | `app_settings_schema.py` | CSRFコンテキスト、アプリ設定、DBカラム・インデックスの互換更新 | 起動時スキーマ補完、AppSetting、DBインデックス |
 | `temp_chat.py` | 添付参照の正規化・削除、一時チャットの在席・期限切れ監視 | 一時チャット、アップロード追跡、自動削除 |
 | `request_security.py` | 自動システム通知、送信時の補助情報の再利用、レスポンスキャッシュ・gzip、メンテナンス、Bot検知・Turnstile | リクエストフック、Bot対策、キャッシュヘッダー |
+| `skills.py` | Skillカタログ（名前・短い説明・指示全文の同梱）、`use_skill` の各プロバイダ向けツール定義と実行、経路ごとのツール可否 | Skillのプロンプト注入・ツール呼び出しを変更するとき |
 | `token_estimation.py` | 入力欄の本文・引用・添付を公式APIで計測、短時間キャッシュ、概算への切替、詳細の増分内訳 | 入力見積の精度・計測APIを変更するとき |
 | `token_utils.py` | レート制限、アカウント単位の認証失敗制限（Web・Android共通）とTOTPコードの再利用防止、モデル別トークン計測、Thinking集計、チャットエラー整形 | トークン数、レート制限、ログイン・2FAの総当たり対策、Botスコア評価 |
 | `model_usage.py` | モデルAPI呼び出しごとの数値使用量、累積usageの統合、Thinking・同期メタデータの正規化 | 費用予想の呼び出し記録とトークン集計を変更するとき |
@@ -47,8 +48,8 @@
 | `routes_threads_library.py` | 暗号化スキャン、管理者スレッド、スレッド設定、ファイルライブラリ操作 | 暗号化、スレッド設定、ライブラリCRUD |
 | `routes_account.py` | アカウント削除、輸出入ジョブ、重複修復、フィードバック、簡易ログイン | アカウント移行 API |
 | `routes_admin.py` | フィードバックの送信・一覧・返信・削除（送信者本人と管理者。ディレクトリごと削除）、返信の履歴（`FeedbackReply`。送信者本人と管理者が返信し、チェックしたときだけ操作ログ `logs/reply-<返信ID>.jsonl` を一緒に保存）と、フィードバックごとのディレクトリ（`feedback/<ID>/`）への情報（`feedback.json`）と操作ログ（`logs/activity.jsonl`）の保存、BAN、ボット検知、Turnstile、速度テスト、管理者のユーザー操作 | フィードバック、操作ログ（ログの収集を強化）、管理、BAN、Turnstile |
-| `feedback_chat_copy.py` | フィードバックに添付する「開いているチャットのコピー」：チャットIDから辿れる記録（復号したメッセージ、Batch・遅延計測・同期・添付キャッシュ・Gem・Redis・一時チャットの状態、ログの該当行）と復号した添付ファイルの保存（`feedback/<ID>/chat.jsonl` と `chat.files/`）、Android端末だけの添付の受信（`/api/feedback/<id>/chat_files`）、保存数・容量の上限、アカウント削除時のフィードバックのディレクトリの削除 | チャットのコピーの内容・保存先・上限 |
+| `feedback_chat_copy.py` | フィードバックに添付する「開いているチャットのコピー」：チャットIDから辿れる記録（復号したメッセージ、Batch・遅延計測・同期・添付キャッシュ・Skill・Redis・一時チャットの状態、ログの該当行）と復号した添付ファイルの保存（`feedback/<ID>/chat.jsonl` と `chat.files/`）、Android端末だけの添付の受信（`/api/feedback/<id>/chat_files`）、保存数・容量の上限、アカウント削除時のフィードバックのディレクトリの削除 | チャットのコピーの内容・保存先・上限 |
 | `feedback_images.py` | フィードバックと返信に添付する画像：送信後の受信（`/api/feedback/<id>/images`、返信は `/api/feedback/<id>/replies/<返信ID>/images`）、ファイル先頭による形式判定、枚数・容量の上限、`feedback/<ID>/images/` への保存 | フィードバックの画像添付の上限・保存先 |
-| `routes_settings.py` | `/api/settings`、AI 設定プロンプト、セッション、2FA 設定、Gem、メンテナンス | 設定保存、Gem、セッション |
+| `routes_settings.py` | `/api/settings`、AI 設定プロンプト、セッション、2FA 設定、Skill（`/api/skills` と互換 `/api/gems`）、メンテナンス | 設定保存、Skill、セッション |
 | `routes_media.py` | TTS / STT / STS、アップロード、容量 API、レイテンシ、クライアントログ | 音声合成、アップロード API |
 | `../mcp_service/` | 外部MCPの接続・OAuth・ツール実行。チャット側は `background.py` と設定ルートで連携 | MCP接続・認証・実行 |

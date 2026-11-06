@@ -416,7 +416,7 @@
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6) !important;
     }
     #settings-modal input, #settings-modal textarea, #settings-modal select,
-    #model-modal input, #gem-modal input, #gem-modal textarea {
+    #model-modal input, #skill-modal input, #skill-modal textarea {
         background: #ffffff !important;
         border-color: rgba(15, 23, 42, 0.14) !important;
         color: var(--text) !important;
@@ -436,7 +436,7 @@
         color: var(--text) !important;
     }
     #quote-bar, #edit-bar, #coding-target-bar,
-    #slash-command-suggestions, #gem-suggestions, #slash-command-list,
+    #slash-command-suggestions, #skill-suggestions, #slash-command-list,
     #file-preview, #total-token-bar {
         background: rgba(255, 255, 255, 0.9) !important;
         border-color: rgba(15, 23, 42, 0.10) !important;
@@ -469,7 +469,7 @@
     #thread-list > div:not(.ptr-pull-indicator):not(#scroll-sentinel):hover {
         background: rgba(15, 23, 42, 0.05) !important;
     }
-    #gem-list .gem-item { background: rgba(15, 23, 42, 0.035) !important; }
+    #skill-list .skill-item { background: rgba(15, 23, 42, 0.035) !important; }
     .sidebar-footer { background: linear-gradient(0deg, rgba(15, 23, 42, 0.05), transparent) !important; }
     .sidebar-legal a, .sidebar-legal button { color: #64748b !important; }
     .sidebar-legal a:hover, .sidebar-legal button:hover { color: var(--theme-700) !important; }
@@ -672,7 +672,7 @@
     }
     #settings-modal > div,
     #model-modal > div,
-    #gem-modal > div { border-color: rgba(15, 23, 42, 0.10) !important; }
+    #skill-modal > div { border-color: rgba(15, 23, 42, 0.10) !important; }
 
     /* Performance fallback modes keep their opaque materials, lightened. */
     html.performance-blur-disabled body:not(.liquid-glass-mode) #sidebar,
@@ -746,7 +746,7 @@
     body.liquid-glass-mode .modal-glass-panel,
     body.liquid-glass-mode #settings-modal > div,
     body.liquid-glass-mode #model-modal > div,
-    body.liquid-glass-mode #gem-modal > div {
+    body.liquid-glass-mode #skill-modal > div {
         background: linear-gradient(145deg, rgba(255, 255, 255, 0.84), rgba(255, 255, 255, 0.62)) !important;
         border-color: rgba(15, 23, 42, 0.12) !important;
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 28px 80px rgba(15, 23, 42, 0.18) !important;

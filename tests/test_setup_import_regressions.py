@@ -161,7 +161,7 @@ class SetupImportRegressionTests(unittest.TestCase):
             'id="setup-account-transfer-progress"',
             'id="setup-account-transfer-cancel-btn"',
             'value="settings"', 'value="api_credentials"', 'value="chats"',
-            'value="gems"', 'value="files"', 'value="feedback"', 'value="diagnostics"',
+            'value="skills"', 'value="files"', 'value="feedback"', 'value="diagnostics"',
             'onclick="nextStep(3)"', '#step-3 input',
         ]:
             self.assertIn(expected, html)

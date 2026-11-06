@@ -57,14 +57,14 @@ val TRANSFER_PHASE_LABELS = mapOf(
     "finalizing" to "最終処理中", "ready" to "ダウンロード準備完了", "downloading" to "ダウンロード中",
     "uploading" to "ZIPをアップロード中", "validating" to "ZIPを検証中", "validating_files" to "ファイル情報を検証中",
     "reading_files" to "ファイルを読み込み中", "importing_settings" to "設定を反映中",
-    "importing_credentials" to "認証情報を反映中", "importing_gems" to "Gemを追加中",
+    "importing_credentials" to "認証情報を反映中", "importing_skills" to "Skillを追加中",
     "saving_files" to "ファイルを保存中", "importing_chats" to "チャット履歴を追加中",
     "importing_feedback" to "フィードバックを追加中", "importing_diagnostics" to "診断データを追加中",
     "cancelling" to "キャンセル処理中", "cancelled" to "キャンセル済み", "expired" to "保存期限切れ",
     "completed" to "完了", "failed" to "失敗",
 )
 
-val DEDUPE_LABELS = listOf("chats" to "チャット", "gems" to "Gem", "files" to "ファイル", "feedback" to "フィードバック", "diagnostics" to "診断データ")
+val DEDUPE_LABELS = listOf("chats" to "チャット", "skills" to "Skill", "files" to "ファイル", "feedback" to "フィードバック", "diagnostics" to "診断データ")
 
 private val TERMINAL_STATES = setOf("ready", "completed", "failed", "cancelled", "expired")
 
@@ -347,7 +347,7 @@ class AccountTransferController(
                     val imported = reply.optJSONObject("imported") ?: JSONObject()
                     val detail = listOf(
                         "設定 ${imported.optInt("settings")}件", "API認証 ${imported.optInt("api_credentials")}件",
-                        "チャット ${imported.optInt("chats")}件", "Gem ${imported.optInt("gems")}件",
+                        "チャット ${imported.optInt("chats")}件", "Skill ${imported.optInt("skills")}件",
                         "ファイル ${imported.optInt("files")}件", "フィードバック ${imported.optInt("feedback")}件",
                         "診断データ ${imported.optInt("diagnostics")}件",
                     ).joinToString(" / ")
@@ -424,7 +424,7 @@ class AccountTransferController(
                 val parts = DEDUPE_LABELS.mapNotNull { (key, label) -> removed.optInt(key).takeIf { it > 0 }?.let { "$label ${it}件" } }
                 val kept = executed.optInt("kept_referenced_files").takeIf { it > 0 }?.let { "（参照のため残したファイル ${it}件）" }.orEmpty()
                 mutable.update { it.copy(dedupeResult = "重複データを修復しました: ${parts.joinToString("、").ifBlank { "0件" }}$kept", dedupeError = false) }
-                onImported(listOf("chats", "gems", "files"))
+                onImported(listOf("chats", "skills", "files"))
             } catch (e: CancellationException) { throw e } catch (e: Exception) {
                 mutable.update { it.copy(dedupeError = true,
                     dedupeResult = (e as? ApiException)?.payload?.optString("error")?.ifBlank { null } ?: "重複データの修復に失敗しました") }

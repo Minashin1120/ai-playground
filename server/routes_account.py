@@ -438,8 +438,8 @@ def import_account_data():
             # data is detected and skipped instead of creating duplicates.
             existing_thread_pids = set()
             existing_thread_sigs = set()
-            existing_gem_sigs = set()
-            existing_gem_uuids = set()
+            existing_skill_sigs = set()
+            existing_skill_uuids = set()
             existing_feedback_sigs = set()
             existing_metric_sigs = set()
             existing_trace_sigs = set()
@@ -452,12 +452,12 @@ def import_account_data():
                 for (sig,) in db.session.query(Thread.import_signature).filter(
                         Thread.user_id == current_user.id, Thread.import_signature.isnot(None)).all():
                     existing_thread_sigs.add(sig)
-            if "gems" in categories:
-                for (uid,) in db.session.query(Gem.uuid).filter(Gem.user_id == current_user.id).all():
-                    existing_gem_uuids.add(uid)
-                for (sig,) in db.session.query(Gem.import_signature).filter(
-                        Gem.user_id == current_user.id, Gem.import_signature.isnot(None)).all():
-                    existing_gem_sigs.add(sig)
+            if "skills" in categories:
+                for (uid,) in db.session.query(Skill.uuid).filter(Skill.user_id == current_user.id).all():
+                    existing_skill_uuids.add(uid)
+                for (sig,) in db.session.query(Skill.import_signature).filter(
+                        Skill.user_id == current_user.id, Skill.import_signature.isnot(None)).all():
+                    existing_skill_sigs.add(sig)
             if "files" in categories:
                 for cache in FileCache.query.filter_by(user_id=current_user.id).all():
                     sig = cache.import_signature or ""
@@ -591,7 +591,7 @@ def import_account_data():
                     file_map[old_rel] = new_rel
                     del raw, disk_data
 
-            gem_uuid_map = {}
+            skill_uuid_map = {}
             counts = {category: 0 for category in ACCOUNT_IMPORT_CATEGORIES}
             if "settings" in categories:
                 _account_transfer_checkpoint(current_user.id, job_id, 57, "importing_settings", "設定を取り込んでいます")
@@ -602,39 +602,47 @@ def import_account_data():
                 _apply_imported_account_secrets(current_user, data.get("api_credentials") or {})
                 counts["api_credentials"] = 1
 
-            if "gems" in categories:
-                gem_items = data.get("gems") or []
-                if not isinstance(gem_items, list) or len(gem_items) > 10_000:
-                    raise ValueError("invalid_gems")
+            if "skills" in categories:
+                # Accept new archives (``skills``) and legacy archives (``gems``).
+                skill_items = data.get("skills") or data.get("gems") or []
+                if not isinstance(skill_items, list) or len(skill_items) > 10_000:
+                    raise ValueError("invalid_skills")
                 import uuid as _uuid_import
-                for item_index, item in enumerate(gem_items, start=1):
+                for item_index, item in enumerate(skill_items, start=1):
                     if item_index == 1 or item_index % 25 == 0:
-                        progress = 60 + int(6 * item_index / max(1, len(gem_items)))
+                        progress = 60 + int(6 * item_index / max(1, len(skill_items)))
                         _account_transfer_checkpoint(
-                            current_user.id, job_id, progress, "importing_gems",
-                            f"Gemを取り込んでいます（{item_index}/{len(gem_items)}）",
+                            current_user.id, job_id, progress, "importing_skills",
+                            f"Skillを取り込んでいます（{item_index}/{len(skill_items)}）",
                         )
+                    # Legacy items may carry fixed prompts / default model; keep
+                    # them on the row for old clients even though the Skill UI
+                    # does not edit them.
                     payload = _normalize_gem_payload(item)
                     old_uuid = str(item.get("uuid") or "")
-                    gem_sig = f"gem:{old_uuid}" if old_uuid else None
-                    if gem_sig and (gem_sig in existing_gem_sigs or old_uuid in existing_gem_uuids):
-                        duplicates["gems"] += 1
+                    skill_sig = f"skill:{old_uuid}" if old_uuid else None
+                    legacy_sig = f"gem:{old_uuid}" if old_uuid else None
+                    if skill_sig and (
+                            skill_sig in existing_skill_sigs
+                            or legacy_sig in existing_skill_sigs
+                            or old_uuid in existing_skill_uuids):
+                        duplicates["skills"] += 1
                         continue
                     new_uuid = str(_uuid_import.uuid4())
-                    gem = Gem(
+                    skill = Skill(
                         uuid=new_uuid,
                         user_id=current_user.id,
                         created_at=_parse_portable_datetime(item.get("created_at")) or datetime.utcnow(),
-                        import_signature=gem_sig,
+                        import_signature=skill_sig,
                         **payload,
                     )
-                    db.session.add(gem)
+                    db.session.add(skill)
                     if old_uuid:
-                        gem_uuid_map[old_uuid] = new_uuid
-                        existing_gem_uuids.add(old_uuid)
-                    if gem_sig:
-                        existing_gem_sigs.add(gem_sig)
-                    counts["gems"] += 1
+                        skill_uuid_map[old_uuid] = new_uuid
+                        existing_skill_uuids.add(old_uuid)
+                    if skill_sig:
+                        existing_skill_sigs.add(skill_sig)
+                    counts["skills"] += 1
 
             if "files" in categories:
                 for file_index, (old_rel, new_rel, display_name, file_hash) in enumerate(imported_files, start=1):
@@ -687,7 +695,7 @@ def import_account_data():
                         custom_instruction=_safe_account_import_text(item.get("custom_instruction"), 500_000) if item.get("custom_instruction") else None,
                         include_global_instruction=bool(item.get("include_global_instruction", True)),
                         last_model=item.get("last_model") if item.get("last_model") in ALL_VALID_MODEL_IDS else None,
-                        last_gem_uuid=gem_uuid_map.get(str(item.get("last_gem_uuid") or "")),
+                        last_skill_uuid=skill_uuid_map.get(str(item.get("last_skill_uuid") or item.get("last_gem_uuid") or "")),
                         enable_prompt_caching=bool(item.get("enable_prompt_caching")),
                         prompt_cache_provider=_safe_account_import_text(item.get("prompt_cache_provider"), 32) if item.get("prompt_cache_provider") else None,
                         prompt_cache_nonce=_safe_account_import_text(item.get("prompt_cache_nonce"), 32) if item.get("prompt_cache_nonce") else None,
@@ -732,8 +740,12 @@ def import_account_data():
                             is_encrypted=encrypted,
                             thought_signature=_safe_account_import_text(message_item.get("thought_signature"), 20_000_000) if message_item.get("thought_signature") else None,
                             prompt_options=_safe_account_import_text(message_item.get("prompt_options"), 100_000) if message_item.get("prompt_options") else None,
-                            gem_uuid=gem_uuid_map.get(str(message_item.get("gem_uuid") or "")),
-                            gem_name=_safe_account_import_text(message_item.get("gem_name"), 100)[:100] if message_item.get("gem_name") else None,
+                            skill_uuid=skill_uuid_map.get(str(
+                                message_item.get("skill_uuid") or message_item.get("gem_uuid") or ""
+                            )),
+                            skill_name=_safe_account_import_text(
+                                message_item.get("skill_name") or message_item.get("gem_name"), 100
+                            )[:100] if (message_item.get("skill_name") or message_item.get("gem_name")) else None,
                         )
                         db.session.add(message)
                         db.session.flush()
@@ -880,6 +892,9 @@ def import_account_data():
             _account_transfer_checkpoint(current_user.id, job_id, 98, "finalizing", "変更を確定しています")
             db.session.commit()
             _set_account_transfer_status(current_user.id, job_id, "completed", 100, "completed", "インポートが完了しました")
+            # Legacy response alias for clients that still label the category "gems".
+            counts["gems"] = counts["skills"]
+            duplicates["gems"] = duplicates["skills"]
             response = jsonify({
                 "status": "ok",
                 "imported": counts,
@@ -946,7 +961,7 @@ def import_account_data():
 def _import_signature(prefix, parts):
     """Deterministic per-user identity for an imported record.
 
-    ``prefix`` is a short category tag (e.g. ``thread`` / ``gem`` / ``feedback``)
+    ``prefix`` is a short category tag (e.g. ``thread`` / ``skill`` / ``feedback``)
     and ``parts`` are the stable fields that define the record.  The same source
     record always yields the same signature, so re-importing it can be detected
     even though local identifiers (public_id, uuid, job_id, ...) are regenerated.
@@ -994,7 +1009,7 @@ def _thread_dedupe_signature(thread):
     message_query = (
         Message.query
         .with_entities(Message.id, Message.role, Message.content, Message.model,
-                       Message.timestamp, Message.gem_uuid, Message.thought_data,
+                       Message.timestamp, Message.skill_uuid, Message.thought_data,
                        Message.is_encrypted)
         .filter(Message.thread_id == thread.id)
         .order_by(Message.id.asc())
@@ -1012,7 +1027,7 @@ def _thread_dedupe_signature(thread):
         digest.update(b"\x1f")
         digest.update((message.timestamp.isoformat() if message.timestamp else "").encode("utf-8", "replace"))
         digest.update(b"\x1f")
-        digest.update(str(message.gem_uuid or "").encode("utf-8", "replace"))
+        digest.update(str(message.skill_uuid or "").encode("utf-8", "replace"))
         digest.update(b"\x1f")
         digest.update(str(thought or "").encode("utf-8", "replace"))
         digest.update(b"\x1f")
@@ -1021,10 +1036,10 @@ def _thread_dedupe_signature(thread):
     return digest.hexdigest()
 
 
-def _gem_dedupe_signature(gem):
+def _skill_dedupe_signature(skill):
     parts = [
-        gem.name or "", gem.description or "", gem.instruction or "",
-        gem.fixed_prompts_json or "",
+        skill.name or "", skill.description or "", skill.instruction or "",
+        skill.fixed_prompts_json or "",
     ]
     return hashlib.sha256("\x1f".join(parts).encode("utf-8", "replace")).hexdigest()
 
@@ -1117,7 +1132,7 @@ def _dedupe_plan_for_user(user_id):
       - ``kept_referenced_files``: number of content-duplicate files that must be
         kept because they are still referenced from chat messages
     """
-    removed = {"chats": [], "gems": [], "files": [], "feedback": [], "metrics": [], "traces": []}
+    removed = {"chats": [], "skills": [], "files": [], "feedback": [], "metrics": [], "traces": []}
     kept_referenced_files = 0
 
     thread_groups = {}
@@ -1129,12 +1144,12 @@ def _dedupe_plan_for_user(user_id):
         if len(ids) > 1:
             removed["chats"].extend(ids[1:])
 
-    gem_groups = {}
-    for gem in Gem.query.filter_by(user_id=user_id).order_by(Gem.id.asc()).yield_per(200):
-        gem_groups.setdefault(_gem_dedupe_signature(gem), []).append(gem.id)
-    for ids in gem_groups.values():
+    skill_groups = {}
+    for skill in Skill.query.filter_by(user_id=user_id).order_by(Skill.id.asc()).yield_per(200):
+        skill_groups.setdefault(_skill_dedupe_signature(skill), []).append(skill.id)
+    for ids in skill_groups.values():
         if len(ids) > 1:
-            removed["gems"].extend(ids[1:])
+            removed["skills"].extend(ids[1:])
 
     feedback_groups = {}
     for feedback in Feedback.query.filter_by(user_id=user_id).order_by(Feedback.id.asc()).yield_per(200):
@@ -1186,13 +1201,15 @@ def _dedupe_count_payload(plan):
     removed = plan["removed"]
     return {
         "chats": len(removed["chats"]),
-        "gems": len(removed["gems"]),
+        "skills": len(removed["skills"]),
+        # Legacy alias for clients that still show the old category name.
+        "gems": len(removed["skills"]),
         "files": len(removed["files"]),
         "feedback": len(removed["feedback"]),
         "diagnostics": len(removed["metrics"]) + len(removed["traces"]),
         "kept_referenced_files": plan["kept_referenced_files"],
         "total": (
-            len(removed["chats"]) + len(removed["gems"]) + len(removed["files"])
+            len(removed["chats"]) + len(removed["skills"]) + len(removed["files"])
             + len(removed["feedback"]) + len(removed["metrics"]) + len(removed["traces"])
         ),
     }
@@ -1207,7 +1224,7 @@ def account_dedupe_preview():
     counts = _dedupe_count_payload(plan)
     response = jsonify({
         "status": "ok",
-        "duplicates": {key: counts[key] for key in ("chats", "gems", "files", "feedback", "diagnostics")},
+        "duplicates": {key: counts[key] for key in ("chats", "skills", "gems", "files", "feedback", "diagnostics")},
         "kept_referenced_files": counts["kept_referenced_files"],
         "total": counts["total"],
         "has_duplicates": counts["total"] > 0,
@@ -1230,35 +1247,35 @@ def account_dedupe_execute():
                 thread = db.session.get(Thread, thread_id)
                 if thread:
                     db.session.delete(thread)
-        if removed["gems"]:
-            gem_groups = {}
-            for gem in Gem.query.filter_by(user_id=current_user.id).order_by(Gem.id.asc()).all():
-                gem_groups.setdefault(_gem_dedupe_signature(gem), []).append(gem)
-            gem_twin = {}
-            for group in gem_groups.values():
+        if removed["skills"]:
+            skill_groups = {}
+            for skill in Skill.query.filter_by(user_id=current_user.id).order_by(Skill.id.asc()).all():
+                skill_groups.setdefault(_skill_dedupe_signature(skill), []).append(skill)
+            skill_twin = {}
+            for group in skill_groups.values():
                 if len(group) > 1:
                     keep = group[0]
                     for dup in group[1:]:
-                        gem_twin[dup.id] = keep.uuid
+                        skill_twin[dup.id] = keep.uuid
             thread_ids = [tid for (tid,) in db.session.query(Thread.id).filter_by(user_id=current_user.id).all()]
-            for gem_id in removed["gems"]:
-                gem = db.session.get(Gem, gem_id)
-                if not gem:
+            for skill_id in removed["skills"]:
+                skill = db.session.get(Skill, skill_id)
+                if not skill:
                     continue
-                # Keep references (thread last_gem_uuid / message gem_uuid)
-                # pointing at a live gem when the removed duplicate had the
+                # Keep references (thread last_skill_uuid / message skill_uuid)
+                # pointing at a live skill when the removed duplicate had the
                 # same content.
-                keep_uuid = gem_twin.get(gem.id)
-                if keep_uuid and keep_uuid != gem.uuid:
+                keep_uuid = skill_twin.get(skill.id)
+                if keep_uuid and keep_uuid != skill.uuid:
                     for start in range(0, len(thread_ids), 200):
                         chunk = thread_ids[start:start + 200]
-                        Message.query.filter(Message.thread_id.in_(chunk), Message.gem_uuid == gem.uuid).update(
-                            {"gem_uuid": keep_uuid}, synchronize_session=False
+                        Message.query.filter(Message.thread_id.in_(chunk), Message.skill_uuid == skill.uuid).update(
+                            {"skill_uuid": keep_uuid}, synchronize_session=False
                         )
-                    Thread.query.filter_by(user_id=current_user.id, last_gem_uuid=gem.uuid).update(
-                        {"last_gem_uuid": keep_uuid}, synchronize_session=False
+                    Thread.query.filter_by(user_id=current_user.id, last_skill_uuid=skill.uuid).update(
+                        {"last_skill_uuid": keep_uuid}, synchronize_session=False
                     )
-                db.session.delete(gem)
+                db.session.delete(skill)
         if removed["files"]:
             for rel_path in removed["files"]:
                 info = _get_file_disk_info(rel_path)
@@ -1291,7 +1308,7 @@ def account_dedupe_execute():
     counts = _dedupe_count_payload(plan)
     response = jsonify({
         "status": "ok",
-        "removed": {key: counts[key] for key in ("chats", "gems", "files", "feedback", "diagnostics")},
+        "removed": {key: counts[key] for key in ("chats", "skills", "gems", "files", "feedback", "diagnostics")},
         "kept_referenced_files": counts["kept_referenced_files"],
         "total": counts["total"],
     })

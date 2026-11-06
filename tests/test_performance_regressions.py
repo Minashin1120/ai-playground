@@ -213,7 +213,7 @@ class PerformanceRegressionTests(unittest.TestCase):
             template.index("使用するキー")
         ]
         self.assertIn("Python（コード実行）は利用できます", warning)
-        self.assertNotIn("検索、URLs、Maps、Python、Gems", warning)
+        self.assertNotIn("検索、URLs、Maps、Python、Skills", warning)
 
 
     def test_browser_fast_mode_keeps_local_images_out_of_upload_until_completion(self):
@@ -288,7 +288,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         load_threads_src = source[source.index("async function loadThreads"):source.index("function initPullToRefresh")]
         self.assertNotIn("model-list-animate", load_threads_src)
 
-        load_gems_src = source[source.index("async function loadGems"):source.index("async function openEditGemModal")]
+        load_gems_src = source[source.index("async function loadSkills"):source.index("async function openEditSkillModal")]
         self.assertNotIn("model-list-animate", load_gems_src)
 
         # renderWelcomeQuickStart must not add opacity-0 to quick buttons

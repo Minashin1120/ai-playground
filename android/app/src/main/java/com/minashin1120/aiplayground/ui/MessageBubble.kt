@@ -517,7 +517,7 @@ private fun VersionSwitcher(index: Int, count: Int, onSwitch: (Int) -> Unit) {
     }
 }
 
-/** `.message-footer-meta`: model • Gem • token counts (dotted underline) • lock, 10px monospace, right-aligned. */
+/** `.message-footer-meta`: model • Skill • token counts (dotted underline) • lock, 10px monospace, right-aligned. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageActions,
@@ -527,10 +527,10 @@ private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageA
     val style = TextStyle(color = color, fontSize = 10.sp, lineHeight = 20.sp, fontFamily = FontFamily.Monospace)
     val parts = mutableListOf<@Composable () -> Unit>()
     if (!user && message.model.isNotBlank()) parts += { Text(message.model, style = style) }
-    if (message.gemName.isNotBlank()) parts += {
+    if (message.skillName.isNotBlank()) parts += {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            FaIcon(R.drawable.fa_solid_gem, null, size = 10.dp, tint = Tw.purple300.copy(alpha = 0.9f), modifier = Modifier.padding(end = 2.dp))
-            Text(message.gemName, style = style.copy(color = Tw.purple300.copy(alpha = 0.9f)))
+            FaIcon(R.drawable.fa_solid_wand_magic_sparkles, null, size = 10.dp, tint = Tw.purple300.copy(alpha = 0.9f), modifier = Modifier.padding(end = 2.dp))
+            Text(message.skillName, style = style.copy(color = Tw.purple300.copy(alpha = 0.9f)))
         }
     }
     messageTokenLabel(message)?.let { label ->
@@ -736,7 +736,7 @@ internal fun SmallInfoModal(onDismiss: () -> Unit, content: @Composable () -> Un
 }
 
 /**
- * `#welcome-screen`: gem heading with gradient text, subtitle and the quick-access model buttons
+ * `#welcome-screen`: skill heading with gradient text, subtitle and the quick-access model buttons
  * (one column, two from 640px), over the theme radial glow.
  */
 @Composable
@@ -758,10 +758,10 @@ internal fun WelcomeScreen(models: List<Pair<String, String>>, onChoose: (String
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.verticalScroll(rememberScrollState())) {
             StaggerIn(0) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FaIcon(R.drawable.fa_solid_gem, null, size = 22.4.dp, tint = web.theme.t500)
+                    FaIcon(R.drawable.fa_solid_wand_magic_sparkles, null, size = 22.4.dp, tint = web.theme.t500)
                     val gradient = if (web.isLight) listOf(Color(0xFF0F766E), web.theme.t600, Color(0xFFB45309))
                         else listOf(Color(0xFFF8FAFC), web.theme.t200, Tw.amber200)
-                    Text("AI Gems & Chat", fontSize = 22.4.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.035).em,
+                    Text("AI Skills & Chat", fontSize = 22.4.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.035).em,
                         style = TextStyle(brush = Brush.linearGradient(gradient)))
                 }
             }

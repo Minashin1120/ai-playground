@@ -82,7 +82,7 @@ class FeedbackChatCopyTests(unittest.TestCase):
             handle.write(b'plain report')
         with target.app.app_context():
             thread = target.Thread(user_id=self.user_id, public_id='feedback-chat-thread-public-id', title='T',
-                                   custom_instruction='be brief', last_gem_uuid='gem-1')
+                                   custom_instruction='be brief', last_skill_uuid='skill-1')
             target.db.session.add(thread)
             target.db.session.flush()
             target.db.session.add(target.Message(
@@ -93,7 +93,7 @@ class FeedbackChatCopyTests(unittest.TestCase):
                 thread_id=thread.id, role='assistant', is_encrypted=True, model='m',
                 content=target.encrypt_val('see [report](/files/report.txt)'),
                 thought_data=target.encrypt_val('thinking'), timestamp=datetime.utcnow()))
-            target.db.session.add(target.Gem(uuid='gem-1', user_id=self.user_id, name='G', instruction='gem rules'))
+            target.db.session.add(target.Skill(uuid='skill-1', user_id=self.user_id, name='S', instruction='skill rules'))
             target.db.session.add(target.ChatLatencyTrace(user_id=self.user_id, thread_public_id=thread.public_id,
                                                           job_id='job-abcdef123', model='m'))
             target.db.session.add(target.FileCache(user_id=self.user_id, rel_path=f'{self.user_id}/photo.png',
@@ -151,7 +151,7 @@ class FeedbackChatCopyTests(unittest.TestCase):
         self.assertEqual(by_kind['thread'][0]['custom_instruction'], 'be brief')
         self.assertEqual([m['content'] for m in by_kind['message']], ['secret question', 'see [report](/files/report.txt)'])
         self.assertEqual(by_kind['message'][1]['thought_data'], 'thinking')
-        self.assertEqual(by_kind['gem'][0]['instruction'], 'gem rules')
+        self.assertEqual(by_kind['skill'][0]['instruction'], 'skill rules')
         self.assertEqual(by_kind['latency_trace'][0]['job_id'], 'job-abcdef123')
         self.assertEqual(by_kind['file_cache'][0]['last_error'], 'upload refused')
         self.assertEqual(by_kind['client_state'][0]['value']['local_storage'], {f'fixed_branch_{thread_id}': '12'})

@@ -115,7 +115,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         val row = JSONObject().put("id", id).put("uuid", UUID.randomUUID().toString()).put("title", title)
             .put("is_temporary", temporary).put("is_bookmarked", false).put("bookmarked_at", 0L)
             .put("custom_instruction", "").put("include_global_instruction", true).put("last_model", JSONObject.NULL)
-            .put("last_gem_uuid", JSONObject.NULL).put("enable_prompt_caching", false)
+            .put("last_skill_uuid", JSONObject.NULL).put("enable_prompt_caching", false)
             .put("created_at", stamp).put("updated_at", stamp).put("meta_changed_at", stamp)
             .put("server_id", JSONObject.NULL).put("dirty", true)
         putThreads(index, threads(index) + row)
@@ -216,7 +216,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
             .put("custom_instruction", thread.optString("custom_instruction"))
             .put("include_global_instruction", thread.optBoolean("include_global_instruction", true))
             .put("last_model", thread.opt("last_model") ?: JSONObject.NULL)
-            .put("last_gem_uuid", thread.opt("last_gem_uuid") ?: JSONObject.NULL)
+            .put("last_skill_uuid", thread.opt("last_skill_uuid") ?: thread.opt("last_gem_uuid") ?: JSONObject.NULL)
             .put("enable_prompt_caching", thread.optBoolean("enable_prompt_caching"))
             .put("is_temporary", thread.optBoolean("is_temporary"))
             .put("pending_job", JSONObject.NULL)
@@ -237,7 +237,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         .put("tokens_thought", row.opt("tokens_thought") ?: JSONObject.NULL)
         .put("is_encrypted", encrypted ?: JSONObject.NULL).put("quote_text", row.opt("quote_text") ?: JSONObject.NULL)
         .put("parent_id", row.opt("parent_id") ?: JSONObject.NULL)
-        .put("gem_uuid", row.opt("gem_uuid") ?: JSONObject.NULL).put("gem_name", row.opt("gem_name") ?: JSONObject.NULL)
+        .put("skill_uuid", row.opt("skill_uuid") ?: row.opt("gem_uuid") ?: JSONObject.NULL).put("skill_name", row.opt("skill_name") ?: row.opt("gem_name") ?: JSONObject.NULL)
         .put("created_at", iso(row.optLong("created_ms"))).put("batch_job", JSONObject.NULL)
 
     /** Applies [change] to the thread row; returns the updated row or null when it does not exist. */
@@ -280,8 +280,8 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         val thought: String = "",
         val files: List<String> = emptyList(),
         val quote: String = "",
-        val gemUuid: String = "",
-        val gemName: String = "",
+        val skillUuid: String = "",
+        val skillName: String = "",
         val promptOptions: JSONObject? = null,
         val tokensIn: Int? = null,
         val tokensOut: Int? = null,
@@ -320,8 +320,8 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
             .put("parent_id", message.parentId?.takeIf { serverParent == null } ?: JSONObject.NULL)
             .put("parent_server_id", serverParent ?: JSONObject.NULL)
             .put("quote_text", message.quote.ifBlank { null } ?: JSONObject.NULL)
-            .put("gem_uuid", message.gemUuid.ifBlank { null } ?: JSONObject.NULL)
-            .put("gem_name", message.gemName.ifBlank { null } ?: JSONObject.NULL)
+            .put("skill_uuid", message.skillUuid.ifBlank { null } ?: JSONObject.NULL)
+            .put("skill_name", message.skillName.ifBlank { null } ?: JSONObject.NULL)
             .put("prompt_options", message.promptOptions ?: JSONObject.NULL)
             .put("tokens_in", message.tokensIn ?: JSONObject.NULL).put("tokens_out", message.tokensOut ?: JSONObject.NULL)
             .put("tokens_thought", message.tokensThought ?: JSONObject.NULL)
@@ -479,7 +479,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         val row = JSONObject().put("id", id).put("uuid", UUID.randomUUID().toString()).put("title", "New Chat")
             .put("is_temporary", false).put("is_bookmarked", false).put("bookmarked_at", 0L)
             .put("custom_instruction", "").put("include_global_instruction", true).put("last_model", JSONObject.NULL)
-            .put("last_gem_uuid", JSONObject.NULL).put("enable_prompt_caching", false)
+            .put("last_skill_uuid", JSONObject.NULL).put("enable_prompt_caching", false)
             .put("created_at", stamp).put("updated_at", stamp).put("meta_changed_at", stamp)
             .put("server_id", serverId).put("outbox", true).put("dirty", false)
         putThreads(index, threads(index) + row)
@@ -688,7 +688,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
                     .put("prompt_text", com.minashin1120.aiplayground.data.savedPromptText(row) ?: JSONObject.NULL)
                     .put("search_used", com.minashin1120.aiplayground.data.reasoningSearchUsed(row.textOf("thought_data")))
                     .put("quote_text", row.opt("quote_text") ?: JSONObject.NULL)
-                    .put("gem_uuid", row.opt("gem_uuid") ?: JSONObject.NULL).put("gem_name", row.opt("gem_name") ?: JSONObject.NULL)
+                    .put("skill_uuid", row.opt("skill_uuid") ?: row.opt("gem_uuid") ?: JSONObject.NULL).put("skill_name", row.opt("skill_name") ?: row.opt("gem_name") ?: JSONObject.NULL)
                     .put("tokens_in", row.opt("tokens_in") ?: JSONObject.NULL).put("tokens_out", row.opt("tokens_out") ?: JSONObject.NULL)
                     .put("tokens_thought", row.opt("tokens_thought") ?: JSONObject.NULL)
                     .put("pricing_calls", runCatching { JSONObject(row.optString("thought_data")).optJSONArray("pricing_calls") }.getOrNull() ?: JSONObject.NULL)
@@ -714,7 +714,7 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
                 entry.put("client_uuid", thread.getString("uuid")).put("title", thread.optString("title", "New Chat"))
                     .put("is_bookmarked", thread.optBoolean("is_bookmarked")).put("custom_instruction", thread.optString("custom_instruction"))
                     .put("include_global_instruction", thread.optBoolean("include_global_instruction", true))
-                    .put("last_gem_uuid", thread.opt("last_gem_uuid") ?: JSONObject.NULL)
+                    .put("last_skill_uuid", thread.opt("last_skill_uuid") ?: thread.opt("last_gem_uuid") ?: JSONObject.NULL)
                     .put("branch_origin", thread.opt("branch_origin") ?: JSONObject.NULL)
                     .put("meta_changed_at_ms", thread.optLong("meta_changed_at"))
             }

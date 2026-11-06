@@ -23,24 +23,24 @@ class PullToRefreshRegressionTests(unittest.TestCase):
         self.assertIn("ptr-pull-spinner", thread_list)
         self.assertIn("ptr-pull-label", thread_list)
 
-    def test_gem_indicator_element_exists_in_gem_list(self):
+    def test_skill_indicator_element_exists_in_skill_list(self):
         template = read_chat_markup()
-        gem_list = template[template.index('id="gem-list"') :]
-        gem_list = gem_list[: gem_list.index('</div></div>')]
+        skill_list = template[template.index('id="skill-list"') :]
+        skill_list = skill_list[: skill_list.index('</div></div>')]
 
-        self.assertIn('id="gem-pull-indicator"', gem_list)
-        self.assertIn("ptr-pull-icon", gem_list)
-        self.assertIn("ptr-pull-spinner", gem_list)
-        self.assertIn("ptr-pull-label", gem_list)
+        self.assertIn('id="skill-pull-indicator"', skill_list)
+        self.assertIn("ptr-pull-icon", skill_list)
+        self.assertIn("ptr-pull-spinner", skill_list)
+        self.assertIn("ptr-pull-label", skill_list)
 
     def test_init_functions_and_touch_handlers_registered(self):
         source = _current_asset("js", "chat_core.v4.8.*.js")
 
         self.assertIn("function initPullToRefresh(listId, refreshFn)", source)
         self.assertIn("initThreadPullToRefresh", source)
-        self.assertIn("initGemPullToRefresh", source)
+        self.assertIn("initSkillPullToRefresh", source)
         self.assertIn("initPullToRefresh('thread-list', () => loadThreads(false))", source)
-        self.assertIn("initPullToRefresh('gem-list', () => loadGems())", source)
+        self.assertIn("initPullToRefresh('skill-list', () => loadSkills())", source)
         self.assertIn("list.addEventListener('touchstart'", source)
         self.assertIn("list.addEventListener('touchmove', (e) => {", source)
         self.assertIn("{ passive: false })", source)
@@ -68,14 +68,14 @@ class PullToRefreshRegressionTests(unittest.TestCase):
         # Every list reset that creates a fresh scroll-sentinel must also recreate the indicator.
         for block in source.split(reset_html)[1:]:
             self.assertIn('<div id="scroll-sentinel"></div>', block[:300])
-        # Gems reload must recreate the gem indicator too.
-        self.assertIn('<div id="gem-pull-indicator" class="ptr-pull-indicator"', source)
+        # Skills reload must recreate the skill indicator too.
+        self.assertIn('<div id="skill-pull-indicator" class="ptr-pull-indicator"', source)
 
     def test_css_styles_pull_indicator_and_prevents_scroll_chaining(self):
         source = _current_asset("css", "chat.custom.v4.8.*.css")
 
         self.assertIn("#thread-list,", source)
-        self.assertIn("#gem-list { overscroll-behavior-y: contain; }", source)
+        self.assertIn("#skill-list { overscroll-behavior-y: contain; }", source)
         self.assertIn(".ptr-pull-indicator {", source)
         self.assertIn("transition: height 0.25s var(--ease-out);", source)
         self.assertIn(".ptr-pull-indicator.pull-ready .ptr-pull-icon { transform: rotate(180deg); }", source)

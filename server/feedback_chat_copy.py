@@ -2,7 +2,7 @@
 # Sent only when the user ticks the box in the feedback form. Everything the server can find
 # from the chat's id goes into one JSON Lines file in the feedback's directory
 # (``feedback/<public_id>/chat.jsonl``, next to ``feedback.json`` and ``logs/``): the chat and its messages decrypted, its
-# Batch jobs, latency traces, sync records, attachment cache state, the Gems it used, the Redis
+# Batch jobs, latency traces, sync records, attachment cache state, the Skills it used, the Redis
 # state of its answers, its temporary-chat state, and the server log lines (debug.log,
 # access.log, the service journal, Android diagnostics, activity logs of other feedback) that
 # name the chat or one of its answers. Attachments are decrypted into the sibling
@@ -380,12 +380,16 @@ def _feedback_chat_server_rows(thread, user_id, files_dir, totals):
     for row in SyncTombstone.query.filter_by(user_id=user_id, public_id=public_id):
         yield _feedback_chat_row(row, 'sync_tombstone')
 
-    gem_uuids = {m.get('gem_uuid') for m in messages if m.get('gem_uuid')}
-    if thread.last_gem_uuid:
-        gem_uuids.add(thread.last_gem_uuid)
-    if gem_uuids:
-        for gem in Gem.query.filter(Gem.user_id == user_id, Gem.uuid.in_(sorted(gem_uuids))):
-            yield _feedback_chat_row(gem, 'gem')
+    skill_uuids = {
+        (m.get('skill_uuid') or m.get('gem_uuid'))
+        for m in messages
+        if (m.get('skill_uuid') or m.get('gem_uuid'))
+    }
+    if thread.last_skill_uuid:
+        skill_uuids.add(thread.last_skill_uuid)
+    if skill_uuids:
+        for skill in Skill.query.filter(Skill.user_id == user_id, Skill.uuid.in_(sorted(skill_uuids))):
+            yield _feedback_chat_row(skill, 'skill')
 
     user = db.session.get(User, user_id)
     try:

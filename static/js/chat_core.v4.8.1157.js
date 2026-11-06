@@ -411,7 +411,7 @@
             });
         };
         const revealPersistentSidebarLists = () => {
-            document.querySelectorAll('#thread-list > [data-thread-id], #gem-list > .gem-item').forEach((el) => {
+            document.querySelectorAll('#thread-list > [data-thread-id], #skill-list > .skill-item').forEach((el) => {
                 el.classList.remove('model-list-animate', 'slide-in-animate', 'fade-in', 'opacity-0');
                 el.style.removeProperty('opacity');
                 el.style.removeProperty('transform');
@@ -419,7 +419,7 @@
                 el.style.removeProperty('animation-delay');
                 el.style.removeProperty('visibility');
             });
-            ['thread-list', 'gem-list'].forEach((id) => {
+            ['thread-list', 'skill-list'].forEach((id) => {
                 const list = get(id);
                 if (!list) return;
                 list.style.removeProperty('opacity');
@@ -1031,7 +1031,7 @@
             '.viewer-meta',
             '#quote-bar',
             '#slash-command-suggestions',
-            '#gem-suggestions',
+            '#skill-suggestions',
             '#total-token-bar'
         ].join(',');
         const refreshLiquidGlassSurfaces = () => {
@@ -3213,7 +3213,7 @@
         const TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS = 90;
         const TEMP_CHAT_HEARTBEAT_MIN_MS = 4000;
         const TEMP_CHAT_HEARTBEAT_MAX_MS = 15000;
-        let activeGem = null, editingGemUuid = null, currentImageUrls = [], currentMaskImage = null, abortController = null, richPasteAbortController = null, userAutoScroll = true, searchTimeout;
+        let activeSkill = null, editingSkillUuid = null, currentImageUrls = [], currentMaskImage = null, abortController = null, richPasteAbortController = null, userAutoScroll = true, searchTimeout;
 
         // Prompt History
         let promptHistory = [];
@@ -3261,9 +3261,9 @@
             baseImageData: null
         };
         const markerView = { scale: 1, offsetX: 0, offsetY: 0, minScale: 1, maxScale: 4 };
-        const threadGemMap = {};
-        let pendingGemForNewThread = null;
-        let loadedGems = [];
+        const threadSkillMap = {};
+        let pendingSkillForNewThread = null;
+        let loadedSkills = [];
         let currentJobId = null;
         let currentThreadPending = null;
         let currentVisionModel = null;
@@ -8465,9 +8465,9 @@
             return `${prefix}${details ? `\n${details}` : ''}`.slice(0, 1600);
         }
 
-        // Gem suggestion system (triggered by @ in prompt bar)
-        let gemSuggestionsVisible = false;
-        let gemSelectedIndex = 0;
+        // Skill suggestion system (triggered by @ in prompt bar)
+        let skillSuggestionsVisible = false;
+        let skillSelectedIndex = 0;
 
         const STS_MODELS = new Set([
             'gpt-transcribe',
@@ -11579,7 +11579,7 @@
                 } catch (error) {}
             }
             snapshotSidebarHistory('page-init');
-            loadThreads(); loadGems();
+            loadThreads(); loadSkills();
 
             get('send-btn').onclick = () => { if (isStopMode) stopGeneration(); else sendMessage(); };
             get('new-chat-btn').onclick = () => startNewChat();
@@ -11654,7 +11654,7 @@
                         finalizing: '最終処理中', ready: 'ダウンロード準備完了', downloading: 'ダウンロード中',
                         uploading: 'ZIPをアップロード中', validating: 'ZIPを検証中', validating_files: 'ファイル情報を検証中',
                         reading_files: 'ファイルを読み込み中', importing_settings: '設定を反映中',
-                        importing_credentials: '認証情報を反映中', importing_gems: 'Gemを追加中',
+                        importing_credentials: '認証情報を反映中', importing_skills: 'Skillを追加中',
                         saving_files: 'ファイルを保存中', importing_chats: 'チャット履歴を追加中',
                         importing_feedback: 'フィードバックを追加中', importing_diagnostics: '診断データを追加中',
                         cancelling: 'キャンセル処理中', cancelled: 'キャンセル済み', expired: '保存期限切れ',
@@ -12182,7 +12182,7 @@
                             renderAccountTransferProgress({progress: 100, phase: 'completed', message});
                             showToast('選択したアカウントデータをインポートしました', 'success');
                             if (categories.includes('chats')) loadThreads();
-                            if (categories.includes('gems')) loadGems();
+                            if (categories.includes('skills')) loadSkills();
                             if (categories.includes('files')) loadStorageUsage();
                             if (categories.includes('settings') || categories.includes('api_credentials')) refreshSettingsFormAfterImport();
                         };
@@ -12321,12 +12321,12 @@
                             const imported = data.imported || {};
                             const detail = [
                                 `設定 ${imported.settings || 0}件`, `API認証 ${imported.api_credentials || 0}件`,
-                                `チャット ${imported.chats || 0}件`, `Gem ${imported.gems || 0}件`,
+                                `チャット ${imported.chats || 0}件`, `Skill ${imported.skills || 0}件`,
                                 `ファイル ${imported.files || 0}件`, `フィードバック ${imported.feedback || 0}件`,
                                 `診断データ ${imported.diagnostics || 0}件`,
                             ].join(' / ');
                             const duplicated = data.duplicates || {};
-                            const dupLabels = {chats: 'チャット', gems: 'Gem', files: 'ファイル', feedback: 'フィードバック', diagnostics: '診断データ'};
+                            const dupLabels = {chats: 'チャット', skills: 'Skill', files: 'ファイル', feedback: 'フィードバック', diagnostics: '診断データ'};
                             const dupParts = [];
                             for (const key of Object.keys(dupLabels)) {
                                 const count = Number(duplicated[key]) || 0;
@@ -12341,7 +12341,7 @@
                             renderAccountTransferProgress({progress: 100, phase: 'completed', message: 'インポートが完了しました'});
                             showToast('選択したアカウントデータをインポートしました', 'success');
                             if (categories.includes('chats')) loadThreads();
-                            if (categories.includes('gems')) loadGems();
+                            if (categories.includes('skills')) loadSkills();
                             if (categories.includes('files')) loadStorageUsage();
                             if (categories.includes('settings') || categories.includes('api_credentials')) refreshSettingsFormAfterImport();
                             importDone = true;
@@ -12393,8 +12393,8 @@
                             return;
                         }
                         const parts = [];
-                        const labels = {chats: 'チャット', gems: 'Gem', files: 'ファイル', feedback: 'フィードバック', diagnostics: '診断データ'};
-                        for (const key of ['chats', 'gems', 'files', 'feedback', 'diagnostics']) {
+                        const labels = {chats: 'チャット', skills: 'Skill', files: 'ファイル', feedback: 'フィードバック', diagnostics: '診断データ'};
+                        for (const key of ['chats', 'skills', 'files', 'feedback', 'diagnostics']) {
                             const count = Number(preview.duplicates && preview.duplicates[key]) || 0;
                             if (count > 0) parts.push(`${labels[key]} ${count}件`);
                         }
@@ -12412,7 +12412,7 @@
                         const executed = await execRes.json().catch(() => null);
                         if (!execRes.ok || !executed) throw new Error((executed && executed.error) || '重複データの修復に失敗しました');
                         const removedParts = [];
-                        for (const key of ['chats', 'gems', 'files', 'feedback', 'diagnostics']) {
+                        for (const key of ['chats', 'skills', 'files', 'feedback', 'diagnostics']) {
                             const count = Number(executed.removed && executed.removed[key]) || 0;
                             if (count > 0) removedParts.push(`${labels[key]} ${count}件`);
                         }
@@ -12421,7 +12421,7 @@
                             : '';
                         showDedupeResult(`重複データを修復しました: ${removedParts.join('、') || '0件'}${keptAfter}`);
                         loadThreads();
-                        loadGems();
+                        loadSkills();
                         loadStorageUsage();
                     };
                     if (accountDedupeBtn.disabled) return;
@@ -12776,7 +12776,8 @@
                 { key: 'quote_source', label: '引用元（引用して送信時）', hint: '利用可能変数: {{quote_source}}（引用元の発言者と会話内の番号が入ります）' },
                 { key: 'mathjax', label: 'MathJax（LaTeX数式）' },
                 { key: 'image_analysis', label: '画像解析（Vision Model指示文）' },
-                { key: 'mcp', label: 'MCP（外部ツール接続）', hint: '利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）', mcpLocked: true }
+                { key: 'mcp', label: 'MCP（外部ツール接続）', hint: '利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）', mcpLocked: true },
+                { key: 'skills', label: 'Skills（保存した指示の利用）', hint: '利用可能変数: {{skills}} / {{skill_count}}' }
             ];
             window.buildAutoSystemPromptRows = (prefix, compact = false) => {
                 const textClass = compact
@@ -13974,11 +13975,13 @@
                 } },
                 '/encryption-status': { id: 'encryption-status-modal', open: () => showEncryptionStatusModal() },
                 '/python-execution': { id: 'python-exec-modal', open: () => showPythonExecDetailModal() },
-                '/gem': { id: 'gem-modal', open: () => { editingGemUuid = null; get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`; showModal('gem-modal'); } },
+                '/skill': { id: 'skill-modal', open: () => { editingSkillUuid = null; get('skill-modal-title').innerHTML = `<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Create New Skill`; showModal('skill-modal'); } },
                 '/compression': { id: 'compression-modal', open: () => window.openCompressionModal() },
                 '/admin-bots': { id: 'bot-admin-modal', open: () => openBotAdminModal() },
                 '/admin-bot-logs': { id: 'bot-log-modal', open: () => openBotLogModal() }
             };
+            // Legacy URL alias for bookmarks and old links.
+            MODAL_CONFIG['/gem'] = MODAL_CONFIG['/skill'];
 
             const closeModalById = (id, skipHistory = false) => {
                 switch (id) {
@@ -13998,7 +14001,7 @@
                     case 'token-detail-modal': closeTokenDetail(skipHistory); break;
                     case 'encryption-status-modal': closeEncryptionModal(skipHistory); break;
                     case 'python-exec-modal': closePythonExecDetail(skipHistory); break;
-                    case 'gem-modal': if (window.closeGemModal) window.closeGemModal(skipHistory); break;
+                    case 'skill-modal': if (window.closeSkillModal) window.closeSkillModal(skipHistory); break;
                     case 'compression-modal': if (window.closeCompressionModal) window.closeCompressionModal(skipHistory); break;
                     case 'bot-admin-modal': if (window.closeBotAdminModal) window.closeBotAdminModal(skipHistory); break;
                     case 'bot-log-modal': if (window.closeBotLogModal) window.closeBotLogModal(skipHistory); break;
@@ -14502,37 +14505,37 @@
                     }
                 }
 
-                // Gem suggestion keyboard navigation
-                if (gemSuggestionsVisible) {
+                // Skill suggestion keyboard navigation
+                if (skillSuggestionsVisible) {
                     const val = input.value.trim();
                     if (e.key === 'ArrowDown') {
                         e.preventDefault();
-                        gemSelectedIndex = gemSelectedIndex + 1;
-                        showGemSuggestions(val.substring(1));
+                        skillSelectedIndex = skillSelectedIndex + 1;
+                        showSkillSuggestions(val.substring(1));
                         return;
                     }
                     if (e.key === 'ArrowUp') {
                         e.preventDefault();
-                        gemSelectedIndex = Math.max(gemSelectedIndex - 1, 0);
-                        showGemSuggestions(val.substring(1));
+                        skillSelectedIndex = Math.max(skillSelectedIndex - 1, 0);
+                        showSkillSuggestions(val.substring(1));
                         return;
                     }
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         const filter = val.substring(1).toLowerCase();
-                        const filtered = loadedGems.filter(g =>
+                        const filtered = loadedSkills.filter(g =>
                             g.name.toLowerCase().includes(filter) || (g.description && g.description.toLowerCase().includes(filter))
                         );
-                        if (filtered[gemSelectedIndex]) {
-                            selectGemSuggestion(filtered[gemSelectedIndex]);
+                        if (filtered[skillSelectedIndex]) {
+                            selectSkillSuggestion(filtered[skillSelectedIndex]);
                         } else if (filtered.length > 0) {
-                            selectGemSuggestion(filtered[0]);
+                            selectSkillSuggestion(filtered[0]);
                         }
                         return;
                     }
                     if (e.key === 'Escape') {
                         e.preventDefault();
-                        hideGemSuggestions();
+                        hideSkillSuggestions();
                         return;
                     }
                 }
@@ -14590,15 +14593,15 @@
                         syncCodingModeUi(true, { persist: false });
                     }
 
-                    // Slash command / gem suggestion triggers
+                    // Slash command / skill suggestion triggers
                     const val = this.value.trim();
                     if (pendingSlashCommand) {
-                        if (gemSuggestionsVisible) hideGemSuggestions();
+                        if (skillSuggestionsVisible) hideSkillSuggestions();
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
                         lastSlashFilter = null;
                     } else if (val.startsWith('@')) {
                         const filter = val.substring(1);
-                        showGemSuggestions(filter);
+                        showSkillSuggestions(filter);
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
                         lastSlashFilter = null;
                     } else if (val.startsWith('/')) {
@@ -14612,9 +14615,9 @@
                             lastSlashFilter = filter;
                             showSlashCommandSuggestions(filter);
                         }
-                        if (gemSuggestionsVisible) hideGemSuggestions();
+                        if (skillSuggestionsVisible) hideSkillSuggestions();
                     } else {
-                        if (gemSuggestionsVisible) hideGemSuggestions();
+                        if (skillSuggestionsVisible) hideSkillSuggestions();
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
                         lastSlashFilter = null;
                     }
@@ -14624,7 +14627,7 @@
                     // Delay to allow click on suggestion items
                     setTimeout(() => {
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
-                        if (gemSuggestionsVisible) hideGemSuggestions();
+                        if (skillSuggestionsVisible) hideSkillSuggestions();
                     }, 150);
                 });
             }
@@ -15822,7 +15825,7 @@
                     streamController = new AbortController();
                     streamOpen = true;
                     try {
-                        const res = await fetch(`/api/gemini/music/stream?session_id=${encodeURIComponent(sessionId)}`, noSpinner({
+                        const res = await fetch(`/api/skillini/music/stream?session_id=${encodeURIComponent(sessionId)}`, noSpinner({
                             method: 'GET',
                             signal: streamController.signal,
                             headers: { 'Accept': 'text/event-stream' },
@@ -15939,7 +15942,7 @@
                 }
 
                 async function apiCommand(type, payload) {
-                    const res = await fetch('/api/gemini/music/command', noSpinner({
+                    const res = await fetch('/api/skillini/music/command', noSpinner({
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(Object.assign({ session_id: sessionId, type }, payload || {}))
@@ -15960,7 +15963,7 @@
                     updateTransportButtons();
                     setStatus('接続中...', 'connecting');
                     try {
-                        const res = await fetch('/api/gemini/music/start', noSpinner({
+                        const res = await fetch('/api/skillini/music/start', noSpinner({
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ weighted_prompts: prompts, config: collectConfig() })
@@ -16048,7 +16051,7 @@
                     setStatus('保存中...', 'connecting');
                     updateTransportButtons();
                     try {
-                        const res = await fetch('/api/gemini/music/save', noSpinner({
+                        const res = await fetch('/api/skillini/music/save', noSpinner({
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ session_id: sessionId, thread_id: currentThreadId || null })
@@ -16078,7 +16081,7 @@
                     closeStream();
                     if (sessionId) {
                         try {
-                            await fetch('/api/gemini/music/cancel', noSpinner({
+                            await fetch('/api/skillini/music/cancel', noSpinner({
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ session_id: sessionId })
@@ -16116,7 +16119,7 @@
                 function closeAndCleanup(keepThread) {
                     closeStream();
                     if (sessionId) {
-                        fetch('/api/gemini/music/cancel', noSpinner({
+                        fetch('/api/skillini/music/cancel', noSpinner({
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ session_id: sessionId })
@@ -16524,7 +16527,7 @@
                         finalData.thread_id = currentThreadId;
                         finalData.model = get('model-select').value;
 
-                        await apiFetch('/api/gemini/save_sts', {
+                        await apiFetch('/api/skillini/save_sts', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify(finalData)
@@ -16595,7 +16598,7 @@
                                 ctx: liveMic.ctx,
                                 source: liveMic.ctx.createMediaStreamSource(micStream)
                             };
-                            const res = await apiFetch('/api/gemini/session', {
+                            const res = await apiFetch('/api/skillini/session', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(sessionBody)
@@ -16806,9 +16809,9 @@
                                     history.pushState({}, '', '/c/' + d.id);
                                     get('welcome-screen').classList.add('hidden');
                                 }
-                                if (currentThreadId && activeGem) {
-                                    threadGemMap[currentThreadId] = activeGem;
-                                    pendingGemForNewThread = null;
+                                if (currentThreadId && activeSkill) {
+                                    threadSkillMap[currentThreadId] = activeSkill;
+                                    pendingSkillForNewThread = null;
                                 }
                                 fd.append('model', get('model-select').value);
                                 fd.append('thread_id', currentThreadId);
@@ -17031,49 +17034,43 @@
             };
         }
         if (get('lib-load-more-btn')) get('lib-load-more-btn').onclick = () => loadLibraryFiles(true);
-            if (get('add-gem-fixed-prompt-row')) {
-                get('add-gem-fixed-prompt-row').onclick = () => addGemFixedPromptRow();
-            }
 
-        const openGemModal = () => {
-            editingGemUuid = null;
-            get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem`;
-            get('save-gem-btn').innerText = "Create Gem";
-            showModal('gem-modal');
-            get('gem-name').value=''; get('gem-desc').value=''; get('gem-inst').value=''; setGemDefaultModelSelect('');
-            if (get('gem-fixed-prompts-container')) get('gem-fixed-prompts-container').innerHTML = '';
-            if (location.pathname !== '/gem') {
-                history.pushState({ modal: 'gem' }, '', '/gem');
+        const openSkillModal = () => {
+            editingSkillUuid = null;
+            get('skill-modal-title').innerHTML = `<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Create New Skill`;
+            get('save-skill-btn').innerText = "Create Skill";
+            showModal('skill-modal');
+            get('skill-name').value=''; get('skill-desc').value=''; get('skill-inst').value='';
+            if (location.pathname !== '/skill') {
+                history.pushState({ modal: 'skill' }, '', '/skill');
             }
         };
-        window.closeGemModal = (skipHistory = false) => {
-            hideModal('gem-modal');
-            if (!skipHistory && location.pathname === '/gem') {
+        window.closeSkillModal = (skipHistory = false) => {
+            hideModal('skill-modal');
+            if (!skipHistory && location.pathname === '/skill') {
                 history.back();
             }
         };
-        get('add-gem-btn').onclick = () => openGemModal();
-            get('save-gem-btn').onclick = async () => {
-                const name = get('gem-name').value;
-                const desc = get('gem-desc').value;
-                const inst = get('gem-inst').value;
-                const fixed_prompts = collectGemFixedPrompts();
+        get('add-skill-btn').onclick = () => openSkillModal();
+            get('save-skill-btn').onclick = async () => {
+                const name = get('skill-name').value;
+                const desc = get('skill-desc').value;
+                const inst = get('skill-inst').value;
 
                 if(name && inst) {
-                    const method = editingGemUuid ? 'PUT' : 'POST';
-                    const url = editingGemUuid ? `/api/gems/${editingGemUuid}` : CHAT_CONFIG.urls.handleGems;
+                    const method = editingSkillUuid ? 'PUT' : 'POST';
+                    const url = editingSkillUuid ? `/api/skills/${editingSkillUuid}` : CHAT_CONFIG.urls.handleSkills;
                     await apiFetch(url, {
                         method: method,
                         headers:{'Content-Type':'application/json'},
-                        body:JSON.stringify({name, description:desc, instruction:inst, fixed_prompts, default_model: get('gem-default-model').value || null})
+                        body:JSON.stringify({name, description:desc, instruction:inst})
                     });
-                    window.closeGemModal();
-                    loadGems();
-                    if (editingGemUuid && activeGem && activeGem.uuid === editingGemUuid) {
-                       activeGem.name = name;
-                       activeGem.instruction = inst;
-                       activeGem.fixed_prompts = fixed_prompts;
-                       applyActiveGem(activeGem);
+                    window.closeSkillModal();
+                    loadSkills();
+                    if (editingSkillUuid && activeSkill && activeSkill.uuid === editingSkillUuid) {
+                       activeSkill.name = name;
+                       activeSkill.instruction = inst;
+                       applyActiveSkill(activeSkill);
                     }
                 } else alert("Name and Instruction are required.");
             };
@@ -20849,7 +20846,7 @@
             return box;
         }
 
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null, batchInfo = null, maskImageUrl = null) {
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, skillName = null, batchInfo = null, maskImageUrl = null) {
             const isUser = role === 'user';
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
             const align = isUser ? 'justify-end' : 'justify-start';
@@ -20877,7 +20874,7 @@
                 quote_text: quoteText,
                 image_url: imgUrl,
                 image_mask: maskImageUrl,
-                gem_name: gemName,
+                skill_name: skillName,
                 batch_job: batchInfo,
                 python_executions: isUser ? [] : (pythonExtract.executions || [])
             };
@@ -20970,11 +20967,11 @@
             const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button>`:''}${regenBtn}${/^\d+$/.test(String(id)) ? `<button class="ctrl-btn" title="新しいチャットに分岐" aria-label="新しいチャットに分岐" onclick="branchChatMessage('${id}', this)"><i class="fas fa-code-branch"></i></button>` : ''}<button class="ctrl-btn" onclick="deleteMessage('${id}')"><i class="fas fa-trash"></i></button></div>`;
             const footerParts = [];
             if (!isUser && modelName) footerParts.push(escapeHtml(modelName));
-            if (gemName) {
+            if (skillName) {
                 if (isUser) {
-                    footerParts.push(`<span class="text-purple-300/90"><i class="fas fa-gem mr-0.5"></i>${escapeHtml(gemName)}</span>`);
+                    footerParts.push(`<span class="text-purple-300/90"><i class="fas fa-wand-magic-sparkles mr-0.5"></i>${escapeHtml(skillName)}</span>`);
                 } else {
-                    footerParts.push(`<span class="text-purple-300/90"><i class="fas fa-gem mr-0.5"></i>${escapeHtml(gemName)}</span>`);
+                    footerParts.push(`<span class="text-purple-300/90"><i class="fas fa-wand-magic-sparkles mr-0.5"></i>${escapeHtml(skillName)}</span>`);
                 }
             }
             const tokenParts = [];
@@ -21996,53 +21993,53 @@
             }
         }
 
-        // === Gem suggestion helpers (triggered by @ in prompt bar) ===
-        function hideGemSuggestions() {
-            const box = get('gem-suggestions');
+        // === Skill suggestion helpers (triggered by @ in prompt bar) ===
+        function hideSkillSuggestions() {
+            const box = get('skill-suggestions');
             if (box) box.classList.add('hidden');
-            gemSuggestionsVisible = false;
-            gemSelectedIndex = 0;
+            skillSuggestionsVisible = false;
+            skillSelectedIndex = 0;
         }
 
-        function showGemSuggestions(filter = '') {
-            const box = get('gem-suggestions');
-            const listEl = get('gem-suggestions-list');
+        function showSkillSuggestions(filter = '') {
+            const box = get('skill-suggestions');
+            const listEl = get('skill-suggestions-list');
             const inputRow = get('input-row');
             if (!box || !listEl || !inputRow) return;
 
-            if (!loadedGems || loadedGems.length === 0) {
-                hideGemSuggestions();
+            if (!loadedSkills || loadedSkills.length === 0) {
+                hideSkillSuggestions();
                 return;
             }
 
             const f = filter.toLowerCase();
-            const filtered = loadedGems.filter(g =>
+            const filtered = loadedSkills.filter(g =>
                 g.name.toLowerCase().includes(f) || (g.description && g.description.toLowerCase().includes(f))
             );
 
             if (filtered.length === 0) {
-                hideGemSuggestions();
+                hideSkillSuggestions();
                 return;
             }
 
             // Clamp selected index
-            if (gemSelectedIndex >= filtered.length) gemSelectedIndex = 0;
+            if (skillSelectedIndex >= filtered.length) skillSelectedIndex = 0;
 
             listEl.innerHTML = '';
-            filtered.forEach((gem, idx) => {
+            filtered.forEach((skill, idx) => {
                 const item = document.createElement('div');
-                item.className = `px-3 py-2 flex items-center gap-3 cursor-pointer text-sm hover:bg-gray-700 ${idx === gemSelectedIndex ? 'bg-gray-700' : ''}`;
+                item.className = `px-3 py-2 flex items-center gap-3 cursor-pointer text-sm hover:bg-gray-700 ${idx === skillSelectedIndex ? 'bg-gray-700' : ''}`;
                 item.innerHTML = `
-                    <i class="fas fa-gem w-4 text-blue-400"></i>
+                    <i class="fas fa-wand-magic-sparkles w-4 text-blue-400"></i>
                     <div class="flex-1 min-w-0">
-                        <div class="text-blue-300 truncate font-medium">${escapeHtml(gem.name)}</div>
-                        ${gem.description ? `<div class="text-[11px] text-gray-400 truncate">${escapeHtml(gem.description)}</div>` : ''}
+                        <div class="text-blue-300 truncate font-medium">${escapeHtml(skill.name)}</div>
+                        ${skill.description ? `<div class="text-[11px] text-gray-400 truncate">${escapeHtml(skill.description)}</div>` : ''}
                     </div>
                 `;
-                item.onclick = () => selectGemSuggestion(gem);
+                item.onclick = () => selectSkillSuggestion(skill);
                 item.onmouseenter = () => {
-                    gemSelectedIndex = idx;
-                    showGemSuggestions(filter);
+                    skillSelectedIndex = idx;
+                    showSkillSuggestions(filter);
                 };
                 listEl.appendChild(item);
             });
@@ -22076,10 +22073,10 @@
             }
 
             box.classList.remove('hidden');
-            gemSuggestionsVisible = true;
+            skillSuggestionsVisible = true;
         }
 
-        function selectGemSuggestion(gem) {
+        function selectSkillSuggestion(skill) {
             const input = get('prompt-input');
             if (!input) return;
 
@@ -22091,8 +22088,8 @@
                 input.value = '';
             }
 
-            hideGemSuggestions();
-            activateGem(gem);
+            hideSkillSuggestions();
+            activateSkill(skill);
             input.focus();
             input.dispatchEvent(new Event('input', { bubbles: true }));
         }
@@ -22102,7 +22099,7 @@
             if (!rawText || !rawText.trim()) return 'プロンプトを入力してください';
             if (!model.startsWith('gemini-') || /(image|native-audio|tts|live)/.test(model)) return 'Geminiテキストモデル専用です';
             if (currentImageUrls.length) return 'サーバー保存済み添付があるため通常モードが必要です';
-            if (activeGem) return 'Gems利用時は通常モードが必要です';
+            if (activeSkill) return 'Skills利用時は通常モードが必要です';
             if (currentQuote || editingMessageId) return '引用・編集時は通常モードが必要です';
             if (codingModeEnabled) return 'Coding Mode利用時は通常モードが必要です';
             const enabledIds = ['enable-search', 'enable-url-context', 'enable-maps', 'enable-sys-prompt', 'enable-prompt-cache', 'enable-mcp'];
@@ -22843,7 +22840,7 @@
             // Render UI immediately to reduce perceived latency.
             const optimisticUserId = Date.now();
             const maskImageToSend = (isGptImageModel() || ideogramObjectRemoval) ? currentMaskImage : null;
-            const optimisticUserMessageEl = renderMessage(optimisticUserId, 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, false, currentQuote, null, null, null, null, null, null, null, followSend, capturedParentId, activeGem ? activeGem.name : null, null, maskImageToSend);
+            const optimisticUserMessageEl = renderMessage(optimisticUserId, 'user', t, JSON.stringify(imageUrlsToSend), null, null, null, false, currentQuote, null, null, null, null, null, null, null, followSend, capturedParentId, activeSkill ? activeSkill.name : null, null, maskImageToSend);
 
             let disableAutoSearch = false;
             const xLinkPattern = /(https?:\/\/)?(x\.com|twitter\.com)\//i;
@@ -23011,7 +23008,7 @@
             if (threadCustomInstructionEl) {
                 p.thread_custom_instruction = threadCustomInstructionEl.value || '';
             }
-            if (activeGem) { p.system_prompt = activeGem.instruction; p.enable_system_prompt = true; p.gem_uuid = activeGem.uuid; } else { p.gem_uuid = null; }
+            if (activeSkill) { p.system_prompt = activeSkill.instruction; p.enable_system_prompt = true; p.skill_uuid = activeSkill.uuid; } else { p.skill_uuid = null; }
             const sentPrompt = takePromptForSend(options.animate !== false);
             const stopSendMotion = animatePromptToMessage(optimisticUserMessageEl, sentPrompt, followSend && options.animate !== false);
             setSendBtnToStopMode(); const aid = 'ai-' + Date.now();
@@ -23104,9 +23101,9 @@
             let reconnectAfterStreamDisconnect = null;
             let streamOpStarted = false;
             try {
-                if (p.thread_id && activeGem) {
-                    threadGemMap[p.thread_id] = activeGem;
-                    pendingGemForNewThread = null;
+                if (p.thread_id && activeSkill) {
+                    threadSkillMap[p.thread_id] = activeSkill;
+                    pendingSkillForNewThread = null;
                 }
                 const r = await fetchChatStreamWithUnavailableRetry(
                     CHAT_CONFIG.urls.chatStream,
@@ -23181,9 +23178,9 @@
                                         currentThreadId = streamThreadId;
                                         history.pushState({}, '', '/c/' + streamThreadId);
                                     }
-                                    if (activeGem) {
-                                        threadGemMap[streamThreadId] = activeGem;
-                                        pendingGemForNewThread = null;
+                                    if (activeSkill) {
+                                        threadSkillMap[streamThreadId] = activeSkill;
+                                        pendingSkillForNewThread = null;
                                     }
                                     ensureTemporaryChatHeartbeat(true);
                                 }
@@ -24026,11 +24023,11 @@
         }
 
         const initThreadPullToRefresh = () => initPullToRefresh('thread-list', () => loadThreads(false));
-        const initGemPullToRefresh = () => initPullToRefresh('gem-list', () => loadGems());
+        const initSkillPullToRefresh = () => initPullToRefresh('skill-list', () => loadSkills());
 
         const initPullToRefreshAll = () => {
             initThreadPullToRefresh();
-            initGemPullToRefresh();
+            initSkillPullToRefresh();
         };
 
         /* ================= MCP チャット中イベント（実行カード・確認ダイアログ） ================= */
@@ -24215,7 +24212,7 @@
             if (geminiBatchStatusPollBusy) return;
             geminiBatchStatusPollBusy = true;
             try {
-                const response = await apiFetch('/api/gemini/batch/status');
+                const response = await apiFetch('/api/skillini/batch/status');
                 if (!response.ok) return;
                 const data = await response.json().catch(() => ({}));
                 const hasActiveBatch = (data.active || []).some((j) => (
@@ -24307,7 +24304,7 @@
             currentThreadId = nextThreadId;
             if (!opts.skipHistory) history.pushState({}, '', '/c/' + tid);
             updateThreadHighlighting();
-            syncActiveGemForThread(currentThreadId);
+            syncActiveSkillForThread(currentThreadId);
             get('welcome-screen').classList.add('hidden');
             if (!silent) {
                 // Show shimmer skeleton while history loads (open from list / page reload)
@@ -24357,11 +24354,11 @@
             if (threadData.last_model && !modelChosenManually) {
                 selectModelById(threadData.last_model);
             }
-            if (threadData.last_gem_uuid && loadedGems.length > 0) {
-                const gem = loadedGems.find(g => g.uuid === threadData.last_gem_uuid);
-                if (gem) {
-                    threadGemMap[currentThreadId] = gem;
-                    applyActiveGem(gem);
+            if (threadData.last_skill_uuid && loadedSkills.length > 0) {
+                const skill = loadedSkills.find(item => item.uuid === threadData.last_skill_uuid);
+                if (skill) {
+                    threadSkillMap[currentThreadId] = skill;
+                    applyActiveSkill(skill);
                 }
             }
 
@@ -24558,7 +24555,7 @@
                     fragment,
                     false,
                     m.parent_id,
-                    m.gem_name,
+                    m.skill_name,
                     m.batch_job,
                     m.prompt_options && typeof m.prompt_options === 'object' ? m.prompt_options.image_mask : null
                 );
@@ -24662,195 +24659,87 @@
             renderThreadTree({ animate: true });
             restoreLatestPromptOptions();
         }
-        async function loadGems() {
+        async function loadSkills() {
             try {
-                const r = await apiFetch(CHAT_CONFIG.urls.handleGems);
-                const gs = await r.json();
-                loadedGems = gs;
-                const l = get('gem-list');
+                const r = await apiFetch(CHAT_CONFIG.urls.handleSkills);
+                const rows = await r.json();
+                loadedSkills = rows;
+                const l = get('skill-list');
                 if (!l) return;
-                l.innerHTML = '<div id="gem-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div>';
-                if (Array.isArray(gs)) {
-                    gs.forEach((g) => {
+                l.innerHTML = '<div id="skill-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div>';
+                if (Array.isArray(rows)) {
+                    rows.forEach((skill) => {
                         const d = document.createElement('div');
-                        d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group';
-                        d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${escapeHtml(g.name)}</span></div><div class="flex items-center gap-1"><button class="text-gray-400 hover:text-blue-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="openEditGemModal(event,'${g.uuid}')"><i class="fas fa-pencil-alt text-[10px]"></i></button><button class="text-gray-400 hover:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="deleteGem(event,'${g.uuid}')"><i class="fas fa-trash text-[10px]"></i></button></div>`;
-                        d.onclick = (e) => { if(!e.target.closest('button')) activateGem(g); };
+                        d.className = 'skill-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group';
+                        d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-wand-magic-sparkles text-blue-500"></i><span class="truncate">${escapeHtml(skill.name)}</span></div><div class="flex items-center gap-1"><button class="text-gray-400 hover:text-blue-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="openEditSkillModal(event,'${skill.uuid}')"><i class="fas fa-pencil-alt text-[10px]"></i></button><button class="text-gray-400 hover:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="deleteSkill(event,'${skill.uuid}')"><i class="fas fa-trash text-[10px]"></i></button></div>`;
+                        d.onclick = (e) => { if(!e.target.closest('button')) activateSkill(skill); };
                         l.appendChild(d);
                     });
                 }
             } catch (err) {
-                console.error('Failed to load gems:', err);
+                console.error('Failed to load skills:', err);
             }
         }
-        // Gem "Default Model": the chat models by category, after "Use current model".
-        function setGemDefaultModelSelect(value) {
-            const sel = get('gem-default-model');
-            if (!sel) return;
-            sel.innerHTML = '';
-            const first = document.createElement('option');
-            first.value = '';
-            first.textContent = 'Use current model';
-            sel.appendChild(first);
-            MODELS.forEach(group => {
-                const items = (group.items || []).filter(m => !m.deprecated);
-                if (!items.length) return;
-                const optgroup = document.createElement('optgroup');
-                optgroup.label = group.category;
-                items.forEach(item => {
-                    const opt = document.createElement('option');
-                    opt.value = item.id;
-                    opt.textContent = item.name;
-                    optgroup.appendChild(opt);
-                });
-                sel.appendChild(optgroup);
-            });
-            const wanted = value || '';
-            if (wanted && !Array.from(sel.options).some(o => o.value === wanted)) {
-                const kept = document.createElement('option');
-                kept.value = wanted;
-                kept.textContent = MODEL_NAME_BY_ID[wanted] || wanted;
-                sel.appendChild(kept);
-            }
-            sel.value = wanted;
-        }
-        async function openEditGemModal(e, id) {
+        async function openEditSkillModal(e, id) {
             e.stopPropagation();
-            editingGemUuid = id;
+            editingSkillUuid = id;
             try {
-                const r = await apiFetch(`/api/gems/${id}`);
-                const g = await r.json();
-                get('gem-name').value = g.name;
-                get('gem-desc').value = g.description || '';
-                get('gem-inst').value = g.instruction;
-                setGemDefaultModelSelect(g.default_model);
-                renderGemFixedPromptsForEdit(g.fixed_prompts);
-                get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Edit Gem`;
-                get('save-gem-btn').innerText = "Save Changes";
-                showModal('gem-modal');
-                if (location.pathname !== '/gem') {
-                    history.pushState({ modal: 'gem' }, '', '/gem');
+                const r = await apiFetch(`/api/skills/${id}`);
+                const skill = await r.json();
+                get('skill-name').value = skill.name;
+                get('skill-desc').value = skill.description || '';
+                get('skill-inst').value = skill.instruction;
+                get('skill-modal-title').innerHTML = `<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Edit Skill`;
+                get('save-skill-btn').innerText = "Save Changes";
+                showModal('skill-modal');
+                if (location.pathname !== '/skill') {
+                    history.pushState({ modal: 'skill' }, '', '/skill');
                 }
             } catch (err) {
-                showToast("Gemの取得に失敗しました", "error", true);
+                showToast("Skillの取得に失敗しました", "error", true);
             }
         }
-        async function createGem(name, inst) { await apiFetch(CHAT_CONFIG.urls.handleGems, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, instruction:inst})}); loadGems(); }
+        async function createSkill(name, inst) { await apiFetch(CHAT_CONFIG.urls.handleSkills, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, instruction:inst})}); loadSkills(); }
 
-        function applyActiveGem(g) {
-            activeGem = g || null;
-            const bar = get('fixed-prompts-bar');
-            if (activeGem) {
-                if (activeGem.default_model) {
-                    selectModelById(activeGem.default_model);
-                }
-                get('active-gem-name').innerText = activeGem.name;
-                get('gem-active-indicator').classList.remove('hidden');
-
-                if (bar) {
-                    bar.innerHTML = '';
-                    let prompts = [];
-                    try {
-                        if (activeGem.fixed_prompts) prompts = JSON.parse(activeGem.fixed_prompts);
-                    } catch(e) {}
-
-                    if (prompts.length > 0) {
-                        bar.classList.remove('hidden');
-                        prompts.forEach((p, i) => {
-                            const btn = document.createElement('button');
-                            btn.className = 'fixed-prompt-chip whitespace-nowrap px-4 py-1.5 text-[11px] font-bold bg-gray-700 hover:bg-gray-600 text-gray-100 rounded-full transition-all shadow-md border border-gray-600/50 flex items-center';
-                            btn.style.animationDelay = `${i * 40}ms`;
-                            btn.textContent = String(p.name || '');
-                            btn.onclick = () => {
-                                const input = get('prompt-input');
-                                if (input) {
-                                    input.value = p.content;
-                                    input.dispatchEvent(new Event('input'));
-                                    sendMessage();
-                                }
-                            };
-                            bar.appendChild(btn);
-                        });
-                    } else {
-                        bar.classList.add('hidden');
-                    }
-                }
+        function applyActiveSkill(skill) {
+            activeSkill = skill || null;
+            if (activeSkill) {
+                get('active-skill-name').innerText = activeSkill.name;
+                get('skill-active-indicator').classList.remove('hidden');
             } else {
-                get('gem-active-indicator').classList.add('hidden');
-                if (bar) {
-                    bar.innerHTML = '';
-                    bar.classList.add('hidden');
-                }
+                get('skill-active-indicator').classList.add('hidden');
             }
-            get('sys-prompt-option').style.opacity = '1';
+            const sysPromptOption = get('sys-prompt-option');
+            if (sysPromptOption) sysPromptOption.style.opacity = '1';
         }
-        function syncActiveGemForThread(tid) {
-            const g = tid && threadGemMap[tid] ? threadGemMap[tid] : null;
-            applyActiveGem(g);
+        function syncActiveSkillForThread(tid) {
+            const skill = tid && threadSkillMap[tid] ? threadSkillMap[tid] : null;
+            applyActiveSkill(skill);
         }
-        async function saveThreadGemUuid(threadId, gemUuid) {
+        async function saveThreadSkillUuid(threadId, skillUuid) {
             try {
                 await apiFetch(CHAT_CONFIG.urls.handleSettings, {
                     method:'POST',
                     headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({last_gem_uuid: gemUuid, thread_id: threadId})
+                    body:JSON.stringify({last_skill_uuid: skillUuid, thread_id: threadId})
                 });
             } catch(e) {}
         }
-        function activateGem(g, skipSave) {
+        function activateSkill(skill, skipSave) {
             if (currentThreadId) {
-                threadGemMap[currentThreadId] = g;
-                applyActiveGem(g);
-                showToast(`Gem "${g.name}" をこのチャットに適用しました`, "success");
-                if (!skipSave) saveThreadGemUuid(currentThreadId, g ? g.uuid : null);
+                threadSkillMap[currentThreadId] = skill;
+                applyActiveSkill(skill);
+                showToast(`Skill "${skill.name}" をこのチャットに適用しました`, "success");
+                if (!skipSave) saveThreadSkillUuid(currentThreadId, skill ? skill.uuid : null);
             } else {
-                pendingGemForNewThread = g;
-                applyActiveGem(g);
+                pendingSkillForNewThread = skill;
+                applyActiveSkill(skill);
                 if (allMessages && allMessages.length > 0) {
-                    startNewChat({ preserveGem: true });
+                    startNewChat({ preserveSkill: true });
                 }
             }
         }
-        function clearActiveGem() { if (currentThreadId) { delete threadGemMap[currentThreadId]; saveThreadGemUuid(currentThreadId, null); } pendingGemForNewThread = null; applyActiveGem(null); }
-
-        // Gem Fixed Prompts UI helper
-        function addGemFixedPromptRow(name = '', content = '') {
-            const container = get('gem-fixed-prompts-container');
-            if (!container) return;
-            const div = document.createElement('div');
-            div.className = 'flex gap-2 items-start gem-fixed-prompt-row ui-enter';
-            div.innerHTML = `
-                <input type="text" class="gem-fp-name bg-gray-900 border border-gray-600 rounded p-1.5 text-white text-[10px] w-24" placeholder="名前" value="${escapeHtml(name)}" autocomplete="off" spellcheck="false">
-                <textarea class="gem-fp-content flex-1 bg-gray-900 border border-gray-600 rounded p-1.5 text-white text-[10px] h-9 resize-none" placeholder="プロンプト内容" spellcheck="false">${escapeHtml(content)}</textarea>
-                <button type="button" class="text-gray-500 hover:text-red-400 p-1.5" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>
-            `;
-            container.appendChild(div);
-        }
-
-        function collectGemFixedPrompts() {
-            const rows = document.querySelectorAll('.gem-fixed-prompt-row');
-            const prompts = [];
-            rows.forEach(row => {
-                const name = row.querySelector('.gem-fp-name').value.trim();
-                const content = row.querySelector('.gem-fp-content').value.trim();
-                if (name && content) {
-                    prompts.push({ name, content });
-                }
-            });
-            return prompts.length > 0 ? JSON.stringify(prompts) : null;
-        }
-
-        function renderGemFixedPromptsForEdit(fixedPromptsJson) {
-            const container = get('gem-fixed-prompts-container');
-            if (!container) return;
-            container.innerHTML = '';
-            try {
-                if (fixedPromptsJson) {
-                    const prompts = JSON.parse(fixedPromptsJson);
-                    prompts.forEach(p => addGemFixedPromptRow(p.name, p.content));
-                }
-            } catch(e) {}
-        }
+        function clearActiveSkill() { if (currentThreadId) { delete threadSkillMap[currentThreadId]; saveThreadSkillUuid(currentThreadId, null); } pendingSkillForNewThread = null; applyActiveSkill(null); }
         function getCurrentChatHeaderTitleText() {
             if (typeof currentThreadTitle === 'string' && currentThreadTitle.trim()) return currentThreadTitle.trim();
             if (currentThreadId) return 'No Title';
@@ -25069,15 +24958,15 @@
                 get('enable-prompt-cache').checked = false;
                 updatePromptCacheUi();
             }
-            if (!opts.preserveGem) {
-                applyActiveGem(null);
-            } else if (activeGem) {
-                applyActiveGem(activeGem);
+            if (!opts.preserveSkill) {
+                applyActiveSkill(null);
+            } else if (activeSkill) {
+                applyActiveSkill(activeSkill);
             }
             loadThreads();
             const defaultModelSequence = threadLoadSequence;
             fetchSettingsSnapshot().then(settings => {
-                if (threadLoadSequence !== defaultModelSequence || currentThreadId || modelChosenManually || (opts.preserveGem && activeGem)) return;
+                if (threadLoadSequence !== defaultModelSequence || currentThreadId || modelChosenManually || (opts.preserveSkill && activeSkill)) return;
                 const model = (settings.use_last_chat_settings && settings.last_model) || settings.default_model;
                 if (model && MODELS.some(group => group.items.some(item => item.id === model))) selectModelById(model);
             }).catch(err => console.warn('Failed to load chat defaults', err));
@@ -25289,7 +25178,7 @@
             window.closeCompressionModal();
             showToast('設定を保存しました', 'success');
         };
-        async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleGemItem.replace('0', id), {method: 'DELETE'}); loadGems(); }
+        async function deleteSkill(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleSkillItem.replace('0', id), {method: 'DELETE'}); loadSkills(); }
         function renameThread(e, id) {
             e.stopPropagation();
             const modal = get('thread-rename-modal');

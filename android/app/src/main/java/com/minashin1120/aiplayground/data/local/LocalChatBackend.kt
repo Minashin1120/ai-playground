@@ -130,7 +130,7 @@ class LocalChatBackend(
     }
 
     private suspend fun getArrayLocal(path: String, token: String?): JSONArray = when (split(path).first) {
-        "/api/gems" -> if (fallback != null) fallback.getArray(path, token) else settings.gems()
+        "/api/skills" -> if (fallback != null) fallback.getArray(path, token) else settings.skills()
         else -> fallback?.getArray(path, token) ?: throw unavailable()
     }
 
@@ -164,7 +164,7 @@ class LocalChatBackend(
             // A server answer being rejoined (it has a job id) is stopped on the server.
             route == "/api/stop_chat" -> if (fallback != null && payload.has("job_id")) fallback.post(path, payload, token)
                 else JSONObject().put("status", "ok")
-            route == "/api/gems" && fallback == null -> settings.saveGem(null, payload)
+            route == "/api/skills" && fallback == null -> settings.saveSkill(null, payload)
             else -> fallback?.post(path, payload, token) ?: throw unavailable()
         }
     }
@@ -342,7 +342,7 @@ class LocalChatBackend(
                     .put("temp_chat_remaining_seconds", JSONObject.NULL)
             }
             route == "/api/mobile/v1/preferences" -> savePreferences(payload, token)
-            route.startsWith("/api/gems/") && fallback == null -> settings.saveGem(route.removePrefix("/api/gems/"), payload)
+            route.startsWith("/api/skills/") && fallback == null -> settings.saveSkill(route.removePrefix("/api/skills/"), payload)
             else -> fallback?.put(path, payload, token) ?: throw unavailable()
         }
     }
@@ -366,7 +366,7 @@ class LocalChatBackend(
                 onChanged()
                 JSONObject().put("status", "ok")
             }
-            route.startsWith("/api/gems/") && fallback == null -> { settings.deleteGem(route.removePrefix("/api/gems/")); JSONObject().put("status", "ok") }
+            route.startsWith("/api/skills/") && fallback == null -> { settings.deleteSkill(route.removePrefix("/api/skills/")); JSONObject().put("status", "ok") }
             else -> fallback?.delete(path, token) ?: throw unavailable()
         }
     }
@@ -548,13 +548,14 @@ class LocalChatBackend(
         onAccepted()
         onEvent(JSONObject().put("type", "thread_id").put("content", body.optString("thread_id")))
         val quote = body.optString("quote_text").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
-        val gemUuid = body.optString("gem_uuid").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
-        val gemName = if (gemUuid.isEmpty()) "" else (0 until settings.gems().length())
-            .mapNotNull { settings.gems().optJSONObject(it) }.firstOrNull { it.optString("uuid") == gemUuid }?.optString("name").orEmpty()
+        val skillUuid = body.optString("skill_uuid").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
+        val skillName = if (skillUuid.isEmpty()) "" else (0 until settings.skills().length())
+            .mapNotNull { settings.skills().optJSONObject(it) }.firstOrNull { it.optString("uuid") == skillUuid }?.optString("name").orEmpty()
         // In a server chat the parent is a server message or an unsent one (pending range).
         val parent = chat.parentId
         val onServerParent = chat.serverId != null && parent != null && !LocalChatStore.isPendingId(parent)
         val preferences = promptPreferences()
+        if (!body.has("skills")) body.put("skills", settings.skills())
         val system = SystemPromptBuilder.build(body, preferences,
             SystemPromptBuilder.ThreadSettings(chat.settings.optString("custom_instruction").takeIf { it != "null" }.orEmpty(),
                 chat.settings.optBoolean("include_global_instruction", true)),
@@ -563,7 +564,7 @@ class LocalChatBackend(
             parentId = if (chat.serverId != null && parent != null && !onServerParent) parent - LocalChatStore.PENDING_ID_BASE
                 else if (chat.serverId == null) parent else null,
             parentServerId = if (onServerParent) parent else null,
-            model = model, files = files, quote = quote, gemUuid = gemUuid, gemName = gemName,
+            model = model, files = files, quote = quote, skillUuid = skillUuid, skillName = skillName,
             promptOptions = com.minashin1120.aiplayground.data.promptOptionsRecord(body)))
         // Server `chat_stream`: the first message names a new chat.
         val title = chat.settings.optString("title")
@@ -574,7 +575,7 @@ class LocalChatBackend(
         if (chat.serverId == null) {
             store.updateThread(chat.outboxId) { row ->
                 row.put("last_model", model)
-                if (gemUuid.isNotEmpty()) row.put("last_gem_uuid", gemUuid)
+                if (skillUuid.isNotEmpty()) row.put("last_skill_uuid", skillUuid)
                 newTitle?.let { row.put("title", it) }
             }
         } else newTitle?.let { store.setPendingTitle(chat.serverId, it) }
@@ -588,7 +589,7 @@ class LocalChatBackend(
             userScreenId = LocalChatStore.PENDING_ID_BASE + userId
         }
         val assistantId = store.appendMessage(chat.outboxId, LocalChatStore.NewMessage("assistant", "", userId, model = model,
-            gemUuid = gemUuid, gemName = gemName, generating = true))
+            skillUuid = skillUuid, skillName = skillName, generating = true))
         Diagnostics.log("gen.saved_question", "ms" to elapsed())
         var partialContent = ""
         var partialThought = ""
@@ -808,7 +809,7 @@ class LocalChatBackend(
             val id = store.resolveAlias(payload.optString("thread_id"))
             payload.put("thread_id", id)
             if (store.threadExists(id) && onDevice(id)) {
-                store.updateThread(id) { it.put("last_gem_uuid", payload.opt("last_gem_uuid") ?: JSONObject.NULL) }
+                store.updateThread(id) { it.put("last_skill_uuid", payload.opt("last_skill_uuid") ?: JSONObject.NULL) }
                 onChanged()
                 return JSONObject().put("status", "ok")
             }

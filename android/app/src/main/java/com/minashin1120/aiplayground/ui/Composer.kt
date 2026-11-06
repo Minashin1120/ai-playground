@@ -92,7 +92,7 @@ import com.minashin1120.aiplayground.data.codingBarText
 import com.minashin1120.aiplayground.data.isAudioPath
 import com.minashin1120.aiplayground.data.isVideoPath
 import com.minashin1120.aiplayground.data.composerRules
-import com.minashin1120.aiplayground.data.gemMentionQuery
+import com.minashin1120.aiplayground.data.skillMentionQuery
 import com.minashin1120.aiplayground.data.isMistralOcrModel
 import com.minashin1120.aiplayground.data.historyCodingTargets
 import com.minashin1120.aiplayground.data.isImageReference
@@ -153,8 +153,8 @@ fun Composer(
     LaunchedEffect(state.draft) { palettesHidden = false }
     val slashFilter = if (pendingSlash == null && !palettesHidden) slashPaletteFilter(state.draft) else null
     val slashMatches = slashFilter?.let { visibleSlashCommands(it, minimal) }.orEmpty()
-    val mention = if (pendingSlash == null && !palettesHidden && slashMatches.isEmpty()) gemMentionQuery(state.draft) else null
-    val mentionCandidates = if (mention != null) state.gems.filter {
+    val mention = if (pendingSlash == null && !palettesHidden && slashMatches.isEmpty()) skillMentionQuery(state.draft) else null
+    val mentionCandidates = if (mention != null) state.skills.filter {
         it.name.contains(mention, ignoreCase = true) || it.description.contains(mention, ignoreCase = true)
     } else emptyList()
     // Web `slashSelectedIndex` / `gemSelectedIndex`: ↑↓ on a hardware keyboard move the highlight.
@@ -251,7 +251,7 @@ fun Composer(
     /** Web `#prompt-input` keydown: with a palette open Enter picks the highlighted item, ↑↓ move, Esc closes. */
     val pickHighlighted: () -> Unit = {
         if (slashMatches.isNotEmpty()) selectSlash(slashMatches[paletteIndex.coerceIn(0, slashMatches.lastIndex)])
-        else mentionCandidates.getOrNull(paletteIndex.coerceIn(0, mentionCandidates.lastIndex))?.let(model::applyGemMention)
+        else mentionCandidates.getOrNull(paletteIndex.coerceIn(0, mentionCandidates.lastIndex))?.let(model::applySkillMention)
     }
     val paletteOpen = slashMatches.isNotEmpty() || mentionCandidates.isNotEmpty()
     val onEnter: () -> Unit = { if (paletteOpen) pickHighlighted() else sendOrSlash() }
@@ -334,16 +334,10 @@ fun Composer(
             if (voiceDock) RealtimeVoiceDock(state, model, realtimeOptions, onRealtimeOptions,
                 onStart = onRealtimeStart, onExpand = onRealtime)
             else Column {
-                val gem = state.selectedGem
-                val shownGem = rememberRetained(gem)
-                AnimatedVisibility(gem != null && gem.fixedPrompts.isNotEmpty(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
-                    FixedPromptsBar(shownGem?.fixedPrompts.orEmpty().map { it.name to it.content }) { content ->
-                        model.draft(content)
-                        if (model.beginSend()) guardedSend()
-                    }
-                }
-                AnimatedVisibility(gem != null, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
-                    GemIndicator(shownGem?.name.orEmpty(), onClear = { model.chooseGem(null) })
+                val skill = state.selectedSkill
+                val shownSkill = rememberRetained(skill)
+                AnimatedVisibility(skill != null, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
+                    SkillIndicator(shownSkill?.name.orEmpty(), onClear = { model.chooseSkill(null) })
                 }
                 val shownSlash = rememberRetained(slashMatches.takeIf { it.isNotEmpty() })
                 AnimatedVisibility(slashMatches.isNotEmpty(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
@@ -367,10 +361,10 @@ fun Composer(
                 AnimatedVisibility(mentionCandidates.isNotEmpty(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                     shownMention?.let { candidates ->
                         SuggestionPalette(
-                            title = "Gem",
-                            items = candidates.map { PaletteItem(it.name, it.description, R.drawable.fa_solid_gem) },
+                            title = "Skill",
+                            items = candidates.map { PaletteItem(it.name, it.description, R.drawable.fa_solid_wand_magic_sparkles) },
                             highlighted = paletteIndex,
-                            onPick = { index -> candidates.getOrNull(index)?.let(model::applyGemMention) },
+                            onPick = { index -> candidates.getOrNull(index)?.let(model::applySkillMention) },
                         )
                     }
                 }
@@ -852,32 +846,9 @@ private fun MaskPreview(name: String, onClear: () -> Unit) {
     }
 }
 
-/** `#fixed-prompts-bar`: tapping a prompt fills the input and sends it. */
+/** `#skill-active-indicator`. */
 @Composable
-private fun FixedPromptsBar(prompts: List<Pair<String, String>>, onSend: (String) -> Unit) {
-    val web = LocalWebPalette.current
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        prompts.forEach { (name, content) ->
-            Box(
-                Modifier.clip(CircleShape)
-                    .background(if (web.isLight) Color(0xFFDBE3EE) else Tw.gray700)
-                    .border(1.dp, if (web.isLight) Color(0xFFCDD7E4) else Tw.gray600.copy(alpha = 0.5f), CircleShape)
-                    .clickable(role = Role.Button) { onSend(content) }
-                    .padding(horizontal = 11.2.dp, vertical = 4.48.dp),
-            ) {
-                Text(name, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1,
-                    color = if (web.isLight) Color(0xFF1B2436) else Color(0xFFF3F4F6))
-            }
-        }
-    }
-}
-
-/** `#gem-active-indicator`. */
-@Composable
-private fun GemIndicator(name: String, onClear: () -> Unit) {
+private fun SkillIndicator(name: String, onClear: () -> Unit) {
     val web = LocalWebPalette.current
     val shape = RoundedCornerShape(8.dp)
     val color = if (web.isLight) Color(29, 78, 216) else web.theme200
@@ -889,8 +860,8 @@ private fun GemIndicator(name: String, onClear: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        FaIcon(R.drawable.fa_solid_gem, null, size = 12.dp, tint = color)
-        Text("Using Gem:", fontSize = 12.sp, color = color)
+        FaIcon(R.drawable.fa_solid_wand_magic_sparkles, null, size = 12.dp, tint = color)
+        Text("Using Skill:", fontSize = 12.sp, color = color)
         Text(name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f))
         Text("×", fontSize = 12.sp, color = color,
@@ -900,7 +871,7 @@ private fun GemIndicator(name: String, onClear: () -> Unit) {
 
 private data class PaletteItem(val title: String, val description: String, @DrawableRes val icon: Int?, val mono: Boolean = false)
 
-/** `#slash-command-suggestions` / `#gem-suggestions`: header row, then icon + title + one-line description. */
+/** `#slash-command-suggestions` / `#skill-suggestions`: header row, then icon + title + one-line description. */
 @Composable
 private fun SuggestionPalette(title: String, items: List<PaletteItem>, highlighted: Int, onPick: (Int) -> Unit) {
     val web = LocalWebPalette.current

@@ -11,13 +11,13 @@
 | `chat_core.part07_domcontent_initial.js` | DOMContentLoaded 初期処理（前半）。テーマ初期化、高速モード・Batchトグル、アカウントエクスポート/インポート、一時チャットトグル、セッション管理UI | 初期化・アカウント設定を変更するとき |
 | `chat_core.part08_domcontent_account_transfer.js` | アカウント移行（エクスポート/インポート/重複修復）続き、管理者スレッド暗号化、自動システムプロンプト設定、テーマ設定バインド、`MODAL_CONFIG`（URLルート↔モーダル対応）と `closeModalById` | アカウント移行・モーダルのURLを変更するとき |
 | `chat_core.part09_domcontent_popstate_modals.js` | `popstate` ハンドラ（戻る/進むでモーダル開閉・スレッド復元）、2FA（TOTP/WebAuthn）、リアルタイム音声セッション（Gemini Live・`RealtimeVoiceSession`・音声再生）、フィードバック管理 | 戻る操作・認証・音声・フィードバックを変更するとき |
-| `chat_core.part10_domcontent_final.js` | Lyria RealTime スタジオ、音声スタジオUI（`VoiceStudio`）、ファイルライブラリ／Gemモーダルの閉じる・選択更新 | 音声スタジオ・ライブラリの初期化を変更するとき |
+| `chat_core.part10_domcontent_final.js` | Lyria RealTime スタジオ、音声スタジオUI（`VoiceStudio`）、ファイルライブラリ／Skillモーダルの閉じる・選択更新 | 音声スタジオ・ライブラリの初期化を変更するとき |
 | `chat_core.part11_file_preview_upload.js` | ファイルプレビュー・画像ビューア、画像編集・Object Remover用マスク作成モーダル、カメラキャプチャ、アップロード行の描画 | ファイル表示・アップロード・マスク作成を変更するとき |
 | `chat_core.part12_upload_camera_canvas.js` | アップロード進捗、カメラストリーム制御、画像編集（ブラシ・モザイク・切り抜き）とObject Remover用マスク描画（近似色の自動塗りを含む）、Canvasモバイル表示、音声キャプチャ | 画像編集・マスク・Canvas・音声入力を変更するとき |
-| `chat_core.part13_canvas_coding_stream.js` | メッセージ吹き出し（本文・添付画像・マスク画像・フッター）、Canvasプレビュー生成、Codingモード、ストリーム描画（ペンディング・Batch状態表示）、スラッシュコマンドパレット、Gem候補（`@`）、Python実行モーダル | 吹き出し・添付・Canvas・ストリーム表示を変更するとき |
+| `chat_core.part13_canvas_coding_stream.js` | メッセージ吹き出し（本文・添付画像・マスク画像・フッター）、Canvasプレビュー生成、Codingモード、ストリーム描画（ペンディング・Batch状態表示）、スラッシュコマンドパレット、Skill候補（`@`）、Python実行モーダル | 吹き出し・添付・Canvas・ストリーム表示を変更するとき |
 | `chat_core.part14_send_message_browser_fast.js` | 送信処理 `sendMessage`、ブラウザ直接送信・高速モード・各プロバイダのBatch送信、プル更新、Xリンク自動検索、`/settings`（AI設定アシスタント）、引用・返信 | 送信・直接送信・履歴一覧を変更するとき |
-| `chat_core.part15_slash_tempchat_threads.js` | 一時チャット（ハートビート・タイムアウト）、各プロバイダのBatch状態ポーリング・完了通知、スレッド設定モーダル、圧縮設定モーダル、PDFエクスポート、Gem適用、ブランチ集計 | 履歴読み込み・一時チャット・スレッド設定を変更するとき |
-| `chat_core.part16_gems_branch_debug.js` | ファイルライブラリ操作、ブランチ管理UI、Batch処理一覧モーダル（取得・停止・履歴削除・チャットを開く）、メッセージコピー、規約・Alpha案内モーダル、Thinking表示切替、クライアントデバッグログ、管理者のBot検出ログ画面（`BotAdminLog`：記録のあるアカウントの一覧・一括削除、アカウントごとの状態と記録。開閉とURLは part08） | ブランチ管理・ライブラリ・Batch一覧を変更するとき |
+| `chat_core.part15_slash_tempchat_threads.js` | 一時チャット（ハートビート・タイムアウト）、各プロバイダのBatch状態ポーリング・完了通知、スレッド設定モーダル、圧縮設定モーダル、PDFエクスポート、Skill適用、ブランチ集計 | 履歴読み込み・一時チャット・スレッド設定を変更するとき |
+| `chat_core.part16_library_branch_debug.js` | ファイルライブラリ操作、ブランチ管理UI、Batch処理一覧モーダル（取得・停止・履歴削除・チャットを開く）、メッセージコピー、規約・Alpha案内モーダル、Thinking表示切替、クライアントデバッグログ、管理者のBot検出ログ画面（`BotAdminLog`：記録のあるアカウントの一覧・一括削除、アカウントごとの状態と記録。開閉とURLは part08） | ブランチ管理・ライブラリ・Batch一覧を変更するとき |
 | `chat_core.part17_thread_branch.js` | 別チャットへの全分岐コピー、分岐元リンク、一時チャット保存警告、欠損ファイル表示 | 別チャットへの分岐・分岐元・欠損ファイル表示を変更するとき |
 | `chat_core.part18_image_split.js` | 画像分割の計算・プレビュー・原寸描画、専用圧縮設定、添付と個別保存 | 画像分割を変更するとき |
 | `chat_core.part19_prompt_send_motion.js` | 送信内容の一時保持・失敗時の復元、入力欄の縮小、プロンプトから吹き出しへの移動・変形と後始末 | 送信アニメーションを変更するとき |

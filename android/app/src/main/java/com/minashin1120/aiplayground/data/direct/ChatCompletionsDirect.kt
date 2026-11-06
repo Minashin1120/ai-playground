@@ -21,40 +21,93 @@ class ChatCompletionsDirect(
             searchDeepSeek(request, emit)
         } else null
         val payload = buildPayload(request, deepSeekSearch?.context.orEmpty())
+        val messages = payload.optJSONArray("messages") ?: JSONArray()
+        val skills = request.options.optJSONArray("skills")
+        val hasSkills = skills != null && skills.length() > 0
+        if (hasSkills && !openAiSearch) {
+            payload.put("tools", JSONArray().put(SkillTool.openAiChatDefinition())).put("tool_choice", "auto")
+        } else if (hasSkills) {
+            // Search-only models keep their tool contract; instructions are embedded instead.
+            val first = messages.optJSONObject(0)
+            if (first != null && first.optString("role") == "system") {
+                val catalog = SkillTool.catalogWithInstructions(skills)
+                if (catalog.isNotBlank()) first.put("content", first.optString("content") + "\n\n" + catalog)
+            }
+        }
         val content = StringBuilder()
         val thought = StringBuilder()
         var usage: JSONObject? = null
         emit(event("status", "APIへ送信完了。モデルが応答を生成中です..."))
         if (openAiSearch) emit(event("search_status", "searching"))
-        http.postSse("$baseUrl/chat/completions", mapOf("Authorization" to "Bearer ${request.apiKey}"), payload) { sse ->
-            if (sse.data == "[DONE]") return@postSse false
-            val data = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true
-            data.optJSONObject("error")?.let { throw DirectApiException(0, it.optString("message").ifBlank { "API error" }) }
-            data.optJSONObject("usage")?.let { usage = it }
-            val choices = data.optJSONArray("choices") ?: JSONArray()
-            for (i in 0 until choices.length()) {
-                val delta = choices.optJSONObject(i)?.optJSONObject("delta") ?: continue
-                delta.optString("reasoning_content").takeIf { it.isNotEmpty() && it != "null" }?.let { thought.append(it); emit(event("thought", it)) }
-                val text = when (val raw = delta.opt("content")) {
-                    is String -> raw
-                    // Mistral reasoning models stream content as typed chunks.
-                    is JSONArray -> (0 until raw.length()).mapNotNull { index ->
-                        raw.optJSONObject(index)?.let { chunk ->
-                            if (chunk.optString("type") == "thinking") {
-                                val thinking = chunk.optJSONArray("thinking")?.let { parts ->
-                                    (0 until parts.length()).joinToString("") { parts.optJSONObject(it)?.optString("text").orEmpty() }
-                                }.orEmpty()
-                                if (thinking.isNotEmpty()) { thought.append(thinking); emit(event("thought", thinking)) }
-                                null
-                            } else chunk.optString("text")
+        var round = 0
+        while (true) {
+            val toolCalls = LinkedHashMap<Int, JSONObject>()
+            val roundContent = StringBuilder()
+            http.postSse("$baseUrl/chat/completions", mapOf("Authorization" to "Bearer ${request.apiKey}"), payload) { sse ->
+                if (sse.data == "[DONE]") return@postSse false
+                val data = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true
+                data.optJSONObject("error")?.let { throw DirectApiException(0, it.optString("message").ifBlank { "API error" }) }
+                data.optJSONObject("usage")?.let { usage = it }
+                val choices = data.optJSONArray("choices") ?: JSONArray()
+                for (i in 0 until choices.length()) {
+                    val delta = choices.optJSONObject(i)?.optJSONObject("delta") ?: continue
+                    delta.optString("reasoning_content").takeIf { it.isNotEmpty() && it != "null" }?.let { thought.append(it); emit(event("thought", it)) }
+                    val text = when (val raw = delta.opt("content")) {
+                        is String -> raw
+                        // Mistral reasoning models stream content as typed chunks.
+                        is JSONArray -> (0 until raw.length()).mapNotNull { index ->
+                            raw.optJSONObject(index)?.let { chunk ->
+                                if (chunk.optString("type") == "thinking") {
+                                    val thinking = chunk.optJSONArray("thinking")?.let { parts ->
+                                        (0 until parts.length()).joinToString("") { parts.optJSONObject(it)?.optString("text").orEmpty() }
+                                    }.orEmpty()
+                                    if (thinking.isNotEmpty()) { thought.append(thinking); emit(event("thought", thinking)) }
+                                    null
+                                } else chunk.optString("text")
+                            }
+                        }.joinToString("")
+                        else -> ""
+                    }
+                    if (text.isNotEmpty()) { roundContent.append(text); content.append(text); emit(event("content", text)) }
+                    val calls = delta.optJSONArray("tool_calls") ?: continue
+                    for (index in 0 until calls.length()) {
+                        val call = calls.optJSONObject(index) ?: continue
+                        val slot = call.optInt("index", index)
+                        val state = toolCalls.getOrPut(slot) {
+                            JSONObject().put("id", "").put("name", "").put("arguments", StringBuilder())
                         }
-                    }.joinToString("")
-                    else -> ""
+                        call.optString("id").takeIf { it.isNotBlank() }?.let { state.put("id", it) }
+                        call.optJSONObject("function")?.optString("name")?.takeIf { it.isNotBlank() }?.let { state.put("name", it) }
+                        call.optJSONObject("function")?.optString("arguments")?.takeIf { it.isNotEmpty() }?.let {
+                            (state.get("arguments") as StringBuilder).append(it)
+                        }
+                    }
                 }
-                if (text.isNotEmpty()) { content.append(text); emit(event("content", text)) }
+                onProgress(content.toString(), thought.toString())
+                true
             }
-            onProgress(content.toString(), thought.toString())
-            true
+            if (toolCalls.isEmpty() || round >= 3) break
+            round++
+            val assistantCalls = JSONArray()
+            toolCalls.toSortedMap().forEach { (index, state) ->
+                assistantCalls.put(JSONObject().put("id", state.optString("id").ifBlank { "skill_${round}_$index" })
+                    .put("type", "function").put("function", JSONObject()
+                        .put("name", state.optString("name"))
+                        .put("arguments", state.get("arguments").toString())))
+            }
+            messages.put(JSONObject().put("role", "assistant").put("content", roundContent.toString()).put("tool_calls", assistantCalls))
+            toolCalls.toSortedMap().forEach { (index, state) ->
+                val name = state.optString("name")
+                val arguments = state.get("arguments").toString()
+                val result = if (name == SkillTool.NAME) {
+                    val skillName = runCatching { JSONObject(arguments.ifBlank { "{}" }).optString("name") }.getOrDefault("")
+                    SkillTool.execute(skills, skillName)
+                } else "Error: Unsupported tool: $name"
+                messages.put(JSONObject().put("role", "tool")
+                    .put("tool_call_id", state.optString("id").ifBlank { "skill_${round}_$index" })
+                    .put("content", result))
+            }
+            payload.put("messages", messages)
         }
         if (openAiSearch) emit(event("search_status", "done"))
         deepSeekSearch?.sources?.takeIf { it.isNotEmpty() }?.let { sources ->

@@ -94,7 +94,9 @@ def handle_settings():
             'rich_paste_prompt_use_custom_default': current_user.rich_paste_prompt_use_custom_default if current_user.rich_paste_prompt_use_custom_default is not None else False,
             'default_vision_model': current_user.default_vision_model or "gemini-3-flash-preview",
             'last_model': current_user.last_model or "gemini-3.6-flash",
-            'last_gem_uuid': current_user.last_gem_uuid,
+            'last_skill_uuid': current_user.last_skill_uuid,
+            # Legacy alias for clients that still read the old field name.
+            'last_gem_uuid': current_user.last_skill_uuid,
             'last_enable_search': current_user.last_enable_search,
             'last_enable_url_context': current_user.last_enable_url_context,
             'last_enable_maps': current_user.last_enable_maps,
@@ -210,19 +212,19 @@ def handle_settings():
     if 'use_last_chat_settings' in d: current_user.use_last_chat_settings = bool(d['use_last_chat_settings'])
     if 'voice_studio_ui' in d: current_user.voice_studio_ui = bool(d['voice_studio_ui'])
     if 'default_model' in d: current_user.default_model = d['default_model']
-    if 'last_gem_uuid' in d:
-        val = d['last_gem_uuid']
+    if 'last_skill_uuid' in d or 'last_gem_uuid' in d:
+        val = d.get('last_skill_uuid', d.get('last_gem_uuid'))
         if val is not None:
-            gem = Gem.query.filter_by(uuid=val).first()
-            if not gem or gem.user_id != current_user.id:
-                return jsonify({'error': 'Invalid gem UUID'}), 403
+            skill = Skill.query.filter_by(uuid=val).first()
+            if not skill or skill.user_id != current_user.id:
+                return jsonify({'error': 'Invalid skill UUID'}), 403
         thread_id = d.get('thread_id')
         if thread_id:
             th = resolve_thread_for_user(thread_id, current_user.id)
             if th:
-                th.last_gem_uuid = val
+                th.last_skill_uuid = val
         else:
-            current_user.last_gem_uuid = val
+            current_user.last_skill_uuid = val
     if 'temp_chat_timeout_seconds' in d:
         current_user.temp_chat_timeout_seconds = _normalize_temp_chat_timeout_seconds(
             d.get('temp_chat_timeout_seconds')
@@ -324,7 +326,7 @@ def handle_settings():
     # shows its own toast), so the result is returned in the JSON response.
     # Previously this endpoint used flash(), whose messages are only consumed on
     # the next full page render -- so a save's message (including background
-    # auto-saves such as rich-paste prompts, Gem application, etc.) leaked onto
+    # auto-saves such as rich-paste prompts, Skill application, etc.) leaked onto
     # the next reload as a stale "設定を保存しました" toast even when the user
     # never opened the settings modal.  Any leftover settings-save flashes from
     # sessions created before that change are purged on every request by
@@ -942,46 +944,101 @@ def webauthn_remove():
         'passkey_count': len(filtered)
     })
 
+def _skill_response(skill, legacy=False):
+    data = {
+        'uuid': skill.uuid,
+        'id': skill.id,
+        'name': skill.name,
+        'description': skill.description,
+        'instruction': skill.instruction,
+    }
+    if legacy:
+        # Older clients read these two fields.  New Skill clients ignore them.
+        data['fixed_prompts'] = skill.fixed_prompts_json
+        data['default_model'] = skill.default_model
+    return data
+
+
+def _skill_name_conflict(name, exclude_id=None):
+    query = Skill.query.filter(
+        Skill.user_id == current_user.id,
+        db.func.lower(Skill.name) == str(name or '').lower(),
+    )
+    if exclude_id is not None:
+        query = query.filter(Skill.id != exclude_id)
+    return query.first() is not None
+
+
+def _handle_skills_request(legacy=False):
+    if request.method == 'GET':
+        skills = Skill.query.filter_by(user_id=current_user.id).order_by(Skill.created_at.desc()).all()
+        return jsonify([_skill_response(skill, legacy=legacy) for skill in skills])
+    d = request.get_json(silent=True) or {}
+    normalize = _normalize_gem_payload if legacy else _normalize_skill_payload
+    try:
+        payload = normalize(d)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
+    if _skill_name_conflict(payload.get('name')):
+        return jsonify({'error': 'name_taken'}), 400
+    import uuid as _uuid
+    skill = Skill(uuid=str(_uuid.uuid4()), user_id=current_user.id, **payload)
+    db.session.add(skill)
+    safe_db_commit()
+    return jsonify({'uuid': skill.uuid, 'id': skill.id, 'name': skill.name})
+
+
+def _handle_skill_item_request(skill_uuid, legacy=False):
+    skill = Skill.query.filter_by(uuid=skill_uuid).first_or_404()
+    if skill.user_id != current_user.id:
+        return jsonify({'error': '403'}), 403
+
+    if request.method == 'GET':
+        return jsonify(_skill_response(skill, legacy=legacy))
+
+    if request.method == 'PUT':
+        d = request.get_json(silent=True) or {}
+        normalize = _normalize_gem_payload if legacy else _normalize_skill_payload
+        try:
+            payload = normalize(d, existing=skill)
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
+        if 'name' in payload and _skill_name_conflict(payload['name'], exclude_id=skill.id):
+            return jsonify({'error': 'name_taken'}), 400
+        for key, value in payload.items():
+            setattr(skill, key, value)
+        safe_db_commit()
+        return jsonify({'uuid': skill.uuid, 'id': skill.id, 'name': skill.name})
+    if request.method == 'DELETE':
+        db.session.delete(skill)
+        safe_db_commit()
+        return jsonify({'status': 'deleted'})
+
+
+@app.route('/api/skills', methods=['GET', 'POST'])
+@login_required
+def handle_skills():
+    return _handle_skills_request()
+
+
+@app.route('/api/skills/<string:skill_uuid>', methods=['GET', 'PUT', 'DELETE'])
+@login_required
+def handle_skill_item(skill_uuid):
+    return _handle_skill_item_request(skill_uuid)
+
+
+# Legacy aliases: older Web clients, bookmarks and shipped Android builds still
+# call the Gem routes.  They keep the legacy response fields.
 @app.route('/api/gems', methods=['GET', 'POST'])
 @login_required
 def handle_gems():
-    if request.method == 'GET':
-        gems = Gem.query.filter_by(user_id=current_user.id).order_by(Gem.created_at.desc()).all()
-        return jsonify([{'uuid': g.uuid, 'id': g.id, 'name': g.name, 'description': g.description, 'instruction': g.instruction, 'fixed_prompts': g.fixed_prompts_json, 'default_model': g.default_model} for g in gems])
-    d = request.get_json(silent=True) or {}
-    try:
-        payload = _normalize_gem_payload(d)
-    except ValueError as exc:
-        return jsonify({'error': str(exc)}), 400
-    import uuid as _uuid
-    gem = Gem(uuid=str(_uuid.uuid4()), user_id=current_user.id, **payload)
-    db.session.add(gem)
-    safe_db_commit()
-    return jsonify({'uuid': gem.uuid, 'id': gem.id, 'name': gem.name})
+    return _handle_skills_request(legacy=True)
+
 
 @app.route('/api/gems/<string:gem_uuid>', methods=['GET', 'PUT', 'DELETE'])
 @login_required
 def handle_gem_item(gem_uuid):
-    gem = Gem.query.filter_by(uuid=gem_uuid).first_or_404()
-    if gem.user_id != current_user.id: return jsonify({'error': '403'}), 403
-
-    if request.method == 'GET':
-        return jsonify({'uuid': gem.uuid, 'id': gem.id, 'name': gem.name, 'description': gem.description, 'instruction': gem.instruction, 'fixed_prompts': gem.fixed_prompts_json, 'default_model': gem.default_model})
-
-    if request.method == 'PUT':
-        d = request.get_json(silent=True) or {}
-        try:
-            payload = _normalize_gem_payload(d, existing=gem)
-        except ValueError as exc:
-            return jsonify({'error': str(exc)}), 400
-        for key, value in payload.items():
-            setattr(gem, key, value)
-        safe_db_commit()
-        return jsonify({'uuid': gem.uuid, 'id': gem.id, 'name': gem.name})
-    if request.method == 'DELETE':
-        db.session.delete(gem)
-        safe_db_commit()
-        return jsonify({'status': 'deleted'})
+    return _handle_skill_item_request(gem_uuid, legacy=True)
 
 @app.route('/api/maintenance', methods=['POST'])
 @login_required

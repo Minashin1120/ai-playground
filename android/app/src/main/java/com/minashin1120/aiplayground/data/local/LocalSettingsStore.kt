@@ -10,7 +10,7 @@ import java.io.File
 import java.util.UUID
 
 /**
- * Settings, Gems and API keys of a device profile. API keys live in their own file under a separate
+ * Settings, Skills and API keys of a device profile. API keys live in their own file under a separate
  * Keystore key ([secrets]) and are only ever returned to the screen masked, like the server does.
  */
 class LocalSettingsStore(
@@ -20,7 +20,7 @@ class LocalSettingsStore(
 ) {
     private val prefsFile get() = File(root, "preferences.enc")
     private val secretsFile get() = File(root, "secrets.enc")
-    private val gemsFile get() = File(root, "gems.enc")
+    private val skillsFile get() = File(root, "skills.enc")
 
     @Synchronized
     fun preferences(): JSONObject = crypto.readJson(prefsFile) ?: JSONObject()
@@ -134,28 +134,40 @@ class LocalSettingsStore(
     @Synchronized
     fun cachedServerPreferences(): JSONObject? = crypto.readJson(serverPrefsFile)
 
-    // --- Gems (`/api/gems` shapes) ---
+    // --- Skills (`/api/skills` shapes) ---
 
+    /** Reads the skill list, migrating the older `gems.enc` file once. */
     @Synchronized
-    fun gems(): JSONArray = crypto.readJson(gemsFile)?.optJSONArray("gems") ?: JSONArray()
-
-    @Synchronized
-    fun saveGem(uuid: String?, payload: JSONObject): JSONObject {
-        val rows = gems()
-        val list = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }.toMutableList()
-        val id = uuid ?: UUID.randomUUID().toString()
-        val existing = list.firstOrNull { it.optString("uuid") == id }
-        val gem = existing ?: JSONObject().put("uuid", id).also { list += it }
-        payload.keys().forEach { key -> if (key != "uuid") gem.put(key, payload.opt(key)) }
-        crypto.writeJson(gemsFile, JSONObject().put("gems", JSONArray(list)))
-        return JSONObject().put("status", "ok").put("uuid", id).put("gem", gem)
+    private fun readSkillsFile(): JSONObject? {
+        crypto.readJson(skillsFile)?.let { return it }
+        val legacy = File(root, "gems.enc")
+        if (!legacy.isFile) return null
+        val migrated = crypto.readJson(legacy) ?: return null
+        crypto.writeJson(skillsFile, migrated)
+        legacy.delete()
+        return migrated
     }
 
     @Synchronized
-    fun deleteGem(uuid: String) {
-        val rows = gems()
+    fun skills(): JSONArray = readSkillsFile()?.optJSONArray("skills") ?: JSONArray()
+
+    @Synchronized
+    fun saveSkill(uuid: String?, payload: JSONObject): JSONObject {
+        val rows = skills()
+        val list = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }.toMutableList()
+        val id = uuid ?: UUID.randomUUID().toString()
+        val existing = list.firstOrNull { it.optString("uuid") == id }
+        val skill = existing ?: JSONObject().put("uuid", id).also { list += it }
+        payload.keys().forEach { key -> if (key != "uuid") skill.put(key, payload.opt(key)) }
+        crypto.writeJson(skillsFile, JSONObject().put("skills", JSONArray(list)))
+        return JSONObject().put("status", "ok").put("uuid", id).put("skill", skill)
+    }
+
+    @Synchronized
+    fun deleteSkill(uuid: String) {
+        val rows = skills()
         val kept = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }.filterNot { it.optString("uuid") == uuid }
-        crypto.writeJson(gemsFile, JSONObject().put("gems", JSONArray(kept)))
+        crypto.writeJson(skillsFile, JSONObject().put("skills", JSONArray(kept)))
     }
 
     @Synchronized

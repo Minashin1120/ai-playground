@@ -907,12 +907,12 @@ def chat_stream():
         user_tokens_in = None
         if user_tokens_in is None:
             user_tokens_in = count_tokens(raw_msg_content or "", data.get('model'))
-        gem_uuid_val = data.get('gem_uuid')
-        gem_name_val = None
-        if gem_uuid_val:
-            gem = Gem.query.filter_by(uuid=gem_uuid_val, user_id=current_user.id).first()
-            if gem:
-                gem_name_val = gem.name
+        skill_uuid_val = data.get('skill_uuid') or data.get('gem_uuid')
+        skill_name_val = None
+        if skill_uuid_val:
+            skill = Skill.query.filter_by(uuid=skill_uuid_val, user_id=current_user.id).first()
+            if skill:
+                skill_name_val = skill.name
         user_msg = Message(
             thread=t,
             role='user',
@@ -924,8 +924,8 @@ def chat_stream():
             parent_id=parent_id,
             tokens_in=user_tokens_in,
             tokens=sum_token_counts(user_tokens_in, None),
-            gem_uuid=gem_uuid_val,
-            gem_name=gem_name_val,
+            skill_uuid=skill_uuid_val,
+            skill_name=skill_name_val,
             prompt_options=_build_prompt_options_record(
                 data,
                 {'browser_fast_mode': False, 'batch_mode': batch_mode, 'coding_mode': coding_mode},
@@ -945,8 +945,8 @@ def chat_stream():
                 tokens=0,
                 tokens_out=0,
                 tokens_thought=0,
-                gem_uuid=gem_uuid_val,
-                gem_name=gem_name_val,
+                skill_uuid=skill_uuid_val,
+                skill_name=skill_name_val,
             )
             db.session.add(assistant_batch_msg)
             db.session.flush()
@@ -981,7 +981,7 @@ def chat_stream():
             current_user.last_enable_mcp = bool(data.get('enable_mcp', True))
             current_user.last_safety_setting = (data.get('safety_setting') or current_user.last_safety_setting or "default")
         t.last_model = model_key
-        t.last_gem_uuid = data.get('gem_uuid')
+        t.last_skill_uuid = skill_uuid_val
         safe_db_commit()
         thread_id = t.id
         thread_stream_id = t.public_id if t and t.public_id else str(thread_id)
@@ -1093,7 +1093,8 @@ def chat_stream():
         'transcription_word_timestamps': data.get('transcription_word_timestamps'),
         'attachment_name_map': attachment_name_map,
         'image_vision_model': data.get('image_vision_model'),
-        'gem_uuid': data.get('gem_uuid'),
+        'skill_uuid': skill_uuid_val,
+        'gem_uuid': skill_uuid_val,
         'enable_prompt_caching': enable_pc_request,
         'prompt_cache_key': None,
         'coding_mode': coding_mode,

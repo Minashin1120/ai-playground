@@ -321,8 +321,8 @@
             '<div class="relative sidebar-search"><input type="search" id="search-box" readonly tabindex="-1" placeholder="チャットを検索..." class="w-full bg-gray-700 rounded-lg px-3 py-1.5 text-sm outline-none">' +
             '<i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs pointer-events-none"></i></div>' +
             '</div>' +
-            '<div class="sidebar-gems px-2.5 py-2"><div class="flex justify-between items-center px-1.5 mb-1.5">' +
-            '<span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Gems</span>' +
+            '<div class="sidebar-skills px-2.5 py-2"><div class="flex justify-between items-center px-1.5 mb-1.5">' +
+            '<span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Skills</span>' +
             '<span class="text-xs text-blue-400"><i class="fas fa-plus"></i> New</span></div></div>' +
             '<div class="sidebar-divider border-t border-gray-700 mx-2 my-0.5"></div>' +
             '<div class="flex-1 overflow-y-auto p-2 space-y-0.5" id="thread-list">' +
@@ -347,7 +347,7 @@
     function welcomeHtml() {
         return '<div id="welcome-screen" class="flex flex-col items-center justify-center text-gray-500 z-10">' +
             '<div class="flex flex-col items-center justify-center w-full">' +
-            '<h2 class="text-2xl font-bold flex items-center gap-2.5 tracking-tight"><i class="fas fa-gem"></i> AI Gems &amp; Chat</h2>' +
+            '<h2 class="text-2xl font-bold flex items-center gap-2.5 tracking-tight"><i class="fas fa-wand-magic-sparkles"></i> AI Skills &amp; Chat</h2>' +
             '<p class="welcome-subtitle text-sm text-gray-400/90">使いたいモデルを選んで、すぐに会話を始められます</p>' +
             '<div id="welcome-quick-start" class="welcome-grid grid grid-cols-1 gap-2 w-full px-4">' +
             QUICK_START.map(function (q) {

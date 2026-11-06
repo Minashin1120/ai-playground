@@ -411,7 +411,7 @@
             });
         };
         const revealPersistentSidebarLists = () => {
-            document.querySelectorAll('#thread-list > [data-thread-id], #gem-list > .gem-item').forEach((el) => {
+            document.querySelectorAll('#thread-list > [data-thread-id], #skill-list > .skill-item').forEach((el) => {
                 el.classList.remove('model-list-animate', 'slide-in-animate', 'fade-in', 'opacity-0');
                 el.style.removeProperty('opacity');
                 el.style.removeProperty('transform');
@@ -419,7 +419,7 @@
                 el.style.removeProperty('animation-delay');
                 el.style.removeProperty('visibility');
             });
-            ['thread-list', 'gem-list'].forEach((id) => {
+            ['thread-list', 'skill-list'].forEach((id) => {
                 const list = get(id);
                 if (!list) return;
                 list.style.removeProperty('opacity');
@@ -1031,7 +1031,7 @@
             '.viewer-meta',
             '#quote-bar',
             '#slash-command-suggestions',
-            '#gem-suggestions',
+            '#skill-suggestions',
             '#total-token-bar'
         ].join(',');
         const refreshLiquidGlassSurfaces = () => {

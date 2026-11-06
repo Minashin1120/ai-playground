@@ -467,21 +467,22 @@ def mobile_preferences():
         if not isinstance(data.get('auto_system_prompt_notices_config'), dict):
             return _mobile_error('invalid_auto_system_prompt_notices_config')
         set_user_auto_system_prompt_notices_config(current_user, data['auto_system_prompt_notices_config'])
-    if 'last_gem_uuid' in data:
-        # Web `saveThreadGemUuid` (`/api/settings`): the chat's Gem, or the account's when no thread is given.
-        gem_uuid = data.get('last_gem_uuid')
-        if gem_uuid is not None:
-            gem = Gem.query.filter_by(uuid=str(gem_uuid)).first()
-            if not gem or gem.user_id != current_user.id:
-                return _mobile_error('invalid_gem', 403)
-            gem_uuid = gem.uuid
+    if 'last_skill_uuid' in data or 'last_gem_uuid' in data:
+        # Web/Android skill selection (`/api/settings`): the chat's Skill, or the
+        # account's when no thread is given.
+        skill_uuid = data.get('last_skill_uuid', data.get('last_gem_uuid'))
+        if skill_uuid is not None:
+            skill = Skill.query.filter_by(uuid=str(skill_uuid)).first()
+            if not skill or skill.user_id != current_user.id:
+                return _mobile_error('invalid_skill', 403)
+            skill_uuid = skill.uuid
         thread_id = data.get('thread_id')
         if thread_id:
             thread = resolve_thread_for_user(str(thread_id), current_user.id)
             if thread:
-                thread.last_gem_uuid = gem_uuid
+                thread.last_skill_uuid = skill_uuid
         else:
-            current_user.last_gem_uuid = gem_uuid
+            current_user.last_skill_uuid = skill_uuid
     if 'passkey_only_login' in data:
         target = bool(data['passkey_only_login'])
         if target and not _load_user_webauthn_credentials(current_user):

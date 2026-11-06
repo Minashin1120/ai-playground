@@ -59,7 +59,7 @@ enum class ChatTransitionKind { NONE, OPEN_THREAD, NEW_CHAT }
 
 /** Account export categories imported by the first-run wizard. */
 private const val ACCOUNT_IMPORT_CATEGORIES =
-    "settings,api_credentials,chats,gems,files,feedback,diagnostics"
+    "settings,api_credentials,chats,skills,files,feedback,diagnostics"
 
 data class ImportSettingChange(val field: String, val current: String, val incoming: String)
 
@@ -153,7 +153,7 @@ data class ChatState(
     /** The first page failed to load (Web grid error state). */
     val libraryFailed: Boolean = false,
     val libraryHasMore: Boolean = false, val libraryTotal: Int = 0,
-    val gems: List<Gem> = emptyList(), val gemsBusy: Boolean = false, val selectedGem: Gem? = null,
+    val skills: List<Skill> = emptyList(), val skillsBusy: Boolean = false, val selectedSkill: Skill? = null,
     val preferences: Preferences? = null, val prefsBusy: Boolean = false,
     val compression: CompressionSettings = CompressionSettings(),
     val mcpServers: List<McpServerInfo> = emptyList(), val mcpBusy: Boolean = false,
@@ -362,7 +362,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         "banned" to s.banned, "locked" to (s.accountLock != null), "mcp_decision" to (s.mcpDecision != null),
         "api_key_prompt" to s.apiKeyPrompt, "x_link_prompt" to s.xLinkPrompt, "mic" to s.micMode,
         "realtime" to s.realtime.active, "lyria" to s.lyria.kind, "library_busy" to s.libraryBusy,
-        "library_failed" to s.libraryFailed, "gems_busy" to s.gemsBusy, "gem" to (s.selectedGem != null),
+        "library_failed" to s.libraryFailed, "skills_busy" to s.skillsBusy, "skill" to (s.selectedSkill != null),
         "prefs_busy" to s.prefsBusy, "mcp_busy" to s.mcpBusy, "feedback_busy" to s.feedbackBusy, "batch_busy" to s.batchBusy,
         "cache_syncing" to s.cacheSyncing, "thread_loading" to (s.threadLoadingId != null), "thread_load_failed" to (s.threadLoadFailedId != null),
         "navigation" to s.chatNavigationKind.name, "low_bandwidth" to s.lowBandwidthMode, "settings_request" to s.settingsRequest,
@@ -1538,7 +1538,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             canGoBackInChats = chatHistory.canGoBack,
         ) }
         fetchThreads(false)
-        runCatching { fetchGems() }.onFailure { report(it) }
+        runCatching { fetchSkills() }.onFailure { report(it) }
         runCatching {
             fetchPreferences(
                 applyDefaults = state.value.selected == null && !state.value.streaming && !modelChosenManually,
@@ -2159,7 +2159,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             liveContent = "", liveThought = "", live = LiveAnswer(), mcpDecision = null, status = "", busy = false, retryAvailable = false,
             cards = emptyList(), branchOrigin = null, hasOlder = false, oldestId = null, customInstruction = "",
             includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null, tempChatTimeoutSeconds = null,
-            selectedGem = null, codingTarget = null, imageMask = null,
+            selectedSkill = null, codingTarget = null, imageMask = null,
             // Web `startNewChat`: cancelEdit + resetUploadState, and PromptCache starts off.
             draft = "", attachments = emptyList(), quote = "", quoteSourceId = null, quoteNavigationRequest = 0L, enablePromptCache = false,
             chatTransitionId = transition.first, chatTransitionKind = transition.second,
@@ -2229,7 +2229,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     /**
      * [inPlace]: the open chat is updated without replacing what is on screen. Messages loaded with
-     * 過去メッセージを読み込む stay, the chosen model and Gem are kept, and a failed request or a send
+     * 過去メッセージを読み込む stay, the chosen model and Skill are kept, and a failed request or a send
      * that started meanwhile leaves the chat as it is.
      */
     private suspend fun loadMessages(requestedId: String, older: Boolean = false, autoResume: Boolean = true, inPlace: Boolean = false, streamFinished: Boolean = false) {
@@ -2319,9 +2319,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 reply.optLong("temp_chat_remaining_seconds").takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 },
             liveContent = if (older) it.liveContent else "", liveThought = if (older) it.liveThought else "",
             cards = if (older) it.cards else emptyList(),
-            selectedGem = if (older || inPlace) it.selectedGem else {
-                val uuid = reply.nullableString("last_gem_uuid")
-                if (uuid.isBlank()) null else it.gems.firstOrNull { gem -> gem.uuid == uuid }
+            selectedSkill = if (older || inPlace) it.selectedSkill else {
+                val uuid = reply.nullableString("last_skill_uuid").ifBlank { reply.nullableString("last_gem_uuid") }
+                if (uuid.isBlank()) null else it.skills.firstOrNull { skill -> skill.uuid == uuid }
             }) }
         if (!older && !inPlace) {
             // Web `loadMessages`: the chat's PromptCache flag and last model come back with it (the flag
@@ -2571,9 +2571,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         try { fetchThreads(false) } catch (e: Exception) { report(e) } finally { onDone() }
     } }
 
-    /** Pull-to-refresh of the sidebar Gem list. */
-    fun reloadGems(onDone: () -> Unit) { viewModelScope.launch {
-        try { fetchGems() } catch (e: Exception) { report(e) } finally { onDone() }
+    /** Pull-to-refresh of the sidebar Skill list. */
+    fun reloadSkills(onDone: () -> Unit) { viewModelScope.launch {
+        try { fetchSkills() } catch (e: Exception) { report(e) } finally { onDone() }
     } }
 
     /** `/static/legal/<kind>.md` shown by the terms / privacy modal (public, no token). */
@@ -2584,7 +2584,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val accountTransfer: AccountTransferController by lazy {
         AccountTransferController(viewModelScope, ::accountApi, getApplication<Application>().contentResolver, ::notify) { categories ->
             if ("chats" in categories) reloadThreads {}
-            if ("gems" in categories) reloadGems {}
+            if ("skills" in categories) reloadSkills {}
             if ("files" in categories) loadStorageUsage()
             if ("settings" in categories || "api_credentials" in categories) loadPreferences()
         }
@@ -2904,10 +2904,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
         generation.keys().forEach { key -> body.put(key, generation.get(key)) }
         COMPOSER_SELECT_DEFAULTS.forEach { (key, fallback) -> body.put(key, current.chipValues[key] ?: fallback) }
-        // Web part14: the server never reads Gem.instruction, the client sends it as the system prompt.
-        current.selectedGem?.let { gem ->
-            body.put("gem_uuid", gem.uuid)
-            body.put("system_prompt", gem.instruction).put("enable_system_prompt", true)
+        // Web part14: the server never reads Skill.instruction, the client sends it as the system prompt.
+        current.selectedSkill?.let { skill ->
+            body.put("skill_uuid", skill.uuid)
+            body.put("system_prompt", skill.instruction).put("enable_system_prompt", true)
         }
         if (current.editingMessageId != null) {
             // Branch from the edited message's parent; send null explicitly for the first message.
@@ -3324,7 +3324,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val userId = "local-${body.getString("client_request_id")}"
                 updateAnswer(answer) { it.copy(messages = it.messages.filterNot { m -> m.id == userId } + ChatMessage(userId, "user",
                     body.getString("message"), files = submission.files.map { a -> a.reference },
-                    quote = body.optString("quote_text"), gemName = it.selectedGem?.name.orEmpty(),
+                    quote = body.optString("quote_text"), skillName = it.selectedSkill?.name.orEmpty(),
                     promptOptions = com.minashin1120.aiplayground.data.promptOptionsRecord(body))) }
                 if (id.isBlank()) {
                     val created = answerBackend.post("/api/threads", JSONObject().put("is_temporary", answer.snapshot.value.newThreadTemporary), answerToken)
@@ -4992,74 +4992,69 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mutable.update { it.copy(attachments = it.attachments + Attachment(file.displayName, file.filepath, "", source = "library")) }
     }
 
-    // --- Gems ---
+    // --- Skills ---
 
-    private suspend fun fetchGems() {
-        val gems = parseGems(backend.getArray("/api/gems", token()))
+    private suspend fun fetchSkills() {
+        val skills = parseSkills(backend.getArray("/api/skills", token()))
         mutable.update { current ->
-            current.copy(gems = gems, selectedGem = current.selectedGem?.let { selected -> gems.firstOrNull { it.uuid == selected.uuid } })
+            current.copy(skills = skills, selectedSkill = current.selectedSkill?.let { selected -> skills.firstOrNull { it.uuid == selected.uuid } })
         }
     }
 
-    fun loadGems() {
+    fun loadSkills() {
         viewModelScope.launch {
-            mutable.update { it.copy(gemsBusy = true) }
-            try { fetchGems() } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(gemsBusy = false) } }
+            mutable.update { it.copy(skillsBusy = true) }
+            try { fetchSkills() } catch (e: Exception) { report(e) } finally { mutable.update { it.copy(skillsBusy = false) } }
         }
     }
 
-    /** Web `save-gem-btn`: an empty default model ("Use current model") is sent as null. */
-    fun saveGem(uuid: String?, name: String, description: String, instruction: String, defaultModel: String, fixedPrompts: List<FixedPrompt>, onDone: (Boolean) -> Unit) {
+    fun saveSkill(uuid: String?, name: String, description: String, instruction: String, onDone: (Boolean) -> Unit) {
         viewModelScope.launch {
-            mutable.update { it.copy(gemsBusy = true) }
+            mutable.update { it.copy(skillsBusy = true) }
             try {
                 val payload = JSONObject().put("name", name).put("description", description)
-                    .put("instruction", instruction).put("default_model", defaultModel.ifBlank { null } ?: JSONObject.NULL)
-                    .put("fixed_prompts", if (fixedPrompts.isEmpty()) JSONObject.NULL else JSONArray().apply {
-                        fixedPrompts.forEach { put(JSONObject().put("name", it.name).put("content", it.content)) }
-                    })
-                if (uuid.isNullOrBlank()) backend.post("/api/gems", payload, token())
-                else backend.put("/api/gems/$uuid", payload, token())
-                fetchGems()
-                mutable.update { current -> current.copy(selectedGem = current.selectedGem?.let { selected -> current.gems.firstOrNull { it.uuid == selected.uuid } }) }
+                    .put("instruction", instruction)
+                if (uuid.isNullOrBlank()) backend.post("/api/skills", payload, token())
+                else backend.put("/api/skills/$uuid", payload, token())
+                fetchSkills()
+                mutable.update { current -> current.copy(selectedSkill = current.selectedSkill?.let { selected -> current.skills.firstOrNull { it.uuid == selected.uuid } }) }
                 onDone(true)
             } catch (e: Exception) { report(e); onDone(false) }
-            finally { mutable.update { it.copy(gemsBusy = false) } }
+            finally { mutable.update { it.copy(skillsBusy = false) } }
         }
     }
 
-    fun deleteGem(gem: Gem) { viewModelScope.launch {
+    fun deleteSkill(skill: Skill) { viewModelScope.launch {
         try {
-            backend.delete("/api/gems/${gem.uuid}", token())
+            backend.delete("/api/skills/${skill.uuid}", token())
             mutable.update { current -> current.copy(
-                gems = current.gems.filterNot { it.uuid == gem.uuid },
-                selectedGem = current.selectedGem?.takeIf { it.uuid != gem.uuid },
+                skills = current.skills.filterNot { it.uuid == skill.uuid },
+                selectedSkill = current.selectedSkill?.takeIf { it.uuid != skill.uuid },
             ) }
         } catch (e: Exception) { report(e) }
     } }
 
     /**
-     * Web `activateGem` / `clearActiveGem`: in an open chat the Gem is announced and saved as the chat's
-     * `last_gem_uuid` right away; in a new chat it waits for the first message.
+     * Web `activateSkill` / `clearActiveSkill`: in an open chat the Skill is announced and saved as the
+     * chat's `last_skill_uuid` right away; in a new chat it waits for the first message.
      */
-    fun chooseGem(gem: Gem?) {
-        mutable.update { it.copy(selectedGem = gem) }
-        gem?.defaultModel?.takeIf { it.isNotBlank() }?.let { chooseModel(it) }
+    fun chooseSkill(skill: Skill?) {
+        mutable.update { it.copy(selectedSkill = skill) }
         val thread = state.value.selected ?: return
-        if (gem != null) notify("Gem \"${gem.name}\" をこのチャットに適用しました")
+        if (skill != null) notify("Skill \"${skill.name}\" をこのチャットに適用しました")
         if (state.value.offline) return
         viewModelScope.launch {
             runCatching {
                 backend.put("/api/mobile/v1/preferences",
-                    JSONObject().put("last_gem_uuid", gem?.uuid ?: JSONObject.NULL).put("thread_id", thread.id), token())
+                    JSONObject().put("last_skill_uuid", skill?.uuid ?: JSONObject.NULL).put("thread_id", thread.id), token())
             }
         }
     }
 
-    /** Web `selectGemSuggestion`: applies the Gem picked from the `@` candidates and trims the mention. */
-    fun applyGemMention(gem: Gem) {
-        mutable.update { it.copy(draft = replaceGemMention(it.draft), composerFocusRequest = it.composerFocusRequest + 1) }
-        chooseGem(gem)
+    /** Web `selectSkillSuggestion`: applies the Skill picked from the `@` candidates and trims the mention. */
+    fun applySkillMention(skill: Skill) {
+        mutable.update { it.copy(draft = replaceSkillMention(it.draft), composerFocusRequest = it.composerFocusRequest + 1) }
+        chooseSkill(skill)
     }
 
     // --- General preferences and this device's session ---

@@ -15,7 +15,7 @@ class SlashSettingsModeRegressionTests(unittest.TestCase):
     def test_settings_command_uses_normal_chat_bubble_flow(self):
         source = _chat_core_source()
         runner = source[source.index("async function runAiSettingsCommand") :]
-        runner = runner[: runner.index("// === Gem suggestion helpers")]
+        runner = runner[: runner.index("// === Skill suggestion helpers")]
 
         self.assertIn("renderMessage(`settings-user-${timestamp}`, 'user'", runner)
         self.assertIn("buildPendingSkeletonHtml(modelId", runner)
@@ -40,7 +40,7 @@ class SlashSettingsModeRegressionTests(unittest.TestCase):
     def test_inspection_result_uses_same_actionable_answer_bubble_without_refreshing_settings(self):
         source = _chat_core_source()
         runner = source[source.index("async function runAiSettingsCommand") :]
-        runner = runner[: runner.index("// === Gem suggestion helpers")]
+        runner = runner[: runner.index("// === Skill suggestion helpers")]
         inspect_branch = runner[runner.index("data.mode === 'inspect'") : runner.index("data.applied")]
 
         self.assertIn("data.current", inspect_branch)

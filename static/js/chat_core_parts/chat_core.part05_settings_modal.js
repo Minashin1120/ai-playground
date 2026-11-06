@@ -1357,9 +1357,9 @@
             return `${prefix}${details ? `\n${details}` : ''}`.slice(0, 1600);
         }
 
-        // Gem suggestion system (triggered by @ in prompt bar)
-        let gemSuggestionsVisible = false;
-        let gemSelectedIndex = 0;
+        // Skill suggestion system (triggered by @ in prompt bar)
+        let skillSuggestionsVisible = false;
+        let skillSelectedIndex = 0;
 
         const STS_MODELS = new Set([
             'gpt-transcribe',

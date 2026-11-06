@@ -9,7 +9,7 @@
 | 保存先 | 内容 | 例 |
 |---|---|---|
 | プロンプト単位のスナップショット | 送信時点のプロンプトバー設定。ユーザーメッセージごとに保持 | `Search`、`Thinking`、画像生成のサイズ・品質、マスク参照 |
-| スレッドの状態 | その会話で最後に使ったモデル、PromptCache、Gem、一時チャット | `last_model`、`enable_prompt_caching` |
+| スレッドの状態 | その会話で最後に使ったモデル、PromptCache、Skill、一時チャット | `last_model`、`enable_prompt_caching` |
 | アカウント設定 | 全端末で共有する既定値と「前回の設定」 | `default_enable_search`、`last_enable_search` |
 | ブラウザーの保存領域 | そのブラウザーだけに残る表示・動作の初期値 | Canvas、Coding、低帯域モード、圧縮の詳細値 |
 
@@ -23,7 +23,7 @@ flowchart TD
     C -->|OFF| E[アカウント設定の default_* を適用]
     D --> F{会話を開く?}
     E --> F
-    F -->|はい| G[スレッドの状態<br>PromptCache / last_model / Gem]
+    F -->|はい| G[スレッドの状態<br>PromptCache / last_model / Skill]
     G --> H[最新ユーザーメッセージの<br>prompt_options]
     F -->|いいえ| I[新規チャット<br>PromptCacheだけリセット]
 ```
@@ -80,7 +80,7 @@ SysPrompt には例外があります。ユーザーシステムプロンプト�
 
 1. スレッドに保存された PromptCache の状態を反映する。
 2. 同じ画面でモデルを手動選択していなければ、スレッドの `last_model` を選ぶ。
-3. スレッドの `last_gem_uuid` に対応する Gem があれば適用する。
+3. スレッドの `last_skill_uuid`（旧 `last_gem_uuid` も可）に対応する Skill があれば適用する。
 4. 表示中の分岐の最新ユーザーメッセージを探し、その `prompt_options` を適用する（`restoreLatestPromptOptions`）。
 
 4 では、分岐の末端から親をたどって最初に見つかったユーザーメッセージを使います。そのメッセージにスナップショットがない場合は、現在のプロンプトバーを変更しません。
@@ -149,7 +149,7 @@ MCP のオン・オフは、設定画面の「自動注入システムプロン�
 
 「前回の設定を保存して継続する」がONのときだけ、送信時に `last_*`（モデル、Search、URLs、Maps、Python、File、Thinking、レベル、Budget、Reasoning effort、SysPrompt、MCP、Safety）を更新します。OFFのときは `last_*` を更新しません。
 
-スレッドの `last_model` と `last_gem_uuid` は、設定にかかわらず送信のたびに更新されます。
+スレッドの `last_model` と `last_skill_uuid`（旧 `last_gem_uuid`） は、設定にかかわらず送信のたびに更新されます。
 
 プロンプト設定はメッセージ本文とは別の列に保存されるため、過去のメッセージを開いたり分岐を切り替えたりしても、送信後に変更した現在の設定には影響されません。
 

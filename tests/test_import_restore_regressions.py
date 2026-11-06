@@ -125,7 +125,7 @@ class ImportRestoreRegressionTests(unittest.TestCase):
                 "settings": {},
                 "api_credentials": {},
                 "chats": [],
-                "gems": [],
+                "skills": [],
                 "files": [file_item],
                 "feedback": [],
                 "diagnostics": {},

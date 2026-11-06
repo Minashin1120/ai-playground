@@ -63,7 +63,8 @@ def _sync_thread_row(thread, state):
         'custom_instruction': thread.custom_instruction or '',
         'include_global_instruction': thread.include_global_instruction if thread.include_global_instruction is not None else True,
         'last_model': thread.last_model,
-        'last_gem_uuid': thread.last_gem_uuid,
+        'last_skill_uuid': thread.last_skill_uuid,
+        'last_gem_uuid': thread.last_skill_uuid,
         'updated_at_ms': _sync_to_ms(thread.updated_at),
         'changed_at_ms': _sync_to_ms(state.changed_at) if state else _sync_to_ms(thread.updated_at),
     }
@@ -169,9 +170,9 @@ def _sync_apply_meta(thread, state, entry):
         thread.custom_instruction = str(entry.get('custom_instruction') or '')[:100_000]
     if 'include_global_instruction' in entry:
         thread.include_global_instruction = bool(entry.get('include_global_instruction'))
-    if 'last_gem_uuid' in entry:
-        value = str(entry.get('last_gem_uuid') or '').strip()[:36]
-        thread.last_gem_uuid = value or None
+    if 'last_skill_uuid' in entry or 'last_gem_uuid' in entry:
+        value = str(entry.get('last_skill_uuid') or entry.get('last_gem_uuid') or '').strip()[:36]
+        thread.last_skill_uuid = value or None
 
 
 def _sync_insert_messages(thread, entry, result):
@@ -281,8 +282,8 @@ def _sync_insert_messages(thread, entry, result):
             tokens_thought=_usage_value(item, 'tokens_thought') or 0,
             thought_data=(encrypt_val(thought_payload) if is_enc and thought_payload else thought_payload),
             quote_text=quote, is_encrypted=is_enc,
-            gem_uuid=(str(item.get('gem_uuid') or '').strip()[:36] or None),
-            gem_name=(str(item.get('gem_name') or '').strip()[:100] or None),
+            skill_uuid=(str(item.get('skill_uuid') or item.get('gem_uuid') or '').strip()[:36] or None),
+            skill_name=(str(item.get('skill_name') or item.get('gem_name') or '').strip()[:100] or None),
             parent_id=parent_id,
         )
         db.session.add(message)

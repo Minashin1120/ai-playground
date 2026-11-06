@@ -205,7 +205,7 @@ class PlaygroundApi internal constructor(
         if (response.body.contentType()?.type != "text") throw IOException("テキスト以外の更新履歴です。")
         readBoundedUtf8(response.body.byteStream(), limit)
     }
-    /** Some existing endpoints (for example `/api/gems`) return a top-level JSON array. */
+    /** Some existing endpoints (for example `/api/skills`) return a top-level JSON array. */
     suspend fun getArray(path: String, token: String? = null): JSONArray = execute(
         request(path, token).header("Accept", "application/json").build(), client = reads
     ) { response ->

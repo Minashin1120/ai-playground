@@ -1,6 +1,5 @@
 package com.minashin1120.aiplayground.ui
 
-import com.minashin1120.aiplayground.data.FixedPrompt
 import com.minashin1120.aiplayground.data.ModelInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -40,19 +39,4 @@ class ModelPickerTest {
         assertEquals("Agentic View", MODEL_TAGS.last())
     }
 
-    @Test
-    fun gemFixedPromptsSkipIncompleteRows() {
-        val rows = listOf(FixedPrompt(" a ", " b "), FixedPrompt("", "x"), FixedPrompt("y", "  "))
-        assertEquals(listOf(FixedPrompt("a", "b")), collectGemFixedPrompts(rows))
-    }
-
-    @Test
-    fun gemDefaultModelOffersTheChatModelsAndKeepsASavedOne() {
-        val models = listOf(model("gpt-5.5"), model("old").copy(deprecated = true))
-        val options = gemDefaultModelOptions(models, "")
-        assertEquals(listOf("", "gpt-5.5"), options.map { it.value })
-        assertEquals("Use current model", options.first().label)
-        assertEquals("Featured", options[1].group)
-        assertEquals(listOf("", "gpt-5.5", "retired-1"), gemDefaultModelOptions(models, "retired-1").map { it.value })
-    }
 }

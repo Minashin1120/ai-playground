@@ -26,10 +26,12 @@
                 deleteAccount: "{{ url_for('delete_account') }}",
                 handleThreads: "{{ url_for('handle_threads') }}",
                 transcribe: "{{ url_for('transcribe') }}",
+                handleSkills: "{{ url_for('handle_skills') }}",
                 handleGems: "{{ url_for('handle_gems') }}",
                 upload: "{{ url_for('upload') }}",
                 chatStream: "{{ url_for('chat_stream') }}",
                 handleThreadItem: "{{ url_for('handle_thread_item', thread_id=0) }}",
+                handleSkillItem: "{{ url_for('handle_skill_item', skill_uuid='0') }}",
                 handleGemItem: "{{ url_for('handle_gem_item', gem_uuid='0') }}",
                 unlinkMinashinAccount: "{{ url_for('unlink_minashin') }}",
                 updateTitle: "{{ url_for('update_title', thread_id=0) }}",
@@ -326,7 +328,7 @@
                     <li>回答完了後に画像をサーバーへアップロードして同じ履歴へDB保存するため、後処理に失敗すると回答が履歴へ残りません。</li>
                     <li>新規・既存チャットのGeminiテキストモデル専用です。選択した会話分岐の履歴を送り、過去画像は新しいものから最大4枚・合計12MBまで再送します。</li>
                     <li>Python（コード実行）は利用できます。Gemini API側のサンドボックスで実行され、実行結果は回答と一緒に履歴へ保存されます。</li>
-                    <li>検索、URLs、Maps、Gems、SysPrompt、PromptCache、Coding Mode、引用・編集は利用できません。</li>
+                    <li>検索、URLs、Maps、Skills、SysPrompt、PromptCache、Coding Mode、引用・編集は利用できません。</li>
                     <li>画像はローカルに一時保持され、Geminiへ直接送信されます。完了まではサイトのサーバーに保存されません。</li>
                 </ul>
             </div>

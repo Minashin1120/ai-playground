@@ -297,8 +297,11 @@ def handle_thread_item(thread_id):
                 'is_encrypted': bool(m.is_encrypted),
                 'quote_text': m.quote_text,
                 'parent_id': m.parent_id,
-                'gem_uuid': m.gem_uuid,
-                'gem_name': m.gem_name,
+                'skill_uuid': m.skill_uuid,
+                'skill_name': m.skill_name,
+                # Legacy aliases for older clients.
+                'gem_uuid': m.skill_uuid,
+                'gem_name': m.skill_name,
                 'created_at': m.timestamp.isoformat() + 'Z' if m.timestamp else None,
                 'batch_job': ({
                     'job_id': batch_row.job_id,
@@ -334,7 +337,8 @@ def handle_thread_item(thread_id):
                 'custom_instruction': t.custom_instruction,
                 'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
                 'last_model': t.last_model,
-                'last_gem_uuid': t.last_gem_uuid,
+                'last_skill_uuid': t.last_skill_uuid,
+                'last_gem_uuid': t.last_skill_uuid,
                 'enable_prompt_caching': bool(getattr(t, "enable_prompt_caching", False)),
                 'prompt_cache_provider': getattr(t, "prompt_cache_provider", None),
                 'is_temporary': bool(getattr(t, "is_temporary", False)),

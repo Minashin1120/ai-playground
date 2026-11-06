@@ -308,7 +308,7 @@ class BotEvidenceAdminRegressionTests(unittest.TestCase):
         self.assertIn('id="bot-log-account-list"', markup)
         self.assertIn('id="bot-log-detail"', markup)
         part08 = (PARTS / "chat_core.part08_domcontent_account_transfer.js").read_text(encoding="utf-8")
-        part16 = (PARTS / "chat_core.part16_gems_branch_debug.js").read_text(encoding="utf-8")
+        part16 = (PARTS / "chat_core.part16_library_branch_debug.js").read_text(encoding="utf-8")
         self.assertIn("'/admin-bot-logs': { id: 'bot-log-modal'", part08)
         self.assertIn("case 'bot-log-modal'", part08)
         self.assertNotIn("bot-open-log", part08)

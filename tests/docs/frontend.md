@@ -24,6 +24,7 @@
 | [test_send_button_scope_regressions.py](../test_send_button_scope_regressions.py) | send / button / scope |
 | [test_settings_flash_leak_regressions.py](../test_settings_flash_leak_regressions.py) | settings / flash / leak |
 | [test_settings_model_picker_regressions.py](../test_settings_model_picker_regressions.py) | モデル選択UI・モデル情報 |
+| [test_skills_ui_regressions.py](../test_skills_ui_regressions.py) | Skillのサイドバー・モーダル・`@`候補・CSS・旧Gem URL互換 |
 | [test_settings_redesign_regressions.py](../test_settings_redesign_regressions.py) | settings / redesign |
 | [test_settings_tabs_regressions.py](../test_settings_tabs_regressions.py) | settings / tabs |
 | [test_slash_settings_mode_regressions.py](../test_slash_settings_mode_regressions.py) | slash / settings / mode |

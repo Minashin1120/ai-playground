@@ -24,6 +24,7 @@
 | [test_openai_batch_regressions.py](../test_openai_batch_regressions.py) | openai / batch |
 | [test_prompt_cache_clear.py](../test_prompt_cache_clear.py) | prompt / cache / clear |
 | [test_provider_token_estimation.py](../test_provider_token_estimation.py) | 事業者の入力計測APIと概算への切替 |
+| [test_skills_prompt_tool_regressions.py](../test_skills_prompt_tool_regressions.py) | Skillカタログ注入と `use_skill` のプロバイダ別ツール |
 | [test_user_system_prompt_sync_regressions.py](../test_user_system_prompt_sync_regressions.py) | user / system / prompt / sync |
 | [test_xai_batch_regressions.py](../test_xai_batch_regressions.py) | xai / batch |
 | [test_xai_model_coverage.py](../test_xai_model_coverage.py) | xai / model / coverage |

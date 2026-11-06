@@ -174,7 +174,7 @@
 <div class="settings-card"><div class="flex items-center justify-between"><h3 class="settings-card-title">ストレージ</h3><button id="storage-usage-refresh" class="text-[10px] text-gray-400 hover:text-white">更新</button></div><div class="mt-2 text-xs text-gray-300" id="storage-usage-text">読み込み中...</div><div class="mt-2 h-2 rounded bg-gray-800 overflow-hidden border border-gray-700"><div id="storage-usage-bar" class="h-2 bg-blue-500/80" style="width:0%"></div></div><div class="text-[10px] text-gray-500 mt-2">アップロード済みファイルの使用量を表示します。</div></div>
 <div class="settings-card">
     <h3 class="settings-card-title">アカウントデータ</h3>
-    <div class="text-[10px] text-gray-400 mb-3">設定、チャット、Gem、ファイルなどをZIPで保存・復元できます。ユーザー名、パスワード、2FA、パスキー、ログイン連携・セッション、権限、BAN情報は対象外です。</div>
+    <div class="text-[10px] text-gray-400 mb-3">設定、チャット、Skill、ファイルなどをZIPで保存・復元できます。ユーザー名、パスワード、2FA、パスキー、ログイン連携・セッション、権限、BAN情報は対象外です。</div>
     <button type="button" id="account-export-btn" data-progress-no-spinner="true" class="w-full bg-blue-700 hover:bg-blue-600 text-white px-3 py-2 rounded text-xs font-bold btn-hover"><i class="fas fa-file-export mr-1"></i>エクスポートZIPを作成</button>
     <div class="mt-1 text-[10px] text-gray-500">作成はバックグラウンドで続行します。ページを離れたりリロードしたりしても、完成後1時間はここからダウンロードできます。</div>
     <div class="mt-2 text-[10px] text-amber-300">ZIPにはAPIキー・クラウド認証情報が復号された状態で含まれます。安全な場所で保管してください。</div>
@@ -190,7 +190,7 @@
             <label class="flex items-center gap-2"><input type="checkbox" value="settings" checked class="accent-blue-500">設定</label>
             <label class="flex items-center gap-2"><input type="checkbox" value="api_credentials" checked class="accent-blue-500">APIキー・クラウド認証</label>
             <label class="flex items-center gap-2"><input type="checkbox" value="chats" checked class="accent-blue-500">チャット履歴</label>
-            <label class="flex items-center gap-2"><input type="checkbox" value="gems" checked class="accent-blue-500">Gem</label>
+            <label class="flex items-center gap-2"><input type="checkbox" value="skills" checked class="accent-blue-500">Skill</label>
             <label class="flex items-center gap-2"><input type="checkbox" value="files" checked class="accent-blue-500">アップロードファイル</label>
             <label class="flex items-center gap-2"><input type="checkbox" value="feedback" checked class="accent-blue-500">フィードバック</label>
             <label class="flex items-center gap-2"><input type="checkbox" value="diagnostics" checked class="accent-blue-500">診断メトリクス</label>
@@ -217,7 +217,7 @@
     </div>
     <div class="mt-4 border-t border-gray-700 pt-3 space-y-2">
         <div class="text-xs font-bold text-gray-300"><i class="fas fa-trash mr-1 text-amber-300"></i>重複データの修復</div>
-        <div class="text-[10px] text-gray-500">インポートの重複で作成されたチャット、Gem、ファイル、フィードバック、診断データを検出して削除します。同じ内容のデータは最も古い1件だけ残し、チャットやファイルへの参照は壊れないよう保護します。</div>
+        <div class="text-[10px] text-gray-500">インポートの重複で作成されたチャット、Skill、ファイル、フィードバック、診断データを検出して削除します。同じ内容のデータは最も古い1件だけ残し、チャットやファイルへの参照は壊れないよう保護します。</div>
         <button type="button" id="account-dedupe-btn" class="w-full bg-orange-700 hover:bg-orange-600 text-white px-3 py-2 rounded text-xs font-bold btn-hover"><i class="fas fa-trash mr-1"></i>重複データを確認して修復</button>
         <div id="account-dedupe-result" class="hidden text-[11px] text-gray-300"></div>
     </div>

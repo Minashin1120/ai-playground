@@ -112,21 +112,20 @@ class AccountPortabilityTests(unittest.TestCase):
             self.source_id = source.id
             self.destination_id = destination.id
 
-            gem = target.Gem(
+            skill = target.Skill(
                 uuid="11111111-1111-1111-1111-111111111111",
                 user_id=source.id,
-                name="Portable Gem",
+                name="Portable Skill",
                 description="Description",
-                instruction="Gem instruction",
-                default_model="gemini-2.5-flash",
+                instruction="Skill instruction",
             )
-            target.db.session.add(gem)
+            target.db.session.add(skill)
             thread = target.Thread(
                 user_id=source.id,
                 public_id="source-thread-public-id",
                 title="Portable chat",
                 is_bookmarked=True,
-                last_gem_uuid=gem.uuid,
+                last_skill_uuid=skill.uuid,
             )
             target.db.session.add(thread)
             target.db.session.flush()
@@ -136,8 +135,8 @@ class AccountPortabilityTests(unittest.TestCase):
                 content=target.encrypt_val("portable question"),
                 image_url=json.dumps([f"{source.id}/portable.txt"]),
                 is_encrypted=True,
-                gem_uuid=gem.uuid,
-                gem_name=gem.name,
+                skill_uuid=skill.uuid,
+                skill_name=skill.name,
             )
             target.db.session.add(first)
             target.db.session.flush()
@@ -295,7 +294,7 @@ class AccountPortabilityTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         imported = response.get_json()["imported"]
         self.assertEqual(imported["chats"], 1)
-        self.assertEqual(imported["gems"], 1)
+        self.assertEqual(imported["skills"], 1)
         self.assertEqual(imported["files"], 1)
 
         with target.app.app_context():
@@ -306,10 +305,10 @@ class AccountPortabilityTests(unittest.TestCase):
             self.assertFalse(destination.is_admin)
             self.assertFalse(destination.is_bot_banned)
 
-            gem = target.Gem.query.filter_by(user_id=destination.id).one()
-            self.assertNotEqual(gem.uuid, "11111111-1111-1111-1111-111111111111")
+            skill = target.Skill.query.filter_by(user_id=destination.id).one()
+            self.assertNotEqual(skill.uuid, "11111111-1111-1111-1111-111111111111")
             thread = target.Thread.query.filter_by(user_id=destination.id).one()
-            self.assertEqual(thread.last_gem_uuid, gem.uuid)
+            self.assertEqual(thread.last_skill_uuid, skill.uuid)
             messages = target.Message.query.filter_by(thread_id=thread.id).order_by(target.Message.id).all()
             self.assertEqual(target.decrypt_val(messages[0].content), "portable question")
             self.assertEqual(target.decrypt_val(messages[1].content), "portable answer")
@@ -1060,18 +1059,18 @@ class AccountPortabilityTests(unittest.TestCase):
         self.assertEqual(second.status_code, 200, second.get_data(as_text=True))
         payload = second.get_json()
         self.assertEqual(payload["imported"]["chats"], 0)
-        self.assertEqual(payload["imported"]["gems"], 0)
+        self.assertEqual(payload["imported"]["skills"], 0)
         self.assertEqual(payload["imported"]["files"], 0)
         self.assertEqual(payload["imported"]["feedback"], 0)
         self.assertEqual(payload["imported"]["diagnostics"], 0)
         self.assertEqual(payload["duplicates"]["chats"], 1)
-        self.assertEqual(payload["duplicates"]["gems"], 1)
+        self.assertEqual(payload["duplicates"]["skills"], 1)
         self.assertEqual(payload["duplicates"]["files"], 1)
         self.assertEqual(payload["duplicates"]["feedback"], 1)
         self.assertEqual(payload["duplicates"]["diagnostics"], 1)
         with target.app.app_context():
             self.assertEqual(target.Thread.query.filter_by(user_id=self.destination_id).count(), 1)
-            self.assertEqual(target.Gem.query.filter_by(user_id=self.destination_id).count(), 1)
+            self.assertEqual(target.Skill.query.filter_by(user_id=self.destination_id).count(), 1)
             self.assertEqual(target.Feedback.query.filter_by(user_id=self.destination_id).count(), 1)
             self.assertEqual(target.FileCache.query.filter_by(user_id=self.destination_id).count(), 1)
             self.assertEqual(target.FirstTokenLatencyMetric.query.filter_by(user_id=self.destination_id).count(), 1)
@@ -1188,8 +1187,8 @@ class AccountPortabilityTests(unittest.TestCase):
                 image_url=json.dumps([f"{dest}/same-copy.bin"]),
                 timestamp=fixed_ts, is_encrypted=False,
             ))
-            target.db.session.add(target.Gem(uuid="gem-keep-uuid", user_id=dest, name="Dup Gem", instruction="instr"))
-            target.db.session.add(target.Gem(uuid="gem-dup-uuid", user_id=dest, name="Dup Gem", instruction="instr"))
+            target.db.session.add(target.Skill(uuid="gem-keep-uuid", user_id=dest, name="Dup Gem", instruction="instr"))
+            target.db.session.add(target.Skill(uuid="gem-dup-uuid", user_id=dest, name="Dup Gem", instruction="instr"))
             target.db.session.add(target.Feedback(
                 user_id=dest, title="Dup feedback", message="body", status="new",
                 created_at=target.datetime(2026, 1, 1, 0, 0, 0),
@@ -1219,7 +1218,7 @@ class AccountPortabilityTests(unittest.TestCase):
         payload = preview.get_json()
         self.assertTrue(payload["has_duplicates"])
         self.assertEqual(payload["duplicates"]["chats"], 1)
-        self.assertEqual(payload["duplicates"]["gems"], 1)
+        self.assertEqual(payload["duplicates"]["skills"], 1)
         self.assertEqual(payload["duplicates"]["files"], 1)
         self.assertEqual(payload["duplicates"]["feedback"], 1)
         self.assertEqual(payload["kept_referenced_files"], 0)
@@ -1232,14 +1231,14 @@ class AccountPortabilityTests(unittest.TestCase):
         self.assertEqual(execute.status_code, 200, execute.get_data(as_text=True))
         removed = execute.get_json()["removed"]
         self.assertEqual(removed["chats"], 1)
-        self.assertEqual(removed["gems"], 1)
+        self.assertEqual(removed["skills"], 1)
         self.assertEqual(removed["files"], 1)
         self.assertEqual(removed["feedback"], 1)
 
         with target.app.app_context():
             self.assertEqual(target.Thread.query.filter_by(user_id=dest).count(), 1)
             self.assertEqual(target.Thread.query.filter_by(user_id=dest).one().public_id, "keep-thread")
-            self.assertEqual(target.Gem.query.filter_by(user_id=dest).count(), 1)
+            self.assertEqual(target.Skill.query.filter_by(user_id=dest).count(), 1)
             self.assertEqual(target.Feedback.query.filter_by(user_id=dest).count(), 1)
             self.assertEqual(target.FileCache.query.filter_by(user_id=dest).count(), 1)
             self.assertTrue(target._get_file_disk_info(f"{dest}/same.bin")["exists"])

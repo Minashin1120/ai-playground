@@ -80,14 +80,14 @@
                     <p class="text-sm text-slate-400">以前にエクスポートしたZIPファイルからデータを復元できます。<br><span class="text-[10px] opacity-70">スキップしても後から設定画面でインポートできます。</span></p>
                 </div>
                 <div class="rounded-xl border border-slate-700 bg-slate-900/50 p-4 space-y-4">
-                    <div class="text-[10px] text-slate-500">設定、チャット、Gem、ファイルなどを復元できます。ユーザー名、パスワード、2FA、パスキー、ログイン連携・セッション、権限、BAN情報は対象外です。</div>
+                    <div class="text-[10px] text-slate-500">設定、チャット、Skill、ファイルなどを復元できます。ユーザー名、パスワード、2FA、パスキー、ログイン連携・セッション、権限、BAN情報は対象外です。</div>
                     <input type="file" id="setup-account-import-file" accept=".zip,application/zip" class="block w-full text-xs text-slate-300 file:mr-3 file:rounded file:border-0 file:bg-slate-700 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-white hover:file:bg-slate-600">
                     <div class="text-xs font-bold text-slate-300">インポートするデータを選択</div>
                     <div id="setup-account-import-categories" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-300">
                         <label class="flex items-center gap-2"><input type="checkbox" value="settings" checked class="accent-teal-500">設定</label>
                         <label class="flex items-center gap-2"><input type="checkbox" value="api_credentials" checked class="accent-teal-500">APIキー・クラウド認証</label>
                         <label class="flex items-center gap-2"><input type="checkbox" value="chats" checked class="accent-teal-500">チャット履歴</label>
-                        <label class="flex items-center gap-2"><input type="checkbox" value="gems" checked class="accent-teal-500">Gem</label>
+                        <label class="flex items-center gap-2"><input type="checkbox" value="skills" checked class="accent-teal-500">Skill</label>
                         <label class="flex items-center gap-2"><input type="checkbox" value="files" checked class="accent-teal-500">アップロードファイル</label>
                         <label class="flex items-center gap-2"><input type="checkbox" value="feedback" checked class="accent-teal-500">フィードバック</label>
                         <label class="flex items-center gap-2"><input type="checkbox" value="diagnostics" checked class="accent-teal-500">診断メトリクス</label>
@@ -457,7 +457,7 @@
                 finalizing: '最終処理中', ready: 'ダウンロード準備完了', downloading: 'ダウンロード中',
                 uploading: 'ZIPをアップロード中', validating: 'ZIPを検証中', validating_files: 'ファイル情報を検証中',
                 reading_files: 'ファイルを読み込み中', importing_settings: '設定を反映中',
-                importing_credentials: '認証情報を反映中', importing_gems: 'Gemを追加中',
+                importing_credentials: '認証情報を反映中', importing_skills: 'Skillを追加中',
                 saving_files: 'ファイルを保存中', importing_chats: 'チャット履歴を追加中',
                 importing_feedback: 'フィードバックを追加中', importing_diagnostics: '診断データを追加中',
                 cancelling: 'キャンセル処理中', cancelled: 'キャンセル済み', expired: '保存期限切れ',
@@ -1018,7 +1018,7 @@
                             const imported = data.imported || {};
                             const detail = [
                                 '設定 ' + (imported.settings || 0) + '件', 'API認証 ' + (imported.api_credentials || 0) + '件',
-                                'チャット ' + (imported.chats || 0) + '件', 'Gem ' + (imported.gems || 0) + '件',
+                                'チャット ' + (imported.chats || 0) + '件', 'Skill ' + (imported.skills || 0) + '件',
                                 'ファイル ' + (imported.files || 0) + '件', 'フィードバック ' + (imported.feedback || 0) + '件',
                                 '診断データ ' + (imported.diagnostics || 0) + '件',
                             ].join(' / ');

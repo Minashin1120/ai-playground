@@ -480,37 +480,37 @@
                     }
                 }
 
-                // Gem suggestion keyboard navigation
-                if (gemSuggestionsVisible) {
+                // Skill suggestion keyboard navigation
+                if (skillSuggestionsVisible) {
                     const val = input.value.trim();
                     if (e.key === 'ArrowDown') {
                         e.preventDefault();
-                        gemSelectedIndex = gemSelectedIndex + 1;
-                        showGemSuggestions(val.substring(1));
+                        skillSelectedIndex = skillSelectedIndex + 1;
+                        showSkillSuggestions(val.substring(1));
                         return;
                     }
                     if (e.key === 'ArrowUp') {
                         e.preventDefault();
-                        gemSelectedIndex = Math.max(gemSelectedIndex - 1, 0);
-                        showGemSuggestions(val.substring(1));
+                        skillSelectedIndex = Math.max(skillSelectedIndex - 1, 0);
+                        showSkillSuggestions(val.substring(1));
                         return;
                     }
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         const filter = val.substring(1).toLowerCase();
-                        const filtered = loadedGems.filter(g =>
+                        const filtered = loadedSkills.filter(g =>
                             g.name.toLowerCase().includes(filter) || (g.description && g.description.toLowerCase().includes(filter))
                         );
-                        if (filtered[gemSelectedIndex]) {
-                            selectGemSuggestion(filtered[gemSelectedIndex]);
+                        if (filtered[skillSelectedIndex]) {
+                            selectSkillSuggestion(filtered[skillSelectedIndex]);
                         } else if (filtered.length > 0) {
-                            selectGemSuggestion(filtered[0]);
+                            selectSkillSuggestion(filtered[0]);
                         }
                         return;
                     }
                     if (e.key === 'Escape') {
                         e.preventDefault();
-                        hideGemSuggestions();
+                        hideSkillSuggestions();
                         return;
                     }
                 }
@@ -568,15 +568,15 @@
                         syncCodingModeUi(true, { persist: false });
                     }
 
-                    // Slash command / gem suggestion triggers
+                    // Slash command / skill suggestion triggers
                     const val = this.value.trim();
                     if (pendingSlashCommand) {
-                        if (gemSuggestionsVisible) hideGemSuggestions();
+                        if (skillSuggestionsVisible) hideSkillSuggestions();
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
                         lastSlashFilter = null;
                     } else if (val.startsWith('@')) {
                         const filter = val.substring(1);
-                        showGemSuggestions(filter);
+                        showSkillSuggestions(filter);
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
                         lastSlashFilter = null;
                     } else if (val.startsWith('/')) {
@@ -590,9 +590,9 @@
                             lastSlashFilter = filter;
                             showSlashCommandSuggestions(filter);
                         }
-                        if (gemSuggestionsVisible) hideGemSuggestions();
+                        if (skillSuggestionsVisible) hideSkillSuggestions();
                     } else {
-                        if (gemSuggestionsVisible) hideGemSuggestions();
+                        if (skillSuggestionsVisible) hideSkillSuggestions();
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
                         lastSlashFilter = null;
                     }
@@ -602,7 +602,7 @@
                     // Delay to allow click on suggestion items
                     setTimeout(() => {
                         if (slashSuggestionsVisible) hideSlashCommandSuggestions();
-                        if (gemSuggestionsVisible) hideGemSuggestions();
+                        if (skillSuggestionsVisible) hideSkillSuggestions();
                     }, 150);
                 });
             }

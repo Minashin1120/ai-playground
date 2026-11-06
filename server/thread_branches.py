@@ -180,7 +180,7 @@ def branch_thread(thread_id):
     dest = Thread(user_id=current_user.id, public_id=generate_thread_public_id(),
         title=(str(source.title or 'New Chat')[:196] + '（分岐）'), is_temporary=False,
         custom_instruction=source.custom_instruction, include_global_instruction=source.include_global_instruction,
-        last_model=source.last_model, last_gem_uuid=source.last_gem_uuid,
+        last_model=source.last_model, last_skill_uuid=source.last_skill_uuid,
         enable_prompt_caching=source.enable_prompt_caching, prompt_cache_nonce=generate_thread_public_id()[:32])
     db.session.add(dest)
     db.session.flush()

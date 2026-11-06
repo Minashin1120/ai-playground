@@ -73,7 +73,7 @@ class User(UserMixin, db.Model):
     last_enable_system_prompt = db.Column(db.Boolean, default=False)
     last_enable_mcp = db.Column(db.Boolean, default=True)
     last_safety_setting = db.Column(db.String(16), default="default")
-    last_gem_uuid = db.Column(db.String(36), nullable=True)
+    last_skill_uuid = db.Column(db.String(36), nullable=True)
     easy_login_hash = db.Column(db.Text, nullable=True)
     easy_login_expires_at = db.Column(db.DateTime, nullable=True)
     is_setup_completed = db.Column(db.Boolean, default=False)
@@ -100,7 +100,7 @@ class User(UserMixin, db.Model):
     enable_server_diagnostic_log = db.Column(db.Boolean, default=False)
     server_diagnostic_log_retention_hours = db.Column(db.Integer, default=1)
     threads = db.relationship('Thread', backref='user', lazy=True, cascade="all, delete-orphan")
-    gems = db.relationship('Gem', backref='user', lazy=True, cascade="all, delete-orphan")
+    skills = db.relationship('Skill', backref='user', lazy=True, cascade="all, delete-orphan")
     sessions = db.relationship('UserSession', backref='user', lazy=True, cascade="all, delete-orphan")
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
@@ -144,7 +144,7 @@ class Thread(db.Model):
     custom_instruction = db.Column(db.Text, nullable=True)
     include_global_instruction = db.Column(db.Boolean, default=True)
     last_model = db.Column(db.String(64), nullable=True)
-    last_gem_uuid = db.Column(db.String(36), nullable=True)
+    last_skill_uuid = db.Column(db.String(36), nullable=True)
     enable_prompt_caching = db.Column(db.Boolean, default=False)
     prompt_cache_provider = db.Column(db.String(32), nullable=True)
     # Set when the user clears the cache so the next enable uses a new provider cache key.
@@ -173,8 +173,8 @@ class Message(db.Model):
     quote_text = db.Column(MESSAGE_PAYLOAD_TEXT)
     is_encrypted = db.Column(db.Boolean, default=False)
     thought_signature = db.Column(MESSAGE_PAYLOAD_TEXT, nullable=True)
-    gem_uuid = db.Column(db.String(36), nullable=True)
-    gem_name = db.Column(db.String(100), nullable=True)
+    skill_uuid = db.Column(db.String(36), nullable=True)
+    skill_name = db.Column(db.String(100), nullable=True)
     # 送信時のプロンプト設定と添付参照（JSON。ユーザー発言のみ。本文・画像そのものではなく設定とファイル参照を保存する）
     prompt_options = db.Column(db.Text, nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('message.id'), nullable=True)
@@ -234,18 +234,20 @@ class FileCache(db.Model):
     # imported so repeat imports can be detected and skipped.
     import_signature = db.Column(db.String(64), nullable=True, index=True)
 
-class Gem(db.Model):
+class Skill(db.Model):
+    __tablename__ = 'skill'
     id = db.Column(db.Integer, primary_key=True)
     uuid = db.Column(db.String(36), unique=True, index=True, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
     instruction = db.Column(db.Text, nullable=False)
+    # Legacy columns kept so older clients using /api/gems keep working.
     fixed_prompts_json = db.Column(db.Text, nullable=True)
     default_model = db.Column(db.String(64), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    # Source identity of the imported gem (e.g. "gem:<source-uuid>") so repeat
-    # imports of the same gem can be detected.
+    # Source identity of the imported skill (e.g. "skill:<source-uuid>") so repeat
+    # imports of the same skill can be detected.
     import_signature = db.Column(db.String(64), nullable=True, index=True)
 
 def _new_feedback_public_id():

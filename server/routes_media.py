@@ -997,6 +997,9 @@ def handle_upload_too_large(e):
     return jsonify({'error': f'File too large. Max {limit_mb}MB'}), 413
 
 with app.app_context():
+    # Rename the legacy gem table/columns to skill before create_all() so a new
+    # empty ``skill`` table cannot be created alongside the populated one.
+    ensure_skill_schema()
     try:
         db.create_all()
     except Exception as e:
@@ -1013,18 +1016,12 @@ with app.app_context():
     # are disabled.
     ensure_message_payload_longtext_columns()
     try:
-        try_alter("ALTER TABLE user ADD COLUMN last_gem_uuid VARCHAR(36)")
-    except: pass
-    try:
-        try_alter("ALTER TABLE thread ADD COLUMN last_gem_uuid VARCHAR(36)")
-    except: pass
-    try:
-        try_alter("ALTER TABLE gem ADD COLUMN uuid VARCHAR(36)")
+        try_alter("ALTER TABLE skill ADD COLUMN uuid VARCHAR(36)")
     except: pass
     try:
         import uuid as _uuid_backfill
-        for gem in Gem.query.filter(Gem.uuid.is_(None)).all():
-            gem.uuid = str(_uuid_backfill.uuid4())
+        for skill in Skill.query.filter(Skill.uuid.is_(None)).all():
+            skill.uuid = str(_uuid_backfill.uuid4())
         safe_db_commit()
     except: pass
     try:
@@ -1136,11 +1133,11 @@ with app.app_context():
     except Exception:
         pass
     try:
-        ensure_gem_fixed_prompts_column()
+        ensure_skill_fixed_prompts_column()
     except Exception:
         pass
     try:
-        ensure_gem_default_model_column()
+        ensure_skill_default_model_column()
     except Exception:
         pass
     try:

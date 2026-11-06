@@ -20,7 +20,7 @@
 | `compression_fields.html` | プロンプトバーと画像分割で共用する圧縮設定の入力欄 | 圧縮の入力項目を変更するとき |
 | `overlay_voice.html` | Lyria スタジオ、Voice スタジオ（音声ドックの拡大表示）、画像編集・Object Remover用マスク作成（近似色の自動塗り） | 音声スタジオ、画像マーカー・マスク作成 |
 | `overlay_thread.html` | 履歴モーダル、スレッド設定、圧縮設定、Batch処理一覧モーダル | 履歴、スレッド設定、画像圧縮、Batch処理の確認・停止・削除 |
-| `overlay_model_gem.html` | モデル選択モーダル、Gem 作成/編集 | モデル一覧、Gem |
+| `overlay_model_skill.html` | モデル選択モーダル、Skill 作成/編集 | モデル一覧、Skill |
 | `overlay_settings.html` | 設定モーダル（タブ、2FA、MCP 設定を含む） | 設定画面、MCP タブ、2FA タブ |
 | `overlay_dialogs.html` | チャット名の変更、MCP 変更確認、Gemini ローカル Python、インポート確認 | 確認ダイアログ |
 | `overlay_library.html` | ファイルライブラリ、規約、Alpha 案内、ブランチ管理、管理者の Bot 画面 | ライブラリ、ブランチ |

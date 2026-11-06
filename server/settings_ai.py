@@ -37,7 +37,7 @@ AI_NEVER_EDITABLE_FIELDS = {
     'gemini_vertex_credentials_json', 'model_api_keys',
     # High impact / special handling
     'new_password', 'new_username', 'enable_e2ee', 'disable_2fa', 'passkey_only_login',
-    'last_gem_uuid',
+    'last_skill_uuid',
     # Admin-only (global)
     'admin_api_key_mode', 'bot_detection_global_enabled',
 }

@@ -447,7 +447,7 @@
             return box;
         }
 
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, gemName = null, batchInfo = null, maskImageUrl = null) {
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, skillName = null, batchInfo = null, maskImageUrl = null) {
             const isUser = role === 'user';
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
             const align = isUser ? 'justify-end' : 'justify-start';
@@ -475,7 +475,7 @@
                 quote_text: quoteText,
                 image_url: imgUrl,
                 image_mask: maskImageUrl,
-                gem_name: gemName,
+                skill_name: skillName,
                 batch_job: batchInfo,
                 python_executions: isUser ? [] : (pythonExtract.executions || [])
             };
@@ -568,11 +568,11 @@
             const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button>`:''}${regenBtn}${/^\d+$/.test(String(id)) ? `<button class="ctrl-btn" title="新しいチャットに分岐" aria-label="新しいチャットに分岐" onclick="branchChatMessage('${id}', this)"><i class="fas fa-code-branch"></i></button>` : ''}<button class="ctrl-btn" onclick="deleteMessage('${id}')"><i class="fas fa-trash"></i></button></div>`;
             const footerParts = [];
             if (!isUser && modelName) footerParts.push(escapeHtml(modelName));
-            if (gemName) {
+            if (skillName) {
                 if (isUser) {
-                    footerParts.push(`<span class="text-purple-300/90"><i class="fas fa-gem mr-0.5"></i>${escapeHtml(gemName)}</span>`);
+                    footerParts.push(`<span class="text-purple-300/90"><i class="fas fa-wand-magic-sparkles mr-0.5"></i>${escapeHtml(skillName)}</span>`);
                 } else {
-                    footerParts.push(`<span class="text-purple-300/90"><i class="fas fa-gem mr-0.5"></i>${escapeHtml(gemName)}</span>`);
+                    footerParts.push(`<span class="text-purple-300/90"><i class="fas fa-wand-magic-sparkles mr-0.5"></i>${escapeHtml(skillName)}</span>`);
                 }
             }
             const tokenParts = [];
@@ -1594,53 +1594,53 @@
             }
         }
 
-        // === Gem suggestion helpers (triggered by @ in prompt bar) ===
-        function hideGemSuggestions() {
-            const box = get('gem-suggestions');
+        // === Skill suggestion helpers (triggered by @ in prompt bar) ===
+        function hideSkillSuggestions() {
+            const box = get('skill-suggestions');
             if (box) box.classList.add('hidden');
-            gemSuggestionsVisible = false;
-            gemSelectedIndex = 0;
+            skillSuggestionsVisible = false;
+            skillSelectedIndex = 0;
         }
 
-        function showGemSuggestions(filter = '') {
-            const box = get('gem-suggestions');
-            const listEl = get('gem-suggestions-list');
+        function showSkillSuggestions(filter = '') {
+            const box = get('skill-suggestions');
+            const listEl = get('skill-suggestions-list');
             const inputRow = get('input-row');
             if (!box || !listEl || !inputRow) return;
 
-            if (!loadedGems || loadedGems.length === 0) {
-                hideGemSuggestions();
+            if (!loadedSkills || loadedSkills.length === 0) {
+                hideSkillSuggestions();
                 return;
             }
 
             const f = filter.toLowerCase();
-            const filtered = loadedGems.filter(g =>
+            const filtered = loadedSkills.filter(g =>
                 g.name.toLowerCase().includes(f) || (g.description && g.description.toLowerCase().includes(f))
             );
 
             if (filtered.length === 0) {
-                hideGemSuggestions();
+                hideSkillSuggestions();
                 return;
             }
 
             // Clamp selected index
-            if (gemSelectedIndex >= filtered.length) gemSelectedIndex = 0;
+            if (skillSelectedIndex >= filtered.length) skillSelectedIndex = 0;
 
             listEl.innerHTML = '';
-            filtered.forEach((gem, idx) => {
+            filtered.forEach((skill, idx) => {
                 const item = document.createElement('div');
-                item.className = `px-3 py-2 flex items-center gap-3 cursor-pointer text-sm hover:bg-gray-700 ${idx === gemSelectedIndex ? 'bg-gray-700' : ''}`;
+                item.className = `px-3 py-2 flex items-center gap-3 cursor-pointer text-sm hover:bg-gray-700 ${idx === skillSelectedIndex ? 'bg-gray-700' : ''}`;
                 item.innerHTML = `
-                    <i class="fas fa-gem w-4 text-blue-400"></i>
+                    <i class="fas fa-wand-magic-sparkles w-4 text-blue-400"></i>
                     <div class="flex-1 min-w-0">
-                        <div class="text-blue-300 truncate font-medium">${escapeHtml(gem.name)}</div>
-                        ${gem.description ? `<div class="text-[11px] text-gray-400 truncate">${escapeHtml(gem.description)}</div>` : ''}
+                        <div class="text-blue-300 truncate font-medium">${escapeHtml(skill.name)}</div>
+                        ${skill.description ? `<div class="text-[11px] text-gray-400 truncate">${escapeHtml(skill.description)}</div>` : ''}
                     </div>
                 `;
-                item.onclick = () => selectGemSuggestion(gem);
+                item.onclick = () => selectSkillSuggestion(skill);
                 item.onmouseenter = () => {
-                    gemSelectedIndex = idx;
-                    showGemSuggestions(filter);
+                    skillSelectedIndex = idx;
+                    showSkillSuggestions(filter);
                 };
                 listEl.appendChild(item);
             });
@@ -1674,10 +1674,10 @@
             }
 
             box.classList.remove('hidden');
-            gemSuggestionsVisible = true;
+            skillSuggestionsVisible = true;
         }
 
-        function selectGemSuggestion(gem) {
+        function selectSkillSuggestion(skill) {
             const input = get('prompt-input');
             if (!input) return;
 
@@ -1689,8 +1689,8 @@
                 input.value = '';
             }
 
-            hideGemSuggestions();
-            activateGem(gem);
+            hideSkillSuggestions();
+            activateSkill(skill);
             input.focus();
             input.dispatchEvent(new Event('input', { bubbles: true }));
         }
@@ -1700,7 +1700,7 @@
             if (!rawText || !rawText.trim()) return 'プロンプトを入力してください';
             if (!model.startsWith('gemini-') || /(image|native-audio|tts|live)/.test(model)) return 'Geminiテキストモデル専用です';
             if (currentImageUrls.length) return 'サーバー保存済み添付があるため通常モードが必要です';
-            if (activeGem) return 'Gems利用時は通常モードが必要です';
+            if (activeSkill) return 'Skills利用時は通常モードが必要です';
             if (currentQuote || editingMessageId) return '引用・編集時は通常モードが必要です';
             if (codingModeEnabled) return 'Coding Mode利用時は通常モードが必要です';
             const enabledIds = ['enable-search', 'enable-url-context', 'enable-maps', 'enable-sys-prompt', 'enable-prompt-cache', 'enable-mcp'];

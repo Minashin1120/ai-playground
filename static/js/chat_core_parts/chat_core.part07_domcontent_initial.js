@@ -1110,7 +1110,7 @@
                 } catch (error) {}
             }
             snapshotSidebarHistory('page-init');
-            loadThreads(); loadGems();
+            loadThreads(); loadSkills();
 
             get('send-btn').onclick = () => { if (isStopMode) stopGeneration(); else sendMessage(); };
             get('new-chat-btn').onclick = () => startNewChat();
@@ -1185,7 +1185,7 @@
                         finalizing: '最終処理中', ready: 'ダウンロード準備完了', downloading: 'ダウンロード中',
                         uploading: 'ZIPをアップロード中', validating: 'ZIPを検証中', validating_files: 'ファイル情報を検証中',
                         reading_files: 'ファイルを読み込み中', importing_settings: '設定を反映中',
-                        importing_credentials: '認証情報を反映中', importing_gems: 'Gemを追加中',
+                        importing_credentials: '認証情報を反映中', importing_skills: 'Skillを追加中',
                         saving_files: 'ファイルを保存中', importing_chats: 'チャット履歴を追加中',
                         importing_feedback: 'フィードバックを追加中', importing_diagnostics: '診断データを追加中',
                         cancelling: 'キャンセル処理中', cancelled: 'キャンセル済み', expired: '保存期限切れ',
@@ -1713,7 +1713,7 @@
                             renderAccountTransferProgress({progress: 100, phase: 'completed', message});
                             showToast('選択したアカウントデータをインポートしました', 'success');
                             if (categories.includes('chats')) loadThreads();
-                            if (categories.includes('gems')) loadGems();
+                            if (categories.includes('skills')) loadSkills();
                             if (categories.includes('files')) loadStorageUsage();
                             if (categories.includes('settings') || categories.includes('api_credentials')) refreshSettingsFormAfterImport();
                         };
@@ -1852,12 +1852,12 @@
                             const imported = data.imported || {};
                             const detail = [
                                 `設定 ${imported.settings || 0}件`, `API認証 ${imported.api_credentials || 0}件`,
-                                `チャット ${imported.chats || 0}件`, `Gem ${imported.gems || 0}件`,
+                                `チャット ${imported.chats || 0}件`, `Skill ${imported.skills || 0}件`,
                                 `ファイル ${imported.files || 0}件`, `フィードバック ${imported.feedback || 0}件`,
                                 `診断データ ${imported.diagnostics || 0}件`,
                             ].join(' / ');
                             const duplicated = data.duplicates || {};
-                            const dupLabels = {chats: 'チャット', gems: 'Gem', files: 'ファイル', feedback: 'フィードバック', diagnostics: '診断データ'};
+                            const dupLabels = {chats: 'チャット', skills: 'Skill', files: 'ファイル', feedback: 'フィードバック', diagnostics: '診断データ'};
                             const dupParts = [];
                             for (const key of Object.keys(dupLabels)) {
                                 const count = Number(duplicated[key]) || 0;
@@ -1872,7 +1872,7 @@
                             renderAccountTransferProgress({progress: 100, phase: 'completed', message: 'インポートが完了しました'});
                             showToast('選択したアカウントデータをインポートしました', 'success');
                             if (categories.includes('chats')) loadThreads();
-                            if (categories.includes('gems')) loadGems();
+                            if (categories.includes('skills')) loadSkills();
                             if (categories.includes('files')) loadStorageUsage();
                             if (categories.includes('settings') || categories.includes('api_credentials')) refreshSettingsFormAfterImport();
                             importDone = true;

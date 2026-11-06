@@ -9,11 +9,11 @@ class MessageMetaTest {
     @Test
     fun parsesWebMessageMeta() {
         val messages = parseMessages(JSONObject("""{"messages":[
-            {"id":1,"role":"user","content":"q","quote_text":"引用","gem_name":"翻訳","is_encrypted":false,"tokens":null,"tokens_in":null,"tokens_out":null},
+            {"id":1,"role":"user","content":"q","quote_text":"引用","skill_name":"翻訳","is_encrypted":false,"tokens":null,"tokens_in":null,"tokens_out":null},
             {"id":2,"role":"assistant","content":"a","parent_id":1,"model":"m","tokens":1523,"tokens_in":210,"tokens_out":1313,"tokens_content":900,"tokens_thought":413,"is_encrypted":true}
         ]}"""))
         assertEquals("引用", messages[0].quote)
-        assertEquals("翻訳", messages[0].gemName)
+        assertEquals("翻訳", messages[0].skillName)
         assertEquals(false, messages[0].encrypted)
         assertNull(messages[0].tokens)
         assertEquals(1523, messages[1].tokens)

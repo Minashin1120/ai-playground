@@ -32,7 +32,7 @@
             if (geminiBatchStatusPollBusy) return;
             geminiBatchStatusPollBusy = true;
             try {
-                const response = await apiFetch('/api/gemini/batch/status');
+                const response = await apiFetch('/api/skillini/batch/status');
                 if (!response.ok) return;
                 const data = await response.json().catch(() => ({}));
                 const hasActiveBatch = (data.active || []).some((j) => (
@@ -124,7 +124,7 @@
             currentThreadId = nextThreadId;
             if (!opts.skipHistory) history.pushState({}, '', '/c/' + tid);
             updateThreadHighlighting();
-            syncActiveGemForThread(currentThreadId);
+            syncActiveSkillForThread(currentThreadId);
             get('welcome-screen').classList.add('hidden');
             if (!silent) {
                 // Show shimmer skeleton while history loads (open from list / page reload)
@@ -174,11 +174,11 @@
             if (threadData.last_model && !modelChosenManually) {
                 selectModelById(threadData.last_model);
             }
-            if (threadData.last_gem_uuid && loadedGems.length > 0) {
-                const gem = loadedGems.find(g => g.uuid === threadData.last_gem_uuid);
-                if (gem) {
-                    threadGemMap[currentThreadId] = gem;
-                    applyActiveGem(gem);
+            if (threadData.last_skill_uuid && loadedSkills.length > 0) {
+                const skill = loadedSkills.find(item => item.uuid === threadData.last_skill_uuid);
+                if (skill) {
+                    threadSkillMap[currentThreadId] = skill;
+                    applyActiveSkill(skill);
                 }
             }
 
@@ -375,7 +375,7 @@
                     fragment,
                     false,
                     m.parent_id,
-                    m.gem_name,
+                    m.skill_name,
                     m.batch_job,
                     m.prompt_options && typeof m.prompt_options === 'object' ? m.prompt_options.image_mask : null
                 );
@@ -479,195 +479,87 @@
             renderThreadTree({ animate: true });
             restoreLatestPromptOptions();
         }
-        async function loadGems() {
+        async function loadSkills() {
             try {
-                const r = await apiFetch(CHAT_CONFIG.urls.handleGems);
-                const gs = await r.json();
-                loadedGems = gs;
-                const l = get('gem-list');
+                const r = await apiFetch(CHAT_CONFIG.urls.handleSkills);
+                const rows = await r.json();
+                loadedSkills = rows;
+                const l = get('skill-list');
                 if (!l) return;
-                l.innerHTML = '<div id="gem-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div>';
-                if (Array.isArray(gs)) {
-                    gs.forEach((g) => {
+                l.innerHTML = '<div id="skill-pull-indicator" class="ptr-pull-indicator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class="fas fa-spinner fa-spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div>';
+                if (Array.isArray(rows)) {
+                    rows.forEach((skill) => {
                         const d = document.createElement('div');
-                        d.className = 'gem-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group';
-                        d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-gem text-blue-500"></i><span class="truncate">${escapeHtml(g.name)}</span></div><div class="flex items-center gap-1"><button class="text-gray-400 hover:text-blue-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="openEditGemModal(event,'${g.uuid}')"><i class="fas fa-pencil-alt text-[10px]"></i></button><button class="text-gray-400 hover:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="deleteGem(event,'${g.uuid}')"><i class="fas fa-trash text-[10px]"></i></button></div>`;
-                        d.onclick = (e) => { if(!e.target.closest('button')) activateGem(g); };
+                        d.className = 'skill-item p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 flex justify-between items-center group';
+                        d.innerHTML = `<div class="flex items-center gap-2 overflow-hidden"><i class="fas fa-wand-magic-sparkles text-blue-500"></i><span class="truncate">${escapeHtml(skill.name)}</span></div><div class="flex items-center gap-1"><button class="text-gray-400 hover:text-blue-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="openEditSkillModal(event,'${skill.uuid}')"><i class="fas fa-pencil-alt text-[10px]"></i></button><button class="text-gray-400 hover:text-red-400 opacity-100 md:opacity-0 md:group-hover:opacity-100 px-2 transition" onclick="deleteSkill(event,'${skill.uuid}')"><i class="fas fa-trash text-[10px]"></i></button></div>`;
+                        d.onclick = (e) => { if(!e.target.closest('button')) activateSkill(skill); };
                         l.appendChild(d);
                     });
                 }
             } catch (err) {
-                console.error('Failed to load gems:', err);
+                console.error('Failed to load skills:', err);
             }
         }
-        // Gem "Default Model": the chat models by category, after "Use current model".
-        function setGemDefaultModelSelect(value) {
-            const sel = get('gem-default-model');
-            if (!sel) return;
-            sel.innerHTML = '';
-            const first = document.createElement('option');
-            first.value = '';
-            first.textContent = 'Use current model';
-            sel.appendChild(first);
-            MODELS.forEach(group => {
-                const items = (group.items || []).filter(m => !m.deprecated);
-                if (!items.length) return;
-                const optgroup = document.createElement('optgroup');
-                optgroup.label = group.category;
-                items.forEach(item => {
-                    const opt = document.createElement('option');
-                    opt.value = item.id;
-                    opt.textContent = item.name;
-                    optgroup.appendChild(opt);
-                });
-                sel.appendChild(optgroup);
-            });
-            const wanted = value || '';
-            if (wanted && !Array.from(sel.options).some(o => o.value === wanted)) {
-                const kept = document.createElement('option');
-                kept.value = wanted;
-                kept.textContent = MODEL_NAME_BY_ID[wanted] || wanted;
-                sel.appendChild(kept);
-            }
-            sel.value = wanted;
-        }
-        async function openEditGemModal(e, id) {
+        async function openEditSkillModal(e, id) {
             e.stopPropagation();
-            editingGemUuid = id;
+            editingSkillUuid = id;
             try {
-                const r = await apiFetch(`/api/gems/${id}`);
-                const g = await r.json();
-                get('gem-name').value = g.name;
-                get('gem-desc').value = g.description || '';
-                get('gem-inst').value = g.instruction;
-                setGemDefaultModelSelect(g.default_model);
-                renderGemFixedPromptsForEdit(g.fixed_prompts);
-                get('gem-modal-title').innerHTML = `<i class="fas fa-gem text-blue-500 mr-2"></i>Edit Gem`;
-                get('save-gem-btn').innerText = "Save Changes";
-                showModal('gem-modal');
-                if (location.pathname !== '/gem') {
-                    history.pushState({ modal: 'gem' }, '', '/gem');
+                const r = await apiFetch(`/api/skills/${id}`);
+                const skill = await r.json();
+                get('skill-name').value = skill.name;
+                get('skill-desc').value = skill.description || '';
+                get('skill-inst').value = skill.instruction;
+                get('skill-modal-title').innerHTML = `<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Edit Skill`;
+                get('save-skill-btn').innerText = "Save Changes";
+                showModal('skill-modal');
+                if (location.pathname !== '/skill') {
+                    history.pushState({ modal: 'skill' }, '', '/skill');
                 }
             } catch (err) {
-                showToast("Gemの取得に失敗しました", "error", true);
+                showToast("Skillの取得に失敗しました", "error", true);
             }
         }
-        async function createGem(name, inst) { await apiFetch(CHAT_CONFIG.urls.handleGems, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, instruction:inst})}); loadGems(); }
+        async function createSkill(name, inst) { await apiFetch(CHAT_CONFIG.urls.handleSkills, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name, instruction:inst})}); loadSkills(); }
 
-        function applyActiveGem(g) {
-            activeGem = g || null;
-            const bar = get('fixed-prompts-bar');
-            if (activeGem) {
-                if (activeGem.default_model) {
-                    selectModelById(activeGem.default_model);
-                }
-                get('active-gem-name').innerText = activeGem.name;
-                get('gem-active-indicator').classList.remove('hidden');
-
-                if (bar) {
-                    bar.innerHTML = '';
-                    let prompts = [];
-                    try {
-                        if (activeGem.fixed_prompts) prompts = JSON.parse(activeGem.fixed_prompts);
-                    } catch(e) {}
-
-                    if (prompts.length > 0) {
-                        bar.classList.remove('hidden');
-                        prompts.forEach((p, i) => {
-                            const btn = document.createElement('button');
-                            btn.className = 'fixed-prompt-chip whitespace-nowrap px-4 py-1.5 text-[11px] font-bold bg-gray-700 hover:bg-gray-600 text-gray-100 rounded-full transition-all shadow-md border border-gray-600/50 flex items-center';
-                            btn.style.animationDelay = `${i * 40}ms`;
-                            btn.textContent = String(p.name || '');
-                            btn.onclick = () => {
-                                const input = get('prompt-input');
-                                if (input) {
-                                    input.value = p.content;
-                                    input.dispatchEvent(new Event('input'));
-                                    sendMessage();
-                                }
-                            };
-                            bar.appendChild(btn);
-                        });
-                    } else {
-                        bar.classList.add('hidden');
-                    }
-                }
+        function applyActiveSkill(skill) {
+            activeSkill = skill || null;
+            if (activeSkill) {
+                get('active-skill-name').innerText = activeSkill.name;
+                get('skill-active-indicator').classList.remove('hidden');
             } else {
-                get('gem-active-indicator').classList.add('hidden');
-                if (bar) {
-                    bar.innerHTML = '';
-                    bar.classList.add('hidden');
-                }
+                get('skill-active-indicator').classList.add('hidden');
             }
-            get('sys-prompt-option').style.opacity = '1';
+            const sysPromptOption = get('sys-prompt-option');
+            if (sysPromptOption) sysPromptOption.style.opacity = '1';
         }
-        function syncActiveGemForThread(tid) {
-            const g = tid && threadGemMap[tid] ? threadGemMap[tid] : null;
-            applyActiveGem(g);
+        function syncActiveSkillForThread(tid) {
+            const skill = tid && threadSkillMap[tid] ? threadSkillMap[tid] : null;
+            applyActiveSkill(skill);
         }
-        async function saveThreadGemUuid(threadId, gemUuid) {
+        async function saveThreadSkillUuid(threadId, skillUuid) {
             try {
                 await apiFetch(CHAT_CONFIG.urls.handleSettings, {
                     method:'POST',
                     headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({last_gem_uuid: gemUuid, thread_id: threadId})
+                    body:JSON.stringify({last_skill_uuid: skillUuid, thread_id: threadId})
                 });
             } catch(e) {}
         }
-        function activateGem(g, skipSave) {
+        function activateSkill(skill, skipSave) {
             if (currentThreadId) {
-                threadGemMap[currentThreadId] = g;
-                applyActiveGem(g);
-                showToast(`Gem "${g.name}" をこのチャットに適用しました`, "success");
-                if (!skipSave) saveThreadGemUuid(currentThreadId, g ? g.uuid : null);
+                threadSkillMap[currentThreadId] = skill;
+                applyActiveSkill(skill);
+                showToast(`Skill "${skill.name}" をこのチャットに適用しました`, "success");
+                if (!skipSave) saveThreadSkillUuid(currentThreadId, skill ? skill.uuid : null);
             } else {
-                pendingGemForNewThread = g;
-                applyActiveGem(g);
+                pendingSkillForNewThread = skill;
+                applyActiveSkill(skill);
                 if (allMessages && allMessages.length > 0) {
-                    startNewChat({ preserveGem: true });
+                    startNewChat({ preserveSkill: true });
                 }
             }
         }
-        function clearActiveGem() { if (currentThreadId) { delete threadGemMap[currentThreadId]; saveThreadGemUuid(currentThreadId, null); } pendingGemForNewThread = null; applyActiveGem(null); }
-
-        // Gem Fixed Prompts UI helper
-        function addGemFixedPromptRow(name = '', content = '') {
-            const container = get('gem-fixed-prompts-container');
-            if (!container) return;
-            const div = document.createElement('div');
-            div.className = 'flex gap-2 items-start gem-fixed-prompt-row ui-enter';
-            div.innerHTML = `
-                <input type="text" class="gem-fp-name bg-gray-900 border border-gray-600 rounded p-1.5 text-white text-[10px] w-24" placeholder="名前" value="${escapeHtml(name)}" autocomplete="off" spellcheck="false">
-                <textarea class="gem-fp-content flex-1 bg-gray-900 border border-gray-600 rounded p-1.5 text-white text-[10px] h-9 resize-none" placeholder="プロンプト内容" spellcheck="false">${escapeHtml(content)}</textarea>
-                <button type="button" class="text-gray-500 hover:text-red-400 p-1.5" onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>
-            `;
-            container.appendChild(div);
-        }
-
-        function collectGemFixedPrompts() {
-            const rows = document.querySelectorAll('.gem-fixed-prompt-row');
-            const prompts = [];
-            rows.forEach(row => {
-                const name = row.querySelector('.gem-fp-name').value.trim();
-                const content = row.querySelector('.gem-fp-content').value.trim();
-                if (name && content) {
-                    prompts.push({ name, content });
-                }
-            });
-            return prompts.length > 0 ? JSON.stringify(prompts) : null;
-        }
-
-        function renderGemFixedPromptsForEdit(fixedPromptsJson) {
-            const container = get('gem-fixed-prompts-container');
-            if (!container) return;
-            container.innerHTML = '';
-            try {
-                if (fixedPromptsJson) {
-                    const prompts = JSON.parse(fixedPromptsJson);
-                    prompts.forEach(p => addGemFixedPromptRow(p.name, p.content));
-                }
-            } catch(e) {}
-        }
+        function clearActiveSkill() { if (currentThreadId) { delete threadSkillMap[currentThreadId]; saveThreadSkillUuid(currentThreadId, null); } pendingSkillForNewThread = null; applyActiveSkill(null); }
         function getCurrentChatHeaderTitleText() {
             if (typeof currentThreadTitle === 'string' && currentThreadTitle.trim()) return currentThreadTitle.trim();
             if (currentThreadId) return 'No Title';
@@ -886,15 +778,15 @@
                 get('enable-prompt-cache').checked = false;
                 updatePromptCacheUi();
             }
-            if (!opts.preserveGem) {
-                applyActiveGem(null);
-            } else if (activeGem) {
-                applyActiveGem(activeGem);
+            if (!opts.preserveSkill) {
+                applyActiveSkill(null);
+            } else if (activeSkill) {
+                applyActiveSkill(activeSkill);
             }
             loadThreads();
             const defaultModelSequence = threadLoadSequence;
             fetchSettingsSnapshot().then(settings => {
-                if (threadLoadSequence !== defaultModelSequence || currentThreadId || modelChosenManually || (opts.preserveGem && activeGem)) return;
+                if (threadLoadSequence !== defaultModelSequence || currentThreadId || modelChosenManually || (opts.preserveSkill && activeSkill)) return;
                 const model = (settings.use_last_chat_settings && settings.last_model) || settings.default_model;
                 if (model && MODELS.some(group => group.items.some(item => item.id === model))) selectModelById(model);
             }).catch(err => console.warn('Failed to load chat defaults', err));
@@ -1106,7 +998,7 @@
             window.closeCompressionModal();
             showToast('設定を保存しました', 'success');
         };
-        async function deleteGem(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleGemItem.replace('0', id), {method: 'DELETE'}); loadGems(); }
+        async function deleteSkill(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleSkillItem.replace('0', id), {method: 'DELETE'}); loadSkills(); }
         function renameThread(e, id) {
             e.stopPropagation();
             const modal = get('thread-rename-modal');

@@ -46,27 +46,18 @@
         </div>
     </div>
 
-    <!-- Gem Modal -->
-    <div id="gem-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
+    <!-- Skill Modal -->
+    <div id="skill-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
         <div class="bg-gray-800 rounded-lg w-full max-w-lg p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel">
-            <h2 class="text-xl font-bold text-white mb-4" id="gem-modal-title"><i class="fas fa-gem text-blue-500 mr-2"></i>Create New Gem</h2>
+            <h2 class="text-xl font-bold text-white mb-4" id="skill-modal-title"><i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Create New Skill</h2>
             <div class="space-y-4">
-                <div><label class="block text-xs text-gray-400 mb-1">Name</label><input type="text" id="gem-name" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="My Helper"></div>
-                <div><label class="block text-xs text-gray-400 mb-1">Description (Optional)</label><input type="text" id="gem-desc" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="A short description..."></div>
-                <div><label class="block text-xs text-gray-400 mb-1">System Instruction</label><textarea id="gem-inst" class="w-full h-32 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="You are a helpful assistant..."></textarea></div>
-                <div><label class="block text-xs text-gray-400 mb-1">Default Model (optional)</label><select id="gem-default-model" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm"><option value="">Use current model</option></select></div>
-                
-                <div class="pt-4 border-t border-gray-700">
-                    <label class="block text-xs font-bold text-indigo-400 mb-2 uppercase tracking-wider">Fixed Prompts (Gem specific)</label>
-                    <div id="gem-fixed-prompts-container" class="space-y-2 mb-2">
-                        <!-- Dynamic rows -->
-                    </div>
-                    <button type="button" id="add-gem-fixed-prompt-row" class="text-[10px] bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded transition"><i class="fas fa-plus mr-1"></i>プロンプトを追加</button>
-                </div>
+                <div><label class="block text-xs text-gray-400 mb-1">Name</label><input type="text" id="skill-name" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="My Skill"></div>
+                <div><label class="block text-xs text-gray-400 mb-1">Short Description (Optional)</label><input type="text" id="skill-desc" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="A short description the model uses to choose this skill..."></div>
+                <div><label class="block text-xs text-gray-400 mb-1">Instructions</label><textarea id="skill-inst" class="w-full h-32 bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm" placeholder="You are a helpful assistant..."></textarea></div>
             </div>
             <div class="flex justify-end gap-3 mt-6">
-                <button onclick="closeGemModal()" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
-                <button id="save-gem-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">Save Gem</button>
+                <button onclick="closeSkillModal()" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">Cancel</button>
+                <button id="save-skill-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-hover">Create Skill</button>
             </div>
         </div>
     </div>

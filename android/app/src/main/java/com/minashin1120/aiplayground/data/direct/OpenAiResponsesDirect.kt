@@ -293,7 +293,8 @@ class OpenAiResponsesDirect(
 
     /** Uploads images so the code interpreter container can open them. Vision still uses input_image. */
     private suspend fun uploadContainerImages(request: DirectRequest, emit: (JSONObject) -> Unit): List<String> {
-        val images = request.turns.filter { it.role != "assistant" }.flatMap { it.attachments }
+        val lastUserTurn = request.turns.lastOrNull { it.role == "user" }
+        val images = (lastUserTurn?.attachments ?: emptyList())
             .filter { attachment ->
                 val bytes = attachment.bytes
                 bytes != null && bytes.isNotEmpty() && attachment.mime.startsWith("image/") && bytes.size <= 50 * 1024 * 1024

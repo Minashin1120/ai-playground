@@ -953,3 +953,247 @@ def _resolve_attached_file_ref(source, loaded_files=None, history=None, user_id=
     return None
 
 
+def _build_list_branch_images_tool_schema(flat=False):
+    """Return the OpenAI-compatible tool schema for list_branch_images."""
+    f_def = {
+        "name": "list_branch_images",
+        "description": (
+            "List all images available in the current chat branch / conversation history. "
+            "Returns image IDs (e.g. 'img_1'), filenames, sender role (user upload or assistant generation), "
+            "turn positions (e.g. '1 turn ago'), and whether they are already imported into the code execution environment. "
+            "Use this tool when the user asks to edit, inspect, or process previous images from the conversation branch."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+    }
+    if flat:
+        return {"type": "function", **f_def}
+    return {"type": "function", "function": f_def}
+
+
+def _build_import_branch_images_tool_schema(flat=False):
+    """Return the OpenAI-compatible tool schema for import_branch_images."""
+    f_def = {
+        "name": "import_branch_images",
+        "description": (
+            "Import specified image(s) from the conversation branch into the Python code execution environment "
+            "(Code Interpreter / sandbox). "
+            "Images attached in the latest user message are already imported automatically. "
+            "Images from earlier conversation turns must be imported with this tool before they can be opened in Python code. "
+            "Pass the image_ids (e.g. ['img_1']) obtained from list_branch_images, or ['all'] to import all branch images."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "image_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "List of image_ids to import (e.g. ['img_1']), or ['all'] to import all available images.",
+                }
+            },
+            "required": ["image_ids"],
+            "additionalProperties": False,
+        },
+    }
+    if flat:
+        return {"type": "function", **f_def}
+    return {"type": "function", "function": f_def}
+
+
+def _guess_image_extension(mime, name=""):
+    """Guess a clean file extension from a mime type and optional filename."""
+    ext = os.path.splitext(name or "")[1].lstrip(".").lower()
+    if ext in ("png", "jpg", "jpeg", "webp", "gif", "bmp", "svg"):
+        return "jpg" if ext == "jpeg" else ext
+    mime_str = str(mime or "").lower()
+    if "jpeg" in mime_str or "jpg" in mime_str:
+        return "jpg"
+    if "png" in mime_str:
+        return "png"
+    if "webp" in mime_str:
+        return "webp"
+    if "gif" in mime_str:
+        return "gif"
+    if "svg" in mime_str:
+        return "svg"
+    return "png"
+
+
+def _collect_branch_images(history=None, loaded_files=None, user_id=None, imported_keys=None):
+    """Collect all images from the current chat branch (latest message attachments + past history).
+
+    Returns a list of image dicts with metadata, bytes, and import status.
+    """
+    items = []
+    seen_refs = set()
+    imported_set = set(imported_keys or [])
+
+    # 1. Latest turn attachments (loaded_files)
+    current_turn_count = 0
+    if loaded_files:
+        for fi in loaded_files:
+            f_bytes = fi.get('bytes')
+            f_mime = str(fi.get('mime') or '')
+            if f_bytes and f_mime.startswith('image/'):
+                current_turn_count += 1
+                img_id = f"img_{len(items) + 1}"
+                name = str(fi.get('send_name') or fi.get('name') or f"image_{current_turn_count}.png")
+                ref = str(fi.get('path') or fi.get('name') or f"upload_{current_turn_count}")
+                seen_refs.add(ref)
+                ext = _guess_image_extension(f_mime, name)
+                exec_name = f"input_{len(items) + 1}.{ext}"
+                items.append({
+                    "image_id": img_id,
+                    "name": name,
+                    "role": "user",
+                    "turn": "current turn attachment",
+                    "size": len(f_bytes),
+                    "mime": f_mime,
+                    "imported": True,
+                    "execution_name": exec_name,
+                    "bytes": f_bytes,
+                    "ref": ref,
+                })
+
+    # 2. History messages (newest first so model sees recent images first)
+    if history:
+        for msg_idx, m in enumerate(reversed(history)):
+            turns_ago = msg_idx + 1
+            role = str(m.get('role') or 'user').lower()
+            raw_urls = m.get('image_url')
+            refs = []
+            if raw_urls:
+                try:
+                    parsed = json.loads(raw_urls)
+                    if isinstance(parsed, list):
+                        refs.extend(parsed)
+                    elif parsed:
+                        refs.append(parsed)
+                except Exception:
+                    refs.append(raw_urls)
+
+            content = str(m.get('content') or '')
+            if '/files/' in content:
+                for found in re.findall(r'/files/([A-Za-z0-9_-]+/[^)\s?#]+)', content):
+                    if found not in refs:
+                        refs.append(found)
+
+            for r in refs:
+                norm = _normalize_upload_ref(r)
+                if not norm or norm in seen_refs:
+                    continue
+                if user_id is not None and not norm.startswith(f"{user_id}/"):
+                    continue
+                info = _get_file_disk_info(norm)
+                if not info.get('exists'):
+                    continue
+                data = _load_user_file_bytes(norm, info)
+                if not data:
+                    continue
+                mime = _normalize_media_mime(norm, mimetypes.guess_type(norm)[0] or 'application/octet-stream')
+                if not str(mime).startswith('image/'):
+                    continue
+
+                seen_refs.add(norm)
+                img_id = f"img_{len(items) + 1}"
+                name = os.path.basename(norm)
+                is_imported = norm in imported_set or any(k in norm for k in imported_set if k)
+                items.append({
+                    "image_id": img_id,
+                    "name": name,
+                    "role": role,
+                    "turn": f"{turns_ago} turn{'s' if turns_ago > 1 else ''} ago ({role})",
+                    "size": len(data),
+                    "mime": mime,
+                    "imported": is_imported,
+                    "execution_name": None,
+                    "bytes": data,
+                    "ref": norm,
+                })
+
+    return items
+
+
+def _execute_list_branch_images(history=None, loaded_files=None, user_id=None, imported_keys=None):
+    """Execute list_branch_images tool call and return JSON string."""
+    images = _collect_branch_images(history, loaded_files, user_id, imported_keys)
+    if not images:
+        return json.dumps({
+            "total_images": 0,
+            "images": [],
+            "message": "No images found in the current conversation branch."
+        }, ensure_ascii=False)
+
+    summary_list = []
+    for img in images:
+        entry = {
+            "image_id": img["image_id"],
+            "name": img["name"],
+            "role": img["role"],
+            "turn": img["turn"],
+            "imported": img["imported"],
+        }
+        if img["imported"]:
+            exec_name = img.get("execution_name") or "input_1.png"
+            entry["location"] = f"{exec_name} (already available in code execution environment)"
+        else:
+            entry["note"] = f"Not imported yet. Call import_branch_images(image_ids=['{img['image_id']}']) to import into Python environment."
+        summary_list.append(entry)
+
+    return json.dumps({
+        "total_images": len(images),
+        "imported_count": sum(1 for img in images if img["imported"]),
+        "images": summary_list
+    }, indent=2, ensure_ascii=False)
+
+
+def _execute_import_branch_images(image_ids, history=None, loaded_files=None, user_id=None, imported_keys=None, on_import_callback=None):
+    """Execute import_branch_images tool call and return JSON string."""
+    if isinstance(image_ids, str):
+        image_ids = [image_ids]
+    if not isinstance(image_ids, (list, tuple)):
+        return json.dumps({"error": "image_ids must be a list of strings"}, ensure_ascii=False)
+
+    images = _collect_branch_images(history, loaded_files, user_id, imported_keys)
+    import_all = any(str(i).strip().lower() == "all" for i in image_ids)
+    target_ids = {str(i).strip().lower() for i in image_ids}
+
+    selected = []
+    for img in images:
+        if import_all or img["image_id"].lower() in target_ids or img["name"].lower() in target_ids:
+            selected.append(img)
+
+    if not selected:
+        return json.dumps({
+            "success": False,
+            "imported": [],
+            "message": f"None of the requested image_ids {image_ids} were found in the current branch. Available image_ids: {[i['image_id'] for i in images]}"
+        }, ensure_ascii=False)
+
+    imported_results = []
+    for img in selected:
+        exec_name = None
+        if on_import_callback:
+            exec_name = on_import_callback(img)
+        if not exec_name:
+            exec_name = img.get("execution_name") or "input_file"
+        imported_results.append({
+            "image_id": img["image_id"],
+            "name": img["name"],
+            "execution_name": exec_name,
+            "location": f"{exec_name} (available in Python environment)"
+        })
+
+    names_str = ", ".join(r["execution_name"] for r in imported_results)
+    return json.dumps({
+        "success": True,
+        "imported_count": len(imported_results),
+        "imported": imported_results,
+        "message": f"Successfully imported {len(imported_results)} image(s) into your Python environment: {names_str}. You can now open and process them in Python."
+    }, indent=2, ensure_ascii=False)
+
+
+

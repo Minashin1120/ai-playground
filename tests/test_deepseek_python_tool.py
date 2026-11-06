@@ -123,9 +123,14 @@ class DeepSeekPythonToolTests(unittest.TestCase):
                 with self.subTest(python=python_enabled, notice=notice_enabled):
                     messages = []
                     read_notice = Mock(return_value="Custom Python instructions")
-                    namespace = dict(options={"enable_python": python_enabled}, messages=messages,
-                                     _auto_notice_enabled=lambda key: notice_enabled,
-                                     _auto_notice_text=read_notice)
+                    namespace = dict(
+                        options={"enable_python": python_enabled},
+                        messages=messages,
+                        _auto_notice_enabled=lambda key: notice_enabled,
+                        _auto_notice_text=read_notice,
+                        _build_list_branch_images_tool_schema=target._build_list_branch_images_tool_schema,
+                        _build_import_branch_images_tool_schema=target._build_import_branch_images_tool_schema,
+                    )
                     exec(compile(snippet, "deepseek-tool-setup-test", "exec"), namespace)
                     self.assertEqual(bool(namespace["python_tools"]), python_enabled)
                     self.assertEqual(messages, [{"role": "system", "content": "Custom Python instructions"}]
@@ -196,6 +201,11 @@ class DeepSeekPythonToolTests(unittest.TestCase):
             thought_accumulated="", full_res="", deepseek_tool_context=[],
             accumulate_deepseek_tool_call_deltas=target.accumulate_deepseek_tool_call_deltas,
             safe_execute_python=execute, _markdown_fence_for_code=target._markdown_fence_for_code,
+            _build_list_branch_images_tool_schema=target._build_list_branch_images_tool_schema,
+            _build_import_branch_images_tool_schema=target._build_import_branch_images_tool_schema,
+            _execute_list_branch_images=target._execute_list_branch_images,
+            _execute_import_branch_images=target._execute_import_branch_images,
+            _guess_image_extension=target._guess_image_extension,
             json=json, pub=lambda *a: events.append(a),
         )
         exec(compile(module, "deepseek-provider-test", "exec"), namespace)

@@ -6259,6 +6259,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 },
                             },
                         })
+                        python_tools.append(_build_list_branch_images_tool_schema())
+                        python_tools.append(_build_import_branch_images_tool_schema())
                     if options.get("enable_file_creation"):
                         python_tools.append(_build_create_file_tool_schema())
                         python_tools.append(_build_edit_file_tool_schema())
@@ -6487,6 +6489,43 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             pub("content", _md)
                                 except Exception as tool_exc:
                                     result = f"Error: Invalid MCP tool arguments: {tool_exc}"
+                            elif call_name == "list_branch_images":
+                                imported_keys = {str(fi.get('path') or fi.get('name') or '') for fi in image_files}
+                                result = _execute_list_branch_images(
+                                    history=history,
+                                    loaded_files=loaded_files,
+                                    user_id=user_id,
+                                    imported_keys=imported_keys,
+                                )
+                            elif call_name == "import_branch_images":
+                                def _on_import_ds(img):
+                                    img_data = img.get('bytes') or b''
+                                    img_mime = img.get('mime')
+                                    img_name = img.get('name')
+                                    _remember_python_image(img_data, img_mime)
+                                    image_files.append({
+                                        'bytes': img_data,
+                                        'mime': img_mime,
+                                        'name': img_name,
+                                    })
+                                    ext = _guess_image_extension(img_mime, img_name)
+                                    return f"/work/input_{len(image_files)}.{ext}"
+
+                                try:
+                                    parsed_arguments = json.loads(call_arguments) if call_arguments else {}
+                                    if not isinstance(parsed_arguments, dict):
+                                        parsed_arguments = {}
+                                except Exception:
+                                    parsed_arguments = {}
+                                imported_keys = {str(fi.get('path') or fi.get('name') or '') for fi in image_files}
+                                result = _execute_import_branch_images(
+                                    parsed_arguments.get("image_ids", []),
+                                    history=history,
+                                    loaded_files=loaded_files,
+                                    user_id=user_id,
+                                    imported_keys=imported_keys,
+                                    on_import_callback=_on_import_ds,
+                                )
                             elif call_name != "execute_python":
                                 result = f"Error: Unsupported tool: {call_name or '(missing name)'}"
                             else:
@@ -6760,10 +6799,6 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             for msg_img in msg_images:
                                 b64 = base64.b64encode(msg_img['bytes']).decode('utf-8')
                                 content_parts.append({"type": image_type, "image_url": f"data:{msg_img['mime']};base64,{b64}"})
-                                _remember_python_image(msg_img['bytes'], msg_img.get('mime'))
-                                _queue_openai_code_interpreter_image(
-                                    msg_img['bytes'], msg_img.get('mime'), msg_img.get('ref') or msg_img.get('name'),
-                                )
                             input_data.append({"role": m['role'], "content": content_parts})
                         except Exception as e:
                             log_force(f"Error processing history image: {e}")
@@ -6902,6 +6937,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             container["file_ids"] = openai_ci_file_ids
                         kwargs['tools'].append({"type": "code_interpreter", "container": container})
                         log_force(f"OpenAI code interpreter images={len(openai_ci_file_ids)}")
+                    kwargs['tools'].append(_build_list_branch_images_tool_schema(flat=True))
+                    kwargs['tools'].append(_build_import_branch_images_tool_schema(flat=True))
 
                 if options.get('enable_file_creation'):
                     if 'tools' not in kwargs: kwargs['tools'] = []
@@ -7483,78 +7520,137 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                             _queue_response_mcp_call(tool_call_id, call_name, call_args)
                             continue
 
-                        if item_type == "function_call" and call_name in ("execute_python", "create_file", "edit_file"):
+                        if item_type == "function_call" and call_name in ("execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images"):
                             try:
-                                args_json = json.loads(call_args or "{}")
-                                if call_name == "create_file":
-                                    create_result = _execute_create_file_tool(
-                                        user_id, args_json, user_config.get('enable_e2ee')
-                                    )
-                                    result = _create_file_tool_result_text(create_result)
-                                    if create_result.get("ok"):
-                                        created_file_rel = f"{user_id}/{create_result['filename']}"
-                                        if created_file_rel not in generated_images:
-                                            generated_images.append(created_file_rel)
-                                        file_link_md = (
-                                            f"\n📄 **ファイルを作成しました:** [{create_result.get('display_name')}]({create_result.get('url')})\n"
+                                def _handle_direct_tool_call(name, args_str, call_id):
+                                    nonlocal full_res, generated_images
+                                    args_json = json.loads(args_str or "{}") if args_str else {}
+                                    if name == "create_file":
+                                        create_result = _execute_create_file_tool(
+                                            user_id, args_json, user_config.get('enable_e2ee')
                                         )
-                                        full_res += file_link_md
-                                        pub("content", file_link_md)
-                                elif call_name == "edit_file":
-                                    edit_result = _execute_edit_file_tool(
-                                        user_id,
-                                        args_json,
-                                        user_config.get('enable_e2ee'),
-                                        loaded_files=loaded_files,
-                                        history=history,
-                                        thread_id=thread_id,
-                                    )
-                                    result = _create_file_tool_result_text(edit_result, "edit_file", "編集")
-                                    if edit_result.get("ok"):
-                                        edited_file_rel = f"{user_id}/{edit_result['filename']}"
-                                        if edited_file_rel not in generated_images:
-                                            generated_images.append(edited_file_rel)
-                                        file_link_md = (
-                                            f"\n📄 **ファイルを編集しました:** [{edit_result.get('display_name')}]({edit_result.get('url')})\n"
+                                        res_text = _create_file_tool_result_text(create_result)
+                                        if create_result.get("ok"):
+                                            created_file_rel = f"{user_id}/{create_result['filename']}"
+                                            if created_file_rel not in generated_images:
+                                                generated_images.append(created_file_rel)
+                                            file_link_md = (
+                                                f"\n📄 **ファイルを作成しました:** [{create_result.get('display_name')}]({create_result.get('url')})\n"
+                                            )
+                                            full_res += file_link_md
+                                            pub("content", file_link_md)
+                                        return res_text
+                                    elif name == "edit_file":
+                                        edit_result = _execute_edit_file_tool(
+                                            user_id,
+                                            args_json,
+                                            user_config.get('enable_e2ee'),
+                                            loaded_files=loaded_files,
+                                            history=history,
+                                            thread_id=thread_id,
                                         )
-                                        full_res += file_link_md
-                                        pub("content", file_link_md)
-                                else:
-                                    code = args_json.get('code', '')
-                                    if code:
-                                        pub("content", f"\n```python\n{code}\n```\n")
-                                        result = safe_execute_python(
-                                            code,
-                                            on_image=_publish_local_python_image,
-                                            input_images=response_python_images,
+                                        res_text = _create_file_tool_result_text(edit_result, "edit_file", "編集")
+                                        if edit_result.get("ok"):
+                                            edited_file_rel = f"{user_id}/{edit_result['filename']}"
+                                            if edited_file_rel not in generated_images:
+                                                generated_images.append(edited_file_rel)
+                                            file_link_md = (
+                                                f"\n📄 **ファイルを編集しました:** [{edit_result.get('display_name')}]({edit_result.get('url')})\n"
+                                            )
+                                            full_res += file_link_md
+                                            pub("content", file_link_md)
+                                        return res_text
+                                    elif name == "list_branch_images":
+                                        imported_keys = set(openai_ci_keys)
+                                        return _execute_list_branch_images(
+                                            history=history,
+                                            loaded_files=loaded_files,
+                                            user_id=user_id,
+                                            imported_keys=imported_keys,
                                         )
-                                        pub("content", f"\n**Output:**\n```\n{result}\n```\n")
-                                        full_res += f"\n```python\n{code}\n```\n\n**Output:**\n```\n{result}\n```\n"
-                                        full_res += f"\n```pyexec\n{json.dumps({'code': code, 'output': result})}\n```\n"
-                                        pub("python", {"id": tool_call_id or f"py_{int(time.time()*1000)}_{os.urandom(3).hex()}", "code": code, "output": result})
-                                    else:
-                                        result = "Error: No code provided."
-                                if response_id and tool_call_id:
+                                    elif name == "import_branch_images":
+                                        def _on_import_openai(img):
+                                            img_bytes = img.get('bytes') or b''
+                                            img_mime = img.get('mime')
+                                            img_key = img.get('ref') or img.get('name') or img.get('image_id')
+                                            _remember_python_image(img_bytes, img_mime)
+                                            _queue_openai_code_interpreter_image(img_bytes, img_mime, img_key)
+                                            ext = _guess_image_extension(img_mime, img.get('name'))
+                                            return f"input_{len(openai_ci_file_ids)}.{ext}"
+
+                                        imported_keys = set(openai_ci_keys)
+                                        return _execute_import_branch_images(
+                                            args_json.get("image_ids", []),
+                                            history=history,
+                                            loaded_files=loaded_files,
+                                            user_id=user_id,
+                                            imported_keys=imported_keys,
+                                            on_import_callback=_on_import_openai,
+                                        )
+                                    elif name == "execute_python":
+                                        code = args_json.get('code', '')
+                                        if code:
+                                            pub("content", f"\n```python\n{code}\n```\n")
+                                            res_text = safe_execute_python(
+                                                code,
+                                                on_image=_publish_local_python_image,
+                                                input_images=response_python_images,
+                                            )
+                                            pub("content", f"\n**Output:**\n```\n{res_text}\n```\n")
+                                            full_res += f"\n```python\n{code}\n```\n\n**Output:**\n```\n{res_text}\n```\n"
+                                            full_res += f"\n```pyexec\n{json.dumps({'code': code, 'output': res_text})}\n```\n"
+                                            pub("python", {"id": call_id or f"py_{int(time.time()*1000)}_{os.urandom(3).hex()}", "code": code, "output": res_text})
+                                            return res_text
+                                        return "Error: No code provided."
+                                    return f"Error: Unknown tool {name}"
+
+                                cur_tool_id = tool_call_id
+                                cur_call_name = call_name
+                                cur_call_args = call_args
+
+                                for _t_round in range(8):
+                                    result = _handle_direct_tool_call(cur_call_name, cur_call_args, cur_tool_id)
+                                    if not (response_id and cur_tool_id):
+                                        break
                                     _mark_provider_request_started()
-                                    tool_stream = client.responses.create(
-                                        model=model_key,
-                                        previous_response_id=response_id,
-                                        input=[{
+                                    followup_kwargs = {
+                                        "model": model_key,
+                                        "previous_response_id": response_id,
+                                        "input": [{
                                             "type": "function_call_output",
-                                            "call_id": tool_call_id,
+                                            "call_id": cur_tool_id,
                                             "output": result
                                         }],
-                                        stream=True
-                                    )
+                                        "stream": True,
+                                    }
+                                    if options.get('enable_python') and not is_grok:
+                                        followup_tools = []
+                                        for t in kwargs.get('tools', []):
+                                            t_copy = dict(t)
+                                            if t_copy.get('type') == 'code_interpreter':
+                                                container_copy = dict(t_copy.get('container', {}))
+                                                if openai_ci_file_ids:
+                                                    container_copy["file_ids"] = list(openai_ci_file_ids)
+                                                t_copy['container'] = container_copy
+                                            followup_tools.append(t_copy)
+                                        followup_kwargs["tools"] = followup_tools
+
+                                    tool_stream = client.responses.create(**followup_kwargs)
+                                    next_call = None
                                     for tchunk in tool_stream:
                                         _latency_mark_once(job_id, "provider_first_chunk_ms")
                                         if check_stop(): break
-                                        if isinstance(tchunk, dict):
-                                            t_event = tchunk.get('type')
-                                        else:
-                                            t_event = getattr(tchunk, 'type', None)
-                                        if t_event == "response.output_text.delta":
+                                        t_event = tchunk.get('type') if isinstance(tchunk, dict) else getattr(tchunk, 'type', None)
+                                        if t_event == "response.created":
+                                            t_resp = tchunk.get('response') if isinstance(tchunk, dict) else getattr(tchunk, 'response', None)
+                                            if t_resp:
+                                                response_id = (t_resp.get('id') if isinstance(t_resp, dict) else getattr(t_resp, 'id', None)) or response_id
+                                        elif t_event == "response.output_text.delta":
                                             t_delta = tchunk.get('delta') if isinstance(tchunk, dict) else getattr(tchunk, 'delta', None)
+                                            if t_delta and not is_grok and options.get('enable_python'):
+                                                t_delta = _rewrite_streamed_sandbox_refs(
+                                                    t_delta, ci_sandbox_buf, agentic_saved_urls, agentic_consumed_urls, agentic_filename_url_map,
+                                                )
                                             if t_delta:
                                                 full_res += t_delta
                                                 pub("content", t_delta)
@@ -7563,6 +7659,37 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                             if t_reason:
                                                 thought_accumulated += t_reason
                                                 pub("thought", t_reason)
+                                        elif t_event == "response.output_item.done":
+                                            t_item = tchunk.get('item') if isinstance(tchunk, dict) else getattr(tchunk, 'item', None)
+                                            t_type, t_cid, t_cname, t_cargs = _response_item_fields(t_item)
+                                            if t_type == "code_interpreter_call" and not is_grok:
+                                                _publish_code_interpreter_call(t_item)
+                                            elif t_type == "function_call":
+                                                if str(t_cname or "").startswith("mcp__"):
+                                                    _queue_response_mcp_call(t_cid, t_cname, t_cargs)
+                                                elif t_cname in ("execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images"):
+                                                    next_call = (t_cid, t_cname, t_cargs)
+                                        elif t_event == "response.completed":
+                                            t_resp = tchunk.get('response') if isinstance(tchunk, dict) else getattr(tchunk, 'response', None)
+                                            if t_resp:
+                                                response_id = (t_resp.get('id') if isinstance(t_resp, dict) else getattr(t_resp, 'id', None)) or response_id
+                                                t_usage = t_resp.get('usage') if isinstance(t_resp, dict) else getattr(t_resp, 'usage', None)
+                                                if t_usage:
+                                                    final_openai_usage = t_usage
+                                                t_outputs = t_resp.get('output') if isinstance(t_resp, dict) else getattr(t_resp, 'output', None)
+                                                for out_item in t_outputs or []:
+                                                    out_type, out_cid, out_cname, out_cargs = _response_item_fields(out_item)
+                                                    if out_type == "code_interpreter_call" and not is_grok:
+                                                        _publish_code_interpreter_call(out_item)
+                                                    elif out_type == "function_call":
+                                                        if str(out_cname or "").startswith("mcp__"):
+                                                            _queue_response_mcp_call(out_cid, out_cname, out_cargs)
+                                                        elif out_cname in ("execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images") and not next_call:
+                                                            next_call = (out_cid, out_cname, out_cargs)
+                                    if next_call:
+                                        cur_tool_id, cur_call_name, cur_call_args = next_call
+                                    else:
+                                        break
                             except Exception as e:
                                 pub("error", f"Tool Error: {e}")
 

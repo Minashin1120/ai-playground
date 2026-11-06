@@ -75,10 +75,17 @@ return _download_openai_api_bytes, _save_container_file
         self.assertIn("def _queue_openai_code_interpreter_image", source)
         self.assertIn("upload_name=filename", source)
         self.assertIn("input_images=response_python_images", source)
-        self.assertIn('call_name in ("execute_python", "create_file", "edit_file")', source)
+        self.assertIn('call_name in ("execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images")', source)
+        self.assertIn("list_branch_images", source)
+        self.assertIn("import_branch_images", source)
         self.assertIn("container_file_citation", source)
         self.assertIn('!= "api.openai.com"', source)
         self.assertIn("https://api.openai.com/v1/containers/", source)
+        # History images must not be queued into the code interpreter container or local sandbox.
+        # Only the current prompt's loaded_files should be uploaded/passed as input images.
+        history_loop = source[source.index("for m in history:"):source.index("curr_content = []")]
+        self.assertNotIn("_queue_openai_code_interpreter_image", history_loop)
+        self.assertNotIn("_remember_python_image", history_loop)
 
     def test_named_upload_uses_the_files_api(self):
         background = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")

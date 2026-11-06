@@ -8,7 +8,7 @@
   "deepseek_python": {
    "enabled": true,
    "label": "DeepSeek Python（ツール実行）",
-   "text": "A working Python runtime is available through the execute_python tool. When the user asks you to run Python, execute code, or verify a result with Python, call execute_python with the code instead of merely showing a code block or describing what it would output. Use this tool during reasoning when computation is needed. Print the values you need; each call runs in a fresh isolated environment with Python's standard library and no network access. Wait for the tool result before reporting execution results. If execution fails, report the actual error without inventing output."
+   "text": "A working Python runtime is available through the execute_python tool. When the user asks you to run Python, execute code, or verify a result with Python, call execute_python with the code instead of merely showing a code block or describing what it would output. Use this tool during reasoning when computation is needed. Print the values you need; each call runs in a fresh isolated environment with Python's standard library and no network access. Images attached to the latest user message are placed at /work/input_1.<ext>, input_2.<ext>, etc. To view or edit images from earlier turns in the conversation branch, use list_branch_images and import_branch_images to import them into /work before running execute_python. Wait for the tool result before reporting execution results. If execution fails, report the actual error without inventing output."
   },
   "gemini_code_execution": {
    "enabled": true,
@@ -53,7 +53,7 @@
   "python": {
    "enabled": true,
    "label": "Python",
-   "text": "Python execution is available; you can run Python code when needed."
+   "text": "Python execution is available; you can run Python code when needed. Images attached to the latest user message are automatically loaded into your Python execution environment as input_1.<ext>, input_2.<ext>, etc. If the user asks to edit, re-edit, or inspect images from earlier messages in the conversation branch, use list_branch_images to check available image IDs and import_branch_images to import them before executing Python code."
   },
   "python_file_creation": {
    "enabled": true,

@@ -5,6 +5,7 @@
 | テストファイル | 主な対象 |
 |---|---|
 | [test_agentic_image_regressions.py](../test_agentic_image_regressions.py) | agentic / image |
+| [test_branch_image_tools.py](../test_branch_image_tools.py) | branch / image / tools |
 | [test_audio_model_fixes.py](../test_audio_model_fixes.py) | audio / model / fixes |
 | [test_canvas_mode.py](../test_canvas_mode.py) | canvas / mode |
 | [test_coding_mode.py](../test_coding_mode.py) | coding / mode |

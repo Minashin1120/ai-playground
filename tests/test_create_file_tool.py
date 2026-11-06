@@ -193,7 +193,7 @@ class CreateFileToolTests(unittest.TestCase):
         self.assertIn("options.get('enable_file_creation')", responses_branch)
         self.assertIn("_build_create_file_tool_schema()", responses_branch)
         self.assertIn("_build_edit_file_tool_schema()", responses_branch)
-        self.assertIn('call_name in ("execute_python", "create_file", "edit_file")', responses_branch)
+        self.assertIn('call_name in ("execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images")', responses_branch)
 
     def test_gemini_branch_registers_create_file_callable(self):
         app_source = read_app_source()

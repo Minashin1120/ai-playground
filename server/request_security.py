@@ -7,7 +7,12 @@ def get_bool_app_setting(key, default=False):
 def get_bot_detection_global_enabled():
     return get_bool_app_setting("bot_detection_global_enabled", True)
 
-AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = "Python execution is available; you can run Python code when needed."
+AUTO_SYSTEM_PROMPT_NOTICE_PYTHON = (
+    "Python execution is available; you can run Python code when needed. "
+    "Images attached to the latest user message are automatically loaded into your Python execution environment as input_1.<ext>, input_2.<ext>, etc. "
+    "If the user asks to edit, re-edit, or inspect images from earlier messages in the conversation branch, "
+    "use list_branch_images to check available image IDs and import_branch_images to import them before executing Python code."
+)
 AUTO_SYSTEM_PROMPT_NOTICE_DEEPSEEK_PYTHON = (
     "A working Python runtime is available through the execute_python tool. "
     "When the user asks you to run Python, execute code, or verify a result "
@@ -16,6 +21,9 @@ AUTO_SYSTEM_PROMPT_NOTICE_DEEPSEEK_PYTHON = (
     "Use this tool during reasoning when computation is needed. "
     "Print the values you need; each call runs in a fresh isolated "
     "environment with Python's standard library and no network access. "
+    "Images attached to the latest user message are placed at /work/input_1.<ext>, input_2.<ext>, etc. "
+    "To view or edit images from earlier turns in the conversation branch, "
+    "use list_branch_images and import_branch_images to import them into /work before running execute_python. "
     "Wait for the tool result before reporting execution results. "
     "If execution fails, report the actual error without inventing output."
 )

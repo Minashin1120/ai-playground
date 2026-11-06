@@ -19,17 +19,33 @@
                             <option value="auto">Auto</option>
                         </select>
                     </div>
+                    <div id="gpt-image-complexity-wrap" class="flex items-center gap-2 hidden">
+                        <span class="text-gray-400">Complexity</span>
+                        <select id="gpt-image-complexity" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                            <option value="auto" selected>Auto</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
                     <div class="flex items-center gap-2">
                         <span class="text-gray-400">Format</span>
                         <select id="gpt-image-format" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
                             <option value="jpeg" selected>JPEG</option>
                             <option value="png">PNG</option>
                             <option value="webp">WebP</option>
+                            <option value="gif" data-gpt-image-26 hidden>GIF</option>
                         </select>
                     </div>
                     <div id="gpt-image-compression-wrap" class="flex items-center gap-2">
                         <span class="text-gray-400">Compression</span>
                         <input id="gpt-image-compression" type="number" min="0" max="100" step="1" value="85" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                    </div>
+                    <div id="gpt-image-gif-wrap" class="flex items-center gap-2 hidden">
+                        <span class="text-gray-400">Frames</span>
+                        <input id="gpt-image-frame-count" type="number" min="2" max="16" step="1" value="9" class="w-14 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
+                        <span class="text-gray-400">Frame ms</span>
+                        <input id="gpt-image-frame-duration" type="number" min="20" max="2000" step="10" value="200" class="w-16 bg-gray-700 border border-gray-600 rounded px-2 py-1 text-[10px] text-white outline-none">
                     </div>
                     <span class="text-gray-500">※ GPT-Image のみ有効</span>
                 </div>

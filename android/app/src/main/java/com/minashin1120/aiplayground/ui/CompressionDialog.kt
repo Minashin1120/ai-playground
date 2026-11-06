@@ -44,14 +44,32 @@ internal fun CompressionDialog(state: ChatState, model: ChatViewModel, onDismiss
         val web = LocalWebPalette.current
         when {
             modelId.contains("gpt-image") -> RuledSection("GPT Image 生成設定", Tw.green300, Tw.green500) {
+                val is26 = modelId.contains("gpt-image-2.6")
+                val gif = is26 && v("image_format", "jpeg") == "gif"
                 TwoColumns(
                     { ModalField("Size") { ModalSelect(v("image_size", "1024x1024"), webOptions("1024x1024" to "1024x1024", "1536x1024" to "1536x1024", "1024x1536" to "1024x1536", "auto" to "Auto")) { values["image_size"] = it } } },
                     { ModalField("Quality") { ModalSelect(v("image_quality", "medium"), webOptions("low" to "Low", "medium" to "Medium", "high" to "High", "xhigh" to "X-High", "max" to "Max", "auto" to "Auto")) { values["image_quality"] = it } } },
                 )
+                if (is26) {
+                    ModalField("Complexity") { ModalSelect(v("image_complexity", "auto"), webOptions("auto" to "Auto", "low" to "Low", "medium" to "Medium", "high" to "High")) { values["image_complexity"] = it } }
+                }
                 TwoColumns(
-                    { ModalField("Format") { ModalSelect(v("image_format", "jpeg"), webOptions("jpeg" to "JPEG", "png" to "PNG", "webp" to "WebP")) { values["image_format"] = it } } },
+                    { ModalField("Format") {
+                        val options = if (is26) {
+                            webOptions("jpeg" to "JPEG", "png" to "PNG", "webp" to "WebP", "gif" to "GIF")
+                        } else {
+                            webOptions("jpeg" to "JPEG", "png" to "PNG", "webp" to "WebP")
+                        }
+                        ModalSelect(v("image_format", "jpeg"), options) { values["image_format"] = it }
+                    } },
                     { ModalField("Compression (%)") { SettingsTextField(v("image_compression", "85"), { values["image_compression"] = it.filter(Char::isDigit).take(3) }, Modifier.fillMaxWidth(), number = true, deep = true) } },
                 )
+                if (gif) {
+                    TwoColumns(
+                        { ModalField("Frames (2-16)") { SettingsTextField(v("image_frame_count", "9"), { values["image_frame_count"] = it.filter(Char::isDigit).take(2) }, Modifier.fillMaxWidth(), number = true, deep = true) } },
+                        { ModalField("Frame duration (ms)") { SettingsTextField(v("image_frame_duration_ms", "200"), { values["image_frame_duration_ms"] = it.filter(Char::isDigit).take(4) }, Modifier.fillMaxWidth(), number = true, deep = true) } },
+                    )
+                }
             }
             isGeminiImageModelKey(modelId) -> RuledSection("Gemini (Nano Banana) 生成設定", web.theme300, web.theme.t500) {
                 TwoColumns(

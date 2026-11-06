@@ -19,6 +19,7 @@
 | [test_gemini_local_python_docs_regressions.py](../test_gemini_local_python_docs_regressions.py) | gemini / local / python / docs |
 | [test_gemini_tool_combination_regressions.py](../test_gemini_tool_combination_regressions.py) | gemini / tool / combination |
 | [test_gemini_transcribe_models.py](../test_gemini_transcribe_models.py) | gemini / transcribe / models |
+| [test_gpt_image_26.py](../test_gpt_image_26.py) | gpt / image / 2.6 / complexity / gif |
 | [test_grok_imagine_image_2.py](../test_grok_imagine_image_2.py) | grok / imagine / image / 2 |
 | [test_grok_video_lite.py](../test_grok_video_lite.py) | grok / video / lite |
 | [test_ideogram_models.py](../test_ideogram_models.py) | ideogram / models |

@@ -1631,6 +1631,30 @@
   },
   {
    "capabilities": [
+    "image"
+   ],
+   "deprecated": false,
+   "id": "gpt-image-2.6-flare",
+   "mode": "image",
+   "name": "GPT Image 2.6 Flare",
+   "provider": "openai",
+   "provider_label": "OpenAI",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "image"
+   ],
+   "deprecated": false,
+   "id": "gpt-image-2.6-sunburst",
+   "mode": "image",
+   "name": "GPT Image 2.6 Sunburst",
+   "provider": "openai",
+   "provider_label": "OpenAI",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "realtime_audio"
    ],
    "deprecated": false,

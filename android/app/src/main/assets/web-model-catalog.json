@@ -837,6 +837,47 @@
     "searchTerms": []
   },
   {
+    "id": "gpt-image-2.6-sunburst",
+    "name": "GPT-Image-2.6 Sunburst",
+    "description": "Detailed visual work with complexity control and animated GIF output.",
+    "price": "Text In $5/1M; Image In $8/1M; Image Out $30/1M",
+    "category": "OpenAI Image Gen",
+    "categoryIcon": "fas fa-paint-brush text-purple-400",
+    "categoryDescription": "GPT Image models",
+    "apiId": "gpt-image-2.6-sunburst",
+    "agenticView": false,
+    "implementedAt": "2026-11-07",
+    "implementedRank": 11550,
+    "emoji": "🌅",
+    "deprecated": false,
+    "tags": [
+      "openai",
+      "image"
+    ],
+    "searchTerms": []
+  },
+  {
+    "id": "gpt-image-2.6-flare",
+    "name": "GPT-Image-2.6 Flare",
+    "description": "Fast iteration with complexity control and animated GIF output.",
+    "price": "Text In $5/1M; Image In $8/1M; Image Out $30/1M",
+    "category": "OpenAI Image Gen",
+    "categoryIcon": "fas fa-paint-brush text-purple-400",
+    "categoryDescription": "GPT Image models",
+    "apiId": "gpt-image-2.6-flare",
+    "agenticView": false,
+    "implementedAt": "2026-11-07",
+    "implementedRank": 11551,
+    "emoji": "⚡",
+    "deprecated": false,
+    "tags": [
+      "openai",
+      "image",
+      "fast"
+    ],
+    "searchTerms": []
+  },
+  {
     "id": "gpt-image-2.5-sunburst",
     "name": "GPT-Image-2.5 Sunburst",
     "description": "Most capable image generation and editing with precision-focused quality.",

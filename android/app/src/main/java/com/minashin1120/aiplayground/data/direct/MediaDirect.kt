@@ -67,12 +67,17 @@ internal fun DirectRequest.asImageFollowUp(maxImages: Int = Int.MAX_VALUE): Dire
 private const val IMAGE_CONTEXT_CHARS = 12000
 
 /**
- * GPT Image from the device (server "GPT Image Branch"): the Responses API `image_generation` tool,
- * editing when images are attached or earlier in the chat. Returns the image as a generated file.
+ * GPT Image from the device (server "GPT Image Branch"). GPT Image 2.6 uses the Images API
+ * (`/v1/images/generations` or `/v1/images/edits`); earlier models use the Responses API
+ * `image_generation` tool. Editing happens when images are attached or earlier in the chat.
+ * Returns the image as a generated file.
  */
 class OpenAiImageDirect(private val http: DirectHttp, private val baseUrl: String = "https://api.openai.com") : DirectEngine {
+    private fun isGptImage26(model: String) = model.lowercase() in setOf("gpt-image-2.6-sunburst", "gpt-image-2.6-flare")
+
     override suspend fun run(request: DirectRequest, emit: (JSONObject) -> Unit, onProgress: (String, String) -> Unit): DirectResult {
         emit(event("status", "OpenAI API を呼び出し中... (これには時間がかかる場合があります)"))
+        if (isGptImage26(request.model)) return runImagesApi(request, emit)
         val reply = http.postJson("$baseUrl/v1/responses", mapOf("Authorization" to "Bearer ${request.apiKey}"), buildPayload(request))
         val output = reply.optJSONArray("output") ?: JSONArray()
         val encoded = (0 until output.length()).mapNotNull { output.optJSONObject(it) }
@@ -85,11 +90,69 @@ class OpenAiImageDirect(private val http: DirectHttp, private val baseUrl: Strin
             files = listOf(DirectOutputFile("gen_gpt_${System.currentTimeMillis()}.${if (format == "jpeg") "jpg" else format}", "image/$format", bytes)))
     }
 
+    private suspend fun runImagesApi(request: DirectRequest, emit: (JSONObject) -> Unit): DirectResult {
+        val images = request.imageInputs()
+        val endpoint = if (images.isEmpty()) "$baseUrl/v1/images/generations" else "$baseUrl/v1/images/edits"
+        val reply = http.postJson(endpoint, mapOf("Authorization" to "Bearer ${request.apiKey}"), buildImagesApiPayload(request))
+        val data = reply.optJSONArray("data") ?: JSONArray()
+        val encoded = (0 until data.length()).mapNotNull { data.optJSONObject(it)?.optString("b64_json")?.takeIf { v -> v.isNotBlank() } }
+        if (encoded.isEmpty()) throw DirectApiException(0, reply.optJSONObject("error")?.optString("message")?.ifBlank { null } ?: "No image data found in the response.")
+        val format = imageOutputFormat(request)
+        val (extension, mime) = when (format) {
+            "jpeg" -> "jpg" to "image/jpeg"
+            "webp" -> "webp" to "image/webp"
+            "gif" -> "gif" to "image/gif"
+            else -> "png" to "image/png"
+        }
+        emit(event("status", "完了"))
+        return DirectResult("Generated Image for: ${request.prompt()}",
+            files = encoded.mapIndexed { index, value ->
+                DirectOutputFile("gen_gpt_${System.currentTimeMillis()}_$index.$extension", mime, Base64.getDecoder().decode(value))
+            })
+    }
+
+    private fun imageOutputFormat(request: DirectRequest): String {
+        val format = request.options.optString("image_format")
+        return if (format in setOf("png", "jpeg", "webp", "gif")) format else "png"
+    }
+
+    /** Request body for GPT Image 2.6 on the Images API (generations, or edits with `images`). */
+    internal fun buildImagesApiPayload(request: DirectRequest): JSONObject {
+        val options = request.options
+        fun pick(key: String, allowed: Set<String>, fallback: String) = options.optString(key).takeIf { it in allowed } ?: fallback
+        val format = imageOutputFormat(request)
+        val images = request.imageInputs()
+        // Like the server, only the Gem / client system prompt goes in front of the image prompt.
+        val prompt = listOf(options.optString("system_prompt"), request.imageContextPrompt())
+            .filter { it.isNotBlank() && it != "null" }.joinToString("\n\n")
+        val payload = JSONObject().put("model", request.model).put("prompt", prompt)
+            .put("size", pick("image_size", setOf("auto", "1024x1024", "1536x1024", "1024x1536"), "auto"))
+            .put("quality", pick("image_quality", setOf("auto", "low", "medium", "high", "xhigh", "max"), "auto"))
+            .put("output_format", format)
+        options.optString("image_complexity").takeIf { it in setOf("low", "medium", "high") }?.let { payload.put("complexity", it) }
+        if (format == "gif") {
+            options.optString("image_frame_count").toIntOrNull()?.takeIf { it in 2..16 }?.let { payload.put("frame_count", it) }
+            options.optString("image_frame_duration_ms").toIntOrNull()?.takeIf { it in 20..2000 }?.let { payload.put("frame_duration_ms", it) }
+        }
+        // GIF output does not accept custom compression.
+        if (format in setOf("jpeg", "webp")) {
+            options.optString("image_compression").toIntOrNull()?.takeIf { it in 0..100 }?.let { payload.put("output_compression", it) }
+        }
+        if (images.isNotEmpty()) {
+            payload.put("images", JSONArray().apply {
+                images.forEach { image ->
+                    put(JSONObject().put("image_url", "data:${image.mime};base64," + Base64.getEncoder().encodeToString(image.bytes)))
+                }
+            })
+        }
+        return payload
+    }
+
     internal fun buildPayload(request: DirectRequest): JSONObject {
         val options = request.options
         fun pick(key: String, allowed: Set<String>, fallback: String) = options.optString(key).takeIf { it in allowed } ?: fallback
         val qualities = mutableSetOf("auto", "low", "medium", "high")
-        if (request.model.lowercase() in setOf("gpt-image-2.5-sunburst", "gpt-image-2.5-flare")) qualities += setOf("xhigh", "max")
+        if (request.model.lowercase() in setOf("gpt-image-2.5-sunburst", "gpt-image-2.5-flare", "gpt-image-2.6-sunburst", "gpt-image-2.6-flare")) qualities += setOf("xhigh", "max")
         val images = request.imageInputs()
         val format = pick("image_format", setOf("png", "jpeg", "webp"), "png")
         val tool = JSONObject().put("type", "image_generation").put("model", request.model)

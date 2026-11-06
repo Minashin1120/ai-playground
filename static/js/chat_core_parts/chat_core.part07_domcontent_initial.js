@@ -85,15 +85,26 @@
                 } else {
                     wrap.classList.add('hidden');
                 }
+                const model = (get('model-select').value || '').toLowerCase();
+                const is26 = model.includes('gpt-image-2.6');
                 const fmt = get('gpt-image-format');
+                if (get('gpt-image-complexity-wrap')) get('gpt-image-complexity-wrap').classList.toggle('hidden', !is26);
+                if (fmt) {
+                    Array.from(fmt.options).forEach(opt => {
+                        if (opt.hasAttribute('data-gpt-image-26')) opt.hidden = !is26;
+                    });
+                    if (!is26 && fmt.value === 'gif') fmt.value = 'jpeg';
+                }
+                const isGif = is26 && fmt && fmt.value === 'gif';
                 const compWrap = get('gpt-image-compression-wrap');
                 if (fmt && compWrap) {
-                    if (fmt.value === 'png') {
+                    if (fmt.value === 'png' || fmt.value === 'gif') {
                         compWrap.classList.add('hidden');
                     } else {
                         compWrap.classList.remove('hidden');
                     }
                 }
+                if (get('gpt-image-gif-wrap')) get('gpt-image-gif-wrap').classList.toggle('hidden', !isGif);
             }
             function updateGeminiImageUi() {
                 const wrap = get('gemini-image-options');

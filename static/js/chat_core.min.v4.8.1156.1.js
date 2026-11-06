@@ -243,25 +243,34 @@ setItem(COMPRESSION_TYPE_KEY,n),localStorage.setItem(COMPRESSION_FORMAT_ONLY_KEY
 Settings"),syncCompressionSettingsUi=r(()=>{const e=get("compression-max-size"),t=get("compression-m\
 ax-dim"),n=get("compression-output-type"),i=get("compression-format-only");if(e&&(e.value=getCompressionMaxSizeMB()),
 t&&(t.value=getCompressionMaxDim()),n&&(n.value=getCompressionOutputType()),i){i.checked=getCompressionFormatOnly();
-const h=i.checked;e&&(e.disabled=h),t&&(t.disabled=h);const v=get("compression-size-wrap"),y=get("co\
-mpression-dim-wrap");v&&(v.style.opacity=h?"0.4":"1"),y&&(y.style.opacity=h?"0.4":"1")}const a=r((h,v)=>{
-get(h)&&get(v)&&(get(v).value=get(h).value)},"sync");a("gpt-image-size","modal-gpt-image-size"),a("g\
-pt-image-quality","modal-gpt-image-quality"),a("gpt-image-format","modal-gpt-image-format"),a("gpt-i\
-mage-compression","modal-gpt-image-compression"),a("gemini-image-aspect","modal-gemini-image-aspect"),
-a("gemini-image-size","modal-gemini-image-size"),a("grok-image-aspect","modal-grok-image-aspect"),a(
-"grok-image-resolution","modal-grok-image-resolution"),a("grok-image-quality","modal-grok-image-qual\
-ity"),IDEOGRAM_IMAGE_FIELDS.forEach(h=>a(`ideogram-image-${h}`,`modal-ideogram-image-${h}`)),a("ocr-\
-table-format","modal-ocr-table-format"),a("ocr-pages","modal-ocr-pages");const o=r((h,v)=>{get(h)&&get(
-v)&&(get(v).checked=get(h).checked)},"syncChk");o("ocr-extract-header","modal-ocr-extract-header"),o(
-"ocr-extract-footer","modal-ocr-extract-footer"),o("ocr-include-blocks","modal-ocr-include-blocks"),
-o("ocr-include-images","modal-ocr-include-images");const l=get("model-select").value,c=isGptImageModel(
-l),u=isGeminiImageModel(l),f=isGrokImageModel(l);get("modal-gpt-image-options")&&get("modal-gpt-imag\
-e-options").classList.toggle("hidden",!c),get("modal-gemini-image-options")&&get("modal-gemini-image\
--options").classList.toggle("hidden",!u),get("modal-grok-image-options")&&get("modal-grok-image-opti\
-ons").classList.toggle("hidden",!f),get("modal-ideogram-image-options")&&get("modal-ideogram-image-o\
-ptions").classList.toggle("hidden",!isIdeogramModel(l)),typeof updateIdeogramImageUi=="function"&&updateIdeogramImageUi(),
-get("modal-mistral-ocr-options")&&get("modal-mistral-ocr-options").classList.toggle("hidden",!isMistralOcrModel(
-l))},"syncCompressionSettingsUi"),isGeminiLocalPyDialogEnabled=r(()=>{const e=localStorage.getItem(GEMINI_LOCAL_PY_DIALOG_KEY);
+const v=i.checked;e&&(e.disabled=v),t&&(t.disabled=v);const y=get("compression-size-wrap"),w=get("co\
+mpression-dim-wrap");y&&(y.style.opacity=v?"0.4":"1"),w&&(w.style.opacity=v?"0.4":"1")}const a=r((v,y)=>{
+get(v)&&get(y)&&(get(y).value=get(v).value)},"sync");a("gpt-image-size","modal-gpt-image-size"),a("g\
+pt-image-quality","modal-gpt-image-quality"),a("gpt-image-complexity","modal-gpt-image-complexity"),
+a("gpt-image-format","modal-gpt-image-format"),a("gpt-image-compression","modal-gpt-image-compressio\
+n"),a("gpt-image-frame-count","modal-gpt-image-frame-count"),a("gpt-image-frame-duration","modal-gpt\
+-image-frame-duration"),a("gemini-image-aspect","modal-gemini-image-aspect"),a("gemini-image-size","\
+modal-gemini-image-size"),a("grok-image-aspect","modal-grok-image-aspect"),a("grok-image-resolution",
+"modal-grok-image-resolution"),a("grok-image-quality","modal-grok-image-quality"),IDEOGRAM_IMAGE_FIELDS.
+forEach(v=>a(`ideogram-image-${v}`,`modal-ideogram-image-${v}`)),a("ocr-table-format","modal-ocr-tab\
+le-format"),a("ocr-pages","modal-ocr-pages");const o=r((v,y)=>{get(v)&&get(y)&&(get(y).checked=get(v).
+checked)},"syncChk");o("ocr-extract-header","modal-ocr-extract-header"),o("ocr-extract-footer","moda\
+l-ocr-extract-footer"),o("ocr-include-blocks","modal-ocr-include-blocks"),o("ocr-include-images","mo\
+dal-ocr-include-images");const l=get("model-select").value,c=isGptImageModel(l),u=isGeminiImageModel(
+l),f=isGrokImageModel(l);get("modal-gpt-image-options")&&get("modal-gpt-image-options").classList.toggle(
+"hidden",!c);const h=c&&String(l).toLowerCase().includes("gpt-image-2.6");get("modal-gpt-image-compl\
+exity-wrap")&&get("modal-gpt-image-complexity-wrap").classList.toggle("hidden",!h),get("modal-gpt-im\
+age-format")&&Array.from(get("modal-gpt-image-format").options).forEach(v=>{v.hasAttribute("data-gpt\
+-image-26")&&(v.hidden=!h)}),get("modal-gpt-image-gif-wrap")&&get("modal-gpt-image-gif-wrap").classList.
+toggle("hidden",!(h&&get("modal-gpt-image-format")&&get("modal-gpt-image-format").value==="gif")),get(
+"modal-gpt-image-frame-duration-wrap")&&get("modal-gpt-image-frame-duration-wrap").classList.toggle(
+"hidden",!(h&&get("modal-gpt-image-format")&&get("modal-gpt-image-format").value==="gif")),get("moda\
+l-gemini-image-options")&&get("modal-gemini-image-options").classList.toggle("hidden",!u),get("modal\
+-grok-image-options")&&get("modal-grok-image-options").classList.toggle("hidden",!f),get("modal-ideo\
+gram-image-options")&&get("modal-ideogram-image-options").classList.toggle("hidden",!isIdeogramModel(
+l)),typeof updateIdeogramImageUi=="function"&&updateIdeogramImageUi(),get("modal-mistral-ocr-options")&&
+get("modal-mistral-ocr-options").classList.toggle("hidden",!isMistralOcrModel(l))},"syncCompressionS\
+ettingsUi"),isGeminiLocalPyDialogEnabled=r(()=>{const e=localStorage.getItem(GEMINI_LOCAL_PY_DIALOG_KEY);
 return e===null?!0:e==="1"||e==="true"},"isGeminiLocalPyDialogEnabled"),setGeminiLocalPyDialogEnabled=r(
 e=>{localStorage.setItem(GEMINI_LOCAL_PY_DIALOG_KEY,e?"1":"0")},"setGeminiLocalPyDialogEnabled"),syncGeminiLocalPyDialogSetting=r(
 ()=>{const e=get("set-gemini-local-python-dialog");e&&(e.checked=isGeminiLocalPyDialogEnabled())},"s\
@@ -922,8 +931,8 @@ background,logging:!1,imageTimeout:5e3,x:0,y:M,width:_,height:F,windowWidth:_,sc
 richPasteAbortController.signal:void 0,onclone:r(N=>{prepareRichPastePdfClone(N,c);const q=N.querySelector(
 ".pdf-root-wrapper");q&&(q.style.position="relative",q.style.left="0",q.style.top="0")},"onclone")}).
 then(N=>{clearTimeout(U),$(N)}).catch(N=>{clearTimeout(U),B(N)})})).toDataURL("image/jpeg",.95),me=y.
-getImageProperties(re),se=Math.min(x,me.height*w/me.width);E||y.addPage(),y.addImage(re,"JPEG",0,0,w,
-se),E=!1,M+=F,P++;const we=Math.min(100,15+Math.round(P/j*85));i(we),await new Promise($=>setTimeout(
+getImageProperties(re),ae=Math.min(x,me.height*w/me.width);E||y.addPage(),y.addImage(re,"JPEG",0,0,w,
+ae),E=!1,M+=F,P++;const we=Math.min(100,15+Math.round(P/j*85));i(we),await new Promise($=>setTimeout(
 $,100))}return i(100),{blob:y.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),v&&v.parentNode&&document.body.removeChild(v)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=r(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -1785,10 +1794,11 @@ enable-python",enable_file_creation:"enable-file-creation",enable_mcp:"enable-mc
 enable-thinking",thinking_level:"thinking-level",thinking_budget:"thinking-budget",reasoning_effort:"\
 reasoning-effort",safety_setting:"safety-setting",enable_prompt_caching:"enable-prompt-cache",image_vision_model:"\
 image-vision-model",tts_voice:"tts-voice",tts_voice_custom:"tts-voice-custom",tts_language:"tts-lang\
-uage",tts_speed:"tts-speed",image_size:"gpt-image-size",image_quality:"gpt-image-quality",image_format:"\
-gpt-image-format",image_compression:"gpt-image-compression",gemini_image_aspect:"gemini-image-aspect",
-gemini_image_size:"gemini-image-size",grok_image_aspect:"grok-image-aspect",grok_image_resolution:"g\
-rok-image-resolution",grok_image_quality:"grok-image-quality",grok_image_format:"grok-image-format",
+uage",tts_speed:"tts-speed",image_size:"gpt-image-size",image_quality:"gpt-image-quality",image_complexity:"\
+gpt-image-complexity",image_format:"gpt-image-format",image_compression:"gpt-image-compression",image_frame_count:"\
+gpt-image-frame-count",image_frame_duration_ms:"gpt-image-frame-duration",gemini_image_aspect:"gemin\
+i-image-aspect",gemini_image_size:"gemini-image-size",grok_image_aspect:"grok-image-aspect",grok_image_resolution:"\
+grok-image-resolution",grok_image_quality:"grok-image-quality",grok_image_format:"grok-image-format",
 grok_image_count:"grok-image-count",ideogram_operation:"ideogram-image-operation",ideogram_aspect:"i\
 deogram-image-aspect",ideogram_resolution:"ideogram-image-resolution",ideogram_quality:"ideogram-ima\
 ge-quality",ideogram_speed:"ideogram-image-speed",ideogram_magic_prompt:"ideogram-image-magic",ideogram_style_type:"\
@@ -2456,9 +2466,14 @@ scribe-live",implementedAt:"2026-08-27",implementedRank:8622,quickEmoji:"\u{1F53
  Transcribe Live",desc:"Real-time low-latency streaming speech-to-text over the Live API (microphone\
  input, sessions up to 10 minutes).",price:"In $3.50/1M (audio), Out $21.00/1M (text)"}]},{category:"\
 OpenAI Image Gen",icon:"fas fa-paint-brush text-purple-400",description:"GPT Image models",items:[{id:"\
-gpt-image-2.5-sunburst",implementedAt:"2026-09-09",implementedRank:9320,quickEmoji:"\u{1F31E}",name:"\
-GPT-Image-2.5 Sunburst",desc:"Most capable image generation and editing with precision-focused quali\
-ty.",price:"Text In $5/1M; Image In $8/1M; Image Out $30/1M"},{id:"gpt-image-2.5-flare",implementedAt:"\
+gpt-image-2.6-sunburst",implementedAt:"2026-11-07",implementedRank:11550,quickEmoji:"\u{1F305}",name:"\
+GPT-Image-2.6 Sunburst",desc:"Detailed visual work with complexity control and animated GIF output.",
+price:"Text In $5/1M; Image In $8/1M; Image Out $30/1M"},{id:"gpt-image-2.6-flare",implementedAt:"20\
+26-11-07",implementedRank:11551,quickEmoji:"\u26A1",name:"GPT-Image-2.6 Flare",desc:"Fast iteration \
+with complexity control and animated GIF output.",price:"Text In $5/1M; Image In $8/1M; Image Out $3\
+0/1M"},{id:"gpt-image-2.5-sunburst",implementedAt:"2026-09-09",implementedRank:9320,quickEmoji:"\u{1F31E}",
+name:"GPT-Image-2.5 Sunburst",desc:"Most capable image generation and editing with precision-focused\
+ quality.",price:"Text In $5/1M; Image In $8/1M; Image Out $30/1M"},{id:"gpt-image-2.5-flare",implementedAt:"\
 2026-09-09",implementedRank:9321,quickEmoji:"\u{1F525}",name:"GPT-Image-2.5 Flare",desc:"Fast, high-\
 quality everyday image generation and editing.",price:"Text In $5/1M; Image In $8/1M; Image Out $30/\
 1M"},{id:"gpt-image-2",implementedAt:"2026-04-30",implementedRank:4680,name:"GPT Image 2",desc:"Stat\

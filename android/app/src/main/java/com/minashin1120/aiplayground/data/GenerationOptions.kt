@@ -144,12 +144,22 @@ fun ttsDefaults(provider: String): Pair<String, String> = when (provider) {
 fun generationPanels(modelId: String, values: Map<String, String> = emptyMap()): List<GenPanel> = buildList {
     val m = modelId.lowercase(Locale.ROOT)
     if (isGptImageModel(m)) {
-        val png = (values["image_format"] ?: "jpeg") == "png"
-        add(GenPanel("gpt-image", listOf(
+        val is26 = m == "gpt-image-2.6-sunburst" || m == "gpt-image-2.6-flare"
+        val format = values["image_format"] ?: "jpeg"
+        val gif = is26 && format == "gif"
+        val formatOptions = if (is26) {
+            arrayOf("jpeg" to "JPEG", "png" to "PNG", "webp" to "WebP", "gif" to "GIF")
+        } else {
+            arrayOf("jpeg" to "JPEG", "png" to "PNG", "webp" to "WebP")
+        }
+        add(GenPanel("gpt-image", listOfNotNull(
             select("image_size", "Size", "1024x1024", "1024x1024" to "1024x1024", "1536x1024" to "1536x1024", "1024x1536" to "1024x1536", "auto" to "Auto"),
             select("image_quality", "Quality", "medium", "low" to "Low", "medium" to "Medium", "high" to "High", "xhigh" to "X-High", "max" to "Max", "auto" to "Auto"),
-            select("image_format", "Format", "jpeg", "jpeg" to "JPEG", "png" to "PNG", "webp" to "WebP"),
-            number("image_compression", "Compression", "85", 0.0, 100.0, hidden = png),
+            if (is26) select("image_complexity", "Complexity", "auto", "auto" to "Auto", "low" to "Low", "medium" to "Medium", "high" to "High") else null,
+            select("image_format", "Format", "jpeg", *formatOptions),
+            number("image_compression", "Compression", "85", 0.0, 100.0, hidden = format in setOf("png", "gif", "svg")),
+            if (gif) number("image_frame_count", "Frames", "9", 2.0, 16.0, width = 48) else null,
+            if (gif) number("image_frame_duration_ms", "Frame ms", "200", 20.0, 2000.0, width = 64) else null,
         ), "※ GPT-Image のみ有効"))
     }
     if (isGeminiImageModel(m)) {

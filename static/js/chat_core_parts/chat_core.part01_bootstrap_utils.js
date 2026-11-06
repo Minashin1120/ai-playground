@@ -782,8 +782,11 @@
             const sync = (srcId, destId) => { if(get(srcId) && get(destId)) get(destId).value = get(srcId).value; };
             sync('gpt-image-size', 'modal-gpt-image-size');
             sync('gpt-image-quality', 'modal-gpt-image-quality');
+            sync('gpt-image-complexity', 'modal-gpt-image-complexity');
             sync('gpt-image-format', 'modal-gpt-image-format');
             sync('gpt-image-compression', 'modal-gpt-image-compression');
+            sync('gpt-image-frame-count', 'modal-gpt-image-frame-count');
+            sync('gpt-image-frame-duration', 'modal-gpt-image-frame-duration');
             sync('gemini-image-aspect', 'modal-gemini-image-aspect');
             sync('gemini-image-size', 'modal-gemini-image-size');
             sync('grok-image-aspect', 'modal-grok-image-aspect');
@@ -806,6 +809,13 @@
             const isGemini = isGeminiImageModel(model);
             const isGrok = isGrokImageModel(model);
             if(get('modal-gpt-image-options')) get('modal-gpt-image-options').classList.toggle('hidden', !isGpt);
+            const isGpt26 = isGpt && String(model).toLowerCase().includes('gpt-image-2.6');
+            if(get('modal-gpt-image-complexity-wrap')) get('modal-gpt-image-complexity-wrap').classList.toggle('hidden', !isGpt26);
+            if(get('modal-gpt-image-format')) Array.from(get('modal-gpt-image-format').options).forEach(opt => {
+                if (opt.hasAttribute('data-gpt-image-26')) opt.hidden = !isGpt26;
+            });
+            if(get('modal-gpt-image-gif-wrap')) get('modal-gpt-image-gif-wrap').classList.toggle('hidden', !(isGpt26 && get('modal-gpt-image-format') && get('modal-gpt-image-format').value === 'gif'));
+            if(get('modal-gpt-image-frame-duration-wrap')) get('modal-gpt-image-frame-duration-wrap').classList.toggle('hidden', !(isGpt26 && get('modal-gpt-image-format') && get('modal-gpt-image-format').value === 'gif'));
             if(get('modal-gemini-image-options')) get('modal-gemini-image-options').classList.toggle('hidden', !isGemini);
             if(get('modal-grok-image-options')) get('modal-grok-image-options').classList.toggle('hidden', !isGrok);
             if(get('modal-ideogram-image-options')) get('modal-ideogram-image-options').classList.toggle('hidden', !isIdeogramModel(model));

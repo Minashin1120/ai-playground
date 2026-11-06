@@ -1082,8 +1082,11 @@
             const syncBack = (modalId, targetId) => { if(get(modalId) && get(targetId)) get(targetId).value = get(modalId).value; };
             syncBack('modal-gpt-image-size', 'gpt-image-size');
             syncBack('modal-gpt-image-quality', 'gpt-image-quality');
+            syncBack('modal-gpt-image-complexity', 'gpt-image-complexity');
             syncBack('modal-gpt-image-format', 'gpt-image-format');
             syncBack('modal-gpt-image-compression', 'gpt-image-compression');
+            syncBack('modal-gpt-image-frame-count', 'gpt-image-frame-count');
+            syncBack('modal-gpt-image-frame-duration', 'gpt-image-frame-duration');
             syncBack('modal-gemini-image-aspect', 'gemini-image-aspect');
             syncBack('modal-gemini-image-size', 'gemini-image-size');
             syncBack('modal-grok-image-aspect', 'grok-image-aspect');

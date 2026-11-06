@@ -782,8 +782,11 @@
             const sync = (srcId, destId) => { if(get(srcId) && get(destId)) get(destId).value = get(srcId).value; };
             sync('gpt-image-size', 'modal-gpt-image-size');
             sync('gpt-image-quality', 'modal-gpt-image-quality');
+            sync('gpt-image-complexity', 'modal-gpt-image-complexity');
             sync('gpt-image-format', 'modal-gpt-image-format');
             sync('gpt-image-compression', 'modal-gpt-image-compression');
+            sync('gpt-image-frame-count', 'modal-gpt-image-frame-count');
+            sync('gpt-image-frame-duration', 'modal-gpt-image-frame-duration');
             sync('gemini-image-aspect', 'modal-gemini-image-aspect');
             sync('gemini-image-size', 'modal-gemini-image-size');
             sync('grok-image-aspect', 'modal-grok-image-aspect');
@@ -806,6 +809,13 @@
             const isGemini = isGeminiImageModel(model);
             const isGrok = isGrokImageModel(model);
             if(get('modal-gpt-image-options')) get('modal-gpt-image-options').classList.toggle('hidden', !isGpt);
+            const isGpt26 = isGpt && String(model).toLowerCase().includes('gpt-image-2.6');
+            if(get('modal-gpt-image-complexity-wrap')) get('modal-gpt-image-complexity-wrap').classList.toggle('hidden', !isGpt26);
+            if(get('modal-gpt-image-format')) Array.from(get('modal-gpt-image-format').options).forEach(opt => {
+                if (opt.hasAttribute('data-gpt-image-26')) opt.hidden = !isGpt26;
+            });
+            if(get('modal-gpt-image-gif-wrap')) get('modal-gpt-image-gif-wrap').classList.toggle('hidden', !(isGpt26 && get('modal-gpt-image-format') && get('modal-gpt-image-format').value === 'gif'));
+            if(get('modal-gpt-image-frame-duration-wrap')) get('modal-gpt-image-frame-duration-wrap').classList.toggle('hidden', !(isGpt26 && get('modal-gpt-image-format') && get('modal-gpt-image-format').value === 'gif'));
             if(get('modal-gemini-image-options')) get('modal-gemini-image-options').classList.toggle('hidden', !isGemini);
             if(get('modal-grok-image-options')) get('modal-grok-image-options').classList.toggle('hidden', !isGrok);
             if(get('modal-ideogram-image-options')) get('modal-ideogram-image-options').classList.toggle('hidden', !isIdeogramModel(model));
@@ -5577,7 +5587,9 @@
             tts_voice: 'tts-voice', tts_voice_custom: 'tts-voice-custom',
             tts_language: 'tts-language', tts_speed: 'tts-speed',
             image_size: 'gpt-image-size', image_quality: 'gpt-image-quality',
+            image_complexity: 'gpt-image-complexity',
             image_format: 'gpt-image-format', image_compression: 'gpt-image-compression',
+            image_frame_count: 'gpt-image-frame-count', image_frame_duration_ms: 'gpt-image-frame-duration',
             gemini_image_aspect: 'gemini-image-aspect', gemini_image_size: 'gemini-image-size',
             grok_image_aspect: 'grok-image-aspect', grok_image_resolution: 'grok-image-resolution',
             grok_image_quality: 'grok-image-quality', grok_image_format: 'grok-image-format',
@@ -7928,6 +7940,8 @@
                 icon: "fas fa-paint-brush text-purple-400",
                 description: "GPT Image models",
                 items: [
+                    { id: "gpt-image-2.6-sunburst", implementedAt: "2026-11-07", implementedRank: 11550, quickEmoji: "🌅", name: "GPT-Image-2.6 Sunburst", desc: "Detailed visual work with complexity control and animated GIF output.", price: "Text In $5/1M; Image In $8/1M; Image Out $30/1M" },
+                    { id: "gpt-image-2.6-flare", implementedAt: "2026-11-07", implementedRank: 11551, quickEmoji: "⚡", name: "GPT-Image-2.6 Flare", desc: "Fast iteration with complexity control and animated GIF output.", price: "Text In $5/1M; Image In $8/1M; Image Out $30/1M" },
                     { id: "gpt-image-2.5-sunburst", implementedAt: "2026-09-09", implementedRank: 9320, quickEmoji: "🌞", name: "GPT-Image-2.5 Sunburst", desc: "Most capable image generation and editing with precision-focused quality.", price: "Text In $5/1M; Image In $8/1M; Image Out $30/1M" },
                     { id: "gpt-image-2.5-flare", implementedAt: "2026-09-09", implementedRank: 9321, quickEmoji: "🔥", name: "GPT-Image-2.5 Flare", desc: "Fast, high-quality everyday image generation and editing.", price: "Text In $5/1M; Image In $8/1M; Image Out $30/1M" },
                     { id: "gpt-image-2", implementedAt: "2026-04-30", implementedRank: 4680, name: "GPT Image 2", desc: "State-of-the-art image generation and editing.", price: "Text In $5/1M; Image In $8/1M; Image Out $30/1M" },
@@ -10540,15 +10554,26 @@
                 } else {
                     wrap.classList.add('hidden');
                 }
+                const model = (get('model-select').value || '').toLowerCase();
+                const is26 = model.includes('gpt-image-2.6');
                 const fmt = get('gpt-image-format');
+                if (get('gpt-image-complexity-wrap')) get('gpt-image-complexity-wrap').classList.toggle('hidden', !is26);
+                if (fmt) {
+                    Array.from(fmt.options).forEach(opt => {
+                        if (opt.hasAttribute('data-gpt-image-26')) opt.hidden = !is26;
+                    });
+                    if (!is26 && fmt.value === 'gif') fmt.value = 'jpeg';
+                }
+                const isGif = is26 && fmt && fmt.value === 'gif';
                 const compWrap = get('gpt-image-compression-wrap');
                 if (fmt && compWrap) {
-                    if (fmt.value === 'png') {
+                    if (fmt.value === 'png' || fmt.value === 'gif') {
                         compWrap.classList.add('hidden');
                     } else {
                         compWrap.classList.remove('hidden');
                     }
                 }
+                if (get('gpt-image-gif-wrap')) get('gpt-image-gif-wrap').classList.toggle('hidden', !isGif);
             }
             function updateGeminiImageUi() {
                 const wrap = get('gemini-image-options');
@@ -22901,8 +22926,11 @@
                 tts_speed: isTtsModel() && get('tts-speed') ? get('tts-speed').value : null,
                 image_size: isGptImageModel() && get('gpt-image-size') ? get('gpt-image-size').value : null,
                 image_quality: isGptImageModel() && get('gpt-image-quality') ? get('gpt-image-quality').value : null,
+                image_complexity: isGptImageModel() && get('gpt-image-complexity') ? get('gpt-image-complexity').value : null,
                 image_format: isGptImageModel() && get('gpt-image-format') ? get('gpt-image-format').value : null,
                 image_compression: isGptImageModel() && get('gpt-image-compression') ? get('gpt-image-compression').value : null,
+                image_frame_count: isGptImageModel() && get('gpt-image-frame-count') ? get('gpt-image-frame-count').value : null,
+                image_frame_duration_ms: isGptImageModel() && get('gpt-image-frame-duration') ? get('gpt-image-frame-duration').value : null,
                 image_mask: maskImageToSend,
                 gemini_image_aspect: isGeminiImageModel() && get('gemini-image-aspect') ? get('gemini-image-aspect').value : null,
                 gemini_image_size: isGeminiImageModel() && get('gemini-image-size') ? get('gemini-image-size').value : null,
@@ -25237,8 +25265,11 @@
             const syncBack = (modalId, targetId) => { if(get(modalId) && get(targetId)) get(targetId).value = get(modalId).value; };
             syncBack('modal-gpt-image-size', 'gpt-image-size');
             syncBack('modal-gpt-image-quality', 'gpt-image-quality');
+            syncBack('modal-gpt-image-complexity', 'gpt-image-complexity');
             syncBack('modal-gpt-image-format', 'gpt-image-format');
             syncBack('modal-gpt-image-compression', 'gpt-image-compression');
+            syncBack('modal-gpt-image-frame-count', 'gpt-image-frame-count');
+            syncBack('modal-gpt-image-frame-duration', 'gpt-image-frame-duration');
             syncBack('modal-gemini-image-aspect', 'gemini-image-aspect');
             syncBack('modal-gemini-image-size', 'gemini-image-size');
             syncBack('modal-grok-image-aspect', 'grok-image-aspect');

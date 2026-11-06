@@ -84,6 +84,26 @@ class MediaDirectTest {
         assertEquals(85, jpeg.getJSONArray("tools").getJSONObject(0).getInt("output_compression"))
     }
 
+    @Test fun gptImage26UsesTheImagesApiWithComplexityAndGif() {
+        val engine = OpenAiImageDirect(http)
+        val plain = engine.buildImagesApiPayload(request("gpt-image-2.6-sunburst", "猫",
+            JSONObject().put("image_size", "1536x1024").put("image_quality", "max").put("image_complexity", "medium")))
+        assertEquals("gpt-image-2.6-sunburst", plain.getString("model"))
+        assertEquals("1536x1024", plain.getString("size"))
+        assertEquals("max", plain.getString("quality"))
+        assertEquals("medium", plain.getString("complexity"))
+        assertFalse(plain.has("images"))
+        val gif = engine.buildImagesApiPayload(request("gpt-image-2.6-flare", "猫",
+            JSONObject().put("image_format", "gif").put("image_frame_count", "12").put("image_frame_duration_ms", "120")))
+        assertEquals("gif", gif.getString("output_format"))
+        assertEquals(12, gif.getInt("frame_count"))
+        assertEquals(120, gif.getInt("frame_duration_ms"))
+        assertFalse(gif.has("output_compression"))
+        val edit = engine.buildImagesApiPayload(request("gpt-image-2.6-flare", "猫", JSONObject(),
+            listOf(DirectAttachment("a.png", "image/png", bytes = byteArrayOf(1)))))
+        assertEquals(1, edit.getJSONArray("images").length())
+    }
+
     @Test fun imageModelsEditTheChatsEarlierImageOnAFollowUp() {
         val first = DirectAttachment("first.png", "image/png", bytes = byteArrayOf(1))
         val second = DirectAttachment("second.png", "image/png", bytes = byteArrayOf(2))

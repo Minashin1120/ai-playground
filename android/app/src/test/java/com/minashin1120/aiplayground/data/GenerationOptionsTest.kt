@@ -26,6 +26,19 @@ class GenerationOptionsTest {
         assertEquals(1, payload.length())
     }
 
+    @Test fun gptImage26AddsComplexityAndGifFields() {
+        val legacy = fields("gpt-image-2.5-flare")
+        assertFalse(legacy.containsKey("image_complexity"))
+        assertFalse(legacy.containsKey("image_frame_count"))
+        val current = fields("gpt-image-2.6-sunburst")
+        assertTrue(current.containsKey("image_complexity"))
+        assertFalse(current.containsKey("image_frame_count"))
+        val gif = fields("gpt-image-2.6-sunburst", mapOf("image_format" to "gif"))
+        assertTrue(gif.containsKey("image_frame_count"))
+        assertTrue(gif.containsKey("image_frame_duration_ms"))
+        assertTrue(gif.getValue("image_compression").hidden)
+    }
+
     @Test fun hiddenProviderOptionsAndArbitraryKeysCannotReachTheRequest() {
         val body = generationOptionsPayload("gpt-image-2", mapOf(
             "image_quality" to "high", "grok_image_count" to "10", "model" to "other", "thread_id" to "other"))

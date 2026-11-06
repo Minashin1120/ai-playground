@@ -58,7 +58,7 @@ class NanoBanana2LiteRegressionTests(unittest.TestCase):
         )
         self.assertIn("searchChk.disabled = true", CHAT_JS)
         self.assertIn(
-            "!isDeepSeek && !isNanoBanana2Lite",
+            "!model.includes('tts') && !isOcr && !isNanoBanana2Lite",
             CHAT_JS,
         )
 

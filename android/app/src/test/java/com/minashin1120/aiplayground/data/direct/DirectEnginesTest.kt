@@ -435,6 +435,27 @@ class DirectEnginesTest {
         assertEquals("deepseek-v4-pro", ChatCompletionsDirect.apiModelId("deepseek-v4-pro"))
     }
 
+    @Test fun deepSeekSearchRunsThroughTheOfficialSearchApiAndAddsSources() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                .body("""{"results":[{"title":"Example","url":"https://example.com/news","summary":"Latest news.","snippet":"short"}]}""").build())
+            server.enqueue(sse("""{"choices":[{"delta":{"content":"ok"}}]}""", "[DONE]"))
+            val engine = ChatCompletionsDirect(http, server.url("/").toString().trimEnd('/'), acceptsImages = false)
+            val req = DirectRequest("deepseek-v4-pro", "secret-key", "system text",
+                listOf(DirectTurn("user", "最新ニュースは？")), JSONObject().put("enable_search", true))
+            val (result, events) = run(engine, req)
+            assertEquals("ok\n\n**Sources:**\n- [Example](https://example.com/news)", result.content)
+            assertTrue(events.any { it.optString("type") == "search_status" && it.optString("content") == "searching" })
+            val searchRequest = server.takeRequest()
+            assertEquals("/v1/tools/search", searchRequest.target)
+            assertTrue(searchRequest.body!!.utf8().contains("最新ニュースは？"))
+            val chatRequest = server.takeRequest()
+            assertEquals("/chat/completions", chatRequest.target)
+            assertTrue(chatRequest.body!!.utf8().contains("Latest news."))
+        }
+    }
+
     @Test fun onlyProviderHostsAreReachable() {
         val strict = DirectHttp()
         assertTrue(runCatching { strict.request("https://evil.example/v1", emptyMap()) }.isFailure)

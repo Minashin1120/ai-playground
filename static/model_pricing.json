@@ -1022,7 +1022,10 @@
       "max_input": 0.3,
       "max_output": 1.2,
       "cached_input": 0.003,
-      "max_cached_input": 0.006
+      "max_cached_input": 0.006,
+      "tool_rates": {
+        "web_search": 0.00075
+      }
     },
     "deepseek-flash": {
       "provider": "deepseek",
@@ -1031,7 +1034,10 @@
       "max_input": 0.3,
       "max_output": 1.2,
       "cached_input": 0.003,
-      "max_cached_input": 0.006
+      "max_cached_input": 0.006,
+      "tool_rates": {
+        "web_search": 0.00075
+      }
     },
     "deepseek-v4-flash": {
       "provider": "deepseek",
@@ -1040,7 +1046,10 @@
       "max_input": 0.3,
       "max_output": 1.2,
       "cached_input": 0.003,
-      "max_cached_input": 0.006
+      "max_cached_input": 0.006,
+      "tool_rates": {
+        "web_search": 0.00075
+      }
     },
     "deepseek-v4-flash-vision-exp": {
       "provider": "deepseek",
@@ -1049,7 +1058,10 @@
       "max_input": 0.3,
       "max_output": 1.2,
       "cached_input": 0.003,
-      "max_cached_input": 0.006
+      "max_cached_input": 0.006,
+      "tool_rates": {
+        "web_search": 0.00075
+      }
     },
     "deepseek-v4-pro": {
       "provider": "deepseek",
@@ -1058,7 +1070,10 @@
       "max_input": 1.32,
       "max_output": 3.96,
       "cached_input": 0.022,
-      "max_cached_input": 0.044
+      "max_cached_input": 0.044,
+      "tool_rates": {
+        "web_search": 0.00075
+      }
     },
     "kimi-k3": {
       "provider": "kimi",

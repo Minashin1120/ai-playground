@@ -75,7 +75,7 @@ Cloudflareと、切り替えた場合のGoogleへ送るのは対象のホスト�
 - OpenAI（GPTシリーズ、Web検索、思考の要約、コード実行）、検索モデル
 - Anthropic Claude（思考、Web検索、画像・PDFの入力）
 - xAI Grok（Web検索・X検索）
-- DeepSeek、Kimi、Mistral、Z.AI GLM（チャットと画像入力対応モデル）
+- DeepSeek（チャット、画像入力対応モデル、DeepSeek SearchによるWeb検索）、Kimi、Mistral、Z.AI GLM（チャットと画像入力対応モデル）
 - 画像生成（GPT Image、Grok Imagine、Ideogram、Geminiの画像モデル）、音声合成（OpenAI、xAI、Google Cloud、GeminiのTTS）、音声ファイルの文字起こし（OpenAI）、動画生成（Veo、Grok Imagine video）。回答の生成中は、通知を表示してアプリが終了されにくくします。他のアプリを開いたり画面を消したりしても生成は続きますが、最近使ったアプリから消すと中断されます
 - Ideogramの「背景を削除」（添付画像を優先し、添付がない場合は直前の画像。PNG・JPEG・WEBPの画像1枚、25MBまで。入力欄は無効になり、送信ボタンだけで実行できます。添付がない場合は表示中のブランチの最後の画像を使い、透過PNGとして保存します）と「Object Remover」（添付画像でMaskを開き、削除範囲をブラシで白く描くか、「自動塗り」でタップした色に近い連続領域を白く塗ると、画像と同じサイズのマスクを作成します。許容差を調整して選択範囲を広げられます。白い部分が削除され、送信後はマスク画像がプロンプトの吹き出しに表示されます。ミニマル表示では＋メニューの「マスクを作成」から開きます）
 - 音声入力（端末のOpenAI APIキーで文字起こし）

@@ -534,7 +534,7 @@ from(a.querySelectorAll("*")).slice(0,5e3)],l=[],c=new Map;let u=0;const f=r(x=>
 []).reduce((_,S)=>S&&S.nodeType===Node.TEXT_NODE?_+String(S.textContent||"").replace(/\s+/g," ").trim().
 length:_,0),"directTextLength");o.forEach(x=>{if(!x||x===a||!x.style)return;const _=window.getComputedStyle(
 x),S=f(x);if(S>0){const M=parseRichPasteCssColor(_.color);if(M&&M.a>=.5){const E=richPasteColorCss(M),
-D=c.get(E)||{color:M,weight:0};D.weight+=S,c.set(E,D),u+=S}}if(!!(String(x.style.backgroundColor||"").
+j=c.get(E)||{color:M,weight:0};j.weight+=S,c.set(E,j),u+=S}}if(!!(String(x.style.backgroundColor||"").
 trim()||String(x.style.background||"").trim())){const M=parseRichPasteCssColor(_.backgroundColor);if(M&&
 M.a>=.72){const E=String(x.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:M,weight:Math.
 max(1,E)})}}});const h=Array.from(c.values()).sort((x,_)=>_.weight-x.weight),v=h.length?h[0].color:null,
@@ -914,7 +914,7 @@ nd); font-weight: bold; }
                 </div>
             `,document.body.appendChild(v),await waitForRichPasteMedia(v,4e3),i(15);try{const y=new f(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),w=y.internal.pageSize.getWidth(),x=y.internal.
-pageSize.getHeight(),_=794,S=Math.floor(x/w*_),C=v.scrollHeight||v.offsetHeight;let M=0,E=!0;const D=Math.
+pageSize.getHeight(),_=794,S=Math.floor(x/w*_),C=v.scrollHeight||v.offsetHeight;let M=0,E=!0;const j=Math.
 ceil(C/S);let P=0;for(;M<C;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
 "Aborted","AbortError");const F=Math.min(S,C-M),re=(await new Promise(($,B)=>{const U=setTimeout(()=>B(
 new Error("PDF chunk rendering timed out")),12e4);h(v,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
@@ -923,7 +923,7 @@ richPasteAbortController.signal:void 0,onclone:r(N=>{prepareRichPastePdfClone(N,
 ".pdf-root-wrapper");q&&(q.style.position="relative",q.style.left="0",q.style.top="0")},"onclone")}).
 then(N=>{clearTimeout(U),$(N)}).catch(N=>{clearTimeout(U),B(N)})})).toDataURL("image/jpeg",.95),me=y.
 getImageProperties(re),se=Math.min(x,me.height*w/me.width);E||y.addPage(),y.addImage(re,"JPEG",0,0,w,
-se),E=!1,M+=F,P++;const we=Math.min(100,15+Math.round(P/D*85));i(we),await new Promise($=>setTimeout(
+se),E=!1,M+=F,P++;const we=Math.min(100,15+Math.round(P/j*85));i(we),await new Promise($=>setTimeout(
 $,100))}return i(100),{blob:y.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),v&&v.parentNode&&document.body.removeChild(v)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=r(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -2039,8 +2039,8 @@ ordKey"),l=r(y=>{const w=performance.now();if(!(w-e.lastMoveSample<80)){if(e.las
 sqrt(x*x+_*_)/(S/1e3);e.speedMax=Math.max(e.speedMax,C),e.speedSum+=C,e.speedSamples+=1}}e.lastMove=
 {x:y.clientX,y:y.clientY,t:w}}},"recordMove"),c=r(()=>{const y=Math.max(1,performance.now()-e.windowStart),
 w=e.clickTimes.length,x=e.keyTimes.length,_=e.speedSamples?e.speedSum/e.speedSamples:0;let S=0,C=1;if(e.
-clickIntervals.length>=3){const M=e.clickIntervals.reduce((D,P)=>D+P,0)/e.clickIntervals.length,E=e.
-clickIntervals.reduce((D,P)=>D+Math.pow(P-M,2),0)/e.clickIntervals.length;S=M,C=M>0?Math.sqrt(E)/M:1}
+clickIntervals.length>=3){const M=e.clickIntervals.reduce((j,P)=>j+P,0)/e.clickIntervals.length,E=e.
+clickIntervals.reduce((j,P)=>j+Math.pow(P-M,2),0)/e.clickIntervals.length;S=M,C=M>0?Math.sqrt(E)/M:1}
 return{window_ms:Math.round(y),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
 fastKeys,untrusted_input:!!e.untrustedInput,click_burst:w,key_burst:x,avg_click_ms:S,click_cv:C,event_rate:(e.
 clicks+e.keys+e.moves)/(y/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:_}},"computeStats"),u=r(

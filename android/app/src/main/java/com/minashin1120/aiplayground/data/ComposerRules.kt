@@ -214,7 +214,7 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
         supportsEffort -> { effortVisible = true; search.dimmed = false }
         isDeepSeek -> {
             effortVisible = true
-            search.off(); search.disabled = true; search.dimmed = true
+            search.dimmed = false
             urls.off(); urls.dimmed = true
             maps.off(); maps.dimmed = true
         }
@@ -233,7 +233,7 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
     if (isSearchModel) {
         search.forced = true; search.disabled = true; search.dimmed = true
         python.off(); python.disabled = true; python.dimmed = true
-    } else if (!model.contains("tts") && !isOcr && !isDeepSeek && !isNb2Lite) {
+    } else if (!model.contains("tts") && !isOcr && !isNb2Lite) {
         search.disabled = false
     }
     if (isCyber) {

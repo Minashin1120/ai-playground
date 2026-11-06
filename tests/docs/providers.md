@@ -6,6 +6,7 @@
 |---|---|
 | [test_deepseek_v4_flash_0731.py](../test_deepseek_v4_flash_0731.py) | deepseek / v4 / flash / 0731 |
 | [test_deepseek_v4_flash_vision_exp.py](../test_deepseek_v4_flash_vision_exp.py) | deepseek / v4 / flash / vision / exp |
+| [test_deepseek_search.py](../test_deepseek_search.py) | DeepSeek Search API、Search有効時の検索、検索料金 |
 | [test_default_model_stability_regressions.py](../test_default_model_stability_regressions.py) | 既定モデルの安定性 |
 | [test_gemini_batch_regressions.py](../test_gemini_batch_regressions.py) | gemini / batch |
 | [test_gemini_latest_models.py](../test_gemini_latest_models.py) | gemini / latest / models |

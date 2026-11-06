@@ -1,6 +1,6 @@
-# 対応モデル (V4.8.1154)
+# 対応モデル (V4.8.1155)
 
-主な対応モデルと料金の一覧です（画像・音声・Realtimeなど一部のモデルは省いています）。モデル定義の一次ソースは `static/js/chat_core.v4.8.1154.js` の `MODELS` 配列です。
+主な対応モデルと料金の一覧です（画像・音声・Realtimeなど一部のモデルは省いています）。モデル定義の一次ソースは `static/js/chat_core.v4.8.1155.js` の `MODELS` 配列です。
 モデル選択モーダルには各モデルの公式 API 価格（`price` フィールド）が表示されます。
 
 **価格最終確認:** 2026-10-02
@@ -60,6 +60,7 @@
 | Claude | claude-sonnet-4-6 | In $3.00/1M, Out $15.00/1M |
 | DeepSeek | deepseek-v4.1-flash | In $0.15/1M (miss), Out $0.60/1M（off-peak） |
 | DeepSeek | deepseek-v4-pro | In $0.66/1M (miss), Out $1.98/1M（off-peak） |
+| DeepSeek Search | /v1/tools/search | 成功1,000回あたり $0.75 |
 | xAI Grok | grok-4.6 / grok-4.5 | In $2.00/1M, Out $6.00/1M（200k超: $4.00/$12.00） |
 | xAI Grok | grok-4.3 / grok-4.20 系 | In $1.25/1M, Out $2.50/1M |
 | xAI Grok | grok-build-0.1 | In $1.00/1M, Out $2.00/1M |
@@ -76,5 +77,5 @@
 
 ---
 
-*最終更新: 2026-11-07 (V4.8.1154)*
-*ソース: `static/js/chat_core.v4.8.1154.js` MODELS配列*
+*最終更新: 2026-11-07 (V4.8.1155)*
+*ソース: `static/js/chat_core.v4.8.1155.js` MODELS配列*

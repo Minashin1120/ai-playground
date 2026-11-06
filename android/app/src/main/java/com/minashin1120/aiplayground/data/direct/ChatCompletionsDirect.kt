@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.data.direct
 
+import kotlin.coroutines.coroutineContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Base64
@@ -16,7 +17,10 @@ class ChatCompletionsDirect(
     private val openAiSearch: Boolean = false,
 ) : DirectEngine {
     override suspend fun run(request: DirectRequest, emit: (JSONObject) -> Unit, onProgress: (String, String) -> Unit): DirectResult {
-        val payload = buildPayload(request)
+        val deepSeekSearch = if (request.model.lowercase().startsWith("deepseek") && request.options.flag("enable_search")) {
+            searchDeepSeek(request, emit)
+        } else null
+        val payload = buildPayload(request, deepSeekSearch?.context.orEmpty())
         val content = StringBuilder()
         val thought = StringBuilder()
         var usage: JSONObject? = null
@@ -53,6 +57,11 @@ class ChatCompletionsDirect(
             true
         }
         if (openAiSearch) emit(event("search_status", "done"))
+        deepSeekSearch?.sources?.takeIf { it.isNotEmpty() }?.let { sources ->
+            val suffix = "\n\n**Sources:**\n$sources"
+            content.append(suffix)
+            emit(event("content", suffix))
+        }
         val meta = usage
         return DirectResult(content.toString(), thought.toString(),
             tokensIn = meta?.optInt("prompt_tokens")?.takeIf { it > 0 },
@@ -60,9 +69,59 @@ class ChatCompletionsDirect(
             tokensThought = meta?.optJSONObject("completion_tokens_details")?.optInt("reasoning_tokens")?.takeIf { it > 0 })
     }
 
-    internal fun buildPayload(request: DirectRequest): JSONObject {
+    private data class SearchOutcome(val context: String, val sources: String)
+
+    /**
+     * DeepSeek Search (`POST /v1/tools/search`) for serverless mode. The Search API
+     * works with every DeepSeek model, while the Responses API `web_search` tool is
+     * ignored by deepseek-flash. Results are added to the system context as data.
+     */
+    private suspend fun searchDeepSeek(request: DirectRequest, emit: (JSONObject) -> Unit): SearchOutcome? {
+        val query = request.turns.lastOrNull { it.role == "user" }?.text?.trim().orEmpty()
+        if (query.isEmpty()) return null
+        emit(event("search_status", "searching"))
+        return try {
+            val reply = http.postJson(
+                "$baseUrl/v1/tools/search",
+                mapOf("Authorization" to "Bearer ${request.apiKey}"),
+                JSONObject().put("query", query.take(128)).put("count", 8).put("need_content", false),
+            )
+            val results = reply.optJSONArray("results") ?: JSONArray()
+            if (results.length() == 0) return null
+            val context = StringBuilder()
+            val sources = StringBuilder()
+            for (i in 0 until results.length()) {
+                val item = results.optJSONObject(i) ?: continue
+                val title = item.optString("title").ifBlank { "(untitled)" }
+                val url = item.optString("url")
+                val summary = item.optString("summary").ifBlank { item.optString("snippet") }
+                context.append("[$title]($url)\n")
+                if (summary.isNotBlank()) context.append(summary.take(1200)).append("\n\n")
+                if (url.isNotBlank() && !sources.contains("($url)")) sources.append("- [").append(title).append("](").append(url).append(")\n")
+            }
+            // Search is billed per successful request, not by tokens. Keep it in
+            // the same usage ledger so the cost estimate includes the tool fee.
+            coroutineContext[UsageContext]?.ledger?.begin(request.model, "deepseek")?.apply {
+                row.put("web_search_calls", 1)
+                row.put("input_tokens", 0)
+                row.put("output_tokens", 0)
+                finished = true
+            }
+            SearchOutcome(context.toString().trim(), sources.toString().trim())
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        } finally {
+            emit(event("search_status", "done"))
+        }
+    }
+
+    internal fun buildPayload(request: DirectRequest, searchContext: String = ""): JSONObject {
         val messages = JSONArray()
-        if (request.system.isNotBlank()) messages.put(JSONObject().put("role", "system").put("content", request.system))
+        val system = listOf(request.system, searchContext.takeIf { it.isNotBlank() }?.let { "[Web search results from DeepSeek Search]\n$it" })
+            .filter { !it.isNullOrBlank() }.joinToString("\n\n")
+        if (system.isNotBlank()) messages.put(JSONObject().put("role", "system").put("content", system))
         request.turns.forEach { turn ->
             val assistant = turn.role == "assistant"
             if (assistant) {

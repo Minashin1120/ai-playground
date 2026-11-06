@@ -62,12 +62,13 @@ class ComposerRulesTest {
         assertEquals(true, grok.thinking.forced)
     }
 
-    @Test fun deepSeekForcesSearchOffAndFallsBackToHighEffort() {
+    @Test fun deepSeekSupportsSearchAndFallsBackToHighEffort() {
         val rules = composerRules("deepseek-v4-pro", mcpEnabledServer = false)
         assertFalse(rules.effort.visible)
         assertTrue(rules.effortAsThinking)
-        assertEquals(false, rules.search.forced)
-        assertTrue(rules.search.disabled)
+        assertNull(rules.search.forced)
+        assertFalse(rules.search.disabled)
+        assertFalse(rules.search.dimmed)
         assertEquals("high", rules.effortFallback)
         assertEquals("high", rules.thinkingFallback)
         assertFalse(rules.effortOptions.contains("low"))

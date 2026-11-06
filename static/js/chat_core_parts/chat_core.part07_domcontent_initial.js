@@ -636,11 +636,8 @@
                     // V4.1 Flash handles images natively; only text-only DeepSeek models need the vision-model notice.
                     const vmi = get('vision-model-info');
                     if (vmi) vmi.classList.toggle('hidden', modelLower === 'deepseek-v4.1-flash' || modelLower === 'deepseek-v4-flash-vision-exp');
-                    if (searchChk) {
-                        searchChk.checked = false;
-                        searchChk.disabled = true;
-                    }
-                    if (searchCont) searchCont.classList.add('opacity-50', 'pointer-events-none');
+                    if (searchChk) searchChk.disabled = false;
+                    if (searchCont) searchCont.classList.remove('opacity-50', 'pointer-events-none');
                     if (urlCont) {
                         const urlChk = get('enable-url-context');
                         if (urlChk) urlChk.checked = false;
@@ -691,7 +688,7 @@
                         pyChk.disabled = true;
                         pyCont.classList.add('opacity-50', 'pointer-events-none');
                     }
-                } else if (searchChk && !model.includes('tts') && !isOcr && !isDeepSeek && !isNanoBanana2Lite) {
+                } else if (searchChk && !model.includes('tts') && !isOcr && !isNanoBanana2Lite) {
                     searchChk.disabled = false;
                 }
                 if (isGeminiCyber) {

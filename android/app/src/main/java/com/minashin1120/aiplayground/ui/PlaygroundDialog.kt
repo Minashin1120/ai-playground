@@ -142,6 +142,15 @@ internal fun WebModalWindow(blur: Dp = 10.dp) {
     DisposableEffect(view) {
         val window = (view.parent as? DialogWindowProvider)?.window
         window?.setDimAmount(0f)
+        // Compose's Dialog window is MATCH_PARENT x WRAP_CONTENT when
+        // usePlatformDefaultWidth=false. With AnimatedVisibility as the first
+        // content, the height can be fixed to the first (zero-height) measure on
+        // a cold/emulated device, leaving a full-height panel collapsed. Pin the
+        // dialog window to the screen so every Web modal lays out at full size.
+        window?.setLayout(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+        )
         if (window != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             runCatching { window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND) }
         }

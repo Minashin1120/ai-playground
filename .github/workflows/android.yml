@@ -107,34 +107,6 @@ jobs:
           bash android/ci/verify-keystore.sh
       - name: Install Android SDK components
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;36.0.0"'
-      - name: Select HTML preview device checks
-        id: preview_scope
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]] || git diff --name-only HEAD^ HEAD | grep -E '^(android/app/src/(main/(java/com/minashin1120/aiplayground/ui/(HtmlCodePreviewDialog|MarkdownText|PlaygroundDialog|PlaygroundMotion|PlaygroundTheme)\.kt|assets/html-preview-security\.js)|androidTest/.*)|android/app/build\.gradle\.kts|android/ci/test-html-preview-device\.sh)$' > /dev/null; then
-            echo 'enabled=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'enabled=false' >> "$GITHUB_OUTPUT"
-          fi
-      - name: HTML preview on Android 35
-        if: steps.preview_scope.outputs.enabled == 'true'
-        working-directory: android
-        run: HTML_PREVIEW_API=35 bash ci/test-html-preview-device.sh
-      - name: HTML preview on Android 37
-        if: steps.preview_scope.outputs.enabled == 'true'
-        working-directory: android
-        run: HTML_PREVIEW_API=37.0 bash ci/test-html-preview-device.sh
-      - name: HTML preview device reports
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: html-preview-device
-          path: |
-            ${{ runner.temp }}/html-preview-device/
-            android/app/build/reports/androidTests/
-          if-no-files-found: ignore
-          retention-days: 14
       - name: Unit tests, lint and debug APK
         working-directory: android
         env:
@@ -175,6 +147,37 @@ jobs:
           tail -n 40 "$RUNNER_TEMP/android-build.log"
       - name: Verify APK signature
         run: bash android/ci/verify-apk.sh app/build/outputs/apk/debug/app-debug.apk
+      # Device tests run after compile/lint so a code error fails fast instead of
+      # after the slower emulator boots. The script retries once on transient
+      # WebView/emulator failures.
+      - name: Select HTML preview device checks
+        id: preview_scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]] || git diff --name-only HEAD^ HEAD | grep -E '^(android/app/src/(main/(java/com/minashin1120/aiplayground/ui/(HtmlCodePreviewDialog|MarkdownText|PlaygroundDialog|PlaygroundMotion|PlaygroundTheme)\.kt|assets/html-preview-security\.js)|androidTest/.*)|android/app/build\.gradle\.kts|android/ci/test-html-preview-device\.sh)$' > /dev/null; then
+            echo 'enabled=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'enabled=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: HTML preview on Android 35
+        if: steps.preview_scope.outputs.enabled == 'true'
+        working-directory: android
+        run: HTML_PREVIEW_API=35 bash ci/test-html-preview-device.sh
+      - name: HTML preview on Android 37
+        if: steps.preview_scope.outputs.enabled == 'true'
+        working-directory: android
+        run: HTML_PREVIEW_API=37.0 bash ci/test-html-preview-device.sh
+      - name: HTML preview device reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: html-preview-device
+          path: |
+            ${{ runner.temp }}/html-preview-device/
+            android/app/build/reports/androidTests/
+          if-no-files-found: ignore
+          retention-days: 14
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: app-debug

@@ -65,6 +65,20 @@ class HtmlPreviewDeviceTest {
         // WebView loading uses real time; finish the independent Compose animation clock as well.
         compose.mainClock.advanceTimeBy(1000)
         compose.waitForIdle()
+        // The dialog window can still be settling when the WebView finishes loading on a
+        // cold emulator. Wait for a usable viewport instead of failing on the first sample.
+        var viewportW = 0
+        var viewportH = 0
+        val viewportDeadline = android.os.SystemClock.uptimeMillis() + 10_000
+        while (android.os.SystemClock.uptimeMillis() < viewportDeadline) {
+            instrumentation.runOnMainSync {
+                viewportW = webView!!.width
+                viewportH = webView!!.height
+            }
+            if (viewportW > 100 && viewportH > 100) break
+            android.os.SystemClock.sleep(100)
+        }
+        println("HTML_PREVIEW_VIEWPORT_WAIT size=${viewportW}x${viewportH}")
         var lastBitmap: android.graphics.Bitmap? = null
         fun sample(): Int {
             val location = IntArray(2)

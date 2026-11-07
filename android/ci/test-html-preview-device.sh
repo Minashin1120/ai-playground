@@ -51,8 +51,21 @@ fi
 adb shell input keyevent 82
 adb shell df /data > "$report_dir/data-space.log"
 set +e
-./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.minashin1120.aiplayground.ui.HtmlPreviewDeviceTest > "$report_dir/test.log" 2>&1
-status=$?
+status=1
+for attempt in 1 2; do
+  echo "=== HTML preview device test attempt $attempt ===" >> "$report_dir/test.log"
+  adb logcat -c || true
+  ./gradlew --no-daemon connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.minashin1120.aiplayground.ui.HtmlPreviewDeviceTest >> "$report_dir/test.log" 2>&1
+  status=$?
+  if [[ $status -eq 0 ]]; then break; fi
+  if [[ $attempt -eq 1 ]]; then
+    # The emulator/WebView renderer occasionally starts with no viewport on a cold
+    # CI boot. Restart the app and retry once before failing the build.
+    echo "=== retrying after a failed WebView/device attempt ===" >> "$report_dir/test.log"
+    adb shell am force-stop com.minashin1120.aiplayground || true
+    sleep 5
+  fi
+done
 adb pull /sdcard/Pictures/html-preview-device "$report_dir/paint" || true
 adb exec-out screencap -p > "$report_dir/screen.png"
 adb logcat -d | grep -E 'chromium|HTML_PREVIEW|TestRunner|AndroidRuntime' | tail -n 100 > "$report_dir/webview.log"

@@ -62,4 +62,20 @@ class QuoteNavigationTest {
         val messages = listOf(ChatMessage("101", "user", "自分の本文"))
         org.junit.Assert.assertNull(findQuotedMessageIndex(messages, beforeIndex = 0, quote = "自分の本文"))
     }
+
+    @Test fun theQuoteRangeIsTheSelectedTextInAPlainBubble() {
+        val text = "前の文です。引用されたテキストです。後の文です。"
+        val range = findQuoteRange(text, "引用されたテキストです。")
+        assertEquals("引用されたテキストです。", text.substring(range!!.first, range.last + 1))
+    }
+
+    @Test fun theQuoteRangeSkipsMarkdownMarkersAndWrappedLines() {
+        val text = "同じ **太字** の部分と\n改行した部分"
+        val range = findQuoteRange(text, "太字 の部分と 改行した部分")
+        assertEquals("太字** の部分と\n改行した部分", text.substring(range!!.first, range.last + 1))
+    }
+
+    @Test fun aQuoteThatIsNotInTheBubbleHasNoRange() {
+        org.junit.Assert.assertNull(findQuoteRange("別の文章", "引用元にない文"))
+    }
 }

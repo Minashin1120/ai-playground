@@ -5805,7 +5805,7 @@
             if (quoteText) {
                 currentQuote = quoteText;
                 currentQuoteMessageId = null;
-                get('quote-text-display').innerText = currentQuote;
+                renderQuoteBarContent(currentQuote);
                 get('quote-bar').classList.add('visible');
             } else {
                 clearQuote();
@@ -7776,8 +7776,31 @@
             return null;
         }
 
+        // Render the quote bar as the formatting the selected text had: emphasis,
+        // inline code, links and math are drawn instead of their Markdown/TeX source.
+        // Block markers stay literal because the bar is a single-line preview.
+        function renderQuoteBarContent(text) {
+            const display = get('quote-text-display');
+            if (!display) return;
+            const source = String(text || '');
+            display.innerHTML = sanitizeMarkdownHtml(source, { inline: true });
+            // The preview is not a navigation target; keep the text on the bar.
+            display.querySelectorAll('a').forEach((link) => link.removeAttribute('href'));
+            // Attachments, code-block controls and media belong to the message body,
+            // not to a one-line quote preview.
+            display.querySelectorAll('img').forEach((img) => {
+                img.replaceWith(document.createTextNode(img.getAttribute('alt') || ''));
+            });
+            display.querySelectorAll('.code-wrapper').forEach((wrapper) => {
+                wrapper.replaceWith(document.createTextNode(wrapper.textContent || ''));
+            });
+            display.querySelectorAll('button, svg, video, audio, pre').forEach((el) => el.remove());
+            if (maybeNeedsMathJax(source)) queueMathTypeset(display, source);
+        }
+
         function showQuotePreview(text) {
             const bar = get('quote-bar');
+            const changed = quotePreviewText !== text;
             quotePreviewText = text;
             quotePreviewMessageId = getSelectionMessageId();
             // A new pending quote supersedes any already-applied quote so the
@@ -7787,7 +7810,7 @@
                 currentQuoteMessageId = null;
                 bar.classList.add('preview');
             }
-            get('quote-text-display').innerText = text;
+            if (changed || !bar.classList.contains('visible')) renderQuoteBarContent(text);
             bar.classList.add('visible');
             schedulePromptTokenEstimate();
         }
@@ -7840,7 +7863,7 @@
             currentQuote = window.getSelection().toString().trim();
             currentQuoteMessageId = currentQuote ? getSelectionMessageId() : null;
             if(currentQuote) {
-                get('quote-text-display').innerText = currentQuote;
+                renderQuoteBarContent(currentQuote);
                 get('quote-bar').classList.add('visible');
                 get('prompt-input').focus();
             }
@@ -19812,6 +19835,13 @@
             }
             // marked が \( \[ のバックスラッシュを落とすため、数式を退避してから parse する
             const protectedMath = protectMathSegments(source);
+            const inline = opts.inline === true && typeof window.marked.parseInline === 'function';
+            if (inline) {
+                // 1行のプレビューでも箇条書きや見出しの記号をそのまま出さず、強調・
+                // インラインコード・数式だけを描けるよう、ブロック要素を作らない。
+                return window.DOMPurify.sanitize(restoreMathSegments(
+                    window.marked.parseInline(protectedMath.text), protectedMath.blocks, opts));
+            }
             // ストリーミング中の閉じていない SVG コードブロックは描画しない（コードの renderer が参照する）
             markdownOpenFenceBody = /<\/svg/i.test(source) ? findOpenMarkdownFenceBody(source) : null;
             let parsed = '';
@@ -27663,7 +27693,7 @@
                     if (!currentQuote && saved.quote) {
                         currentQuote = saved.quote;
                         currentQuoteMessageId = saved.quoteId;
-                        get('quote-text-display').innerText = saved.quote;
+                        renderQuoteBarContent(saved.quote);
                         get('quote-bar').classList.add('visible');
                     }
                     if (!uploadProgressState.total) uploadProgressState = saved.progress;

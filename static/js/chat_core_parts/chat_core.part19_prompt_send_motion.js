@@ -76,7 +76,7 @@
                     if (!currentQuote && saved.quote) {
                         currentQuote = saved.quote;
                         currentQuoteMessageId = saved.quoteId;
-                        get('quote-text-display').innerText = saved.quote;
+                        renderQuoteBarContent(saved.quote);
                         get('quote-bar').classList.add('visible');
                     }
                     if (!uploadProgressState.total) uploadProgressState = saved.progress;

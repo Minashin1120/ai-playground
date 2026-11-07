@@ -56,6 +56,43 @@ internal fun findQuotedMessageIndex(messages: List<ChatMessage>, beforeIndex: In
 private val MARKDOWN_LINK = Regex("!?\\[([^\\]]*)]\\([^)]*\\)")
 private val MARKDOWN_MARKERS = Regex("[*_`~#>]+")
 private val WHITESPACE = Regex("\\s+")
+private const val MARKDOWN_MARKER_CHARS = "*_`~#>"
+
+/**
+ * The range in a bubble's rendered [text] that [quote] came from, used to flash the quoted text
+ * after the jump. The exact selection usually matches a stored user message; an answer goes through
+ * Markdown, so fall back to [normalizeQuoteMatch] and map the match back to the original offsets.
+ */
+internal fun findQuoteRange(text: String, quote: String): IntRange? {
+    val needle = quote.trim()
+    if (needle.isEmpty() || text.isEmpty()) return null
+    val exact = text.indexOf(needle)
+    if (exact >= 0) return exact until exact + needle.length
+    val normalized = normalizeQuoteMatch(needle)
+    if (normalized.isEmpty()) return null
+    val builder = StringBuilder(text.length)
+    val origin = ArrayList<Int>(text.length)
+    text.forEachIndexed { index, c ->
+        when {
+            c.isWhitespace() -> if (builder.isNotEmpty() && builder.last() != ' ') {
+                builder.append(' '); origin += index
+            }
+            c in MARKDOWN_MARKER_CHARS -> Unit
+            else -> {
+                builder.append(c); origin += index
+            }
+        }
+    }
+    val flat = builder.toString()
+    val lead = flat.indexOfFirst { !it.isWhitespace() }
+    if (lead < 0) return null
+    val trailing = flat.indexOfLast { !it.isWhitespace() }
+    val found = flat.indexOf(normalized, lead)
+    if (found < 0 || found + normalized.length - 1 > trailing) return null
+    val start = origin[found]
+    val last = origin[found + normalized.length - 1]
+    return start until last + 1
+}
 
 /** Compare what the reader selected with the stored Markdown, ignoring markers and line wrapping. */
 internal fun normalizeQuoteMatch(text: String): String =

@@ -10,6 +10,15 @@ class MarkdownTextTest {
         assertEquals(listOf("x^2", "y"), parsed.math.map { it.tex })
     }
 
+    @Test fun quoteBarTextParsesInlineMarkdownAndMath() {
+        val colors = markdownColorsFor(webPalette(light = false, themeColor = null))
+        val parsed = parseInlineMarkdown("**強調** と `code` と \\\\(x^2\\\\)", colors)
+        assertTrue(parsed.text.text.contains("強調"))
+        assertFalse(parsed.text.text.contains("**"))
+        assertFalse(parsed.text.text.contains("`code`"))
+        assertEquals(listOf("x^2"), parsed.math.map { it.tex })
+    }
+
     @Test fun parsesHeadingsQuotesListsAndCodeWithoutExecutingMarkup() {
         val blocks = parseMarkdownBlocks("""# 見出し
 

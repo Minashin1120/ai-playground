@@ -551,6 +551,23 @@ class ModalPerformanceRegressionTests(unittest.TestCase):
         # clearQuote must also reset the pending preview so no stale state remains.
         self.assertIn('quotePreviewText = "";', js)
 
+    def test_quote_preview_renders_inline_markdown_and_math(self):
+        # V4.8: the quote preview used to assign the selection with innerText, so
+        # Markdown emphasis/code and TeX stayed literal. It is now parsed inline and
+        # typeset, while block markers are left alone because the bar is one line.
+        js = _current_asset("js", "chat_core.v4.8.*.js")
+        self.assertIn("function renderQuoteBarContent(text)", js)
+        self.assertIn("sanitizeMarkdownHtml(source, { inline: true })", js)
+        self.assertIn("if (maybeNeedsMathJax(source)) queueMathTypeset(display, source)", js)
+        self.assertIn("renderQuoteBarContent(currentQuote)", js)
+        self.assertIn("renderQuoteBarContent(saved.quote)", js)
+        self.assertIn("opts.inline === true", js)
+        self.assertIn("window.marked.parseInline(protectedMath.text)", js)
+
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+        self.assertIn(".quote-text mjx-container", css)
+        self.assertIn(".quote-text code", css)
+
 
 if __name__ == "__main__":
     unittest.main()

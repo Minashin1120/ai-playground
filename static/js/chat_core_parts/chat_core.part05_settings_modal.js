@@ -643,8 +643,31 @@
             return null;
         }
 
+        // Render the quote bar as the formatting the selected text had: emphasis,
+        // inline code, links and math are drawn instead of their Markdown/TeX source.
+        // Block markers stay literal because the bar is a single-line preview.
+        function renderQuoteBarContent(text) {
+            const display = get('quote-text-display');
+            if (!display) return;
+            const source = String(text || '');
+            display.innerHTML = sanitizeMarkdownHtml(source, { inline: true });
+            // The preview is not a navigation target; keep the text on the bar.
+            display.querySelectorAll('a').forEach((link) => link.removeAttribute('href'));
+            // Attachments, code-block controls and media belong to the message body,
+            // not to a one-line quote preview.
+            display.querySelectorAll('img').forEach((img) => {
+                img.replaceWith(document.createTextNode(img.getAttribute('alt') || ''));
+            });
+            display.querySelectorAll('.code-wrapper').forEach((wrapper) => {
+                wrapper.replaceWith(document.createTextNode(wrapper.textContent || ''));
+            });
+            display.querySelectorAll('button, svg, video, audio, pre').forEach((el) => el.remove());
+            if (maybeNeedsMathJax(source)) queueMathTypeset(display, source);
+        }
+
         function showQuotePreview(text) {
             const bar = get('quote-bar');
+            const changed = quotePreviewText !== text;
             quotePreviewText = text;
             quotePreviewMessageId = getSelectionMessageId();
             // A new pending quote supersedes any already-applied quote so the
@@ -654,7 +677,7 @@
                 currentQuoteMessageId = null;
                 bar.classList.add('preview');
             }
-            get('quote-text-display').innerText = text;
+            if (changed || !bar.classList.contains('visible')) renderQuoteBarContent(text);
             bar.classList.add('visible');
             schedulePromptTokenEstimate();
         }
@@ -707,7 +730,7 @@
             currentQuote = window.getSelection().toString().trim();
             currentQuoteMessageId = currentQuote ? getSelectionMessageId() : null;
             if(currentQuote) {
-                get('quote-text-display').innerText = currentQuote;
+                renderQuoteBarContent(currentQuote);
                 get('quote-bar').classList.add('visible');
                 get('prompt-input').focus();
             }

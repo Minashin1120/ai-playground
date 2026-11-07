@@ -1586,6 +1586,16 @@ private fun ConversationContent(
     SideEffect { sendMotion?.following = follow.following }
     DisposableEffect(follow) { onDispose { sendMotion?.finish() } }
     val quoteFocusManager = LocalFocusManager.current
+    // The row the last quote jump landed on and the selection to flash there; the token restarts it.
+    var quoteFlashRow by remember(state.chatNavigationId) { mutableStateOf<String?>(null) }
+    var quoteFlashText by remember(state.chatNavigationId) { mutableStateOf("") }
+    var quoteFlashToken by remember(state.chatNavigationId) { mutableLongStateOf(0L) }
+    fun markQuoteFlash(row: Int, quote: String?) {
+        if (quote.isNullOrBlank()) return
+        quoteFlashRow = state.messages.getOrNull(row)?.let { keys.keyAt(row, it) } ?: keys.liveKey
+        quoteFlashText = quote.trim()
+        quoteFlashToken += 1
+    }
     /** Shared by the composer quote bar and a sent message's quote strip. */
     suspend fun scrollToQuoteRow(row: Int, offset: Int) {
         quoteFocusManager.clearFocus()
@@ -1593,13 +1603,17 @@ private fun ConversationContent(
         val index = row + (if (loadingThread) 1 else 0) + (if (state.hasOlder) 1 else 0)
         if (reduce) scroll.scrollToItem(index, offset) else scroll.animateScrollToItem(index, offset)
     }
-    fun requestQuoteRow(row: Int, offset: Int = 0) {
+    fun requestQuoteRow(row: Int, offset: Int = 0, quote: String? = null) {
         val op = java.util.UUID.randomUUID().toString()
         fun trace(phase: String) = com.minashin1120.aiplayground.data.ActivityLog.log("ui.interaction",
             "op" to op, "ui_element" to "message", "interaction_stage" to "scroll", "phase" to phase)
         trace("start")
         scope.launch {
-            try { scrollToQuoteRow(row, offset); trace("done") }
+            try {
+                scrollToQuoteRow(row, offset)
+                trace("done")
+                markQuoteFlash(row, quote)
+            }
             catch (e: CancellationException) { trace("cancelled"); throw e }
             catch (e: Exception) { trace("error") }
         }
@@ -1621,6 +1635,7 @@ private fun ConversationContent(
         try {
             scrollToQuoteRow(row, state.quoteSourceScrollOffset)
             trace("done")
+            markQuoteFlash(row, state.quote)
         } catch (e: CancellationException) { trace("cancelled"); throw e }
         catch (e: Exception) { trace("error") }
     }
@@ -1737,18 +1752,19 @@ private fun ConversationContent(
                 }
             }
             itemsIndexed(state.messages, key = { row, message -> keys.keyAt(row, message) }) { row, message ->
-                val entering = remember { keys.consumeFresh(keys.keyAt(row, message)) }
+                val rowKey = keys.keyAt(row, message)
+                val entering = remember { keys.consumeFresh(rowKey) }
                 val siblings = siblingGroup(state.allMessages, message)
                 val index = siblings.indexOfFirst { it.id == message.id }
                 Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
-                    ConversationMessageEntry(keys.keyAt(row, message), answer = message.role == "assistant",
+                    ConversationMessageEntry(rowKey, answer = message.role == "assistant",
                         animate = entering && message.id != state.promptSendMotionId, answers = answerMotions) {
                         // Web sends `quote_message_id`: a selection inside this bubble remembers which message it came from.
                         ProvideQuoteSelection({ quoted ->
                             // Preserve the visible part of a long answer, rather than returning to its heading.
-                            val offset = scroll.layoutInfo.visibleItemsInfo.firstOrNull { it.key == keys.keyAt(row, message) }
+                            val offset = scroll.layoutInfo.visibleItemsInfo.firstOrNull { it.key == rowKey }
                                 ?.offset?.let { -it } ?: 0
-                            model.quoteMessage(quoted, numericId(message), keys.keyAt(row, message), offset)
+                            model.quoteMessage(quoted, numericId(message), rowKey, offset)
                         }) {
                         MessageBubble(
                             message = message,
@@ -1756,8 +1772,10 @@ private fun ConversationContent(
                             onFile = onFile,
                             loader = loader,
                             onQuoteJump = if (message.quote.isBlank()) null else {
-                                { findQuotedMessageIndex(state.messages, row, message.quote)?.let { requestQuoteRow(it) } }
+                                { findQuotedMessageIndex(state.messages, row, message.quote)?.let { requestQuoteRow(it, quote = message.quote) } }
                             },
+                            flashToken = if (quoteFlashRow == rowKey) quoteFlashToken else 0L,
+                            flashQuote = if (quoteFlashRow == rowKey) quoteFlashText else null,
                             actions = MessageActions(
                                 onEdit = actions.onEdit, onRegenerate = actions.onRegenerate, onDelete = actions.onDelete, onBranch = actions.onBranch,
                                 canBranch = !state.busy && !state.streaming && !state.branchBusy,

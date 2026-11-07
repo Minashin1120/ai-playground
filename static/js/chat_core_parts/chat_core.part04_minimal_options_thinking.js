@@ -484,7 +484,7 @@
             if (quoteText) {
                 currentQuote = quoteText;
                 currentQuoteMessageId = null;
-                get('quote-text-display').innerText = currentQuote;
+                renderQuoteBarContent(currentQuote);
                 get('quote-bar').classList.add('visible');
             } else {
                 clearQuote();

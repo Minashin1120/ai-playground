@@ -1867,16 +1867,16 @@ get("file-preview").classList.remove("hidden"),get("file-name").innerText=`${cur
  files ready`):(currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value=
 "")}catch{currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value=""}else
 currentImageUrls=[],get("file-preview").classList.add("hidden"),get("file-input").value="";const c=a?
-a.quote_text:o.quote_text;c?(currentQuote=c,currentQuoteMessageId=null,get("quote-text-display").innerText=
-currentQuote,get("quote-bar").classList.add("visible")):clearQuote(),schedulePromptTokenEstimate(!0),
-t&&sendMessage()}r(beginEditMessage,"beginEditMessage");function playSendAnimation(){const e=get("se\
-nd-btn");e&&(e.classList.remove("fly"),e.offsetWidth,e.classList.add("fly"))}r(playSendAnimation,"pl\
-aySendAnimation");function setSendBtnToStopMode(){const e=get("send-btn");if(!e)return;e.onclick=stopGeneration,
-isStopMode=!0,e.disabled=!1;const t=r(()=>{!e||!isStopMode||(e.classList.add("stop-mode"),e.innerHTML=
-'<span style="font-size:20px;line-height:1;color:#fff;">\u25A0</span>',e.classList.add("btn-swap"),setTimeout(
-()=>e.classList.remove("btn-swap"),300))},"applyStopUi");if(e.classList.contains("fly")){const n=r(i=>{
-i.animationName==="sendBtnPop"&&(e.removeEventListener("animationend",n),t())},"onEnd");e.addEventListener(
-"animationend",n),setTimeout(t,700)}else t()}r(setSendBtnToStopMode,"setSendBtnToStopMode");function setSendBtnToSendMode(){
+a.quote_text:o.quote_text;c?(currentQuote=c,currentQuoteMessageId=null,renderQuoteBarContent(currentQuote),
+get("quote-bar").classList.add("visible")):clearQuote(),schedulePromptTokenEstimate(!0),t&&sendMessage()}
+r(beginEditMessage,"beginEditMessage");function playSendAnimation(){const e=get("send-btn");e&&(e.classList.
+remove("fly"),e.offsetWidth,e.classList.add("fly"))}r(playSendAnimation,"playSendAnimation");function setSendBtnToStopMode(){
+const e=get("send-btn");if(!e)return;e.onclick=stopGeneration,isStopMode=!0,e.disabled=!1;const t=r(
+()=>{!e||!isStopMode||(e.classList.add("stop-mode"),e.innerHTML='<span style="font-size:20px;line-he\
+ight:1;color:#fff;">\u25A0</span>',e.classList.add("btn-swap"),setTimeout(()=>e.classList.remove("bt\
+n-swap"),300))},"applyStopUi");if(e.classList.contains("fly")){const n=r(i=>{i.animationName==="send\
+BtnPop"&&(e.removeEventListener("animationend",n),t())},"onEnd");e.addEventListener("animationend",n),
+setTimeout(t,700)}else t()}r(setSendBtnToStopMode,"setSendBtnToStopMode");function setSendBtnToSendMode(){
 const e=get("send-btn");e&&(e.classList.remove("stop-mode","fly","btn-swap"),e.innerHTML='<i class="\
 fas fa-paper-plane"></i>',e.classList.add("btn-swap"),setTimeout(()=>e.classList.remove("btn-swap"),
 300),e.onclick=sendMessage,isStopMode=!1)}r(setSendBtnToSendMode,"setSendBtnToSendMode");async function stopGeneration(){
@@ -2357,11 +2357,17 @@ n&&n(a)}}}r(copyToClipboard,"copyToClipboard");const isQuoteMobileLayout=r(()=>w
 ax-width: 768px)").matches,"isQuoteMobileLayout");let quotePreviewText="",quotePreviewMessageId=null;
 function getSelectionMessageId(){try{const e=window.getSelection();let t=e&&e.anchorNode;for(t&&t.nodeType!==
 1&&(t=t.parentElement);t;){const n=/^msg-(\d+)$/.exec(t.id||"");if(n)return Number(n[1]);t=t.parentElement}}catch{}
-return null}r(getSelectionMessageId,"getSelectionMessageId");function showQuotePreview(e){const t=get(
-"quote-bar");quotePreviewText=e,quotePreviewMessageId=getSelectionMessageId(),t.classList.contains("\
-preview")||(currentQuote="",currentQuoteMessageId=null,t.classList.add("preview")),get("quote-text-d\
-isplay").innerText=e,t.classList.add("visible"),schedulePromptTokenEstimate()}r(showQuotePreview,"sh\
-owQuotePreview");function handleQuotePopover(){const e=window.getSelection(),t=get("quote-popover");
+return null}r(getSelectionMessageId,"getSelectionMessageId");function renderQuoteBarContent(e){const t=get(
+"quote-text-display");if(!t)return;const n=String(e||"");t.innerHTML=sanitizeMarkdownHtml(n,{inline:!0}),
+t.querySelectorAll("a").forEach(i=>i.removeAttribute("href")),t.querySelectorAll("img").forEach(i=>{
+i.replaceWith(document.createTextNode(i.getAttribute("alt")||""))}),t.querySelectorAll(".code-wrappe\
+r").forEach(i=>{i.replaceWith(document.createTextNode(i.textContent||""))}),t.querySelectorAll("butt\
+on, svg, video, audio, pre").forEach(i=>i.remove()),maybeNeedsMathJax(n)&&queueMathTypeset(t,n)}r(renderQuoteBarContent,
+"renderQuoteBarContent");function showQuotePreview(e){const t=get("quote-bar"),n=quotePreviewText!==
+e;quotePreviewText=e,quotePreviewMessageId=getSelectionMessageId(),t.classList.contains("preview")||
+(currentQuote="",currentQuoteMessageId=null,t.classList.add("preview")),(n||!t.classList.contains("v\
+isible"))&&renderQuoteBarContent(e),t.classList.add("visible"),schedulePromptTokenEstimate()}r(showQuotePreview,
+"showQuotePreview");function handleQuotePopover(){const e=window.getSelection(),t=get("quote-popover");
 if(!t)return;const n=isQuoteMobileLayout();if(!e||e.rangeCount===0||document.querySelector(".modal-o\
 pen, .modal-prep")){t.style.display="none",t.classList.remove("show");return}const i=e.toString().trim();
 if(i.length>0&&get("chat-container").contains(e.anchorNode)){if(n){showQuotePreview(i);return}const o=e.
@@ -2372,14 +2378,14 @@ remove("show")}r(handleQuotePopover,"handleQuotePopover"),document.addEventListe
 document.addEventListener("touchend",()=>setTimeout(handleQuotePopover,0),{passive:!0}),document.addEventListener(
 "selectionchange",()=>{window.getSelection&&window.getSelection().type==="Range"&&handleQuotePopover()}),
 get("quote-popover").onclick=()=>{currentQuote=window.getSelection().toString().trim(),currentQuoteMessageId=
-currentQuote?getSelectionMessageId():null,currentQuote&&(get("quote-text-display").innerText=currentQuote,
-get("quote-bar").classList.add("visible"),get("prompt-input").focus()),schedulePromptTokenEstimate();
-const e=get("quote-popover");e&&(e.style.display="none",e.classList.remove("show"))},get("quote-conf\
-irm-btn").onclick=()=>{if(!quotePreviewText)return;currentQuote=quotePreviewText,currentQuoteMessageId=
-quotePreviewMessageId,quotePreviewText="",quotePreviewMessageId=null,get("quote-bar").classList.remove(
-"preview"),get("prompt-input").focus(),schedulePromptTokenEstimate()},window.clearQuote=()=>{currentQuote=
-"",currentQuoteMessageId=null,quotePreviewText="",quotePreviewMessageId=null;const e=get("quote-bar");
-e.classList.remove("preview"),e.classList.remove("visible"),get("quote-text-display").innerText="",schedulePromptTokenEstimate()};
+currentQuote?getSelectionMessageId():null,currentQuote&&(renderQuoteBarContent(currentQuote),get("qu\
+ote-bar").classList.add("visible"),get("prompt-input").focus()),schedulePromptTokenEstimate();const e=get(
+"quote-popover");e&&(e.style.display="none",e.classList.remove("show"))},get("quote-confirm-btn").onclick=
+()=>{if(!quotePreviewText)return;currentQuote=quotePreviewText,currentQuoteMessageId=quotePreviewMessageId,
+quotePreviewText="",quotePreviewMessageId=null,get("quote-bar").classList.remove("preview"),get("pro\
+mpt-input").focus(),schedulePromptTokenEstimate()},window.clearQuote=()=>{currentQuote="",currentQuoteMessageId=
+null,quotePreviewText="",quotePreviewMessageId=null;const e=get("quote-bar");e.classList.remove("pre\
+view"),e.classList.remove("visible"),get("quote-text-display").innerText="",schedulePromptTokenEstimate()};
 const MODELS=[{category:"Gemini 4 / 3.8 / 3.7 / 3.6 / 3.5",icon:"fas fa-star text-yellow-400",description:"\
 Google's latest multimodal models",items:[{id:"gemini-4-argon",implementedAt:"2026-10-16",implementedRank:10921,
 quickEmoji:"\u269B\uFE0F",name:"Gemini 4 Argon",desc:"Flagship reasoning model for complex coding, a\

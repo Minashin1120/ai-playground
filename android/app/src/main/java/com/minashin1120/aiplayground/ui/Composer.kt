@@ -413,11 +413,20 @@ private fun QuoteBar(text: String, canNavigate: Boolean, onNavigate: () -> Unit,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             FaIcon(R.drawable.fa_solid_quote_left, null, size = 11.dp, tint = web.theme300)
-            Text(
-                text.replace('\n', ' '),
-                fontSize = 12.sp, fontStyle = FontStyle.Italic, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                color = if (web.isLight) web.text else Color(0xFFCBD5F5),
-                modifier = Modifier.weight(1f),
+            // Web renders the quote bar's Markdown (emphasis, inline code) and math,
+            // so the same text is parsed inline here instead of being shown literally.
+            val colors = markdownColors()
+            InlineRichText(
+                parseInlineMarkdown(text.replace('\n', ' '), colors),
+                TextStyle(
+                    fontSize = 12.sp, fontStyle = FontStyle.Italic,
+                    color = if (web.isLight) web.text else Color(0xFFCBD5F5),
+                ),
+                colors.inlineCodeBackground,
+                Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                selectable = false,
             )
         }
         BarClose("引用を解除", onClear)

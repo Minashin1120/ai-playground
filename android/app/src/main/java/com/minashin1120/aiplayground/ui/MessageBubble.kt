@@ -1,8 +1,10 @@
 package com.minashin1120.aiplayground.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -152,6 +154,9 @@ internal fun MessageBubble(
     liveBottom: (@Composable () -> Unit)? = null,
     /** Tapping the quote strip at the top of the bubble returns to the quoted message. */
     onQuoteJump: (() -> Unit)? = null,
+    /** A rising token starts the post-jump flash of [flashQuote] inside this bubble. */
+    flashToken: Long = 0L,
+    flashQuote: String? = null,
     /** The reasoning placeholder is shown collapsed (`.thought-content.collapsed`). */
     thoughtCollapsed: Boolean = false,
     preserveLiveLayout: Boolean = false,
@@ -182,6 +187,21 @@ internal fun MessageBubble(
         else -> Color.White.copy(alpha = 0.06f)
     }
     val textColor = if (user) web.textInverse else if (web.isLight) web.text else Color.White
+    // After a quote jump the quoted text flashes twice (once with reduced motion) so the reader sees
+    // where the selection landed. The bubble tints faintly as a fallback for quotes inside code or
+    // spanning several Markdown blocks, where the text range cannot be highlighted.
+    val flash = remember { Animatable(0f) }
+    val reduceQuoteFlash = LocalReduceMotion.current
+    LaunchedEffect(flashToken) {
+        if (flashToken == 0L || flashQuote.isNullOrBlank()) return@LaunchedEffect
+        flash.snapTo(0f)
+        val pulses = if (reduceQuoteFlash) 1 else 2
+        repeat(pulses) { index ->
+            flash.animateTo(1f, tween(if (reduceQuoteFlash) 260 else 120, easing = LinearEasing))
+            flash.animateTo(0f, tween(if (reduceQuoteFlash) 360 else 200, easing = LinearEasing))
+            if (!reduceQuoteFlash && index == 0) delay(100)
+        }
+    }
     BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = if (user) Alignment.TopEnd else Alignment.TopStart) {
         val maxBubble = maxWidth * (if (maxWidth >= PlaygroundDimens.breakpoint) 0.8f else 0.9f)
         Box(Modifier.widthIn(max = maxBubble)) {
@@ -192,6 +212,7 @@ internal fun MessageBubble(
                         spotColor = Color.Black.copy(alpha = 0.18f)))
                     .clip(shape)
                     .background(background)
+                    .background(QuoteFlashColor.copy(alpha = 0.10f * flash.value))
                     .border(1.dp, border, shape)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onToggleControls)
                     .padding(16.dp),
@@ -214,14 +235,19 @@ internal fun MessageBubble(
                 if (user) {
                     // User messages are shown as raw text (`whitespace-pre-wrap font-sans text-sm`).
                     MessageSelection {
-                        Text(message.content, color = textColor, fontSize = 14.sp, lineHeight = 20.sp, fontFamily = FontFamily.Default)
+                        val body = remember(message.content, flashQuote, flash.value) {
+                            if (flashQuote == null || flash.value <= 0f) AnnotatedString(message.content)
+                            else quoteFlashText(message.content, flashQuote, flash.value)
+                        }
+                        Text(body, color = textColor, fontSize = 14.sp, lineHeight = 20.sp, fontFamily = FontFamily.Default)
                     }
                 } else if (liveSkeleton != null) {
                     liveSkeleton()
                 } else {
                     message.batch?.let { BatchStatusCard(it) }
                     if (display.isNotEmpty()) MarkdownText(com.minashin1120.aiplayground.data.missingFileMarkup(display, message.missingFiles), loader, onFile,
-                        startCollapsed = true, canvasMode = LocalCanvasMode.current)
+                        startCollapsed = true, canvasMode = LocalCanvasMode.current,
+                        flashQuote = flashQuote, flashAlpha = flash.value)
                 }
                 liveBottom?.invoke()
                 val files = message.files.filterNot { !user && message.content.contains(it) }

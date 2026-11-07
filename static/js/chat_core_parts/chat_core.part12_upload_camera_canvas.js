@@ -1182,6 +1182,13 @@
             }
             // marked が \( \[ のバックスラッシュを落とすため、数式を退避してから parse する
             const protectedMath = protectMathSegments(source);
+            const inline = opts.inline === true && typeof window.marked.parseInline === 'function';
+            if (inline) {
+                // 1行のプレビューでも箇条書きや見出しの記号をそのまま出さず、強調・
+                // インラインコード・数式だけを描けるよう、ブロック要素を作らない。
+                return window.DOMPurify.sanitize(restoreMathSegments(
+                    window.marked.parseInline(protectedMath.text), protectedMath.blocks, opts));
+            }
             // ストリーミング中の閉じていない SVG コードブロックは描画しない（コードの renderer が参照する）
             markdownOpenFenceBody = /<\/svg/i.test(source) ? findOpenMarkdownFenceBody(source) : null;
             let parsed = '';

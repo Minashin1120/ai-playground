@@ -681,9 +681,11 @@ put")&&(get("mask-btn").onclick=()=>{if(isIdeogramObjectRemoval()){const e=Array
 const n=String(e||"");if(!window.marked||typeof window.marked.parse!="function"||!window.DOMPurify||
 typeof window.DOMPurify.sanitize!="function")return markdownLibraryFallbackReported||(markdownLibraryFallbackReported=
 !0,console.error("Markdown sanitizer is unavailable; rendering escaped plain text.")),escapeHtml(n).
-replace(/\n/g,"<br>");const i=protectMathSegments(n);markdownOpenFenceBody=/<\/svg/i.test(n)?findOpenMarkdownFenceBody(
-n):null;let a="";try{a=window.marked.parse(i.text)}finally{markdownOpenFenceBody=null}const o=restoreMathSegments(
-a,i.blocks,t);return window.DOMPurify.sanitize(o)}r(sanitizeMarkdownHtml,"sanitizeMarkdownHtml");let markdownOpenFenceBody=null;
+replace(/\n/g,"<br>");const i=protectMathSegments(n);if(t.inline===!0&&typeof window.marked.parseInline==
+"function")return window.DOMPurify.sanitize(restoreMathSegments(window.marked.parseInline(i.text),i.
+blocks,t));markdownOpenFenceBody=/<\/svg/i.test(n)?findOpenMarkdownFenceBody(n):null;let o="";try{o=
+window.marked.parse(i.text)}finally{markdownOpenFenceBody=null}const l=restoreMathSegments(o,i.blocks,
+t);return window.DOMPurify.sanitize(l)}r(sanitizeMarkdownHtml,"sanitizeMarkdownHtml");let markdownOpenFenceBody=null;
 function findOpenMarkdownFenceBody(e){const t=String(e||"").split(/\r?\n/);let n=null,i=[];for(const a of t){
 if(!n){const l=a.match(/^\s*(`{3,}|~{3,})(.*)$/);l&&!(l[1][0]==="`"&&l[2].includes("`"))&&(n=l[1],i=
 []);continue}const o=a.trim();if(o.length>=n.length&&o[0]===n[0]&&/^(`+|~+)$/.test(o)){n=null;continue}
@@ -3417,23 +3419,23 @@ k=E,t.removeEventListener("input",_),E?(!v&&!t.value&&(t.value=h.text,t.style.he
 height=Math.min(t.scrollHeight,150)+"px"),currentImageUrls=Array.from(new Set([...h.images,...currentImageUrls])),
 currentMaskImage||(currentMaskImage=h.mask),h.files.forEach((P,Z)=>browserFastLocalFiles.set(Z,P)),h.
 markers.forEach(P=>markerAppliedUploads.add(P)),n&&n.prepend(...h.rows),y.remove(),!currentQuote&&h.
-quote&&(currentQuote=h.quote,currentQuoteMessageId=h.quoteId,get("quote-text-display").innerText=h.quote,
-get("quote-bar").classList.add("visible")),uploadProgressState.total||(uploadProgressState=h.progress),
-updateFilePreview(),updateMaskPreview(),schedulePromptTokenEstimate(!0)):O&&C())},"finish");return{source:d,
-canRetry:r(()=>!v&&h.navigation===threadLoadSequence,"canRetry"),stopDock:r(()=>S==null?void 0:S.cancel(),
-"stopDock"),files:h.files,releaseFiles:C,accept:r((E=!0)=>T(!1,E),"accept"),restore:r(()=>T(!0),"res\
-tore")}}r(takePromptForSend,"takePromptForSend");function animatePromptToMessage(e,t,n){var y;let i,
-a=0,o=!1;const l=[],c=get("chat-container"),d=get("prompt-input"),m=window.matchMedia("(prefers-redu\
-ced-motion: reduce)"),h=r(()=>{var v,w;o||(o=!0,(v=window.ActivityLog)==null||v.log("ui.hide"),t.stopDock(),
-cancelAnimationFrame(a),l.forEach(k=>k.cancel()),i==null||i.remove(),e==null||e.classList.remove("pr\
-ompt-send-hidden"),window.removeEventListener("resize",h),window.removeEventListener("popstate",h),window.
-removeEventListener("pagehide",h),document.removeEventListener("visibilitychange",h),c==null||c.removeEventListener(
-"wheel",h),c==null||c.removeEventListener("touchstart",h),d==null||d.removeEventListener("input",h),
-(w=window.visualViewport)==null||w.removeEventListener("resize",h),m.removeEventListener("change",h))},
-"stop");if(!n||m.matches||!e||!Element.prototype.animate)return h;try{e.classList.remove("fade-in"),
-e.classList.add("prompt-send-hidden"),a=requestAnimationFrame(()=>{var v;try{if(!e.isConnected)return h();
-const w=e.querySelector(".message-bubble"),k=w.getBoundingClientRect(),_=c.getBoundingClientRect();if(!k.
-width||!k.height||k.bottom<=_.top||k.top>=_.bottom)return h();const S=t.source;i=w.cloneNode(!0),i.removeAttribute(
+quote&&(currentQuote=h.quote,currentQuoteMessageId=h.quoteId,renderQuoteBarContent(h.quote),get("quo\
+te-bar").classList.add("visible")),uploadProgressState.total||(uploadProgressState=h.progress),updateFilePreview(),
+updateMaskPreview(),schedulePromptTokenEstimate(!0)):O&&C())},"finish");return{source:d,canRetry:r(()=>!v&&
+h.navigation===threadLoadSequence,"canRetry"),stopDock:r(()=>S==null?void 0:S.cancel(),"stopDock"),files:h.
+files,releaseFiles:C,accept:r((E=!0)=>T(!1,E),"accept"),restore:r(()=>T(!0),"restore")}}r(takePromptForSend,
+"takePromptForSend");function animatePromptToMessage(e,t,n){var y;let i,a=0,o=!1;const l=[],c=get("c\
+hat-container"),d=get("prompt-input"),m=window.matchMedia("(prefers-reduced-motion: reduce)"),h=r(()=>{
+var v,w;o||(o=!0,(v=window.ActivityLog)==null||v.log("ui.hide"),t.stopDock(),cancelAnimationFrame(a),
+l.forEach(k=>k.cancel()),i==null||i.remove(),e==null||e.classList.remove("prompt-send-hidden"),window.
+removeEventListener("resize",h),window.removeEventListener("popstate",h),window.removeEventListener(
+"pagehide",h),document.removeEventListener("visibilitychange",h),c==null||c.removeEventListener("whe\
+el",h),c==null||c.removeEventListener("touchstart",h),d==null||d.removeEventListener("input",h),(w=window.
+visualViewport)==null||w.removeEventListener("resize",h),m.removeEventListener("change",h))},"stop");
+if(!n||m.matches||!e||!Element.prototype.animate)return h;try{e.classList.remove("fade-in"),e.classList.
+add("prompt-send-hidden"),a=requestAnimationFrame(()=>{var v;try{if(!e.isConnected)return h();const w=e.
+querySelector(".message-bubble"),k=w.getBoundingClientRect(),_=c.getBoundingClientRect();if(!k.width||
+!k.height||k.bottom<=_.top||k.top>=_.bottom)return h();const S=t.source;i=w.cloneNode(!0),i.removeAttribute(
 "id"),i.querySelectorAll("[id]").forEach(Z=>Z.removeAttribute("id")),i.querySelectorAll(".msg-contro\
 ls, video, audio").forEach(Z=>Z.remove()),i.classList.add("prompt-send-overlay"),i.setAttribute("ari\
 a-hidden","true"),i.inert=!0,Object.assign(i.style,{width:k.width+"px",height:k.height+"px",left:k.left+

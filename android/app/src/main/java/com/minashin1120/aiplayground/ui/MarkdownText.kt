@@ -73,6 +73,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.graphics.asImageBitmap
@@ -593,6 +594,28 @@ internal class MarkdownCodeActions(
 
 internal val LocalMarkdownCodeActions = compositionLocalOf { MarkdownCodeActions() }
 
+/** Text that should flash after jumping to a quote: the selection to find and the current pulse alpha. */
+internal data class QuoteFlash(val query: String, val alpha: Float)
+
+internal val LocalQuoteFlash = compositionLocalOf<QuoteFlash?> { null }
+
+/** The translucent yellow used for the quote's flash; the bubble background uses the same color. */
+internal val QuoteFlashColor = Color(0xFFFDE047)
+
+/** [text] with the part matching [quote] flashing; a no-op AnnotatedString when there is no match. */
+internal fun quoteFlashText(text: String, quote: String, alpha: Float): AnnotatedString {
+    if (alpha <= 0f) return AnnotatedString(text)
+    val range = findQuoteRange(text, quote) ?: return AnnotatedString(text)
+    return AnnotatedString(
+        text,
+        spanStyles = listOf(AnnotatedString.Range(
+            SpanStyle(background = QuoteFlashColor.copy(alpha = 0.5f * alpha)),
+            range.first,
+            range.last + 1,
+        )),
+    )
+}
+
 /**
  * Markdown message body. [startCollapsed] mirrors Web: stored answers show code blocks collapsed,
  * while an answer that is still streaming keeps them open.
@@ -605,6 +628,9 @@ fun MarkdownText(
     startCollapsed: Boolean = true,
     /** Web Canvas mode: fenced blocks are shown in the Canvas panel and replaced here. */
     canvasMode: Boolean = false,
+    /** The quoted selection to flash after a quote jump, and the pulse alpha (0 when idle). */
+    flashQuote: String? = null,
+    flashAlpha: Float = 0f,
 ) {
     val blocks = remember(text, canvasMode) { parseMarkdownBlocks(if (canvasMode) parseCanvasMarkdown(text).renderText else text) }
     val colors = markdownColors()
@@ -615,7 +641,8 @@ fun MarkdownText(
     // Web opens every link in a new tab; here a link that no installed app can open is ignored.
     val uriHandler = LocalUriHandler.current
     val safeHandler = remember(uriHandler) { SafeUriHandler(uriHandler) }
-    CompositionLocalProvider(LocalUriHandler provides safeHandler) {
+    val flash = if (flashAlpha > 0f && !flashQuote.isNullOrBlank()) QuoteFlash(flashQuote, flashAlpha) else null
+    CompositionLocalProvider(LocalUriHandler provides safeHandler, LocalQuoteFlash provides flash) {
         PreWrapBlocks(blocks, base, colors, loader, onOpen, startCollapsed, leadingLine = false)
     }
 }
@@ -1069,7 +1096,27 @@ private fun AnnotatedString.Builder.appendInlineHtml(rest: String, colors: Markd
 @Composable
 private fun InlineText(text: String, style: TextStyle, colors: MarkdownColors) {
     val parsed = remember(text, colors) { parseInlineMarkdown(text, colors) }
-    InlineRichText(parsed, style, colors.inlineCodeBackground)
+    val flash = LocalQuoteFlash.current
+    val flashed = remember(parsed, flash?.query, flash?.alpha) {
+        if (flash == null) parsed
+        else {
+            val range = findQuoteRange(parsed.text.text, flash.query)
+            if (range == null) parsed
+            else InlineMarkdown(
+                text = AnnotatedString(
+                    parsed.text.text,
+                    spanStyles = parsed.text.spanStyles + AnnotatedString.Range(
+                        SpanStyle(background = QuoteFlashColor.copy(alpha = 0.5f * flash.alpha)),
+                        range.first,
+                        range.last + 1,
+                    ),
+                ),
+                codeRanges = parsed.codeRanges,
+                math = parsed.math,
+            )
+        }
+    }
+    InlineRichText(flashed, style, colors.inlineCodeBackground)
 }
 
 /** True inside a bubble-wide selection, so nested text joins it instead of starting its own. */
@@ -1091,7 +1138,17 @@ internal fun MessageSelection(independent: Boolean = false, content: @Composable
 
 /** Text with Web inline-code chips: rounded 6.4px background, 6.4px side padding, 24px tall. */
 @Composable
-internal fun InlineRichText(source: InlineMarkdown, style: TextStyle, codeBackground: Color, modifier: Modifier = Modifier) {
+internal fun InlineRichText(
+    source: InlineMarkdown,
+    style: TextStyle,
+    codeBackground: Color,
+    modifier: Modifier = Modifier,
+    maxLines: Int = Int.MAX_VALUE,
+    overflow: TextOverflow = TextOverflow.Clip,
+    // One-line controls such as the quote bar keep their own tap handling instead
+    // of starting a text selection inside the strip.
+    selectable: Boolean = true,
+) {
     var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val density = LocalDensity.current
     val hasMath = source.math.isNotEmpty()
@@ -1112,12 +1169,14 @@ internal fun InlineRichText(source: InlineMarkdown, style: TextStyle, codeBackgr
     }
     val chipHeight = with(density) { 24.dp.toPx() }
     val radius = with(density) { 6.4.dp.toPx() }
-    MessageSelection {
+    val body: @Composable () -> Unit = {
         Text(
             parsed.text,
             style = style,
             inlineContent = inline,
             onTextLayout = { textLayout = it },
+            maxLines = maxLines,
+            overflow = overflow,
             modifier = modifier
                 // Screen readers get the approximations, not the formula tokens.
                 .then(if (parsed === source) Modifier else Modifier.semantics { contentDescription = source.text.text })
@@ -1157,6 +1216,7 @@ internal fun InlineRichText(source: InlineMarkdown, style: TextStyle, codeBackgr
             },
         )
     }
+    if (selectable) MessageSelection { body() } else body()
 }
 
 // ---------------------------------------------------------------------------------------------

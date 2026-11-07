@@ -619,6 +619,11 @@
             to { opacity: 1; transform: translateY(0) scale(1); }
         }
         .quote-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90%; opacity: 0.8; font-style: italic; border-left: 3px solid var(--theme-500); padding-left: 8px; }
+        .quote-text strong { font-weight: 700; font-style: normal; }
+        .quote-text del { text-decoration: line-through; }
+        .quote-text a { color: var(--theme-300); text-decoration: underline; }
+        .quote-text code { background: rgba(var(--theme-rgb), 0.16); border-radius: 4px; padding: 0 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-style: normal; }
+        .quote-text mjx-container { font-size: 1em !important; }
         
         /* Messages */
         .rounded-2xl { border-radius: 1rem; }

@@ -55,6 +55,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          # Pin the run to the commit that triggered it. Without this, a
+          # checkout that follows origin/main can pick up a newer commit that
+          # was pushed while the run was queued, and the release tag then points
+          # at a different commit than the verified build source.
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:

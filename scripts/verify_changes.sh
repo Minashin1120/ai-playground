@@ -92,6 +92,14 @@ while IFS= read -r -d '' py; do
 done < <(find server -name '*.py' -print0 | sort -z)
 run_logged "python syntax" "$PYTHON" -m py_compile "${PY_SOURCES[@]}"
 
+# Android generated assets are derived from Web sources. Check them here so a
+# stale serverless-defaults/catalog/icon file fails with a direct message before
+# the slower regression suite or version update.
+info "Android generated assets"
+run_logged "android serverless defaults in sync" "$PYTHON" android/ci/sync-serverless-defaults.py --check
+run_logged "android model catalog in sync" node android/ci/sync-web-catalog.mjs --check
+run_logged "android icon drawables in sync" "$PYTHON" android/ci/sync-web-icons.py --check
+
 # gunicorn can read a private file, but the front web server cannot, so a live check
 # against gunicorn would pass while the public site answers 403.
 unreadable="$(find static \( -type f ! -perm -004 -o -type d ! -perm -005 \) -print | head -n 5 || true)"

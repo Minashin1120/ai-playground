@@ -80,7 +80,7 @@ private fun ImportModal(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     WebOverlayModal(onClose, grayOverlay(), 10.dp, dismissOnOutsideTap = dismissOnOutsideTap) { phone ->
-        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             val panelHeight = if (maxWidth > 600.dp) Modifier.fillMaxHeight() else Modifier
             WebModalPanel(
                 Modifier.widthIn(max = maxWidth).fillMaxWidth().then(panelHeight).modalPanelTaps(),

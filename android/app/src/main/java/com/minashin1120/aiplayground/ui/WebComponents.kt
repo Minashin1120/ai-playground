@@ -576,7 +576,14 @@ internal fun WebModalHeader(
                     ),
                 ) { title() }
                 if (subtitle != null) {
-                    Text(subtitle, color = web.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+                    Text(
+                        subtitle,
+                        color = web.muted,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
                 }
             }
         }

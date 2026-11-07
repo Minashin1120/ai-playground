@@ -51,7 +51,7 @@ internal fun HtmlCodePreviewDialog(code: String, onDismiss: () -> Unit) {
 
     PlaygroundDialog(
         onDismissRequest = onDismiss,
-        title = { Text("プレビュー") },
+        title = { Text("プレビュー", maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis) },
         icon = R.drawable.fa_solid_code,
         subtitle = "HTMLコードプレビュー",
         tone = WebModalTone.Info,

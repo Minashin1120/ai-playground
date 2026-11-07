@@ -1,13 +1,20 @@
     <!-- Lyria RealTime Studio Modal -->
-    <div id="lyria-studio-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
-        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-4 sm:p-6 shadow-2xl border border-purple-700/50 m-4 flex flex-col gap-3 modal-panel">
-            <div class="flex items-center justify-between shrink-0">
-                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-music text-purple-300"></i> Lyria RealTime Studio</h2>
-                <div class="flex items-center gap-2">
-                    <button id="lyria-save-btn" data-progress-no-spinner="true" class="hidden px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[11px] font-bold btn-hover"><i class="fas fa-save mr-1"></i>チャットへ保存</button>
-                    <button id="lyria-studio-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+    <div id="lyria-studio-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay overflow-y-auto">
+        <div class="app-modal-panel app-modal-panel--lg app-modal-panel--tall modal-panel">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--purple"><i class="fas fa-music"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 class="app-modal-title">Lyria RealTime Studio</h2>
+                        <p class="app-modal-subtitle">リアルタイムで音楽を生成</p>
+                    </div>
+                </div>
+                <div class="app-modal-header-actions">
+                    <button id="lyria-save-btn" data-progress-no-spinner="true" class="hidden app-modal-btn app-modal-btn--primary text-[11px]" style="padding:7px 12px;"><i class="fas fa-save mr-1"></i>チャットへ保存</button>
+                    <button id="lyria-studio-close" data-progress-no-spinner="true" class="app-modal-close" aria-label="閉じる"><i class="fas fa-times"></i></button>
                 </div>
             </div>
+            <div class="app-modal-body space-y-3">
             <div id="lyria-studio-status" class="flex items-center gap-2 text-xs text-gray-300 bg-gray-900/60 border border-gray-700/70 rounded-lg px-3 py-2 shrink-0">
                 <span id="lyria-status-dot" class="w-2 h-2 rounded-full bg-gray-600 inline-block"></span>
                 <span id="lyria-status-text">準備完了</span>
@@ -81,39 +88,55 @@
                     <div class="text-[10px] text-gray-500">BPM・スケールの変更はモデルの文脈をリセットするため、次のフレーズで反映されます。</div>
                 </div>
             </div>
-            <div class="flex items-center justify-center gap-3 pt-1 shrink-0 border-t border-gray-700/50">
+            <div class="text-[10px] text-gray-500 text-center shrink-0">実験モデル: 楽器のみ・ボーカルなし / 48kHzステレオ / 再生内容は「チャットへ保存」でWAVとして保存できます</div>
+            </div>
+            <div class="app-modal-footer app-modal-footer--center">
                 <button id="lyria-play-btn" data-progress-no-spinner="true" class="w-14 h-14 rounded-full bg-purple-600 hover:bg-purple-500 text-white text-lg flex items-center justify-center shadow-lg btn-hover transition"><i class="fas fa-play"></i></button>
                 <button id="lyria-pause-btn" data-progress-no-spinner="true" disabled class="w-12 h-12 rounded-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-base flex items-center justify-center transition btn-hover"><i class="fas fa-pause"></i></button>
                 <button id="lyria-stop-btn" data-progress-no-spinner="true" disabled class="w-12 h-12 rounded-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-base flex items-center justify-center transition btn-hover"><i class="fas fa-stop"></i></button>
                 <button id="lyria-reset-btn" data-progress-no-spinner="true" disabled class="w-12 h-12 rounded-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white text-sm flex items-center justify-center transition btn-hover" title="コンテキストをリセット（BPM・スケール変更後）"><i class="fas fa-arrows-rotate"></i></button>
             </div>
-            <div class="text-[10px] text-gray-500 text-center shrink-0">実験モデル: 楽器のみ・ボーカルなし / 48kHzステレオ / 再生内容は「チャットへ保存」でWAVとして保存できます</div>
         </div>
     </div>
 
     <!-- Voice Studio Modal (WebSocket voice models) -->
-    <div id="voice-studio-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
-        <div class="bg-gray-800 rounded-lg w-full max-w-2xl p-4 sm:p-6 shadow-2xl border border-cyan-500/30 m-4 flex flex-col gap-3 modal-panel">
-            <div class="flex items-center justify-between shrink-0">
-                <h2 class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-microphone text-cyan-300"></i> <span id="voice-studio-title">音声スタジオ</span></h2>
-                <button id="voice-studio-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+    <div id="voice-studio-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay overflow-y-auto">
+        <div class="app-modal-panel app-modal-panel--lg app-modal-panel--tall modal-panel">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--cyan"><i class="fas fa-microphone"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 class="app-modal-title"><span id="voice-studio-title">音声スタジオ</span></h2>
+                        <p class="app-modal-subtitle">音声モデルとのリアルタイム会話</p>
+                    </div>
+                </div>
+                <button id="voice-studio-close" data-progress-no-spinner="true" class="app-modal-close" aria-label="閉じる"><i class="fas fa-times"></i></button>
             </div>
-            <div id="voice-studio-transcript" class="flex flex-col gap-2 overflow-y-auto pr-1 rounded-lg bg-gray-900/40 border border-gray-700/50 p-3 text-xs text-gray-200 leading-relaxed custom-scrollbar">
-                <div class="voice-studio-placeholder text-[10px] text-gray-500">会話の文字起こしがここに表示されます。</div>
+            <div class="app-modal-body flex flex-col gap-3">
+                <div id="voice-studio-transcript" class="flex flex-col gap-2 overflow-y-auto pr-1 rounded-lg bg-gray-900/40 border border-gray-700/50 p-3 text-xs text-gray-200 leading-relaxed custom-scrollbar">
+                    <div class="voice-studio-placeholder text-[10px] text-gray-500">会話の文字起こしがここに表示されます。</div>
+                </div>
+                <div id="voice-studio-panel-host" class="shrink-0"></div>
+                <div id="voice-studio-file-host" class="shrink-0 hidden"></div>
+                <div class="text-[10px] text-gray-500 text-center shrink-0 border-t border-gray-700/50 pt-2">マイクをタップして話し始め / もう一度タップで停止。停止後はチャットへ自動保存されます。</div>
             </div>
-            <div id="voice-studio-panel-host" class="shrink-0"></div>
-            <div id="voice-studio-file-host" class="shrink-0 hidden"></div>
-            <div class="text-[10px] text-gray-500 text-center shrink-0 border-t border-gray-700/50 pt-2">マイクをタップして話し始め / もう一度タップで停止。停止後はチャットへ自動保存されます。</div>
         </div>
     </div>
 
     <!-- Marker Modal -->
-    <div id="marker-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
-        <div class="bg-gray-800 rounded-lg w-full max-w-3xl p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[85vh] max-h-none modal-panel">
-            <div class="flex items-center justify-between mb-2">
-                <h2 id="marker-modal-title" class="text-lg font-bold text-white flex items-center gap-2"><i class="fas fa-highlighter text-yellow-300"></i> 画像編集</h2>
-                <button id="marker-modal-close" data-progress-no-spinner="true" class="text-gray-400 hover:text-white w-8 h-8 rounded-full hover:bg-gray-700 transition flex items-center justify-center"><i class="fas fa-times"></i></button>
+    <div id="marker-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay overflow-y-auto">
+        <div class="app-modal-panel app-modal-panel--lg app-modal-panel--tall modal-panel">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--warn"><i class="fas fa-highlighter"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 id="marker-modal-title" class="app-modal-title">画像編集</h2>
+                        <p class="app-modal-subtitle">マーカー・モザイク・トリミング</p>
+                    </div>
+                </div>
+                <button id="marker-modal-close" data-progress-no-spinner="true" class="app-modal-close" aria-label="閉じる"><i class="fas fa-times"></i></button>
             </div>
+            <div class="app-modal-body">
             <div id="marker-modal-description" class="text-xs text-gray-400 mb-3">マーカー・モザイク・トリミングが可能です。送信時に編集済み画像の確認を促します。</div>
             <div id="marker-stage" class="marker-stage mb-4">
                 <div id="marker-viewport">
@@ -122,7 +145,8 @@
                     <canvas id="marker-crop-canvas"></canvas>
                 </div>
             </div>
-            <div id="marker-toolbar" class="flex flex-wrap items-center gap-3 text-xs text-gray-300">
+            </div>
+            <div id="marker-toolbar" class="app-modal-footer app-modal-footer--between flex-wrap items-center gap-3 text-xs text-gray-300">
                 <div class="flex items-center gap-2">
                     <button id="marker-tool-draw" data-progress-no-spinner="true" class="marker-tool-btn px-3 py-1 rounded text-[11px]">マーカー</button>
                     <button id="marker-tool-auto" data-progress-no-spinner="true" class="marker-tool-btn hidden px-3 py-1 rounded text-[11px]">自動塗り</button>

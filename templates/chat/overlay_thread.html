@@ -1,33 +1,42 @@
     <!-- History Modal -->
-    <div id="history-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
-        <div class="bg-gray-800 rounded-lg shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel overflow-hidden">
-            <div class="p-4 border-b border-gray-700 flex justify-between items-center shrink-0">
-                <h2 class="text-lg font-bold text-white flex items-center gap-2">
-                    <i class="fas fa-history text-blue-400"></i> チャット履歴
-                </h2>
-                <button onclick="closeHistoryModal()" class="text-gray-400 hover:text-white transition">
-                    <i class="fas fa-times"></i>
-                </button>
+    <div id="history-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay">
+        <div class="app-modal-panel app-modal-panel--lg app-modal-panel--tall modal-panel">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--info"><i class="fas fa-history"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 class="app-modal-title">チャット履歴</h2>
+                        <p class="app-modal-subtitle">過去のチャットを検索して再開</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeHistoryModal()" class="app-modal-close" aria-label="閉じる"><i class="fas fa-times"></i></button>
             </div>
-            <div class="p-3 border-b border-gray-700 shrink-0">
-                <div class="relative">
-                    <form class="history-search-form" role="search" autocomplete="off" action="#" method="get" onsubmit="return false;"><input type="search" id="history-search-box" name="thread-filter-modal" placeholder="履歴を検索..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="search" enterkeyhint="search" aria-label="履歴を検索" role="searchbox" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" data-protonpass-ignore="true" readonly class="w-full bg-gray-900 border border-gray-600 rounded px-4 py-2 text-sm text-white focus:ring-1 focus:ring-blue-500 outline-none transition"></form>
-                    <i class="fas fa-search absolute right-3 top-2.5 text-gray-500"></i>
+            <div class="app-modal-toolbar">
+                <div class="app-modal-search">
+                    <form class="history-search-form" role="search" autocomplete="off" action="#" method="get" onsubmit="return false;"><input type="search" id="history-search-box" name="thread-filter-modal" placeholder="履歴を検索..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="search" enterkeyhint="search" aria-label="履歴を検索" role="searchbox" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" data-protonpass-ignore="true" readonly></form>
+                    <i class="fas fa-search"></i>
                 </div>
             </div>
-            <div id="history-modal-thread-list-container" class="flex-1 overflow-hidden flex flex-col">
+            <div id="history-modal-thread-list-container" class="app-modal-body app-modal-body--flush flex flex-col" style="overflow:hidden;">
                 <!-- Thread list will be moved here when modal is open -->
             </div>
         </div>
     </div>
 
     <!-- Thread Settings Modal -->
-    <div id="thread-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
-        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none overflow-hidden modal-panel">
-            <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <i class="fas fa-comment-dots text-green-400"></i> Chat Instructions
-            </h2>
-            <div class="space-y-4 flex-1 overflow-y-auto thread-modal-body">
+    <div id="thread-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay overflow-y-auto">
+        <div class="app-modal-panel app-modal-panel--lg app-modal-panel--tall modal-panel">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--success"><i class="fas fa-comment-dots"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 class="app-modal-title">Chat Instructions</h2>
+                        <p class="app-modal-subtitle">このチャットだけに適用する指示</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeThreadModal()" class="app-modal-close" aria-label="閉じる"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="app-modal-body space-y-4 thread-modal-body">
                 <div>
                     <label class="text-xs text-gray-400 block mb-1">このチャット専用のシステムプロンプト</label>
                     <textarea id="thread-custom-instruction" class="w-full h-48 bg-gray-900 border border-gray-600 rounded p-3 text-sm text-white focus:ring-1 focus:ring-green-500 outline-none" placeholder="このチャットだけで有効にしたい指示（役割や出力形式など）を入力してください..."></textarea>
@@ -78,20 +87,27 @@
                     </div>
                 </div>
             </div>
-            <div class="flex justify-end gap-3 mt-6 shrink-0">
-                <button onclick="closeThreadModal()" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">キャンセル</button>
-                <button id="save-thread-settings-btn" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded font-bold btn-modern">保存</button>
+            <div class="app-modal-footer">
+                <button onclick="closeThreadModal()" data-progress-no-spinner="true" class="app-modal-btn app-modal-btn--ghost">キャンセル</button>
+                <button id="save-thread-settings-btn" class="app-modal-btn app-modal-btn--primary">保存</button>
             </div>
         </div>
     </div>
 
     <!-- Compression Settings Modal -->
-    <div id="compression-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
-        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col lg:max-h-[90vh] max-h-none overflow-hidden modal-panel">
-            <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <i class="fas fa-compress-alt text-blue-400"></i> 画像・圧縮詳細設定
-            </h2>
-            <div class="space-y-6 flex-1 overflow-y-auto pr-2">
+    <div id="compression-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay overflow-y-auto">
+        <div class="app-modal-panel app-modal-panel--lg app-modal-panel--tall modal-panel">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--info"><i class="fas fa-compress-alt"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 class="app-modal-title">画像・圧縮詳細設定</h2>
+                        <p class="app-modal-subtitle">添付・生成するメディアの圧縮と画質</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeCompressionModal()" class="app-modal-close" aria-label="閉じる"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="app-modal-body space-y-6">
                 {% with compression_prefix='compression' %}{% include 'chat/compression_fields.html' %}{% endwith %}
 
                 <!-- GPT Image Generation Section -->
@@ -336,9 +352,9 @@
                     </div>
                 </div>
             </div>
-            <div class="flex justify-end gap-3 mt-6 shrink-0 pt-4 border-t border-gray-700">
-                <button onclick="closeCompressionModal()" data-progress-no-spinner="true" class="px-4 py-2 text-gray-400 hover:text-white transition">閉じる</button>
-                <button id="save-compression-settings-btn" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold btn-modern">保存</button>
+            <div class="app-modal-footer">
+                <button onclick="closeCompressionModal()" data-progress-no-spinner="true" class="app-modal-btn app-modal-btn--ghost">閉じる</button>
+                <button id="save-compression-settings-btn" class="app-modal-btn app-modal-btn--primary">保存</button>
             </div>
         </div>
     </div>

@@ -1,6 +1,6 @@
 # AI Chat Playground
 
-[![Version](https://img.shields.io/badge/version-V4.8.1160-2563eb)](static/changelogs/20261108_v4.8.1160.md)
+[![Version](https://img.shields.io/badge/version-V4.8.1161-2563eb)](static/changelogs/20261108_v4.8.1161.md)
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b)](LICENSE)
 
@@ -367,6 +367,7 @@ journalctl -u 'ai-chat-worker@1.service' -n 100 --no-pager
 - [Android版の接続モード](android/docs/CONNECTION_MODES.md)：接続先の指定、サーバー不使用モード、アカウントなしで開始、同期、セルフホスト側の設定
 - [Batch処理の機能と実装](static/docs/batch.md)：利用方法、非同期処理フロー、API、状態管理、コード配置
 - [プロンプトバーの設定と復元](static/docs/prompt_bar_settings.md)：保存先、復元の優先順位、モデル切替・編集・新規チャットでの扱い
+- [モーダル デザインガイド](static/docs/design_modals.md)：モーダルの共通構造・見た目・ライトテーマ・追加時のチェックリスト
 - [MODELS.md](MODELS.md)：対応モデルと価格表示の扱い
 - [CONTRIBUTING.md](CONTRIBUTING.md)：変更、テスト、Pull Request
 - [SECURITY.md](SECURITY.md)：脆弱性報告と安全な運用

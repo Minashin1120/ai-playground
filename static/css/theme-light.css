@@ -481,6 +481,37 @@
         border-color: var(--line-soft) !important;
     }
 
+    /* Shared modal design */
+    .app-modal-overlay { background: rgba(15, 23, 42, 0.35) !important; }
+    .app-modal-panel {
+        background: linear-gradient(180deg, #ffffff, #f7f9fc) !important;
+        border-color: rgba(15, 23, 42, 0.10) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), var(--shadow) !important;
+    }
+    .app-modal-header { background: linear-gradient(180deg, rgba(var(--theme-rgb), 0.10), transparent) !important; }
+    .app-modal-close {
+        background: rgba(15, 23, 42, 0.04) !important;
+        border-color: rgba(15, 23, 42, 0.08) !important;
+        color: var(--muted) !important;
+    }
+    .app-modal-close:hover { background: rgba(15, 23, 42, 0.08) !important; color: var(--text) !important; }
+    .app-modal-body { background: radial-gradient(520px 180px at 100% 0%, rgba(var(--theme-rgb), 0.05), transparent 70%) !important; }
+    .app-modal-footer {
+        background: linear-gradient(0deg, #ffffff, rgba(248, 250, 252, 0.72)) !important;
+        border-color: rgba(15, 23, 42, 0.08) !important;
+    }
+    .app-modal-btn--ghost:hover { background: rgba(15, 23, 42, 0.06) !important; }
+    .app-modal-search input,
+    .app-modal-panel input, .app-modal-panel textarea, .app-modal-panel select {
+        background: #ffffff !important;
+        border-color: rgba(15, 23, 42, 0.14) !important;
+        color: var(--text) !important;
+    }
+    .app-modal-search input:focus {
+        border-color: rgba(var(--theme-rgb), 0.55) !important;
+        box-shadow: 0 0 0 3px rgba(var(--theme-rgb), 0.14) !important;
+    }
+
     /* Settings / model modals */
     #settings-modal.settings-modal-root { background: rgba(15, 23, 42, 0.35) !important; }
     #settings-modal .settings-modal-panel {

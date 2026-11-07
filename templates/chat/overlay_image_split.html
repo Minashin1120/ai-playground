@@ -1,7 +1,16 @@
-    <div id="image-split-modal" class="fixed inset-0 bg-gray-900/95 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto" style="z-index:65;">
-        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 flex flex-col modal-panel" style="max-height:90dvh;">
-            <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-image text-blue-400 mr-2"></i>画像を分割</h2>
-            <div class="space-y-4 overflow-y-auto flex-1">
+    <div id="image-split-modal" class="fixed inset-0 bg-gray-900/95 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay overflow-y-auto" style="z-index:65;">
+        <div class="app-modal-panel app-modal-panel--md app-modal-panel--tall modal-panel">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--info"><i class="fas fa-image"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 class="app-modal-title">画像を分割</h2>
+                        <p class="app-modal-subtitle">細部を読み取れるよう複数画像に分割</p>
+                    </div>
+                </div>
+                <button type="button" data-progress-no-spinner="true" class="app-modal-close" aria-label="閉じる" onclick="document.getElementById('image-split-cancel')?.click()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="app-modal-body space-y-4">
                 <p class="text-xs text-gray-400">画像を重なりのある複数の画像に分け、モデルが細部まで読み取れるようにします。各画像には番号と元画像での位置が入り、点線が分割位置です。</p>
                 <canvas id="image-split-preview" class="w-full rounded border border-gray-700 bg-gray-900" aria-label="画像の分割プレビュー"></canvas>
                 <div class="flex items-center justify-between gap-2 text-xs text-gray-400">
@@ -22,23 +31,32 @@
                 <p id="image-split-status" class="text-xs text-gray-300" role="status" aria-live="polite"></p>
                 <div id="image-split-downloads" class="space-y-2 text-xs text-blue-300"></div>
             </div>
-            <div class="flex flex-wrap justify-end gap-2 mt-6 pt-4 border-t border-gray-700">
-                <button id="image-split-cancel" data-progress-no-spinner="true" class="px-2 py-2 text-sm text-gray-400">キャンセル</button>
-                <button id="image-split-save" data-progress-no-spinner="true" class="px-4 py-2 bg-gray-700 rounded text-sm font-bold text-white">保存のみ</button>
-                <button id="image-split-attach" data-progress-no-spinner="true" class="px-4 py-2 bg-blue-600 rounded text-sm font-bold text-white">分割して添付</button>
+            <div class="app-modal-footer">
+                <button id="image-split-cancel" data-progress-no-spinner="true" class="app-modal-btn app-modal-btn--ghost">キャンセル</button>
+                <button id="image-split-save" data-progress-no-spinner="true" class="app-modal-btn app-modal-btn--ghost">保存のみ</button>
+                <button id="image-split-attach" data-progress-no-spinner="true" class="app-modal-btn app-modal-btn--primary">分割して添付</button>
             </div>
         </div>
     </div>
-    <div id="image-split-compression-modal" class="fixed inset-0 bg-gray-900/95 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto" style="z-index:70;">
-        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 border border-gray-700 m-4 flex flex-col modal-panel" style="max-height:90dvh;">
-            <h2 class="text-xl font-bold text-white mb-4"><i class="fas fa-compress-alt text-blue-400 mr-2"></i>画像・圧縮詳細設定</h2>
-            <div class="overflow-y-auto space-y-4">
+    <div id="image-split-compression-modal" class="fixed inset-0 bg-gray-900/95 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay overflow-y-auto" style="z-index:70;">
+        <div class="app-modal-panel app-modal-panel--md app-modal-panel--tall modal-panel">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--info"><i class="fas fa-compress-alt"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 class="app-modal-title">画像・圧縮詳細設定</h2>
+                        <p class="app-modal-subtitle">分割画像の圧縮と画質</p>
+                    </div>
+                </div>
+                <button type="button" class="app-modal-close" aria-label="閉じる" onclick="document.getElementById('image-split-compression-close')?.click()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="app-modal-body space-y-4">
                 <label class="flex items-center gap-2 text-xs text-gray-300"><input id="image-split-compression-enabled" type="checkbox" class="accent-blue-500 w-4 h-4">Compress</label>
                 {% with compression_prefix='image-split-compression' %}{% include 'chat/compression_fields.html' %}{% endwith %}
             </div>
-            <div class="flex justify-end gap-3 pt-4 mt-6 border-t border-gray-700">
-                <button id="image-split-compression-close" class="px-4 py-2 text-sm text-gray-400">閉じる</button>
-                <button id="image-split-compression-save" class="px-6 py-2 bg-blue-600 text-white rounded text-sm font-bold">保存</button>
+            <div class="app-modal-footer">
+                <button id="image-split-compression-close" class="app-modal-btn app-modal-btn--ghost">閉じる</button>
+                <button id="image-split-compression-save" class="app-modal-btn app-modal-btn--primary">保存</button>
             </div>
         </div>
     </div>

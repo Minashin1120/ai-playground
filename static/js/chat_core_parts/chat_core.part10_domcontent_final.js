@@ -1424,7 +1424,7 @@
 
         const openSkillModal = () => {
             editingSkillUuid = null;
-            get('skill-modal-title').innerHTML = `<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Create New Skill`;
+            get('skill-modal-title').textContent = 'Create New Skill';
             get('save-skill-btn').innerText = "Create Skill";
             showModal('skill-modal');
             get('skill-name').value=''; get('skill-desc').value=''; get('skill-inst').value='';

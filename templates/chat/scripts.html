@@ -63,11 +63,20 @@
     {% endfor %}
     <script src="{{ url_for('static', filename='js/pwa_install.min.js') }}?v={{ app_version }}" defer></script>
 
-<div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
-  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative modal-panel" role="dialog" aria-modal="true" aria-labelledby="token-detail-title">
-    <button type="button" aria-label="閉じる" onclick="closeTokenDetail()" class="absolute right-3 top-3 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
-    <div class="text-sm font-bold text-blue-300" id="token-detail-title">Token Details</div>
-    <div id="token-detail-usage" class="mt-3 overflow-y-auto text-xs text-gray-300 space-y-2" style="max-height:65vh;">
+<div id="token-detail-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay">
+  <div class="app-modal-panel app-modal-panel--sm modal-panel" role="dialog" aria-modal="true" aria-labelledby="token-detail-title">
+    <div class="app-modal-header">
+      <div class="app-modal-title-wrap">
+        <div class="app-modal-title-icon app-modal-title-icon--info"><i class="fas fa-coins"></i></div>
+        <div class="app-modal-title-text">
+          <h2 class="app-modal-title" id="token-detail-title">Token Details</h2>
+          <p class="app-modal-subtitle">使用量と費用の内訳</p>
+        </div>
+      </div>
+      <button type="button" aria-label="閉じる" onclick="closeTokenDetail()" class="app-modal-close"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="app-modal-body text-xs text-gray-300 space-y-2">
+    <div id="token-detail-usage" class="space-y-2">
       <div class="flex justify-between"><span>Total</span><span id="token-detail-total" class="font-mono">-</span></div>
       <div class="flex justify-between"><span>In</span><span id="token-detail-in" class="font-mono">-</span></div>
       <div class="flex justify-between hidden" id="token-detail-cache-read-row"><span>Cache read</span><span id="token-detail-cache-read" class="font-mono">-</span></div>
@@ -79,30 +88,49 @@
       <div class="flex justify-between"><span>Encryption</span><span id="token-detail-encrypted" class="font-mono">-</span></div>
       <div id="token-detail-cost" class="hidden border-t border-gray-700 pt-2 space-y-2"></div>
     </div>
-    <div id="token-detail-estimate" class="hidden mt-3 overflow-y-auto text-xs text-gray-300 space-y-2" style="max-height:65vh;" aria-live="polite"></div>
+    <div id="token-detail-estimate" class="hidden mt-3 overflow-y-auto text-xs text-gray-300 space-y-2" aria-live="polite"></div>
+    </div>
   </div>
 </div>
 
-<div id="python-exec-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm p-4 modal-overlay">
-  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-2xl p-4 text-white relative shadow-2xl modal-panel" role="dialog" aria-modal="true" aria-labelledby="python-exec-modal-title">
-    <button type="button" onclick="closePythonExecDetail()" class="absolute right-3 top-3 text-gray-400 hover:text-white" title="閉じる" aria-label="閉じる"><i class="fas fa-times"></i></button>
-    <div class="text-sm font-bold text-amber-300 pr-8" id="python-exec-modal-title"><i class="fas fa-terminal mr-1.5"></i>Python 実行結果</div>
-    <div class="mt-3 text-xs text-gray-300" id="python-exec-modal-body"></div>
+<div id="python-exec-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm p-4 modal-overlay app-modal-overlay">
+  <div class="app-modal-panel app-modal-panel--lg modal-panel" role="dialog" aria-modal="true" aria-labelledby="python-exec-modal-title">
+    <div class="app-modal-header">
+      <div class="app-modal-title-wrap">
+        <div class="app-modal-title-icon app-modal-title-icon--warn"><i class="fas fa-terminal"></i></div>
+        <div class="app-modal-title-text">
+          <h2 class="app-modal-title" id="python-exec-modal-title">Python 実行結果</h2>
+          <p class="app-modal-subtitle">コード実行の出力</p>
+        </div>
+      </div>
+      <button type="button" onclick="closePythonExecDetail()" class="app-modal-close" title="閉じる" aria-label="閉じる"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="app-modal-body text-xs text-gray-300" id="python-exec-modal-body"></div>
   </div>
 </div>
 
-<div id="encryption-status-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay">
-  <div class="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-sm p-4 text-white relative modal-panel">
-    <button onclick="closeEncryptionModal()" class="absolute right-3 top-3 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
-    <div class="text-sm font-bold text-blue-300" id="encryption-status-title">暗号化されています</div>
-    <div class="mt-3 text-xs text-gray-300" id="encryption-status-body">このメッセージはE2EEで暗号化されています。</div>
+<div id="encryption-status-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay">
+  <div class="app-modal-panel app-modal-panel--sm modal-panel">
+    <div class="app-modal-header">
+      <div class="app-modal-title-wrap">
+        <div class="app-modal-title-icon app-modal-title-icon--info"><i class="fas fa-lock"></i></div>
+        <div class="app-modal-title-text">
+          <h2 class="app-modal-title" id="encryption-status-title">暗号化されています</h2>
+          <p class="app-modal-subtitle">メッセージの暗号化状態</p>
+        </div>
+      </div>
+      <button onclick="closeEncryptionModal()" class="app-modal-close" aria-label="閉じる"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="app-modal-body">
+    <div class="text-xs text-gray-300" id="encryption-status-body">このメッセージはE2EEで暗号化されています。</div>
     <div id="encryption-status-admin-actions" class="mt-4 hidden space-y-2">
       <div class="text-[10px] text-cyan-200/80">管理者: このチャット全体のメッセージを変換できます。</div>
       <button type="button" id="encryption-status-admin-toggle" class="w-full px-3 py-2 text-xs font-bold rounded text-white bg-amber-600 hover:bg-amber-500 btn-hover" data-progress-expected-slow="true">このチャットを復号化</button>
     </div>
-    <div class="mt-4 flex justify-end gap-2">
-      <button onclick="closeEncryptionModal()" class="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 rounded">閉じる</button>
-      <button onclick="goToEncryptionSettings()" class="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 rounded">設定へ</button>
+    </div>
+    <div class="app-modal-footer">
+      <button onclick="closeEncryptionModal()" class="app-modal-btn app-modal-btn--ghost">閉じる</button>
+      <button onclick="goToEncryptionSettings()" class="app-modal-btn app-modal-btn--primary">設定へ</button>
     </div>
   </div>
 </div>
@@ -317,12 +345,19 @@
     </script>
 
     <!-- Browser-direct fast mode warning / key modal -->
-    <div id="browser-fast-mode-modal" class="fixed inset-0 bg-gray-900/95 z-[100] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
-        <div class="bg-gray-800 rounded-lg w-full max-w-xl p-6 shadow-2xl border border-amber-500/50 m-4 modal-panel">
-            <div class="flex items-start gap-3 mb-4">
-                <div class="w-10 h-10 rounded-full bg-amber-900/50 flex items-center justify-center text-amber-300 text-lg shrink-0"><i class="fas fa-bolt"></i></div>
-                <div><h2 class="text-lg font-bold text-white">ブラウザ直接送信・高速モード</h2><p class="text-xs text-amber-200 mt-1">速度を優先する代わりに、通常モードの安全性と継続性が一部失われます。</p></div>
+    <div id="browser-fast-mode-modal" class="fixed inset-0 bg-gray-900/95 z-[100] hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay overflow-y-auto">
+        <div class="app-modal-panel app-modal-panel--lg modal-panel">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--warn"><i class="fas fa-bolt"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 class="app-modal-title">ブラウザ直接送信・高速モード</h2>
+                        <p class="app-modal-subtitle">速度を優先する代わりに一部の安全性と継続性が失われます</p>
+                    </div>
+                </div>
+                <button type="button" id="browser-fast-mode-cancel-header" class="app-modal-close" aria-label="閉じる" onclick="document.getElementById('browser-fast-mode-cancel-btn')?.click()"><i class="fas fa-times"></i></button>
             </div>
+            <div class="app-modal-body">
             <div id="browser-fast-mode-warning" class="text-xs text-gray-300 space-y-2 rounded border border-amber-500/30 bg-amber-950/20 p-4 mb-4">
                 <p class="font-bold text-amber-200">有効化前に必ず確認してください</p>
                 <ul class="list-disc pl-5 space-y-1.5 text-gray-300">
@@ -341,25 +376,28 @@
                 <div class="mt-1 text-amber-300">共有管理者キー・環境変数キー・Vertex AI認証情報はブラウザへ渡しません。</div>
             </div>
             <label id="browser-fast-mode-ignore-row" class="flex items-center gap-2 mt-4 text-xs text-gray-300 cursor-pointer"><input type="checkbox" id="browser-fast-mode-ignore-warning" class="accent-amber-400"><span>今後この警告を表示しない（このブラウザ）</span></label>
-            <div class="flex gap-2 mt-5">
-                <button id="browser-fast-mode-enable-btn" class="flex-1 bg-amber-600 hover:bg-amber-500 text-white py-2.5 rounded font-bold btn-hover"><i class="fas fa-bolt mr-1"></i>理解して有効化</button>
-                <button id="browser-fast-mode-cancel-btn" class="px-4 bg-gray-700 hover:bg-gray-600 text-white rounded btn-hover">キャンセル</button>
+            </div>
+            <div class="app-modal-footer">
+                <button id="browser-fast-mode-cancel-btn" class="app-modal-btn app-modal-btn--ghost">キャンセル</button>
+                <button id="browser-fast-mode-enable-btn" class="app-modal-btn app-modal-btn--primary" style="background:linear-gradient(135deg,#d97706,#b45309);border-color:rgba(245,158,11,.45);"><i class="fas fa-bolt mr-1"></i>理解して有効化</button>
             </div>
         </div>
     </div>
 
     <!-- API Key Required Modal -->
-    <div id="api-key-required-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay overflow-y-auto">
-        <div class="bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-2xl border border-gray-700 m-4 modal-panel">
-            <div class="flex items-start gap-3 mb-4">
-                <div class="w-10 h-10 rounded-full bg-red-900/50 flex items-center justify-center text-red-400 text-lg shrink-0 mt-0.5">
-                    <i class="fas fa-key"></i>
+    <div id="api-key-required-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay overflow-y-auto">
+        <div class="app-modal-panel app-modal-panel--md modal-panel">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--danger"><i class="fas fa-key"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 class="app-modal-title">APIキーが必要です</h2>
+                        <p class="app-modal-subtitle break-all" id="api-key-modal-model-name"></p>
+                    </div>
                 </div>
-                <div class="min-w-0">
-                    <h2 class="text-lg font-bold text-white">APIキーが必要です</h2>
-                    <p class="text-xs text-gray-400 mt-1 break-all" id="api-key-modal-model-name"></p>
-                </div>
+                <button type="button" class="app-modal-close" aria-label="閉じる" onclick="document.getElementById('api-key-modal-cancel-btn')?.click()"><i class="fas fa-times"></i></button>
             </div>
+            <div class="app-modal-body">
             <p class="text-sm text-gray-300 mb-4" id="api-key-modal-desc"></p>
             <div class="space-y-3">
                 <div>
@@ -377,6 +415,7 @@
                         キャンセル（エラーメッセージを表示）
                     </button>
                 </div>
+            </div>
             </div>
         </div>
     </div>

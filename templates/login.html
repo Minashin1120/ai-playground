@@ -250,12 +250,21 @@
     </footer>
 
     <!-- Legal Modal -->
-    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm modal-overlay">
-        <div class="bg-slate-900 rounded-2xl w-full max-w-3xl p-6 shadow-2xl border border-slate-700 m-4 flex flex-col max-h-[85vh] modal-panel text-left">
-            <h2 id="legal-title" class="text-xl font-bold text-white mb-4 border-b border-slate-700 pb-2">利用規約</h2>
-            <div id="legal-content" class="overflow-y-auto pr-2 flex-1 text-sm text-slate-300 leading-relaxed space-y-4 prose max-w-none"></div>
-            <div class="flex justify-end mt-4 shrink-0">
-                <button onclick="hideLegal()" class="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl border border-slate-700 transition">閉じる</button>
+    <div id="legal-modal" class="fixed inset-0 bg-gray-900/95 z-[80] hidden items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay">
+        <div class="app-modal-panel app-modal-panel--lg app-modal-panel--tall modal-panel text-left">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--info"><i class="fas fa-file-lines"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 id="legal-title" class="app-modal-title">利用規約</h2>
+                        <p class="app-modal-subtitle">サービスのご利用条件</p>
+                    </div>
+                </div>
+                <button type="button" onclick="hideLegal()" class="app-modal-close" aria-label="閉じる"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="legal-content" class="app-modal-body text-sm text-slate-300 leading-relaxed space-y-4 prose max-w-none"></div>
+            <div class="app-modal-footer">
+                <button onclick="hideLegal()" class="app-modal-btn app-modal-btn--ghost">閉じる</button>
             </div>
         </div>
     </div>

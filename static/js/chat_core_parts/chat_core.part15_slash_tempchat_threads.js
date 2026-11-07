@@ -509,7 +509,7 @@
                 get('skill-name').value = skill.name;
                 get('skill-desc').value = skill.description || '';
                 get('skill-inst').value = skill.instruction;
-                get('skill-modal-title').innerHTML = `<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Edit Skill`;
+                get('skill-modal-title').textContent = 'Edit Skill';
                 get('save-skill-btn').innerText = "Save Changes";
                 showModal('skill-modal');
                 if (location.pathname !== '/skill') {

@@ -1604,7 +1604,7 @@
                 } },
                 '/encryption-status': { id: 'encryption-status-modal', open: () => showEncryptionStatusModal() },
                 '/python-execution': { id: 'python-exec-modal', open: () => showPythonExecDetailModal() },
-                '/skill': { id: 'skill-modal', open: () => { editingSkillUuid = null; get('skill-modal-title').innerHTML = `<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Create New Skill`; showModal('skill-modal'); } },
+                '/skill': { id: 'skill-modal', open: () => { editingSkillUuid = null; get('skill-modal-title').textContent = 'Create New Skill'; showModal('skill-modal'); } },
                 '/compression': { id: 'compression-modal', open: () => window.openCompressionModal() },
                 '/admin-bots': { id: 'bot-admin-modal', open: () => openBotAdminModal() },
                 '/admin-bot-logs': { id: 'bot-log-modal', open: () => openBotLogModal() }

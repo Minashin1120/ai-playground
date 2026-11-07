@@ -1,6 +1,6 @@
 # CSS
 
-- `app-design.css`：全画面共通のデザイントークンと基本コンポーネント
+- `app-design.css`：全画面共通のデザイントークンと基本コンポーネント（モーダルの共通クラスは [design_modals.md](design_modals.md) を参照）
 - `chat.custom.v*.css`：チャット固有の手書きスタイル
 - `chat.tailwind.v*.css`：生成済みTailwind CSS
 - `theme-light.css`：OSがライトテーマのときに全画面へ適用するホワイトモードの上書き（各ページの最後に読み込む）

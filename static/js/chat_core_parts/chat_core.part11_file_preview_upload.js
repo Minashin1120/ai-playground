@@ -248,9 +248,7 @@
             const title = get('marker-modal-title');
             const description = get('marker-modal-description');
             const save = get('marker-save');
-            if (title) title.innerHTML = markerState.maskMode
-                ? '<i class="fas fa-mask text-yellow-300"></i> マスク作成'
-                : '<i class="fas fa-highlighter text-yellow-300"></i> 画像編集';
+            if (title) title.textContent = markerState.maskMode ? 'マスク作成' : '画像編集';
             if (description) description.textContent = markerState.maskMode
                 ? '白く塗った領域が削除対象です。ブラシまたは自動塗りを使えます。マスクは対象画像と同じサイズで作成されます。'
                 : 'マーカー・モザイク・トリミングが可能です。送信時に編集済み画像の確認を促します。';

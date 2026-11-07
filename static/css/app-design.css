@@ -324,6 +324,251 @@ body.app-shell::after {
 .modal-panel { transform: translateY(14px) scale(0.975); opacity: 0; transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.32s cubic-bezier(0.4, 0, 0.2, 1); }
 .modal-overlay.modal-open .modal-panel { transform: translateY(0) scale(1); opacity: 1; }
 
+/* ── Shared modal design ──
+   Keep in sync with the same block in static/css/chat.custom.v*.css.
+   Documented in static/docs/design_modals.md. */
+.app-modal-overlay {
+    padding: 16px;
+    background: rgba(3, 7, 16, 0.72) !important;
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+}
+.app-modal-panel {
+    display: flex;
+    flex-direction: column;
+    width: min(720px, 100%);
+    max-width: none;
+    max-height: min(90dvh, 880px);
+    min-height: 0;
+    margin: 0 auto;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(10, 14, 28, 0.98), rgba(6, 9, 18, 0.99));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), var(--shadow);
+    color: var(--text);
+}
+.app-modal-panel.app-modal-panel--sm { width: min(440px, 100%); }
+.app-modal-panel.app-modal-panel--md { width: min(560px, 100%); }
+.app-modal-panel.app-modal-panel--lg { width: min(760px, 100%); }
+.app-modal-panel.app-modal-panel--xl { width: min(980px, 100%); }
+.app-modal-panel.app-modal-panel--full {
+    width: min(1100px, 100%);
+    height: min(92dvh, 920px);
+    max-height: min(92dvh, 920px);
+}
+.app-modal-panel.app-modal-panel--tall { height: min(90dvh, 880px); }
+.app-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 20px 12px;
+    background: linear-gradient(180deg, rgba(var(--theme-rgb), 0.12), transparent);
+    position: relative;
+    z-index: 8;
+    flex: 0 0 auto;
+}
+.app-modal-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+.app-modal-title-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: var(--theme-300);
+    background: linear-gradient(135deg, rgba(var(--theme-rgb), 0.30), rgba(var(--theme-rgb), 0.08));
+    border: 1px solid rgba(var(--theme-rgb), 0.30);
+    box-shadow: var(--shadow-glow);
+    flex: 0 0 auto;
+}
+.app-modal-title-icon--warn {
+    color: #fcd34d;
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.30), rgba(245, 158, 11, 0.08));
+    border-color: rgba(245, 158, 11, 0.34);
+    box-shadow: 0 14px 32px rgba(245, 158, 11, 0.16);
+}
+.app-modal-title-icon--danger {
+    color: #fda4af;
+    background: linear-gradient(135deg, rgba(249, 112, 141, 0.30), rgba(249, 112, 141, 0.08));
+    border-color: rgba(249, 112, 141, 0.34);
+    box-shadow: 0 14px 32px rgba(249, 112, 141, 0.16);
+}
+.app-modal-title-icon--info {
+    color: #93c5fd;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.30), rgba(59, 130, 246, 0.08));
+    border-color: rgba(59, 130, 246, 0.34);
+    box-shadow: 0 14px 32px rgba(59, 130, 246, 0.16);
+}
+.app-modal-title-icon--success {
+    color: #86efac;
+    background: linear-gradient(135deg, rgba(52, 211, 153, 0.30), rgba(52, 211, 153, 0.08));
+    border-color: rgba(52, 211, 153, 0.34);
+    box-shadow: 0 14px 32px rgba(52, 211, 153, 0.16);
+}
+.app-modal-title-icon--purple {
+    color: #d8b4fe;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.30), rgba(168, 85, 247, 0.08));
+    border-color: rgba(168, 85, 247, 0.34);
+    box-shadow: 0 14px 32px rgba(168, 85, 247, 0.16);
+}
+.app-modal-title-icon--cyan {
+    color: #67e8f9;
+    background: linear-gradient(135deg, rgba(34, 211, 238, 0.30), rgba(34, 211, 238, 0.08));
+    border-color: rgba(34, 211, 238, 0.34);
+    box-shadow: 0 14px 32px rgba(34, 211, 238, 0.16);
+}
+.app-modal-title-text { min-width: 0; }
+.app-modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: .01em;
+    color: var(--text);
+    margin: 0;
+    line-height: 1.25;
+}
+.app-modal-subtitle {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 2px 0 0;
+    line-height: 1.45;
+}
+.app-modal-header-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.app-modal-close {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--line-soft);
+    cursor: pointer;
+    transition: color .2s cubic-bezier(0.4, 0, 0.2, 1), background .2s cubic-bezier(0.4, 0, 0.2, 1), transform .24s cubic-bezier(0.22, 1, 0.36, 1);
+    flex: 0 0 auto;
+}
+.app-modal-close:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.08);
+    transform: rotate(90deg);
+}
+.app-modal-toolbar { padding: 0 20px 12px; flex: 0 0 auto; }
+.app-modal-search { position: relative; }
+.app-modal-search > i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: var(--muted);
+    pointer-events: none;
+}
+.app-modal-search input {
+    width: 100%;
+    padding: 10px 14px 10px 34px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    transition: border-color .2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow .2s cubic-bezier(0.4, 0, 0.2, 1), background .2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.app-modal-search input::placeholder { color: var(--muted); }
+.app-modal-search input:focus {
+    border-color: rgba(var(--theme-rgb), 0.55);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 0 3px rgba(var(--theme-rgb), 0.14);
+}
+.app-modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 18px 20px;
+    background: radial-gradient(520px 180px at 100% 0%, rgba(var(--theme-rgb), 0.05), transparent 70%);
+}
+.app-modal-body--flush { padding: 0; }
+.app-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 20px 16px;
+    background: linear-gradient(0deg, rgba(8, 12, 22, 0.98), rgba(8, 12, 22, 0.55));
+    border-top: 1px solid var(--line);
+    position: relative;
+    z-index: 7;
+    flex: 0 0 auto;
+}
+.app-modal-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 9px 16px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform .2s cubic-bezier(0.22, 1, 0.36, 1), background .2s cubic-bezier(0.4, 0, 0.2, 1), border-color .2s cubic-bezier(0.4, 0, 0.2, 1), color .2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.app-modal-btn--ghost {
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid transparent;
+}
+.app-modal-btn--ghost:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+.app-modal-btn--primary {
+    color: var(--text-inverse);
+    background: linear-gradient(135deg, var(--theme-500), var(--theme-600));
+    border: 1px solid rgba(var(--theme-rgb), 0.45);
+    box-shadow: var(--shadow-glow);
+}
+.app-modal-btn--primary:hover { transform: translateY(-1px); filter: brightness(1.06); }
+.app-modal-btn--danger {
+    color: #fff1f2;
+    background: linear-gradient(135deg, #f43f5e, #be123c);
+    border: 1px solid rgba(244, 63, 94, 0.45);
+    box-shadow: 0 12px 28px rgba(244, 63, 94, 0.2);
+}
+.app-modal-btn--danger:hover { transform: translateY(-1px); filter: brightness(1.06); }
+.app-modal-footer.app-modal-footer--between { justify-content: space-between; }
+.app-modal-footer.app-modal-footer--center { justify-content: center; }
+@media (max-width: 768px) {
+    .app-modal-overlay { padding: 8px; align-items: stretch; }
+    .app-modal-panel {
+        width: 100%;
+        height: auto;
+        max-height: calc(100dvh - 16px);
+        margin: auto;
+        border-radius: 18px;
+    }
+    .app-modal-panel.app-modal-panel--full,
+    .app-modal-panel.app-modal-panel--tall {
+        height: calc(100dvh - 16px);
+        max-height: calc(100dvh - 16px);
+    }
+    .app-modal-header { padding: 14px 14px 8px; }
+    .app-modal-title-icon { width: 40px; height: 40px; border-radius: 12px; font-size: 16px; }
+    .app-modal-title { font-size: 16px; }
+    .app-modal-subtitle { font-size: 11px; }
+    .app-modal-toolbar { padding: 0 14px 10px; }
+    .app-modal-body { padding: 14px; }
+    .app-modal-footer { padding: 10px 14px 14px; gap: 8px; }
+    .app-modal-btn { padding: 9px 14px; }
+}
+
 /* Setup-page import modals must sit above the page chrome.  The Tailwind
    z-[200] class is not present in the static bundle, so pin them explicitly. */
 #setup-import-files-modal,

@@ -14,6 +14,7 @@
 | [test_edit_keeps_manual_model_regressions.py](../test_edit_keeps_manual_model_regressions.py) | edit / keeps / manual / model |
 | [test_feedback_ui_requests.py](../test_feedback_ui_requests.py) | feedback / ui / requests |
 | [test_minimal_prompt_mode_regressions.py](../test_minimal_prompt_mode_regressions.py) | minimal / prompt / mode |
+| [test_modal_design_system_regressions.py](../test_modal_design_system_regressions.py) | モーダルの共通構造・共通CSS・ライトテーマ上書き |
 | [test_modal_performance_regressions.py](../test_modal_performance_regressions.py) | modal / performance |
 | [test_progress_spinner_regressions.py](../test_progress_spinner_regressions.py) | progress / spinner |
 | [test_prompt_options_record_regressions.py](../test_prompt_options_record_regressions.py) | prompt / options / record |

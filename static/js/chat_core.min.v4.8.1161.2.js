@@ -1260,17 +1260,16 @@ marker-modal",open:r(()=>{},"open")},"/chat-settings":{id:"thread-modal",open:r(
 state&&history.state.messageId!==void 0?openTokenDetail(history.state.messageId):showTokenDetailModal()},
 "open")},"/encryption-status":{id:"encryption-status-modal",open:r(()=>showEncryptionStatusModal(),"\
 open")},"/python-execution":{id:"python-exec-modal",open:r(()=>showPythonExecDetailModal(),"open")},
-"/skill":{id:"skill-modal",open:r(()=>{editingSkillUuid=null,get("skill-modal-title").innerHTML='<i \
-class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Create New Skill',showModal("skill-modal")},
-"open")},"/compression":{id:"compression-modal",open:r(()=>window.openCompressionModal(),"open")},"/\
-admin-bots":{id:"bot-admin-modal",open:r(()=>Fn(),"open")},"/admin-bot-logs":{id:"bot-log-modal",open:r(
-()=>Dn(),"open")}};Rt["/gem"]=Rt["/skill"];const ni=r((u,f=!1)=>{switch(u){case"settings-modal":Ke(f);
-break;case"upload-modal":closeUploadModal(f);break;case"image-split-modal":closeImageSplit();break;case"\
-image-split-compression-modal":hideModal(u);break;case"camera-capture-modal":closeCameraCaptureModal(
-f?{skipHistory:!0}:{});break;case"history-modal":window.closeHistoryModal&&window.closeHistoryModal(
-f);break;case"lib-modal":window.closeLibModal&&window.closeLibModal(f);break;case"branch-modal":window.
-closeBranchModal&&window.closeBranchModal(f);break;case"batch-modal":window.closeBatchModal&&window.
-closeBatchModal(f);break;case"rich-paste-modal":window.closeRichPasteModal&&window.closeRichPasteModal(
+"/skill":{id:"skill-modal",open:r(()=>{editingSkillUuid=null,get("skill-modal-title").textContent="C\
+reate New Skill",showModal("skill-modal")},"open")},"/compression":{id:"compression-modal",open:r(()=>window.
+openCompressionModal(),"open")},"/admin-bots":{id:"bot-admin-modal",open:r(()=>Fn(),"open")},"/admin\
+-bot-logs":{id:"bot-log-modal",open:r(()=>Dn(),"open")}};Rt["/gem"]=Rt["/skill"];const ni=r((u,f=!1)=>{
+switch(u){case"settings-modal":Ke(f);break;case"upload-modal":closeUploadModal(f);break;case"image-s\
+plit-modal":closeImageSplit();break;case"image-split-compression-modal":hideModal(u);break;case"came\
+ra-capture-modal":closeCameraCaptureModal(f?{skipHistory:!0}:{});break;case"history-modal":window.closeHistoryModal&&
+window.closeHistoryModal(f);break;case"lib-modal":window.closeLibModal&&window.closeLibModal(f);break;case"\
+branch-modal":window.closeBranchModal&&window.closeBranchModal(f);break;case"batch-modal":window.closeBatchModal&&
+window.closeBatchModal(f);break;case"rich-paste-modal":window.closeRichPasteModal&&window.closeRichPasteModal(
 f);break;case"marker-modal":window.closeMarkerModal&&window.closeMarkerModal(f);break;case"thread-mo\
 dal":window.closeThreadModal&&window.closeThreadModal(f);break;case"model-modal":window.closeModelModal&&
 window.closeModelModal(f);break;case"token-detail-modal":closeTokenDetail(f);break;case"encryption-s\
@@ -2081,37 +2080,36 @@ ib-sort").value||"newest";localStorage.setItem(LIB_SORT_KEY,f),loadLibraryFiles(
 -filter-btn")&&(lib.favoritesOnly=localStorage.getItem(LIB_FAVORITES_ONLY_KEY)==="true",get("lib-fav\
 orite-filter-btn").onclick=()=>{lib.favoritesOnly=!lib.favoritesOnly,localStorage.setItem(LIB_FAVORITES_ONLY_KEY,
 String(lib.favoritesOnly)),loadLibraryFiles()}),get("lib-load-more-btn")&&(get("lib-load-more-btn").
-onclick=()=>loadLibraryFiles(!0));const Oi=r(()=>{editingSkillUuid=null,get("skill-modal-title").innerHTML=
-'<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Create New Skill',get("save-skill-btn").
-innerText="Create Skill",showModal("skill-modal"),get("skill-name").value="",get("skill-desc").value=
-"",get("skill-inst").value="",location.pathname!=="/skill"&&history.pushState({modal:"skill"},"","/s\
-kill")},"openSkillModal");window.closeSkillModal=(u=!1)=>{hideModal("skill-modal"),!u&&location.pathname===
-"/skill"&&history.back()},get("add-skill-btn").onclick=()=>Oi(),get("save-skill-btn").onclick=async()=>{
-const u=get("skill-name").value,f=get("skill-desc").value,g=get("skill-inst").value;if(u&&g){const b=editingSkillUuid?
-"PUT":"POST",x=editingSkillUuid?`/api/skills/${editingSkillUuid}`:CHAT_CONFIG.urls.handleSkills;await apiFetch(
-x,{method:b,headers:{"Content-Type":"application/json"},body:JSON.stringify({name:u,description:f,instruction:g})}),
-window.closeSkillModal(),loadSkills(),editingSkillUuid&&activeSkill&&activeSkill.uuid===editingSkillUuid&&
-(activeSkill.name=u,activeSkill.instruction=g,applyActiveSkill(activeSkill))}else alert("Name and In\
-struction are required.")},document.addEventListener("click",function(u){if(u.target.closest(".edit-\
-btn")){const g=u.target.closest(".edit-btn").getAttribute("data-id");beginEditMessage(g)}if(u.target.
-closest(".code-toggle")){const f=u.target.closest(".code-toggle"),g=f.closest(".code-wrapper");if(!g)
-return;const b=g.classList.toggle("collapsed");g.setAttribute("data-collapsed",b?"true":"false"),f.setAttribute(
-"aria-expanded",b?"false":"true"),f.innerHTML=b?'<i class="fas fa-chevron-down"></i>':'<i class="fas\
- fa-chevron-up"></i>',f.title=b?"\u5C55\u958B":"\u6298\u308A\u305F\u305F\u3080",f.setAttribute("aria\
--label",b?"\u5C55\u958B":"\u6298\u308A\u305F\u305F\u3080")}if(u.target.closest(".download-btn")){const f=u.
-target.closest(".download-btn"),g=f.getAttribute("data-code"),b=(f.getAttribute("data-lang")||"txt").
-toLowerCase();if(g)try{const x=decodeURIComponent(g),L=new Blob([x],{type:"text/plain"}),M=URL.createObjectURL(
-L),A=document.createElement("a");A.href=M;let B={python:"py",javascript:"js",typescript:"ts",markdown:"\
-md",html:"html",css:"css",json:"json",xml:"xml",sql:"sql",bash:"sh",sh:"sh",shell:"sh",zsh:"sh",c:"c",
-cpp:"cpp",csharp:"cs",cs:"cs",java:"java",kotlin:"kt",swift:"swift",go:"go",rust:"rs",ruby:"rb",php:"\
-php",perl:"pl",lua:"lua",r:"r",matlab:"m",yaml:"yaml",yml:"yaml",toml:"toml",ini:"ini",plaintext:"tx\
-t",text:"txt"}[b]||b;(b.length>8||/[^a-z0-9]/.test(b))&&(B="txt");let D=`code.${B}`;b==="dockerfile"&&
-(D="Dockerfile"),b==="makefile"&&(D="Makefile"),A.download=D,document.body.appendChild(A),A.click(),
-document.body.removeChild(A),URL.revokeObjectURL(M)}catch(x){console.error("Download failed",x)}}if(u.
-target.closest(".coding-target-btn")&&selectCodingTargetFromButton(u.target.closest(".coding-target-\
-btn")),u.target.closest(".copy-btn")){const f=u.target.closest(".copy-btn"),g=f.getAttribute("data-c\
-ode");g&&window.copyCode(f,g)}if(u.target.closest(".html-preview-btn")){const g=u.target.closest(".h\
-tml-preview-btn").getAttribute("data-code");g&&openHtmlCodePreview(g)}if(u.target.closest(".canvas-p\
-review-btn")){const f=u.target.closest(".canvas-preview-btn");previewCanvasCodeFromButton(f)}}),document.
-querySelectorAll(".modal-overlay").forEach(u=>{u.addEventListener("click",f=>{f.target===u&&ni(u.id)})}),
-currentThreadId?loadMessages(currentThreadId):schedulePromptTokenEstimate(!0)});
+onclick=()=>loadLibraryFiles(!0));const Oi=r(()=>{editingSkillUuid=null,get("skill-modal-title").textContent=
+"Create New Skill",get("save-skill-btn").innerText="Create Skill",showModal("skill-modal"),get("skil\
+l-name").value="",get("skill-desc").value="",get("skill-inst").value="",location.pathname!=="/skill"&&
+history.pushState({modal:"skill"},"","/skill")},"openSkillModal");window.closeSkillModal=(u=!1)=>{hideModal(
+"skill-modal"),!u&&location.pathname==="/skill"&&history.back()},get("add-skill-btn").onclick=()=>Oi(),
+get("save-skill-btn").onclick=async()=>{const u=get("skill-name").value,f=get("skill-desc").value,g=get(
+"skill-inst").value;if(u&&g){const b=editingSkillUuid?"PUT":"POST",x=editingSkillUuid?`/api/skills/${editingSkillUuid}`:
+CHAT_CONFIG.urls.handleSkills;await apiFetch(x,{method:b,headers:{"Content-Type":"application/json"},
+body:JSON.stringify({name:u,description:f,instruction:g})}),window.closeSkillModal(),loadSkills(),editingSkillUuid&&
+activeSkill&&activeSkill.uuid===editingSkillUuid&&(activeSkill.name=u,activeSkill.instruction=g,applyActiveSkill(
+activeSkill))}else alert("Name and Instruction are required.")},document.addEventListener("click",function(u){
+if(u.target.closest(".edit-btn")){const g=u.target.closest(".edit-btn").getAttribute("data-id");beginEditMessage(
+g)}if(u.target.closest(".code-toggle")){const f=u.target.closest(".code-toggle"),g=f.closest(".code-\
+wrapper");if(!g)return;const b=g.classList.toggle("collapsed");g.setAttribute("data-collapsed",b?"tr\
+ue":"false"),f.setAttribute("aria-expanded",b?"false":"true"),f.innerHTML=b?'<i class="fas fa-chevro\
+n-down"></i>':'<i class="fas fa-chevron-up"></i>',f.title=b?"\u5C55\u958B":"\u6298\u308A\u305F\u305F\u3080",
+f.setAttribute("aria-label",b?"\u5C55\u958B":"\u6298\u308A\u305F\u305F\u3080")}if(u.target.closest("\
+.download-btn")){const f=u.target.closest(".download-btn"),g=f.getAttribute("data-code"),b=(f.getAttribute(
+"data-lang")||"txt").toLowerCase();if(g)try{const x=decodeURIComponent(g),L=new Blob([x],{type:"text\
+/plain"}),M=URL.createObjectURL(L),A=document.createElement("a");A.href=M;let B={python:"py",javascript:"\
+js",typescript:"ts",markdown:"md",html:"html",css:"css",json:"json",xml:"xml",sql:"sql",bash:"sh",sh:"\
+sh",shell:"sh",zsh:"sh",c:"c",cpp:"cpp",csharp:"cs",cs:"cs",java:"java",kotlin:"kt",swift:"swift",go:"\
+go",rust:"rs",ruby:"rb",php:"php",perl:"pl",lua:"lua",r:"r",matlab:"m",yaml:"yaml",yml:"yaml",toml:"\
+toml",ini:"ini",plaintext:"txt",text:"txt"}[b]||b;(b.length>8||/[^a-z0-9]/.test(b))&&(B="txt");let D=`\
+code.${B}`;b==="dockerfile"&&(D="Dockerfile"),b==="makefile"&&(D="Makefile"),A.download=D,document.body.
+appendChild(A),A.click(),document.body.removeChild(A),URL.revokeObjectURL(M)}catch(x){console.error(
+"Download failed",x)}}if(u.target.closest(".coding-target-btn")&&selectCodingTargetFromButton(u.target.
+closest(".coding-target-btn")),u.target.closest(".copy-btn")){const f=u.target.closest(".copy-btn"),
+g=f.getAttribute("data-code");g&&window.copyCode(f,g)}if(u.target.closest(".html-preview-btn")){const g=u.
+target.closest(".html-preview-btn").getAttribute("data-code");g&&openHtmlCodePreview(g)}if(u.target.
+closest(".canvas-preview-btn")){const f=u.target.closest(".canvas-preview-btn");previewCanvasCodeFromButton(
+f)}}),document.querySelectorAll(".modal-overlay").forEach(u=>{u.addEventListener("click",f=>{f.target===
+u&&ni(u.id)})}),currentThreadId?loadMessages(currentThreadId):schedulePromptTokenEstimate(!0)});

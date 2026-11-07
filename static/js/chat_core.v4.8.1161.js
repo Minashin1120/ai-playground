@@ -14023,7 +14023,7 @@
                 } },
                 '/encryption-status': { id: 'encryption-status-modal', open: () => showEncryptionStatusModal() },
                 '/python-execution': { id: 'python-exec-modal', open: () => showPythonExecDetailModal() },
-                '/skill': { id: 'skill-modal', open: () => { editingSkillUuid = null; get('skill-modal-title').innerHTML = `<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Create New Skill`; showModal('skill-modal'); } },
+                '/skill': { id: 'skill-modal', open: () => { editingSkillUuid = null; get('skill-modal-title').textContent = 'Create New Skill'; showModal('skill-modal'); } },
                 '/compression': { id: 'compression-modal', open: () => window.openCompressionModal() },
                 '/admin-bots': { id: 'bot-admin-modal', open: () => openBotAdminModal() },
                 '/admin-bot-logs': { id: 'bot-log-modal', open: () => openBotLogModal() }
@@ -17085,7 +17085,7 @@
 
         const openSkillModal = () => {
             editingSkillUuid = null;
-            get('skill-modal-title').innerHTML = `<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Create New Skill`;
+            get('skill-modal-title').textContent = 'Create New Skill';
             get('save-skill-btn').innerText = "Create Skill";
             showModal('skill-modal');
             get('skill-name').value=''; get('skill-desc').value=''; get('skill-inst').value='';
@@ -17456,9 +17456,7 @@
             const title = get('marker-modal-title');
             const description = get('marker-modal-description');
             const save = get('marker-save');
-            if (title) title.innerHTML = markerState.maskMode
-                ? '<i class="fas fa-mask text-yellow-300"></i> マスク作成'
-                : '<i class="fas fa-highlighter text-yellow-300"></i> 画像編集';
+            if (title) title.textContent = markerState.maskMode ? 'マスク作成' : '画像編集';
             if (description) description.textContent = markerState.maskMode
                 ? '白く塗った領域が削除対象です。ブラシまたは自動塗りを使えます。マスクは対象画像と同じサイズで作成されます。'
                 : 'マーカー・モザイク・トリミングが可能です。送信時に編集済み画像の確認を促します。';
@@ -24763,7 +24761,7 @@
                 get('skill-name').value = skill.name;
                 get('skill-desc').value = skill.description || '';
                 get('skill-inst').value = skill.instruction;
-                get('skill-modal-title').innerHTML = `<i class="fas fa-wand-magic-sparkles text-blue-500 mr-2"></i>Edit Skill`;
+                get('skill-modal-title').textContent = 'Edit Skill';
                 get('save-skill-btn').innerText = "Save Changes";
                 showModal('skill-modal');
                 if (location.pathname !== '/skill') {

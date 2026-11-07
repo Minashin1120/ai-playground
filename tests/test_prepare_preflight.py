@@ -38,7 +38,12 @@ printf 'verify %s\\n' "$*" >> events
 if [[ "${FAIL_CHECK:-0}" == 1 ]]; then exit 1; fi
 if [[ "$*" != *--skip-tests* && "${FAIL_TESTS:-0}" == 1 ]]; then exit 1; fi
 ''')
-    for name in ['build_frontend.sh', 'verify_changes.sh']:
+    (scripts / 'sync_android_assets.sh').write_text('''#!/usr/bin/env bash
+set -euo pipefail
+printf 'sync\\n' >> events
+[[ "${FAIL_SYNC:-0}" == 0 ]]
+''')
+    for name in ['build_frontend.sh', 'verify_changes.sh', 'sync_android_assets.sh']:
         (scripts / name).chmod(0o755)
     return tmp_path
 
@@ -52,7 +57,7 @@ def events(tree):
     return (tree / 'events').read_text().splitlines()
 
 
-@pytest.mark.parametrize('failure', ['FAIL_BUILD', 'FAIL_TESTS', 'FAIL_CHECK'])
+@pytest.mark.parametrize('failure', ['FAIL_SYNC', 'FAIL_BUILD', 'FAIL_TESTS', 'FAIL_CHECK'])
 def test_preflight_failure_cannot_advance_version_or_changelog(tree, failure):
     result = run(tree, **{failure: '1'})
     assert result.returncode != 0
@@ -64,6 +69,7 @@ def test_preflight_failure_cannot_advance_version_or_changelog(tree, failure):
 def test_full_tests_run_before_bump_and_only_static_checks_after(tree):
     assert run(tree).returncode == 0
     rows = events(tree)
+    assert rows.index('sync') < rows.index('build')
     full = rows.index('verify ')
     bump = next(i for i, row in enumerate(rows) if row.startswith('["prepare"'))
     assert full < bump < rows.index('verify --skip-tests')

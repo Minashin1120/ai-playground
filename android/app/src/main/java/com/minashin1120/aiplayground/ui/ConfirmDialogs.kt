@@ -44,64 +44,45 @@ internal fun mcpArgsPreview(raw: String): String = runCatching {
     if (trimmed.startsWith("[")) JSONArray(trimmed).toString(2) else JSONObject(trimmed).toString(2)
 }.getOrDefault(raw)
 
-/** The plain Tailwind modal used by the Web dialogs (`bg-gray-800 rounded-lg p-6 border m-4`). */
-@Composable
-private fun TwPanelModal(onDismiss: () -> Unit, border: Color, maxWidth: Dp, content: @Composable ColumnScope.() -> Unit) {
-    val web = LocalWebPalette.current
-    WebOverlayModal(onDismiss, grayOverlay(), 4.dp) { phone ->
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-            verticalArrangement = if (phone) Arrangement.Top else Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            val shape = RoundedCornerShape(8.dp)
-            Column(
-                Modifier.padding(16.dp).widthIn(max = maxWidth).fillMaxWidth().modalPanelTaps().clip(shape).background(web.twBg(Tw.gray800))
-                    .border(1.dp, border, shape).padding(24.dp),
-                content = content,
-            )
-        }
-    }
-}
-
 /** `#mcp-decision-modal` (外部ツール操作の確認). Back or the overlay denies, like a Web timeout. */
 @Composable
 internal fun McpDecisionDialog(decision: McpDecision, onDecide: (Boolean) -> Unit) {
     val web = LocalWebPalette.current
-    TwPanelModal({ onDecide(false) }, Tw.amber500.copy(alpha = 0.5f), 512.dp) {
-        Row(Modifier.padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            FaIcon(R.drawable.fa_solid_shield_alt, null, size = 18.dp, tint = web.twText(Tw.amber300), modifier = Modifier.padding(end = 8.dp))
-            Text("外部ツール操作の確認", fontSize = 18.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold, color = web.twText(Tw.amber300))
-        }
-        Text(buildAnnotatedString {
-            append("AIが、接続中の外部MCPサーバーで")
-            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("変更を伴う操作") }
-            append("を実行しようとしています。 内容を確認し、よければ「許可」を押してください（時間切れ・キャンセル時は実行されません）。")
-        }, fontSize = 12.sp, lineHeight = 19.5.sp, color = web.twText(Tw.gray300), modifier = Modifier.padding(bottom = 12.dp))
-        val box = RoundedCornerShape(4.dp)
-        Column(
-            Modifier.fillMaxWidth().clip(box).background(web.twBg(Tw.gray950).copy(alpha = 0.7f)).border(1.dp, web.twBorder(Tw.gray700), box).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            val label = SpanStyle(color = web.twText(Tw.gray500))
-            Text(buildAnnotatedString {
-                withStyle(label) { append("サーバー: ") }
-                withStyle(SpanStyle(color = web.twText(Tw.white), fontWeight = FontWeight.Bold)) { append(decision.serverName.ifBlank { "不明なサーバー" }) }
-            }, fontSize = 12.sp, lineHeight = 16.sp)
-            Text(buildAnnotatedString {
-                withStyle(label) { append("ツール: ") }
-                withStyle(SpanStyle(color = web.twText(Tw.cyan300), fontFamily = FontFamily.Monospace)) { append(decision.toolName) }
-            }, fontSize = 12.sp, lineHeight = 16.sp)
-            Text("入力:", fontSize = 12.sp, lineHeight = 16.sp, color = web.twText(Tw.gray500))
-            Text(
-                mcpArgsPreview(decision.argsPreview), fontSize = 11.sp, lineHeight = 16.5.sp, fontFamily = FontFamily.Monospace,
-                color = web.twText(Tw.gray400),
-                modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp).clip(box).background(Color.Black.copy(alpha = 0.3f))
-                    .verticalScroll(rememberScrollState()).padding(8.dp),
-            )
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-            WebButton(onClick = { onDecide(false) }, variant = WebButtonVariant.Ghost) { Text("拒否") }
+    PlaygroundDialog(
+        onDismissRequest = { onDecide(false) },
+        title = { Text("外部ツール操作の確認") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(buildAnnotatedString {
+                    append("AIが、接続中の外部MCPサーバーで")
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("変更を伴う操作") }
+                    append("を実行しようとしています。 内容を確認し、よければ「許可」を押してください（時間切れ・キャンセル時は実行されません）。")
+                }, fontSize = 12.sp, lineHeight = 19.5.sp, color = web.twText(Tw.gray300))
+                val box = RoundedCornerShape(12.dp)
+                Column(
+                    Modifier.fillMaxWidth().clip(box).background(web.twBg(Tw.gray950).copy(alpha = 0.7f)).border(1.dp, web.line, box).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    val label = SpanStyle(color = web.twText(Tw.gray500))
+                    Text(buildAnnotatedString {
+                        withStyle(label) { append("サーバー: ") }
+                        withStyle(SpanStyle(color = web.twText(Tw.white), fontWeight = FontWeight.Bold)) { append(decision.serverName.ifBlank { "不明なサーバー" }) }
+                    }, fontSize = 12.sp, lineHeight = 16.sp)
+                    Text(buildAnnotatedString {
+                        withStyle(label) { append("ツール: ") }
+                        withStyle(SpanStyle(color = web.twText(Tw.cyan300), fontFamily = FontFamily.Monospace)) { append(decision.toolName) }
+                    }, fontSize = 12.sp, lineHeight = 16.sp)
+                    Text("入力:", fontSize = 12.sp, lineHeight = 16.sp, color = web.twText(Tw.gray500))
+                    Text(
+                        mcpArgsPreview(decision.argsPreview), fontSize = 11.sp, lineHeight = 16.5.sp, fontFamily = FontFamily.Monospace,
+                        color = web.twText(Tw.gray400),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.3f))
+                            .verticalScroll(rememberScrollState()).padding(8.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
             Row(
                 Modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xFFB45309)).clickable(role = Role.Button) { onDecide(true) }
                     .padding(horizontal = 16.dp, vertical = 9.dp),
@@ -110,8 +91,13 @@ internal fun McpDecisionDialog(decision: McpDecision, onDecide: (Boolean) -> Uni
                 FaIcon(R.drawable.fa_solid_check, null, size = 13.dp, tint = web.textInverse)
                 Text("許可", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = web.textInverse)
             }
-        }
-    }
+        },
+        dismissButton = { WebButton(onClick = { onDecide(false) }, variant = WebButtonVariant.Ghost) { Text("拒否") } },
+        icon = R.drawable.fa_solid_shield_alt,
+        subtitle = "変更を伴う操作の内容を確認してください",
+        tone = WebModalTone.Warn,
+        panelMaxWidth = 560.dp,
+    )
 }
 
 /** `#gemini-local-python-modal` (ローカルPython実行に切替); [onResult] gets (proceed, dontShowAgain). */
@@ -119,42 +105,38 @@ internal fun McpDecisionDialog(decision: McpDecision, onDecide: (Boolean) -> Uni
 internal fun GeminiLocalPythonDialog(onResult: (Boolean, Boolean) -> Unit) {
     val web = LocalWebPalette.current
     var dontShow by remember { mutableStateOf(false) }
-    TwPanelModal({ onResult(false, dontShow) }, Tw.yellow500.copy(alpha = 0.6f), 448.dp) {
-        Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            FaIcon(R.drawable.fa_solid_terminal, null, size = 18.dp, tint = web.twText(Tw.yellow300), modifier = Modifier.padding(end = 8.dp))
-            Text("ローカルPython実行に切替", fontSize = 18.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold, color = web.twText(Tw.yellow300),
-                modifier = Modifier.weight(1f))
-            Box(Modifier.size(32.dp).clip(CircleShape).clickable(role = Role.Button) { onResult(false, dontShow) }, contentAlignment = Alignment.Center) {
-                FaIcon(R.drawable.fa_solid_times, "閉じる", size = 16.dp, tint = web.twText(Tw.gray400))
+    PlaygroundDialog(
+        onDismissRequest = { onResult(false, dontShow) },
+        title = { Text("ローカルPython実行に切替") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val body = web.twText(Tw.gray300)
+                Text("Geminiの音声/動画入力ではPython実行がローカルモードに切り替わります。", fontSize = 14.sp, lineHeight = 20.sp, color = body)
+                Text(buildAnnotatedString {
+                    append("実行したい場合は ")
+                    withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) { append("```python") }
+                    append(" ブロックの先頭行に ")
+                    withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) { append("# EXECUTE") }
+                    append(" を入れてください。")
+                }, fontSize = 14.sp, lineHeight = 20.sp, color = body)
+                Row(
+                    Modifier.padding(top = 8.dp).toggleable(dontShow, role = Role.Checkbox) { dontShow = it },
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    WebCheckbox(dontShow, null)
+                    Text("次回から表示しない", fontSize = 12.sp, lineHeight = 16.sp, color = web.twText(Tw.gray400))
+                }
             }
-        }
-        val body = web.twText(Tw.gray300)
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Geminiの音声/動画入力ではPython実行がローカルモードに切り替わります。", fontSize = 14.sp, lineHeight = 20.sp, color = body)
-            Text(buildAnnotatedString {
-                append("実行したい場合は ")
-                withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) { append("```python") }
-                append(" ブロックの先頭行に ")
-                withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) { append("# EXECUTE") }
-                append(" を入れてください。")
-            }, fontSize = 14.sp, lineHeight = 20.sp, color = body)
-        }
-        Row(
-            Modifier.padding(top = 16.dp).toggleable(dontShow, role = Role.Checkbox) { dontShow = it },
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            WebCheckbox(dontShow, null)
-            Text("次回から表示しない", fontSize = 12.sp, lineHeight = 16.sp, color = web.twText(Tw.gray400))
-        }
-        Row(Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)) {
-            Text("キャンセル", fontSize = 16.sp, lineHeight = 24.sp, color = web.twText(Tw.gray400),
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable(role = Role.Button) { onResult(false, dontShow) }
-                    .padding(horizontal = 16.dp, vertical = 8.dp))
-            Text("このまま送信", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold, color = Tw.white,
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Tw.yellow600).clickable(role = Role.Button) { onResult(true, dontShow) }
-                    .padding(horizontal = 16.dp, vertical = 8.dp))
-        }
-    }
+        },
+        confirmButton = {
+            WebButton(onClick = { onResult(true, dontShow) }, variant = WebButtonVariant.Primary) { Text("このまま送信") }
+        },
+        dismissButton = { WebButton(onClick = { onResult(false, dontShow) }, variant = WebButtonVariant.Ghost) { Text("キャンセル") } },
+        icon = R.drawable.fa_solid_terminal,
+        subtitle = "Geminiの音声・動画入力での実行方法",
+        tone = WebModalTone.Warn,
+        panelMaxWidth = 560.dp,
+    )
 }
 
 /**
@@ -241,51 +223,55 @@ internal fun ApiKeyRequiredDialog(
 ) {
     val web = LocalWebPalette.current
     var key by remember { mutableStateOf("") }
-    TwPanelModal(onCancel, web.twBorder(Tw.gray700), 448.dp) {
-        Row(Modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.padding(top = 2.dp).size(40.dp).clip(CircleShape).background(web.twBg(Tw.red900, 0.5f)), contentAlignment = Alignment.Center) {
-                FaIcon(R.drawable.fa_solid_key, null, size = 18.dp, tint = web.twText(Tw.red400))
-            }
-            Column(Modifier.weight(1f)) {
-                Text("APIキーが必要です", fontSize = 18.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold, color = web.twText(Tw.white))
-                Text("$modelName（$modelId）", fontSize = 12.sp, lineHeight = 16.sp, color = web.twText(Tw.gray400), modifier = Modifier.padding(top = 4.dp))
-            }
-        }
-        Text("このモデルを使用するには${info.label}の設定が必要です。", fontSize = 14.sp, lineHeight = 20.sp, color = web.twText(Tw.gray300),
-            modifier = Modifier.padding(bottom = 16.dp))
-        Text(info.label, fontSize = 12.sp, lineHeight = 16.sp, color = web.twText(Tw.gray500), modifier = Modifier.padding(bottom = 4.dp))
-        val shape = RoundedCornerShape(4.dp)
-        val textColor = web.twText(Tw.white)
-        val style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, lineHeight = 20.sp, color = textColor, fontFamily = WebFonts.sans)
-        androidx.compose.foundation.text.BasicTextField(
-            key, { key = it.take(4096) }, singleLine = true, textStyle = style, cursorBrush = androidx.compose.ui.graphics.SolidColor(textColor),
-            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
-                imeAction = androidx.compose.ui.text.input.ImeAction.Send),
-            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { onSave(key) }),
-            modifier = Modifier.fillMaxWidth().secretField().clip(shape).background(web.twBg(Tw.gray800)).border(1.dp, web.twBorder(Tw.gray600), shape),
-            decorationBox = { inner ->
-                Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                    if (key.isEmpty()) Text("APIキーを入力", style = style.copy(color = Tw.gray500))
-                    inner()
+    PlaygroundDialog(
+        onDismissRequest = onCancel,
+        title = { Text("APIキーが必要です") },
+        text = {
+            Column {
+                Text("$modelName（$modelId）", fontSize = 12.sp, lineHeight = 16.sp, color = web.twText(Tw.gray400), modifier = Modifier.padding(bottom = 16.dp))
+                Text("このモデルを使用するには${info.label}の設定が必要です。", fontSize = 14.sp, lineHeight = 20.sp, color = web.twText(Tw.gray300),
+                    modifier = Modifier.padding(bottom = 16.dp))
+                Text(info.label, fontSize = 12.sp, lineHeight = 16.sp, color = web.twText(Tw.gray500), modifier = Modifier.padding(bottom = 4.dp))
+                val shape = RoundedCornerShape(4.dp)
+                val textColor = web.twText(Tw.white)
+                val style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, lineHeight = 20.sp, color = textColor, fontFamily = WebFonts.sans)
+                androidx.compose.foundation.text.BasicTextField(
+                    key, { key = it.take(4096) }, singleLine = true, textStyle = style, cursorBrush = androidx.compose.ui.graphics.SolidColor(textColor),
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password,
+                        imeAction = androidx.compose.ui.text.input.ImeAction.Send),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSend = { onSave(key) }),
+                    modifier = Modifier.fillMaxWidth().secretField().clip(shape).background(web.twBg(Tw.gray800)).border(1.dp, web.twBorder(Tw.gray600), shape),
+                    decorationBox = { inner ->
+                        Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                            if (key.isEmpty()) Text("APIキーを入力", style = style.copy(color = Tw.gray500))
+                            inner()
+                        }
+                    },
+                )
+                Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val buttonShape = RoundedCornerShape(8.dp)
+                    @Composable
+                    fun Action(icon: Int?, label: String, background: Color, color: Color, bold: Boolean, vertical: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+                        Row(
+                            Modifier.fillMaxWidth().clip(buttonShape).background(background).clickable(role = Role.Button, onClick = onClick).padding(vertical = vertical),
+                            horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            icon?.let { FaIcon(it, null, size = 13.dp, tint = color, modifier = Modifier.padding(end = 4.dp)) }
+                            Text(label, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal, color = color)
+                        }
+                    }
+                    Action(R.drawable.fa_solid_save, "APIキーを保存して送信", Tw.blue600, Color.White, true, 10.dp) { onSave(key) }
+                    Action(R.drawable.fa_solid_exchange_alt, "他のモデルに切り替え", web.twBg(Tw.gray700), web.twText(Tw.white), true, 8.dp, onSwitch)
+                    Action(null, "キャンセル（エラーメッセージを表示）", Color.Transparent, web.twText(Tw.gray400), false, 8.dp, onCancel)
                 }
-            },
-        )
-        Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val buttonShape = RoundedCornerShape(8.dp)
-            @Composable
-            fun Action(icon: Int?, label: String, background: Color, color: Color, bold: Boolean, vertical: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
-                Row(
-                    Modifier.fillMaxWidth().clip(buttonShape).background(background).clickable(role = Role.Button, onClick = onClick).padding(vertical = vertical),
-                    horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    icon?.let { FaIcon(it, null, size = 13.dp, tint = color, modifier = Modifier.padding(end = 4.dp)) }
-                    Text(label, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal, color = color)
-                }
             }
-            Action(R.drawable.fa_solid_save, "APIキーを保存して送信", Tw.blue600, Color.White, true, 10.dp) { onSave(key) }
-            Action(R.drawable.fa_solid_exchange_alt, "他のモデルに切り替え", web.twBg(Tw.gray700), web.twText(Tw.white), true, 8.dp, onSwitch)
-            Action(null, "キャンセル（エラーメッセージを表示）", Color.Transparent, web.twText(Tw.gray400), false, 8.dp, onCancel)
-        }
-    }
+        },
+        confirmButton = {},
+        showFooter = false,
+        icon = R.drawable.fa_solid_key,
+        subtitle = "このモデルを使用するためのAPIキー",
+        tone = WebModalTone.Danger,
+        panelMaxWidth = 560.dp,
+    )
 }

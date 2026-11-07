@@ -507,32 +507,27 @@ private fun SettingsResultRows(entries: List<Pair<String, String>>, onJump: (Str
 @Composable
 internal fun PythonExecutionDialog(runs: List<com.minashin1120.aiplayground.data.PythonExecution>, onDismiss: () -> Unit,
                                    loader: FileBytesLoader? = null, onFile: (String) -> Unit = {}) {
-    val web = LocalWebPalette.current
-    WebOverlayModal(onDismiss, grayOverlay(), 4.dp) { _ ->
-        val shape = RoundedCornerShape(12.dp)
-        Box(
-            Modifier.padding(16.dp).widthIn(max = 672.dp).fillMaxWidth().modalPanelTaps().clip(shape).background(web.twBg(Tw.gray900))
-                .border(1.dp, web.twBorder(Tw.gray700), shape).padding(16.dp),
-        ) {
-            Column {
-                Row(Modifier.padding(end = 32.dp), verticalAlignment = Alignment.CenterVertically) {
-                    FaIcon(R.drawable.fa_solid_terminal, null, size = 13.dp, tint = web.twText(Tw.amber300), modifier = Modifier.padding(end = 6.dp))
-                    Text("Python 実行結果" + if (runs.size > 1) "（${runs.size}件）" else "", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                        color = web.twText(Tw.amber300))
-                }
-                Column(Modifier.padding(top = 12.dp).heightIn(max = 640.dp).verticalScroll(rememberScrollState())) {
-                    runs.forEachIndexed { index, run ->
-                        PythonExecutionBox(
-                            StatusCard("pyexec-detail-$index", CardKind.PYTHON, "", code = run.code, output = run.output, done = true, images = run.images),
-                            label = if (runs.size > 1) "Python Execution ${index + 1}/${runs.size}" else "Python Execution",
-                            detail = true,
-                            loader = loader, onFile = onFile,
-                        )
-                    }
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Python 実行結果" + if (runs.size > 1) "（${runs.size}件）" else "") },
+        text = {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                runs.forEachIndexed { index, run ->
+                    PythonExecutionBox(
+                        StatusCard("pyexec-detail-$index", CardKind.PYTHON, "", code = run.code, output = run.output, done = true, images = run.images),
+                        label = if (runs.size > 1) "Python Execution ${index + 1}/${runs.size}" else "Python Execution",
+                        detail = true,
+                        loader = loader, onFile = onFile,
+                    )
                 }
             }
-            Box(Modifier.align(Alignment.TopEnd).size(24.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onDismiss),
-                contentAlignment = Alignment.Center) { FaIcon(R.drawable.fa_solid_times, "閉じる", size = 13.dp, tint = Tw.gray400) }
-        }
-    }
+        },
+        confirmButton = {},
+        showFooter = false,
+        icon = R.drawable.fa_solid_terminal,
+        subtitle = "コード実行の出力",
+        tone = WebModalTone.Warn,
+        fillHeight = true,
+        panelMaxWidth = 760.dp,
+    )
 }

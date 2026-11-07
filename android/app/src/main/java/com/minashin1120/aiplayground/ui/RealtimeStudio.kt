@@ -455,25 +455,11 @@ fun RealtimeStudioDialog(
 ) {
     val web = LocalWebPalette.current
     val modelId = if (state.realtime.active) state.realtime.model else state.model
-    WebOverlayModal(onDismiss, grayOverlay(), 4.dp) { phone ->
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-            verticalArrangement = if (phone) Arrangement.Top else Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            val shape = RoundedCornerShape(8.dp)
-            Column(
-                Modifier.padding(16.dp).widthIn(max = 672.dp).fillMaxWidth().modalPanelTaps().clip(shape).background(web.twBg(Tw.gray800))
-                    .border(1.dp, Tw.cyan500.copy(alpha = 0.3f), shape).padding(if (phone) 16.dp else 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FaIcon(R.drawable.fa_solid_microphone, null, size = 16.dp, tint = web.twText(Tw.cyan300), modifier = Modifier.padding(end = 8.dp))
-                    Text(voiceStudioTitle(modelId), fontSize = 18.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold, color = web.twText(Tw.white),
-                        modifier = Modifier.weight(1f))
-                    Box(Modifier.size(32.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onDismiss).semantics { contentDescription = "閉じる" },
-                        contentAlignment = Alignment.Center) { FaIcon(R.drawable.fa_solid_times, null, size = 16.dp, tint = web.twText(Tw.gray400)) }
-                }
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(voiceStudioTitle(modelId)) },
+        text = {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 VoiceTranscript(state.realtime, dock = false)
                 RealtimeVoiceDock(state, model, options, onOptions, onStart = onStart, onExpand = {}, inStudio = true)
                 val rule = web.twBorder(Tw.gray700, 0.5f)
@@ -481,6 +467,13 @@ fun RealtimeStudioDialog(
                     color = web.twText(Tw.gray500), textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().drawBehind { drawLine(rule, Offset.Zero, Offset(size.width, 0f), 1.dp.toPx()) }.padding(top = 8.dp))
             }
-        }
-    }
+        },
+        confirmButton = {},
+        showFooter = false,
+        icon = R.drawable.fa_solid_microphone,
+        subtitle = "音声モデルとのリアルタイム会話",
+        tone = WebModalTone.Cyan,
+        fillHeight = true,
+        panelMaxWidth = 760.dp,
+    )
 }

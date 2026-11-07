@@ -671,9 +671,11 @@ internal fun TotalTokenBar(path: TokenTotals, all: TokenTotals, showEstimate: Bo
 /** `#token-detail-modal`. */
 @Composable
 internal fun TokenDetailDialog(detail: TokenDetail, onDismiss: () -> Unit) {
-    SmallInfoModal(onDismiss) {
-        Text(detail.title, color = Tw.blue300, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-        Column(Modifier.padding(top = 12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(detail.title) },
+        text = {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             fun value(v: Int?) = v?.toString() ?: "-"
             listOf(
                 "Total" to value(detail.total), "In" to value(detail.tokensIn), "Out" to value(detail.tokensOut),
@@ -703,7 +705,14 @@ internal fun TokenDetailDialog(detail: TokenDetail, onDismiss: () -> Unit) {
                 }
             }
         }
-    }
+        },
+        confirmButton = {},
+        showFooter = false,
+        icon = R.drawable.fa_solid_coins,
+        subtitle = "使用量と費用の内訳",
+        tone = WebModalTone.Info,
+        panelMaxWidth = 440.dp,
+    )
 }
 
 /**
@@ -721,9 +730,11 @@ internal fun EncryptionStatusDialog(
     onDismiss: () -> Unit,
 ) {
     val web = LocalWebPalette.current
-    SmallInfoModal(onDismiss) {
-        Text(if (encrypted) "暗号化されています" else "暗号化されていません", color = Tw.blue300, fontSize = 14.sp, lineHeight = 20.sp,
-            fontWeight = FontWeight.Bold)
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (encrypted) "暗号化されています" else "暗号化されていません") },
+        text = {
+        Column {
         Text(
             when {
                 encrypted && admin -> "このメッセージはE2EEで暗号化されています。管理者は下のボタンでこのチャット全体を復号化できます。"
@@ -745,11 +756,15 @@ internal fun EncryptionStatusDialog(
                     color = web.twText(Tw.white), fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-            SmallModalButton("閉じる", web.twBg(Tw.gray700), onDismiss)
-            SmallModalButton("設定へ", Tw.blue600, onSettings)
         }
-    }
+        },
+        confirmButton = { WebButton(onClick = onSettings, variant = WebButtonVariant.Primary) { Text("設定へ") } },
+        dismissButton = { WebButton(onClick = onDismiss, variant = WebButtonVariant.Ghost) { Text("閉じる") } },
+        icon = R.drawable.fa_solid_lock,
+        subtitle = "メッセージの暗号化状態",
+        tone = WebModalTone.Info,
+        panelMaxWidth = 440.dp,
+    )
 }
 
 @Composable

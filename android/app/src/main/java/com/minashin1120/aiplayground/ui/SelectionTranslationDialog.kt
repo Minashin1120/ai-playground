@@ -55,6 +55,7 @@ internal fun SelectionTranslationDialog(
         title = { Text("AIで翻訳") },
         icon = R.drawable.fa_solid_globe,
         subtitle = setting?.takeIf { it.model.isNotBlank() }?.let { "${it.modelName.ifBlank { it.model }} → ${it.language}" },
+        tone = WebModalTone.Cyan,
         panelMaxWidth = 640.dp,
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {

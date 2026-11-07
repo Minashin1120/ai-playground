@@ -143,6 +143,7 @@ fun AppChangelogDialog(
         title = { Text("Android版の更新履歴") },
         subtitle = "このアプリの変更点",
         icon = R.drawable.fa_solid_history,
+        tone = WebModalTone.Info,
         panelMaxWidth = 760.dp,
         fillHeight = true,
         text = {

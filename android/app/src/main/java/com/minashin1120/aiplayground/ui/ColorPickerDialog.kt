@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.ui
 
+import com.minashin1120.aiplayground.R
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,6 +37,8 @@ internal fun ColorPickerDialog(initial: String, onDismiss: () -> Unit, onPick: (
     PlaygroundDialog(
         onDismissRequest = onDismiss,
         title = { Text("テーマ") },
+        icon = R.drawable.fa_solid_palette,
+        subtitle = "アクセントカラーを選択",
         panelMaxWidth = 360.dp,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

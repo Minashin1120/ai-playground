@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.ui
 
+import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.Diagnostics
 import android.annotation.SuppressLint
 import android.view.ViewGroup
@@ -51,6 +52,9 @@ internal fun HtmlCodePreviewDialog(code: String, onDismiss: () -> Unit) {
     PlaygroundDialog(
         onDismissRequest = onDismiss,
         title = { Text("プレビュー") },
+        icon = R.drawable.fa_solid_code,
+        subtitle = "HTMLコードプレビュー",
+        tone = WebModalTone.Info,
         confirmButton = {},
         fillHeight = true,
         padBody = false,

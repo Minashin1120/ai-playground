@@ -52,6 +52,13 @@ internal fun PlaygroundDialog(
     showFooter: Boolean = true,
     /** Web `.modal-overlay`: a tap outside the panel closes it. False where Web's panel covers the overlay. */
     dismissOnOutsideTap: Boolean = true,
+    /** Optional controls placed before the close button (e.g. Lyria's save-to-chat action). */
+    headerActions: (@Composable androidx.compose.foundation.layout.RowScope.() -> Unit)? = null,
+    /** Semantic color for the header icon (`app-modal-title-icon--*`). */
+    tone: WebModalTone = WebModalTone.Theme,
+    /** Footer button alignment (Lyria centers its transport controls). */
+    footerArrangement: androidx.compose.foundation.layout.Arrangement.Horizontal =
+        androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp, androidx.compose.ui.Alignment.End),
 ) {
     Dialog(onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         WebModalWindow()
@@ -69,13 +76,13 @@ internal fun PlaygroundDialog(
             }
             ModalPanelMotion(fullScreen = phone, onDismissRequest = onDismissRequest) {
                 WebModalPanel(panelModifier.modalPanelTaps(), phone) {
-                    WebModalHeader(title = title, onClose = onDismissRequest, phone = phone, icon = icon, subtitle = subtitle)
+                    WebModalHeader(title = title, onClose = onDismissRequest, phone = phone, icon = icon, subtitle = subtitle, actions = headerActions, tone = tone)
                     Box(
                         Modifier.weight(1f, fill = fillHeight).fillMaxWidth()
                             .then(if (padBody) Modifier.padding(start = if (phone) 12.dp else 18.dp, end = if (phone) 12.dp else 18.dp,
                                 top = if (phone) 12.dp else 16.dp, bottom = if (phone) 14.dp else 18.dp) else Modifier),
                     ) { text() }
-                    if (showFooter) WebModalFooter(phone) {
+                    if (showFooter) WebModalFooter(phone, horizontalArrangement = footerArrangement) {
                         dismissButton?.invoke()
                         confirmButton()
                     }

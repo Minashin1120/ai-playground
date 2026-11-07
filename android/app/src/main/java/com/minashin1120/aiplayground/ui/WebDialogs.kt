@@ -112,12 +112,22 @@ internal fun BrowserPromptDialog(message: String, initial: String = "", onResult
 @Composable
 internal fun ThreadRenameDialog(initial: String, onResult: (String?) -> Unit) {
     var value by remember { mutableStateOf(initial) }
-    NoticeAlertDialog(
+    PlaygroundDialog(
         onDismissRequest = { onResult(null) },
-        title = { Text("チャット名を変更", fontSize = 18.sp) },
-        text = { OutlinedTextField(value, { value = it }, label = { Text("チャット名") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
-        confirmButton = { TextButton(enabled = value.isNotBlank(), onClick = { onResult(value) }) { Text("保存") } },
-        dismissButton = { TextButton(onClick = { onResult(null) }) { Text("キャンセル") } },
+        title = { Text("チャット名を変更") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("チャット名", color = LocalWebPalette.current.twText(Tw.gray300), fontSize = 14.sp)
+                TwInput(value, { value = it }, "チャット名")
+            }
+        },
+        confirmButton = {
+            WebButton(onClick = { onResult(value) }, variant = WebButtonVariant.Primary, enabled = value.isNotBlank()) { Text("保存") }
+        },
+        dismissButton = { WebButton(onClick = { onResult(null) }, variant = WebButtonVariant.Ghost) { Text("キャンセル") } },
+        icon = R.drawable.fa_solid_pen,
+        subtitle = "このチャットの表示名を変更します",
+        panelMaxWidth = 440.dp,
     )
 }
 
@@ -162,85 +172,64 @@ internal fun grayOverlay(): Color {
 internal fun HistoryDialog(state: ChatState, actions: SidebarActions, onDismiss: () -> Unit) {
     val web = LocalWebPalette.current
     val colors = sidebarColors()
-    val panel = web.twBg(Tw.gray800)
-    val border = web.twBorder(Tw.gray700)
-    WebOverlayModal(onDismiss, grayOverlay(), 4.dp) { _ ->
-        val shape = RoundedCornerShape(8.dp)
-        Column(
-            Modifier
-                .padding(horizontal = 16.dp, vertical = 60.dp)
-                .widthIn(max = 720.dp)
-                .fillMaxSize()
-                .modalPanelTaps()
-                .clip(shape)
-                .background(panel)
-                .border(1.dp, border, shape),
-        ) {
-            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                FaIcon(R.drawable.fa_solid_history, null, size = 18.dp, tint = web.theme300)
-                Spacer(Modifier.width(8.dp))
-                Text("チャット履歴", color = web.twText(Tw.white), fontSize = 18.sp, lineHeight = 28.sp,
-                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Box(Modifier.clickable(onClickLabel = "閉じる", role = Role.Button, onClick = onDismiss).padding(4.dp)) {
-                    FaIcon(R.drawable.fa_solid_times, "閉じる", size = 14.dp, tint = web.twText(Tw.gray400))
+    val border = web.line
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("チャット履歴") },
+        text = {
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.fillMaxWidth().padding(12.dp)) {
+                    val fieldShape = RoundedCornerShape(12.dp)
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(38.dp)
+                            .clip(fieldShape)
+                            .background(if (web.isLight) Color.White else Tw.white.copy(alpha = 0.04f))
+                            .border(1.dp, border, fieldShape)
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        val text = web.text
+                        BasicTextField(
+                            state.search, actions.onSearch, singleLine = true,
+                            textStyle = TextStyle(color = text, fontSize = 13.sp, lineHeight = 20.sp, fontFamily = WebFonts.sans),
+                            cursorBrush = SolidColor(text),
+                            modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 20.dp),
+                            decorationBox = { inner ->
+                                if (state.search.isEmpty()) Text("履歴を検索...", color = web.muted, fontSize = 13.sp, lineHeight = 20.sp)
+                                inner()
+                            },
+                        )
+                        FaIcon(R.drawable.fa_solid_search, null, size = 12.dp, tint = web.muted,
+                            modifier = Modifier.align(Alignment.CenterStart))
+                        FaIcon(R.drawable.fa_solid_times, null, size = 12.dp, tint = web.muted,
+                            modifier = Modifier.align(Alignment.CenterEnd))
+                    }
                 }
+                Box(Modifier.fillMaxWidth().height(1.dp).background(border))
+                ThreadList(state, colors, actions, Modifier.weight(1f), PaddingValues(8.dp))
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(border))
-            Box(Modifier.fillMaxWidth().padding(12.dp)) {
-                val fieldShape = RoundedCornerShape(4.dp)
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(38.dp)
-                        .clip(fieldShape)
-                        .background(web.twBg(Tw.gray900))
-                        .border(1.dp, web.twBorder(Tw.gray600), fieldShape)
-                        .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    val text = web.twText(Tw.white)
-                    BasicTextField(
-                        state.search, actions.onSearch, singleLine = true,
-                        textStyle = TextStyle(color = text, fontSize = 14.sp, lineHeight = 20.sp, fontFamily = WebFonts.sans),
-                        cursorBrush = SolidColor(text),
-                        modifier = Modifier.fillMaxWidth().padding(end = 20.dp),
-                        decorationBox = { inner ->
-                            if (state.search.isEmpty()) Text("履歴を検索...", color = Tw.gray400, fontSize = 14.sp, lineHeight = 20.sp)
-                            inner()
-                        },
-                    )
-                    FaIcon(R.drawable.fa_solid_search, null, size = 14.dp, tint = web.twText(Tw.gray500),
-                        modifier = Modifier.align(Alignment.CenterEnd))
-                }
-            }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(border))
-            ThreadList(state, colors, actions, Modifier.weight(1f), PaddingValues(8.dp))
-        }
-    }
+        },
+        confirmButton = {},
+        showFooter = false,
+        fillHeight = true,
+        padBody = false,
+        icon = R.drawable.fa_solid_history,
+        subtitle = "過去のチャットを検索して再開",
+        panelMaxWidth = 760.dp,
+        tone = WebModalTone.Info,
+    )
 }
 
 /** `#alpha-info-modal` (`showAlphaInfo()`), opened from the version in the sidebar footer. */
 @Composable
 internal fun AlphaInfoDialog(onDismiss: () -> Unit) {
     val web = LocalWebPalette.current
-    WebOverlayModal(onDismiss, grayOverlay(), 12.dp) { _ ->
-        val shape = RoundedCornerShape(20.dp)
-        Column(
-            Modifier
-                .padding(16.dp)
-                .widthIn(max = 448.dp)
-                .fillMaxWidth()
-                .modalPanelTaps()
-                .clip(shape)
-                .background(if (web.isLight) Color.White.copy(alpha = 0.95f) else Color(14, 20, 40).copy(alpha = 0.9f))
-                .border(1.dp, Color(249, 115, 22).copy(alpha = 0.6f), shape)
-                .padding(24.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
-                FaIcon(R.drawable.fa_solid_exclamation_triangle, null, size = 20.dp, tint = Tw.orange500)
-                Spacer(Modifier.width(8.dp))
-                Text("アルファ版に関するご注意", color = Tw.orange500, fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold)
-            }
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("アルファ版に関するご注意") },
+        text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     buildAnnotatedString {
@@ -256,19 +245,13 @@ internal fun AlphaInfoDialog(onDismiss: () -> Unit) {
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalArrangement = Arrangement.End) {
-                val buttonShape = RoundedCornerShape(4.dp)
-                Box(
-                    Modifier
-                        .clip(buttonShape)
-                        .background(Tw.orange600)
-                        .border(1.dp, Color.White.copy(alpha = 0.06f), buttonShape)
-                        .clickable(role = Role.Button, onClick = onDismiss)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                ) { Text("理解しました", color = Color.White, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold) }
-            }
-        }
-    }
+        },
+        confirmButton = { WebButton(onClick = onDismiss, variant = WebButtonVariant.Primary) { Text("理解しました") } },
+        icon = R.drawable.fa_solid_exclamation_triangle,
+        subtitle = "開発中の機能をご利用いただく前に",
+        panelMaxWidth = 560.dp,
+        tone = WebModalTone.Warn,
+    )
 }
 
 /** `#legal-modal` (`showLegal('terms' | 'privacy')`): Markdown from `/static/legal/<kind>.md`. */
@@ -281,41 +264,22 @@ internal fun LegalDialog(kind: String, load: suspend (String) -> String, onDismi
         try { content = load(kind) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { failed = true }
     }
     val title = if (kind == "privacy") "プライバシーポリシー" else "利用規約"
-    WebOverlayModal(onDismiss, grayOverlay(), 4.dp, alignment = Alignment.TopCenter) { _ ->
-        val shape = RoundedCornerShape(8.dp)
-        val border = web.twBorder(Tw.gray700)
-        Column(
-            Modifier
-                .padding(16.dp)
-                .widthIn(max = 768.dp)
-                .fillMaxWidth()
-                .heightIn(max = 2000.dp)
-                .modalPanelTaps()
-                .clip(shape)
-                .background(web.twBg(Tw.gray800))
-                .border(1.dp, border, shape)
-                .padding(24.dp),
-        ) {
-            Text(title, color = web.twText(Tw.white), fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(border))
-            Spacer(Modifier.height(16.dp))
-            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(end = 8.dp)) {
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 // Web leaves the body empty until the document arrives and when the request fails.
                 content?.takeIf { !failed }?.let { LegalMarkdown(it) }
             }
-            Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.End) {
-                val buttonShape = RoundedCornerShape(4.dp)
-                Box(
-                    Modifier
-                        .clip(buttonShape)
-                        .background(web.twBg(Tw.gray700))
-                        .clickable(role = Role.Button, onClick = onDismiss)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                ) { Text("閉じる", color = web.twText(Tw.white), fontSize = 14.sp, lineHeight = 20.sp) }
-            }
-        }
-    }
+        },
+        confirmButton = { WebButton(onClick = onDismiss, variant = WebButtonVariant.Ghost) { Text("閉じる") } },
+        fillHeight = true,
+        icon = R.drawable.fa_regular_file_lines,
+        subtitle = "サービスのご利用条件",
+        panelMaxWidth = 760.dp,
+        tone = WebModalTone.Info,
+    )
 }
 
 /**

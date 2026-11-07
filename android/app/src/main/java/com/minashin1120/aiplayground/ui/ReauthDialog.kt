@@ -100,6 +100,7 @@ internal fun ReauthDialog(api: () -> AccountApi, onDismiss: () -> Unit, onConfir
         title = { Text("本人確認") },
         icon = R.drawable.fa_solid_user_shield,
         subtitle = "この操作を続けるには本人確認が必要です",
+        tone = WebModalTone.Danger,
         panelMaxWidth = 440.dp,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

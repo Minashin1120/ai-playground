@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -550,36 +551,12 @@ private fun FileUsageDialog(
     var result by remember(file.filepath) { mutableStateOf<Pair<List<FileUsageChat>, Boolean>?>(null) }
     var failed by remember(file.filepath) { mutableStateOf(false) }
     LaunchedEffect(file.filepath) { runCatching { load() }.onSuccess { result = it }.onFailure { failed = true } }
-    WebOverlayModal(onDismiss, if (web.isLight) Color(15, 23, 42).copy(alpha = 0.35f) else Color(3, 7, 16).copy(alpha = 0.72f), 10.dp) { phone ->
-        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            val shape = RoundedCornerShape(12.dp)
-            val rule = web.twBorder(Tw.gray700)
-            Column(
-                Modifier.padding(16.dp).widthIn(max = 576.dp).heightIn(max = maxHeight * 0.8f).fillMaxWidth().modalPanelTaps().clip(shape)
-                    .background(web.twBg(Tw.gray900)).border(1.dp, web.twBorder(Tw.gray700), shape).padding(20.dp),
-            ) {
-                Row(
-                    Modifier.fillMaxWidth()
-                        .drawBehind { drawLine(rule, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx()) }
-                        .padding(bottom = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FaIcon(R.drawable.fa_solid_comment_dots, null, size = 16.dp, tint = web.twText(Tw.cyan300))
-                            Text("使用されているチャット", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold, color = web.twText(Tw.white))
-                        }
-                        Text(file.displayName, fontSize = 12.sp, lineHeight = 16.sp, color = web.twText(Tw.gray400), maxLines = 1,
-                            overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
-                    }
-                    val closeShape = RoundedCornerShape(12.dp)
-                    Box(
-                        Modifier.size(38.dp).clip(closeShape).background(Color.White.copy(alpha = 0.03f)).border(1.dp, web.lineSoft, closeShape)
-                            .clickable(role = Role.Button, onClick = onDismiss),
-                        contentAlignment = Alignment.Center,
-                    ) { FaIcon(R.drawable.fa_solid_times, "閉じる", size = 14.dp, tint = web.muted) }
-                }
-                Column(Modifier.padding(top = 12.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val phone = LocalConfiguration.current.screenWidthDp < 768
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("使用されているチャット") },
+        text = {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     val data = result
                     when {
                         failed -> Row(Modifier.fillMaxWidth().padding(vertical = 32.dp), horizontalArrangement = Arrangement.Center,
@@ -617,7 +594,12 @@ private fun FileUsageDialog(
                         }
                     }
                 }
-            }
-        }
-    }
+        },
+        confirmButton = {},
+        showFooter = false,
+        icon = R.drawable.fa_solid_comment_dots,
+        subtitle = file.displayName,
+        tone = WebModalTone.Cyan,
+        panelMaxWidth = 560.dp,
+    )
 }

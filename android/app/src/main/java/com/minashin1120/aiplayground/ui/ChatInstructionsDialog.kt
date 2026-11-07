@@ -80,22 +80,12 @@ internal fun ChatInstructionsDialog(
     val prefs = state.preferences
     val form = remember(prefs) { ThreadPromptForm(prefs) }
     var saving by remember { mutableStateOf(false) }
-    val border = web.twBorder(Tw.gray700)
-    WebOverlayModal(onDismiss, grayOverlay(), 4.dp) { phone ->
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-            verticalArrangement = if (phone) Arrangement.Top else Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            val shape = RoundedCornerShape(8.dp)
-            Column(
-                Modifier.padding(16.dp).widthIn(max = 448.dp).fillMaxWidth().modalPanelTaps().clip(shape).background(web.twBg(Tw.gray800))
-                    .border(1.dp, border, shape).padding(24.dp),
-            ) {
-                Row(Modifier.padding(bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FaIcon(R.drawable.fa_solid_comment_dots, null, size = 20.dp, tint = web.twText(Tw.green400))
-                    Text("Chat Instructions", fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold, color = web.twText(Tw.white))
-                }
+    val border = web.line
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Chat Instructions") },
+        text = {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column {
                         TwLabel("このチャット専用のシステムプロンプト", Modifier.padding(bottom = 4.dp))
@@ -152,21 +142,25 @@ internal fun ChatInstructionsDialog(
                         if (form.autoPrompts.isNotEmpty()) ThreadAutoPrompts(form)
                     }
                 }
-                Row(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)) {
-                    Text("キャンセル", fontSize = 16.sp, lineHeight = 24.sp, color = web.twText(Tw.gray400),
-                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable(role = Role.Button, onClick = onDismiss)
-                            .padding(horizontal = 16.dp, vertical = 8.dp))
-                    Text(if (saving) "保存中..." else "保存", fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold, color = Tw.white,
-                        modifier = Modifier.alpha(if (saving) 0.5f else 1f).clip(RoundedCornerShape(4.dp)).background(Tw.green600)
-                            .clickable(enabled = !saving, role = Role.Button) {
-                                saving = true
-                                onSave(instruction, includeGlobal, form.payload()) { saving = false }
-                            }
-                            .padding(horizontal = 24.dp, vertical = 8.dp))
-                }
             }
-        }
-    }
+        },
+        confirmButton = {
+            WebButton(
+                onClick = {
+                    saving = true
+                    onSave(instruction, includeGlobal, form.payload()) { saving = false }
+                },
+                variant = WebButtonVariant.Primary,
+                enabled = !saving,
+            ) { Text(if (saving) "保存中..." else "保存") }
+        },
+        dismissButton = { WebButton(onClick = onDismiss, variant = WebButtonVariant.Ghost) { Text("キャンセル") } },
+        icon = R.drawable.fa_solid_comment_dots,
+        subtitle = "このチャットだけに適用する指示",
+        tone = WebModalTone.Success,
+        fillHeight = true,
+        panelMaxWidth = 760.dp,
+    )
 }
 
 /** `#thread-auto-sys-prompt-settings`: the compact rows (`buildAutoSystemPromptRows('thread', true)`). */

@@ -86,62 +86,60 @@ internal fun BranchManagerDialog(
     var confirmBranchDelete by remember { mutableStateOf(false) }
     val all = state.allMessages
     val total = remember(all) { buildTokenTotals(all).total }
-    WebOverlayModal(onDismiss, grayOverlay(), 4.dp) { phone ->
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            val panelHeight = if (phone) Modifier else Modifier.heightIn(max = maxHeight * 0.9f)
-            Column(
-                Modifier.fillMaxSize().then(if (phone) Modifier.verticalScroll(rememberScrollState()) else Modifier),
-                verticalArrangement = if (phone) Arrangement.Top else Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                val shape = RoundedCornerShape(8.dp)
-                Column(
-                    Modifier.padding(16.dp).widthIn(max = 896.dp).fillMaxWidth().then(panelHeight).modalPanelTaps().clip(shape)
-                        .background(web.twBg(Tw.gray800)).border(1.dp, web.twBorder(Tw.gray700), shape).padding(24.dp),
-                ) {
-                    BranchHeader(onDismiss)
-                    val selected = all.firstOrNull { it.id == selectedId }
-                    val tree: @Composable (Modifier) -> Unit = { modifier ->
-                        BranchTree(state, store, selectedId, phone, modifier) { selectedId = it.id }
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ブランチ管理") },
+        text = {
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val phone = maxWidth < PlaygroundDimens.breakpoint
+                val selected = all.firstOrNull { it.id == selectedId }
+                val tree: @Composable (Modifier) -> Unit = { modifier ->
+                    BranchTree(state, store, selectedId, phone, modifier) { selectedId = it.id }
+                }
+                val side: @Composable (Modifier) -> Unit = { modifier ->
+                    if (selected == null) BranchEmptyPanel(modifier)
+                    else BranchDetail(
+                        state, selected, store, modifier,
+                        onSaveName = { name ->
+                            if (name.isNotEmpty()) store.names[selected.id] = name else store.names.remove(selected.id)
+                            store.save()
+                            notify("名前を保存しました")
+                        },
+                        onSwitch = {
+                            selected.id.toIntOrNull()?.let(onSwitch)
+                            onDismiss()
+                            notify("ブランチを切り替えました")
+                        },
+                        onFix = {
+                            if (store.fixed == selected.id) { store.fixed = null; notify("固定を解除しました") }
+                            else { store.fixed = selected.id; notify("メインルートに固定しました") }
+                            store.save()
+                        },
+                        onDelete = { confirmBranchDelete = true },
+                    )
+                }
+                if (phone) {
+                    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        tree(Modifier.fillMaxWidth())
+                        side(Modifier.fillMaxWidth())
                     }
-                    val side: @Composable (Modifier) -> Unit = { modifier ->
-                        if (selected == null) BranchEmptyPanel(modifier)
-                        else BranchDetail(
-                            state, selected, store, modifier,
-                            onSaveName = { name ->
-                                if (name.isNotEmpty()) store.names[selected.id] = name else store.names.remove(selected.id)
-                                store.save()
-                                notify("名前を保存しました")
-                            },
-                            onSwitch = {
-                                selected.id.toIntOrNull()?.let(onSwitch)
-                                onDismiss()
-                                notify("ブランチを切り替えました")
-                            },
-                            onFix = {
-                                if (store.fixed == selected.id) { store.fixed = null; notify("固定を解除しました") }
-                                else { store.fixed = selected.id; notify("メインルートに固定しました") }
-                                store.save()
-                            },
-                            onDelete = { confirmBranchDelete = true },
-                        )
+                } else {
+                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        tree(Modifier.weight(1f).fillMaxHeight())
+                        side(Modifier.width(256.dp))
                     }
-                    if (phone) {
-                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            tree(Modifier.fillMaxWidth())
-                            side(Modifier.fillMaxWidth())
-                        }
-                    } else {
-                        Row(Modifier.weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            tree(Modifier.weight(1f).fillMaxHeight())
-                            side(Modifier.width(256.dp))
-                        }
-                    }
-                    BranchFooter(total)
                 }
             }
-        }
-    }
+        },
+        confirmButton = { BranchFooter(total) },
+        showFooter = true,
+        icon = R.drawable.fa_solid_sitemap,
+        subtitle = "分岐の切り替え・固定・削除",
+        tone = WebModalTone.Purple,
+        fillHeight = true,
+        panelMaxWidth = 980.dp,
+        footerArrangement = Arrangement.Start,
+    )
     if (confirmBranchDelete) BrowserConfirmDialog("このブランチを削除してもよろしいですか？（その後の全てのメッセージも削除されます）") { ok ->
         confirmBranchDelete = false
         val target = all.firstOrNull { it.id == selectedId }

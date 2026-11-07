@@ -122,17 +122,11 @@ internal fun CompressionModal(
     var formatOnly by remember { mutableStateOf(current.formatOnly) }
     var maxSize by remember { mutableStateOf(current.maxSizeMB.toString()) }
     var maxDim by remember { mutableStateOf(current.maxDimension.toString()) }
-    WebOverlayModal(onDismiss, grayOverlay(), 4.dp, alignment = Alignment.Center) { _ ->
-        val shape = RoundedCornerShape(8.dp)
-        Column(
-            Modifier.padding(16.dp).widthIn(max = 448.dp).fillMaxWidth().modalPanelTaps().clip(shape)
-                .background(web.twBg(Tw.gray800)).border(1.dp, web.twBorder(Tw.gray700), shape).padding(24.dp),
-        ) {
-            Row(Modifier.padding(bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FaIcon(R.drawable.fa_solid_compress_alt, null, size = 18.dp, tint = web.theme300)
-                Text("画像・圧縮詳細設定", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White)
-            }
-            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("画像・圧縮詳細設定") },
+        text = {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                 if (showEnabled) SettingsCheck("Compress", enabled, { enabled = it }, boxSize = 16.dp,
                     labelColor = if (web.isLight) web.text else Tw.gray300, fontSize = 12.sp)
                 Section(sectionTitle, web.theme300, web.theme.t500) {
@@ -157,31 +151,29 @@ internal fun CompressionModal(
                 }
                 extra()
             }
-            Row(
-                Modifier.fillMaxWidth().padding(top = 24.dp).drawBehind {
-                    drawLine(web.twBorder(Tw.gray700), androidx.compose.ui.geometry.Offset(0f, 0f), androidx.compose.ui.geometry.Offset(size.width, 0f), 1.dp.toPx())
-                }.padding(top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("閉じる", fontSize = 14.sp, color = Tw.gray400,
-                    modifier = Modifier.clickable(role = Role.Button, onClick = onDismiss).padding(horizontal = 16.dp, vertical = 8.dp))
-                Text("保存", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                    modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(web.theme.t600)
-                        .clickable(role = Role.Button) {
-                            onSave(CompressionSettings(
-                                enabled = enabled,
-                                maxSizeMB = maxSize.toFloatOrNull()?.coerceIn(0.1f, 10f) ?: 1.0f,
-                                maxDimension = maxDim.toIntOrNull()?.coerceIn(256, 8192) ?: 1920,
-                                outputType = outputType,
-                                formatOnly = formatOnly,
-                            ))
-                            onDismiss()
-                        }
-                        .padding(horizontal = 24.dp, vertical = 8.dp))
-            }
-        }
-    }
+        },
+        confirmButton = {
+            WebButton(
+                onClick = {
+                    onSave(CompressionSettings(
+                        enabled = enabled,
+                        maxSizeMB = maxSize.toFloatOrNull()?.coerceIn(0.1f, 10f) ?: 1.0f,
+                        maxDimension = maxDim.toIntOrNull()?.coerceIn(256, 8192) ?: 1920,
+                        outputType = outputType,
+                        formatOnly = formatOnly,
+                    ))
+                    onDismiss()
+                },
+                variant = WebButtonVariant.Primary,
+            ) { Text("保存") }
+        },
+        dismissButton = { WebButton(onClick = onDismiss, variant = WebButtonVariant.Ghost) { Text("閉じる") } },
+        icon = R.drawable.fa_solid_compress_alt,
+        subtitle = sectionTitle,
+        tone = WebModalTone.Info,
+        fillHeight = true,
+        panelMaxWidth = 760.dp,
+    )
 }
 
 @Composable

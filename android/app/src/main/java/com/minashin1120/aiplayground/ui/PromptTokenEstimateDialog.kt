@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.ui
 
+import com.minashin1120.aiplayground.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -48,10 +49,11 @@ internal fun PromptTokenEstimateDialog(snapshot: PromptTokenEstimateSnapshot, on
         finally { loading = false }
     }
     val web = LocalWebPalette.current
-    SmallInfoModal(onDismiss) {
-        Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("入力トークン見積の詳細", modifier = Modifier.padding(end = 24.dp), color = Tw.blue300,
-                fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("入力トークン見積の詳細") },
+        text = {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             EstimateNote(snapshot.model, accent = true)
             EstimateNote("開いた時点の入力")
             EstimateRow("合計", data.opt("tokens_total"))
@@ -92,7 +94,14 @@ internal fun PromptTokenEstimateDialog(snapshot: PromptTokenEstimateSnapshot, on
             if (!loading && !failed && detail == null) EstimateNote("この接続先では詳細な内訳を取得できません。")
             EstimateNote("送信後に返る使用量や請求額の確定値とは異なります。")
         }
-    }
+        },
+        confirmButton = {},
+        showFooter = false,
+        icon = R.drawable.fa_solid_coins,
+        subtitle = "使用量と費用の内訳",
+        tone = WebModalTone.Info,
+        panelMaxWidth = 440.dp,
+    )
 }
 
 @Composable

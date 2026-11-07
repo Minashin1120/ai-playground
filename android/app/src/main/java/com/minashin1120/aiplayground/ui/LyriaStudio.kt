@@ -94,63 +94,72 @@ internal fun LyriaStudioDialog(state: ChatState, model: ChatViewModel, onDismiss
     val config = remember { LyriaConfig() }
     var lastConfig by remember { mutableStateOf<JSONObject?>(null) }
     val close = { model.stopLyria(save = false); onDismiss() }
-    TwPanelFrame(onDismiss = close, border = web.twBorder(Tw.purple700, 0.5f), panelMaxWidth = 768.dp) { wide ->
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            FaIcon(R.drawable.fa_solid_music, null, size = 16.dp, tint = web.twText(Tw.purple300), modifier = Modifier.padding(end = 8.dp))
-            Text("Lyria RealTime Studio", fontSize = 18.sp, lineHeight = 28.sp, fontWeight = FontWeight.Bold, color = web.twText(Tw.white),
-                modifier = Modifier.weight(1f))
-            val saveVisible = lyria.active && lyria.kind !in setOf("idle", "connecting", "error")
-            if (saveVisible) Row(
-                Modifier.padding(end = 8.dp).clip(RoundedCornerShape(4.dp)).background(Tw.emerald600)
-                    .clickable(enabled = !lyria.busy, role = Role.Button) { model.lyriaSave(onDismiss) }.padding(horizontal = 12.dp, vertical = 6.dp),
+    val saveVisible = lyria.active && lyria.kind !in setOf("idle", "connecting", "error")
+    val playing = lyria.kind == "streaming" || lyria.kind == "connecting"
+    PlaygroundDialog(
+        onDismissRequest = close,
+        title = { Text("Lyria RealTime Studio") },
+        text = {
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val wide = maxWidth >= 768.dp
+                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LyriaStatusBar(lyria.status, lyria.kind, lyria.startedAt)
+                    val promptColumn: @Composable (Modifier) -> Unit = { modifier -> LyriaPromptColumn(prompts, modifier) { model.lyriaApplyPrompts(prompts.toList()) } }
+                    val configColumn: @Composable (Modifier) -> Unit = { modifier ->
+                        LyriaConfigColumn(config, modifier) {
+                            val next = config.json()
+                            val prev = lastConfig
+                            val reset = prev == null || prev.optInt("bpm") != next.optInt("bpm") || prev.optString("scale") != next.optString("scale")
+                            model.lyriaApplyConfig(next, resetContext = reset)
+                            lastConfig = next
+                        }
+                    }
+                    if (wide) Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        promptColumn(Modifier.weight(1f))
+                        configColumn(Modifier.weight(1f))
+                    } else Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        promptColumn(Modifier.fillMaxWidth())
+                        configColumn(Modifier.fillMaxWidth())
+                    }
+                    Text("実験モデル: 楽器のみ・ボーカルなし / 48kHzステレオ / 再生内容は「チャットへ保存」でWAVとして保存できます",
+                        fontSize = 10.sp, lineHeight = 15.sp, color = web.twText(Tw.gray500), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FaIcon(R.drawable.fa_solid_save, null, size = 11.dp, tint = Color.White, modifier = Modifier.padding(end = 4.dp))
-                Text("チャットへ保存", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                TransportButton(R.drawable.fa_solid_play, "再生", 56.dp, Tw.purple600, enabled = !lyria.busy) {
+                    if (!lyria.active) {
+                        lastConfig = config.json()
+                        model.lyriaStart(prompts.toList(), config.json())
+                    } else model.lyriaControl("PLAY")
+                }
+                TransportButton(R.drawable.fa_solid_pause, "一時停止", 48.dp, web.twBg(Tw.gray700), enabled = !lyria.busy && playing) { model.lyriaControl("PAUSE") }
+                TransportButton(R.drawable.fa_solid_stop, "停止", 48.dp, web.twBg(Tw.gray700), enabled = !lyria.busy && lyria.active && playing) { model.lyriaControl("STOP") }
+                TransportButton(R.drawable.fa_solid_arrows_rotate, "コンテキストをリセット（BPM・スケール変更後）", 48.dp, web.twBg(Tw.gray700),
+                    enabled = !lyria.busy && lyria.active && playing) { model.lyriaControl("RESET_CONTEXT") }
             }
-            Box(Modifier.size(32.dp).clip(CircleShape).clickable(role = Role.Button, onClick = close).semantics { contentDescription = "閉じる" },
-                contentAlignment = Alignment.Center) {
-                FaIcon(R.drawable.fa_solid_times, null, size = 16.dp, tint = web.twText(Tw.gray400))
-            }
-        }
-        LyriaStatusBar(lyria.status, lyria.kind, lyria.startedAt)
-        val promptColumn: @Composable (Modifier) -> Unit = { modifier -> LyriaPromptColumn(prompts, modifier) { model.lyriaApplyPrompts(prompts.toList()) } }
-        val configColumn: @Composable (Modifier) -> Unit = { modifier ->
-            LyriaConfigColumn(config, modifier) {
-                val next = config.json()
-                val prev = lastConfig
-                val reset = prev == null || prev.optInt("bpm") != next.optInt("bpm") || prev.optString("scale") != next.optString("scale")
-                model.lyriaApplyConfig(next, resetContext = reset)
-                lastConfig = next
-            }
-        }
-        if (wide) Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            promptColumn(Modifier.weight(1f))
-            configColumn(Modifier.weight(1f))
-        } else Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            promptColumn(Modifier.fillMaxWidth())
-            configColumn(Modifier.fillMaxWidth())
-        }
-        val playing = lyria.kind == "streaming" || lyria.kind == "connecting"
-        val rule = web.twBorder(Tw.gray700, 0.5f)
-        Row(
-            Modifier.fillMaxWidth().drawTopRule(rule).padding(top = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TransportButton(R.drawable.fa_solid_play, "再生", 56.dp, Tw.purple600, enabled = !lyria.busy) {
-                if (!lyria.active) {
-                    lastConfig = config.json()
-                    model.lyriaStart(prompts.toList(), config.json())
-                } else model.lyriaControl("PLAY")
-            }
-            TransportButton(R.drawable.fa_solid_pause, "一時停止", 48.dp, web.twBg(Tw.gray700), enabled = !lyria.busy && playing) { model.lyriaControl("PAUSE") }
-            TransportButton(R.drawable.fa_solid_stop, "停止", 48.dp, web.twBg(Tw.gray700), enabled = !lyria.busy && lyria.active && playing) { model.lyriaControl("STOP") }
-            TransportButton(R.drawable.fa_solid_arrows_rotate, "コンテキストをリセット（BPM・スケール変更後）", 48.dp, web.twBg(Tw.gray700),
-                enabled = !lyria.busy && lyria.active && playing) { model.lyriaControl("RESET_CONTEXT") }
-        }
-        Text("実験モデル: 楽器のみ・ボーカルなし / 48kHzステレオ / 再生内容は「チャットへ保存」でWAVとして保存できます",
-            fontSize = 10.sp, lineHeight = 15.sp, color = web.twText(Tw.gray500), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-    }
+        },
+        showFooter = true,
+        headerActions = {
+            if (saveVisible) WebButton(
+                onClick = { model.lyriaSave(onDismiss) },
+                variant = WebButtonVariant.Success,
+                enabled = !lyria.busy,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                fontSize = 11.sp,
+            ) { FaIcon(R.drawable.fa_solid_save, null, size = 11.dp); Text("チャットへ保存") }
+        },
+        icon = R.drawable.fa_solid_music,
+        subtitle = "リアルタイムで音楽を生成",
+        tone = WebModalTone.Purple,
+        fillHeight = true,
+        panelMaxWidth = 760.dp,
+        footerArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+    )
 }
 
 /** A Web Tailwind modal panel (`bg-gray-800 rounded-lg p-4 sm:p-6 m-4 gap-3`); [content] gets whether the md: layout applies. */

@@ -64,12 +64,13 @@ internal fun importFormatBytes(bytes: Long): String = when {
     else -> "$bytes B"
 }
 
-/** The gray `bg-gray-800` header/footer modal used by both import dialogs. */
+/** The settings-style frame shared by both import dialogs. */
 @Composable
 private fun ImportModal(
     title: String,
+    subtitle: String,
     icon: Int,
-    iconTint: Color,
+    tone: WebModalTone,
     maxWidth: Dp,
     onClose: () -> Unit,
     footerNote: @Composable RowScope.() -> Unit,
@@ -78,30 +79,24 @@ private fun ImportModal(
     dismissOnOutsideTap: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val web = LocalWebPalette.current
-    val line = web.twBorder(Tw.gray700)
-    WebOverlayModal(onClose, grayOverlay(), 4.dp, dismissOnOutsideTap = dismissOnOutsideTap) { _ ->
-        Column(Modifier.widthIn(max = maxWidth).fillMaxWidth().fillMaxHeight(if (maxWidth > 600.dp) 1f else 0.85f).modalPanelTaps()) {
-            Row(
-                Modifier.fillMaxWidth().background(web.twBg(Tw.gray800))
-                    .drawBehind { drawLine(line, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx()) }.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
+    WebOverlayModal(onClose, grayOverlay(), 10.dp, dismissOnOutsideTap = dismissOnOutsideTap) { phone ->
+        BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            val panelHeight = if (maxWidth > 600.dp) Modifier.fillMaxHeight() else Modifier
+            WebModalPanel(
+                Modifier.widthIn(max = maxWidth).fillMaxWidth().then(panelHeight).modalPanelTaps(),
+                phone,
             ) {
-                FaIcon(icon, null, size = 16.dp, tint = iconTint)
-                Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White,
-                    modifier = Modifier.padding(start = 8.dp).weight(1f))
-                Text("✕", color = Tw.gray400, modifier = Modifier.clickable(role = Role.Button, onClick = onClose).padding(8.dp))
-            }
-            toolbar?.invoke()
-            Column(Modifier.weight(1f).fillMaxWidth().background(grayOverlay()).verticalScroll(rememberScrollState()).padding(16.dp), content = content)
-            Row(
-                Modifier.fillMaxWidth().background(web.twBg(Tw.gray800))
-                    .drawBehind { drawLine(line, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx()) }.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                footerNote()
-                footerButtons()
+                WebModalHeader(title = { Text(title) }, onClose = onClose, phone = phone, icon = icon, subtitle = subtitle, tone = tone)
+                toolbar?.invoke()
+                Column(
+                    Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                        .padding(horizontal = if (phone) 14.dp else 18.dp, vertical = 14.dp),
+                    content = content,
+                )
+                WebModalFooter(phone, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    footerNote()
+                    footerButtons()
+                }
             }
         }
     }
@@ -111,7 +106,8 @@ private fun ImportModal(
 internal fun ImportSettingsConfirmDialog(changes: List<ImportSettingChange>, onResult: (Boolean) -> Unit) {
     val web = LocalWebPalette.current
     ImportModal(
-        title = "設定のインポート確認", icon = R.drawable.fa_solid_sliders_h, iconTint = web.theme300, maxWidth = 512.dp,
+        title = "設定のインポート確認", subtitle = "現在の設定から変更される項目",
+        icon = R.drawable.fa_solid_sliders_h, tone = WebModalTone.Info, maxWidth = 560.dp,
         onClose = { onResult(false) },
         footerNote = { Text("設定以外の選択データはこの確認後に続けてインポートされます。", fontSize = 11.sp, color = Tw.gray400, modifier = Modifier.weight(1f)) },
         footerButtons = {
@@ -146,7 +142,8 @@ internal fun ImportFileSelectionDialog(request: FileSelectionRequest, onResult: 
     val total = request.files.filter { it.archivePath in selection }.sumOf { it.sizeBytes }
     val over = total > request.availableBytes
     ImportModal(
-        title = "インポートするファイルを選択", icon = R.drawable.fa_solid_file_import, iconTint = Tw.emerald400, maxWidth = 4000.dp,
+        title = "インポートするファイルを選択", subtitle = "復元するファイルを選んでください",
+        icon = R.drawable.fa_solid_file_import, tone = WebModalTone.Success, maxWidth = 1100.dp,
         onClose = { onResult(null) },
         // Web's `#import-files-modal` panel fills the overlay; closing here would abort the import.
         dismissOnOutsideTap = false,

@@ -81,17 +81,15 @@ internal fun ImageSplitDialog(
     val overlap = clampSplitOverlap(overlapText.toIntOrNull())
     val options = ImageSplitOptions(pieces, overlap, includeOriginal, includeOriginal && markOriginal, markPieces)
     val labelColor = if (web.isLight) web.text else Tw.gray300
-    WebOverlayModal({ if (!request.busy) onDismiss() }, grayOverlay(), 4.dp, alignment = Alignment.Center) { _ ->
-        val shape = RoundedCornerShape(8.dp)
-        Column(
-            Modifier.padding(16.dp).widthIn(max = 448.dp).fillMaxWidth().modalPanelTaps().clip(shape)
-                .background(web.twBg(Tw.gray800)).border(1.dp, web.twBorder(Tw.gray700), shape).padding(24.dp),
-        ) {
-            Row(Modifier.padding(bottom = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FaIcon(R.drawable.fa_solid_image, null, size = 18.dp, tint = web.theme300)
-                Text("画像を分割", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White)
-            }
-            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    val dismissContent: @Composable () -> Unit = {
+        WebButton(onClick = onDismiss, variant = WebButtonVariant.Ghost) { Text("キャンセル") }
+        WebButton(onClick = { onSaveOnly(options) }, variant = WebButtonVariant.Gray) { Text("保存のみ") }
+    }
+    PlaygroundDialog(
+        onDismissRequest = { if (!request.busy) onDismiss() },
+        title = { Text("画像を分割") },
+        text = {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text("画像を重なりのある複数の画像に分け、モデルが細部まで読み取れるようにします。各画像には番号と元画像での位置が入り、点線が分割位置です。",
                     fontSize = 12.sp, color = Tw.gray400)
                 SplitPreviewBox(preview, previewError, pieces, overlap)
@@ -136,28 +134,21 @@ internal fun ImageSplitDialog(
                 Text("作成される画像: ${perImage * request.uris.size}枚", fontSize = 12.sp, color = Tw.gray400)
                 request.error?.let { Text(it, fontSize = 12.sp, color = Tw.red400) }
             }
-            Row(
-                Modifier.fillMaxWidth().padding(top = 24.dp).drawBehind {
-                    drawLine(web.twBorder(Tw.gray700), Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx())
-                }.padding(top = 16.dp).alpha(if (request.busy) 0.6f else 1f),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (request.busy) {
-                    Text("処理中...", fontSize = 14.sp, color = Tw.gray400, modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp))
-                } else {
-                    Text("キャンセル", fontSize = 14.sp, color = Tw.gray400,
-                        modifier = Modifier.clickable(role = Role.Button, onClick = onDismiss).padding(horizontal = 8.dp, vertical = 8.dp))
-                    Text("保存のみ", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (web.isLight) web.text else Color.White,
-                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(web.twBg(Tw.gray700))
-                            .clickable(role = Role.Button) { onSaveOnly(options) }.padding(horizontal = 16.dp, vertical = 8.dp))
-                    Text(attachLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(web.theme.t600)
-                            .clickable(role = Role.Button) { onAttach(options) }.padding(horizontal = 16.dp, vertical = 8.dp))
-                }
+        },
+        confirmButton = {
+            if (request.busy) {
+                Text("処理中...", fontSize = 14.sp, color = web.muted)
+            } else {
+                WebButton(onClick = { onAttach(options) }, variant = WebButtonVariant.Primary, enabled = !request.busy) { Text(attachLabel) }
             }
-        }
-    }
+        },
+        dismissButton = if (request.busy) null else dismissContent,
+        icon = R.drawable.fa_solid_image,
+        subtitle = "細部を読み取れるよう複数画像に分割",
+        tone = WebModalTone.Info,
+        fillHeight = true,
+        panelMaxWidth = 560.dp,
+    )
     if (showCompression) CompressionModal(compression, "添付画像のクライアント側圧縮",
         onDismiss = { showCompression = false },
         onSave = { compression = it; saveSplitCompression(context, it) }, showEnabled = true)

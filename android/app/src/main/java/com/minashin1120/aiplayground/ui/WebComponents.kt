@@ -511,6 +511,17 @@ internal fun WebButton(
     }
 }
 
+/** Semantic icon tint for the shared modal header (`app-modal-title-icon--*`). */
+internal enum class WebModalTone {
+    Theme,
+    Info,
+    Success,
+    Warn,
+    Danger,
+    Purple,
+    Cyan,
+}
+
 /**
  * Modal header (`.settings-header`): optional 44px icon tile, 18px bold title (16px on phones),
  * 12px muted subtitle and the 38px close button, over a faint theme gradient.
@@ -523,8 +534,19 @@ internal fun WebModalHeader(
     modifier: Modifier = Modifier,
     @DrawableRes icon: Int? = null,
     subtitle: String? = null,
+    actions: (@Composable RowScope.() -> Unit)? = null,
+    tone: WebModalTone = WebModalTone.Theme,
 ) {
     val web = LocalWebPalette.current
+    val toneColor = when (tone) {
+        WebModalTone.Theme -> web.theme300
+        WebModalTone.Info -> Color(0xFF60A5FA)
+        WebModalTone.Success -> Color(0xFF34D399)
+        WebModalTone.Warn -> Color(0xFFF59E0B)
+        WebModalTone.Danger -> Color(0xFFF43F5E)
+        WebModalTone.Purple -> Color(0xFFA855F7)
+        WebModalTone.Cyan -> Color(0xFF22D3EE)
+    }
     Row(
         modifier
             .fillMaxWidth()
@@ -540,10 +562,10 @@ internal fun WebModalHeader(
                     Modifier
                         .size(44.dp)
                         .clip(tileShape)
-                        .background(Brush.linearGradient(listOf(web.theme.rgb(0.30f), web.theme.rgb(0.08f)), start = Offset.Zero, end = Offset.Infinite))
-                        .border(1.dp, web.theme.rgb(0.30f), tileShape),
+                        .background(Brush.linearGradient(listOf(toneColor.copy(alpha = 0.30f), toneColor.copy(alpha = 0.08f)), start = Offset.Zero, end = Offset.Infinite))
+                        .border(1.dp, toneColor.copy(alpha = 0.34f), tileShape),
                     contentAlignment = Alignment.Center,
-                ) { FaIcon(icon, null, size = 18.dp, tint = web.theme300) }
+                ) { FaIcon(icon, null, size = 18.dp, tint = toneColor) }
             }
             Column(Modifier.weight(1f)) {
                 CompositionLocalProvider(
@@ -556,6 +578,11 @@ internal fun WebModalHeader(
                 if (subtitle != null) {
                     Text(subtitle, color = web.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
                 }
+            }
+        }
+        if (actions != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                actions()
             }
         }
         val closeShape = RoundedCornerShape(12.dp)
@@ -573,7 +600,12 @@ internal fun WebModalHeader(
 
 /** Modal footer (`.settings-footer`): right-aligned buttons over a fading panel gradient with a top rule. */
 @Composable
-internal fun WebModalFooter(phone: Boolean, modifier: Modifier = Modifier, content: @Composable RowScope.() -> Unit) {
+internal fun WebModalFooter(
+    phone: Boolean,
+    modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(10.dp, Alignment.End),
+    content: @Composable RowScope.() -> Unit,
+) {
     val web = LocalWebPalette.current
     Column(modifier.fillMaxWidth()) {
         Spacer(Modifier.fillMaxWidth().height(1.dp).background(web.line))
@@ -585,7 +617,7 @@ internal fun WebModalFooter(phone: Boolean, modifier: Modifier = Modifier, conte
                     else Brush.verticalGradient(listOf(Color(8, 12, 22).copy(alpha = 0.55f), Color(8, 12, 22).copy(alpha = 0.98f))),
                 )
                 .padding(start = if (phone) 12.dp else 18.dp, end = if (phone) 12.dp else 18.dp, top = if (phone) 10.dp else 12.dp, bottom = if (phone) 14.dp else 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+            horizontalArrangement = horizontalArrangement,
             verticalAlignment = Alignment.CenterVertically,
             content = content,
         )

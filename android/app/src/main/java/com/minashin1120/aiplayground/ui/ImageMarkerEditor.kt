@@ -191,17 +191,12 @@ internal fun ImageMarkerEditor(
     val rotation = markerQuarterTurns(history.filterIsInstance<MarkerOp.RotateOp>().sumOf { it.turns })
     var canvasSize by remember { mutableStateOf<Pair<Int, Int>?>(null) }
 
-    TwModalFrame(onDismiss, maxPanelWidth = 768.dp) { phone ->
-        Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            FaIcon(if (maskMode) R.drawable.fa_solid_mask else R.drawable.fa_solid_highlighter, null, size = 16.dp, tint = web.twText(Tw.yellow300))
-            Text(if (maskMode) "マスク作成" else "画像編集", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = web.text, modifier = Modifier.padding(start = 8.dp).weight(1f))
-            Box(Modifier.size(32.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onDismiss), contentAlignment = Alignment.Center) {
-                FaIcon(R.drawable.fa_solid_times, "閉じる", size = 14.dp, tint = Tw.gray400)
-            }
-        }
-        Text(if (maskMode) "白く塗った領域が削除対象です。ブラシか自動塗りを使って範囲を指定できます。"
-            else "マーカー・モザイク・トリミング・回転が可能です。送信時に編集済み画像の確認を促します。", fontSize = 12.sp, color = Tw.gray400,
-            modifier = Modifier.padding(bottom = 12.dp))
+    val phone = LocalConfiguration.current.screenWidthDp < 768
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (maskMode) "マスク作成" else "画像編集") },
+        text = {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         val source = image
         val stageShape = RoundedCornerShape(14.dp)
         val screenH = LocalConfiguration.current.screenHeightDp.dp
@@ -406,7 +401,16 @@ internal fun ImageMarkerEditor(
                 }
             },
         )
-    }
+        }
+        },
+        confirmButton = {},
+        showFooter = false,
+        icon = if (maskMode) R.drawable.fa_solid_mask else R.drawable.fa_solid_highlighter,
+        subtitle = if (maskMode) "マスクとして削除する範囲を指定" else "マーカー・モザイク・トリミング",
+        tone = WebModalTone.Warn,
+        fillHeight = true,
+        panelMaxWidth = 760.dp,
+    )
     if (pickingColor) ColorPickerDialog(colorHex, onDismiss = { pickingColor = false }) { picked ->
         colorHex = normalizeMarkerHex(picked)
         pickingColor = false

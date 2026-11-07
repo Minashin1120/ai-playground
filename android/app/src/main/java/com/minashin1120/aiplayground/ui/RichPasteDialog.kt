@@ -89,14 +89,13 @@ fun RichPasteDialog(
         delay(500)
         onSavePrompt(prompt, useDefault)
     }
-    TwModalFrame(requestClose, maxPanelWidth = 896.dp) { phone ->
-        Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            FaIcon(R.drawable.fa_solid_paste, null, size = 16.dp, tint = web.twText(Tw.amber400))
-            Text("リッチ貼り付け → テキスト", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = web.text,
-                modifier = Modifier.padding(start = 8.dp).weight(1f))
-            Box(Modifier.size(32.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable(role = Role.Button, onClick = requestClose),
-                contentAlignment = Alignment.Center) { FaIcon(R.drawable.fa_solid_times, "閉じる", size = 14.dp, tint = Tw.gray400) }
-        }
+    val imported = content?.text.orEmpty()
+    PlaygroundDialog(
+        onDismissRequest = requestClose,
+        title = { Text("リッチ貼り付け → テキスト") },
+        text = {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+        val phone = maxWidth < PlaygroundDimens.breakpoint
         val left: @Composable ColumnScope.() -> Unit = {
             val noteShape = RoundedCornerShape(8.dp)
             Text(
@@ -161,22 +160,32 @@ fun RichPasteDialog(
                     "3. 「入力欄へ追加」を押すと、指示文とテキスト化した内容を入力欄へ追加します。",
                 ).forEach { Text(it, fontSize = 12.sp, lineHeight = 24.sp, color = Tw.gray400) }
             }
-            Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val imported = content?.text.orEmpty()
-                RichPasteButton("入力欄へ追加", Tw.emerald600, Modifier.fillMaxWidth(), vertical = 12.dp, enabled = imported.isNotEmpty()) {
-                    val instruction = prompt.trim()
-                    onInsert(if (instruction.isEmpty()) imported else "$instruction\n\n$imported")
-                    onDismiss()
-                }
-                RichPasteButton("閉じる", Tw.gray700, Modifier.fillMaxWidth(), vertical = 10.dp, onClick = requestClose)
-            }
         }
         if (phone) Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { left(); right() }
         else Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
             Column(Modifier.weight(1.7f), verticalArrangement = Arrangement.spacedBy(16.dp)) { left() }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) { right() }
         }
-    }
+        }
+        },
+        confirmButton = {
+            WebButton(
+                onClick = {
+                    val instruction = prompt.trim()
+                    onInsert(if (instruction.isEmpty()) imported else "$instruction\n\n$imported")
+                    onDismiss()
+                },
+                variant = WebButtonVariant.Primary,
+                enabled = imported.isNotEmpty(),
+            ) { Text("入力欄へ追加") }
+        },
+        dismissButton = { WebButton(onClick = requestClose, variant = WebButtonVariant.Ghost) { Text("閉じる") } },
+        icon = R.drawable.fa_solid_paste,
+        subtitle = "リッチテキストをテキスト化して入力欄へ追加",
+        tone = WebModalTone.Warn,
+        fillHeight = true,
+        panelMaxWidth = 980.dp,
+    )
 }
 
 @Composable

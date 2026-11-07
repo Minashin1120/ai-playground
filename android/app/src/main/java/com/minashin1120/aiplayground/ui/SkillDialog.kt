@@ -43,51 +43,39 @@ internal fun SkillEditorDialog(
     var instruction by remember { mutableStateOf(skill?.instruction.orEmpty()) }
     var saving by remember { mutableStateOf(false) }
     var missing by remember { mutableStateOf(false) }
-    val border = web.twBorder(Tw.gray700)
-    WebOverlayModal(onDismiss, grayOverlay(), 4.dp) { phone ->
-        Column(
-            Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-            verticalArrangement = if (phone) Arrangement.Top else Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            val shape = RoundedCornerShape(8.dp)
-            Column(
-                Modifier.padding(16.dp).widthIn(max = 512.dp).fillMaxWidth().modalPanelTaps().clip(shape).background(web.twBg(Tw.gray800))
-                    .border(1.dp, border, shape).padding(24.dp),
-            ) {
-                Row(Modifier.padding(bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    FaIcon(R.drawable.fa_solid_wand_magic_sparkles, null, size = 20.dp, tint = Tw.blue500, modifier = Modifier.padding(end = 8.dp))
-                    Text(if (skill == null) "Create New Skill" else "Edit Skill", fontSize = 20.sp, lineHeight = 28.sp,
-                        fontWeight = FontWeight.Bold, color = web.twText(Tw.white))
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (skill == null) "Create New Skill" else "Edit Skill") },
+        text = {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                SkillField("Name") { TwInput(name, { name = it }, "My Skill") }
+                SkillField("Short Description (Optional)") {
+                    TwInput(description, { description = it }, "A short description the model uses to choose this skill...")
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    SkillField("Name") { TwInput(name, { name = it }, "My Skill") }
-                    SkillField("Short Description (Optional)") {
-                        TwInput(description, { description = it }, "A short description the model uses to choose this skill...")
-                    }
-                    SkillField("Instructions") {
-                        TwInput(instruction, { instruction = it }, "You are a helpful assistant...", singleLine = false, height = 128.dp)
-                    }
-                }
-                Row(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)) {
-                    Text("Cancel", fontSize = 16.sp, lineHeight = 24.sp, color = web.twText(Tw.gray400),
-                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).clickable(role = Role.Button, onClick = onDismiss)
-                            .padding(horizontal = 16.dp, vertical = 8.dp))
-                    Text(if (skill == null) "Create Skill" else "Save Changes", fontSize = 16.sp, lineHeight = 24.sp,
-                        fontWeight = FontWeight.Bold, color = Tw.white,
-                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Tw.blue600)
-                            .clickable(enabled = !saving, role = Role.Button) {
-                                if (name.isEmpty() || instruction.isEmpty()) missing = true
-                                else {
-                                    saving = true
-                                    onSave(name, description, instruction) { saving = false }
-                                }
-                            }
-                            .padding(horizontal = 16.dp, vertical = 8.dp))
+                SkillField("Instructions") {
+                    TwInput(instruction, { instruction = it }, "You are a helpful assistant...", singleLine = false, height = 128.dp)
                 }
             }
-        }
-    }
+        },
+        confirmButton = {
+            WebButton(
+                onClick = {
+                    if (name.isEmpty() || instruction.isEmpty()) missing = true
+                    else {
+                        saving = true
+                        onSave(name, description, instruction) { saving = false }
+                    }
+                },
+                variant = WebButtonVariant.Primary,
+                enabled = !saving,
+            ) { Text(if (skill == null) "Create Skill" else "Save Changes") }
+        },
+        dismissButton = { WebButton(onClick = onDismiss, variant = WebButtonVariant.Ghost) { Text("Cancel") } },
+        icon = R.drawable.fa_solid_wand_magic_sparkles,
+        subtitle = "モデルが選ぶための手順と説明",
+        tone = WebModalTone.Info,
+        panelMaxWidth = 760.dp,
+    )
     if (missing) BrowserAlertDialog("Name and Instruction are required.") { missing = false }
 }
 

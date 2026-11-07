@@ -466,6 +466,10 @@
         }
         .search-box.searching { border-color: rgba(var(--theme-rgb),0.6); color: var(--theme-300); }
         .search-box i { width: 16px; text-align: center; }
+        /* Skill used by the message (shown above the answer, like the search box). */
+        .skill-notice { margin-bottom: 0.5rem; padding: 0.55rem 0.8rem; background: rgba(8, 14, 28, 0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border: 1px solid rgba(168, 85, 247, 0.38); border-radius: 0.7rem; display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; color: #d8b4fe; }
+        .skill-notice.visible { display: flex; animation: barSlideIn 0.28s var(--ease-out) both; }
+        .skill-notice i { width: 16px; text-align: center; }
 
         /* Python Execution UI */
         .python-box { margin: 0.6rem 0 1rem; }
@@ -4165,6 +4169,7 @@ input[type="checkbox"]::after {
     .lib-skeleton-thumb::after,
     .lib-skeleton-line::after,
     .search-box.visible,
+    .skill-notice.visible,
     #drop-overlay:not(.hidden),
     .ui-enter,
     .ui-enter-scale,

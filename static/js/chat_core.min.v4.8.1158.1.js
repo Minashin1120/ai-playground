@@ -925,14 +925,14 @@ nd); font-weight: bold; }
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),w=y.internal.pageSize.getWidth(),k=y.internal.
 pageSize.getHeight(),_=794,S=Math.floor(k/w*_),C=v.scrollHeight||v.offsetHeight;let M=0,E=!0;const F=Math.
 ceil(C/S);let P=0;for(;M<C;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const j=Math.min(S,C-M),re=(await new Promise(($,B)=>{const U=setTimeout(()=>B(
+"Aborted","AbortError");const j=Math.min(S,C-M),oe=(await new Promise(($,B)=>{const U=setTimeout(()=>B(
 new Error("PDF chunk rendering timed out")),12e4);h(v,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
 background,logging:!1,imageTimeout:5e3,x:0,y:M,width:_,height:j,windowWidth:_,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:r(N=>{prepareRichPastePdfClone(N,c);const q=N.querySelector(
 ".pdf-root-wrapper");q&&(q.style.position="relative",q.style.left="0",q.style.top="0")},"onclone")}).
-then(N=>{clearTimeout(U),$(N)}).catch(N=>{clearTimeout(U),B(N)})})).toDataURL("image/jpeg",.95),pe=y.
-getImageProperties(re),se=Math.min(k,pe.height*w/pe.width);E||y.addPage(),y.addImage(re,"JPEG",0,0,w,
-se),E=!1,M+=j,P++;const we=Math.min(100,15+Math.round(P/F*85));i(we),await new Promise($=>setTimeout(
+then(N=>{clearTimeout(U),$(N)}).catch(N=>{clearTimeout(U),B(N)})})).toDataURL("image/jpeg",.95),me=y.
+getImageProperties(oe),ie=Math.min(k,me.height*w/me.width);E||y.addPage(),y.addImage(oe,"JPEG",0,0,w,
+ie),E=!1,M+=j,P++;const ke=Math.min(100,15+Math.round(P/F*85));i(ke),await new Promise($=>setTimeout(
 $,100))}return i(100),{blob:y.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),v&&v.parentNode&&document.body.removeChild(v)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=r(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),

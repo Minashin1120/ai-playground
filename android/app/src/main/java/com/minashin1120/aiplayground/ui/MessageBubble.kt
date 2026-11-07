@@ -191,6 +191,7 @@ internal fun MessageBubble(
               // One selection for the whole bubble, so a long-press selection runs across paragraphs like Web.
               MessageSelection { Column {
                 if (message.quote.isNotBlank()) QuoteStrip(message.quote)
+                if (message.skillName.isNotBlank()) SkillNotice(message.skillName)
                 liveTop?.invoke()
                 if (!user && liveTop == null) {
                     val searched = remember(message.thought) { com.minashin1120.aiplayground.data.reasoningSearchUsed(message.thought) }
@@ -499,6 +500,26 @@ private fun AttachmentCell(
     }
 }
 
+/** `.skill-notice`: the Skill shown above the message content, like the search box. */
+@Composable
+private fun SkillNotice(name: String) {
+    val web = LocalWebPalette.current
+    val color = if (web.isLight) Color(126, 34, 206) else Tw.purple300
+    val shape = RoundedCornerShape(11.2.dp)
+    Row(
+        Modifier.padding(bottom = 8.dp).fillMaxWidth().clip(shape)
+            .background(if (web.isLight) Color.White else Color(8, 14, 28).copy(alpha = 0.8f))
+            .border(1.dp, Tw.purple500.copy(alpha = 0.38f), shape)
+            .padding(horizontal = 12.8.dp, vertical = 8.8.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FaIcon(R.drawable.fa_solid_wand_magic_sparkles, null, size = 12.dp, tint = color, fixedWidth = true)
+        Text("Skill: ", fontSize = 12.sp, lineHeight = 16.sp, color = color)
+        Text(name, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = color,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+    }
+}
+
 /** Branch switcher under the content: `‹ 1 / 2 ›` (10px, gray-400, disabled at the ends). */
 @Composable
 private fun VersionSwitcher(index: Int, count: Int, onSwitch: (Int) -> Unit) {
@@ -517,7 +538,7 @@ private fun VersionSwitcher(index: Int, count: Int, onSwitch: (Int) -> Unit) {
     }
 }
 
-/** `.message-footer-meta`: model • Skill • token counts (dotted underline) • lock, 10px monospace, right-aligned. */
+/** `.message-footer-meta`: model • token counts (dotted underline) • lock, 10px monospace, right-aligned. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageActions,
@@ -527,12 +548,6 @@ private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageA
     val style = TextStyle(color = color, fontSize = 10.sp, lineHeight = 20.sp, fontFamily = FontFamily.Monospace)
     val parts = mutableListOf<@Composable () -> Unit>()
     if (!user && message.model.isNotBlank()) parts += { Text(message.model, style = style) }
-    if (message.skillName.isNotBlank()) parts += {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            FaIcon(R.drawable.fa_solid_wand_magic_sparkles, null, size = 10.dp, tint = Tw.purple300.copy(alpha = 0.9f), modifier = Modifier.padding(end = 2.dp))
-            Text(message.skillName, style = style.copy(color = Tw.purple300.copy(alpha = 0.9f)))
-        }
-    }
     messageTokenLabel(message)?.let { label ->
         parts += {
             Text(

@@ -932,8 +932,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 if th:
                     th.updated_at = datetime.utcnow()
                     th.last_model = model_key
-                    if skill_uuid_val:
-                        th.last_skill_uuid = skill_uuid_val
+                    # A model-invoked use_skill is shown on the message only.  The
+                    # thread's last_skill_uuid is the user's explicit selection.
                 safe_db_commit()
             except Exception as exc:
                 logger.exception(
@@ -8548,7 +8548,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if th:
                 th.updated_at = datetime.utcnow()
                 th.last_model = model_key
-                th.last_skill_uuid = skill_uuid_val
+                # A model-invoked use_skill is shown on the message only.  The
+                # thread's last_skill_uuid is the user's explicit selection.
             safe_db_commit()
             pub("done", "OK")
 

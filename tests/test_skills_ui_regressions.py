@@ -73,12 +73,18 @@ class SkillsUiRegressionTests(unittest.TestCase):
         self.assertIn("imported.skills", part("chat_core.part07_domcontent_initial.js"))
 
     def test_css_uses_skill_selectors(self):
-        css = (ROOT / "static/css/chat.custom.v4.8.1156.css").read_text(encoding="utf-8")
+        css = (ROOT / "static/css/chat.custom.v4.8.1157.css").read_text(encoding="utf-8")
         self.assertIn("#skill-list .skill-item", css)
         self.assertIn("#skill-suggestions", css)
+        self.assertIn(".skill-notice", css)
         self.assertNotIn("#gem-list", css)
         self.assertNotIn(".gem-item", css)
         self.assertNotIn("#fixed-prompts-bar", css)
+
+    def test_skill_notice_sits_above_the_message_content(self):
+        source = part("chat_core.part13_canvas_coding_stream.js")
+        self.assertIn("skillNoticeHtml", source)
+        self.assertIn("${ctrl}${qh}${skillNoticeHtml}${th}${contentHtml}", source)
 
 
 if __name__ == "__main__":

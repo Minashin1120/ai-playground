@@ -485,6 +485,10 @@
                 qh = `<div class="mb-2 p-2 bg-black/20 rounded border-l-4 border-blue-400 text-xs text-gray-300 italic truncate max-w-full"><i class="fas fa-quote-left mr-1 opacity-50"></i>${escapeHtml(quoteText)}</div>`;
             }
 
+            const skillNoticeHtml = skillName
+                ? `<div class="skill-notice visible"><i class="fas fa-wand-magic-sparkles"></i><span>Skill: <span class="font-bold">${escapeHtml(skillName)}</span></span></div>`
+                : '';
+
             let th = '';
             if (thoughtData && !isUser) {
                 let tx = "";
@@ -568,13 +572,6 @@
             const ctrl = `<div class="msg-controls absolute -top-5 right-0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${id}', this)"><i class="fas fa-copy"></i></button>${isUser?`<button class="ctrl-btn edit-btn" data-id="${id}"><i class="fas fa-pen"></i></button>`:''}${regenBtn}${/^\d+$/.test(String(id)) ? `<button class="ctrl-btn" title="新しいチャットに分岐" aria-label="新しいチャットに分岐" onclick="branchChatMessage('${id}', this)"><i class="fas fa-code-branch"></i></button>` : ''}<button class="ctrl-btn" onclick="deleteMessage('${id}')"><i class="fas fa-trash"></i></button></div>`;
             const footerParts = [];
             if (!isUser && modelName) footerParts.push(escapeHtml(modelName));
-            if (skillName) {
-                if (isUser) {
-                    footerParts.push(`<span class="text-purple-300/90"><i class="fas fa-wand-magic-sparkles mr-0.5"></i>${escapeHtml(skillName)}</span>`);
-                } else {
-                    footerParts.push(`<span class="text-purple-300/90"><i class="fas fa-wand-magic-sparkles mr-0.5"></i>${escapeHtml(skillName)}</span>`);
-                }
-            }
             const tokenParts = [];
             if (tokenIn !== null && tokenIn !== undefined) tokenParts.push(`In ${tokenIn}`);
             if (tokenOut !== null && tokenOut !== undefined) {
@@ -651,7 +648,7 @@
             const msgEl = document.createElement('div');
             msgEl.className = `flex ${align} mb-4 ${fadeClass} relative message-group group`;
             msgEl.id = `msg-${id}`;
-            msgEl.innerHTML = `<div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${qh}${th}${contentHtml}${at}${maskAt}${versionSwitcher}${mHtml}</div>`;
+            msgEl.innerHTML = `<div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${qh}${skillNoticeHtml}${th}${contentHtml}${at}${maskAt}${versionSwitcher}${mHtml}</div>`;
 
             const container = target || get('chat-container');
             if (container) {

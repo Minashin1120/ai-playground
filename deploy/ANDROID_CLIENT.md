@@ -323,7 +323,7 @@ IDは文字列として扱います。古い履歴の数値IDを受け取る場�
 
 `model` は省略できません。`/me` の `models` から `selectable: true` のモデルだけを選び、`mode` に応じた入力と `capabilities` に含まれる設定だけを表示します。ネイティブ対象は `chat`、`image`、`video`、`ocr`、`tts`、`transcription`、`agent`、`embedding`、会話型の `realtime_audio` とLyriaの `music` です（Lyria 3とEmbeddingは `/chat_stream`、Lyria RealTimeは音楽セッションAPI）。`realtime_audio` は認証済みサーバーセッションを介してOpenAI／Grok／Gemini Liveを入力欄の音声ドックまたはRealtimeスタジオで利用します。gpt-transcribe／gpt-live-transcribe／Realtime WhisperはWebと同じく、音声ドックで録音してから `/sts` へ送ります。既存のモデル用APIキーがない場合は400と `code: api_key_missing` 等が返るため、Webの設定を案内します。
 
-`skill_uuid`（旧 `gem_uuid` も可）を付けると、そのSkillの指示が回答生成に適用されます。`/api/skills` が返す本人の `uuid` だけを使い、他ユーザーのSkillを指定しないでください。現在のスレッドの最後に使ったSkillは、スレッド取得応答の `last_skill_uuid`（旧 `last_gem_uuid` も返る）で確認できます。
+`skill_uuid`（旧 `gem_uuid` も可）を付けると、そのSkillの指示が回答生成に適用されます。`/api/skills` が返す本人の `uuid` だけを使い、他ユーザーのSkillを指定しないでください。現在のスレッドで利用者が最後に選んだSkillは、スレッド取得応答の `last_skill_uuid`（旧 `last_gem_uuid` も返る）で確認できます。モデルが `use_skill` で読み込んだだけのSkillは、入力欄の選択状態には反映しません。
 
 対応モデルでは `batch_mode: true` を付けるとProviderのBatch APIへ投入します。Androidは30秒間隔で実行中ジョブを確認し、通知権限がある端末では終了時にシステム通知を表示します。`enable_python` と `enable_mcp` は通常チャットの構造化ツールイベントを有効にしますが、秘密設定は返しません。
 

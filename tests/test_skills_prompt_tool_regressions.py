@@ -111,6 +111,13 @@ class SkillsPromptToolTests(unittest.TestCase):
         self.assertIn("elif name == SKILL_TOOL_NAME", app_source)
         self.assertIn("thought_payload['used_skills']", app_source)
 
+    def test_model_invoked_skill_does_not_become_thread_selection(self):
+        """use_skill is stored on the message only; the composer selection is explicit."""
+        app_source = read_app_source()
+        self.assertIn("if not skill_uuid_val and _used_skills:", app_source)
+        self.assertNotIn("th.last_skill_uuid = skill_uuid_val", app_source)
+        self.assertNotIn("th.last_skill_uuid = _used_skills", app_source)
+
 
 if __name__ == "__main__":
     unittest.main()

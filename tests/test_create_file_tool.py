@@ -193,7 +193,18 @@ class CreateFileToolTests(unittest.TestCase):
         self.assertIn("options.get('enable_file_creation')", responses_branch)
         self.assertIn("_build_create_file_tool_schema()", responses_branch)
         self.assertIn("_build_edit_file_tool_schema()", responses_branch)
-        self.assertIn('call_name in (SKILL_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images")', responses_branch)
+        # Do not pin the exact tuple: new tools are added to the same dispatch.
+        # Assert the dispatch exists and every required tool name is present.
+        self.assertIn("call_name in", responses_branch)
+        for tool_name in (
+            "SKILL_TOOL_NAME",
+            '"execute_python"',
+            '"create_file"',
+            '"edit_file"',
+            '"list_branch_images"',
+            '"import_branch_images"',
+        ):
+            self.assertIn(tool_name, responses_branch)
 
     def test_gemini_branch_registers_create_file_callable(self):
         app_source = read_app_source()

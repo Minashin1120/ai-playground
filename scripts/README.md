@@ -6,10 +6,11 @@
 | `docs/release_workflow.md` | 変更対象ごとの記録・公開経路 | 実行する公開経路を選ぶとき |
 | `docs/android_checks.md` | Android版番号・履歴・省略指定・Actionsの完了条件 | Androidの記録・配布条件を確認するとき |
 | `verify_changes.sh` | 現時点の構文・Android生成物の同期・版付き資産・文書・回帰テスト、任意の公開URL確認 | ファイルやサービスを変更せず検証するとき |
+| `sync_android_assets.sh` | WebソースからAndroidの生成物（serverless defaults・モデルカタログ・アイコン）を再生成 | Web/Androidの生成物を同期するとき。`prepare_version.sh` と `record_changes.sh --target android` が自動実行する |
 | `prepare_version.sh` | 引数・notes確認、版更新前検証、版番号・changelog更新、生成資産の確認 | Web公開用の版を準備するとき |
 | `_prepare_checks.sh` | 現在の版のビルドと検証、新版資産のビルドと静的検証 | prepareの各検証段階を変更するとき |
 | `publish_version.sh` | 計画、検証、再起動、キャッシュ削除、公開URL確認、許可ファイルのcommit・tag・push | Web版を公開するとき |
-| `record_changes.sh` | Android・運用変更を対象限定でcommit・push | Web版上げ・再起動を伴わず記録するとき |
+| `record_changes.sh` | Android・運用変更を対象限定でcommit・push。Androidでは先に生成物を自動同期 | Web版上げ・再起動を伴わず記録するとき |
 | `deploy_server.sh` | サーバーだけの変更の検証・再起動・公開URL確認・記録 | Web UI・Android・運用スクリプトを含まないサーバー変更を反映するとき |
 | `restart_services.sh` | Webと2ワーカーの再起動、PID変更と応答確認 | 参照デプロイ構成の再起動を変更するとき |
 | `wait_for_restart_headroom.sh` | 空きメモリ・memory/I/O PSI・swap-inの監視 | 再起動前のリソース確認を変更するとき |

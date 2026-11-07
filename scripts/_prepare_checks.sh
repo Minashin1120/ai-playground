@@ -11,6 +11,9 @@ prepare_build_assets() {
 }
 
 prepare_preflight() {
+    # Derived Android assets are regenerated from Web sources first so a stale
+    # generated file never stops the preflight check.
+    "$ROOT/scripts/sync_android_assets.sh"
     prepare_build_assets
     local checks=()
     if [[ "$SKIP_VERIFY" -eq 1 ]]; then

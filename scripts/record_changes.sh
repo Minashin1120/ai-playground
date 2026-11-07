@@ -63,6 +63,12 @@ git_in() { git -C "$GIT_DIR" "$@"; }
 BRANCH="$(git_in rev-parse --abbrev-ref HEAD)"
 [[ "$BRANCH" == "main" ]] || die "refusing to record from branch '$BRANCH' (main only)"
 
+if [[ "$TARGET" == "android" ]]; then
+    # Keep generated assets current before computing the record plan, so the
+    # Android-only path does not stop on a stale catalog/defaults/icon file.
+    "$ROOT/scripts/sync_android_assets.sh"
+fi
+
 STATUS_JSON="$(run_common classify-record --target "$TARGET" || true)"
 [[ -n "$STATUS_JSON" ]] || die "failed to classify repository changes"
 

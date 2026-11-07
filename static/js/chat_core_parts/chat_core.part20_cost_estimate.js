@@ -12,6 +12,35 @@
             return Number.isFinite(n) && n >= 0 ? n : null;
         }
 
+        // Token-detail summary from saved per-request cache usage; null when no request reported cache fields.
+        function costCacheUsage(thoughtData) {
+            let metadata = thoughtData;
+            if (typeof thoughtData === 'string') {
+                if (!thoughtData.includes('cache_')) return null;
+                try { metadata = JSON.parse(thoughtData); } catch (_) { return null; }
+            }
+            if (!metadata || typeof metadata !== 'object' || !Array.isArray(metadata.pricing_calls)) return null;
+            let read = 0, write = 0, known = false;
+            const ttls = {};
+            for (const call of metadata.pricing_calls) {
+                if (!call || typeof call !== 'object') continue;
+                const readTokens = costTokenNumber(call.cache_read_tokens);
+                const writeTokens = costTokenNumber(call.cache_write_tokens);
+                let ttlTotal = 0;
+                for (const ttl of ['5m', '1h', '30m', '12h']) {
+                    const value = costTokenNumber(call[`cache_write_${ttl}_tokens`]);
+                    if (value === null) continue;
+                    ttls[ttl] = (ttls[ttl] || 0) + value;
+                    ttlTotal += value;
+                    known = true;
+                }
+                if (readTokens !== null || writeTokens !== null) known = true;
+                read += readTokens || 0;
+                write += Math.max(writeTokens || 0, ttlTotal);
+            }
+            return known ? { read, write, ttls } : null;
+        }
+
         function costRate(pricing, model, date) {
             const key = pricing && (pricing.aliases[model] || model);
             const base = pricing && pricing.models[key];

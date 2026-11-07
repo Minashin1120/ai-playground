@@ -878,15 +878,31 @@
                 tokens_in: 0,
                 tokens_out: 0,
                 tokens_content: 0,
-                tokens_thought: 0
+                tokens_thought: 0,
+                cache_read_tokens: 0,
+                cache_write_tokens: 0,
+                cache_write_ttls: {}
             };
             let hasTotal = false;
             let hasIn = false;
             let hasOut = false;
             let hasContent = false;
             let hasThought = false;
+            let hasCache = false;
             (messages || []).forEach(m => {
                 if (!m) return;
+                if (m.__cacheUsageSource !== m.thought_data) {
+                    m.__cacheUsage = costCacheUsage(m.thought_data);
+                    m.__cacheUsageSource = m.thought_data;
+                }
+                if (m.__cacheUsage) {
+                    totals.cache_read_tokens += m.__cacheUsage.read;
+                    totals.cache_write_tokens += m.__cacheUsage.write;
+                    for (const [ttl, value] of Object.entries(m.__cacheUsage.ttls || {})) {
+                        totals.cache_write_ttls[ttl] = (totals.cache_write_ttls[ttl] || 0) + value;
+                    }
+                    hasCache = true;
+                }
                 let rowTotal = null;
                 if (m.tokens !== null && m.tokens !== undefined) {
                     rowTotal = Number(m.tokens || 0);
@@ -923,7 +939,10 @@
                 tokens_in: hasIn ? totals.tokens_in : null,
                 tokens_out: hasOut ? totals.tokens_out : null,
                 tokens_content: hasContent ? totals.tokens_content : null,
-                tokens_thought: hasThought ? totals.tokens_thought : null
+                tokens_thought: hasThought ? totals.tokens_thought : null,
+                cache_read_tokens: hasCache ? totals.cache_read_tokens : null,
+                cache_write_tokens: hasCache ? totals.cache_write_tokens : null,
+                cache_write_ttls: hasCache ? totals.cache_write_ttls : null
             };
         }
         function syncTokenBarVisibility() {
@@ -949,6 +968,9 @@
                         tokens_out: details.tokens_out,
                         tokens_content: details.tokens_content,
                         tokens_thought: details.tokens_thought,
+                        cache_read_tokens: details.cache_read_tokens,
+                        cache_write_tokens: details.cache_write_tokens,
+                        cache_write_ttls: details.cache_write_ttls,
                         is_encrypted: null,
                         role: 'total',
                         model: 'Conversation'
@@ -970,6 +992,9 @@
                             tokens_out: allBranchDetails.tokens_out,
                             tokens_content: allBranchDetails.tokens_content,
                             tokens_thought: allBranchDetails.tokens_thought,
+                            cache_read_tokens: allBranchDetails.cache_read_tokens,
+                            cache_write_tokens: allBranchDetails.cache_write_tokens,
+                            cache_write_ttls: allBranchDetails.cache_write_ttls,
                             is_encrypted: null,
                             role: 'total',
                             model: 'Conversation (All branches)'

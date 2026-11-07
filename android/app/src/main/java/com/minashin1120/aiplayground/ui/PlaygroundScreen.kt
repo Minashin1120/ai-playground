@@ -1586,20 +1586,40 @@ private fun ConversationContent(
     SideEffect { sendMotion?.following = follow.following }
     DisposableEffect(follow) { onDispose { sendMotion?.finish() } }
     val quoteFocusManager = LocalFocusManager.current
-    LaunchedEffect(state.quoteNavigationRequest) {
-        if (state.quoteNavigationRequest == 0L || state.quote.isBlank()) return@LaunchedEffect
-        val row = state.messages.indexOfFirst { it.id == state.quoteSourceId }
+    /** Shared by the composer quote bar and a sent message's quote strip. */
+    suspend fun scrollToQuoteRow(row: Int, offset: Int) {
+        quoteFocusManager.clearFocus()
+        follow.pause()
+        val index = row + (if (loadingThread) 1 else 0) + (if (state.hasOlder) 1 else 0)
+        if (reduce) scroll.scrollToItem(index, offset) else scroll.animateScrollToItem(index, offset)
+    }
+    fun requestQuoteRow(row: Int, offset: Int = 0) {
         val op = java.util.UUID.randomUUID().toString()
         fun trace(phase: String) = com.minashin1120.aiplayground.data.ActivityLog.log("ui.interaction",
             "op" to op, "ui_element" to "message", "interaction_stage" to "scroll", "phase" to phase)
         trace("start")
-        if (row < 0) { trace("error"); return@LaunchedEffect }
-        quoteFocusManager.clearFocus()
-        follow.pause()
+        scope.launch {
+            try { scrollToQuoteRow(row, offset); trace("done") }
+            catch (e: CancellationException) { trace("cancelled"); throw e }
+            catch (e: Exception) { trace("error") }
+        }
+    }
+    LaunchedEffect(state.quoteNavigationRequest) {
+        if (state.quoteNavigationRequest == 0L) return@LaunchedEffect
+        val target = resolveQuoteTarget(state.messages, state.quoteSourceId, state.quoteMessageId,
+            keys.liveKey, live) { keys.keyOf(it) }
+        val op = java.util.UUID.randomUUID().toString()
+        fun trace(phase: String) = com.minashin1120.aiplayground.data.ActivityLog.log("ui.interaction",
+            "op" to op, "ui_element" to "message", "interaction_stage" to "scroll", "phase" to phase)
+        trace("start")
+        val row = when (target) {
+            is QuoteTarget.Message -> target.index
+            // The streamed answer is not in `messages` yet; it is the row after them.
+            QuoteTarget.Live -> state.messages.size
+            QuoteTarget.Missing -> { trace("error"); return@LaunchedEffect }
+        }
         try {
-            val index = row + (if (loadingThread) 1 else 0) + (if (state.hasOlder) 1 else 0)
-            if (reduce) scroll.scrollToItem(index, state.quoteSourceScrollOffset)
-            else scroll.animateScrollToItem(index, state.quoteSourceScrollOffset)
+            scrollToQuoteRow(row, state.quoteSourceScrollOffset)
             trace("done")
         } catch (e: CancellationException) { trace("cancelled"); throw e }
         catch (e: Exception) { trace("error") }
@@ -1728,13 +1748,16 @@ private fun ConversationContent(
                             // Preserve the visible part of a long answer, rather than returning to its heading.
                             val offset = scroll.layoutInfo.visibleItemsInfo.firstOrNull { it.key == keys.keyAt(row, message) }
                                 ?.offset?.let { -it } ?: 0
-                            model.quoteMessage(quoted, numericId(message), message.id, offset)
+                            model.quoteMessage(quoted, numericId(message), keys.keyAt(row, message), offset)
                         }) {
                         MessageBubble(
                             message = message,
                             sendMotion = promptSendBubbleModifier(message.id),
                             onFile = onFile,
                             loader = loader,
+                            onQuoteJump = if (message.quote.isBlank()) null else {
+                                { findQuotedMessageIndex(state.messages, row, message.quote)?.let { requestQuoteRow(it) } }
+                            },
                             actions = MessageActions(
                                 onEdit = actions.onEdit, onRegenerate = actions.onRegenerate, onDelete = actions.onDelete, onBranch = actions.onBranch,
                                 canBranch = !state.busy && !state.streaming && !state.branchBusy,
@@ -1758,7 +1781,7 @@ private fun ConversationContent(
                     val entering = remember { keys.consumeFresh(keys.liveKey) }
                     Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
                         ConversationMessageEntry(keys.liveKey, answer = true, animate = entering, answers = answerMotions) {
-                            LiveMessage(state, onFile, { quoted -> model.quoteMessage(quoted) }, loader, model::resolveMcpDecision)
+                            LiveMessage(state, onFile, { quoted -> model.quoteMessage(quoted, null, keys.liveKey, 0) }, loader, model::resolveMcpDecision)
                         }
                     }
                 }

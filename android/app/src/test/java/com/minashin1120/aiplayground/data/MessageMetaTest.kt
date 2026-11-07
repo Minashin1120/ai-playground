@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.data
 
+import com.minashin1120.aiplayground.ui.tokenDetail
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -43,5 +44,23 @@ class MessageMetaTest {
         assertEquals(900, totals.tokensContent)
         assertEquals(413, totals.tokensThought)
         assertEquals(TokenTotals(0, null, null, null, null), buildTokenTotals(emptyList()))
+    }
+
+    @Test
+    fun cacheUsageFeedsTokenDetailAndTotals() {
+        val thought = """{"pricing_calls":[
+            {"model":"gpt-6.1-sol","cache_read_tokens":4000,"cache_write_tokens":7000,"cache_write_30m_tokens":3000,"cache_write_12h_tokens":4000},
+            {"model":"gpt-6.1-sol","cache_read_tokens":1000,"cache_write_tokens":500}
+        ]}"""
+        val answer = ChatMessage("2", "assistant", "a", thought = thought, tokensIn = 12000, tokensOut = 1000)
+        val detail = answer.tokenDetail()
+        assertEquals(5000, detail.cacheRead)
+        assertEquals(7500, detail.cacheWrite)
+        assertEquals(mapOf("30m" to 3000, "12h" to 4000), detail.cacheWriteTtls)
+        val totals = buildTokenTotals(listOf(answer))
+        assertEquals(5000, totals.cacheRead)
+        assertEquals(7500, totals.cacheWrite)
+        assertEquals(mapOf("30m" to 3000, "12h" to 4000), totals.cacheWriteTtls)
+        assertNull(ChatMessage("3", "assistant", "b", thought = """{"pricing_calls":[{"input_tokens":100}]}""").tokenDetail().cacheRead)
     }
 }

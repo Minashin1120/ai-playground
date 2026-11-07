@@ -1819,10 +1819,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun navigateToQuote() {
         val current = state.value
-        if (current.quote.isBlank() || current.quoteSourceId == null) return
+        if (current.quote.isBlank() || (current.quoteSourceId == null && current.quoteMessageId == null)) return
         mutable.update { it.copy(quoteNavigationRequest = it.quoteNavigationRequest + 1) }
     }
-    fun clearQuote() { mutable.update { it.copy(quote = "", quoteSourceId = null, quoteMessageId = null) } }
+    fun clearQuote() { mutable.update { it.copy(quote = "", quoteSourceId = null, quoteMessageId = null, quoteSourceScrollOffset = 0) } }
     /**
      * Web `applySavedUserSystemPromptSettings`: after the user system prompt is saved from Settings or
      * Chat Instructions, the composer's SysPrompt switch follows it when its text or on/off changed.
@@ -2536,7 +2536,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     // Web reloads the chat without `preserveDraft`, which runs `cancelEdit`.
                     pendingParentId = null
                     promptSettingsBeforeEdit = null
-                    mutable.update { it.copy(leafId = null, editingMessageId = null, draft = "", attachments = emptyList(), quote = "") }
+                    mutable.update { it.copy(leafId = null, editingMessageId = null, draft = "", attachments = emptyList(), quote = "", quoteSourceId = null, quoteMessageId = null, quoteSourceScrollOffset = 0) }
                     loadMessages(thread.id)
                 }
             } catch (e: Exception) { report(e) }
@@ -2751,6 +2751,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             quote = message.quote,
             quoteSourceId = null,
             quoteMessageId = null,
+            quoteSourceScrollOffset = 0,
             composerFocusRequest = it.composerFocusRequest + 1,
         ) }
     }
@@ -2771,7 +2772,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         pendingParentId = null
         if (saved != null) modelChosenManually = saved.modelChosenManually
         mutable.update { current ->
-            val cleared = current.copy(editingMessageId = null, draft = "", attachments = emptyList(), quote = "")
+            val cleared = current.copy(editingMessageId = null, draft = "", attachments = emptyList(), quote = "", quoteSourceId = null, quoteMessageId = null, quoteSourceScrollOffset = 0)
             saved?.restore(cleared) ?: cleared
         }
     }
@@ -2923,7 +2924,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         failed = submission
         pendingParentId = null
         // Web `resetUploadState` + `clearQuote`: the mask goes with the attachments.
-        mutable.update { it.copy(promptSendMotionId = "local-${body.getString("client_request_id")}", draft = if (removeBackground || removeObject) it.draft else "", attachments = emptyList(), editingMessageId = null, quote = "", imageMask = null) }
+        mutable.update { it.copy(promptSendMotionId = "local-${body.getString("client_request_id")}", draft = if (removeBackground || removeObject) it.draft else "", attachments = emptyList(), editingMessageId = null, quote = "", quoteSourceId = null, quoteMessageId = null, quoteSourceScrollOffset = 0, imageMask = null) }
         submit(submission)
     }
     fun retry() { failed?.let { submit(it) } }

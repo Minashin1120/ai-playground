@@ -462,12 +462,16 @@
                     totalTokens = inVal + outVal;
                 }
             }
+            const cacheUsage = costCacheUsage(thoughtData);
             messageMeta[id] = {
                 tokens_in: tokenIn,
                 tokens_out: tokenOut,
                 tokens_total: totalTokens,
                 tokens_content: tokensContent,
                 tokens_thought: tokensThought,
+                cache_read_tokens: cacheUsage ? cacheUsage.read : null,
+                cache_write_tokens: cacheUsage ? cacheUsage.write : null,
+                cache_write_ttls: cacheUsage ? cacheUsage.ttls : null,
                 is_encrypted: isEncrypted,
                 role: role,
                 model: modelName,
@@ -687,12 +691,30 @@
             const tContent = meta.tokens_content !== null && meta.tokens_content !== undefined ? meta.tokens_content : '-';
             const tThought = meta.tokens_thought !== null && meta.tokens_thought !== undefined ? meta.tokens_thought : '-';
             const enc = meta.is_encrypted === null || meta.is_encrypted === undefined ? '-' : (meta.is_encrypted ? 'Encrypted' : 'Plain');
+            const cacheRead = meta.cache_read_tokens !== null && meta.cache_read_tokens !== undefined ? meta.cache_read_tokens : null;
+            const cacheWrite = meta.cache_write_tokens !== null && meta.cache_write_tokens !== undefined ? meta.cache_write_tokens : null;
+            const hasCache = cacheRead !== null || cacheWrite !== null;
             get('token-detail-total').innerText = total;
             get('token-detail-in').innerText = tIn;
             get('token-detail-out').innerText = tOut;
             get('token-detail-content').innerText = tContent;
             get('token-detail-thought').innerText = tThought;
             get('token-detail-encrypted').innerText = enc;
+            const cacheReadRow = get('token-detail-cache-read-row');
+            const cacheWriteRow = get('token-detail-cache-write-row');
+            const cacheTtlRow = get('token-detail-cache-write-ttl');
+            if (cacheReadRow) cacheReadRow.classList.toggle('hidden', !hasCache);
+            if (cacheWriteRow) cacheWriteRow.classList.toggle('hidden', !hasCache);
+            if (get('token-detail-cache-read')) get('token-detail-cache-read').innerText = cacheRead === null ? '-' : cacheRead;
+            if (get('token-detail-cache-write')) get('token-detail-cache-write').innerText = cacheWrite === null ? '-' : cacheWrite;
+            if (cacheTtlRow) {
+                const ttls = ['5m', '1h', '30m', '12h'].map(ttl => {
+                    const value = Number(meta.cache_write_ttls?.[ttl] || 0);
+                    return value > 0 ? `${ttl}: ${value}` : '';
+                }).filter(Boolean);
+                cacheTtlRow.textContent = ttls.length ? `TTL ${ttls.join(' · ')}` : '';
+                cacheTtlRow.classList.toggle('hidden', !hasCache || !ttls.length);
+            }
             const costDetail = get('token-detail-cost');
             if (costDetail) {
                 costDetail.replaceChildren();

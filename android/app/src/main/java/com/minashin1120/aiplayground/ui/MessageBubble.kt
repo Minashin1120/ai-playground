@@ -92,17 +92,23 @@ internal data class TokenDetail(
     val encrypted: Boolean?,
     val cost: com.minashin1120.aiplayground.data.CostEstimate? = null,
     val pricing: com.minashin1120.aiplayground.data.ModelCostEstimator? = null,
+    val cacheRead: Int? = null,
+    val cacheWrite: Int? = null,
+    val cacheWriteTtls: Map<String, Int> = emptyMap(),
 )
 
 internal fun ChatMessage.tokenDetail(): TokenDetail {
     val total = tokens ?: if (tokensIn != null || tokensOut != null) (tokensIn ?: 0) + (tokensOut ?: 0) else null
-    return TokenDetail(if (model.isNotBlank()) "$model ($role)" else role, total, tokensIn, tokensOut, tokensContent, tokensThought, encrypted)
+    val cache = com.minashin1120.aiplayground.data.cacheUsage(thought)
+    return TokenDetail(if (model.isNotBlank()) "$model ($role)" else role, total, tokensIn, tokensOut, tokensContent, tokensThought, encrypted,
+        cacheRead = cache?.read, cacheWrite = cache?.write, cacheWriteTtls = cache?.ttls ?: emptyMap())
 }
 
 internal fun TokenTotals.detail(allBranches: Boolean, cost: com.minashin1120.aiplayground.data.CostEstimate? = null,
                                pricing: com.minashin1120.aiplayground.data.ModelCostEstimator? = null): TokenDetail = TokenDetail(
     if (allBranches) "Conversation (All branches) (total)" else "Conversation (total)",
     total, tokensIn, tokensOut, tokensContent, tokensThought, null, cost, pricing,
+    cacheRead, cacheWrite, cacheWriteTtls,
 )
 
 /** Callbacks of the controls above a bubble (`.msg-controls`) and its footer. */
@@ -144,6 +150,8 @@ internal fun MessageBubble(
     liveTop: (@Composable () -> Unit)? = null,
     liveSkeleton: (@Composable () -> Unit)? = null,
     liveBottom: (@Composable () -> Unit)? = null,
+    /** Tapping the quote strip at the top of the bubble returns to the quoted message. */
+    onQuoteJump: (() -> Unit)? = null,
     /** The reasoning placeholder is shown collapsed (`.thought-content.collapsed`). */
     thoughtCollapsed: Boolean = false,
     preserveLiveLayout: Boolean = false,
@@ -190,7 +198,7 @@ internal fun MessageBubble(
             ) {
               // One selection for the whole bubble, so a long-press selection runs across paragraphs like Web.
               MessageSelection { Column {
-                if (message.quote.isNotBlank()) QuoteStrip(message.quote)
+                if (message.quote.isNotBlank()) QuoteStrip(message.quote, onQuoteJump)
                 if (message.skillName.isNotBlank()) SkillNotice(message.skillName)
                 liveTop?.invoke()
                 if (!user && liveTop == null) {
@@ -288,7 +296,7 @@ private fun ControlButton(@androidx.annotation.DrawableRes icon: Int, label: Str
 
 /** Quote strip at the top of a bubble (`bg-black/20 border-l-4 … italic truncate`). */
 @Composable
-private fun QuoteStrip(quote: String) {
+private fun QuoteStrip(quote: String, onJump: (() -> Unit)?) {
     val web = LocalWebPalette.current
     val color = web.twText(Tw.gray300)
     Row(
@@ -297,6 +305,7 @@ private fun QuoteStrip(quote: String) {
             .padding(bottom = 8.dp)
             .clip(RoundedCornerShape(4.dp))
             .background(Color.Black.copy(alpha = 0.2f))
+            .then(if (onJump != null) Modifier.clickable(role = Role.Button, onClickLabel = "引用元へ移動", onClick = onJump) else Modifier)
             .drawBehind { drawRect(web.theme.t500, size = androidx.compose.ui.geometry.Size(4.dp.toPx(), size.height)) }
             .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -304,7 +313,7 @@ private fun QuoteStrip(quote: String) {
         FaIcon(R.drawable.fa_solid_quote_left, null, size = 12.dp, tint = color.copy(alpha = color.alpha * 0.5f),
             modifier = Modifier.padding(end = 4.dp))
         Text(quote, color = color, fontSize = 12.sp, lineHeight = 16.sp, fontStyle = FontStyle.Italic,
-            maxLines = 1, overflow = TextOverflow.Ellipsis)
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
     }
 }
 
@@ -645,6 +654,17 @@ internal fun TokenDetailDialog(detail: TokenDetail, onDismiss: () -> Unit) {
                 "Content" to value(detail.tokensContent), "Thought" to value(detail.tokensThought),
                 "Encryption" to when (detail.encrypted) { null -> "-"; true -> "Encrypted"; false -> "Plain" },
             ).forEach { (label, v) -> InfoRow(label, v) }
+            if (detail.cacheRead != null || detail.cacheWrite != null) {
+                InfoRow("Cache read", value(detail.cacheRead))
+                InfoRow("Cache write", value(detail.cacheWrite))
+                val ttls = listOf("5m", "1h", "30m", "12h").mapNotNull { ttl ->
+                    detail.cacheWriteTtls[ttl]?.takeIf { it > 0 }?.let { "$ttl: $it" }
+                }
+                if (ttls.isNotEmpty()) {
+                    Text("TTL ${ttls.joinToString(" · ")}", color = LocalWebPalette.current.twText(Tw.slate200),
+                        fontSize = 11.sp, fontFamily = WebFonts.sans)
+                }
+            }
             detail.cost?.let { cost ->
                 Text(cost.label(), color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
                 Text("集計したAPI呼び出し: ${cost.requests}回", color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)

@@ -73,7 +73,9 @@ class SkillsUiRegressionTests(unittest.TestCase):
         self.assertIn("imported.skills", part("chat_core.part07_domcontent_initial.js"))
 
     def test_css_uses_skill_selectors(self):
-        css = (ROOT / "static/css/chat.custom.v4.8.1157.css").read_text(encoding="utf-8")
+        css_files = sorted((ROOT / "static/css").glob("chat.custom.v4.8.*.css"))
+        self.assertEqual(len(css_files), 1, f"Expected one current CSS asset, got: {css_files}")
+        css = css_files[0].read_text(encoding="utf-8")
         self.assertIn("#skill-list .skill-item", css)
         self.assertIn("#skill-suggestions", css)
         self.assertIn(".skill-notice", css)

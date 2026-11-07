@@ -625,8 +625,35 @@ fun parseMessages(json: JSONObject): List<ChatMessage> {
 fun JSONObject.nullableInt(name: String): Int? =
     if (!has(name) || isNull(name)) null else optDouble(name).takeIf { !it.isNaN() }?.toInt()
 
+/** Cache tokens reported by saved API calls; null when no call reported cache fields. */
+data class CacheUsage(val read: Int, val write: Int, val ttls: Map<String, Int> = emptyMap())
+
+fun cacheUsage(thought: String): CacheUsage? {
+    if (!thought.contains("cache_")) return null
+    val calls = runCatching { JSONObject(thought).optJSONArray("pricing_calls") }.getOrNull() ?: return null
+    var read = 0; var write = 0; var known = false
+    val ttls = mutableMapOf<String, Int>()
+    for (index in 0 until calls.length()) {
+        val call = calls.optJSONObject(index) ?: continue
+        val readTokens = call.nullableInt("cache_read_tokens")
+        val writeTokens = call.nullableInt("cache_write_tokens")
+        var ttlTotal = 0
+        for (ttl in listOf("5m", "1h", "30m", "12h")) {
+            val value = call.nullableInt("cache_write_${ttl}_tokens") ?: continue
+            ttls[ttl] = (ttls[ttl] ?: 0) + value
+            ttlTotal += value
+            known = true
+        }
+        if (readTokens != null || writeTokens != null) known = true
+        read += readTokens ?: 0
+        write += maxOf(writeTokens ?: 0, ttlTotal)
+    }
+    return if (known) CacheUsage(read, write, ttls) else null
+}
+
 /** Web `buildTokenTotals`: sums per-message totals; a field is null when no message reported it. */
-data class TokenTotals(val total: Int, val tokensIn: Int?, val tokensOut: Int?, val tokensContent: Int?, val tokensThought: Int?)
+data class TokenTotals(val total: Int, val tokensIn: Int?, val tokensOut: Int?, val tokensContent: Int?, val tokensThought: Int?,
+                       val cacheRead: Int? = null, val cacheWrite: Int? = null, val cacheWriteTtls: Map<String, Int> = emptyMap())
 
 fun buildTokenTotals(messages: List<ChatMessage>): TokenTotals {
     var total = 0
@@ -634,6 +661,8 @@ fun buildTokenTotals(messages: List<ChatMessage>): TokenTotals {
     var sumOut = 0; var hasOut = false
     var sumContent = 0; var hasContent = false
     var sumThought = 0; var hasThought = false
+    var sumCacheRead = 0; var sumCacheWrite = 0; var hasCache = false
+    val cacheTtls = mutableMapOf<String, Int>()
     messages.forEach { m ->
         val rowTotal = m.tokens ?: if (m.tokensIn != null || m.tokensOut != null) (m.tokensIn ?: 0) + (m.tokensOut ?: 0) else null
         if (rowTotal != null) total += rowTotal
@@ -641,8 +670,13 @@ fun buildTokenTotals(messages: List<ChatMessage>): TokenTotals {
         m.tokensOut?.let { sumOut += it; hasOut = true }
         m.tokensContent?.let { sumContent += it; hasContent = true }
         m.tokensThought?.let { sumThought += it; hasThought = true }
+        cacheUsage(m.thought)?.let { usage ->
+            sumCacheRead += usage.read; sumCacheWrite += usage.write; hasCache = true
+            usage.ttls.forEach { (ttl, value) -> cacheTtls[ttl] = (cacheTtls[ttl] ?: 0) + value }
+        }
     }
-    return TokenTotals(total, sumIn.takeIf { hasIn }, sumOut.takeIf { hasOut }, sumContent.takeIf { hasContent }, sumThought.takeIf { hasThought })
+    return TokenTotals(total, sumIn.takeIf { hasIn }, sumOut.takeIf { hasOut }, sumContent.takeIf { hasContent }, sumThought.takeIf { hasThought },
+        sumCacheRead.takeIf { hasCache }, sumCacheWrite.takeIf { hasCache }, if (hasCache) cacheTtls else emptyMap())
 }
 
 /** Web bubble footer token label: `In a / Out b (Thought c)`, or `N tokens`, or null. */

@@ -300,7 +300,7 @@ fun Composer(
             AnimatedVisibility(state.quote.isNotBlank(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                 Box(Modifier.onGloballyPositioned { sendMotion?.quoteSource = it.boundsInWindow() }) {
                     DisposableEffect(Unit) { onDispose { sendMotion?.quoteSource = null } }
-                    QuoteBar(shownQuote.orEmpty(), canNavigate = state.messages.any { it.id == state.quoteSourceId }, onNavigate = model::navigateToQuote, onClear = model::clearQuote)
+                    QuoteBar(shownQuote.orEmpty(), canNavigate = state.quoteSourceId != null || state.quoteMessageId != null, onNavigate = model::navigateToQuote, onClear = model::clearQuote)
                 }
             }
             AnimatedVisibility(state.codingMode, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
@@ -402,16 +402,24 @@ private fun QuoteBar(text: String, canNavigate: Boolean, onNavigate: () -> Unit,
         background = if (web.isLight) Color.White.copy(alpha = 0.9f) else Color(8, 14, 28).copy(alpha = 0.9f),
         border = web.lineSoft,
     ) {
-        FaIcon(R.drawable.fa_solid_quote_left, null, size = 11.dp, tint = web.theme300)
-        Text(
-            text.replace('\n', ' '),
-            fontSize = 12.sp, fontStyle = FontStyle.Italic, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            color = if (web.isLight) web.text else Color(0xFFCBD5F5),
-            modifier = Modifier.weight(1f)
+        // The whole preview (icon and text) is the tap target; the left rule used to belong to the text only.
+        Row(
+            Modifier.weight(1f)
+                .clip(RoundedCornerShape(4.dp))
                 .clickable(enabled = canNavigate, role = Role.Button, onClickLabel = "引用元へ移動", onClick = onNavigate)
                 .drawBehind { drawRect(web.theme.t500, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) }
-                .padding(start = 8.dp),
-        )
+                .padding(start = 8.dp, top = 2.dp, bottom = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            FaIcon(R.drawable.fa_solid_quote_left, null, size = 11.dp, tint = web.theme300)
+            Text(
+                text.replace('\n', ' '),
+                fontSize = 12.sp, fontStyle = FontStyle.Italic, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                color = if (web.isLight) web.text else Color(0xFFCBD5F5),
+                modifier = Modifier.weight(1f),
+            )
+        }
         BarClose("引用を解除", onClear)
     }
 }

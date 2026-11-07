@@ -16,7 +16,7 @@
 | [test_gpt_6_family.py](../test_gpt_6_family.py) | gpt / 6 / family |
 | [test_grok_45_46_family.py](../test_grok_45_46_family.py) | grok / 45 / 46 / family |
 | [test_model_usage_ledger.py](../test_model_usage_ledger.py) | HTTP通信単位の使用量、SDK自動ツール呼び出し・再試行、累積イベント・再取得の重複防止 |
-| [test_cache_tool_costs.py](../test_cache_tool_costs.py) | キャッシュ読込・TTL別書込、検索追加料金、xAI実請求、数値のみの保存・同期 |
+| [test_cache_tool_costs.py](../test_cache_tool_costs.py) | キャッシュ読込・TTL別書込、トークン詳細向けキャッシュ集計、検索追加料金、xAI実請求、数値のみの保存・同期 |
 | [test_ideogram_costs.py](../test_ideogram_costs.py) | Ideogram全5モデル・速度・削除API・未公表料金の下限・旧回答の速度復元 |
 | [test_cost_request_accounting.py](../test_cost_request_accounting.py) | API呼び出し別の長文料金・モデル・Thinking・Ideogram 4.5画像単価 |
 | [test_model_cost_estimates.py](../test_model_cost_estimates.py) | 回答ごとの料金・長文の境界・分岐・公式入力使用量 |
@@ -41,6 +41,6 @@
 
 モデルAPIの使用量は回答内の `pricing_calls` に通信ごとに保存します。同じストリームの累積usageは更新し、別リクエストは加算します。長文料金は各リクエストで判定します。再取得のGETは生成回数に加えず、使用量未取得の通信は一部未算入にします。Thinkingは出力に含めたまま内訳へ記録します。Ideogram 4.5は生成と編集の品質別単価×実際の画像枚数で検証します。
 
-キャッシュ読込・書込は通常入力から差し引いて別単価で計算します。OpenAIは30分／12時間、Claudeは5分／1時間の書込を区別し、不明なTTLは範囲と一部未算入にします。検索の有効化だけで課金せず、実際の課金対象呼び出しを数え、ストリームイベントの重複を加算しません。OpenAIのページ閲覧・ページ内検索をWeb検索料金に重ねません。Batch割引をツール料金へ適用しません。Batchのキャッシュ読込は事業者ごとの公表値を使い、Geminiの一部モデルのように通常単価のままの場合は割引しません。xAIの `cost_in_usd_ticks` はキャッシュ・ツールを含むため、報告額を優先し他料金を二重加算しません。取得できない保存時間・実行時間は一部未算入とし、検索文・URL・ツールIDを使用量メタデータへ保存しません。
+キャッシュ読込・書込は通常入力から差し引いて別単価で計算します。OpenAIは30分／12時間、Claudeは5分／1時間の書込を区別し、不明なTTLは範囲と一部未算入にします。トークン詳細では、保存済みの `pricing_calls` からキャッシュ読込とTTL別の書込を集計して表示し、キャッシュ情報のない回答では行を出しません。検索の有効化だけで課金せず、実際の課金対象呼び出しを数え、ストリームイベントの重複を加算しません。OpenAIのページ閲覧・ページ内検索をWeb検索料金に重ねません。Batch割引をツール料金へ適用しません。Batchのキャッシュ読込は事業者ごとの公表値を使い、Geminiの一部モデルのように通常単価のままの場合は割引しません。xAIの `cost_in_usd_ticks` はキャッシュ・ツールを含むため、報告額を優先し他料金を二重加算しません。取得できない保存時間・実行時間は一部未算入とし、検索文・URL・ツールIDを使用量メタデータへ保存しません。
 
 Ideogramは選択可能な5モデルを対象とし、速度を保存・同期します。背景削除は専用API単価、オブジェクト削除と2a／2.0の単価未公表設定は公表最安値を下限にして「以上・一部未算入」と表示します。古い呼び出し記録の速度は保存済みの親プロンプトからだけ復元します。

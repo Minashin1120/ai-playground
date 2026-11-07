@@ -4389,15 +4389,31 @@
                 tokens_in: 0,
                 tokens_out: 0,
                 tokens_content: 0,
-                tokens_thought: 0
+                tokens_thought: 0,
+                cache_read_tokens: 0,
+                cache_write_tokens: 0,
+                cache_write_ttls: {}
             };
             let hasTotal = false;
             let hasIn = false;
             let hasOut = false;
             let hasContent = false;
             let hasThought = false;
+            let hasCache = false;
             (messages || []).forEach(m => {
                 if (!m) return;
+                if (m.__cacheUsageSource !== m.thought_data) {
+                    m.__cacheUsage = costCacheUsage(m.thought_data);
+                    m.__cacheUsageSource = m.thought_data;
+                }
+                if (m.__cacheUsage) {
+                    totals.cache_read_tokens += m.__cacheUsage.read;
+                    totals.cache_write_tokens += m.__cacheUsage.write;
+                    for (const [ttl, value] of Object.entries(m.__cacheUsage.ttls || {})) {
+                        totals.cache_write_ttls[ttl] = (totals.cache_write_ttls[ttl] || 0) + value;
+                    }
+                    hasCache = true;
+                }
                 let rowTotal = null;
                 if (m.tokens !== null && m.tokens !== undefined) {
                     rowTotal = Number(m.tokens || 0);
@@ -4434,7 +4450,10 @@
                 tokens_in: hasIn ? totals.tokens_in : null,
                 tokens_out: hasOut ? totals.tokens_out : null,
                 tokens_content: hasContent ? totals.tokens_content : null,
-                tokens_thought: hasThought ? totals.tokens_thought : null
+                tokens_thought: hasThought ? totals.tokens_thought : null,
+                cache_read_tokens: hasCache ? totals.cache_read_tokens : null,
+                cache_write_tokens: hasCache ? totals.cache_write_tokens : null,
+                cache_write_ttls: hasCache ? totals.cache_write_ttls : null
             };
         }
         function syncTokenBarVisibility() {
@@ -4460,6 +4479,9 @@
                         tokens_out: details.tokens_out,
                         tokens_content: details.tokens_content,
                         tokens_thought: details.tokens_thought,
+                        cache_read_tokens: details.cache_read_tokens,
+                        cache_write_tokens: details.cache_write_tokens,
+                        cache_write_ttls: details.cache_write_ttls,
                         is_encrypted: null,
                         role: 'total',
                         model: 'Conversation'
@@ -4481,6 +4503,9 @@
                             tokens_out: allBranchDetails.tokens_out,
                             tokens_content: allBranchDetails.tokens_content,
                             tokens_thought: allBranchDetails.tokens_thought,
+                            cache_read_tokens: allBranchDetails.cache_read_tokens,
+                            cache_write_tokens: allBranchDetails.cache_write_tokens,
+                            cache_write_ttls: allBranchDetails.cache_write_ttls,
                             is_encrypted: null,
                             role: 'total',
                             model: 'Conversation (All branches)'
@@ -20861,12 +20886,16 @@
                     totalTokens = inVal + outVal;
                 }
             }
+            const cacheUsage = costCacheUsage(thoughtData);
             messageMeta[id] = {
                 tokens_in: tokenIn,
                 tokens_out: tokenOut,
                 tokens_total: totalTokens,
                 tokens_content: tokensContent,
                 tokens_thought: tokensThought,
+                cache_read_tokens: cacheUsage ? cacheUsage.read : null,
+                cache_write_tokens: cacheUsage ? cacheUsage.write : null,
+                cache_write_ttls: cacheUsage ? cacheUsage.ttls : null,
                 is_encrypted: isEncrypted,
                 role: role,
                 model: modelName,
@@ -21086,12 +21115,30 @@
             const tContent = meta.tokens_content !== null && meta.tokens_content !== undefined ? meta.tokens_content : '-';
             const tThought = meta.tokens_thought !== null && meta.tokens_thought !== undefined ? meta.tokens_thought : '-';
             const enc = meta.is_encrypted === null || meta.is_encrypted === undefined ? '-' : (meta.is_encrypted ? 'Encrypted' : 'Plain');
+            const cacheRead = meta.cache_read_tokens !== null && meta.cache_read_tokens !== undefined ? meta.cache_read_tokens : null;
+            const cacheWrite = meta.cache_write_tokens !== null && meta.cache_write_tokens !== undefined ? meta.cache_write_tokens : null;
+            const hasCache = cacheRead !== null || cacheWrite !== null;
             get('token-detail-total').innerText = total;
             get('token-detail-in').innerText = tIn;
             get('token-detail-out').innerText = tOut;
             get('token-detail-content').innerText = tContent;
             get('token-detail-thought').innerText = tThought;
             get('token-detail-encrypted').innerText = enc;
+            const cacheReadRow = get('token-detail-cache-read-row');
+            const cacheWriteRow = get('token-detail-cache-write-row');
+            const cacheTtlRow = get('token-detail-cache-write-ttl');
+            if (cacheReadRow) cacheReadRow.classList.toggle('hidden', !hasCache);
+            if (cacheWriteRow) cacheWriteRow.classList.toggle('hidden', !hasCache);
+            if (get('token-detail-cache-read')) get('token-detail-cache-read').innerText = cacheRead === null ? '-' : cacheRead;
+            if (get('token-detail-cache-write')) get('token-detail-cache-write').innerText = cacheWrite === null ? '-' : cacheWrite;
+            if (cacheTtlRow) {
+                const ttls = ['5m', '1h', '30m', '12h'].map(ttl => {
+                    const value = Number(meta.cache_write_ttls?.[ttl] || 0);
+                    return value > 0 ? `${ttl}: ${value}` : '';
+                }).filter(Boolean);
+                cacheTtlRow.textContent = ttls.length ? `TTL ${ttls.join(' · ')}` : '';
+                cacheTtlRow.classList.toggle('hidden', !hasCache || !ttls.length);
+            }
             const costDetail = get('token-detail-cost');
             if (costDetail) {
                 costDetail.replaceChildren();
@@ -27723,6 +27770,35 @@
             if (value === null || value === undefined || value === '') return null;
             const n = Number(value);
             return Number.isFinite(n) && n >= 0 ? n : null;
+        }
+
+        // Token-detail summary from saved per-request cache usage; null when no request reported cache fields.
+        function costCacheUsage(thoughtData) {
+            let metadata = thoughtData;
+            if (typeof thoughtData === 'string') {
+                if (!thoughtData.includes('cache_')) return null;
+                try { metadata = JSON.parse(thoughtData); } catch (_) { return null; }
+            }
+            if (!metadata || typeof metadata !== 'object' || !Array.isArray(metadata.pricing_calls)) return null;
+            let read = 0, write = 0, known = false;
+            const ttls = {};
+            for (const call of metadata.pricing_calls) {
+                if (!call || typeof call !== 'object') continue;
+                const readTokens = costTokenNumber(call.cache_read_tokens);
+                const writeTokens = costTokenNumber(call.cache_write_tokens);
+                let ttlTotal = 0;
+                for (const ttl of ['5m', '1h', '30m', '12h']) {
+                    const value = costTokenNumber(call[`cache_write_${ttl}_tokens`]);
+                    if (value === null) continue;
+                    ttls[ttl] = (ttls[ttl] || 0) + value;
+                    ttlTotal += value;
+                    known = true;
+                }
+                if (readTokens !== null || writeTokens !== null) known = true;
+                read += readTokens || 0;
+                write += Math.max(writeTokens || 0, ttlTotal);
+            }
+            return known ? { read, write, ttls } : null;
         }
 
         function costRate(pricing, model, date) {

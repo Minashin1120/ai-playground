@@ -1,7 +1,8 @@
 """Official cache partitions and hosted tools, using synthetic responses only."""
 import json
+import subprocess
 import pytest
-from tests.test_model_cost_estimates import answer, estimate
+from tests.test_model_cost_estimates import SOURCE, answer, estimate
 from tests.test_model_usage_ledger import usage_scope
 
 
@@ -33,6 +34,27 @@ def test_long_context_is_decided_using_all_input_including_cache():
 def test_other_provider_cached_input(model, read_rate):
     result = cost(model, cache_read_tokens=80)
     assert result['low'] > 0 and result['unpriced'] == 0
+
+
+def test_token_detail_summary_splits_cache_read_and_ttl_writes():
+    thought = json.dumps({'pricing_calls': [
+        {'model': 'gpt-6.1-sol', 'cache_read_tokens': 4000, 'cache_write_tokens': 7000,
+         'cache_write_30m_tokens': 3000, 'cache_write_12h_tokens': 4000},
+        {'model': 'gpt-6.1-sol', 'cache_read_tokens': 1000, 'cache_write_tokens': 500},
+    ]})
+    script = ('const fetch = () => new Promise(() => {});\n' + SOURCE
+              + '\nconsole.log(JSON.stringify(costCacheUsage(' + json.dumps(thought) + ')));')
+    result = subprocess.run(['node', '-e', script], check=True, capture_output=True, text=True)
+    summary = json.loads(result.stdout)
+    assert summary == {'read': 5000, 'write': 7500, 'ttls': {'30m': 3000, '12h': 4000}}
+
+
+def test_token_detail_summary_is_hidden_without_cache_fields():
+    script = ('const fetch = () => new Promise(() => {});\n' + SOURCE
+              + '\nconsole.log(JSON.stringify(costCacheUsage(' + json.dumps(json.dumps({'pricing_calls': [
+                  {'model': 'gpt-6.1-sol', 'input_tokens': 100, 'output_tokens': 10, 'complete': True}]})) + ')));')
+    result = subprocess.run(['node', '-e', script], check=True, capture_output=True, text=True)
+    assert json.loads(result.stdout) is None
 
 
 def test_unknown_write_lifetime_shows_a_range_and_partial_status():

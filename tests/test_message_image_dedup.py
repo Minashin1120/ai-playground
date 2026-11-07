@@ -15,6 +15,8 @@ def rendering_harness():
     render = source[source.index("function renderMessage("):source.index("function showTokenDetailModal(")]
     normalize = settings[settings.index("const normalizeAttachmentPath ="):settings.index("const isGeminiImageModelKey =")]
     urls = files[files.index("function buildFileUrl("):files.index("window.closeMarkerModal =")]
+    costs = (PARTS / "chat_core.part20_cost_estimate.js").read_text()
+    cache_usage = costs[costs.index("function costTokenNumber(value)"):costs.index("function costRate(")]
     return r'''
 const assert = require('node:assert/strict');
 const window = {location: {origin: 'https://playground.test'}};
@@ -30,7 +32,7 @@ const isImagePath = path => /.(png|jpg|jpeg|gif|webp)$/i.test(path);
 let attached = [], markdown = '';
 const buildChatImageHtml = src => {attached.push(src); return '<img data-attachment>';};
 const buildAiMarkdownHtml = text => {markdown = text; return '<div class="content-area">' + text + '</div>';};
-''' + normalize + urls + helpers + render + r'''
+''' + normalize + urls + helpers + cache_usage + render + r'''
 function bubble(text, files, role = 'assistant') {
     attached = []; markdown = '';
     const element = renderMessage('1', role, text, JSON.stringify(files), null, 'model');

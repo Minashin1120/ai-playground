@@ -104,7 +104,7 @@ internal class SettingsForm(prefs: Preferences?) {
         applyAutoNotices = true
         for (i in autoPrompts.indices) {
             val row = autoPrompts[i]
-            autoPrompts[i] = row.copy(enabled = if (row.mcpLocked) row.enabled else true, text = row.defaultText)
+            autoPrompts[i] = row.copy(enabled = if (row.barLocked) row.enabled else true, text = row.defaultText)
         }
     }
 
@@ -139,7 +139,7 @@ internal class SettingsForm(prefs: Preferences?) {
         .put("apply_auto_system_prompt_notices", applyAutoNotices)
         .put("auto_system_prompt_notices_config", JSONObject().apply {
             autoPrompts.forEach { row ->
-                put(row.key, JSONObject().put("enabled", if (row.mcpLocked) true else row.enabled).put("text", row.text))
+                put(row.key, JSONObject().put("enabled", if (row.barLocked) true else row.enabled).put("text", row.text))
             }
         })
         .put("theme_color", normalizeWebHex(themeColor) ?: THEME_DEFAULT)

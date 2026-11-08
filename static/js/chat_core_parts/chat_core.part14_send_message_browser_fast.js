@@ -3,6 +3,11 @@
         function collectBrowserFastPromptOptions() {
             const checked = (id, fallback) => (get(id) ? !!get(id).checked : fallback);
             const value = (id) => (get(id) ? get(id).value : null);
+            // 高速モードはSkillsを強制オフにする。保存する設定は、切り替え前の
+            // 利用者の選択へ戻せるよう、退避した値を記録する。
+            const priorSkills = browserFastPreviousOptions && browserFastPreviousOptions.checks
+                && Object.prototype.hasOwnProperty.call(browserFastPreviousOptions.checks, 'enable-skills')
+                ? !!browserFastPreviousOptions.checks['enable-skills'] : true;
             return {
                 canvas_mode: !!canvasModeEnabled,
                 enable_search: checked('enable-search', false),
@@ -11,6 +16,7 @@
                 enable_python: checked('enable-python', false),
                 enable_file_creation: checked('enable-file-creation', true),
                 enable_mcp: typeof isMcpEnabledForSend === 'function' ? !!isMcpEnabledForSend() : false,
+                enable_skills: priorSkills,
                 enable_thinking: checked('enable-thinking', false),
                 thinking_level: value('thinking-level'),
                 thinking_budget: value('thinking-budget'),
@@ -684,6 +690,7 @@
                 enable_maps: get('enable-maps') ? get('enable-maps').checked : false,
                 enable_python: get('enable-python').checked,
                 enable_mcp: isMcpEnabledForSend(),
+                enable_skills: get('enable-skills') ? get('enable-skills').checked : true,
                 enable_file_creation: get('enable-file-creation') ? get('enable-file-creation').checked : true,
                 enable_thinking: isDeepSeekNonThinking ? false : get('enable-thinking').checked,
                 thinking_level: get('thinking-level').value,

@@ -23,19 +23,19 @@ color:#bfdbfe;font-weight:700;line-height:1.3">\u4E00\u6642\u7684\u306B\u6DF7\u9
 l&&c.setAttribute("data-file-name",String(l)),c},"buildBusyWarning"),r=o(l=>String(l||"").split("?")[0].
 replace("/files/thumb/","/files/"),"fullFileUrl");document.addEventListener("error",l=>{const c=l.target;
 if(!c||c.tagName!=="IMG")return;const d=c.currentSrc||c.src||"";if(!t(d)){const x=c.closest&&c.closest(
-".svg-code-render");if(x){x.dataset.svgState="error";return}const C=c.closest&&c.closest(".chat-imag\
-e-frame");if(C){C.dataset.chatImageState="error",C.removeAttribute("aria-busy");const L=C.querySelector(
-".chat-image-loading"),M=L&&L.querySelector("span");M&&(M.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
-const E=L&&L.querySelector("i");E&&(E.className="fas fa-image")}return}l.stopImmediatePropagation(),
+".svg-code-render");if(x){x.dataset.svgState="error";return}const L=c.closest&&c.closest(".chat-imag\
+e-frame");if(L){L.dataset.chatImageState="error",L.removeAttribute("aria-busy");const C=L.querySelector(
+".chat-image-loading"),M=C&&C.querySelector("span");M&&(M.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
+const E=C&&C.querySelector("i");E&&(E.className="fas fa-image")}return}l.stopImmediatePropagation(),
 l.preventDefault();const f=String(d).split("?")[0],h=c.getAttribute("data-viewer-filename")||f.split(
-"/").pop(),y=o(x=>{const C=c.closest&&c.closest(".chat-image-frame");C&&(C.dataset.chatImageState="f\
-ailed",C.removeAttribute("aria-busy"));const L=i(h,!!x);try{c.replaceWith(L)}catch{}},"showWarning"),
+"/").pop(),y=o(x=>{const L=c.closest&&c.closest(".chat-image-frame");L&&(L.dataset.chatImageState="f\
+ailed",L.removeAttribute("aria-busy"));const C=i(h,!!x);try{c.replaceWith(C)}catch{}},"showWarning"),
 v=o(()=>{const x=c.closest&&c.closest(".chat-image-frame");x&&(x.dataset.chatImageState="busy",x.removeAttribute(
-"aria-busy"));const C=a(h);try{c.replaceWith(C)}catch{}},"showBusyWarning"),w=o((x,C)=>{const L=c.cloneNode(
-!1);L.setAttribute("data-file-retry",String(C));const M=x+(x.includes("?")?"&":"?")+"retry="+Date.now()+
-"_"+C;L.setAttribute("src",M);try{c.replaceWith(L)}catch{}},"retryLoad"),k=o(x=>{if(x===429||x===503){
-v();return}if(x===409){y(!0);return}if(x===404||x===410||x===403){y(!1);return}const C=parseInt(c.getAttribute&&
-c.getAttribute("data-file-retry")||"0",10);if(C<2){w(d,C+1);return}if(d.includes("/files/thumb/")&&!c.
+"aria-busy"));const L=a(h);try{c.replaceWith(L)}catch{}},"showBusyWarning"),w=o((x,L)=>{const C=c.cloneNode(
+!1);C.setAttribute("data-file-retry",String(L));const M=x+(x.includes("?")?"&":"?")+"retry="+Date.now()+
+"_"+L;C.setAttribute("src",M);try{c.replaceWith(C)}catch{}},"retryLoad"),k=o(x=>{if(x===429||x===503){
+v();return}if(x===409){y(!0);return}if(x===404||x===410||x===403){y(!1);return}const L=parseInt(c.getAttribute&&
+c.getAttribute("data-file-retry")||"0",10);if(L<2){w(d,L+1);return}if(d.includes("/files/thumb/")&&!c.
 getAttribute("data-file-fallback")){c.setAttribute("data-file-fallback","1"),w(r(d),0);return}y(!1)},
 "handleStatus");n(d).then(k).catch(()=>{const x=parseInt(c.getAttribute&&c.getAttribute("data-file-r\
 etry")||"0",10);if(x<2){w(d,x+1);return}if(d.includes("/files/thumb/")){v();return}y(!1)})},!0)})();
@@ -540,10 +540,10 @@ n","true"),a.style.position="fixed",a.style.left="-100000px",a.style.top="0",a.s
 style.visibility="hidden",a.style.pointerEvents="none",a.style.color="#111827",a.style.background="t\
 ransparent",a.appendChild(i.content.cloneNode(!0)),document.body.appendChild(a);try{const r=[a,...Array.
 from(a.querySelectorAll("*")).slice(0,5e3)],l=[],c=new Map;let d=0;const f=o(k=>Array.from(k.childNodes||
-[]).reduce((x,C)=>C&&C.nodeType===Node.TEXT_NODE?x+String(C.textContent||"").replace(/\s+/g," ").trim().
+[]).reduce((x,L)=>L&&L.nodeType===Node.TEXT_NODE?x+String(L.textContent||"").replace(/\s+/g," ").trim().
 length:x,0),"directTextLength");r.forEach(k=>{if(!k||k===a||!k.style)return;const x=window.getComputedStyle(
-k),C=f(k);if(C>0){const M=parseRichPasteCssColor(x.color);if(M&&M.a>=.5){const E=richPasteColorCss(M),
-D=c.get(E)||{color:M,weight:0};D.weight+=C,c.set(E,D),d+=C}}if(!!(String(k.style.backgroundColor||"").
+k),L=f(k);if(L>0){const M=parseRichPasteCssColor(x.color);if(M&&M.a>=.5){const E=richPasteColorCss(M),
+D=c.get(E)||{color:M,weight:0};D.weight+=L,c.set(E,D),d+=L}}if(!!(String(k.style.backgroundColor||"").
 trim()||String(k.style.background||"").trim())){const M=parseRichPasteCssColor(x.backgroundColor);if(M&&
 M.a>=.72){const E=String(k.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:M,weight:Math.
 max(1,E)})}}});const h=Array.from(c.values()).sort((k,x)=>x.weight-k.weight),y=h.length?h[0].color:null,
@@ -592,8 +592,8 @@ d=>{if(!d||!d.style)return;const f=String(d.tagName||"").toLowerCase(),h=[];Stri
 tyle")||"").split(";").forEach(y=>{if(!y||y.indexOf(":")<0)return;const v=y.indexOf(":"),w=y.slice(0,
 v).trim().toLowerCase();let k=y.slice(v+1).trim();if(!(!w||!k||r.has(w))&&!["height","max-height","m\
 in-height","overflow","overflow-x","overflow-y"].includes(w)&&!(["width","min-width"].includes(w)&&l.
-has(f))){if(c.has(w)&&l.has(f)&&Array.from(k.matchAll(/(-?\d+(?:\.\d+)?)px/gi)).map(C=>Math.abs(Number(
-C[1])||0)).some(C=>C>=96)&&(k="0px"),w==="display"){const x=k.toLowerCase();["flex","grid"].includes(
+has(f))){if(c.has(w)&&l.has(f)&&Array.from(k.matchAll(/(-?\d+(?:\.\d+)?)px/gi)).map(L=>Math.abs(Number(
+L[1])||0)).some(L=>L>=96)&&(k="0px"),w==="display"){const x=k.toLowerCase();["flex","grid"].includes(
 x)?k="block":["inline-flex","inline-grid"].includes(x)&&(k="inline-block")}h.push(`${w}: ${k}`)}}),h.
 length?d.setAttribute("style",h.join("; ")):d.removeAttribute("style")}),t.innerHTML},"normalizeRich\
 PastePrintHtml"),getRichPasteSelectionRange=o(e=>{const t=window.getSelection&&window.getSelection();
@@ -923,9 +923,9 @@ nd); font-weight: bold; }
                 </div>
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const v=new f(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),w=v.internal.pageSize.getWidth(),k=v.internal.
-pageSize.getHeight(),x=794,C=Math.floor(k/w*x),L=y.scrollHeight||y.offsetHeight;let M=0,E=!0;const D=Math.
-ceil(L/C);let P=0;for(;M<L;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const j=Math.min(C,L-M),re=(await new Promise(($,N)=>{const U=setTimeout(()=>N(
+pageSize.getHeight(),x=794,L=Math.floor(k/w*x),C=y.scrollHeight||y.offsetHeight;let M=0,E=!0;const D=Math.
+ceil(C/L);let P=0;for(;M<C;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
+"Aborted","AbortError");const j=Math.min(L,C-M),re=(await new Promise(($,N)=>{const U=setTimeout(()=>N(
 new Error("PDF chunk rendering timed out")),12e4);h(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
 background,logging:!1,imageTimeout:5e3,x:0,y:M,width:x,height:j,windowWidth:x,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:o(O=>{prepareRichPastePdfClone(O,c);const q=O.querySelector(
@@ -1596,16 +1596,17 @@ url-context-container"},{key:"maps",icon:"fa-map-location-dot",label:"Maps",chec
 containerId:"maps-grounding-container"},{key:"python",icon:"fa-code",label:"Python",checkboxId:"enab\
 le-python",containerId:"python-container"},{key:"file",icon:"fa-file-lines",label:"File",checkboxId:"\
 enable-file-creation",containerId:"file-creation-container"},{key:"mcp",icon:"fa-plug",label:"MCP",checkboxId:"\
-enable-mcp",containerId:"mcp-container"},{key:"sysprompt",icon:"fa-terminal",label:"SysPrompt",checkboxId:"\
-enable-sys-prompt",containerId:"sys-prompt-option",gear:!0,gearAction:o(()=>{window.openThreadModal&&
-window.openThreadModal()},"gearAction")},{key:"thinking",icon:"fa-brain",label:"Thinking",checkboxId:"\
-enable-thinking",containerId:"thinking-options",special:"thinking"},{key:"safety",icon:"fa-shield-ha\
-lved",label:"Safety",selectId:"safety-setting"},{key:"promptcache",icon:"fa-database",label:"PromptC\
-ache",checkboxId:"enable-prompt-cache",containerId:"prompt-cache-container"},{key:"compress",icon:"f\
-a-compress-alt",label:"Compress",checkboxId:"enable-compression",containerId:"compression-option",gear:!0,
-gearAction:o(()=>{window.openCompressionModal&&window.openCompressionModal()},"gearAction")},{key:"t\
-empchat",icon:"fa-hourglass-half",label:"\u4E00\u6642\u30C1\u30E3\u30C3\u30C8",checkboxId:"enable-te\
-mporary-chat",containerId:"temporary-chat-container",gear:!0,gearAction:o(()=>openTemporaryChatSettings(),
+enable-mcp",containerId:"mcp-container"},{key:"skills",icon:"fa-wand-magic-sparkles",label:"Skills",
+checkboxId:"enable-skills",containerId:"skills-container"},{key:"sysprompt",icon:"fa-terminal",label:"\
+SysPrompt",checkboxId:"enable-sys-prompt",containerId:"sys-prompt-option",gear:!0,gearAction:o(()=>{
+window.openThreadModal&&window.openThreadModal()},"gearAction")},{key:"thinking",icon:"fa-brain",label:"\
+Thinking",checkboxId:"enable-thinking",containerId:"thinking-options",special:"thinking"},{key:"safe\
+ty",icon:"fa-shield-halved",label:"Safety",selectId:"safety-setting"},{key:"promptcache",icon:"fa-da\
+tabase",label:"PromptCache",checkboxId:"enable-prompt-cache",containerId:"prompt-cache-container"},{
+key:"compress",icon:"fa-compress-alt",label:"Compress",checkboxId:"enable-compression",containerId:"\
+compression-option",gear:!0,gearAction:o(()=>{window.openCompressionModal&&window.openCompressionModal()},
+"gearAction")},{key:"tempchat",icon:"fa-hourglass-half",label:"\u4E00\u6642\u30C1\u30E3\u30C3\u30C8",
+checkboxId:"enable-temporary-chat",containerId:"temporary-chat-container",gear:!0,gearAction:o(()=>openTemporaryChatSettings(),
 "gearAction")}];let minimalOptionsOpen=!1,thinkingSliderOpen=!1,thinkingSliderTimer=null,thinkingSliderStartY=0,
 thinkingSliderStartX=0,thinkingSliderDragging=!1,thinkingSliderAxis=null,popupSwipeStartY=0,popupSwipeStartX=0,
 popupSwipeDragging=!1,popupSwipeAtTop=!1,popupSwipeAxis=null;const minimalPanelOrigins=new Map;function minimalOptionVisible(e){
@@ -1787,22 +1788,22 @@ o(applyChatDefaults,"applyChatDefaults");function setEditUi(e){const t=get("edit
 remove("hidden"),t.classList.add("flex")):(t.classList.add("hidden"),t.classList.remove("flex")),updatePromptPlaceholder(),
 syncCodingModeUi(codingModeEnabled,{persist:!1}))}o(setEditUi,"setEditUi");const PROMPT_OPTION_INPUT_IDS={
 enable_search:"enable-search",enable_url_context:"enable-url-context",enable_maps:"enable-maps",enable_python:"\
-enable-python",enable_file_creation:"enable-file-creation",enable_mcp:"enable-mcp",enable_thinking:"\
-enable-thinking",thinking_level:"thinking-level",thinking_budget:"thinking-budget",reasoning_effort:"\
-reasoning-effort",safety_setting:"safety-setting",enable_prompt_caching:"enable-prompt-cache",image_vision_model:"\
-image-vision-model",tts_voice:"tts-voice",tts_voice_custom:"tts-voice-custom",tts_language:"tts-lang\
-uage",tts_speed:"tts-speed",image_size:"gpt-image-size",image_quality:"gpt-image-quality",image_complexity:"\
-gpt-image-complexity",image_format:"gpt-image-format",image_compression:"gpt-image-compression",image_frame_count:"\
-gpt-image-frame-count",image_frame_duration_ms:"gpt-image-frame-duration",gemini_image_aspect:"gemin\
-i-image-aspect",gemini_image_size:"gemini-image-size",grok_image_aspect:"grok-image-aspect",grok_image_resolution:"\
-grok-image-resolution",grok_image_quality:"grok-image-quality",grok_image_format:"grok-image-format",
-grok_image_count:"grok-image-count",ideogram_operation:"ideogram-image-operation",ideogram_aspect:"i\
-deogram-image-aspect",ideogram_resolution:"ideogram-image-resolution",ideogram_quality:"ideogram-ima\
-ge-quality",ideogram_speed:"ideogram-image-speed",ideogram_magic_prompt:"ideogram-image-magic",ideogram_style_type:"\
-ideogram-image-style",ideogram_count:"ideogram-image-count",ideogram_seed:"ideogram-image-seed",xai_temperature:"\
-xai-temperature",xai_top_p:"xai-top-p",xai_max_completion_tokens:"xai-max-completion-tokens",xai_seed:"\
-xai-seed",xai_presence_penalty:"xai-presence-penalty",xai_frequency_penalty:"xai-frequency-penalty",
-xai_response_format:"xai-response-format",xai_tool_choice:"xai-tool-choice",xai_parallel_tool_calls:"\
+enable-python",enable_file_creation:"enable-file-creation",enable_mcp:"enable-mcp",enable_skills:"en\
+able-skills",enable_thinking:"enable-thinking",thinking_level:"thinking-level",thinking_budget:"thin\
+king-budget",reasoning_effort:"reasoning-effort",safety_setting:"safety-setting",enable_prompt_caching:"\
+enable-prompt-cache",image_vision_model:"image-vision-model",tts_voice:"tts-voice",tts_voice_custom:"\
+tts-voice-custom",tts_language:"tts-language",tts_speed:"tts-speed",image_size:"gpt-image-size",image_quality:"\
+gpt-image-quality",image_complexity:"gpt-image-complexity",image_format:"gpt-image-format",image_compression:"\
+gpt-image-compression",image_frame_count:"gpt-image-frame-count",image_frame_duration_ms:"gpt-image-\
+frame-duration",gemini_image_aspect:"gemini-image-aspect",gemini_image_size:"gemini-image-size",grok_image_aspect:"\
+grok-image-aspect",grok_image_resolution:"grok-image-resolution",grok_image_quality:"grok-image-qual\
+ity",grok_image_format:"grok-image-format",grok_image_count:"grok-image-count",ideogram_operation:"i\
+deogram-image-operation",ideogram_aspect:"ideogram-image-aspect",ideogram_resolution:"ideogram-image\
+-resolution",ideogram_quality:"ideogram-image-quality",ideogram_speed:"ideogram-image-speed",ideogram_magic_prompt:"\
+ideogram-image-magic",ideogram_style_type:"ideogram-image-style",ideogram_count:"ideogram-image-coun\
+t",ideogram_seed:"ideogram-image-seed",xai_temperature:"xai-temperature",xai_top_p:"xai-top-p",xai_max_completion_tokens:"\
+xai-max-completion-tokens",xai_seed:"xai-seed",xai_presence_penalty:"xai-presence-penalty",xai_frequency_penalty:"\
+xai-frequency-penalty",xai_response_format:"xai-response-format",xai_tool_choice:"xai-tool-choice",xai_parallel_tool_calls:"\
 xai-parallel-tool-calls",xai_logprobs:"xai-logprobs",xai_top_logprobs:"xai-top-logprobs",grok_video_duration:"\
 grok-video-duration",grok_video_aspect:"grok-video-aspect",grok_video_resolution:"grok-video-resolut\
 ion",gemini_video_duration:"gemini-video-duration",gemini_video_aspect:"gemini-video-aspect",gemini_video_resolution:"\
@@ -2042,23 +2043,23 @@ clickTimes=e.clickTimes.filter(k=>w-k<=2e3),e.fastClicks>=4&&f(!0)},"recordClick
 !1){e.untrustedInput=!0,f(!0);return}const w=performance.now();e.keys+=1,e.lastKeyTs&&w-e.lastKeyTs<
 50&&(e.fastKeys+=1),e.lastKeyTs=w,e.keyTimes.push(w),e.keyTimes=e.keyTimes.filter(k=>w-k<=2e3)},"rec\
 ordKey"),l=o(v=>{const w=performance.now();if(!(w-e.lastMoveSample<80)){if(e.lastMoveSample=w,e.moves+=
-1,e.lastMove){const k=v.clientX-e.lastMove.x,x=v.clientY-e.lastMove.y,C=w-e.lastMove.t;if(C>0){const L=Math.
-sqrt(k*k+x*x)/(C/1e3);e.speedMax=Math.max(e.speedMax,L),e.speedSum+=L,e.speedSamples+=1}}e.lastMove=
+1,e.lastMove){const k=v.clientX-e.lastMove.x,x=v.clientY-e.lastMove.y,L=w-e.lastMove.t;if(L>0){const C=Math.
+sqrt(k*k+x*x)/(L/1e3);e.speedMax=Math.max(e.speedMax,C),e.speedSum+=C,e.speedSamples+=1}}e.lastMove=
 {x:v.clientX,y:v.clientY,t:w}}},"recordMove"),c=o(()=>{const v=Math.max(1,performance.now()-e.windowStart),
-w=e.clickTimes.length,k=e.keyTimes.length,x=e.speedSamples?e.speedSum/e.speedSamples:0;let C=0,L=1;if(e.
+w=e.clickTimes.length,k=e.keyTimes.length,x=e.speedSamples?e.speedSum/e.speedSamples:0;let L=0,C=1;if(e.
 clickIntervals.length>=3){const M=e.clickIntervals.reduce((D,P)=>D+P,0)/e.clickIntervals.length,E=e.
-clickIntervals.reduce((D,P)=>D+Math.pow(P-M,2),0)/e.clickIntervals.length;C=M,L=M>0?Math.sqrt(E)/M:1}
+clickIntervals.reduce((D,P)=>D+Math.pow(P-M,2),0)/e.clickIntervals.length;L=M,C=M>0?Math.sqrt(E)/M:1}
 return{window_ms:Math.round(v),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
-fastKeys,untrusted_input:!!e.untrustedInput,click_burst:w,key_burst:k,avg_click_ms:C,click_cv:L,event_rate:(e.
+fastKeys,untrusted_input:!!e.untrustedInput,click_burst:w,key_burst:k,avg_click_ms:L,click_cv:C,event_rate:(e.
 clicks+e.keys+e.moves)/(v/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:x}},"computeStats"),d=o(
 v=>v.fast_clicks>=4||v.fast_keys>=8||v.click_burst>=8||v.key_burst>=14||v.event_rate>=20||v.avg_click_ms>
 0&&v.avg_click_ms<160&&v.click_cv<.08,"isSuspicious"),f=o(async(v=!1,w={})=>{if(!e.enabled)return;const k=performance.
 now();if(!v&&k-e.lastSend<3e3)return;e.lastSend=k;const x=c();if(!(!w.forceReport&&x.clicks+x.keys+x.
 moves===0&&!x.untrusted_input)&&!(!v&&!x.untrusted_input&&!d(x))){x.turnstile_token=await getTurnstileToken(),
 botConfig&&botConfig.turnstileSiteKey&&!x.turnstile_token&&!botDetectionVerified&&botDetectionOverlayShown&&
-(x.turnstile_failed=!0,x.challenged=!0);try{const C=await apiFetch("/api/bot-telemetry",{method:"POS\
-T",headers:{"Content-Type":"application/json"},body:JSON.stringify(x)});if(C.status===403){let L=null;
-try{L=await C.json()}catch{}if(L&&L.error==="banned"){showToast("\u30DC\u30C3\u30C8\u5224\u5B9A\u306B\u3088\u308ABAN\u3055\u308C\u307E\u3057\u305F\u3002",
+(x.turnstile_failed=!0,x.challenged=!0);try{const L=await apiFetch("/api/bot-telemetry",{method:"POS\
+T",headers:{"Content-Type":"application/json"},body:JSON.stringify(x)});if(L.status===403){let C=null;
+try{C=await L.json()}catch{}if(C&&C.error==="banned"){showToast("\u30DC\u30C3\u30C8\u5224\u5B9A\u306B\u3088\u308ABAN\u3055\u308C\u307E\u3057\u305F\u3002",
 "error",!0),setTimeout(()=>{location.href="/banned"},800);return}}}catch{}resetTurnstileToken(),n()}},
 "send");return{start:o(()=>{t(),e.enabled&&(typeof window.PointerEvent!="undefined"?document.addEventListener(
 "pointerdown",a,!0):document.addEventListener("click",a,!0),document.addEventListener("keydown",r,!0),
@@ -2139,10 +2140,10 @@ const d=document.createElement("div");d.className="settings-empty-sub",d.textCon
 \u81F4\u3059\u308B\u8A2D\u5B9A\u9805\u76EE\u306F\u3042\u308A\u307E\u305B\u3093\u3002",c.appendChild(
 d),l.appendChild(c)}else{const c=document.createElement("div");c.className="settings-search-count",c.
 textContent=i.length+"\u4EF6\u306E\u4E00\u81F4",l.appendChild(c);let d=null;i.forEach((f,h)=>{if(f.tabId!==
-d){if(d!==null){const C=document.createElement("div");C.className="border-t border-gray-700/50 my-1.\
-5",l.appendChild(C)}if(f.tabId!==a){const C=document.createElement("div");C.className="text-[10px] t\
-ext-gray-500 px-1 pb-1 font-bold",C.textContent="\u25BC "+(TAB_LABELS[f.tabId]||f.tabId),l.appendChild(
-C)}d=f.tabId}const y=document.createElement("div");y.className="settings-search-result-item flex ite\
+d){if(d!==null){const L=document.createElement("div");L.className="border-t border-gray-700/50 my-1.\
+5",l.appendChild(L)}if(f.tabId!==a){const L=document.createElement("div");L.className="text-[10px] t\
+ext-gray-500 px-1 pb-1 font-bold",L.textContent="\u25BC "+(TAB_LABELS[f.tabId]||f.tabId),l.appendChild(
+L)}d=f.tabId}const y=document.createElement("div");y.className="settings-search-result-item flex ite\
 ms-start gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150",y.style.animation=
 "fadeIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",y.style.animationDelay=h*30+"ms";const v=document.
 createElement("span");v.className="settings-result-tab-badge shrink-0 mt-0.5",v.textContent=TAB_LABELS[f.
@@ -2187,16 +2188,16 @@ return}e.dataset.scrollBound="1";const a=56;let r=0,l=0,c=0;const d=o(w=>{const 
 if(!k.width)return;const x=w-k.left;e.classList.toggle("is-edge-left",x>=0&&x<=a),e.classList.toggle(
 "is-edge-right",x>=k.width-a&&x<=k.width)},"updateEdgeHover"),f=o(()=>{c||e.classList.remove("is-edg\
 e-left","is-edge-right")},"clearEdgeHover"),h=o((w,k)=>{const x=getSettingsTabsMaxScroll(t);if(x<=0||
-!w)return;const C=Math.max(0,Math.min(x,t.scrollLeft+w));k&&typeof t.scrollTo=="function"?t.scrollTo(
-{left:C,behavior:"smooth"}):t.scrollLeft=C,syncSettingsTabsOverflow()},"scrollTabsBy"),y=o(()=>{c=0,
+!w)return;const L=Math.max(0,Math.min(x,t.scrollLeft+w));k&&typeof t.scrollTo=="function"?t.scrollTo(
+{left:L,behavior:"smooth"}):t.scrollLeft=L,syncSettingsTabsOverflow()},"scrollTabsBy"),y=o(()=>{c=0,
 r&&(clearTimeout(r),r=0),l&&(cancelAnimationFrame(l),l=0)},"stopHold"),v=o(w=>{y(),c=w,e.classList.toggle(
 "is-edge-left",w<0),e.classList.toggle("is-edge-right",w>0),h(w*Math.max(120,t.clientWidth*.55),!0),
 r=setTimeout(()=>{const k=o(()=>{c&&(h(c*14,!1),l=requestAnimationFrame(k))},"step");l=requestAnimationFrame(
 k)},280)},"startHold");if(e.addEventListener("pointermove",w=>{w.pointerType!=="touch"&&d(w.clientX)}),
 e.addEventListener("pointerenter",w=>{w.pointerType!=="touch"&&d(w.clientX)}),e.addEventListener("po\
 interleave",w=>{w.pointerType!=="touch"&&(y(),f())}),e.addEventListener("wheel",w=>{const k=getSettingsTabsMaxScroll(
-t);if(k<=2)return;const C=Math.abs(w.deltaY)>=Math.abs(w.deltaX)?w.deltaY:w.deltaX;if(!C)return;const L=Math.
-max(0,Math.min(k,t.scrollLeft+C));L!==t.scrollLeft&&(w.preventDefault(),t.scrollLeft=L,syncSettingsTabsOverflow())},
+t);if(k<=2)return;const L=Math.abs(w.deltaY)>=Math.abs(w.deltaX)?w.deltaY:w.deltaX;if(!L)return;const C=Math.
+max(0,Math.min(k,t.scrollLeft+L));C!==t.scrollLeft&&(w.preventDefault(),t.scrollLeft=C,syncSettingsTabsOverflow())},
 {passive:!1}),n.addEventListener("pointerdown",w=>{w.button!=null&&w.button!==0||(w.preventDefault(),
 v(-1))}),i.addEventListener("pointerdown",w=>{w.button!=null&&w.button!==0||(w.preventDefault(),v(1))}),
 n.addEventListener("click",w=>{w.preventDefault(),w.stopPropagation()}),i.addEventListener("click",w=>{
@@ -2295,8 +2296,8 @@ adjacent:null,lastTime:Date.now()}}o(onViewerTouchStart,"onViewerTouchStart");fu
 if(e.touches.length>=2){if(!p){const M=e.touches[0],E=e.touches[1];p={d:Math.hypot(M.clientX-E.clientX,
 M.clientY-E.clientY)||1,s:z,mx:(M.clientX+E.clientX)/2,my:(M.clientY+E.clientY)/2,x:vX,y:vY},s=null}
 const v=e.touches[0],w=e.touches[1],k=Math.hypot(v.clientX-w.clientX,v.clientY-w.clientY)||1,x=(v.clientX+
-w.clientX)/2,C=(v.clientY+w.clientY)/2;z=Math.min(6,Math.max(1,p.s*k/p.d)),z<=1.0001?(z=1,vX=0,vY=0):
-(vX=p.x+x-p.mx,vY=p.y+C-p.my);const L=get("image-viewer-img");if(!L)return;e.preventDefault(),L.style.
+w.clientX)/2,L=(v.clientY+w.clientY)/2;z=Math.min(6,Math.max(1,p.s*k/p.d)),z<=1.0001?(z=1,vX=0,vY=0):
+(vX=p.x+x-p.mx,vY=p.y+L-p.my);const C=get("image-viewer-img");if(!C)return;e.preventDefault(),C.style.
 transition="none",applyViewerTransform();return}if(p)return;if(z>1&&s&&!s.active){const v=e.touches[0];
 if(!v)return;e.preventDefault(),vX=s.dx+v.clientX-s.startX,vY=s.dy+v.clientY-s.startY,applyViewerTransform();
 return}if(!s)return;const t=e.touches[0];if(!t)return;const n=t.clientX-s.startX,i=t.clientY-s.startY,
@@ -2997,11 +2998,11 @@ if(!isStsModel())return;const e=get("model-select").value||"",t=getStsProvider(e
 i=get("sts-speed-wrap"),a=get("sts-speed"),r=get("sts-speed-label"),l=get("sts-rate-wrap"),c=get("st\
 s-rate-in"),d=get("sts-rate-out"),f=get("sts-thinking-wrap"),h=get("sts-note"),y=get("sts-voice-wrap"),
 v=get("sts-auto-play-wrap"),w=get("sts-mode-label"),k=isTranscriptionModel()||isGeminiLiveTranscribeModel()||
-isXaiLiveTranscribeModel(),x=get("sts-lang-wrap"),C=get("sts-reasoning-wrap");if(C&&C.classList.toggle(
+isXaiLiveTranscribeModel(),x=get("sts-lang-wrap"),L=get("sts-reasoning-wrap");if(L&&L.classList.toggle(
 "hidden",!OPENAI_REASONING_STS_MODELS.has(e)),k){w&&(w.textContent="Realtime Speech-to-Text"),y&&y.classList.
 add("hidden"),v&&v.classList.add("hidden"),i&&i.classList.add("hidden"),l&&l.classList.add("hidden"),
-f&&f.classList.add("hidden"),x&&x.classList.add("hidden");const L=get("sts-transcribe-wrap"),M=get("\
-sts-custom-vocab-wrap");L&&L.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),M&&M.classList.
+f&&f.classList.add("hidden"),x&&x.classList.add("hidden");const C=get("sts-transcribe-wrap"),M=get("\
+sts-custom-vocab-wrap");C&&C.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),M&&M.classList.
 toggle("hidden",!isGeminiLiveTranscribeModel()&&!isXaiLiveTranscribeModel()),h&&(h.textContent=isGeminiLiveTranscribeModel()?
 "\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u4F4E\u9045\u5EF6\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM / \u6700\u592710\u5206\uFF09":
 isXaiLiveTranscribeModel()?"xAI \u30B9\u30C8\u30EA\u30FC\u30DF\u30F3\u30B0\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM\uFF09":
@@ -3029,8 +3030,8 @@ AI\u306FPCM\u30B5\u30F3\u30D7\u30EB\u30EC\u30FC\u30C8\u5909\u66F4\u53EF");else i
 textContent="Speech-to-Speech Live"),y&&y.classList.remove("hidden"),v&&v.classList.remove("hidden"),
 setSelectOptions(n,GEMINI_STS_VOICES,n.value||"Kore"),i&&i.classList.add("hidden"),l&&l.classList.add(
 "hidden"),f&&f.classList.remove("hidden"),x&&x.classList.add("hidden"),h&&(h.textContent="Gemini Liv\
-e\u306F\u97F3\u58F0\u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC");const L=get("sts-thinking-level");if(Array.
-from(L&&L.options||[]).forEach(M=>{M.disabled=!1}),e==="gemini-2.5-flash-native-audio-preview-12-202\
+e\u306F\u97F3\u58F0\u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC");const C=get("sts-thinking-level");if(Array.
+from(C&&C.options||[]).forEach(M=>{M.disabled=!1}),e==="gemini-2.5-flash-native-audio-preview-12-202\
 5")f&&f.classList.add("hidden");else if(e==="gemini-3.8-live")f&&f.classList.add("hidden"),h&&(h.textContent=
 "Gemini 3.8 Flash Live\u306F\u56FA\u5B9A\u30EC\u30A4\u30C6\u30F3\u30B7\u306ELive API\u30E2\u30C7\u30EB\uFF08Thinking level\u975E\u5BFE\u5FDC\uFF09");else if(e===
 "gemini-3.8-live-extended-thinking"){h&&(h.textContent="Gemini 3.8 Live Extended Thinking\u306Flow / medi\
@@ -3107,19 +3108,20 @@ get("model-select")&&get("model-select").value||"").toLowerCase();return!e||e.st
 o(mcpModelSupported,"mcpModelSupported");function applyMcpPromptChipUi(){const e=get("mcp-container");
 if(!e)return;const t=mcpModelSupported()&&mcpHasEnabledServer();if(e.classList.toggle("hidden",!t),syncMcpAutoSysRows(),
 typeof refreshMinimalOptionsIfOpen=="function")try{refreshMinimalOptionsIfOpen()}catch{}}o(applyMcpPromptChipUi,
-"applyMcpPromptChipUi");function syncMcpAutoSysRows(){["set","thread"].forEach(e=>{const t=get(`${e}\
--auto-sys-mcp-enabled`);t&&(t.disabled=!0,t.checked=isMcpEnabledForSend())})}o(syncMcpAutoSysRows,"s\
-yncMcpAutoSysRows");function renderMcpServers(){const e=get("mcp-server-list"),t=get("mcp-server-cou\
-nt");if(!e)return;const n=mcpServers.length;if(t&&(t.textContent=`${n}\u4EF6`),!n){e.innerHTML='<div\
- class="text-[11px] text-gray-600 py-2">\u307E\u3060\u30B5\u30FC\u30D0\u30FC\u304C\u3042\u308A\u307E\u305B\u3093\u3002\u4E0A\u306E\u30AB\u30B9\u30BF\u30E0\u8FFD\u52A0\u30D5\u30A9\u30FC\u30E0\u304B\u3089\u767B\u9332\u3059\u308B\u304B\u3001Google Workspace \u306E\u8A8D\u8A3C\u3092\u3057\u3066\u304F\u3060\u3055\u3044\
-\u3002</div>',mcpStatusMsg("mcp-status-msg","");return}const i=mcpServers.map((a,r)=>mcpServerCard(a,
-r)).join("");e.innerHTML=i,mcpStatusMsg("mcp-status-msg","")}o(renderMcpServers,"renderMcpServers");
-function mcpServerCard(e,t){const n=!!e.is_preset,i=e.auth_type==="oauth",a=e.auth_type==="bearer",r=i||
-a,l=i&&!e.oauth_client_registered,c=Number(e.tool_count||0),d=c>0?`${c}\u30C4\u30FC\u30EB`:"\u30C4\u30FC\u30EB\u672A\u53D6\u5F97",
-f=mcpStateBadge(e),h=n?'<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-700/50 text-\
-blue-100">\u30D7\u30EA\u30BB\u30C3\u30C8</span>':'<span class="text-[9px] font-bold px-1.5 py-0.5 ro\
-unded bg-purple-700/50 text-purple-100">\u30AB\u30B9\u30BF\u30E0</span>',y=mcpAuthBlock(e),v=i?mcpOauthClientBlock(
-e):"";return`
+"applyMcpPromptChipUi");function syncMcpAutoSysRows(){const e=get("enable-skills")?!!get("enable-ski\
+lls").checked:!0;["set","thread"].forEach(t=>{const n=get(`${t}-auto-sys-mcp-enabled`);n&&(n.disabled=
+!0,n.checked=isMcpEnabledForSend());const i=get(`${t}-auto-sys-skills-enabled`);i&&(i.disabled=!0,i.
+checked=e)})}o(syncMcpAutoSysRows,"syncMcpAutoSysRows");function renderMcpServers(){const e=get("mcp\
+-server-list"),t=get("mcp-server-count");if(!e)return;const n=mcpServers.length;if(t&&(t.textContent=
+`${n}\u4EF6`),!n){e.innerHTML='<div class="text-[11px] text-gray-600 py-2">\u307E\u3060\u30B5\u30FC\u30D0\u30FC\u304C\u3042\u308A\u307E\u305B\u3093\u3002\u4E0A\u306E\u30AB\u30B9\u30BF\u30E0\u8FFD\u52A0\u30D5\u30A9\u30FC\u30E0\
+\u304B\u3089\u767B\u9332\u3059\u308B\u304B\u3001Google Workspace \u306E\u8A8D\u8A3C\u3092\u3057\u3066\u304F\u3060\u3055\u3044\u3002</div>',
+mcpStatusMsg("mcp-status-msg","");return}const i=mcpServers.map((a,r)=>mcpServerCard(a,r)).join("");
+e.innerHTML=i,mcpStatusMsg("mcp-status-msg","")}o(renderMcpServers,"renderMcpServers");function mcpServerCard(e,t){
+const n=!!e.is_preset,i=e.auth_type==="oauth",a=e.auth_type==="bearer",r=i||a,l=i&&!e.oauth_client_registered,
+c=Number(e.tool_count||0),d=c>0?`${c}\u30C4\u30FC\u30EB`:"\u30C4\u30FC\u30EB\u672A\u53D6\u5F97",f=mcpStateBadge(
+e),h=n?'<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-700/50 text-blue-100">\u30D7\u30EA\u30BB\u30C3\u30C8<\
+/span>':'<span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-700/50 text-purple-100">\u30AB\
+\u30B9\u30BF\u30E0</span>',y=mcpAuthBlock(e),v=i?mcpOauthClientBlock(e):"";return`
 <div class="rounded border border-gray-700 bg-gray-950/50 p-3" data-mcp-server="${mcpEsc(e.slug)}">
     <div class="flex items-center justify-between gap-2 flex-wrap">
         <div class="flex items-center gap-2 min-w-0">
@@ -3335,9 +3337,10 @@ v=await y.json().catch(()=>({}));if(!y.ok){mcpStatusMsg("mcp-status-msg",v.error
 l.getAttribute("data-id"),l.checked)})}o(bindMcpSettingsUi,"bindMcpSettingsUi");const initMcpUi=o(()=>{
 try{bindMcpSettingsUi()}catch{}try{loadMcpServers()}catch{}},"initMcpUi");document.readyState==="loa\
 ding"?document.addEventListener("DOMContentLoaded",initMcpUi,{once:!0}):initMcpUi();function bindMcpPromptToggle(){
-const e=get("enable-mcp");e&&e.addEventListener("change",()=>{if(syncMcpAutoSysRows(),typeof refreshMinimalOptionsIfOpen==
-"function")try{refreshMinimalOptionsIfOpen()}catch{}})}if(o(bindMcpPromptToggle,"bindMcpPromptToggle"),
-document.readyState==="loading")document.addEventListener("DOMContentLoaded",()=>{try{bindMcpPromptToggle()}catch{}});else
+const e=get("enable-mcp"),t=get("enable-skills"),n=o(()=>{if(syncMcpAutoSysRows(),typeof refreshMinimalOptionsIfOpen==
+"function")try{refreshMinimalOptionsIfOpen()}catch{}},"refresh");e&&e.addEventListener("change",n),t&&
+t.addEventListener("change",n)}if(o(bindMcpPromptToggle,"bindMcpPromptToggle"),document.readyState===
+"loading")document.addEventListener("DOMContentLoaded",()=>{try{bindMcpPromptToggle()}catch{}});else
 try{bindMcpPromptToggle()}catch{}function getModelTags(e,t){const n=[],i=(e.id||"").toLowerCase(),a=(e.
 name||"").toLowerCase(),r=(e.desc||"").toLowerCase(),l=(t.category||"").toLowerCase();return(l.includes(
 "gemini")||i.includes("gemini")||a.includes("gemini")||r.includes("gemini")||l.includes("banana")||a.
@@ -3549,25 +3552,25 @@ quickStart=e=>{const t=MODELS.flatMap(n=>n.items).find(n=>n.id===e);selectModelB
 get("welcome-screen").classList.add("hidden")};const BROWSER_FAST_DISABLED_OPTIONS=[["enable-search",
 "search-container"],["enable-url-context","url-context-container"],["enable-maps","maps-grounding-co\
 ntainer"],["enable-sys-prompt","sys-prompt-option"],["enable-prompt-cache","prompt-cache-container"],
-["enable-mcp","mcp-container"],["enable-file-creation","file-creation-container"]];function applyBrowserFastModeRestrictions(){
-if(!browserFastModeEnabled)return;browserFastPreviousOptions||(browserFastPreviousOptions={checks:Object.
-fromEntries(BROWSER_FAST_DISABLED_OPTIONS.map(([n])=>[n,!!(get(n)&&get(n).checked)])),coding:!!codingModeEnabled}),
-BROWSER_FAST_DISABLED_OPTIONS.forEach(([n,i])=>{const a=get(n),r=get(i);a&&(a.checked=!1,a.disabled=
-!0),r&&r.classList.add("opacity-50","pointer-events-none")}),codingModeEnabled&&syncCodingModeUi(!1,
-{persist:!1});const e=get("enable-coding-mode"),t=get("coding-mode-container");e&&(e.disabled=!0),t&&
-t.classList.add("opacity-50","pointer-events-none"),typeof syncMcpAutoSysRows=="function"&&syncMcpAutoSysRows(),
-refreshMinimalOptionsIfOpen()}o(applyBrowserFastModeRestrictions,"applyBrowserFastModeRestrictions");
-function restoreBrowserFastModeOptions(){const e=browserFastPreviousOptions;if(!e)return;BROWSER_FAST_DISABLED_OPTIONS.
-forEach(([i,a])=>{const r=get(i),l=get(a);r&&(r.disabled=!1,e&&e.checks&&Object.prototype.hasOwnProperty.
-call(e.checks,i)&&(r.checked=!!e.checks[i])),l&&l.classList.remove("opacity-50","pointer-events-none")});
-const t=get("enable-coding-mode"),n=get("coding-mode-container");t&&(t.disabled=!1),n&&n.classList.remove(
-"opacity-50","pointer-events-none"),e&&e.coding&&syncCodingModeUi(!0,{persist:!1}),browserFastPreviousOptions=
-null,typeof updatePromptCacheUi=="function"&&updatePromptCacheUi(),typeof syncMcpAutoSysRows=="funct\
-ion"&&syncMcpAutoSysRows(),refreshMinimalOptionsIfOpen()}o(restoreBrowserFastModeOptions,"restoreBro\
-wserFastModeOptions");function isBatchModelKey(e){const t=String(e||"").trim().toLowerCase();return t.
-startsWith("gpt-")?!/(image|audio|tts|transcribe|realtime|search)/.test(t):t.startsWith("grok-")?!/(image|video|voice|audio|tts|realtime)/.
-test(t):t.startsWith("glm-")?!/(image|audio|tts|transcribe|realtime|video|embedding|ocr)/.test(t):t.
-startsWith("gemini-")?!/(embedding|video|veo|music|lyria|native-audio|tts|live|transcribe|agent|deep-research|robotics|computer-use)/.
+["enable-mcp","mcp-container"],["enable-skills","skills-container"],["enable-file-creation","file-cr\
+eation-container"]];function applyBrowserFastModeRestrictions(){if(!browserFastModeEnabled)return;browserFastPreviousOptions||
+(browserFastPreviousOptions={checks:Object.fromEntries(BROWSER_FAST_DISABLED_OPTIONS.map(([n])=>[n,!!(get(
+n)&&get(n).checked)])),coding:!!codingModeEnabled}),BROWSER_FAST_DISABLED_OPTIONS.forEach(([n,i])=>{
+const a=get(n),r=get(i);a&&(a.checked=!1,a.disabled=!0),r&&r.classList.add("opacity-50","pointer-eve\
+nts-none")}),codingModeEnabled&&syncCodingModeUi(!1,{persist:!1});const e=get("enable-coding-mode"),
+t=get("coding-mode-container");e&&(e.disabled=!0),t&&t.classList.add("opacity-50","pointer-events-no\
+ne"),typeof syncMcpAutoSysRows=="function"&&syncMcpAutoSysRows(),refreshMinimalOptionsIfOpen()}o(applyBrowserFastModeRestrictions,
+"applyBrowserFastModeRestrictions");function restoreBrowserFastModeOptions(){const e=browserFastPreviousOptions;
+if(!e)return;BROWSER_FAST_DISABLED_OPTIONS.forEach(([i,a])=>{const r=get(i),l=get(a);r&&(r.disabled=
+!1,e&&e.checks&&Object.prototype.hasOwnProperty.call(e.checks,i)&&(r.checked=!!e.checks[i])),l&&l.classList.
+remove("opacity-50","pointer-events-none")});const t=get("enable-coding-mode"),n=get("coding-mode-co\
+ntainer");t&&(t.disabled=!1),n&&n.classList.remove("opacity-50","pointer-events-none"),e&&e.coding&&
+syncCodingModeUi(!0,{persist:!1}),browserFastPreviousOptions=null,typeof updatePromptCacheUi=="funct\
+ion"&&updatePromptCacheUi(),typeof syncMcpAutoSysRows=="function"&&syncMcpAutoSysRows(),refreshMinimalOptionsIfOpen()}
+o(restoreBrowserFastModeOptions,"restoreBrowserFastModeOptions");function isBatchModelKey(e){const t=String(
+e||"").trim().toLowerCase();return t.startsWith("gpt-")?!/(image|audio|tts|transcribe|realtime|search)/.
+test(t):t.startsWith("grok-")?!/(image|video|voice|audio|tts|realtime)/.test(t):t.startsWith("glm-")?
+!/(image|audio|tts|transcribe|realtime|video|embedding|ocr)/.test(t):t.startsWith("gemini-")?!/(embedding|video|veo|music|lyria|native-audio|tts|live|transcribe|agent|deep-research|robotics|computer-use)/.
 test(t):!1}o(isBatchModelKey,"isBatchModelKey");function updateBatchUi(e){const t=get("batch-mode-co\
 ntainer"),n=get("enable-batch-mode");if(!t||!n)return;const i=isBatchModelKey(e);t.classList.toggle(
 "hidden",!i),n.disabled=!i||browserFastModeEnabled,i||(n.checked=!1),t.classList.toggle("ring-1",i&&

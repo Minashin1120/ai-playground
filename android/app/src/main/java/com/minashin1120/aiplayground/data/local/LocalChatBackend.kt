@@ -555,7 +555,7 @@ class LocalChatBackend(
         val parent = chat.parentId
         val onServerParent = chat.serverId != null && parent != null && !LocalChatStore.isPendingId(parent)
         val preferences = promptPreferences()
-        if (!body.has("skills")) body.put("skills", settings.skills())
+        if (!body.has("skills") && body.optBoolean("enable_skills", true)) body.put("skills", settings.skills())
         val system = SystemPromptBuilder.build(body, preferences,
             SystemPromptBuilder.ThreadSettings(chat.settings.optString("custom_instruction").takeIf { it != "null" }.orEmpty(),
                 chat.settings.optBoolean("include_global_instruction", true)),

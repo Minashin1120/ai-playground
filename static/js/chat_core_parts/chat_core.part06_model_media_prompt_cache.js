@@ -134,14 +134,22 @@
             }
         }
 
-        // 「自動注入システムプロンプト（ユーザー単位）」のMCP行を読取専用（プロンプトバー連動）に保つ。
-        // 設定モーダル(set)とスレッド設定(thread)の両方に反映する。
+        // 「自動注入システムプロンプト（ユーザー単位）」のMCP / Skills行を
+        // 読取専用（プロンプトバー連動）に保つ。設定モーダル(set)とスレッド設定(thread)の
+        // 両方に反映する。
         function syncMcpAutoSysRows() {
+            const skillsOn = get('enable-skills') ? !!get('enable-skills').checked : true;
             ['set', 'thread'].forEach((prefix) => {
-                const el = get(`${prefix}-auto-sys-mcp-enabled`);
-                if (!el) return;
-                el.disabled = true;
-                el.checked = isMcpEnabledForSend();
+                const mcpEl = get(`${prefix}-auto-sys-mcp-enabled`);
+                if (mcpEl) {
+                    mcpEl.disabled = true;
+                    mcpEl.checked = isMcpEnabledForSend();
+                }
+                const skillsEl = get(`${prefix}-auto-sys-skills-enabled`);
+                if (skillsEl) {
+                    skillsEl.disabled = true;
+                    skillsEl.checked = skillsOn;
+                }
             });
         }
 
@@ -602,13 +610,15 @@
 
         function bindMcpPromptToggle() {
             const chk = get('enable-mcp');
-            if (!chk) return;
-            chk.addEventListener('change', () => {
+            const skillsChk = get('enable-skills');
+            const refresh = () => {
                 syncMcpAutoSysRows();
                 if (typeof refreshMinimalOptionsIfOpen === 'function') {
                     try { refreshMinimalOptionsIfOpen(); } catch (e) {}
                 }
-            });
+            };
+            if (chk) chk.addEventListener('change', refresh);
+            if (skillsChk) skillsChk.addEventListener('change', refresh);
         }
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => { try { bindMcpPromptToggle(); } catch (e) {} });
@@ -1213,6 +1223,7 @@
             ['enable-sys-prompt', 'sys-prompt-option'],
             ['enable-prompt-cache', 'prompt-cache-container'],
             ['enable-mcp', 'mcp-container'],
+            ['enable-skills', 'skills-container'],
             ['enable-file-creation', 'file-creation-container'],
         ];
 

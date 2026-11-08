@@ -1597,7 +1597,9 @@ private fun SvgRenderBox(markup: String, style: TextStyle, fromCode: Boolean = f
         contentAlignment = Alignment.Center,
     ) {
         val available = constraints.maxWidth.coerceAtLeast(1)
-        val bitmap = remember(markup, available) {
+        // The frame is the size Web gives the drawing: scaled down to the box (and, for a fence
+        // without a fixed width, stretched to it). It is shared by the still and animated paths.
+        val frame = remember(markup, available, density) {
             if (svg == null) return@remember null
             runCatching {
                 val box = svg.documentViewBox
@@ -1606,18 +1608,31 @@ private fun SvgRenderBox(markup: String, style: TextStyle, fromCode: Boolean = f
                 // Web `.svg-code-fill`: a fence's drawing without a fixed width spans the box.
                 val fill = fromCode && svg.documentWidth <= 0f
                 val scale = (available / (docW * density)).let { if (fill) it else it.coerceAtMost(1f) } * density
-                val w = (docW * scale).toInt().coerceIn(1, 4096)
-                val h = (docH * scale).toInt().coerceIn(1, 4096)
-                svg.setDocumentWidth(w.toFloat()); svg.setDocumentHeight(h.toFloat())
-                android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888).also { svg.renderToCanvas(android.graphics.Canvas(it)) }
+                SvgFrame((docW * scale).toInt().coerceIn(1, 4096), (docH * scale).toInt().coerceIn(1, 4096))
             }.getOrNull()
         }
-        if (bitmap != null) androidx.compose.foundation.Image(bitmap.asImageBitmap(), contentDescription = null)
-        // Web `.svg-code-render[data-svg-state="error"]`: the code block below still shows the source.
-        else if (fromCode) Text("SVGを描画できませんでした", style = style.copy(fontSize = 12.sp, color = Color(0xFF64748B)), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        else Text(markup, style = style)
+        val animated = remember(markup) { svgHasAnimation(markup) }
+        if (animated && frame != null) {
+            // AndroidSVG freezes SMIL/CSS animation; WebView plays it like the browser on Web.
+            AnimatedSvg(markup, frame.width, frame.height)
+        } else {
+            val bitmap = remember(markup, available, density, frame) {
+                if (svg == null || frame == null) return@remember null
+                runCatching {
+                    svg.setDocumentWidth(frame.width.toFloat()); svg.setDocumentHeight(frame.height.toFloat())
+                    android.graphics.Bitmap.createBitmap(frame.width, frame.height, android.graphics.Bitmap.Config.ARGB_8888)
+                        .also { svg.renderToCanvas(android.graphics.Canvas(it)) }
+                }.getOrNull()
+            }
+            if (bitmap != null) androidx.compose.foundation.Image(bitmap.asImageBitmap(), contentDescription = null)
+            // Web `.svg-code-render[data-svg-state="error"]`: the code block below still shows the source.
+            else if (fromCode) Text("SVGを描画できませんでした", style = style.copy(fontSize = 12.sp, color = Color(0xFF64748B)), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+            else Text(markup, style = style)
+        }
     }
 }
+
+private data class SvgFrame(val width: Int, val height: Int)
 
 /** Browser `<details>`: "▶ summary" toggles the content ("▼" while open). */
 @Composable

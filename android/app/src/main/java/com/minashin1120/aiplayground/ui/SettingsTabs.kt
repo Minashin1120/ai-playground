@@ -453,14 +453,16 @@ private fun AutoSystemPromptSection(form: SettingsForm) {
                     Text(row.label, fontSize = 11.sp, color = if (web.isLight) web.text else Tw.gray300, modifier = Modifier.weight(1f))
                     SettingsCheck("適用", row.enabled,
                         { value -> form.updateAutoPrompt(row.key) { it.copy(enabled = value) } },
-                        enabled = !row.mcpLocked, fontSize = 10.sp, boxSize = 14.dp,
+                        enabled = !row.barLocked, fontSize = 10.sp, boxSize = 14.dp,
                         labelColor = if (web.isLight) Color(92, 103, 121) else Tw.gray500)
                 }
                 SettingsTextField(row.text, { value -> form.updateAutoPrompt(row.key) { it.copy(text = value.take(100_000)) } },
                     Modifier.fillMaxWidth(), placeholder = row.defaultText.ifBlank { "自動注入文言" }, minHeight = 80.dp,
                     singleLine = false, fontSize = 12.sp, deep = true)
                 if (row.hint.isNotBlank()) SettingsDesc(row.hint)
-                if (row.mcpLocked) SettingsDesc("この項目のオン・オフはプロンプトバーのMCPスイッチに連動します（オフ時は案内文の注入とツール付与自体が無効）。文面は編集できます。",
+                if (row.barLocked) SettingsDesc(
+                    if (row.key == "skills") "この項目のオン・オフはプロンプトバーのSkillsスイッチに連動します（オフ時は案内文の注入とスキル一覧の送信が無効）。文面は編集できます。"
+                    else "この項目のオン・オフはプロンプトバーのMCPスイッチに連動します（オフ時は案内文の注入とツール付与自体が無効）。文面は編集できます。",
                     color = Tw.cyan300.copy(alpha = 0.7f))
             }
         }

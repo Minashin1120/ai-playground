@@ -73,7 +73,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/ProgressText.kt` | Web `progress_spinner.js` の文言表と通信中の処理一覧（`PlaygroundApi.progress`） | 通信スピナーの文言や対象を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AnswerBubbleMotion.kt` | プロンプト到着後の回答バブルの横スライド、回答待ちから保存済み回答への登場状態の引き継ぎ | 回答バブルの登場順序・アニメーションを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PromptSendMotion.kt` | 送信内容の移動・縮小・吹き出しへの切替、描画レイヤーと座標の一時管理、動きの削減・中断時の後始末 | プロンプト送信アニメーションを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/Composer.kt` | Webのプロンプトバー（引用・Coding対象・編集バー、モデルボタン、Canvas／Coding／Batch、詳細チップ、添付プレビュー、Skill表示、`/`・`@` 候補、入力シェル、送信・停止、トークン見積もり） | 入力欄の見た目や操作を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/Composer.kt` | Webのプロンプトバー（引用・Coding対象・編集バー、モデルボタン、Canvas／Coding／Batch、詳細チップ、Skillsスイッチ、添付プレビュー、Skill表示、`/`・`@` 候補、入力シェル、送信・停止、トークン見積もり） | 入力欄の見た目や操作を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InteractionDiagnostics.kt` | 選択・数式操作の受動的なログ観測（ランダムID、フォーカス、メニュー、400ms後の状態、横スクロール・描画状態） | 選択や数式操作のログを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/QuoteSelection.kt` | 会話の範囲選択に「Quote」を加える選択ツールバー | 引用の操作を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ComposerRules.kt` | Webの `toggleOptions()` 相当（モデル別のチップ表示・強制値・Thinking levelの候補。EffortのモデルはThinkingボタン内にEffortを表示）、PromptCacheの提供元、トークン見積もりの文言 | モデル追加でチップの表示条件を変えるとき |
@@ -145,6 +145,7 @@
 | `ci/test-html-preview.py` | AndroidのHTMLプレビュー用HTMLをChromiumで描画し、日本語・CSS・JavaScript・隔離・危険スクリプト除去を検証 | HTMLプレビューの描画を確認するとき（AndroidのビルドやWebViewの実機検証は行わない） |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/HtmlCodePreviewDialog.kt`, `app/src/main/assets/html-preview-security.js` | HTMLコードブロックのプレビュー（専用URLから読み込む隔離したWebView、Webと共通の危険スクリプト除去） | HTMLプレビューの表示・安全対策を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | Webの `marked`（GFM・`breaks`）と `pre-wrap` 表示を再現するMarkdown（リスト、引用、表、コード、`chat_error`、色分け、インラインコード）、回答中の生HTML（`<details>`・表を含む）とSVG | メッセージ本文表示を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/SvgAnimation.kt` | アニメーション付きSVG（SMIL・CSS `@keyframes`）の検出と、スクリプト・外部参照を止めたWebViewでの再生（Webと同じ `<img>` のデータURI） | SVGのアニメーション表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InlineAudioPlayer.kt` | 回答内の `<audio controls src>`（TTS・音楽・Lyriaの出力）を再生するインラインプレーヤー（初回タップで取得、再生・シーク・再生速度の切り替え。Web版の専用プレーヤーと同じ見た目）と、画面が渡す添付ダウンローダー `LocalAttachmentDownloader` | 回答内の音声の再生を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MessageBubble.kt` | Webの `.message-bubble`（吹き出し、タップで出る操作ボタン、引用、Thinking、添付グリッドとObject Removerマスク画像、分岐切替、フッター）、合計・入力見積トークン帯、トークン詳細・暗号化モーダル、Welcome、一番下へ | メッセージの見た目を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MathJaxRenderer.kt` | 同梱MathJaxを画面に出さないWebViewで動かしてTeXをSVGへ組版、キャッシュ、文中・独立行の数式の配置と描画 | 数式の組版・配置を編集するとき |

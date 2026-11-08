@@ -1324,6 +1324,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             _used_skills = []
             _skill_active_uuid = options.get('skill_uuid') or options.get('gem_uuid')
             _skills_tool_enabled = False
+            _skills_enabled = options.get('enable_skills', True)
+            if isinstance(_skills_enabled, str):
+                _skills_enabled = _skills_enabled.strip().lower() not in ('', '0', 'false', 'no', 'off')
+            elif isinstance(_skills_enabled, (int, float)):
+                _skills_enabled = bool(_skills_enabled)
+            else:
+                _skills_enabled = _skills_enabled is not False
 
             def _record_skill_meta(meta):
                 if meta.get("ok"):
@@ -2265,8 +2272,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     if local_py_notice not in str(curr_p):
                         options['system_prompt'] = f"{local_py_notice}\n\n{curr_p}" if str(curr_p).strip() else local_py_notice
             # Skill catalog: name + short description for tool-capable routes,
-            # with the full instructions embedded where tools cannot run.
-            if is_llm_model and _auto_notice_enabled("skills"):
+            # with the full instructions embedded where tools cannot run. The
+            # prompt-bar Skills switch (enable_skills) gates the whole feature.
+            if is_llm_model and _skills_enabled and _auto_notice_enabled("skills"):
                 try:
                     _skills_for_tools = (
                         Skill.query
@@ -2295,10 +2303,12 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                                 )
                         log_force(
                             f"Skill catalog injected: count={len(_skills_for_tools)} "
-                            f"tool={_skills_tool_enabled}"
+                            f"tool={_skills_tool_enabled} enabled={_skills_enabled}"
                         )
                 except Exception as _skill_exc:
                     log_force(f"Skill prompt inject failed: {_skill_exc}")
+            elif is_llm_model and not _skills_enabled:
+                log_force("Skill catalog skipped: disabled by prompt bar")
 
             if (has_audio and not supports_audio_inputs) or (has_video and not supports_video_inputs):
                 pub("error", "This model does not support audio/video inputs. Please remove them and retry.")

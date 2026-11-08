@@ -363,7 +363,7 @@ val PROVIDER_KEY_FIELDS = listOf(
 /** One row of the Web "自動注入システムプロンプト" list (`AUTO_SYS_PROMPT_ITEMS`). */
 data class AutoSystemPrompt(
     val key: String, val label: String, val enabled: Boolean, val text: String, val defaultText: String,
-    val hint: String = "", val mcpLocked: Boolean = false,
+    val hint: String = "", val barLocked: Boolean = false,
 )
 
 /** Web order and labels; the server supplies the current value and default text. */
@@ -391,7 +391,7 @@ fun parseAutoSystemPrompts(json: JSONObject): List<AutoSystemPrompt> = AUTO_SYST
         enabled = row?.optBoolean("enabled", true) ?: true,
         text = row?.nullableString("text").orEmpty(),
         defaultText = row?.nullableString("default_text").orEmpty(),
-        hint = hint, mcpLocked = key == "mcp",
+        hint = hint, barLocked = key == "mcp" || key == "skills",
     )
 }
 
@@ -1038,7 +1038,7 @@ internal fun promptOptionsRecord(body: JSONObject): JSONObject = JSONObject().ap
     listOf(
         "turn_time_notice", "canvas_mode", "coding_mode", "browser_fast_mode", "batch_mode", "enable_search",
         "enable_url_context", "enable_maps", "enable_python", "enable_file_creation", "enable_mcp",
-        "enable_thinking", "thinking_level", "thinking_budget", "reasoning_effort", "safety_setting",
+        "enable_skills", "enable_thinking", "thinking_level", "thinking_budget", "reasoning_effort", "safety_setting",
         "enable_prompt_caching", "image_vision_model", "image_mask", "tts_voice", "tts_voice_custom",
         "tts_language", "tts_speed", "image_size", "image_quality", "image_complexity", "image_format",
         "image_compression", "image_frame_count", "image_frame_duration_ms",

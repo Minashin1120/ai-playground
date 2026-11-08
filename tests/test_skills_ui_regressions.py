@@ -23,6 +23,8 @@ def part(name):
 class SkillsUiRegressionTests(unittest.TestCase):
     def test_sidebar_and_template_use_skill_names(self):
         html = read_chat_markup()
+        self.assertIn('id="enable-skills"', html)
+        self.assertIn('id="skills-container"', html)
         self.assertIn('id="add-skill-btn"', html)
         self.assertIn('id="skill-list"', html)
         self.assertIn('id="skill-pull-indicator"', html)
@@ -55,6 +57,11 @@ class SkillsUiRegressionTests(unittest.TestCase):
             self.assertIn(symbol, joined)
         self.assertIn("CHAT_CONFIG.urls.handleSkills", joined)
         self.assertIn("/api/skills/", joined)
+        self.assertIn("enable_skills: 'enable-skills'", joined)
+        self.assertIn("enable_skills: get('enable-skills')", joined)
+        self.assertIn("enable_skills: priorSkills", joined)
+        self.assertIn("browserFastPreviousOptions.checks['enable-skills']", joined)
+        self.assertIn("{ key: 'skills', icon: 'fa-wand-magic-sparkles', label: 'Skills'", joined)
         for old in ("async function loadGems", "async function openEditGemModal",
                     "function applyActiveGem", "function activateGem"):
             self.assertNotIn(old, joined)

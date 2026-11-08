@@ -45,7 +45,7 @@ private class ThreadPromptForm(prefs: Preferences?) {
         applyAutoNotices = true
         for (i in autoPrompts.indices) {
             val row = autoPrompts[i]
-            autoPrompts[i] = row.copy(enabled = if (row.mcpLocked) row.enabled else true, text = row.defaultText)
+            autoPrompts[i] = row.copy(enabled = if (row.barLocked) row.enabled else true, text = row.defaultText)
         }
     }
 
@@ -56,7 +56,7 @@ private class ThreadPromptForm(prefs: Preferences?) {
         .put("apply_global_system_prompt", applyGlobal)
         .put("apply_auto_system_prompt_notices", applyAutoNotices)
         .put("auto_system_prompt_notices_config", JSONObject().apply {
-            autoPrompts.forEach { row -> put(row.key, JSONObject().put("enabled", if (row.mcpLocked) true else row.enabled).put("text", row.text)) }
+            autoPrompts.forEach { row -> put(row.key, JSONObject().put("enabled", if (row.barLocked) true else row.enabled).put("text", row.text)) }
         })
 }
 
@@ -186,15 +186,16 @@ private fun ThreadAutoPrompts(form: ThreadPromptForm) {
                 ) {
                     Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(row.label, fontSize = 11.sp, lineHeight = 16.sp, color = web.twText(Tw.gray300), modifier = Modifier.weight(1f))
-                        TwCheck("適用", row.enabled, enabled = !row.mcpLocked) { value -> form.update(row.key) { it.copy(enabled = value) } }
+                        TwCheck("適用", row.enabled, enabled = !row.barLocked) { value -> form.update(row.key) { it.copy(enabled = value) } }
                     }
                     TwInput(row.text, { value -> form.update(row.key) { it.copy(text = value.take(100_000)) } },
                         row.defaultText.ifBlank { "自動注入文言" }, singleLine = false, height = 56.dp, fontSize = 11.sp,
                         background = Tw.gray950, borderColor = Tw.gray700, textColor = Tw.gray200)
                     if (row.hint.isNotBlank()) Text(row.hint, fontSize = 10.sp, lineHeight = 15.sp, color = web.twText(Tw.gray500),
                         modifier = Modifier.padding(top = 4.dp))
-                    if (row.mcpLocked) Text(
-                        "この項目のオン・オフはプロンプトバーのMCPスイッチに連動します（オフ時は案内文の注入とツール付与自体が無効）。文面は編集できます。",
+                    if (row.barLocked) Text(
+                        if (row.key == "skills") "この項目のオン・オフはプロンプトバーのSkillsスイッチに連動します（オフ時は案内文の注入とスキル一覧の送信が無効）。文面は編集できます。"
+                        else "この項目のオン・オフはプロンプトバーのMCPスイッチに連動します（オフ時は案内文の注入とツール付与自体が無効）。文面は編集できます。",
                         fontSize = 10.sp, lineHeight = 15.sp, color = web.twText(Tw.cyan300).copy(alpha = 0.7f), modifier = Modifier.padding(top = 4.dp),
                     )
                 }

@@ -284,6 +284,7 @@
             enable_search: 'enable-search', enable_url_context: 'enable-url-context',
             enable_maps: 'enable-maps', enable_python: 'enable-python',
             enable_file_creation: 'enable-file-creation', enable_mcp: 'enable-mcp',
+            enable_skills: 'enable-skills',
             enable_thinking: 'enable-thinking', thinking_level: 'thinking-level',
             thinking_budget: 'thinking-budget', reasoning_effort: 'reasoning-effort',
             safety_setting: 'safety-setting', enable_prompt_caching: 'enable-prompt-cache',

@@ -26,8 +26,47 @@ class SkillsPromptToolTests(unittest.TestCase):
     def test_skills_notice_is_registered(self):
         self.assertIn("skills", target.AUTO_SYSTEM_PROMPT_NOTICE_KEYS)
         self.assertIn("skills", target.AUTO_SYSTEM_PROMPT_NOTICE_LABELS)
-        self.assertIn("{{skills}}", target.AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS["skills"])
-        self.assertIn("use_skill", target.AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS["skills"])
+        notice = target.AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS["skills"]
+        self.assertIn("{{skills}}", notice)
+        self.assertIn("use_skill", notice)
+        # The list is provided up front; the model is no longer told to output it.
+        self.assertIn("already listed below", notice)
+        self.assertNotIn("If the user asks which skills are available", notice)
+
+    def test_saved_legacy_skills_notice_is_migrated(self):
+        import json
+        legacy = (
+            "You can use the user's saved skills. A skill is a reusable instruction set.\n"
+            "Call use_skill(name) when the user asks to use a skill, or when a skill's "
+            "short description clearly matches the request. Load only the skills you need.\n"
+            "If the user asks which skills are available, list the names and descriptions below.\n"
+            "Never invent a skill that is not listed. When the full instructions are already "
+            "included below, follow them without calling a tool.\n\n"
+            "Available skills:\n{{skills}}"
+        )
+        user = SimpleNamespace(
+            auto_system_prompt_notices_config=json.dumps({"skills": {"enabled": False, "text": legacy}}),
+            apply_auto_system_prompt_notices=True,
+        )
+        config = target.get_user_auto_system_prompt_notices_config(user)
+        self.assertEqual(config["skills"]["text"], target.AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS["skills"])
+        self.assertTrue(config["skills"]["enabled"])
+        # A custom text is kept as-is.
+        user.auto_system_prompt_notices_config = json.dumps({"skills": {"text": "My own skill note"}})
+        config = target.get_user_auto_system_prompt_notices_config(user)
+        self.assertEqual(config["skills"]["text"], "My own skill note")
+
+    def test_prompt_bar_switch_gates_catalog_and_tool(self):
+        app_source = read_app_source()
+        self.assertIn("_skills_enabled = options.get('enable_skills', True)", app_source)
+        self.assertIn(
+            'if is_llm_model and _skills_enabled and _auto_notice_enabled("skills")',
+            app_source,
+        )
+        self.assertIn("Skill catalog skipped: disabled by prompt bar", app_source)
+        self.assertIn("'enable_skills': enable_skills_requested", app_source)
+        self.assertIn("'enable_skills'", app_source)
+        self.assertIn("'enable_file_creation', 'enable_mcp', 'enable_skills'", app_source)
 
     def test_catalog_hides_instructions_unless_requested(self):
         skills = [
@@ -99,7 +138,7 @@ class SkillsPromptToolTests(unittest.TestCase):
         app_source = read_app_source()
         self.assertIn('"skills.py"', app_source)
         self.assertIn("render_skill_notice(", app_source)
-        self.assertIn("if is_llm_model and _auto_notice_enabled(\"skills\")", app_source)
+        self.assertIn('if is_llm_model and _skills_enabled and _auto_notice_enabled("skills")', app_source)
         self.assertIn("build_gemini_skill_tool(", app_source)
         self.assertIn("build_skill_tool_anthropic()", app_source)
         self.assertIn("build_skill_tool_openai_chat()", app_source)

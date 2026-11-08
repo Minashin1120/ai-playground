@@ -773,6 +773,8 @@
             get('welcome-screen').classList.remove('hidden');
             updateCurrentChatHeaderUi();
             if (get('thread-custom-instruction')) get('thread-custom-instruction').value = '';
+            // A new chat starts with Skills on; an existing chat's saved value is restored with its prompt options.
+            if (get('enable-skills')) get('enable-skills').checked = true;
             if (get('enable-prompt-cache')) {
                 get('enable-prompt-cache').checked = false;
                 updatePromptCacheUi();

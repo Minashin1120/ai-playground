@@ -89,14 +89,28 @@ AUTO_SYSTEM_PROMPT_NOTICE_MCP = (
 )
 
 AUTO_SYSTEM_PROMPT_NOTICE_SKILLS = (
-    "You can use the user's saved skills. A skill is a reusable instruction set.\n"
-    "Call use_skill(name) when the user asks to use a skill, or when a skill's "
-    "short description clearly matches the request. Load only the skills you need.\n"
-    "If the user asks which skills are available, list the names and descriptions below.\n"
+    "The user's saved skills are already listed below. A skill is a reusable instruction set.\n"
+    "Use a skill when the user names it or when its short description clearly matches the request; "
+    "you do not need to discover or output the list yourself. Load only the skills you need.\n"
+    "Call use_skill(name) with the exact skill name from this list to load its full instructions.\n"
     "Never invent a skill that is not listed. When the full instructions are already "
     "included below, follow them without calling a tool.\n\n"
     "Available skills:\n{{skills}}"
 )
+
+# 保存済みの設定に残っている旧既定文。読み込み時に新しい既定文へ移行し、
+# 利用者が編集した文面はそのまま残す。
+AUTO_SYSTEM_PROMPT_NOTICE_LEGACY_DEFAULTS = {
+    "skills": (
+        "You can use the user's saved skills. A skill is a reusable instruction set.\n"
+        "Call use_skill(name) when the user asks to use a skill, or when a skill's "
+        "short description clearly matches the request. Load only the skills you need.\n"
+        "If the user asks which skills are available, list the names and descriptions below.\n"
+        "Never invent a skill that is not listed. When the full instructions are already "
+        "included below, follow them without calling a tool.\n\n"
+        "Available skills:\n{{skills}}"
+    ),
+}
 
 AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "python",
@@ -175,6 +189,13 @@ def _normalize_auto_notice_text(raw_text, default_text):
         return default_text
     if len(text) > AUTO_SYSTEM_PROMPT_NOTICE_MAX_CHARS:
         text = text[:AUTO_SYSTEM_PROMPT_NOTICE_MAX_CHARS]
+    return text
+
+
+def _migrate_legacy_notice_text(notice_key, text, default_text):
+    legacy = AUTO_SYSTEM_PROMPT_NOTICE_LEGACY_DEFAULTS.get(notice_key)
+    if legacy is not None and str(text or "").replace("\r\n", "\n").strip() == legacy:
+        return default_text
     return text
 
 
@@ -283,11 +304,17 @@ def get_user_auto_system_prompt_notices_config(user):
             continue
         default_text = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")
         config[key]["enabled"] = _coerce_bool_like(item.get("enabled"), True)
-        config[key]["text"] = _normalize_auto_notice_text(item.get("text"), default_text)
-    # MCP のオン・オフはプロンプトバーの MCP スイッチに連動するため、
-    # この設定の「適用」トグルでは制御しない（常に有効扱い。実効は送信時 enable_mcp で決まる）。
-    if "mcp" in config:
-        config["mcp"]["enabled"] = True
+        config[key]["text"] = _migrate_legacy_notice_text(
+            key,
+            _normalize_auto_notice_text(item.get("text"), default_text),
+            default_text,
+        )
+    # MCP のオン・オフはプロンプトバーの MCP スイッチに、Skills のオン・オフは
+    # プロンプトバーの Skills スイッチに連動するため、この設定の「適用」トグルでは
+    # 制御しない（常に有効扱い。実効は送信時の enable_mcp / enable_skills で決まる）。
+    for bar_key in ("mcp", "skills"):
+        if bar_key in config:
+            config[bar_key]["enabled"] = True
     return config
 
 
@@ -303,11 +330,16 @@ def set_user_auto_system_prompt_notices_config(user, new_config):
             current[key]["enabled"] = _coerce_bool_like(item.get("enabled"), True)
         if "text" in item:
             default_text = AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS.get(key, "")
-            current[key]["text"] = _normalize_auto_notice_text(item.get("text"), default_text)
-    # MCP の「適用」は設定画面で変更不可（プロンプトバーの MCP スイッチに連動）。
+            current[key]["text"] = _migrate_legacy_notice_text(
+                key,
+                _normalize_auto_notice_text(item.get("text"), default_text),
+                default_text,
+            )
+    # MCP / Skills の「適用」は設定画面で変更不可（各プロンプトバーのスイッチに連動）。
     # 保存時も有効扱いで固定し、誤って OFF が保存されないようにする。
-    if "mcp" in current:
-        current["mcp"]["enabled"] = True
+    for bar_key in ("mcp", "skills"):
+        if bar_key in current:
+            current[bar_key]["enabled"] = True
     stored = {
         key: {
             "enabled": bool(current[key]["enabled"]),

@@ -24,7 +24,7 @@ class ChatDefaultsTest {
             .put("last_enable_thinking", false).put("last_enable_search", false)
             .put("last_thinking_level", "low").put("last_thinking_budget", 512))
         return ChatState(account = Account(1, "account", models, "default", false),
-            model = "saved", preferences = preferences)
+            model = "saved", preferences = preferences, enableSkills = false)
     }
 
     @Test fun startupUsesAccountDefaultsInsteadOfTheDeviceModel() {
@@ -34,6 +34,7 @@ class ChatDefaultsTest {
         assertTrue(applied.enableSearch)
         assertTrue(applied.enableSystemPrompt)
         assertFalse(applied.enableMcp)
+        assertTrue(applied.enableSkills)
         assertEquals("2048", applied.chipValues["thinking_budget"])
     }
 

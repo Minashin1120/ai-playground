@@ -617,6 +617,8 @@ private fun DetailChips(
             labelColor = if (light) Color(154, 52, 18) else null)
         if (rules.mcp.visible) OptChip("MCP", state.enableMcp, rules.mcp, model::toggleMcp, Tw.cyan500, center,
             labelColor = label(Color(165, 243, 252), Color(14, 116, 144)))
+        OptChip("Skills", state.enableSkills, OptionRule(), model::toggleSkills, Tw.blue500, center,
+            labelColor = label(Color(191, 219, 254), Color(30, 64, 175)))
         OptGroup(state.enableSystemPrompt, center, dimmed = rules.sysPrompt.dimmed) {
             GroupCheck("SysPrompt", state.enableSystemPrompt, rules.sysPrompt, model::toggleSystemPrompt,
                 label(Color(134, 239, 172), Color(21, 128, 61)))

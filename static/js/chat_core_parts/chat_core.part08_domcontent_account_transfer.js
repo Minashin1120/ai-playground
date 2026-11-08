@@ -405,26 +405,27 @@
                 { key: 'quote_source', label: '引用元（引用して送信時）', hint: '利用可能変数: {{quote_source}}（引用元の発言者と会話内の番号が入ります）' },
                 { key: 'mathjax', label: 'MathJax（LaTeX数式）' },
                 { key: 'image_analysis', label: '画像解析（Vision Model指示文）' },
-                { key: 'mcp', label: 'MCP（外部ツール接続）', hint: '利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）', mcpLocked: true },
-                { key: 'skills', label: 'Skills（保存した指示の利用）', hint: '利用可能変数: {{skills}} / {{skill_count}}' }
+                { key: 'mcp', label: 'MCP（外部ツール接続）', hint: '利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）', barLocked: true, barLabel: 'MCP' },
+                { key: 'skills', label: 'Skills（保存した指示の利用）', hint: '利用可能変数: {{skills}} / {{skill_count}}', barLocked: true, barLabel: 'Skills' }
             ];
             window.buildAutoSystemPromptRows = (prefix, compact = false) => {
                 const textClass = compact
                     ? 'w-full h-14 bg-gray-950 border border-gray-700 rounded p-2 text-[11px] text-gray-200'
                     : 'w-full h-20 bg-gray-950 border border-gray-700 rounded p-2 text-xs text-gray-200';
                 return AUTO_SYS_PROMPT_ITEMS.map((item) => {
-                    const isMcp = item.mcpLocked === true;
-                    const lockNote = isMcp
-                        ? '<div class="text-[10px] text-cyan-300/70 mt-1">この項目のオン・オフはプロンプトバーのMCPスイッチに連動します（オフ時は案内文の注入とツール付与自体が無効）。文面は編集できます。</div>'
+                    const isBarLocked = item.barLocked === true;
+                    const barLabel = item.barLabel || 'MCP';
+                    const lockNote = isBarLocked
+                        ? `<div class="text-[10px] text-cyan-300/70 mt-1">この項目のオン・オフはプロンプトバーの${barLabel}スイッチに連動します（オフ時は案内文の注入とツール付与自体が無効）。文面は編集できます。</div>`
                         : '';
-                    const enabledInput = isMcp
+                    const enabledInput = isBarLocked
                         ? `<input type="checkbox" id="${prefix}-auto-sys-${item.key}-enabled" class="accent-yellow-500 w-3 h-3" disabled>`
                         : `<input type="checkbox" id="${prefix}-auto-sys-${item.key}-enabled" class="accent-yellow-500 w-3 h-3">`;
                     return `
                     <div class="rounded border border-gray-700 p-2 bg-gray-950/40">
                         <div class="flex items-center justify-between mb-1">
                             <div class="text-[11px] text-gray-300">${item.label}</div>
-                            <label class="flex items-center gap-1 text-[10px] text-gray-500" ${isMcp ? 'title="プロンプトバーのMCPスイッチに連動します"' : ''}>
+                            <label class="flex items-center gap-1 text-[10px] text-gray-500" ${isBarLocked ? `title="プロンプトバーの${barLabel}スイッチに連動します"` : ''}>
                                 ${enabledInput}
                                 <span>適用</span>
                             </label>
@@ -442,8 +443,8 @@
                     const enabledEl = get(`${prefix}-auto-sys-${item.key}-enabled`);
                     const textEl = get(`${prefix}-auto-sys-${item.key}-text`);
                     if (enabledEl) {
-                        // MCP行は読取専用。オン・オフはプロンプトバーに連動する。
-                        if (item.mcpLocked === true) enabledEl.disabled = true;
+                        // MCP / Skills行は読取専用。オン・オフはプロンプトバーに連動する。
+                        if (item.barLocked === true) enabledEl.disabled = true;
                         else enabledEl.checked = row.enabled !== false;
                     }
                     if (textEl) {
@@ -462,8 +463,8 @@
                     const enabledEl = get(`${prefix}-auto-sys-${item.key}-enabled`);
                     const textEl = get(`${prefix}-auto-sys-${item.key}-text`);
                     if (enabledEl) {
-                        // MCP行は既定に戻しても適用トグルは変更しない（プロンプトバー連動）。
-                        if (item.mcpLocked !== true) enabledEl.checked = true;
+                        // MCP / Skills行は既定に戻しても適用トグルは変更しない（プロンプトバー連動）。
+                        if (item.barLocked !== true) enabledEl.checked = true;
                         else enabledEl.disabled = true;
                     }
                     if (textEl) {
@@ -478,9 +479,9 @@
                 AUTO_SYS_PROMPT_ITEMS.forEach((item) => {
                     const enabledEl = get(`${prefix}-auto-sys-${item.key}-enabled`);
                     const textEl = get(`${prefix}-auto-sys-${item.key}-text`);
-                    // MCPは設定側でオフにできない（常に有効）。保存時も true で固定する。
+                    // MCP / Skillsは設定側でオフにできない（常に有効）。保存時も true で固定する。
                     cfg[item.key] = {
-                        enabled: item.mcpLocked === true ? true : (enabledEl ? enabledEl.checked : true),
+                        enabled: item.barLocked === true ? true : (enabledEl ? enabledEl.checked : true),
                         text: textEl ? textEl.value : ''
                     };
                 });

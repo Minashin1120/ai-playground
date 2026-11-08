@@ -46,7 +46,7 @@ object SystemPromptBuilder {
             combined = if (combined.isNotEmpty()) "$combined\n\n${defaults.codingModePrompt}" else defaults.codingModePrompt
         }
         val notices = Notices(preferences, defaults)
-        if (notices.enabled("skills")) {
+        if (notices.enabled("skills") && body.optBoolean("enable_skills", true)) {
             val skills = body.optJSONArray("skills")
             if (skills != null && skills.length() > 0) {
                 val catalog = buildSkillCatalog(skills)

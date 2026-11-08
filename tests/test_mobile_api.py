@@ -661,15 +661,16 @@ class MobileApiTests(unittest.TestCase):
         self.assertIn('python', config)
         self.assertTrue(config['python']['default_text'])
         updated = self.call('/api/mobile/v1/preferences', token, 'PUT', json={
-            'auto_system_prompt_notices_config': {'python': {'enabled': False, 'text': 'custom'}, 'mcp': {'enabled': False}},
+            'auto_system_prompt_notices_config': {'python': {'enabled': False, 'text': 'custom'}, 'mcp': {'enabled': False}, 'skills': {'enabled': False}},
             'llm_transcribe_prompt': 'transcribe exactly',
             'enable_latency_metrics': True,
         })
         self.assertEqual(updated.status_code, 200)
         self.assertFalse(updated.json['auto_system_prompt_notices_config']['python']['enabled'])
         self.assertEqual(updated.json['auto_system_prompt_notices_config']['python']['text'], 'custom')
-        # MCP follows the prompt-bar switch and cannot be turned off here (same as Web).
+        # MCP / Skills follow their prompt-bar switches and cannot be turned off here (same as Web).
         self.assertTrue(updated.json['auto_system_prompt_notices_config']['mcp']['enabled'])
+        self.assertTrue(updated.json['auto_system_prompt_notices_config']['skills']['enabled'])
         self.assertEqual(updated.json['llm_transcribe_prompt'], 'transcribe exactly')
         self.assertTrue(updated.json['enable_latency_metrics'])
         self.assertEqual(self.call('/api/mobile/v1/preferences', token, 'PUT',

@@ -13,13 +13,13 @@ import org.robolectric.annotation.Config
 class PromptEditSettingsTest {
     @Test fun cancelRestoresUnsentSettingsRatherThanTheEditedOrLatestPromptsSettings() {
         val before = ChatState(model = "chosen-before", enableThinking = true, enableSearch = false,
-            enablePromptCache = true, enableSystemPrompt = true, sysPromptRestore = true,
+            enablePromptCache = true, enableSystemPrompt = true, enableSkills = false, sysPromptRestore = true,
             chipValues = mapOf("thinking_level" to "low", "reasoning_effort" to "medium"),
             generationValues = mapOf("tts_speed" to "1.25"), canvasMode = true, visionModel = "vision-before")
         val saved = PromptEditSettings.capture(before, modelChosenManually = true)
         val latest = ChatMessage("32", "user", "latest prompt")
         val edited = before.copy(model = "chosen-during-edit", enableThinking = false, enableSearch = true,
-            enablePromptCache = false, enableSystemPrompt = false, sysPromptRestore = false,
+            enablePromptCache = false, enableSystemPrompt = false, enableSkills = true, sysPromptRestore = false,
             chipValues = mapOf("thinking_level" to "high", "reasoning_effort" to "high"),
             generationValues = mapOf("tts_speed" to "0.5"), canvasMode = false, visionModel = "vision-during-edit",
             selected = ThreadItem("thread", "Chat", "model"), messages = listOf(latest))
@@ -29,6 +29,7 @@ class PromptEditSettingsTest {
         assertFalse(restored.enableSearch)
         assertTrue(restored.enablePromptCache)
         assertTrue(restored.enableSystemPrompt)
+        assertFalse(restored.enableSkills)
         assertTrue(restored.sysPromptRestore)
         assertEquals("low", restored.chipValues["thinking_level"])
         assertEquals("medium", restored.chipValues["reasoning_effort"])

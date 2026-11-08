@@ -39,7 +39,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | 一時チャット | 作成・heartbeat。自動削除タイマーをクライアント側でも考慮する |
 | テキスト選択の翻訳（Android版だけ） | 他アプリのテキスト選択メニューと共有シートの「AIで翻訳」（共有した画像は写っている文字を翻訳する）。設定で選んだモデルへ、一時チャット（`POST /api/threads` の `is_temporary`）と `/chat_stream` で送り、回答を受け取ったら `DELETE /api/threads/<id>` で削除する。画像はプロンプトバーと同じ方法で端末で圧縮し（値は翻訳用に別に設定）、`/upload` で送って `image_urls` に入れ、チャットの削除後に `/api/files/delete` でも削除する。システムプロンプト・検索・ツールは使わない。Thinking・Thinking Level・Thinking Budget・Reasoning Effortは設定の値を、入力欄と同じ規則（`composerRules`）で送る。サーバー不使用モードとアカウントなしでは端末のAPIキーで事業者APIへ直接送り、何も保存しない。新しいAPIはない |
 | ファイルライブラリ | 一覧・検索・お気に入り・名前変更・削除・チャットへの再利用、アプリ内プレビュー。所有者ディレクトリのみ対象 |
-| Skills | 一覧・作成・編集・削除・チャットへの適用・`@`候補。モデルは `use_skill` で指示を読み込み、サーバー不使用モードでも端末内のSkillsを使える（BatchとOpenAI Search APIは指示同梱） |
+| Skills | 一覧・作成・編集・削除・チャットへの適用・`@`候補・プロンプトバーのSkillsスイッチ（既定オン・チャットごとに記憶）。オン時はスキル一覧を最初から渡し、モデルは `use_skill` で指示を読み込む。サーバー不使用モードでも端末内のSkillsを使える（BatchとOpenAI Search APIは指示同梱） |
 | 一般設定・セッション | 既定モデル／Vision、Thinking／Web検索／URL／Maps／Python／File／SysPrompt／MCP、Thinking level／budget、Reasoning effort、Safety、テーマ色、Enter送信、ライト／Liquid Glass、プロンプトバー、STT既定、システムプロンプト、前回設定継続、リンク自動検索、一時チャット期限、フィードバック、MCP有効切替、この端末のセッション表示と失効 |
 | モデル一覧 | `/me` の `models`。提供元、用途、対応能力、廃止状態、選択可否を返す。Android内のWeb由来カタログで正式表示名・説明・価格・タグ・追加順を補完。互換用の `model_ids` も維持 |
 | APIキー・プロフィール・アカウント削除 | APIキーは初回セットアップへ対応。プロフィール編集・パスワード変更・アカウント削除はWebで操作 |
@@ -53,7 +53,7 @@ AndroidからMariaDB、Redis、RQ、AI事業者の秘密鍵へ直接アクセス
 | ブラウザー高速モード | 対象外。APIキーをAndroidへ返すbootstrap APIは許可しない |
 | アプリ配布・真正性検証 | APK署名・Play配布は別途。client_idや端末名はアプリ署名の証明ではない |
 
-Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴、スレッド設定、一時チャット、添付、ファイルライブラリ、Skills、Web相当の設定タブ、この端末のセッション、編集・再生成・分岐、ネイティブPDF、画像・動画・OCR・TTS・文字起こし、Batchの送信・管理・完了通知、ユーザー操作で現在のチャットを開くAndroidバブル、生成停止、切断後の再接続、端末連携・失効、スラッシュコマンド、OpenAI／Grok／Gemini Native Audio／Gemini Live Realtime、Lyriaに対応します。本文はMarkdown、コード、表、数式近似、添付プレビューに加え、検索・Python・MCP・Coding差分を構造化カードで表示します。ファイルライブラリとチャットの添付はアプリ内で画像・テキスト・PDF・音声・動画を確認でき、未対応形式は外部アプリで開けます。TTS・音楽・Lyriaなどが回答に埋め込む音声（`<audio controls src="/files/...">`）は、回答内のプレーヤーで再生できます（初回の再生操作でファイルを取得）。MCP OAuth秘密と認証付きMCPサーバー、Google／Minashinの新規連携は認証済みWebへの明示的な導線を使います。
+Android版は通常チャット、メタデータ付きモデル選択、Thinking・Web検索・Prompt Cache、履歴、スレッド設定、一時チャット、添付、ファイルライブラリ、Skills、Web相当の設定タブ、この端末のセッション、編集・再生成・分岐、ネイティブPDF、画像・動画・OCR・TTS・文字起こし、Batchの送信・管理・完了通知、ユーザー操作で現在のチャットを開くAndroidバブル、生成停止、切断後の再接続、端末連携・失効、スラッシュコマンド、OpenAI／Grok／Gemini Native Audio／Gemini Live Realtime、Lyriaに対応します。本文はMarkdown、コード、表、数式近似、アニメーション付きSVG（SMIL・CSS）、添付プレビューに加え、検索・Python・MCP・Coding差分を構造化カードで表示します。ファイルライブラリとチャットの添付はアプリ内で画像・テキスト・PDF・音声・動画を確認でき、未対応形式は外部アプリで開けます。TTS・音楽・Lyriaなどが回答に埋め込む音声（`<audio controls src="/files/...">`）は、回答内のプレーヤーで再生できます（初回の再生操作でファイルを取得）。MCP OAuth秘密と認証付きMCPサーバー、Google／Minashinの新規連携は認証済みWebへの明示的な導線を使います。
 
 暗号化の境界は「HTTPSで通信」「サーバーが保存データを暗号化・復号」「端末トークンをAndroid Keystoreの鍵で暗号化保存」です。既存Webの `enable_e2ee` はサーバー側の `encrypt_val` / `decrypt_val` とファイル暗号化に使われます。そのため、この設定を理由にAndroidを拒否する必要はありません。真の端末間E2EEに変更する場合は、端末鍵の生成・共有・回復とAI処理時の平文の扱いを別途設計する必要があります。
 
@@ -324,6 +324,8 @@ IDは文字列として扱います。古い履歴の数値IDを受け取る場�
 `model` は省略できません。`/me` の `models` から `selectable: true` のモデルだけを選び、`mode` に応じた入力と `capabilities` に含まれる設定だけを表示します。ネイティブ対象は `chat`、`image`、`video`、`ocr`、`tts`、`transcription`、`agent`、`embedding`、会話型の `realtime_audio` とLyriaの `music` です（Lyria 3とEmbeddingは `/chat_stream`、Lyria RealTimeは音楽セッションAPI）。`realtime_audio` は認証済みサーバーセッションを介してOpenAI／Grok／Gemini Liveを入力欄の音声ドックまたはRealtimeスタジオで利用します。gpt-transcribe／gpt-live-transcribe／Realtime WhisperはWebと同じく、音声ドックで録音してから `/sts` へ送ります。既存のモデル用APIキーがない場合は400と `code: api_key_missing` 等が返るため、Webの設定を案内します。
 
 `skill_uuid`（旧 `gem_uuid` も可）を付けると、そのSkillの指示が回答生成に適用されます。`/api/skills` が返す本人の `uuid` だけを使い、他ユーザーのSkillを指定しないでください。現在のスレッドで利用者が最後に選んだSkillは、スレッド取得応答の `last_skill_uuid`（旧 `last_gem_uuid` も返る）で確認できます。モデルが `use_skill` で読み込んだだけのSkillは、入力欄の選択状態には反映しません。
+
+`enable_skills`（boolean、省略時はtrue）は、そのプロンプトでスキル全体を使うかどうかです。trueなら利用者のSkill一覧（名前と短い説明）を最初から自動注入システムプロンプトへ渡し、ツール対応モデルでは `use_skill` を付与します。falseなら一覧の注入とツールの付与を行いません。Web版・Android版ともプロンプトバーのSkillsスイッチで切り替え、選択状態はプロンプトごとの `prompt_options.enable_skills` に記録します。
 
 対応モデルでは `batch_mode: true` を付けるとProviderのBatch APIへ投入します。Androidは30秒間隔で実行中ジョブを確認し、通知権限がある端末では終了時にシステム通知を表示します。`enable_python` と `enable_mcp` は通常チャットの構造化ツールイベントを有効にしますが、秘密設定は返しません。
 
@@ -699,7 +701,7 @@ ViewModelが送信状態を保持し、Composeはその状態を表示する構�
 
 通信表示は「送信中」「応答待ち」「受信中」など実際に観測した状態から決めます。`finally` で待機表示を解除します。Web側の共通スピナーは `static/js/progress_spinner.js` が管理しており、Androidは自身のViewModelで同じ考え方を実装します。接続状態は `/api/version?heartbeat=...` を5秒間隔（切断系は2秒間隔）で監視し、HTTP 503をメンテナンス、502／504／520〜524をサーバー停止、2秒以上の応答が3回続いた場合を不安定として表示します。ネットワーク復帰時は復帰表示を5秒間出し、送信・アップロード・Realtimeなど長時間処理中は監視を抑制します。
 
-MarkdownはHTML/WebViewへ変換せず、許可したブロックとインライン記法だけをComposeで描画します。リンクはhostを持つHTTP(S)だけを外部ブラウザーで開き、認証付きHTTPクライアントへ渡しません。コードは選択、コピー、長い場合の折り畳みに対応します。数式はアプリに同梱したMathJax 3（Web版と同じTeX入力）を画面に出さないWebViewで実行してSVGへ組版し、Composeで本文のベースラインに合わせて描きます。このWebViewは同梱ファイル以外を読み込まず、ネットワークにも接続しません。MathJaxの読み込み中と組版できない式は、読みやすい近似を表示します。表、画像プレビュー、Web検索とPython実行の状態カードもComposeで描画します。768dp以上の幅では履歴と会話を2ペインで同時表示し、それ未満では履歴Drawerを使います。スマートフォンの設定・ライブラリ等は全画面に近いIME対応モーダルとし、Androidの戻る操作は開いているモーダル、Drawer、入力状態の順に閉じます。音声権限、カメラ権限、通知権限は、その機能を実装して利用者が使用する段階で追加します。
+Markdownは原則としてHTML/WebViewへ変換せず、許可したブロックとインライン記法だけをComposeで描画します。アニメーション付きSVGだけは、スクリプトと外部参照を止めたWebViewにWebと同じデータURIの `<img>` として渡し、SMIL・CSSアニメーションを再生します（動きのないSVGはComposeで描画）。リンクはhostを持つHTTP(S)だけを外部ブラウザーで開き、認証付きHTTPクライアントへ渡しません。コードは選択、コピー、長い場合の折り畳みに対応します。数式はアプリに同梱したMathJax 3（Web版と同じTeX入力）を画面に出さないWebViewで実行してSVGへ組版し、Composeで本文のベースラインに合わせて描きます。このWebViewは同梱ファイル以外を読み込まず、ネットワークにも接続しません。MathJaxの読み込み中と組版できない式は、読みやすい近似を表示します。表、画像プレビュー、Web検索とPython実行の状態カードもComposeで描画します。768dp以上の幅では履歴と会話を2ペインで同時表示し、それ未満では履歴Drawerを使います。スマートフォンの設定・ライブラリ等は全画面に近いIME対応モーダルとし、Androidの戻る操作は開いているモーダル、Drawer、入力状態の順に閉じます。音声権限、カメラ権限、通知権限は、その機能を実装して利用者が使用する段階で追加します。
 
 ## 9. サーバー設定と公開
 

@@ -378,7 +378,7 @@ _PROMPT_OPTION_KEYS = (
     'turn_time_notice',
     'canvas_mode', 'coding_mode', 'browser_fast_mode', 'batch_mode',
     'enable_search', 'enable_url_context', 'enable_maps', 'enable_python',
-    'enable_file_creation', 'enable_mcp', 'enable_thinking', 'thinking_level',
+    'enable_file_creation', 'enable_mcp', 'enable_skills', 'enable_thinking', 'thinking_level',
     'thinking_budget', 'reasoning_effort', 'safety_setting', 'enable_prompt_caching',
     'image_vision_model', 'image_mask',
     'tts_voice', 'tts_voice_custom', 'tts_language', 'tts_speed',
@@ -1016,6 +1016,10 @@ def chat_stream():
             redis_conn.setex(f"sys:{job_id}", 600, sys_prompt)
         except: pass
 
+    enable_skills_requested = _coerce_bool_or_none(data.get('enable_skills'))
+    if enable_skills_requested is None:
+        # Older clients do not send the switch; keep the previous always-on behavior.
+        enable_skills_requested = True
     options = {
         'system_prompt': None,
         'enable_search': data.get('enable_search'),
@@ -1030,6 +1034,7 @@ def chat_stream():
         'reasoning_effort': data.get('reasoning_effort'),
         'enable_system_prompt': data.get('enable_system_prompt'),
         'enable_mcp': data.get('enable_mcp'),
+        'enable_skills': enable_skills_requested,
         'marker_system_prompt': data.get('marker_system_prompt'),
         'safety_setting': data.get('safety_setting'),
         'tts_voice': data.get('tts_voice'),

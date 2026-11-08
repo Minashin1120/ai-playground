@@ -121,6 +121,7 @@ data class ChatState(
     /** Web composer selects that do not depend on the model (Thinking level/Budget, Effort, Safety). */
     val chipValues: Map<String, String> = COMPOSER_SELECT_DEFAULTS,
     val batchMode: Boolean = false, val enablePython: Boolean = false, val enableMcp: Boolean = true,
+    val enableSkills: Boolean = true,
     val canvasMode: Boolean = false, val codingMode: Boolean = false,
     val codingTarget: CodingTarget? = null,
     val imageMask: String? = null,
@@ -1954,6 +1955,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun togglePython() { mutable.update { it.copy(enablePython = !it.enablePython) } }
     fun toggleMcp() { mutable.update { it.copy(enableMcp = !it.enableMcp) } }
+    fun toggleSkills() { mutable.update { it.copy(enableSkills = !it.enableSkills) } }
     fun toggleCanvas() { mutable.update { it.copy(canvasMode = !it.canvasMode) } }
     fun toggleCoding() { mutable.update { it.copy(codingMode = !it.codingMode) } }
     /** Web `applyTemporaryChatSetting`: an open chat sends only `is_temporary` (its title and instruction stay). */
@@ -2721,6 +2723,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             enablePython = savedBoolean("enable_python", enablePython),
             enableFileCreation = savedBoolean("enable_file_creation", enableFileCreation),
             enableMcp = savedBoolean("enable_mcp", enableMcp),
+            enableSkills = savedBoolean("enable_skills", enableSkills),
             enableThinking = savedBoolean("enable_thinking", enableThinking),
             enablePromptCache = if (modelChosenManually) enablePromptCache else savedBoolean("enable_prompt_caching", enablePromptCache),
             batchMode = savedBoolean("batch_mode", batchMode),
@@ -2875,6 +2878,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             .put("enable_prompt_caching", effective(current.enablePromptCache, rules.promptCache))
             .put("batch_mode", current.batchMode && rules.batch.visible).put("enable_python", effective(current.enablePython, rules.python))
             .put("enable_mcp", current.enableMcp && rules.mcp.visible)
+            .put("enable_skills", current.enableSkills)
             .put("coding_mode", current.codingMode)
             .put("canvas_mode", current.canvasMode)
             .put("temporary_chat", current.selected?.isTemporary ?: current.newThreadTemporary)

@@ -17,6 +17,7 @@ internal fun ChatState.withNewChatDefaults(preserveSelectedModel: Boolean = fals
         enableFileCreation = if (useLast) saved.lastEnableFileCreation else saved.defaultEnableFileCreation,
         enableSystemPrompt = if (useLast) saved.lastEnableSystemPrompt else saved.defaultEnableSystemPrompt,
         enableMcp = if (useLast) saved.lastEnableMcp else saved.defaultEnableMcp,
+        enableSkills = true,
         sysPromptSuppressed = false,
         sysPromptRestore = false,
         chipValues = chipValues + mapOf(

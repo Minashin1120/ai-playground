@@ -154,6 +154,8 @@ internal fun MinimalOptionsPopup(
             MinimalAction.Toggle(rules.file, on(state.enableFileCreation, rules.file), model::toggleFileCreation)))
         if (rules.mcp.visible) add(MinimalItem("mcp", slashIcon("plug"), "MCP",
             MinimalAction.Toggle(rules.mcp, on(state.enableMcp, rules.mcp), model::toggleMcp)))
+        add(MinimalItem("skills", R.drawable.fa_solid_wand_magic_sparkles, "Skills",
+            MinimalAction.Toggle(OptionRule(), state.enableSkills, model::toggleSkills)))
         if (rules.sysPrompt.visible) add(MinimalItem("sysprompt", R.drawable.fa_solid_terminal, "SysPrompt",
             MinimalAction.Toggle(rules.sysPrompt, on(state.enableSystemPrompt, rules.sysPrompt), model::toggleSystemPrompt),
             gear = onChatInstructions))

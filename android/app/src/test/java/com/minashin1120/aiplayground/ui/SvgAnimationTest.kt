@@ -1,5 +1,6 @@
 package com.minashin1120.aiplayground.ui
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -25,21 +26,38 @@ class SvgAnimationTest {
         assertFalse(svgHasAnimation("""<svg><style>.a{fill:red;transition:fill 1s}</style><rect class="a"/></svg>"""))
     }
 
+    // Decode the payload before asserting: the exact percent-encoding of '=' and ':' is an
+    // implementation detail and must not be guessed by hand in a test.
+    private fun decodePayload(uri: String): String {
+        assertTrue("Not an SVG data URI: $uri", uri.startsWith("data:image/svg+xml;charset=utf-8,"))
+        return java.net.URLDecoder.decode(uri.substringAfter(','), "UTF-8")
+    }
+
     @Test fun animatedDocumentIsAnImageDataUriWithTheSvgNamespace() {
         val uri = animatedSvgDataUri("""<svg viewBox="0 0 10 10"><rect width="10" height="10"/></svg>""")
-        assertTrue(uri.startsWith("data:image/svg+xml;charset=utf-8,"))
-        assertTrue(uri.contains("xmlns=%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22"))
+        val decoded = decodePayload(uri)
+        assertTrue(
+            "Root SVG namespace missing: $decoded",
+            decoded.contains("""xmlns="http://www.w3.org/2000/svg""""),
+        )
         // An existing root namespace is kept once, and scripts stay inside the image document.
-        val existing = animatedSvgDataUri("""<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>""")
-        assertTrue(existing.indexOf("xmlns=%22").let { it >= 0 && existing.indexOf("xmlns=%22", it + 1) == -1 })
+        val existing = decodePayload(animatedSvgDataUri("""<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>"""))
+        assertEquals(
+            "Root SVG namespace was duplicated: $existing",
+            1,
+            Regex("""\sxmlns\s*=""").findAll(existing).count(),
+        )
         val html = animatedSvgHtml("""<svg viewBox="0 0 1 1"><rect/></svg>""")
-        assertTrue(html.contains("<img src=\"data:image/svg+xml;charset=utf-8,"))
+        assertTrue("Image document does not embed the data URI: $html", html.contains("<img src=\"data:image/svg+xml;charset=utf-8,"))
     }
 
     @Test fun xlinkNamespaceIsAddedOnlyWhenUsed() {
-        val uri = animatedSvgDataUri("""<svg viewBox="0 0 10 10"><use xlink:href="#a"/></svg>""")
-        assertTrue(uri.contains("xmlns:xlink=%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxlink%22"))
-        val plain = animatedSvgDataUri("""<svg viewBox="0 0 10 10"><rect/></svg>""")
-        assertFalse(plain.contains("xmlns:xlink"))
+        val decoded = decodePayload(animatedSvgDataUri("""<svg viewBox="0 0 10 10"><use xlink:href="#a"/></svg>"""))
+        assertTrue(
+            "xlink namespace missing: $decoded",
+            decoded.contains("""xmlns:xlink="http://www.w3.org/1999/xlink""""),
+        )
+        val plain = decodePayload(animatedSvgDataUri("""<svg viewBox="0 0 10 10"><rect/></svg>"""))
+        assertFalse("xlink namespace added although xlink: is unused: $plain", plain.contains("xmlns:xlink"))
     }
 }

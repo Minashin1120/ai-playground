@@ -92,3 +92,16 @@ dependencies {
     testImplementation("io.github.takahirom.roborazzi:roborazzi:1.75.0")
     testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.75.0")
 }
+
+// Print failing test names, messages and causes in the CI log so a failure can be
+// diagnosed from the log alone instead of downloading the HTML report.
+tasks.withType<Test>().configureEach {
+    testLogging {
+        events("failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showStackTraces = true
+        showExceptions = true
+        showCauses = true
+    }
+}
+

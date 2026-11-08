@@ -137,7 +137,29 @@ jobs:
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
             compiler_errors=$(grep -E '^e: ' "$RUNNER_TEMP/android-build.log" | head -n 40 || true)
-            if [[ -n "$compiler_errors" ]]; then
+            test_failures=$(python3 - <<'PY' || true
+          import glob, xml.etree.ElementTree as ET
+          for path in sorted(glob.glob('app/build/test-results/testDebugUnitTest/TEST-*.xml')):
+              for case in ET.parse(path).getroot().iter('testcase'):
+                  for failure in list(case.findall('failure')) + list(case.findall('error')):
+                      message = (failure.get('message') or failure.get('type') or '').strip().splitlines()
+                      print(f"{case.get('classname')}.{case.get('name')}: {message[0] if message else 'failed'}")
+          PY
+          )
+            lint_errors=$(grep -E ':[0-9]+: Error:' "$RUNNER_TEMP/android-build.log" | head -n 20 || true)
+            if [[ -n "$test_failures" ]]; then
+              {
+                echo '### Failing tests'
+                echo '```text'
+                echo "$test_failures"
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+            if [[ -n "$test_failures" ]]; then
+              detail=$(printf 'Failing tests:\n%s\n' "$test_failures" | sed 's/%/%25/g; s/\r/%0D/g' | awk 'BEGIN { ORS="%0A" } { print }')
+            elif [[ -n "$lint_errors" ]]; then
+              detail=$(printf '%s\n' "$lint_errors" | sed 's/%/%25/g; s/\r/%0D/g' | awk 'BEGIN { ORS="%0A" } { print }')
+            elif [[ -n "$compiler_errors" ]]; then
               detail=$(printf '%s\n' "$compiler_errors" | sed 's/%/%25/g; s/\r/%0D/g' | awk 'BEGIN { ORS="%0A" } { print }')
             else
               failure_context=$(grep -E -B 3 -A 20 '(^FAILURE:|^\* What went wrong:|^> Task .* FAILED|Execution failed for task|There were failing tests|Lint found|:[0-9]+: Error:)' "$RUNNER_TEMP/android-build.log" | tail -n 120 || true)

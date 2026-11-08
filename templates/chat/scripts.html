@@ -93,6 +93,27 @@
   </div>
 </div>
 
+<div id="processing-time-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay">
+  <div class="app-modal-panel app-modal-panel--sm modal-panel" role="dialog" aria-modal="true" aria-labelledby="processing-time-title">
+    <div class="app-modal-header">
+      <div class="app-modal-title-wrap">
+        <div class="app-modal-title-icon app-modal-title-icon--info"><i class="fas fa-clock-rotate-left"></i></div>
+        <div class="app-modal-title-text">
+          <h2 class="app-modal-title" id="processing-time-title">回答処理時間</h2>
+          <p class="app-modal-subtitle">回答にかかった時間の内訳</p>
+        </div>
+      </div>
+      <button type="button" aria-label="閉じる" onclick="closeProcessingTimeDetail()" class="app-modal-close"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="app-modal-body text-xs text-gray-300 space-y-2">
+      <div class="flex justify-between"><span>合計</span><span id="processing-time-total" class="font-mono">-</span></div>
+      <div class="flex justify-between hidden" id="processing-time-first-row"><span>最初の応答</span><span id="processing-time-first" class="font-mono">-</span></div>
+      <div id="processing-time-phases" class="hidden space-y-1 border-t border-gray-700 pt-2"></div>
+      <p id="processing-time-note" class="text-[11px] leading-relaxed text-gray-400"></p>
+    </div>
+  </div>
+</div>
+
 <div id="python-exec-modal" class="fixed inset-0 bg-gray-900/90 z-50 hidden items-center justify-center backdrop-blur-sm p-4 modal-overlay app-modal-overlay">
   <div class="app-modal-panel app-modal-panel--lg modal-panel" role="dialog" aria-modal="true" aria-labelledby="python-exec-modal-title">
     <div class="app-modal-header">

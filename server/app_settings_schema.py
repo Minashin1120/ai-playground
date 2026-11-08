@@ -453,6 +453,23 @@ def ensure_message_token_io_columns():
     except Exception:
         pass
 
+def ensure_message_job_id_column():
+    """Link an assistant answer to the job that produced its processing-time trace."""
+    try:
+        with db.engine.connect() as conn:
+            exists = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='message' "
+                "AND COLUMN_NAME='job_id'"
+            )).scalar()
+            if not exists:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE message ADD COLUMN job_id VARCHAR(64) NULL"))
+                conn.commit()
+    except Exception:
+        pass
+
 def ensure_message_prompt_options_column():
     """Add message.prompt_options (prompt-bar settings recorded per user prompt)."""
     try:

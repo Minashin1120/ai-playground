@@ -918,6 +918,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     role="assistant",
                     content=content_to_store,
                     model=model_key,
+                    job_id=job_id,
                     thought_data=thought_data,
                     tokens_out=usage_ledger.token_totals()['output_tokens'] or 0,
                     tokens=usage_ledger.token_totals()['output_tokens'] or 0,
@@ -8545,7 +8546,8 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 skill_name_val = _used_skills[0].get('name')
             msg_entry = Message(
                 thread_id=thread_id, role='assistant', content=final_content, 
-                model=model_key, image_url=json.dumps(generated_images) if generated_images else None, 
+                model=model_key, job_id=job_id,
+                image_url=json.dumps(generated_images) if generated_images else None, 
                 thought_data=final_thought, tokens_out=assistant_tokens_out, tokens=sum_token_counts(None, assistant_tokens_out), 
                 is_encrypted=is_enc, thought_signature=final_signature,
                 parent_id=message_id,

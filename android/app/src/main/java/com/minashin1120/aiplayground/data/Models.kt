@@ -23,6 +23,8 @@ data class ChatMessage(val id: String, val role: String, val content: String,
                        val encrypted: Boolean? = null, val quote: String = "", val skillName: String = "",
                        /** Web `batch_job`: shown as the Batch card above the answer. */
                        val batch: BatchInfo? = null,
+                       /** Web `processing_time`: total answer time and its breakdown shown under the bubble. */
+                       val processing: ProcessingTime? = null,
                        /** `created_at` (UTC ISO), shown as 作成 in the branch manager. */
                        val createdAt: String = "", val promptOptions: JSONObject? = null, val missingFiles: Set<String> = emptySet(),
                        /** UI-only identity retained when sync replaces a pending message id. Never sent to the server. */
@@ -32,6 +34,35 @@ data class ChatMessage(val id: String, val role: String, val content: String,
  * falls back to; [source] is Web `upload` / `library`. After an image edit, [original] keeps the pre-edit file,
  * sent too when [attachOriginal] ("元画像も添付") is on, and [edited] adds the Web marker hint to the request.
  */
+/** Web `processing_time`: non-overlapping answer phases (send/queue/provider/generation/receive). */
+data class ProcessingPhase(val key: String, val ms: Long)
+data class ProcessingTime(
+    val totalMs: Long,
+    val firstResponseMs: Long? = null,
+    val phases: List<ProcessingPhase> = emptyList(),
+    val source: String = "message",
+)
+
+fun parseProcessingTime(row: JSONObject?): ProcessingTime? {
+    if (row == null) return null
+    val total = row.nullableLong("total_ms") ?: return null
+    if (total < 0) return null
+    val phases = row.optJSONArray("phases")?.let { rows ->
+        (0 until rows.length()).mapNotNull { index ->
+            val phase = rows.optJSONObject(index) ?: return@mapNotNull null
+            val key = phase.optString("key")
+            val ms = phase.nullableLong("ms") ?: return@mapNotNull null
+            if (key.isBlank() || ms < 0) null else ProcessingPhase(key, ms)
+        }
+    }.orEmpty()
+    return ProcessingTime(
+        totalMs = total,
+        firstResponseMs = row.nullableLong("first_response_ms")?.takeIf { it >= 0 },
+        phases = phases,
+        source = row.optString("source", "message"),
+    )
+}
+
 data class Attachment(
     val name: String,
     val reference: String,
@@ -615,7 +646,8 @@ fun parseMessages(json: JSONObject): List<ChatMessage> {
             encrypted = if (row.has("is_encrypted") && !row.isNull("is_encrypted")) row.optBoolean("is_encrypted") else null,
             quote = row.nullableString("quote_text"),
             skillName = row.nullableString("skill_name").ifBlank { row.nullableString("skill_name") },
-            batch = parseBatchInfo(row), createdAt = row.nullableString("created_at"),
+            batch = parseBatchInfo(row), processing = parseProcessingTime(row.optJSONObject("processing_time")),
+            createdAt = row.nullableString("created_at"),
             promptOptions = row.optJSONObject("prompt_options"),
             missingFiles = row.optJSONArray("missing_files")?.strings()?.toSet() ?: emptySet())
     }
@@ -624,6 +656,10 @@ fun parseMessages(json: JSONObject): List<ChatMessage> {
 /** Integer field that may be absent or JSON null. */
 fun JSONObject.nullableInt(name: String): Int? =
     if (!has(name) || isNull(name)) null else optDouble(name).takeIf { !it.isNaN() }?.toInt()
+
+/** Long field that may be absent or JSON null. */
+fun JSONObject.nullableLong(name: String): Long? =
+    if (!has(name) || isNull(name)) null else optDouble(name).takeIf { !it.isNaN() }?.toLong()
 
 /** Cache tokens reported by saved API calls; null when no call reported cache fields. */
 data class CacheUsage(val read: Int, val write: Int, val ttls: Map<String, Int> = emptyMap())

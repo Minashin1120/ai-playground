@@ -1065,6 +1065,10 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_message_job_id_column()
+    except Exception:
+        pass
+    try:
         ensure_user_system_prompt_columns()
     except Exception:
         pass

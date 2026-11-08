@@ -1718,6 +1718,7 @@ private fun ConversationContent(
     var activeMessageId by remember { mutableStateOf<String?>(null) }
     var deletingMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var tokenDetail by remember { mutableStateOf<TokenDetail?>(null) }
+    var processingDetail by remember { mutableStateOf<com.minashin1120.aiplayground.data.ProcessingTime?>(null) }
     var pythonRuns by remember { mutableStateOf<List<com.minashin1120.aiplayground.data.PythonExecution>?>(null) }
     var encryptionState by remember { mutableStateOf<Boolean?>(null) }
     // Admin decrypt / re-encrypt from the lock modal: the pending confirm, the request and a re-auth retry.
@@ -1742,6 +1743,7 @@ private fun ConversationContent(
         onDelete = { deletingMessage = it },
         onBranch = { if (state.selected?.isTemporary == true) branchingMessage = it else model.branchChat(it) },
         onTokenDetail = { tokenDetail = it },
+        onProcessingTime = { processingDetail = it },
         onEncryption = { encryptionState = it },
         onPython = { runs -> if (runs.isEmpty()) model.notify("Python実行結果がありません") else pythonRuns = runs },
     )
@@ -1835,7 +1837,8 @@ private fun ConversationContent(
                                 onEdit = actions.onEdit, onRegenerate = actions.onRegenerate, onDelete = actions.onDelete, onBranch = actions.onBranch,
                                 canBranch = !state.busy && !state.streaming && !state.branchBusy,
                                 onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) },
-                                onTokenDetail = actions.onTokenDetail, onEncryption = actions.onEncryption,
+                                onTokenDetail = actions.onTokenDetail, onProcessingTime = actions.onProcessingTime,
+                                onEncryption = actions.onEncryption,
                                 onPython = actions.onPython,
                             ),
                             controlsVisible = activeMessageId == message.id,
@@ -1910,6 +1913,7 @@ private fun ConversationContent(
         }
     }
     ModalValueHost(tokenDetail) { detail -> TokenDetailDialog(detail, onDismiss = { tokenDetail = null }) }
+    ModalValueHost(processingDetail) { detail -> ProcessingTimeDialog(detail, onDismiss = { processingDetail = null }) }
     ModalValueHost(pythonRuns) { runs -> PythonExecutionDialog(runs, onDismiss = { pythonRuns = null }, loader = loader, onFile = onFile) }
     ModalValueHost(encryptionState) { encrypted ->
         EncryptionStatusDialog(

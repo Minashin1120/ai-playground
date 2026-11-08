@@ -447,7 +447,7 @@
             return box;
         }
 
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, skillName = null, batchInfo = null, maskImageUrl = null) {
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, skillName = null, batchInfo = null, maskImageUrl = null, processingTime = null) {
             const isUser = role === 'user';
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
             const align = isUser ? 'justify-end' : 'justify-start';
@@ -481,6 +481,7 @@
                 image_mask: maskImageUrl,
                 skill_name: skillName,
                 batch_job: batchInfo,
+                processing_time: processingTime,
                 python_executions: isUser ? [] : (pythonExtract.executions || [])
             };
 
@@ -605,6 +606,7 @@
                 footerParts.push(`<button type="button" class="python-exec-btn" onclick="openPythonExecDetail('${id}')" title="Python実行結果を表示" aria-label="Python実行結果を表示"><i class="fas fa-terminal"></i><span>${pyLabel}</span></button>`);
             }
             const mHtml = footerParts.length ? `<div class="text-[10px] text-slate-300/90 mt-2 text-right font-mono message-footer-meta">${footerParts.join(' • ')}</div>` : '';
+            const processingHtml = isUser ? '' : buildProcessingTimeHtml(id, processingTime);
 
             let contentHtml;
             const batchStatusHtml = (!isUser && batchInfo) ? (() => {
@@ -652,7 +654,7 @@
             const msgEl = document.createElement('div');
             msgEl.className = `flex ${align} mb-4 ${fadeClass} relative message-group group`;
             msgEl.id = `msg-${id}`;
-            msgEl.innerHTML = `<div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${qh}${skillNoticeHtml}${th}${contentHtml}${at}${maskAt}${versionSwitcher}${mHtml}</div>`;
+            msgEl.innerHTML = `<div class="message-bubble ${bg} text-white p-4 rounded-2xl shadow-md relative">${ctrl}${qh}${skillNoticeHtml}${th}${contentHtml}${at}${maskAt}${versionSwitcher}${mHtml}${processingHtml}</div>`;
 
             const container = target || get('chat-container');
             if (container) {
@@ -665,6 +667,85 @@
                 }
             }
             return msgEl;
+        }
+
+        const PROCESSING_PHASE_LABELS = {
+            send: '送信〜受付',
+            queue: '待ち行列',
+            provider: '初回応答まで',
+            generation: '生成',
+            receive: '受信・表示'
+        };
+
+        function formatProcessingDuration(ms) {
+            const value = Number(ms);
+            if (!Number.isFinite(value) || value < 0) return '-';
+            if (value < 60000) return `${(value / 1000).toFixed(2)}秒`;
+            const seconds = value / 1000;
+            const minutes = Math.floor(seconds / 60);
+            return `${minutes}分${(seconds - minutes * 60).toFixed(1)}秒`;
+        }
+
+        function buildProcessingTimeHtml(id, processingTime) {
+            if (!processingTime || processingTime.total_ms === null || processingTime.total_ms === undefined) return '';
+            const totalText = formatProcessingDuration(processingTime.total_ms);
+            return `<div class="mt-1 text-right font-mono text-[10px] text-slate-400/80 processing-time-row">`
+                + `<button type="button" class="underline decoration-dotted hover:text-white processing-time-btn" onclick="openProcessingTimeDetail('${id}')" title="回答処理時間の内訳" aria-label="回答処理時間の内訳">処理時間 ${escapeHtml(totalText)}</button>`
+                + `</div>`;
+        }
+
+        function openProcessingTimeDetail(id) {
+            const meta = messageMeta[id];
+            const processing = meta && meta.processing_time;
+            if (!processing || processing.total_ms === null || processing.total_ms === undefined) return;
+            const modal = get('processing-time-modal');
+            if (!modal) return;
+            get('processing-time-total').textContent = formatProcessingDuration(processing.total_ms);
+            const firstRow = get('processing-time-first-row');
+            if (firstRow) {
+                const hasFirst = processing.first_response_ms !== null && processing.first_response_ms !== undefined;
+                firstRow.classList.toggle('hidden', !hasFirst);
+                if (hasFirst && get('processing-time-first')) {
+                    get('processing-time-first').textContent = formatProcessingDuration(processing.first_response_ms);
+                }
+            }
+            const phasesEl = get('processing-time-phases');
+            if (phasesEl) {
+                phasesEl.replaceChildren();
+                const phases = Array.isArray(processing.phases) ? processing.phases : [];
+                for (const phase of phases) {
+                    if (!phase || phase.ms === null || phase.ms === undefined) continue;
+                    const label = PROCESSING_PHASE_LABELS[phase.key] || phase.key;
+                    const row = document.createElement('div');
+                    row.className = 'flex justify-between gap-4';
+                    const name = document.createElement('span');
+                    name.textContent = label;
+                    const value = document.createElement('span');
+                    value.className = 'font-mono';
+                    value.textContent = formatProcessingDuration(phase.ms);
+                    row.appendChild(name);
+                    row.appendChild(value);
+                    phasesEl.appendChild(row);
+                }
+                phasesEl.classList.toggle('hidden', phasesEl.childElementCount === 0);
+            }
+            const note = get('processing-time-note');
+            if (note) {
+                if (processing.source === 'client') {
+                    note.textContent = '回答完了時に端末で記録した時間です。詳細な内訳は履歴の再読み込み後に表示されます。';
+                } else if (processing.phases && processing.phases.length) {
+                    note.textContent = '記録できた処理区間の内訳です。';
+                } else {
+                    note.textContent = 'この回答では合計時間だけを記録しています。';
+                }
+            }
+            const title = get('processing-time-title');
+            if (title) title.textContent = meta && meta.model ? `${meta.model} (${meta.role || 'assistant'})` : '回答処理時間';
+            showModal('processing-time-modal');
+        }
+
+        function closeProcessingTimeDetail() {
+            hideModal('processing-time-modal');
         }
 
         function showTokenDetailModal(messageId = null, promptEstimate = false) {

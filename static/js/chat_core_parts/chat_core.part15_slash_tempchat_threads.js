@@ -376,7 +376,8 @@
                     m.parent_id,
                     m.skill_name,
                     m.batch_job,
-                    m.prompt_options && typeof m.prompt_options === 'object' ? m.prompt_options.image_mask : null
+                    m.prompt_options && typeof m.prompt_options === 'object' ? m.prompt_options.image_mask : null,
+                    m.processing_time
                 );
             });
             const pending = currentThreadPending;

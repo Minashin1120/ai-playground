@@ -23,6 +23,25 @@ class MessageMetaTest {
     }
 
     @Test
+    fun parsesProcessingTimeBreakdown() {
+        val messages = parseMessages(JSONObject("""{"messages":[
+            {"id":2,"role":"assistant","content":"a","parent_id":1,"processing_time":{
+                "total_ms":5000,"first_response_ms":850,"source":"client",
+                "phases":[{"key":"send","ms":100},{"key":"generation","ms":4000}]
+            }},
+            {"id":3,"role":"assistant","content":"b","processing_time":null},
+            {"id":4,"role":"user","content":"q"}
+        ]}"""))
+        val processing = messages[0].processing
+        assertEquals(5000L, processing?.totalMs)
+        assertEquals(850L, processing?.firstResponseMs)
+        assertEquals("client", processing?.source)
+        assertEquals(listOf(ProcessingPhase("send", 100), ProcessingPhase("generation", 4000)), processing?.phases)
+        assertNull(messages[1].processing)
+        assertNull(messages[2].processing)
+    }
+
+    @Test
     fun footerTokenLabelMatchesWeb() {
         val full = ChatMessage("2", "assistant", "a", tokens = 1523, tokensIn = 210, tokensOut = 1313, tokensThought = 413)
         assertEquals("In 210 / Out 1313 (Thought 413)", messageTokenLabel(full))

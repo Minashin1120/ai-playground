@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ChatMessage
+import com.minashin1120.aiplayground.data.ProcessingTime
 import com.minashin1120.aiplayground.data.TokenTotals
 import com.minashin1120.aiplayground.data.isAudioPath
 import com.minashin1120.aiplayground.data.isImageReference
@@ -122,6 +123,7 @@ internal class MessageActions(
     val canBranch: Boolean = true,
     val onSwitchBranch: (Int) -> Unit = {},
     val onTokenDetail: (TokenDetail) -> Unit = {},
+    val onProcessingTime: (ProcessingTime) -> Unit = {},
     val onEncryption: (Boolean) -> Unit = {},
     /** Web `openPythonExecDetail`: the footer's "Python" button. */
     val onPython: (List<com.minashin1120.aiplayground.data.PythonExecution>) -> Unit = {},
@@ -266,6 +268,9 @@ internal fun MessageBubble(
                 if (maskImage.isNotBlank()) MaskAttachmentPreview(maskImage, loader, onFile)
                 if (branchCount > 1) VersionSwitcher(branchIndex, branchCount, actions.onSwitchBranch)
                 MessageFooter(message, user, actions, pythonRuns)
+                if (!user) message.processing?.let { processing ->
+                    ProcessingTimeFooter(processing) { actions.onProcessingTime(processing) }
+                }
               } }
             }
             // `.msg-controls`: absolute, 12px above the bubble's top-right corner.
@@ -631,6 +636,75 @@ private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageA
             if (index < parts.lastIndex) Text(" • ", style = style)
         }
     }
+}
+
+internal fun formatProcessingDuration(ms: Long): String {
+    if (ms < 0) return "-"
+    if (ms < 60_000) return String.format(java.util.Locale.US, "%.2f秒", ms / 1000.0)
+    val seconds = ms / 1000.0
+    val minutes = (seconds / 60).toInt()
+    return String.format(java.util.Locale.US, "%d分%.1f秒", minutes, seconds - minutes * 60)
+}
+
+/** Web `.processing-time-row`: the answer's total processing time under the footer. */
+@Composable
+private fun ProcessingTimeFooter(processing: ProcessingTime, onClick: () -> Unit) {
+    val web = LocalWebPalette.current
+    val color = if (web.isLight) Color(0xFF3F4A5C).copy(alpha = 0.8f) else Color(148, 163, 184).copy(alpha = 0.8f)
+    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.End) {
+        Text(
+            "処理時間 ${formatProcessingDuration(processing.totalMs)}",
+            color = color,
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.dottedUnderline(color)
+                .clickable(onClickLabel = "回答処理時間の内訳", role = Role.Button, onClick = onClick),
+        )
+    }
+}
+
+private val PROCESSING_PHASE_LABELS = mapOf(
+    "send" to "送信〜受付",
+    "queue" to "待ち行列",
+    "provider" to "初回応答まで",
+    "generation" to "生成",
+    "receive" to "受信・表示",
+)
+
+/** `#processing-time-modal`. */
+@Composable
+internal fun ProcessingTimeDialog(processing: ProcessingTime, onDismiss: () -> Unit) {
+    PlaygroundDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("回答処理時間") },
+        text = {
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                InfoRow("合計", formatProcessingDuration(processing.totalMs))
+                processing.firstResponseMs?.let { InfoRow("最初の応答", formatProcessingDuration(it)) }
+                if (processing.phases.isNotEmpty()) {
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(LocalWebPalette.current.lineSoft))
+                    processing.phases.forEach { phase ->
+                        InfoRow(PROCESSING_PHASE_LABELS[phase.key] ?: phase.key, formatProcessingDuration(phase.ms))
+                    }
+                }
+                Text(
+                    when {
+                        processing.source == "client" -> "回答完了時に端末で記録した時間です。詳細な内訳は履歴の再読み込み後に表示されます。"
+                        processing.phases.isNotEmpty() -> "記録できた処理区間の内訳です。"
+                        else -> "この回答では合計時間だけを記録しています。"
+                    },
+                    color = LocalWebPalette.current.twText(Tw.gray400), fontSize = 11.sp, lineHeight = 16.sp,
+                )
+            }
+        },
+        confirmButton = {},
+        showFooter = false,
+        icon = R.drawable.fa_solid_clock_rotate_left,
+        subtitle = "回答にかかった時間の内訳",
+        tone = WebModalTone.Info,
+        panelMaxWidth = 440.dp,
+    )
 }
 
 /** `underline decoration-dotted` for a single-line label. */

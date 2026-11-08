@@ -16,6 +16,7 @@
 | [test_minimal_prompt_mode_regressions.py](../test_minimal_prompt_mode_regressions.py) | minimal / prompt / mode |
 | [test_modal_design_system_regressions.py](../test_modal_design_system_regressions.py) | モーダルの共通構造・共通CSS・ライトテーマ上書き |
 | [test_modal_performance_regressions.py](../test_modal_performance_regressions.py) | modal / performance |
+| [test_processing_time_regressions.py](../test_processing_time_regressions.py) | 回答処理時間の表示・内訳モーダル |
 | [test_progress_spinner_regressions.py](../test_progress_spinner_regressions.py) | progress / spinner |
 | [test_prompt_options_record_regressions.py](../test_prompt_options_record_regressions.py) | prompt / options / record |
 | [test_prompt_send_motion.py](../test_prompt_send_motion.py) | 送信時の入力欄と吹き出しのアニメーション |

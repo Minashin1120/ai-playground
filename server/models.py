@@ -177,6 +177,8 @@ class Message(db.Model):
     skill_name = db.Column(db.String(100), nullable=True)
     # 送信時のプロンプト設定と添付参照（JSON。ユーザー発言のみ。本文・画像そのものではなく設定とファイル参照を保存する）
     prompt_options = db.Column(db.Text, nullable=True)
+    # 回答を生成したジョブ。処理時間の内訳（chat_latency_trace）と回答を結び付ける。
+    job_id = db.Column(db.String(64), nullable=True, index=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('message.id'), nullable=True)
     children = db.relationship('Message', backref=db.backref('parent', remote_side=[id]), lazy=True)
 

@@ -235,6 +235,34 @@ def handle_thread_item(thread_id):
                 SyncMessageRef.message_id.in_([m.id for m in ms]),
             ).all()
         } if ms else {}
+        trace_by_job = {}
+        try:
+            job_ids = sorted({str(m.job_id) for m in ms if getattr(m, 'job_id', None)})
+            if job_ids:
+                trace_by_job = {
+                    row.job_id: row
+                    for row in ChatLatencyTrace.query.filter(
+                        ChatLatencyTrace.user_id == current_user.id,
+                        ChatLatencyTrace.job_id.in_(job_ids),
+                    ).all()
+                }
+        except Exception:
+            trace_by_job = {}
+        parent_timestamps = {m.id: m.timestamp for m in ms}
+        missing_parent_ids = sorted({
+            m.parent_id for m in ms
+            if m.role == 'assistant' and m.parent_id and m.parent_id not in parent_timestamps
+        })
+        if missing_parent_ids:
+            try:
+                parent_timestamps.update({
+                    row.id: row.timestamp
+                    for row in Message.query.filter(Message.id.in_(missing_parent_ids)).with_entities(
+                        Message.id, Message.timestamp
+                    ).all()
+                })
+            except Exception:
+                pass
         res = []
         for m in ms:
             cnt = decrypt_val(m.content) if m.is_encrypted else m.content
@@ -279,6 +307,22 @@ def handle_thread_item(thread_id):
             batch_row = batch_by_assistant.get(m.id)
             if token_out is not None:
                 tokens_content = max(0, token_out - (tokens_thought or 0))
+            processing_time = None
+            if m.role == 'assistant' and not batch_row:
+                fallback_ms = None
+                parent_ts = parent_timestamps.get(m.parent_id) if m.parent_id else None
+                if parent_ts and m.timestamp:
+                    try:
+                        fallback_ms = max(0, int((m.timestamp - parent_ts).total_seconds() * 1000))
+                    except Exception:
+                        fallback_ms = None
+                try:
+                    processing_time = build_message_processing_time(
+                        trace_by_job.get(str(m.job_id)) if getattr(m, 'job_id', None) else None,
+                        fallback_total_ms=fallback_ms,
+                    )
+                except Exception:
+                    processing_time = None
             res.append({
                 'missing_files': _missing_message_files(m, current_user.id),
                 'id': m.id,
@@ -303,6 +347,7 @@ def handle_thread_item(thread_id):
                 'gem_uuid': m.skill_uuid,
                 'gem_name': m.skill_name,
                 'created_at': m.timestamp.isoformat() + 'Z' if m.timestamp else None,
+                'processing_time': processing_time,
                 'batch_job': ({
                     'job_id': batch_row.job_id,
                     'state': batch_row.state,

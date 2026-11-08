@@ -10,6 +10,7 @@
 | [test_history_document_text_regressions.py](../test_history_document_text_regressions.py) | history / document / text |
 | [test_network_read_deadline.py](../test_network_read_deadline.py) | network / read / deadline |
 | [test_performance_regressions.py](../test_performance_regressions.py) | performance |
+| [test_processing_time_regressions.py](../test_processing_time_regressions.py) | 回答処理時間の内訳・メッセージ応答 |
 | [test_prompt_prefix_stability.py](../test_prompt_prefix_stability.py) | prompt / prefix / stability |
 | [test_request_timing_regressions.py](../test_request_timing_regressions.py) | request / timing |
 | [test_stream_late_subscriber_regressions.py](../test_stream_late_subscriber_regressions.py) | stream / late / subscriber |

@@ -1132,9 +1132,9 @@
                 if (adiv) {
                     queueHighlight(adiv, acc);
 
-                    if (enableLatencyMetrics) {
-                        const totalLatencyMs = nowPerfMs() - sendStartPerfMs;
+                    const totalLatencyMs = nowPerfMs() - sendStartPerfMs;
 
+                    if (enableLatencyMetrics) {
                         // Send total latency to server
                         reportFirstTokenLatency({
                             is_total: true,
@@ -1146,34 +1146,29 @@
                             client_sent_at_ms: sendStartEpochMs,
                             client_done_at_ms: Date.now()
                         });
-
-                        let latencyHtml = `<div class="mt-2 pt-2 border-t border-gray-700/30 flex flex-col gap-1 items-end opacity-70 text-[10px] font-mono text-gray-400">`;
-
-                        // First Token
-                        let firstAnyMs = null;
-                        if (firstStatusLatencyMs !== null) firstAnyMs = firstStatusLatencyMs;
-                        if (firstThoughtLatencyMs !== null && (firstAnyMs === null || firstThoughtLatencyMs < firstAnyMs)) firstAnyMs = firstThoughtLatencyMs;
-                        if (firstContentLatencyMs !== null && (firstAnyMs === null || firstContentLatencyMs < firstAnyMs)) firstAnyMs = firstContentLatencyMs;
-
-                        if (firstAnyMs !== null) {
-                            latencyHtml += `<div>Initial: ${(firstAnyMs/1000).toFixed(2)}s</div>`;
-                        }
-
-                        // Breakdown if available
-                        if (firstContentLatencyMs !== null && firstContentLatencyMs !== firstAnyMs) {
-                            latencyHtml += `<div>Content: ${(firstContentLatencyMs/1000).toFixed(2)}s</div>`;
-                        }
-
-                        latencyHtml += `<div class="font-bold text-gray-300">Total: ${(totalLatencyMs/1000).toFixed(2)}s</div>`;
-                        if (currentJobId) {
-                            latencyHtml += `<div class="text-[9px] opacity-50">Job ID: ${escapeHtml(currentJobId)}</div>`;
-                        }
-                        latencyHtml += `<div class="text-[10px] mt-1">${escapeHtml(get('model-select').value)}</div>`;
-                        latencyHtml += `</div>`;
-                        adiv.insertAdjacentHTML('beforeend', latencyHtml);
-                    } else {
-                        adiv.insertAdjacentHTML('beforeend', `<div class="text-[10px] text-gray-500/50 mt-2 text-right font-mono">${escapeHtml(get('model-select').value)}</div>`);
                     }
+
+                    let firstAnyMs = null;
+                    if (firstStatusLatencyMs !== null) firstAnyMs = firstStatusLatencyMs;
+                    if (firstThoughtLatencyMs !== null && (firstAnyMs === null || firstThoughtLatencyMs < firstAnyMs)) firstAnyMs = firstThoughtLatencyMs;
+                    if (firstContentLatencyMs !== null && (firstAnyMs === null || firstContentLatencyMs < firstAnyMs)) firstAnyMs = firstContentLatencyMs;
+
+                    const liveProcessingTime = {
+                        total_ms: totalLatencyMs,
+                        first_response_ms: firstAnyMs,
+                        phases: firstAnyMs !== null
+                            ? [{ key: 'generation', ms: Math.max(0, totalLatencyMs - firstAnyMs) }]
+                            : [],
+                        source: 'client'
+                    };
+                    messageMeta[aid] = Object.assign(messageMeta[aid] || {}, {
+                        role: 'assistant',
+                        model: p.model,
+                        processing_time: liveProcessingTime
+                    });
+                    const existingProcessingRow = adiv.querySelector('.processing-time-row');
+                    if (existingProcessingRow) existingProcessingRow.remove();
+                    adiv.insertAdjacentHTML('beforeend', buildProcessingTimeHtml(aid, liveProcessingTime));
                 }
 
                 // Reset editing state

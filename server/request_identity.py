@@ -146,3 +146,104 @@ def _trace_delta_ms(trace, start_field, end_field):
     except Exception:
         return None
 
+
+_PROCESSING_TIME_PHASES = (
+    ('send', 'client_sent_at', 'route_received_at'),
+    ('queue', 'route_received_at', 'worker_started_at'),
+    ('provider', '_provider_start_at', '_provider_first_at'),
+    ('generation', '_provider_first_at', '_worker_done_at'),
+    ('receive', '_worker_done_at', 'client_done_at'),
+)
+
+
+def _processing_trace_boundary(trace):
+    """Resolve the first provider event and the server-side completion timestamp."""
+    if not trace:
+        return None, None
+    first = None
+    for field in ('provider_first_chunk_at', 'provider_first_status_at',
+                  'provider_first_thought_at', 'provider_first_content_at'):
+        value = getattr(trace, field, None)
+        if value and (first is None or value < first):
+            first = value
+    done = getattr(trace, 'worker_done_at', None) or getattr(trace, 'stream_done_at', None)
+    return first, done
+
+
+def build_message_processing_time(trace=None, fallback_total_ms=None):
+    """Break an answer's processing time into non-overlapping phases.
+
+    ``trace`` is a ``ChatLatencyTrace`` row (or ``None`` for answers that were
+    not streamed through the chat route). The client-side total is preferred
+    because it covers send-to-render; otherwise the server trace bounds and,
+    for untraced recent answers, the saved message timestamps are used. Only
+    values that exist are returned, so old answers and clients that did not
+    report timings still get a useful total.
+    """
+    first_provider, worker_done = _processing_trace_boundary(trace)
+    total_ms = None
+    source = 'message'
+    if trace is not None:
+        source = 'server'
+        try:
+            client_total = int(trace.client_total_latency_ms)
+        except (TypeError, ValueError):
+            client_total = None
+        if client_total is not None and client_total >= 0:
+            total_ms = client_total
+            source = 'client'
+        else:
+            total_ms = _trace_delta_ms(trace, 'client_sent_at', 'client_done_at')
+            if total_ms is None and getattr(trace, 'route_received_at', None) and worker_done:
+                try:
+                    total_ms = max(0, int((worker_done - trace.route_received_at).total_seconds() * 1000))
+                except Exception:
+                    total_ms = None
+    if total_ms is None and fallback_total_ms is not None:
+        try:
+            fallback = max(0, int(fallback_total_ms))
+        except (TypeError, ValueError):
+            fallback = None
+        # A very old user message (for example a later regenerate) makes the
+        # parent-to-answer delta meaningless; only recent answers use it.
+        if fallback is not None and fallback <= 900000:
+            total_ms = fallback
+    if total_ms is None:
+        return None
+
+    boundaries = {
+        '_provider_start_at': (getattr(trace, 'worker_started_at', None)
+                               or getattr(trace, 'route_received_at', None)) if trace is not None else None,
+        '_provider_first_at': first_provider,
+        '_worker_done_at': worker_done,
+    }
+    phases = []
+    for key, start_name, end_name in _PROCESSING_TIME_PHASES:
+        if key == 'send' and source == 'server':
+            continue
+        start = boundaries.get(start_name, getattr(trace, start_name, None)) if trace is not None else None
+        end = boundaries.get(end_name, getattr(trace, end_name, None)) if trace is not None else None
+        if not start or not end:
+            continue
+        try:
+            delta = int((end - start).total_seconds() * 1000)
+        except Exception:
+            continue
+        phases.append({'key': key, 'ms': max(0, delta)})
+
+    first_response_ms = None
+    if trace is not None:
+        try:
+            value = int(trace.client_first_latency_ms)
+            if value >= 0:
+                first_response_ms = value
+        except (TypeError, ValueError):
+            pass
+
+    return {
+        'total_ms': total_ms,
+        'first_response_ms': first_response_ms,
+        'phases': phases,
+        'source': source,
+    }
+

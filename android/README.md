@@ -161,6 +161,7 @@
 | `app/src/test/java/com/minashin1120/aiplayground/ui/*ScreenshotTest.kt` | Roborazziによる画面のスクリーンショット（Actionsの `android-reports` に保存） | Webとの見た目を比べるとき |
 | `THIRD_PARTY_NOTICES.md` | Android版に含める第三者素材の表示 | アイコン・フォントなどを追加するとき |
 | `ci/bootstrap-keystore.sh` | Actions限定の初回鍵生成と保存 | 初回署名準備 |
+| `ci/run-gradle.sh` | Gradle実行の共通ラッパー。依存関係の一時的なダウンロード失敗だけ1回再試行 | CIのビルド手順を変えるとき |
 | `ci/verify-keystore.sh`, `ci/verify-apk.sh` | 固定証明書とAPK署名の一致確認 | 署名・上書き更新を検証するとき |
 | `ci/debug.keystore`, `ci/signing-fingerprint.txt` | Actionsが初回だけ保存する共有固定鍵と証明書のSHA-256 | 再利用のみ。削除・置換・再生成しない |
 | `../.github/workflows/android.yml`, `../.github/workflows/release.yml` | CIと署名APKのリリース | GitHub Actionsの運用 |

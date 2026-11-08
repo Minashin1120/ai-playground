@@ -337,7 +337,6 @@
 
             // Render path
             const pathTotals = buildTokenTotals(path);
-            const allBranchTotals = buildTokenTotals(allMessages);
             const fragment = document.createDocumentFragment();
             if (threadHasOlderMessages) {
                 const countText = loadingOlderMessages ? '読み込み中...' : '過去メッセージを読み込む';
@@ -408,7 +407,7 @@
             container.replaceChildren(fragment);
             displayMissingMessageFiles(container, path);
 
-            updateTotalTokenBar(pathTotals.tokens_total, pathTotals, allBranchTotals);
+            updateTotalTokenBar(pathTotals.tokens_total, pathTotals);
             currentParentId = currentLeafId;
             if (keepScroll && previousScrollTop !== null) {
                 restoreThreadTreeScroll(container, previousScrollTop);

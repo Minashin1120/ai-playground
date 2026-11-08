@@ -134,14 +134,14 @@ def test_fast_pricing_load_and_model_switch_preserve_the_bar_amount():
     script = '''
 const vm = require('vm');
 const pricing = PRICING;
-const elements = Object.fromEntries(['total-cost-estimate','total-cost-estimate-all'].map(id =>
+const elements = Object.fromEntries(['total-cost-estimate'].map(id =>
     [id, {classList:{toggle(){}},textContent:'',title:''}]));
 const context = vm.createContext({fetch:async()=>({ok:true,json:async()=>pricing}),get:id=>elements[id]});
 vm.runInContext(SOURCE, context);
 setImmediate(()=>{
-  vm.runInContext(`const messageMeta={__total__:{},__total_all_branches__:{}};
+  vm.runInContext(`const messageMeta={__total__:{}};
     const rows=[{id:2,role:'assistant',content:'x',model:'gpt-6.1-sol',tokens_in:1000,tokens_out:1000}];
-    refreshCostBar(rows,rows);`, context);
+    refreshCostBar(rows);`, context);
   const before=elements['total-cost-estimate'].textContent;
   vm.runInContext(`let currentModel='gpt-6-astra';refreshCostBar();`,context);
   console.log(JSON.stringify({before,after:elements['total-cost-estimate'].textContent}));

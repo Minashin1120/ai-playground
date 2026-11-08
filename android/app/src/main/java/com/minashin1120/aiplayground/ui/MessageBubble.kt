@@ -640,12 +640,11 @@ private fun Modifier.dottedUnderline(color: Color): Modifier = drawBehind {
 /** `#total-token-bar`: confirmed totals and the current input estimate, each opening its own details. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun TotalTokenBar(path: TokenTotals, all: TokenTotals, showEstimate: Boolean = false, estimate: @Composable () -> Unit = {},
+internal fun TotalTokenBar(path: TokenTotals, showEstimate: Boolean = false, estimate: @Composable () -> Unit = {},
                           pathCost: com.minashin1120.aiplayground.data.CostEstimate? = null,
-                          allCost: com.minashin1120.aiplayground.data.CostEstimate? = null,
                           pricing: com.minashin1120.aiplayground.data.ModelCostEstimator? = null, onDetail: (TokenDetail) -> Unit) {
     val web = LocalWebPalette.current
-    if (path.total <= 0 && all.total <= 0 && !showEstimate) return
+    if (path.total <= 0 && !showEstimate) return
     val text = if (web.isLight) web.text else Tw.slate200
     Column(Modifier.fillMaxWidth().background(if (web.isLight) Color.White.copy(alpha = 0.9f) else Color(8, 14, 28).copy(alpha = 0.55f))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -657,10 +656,6 @@ internal fun TotalTokenBar(path: TokenTotals, all: TokenTotals, showEstimate: Bo
                     modifier = Modifier.dottedUnderline(text).clickable(role = Role.Button) { onDetail(path.detail(false, pathCost, pricing)) })
                 pathCost?.let { cost -> Text(cost.label(), style = style,
                     modifier = Modifier.dottedUnderline(text).clickable(role = Role.Button) { onDetail(path.detail(false, cost, pricing)) }) }
-                if (all.total > 0) Text("All branches: ${all.total} tokens", style = style,
-                    modifier = Modifier.dottedUnderline(text).clickable(role = Role.Button) { onDetail(all.detail(true, allCost, pricing)) })
-                allCost?.let { cost -> Text(cost.label("全分岐の費用予想"), style = style,
-                    modifier = Modifier.dottedUnderline(text).clickable(role = Role.Button) { onDetail(all.detail(true, cost, pricing)) }) }
                 if (showEstimate) estimate()
             }
         }

@@ -4461,14 +4461,12 @@
             const estimate = get('prompt-token-estimate');
             if (bar) bar.classList.toggle('hidden', bar.dataset.hasTotals !== 'true' && (!estimate || estimate.classList.contains('hidden')));
         }
-        function updateTotalTokenBar(total, details = null, allBranchDetails = null) {
+        function updateTotalTokenBar(total, details = null) {
             const bar = get('total-token-bar');
             const count = get('total-token-count');
-            const allBranchCount = get('total-token-count-all-branches');
             if (!bar || !count) return;
             const val = Number(total || 0);
-            const allBranchVal = Number((allBranchDetails && allBranchDetails.tokens_total) || 0);
-            if (val > 0 || allBranchVal > 0) {
+            if (val > 0) {
                 bar.dataset.hasTotals = 'true';
                 count.innerText = `Total: ${val} tokens`;
                 if (details) {
@@ -4492,48 +4490,14 @@
                     count.onclick = null;
                     delete messageMeta.__total__;
                 }
-                if (allBranchCount) {
-                    if (allBranchDetails && allBranchVal > 0) {
-                        allBranchCount.classList.remove('hidden');
-                        allBranchCount.classList.add('cursor-pointer', 'underline', 'decoration-dotted');
-                        allBranchCount.innerText = `All branches: ${allBranchVal} tokens`;
-                        messageMeta.__total_all_branches__ = {
-                            tokens_total: allBranchVal,
-                            tokens_in: allBranchDetails.tokens_in,
-                            tokens_out: allBranchDetails.tokens_out,
-                            tokens_content: allBranchDetails.tokens_content,
-                            tokens_thought: allBranchDetails.tokens_thought,
-                            cache_read_tokens: allBranchDetails.cache_read_tokens,
-                            cache_write_tokens: allBranchDetails.cache_write_tokens,
-                            cache_write_ttls: allBranchDetails.cache_write_ttls,
-                            is_encrypted: null,
-                            role: 'total',
-                            model: 'Conversation (All branches)'
-                        };
-                        allBranchCount.onclick = () => openTokenDetail('__total_all_branches__');
-                    } else {
-                        allBranchCount.classList.add('hidden');
-                        allBranchCount.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
-                        allBranchCount.innerText = 'All branches: 0 tokens';
-                        allBranchCount.onclick = null;
-                        delete messageMeta.__total_all_branches__;
-                    }
-                }
             } else {
                 bar.dataset.hasTotals = 'false';
                 count.innerText = 'Total: 0 tokens';
                 count.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
                 count.onclick = null;
                 delete messageMeta.__total__;
-                if (allBranchCount) {
-                    allBranchCount.classList.add('hidden');
-                    allBranchCount.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
-                    allBranchCount.innerText = 'All branches: 0 tokens';
-                    allBranchCount.onclick = null;
-                }
-                delete messageMeta.__total_all_branches__;
             }
-            refreshCostBar(details?.cost_messages || [], allBranchDetails?.cost_messages || []);
+            refreshCostBar(details?.cost_messages || []);
             syncTokenBarVisibility();
         }
         const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS = 700;
@@ -24589,7 +24553,6 @@
 
             // Render path
             const pathTotals = buildTokenTotals(path);
-            const allBranchTotals = buildTokenTotals(allMessages);
             const fragment = document.createDocumentFragment();
             if (threadHasOlderMessages) {
                 const countText = loadingOlderMessages ? '読み込み中...' : '過去メッセージを読み込む';
@@ -24660,7 +24623,7 @@
             container.replaceChildren(fragment);
             displayMissingMessageFiles(container, path);
 
-            updateTotalTokenBar(pathTotals.tokens_total, pathTotals, allBranchTotals);
+            updateTotalTokenBar(pathTotals.tokens_total, pathTotals);
             currentParentId = currentLeafId;
             if (keepScroll && previousScrollTop !== null) {
                 restoreThreadTreeScroll(container, previousScrollTop);
@@ -27790,7 +27753,6 @@
         let costPricing = null;
         let costPricingFailed = false;
         let costBarPath = [];
-        let costBarAll = [];
         let costBarReady = false;
         const COST_ESTIMATE_NOTE = '有料APIの通常料金による概算（USD）。回答ごとの保存済みモデルで計算します。入力使用量がない回答は会話履歴から推定します。モデルAPIの呼び出しごとに入力・出力（Thinkingを含む）を合算します。Ideogramはモデル・品質・速度・処理別の単価と画像枚数で計算します。単価未公表の設定は公表最安値を下限として「以上・一部未算入」で表示します。使用量未取得の呼び出しは一部未算入です。API報告のキャッシュ読込・書込と検索などの追加料金を含みます。Batch APIは事業者ごとの割引率（割引のない事業者を含む）で計算し、割引対象外のキャッシュ読込は通常単価のままです。保存時間や実行時間など取得できない課金情報は一部未算入です。その他の画像・音声・動画生成、税、無料枠・個別契約は含みません。時間帯や入力種別で単価が異なる場合は範囲で表示します。過去の請求額を再現するものではありません。';
 
@@ -27966,25 +27928,19 @@
             return `${prefix}: ${amount}${cost.unpriced ? '（一部未算入）' : ''}`;
         }
 
-        function refreshCostBar(path = costBarPath, all = costBarAll) {
+        function refreshCostBar(path = costBarPath) {
             costBarReady = true;
             costBarPath = path;
-            costBarAll = all;
-            for (const [id, rows, metaId, prefix] of [
-                ['total-cost-estimate', path, '__total__', '費用予想'],
-                ['total-cost-estimate-all', all, '__total_all_branches__', '全分岐の費用予想']
-            ]) {
-                const el = get(id);
-                if (!el) continue;
-                const answers = rows.some(m => m && m.role === 'assistant' && (m.content || Number(m.tokens_out) > 0));
-                el.classList.toggle('hidden', !answers);
-                const cost = estimateConversationCost(rows, costPricing, all.length ? all : path);
-                el.textContent = costPricing ? costEstimateLabel(cost, prefix)
-                    : `${prefix}: ${costPricingFailed ? '算出不可' : '料金を読み込み中…'}`;
-                el.title = COST_ESTIMATE_NOTE;
-                if (messageMeta[metaId]) messageMeta[metaId].cost_estimate = costPricing ? cost : null;
-                el.onclick = () => openTokenDetail(metaId);
-            }
+            const el = get('total-cost-estimate');
+            if (!el) return;
+            const answers = path.some(m => m && m.role === 'assistant' && (m.content || Number(m.tokens_out) > 0));
+            el.classList.toggle('hidden', !answers);
+            const cost = estimateConversationCost(path, costPricing, path);
+            el.textContent = costPricing ? costEstimateLabel(cost, '費用予想')
+                : `費用予想: ${costPricingFailed ? '算出不可' : '料金を読み込み中…'}`;
+            el.title = COST_ESTIMATE_NOTE;
+            if (messageMeta.__total__) messageMeta.__total__.cost_estimate = costPricing ? cost : null;
+            el.onclick = () => openTokenDetail('__total__');
         }
 
         // Static official-rate data only; no chat data is sent by this request.

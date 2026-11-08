@@ -1677,7 +1677,6 @@ private fun ConversationContent(
     // Choosing a quick-access model hides the welcome screen until the next chat, as on Web.
     var welcomeDismissed by remember(state.chatTransitionId) { mutableStateOf(false) }
     val pathTotals = remember(state.messages) { buildTokenTotals(state.messages) }
-    val allTotals = remember(state.allMessages) { buildTokenTotals(state.allMessages) }
     val costContext = LocalContext.current
     val costPricing = remember(costContext) {
         com.minashin1120.aiplayground.data.ModelCostEstimator(costContext.assets.open("model-pricing.json").bufferedReader().use { it.readText() })
@@ -1685,10 +1684,6 @@ private fun ConversationContent(
     val pathCost = remember(state.messages, state.allMessages, costPricing) {
         if (state.messages.any { it.role == "assistant" && (it.content.isNotEmpty() || (it.tokensOut ?: 0) > 0) })
             costPricing.estimate(state.messages, state.allMessages.ifEmpty { state.messages }) else null
-    }
-    val allCost = remember(state.allMessages, costPricing) {
-        if (state.allMessages.any { it.role == "assistant" && (it.content.isNotEmpty() || (it.tokensOut ?: 0) > 0) })
-            costPricing.estimate(state.allMessages) else null
     }
     var branchingMessage by remember { mutableStateOf<ChatMessage?>(null) }
     val actions = MessageActions(
@@ -1715,8 +1710,8 @@ private fun ConversationContent(
         CompositionLocalProvider(LocalComposerEstimator provides model::estimatePromptTokens,
             LocalComposerDetailsEstimator provides model::estimatePromptTokenDetails) {
             val hasDraft = state.editingAttachment == null && (state.draft.isNotBlank() || state.quote.isNotBlank() || state.attachments.isNotEmpty())
-            TotalTokenBar(pathTotals, allTotals, showEstimate = hasDraft,
-                pathCost = pathCost, allCost = allCost, pricing = costPricing,
+            TotalTokenBar(pathTotals, showEstimate = hasDraft,
+                pathCost = pathCost, pricing = costPricing,
                 estimate = { PromptTokenEstimate(state) }) { tokenDetail = it }
         }
         state.batchBanner?.let { (text, _) ->

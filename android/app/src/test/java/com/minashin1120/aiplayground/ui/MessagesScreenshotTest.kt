@@ -76,7 +76,7 @@ fun main() = runBlocking {
         PlaygroundTheme(darkTheme = dark) {
             val web = LocalWebPalette.current
             Column(Modifier.background(web.bg1)) {
-                TotalTokenBar(buildTokenTotals(messages), buildTokenTotals(messages)) {}
+                TotalTokenBar(buildTokenTotals(messages)) {}
                 Column(
                     Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),

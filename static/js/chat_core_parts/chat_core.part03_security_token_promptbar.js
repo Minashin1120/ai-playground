@@ -950,14 +950,12 @@
             const estimate = get('prompt-token-estimate');
             if (bar) bar.classList.toggle('hidden', bar.dataset.hasTotals !== 'true' && (!estimate || estimate.classList.contains('hidden')));
         }
-        function updateTotalTokenBar(total, details = null, allBranchDetails = null) {
+        function updateTotalTokenBar(total, details = null) {
             const bar = get('total-token-bar');
             const count = get('total-token-count');
-            const allBranchCount = get('total-token-count-all-branches');
             if (!bar || !count) return;
             const val = Number(total || 0);
-            const allBranchVal = Number((allBranchDetails && allBranchDetails.tokens_total) || 0);
-            if (val > 0 || allBranchVal > 0) {
+            if (val > 0) {
                 bar.dataset.hasTotals = 'true';
                 count.innerText = `Total: ${val} tokens`;
                 if (details) {
@@ -981,48 +979,14 @@
                     count.onclick = null;
                     delete messageMeta.__total__;
                 }
-                if (allBranchCount) {
-                    if (allBranchDetails && allBranchVal > 0) {
-                        allBranchCount.classList.remove('hidden');
-                        allBranchCount.classList.add('cursor-pointer', 'underline', 'decoration-dotted');
-                        allBranchCount.innerText = `All branches: ${allBranchVal} tokens`;
-                        messageMeta.__total_all_branches__ = {
-                            tokens_total: allBranchVal,
-                            tokens_in: allBranchDetails.tokens_in,
-                            tokens_out: allBranchDetails.tokens_out,
-                            tokens_content: allBranchDetails.tokens_content,
-                            tokens_thought: allBranchDetails.tokens_thought,
-                            cache_read_tokens: allBranchDetails.cache_read_tokens,
-                            cache_write_tokens: allBranchDetails.cache_write_tokens,
-                            cache_write_ttls: allBranchDetails.cache_write_ttls,
-                            is_encrypted: null,
-                            role: 'total',
-                            model: 'Conversation (All branches)'
-                        };
-                        allBranchCount.onclick = () => openTokenDetail('__total_all_branches__');
-                    } else {
-                        allBranchCount.classList.add('hidden');
-                        allBranchCount.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
-                        allBranchCount.innerText = 'All branches: 0 tokens';
-                        allBranchCount.onclick = null;
-                        delete messageMeta.__total_all_branches__;
-                    }
-                }
             } else {
                 bar.dataset.hasTotals = 'false';
                 count.innerText = 'Total: 0 tokens';
                 count.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
                 count.onclick = null;
                 delete messageMeta.__total__;
-                if (allBranchCount) {
-                    allBranchCount.classList.add('hidden');
-                    allBranchCount.classList.remove('cursor-pointer', 'underline', 'decoration-dotted');
-                    allBranchCount.innerText = 'All branches: 0 tokens';
-                    allBranchCount.onclick = null;
-                }
-                delete messageMeta.__total_all_branches__;
             }
-            refreshCostBar(details?.cost_messages || [], allBranchDetails?.cost_messages || []);
+            refreshCostBar(details?.cost_messages || []);
             syncTokenBarVisibility();
         }
         const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS = 700;

@@ -107,7 +107,11 @@ jobs:
           if [ "$SKIP_UNIT_TESTS" != "true" ]; then
             tasks="testDebugUnitTest $tasks"
           fi
-          ./gradlew --no-daemon $tasks --stacktrace
+          if ! bash ci/run-gradle.sh "$RUNNER_TEMP/release-build.log" $tasks; then
+            tail -n 120 "$RUNNER_TEMP/release-build.log"
+            exit 1
+          fi
+          tail -n 40 "$RUNNER_TEMP/release-build.log"
       - name: Verify release signature
         run: bash android/ci/verify-apk.sh app/build/outputs/apk/release/app-release.apk
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

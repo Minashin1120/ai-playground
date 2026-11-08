@@ -15,6 +15,9 @@ on:
       - 'android/ci/verify-keystore.sh'
       - 'android/ci/debug.keystore'
       - 'android/ci/signing-fingerprint.txt'
+      - 'android/ci/run-gradle.sh'
+      - 'android/ci/test-html-preview.py'
+      - 'android/ci/test-html-preview-device.sh'
   pull_request:
     branches: [main]
     paths:
@@ -30,6 +33,9 @@ on:
       - 'android/ci/verify-keystore.sh'
       - 'android/ci/debug.keystore'
       - 'android/ci/signing-fingerprint.txt'
+      - 'android/ci/run-gradle.sh'
+      - 'android/ci/test-html-preview.py'
+      - 'android/ci/test-html-preview-device.sh'
   workflow_dispatch:
 
 permissions:
@@ -126,7 +132,7 @@ jobs:
           if [[ "$SKIP_UNIT_TESTS" != "true" ]]; then
             tasks="testDebugUnitTest -Proborazzi.test.record=true $tasks"
           fi
-          ./gradlew --no-daemon $tasks --stacktrace > "$RUNNER_TEMP/android-build.log" 2>&1
+          bash ci/run-gradle.sh "$RUNNER_TEMP/android-build.log" $tasks
           status=$?
           if [[ $status -ne 0 ]]; then
             tail -n 120 "$RUNNER_TEMP/android-build.log"

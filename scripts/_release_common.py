@@ -79,6 +79,9 @@ ANDROID_BUILD_EXACT = {
     "android/ci/signing-fingerprint.txt",
     "android/ci/verify-apk.sh",
     "android/ci/verify-keystore.sh",
+    "android/ci/run-gradle.sh",
+    "android/ci/test-html-preview.py",
+    "android/ci/test-html-preview-device.sh",
 }
 ANDROID_BUILD_PREFIXES = (
     "android/app/",

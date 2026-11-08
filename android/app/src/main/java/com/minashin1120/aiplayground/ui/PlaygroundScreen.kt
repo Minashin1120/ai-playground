@@ -110,6 +110,7 @@ import com.minashin1120.aiplayground.data.ImageSplitOptions
 import com.minashin1120.aiplayground.data.LibraryFile
 import com.minashin1120.aiplayground.data.Skill
 import com.minashin1120.aiplayground.data.ActivityLog
+import com.minashin1120.aiplayground.data.Diagnostics
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.buildTokenTotals
 import com.minashin1120.aiplayground.data.AI_SETTING_JUMP_TARGETS
@@ -153,6 +154,9 @@ private fun Context.findActivity(): Activity? {
     }
     return current as? Activity
 }
+
+/** A system picker the upload sheet asks for after it has closed (see the launch effect inside). */
+private enum class AttachmentPicker { Files, Photos, Split }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -311,6 +315,7 @@ fun PlaygroundScreen(
             var composerHeight by remember { mutableIntStateOf(0) }
             var visionPicker by remember { mutableStateOf(false) }
             var cameraOpen by remember { mutableStateOf(false) }
+            var pendingAttachmentPicker by remember { mutableStateOf<AttachmentPicker?>(null) }
             var bubbleAfterNotificationPermission by remember { mutableStateOf(false) }
             // ログの収集を強化: which modals and panels are open (names only).
             val panelStates = listOf(
@@ -382,6 +387,28 @@ fun PlaygroundScreen(
             val splitPicker = rememberLauncherForActivityResult(
                 ActivityResultContracts.PickMultipleVisualMedia(IMAGE_SPLIT_MAX_IMAGES),
             ) { model.openImageSplit(it) }
+            // Android 17 (API 37) can leave the app window without input focus after the system Files
+            // picker (DocumentsUI) returns, which then looks like a crash / frozen app (feedback
+            // fccc59662437). Start the picker only after the upload sheet's dialog window is gone.
+            LaunchedEffect(pendingAttachmentPicker) {
+                val action = pendingAttachmentPicker ?: return@LaunchedEffect
+                withFrameNanos { }
+                try {
+                    when (action) {
+                        AttachmentPicker.Files -> picker.launch(arrayOf("*/*"))
+                        AttachmentPicker.Photos -> photoPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                        AttachmentPicker.Split -> splitPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    }
+                    ActivityLog.log("ui.show", "source" to "picker")
+                } catch (e: Exception) {
+                    Diagnostics.failure("error", e, "phase" to "error")
+                    model.notify("ファイル選択を開けませんでした。もう一度お試しください。")
+                } finally {
+                    if (pendingAttachmentPicker == action) pendingAttachmentPicker = null
+                }
+            }
             // 画像分割 「保存のみ」 before Android 10: MediaStore needs a storage permission there, so the user picks a folder.
             var pendingSplitSave by remember { mutableStateOf<ImageSplitOptions?>(null) }
             val splitFolderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
@@ -847,12 +874,12 @@ fun PlaygroundScreen(
             if (attachMenu) UploadSheet(
                 state, model, loader,
                 onDismiss = { attachMenu = false },
-                onPickFiles = { picker.launch(arrayOf("*/*")) },
+                onPickFiles = { attachMenu = false; pendingAttachmentPicker = AttachmentPicker.Files },
                 onCamera = launchCamera,
-                onPhotos = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)) },
+                onPhotos = { attachMenu = false; pendingAttachmentPicker = AttachmentPicker.Photos },
                 onSplitImage = {
                     attachMenu = false
-                    splitPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    pendingAttachmentPicker = AttachmentPicker.Split
                 },
                 onLibrary = { libraryOpen = true },
                 onChangeVisionModel = { visionPicker = true },

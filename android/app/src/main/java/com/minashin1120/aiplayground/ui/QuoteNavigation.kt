@@ -39,10 +39,19 @@ internal fun resolveQuoteTarget(
 
 /**
  * The row a sent message's quote strip came from. The server keeps the quote text but not the quoted
- * message id, so find the nearest preceding message whose rendered text contains it. Quotes from other
- * branches (or formulas whose rendered form differs from the stored LaTeX) have no target and stay inert.
+ * message id, so find the nearest preceding message whose rendered text contains it. A selection copies
+ * what the reader saw rather than the stored Markdown, so the full-text match is followed by a tolerant
+ * comparison that ignores punctuation, list markers, Markdown and the approximations used for formulas.
+ * Quotes from other branches (or a quote too different to place) have no target and stay inert.
  */
-internal fun findQuotedMessageIndex(messages: List<ChatMessage>, beforeIndex: Int, quote: String): Int? {
+internal fun findQuotedMessageIndex(messages: List<ChatMessage>, beforeIndex: Int, quote: String): Int? =
+    findQuoteTextIndex(messages, beforeIndex, quote)
+
+/**
+ * The same lookup for any quote text: exact on the normalized text, then the closest preceding row by
+ * [compactQuoteScore]. The composer uses this after a draft edit restored a quote without its source id.
+ */
+internal fun findQuoteTextIndex(messages: List<ChatMessage>, beforeIndex: Int, quote: String): Int? {
     val needle = normalizeQuoteMatch(quote)
     if (needle.isEmpty()) return null
     val last = (beforeIndex - 1).coerceAtMost(messages.lastIndex)
@@ -50,8 +59,47 @@ internal fun findQuotedMessageIndex(messages: List<ChatMessage>, beforeIndex: In
     for (index in last downTo 0) {
         if (normalizeQuoteMatch(messages[index].content).contains(needle)) return index
     }
-    return null
+    val compactNeedle = compactQuoteText(quote)
+    if (compactNeedle.length < FUZZY_QUOTE_MIN_CHARS) return null
+    var best = -1
+    var bestScore = 0.0
+    for (index in last downTo 0) {
+        val score = compactQuoteScore(compactNeedle, compactQuoteText(messages[index].content))
+        if (score >= FUZZY_QUOTE_MIN_SCORE && score > bestScore) {
+            best = index
+            bestScore = score
+        }
+    }
+    return best.takeIf { it >= 0 }
 }
+
+/** Letters and digits only, so symbols, Markdown markers and formula approximations do not block a match. */
+private fun compactQuoteText(text: String): String = buildString(text.length) {
+    text.forEach { c -> if (c.isLetterOrDigit()) append(c.lowercaseChar()) }
+}
+
+/** Share of [needle]'s character pairs that also appear in [candidate]; repeated pairs count once each. */
+private fun compactQuoteScore(needle: String, candidate: String): Double {
+    if (candidate.length < 2) return 0.0
+    val available = HashMap<String, Int>()
+    for (index in 0 until candidate.length - 1) {
+        val pair = candidate.substring(index, index + 2)
+        available[pair] = (available[pair] ?: 0) + 1
+    }
+    var matched = 0
+    for (index in 0 until needle.length - 1) {
+        val pair = needle.substring(index, index + 2)
+        val count = available[pair] ?: 0
+        if (count > 0) {
+            matched++
+            available[pair] = count - 1
+        }
+    }
+    return matched.toDouble() / (needle.length - 1)
+}
+
+private const val FUZZY_QUOTE_MIN_CHARS = 12
+private const val FUZZY_QUOTE_MIN_SCORE = 0.65
 
 private val MARKDOWN_LINK = Regex("!?\\[([^\\]]*)]\\([^)]*\\)")
 private val MARKDOWN_MARKERS = Regex("[*_`~#>]+")

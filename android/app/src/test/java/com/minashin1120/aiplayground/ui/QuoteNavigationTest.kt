@@ -53,6 +53,46 @@ class QuoteNavigationTest {
         org.junit.Assert.assertEquals(1, findQuotedMessageIndex(messages, beforeIndex = 2, quote = "太字の部分") ?: -1)
     }
 
+    @Test fun aQuoteMadeFromRenderedTextStillFindsTheStoredMarkdown() {
+        val messages = listOf(
+            ChatMessage("101", "assistant",
+                "使い方は次のとおりです。\n\n- 項目Aを選ぶ\n- 項目Bを押す\n\n`code` も使えます。"),
+            ChatMessage("102", "user", "ありがとう"),
+        )
+        // The selection copies the rendered list bullets and drops the backticks.
+        val quote = "• 項目Aを選ぶ • 項目Bを押す code も使えます。"
+        org.junit.Assert.assertEquals(0, findQuotedMessageIndex(messages, beforeIndex = 2, quote = quote) ?: -1)
+    }
+
+    @Test fun aQuoteAroundAFormulaStillFindsTheMessageWithItsLatex() {
+        val messages = listOf(
+            ChatMessage("101", "assistant",
+                "次の式を計算します。\\frac{-b \\pm \\sqrt{b^2-4ac}}{2a} を使って解きます。"),
+        )
+        // The reader selected the approximation drawn by the formula renderer, not the LaTeX source.
+        val quote = "次の式を計算します。x = (−b ± √(b² − 4ac)) / 2a を使って解きます。"
+        org.junit.Assert.assertEquals(0, findQuotedMessageIndex(messages, beforeIndex = 1, quote = quote) ?: -1)
+    }
+
+    @Test fun aComposerQuoteWithoutASourceIdUsesTheQuoteTextBeforeTheEditedMessage() {
+        val messages = listOf(
+            ChatMessage("101", "assistant", "引用される説明です。"),
+            ChatMessage("102", "user", "質問です。"),
+            ChatMessage("103", "assistant", "別の説明です。"),
+        )
+        org.junit.Assert.assertEquals(0, findQuoteTextIndex(messages, beforeIndex = 1, quote = "引用される説明です。") ?: -1)
+        // The edited message itself is not a source, so searching only before row 1 finds nothing.
+        org.junit.Assert.assertNull(findQuoteTextIndex(messages, beforeIndex = 0, quote = "引用される説明です。"))
+    }
+
+    @Test fun anUnrelatedQuoteDoesNotFuzzyMatchAnotherAnswer() {
+        val messages = listOf(
+            ChatMessage("101", "assistant", "今日の天気は晴れで、気温は25度です。"),
+            ChatMessage("102", "user", "質問です。"),
+        )
+        org.junit.Assert.assertNull(findQuotedMessageIndex(messages, beforeIndex = 2, quote = "明日の予定を教えてください。"))
+    }
+
     @Test fun aSentQuoteStripFromAnotherBranchStaysInert() {
         val messages = listOf(ChatMessage("101", "user", "この会話にはない引用元"))
         org.junit.Assert.assertNull(findQuotedMessageIndex(messages, beforeIndex = 0, quote = "別の分岐の文章"))

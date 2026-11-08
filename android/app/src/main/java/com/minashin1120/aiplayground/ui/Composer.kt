@@ -300,7 +300,9 @@ fun Composer(
             AnimatedVisibility(state.quote.isNotBlank(), enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
                 Box(Modifier.onGloballyPositioned { sendMotion?.quoteSource = it.boundsInWindow() }) {
                     DisposableEffect(Unit) { onDispose { sendMotion?.quoteSource = null } }
-                    QuoteBar(shownQuote.orEmpty(), canNavigate = state.quoteSourceId != null || state.quoteMessageId != null, onNavigate = model::navigateToQuote, onClear = model::clearQuote)
+                    // A restored quote (for example after starting an edit) has no source id; the
+                    // conversation resolves it from the quote text, so the whole preview stays tappable.
+                    QuoteBar(shownQuote.orEmpty(), canNavigate = state.quote.isNotBlank(), onNavigate = model::navigateToQuote, onClear = model::clearQuote)
                 }
             }
             AnimatedVisibility(state.codingMode, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {

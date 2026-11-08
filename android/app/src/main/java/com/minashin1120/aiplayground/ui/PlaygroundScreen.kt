@@ -1622,12 +1622,22 @@ private fun ConversationContent(
         if (state.quoteNavigationRequest == 0L) return@LaunchedEffect
         val target = resolveQuoteTarget(state.messages, state.quoteSourceId, state.quoteMessageId,
             keys.liveKey, live) { keys.keyOf(it) }
+        // A draft edit restores the message's quote without its source id; place it by the quote text,
+        // searching the messages before the edited one (or the whole chat for a selection quote).
+        val resolved = if (target is QuoteTarget.Missing) {
+            val before = state.editingMessageId
+                ?.let { id -> state.messages.indexOfFirst { it.id == id } }
+                ?.takeIf { it >= 0 }
+                ?: state.messages.size
+            findQuoteTextIndex(state.messages, before, state.quote)?.let { QuoteTarget.Message(it) }
+                ?: QuoteTarget.Missing
+        } else target
         val op = java.util.UUID.randomUUID().toString()
         fun trace(phase: String) = com.minashin1120.aiplayground.data.ActivityLog.log("ui.interaction",
             "op" to op, "ui_element" to "message", "interaction_stage" to "scroll", "phase" to phase)
         trace("start")
-        val row = when (target) {
-            is QuoteTarget.Message -> target.index
+        val row = when (resolved) {
+            is QuoteTarget.Message -> resolved.index
             // The streamed answer is not in `messages` yet; it is the row after them.
             QuoteTarget.Live -> state.messages.size
             QuoteTarget.Missing -> { trace("error"); return@LaunchedEffect }

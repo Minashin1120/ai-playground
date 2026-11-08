@@ -3,6 +3,16 @@ package com.minashin1120.aiplayground.ui
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.numericId
 
+/** Space between the token bar and the first line of a quoted range after a jump. */
+internal const val QUOTE_JUMP_TOP_MARGIN_DP = 12
+
+/**
+ * How far the conversation must scroll so the quoted range's top edge sits [margin] below the list's
+ * [viewportTop]. Positive values scroll forward (the content moves up).
+ */
+internal fun quoteScrollDelta(quoteTop: Float, viewportTop: Float, margin: Float): Float =
+    quoteTop - viewportTop - margin
+
 /**
  * Where the quote bar's "引用元へ移動" action should scroll.
  *

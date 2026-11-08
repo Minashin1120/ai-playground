@@ -33,6 +33,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
@@ -130,6 +131,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import android.content.Context
 import android.content.ContextWrapper
 import java.io.File
@@ -1590,27 +1592,48 @@ private fun ConversationContent(
     var quoteFlashRow by remember(state.chatNavigationId) { mutableStateOf<String?>(null) }
     var quoteFlashText by remember(state.chatNavigationId) { mutableStateOf("") }
     var quoteFlashToken by remember(state.chatNavigationId) { mutableLongStateOf(0L) }
+    // The token whose quoted range was already aligned under the top bar; later layout reports are ignored.
+    var quoteAlignedToken by remember(state.chatNavigationId) { mutableLongStateOf(-1L) }
+    var listTopWindow by remember(state.chatNavigationId) { mutableFloatStateOf(0f) }
+    val quoteTopMarginPx = with(LocalDensity.current) { QUOTE_JUMP_TOP_MARGIN_DP.dp.toPx() }
     fun markQuoteFlash(row: Int, quote: String?) {
         if (quote.isNullOrBlank()) return
         quoteFlashRow = state.messages.getOrNull(row)?.let { keys.keyAt(row, it) } ?: keys.liveKey
         quoteFlashText = quote.trim()
         quoteFlashToken += 1
     }
+    /**
+     * Web has no quote jump. Android first lands on the message row, then moves its quoted range to just
+     * under the token bar; landing on the row alone can leave a selection from a long answer below the
+     * composer, where its flash cannot be seen.
+     */
+    fun alignQuoteUnderTopBar(windowY: Float) {
+        val token = quoteFlashToken
+        if (token == 0L || token == quoteAlignedToken) return
+        quoteAlignedToken = token
+        val delta = quoteScrollDelta(windowY, listTopWindow, quoteTopMarginPx)
+        if (abs(delta) < 0.5f) return
+        scope.launch {
+            try { scroll.scrollBy(delta) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) {}
+        }
+    }
     /** Shared by the composer quote bar and a sent message's quote strip. */
-    suspend fun scrollToQuoteRow(row: Int, offset: Int) {
+    suspend fun scrollToQuoteRow(row: Int) {
         quoteFocusManager.clearFocus()
         follow.pause()
         val index = row + (if (loadingThread) 1 else 0) + (if (state.hasOlder) 1 else 0)
-        if (reduce) scroll.scrollToItem(index, offset) else scroll.animateScrollToItem(index, offset)
+        if (reduce) scroll.scrollToItem(index) else scroll.animateScrollToItem(index)
     }
-    fun requestQuoteRow(row: Int, offset: Int = 0, quote: String? = null) {
+    fun requestQuoteRow(row: Int, quote: String? = null) {
         val op = java.util.UUID.randomUUID().toString()
         fun trace(phase: String) = com.minashin1120.aiplayground.data.ActivityLog.log("ui.interaction",
             "op" to op, "ui_element" to "message", "interaction_stage" to "scroll", "phase" to phase)
         trace("start")
         scope.launch {
             try {
-                scrollToQuoteRow(row, offset)
+                scrollToQuoteRow(row)
                 trace("done")
                 markQuoteFlash(row, quote)
             }
@@ -1643,7 +1666,7 @@ private fun ConversationContent(
             QuoteTarget.Missing -> { trace("error"); return@LaunchedEffect }
         }
         try {
-            scrollToQuoteRow(row, state.quoteSourceScrollOffset)
+            scrollToQuoteRow(row)
             trace("done")
             markQuoteFlash(row, state.quote)
         } catch (e: CancellationException) { trace("cancelled"); throw e }
@@ -1731,6 +1754,8 @@ private fun ConversationContent(
                         val old = sendMotion?.viewport
                         if (old != null && old.width != next.width) sendMotion?.finish()
                         sendMotion?.viewport = next
+                        // Quote jumps align the flashed range under this viewport's top edge.
+                        listTopWindow = coordinates.positionInWindow().y
                     },
                 // `#chat-container`: 12px padding on phones, 20px between message groups.
                 contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp + bottomOverlay),
@@ -1766,10 +1791,7 @@ private fun ConversationContent(
                         animate = entering && message.id != state.promptSendMotionId, answers = answerMotions) {
                         // Web sends `quote_message_id`: a selection inside this bubble remembers which message it came from.
                         ProvideQuoteSelection({ quoted ->
-                            // Preserve the visible part of a long answer, rather than returning to its heading.
-                            val offset = scroll.layoutInfo.visibleItemsInfo.firstOrNull { it.key == rowKey }
-                                ?.offset?.let { -it } ?: 0
-                            model.quoteMessage(quoted, numericId(message), rowKey, offset)
+                            model.quoteMessage(quoted, numericId(message), rowKey)
                         }) {
                         MessageBubble(
                             message = message,
@@ -1781,6 +1803,7 @@ private fun ConversationContent(
                             },
                             flashToken = if (quoteFlashRow == rowKey) quoteFlashToken else 0L,
                             flashQuote = if (quoteFlashRow == rowKey) quoteFlashText else null,
+                            onQuoteFlashLocated = if (quoteFlashRow == rowKey) { y -> alignQuoteUnderTopBar(y) } else null,
                             actions = MessageActions(
                                 onEdit = actions.onEdit, onRegenerate = actions.onRegenerate, onDelete = actions.onDelete, onBranch = actions.onBranch,
                                 canBranch = !state.busy && !state.streaming && !state.branchBusy,
@@ -1804,7 +1827,7 @@ private fun ConversationContent(
                     val entering = remember { keys.consumeFresh(keys.liveKey) }
                     Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
                         ConversationMessageEntry(keys.liveKey, answer = true, animate = entering, answers = answerMotions) {
-                            LiveMessage(state, onFile, { quoted -> model.quoteMessage(quoted, null, keys.liveKey, 0) }, loader, model::resolveMcpDecision)
+                            LiveMessage(state, onFile, { quoted -> model.quoteMessage(quoted, null, keys.liveKey) }, loader, model::resolveMcpDecision)
                         }
                     }
                 }

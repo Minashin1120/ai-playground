@@ -157,6 +157,8 @@ internal fun MessageBubble(
     /** A rising token starts the post-jump flash of [flashQuote] inside this bubble. */
     flashToken: Long = 0L,
     flashQuote: String? = null,
+    /** Window Y of the flashed quote range once laid out, so the jump can align it under the top bar. */
+    onQuoteFlashLocated: ((Float) -> Unit)? = null,
     /** The reasoning placeholder is shown collapsed (`.thought-content.collapsed`). */
     thoughtCollapsed: Boolean = false,
     preserveLiveLayout: Boolean = false,
@@ -247,7 +249,8 @@ internal fun MessageBubble(
                     message.batch?.let { BatchStatusCard(it) }
                     if (display.isNotEmpty()) MarkdownText(com.minashin1120.aiplayground.data.missingFileMarkup(display, message.missingFiles), loader, onFile,
                         startCollapsed = true, canvasMode = LocalCanvasMode.current,
-                        flashQuote = flashQuote, flashAlpha = flash.value)
+                        flashQuote = flashQuote, flashAlpha = flash.value,
+                        onQuoteFlashLocated = onQuoteFlashLocated)
                 }
                 liveBottom?.invoke()
                 val files = message.files.filterNot { !user && message.content.contains(it) }

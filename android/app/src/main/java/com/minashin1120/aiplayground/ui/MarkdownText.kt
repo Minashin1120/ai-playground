@@ -51,6 +51,9 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.takeOrElse
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
@@ -594,8 +597,16 @@ internal class MarkdownCodeActions(
 
 internal val LocalMarkdownCodeActions = compositionLocalOf { MarkdownCodeActions() }
 
-/** Text that should flash after jumping to a quote: the selection to find and the current pulse alpha. */
-internal data class QuoteFlash(val query: String, val alpha: Float)
+/**
+ * Text that should flash after jumping to a quote: the selection to find, the current pulse alpha and
+ * the callback that reports where the selection was laid out (window Y), so the jump can put it under
+ * the top bar instead of wherever the previous reader left it.
+ */
+internal data class QuoteFlash(
+    val query: String,
+    val alpha: Float,
+    val onLocated: ((Float) -> Unit)? = null,
+)
 
 internal val LocalQuoteFlash = compositionLocalOf<QuoteFlash?> { null }
 
@@ -631,6 +642,8 @@ fun MarkdownText(
     /** The quoted selection to flash after a quote jump, and the pulse alpha (0 when idle). */
     flashQuote: String? = null,
     flashAlpha: Float = 0f,
+    /** Reports the quoted range's window Y once it is laid out, so the jump can align it. */
+    onQuoteFlashLocated: ((Float) -> Unit)? = null,
 ) {
     val blocks = remember(text, canvasMode) { parseMarkdownBlocks(if (canvasMode) parseCanvasMarkdown(text).renderText else text) }
     val colors = markdownColors()
@@ -641,7 +654,8 @@ fun MarkdownText(
     // Web opens every link in a new tab; here a link that no installed app can open is ignored.
     val uriHandler = LocalUriHandler.current
     val safeHandler = remember(uriHandler) { SafeUriHandler(uriHandler) }
-    val flash = if (flashAlpha > 0f && !flashQuote.isNullOrBlank()) QuoteFlash(flashQuote, flashAlpha) else null
+    val flash = if (flashAlpha > 0f && !flashQuote.isNullOrBlank())
+        QuoteFlash(flashQuote, flashAlpha, onQuoteFlashLocated) else null
     CompositionLocalProvider(LocalUriHandler provides safeHandler, LocalQuoteFlash provides flash) {
         PreWrapBlocks(blocks, base, colors, loader, onOpen, startCollapsed, leadingLine = false)
     }
@@ -1097,26 +1111,31 @@ private fun AnnotatedString.Builder.appendInlineHtml(rest: String, colors: Markd
 private fun InlineText(text: String, style: TextStyle, colors: MarkdownColors) {
     val parsed = remember(text, colors) { parseInlineMarkdown(text, colors) }
     val flash = LocalQuoteFlash.current
-    val flashed = remember(parsed, flash?.query, flash?.alpha) {
-        if (flash == null) parsed
-        else {
-            val range = findQuoteRange(parsed.text.text, flash.query)
-            if (range == null) parsed
-            else InlineMarkdown(
-                text = AnnotatedString(
-                    parsed.text.text,
-                    spanStyles = parsed.text.spanStyles + AnnotatedString.Range(
-                        SpanStyle(background = QuoteFlashColor.copy(alpha = 0.5f * flash.alpha)),
-                        range.first,
-                        range.last + 1,
-                    ),
-                ),
-                codeRanges = parsed.codeRanges,
-                math = parsed.math,
-            )
-        }
+    val range = remember(parsed, flash?.query) {
+        flash?.let { findQuoteRange(parsed.text.text, it.query) }
     }
-    InlineRichText(flashed, style, colors.inlineCodeBackground)
+    val flashed = remember(parsed, flash?.alpha, range) {
+        if (flash == null || range == null) parsed
+        else InlineMarkdown(
+            text = AnnotatedString(
+                parsed.text.text,
+                spanStyles = parsed.text.spanStyles + AnnotatedString.Range(
+                    SpanStyle(background = QuoteFlashColor.copy(alpha = 0.5f * flash.alpha)),
+                    range.first,
+                    range.last + 1,
+                ),
+            ),
+            codeRanges = parsed.codeRanges,
+            math = parsed.math,
+        )
+    }
+    InlineRichText(
+        flashed,
+        style,
+        colors.inlineCodeBackground,
+        quoteRange = range,
+        onQuoteLocated = flash?.onLocated,
+    )
 }
 
 /** True inside a bubble-wide selection, so nested text joins it instead of starting its own. */
@@ -1148,8 +1167,12 @@ internal fun InlineRichText(
     // One-line controls such as the quote bar keep their own tap handling instead
     // of starting a text selection inside the strip.
     selectable: Boolean = true,
+    /** The quoted range to report the window position of, and where to report it (quote jump). */
+    quoteRange: IntRange? = null,
+    onQuoteLocated: ((Float) -> Unit)? = null,
 ) {
     var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var windowTop by remember { mutableFloatStateOf(Float.NaN) }
     val density = LocalDensity.current
     val hasMath = source.math.isNotEmpty()
     var availableWidth by remember { mutableIntStateOf(Constraints.Infinity) }
@@ -1169,6 +1192,14 @@ internal fun InlineRichText(
     }
     val chipHeight = with(density) { 24.dp.toPx() }
     val radius = with(density) { 6.4.dp.toPx() }
+    // Quote jump: once this block is laid out, tell the conversation where its quoted range starts.
+    LaunchedEffect(textLayout, windowTop, quoteRange, onQuoteLocated) {
+        val layout = textLayout ?: return@LaunchedEffect
+        val range = quoteRange ?: return@LaunchedEffect
+        val report = onQuoteLocated ?: return@LaunchedEffect
+        if (!windowTop.isFinite() || range.first < 0 || range.first >= layout.layoutInput.text.length) return@LaunchedEffect
+        report(windowTop + layout.getBoundingBox(range.first).top)
+    }
     val body: @Composable () -> Unit = {
         Text(
             parsed.text,
@@ -1178,6 +1209,7 @@ internal fun InlineRichText(
             maxLines = maxLines,
             overflow = overflow,
             modifier = modifier
+                .onGloballyPositioned { windowTop = it.positionInWindow().y }
                 // Screen readers get the approximations, not the formula tokens.
                 .then(if (parsed === source) Modifier else Modifier.semantics { contentDescription = source.text.text })
                 .then(

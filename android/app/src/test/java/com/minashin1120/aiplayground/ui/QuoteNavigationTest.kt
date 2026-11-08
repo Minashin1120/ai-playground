@@ -118,4 +118,14 @@ class QuoteNavigationTest {
     @Test fun aQuoteThatIsNotInTheBubbleHasNoRange() {
         org.junit.Assert.assertNull(findQuoteRange("別の文章", "引用元にない文"))
     }
+
+    @Test fun theJumpScrollsUntilTheQuoteStartsBelowTheTopBar() {
+        // The quote was laid out 900px below the top of the window, the list starts at 100px and the
+        // margin is 12px, so the content has to move up by 788px.
+        assertEquals(788f, quoteScrollDelta(quoteTop = 900f, viewportTop = 100f, margin = 12f), 0.001f)
+    }
+
+    @Test fun aQuoteAlreadyUnderTheTopBarDoesNotScroll() {
+        assertEquals(0f, quoteScrollDelta(quoteTop = 112f, viewportTop = 100f, margin = 12f), 0.001f)
+    }
 }

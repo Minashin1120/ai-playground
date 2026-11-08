@@ -38,6 +38,8 @@ class GeminiDirect(
         val files = mutableListOf<DirectOutputFile>()
         var streamedImages = 0
         var usage: JSONObject? = null
+        var finishReason: String? = null
+        var blockReason: String? = null
         var searching = false
         val grounding = GeminiGrounding()
         val modelText = StringBuilder()
@@ -68,9 +70,12 @@ class GeminiDirect(
                 val chunk = runCatching { JSONObject(sse.data) }.getOrNull() ?: return@postSse true
                 chunk.optJSONObject("error")?.let { throw DirectApiException(it.optInt("code"), it.optString("message").ifBlank { "Gemini API error" }) }
                 chunk.optJSONObject("usageMetadata")?.let { usage = it }
+                chunk.optJSONObject("promptFeedback")?.optString("blockReason")
+                    ?.takeIf { it.isNotBlank() }?.let { blockReason = it }
                 val candidates = chunk.optJSONArray("candidates") ?: JSONArray()
                 for (c in 0 until candidates.length()) {
                     val candidate = candidates.optJSONObject(c) ?: continue
+                    candidate.optString("finishReason").takeIf { it.isNotBlank() }?.let { finishReason = it }
                     if (candidate.has("groundingMetadata") && !searching) {
                         searching = true
                         emit(event("search_status", "searching"))
@@ -143,10 +148,11 @@ class GeminiDirect(
             contents.put(JSONObject().put("role", "user").put("parts", responseParts))
             activePayload = JSONObject(payload.toString()).put("contents", contents)
         }
+        val hasAudio = request.turns.any { turn -> turn.attachments.any { it.mime.startsWith("audio/") } }
+        val emptyAnswer = content.isBlank() && files.isEmpty() && streamedImages == 0
         Diagnostics.log("gemini.stream_end", "chunks" to chunks, "content_chars" to content.length,
-            "ms" to System.currentTimeMillis() - requestStarted)
-        if (content.isBlank() && files.isEmpty() && streamedImages == 0) throw DirectApiException(0,
-            "モデルから回答本文が返されませんでした。時間をおいて再試行してください。")
+            "failed" to emptyAnswer, "ms" to System.currentTimeMillis() - requestStarted)
+        if (emptyAnswer) throw DirectApiException(0, emptyAnswerMessage(finishReason ?: blockReason, hasAudio))
         val answer = grounding.finish(content.toString(), request.options, modelText.toString()) { emit(event("content", it)) }
         if (searching) emit(event("search_status", "done"))
         val meta = usage
@@ -157,6 +163,23 @@ class GeminiDirect(
             tokensThought = meta?.optInt("thoughtsTokenCount")?.takeIf { it > 0 },
             files = files, thoughtSignatures = signatures,
         )
+    }
+
+    /** A provider-side stop gets its own explanation; an unexplained empty stream keeps the retry advice. */
+    private fun emptyAnswerMessage(reason: String?, hasAudio: Boolean): String = when (reason) {
+        "RECITATION", "IMAGE_RECITATION" -> if (hasAudio) {
+            "Geminiが回答の出力を著作権（引用）上の理由で中止しました。" +
+                "音声の書き起こしでは引用と判定されることがあります。範囲を分けるか、音声の文字起こし向けのモデル（Gemini 3.5 Transcribeなど）でお試しください。"
+        } else {
+            "Geminiが回答の出力を著作権（引用）上の理由で中止しました。入力や質問の範囲を変えてお試しください。"
+        }
+        "SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "LANGUAGE",
+        "IMAGE_SAFETY", "IMAGE_PROHIBITED_CONTENT" ->
+            "Geminiが回答の出力を安全上の理由で中止しました。入力内容や質問を変えてお試しください。"
+        "MAX_TOKENS" ->
+            "回答が出力の上限に達したため、本文が返されませんでした。質問や添付を分けてお試しください。"
+        "STOP", null, "" -> "モデルから回答本文が返されませんでした。時間をおいて再試行してください。"
+        else -> "モデルから回答本文が返されませんでした（理由: $reason）。時間をおいて再試行してください。"
     }
 
     /** Gemini's latest Nano Banana model uses unary generateContent with its own image/thinking controls. */

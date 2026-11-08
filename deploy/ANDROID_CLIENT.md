@@ -413,6 +413,7 @@ DNS失敗時の補助は `data/NetworkDns.kt` で共通化しています。通�
 
 - 事業者APIへの接続は `data/direct/DirectHttp.kt` の専用クライアントで、許可したAPIホスト（Google Generative Language／Vertex、OpenAI、Anthropic、xAI、DeepSeek、Moonshot、Mistral、Z.AI、Ideogram）だけにhttpsで送ります。Cookieなし、リダイレクトなし、ログ出力なしです。Anthropicへは、サーバー以外からの呼び出しで必要な `anthropic-dangerous-direct-browser-access` ヘッダーを付けます。
 - 直接通信でSSLエラーが起きた場合は、待機中の接続を破棄し、「安全な通信が中断されました。回答を再生成してください。」と表示します。受信済みの本文・思考は保持します。要求が事業者へ届いている可能性があるため自動再送はせず、手動の再生成で新しい接続を使います。証明書検証は維持します。
+- Geminiの直接送信で回答本文が無いまま終了した場合は、事業者が返した `finishReason`（引用・安全・出力上限など）に応じた説明を表示します。引用（`RECITATION`）で音声の書き起こしが中止されたときは、範囲を分けるか音声の文字起こし向けのモデルを使う案内を表示し、同じ要求の自動再送は行いません。
 - APIキーは端末のAndroid Keystoreで暗号化して保存し（チャットとは別の鍵）、画面にはサーバーと同じマスク（`********`）だけを返します。モデル別キー → プロバイダ別キーの順に選ぶのはサーバーと同じです。サーバーの管理者用フォールバックキーは使いません。
 - システムプロンプトはサーバーの組み立て順（Skillの指示と `skills` 通知 → 運営の全体指示または現在時刻 → 利用者の指示 → チャット固有の指示 → Coding Mode → 自動注入）を `data/direct/SystemPromptBuilder.kt` に移植しています。
 - サーバー不使用モードのSkillsは、Gemini／OpenAI Responses／Anthropic／Chat Completionsの各直接送信で `use_skill` を使います。BatchとOpenAI Search APIは1回のリクエストでツール結果を返せないため、Skillの指示全文をプロンプトへ同梱します。

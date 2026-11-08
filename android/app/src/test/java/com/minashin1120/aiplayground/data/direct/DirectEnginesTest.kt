@@ -156,6 +156,41 @@ class DirectEnginesTest {
         }
     }
 
+    @Test fun geminiExplainsAProviderRecitationBlockOnAudioInsteadOfAskingToRetry() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(sse(
+                """{"candidates":[{"content":{"parts":[{"text":"考え","thought":true}]}}]}""",
+                """{"candidates":[{"content":{"parts":[]},"finishReason":"RECITATION"}],"usageMetadata":{"thoughtsTokenCount":1}}""",
+            ))
+            val req = request(turns = listOf(DirectTurn("user", "書き起こし",
+                listOf(DirectAttachment("voice.m4a", "audio/mp4", byteArrayOf(1, 2, 3))))))
+            val error = runCatching {
+                run(GeminiDirect(http, server.url("/").toString().trimEnd('/')), req)
+            }.exceptionOrNull()
+            assertTrue("expected DirectApiException but was $error", error is DirectApiException)
+            val message = (error as DirectApiException).message
+            assertTrue("recitation reason should be explained: $message", message.contains("著作権"))
+            assertTrue("audio transcription should suggest the transcription model: $message", message.contains("Gemini 3.5 Transcribe"))
+            assertFalse("a provider block must not ask for the same retry: $message", message.contains("時間をおいて再試行"))
+        }
+    }
+
+    @Test fun geminiKeepsTheGenericEmptyAnswerMessageForAnUnclassifiedStop() {
+        MockWebServer().use { server ->
+            server.start()
+            server.enqueue(sse(
+                """{"candidates":[{"content":{"parts":[]},"finishReason":"STOP"}]}""",
+            ))
+            val error = runCatching {
+                run(GeminiDirect(http, server.url("/").toString().trimEnd('/')), request())
+            }.exceptionOrNull()
+            assertTrue("expected DirectApiException but was $error", error is DirectApiException)
+            val message = (error as DirectApiException).message
+            assertEquals("モデルから回答本文が返されませんでした。時間をおいて再試行してください。", message)
+        }
+    }
+
     @Test fun geminiStreamsTextThoughtsPythonAndUsage() {
         MockWebServer().use { server ->
             server.start()

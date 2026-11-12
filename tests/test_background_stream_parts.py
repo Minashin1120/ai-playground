@@ -12,6 +12,7 @@ import builtins
 import dis
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import app as app_module
 
@@ -135,6 +136,80 @@ class BackgroundStreamPartBindingTests(unittest.TestCase):
             "full_res, thought_accumulated, final_usage_metadata = _chat_result",
             dispatcher,
         )
+
+    def test_stream_tail_stops_after_persisting_the_empty_answer_error(self):
+        """The error bubble must stay the only message when the answer text is empty.
+
+        `pub("error", ...)` persists an assistant bubble and sets
+        `stream_error_persisted` on `background_chat_task`.  The extracted tail
+        receives a `locals()` snapshot, so that assignment is invisible to its
+        own copy of the flag; without an explicit update it would carry on and
+        save a second, empty assistant message.
+        """
+        published = []
+
+        def fake_pub(kind, data, **_metadata):
+            published.append((kind, data))
+
+        local = {
+            "is_gem": True,
+            "is_deepseek": False,
+            "is_grok": False,
+            "grok_reasoning_supported": False,
+            "full_res": "",
+            "generated_images": [],
+            "stream_error_persisted": False,
+            "pub": fake_pub,
+            "agentic_saved_urls": [],
+            "agentic_consumed_urls": [],
+            "agentic_filename_url_map": {},
+            "usage_ledger": mock.Mock(calls=[]),
+            "_used_skills": [],
+            "history": [],
+            "options": {},
+        }
+        with mock.patch.object(
+            app_module,
+            "_strip_invented_agentic_images",
+            side_effect=AssertionError("a normal message was saved after the error was persisted"),
+        ):
+            result = app_module.background_stream_tail(local)
+
+        self.assertEqual([("error", "モデルから回答本文が返されませんでした。時間をおいて再試行してください。")], published)
+        self.assertIs(result, app_module.BACKGROUND_STREAM_EARLY_RETURN)
+
+    def test_ideogram_edit_uses_the_configured_context_limits(self):
+        """The Ideogram edit branch must see MAX_CONTEXT_* from the environment.
+
+        Those values used to be locals of `background_chat_task`, but the history
+        loader owns them now.  Reading them from the `locals()` snapshot always
+        returned None, so a configured limit silently stopped filtering the
+        source images.
+        """
+        class Reached(BaseException):
+            pass
+
+        def stop(*_args, **_kwargs):
+            raise Reached()
+
+        local = {
+            "full_res": "",
+            "generated_images": [],
+            "key": "k",
+            "loaded_files": [],
+            "model_key_l": "ideogram-4.0",
+            "msg": mock.Mock(parent_id=2),
+            "options": {"ideogram_operation": ""},
+            "pub": mock.Mock(),
+            "thread_id": 1,
+            "user_config": {},
+            "user_id": 1,
+        }
+        with mock.patch.object(app_module, "background_context_limits", return_value=(5, 0)), \
+                mock.patch.object(app_module, "ideogram_supports_edit", return_value=True), \
+                mock.patch.object(app_module, "_iter_chat_history_ancestors", side_effect=stop):
+            with self.assertRaises(Reached):
+                app_module.background_stream_ideogram(local)
 
     def test_extracted_parts_are_registered_before_background(self):
         parts = list(app_module._SERVER_PARTS)

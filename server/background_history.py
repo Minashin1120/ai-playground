@@ -8,6 +8,30 @@ namespace because `app.py` execs every server part into one module.
 """
 
 
+def background_context_limits():
+    """Return the clamped (messages, tokens) context limits; 0 means unlimited.
+
+    The limits used to be locals of `background_chat_task`, so the Ideogram edit
+    branch could read them.  They live here now, and both the history loader and
+    that branch must ask for them instead of reading an empty `locals()` snapshot.
+    """
+    try:
+        # 0 means unlimited.
+        max_tokens = int(os.getenv("MAX_CONTEXT_TOKENS", "0") or "0")
+    except Exception:
+        max_tokens = 0
+    if max_tokens < 0:
+        max_tokens = 0
+    try:
+        # 0 means unlimited.
+        max_messages = int(os.getenv("MAX_CONTEXT_MESSAGES", "0") or "0")
+    except Exception:
+        max_messages = 0
+    if max_messages < 0:
+        max_messages = 0
+    return max_messages, max_tokens
+
+
 def background_load_history(model_key, msg, thread_id, user_id):
     """Rebuild the ancestor history and persist token counts.
 
@@ -16,20 +40,7 @@ def background_load_history(model_key, msg, thread_id, user_id):
     """
     history_rev = []
     total_history_tokens = 0
-    try:
-        # 0 means unlimited.
-        MAX_CONTEXT_TOKENS = int(os.getenv("MAX_CONTEXT_TOKENS", "0") or "0")
-    except Exception:
-        MAX_CONTEXT_TOKENS = 0
-    if MAX_CONTEXT_TOKENS < 0:
-        MAX_CONTEXT_TOKENS = 0
-    try:
-        # 0 means unlimited.
-        MAX_CONTEXT_MESSAGES = int(os.getenv("MAX_CONTEXT_MESSAGES", "0") or "0")
-    except Exception:
-        MAX_CONTEXT_MESSAGES = 0
-    if MAX_CONTEXT_MESSAGES < 0:
-        MAX_CONTEXT_MESSAGES = 0
+    MAX_CONTEXT_MESSAGES, MAX_CONTEXT_TOKENS = background_context_limits()
     history_count = 0
 
     messages_to_update = False

@@ -105,9 +105,14 @@ def background_stream_tail(local):
 
     if (is_gem or is_deepseek) and not full_res.strip() and not generated_images and not stream_error_persisted:
         pub("error", "モデルから回答本文が返されませんでした。時間をおいて再試行してください。")
+        # `pub` sets the flag on `background_chat_task`, not on this function's
+        # `locals()` copy. Mirror it here so the check below still stops the
+        # normal message from being saved behind the persisted error.
+        stream_error_persisted = True
     # pub(error) has already saved the partial answer and error as the active leaf.
     # A second normal row would hide that error behind an empty sibling branch.
     if stream_error_persisted:
+        log_force("Stream error already persisted; skipping the normal assistant message")
         return BACKGROUND_STREAM_EARLY_RETURN
     if is_grok and grok_reasoning_supported and not thought_accumulated:
         thought_accumulated = " "

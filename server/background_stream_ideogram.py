@@ -12,8 +12,6 @@ execs every server part into one module.
 def background_stream_ideogram(local):
     """Generate or edit Ideogram images and return the updated answer text."""
 
-    MAX_CONTEXT_MESSAGES = local.get('MAX_CONTEXT_MESSAGES')
-    MAX_CONTEXT_TOKENS = local.get('MAX_CONTEXT_TOKENS')
     _load_history_image_parts = local.get('_load_history_image_parts')
     _mark_provider_request_started = local.get('_mark_provider_request_started')
     final_message_text = local.get('final_message_text')
@@ -30,6 +28,8 @@ def background_stream_ideogram(local):
     user_id = local.get('user_id')
 
     log_force("Routing: Ideogram Branch")
+    # These were locals of `background_chat_task`; the history loader owns them now.
+    MAX_CONTEXT_MESSAGES, MAX_CONTEXT_TOKENS = background_context_limits()
     try:
         pub("status", "画像生成の準備中...")
         # Edit the last model output in the selected branch; new uploads

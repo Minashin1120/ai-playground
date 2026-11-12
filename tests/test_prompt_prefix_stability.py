@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def helpers():
-    tree = ast.parse((ROOT / 'server/request_security.py').read_text())
+    tree = ast.parse((ROOT / 'server/request_security_notices.py').read_text())
     nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in
              ('_prompt_context_record', '_append_turn_time_notice', '_saved_prompt_text')]
     ns = {'json': json}

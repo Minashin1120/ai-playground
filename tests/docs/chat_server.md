@@ -4,6 +4,7 @@
 
 | テストファイル | 主な対象 |
 |---|---|
+| [test_background_stream_parts.py](../test_background_stream_parts.py) | `background_stream_*` 部品の名前解決と読み込み順（`background_chat_task` からの抽出） |
 | [test_chat_error_persist_regressions.py](../test_chat_error_persist_regressions.py) | chat / error / persist |
 | [test_connection_status_regressions.py](../test_connection_status_regressions.py) | connection / status |
 | [test_generation_restart_resilience.py](../test_generation_restart_resilience.py) | generation / restart / resilience |

@@ -172,12 +172,12 @@ Androidアプリも同じ考え方で復元します。アカウント設定の�
 | ファイル | 役割 |
 |---|---|
 | `templates/chat/composer_controls.html` | プロンプトバーの各スイッチとモデル選択行 |
-| `static/js/chat_core_parts/chat_core.part04_minimal_options_thinking.js` | `applyChatDefaults`、編集時のスナップショット復元、`restoreLatestPromptOptions` |
-| `static/js/chat_core_parts/chat_core.part15_slash_tempchat_threads.js` | 会話の読み込み、分岐切替、新規チャット、スレッド設定 |
-| `static/js/chat_core_parts/chat_core.part06_model_media_prompt_cache.js` | 高速モードの退避・復元、MCPチップの表示制御 |
-| `static/js/chat_core_parts/chat_core.part07_domcontent_initial.js` | モデル別の項目制御、SysPrompt の復元フラグ、初期化 |
-| `static/js/chat_core_parts/chat_core.part01_bootstrap_utils.js` | 設定のキャッシュ、ユーザーシステムプロンプト保存時の同期 |
-| `static/js/chat_core_parts/chat_core.part02_rich_paste.js` | Canvas・Coding・低帯域モードなどのブラウザー保存キー |
+| `static/js/chat_core_parts/chat_core.part06_buildminimaloptionitem.js` | `applyChatDefaults`、編集時のスナップショット復元、`restoreLatestPromptOptions` |
+| `static/js/chat_core_parts/chat_core.part25_updatethreadhighlighting.js` / `chat_core.part26_ensurecurrentchatheaderticker.js` | 会話の読み込み、分岐切替、新規チャット、スレッド設定 |
+| `static/js/chat_core_parts/chat_core.part11_getmodelcapabilitysearchterms.js` | 高速モードの退避・復元、MCPチップの表示制御 |
+| `static/js/chat_core_parts/chat_core.part12_toggleoptions.js` | モデル別の項目制御、SysPrompt の復元フラグ、初期化 |
+| `static/js/chat_core_parts/chat_core.part02_syncthemeinputs.js` | 設定のキャッシュ、ユーザーシステムプロンプト保存時の同期 |
+| `static/js/chat_core_parts/chat_core.part04_refreshcsrftoken.js` | Canvas・Coding・低帯域モードなどのブラウザー保存キー |
 | `server/routes_chat.py` | `_PROMPT_OPTION_KEYS`、`prompt_options` の保存、`last_*` の更新 |
 | `server/routes_settings.py` | `/api/settings` の既定値・前回値の入出力 |
 | `server/models.py` | `user` と `message` の保存列 |

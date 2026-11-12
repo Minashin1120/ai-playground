@@ -3,7 +3,7 @@ package com.minashin1120.aiplayground.data
 import org.junit.Assert.*
 import org.junit.Test
 
-/** Coding Mode target texts and send candidates (chat_core part03 / part14). */
+/** Coding Mode target texts and send candidates (chat_core part03 / part15). */
 class CodingTargetsTest {
     private val history = historyCodingTargets(listOf(
         ChatMessage("1", "user", "```kotlin\nval ignored = 1\n```"),

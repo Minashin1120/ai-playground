@@ -5,6 +5,7 @@ import hashlib
 import json
 import mimetypes
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 import secrets
 import threading
 import time
@@ -148,7 +149,7 @@ def test_all_chat_providers_are_included_in_display_counts():
 
 def test_web_shows_unknown_attachments_and_counting_scope():
     import subprocess
-    source = (ROOT / 'static/js/chat_core_parts/chat_core.part03_security_token_promptbar.js').read_text()
+    source = read_chat_core_source()
     renderer = source[source.index('        function renderPromptTokenEstimate('):source.index('        function schedulePromptTokenEstimate(')]
     script = '''const assert = require('node:assert/strict');
 let text, promptTokenEstimateVisible;
@@ -170,7 +171,7 @@ assert.equal(promptTokenEstimateVisible.data.estimate_method, 'provider');
 
 def test_web_reverting_to_cached_input_cancels_a_different_pending_estimate():
     import subprocess
-    source = (ROOT / 'static/js/chat_core_parts/chat_core.part03_security_token_promptbar.js').read_text()
+    source = read_chat_core_source()
     scheduler = source[source.index('        function schedulePromptTokenEstimate('):source.index('        function updatePromptPlaceholder(')]
     script = '''const assert = require('node:assert/strict');
 let timers = new Map(), nextTimer = 1;
@@ -269,7 +270,7 @@ def test_failed_split_keeps_provider_total_and_marks_unknown_values():
 
 def test_detail_renderer_treats_names_as_text_and_hides_prompt_contents():
     import subprocess
-    source = (ROOT / 'static/js/chat_core_parts/chat_core.part03_security_token_promptbar.js').read_text()
+    source = read_chat_core_source()
     renderer = source[source.index('        function renderPromptTokenDetail('):source.index('        async function loadPromptTokenDetail(')]
     script = '''const assert = require('node:assert/strict');
 class Element {

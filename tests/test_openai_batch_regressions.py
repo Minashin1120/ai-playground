@@ -1,4 +1,5 @@
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 import unittest
 
 
@@ -7,7 +8,7 @@ APP_ROOT = Path(__file__).resolve().parents[1]
 
 class OpenAIBatchRegressionTests(unittest.TestCase):
     def test_openai_batch_model_gate_excludes_non_text_models(self):
-        routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")
+        routes = (APP_ROOT / "server/routes_batch.py").read_text(encoding="utf-8")
         start = routes.index("def _is_openai_batch_model")
         source = routes[start:routes.index("def _is_batch_model", start)]
         self.assertIn("model_l.startswith('gpt-')", source)
@@ -25,14 +26,14 @@ class OpenAIBatchRegressionTests(unittest.TestCase):
         self.assertIn("'custom_id': job_id", source)
 
     def test_openai_batch_result_file_is_saved_to_assistant_message(self):
-        routes = (APP_ROOT / "server/routes_chat.py").read_text(encoding="utf-8")
+        routes = (APP_ROOT / "server/routes_batch.py").read_text(encoding="utf-8")
         self.assertIn("client.batches.retrieve(row.provider_job_name)", routes)
         self.assertIn("_openai_file_text(client, row.output_file_id)", routes)
         self.assertIn("_extract_openai_response_text(body)", routes)
         self.assertIn("usage, 'output_tokens'", routes)
 
     def test_batch_ui_includes_openai(self):
-        part = (APP_ROOT / "static/js/chat_core_parts/chat_core.part06_model_media_prompt_cache.js").read_text(encoding="utf-8")
+        part = read_chat_core_source()
         self.assertIn("function isBatchModelKey", part)
         self.assertIn("if (m.startsWith('gpt-'))", part)
         self.assertIn("const supported = isBatchModelKey(model)", part)

@@ -2,20 +2,21 @@
 import subprocess
 import unittest
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 
 ROOT = Path(__file__).resolve().parents[1]
 PARTS = ROOT / "static/js/chat_core_parts"
 
 
 def rendering_harness():
-    source = (PARTS / "chat_core.part13_canvas_coding_stream.js").read_text()
-    settings = (PARTS / "chat_core.part05_settings_modal.js").read_text()
-    files = (PARTS / "chat_core.part11_file_preview_upload.js").read_text()
+    source = read_chat_core_source()
+    settings = read_chat_core_source()
+    files = read_chat_core_source()
     helpers = source[source.index("function normalizeMarkdownNewlines(text)"):source.index("function openPythonExecDetail(id)")]
     render = source[source.index("function renderMessage("):source.index("function showTokenDetailModal(")]
     normalize = settings[settings.index("const normalizeAttachmentPath ="):settings.index("const isGeminiImageModelKey =")]
     urls = files[files.index("function buildFileUrl("):files.index("window.closeMarkerModal =")]
-    costs = (PARTS / "chat_core.part20_cost_estimate.js").read_text()
+    costs = read_chat_core_source()
     cache_usage = costs[costs.index("function costTokenNumber(value)"):costs.index("function costRate(")]
     return r'''
 const assert = require('node:assert/strict');

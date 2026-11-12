@@ -23,7 +23,7 @@
 | 縦横比（Grokの画像→動画） | `background.py` | `_probe_image` | 縦横比を指定しない |
 | 生成画像の検証 | `agentic_media.py` | `_probe_image` と `_validate_image_structure` | `not a supported image` |
 | SVG→PNG | `agentic_media.py` | サニタイズの後、`_rasterize_svg_png`（`python -m cairosvg` を子プロセスで実行） | `Rasterized generated image is invalid` |
-| TOTPのQRコード | `routes_settings.py` | `_qr_png_bytes`（`qrcode` の `get_matrix()` と `_encode_png` による1ビットPNG） | — |
+| TOTPのQRコード | `routes_settings_security.py` | `_qr_png_bytes`（`qrcode` の `get_matrix()` と `_encode_png` による1ビットPNG） | — |
 
 ## 形式ごとの対応
 

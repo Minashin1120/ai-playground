@@ -18,7 +18,7 @@
 
 ## chat_core の分割について
 
-`chat_core.v*.js` は1ファイルで約2.5万行あるため、編集は `static/js/chat_core_parts/` 配下の順序付き部品（`chat_core.partNN_名前.js`）に対して行います。`scripts/build_frontend.sh` が部品を順に連結して `chat_core.v*.js`（結合ソース）を再生成し、それを圧縮・分割して `chat_core.min.v*.<n>.js` を作ります。
+`chat_core.v*.js` は1ファイルで約2.8万行あるため、編集は `static/js/chat_core_parts/` 配下の順序付き部品（`chat_core.partNN_名前.js`）に対して行います。`scripts/build_frontend.sh` が部品を順に連結して `chat_core.v*.js`（結合ソース）を再生成し、それを圧縮・分割して `chat_core.min.v*.<n>.js` を作ります。
 
 - **編集対象は部品ファイル**。部品を編集したら必ず `scripts/build_frontend.sh` を実行して結合ソースと圧縮ファイルを更新してください（回帰テストと検証は結合ソースを検査します）。
 - 部品は連結順に番号が付いており、**結合ソースは部品の連結とバイト単位で一致**します（検証で確認されます）。

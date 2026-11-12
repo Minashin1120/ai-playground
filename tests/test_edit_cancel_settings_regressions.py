@@ -2,16 +2,17 @@
 import subprocess
 import unittest
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 
 ROOT = Path(__file__).resolve().parents[1]
-PART = ROOT / 'static/js/chat_core_parts/chat_core.part04_minimal_options_thinking.js'
+
 
 
 class EditCancelSettingsTests(unittest.TestCase):
     def test_cancel_returns_to_before_first_edit_instead_of_latest_prompt(self):
-        source = PART.read_text()
+        source = read_chat_core_source()
         block = source[source.index('        const PROMPT_OPTION_INPUT_IDS'):source.index('        function playSendAnimation()')]
-        send_source = (ROOT / 'static/js/chat_core_parts/chat_core.part14_send_message_browser_fast.js').read_text()
+        send_source = read_chat_core_source()
         send_start = send_source[send_source.index('            const editingId = editingMessageId;'):send_source.index('            playSendAnimation();', send_source.index('            const editingId = editingMessageId;'))]
         failure_start = send_source.index('                if (!requestAccepted) {\n                    const restoreEditing')
         failure_restore = send_source[failure_start:send_source.index("                // Restore old message", failure_start)]

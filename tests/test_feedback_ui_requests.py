@@ -1,12 +1,13 @@
 """Exercise rename and feedback status filtering with synthetic DOM objects."""
 import subprocess
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 
 PARTS = Path(__file__).resolve().parents[1] / 'static/js/chat_core_parts'
 
 
 def source(part, start, end):
-    text = next(PARTS.glob(f'chat_core.part{part}_*.js')).read_text()
+    text = read_chat_core_source()
     return text[text.index(start):text.index(end, text.index(start))]
 
 

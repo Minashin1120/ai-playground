@@ -3,6 +3,8 @@ import shutil
 import unittest
 from pathlib import Path
 
+from tests.app_source import read_chat_core_source
+
 ROOT = Path(__file__).resolve().parents[1]
 PARTS = ROOT / 'static/js/chat_core_parts'
 
@@ -23,10 +25,13 @@ class ImageSplitWebTests(unittest.TestCase):
         from jinja2 import Environment, FileSystemLoader
         env = Environment(loader=FileSystemLoader(ROOT / 'templates'), autoescape=True)
         cls.markup = env.get_template('chat/overlay_image_split.html').render()
-        source = (PARTS / 'chat_core.part01_bootstrap_utils.js').read_text()
+        source = read_chat_core_source()
         # imageFilenameForMime is part of the shared pipeline, not duplicated in the fixture.
         cls.compression = source[source.index('        const IMAGE_EXTENSION_BY_MIME ='):source.index('        const setCompressionSettings =')]
-        cls.script = (PARTS / 'chat_core.part18_image_split.js').read_text()
+        cls.script = source[
+            source.index('        // Image splitting uses the Android grid rules.'):
+            source.index('        // Presentation-only state:')
+        ]
 
     @classmethod
     def tearDownClass(cls):

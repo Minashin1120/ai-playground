@@ -5,8 +5,8 @@ import textwrap
 import unittest
 
 
-SOURCE = (Path(__file__).resolve().parents[1] / "server/background.py").read_text()
-VIDEO_BRANCH = SOURCE.split("# --- 1.6 Grok Imagine Video Generation ---", 1)[1]
+SOURCE = (Path(__file__).resolve().parents[1] / "server/background_stream_grok_imagine_video.py").read_text()
+VIDEO_BRANCH = SOURCE
 REQUEST_SOURCE = textwrap.dedent(
     VIDEO_BRANCH.split("# Prepare params\n", 1)[1].split("# Send request", 1)[0]
 )

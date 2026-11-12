@@ -4,7 +4,7 @@ import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 
-/** Expected values follow chat_core part07 `toggleOptions()` on the Web. */
+/** Expected values follow chat_core part08 `toggleOptions()` on the Web. */
 class ComposerRulesTest {
     @Test fun gemini3FlashShowsUrlsForcesThinkingAndHidesMaps() {
         val rules = composerRules("gemini-3.6-flash", mcpEnabledServer = false)

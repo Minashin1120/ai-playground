@@ -4,7 +4,6 @@ from pathlib import Path
 import unittest
 from unittest.mock import Mock, patch
 
-from tests.app_source import read_app_source
 os.environ.setdefault("FLASK_SECRET_KEY", "deepseek-search-test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite:////tmp/ai-chat-deepseek-search-tests.db")
 os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6399/15")
@@ -90,8 +89,8 @@ class DeepSeekSearchTests(unittest.TestCase):
                 self.assertEqual(0.00075, pricing["models"][model]["tool_rates"]["web_search"])
 
     def test_deepseek_branch_calls_search_only_when_the_toggle_is_on(self):
-        source = read_app_source()
-        start = source.index("            elif is_deepseek:", source.index("def background_chat_task"))
+        source = (APP_ROOT / "server/background_stream_deepseek.py").read_text(encoding="utf-8")
+        start = source.index('log_force("Routing: DeepSeek V4 Branch (Chat Completions)")')
         end = source.index("# If images are present", start)
         snippet = source[start:end]
         self.assertIn("options.get('enable_search')", snippet)

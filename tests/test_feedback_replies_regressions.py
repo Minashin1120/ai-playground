@@ -1,4 +1,4 @@
-"""Reply history of a feedback: replies by administrators and the sender, with the activity log on request (server/routes_admin.py)."""
+"""Reply history of a feedback: replies by administrators and the sender, with the activity log on request (server/routes_admin_feedback.py)."""
 import io
 import json
 import os

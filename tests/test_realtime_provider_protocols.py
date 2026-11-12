@@ -113,7 +113,9 @@ class OpenAiRealtimeTests(unittest.TestCase):
         self.assertIn("model", cfg["audio"]["input"]["transcription"])
 
     def test_no_beta_header_for_ga_protocol(self):
-        for rel in ("server/realtime.py", "server/settings_ai.py"):
+        for rel in ("server/realtime.py", "server/realtime_openai.py",
+                    "server/realtime_gemini.py", "server/realtime_xai_stt.py",
+                    "server/settings_ai.py"):
             source = (APP_ROOT / rel).read_text(encoding="utf-8")
             self.assertNotIn('"OpenAI-Beta"', source, rel)
 

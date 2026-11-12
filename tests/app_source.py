@@ -4,6 +4,34 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 _PARTS_RE = re.compile(r'_SERVER_PARTS\s*=\s*\[(.*?)\]', re.S)
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def compact(text):
+    """Collapse whitespace runs so indentation-only moves keep substring checks valid.
+
+    Parts are extracted between functions, so their nested code loses a level of
+    indentation.  Tests that asserted a multi-line snippet with exact spaces
+    broke; compare `compact(expected)` against `compact(source)` instead.
+    """
+    return _WHITESPACE_RE.sub(" ", text)
+
+
+def read_chat_core_source():
+    """Return the rebuilt chat_core source so part boundaries can change freely.
+
+    Tests that inspect or slice chat_core code should not depend on a specific
+    ``chat_core.partNN`` filename: the parts are re-split when they grow.  The
+    combined versioned source is generated from the parts by
+    ``scripts/build_frontend.sh`` and is byte-identical to their concatenation.
+    """
+    js_dir = ROOT / "static" / "js"
+    sources = sorted(
+        path for path in js_dir.glob("chat_core.v4.8.*.js") if ".min." not in path.name
+    )
+    if len(sources) != 1:
+        raise AssertionError(f"expected one chat_core source, found {[p.name for p in sources]}")
+    return sources[0].read_text(encoding="utf-8")
 
 
 def read_app_source():

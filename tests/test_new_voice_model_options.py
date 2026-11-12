@@ -5,6 +5,7 @@ import base64
 import json
 import unittest
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 from unittest import mock
 
 import app as target
@@ -85,6 +86,7 @@ class GptLiveTests(unittest.TestCase):
 
     def test_worker_dispatches_live_sessions(self):
         source = (APP_ROOT / "server" / "realtime.py").read_text(encoding="utf-8")
+        source += (APP_ROOT / "server" / "realtime_openai.py").read_text(encoding="utf-8")
         self.assertIn('"wss://api.openai.com/v1/live/sessions"', source)
         self.assertIn("loop.run_until_complete(_rt_openai_live_session_async(session))", source)
 
@@ -131,26 +133,26 @@ class Gemini38TtsTests(unittest.TestCase):
     def test_chat_route_and_background_use_the_interactions_path(self):
         self.assertTrue(target.is_gemini_interactions_tts_model_key("gemini-3.8-flash-tts"))
         self.assertFalse(target.is_gemini_interactions_tts_model_key("gemini-3.1-flash-tts-preview"))
-        background = (APP_ROOT / "server" / "background.py").read_text(encoding="utf-8")
-        block = background[background.index("# Gemini TTS (Preview)"):background.index("# Image Generation")]
+        background = (APP_ROOT / "server" / "background_stream_gemini_tts.py").read_text(encoding="utf-8")
+        block = background
         self.assertIn('is_gemini_interactions_tts_model_key(model_key) and gemini_backend_mode != "vertex_ai"', block)
         self.assertIn("style=options.get('tts_style')", block)
-        routes = (APP_ROOT / "server" / "routes_chat.py").read_text(encoding="utf-8")
+        routes = (APP_ROOT / "server" / "routes_stream.py").read_text(encoding="utf-8")
         self.assertIn("'tts_style': data.get('tts_style')", routes)
 
 
 class WebControlsTests(unittest.TestCase):
     def test_panels_and_payloads(self):
         parts = APP_ROOT / "static" / "js" / "chat_core_parts"
-        settings = (parts / "chat_core.part05_settings_modal.js").read_text(encoding="utf-8")
+        settings = read_chat_core_source()
         self.assertIn("OPENAI_LIVE_STS_MODELS.has(m)", settings)
         self.assertIn("'gpt-live-1',", settings)
         self.assertIn("GEMINI_INTERACTIONS_TTS_MODELS.has(model)", settings)
         self.assertIn("reasoning_effort: get('sts-reasoning-effort')",
-                      (parts / "chat_core.part09_domcontent_popstate_modals.js").read_text(encoding="utf-8"))
+                      read_chat_core_source())
         self.assertIn("fd.append('sts_reasoning_effort'",
-                      (parts / "chat_core.part10_domcontent_final.js").read_text(encoding="utf-8"))
-        self.assertIn("tts_style:", (parts / "chat_core.part14_send_message_browser_fast.js").read_text(encoding="utf-8"))
+                      read_chat_core_source())
+        self.assertIn("tts_style:", read_chat_core_source())
         panels = (APP_ROOT / "templates" / "chat" / "composer_panels.html").read_text(encoding="utf-8")
         self.assertIn('id="sts-reasoning-effort"', panels)
         media = (APP_ROOT / "templates" / "chat" / "composer_gen_media.html").read_text(encoding="utf-8")

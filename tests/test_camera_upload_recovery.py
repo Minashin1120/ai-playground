@@ -1,6 +1,7 @@
 """Exercise camera upload failures without a server or real user files."""
 import json
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 import shutil
 import subprocess
 import unittest
@@ -9,7 +10,7 @@ PARTS = Path(__file__).resolve().parents[1] / 'static/js/chat_core_parts'
 
 
 def source_between(filename, start, end):
-    source = (PARTS / filename).read_text()
+    source = read_chat_core_source()
     return source[source.index(start):source.index(end, source.index(start))]
 
 
@@ -23,7 +24,7 @@ class CameraUploadRecoveryTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr[-3000:])
 
     def test_proxy_failure_uses_chunks_only_for_camera_and_preserves_errors(self):
-        source = source_between('chat_core.part12_upload_camera_canvas.js',
+        source = source_between('chat_core.part13_upload_camera_canvas.js',
                                 'function uploadFileWithProgress(', 'function isVideoFile(')
         self.run_js(source, r'''
 const assert = require('node:assert/strict');
@@ -65,7 +66,7 @@ class FormData { append() {} }
 ''')
 
     def test_camera_reports_only_successful_files(self):
-        source = source_between('chat_core.part11_file_preview_upload.js',
+        source = source_between('chat_core.part12_file_preview_upload.js',
                                 'async function attachCameraCapturedFiles(', 'function openUploadModal(')
         # Run each result independently, including complete and partial failure.
         for results in ([False, False], [True, False], [True, True]):
@@ -100,7 +101,7 @@ async function handleFiles(files, opts) {
 ''')
 
     def test_failed_camera_keeps_bytes_for_retry_without_reuploading_successes(self):
-        source = source_between('chat_core.part12_upload_camera_canvas.js',
+        source = source_between('chat_core.part13_upload_camera_canvas.js',
                                 'async function handleFiles(', "get('clear-file-btn').onclick")
         self.run_js(source, r'''
 const assert = require('node:assert/strict');

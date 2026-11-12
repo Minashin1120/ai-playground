@@ -1,5 +1,6 @@
 """Coding targets must follow the ancestry of an edited prompt's new branch."""
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 import shutil
 import subprocess
 import unittest
@@ -8,8 +9,7 @@ import unittest
 @unittest.skipUnless(shutil.which("node"), "Node.js is required")
 class CodingModeBranchTests(unittest.TestCase):
     def test_editing_uses_only_ancestor_code_and_new_prompt_code(self):
-        source = (Path(__file__).resolve().parents[1] / "static/js/chat_core_parts/"
-                  "chat_core.part03_security_token_promptbar.js").read_text()
+        source = read_chat_core_source()
         functions = source[source.index("        function codingBranchAllowsTarget("):
                            source.index("        function syncCodingTargetButtons(")]
         setup = r'''

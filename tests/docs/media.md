@@ -15,6 +15,7 @@
 | [test_edit_file_tool.py](../test_edit_file_tool.py) | edit / file / tool |
 | [test_gemini_agentic_timeout_regressions.py](../test_gemini_agentic_timeout_regressions.py) | gemini / agentic / timeout |
 | [test_gemini_file_upload_config_regressions.py](../test_gemini_file_upload_config_regressions.py) | gemini / file / upload / config |
+| [test_gemini_file_parts_regressions.py](../test_gemini_file_parts_regressions.py) | gemini / file / parts / wiring |
 | [test_gemini_grounding_citation_regressions.py](../test_gemini_grounding_citation_regressions.py) | gemini / grounding / citation |
 | [test_gemini_local_python_docs_regressions.py](../test_gemini_local_python_docs_regressions.py) | gemini / local / python / docs |
 | [test_gemini_tool_combination_regressions.py](../test_gemini_tool_combination_regressions.py) | gemini / tool / combination |

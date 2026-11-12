@@ -2,13 +2,14 @@
 import subprocess
 import unittest
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class FeedbackNewRegressions(unittest.TestCase):
     def test_settings_retry_recovers_timeout_but_does_not_retry_auth_failure(self):
-        source = (ROOT / 'static/js/chat_core_parts/chat_core.part01_bootstrap_utils.js').read_text()
+        source = read_chat_core_source()
         block = source.split('        const SETTINGS_LOAD_TIMEOUT_MS =', 1)[1].split('        // ユーザーシステムプロンプト', 1)[0]
         script = r'''
 const assert = require('node:assert/strict');
@@ -51,7 +52,7 @@ async function scenario(failure, retryable = true) {
                 self.assertEqual(result.returncode, 1 if code == 128 else 0)
 
     def test_search_box_survives_completion_and_can_start_another_search(self):
-        source = (ROOT / 'static/js/chat_core_parts/chat_core.part13_canvas_coding_stream.js').read_text()
+        source = read_chat_core_source()
         block = source[source.index('        const SEARCH_COMPLETE_HTML'):source.index('        function renderMessage(')]
         script = """
 const assert = require('node:assert/strict');
@@ -74,7 +75,7 @@ assert.equal(inserted, 1);
     def test_android_prompt_option_allowlist_matches_server(self):
         import ast
         import re
-        source = (ROOT / 'server/routes_chat.py').read_text()
+        source = (ROOT / 'server/routes_browser_fast.py').read_text()
         keys = ast.literal_eval('(' + re.search(r'_PROMPT_OPTION_KEYS = \((.*?)\n\)', source, re.S).group(1) + ')')
         android = (ROOT / 'android/app/src/main/java/com/minashin1120/aiplayground/data/Models.kt').read_text().split('internal fun promptOptionsRecord', 1)[1].split('internal fun reasoningSearchUsed', 1)[0]
         self.assertEqual(set(keys), set(re.findall(r'"([a-z_0-9]+)"', android)))

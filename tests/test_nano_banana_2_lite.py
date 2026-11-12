@@ -3,9 +3,10 @@ import unittest
 
 from tests.chat_template import read_chat_markup
 
-from tests.app_source import read_app_source
+from tests.app_source import compact, read_app_source
 APP_ROOT = Path(__file__).resolve().parents[1]
 APP_SOURCE = read_app_source()
+COMPACT_SOURCE = compact(APP_SOURCE)
 CHAT_JS_ASSETS = list((APP_ROOT / "static/js").glob("chat_core.v4.8.*.js"))
 assert len(CHAT_JS_ASSETS) == 1, "Only the latest versioned chat core asset should remain"
 CHAT_JS = CHAT_JS_ASSETS[0].read_text(encoding="utf-8")
@@ -37,19 +38,19 @@ class NanoBanana2LiteRegressionTests(unittest.TestCase):
             APP_SOURCE,
         )
         self.assertIn(
-            'else "minimal" if img_model == "gemini-3.1-flash-lite-image"\n'
-            '                                else "high"',
-            APP_SOURCE,
+            compact('else "minimal" if img_model == "gemini-3.1-flash-lite-image"\n'
+                    '                                else "high"'),
+            COMPACT_SOURCE,
         )
         self.assertIn("isNanoBanana2Lite", CHAT_JS)
         self.assertIn("['minimal', 'high'].includes(opt.value)", CHAT_JS)
 
     def test_lite_forces_1k_and_does_not_enable_search(self):
         self.assertIn(
-            'if img_model == "gemini-3.1-flash-lite-image":\n'
-            '                            # Nano Banana 2 Lite supports 1K output only.\n'
-            '                            image_cfg_kwargs["image_size"] = "1K"',
-            APP_SOURCE,
+            compact('if img_model == "gemini-3.1-flash-lite-image":\n'
+                    '                            # Nano Banana 2 Lite supports 1K output only.\n'
+                    '                            image_cfg_kwargs["image_size"] = "1K"'),
+            COMPACT_SOURCE,
         )
         self.assertIn(
             'if img_model != "gemini-3.1-flash-lite-image" and '
@@ -64,9 +65,9 @@ class NanoBanana2LiteRegressionTests(unittest.TestCase):
 
     def test_thought_parts_are_not_published_as_final_images(self):
         self.assertIn(
-            'if bool(getattr(_part, "thought", False)):\n'
-            "                                        continue",
-            APP_SOURCE,
+            compact('if bool(getattr(_part, "thought", False)):\n'
+                    "                                        continue"),
+            COMPACT_SOURCE,
         )
 
     def test_all_fourteen_aspect_ratios_are_available(self):

@@ -134,7 +134,7 @@ internal fun thoughtText(raw: String): String =
     com.minashin1120.aiplayground.data.reasoningText(raw)
 
 /**
- * `.message-group` + `.message-bubble` (chat_core part13 `renderMessage`): right-aligned theme
+ * `.message-group` + `.message-bubble` (chat_core part14 `renderMessage`): right-aligned theme
  * gradient for the user, dark glass for the assistant, max 90% wide (80% from 768px). Tapping the
  * bubble shows the hover controls like a tap does in the mobile browser.
  */

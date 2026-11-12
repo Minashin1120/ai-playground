@@ -1,17 +1,19 @@
 import unittest
+from pathlib import Path
 
 from tests.app_source import read_app_source
 
+ROOT = Path(__file__).resolve().parents[1]
 APP_SOURCE = read_app_source()
+HISTORY_SOURCE = (ROOT / "server" / "background_history.py").read_text(encoding="utf-8")
 
 
 class HistoryDocumentTextRegressions(unittest.TestCase):
     """後続ターンで、過去に添付・生成されたDOCX/PDF/テキストを読めなくなる不具合の回帰検証。"""
 
     def _function_body(self):
-        start = APP_SOURCE.index("def _append_history_document_text():")
-        end = APP_SOURCE.index("grok_reasoning_supported =", start)
-        return APP_SOURCE[start:end]
+        start = HISTORY_SOURCE.index("def background_append_history_document_text(")
+        return HISTORY_SOURCE[start:]
 
     def test_history_documents_are_extracted_as_text(self):
         body = self._function_body()

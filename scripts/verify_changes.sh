@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Check syntax, required versioned assets, and regression tests.
 # This does not change files or touch the running services.
+#
+# Output is deliberately small: by default the per-check lines and the full
+# test output go to $VERIFY_LOG, stdout gets one summary line on success and at
+# most the last 20 log lines on failure.  --verbose keeps the per-check output.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,21 +13,26 @@ source "$SCRIPT_DIR/_release_lib.sh"
 
 SKIP_TESTS=0
 LIVE=0
+VERBOSE=0
 PYTEST_ARGS=()
 
 usage() {
     cat <<'EOF'
-Usage: scripts/verify_changes.sh [--skip-tests] [--live] [--] [pytest-args...]
+Usage: scripts/verify_changes.sh [--skip-tests] [--live] [--verbose] [--] [pytest-args...]
 
 Checks the current tree:
   - required versioned JS/CSS assets exist and match SYSTEM_VERSION
   - changelog / README / MODELS mention the current version
   - JavaScript and Python syntax
   - files under static/ are readable by the web server
+  - source size report (largest files, budget overruns)
+  - extract before extend (budget-over files must not grow by 150+ net lines)
   - regression tests (unless --skip-tests)
 
 --live also requests the running site after a deploy. Use it only after
-services have been restarted. Default output is a short PASS/FAIL summary.
+services have been restarted.
+Default output is one PASS line on success (full detail in the log) and the
+last 20 log lines on failure. --verbose prints each check as it runs.
 EOF
 }
 
@@ -31,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --skip-tests) SKIP_TESTS=1; shift ;;
         --live) LIVE=1; shift ;;
+        --verbose|-v) VERBOSE=1; shift ;;
         -h|--help) usage; exit 0 ;;
         --) shift; PYTEST_ARGS+=("$@"); break ;;
         *) PYTEST_ARGS+=("$1"); shift ;;
@@ -40,19 +50,44 @@ done
 mkdir -p "$(dirname "$VERIFY_LOG")"
 : > "$VERIFY_LOG"
 
+TEST_DB_FILE=""
+on_exit() {
+    local status=$?
+    if [[ -n "$TEST_DB_FILE" ]]; then
+        rm -f "$TEST_DB_FILE"
+    fi
+    # A failed check already wrote its reason to the log.  Show only the end of
+    # it so an agent does not have to read the whole test output.
+    if [[ "$status" -ne 0 ]]; then
+        printf -- '----- verify failed; last 20 log lines -----\n' >&3
+        tail -n 20 "$VERIFY_LOG" >&3 2>/dev/null || true
+        printf 'full log: %s\n' "$VERIFY_LOG" >&3
+    fi
+}
+trap on_exit EXIT
+
+# Keep the terminal quiet unless --verbose; checks and pytest keep writing to
+# the log, and the summary is printed to fd 3.
+if [[ "$VERBOSE" -eq 0 ]]; then
+    exec 3>&1 1>>"$VERIFY_LOG" 2>&1
+else
+    exec 3>&1
+fi
+
 run_logged() {
     local label="$1"
     shift
     if "$@" >>"$VERIFY_LOG" 2>&1; then
         ok "$label"
     else
-        echo "----- last 40 log lines -----" >&2
-        tail -n 40 "$VERIFY_LOG" >&2 || true
         die "$label failed (full log: $VERIFY_LOG)"
     fi
 }
 
-info "verify $(run_common versions | json_get system_version) / $(run_common versions | json_get app_version)"
+versions_json="$(run_common versions)"
+SYSTEM_VERSION="$(printf '%s' "$versions_json" | json_get system_version)"
+APP_VERSION="$(printf '%s' "$versions_json" | json_get app_version)"
+info "verify $SYSTEM_VERSION / $APP_VERSION"
 
 run_logged "versioned assets and docs" run_common check-assets
 
@@ -60,6 +95,15 @@ run_logged "versioned assets and docs" run_common check-assets
 # past the readable size limit so it can be re-split and the README updated.
 info "chat_core parts size"
 run_common check-parts || warn "chat_core parts size check failed"
+
+# Report the largest sources and anything past the line budgets from
+# ~/docs/context_cost_reduction_plan.md.  Informational: never fails a release.
+info "source size report"
+run_common size-report >>"$VERIFY_LOG" 2>&1 || warn "source size report failed"
+
+# Extract before extend: a file already past its warn budget may not grow by
+# 150+ net lines in one change.  Blocking, unlike the warning-only report above.
+run_logged "extract before extend" run_common check-extract
 
 JS_SOURCES=(
     static/js/activity_log.js
@@ -118,21 +162,20 @@ if [[ "$SKIP_TESTS" -eq 0 ]]; then
         TEST_DB_DIR=/dev/shm
     fi
     TEST_DB_FILE="$TEST_DB_DIR/ai-chat-verify.db"
-    if [[ -z "${AI_CHAT_TEST_DATABASE_URL:-}" ]]; then
-        trap 'rm -f "$TEST_DB_FILE"' EXIT
+    if [[ -n "${AI_CHAT_TEST_DATABASE_URL:-}" ]]; then
+        TEST_DB_FILE=""
     fi
     export DATABASE_URL="${AI_CHAT_TEST_DATABASE_URL:-sqlite:///$TEST_DB_FILE}"
     export RUN_SCHEMA_MIGRATIONS="${RUN_SCHEMA_MIGRATIONS:-0}"
     info "running pytest (quiet; full output in $VERIFY_LOG)"
     if ! "$PYTHON" -m pytest -q --tb=line "${PYTEST_ARGS[@]}" >>"$VERIFY_LOG" 2>&1; then
-        echo "----- pytest failures -----" >&2
-        grep -E 'FAILED|ERROR|failed' "$VERIFY_LOG" | tail -n 50 >&2 || tail -n 40 "$VERIFY_LOG" >&2
         die "pytest failed (full log: $VERIFY_LOG)"
     fi
     summary="$(grep -E '[0-9]+ passed' "$VERIFY_LOG" | tail -n 1 || true)"
     ok "pytest ${summary:-passed}"
 else
     warn "tests skipped"
+    summary="tests skipped"
 fi
 
 if [[ "$LIVE" -eq 1 ]]; then
@@ -170,4 +213,6 @@ if [[ "$LIVE" -eq 1 ]]; then
 fi
 
 info "ALL CHECKS PASSED"
+printf '[ok] verify %s / %s passed (%s); log: %s\n' \
+    "$SYSTEM_VERSION" "$APP_VERSION" "$summary" "$VERIFY_LOG" >&3
 exit 0

@@ -5,7 +5,9 @@
 | `docs/verification.md` | 版更新前のテストと、版更新後の構文・資産確認 | 検証順序・失敗時・スキップを確認するとき |
 | `docs/release_workflow.md` | 変更対象ごとの記録・公開経路 | 実行する公開経路を選ぶとき |
 | `docs/android_checks.md` | Android版番号・履歴・省略指定・Actionsの完了条件 | Androidの記録・配布条件を確認するとき |
-| `verify_changes.sh` | 現時点の構文・Android生成物の同期・版付き資産・文書・回帰テスト、任意の公開URL確認 | ファイルやサービスを変更せず検証するとき |
+| `verify_changes.sh` | 現時点の構文・Android生成物の同期・版付き資産・文書・回帰テスト、任意の公開URL確認。成功時は1行、失敗時はログ末尾20行だけを表示（`--verbose` で各チェックを表示） | ファイルやサービスを変更せず検証するとき |
+| `show_versions.sh` | `SYSTEM_VERSION` / `APP_VERSION` と `_SERVER_PARTS` の読み込み順だけを表示 | 版番号やサーバー部品の順序を確認するとき |
+| `show_regions.sh` | `# region:` / `// region:` マーカーの領域名と行範囲だけを表示 | 巨大ファイルの全体を読まずに必要な領域を選ぶとき |
 | `sync_android_assets.sh` | WebソースからAndroidの生成物（serverless defaults・モデルカタログ・アイコン）を再生成 | Web/Androidの生成物を同期するとき。`prepare_version.sh` と `record_changes.sh --target android` が自動実行する |
 | `prepare_version.sh` | 引数・notes確認、版更新前検証、版番号・changelog更新、生成資産の確認 | Web公開用の版を準備するとき |
 | `_prepare_checks.sh` | 現在の版のビルドと検証、新版資産のビルドと静的検証 | prepareの各検証段階を変更するとき |

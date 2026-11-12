@@ -5,7 +5,12 @@
 | テストファイル | 主な対象 |
 |---|---|
 | [test_android_changelog_regressions.py](../test_android_changelog_regressions.py) | Android版別changelogと配布経路 |
-| [test_mobile_api.py](../test_mobile_api.py) | Android専用API |
+| [mobile_api_common.py](../mobile_api_common.py) | Android専用APIテストの共通基盤（隔離Redis・認証ヘルパー） |
+| [test_mobile_api_account.py](../test_mobile_api_account.py) | Android専用API（設定・認証情報・セッション・再認証が必要な操作） |
+| [test_mobile_api_auth.py](../test_mobile_api_auth.py) | Android専用API（認証・2FA・Integrity・セキュリティ状態） |
+| [test_mobile_api_config.py](../test_mobile_api_config.py) | Android専用API（構成・ゲート・基本的な制限） |
+| [test_mobile_api_files.py](../test_mobile_api_files.py) | Android専用API（添付・ライブラリ・暗号化履歴） |
+| [test_mobile_api_threads.py](../test_mobile_api_threads.py) | Android専用API（スレッド・メッセージ・設定・PDF/Batch） |
 | [test_mobile_sync_api.py](../test_mobile_sync_api.py) | 端末とサーバーの同期 |
 
 ## Android側のテスト

@@ -262,7 +262,7 @@ def list_chat_core_parts() -> list[Path]:
 
 # When a chat_core part grows past this many lines it should be re-split so the
 # per-file read cost stays low (see scripts/rebuild_chat_core_parts.sh).
-CHAT_CORE_PART_MAX_LINES = 2000
+CHAT_CORE_PART_MAX_LINES = 1500
 
 
 def check_parts_sizes() -> list[str]:
@@ -281,6 +281,136 @@ def check_parts_sizes() -> list[str]:
                 "(scripts/rebuild_chat_core_parts.sh)"
             )
     return warnings
+
+
+# Readable-size budgets from ~/docs/context_cost_reduction_plan.md
+# ("4. 再発防止の仕組み").  (warn, split) line counts: past "warn" the file is
+# flagged, past "split" new work must extract a region first.
+SIZE_TOP_LIMIT = 10
+SIZE_OVER_LIMIT = 15
+
+
+# Source globs measured by `size-report` and by tests/test_file_size_budget.py.
+SIZE_SOURCE_PATTERNS = (
+    "server/**/*.py",
+    "tests/test_*.py",
+    "android/app/src/**/*.kt",
+    "static/js/chat_core_parts/chat_core.part*.js",
+)
+
+
+def _size_source_paths() -> list[Path]:
+    """Source files whose line counts are worth watching during verification."""
+    paths: list[Path] = []
+    for pattern in SIZE_SOURCE_PATTERNS:
+        paths.extend(path for path in ROOT.glob(pattern) if path.is_file())
+    return paths
+
+
+def size_budget(relative: str) -> tuple[int, int] | None:
+    """(warn, split) line budgets for a path relative to the app root."""
+    if relative.endswith(".py"):
+        if relative.startswith("server/routes_"):
+            return 900, 1200
+        if relative.startswith("server/"):
+            return 1200, 1500
+        if relative.startswith("tests/test_"):
+            return 1200, 1500
+    if relative.endswith(".kt") and relative.startswith("android/"):
+        return 1000, 1300
+    if relative.startswith("static/js/chat_core_parts/chat_core.part") and relative.endswith(".js"):
+        return 1000, 1500
+    return None
+
+
+def size_report() -> tuple[list[tuple[int, str, int, int]], dict[str, int]]:
+    """Largest source files plus budget counts (warned / over split)."""
+    rows: list[tuple[int, str, int, int]] = []
+    for path in _size_source_paths():
+        relative = path.relative_to(ROOT).as_posix()
+        budget = size_budget(relative)
+        if budget is None:
+            continue
+        lines = path.read_bytes().count(b"\n")
+        rows.append((lines, relative, budget[0], budget[1]))
+    rows.sort(key=lambda row: (-row[0], row[1]))
+    counts = {
+        "warned": sum(1 for lines, _path, warn, _split in rows if lines > warn),
+        "split": sum(1 for lines, _path, _warn, split in rows if lines > split),
+        "total": len(rows),
+    }
+    return rows, counts
+
+
+# "Extract before extend" (~/docs/context_cost_reduction_plan.md, "再発防止の仕組み" 2):
+# a file already past its warn budget must not grow by this many net lines in one
+# change; the touched region has to move to a new file first.
+EXTRACT_ADDED_LINES = 150
+
+
+def git_numstat(relative: str) -> tuple[int, int]:
+    """(added, removed) lines of a tracked path against HEAD; (0, 0) when unknown.
+
+    Only modified files are counted (`--diff-filter=M`): a new file is a split or
+    a fresh module, not growth of an old one, and a rename must not be reported
+    as a 100% rewrite.  Binary files and untracked paths have no line counts and
+    are treated as unchanged.
+    """
+    try:
+        result = subprocess.run(
+            [
+                "git", "-C", str(ROOT), "diff", "--numstat", "--no-renames",
+                "--diff-filter=M", "HEAD", "--", relative,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return 0, 0
+    if result.returncode != 0:
+        return 0, 0
+    added = removed = 0
+    for line in result.stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 3:
+            continue
+        try:
+            added += int(parts[0])
+            removed += int(parts[1])
+        except ValueError:
+            continue  # binary ("-\t-\tpath")
+    return added, removed
+
+
+def extract_violations(
+    rows: list[tuple[int, str, int, int]],
+    stats: dict[str, tuple[int, int]],
+    threshold: int = EXTRACT_ADDED_LINES,
+) -> list[tuple[str, int, int, int]]:
+    """Files over their warn budget that grew by `threshold`+ net lines.
+
+    `rows` is the `size_report()` shape (lines, path, warn, split) and `stats`
+    maps path to (added, removed).  Net growth is used, not raw additions, so a
+    change that extracts a region and then adds a feature stays legal.
+    """
+    violations: list[tuple[str, int, int, int]] = []
+    for lines, relative, warn, _split in rows:
+        if lines <= warn:
+            continue
+        added, removed = stats.get(relative, (0, 0))
+        growth = added - removed
+        if growth >= threshold:
+            violations.append((relative, growth, lines, warn))
+    return violations
+
+
+def extract_before_extend_violations() -> list[tuple[str, int, int, int]]:
+    """`extract_violations` for the current working tree."""
+    rows, _counts = size_report()
+    over = [row for row in rows if row[0] > row[2]]
+    stats = {relative: git_numstat(relative) for _lines, relative, _warn, _split in over}
+    return extract_violations(rows, stats)
 
 
 def combined_matches_parts(combined: Path, parts: list[Path]) -> bool:
@@ -800,6 +930,54 @@ def cmd_check_parts(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_size_report(_args: argparse.Namespace) -> int:
+    """Print the largest sources and budget overruns; never fails the release."""
+    rows, counts = size_report()
+    print("source size report (lines; warn/split budgets from ~/docs/context_cost_reduction_plan.md)")
+    print(f"top {min(SIZE_TOP_LIMIT, len(rows))} of {counts['total']} tracked files:")
+    for lines, relative, warn, split in rows[:SIZE_TOP_LIMIT]:
+        flag = " (over split)" if lines > split else (" (over warn)" if lines > warn else "")
+        print(f"  {lines:6d}  {relative}  budget {warn}/{split}{flag}")
+    print(f"over budget: {counts['warned']} warn / {counts['split']} split")
+    printed = 0
+    for lines, relative, warn, split in rows:
+        if lines <= warn:
+            continue
+        printed += 1
+        if printed > SIZE_OVER_LIMIT:
+            print(f"  ... and {counts['warned'] - SIZE_OVER_LIMIT} more")
+            break
+        limit = "split" if lines > split else "warn"
+        print(f"  {limit:5s}  {relative}  {lines} >= {split if lines > split else warn}")
+    if counts["split"]:
+        print("past the split budget: extract the region you are touching before adding code")
+    return 0
+
+
+def cmd_check_extract(_args: argparse.Namespace) -> int:
+    """Fail when a budget-over file grows by EXTRACT_ADDED_LINES net lines.
+
+    Blocking on purpose: the size report only warns, so without this a large
+    feature can be appended to an already oversized file every release.
+    """
+    violations = extract_before_extend_violations()
+    for relative, growth, lines, warn in violations:
+        print(
+            f"ERROR: {relative} is over its {warn}-line budget ({lines} lines) "
+            f"and grew by {growth} net lines (limit {EXTRACT_ADDED_LINES})",
+            file=sys.stderr,
+        )
+    if violations:
+        print(
+            "extract the region you are touching into its own file first, then add the change "
+            "(~/docs/file_layout_rules.md)",
+            file=sys.stderr,
+        )
+        return 1
+    print(f"extract before extend ok (no budget-over file grew by {EXTRACT_ADDED_LINES}+ net lines)")
+    return 0
+
+
 def cmd_chat_core_bundles(_args: argparse.Namespace) -> int:
     """Paths (relative to static/) of the current chat_core browser files, one per line."""
     versions = parse_versions()
@@ -877,6 +1055,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("versions").set_defaults(func=cmd_versions)
     sub.add_parser("check-assets").set_defaults(func=cmd_check_assets)
     sub.add_parser("check-parts").set_defaults(func=cmd_check_parts)
+    sub.add_parser("size-report").set_defaults(func=cmd_size_report)
+    sub.add_parser("check-extract").set_defaults(func=cmd_check_extract)
     sub.add_parser("chat-core-bundles").set_defaults(func=cmd_chat_core_bundles)
     sub.add_parser("classify-git").set_defaults(func=cmd_classify_git)
 

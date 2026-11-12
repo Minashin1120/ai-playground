@@ -66,7 +66,7 @@ private fun isGrokLiveTranscribe(model: String): Boolean = model == "grok-voice-
 internal fun isRealtimeTranslation(model: String): Boolean =
     model == "gemini-3.5-live-translate-preview" || model == "gpt-realtime-translate"
 
-// Same voice lists as the Web STS panel (chat_core part05: *_STS_VOICES).
+// Same voice lists as the Web STS panel (chat_core part06: *_STS_VOICES).
 internal val OPENAI_REALTIME_VOICES = listOf("alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar")
 /** Web `OPENAI_LIVE_VOICES`: GPT-Live adds regional voices (default marin). */
 internal val OPENAI_LIVE_VOICES = OPENAI_REALTIME_VOICES + listOf(

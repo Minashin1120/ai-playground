@@ -1,4 +1,5 @@
 import os
+import re
 import unittest
 from pathlib import Path
 
@@ -13,6 +14,14 @@ os.environ.setdefault("VERBOSE_DEBUG_LOGS", "0")
 import app as target
 
 APP_SOURCE = read_app_source()
+
+# The Gemini branch now lives in server/background_stream_gemini.py, one nesting
+# level shallower than it was inside background_chat_task.  Anchor the stream trace
+# line by pattern instead of exact indentation.
+_STREAM_TRACE_START = re.compile(
+    r"_mark_provider_request_started\(\)\s*\n\s*"
+    r'log_force\(f"STREAM-TRACE: Gemini stream starting'
+)
 
 
 class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
@@ -93,12 +102,11 @@ class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
         )
 
     def test_stream_initial_response_504_retry_exists_for_code_execution(self):
-        block_start = APP_SOURCE.index(
-            "_mark_provider_request_started()\n"
-            "                    log_force(f\"STREAM-TRACE: Gemini stream starting for {job_id} model={rm}\")"
-        )
+        stream_trace = _STREAM_TRACE_START.search(APP_SOURCE)
+        self.assertIsNotNone(stream_trace, "Gemini stream trace anchor is missing")
+        block_start = stream_trace.start()
         chain_line = "for chunk in itertools.chain([_gemini_first_chunk], _gemini_stream_iter):"
-        block_end = APP_SOURCE.index(chain_line)
+        block_end = APP_SOURCE.index(chain_line, block_start)
         block = APP_SOURCE[block_start:block_end]
         self.assertIn("_gemini_code_exec_active", block)
         self.assertIn('"504" in str(_stream_exc) or "DEADLINE_EXCEEDED" in str(_stream_exc)', block)
@@ -112,11 +120,9 @@ class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
         # File creation / MCP turns must stream like any other turn; the
         # non-streaming generate_content path made the answer appear at once.
         block_start = APP_SOURCE.index("def _gemini_manual_function_stream():")
-        block_end = APP_SOURCE.index(
-            "_mark_provider_request_started()\n"
-            "                    log_force(f\"STREAM-TRACE: Gemini stream starting",
-            block_start,
-        )
+        stream_trace = _STREAM_TRACE_START.search(APP_SOURCE, block_start)
+        self.assertIsNotNone(stream_trace, "Gemini stream trace anchor is missing")
+        block_end = stream_trace.start()
         block = APP_SOURCE[block_start:block_end]
         self.assertNotIn("generate_content(", block)
         self.assertEqual(block.count("generate_content_stream("), 2)
@@ -128,10 +134,9 @@ class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
     def test_stream_retry_gated_to_code_execution(self):
         # Retrying before the first chunk is safe, but it is only engaged for
         # code-execution requests to avoid extra input-token charges elsewhere.
-        self.assertIn(
-            "_gemini_code_exec_active\n"
-            "                                and _is_deadline",
+        self.assertRegex(
             APP_SOURCE,
+            r"_gemini_code_exec_active\s*\n\s*and _is_deadline",
         )
 
 

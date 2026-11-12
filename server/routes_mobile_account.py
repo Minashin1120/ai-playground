@@ -1,7 +1,7 @@
 # Native settings for the Android client: re-authentication, account credentials,
 # login sessions, 2FA reset, E2EE switch and easy login. The Web settings modal
-# offers the same operations through the cookie session (routes_settings.py,
-# routes_account.py, routes_admin.py). Operations that can take over or erase
+# offers the same operations through the cookie session (routes_settings*.py,
+# routes_account.py, routes_admin_*.py). Operations that can take over or erase
 # the account additionally require a recent re-authentication on this device
 # (MOBILE_REAUTH_ENDPOINTS in mobile_auth.py).
 

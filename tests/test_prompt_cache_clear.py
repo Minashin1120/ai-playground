@@ -9,7 +9,7 @@ APP_SOURCE = read_app_source()
 
 def _load_helpers():
     start = APP_SOURCE.index("def _thread_prompt_cache_key(thread):")
-    end = APP_SOURCE.index("@app.route('/chat_stream', methods=['POST'])", start)
+    end = APP_SOURCE.index("@app.route('/api/token_estimate'", start)
     namespace = {"secrets": secrets}
     exec(APP_SOURCE[start:end], namespace)
     return namespace["_thread_prompt_cache_key"], namespace["_forget_prompt_cache"]

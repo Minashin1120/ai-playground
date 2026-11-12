@@ -1,4 +1,4 @@
-// HTML preview security helpers synchronized from Web chat_core.part03_security_token_promptbar.js.
+// HTML preview security helpers synchronized from Web chat_core.part04_refreshcsrftoken.js.
 const BLOCKED_SCRIPT_HOSTS = ['polyfill.io', 'cdn.polyfill.io'];
 function isBlockedScriptSrc(src) {
     if (!src) return false;

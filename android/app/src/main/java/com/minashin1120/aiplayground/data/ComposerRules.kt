@@ -4,7 +4,7 @@ import java.util.Locale
 
 /*
  * Which composer options the Web shows for a model, and in which state. This is a port of
- * chat_core part07 `toggleOptions()` with the helpers of part05/part06 (`isLlmModel`,
+ * chat_core part08 `toggleOptions()` with the helpers of part06/part07 (`isLlmModel`,
  * `isBatchModelKey`, `applyMcpPromptChipUi`, …). Keep the order of the checks identical: several
  * later steps undo earlier ones exactly as in the Web code (e.g. Maps ends up hidden for every
  * model that is not a DeepSeek or reasoning-effort model).

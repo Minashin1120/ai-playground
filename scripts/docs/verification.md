@@ -14,6 +14,8 @@
 
 全回帰テストは版更新前の1回です。新版確認と公開時の `verify_changes.sh --skip-tests` は、資産生成・参照・構文の確認に使います。`--dry-run` は計画だけで、ビルド・検証・版変更を実行しません。
 
+`verify_changes.sh` は既定で、成功時に `[ok] verify ...` の1行、失敗時にログ末尾20行だけを表示します（全文は `scripts/verify.last.log`）。各チェックの進行を画面で見たいときだけ `--verbose` を付けます。あわせて `source size report` が最大ファイルと行数予算（`~/docs/context_cost_reduction_plan.md`）の超過をログへ出します。`extract before extend` は予算超過ファイルが差し引き150行以上増えていないかを `git diff --numstat HEAD` で見る**ブロッキング**のチェックで、越えていれば検証は失敗します（規則は `~/docs/file_layout_rules.md`）。
+
 テスト省略が明示された場合の `--skip-verify` は、版更新前のpytestを省きます。構文・資産・文書の確認は版更新前後の両方で残します。更新後作業全体の省略とは別です。
 
 失敗箇所は短い終了出力で確認します。詳細が必要なときだけ該当ログの失敗付近を読みます。版更新前のログは `scripts/verify.preflight.last.log`、版更新後・単独検証のログは `scripts/verify.last.log` です。

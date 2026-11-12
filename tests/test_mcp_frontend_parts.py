@@ -1,4 +1,5 @@
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 import unittest
 
 from tests.chat_template import read_chat_markup
@@ -71,8 +72,12 @@ class McpFrontendPartsTests(unittest.TestCase):
 
     def test_background_injects_mcp_guidance_before_provider_prompt(self):
         bg = (APP_ROOT / "server" / "background.py").read_text(encoding="utf-8")
+        # DeepSeek 分岐は background_stream_deepseek.py へ抽出済み。
+        bg += (APP_ROOT / "server" / "background_stream_deepseek.py").read_text(encoding="utf-8")
+        # MCP 案内文の遅延構築は background_mcp.py へ抽出済み。
+        bg += (APP_ROOT / "server" / "background_mcp.py").read_text(encoding="utf-8")
         self.assertIn("guidance_text(preamble=", bg)
-        self.assertIn('_auto_notice_enabled("mcp")', bg)
+        self.assertIn('auto_notice_enabled("mcp")', bg)
         self.assertIn("if is_llm_model and not gemini_local_python:", bg)
         self.assertIn("and _ensure_mcp_env() is None:", bg)
         self.assertIn("serialize_chat_completions()", bg)
@@ -80,7 +85,7 @@ class McpFrontendPartsTests(unittest.TestCase):
         self.assertIn("You have Model Context Protocol (MCP) tools connected.", exec_src)
         self.assertIn("{{mcp_tools}}", exec_src)
         # MCP案内文が「自動注入システムプロンプト（ユーザー単位）」の一覧に載っている
-        request_security = (APP_ROOT / "server" / "request_security.py").read_text(encoding="utf-8")
+        request_security = (APP_ROOT / "server" / "request_security_notices.py").read_text(encoding="utf-8")
         self.assertIn('"mcp",', request_security)
         self.assertIn('"mcp": "MCP (外部ツール接続)"', request_security)
         self.assertIn('"mcp": AUTO_SYSTEM_PROMPT_NOTICE_MCP,', request_security)
@@ -89,12 +94,12 @@ class McpFrontendPartsTests(unittest.TestCase):
 
     def test_parts_source_is_clean(self):
         # 部品ソースは結合ファイルの一部分として壊れていない（重複定義ガード）
-        part06 = (APP_ROOT / "static/js/chat_core_parts" / "chat_core.part06_model_media_prompt_cache.js").read_text(encoding="utf-8")
-        part14 = (APP_ROOT / "static/js/chat_core_parts" / "chat_core.part14_send_message_browser_fast.js").read_text(encoding="utf-8")
-        self.assertEqual(part06.count("function bindMcpSettingsUi"), 1)
-        self.assertEqual(part06.count("async function loadMcpServers"), 1)
-        self.assertEqual(part14.count("function handleMcpStreamEvent"), 1)
-        self.assertEqual(part14.count("function openMcpDecisionModal"), 1)
+        part07 = read_chat_core_source()
+        part15 = read_chat_core_source()
+        self.assertEqual(part07.count("function bindMcpSettingsUi"), 1)
+        self.assertEqual(part07.count("async function loadMcpServers"), 1)
+        self.assertEqual(part15.count("function handleMcpStreamEvent"), 1)
+        self.assertEqual(part15.count("function openMcpDecisionModal"), 1)
 
 
 if __name__ == "__main__":

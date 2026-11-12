@@ -43,7 +43,7 @@ def transport(messages=()):
         current_user=SimpleNamespace(id=1), g=SimpleNamespace(diagnostic_op="a" * 32),
         _record_server_diagnostic=lambda uid, event, **fields: events.append((event, fields)),
     )
-    source = Path(__file__).resolve().parents[1] / "server/routes_chat.py"
+    source = Path(__file__).resolve().parents[1] / "server/routes_stream.py"
     tree = ast.parse(source.read_text())
     nodes = [node for node in tree.body if isinstance(node, ast.FunctionDef)
              and node.name in {"_chat_stream_subscription", "_chat_stream_messages"}]

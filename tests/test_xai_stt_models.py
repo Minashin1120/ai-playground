@@ -1,4 +1,5 @@
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 import unittest
 
 from tests.app_source import read_app_source
@@ -54,7 +55,7 @@ class XaiSttModelRegressionTests(unittest.TestCase):
 
     def test_web_lists_both_grok_voice_transcribe_2_variants(self):
         parts = APP_ROOT / "static" / "js" / "chat_core_parts"
-        settings = (parts / "chat_core.part05_settings_modal.js").read_text(encoding="utf-8")
+        settings = read_chat_core_source()
         self.assertRegex(settings, r'id:\s*"grok-voice-transcribe-2.0-file"[^}]*name:\s*"Grok Voice Transcribe 2.0"')
         self.assertRegex(settings, r'id:\s*"grok-voice-transcribe-2.0"[^}]*name:\s*"Grok Voice Transcribe 2.0 \(Live\)"')
         self.assertIn("model === 'grok-voice-transcribe-2.0-file'", settings)

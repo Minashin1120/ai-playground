@@ -69,7 +69,7 @@ val DEDUPE_LABELS = listOf("chats" to "チャット", "skills" to "Skill", "file
 private val TERMINAL_STATES = setOf("ready", "completed", "failed", "cancelled", "expired")
 
 /**
- * The settings Data tab's export / import / dedupe (Web part07 `account-*` handlers). Runs in the
+ * The settings Data tab's export / import / dedupe (Web part08 `account-*` handlers). Runs in the
  * ViewModel scope so a transfer continues while the settings modal is closed, like the Web tab.
  * Operations that the server gates behind a re-authentication are parked in [reauth] and replayed.
  */

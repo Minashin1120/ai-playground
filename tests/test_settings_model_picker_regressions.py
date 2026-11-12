@@ -1,5 +1,6 @@
 """Execute the shared picker and history handlers with a small DOM/history fixture."""
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 import subprocess
 import unittest
 
@@ -10,13 +11,13 @@ PARTS = ROOT / "static/js/chat_core_parts"
 
 class SettingsModelPickerRegressionTests(unittest.TestCase):
     def test_draft_selection_filtering_and_same_path_history(self):
-        source = (PARTS / "chat_core.part06_model_media_prompt_cache.js").read_text()
-        history_source = (PARTS / "chat_core.part09_domcontent_popstate_modals.js").read_text()
+        source = read_chat_core_source()
+        history_source = read_chat_core_source()
         chunks = [
             source[source.index("let settingsModelPickerTarget = null;"):source.index("const modelListGroups = [];")],
             source[source.index('function renderModelList(filter = "", options = {})'):source.index("function scheduleModelListRender")],
             source[source.index("function openModelModal()"):source.index("function populateAiSafeFormFields")],
-            history_source[:history_source.index("const initialPath = location.pathname;")],
+            history_source[history_source.index("window.addEventListener('popstate'"):history_source.index("const initialPath = location.pathname;")],
         ]
         fixture = r"""
 const assert = require('node:assert/strict');

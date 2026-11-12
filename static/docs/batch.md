@@ -179,11 +179,11 @@ APIキーはこのBatchテーブルには保存しません。送信、状態確
 | `server/background.py` | `background_chat_task`内の`_submit_gemini_batch`、`_submit_openai_batch`、`_submit_xai_batch`、`_persist_batch_failure` | 送信形式、入力制限、送信失敗を調べるとき |
 | `server/models.py` | `GeminiBatchJob`と`Thread.batch_jobs` | DB項目と関連付けを調べるとき |
 | `server/routes_files.py` | 会話取得時の`batch_job`付与 | 会話の状態表示を調べるとき |
-| `static/js/chat_core_parts/chat_core.part06_model_media_prompt_cache.js` | `isBatchModelKey`、`updateBatchUi` | モデルごとのBatch表示、高速モード制御を調べるとき |
-| `static/js/chat_core_parts/chat_core.part13_canvas_coding_stream.js` | Batch状態を含む会話表示 | 待機中の回答欄を調べるとき |
-| `static/js/chat_core_parts/chat_core.part14_send_message_browser_fast.js` | `sendMessage`の`batch_mode`送信、受付後の処理 | ブラウザーの送信経路を調べるとき |
-| `static/js/chat_core_parts/chat_core.part15_slash_tempchat_threads.js` | `refreshGeminiBatchStatus`、`showGeminiBatchCompletionBanner` | ポーリングと通知を調べるとき |
-| `static/js/chat_core_parts/chat_core.part16_library_branch_debug.js` | `loadBatchJobs`、`renderBatchJobs`、停止・履歴削除 | 一覧画面の動作を調べるとき |
+| `static/js/chat_core_parts/chat_core.part11_getmodelcapabilitysearchterms.js` | `isBatchModelKey`、`updateBatchUi` | モデルごとのBatch表示、高速モード制御を調べるとき |
+| `static/js/chat_core_parts/chat_core.part22_updatesearchbox.js` | Batch状態を含む会話表示 | 待機中の回答欄を調べるとき |
+| `static/js/chat_core_parts/chat_core.part23_selectslashcommand.js` | `sendMessage`の`batch_mode`送信、受付後の処理 | ブラウザーの送信経路を調べるとき |
+| `static/js/chat_core_parts/chat_core.part25_updatethreadhighlighting.js` | `refreshGeminiBatchStatus`、`showGeminiBatchCompletionBanner` | ポーリングと通知を調べるとき |
+| `static/js/chat_core_parts/chat_core.part27_renderlibraryskeleton.js` | `loadBatchJobs`、`renderBatchJobs`、停止・履歴削除 | 一覧画面の動作を調べるとき |
 | `templates/chat/composer_controls.html` | Batchチェックボックス | 送信オプションのHTMLを調べるとき |
 | `templates/chat/sidebar.html` | Batch一覧へのボタン | 一覧の入口を調べるとき |
 | `templates/chat/overlay_thread.html` | Batch一覧モーダル | 一覧のHTMLを調べるとき |

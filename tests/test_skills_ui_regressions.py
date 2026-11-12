@@ -1,6 +1,7 @@
 import os
 import unittest
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 
 from tests.chat_template import read_chat_markup
 
@@ -16,8 +17,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PARTS = ROOT / "static/js/chat_core_parts"
 
 
-def part(name):
-    return (PARTS / name).read_text(encoding="utf-8")
+def part():
+    return read_chat_core_source()
 
 
 class SkillsUiRegressionTests(unittest.TestCase):
@@ -67,7 +68,7 @@ class SkillsUiRegressionTests(unittest.TestCase):
             self.assertNotIn(old, joined)
 
     def test_legacy_gem_url_is_kept_as_alias(self):
-        source = part("chat_core.part08_domcontent_account_transfer.js")
+        source = part()
         self.assertIn("MODAL_CONFIG['/gem'] = MODAL_CONFIG['/skill']", source)
 
     def test_account_transfer_uses_skills_category(self):
@@ -77,7 +78,7 @@ class SkillsUiRegressionTests(unittest.TestCase):
         self.assertIn('value="skills"', setup)
         self.assertNotIn('value="gems"', settings)
         self.assertNotIn('value="gems"', setup)
-        self.assertIn("imported.skills", part("chat_core.part07_domcontent_initial.js"))
+        self.assertIn("imported.skills", part())
 
     def test_css_uses_skill_selectors(self):
         css_files = sorted((ROOT / "static/css").glob("chat.custom.v4.8.*.css"))
@@ -91,7 +92,7 @@ class SkillsUiRegressionTests(unittest.TestCase):
         self.assertNotIn("#fixed-prompts-bar", css)
 
     def test_skill_notice_sits_above_the_message_content(self):
-        source = part("chat_core.part13_canvas_coding_stream.js")
+        source = part()
         self.assertIn("skillNoticeHtml", source)
         self.assertIn("${ctrl}${qh}${skillNoticeHtml}${th}${contentHtml}", source)
 

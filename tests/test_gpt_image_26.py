@@ -25,7 +25,7 @@ class GptImage26Tests(unittest.TestCase):
             self.assertIn(f'"{model}"', valid_ids)
 
     def test_gpt_image_26_uses_the_images_api(self):
-        branch = APP_SOURCE[APP_SOURCE.index("# --- 3. GPT Image Branch ---"):]
+        branch = (APP_ROOT / "server" / "background_stream_gpt_image.py").read_text(encoding="utf-8")
         self.assertIn("is_gpt_image_26", branch)
         self.assertIn("img_client.images.generate", branch)
         self.assertIn("img_client.images.edit", branch)
@@ -36,7 +36,7 @@ class GptImage26Tests(unittest.TestCase):
         self.assertIn('model="gpt-4o-mini"', branch)
 
     def test_quality_and_format_limits(self):
-        branch = APP_SOURCE[APP_SOURCE.index("# --- 3. GPT Image Branch ---"):]
+        branch = (APP_ROOT / "server" / "background_stream_gpt_image.py").read_text(encoding="utf-8")
         self.assertIn('"gpt-image-2.6-sunburst", "gpt-image-2.6-flare"', branch)
         self.assertIn('format_values.add("gif")', branch)
         self.assertIn('quality_values.update({"xhigh", "max"})', branch)

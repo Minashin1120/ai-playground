@@ -2,9 +2,15 @@
 import unittest
 import re
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 
 ROOT = Path(__file__).resolve().parents[1]
-MOTION = ROOT / 'static/js/chat_core_parts/chat_core.part19_prompt_send_motion.js'
+def _motion_source():
+    source = read_chat_core_source()
+    return source[source.index('        // Presentation-only state:'):source.index("        // Costs use each saved answer's model")]
+
+
+MOTION = _motion_source()
 
 
 class PromptSendMotionTests(unittest.TestCase):
@@ -61,8 +67,8 @@ class PromptSendMotionTests(unittest.TestCase):
             function updateMaskPreview() {}
             function schedulePromptTokenEstimate() {}
         ''')
-        self.page.add_script_tag(content=MOTION.read_text())
-        uploads = (ROOT / 'static/js/chat_core_parts/chat_core.part11_file_preview_upload.js').read_text()
+        self.page.add_script_tag(content=MOTION)
+        uploads = read_chat_core_source()
         cancelled = re.search(r'function isUploadCancelled\(row\) \{.*?\n        \}', uploads, re.S)
         self.page.add_script_tag(content=cancelled.group())
 
@@ -150,7 +156,7 @@ class PromptSendMotionTests(unittest.TestCase):
         self.assertFalse(self.page.evaluate('tx.canRetry()'))
 
     def test_fast_mode_can_upload_held_rows_without_using_the_next_drafts_files(self):
-        source = (ROOT / 'static/js/chat_core_parts/chat_core.part13_canvas_coding_stream.js').read_text()
+        source = read_chat_core_source()
         start = source.index('async function uploadBrowserFastLocalFiles(')
         end = source.index('function browserFastThinkingConfig', start)
         self.page.add_script_tag(content=source[start:end])

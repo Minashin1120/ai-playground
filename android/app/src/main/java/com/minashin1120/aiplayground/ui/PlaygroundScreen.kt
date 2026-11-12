@@ -99,16 +99,11 @@ import com.minashin1120.aiplayground.ChatTransitionKind
 import com.minashin1120.aiplayground.ImportSettingChange
 import com.minashin1120.aiplayground.AppChangelogUiState
 import com.minashin1120.aiplayground.AppUpdateUiState
-import com.minashin1120.aiplayground.data.ThreadItem
-import com.minashin1120.aiplayground.data.BanAppealState
 import com.minashin1120.aiplayground.data.ChatAutoScroll
-import com.minashin1120.aiplayground.data.Attachment
 import com.minashin1120.aiplayground.data.isImageReference
 import com.minashin1120.aiplayground.data.isIdeogramObjectRemoval
 import com.minashin1120.aiplayground.data.IMAGE_SPLIT_MAX_IMAGES
 import com.minashin1120.aiplayground.data.ImageSplitOptions
-import com.minashin1120.aiplayground.data.LibraryFile
-import com.minashin1120.aiplayground.data.Skill
 import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.data.Diagnostics
 import com.minashin1120.aiplayground.data.ChatMessage
@@ -126,7 +121,6 @@ import com.minashin1120.aiplayground.data.siblingGroup
 import com.minashin1120.aiplayground.data.PasskeyClient
 import com.minashin1120.aiplayground.data.GoogleAuthClient
 import com.minashin1120.aiplayground.data.ServerOrigin
-import com.minashin1120.aiplayground.data.originLabel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -154,9 +148,6 @@ private fun Context.findActivity(): Activity? {
     }
     return current as? Activity
 }
-
-/** A system picker the upload sheet asks for after it has closed (see the launch effect inside). */
-private enum class AttachmentPicker { Files, Photos, Split }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -284,48 +275,18 @@ fun PlaygroundScreen(
                 allowDrawerOpen = true
                 scope.launch { drawer.open() }
             }
-            var deleting by remember { mutableStateOf<ThreadItem?>(null) }
-            var modelPicker by remember { mutableStateOf(false) }
-            var threadSettings by remember { mutableStateOf(false) }
-            var attachMenu by remember { mutableStateOf(false) }
-            var libraryOpen by remember { mutableStateOf(false) }
-            var viewingFile by remember { mutableStateOf<FileViewRequest?>(null) }
-            var skillEditorOpen by remember { mutableStateOf(false) }
-            var skillEditing by remember { mutableStateOf<Skill?>(null) }
-            var skillDeleting by remember { mutableStateOf<Skill?>(null) }
-            var historyOpen by remember { mutableStateOf(false) }
-            var branchOpen by remember { mutableStateOf(false) }
-            var alphaOpen by remember { mutableStateOf(false) }
-            var legalKind by remember { mutableStateOf<String?>(null) }
-            var renaming by remember { mutableStateOf<ThreadItem?>(null) }
-            var settingsOpen by remember { mutableStateOf(false) }
-            var settingsTab by remember { mutableStateOf("一般") }
-            var settingsCard by remember { mutableStateOf<String?>(null) }
-            var compressionOpen by remember { mutableStateOf(false) }
-            var changelogOpen by remember { mutableStateOf(false) }
-            var advancedOpen by remember { mutableStateOf(false) }
-            var realtimeOpen by remember { mutableStateOf(false) }
-            var lyriaOpen by remember { mutableStateOf(false) }
-            var awaitingMic by remember { mutableStateOf(false) }
-            var realtimeOptions by remember { mutableStateOf(RealtimeOptions()) }
-            var startDockAfterMic by remember { mutableStateOf(false) }
-            var richPasteOpen by remember { mutableStateOf(false) }
-            var markerTarget by remember { mutableStateOf<Attachment?>(null) }
-            var markerMaskMode by remember { mutableStateOf(false) }
+            val overlays = remember { PlaygroundOverlays() }
             var composerHeight by remember { mutableIntStateOf(0) }
-            var visionPicker by remember { mutableStateOf(false) }
-            var cameraOpen by remember { mutableStateOf(false) }
-            var pendingAttachmentPicker by remember { mutableStateOf<AttachmentPicker?>(null) }
             var bubbleAfterNotificationPermission by remember { mutableStateOf(false) }
             // ログの収集を強化: which modals and panels are open (names only).
             val panelStates = listOf(
-                "model_picker" to modelPicker, "thread_settings" to threadSettings, "attach_menu" to attachMenu,
-                "library" to libraryOpen, "file_view" to (viewingFile != null), "skill_editor" to skillEditorOpen,
-                "skill_delete" to (skillDeleting != null), "history" to historyOpen, "branch" to branchOpen, "alpha" to alphaOpen,
-                "legal" to (legalKind != null), "rename" to (renaming != null), "delete_thread" to (deleting != null),
-                "settings" to settingsOpen, "compression" to compressionOpen, "changelog" to changelogOpen,
-                "advanced" to advancedOpen, "realtime" to realtimeOpen, "lyria" to lyriaOpen, "rich_paste" to richPasteOpen,
-                "marker" to (markerTarget != null), "vision_picker" to visionPicker, "camera" to cameraOpen,
+                "model_picker" to overlays.modelPicker, "thread_settings" to overlays.threadSettings, "attach_menu" to overlays.attachMenu,
+                "library" to overlays.libraryOpen, "file_view" to (overlays.viewingFile != null), "skill_editor" to overlays.skillEditorOpen,
+                "skill_delete" to (overlays.skillDeleting != null), "history" to overlays.historyOpen, "branch" to overlays.branchOpen, "alpha" to overlays.alphaOpen,
+                "legal" to (overlays.legalKind != null), "rename" to (overlays.renaming != null), "delete_thread" to (overlays.deleting != null),
+                "settings" to overlays.settingsOpen, "compression" to overlays.compressionOpen, "changelog" to overlays.changelogOpen,
+                "advanced" to overlays.advancedOpen, "realtime" to overlays.realtimeOpen, "lyria" to overlays.lyriaOpen, "rich_paste" to overlays.richPasteOpen,
+                "marker" to (overlays.markerTarget != null), "vision_picker" to overlays.visionPicker, "camera" to overlays.cameraOpen,
             )
             val openPanels = panelStates.filter { it.second }.joinToString(",") { it.first }
             LaunchedEffect(openPanels) { ActivityLog.log("ui.panels", *panelStates.map { it.first to it.second }.toTypedArray()) }
@@ -347,13 +308,24 @@ fun PlaygroundScreen(
                 }
             }
             val microphone = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-                if (awaitingMic) {
-                    awaitingMic = false
-                    val startDock = startDockAfterMic
-                    startDockAfterMic = false
+                if (overlays.awaitingMic) {
+                    overlays.awaitingMic = false
+                    val startDock = overlays.startDockAfterMic
+                    overlays.startDockAfterMic = false
                     if (!granted) model.notify("Realtime音声にはマイクの権限が必要です。")
-                    else if (startDock) startRealtimeWith(model, model.state.value.model, realtimeOptions)
-                    else realtimeOpen = true
+                    else if (startDock) startRealtimeWith(model, model.state.value.model, overlays.realtimeOptions)
+                    else overlays.realtimeOpen = true
+                }
+            }
+            // The composer voice dock and the studio dialog share this start: a missing microphone
+            // permission is requested first and remembered by the launcher above.
+            val startRealtimeWithPermission: () -> Unit = {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    startRealtimeWith(model, state.model, overlays.realtimeOptions)
+                } else {
+                    overlays.awaitingMic = true
+                    overlays.startDockAfterMic = true
+                    microphone.launch(Manifest.permission.RECORD_AUDIO)
                 }
             }
             // Batch results and answers finished while the app is away are notified.
@@ -375,8 +347,8 @@ fun PlaygroundScreen(
                     isRealtimeAudioModel(state.account?.models?.firstOrNull { it.id == selected }) -> when {
                         state.realtime.active -> model.stopRealtime(save = true)
                         ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED ->
-                            startRealtimeWith(model, selected, realtimeOptions)
-                        else -> { awaitingMic = true; startDockAfterMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
+                            startRealtimeWith(model, selected, overlays.realtimeOptions)
+                        else -> { overlays.awaitingMic = true; overlays.startDockAfterMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
                     }
                     ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED ->
                         model.toggleMicRecording()
@@ -390,8 +362,8 @@ fun PlaygroundScreen(
             // Android 17 (API 37) can leave the app window without input focus after the system Files
             // picker (DocumentsUI) returns, which then looks like a crash / frozen app (feedback
             // fccc59662437). Start the picker only after the upload sheet's dialog window is gone.
-            LaunchedEffect(pendingAttachmentPicker) {
-                val action = pendingAttachmentPicker ?: return@LaunchedEffect
+            LaunchedEffect(overlays.pendingAttachmentPicker) {
+                val action = overlays.pendingAttachmentPicker ?: return@LaunchedEffect
                 withFrameNanos { }
                 try {
                     when (action) {
@@ -406,20 +378,27 @@ fun PlaygroundScreen(
                     Diagnostics.failure("error", e, "phase" to "error")
                     model.notify("ファイル選択を開けませんでした。もう一度お試しください。")
                 } finally {
-                    if (pendingAttachmentPicker == action) pendingAttachmentPicker = null
+                    if (overlays.pendingAttachmentPicker == action) overlays.pendingAttachmentPicker = null
                 }
             }
             // 画像分割 「保存のみ」 before Android 10: MediaStore needs a storage permission there, so the user picks a folder.
-            var pendingSplitSave by remember { mutableStateOf<ImageSplitOptions?>(null) }
             val splitFolderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
-                val options = pendingSplitSave
-                pendingSplitSave = null
+                val options = overlays.pendingSplitSave
+                overlays.pendingSplitSave = null
                 if (tree != null && options != null) model.runImageSplit(options, attach = false, tree = tree)
+            }
+            val saveSplitOnly: (ImageSplitOptions) -> Unit = { options ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) model.runImageSplit(options, attach = false)
+                else {
+                    overlays.pendingSplitSave = options
+                    try { splitFolderPicker.launch(null) }
+                    catch (ignored: Exception) { overlays.pendingSplitSave = null; model.notify("保存先のフォルダーを選択できません。") }
+                }
             }
             val maskPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
                 if (uri != null) model.uploadImageMask(uri)
             }
-            val launchCamera: () -> Unit = { attachMenu = false; cameraOpen = true }
+            val launchCamera: () -> Unit = { overlays.attachMenu = false; overlays.cameraOpen = true }
             val notices = checkNotNull(LocalInAppNotices.current)
             val noticeAccessibility = LocalAccessibilityManager.current
             val loader: FileBytesLoader = { reference, thumbnail, limit ->
@@ -431,10 +410,10 @@ fun PlaygroundScreen(
                     (if (message.role == "user") emptyList() else markdownImageReferences(message.content)) +
                         message.files.filter { isImageReference(it) }
                 }.plus(markdownImageReferences(state.liveContent)).distinct()
-                viewingFile = FileViewRequest(reference, gallery = gallery)
+                overlays.viewingFile = FileViewRequest(reference, gallery = gallery)
             }
             val openPendingAttachment: (String) -> Unit = { reference ->
-                viewingFile = FileViewRequest(reference,
+                overlays.viewingFile = FileViewRequest(reference,
                     gallery = state.attachments.filter { isImageReference(it.name) || it.mime.startsWith("image/") }.map { it.reference },
                     editAttachment = state.attachments.any { it.reference == reference },
                 )
@@ -463,7 +442,7 @@ fun PlaygroundScreen(
                     model.notify("画像URLをコピーしました")
                 },
                 onReuse = { reference -> model.reuseImage(reference) },
-                onEdit = { reference -> markerMaskMode = false; markerTarget = state.attachments.firstOrNull { it.reference == reference } },
+                onEdit = { reference -> overlays.markerMaskMode = false; overlays.markerTarget = state.attachments.firstOrNull { it.reference == reference } },
             )
             val sharePdf: () -> Unit = {
                 model.exportPdf { file ->
@@ -500,12 +479,12 @@ fun PlaygroundScreen(
             }
             LaunchedEffect(state.settingsRequest) {
                 if (state.settingsRequest > 0L) {
-                    state.settingsRequestTab?.let { settingsTab = it }
-                    settingsCard = state.settingsRequestCard
-                    settingsOpen = true
+                    state.settingsRequestTab?.let { overlays.settingsTab = it }
+                    overlays.settingsCard = state.settingsRequestCard
+                    overlays.settingsOpen = true
                 }
             }
-            LaunchedEffect(settingsOpen) { if (!settingsOpen) settingsCard = null }
+            LaunchedEffect(overlays.settingsOpen) { if (!overlays.settingsOpen) overlays.settingsCard = null }
             LaunchedEffect(state.notice) {
                 state.notice?.let {
                     val duration = noticeAccessibility?.calculateRecommendedTimeoutMillis(
@@ -520,54 +499,54 @@ fun PlaygroundScreen(
             LaunchedEffect(state.banned) {
                 if (state.banned) {
                     allowDrawerOpen = false
-                    deleting = null
-                    renaming = null
-                    skillDeleting = null
-                    modelPicker = false
-                    threadSettings = false
-                    attachMenu = false
-                    libraryOpen = false
-                    viewingFile = null
-                    skillEditorOpen = false
-                    historyOpen = false
-                    branchOpen = false
-                    alphaOpen = false
-                    legalKind = null
-                    settingsOpen = false
-                    changelogOpen = false
-                    advancedOpen = false
-                    realtimeOpen = false
-                    lyriaOpen = false
-                    richPasteOpen = false
-                    markerTarget = null
-                    visionPicker = false
+                    overlays.deleting = null
+                    overlays.renaming = null
+                    overlays.skillDeleting = null
+                    overlays.modelPicker = false
+                    overlays.threadSettings = false
+                    overlays.attachMenu = false
+                    overlays.libraryOpen = false
+                    overlays.viewingFile = null
+                    overlays.skillEditorOpen = false
+                    overlays.historyOpen = false
+                    overlays.branchOpen = false
+                    overlays.alphaOpen = false
+                    overlays.legalKind = null
+                    overlays.settingsOpen = false
+                    overlays.changelogOpen = false
+                    overlays.advancedOpen = false
+                    overlays.realtimeOpen = false
+                    overlays.lyriaOpen = false
+                    overlays.richPasteOpen = false
+                    overlays.markerTarget = null
+                    overlays.visionPicker = false
                     closeDrawer()
                 }
             }
-            val hasOverlay = modelPicker || threadSettings || attachMenu || libraryOpen || viewingFile != null ||
-                skillEditorOpen || historyOpen || branchOpen || alphaOpen || legalKind != null ||
-                settingsOpen || changelogOpen || advancedOpen || realtimeOpen || lyriaOpen || richPasteOpen || markerTarget != null || visionPicker || compressionOpen
+            val hasOverlay = overlays.modelPicker || overlays.threadSettings || overlays.attachMenu || overlays.libraryOpen || overlays.viewingFile != null ||
+                overlays.skillEditorOpen || overlays.historyOpen || overlays.branchOpen || overlays.alphaOpen || overlays.legalKind != null ||
+                overlays.settingsOpen || overlays.changelogOpen || overlays.advancedOpen || overlays.realtimeOpen || overlays.lyriaOpen || overlays.richPasteOpen || overlays.markerTarget != null || overlays.visionPicker || overlays.compressionOpen
             BackHandler(enabled = hasOverlay || (!wide && drawer.currentValue == DrawerValue.Open) || state.canGoBackInChats) {
                 when {
-                    markerTarget != null -> markerTarget = null
-                    visionPicker -> visionPicker = false
-                    attachMenu -> attachMenu = false
-                    compressionOpen -> compressionOpen = false
-                    modelPicker -> modelPicker = false
-                    threadSettings -> threadSettings = false
-                    settingsOpen -> settingsOpen = false
-                    changelogOpen -> changelogOpen = false
-                    advancedOpen -> advancedOpen = false
-                    realtimeOpen -> realtimeOpen = false
-                    lyriaOpen -> lyriaOpen = false
-                    richPasteOpen -> richPasteOpen = false
-                    viewingFile != null -> viewingFile = null
-                    libraryOpen -> libraryOpen = false
-                    skillEditorOpen -> skillEditorOpen = false
-                    alphaOpen -> alphaOpen = false
-                    legalKind != null -> legalKind = null
-                    historyOpen -> historyOpen = false
-                    branchOpen -> branchOpen = false
+                    overlays.markerTarget != null -> overlays.markerTarget = null
+                    overlays.visionPicker -> overlays.visionPicker = false
+                    overlays.attachMenu -> overlays.attachMenu = false
+                    overlays.compressionOpen -> overlays.compressionOpen = false
+                    overlays.modelPicker -> overlays.modelPicker = false
+                    overlays.threadSettings -> overlays.threadSettings = false
+                    overlays.settingsOpen -> overlays.settingsOpen = false
+                    overlays.changelogOpen -> overlays.changelogOpen = false
+                    overlays.advancedOpen -> overlays.advancedOpen = false
+                    overlays.realtimeOpen -> overlays.realtimeOpen = false
+                    overlays.lyriaOpen -> overlays.lyriaOpen = false
+                    overlays.richPasteOpen -> overlays.richPasteOpen = false
+                    overlays.viewingFile != null -> overlays.viewingFile = null
+                    overlays.libraryOpen -> overlays.libraryOpen = false
+                    overlays.skillEditorOpen -> overlays.skillEditorOpen = false
+                    overlays.alphaOpen -> overlays.alphaOpen = false
+                    overlays.legalKind != null -> overlays.legalKind = null
+                    overlays.historyOpen -> overlays.historyOpen = false
+                    overlays.branchOpen -> overlays.branchOpen = false
                     !wide && drawer.currentValue == DrawerValue.Open -> closeDrawer()
                     state.canGoBackInChats -> model.goBackInChats()
                 }
@@ -591,32 +570,32 @@ fun PlaygroundScreen(
             }
             fun sidebarActions(onNavigate: () -> Unit) = SidebarActions(
                 onNavigate = onNavigate,
-                onChangelog = { changelogOpen = true; onOpenChangelog() },
-                onHistory = { historyOpen = true },
+                onChangelog = { overlays.changelogOpen = true; onOpenChangelog() },
+                onHistory = { overlays.historyOpen = true },
                 onLowBandwidth = model::cycleLowBandwidth,
-                onSettings = { settingsOpen = true },
-                onLibrary = { libraryOpen = true },
+                onSettings = { overlays.settingsOpen = true },
+                onLibrary = { overlays.libraryOpen = true },
                 onNewChat = { model.newChat() },
-                onBatch = { advancedOpen = true },
-                onBranches = { if (state.selected == null) model.notify("チャットを選択してください") else branchOpen = true },
+                onBatch = { overlays.advancedOpen = true },
+                onBranches = { if (state.selected == null) model.notify("チャットを選択してください") else overlays.branchOpen = true },
                 onPdf = sharePdf,
                 onExternal = openExternal,
                 onSearch = model::search,
                 // ANDROID_ONLY.md: the Drawer closes on tap and the chat shows its loading skeleton until the history arrives.
-                onOpenThread = { thread -> historyOpen = false; onNavigate(); model.openThread(thread) },
+                onOpenThread = { thread -> overlays.historyOpen = false; onNavigate(); model.openThread(thread) },
                 onBookmark = model::toggleBookmark,
-                onRenameThread = { renaming = it },
-                onDeleteThread = { deleting = it },
+                onRenameThread = { overlays.renaming = it },
+                onDeleteThread = { overlays.deleting = it },
                 onMoreThreads = model::moreThreads,
                 onRefreshThreads = model::reloadThreads,
                 onChooseSkill = { skill -> model.chooseSkill(skill) },
-                onNewSkill = { skillEditing = null; skillEditorOpen = true },
-                onEditSkill = { skill -> skillEditing = skill; skillEditorOpen = true },
-                onDeleteSkill = { skillDeleting = it },
+                onNewSkill = { overlays.skillEditing = null; overlays.skillEditorOpen = true },
+                onEditSkill = { skill -> overlays.skillEditing = skill; overlays.skillEditorOpen = true },
+                onDeleteSkill = { overlays.skillDeleting = it },
                 onRefreshSkills = model::reloadSkills,
                 onHelp = { onWeb("/help") },
-                onLegal = { legalKind = it },
-                onAlphaInfo = { alphaOpen = true },
+                onLegal = { overlays.legalKind = it },
+                onAlphaInfo = { overlays.alphaOpen = true },
                 onLogout = { model.logout(); closeDrawer() },
             )
 
@@ -634,31 +613,27 @@ fun PlaygroundScreen(
                     bottomBar = {
                         if (showThreads) CompositionLocalProvider(LocalComposerEstimator provides model::estimatePromptTokens,
                             LocalComposerDetailsEstimator provides model::estimatePromptTokenDetails) {
-                        Composer(state, model, { modelPicker = true }, { attachMenu = true }, launchSpeech,
-                            onRichPaste = { richPasteOpen = true }, onMask = {
+                        Composer(state, model, { overlays.modelPicker = true }, { overlays.attachMenu = true }, launchSpeech,
+                            onRichPaste = { overlays.richPasteOpen = true }, onMask = {
                                 if (isIdeogramObjectRemoval(state.model, state.generationValues)) {
                                     val image = state.attachments.firstOrNull { it.mime.startsWith("image/") || isImageReference(it.name) }
                                     if (image == null) model.notify("先にマスク対象の画像を添付してください")
-                                    else { markerMaskMode = true; markerTarget = image }
+                                    else { overlays.markerMaskMode = true; overlays.markerTarget = image }
                                 } else maskPicker.launch("image/*")
                             },
-                            onSettings = { settingsTab = "一般"; settingsOpen = true },
-                            onChatInstructions = { model.ensureThread { threadSettings = true } },
-                            onCompressionSettings = { compressionOpen = true },
+                            onSettings = { overlays.settingsTab = "一般"; overlays.settingsOpen = true },
+                            onChatInstructions = { model.ensureThread { overlays.threadSettings = true } },
+                            onCompressionSettings = { overlays.compressionOpen = true },
                             onTemporarySettings = { model.requestSettings(SettingsTab.General.id, "temp-chat") },
                             loader = loader, onOpenFile = openPendingAttachment, onDockHeight = { composerHeight = it },
                             onRealtime = {
-                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) realtimeOpen = true
-                                else { awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
+                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) overlays.realtimeOpen = true
+                                else { overlays.awaitingMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
                             },
-                            onLyria = { lyriaOpen = true },
-                            realtimeOptions = realtimeOptions,
-                            onRealtimeOptions = { realtimeOptions = it },
-                            onRealtimeStart = {
-                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                                    startRealtimeWith(model, state.model, realtimeOptions)
-                                } else { awaitingMic = true; startDockAfterMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
-                            })
+                            onLyria = { overlays.lyriaOpen = true },
+                            realtimeOptions = overlays.realtimeOptions,
+                            onRealtimeOptions = { overlays.realtimeOptions = it },
+                            onRealtimeStart = startRealtimeWithPermission)
                         }
                     }
                 ) { padding ->
@@ -679,7 +654,7 @@ fun PlaygroundScreen(
                         // Web `#top-model-bar` (minimal prompt bar): the model button under the header.
                         AnimatedVisibility(screen == PlaygroundScreenKind.Chat && state.preferences?.effectivePromptBarMode == "minimal",
                             enter = expandFadeIn(reduceMotion), exit = shrinkFadeOut(reduceMotion)) {
-                            TopModelBar(state) { modelPicker = true }
+                            TopModelBar(state) { overlays.modelPicker = true }
                         }
                         AnimatedContent(
                             targetState = screen,
@@ -705,10 +680,10 @@ fun PlaygroundScreen(
                                             bottomOverlay = if (edgeToEdgeMinimal) with(LocalDensity.current) { composerHeight.toDp() } else 0.dp,
                                             onSettingJump = { key ->
                                                 val target = AI_SETTING_JUMP_TARGETS[key]
-                                                if (target?.richPaste == true) richPasteOpen = true
+                                                if (target?.richPaste == true) overlays.richPasteOpen = true
                                                 else {
-                                                    settingsTab = SettingsTab.entries.firstOrNull { it.id == target?.tab }?.label ?: "一般"
-                                                    settingsOpen = true
+                                                    overlays.settingsTab = SettingsTab.entries.firstOrNull { it.id == target?.tab }?.label ?: "一般"
+                                                    overlays.settingsOpen = true
                                                 }
                                             },
                                         )
@@ -722,6 +697,7 @@ fun PlaygroundScreen(
             }
 
             }
+            // region: Responsive layout and drawer
             if (showThreads && wide) {
                 Row(Modifier.fillMaxSize()) {
                     Sidebar(state, versionLabel, sidebarActions {})
@@ -746,6 +722,7 @@ fun PlaygroundScreen(
                     }) { Box { content() } }
             }
 
+            // region: Canvas and transition overlays
             // Web `#canvas-panel` below 1024px: a full-screen layer over the header and the composer.
             if (showThreads && state.canvasMode && LocalConfiguration.current.screenWidthDp.dp < CANVAS_SIDE_PANEL_MIN_WIDTH) {
                 androidx.compose.ui.window.Dialog(onDismissRequest = model::toggleCanvas,
@@ -775,166 +752,36 @@ fun PlaygroundScreen(
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
                 }
             }
+            // endregion
 
-            ModalHost(modelPicker) { ModelPicker(state, onDismiss = { modelPicker = false }, onSelect = { model.chooseModelByUser(it); modelPicker = false }) }
-            ModalHost(libraryOpen) { LibraryDialog(state, model, onOpenFile = { viewingFile = it }, onDismiss = { libraryOpen = false }) }
-            ModalValueHost(viewingFile) { request ->
-                FileViewerDialog(
-                    request, loader,
-                    download = { model.downloadAttachment(it) },
-                    onDismiss = { viewingFile = null },
-                    onOpenExternal = onFile,
-                    imageActions = imageActions,
-                )
-            }
-            ModalHost(skillEditorOpen) {
-                val editing = skillEditing
-                SkillEditorDialog(skill = editing, onDismiss = { skillEditorOpen = false }) { n, d, i, done ->
-                    model.saveSkill(editing?.uuid, n, d, i) { ok -> if (ok) skillEditorOpen = false; done(ok) }
-                }
-            }
-            state.mcpDecision?.let { decision -> key(decision.id) { McpDecisionDialog(decision, model::resolveMcpDecision) } }
-            state.accountLock?.let { lock -> AccountLockOverlay(lock, model::accountLockExpired) }
-            state.sessionTurnstileUrl?.let { url ->
-                LaunchedEffect(url) { onWeb(url) }
-                SessionTurnstileOverlay(onOpen = { onWeb(url) }, onDismiss = model::dismissSessionTurnstile)
-            }
-            state.apiKeyPrompt?.let { modelId ->
-                apiKeyInfoFor(modelId)?.let { info ->
-                    ApiKeyRequiredDialog(model.modelDisplayName(modelId), modelId, info, onSave = model::saveApiKeyAndResend,
-                        onSwitch = { model.dismissApiKeyPrompt(false); modelPicker = true },
-                        onCancel = { model.dismissApiKeyPrompt(true) })
-                }
-            }
-            val progressLabel by model.progressLabel.collectAsState()
-            // Web `#offline-banner` and `#global-progress-spinner`: bottom-right, above the composer.
-            val bannerShown = showThreads && (state.connectionBannerVisible || state.offline)
-            val aboveComposer = with(LocalDensity.current) { composerHeight.toDp() }
-            AnimatedVisibility(bannerShown, Modifier.align(Alignment.BottomEnd).imePadding().padding(end = 16.dp, bottom = aboveComposer + 16.dp),
-                enter = fadeIn(tween(if (reduceMotion) 0 else 280)) + slideInVertically(tween(if (reduceMotion) 0 else 280)) { it / 5 },
-                exit = fadeOut(tween(if (reduceMotion) 0 else 280)) + slideOutVertically(tween(if (reduceMotion) 0 else 280)) { it / 5 }) {
-                ConnectionBanner(
-                    status = if (state.connectionStatus == ConnectionStatus.UNKNOWN) ConnectionStatus.OFFLINE else state.connectionStatus,
-                    message = state.connectionMessage,
-                    onRetry = model::reconnect,
-                )
-            }
-            GlobalProgressSpinner(progressLabel, Modifier.align(Alignment.BottomEnd).imePadding()
-                .padding(end = 16.dp, bottom = aboveComposer + if (bannerShown) 64.dp else 16.dp))
-            ModalHost(branchOpen && state.selected != null) {
-                BranchManagerDialog(state, onDismiss = { branchOpen = false }, onSwitch = model::switchBranch,
-                    onDelete = model::deleteMessage, notify = model::notify)
-            }
-            ModalHost(historyOpen) { HistoryDialog(state, sidebarActions(closeDrawer), onDismiss = { historyOpen = false }) }
-            ModalHost(alphaOpen) { AlphaInfoDialog(onDismiss = { alphaOpen = false }) }
-            ModalValueHost(legalKind) { kind -> LegalDialog(kind, model::legalMarkdown, onDismiss = { legalKind = null }) }
-            // Web `confirm("Delete?")` / `prompt("Title:")` for Skills and threads.
-            skillDeleting?.let { skill -> BrowserConfirmDialog("Delete?") { ok -> if (ok) model.deleteSkill(skill); skillDeleting = null } }
-            renaming?.let { thread ->
-                ThreadRenameDialog(thread.title) { title -> if (!title.isNullOrBlank()) model.renameThread(thread, title.trim()); renaming = null }
-            }
-            ModalHost(settingsOpen) {
-                SettingsDialog(state, model, onDismiss = { settingsOpen = false }, initialTab = settingsTab,
-                    initialCard = settingsCard,
-                    onLogout = { model.logout(); settingsOpen = false; closeDrawer() }, onWeb = onWeb,
-                    appUpdate = appUpdate ?: AppUpdateUiState(), onCheckForUpdate = onCheckForUpdate,
-                    onBubble = { openBubble(); settingsOpen = false })
-            }
-            ModalHost(compressionOpen) { CompressionDialog(state, model) { compressionOpen = false } }
-            ModalHost(changelogOpen) {
-                AppChangelogDialog(
-                    state = appChangelog,
-                    onDismiss = { changelogOpen = false },
-                    onRetry = onRetryChangelog,
-                )
-            }
-            ModalHost(advancedOpen) {
-                BatchDialog(
-                    state, onLoad = model::loadBatchJobs,
-                    onOpen = { job -> advancedOpen = false; model.openThreadId(job.threadId) },
-                    onCancel = model::cancelBatchJob, onDelete = model::deleteBatchJob,
-                    onDismiss = { advancedOpen = false },
-                )
-            }
-            ModalHost(realtimeOpen) {
-                RealtimeStudioDialog(state, model, realtimeOptions, { realtimeOptions = it }, onDismiss = { realtimeOpen = false },
-                    onStart = {
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                            startRealtimeWith(model, state.model, realtimeOptions)
-                        } else { awaitingMic = true; startDockAfterMic = true; microphone.launch(Manifest.permission.RECORD_AUDIO) }
-                    })
-            }
-            ModalHost(lyriaOpen) { LyriaStudioDialog(state, model, onDismiss = { lyriaOpen = false }) }
-            ModalHost(richPasteOpen) {
-                RichPasteDialog(state.preferences, onDismiss = { richPasteOpen = false },
-                    onSavePrompt = model::saveRichPastePrompt, notify = model::notify) { text ->
-                    model.draft(if (state.draft.isBlank()) text else state.draft.trimEnd() + "\n\n" + text)
-                }
-            }
-            if (attachMenu) UploadSheet(
-                state, model, loader,
-                onDismiss = { attachMenu = false },
-                onPickFiles = { attachMenu = false; pendingAttachmentPicker = AttachmentPicker.Files },
-                onCamera = launchCamera,
-                onPhotos = { attachMenu = false; pendingAttachmentPicker = AttachmentPicker.Photos },
-                onSplitImage = {
-                    attachMenu = false
-                    pendingAttachmentPicker = AttachmentPicker.Split
-                },
-                onLibrary = { libraryOpen = true },
-                onChangeVisionModel = { visionPicker = true },
-                onOpenFile = openPendingAttachment,
-                onEditImage = { markerMaskMode = false; markerTarget = it },
+            // region: Dialogs, sheets and confirmations
+            PlaygroundDialogs(
+                state = state,
+                model = model,
+                overlays = overlays,
+                loader = loader,
+                imageActions = imageActions,
+                imageSplit = imageSplit,
+                sharedTextPreview = sharedTextPreview,
+                codeActions = codeActions,
+                sidebarActions = { onNavigate -> sidebarActions(onNavigate) },
+                closeDrawer = closeDrawer,
+                openInApp = openInApp,
+                openPendingAttachment = openPendingAttachment,
+                onWeb = onWeb,
+                onFile = onFile,
+                onRetryChangelog = onRetryChangelog,
+                appChangelog = appChangelog,
+                appUpdate = appUpdate,
+                onCheckForUpdate = onCheckForUpdate,
+                openBubble = openBubble,
+                startupSplashFinished = startupSplashFinished,
+                launchCamera = launchCamera,
+                startRealtimeWithPermission = startRealtimeWithPermission,
+                onSaveSplitOnly = saveSplitOnly,
             )
-            ModalValueHost(sharedTextPreview.takeIf { startupSplashFinished }) { text ->
-                // The chat's code-block actions, so code blocks get the same buttons as in an answer.
-                ProvideMarkdownCodeActions(codeActions) {
-                    SharedTextPreviewDialog(text, loader, openInApp, onDismiss = model::closeSharedTextPreview)
-                }
-            }
-            ModalValueHost(imageSplit) { request ->
-                ImageSplitDialog(request, onDismiss = model::closeImageSplit,
-                    onAttach = { options -> model.runImageSplit(options, attach = true) },
-                    onSaveOnly = { options ->
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) model.runImageSplit(options, attach = false)
-                        else {
-                            pendingSplitSave = options
-                            try { splitFolderPicker.launch(null) }
-                            catch (ignored: Exception) { pendingSplitSave = null; model.notify("保存先のフォルダーを選択できません。") }
-                        }
-                    })
-            }
-            ModalHost(cameraOpen) {
-                InAppCameraDialog(
-                    onDismiss = { cameraOpen = false },
-                    onCaptured = { uris, split ->
-                        cameraOpen = false
-                        if (split) model.openImageSplit(uris) else model.upload(uris)
-                    },
-                    onError = model::notify,
-                )
-            }
-            ModalHost(visionPicker) {
-                ModelPicker(state, onDismiss = { visionPicker = false },
-                    onSelect = { model.setVisionModel(it); visionPicker = false },
-                    selectedId = state.visionModel ?: state.preferences?.defaultVisionModel.orEmpty(), lockToPromptCache = false)
-            }
-            ModalValueHost(markerTarget) { target ->
-                ImageMarkerEditor(target, loader, maskMode = markerMaskMode, onDismiss = { markerTarget = null; markerMaskMode = false },
-                    onSave = { png, attachOriginal ->
-                        if (markerMaskMode) model.uploadImageMask(png) else model.applyImageEdit(target.reference, png, attachOriginal)
-                        markerTarget = null
-                        markerMaskMode = false
-                    },
-                    onError = model::notify)
-            }
-            ModalHost(threadSettings && state.selected != null) {
-                ChatInstructionsDialog(state, onRefresh = model::loadPreferences, onDismiss = { threadSettings = false }) {
-                    instruction, includeGlobal, userPrompt, done ->
-                    model.saveChatInstructions(instruction, includeGlobal, userPrompt) { ok -> if (ok) threadSettings = false; done(ok) }
-                }
-            }
-            deleting?.let { thread -> BrowserConfirmDialog("Delete?") { ok -> if (ok) model.deleteThread(thread, onNewChat = closeDrawer); deleting = null } }
+            // endregion
+            // region: Status overlays
             if (state.banned) BannedScreen(
                 reason = state.banReason,
                 bannedAt = state.banAt,
@@ -956,6 +803,7 @@ fun PlaygroundScreen(
                 AppUpdateProgressBar(update, onShowUpdate, Modifier.align(Alignment.TopCenter))
             }
             StartupSplash(startupSplashEnabled, ready = !state.starting, onFinished = { startupSplashFinished = true })
+            // endregion
             }
             }
         }
@@ -964,1097 +812,3 @@ fun PlaygroundScreen(
 
 /** Top-level screens swapped with a shared cross-fade. */
 private enum class PlaygroundScreenKind { Starting, Setup, Auth, Chat }
-
-/** Web `banned.html`: the BAN notice, the appeal box and the logout button. */
-@Composable
-private fun BannedScreen(
-    reason: String,
-    bannedAt: String,
-    appeal: BanAppealState,
-    onSubmitAppeal: suspend (String) -> Boolean,
-    onLogout: () -> Unit,
-) {
-    val colors = MaterialTheme.colorScheme
-    val scope = rememberCoroutineScope()
-    var message by rememberSaveable { mutableStateOf("") }
-    val success = Color(34, 197, 94)
-    Surface(color = colors.background, contentColor = colors.onBackground, modifier = Modifier.fillMaxSize()) {
-        Box(
-            Modifier.fillMaxSize().imePadding().padding(24.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Card(
-                modifier = Modifier.fillMaxWidth().widthIn(max = 520.dp),
-                colors = CardDefaults.cardColors(containerColor = colors.surfaceContainer),
-                border = androidx.compose.foundation.BorderStroke(1.dp, colors.error.copy(alpha = 0.35f)),
-            ) {
-                Column(
-                    Modifier.padding(24.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Text("アカウントはBANされています", style = MaterialTheme.typography.headlineSmall,
-                        color = colors.error, fontWeight = FontWeight.Bold)
-                    Text("ボット検出により、このアカウントは停止中です。", color = colors.onSurfaceVariant)
-                    Text("解除できるのは管理者のみです。", color = colors.onSurfaceVariant)
-                    if (reason.isNotBlank()) Text("理由: $reason", style = MaterialTheme.typography.bodySmall)
-                    if (bannedAt.isNotBlank()) Text("日時: $bannedAt", style = MaterialTheme.typography.bodySmall)
-                    HorizontalDivider(Modifier.padding(top = 8.dp), color = colors.outlineVariant)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("異議申し立て", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                        Text("管理者に通知されます", fontSize = 11.sp, color = colors.primary,
-                            modifier = Modifier.clip(CircleShape).background(colors.primary.copy(alpha = 0.14f))
-                                .border(1.dp, colors.primary.copy(alpha = 0.35f), CircleShape).padding(horizontal = 6.dp, vertical = 2.dp))
-                    }
-                    Text("誤判定の可能性がある場合は、状況を詳しく記入してください。", color = colors.onSurfaceVariant)
-                    if (appeal.latestAt.isNotBlank() || appeal.latestStatus.isNotBlank()) {
-                        Text("最新の申し立て: ${appeal.latestAt} / 状態: ${appeal.latestStatus}", style = MaterialTheme.typography.bodySmall)
-                        if (appeal.adminReply.isNotBlank()) BanAlert("管理者からの返信: ${appeal.adminReply}", success)
-                    }
-                    if (appeal.submitted) BanAlert("申し立てを送信しました。管理者が確認します。", success)
-                    if (appeal.error.isNotBlank()) BanAlert(appeal.error, colors.error)
-                    if (appeal.blocked) {
-                        BanAlert("異議申し立てはブロックされています。" +
-                            (if (appeal.blockReason.isNotBlank()) "理由: ${appeal.blockReason}" else ""), colors.error)
-                    } else {
-                        OutlinedTextField(
-                            value = message,
-                            onValueChange = { message = it },
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-                            placeholder = { Text("例: 利用環境や操作内容、誤判定の可能性について記載してください。") },
-                            enabled = !appeal.sending,
-                            textStyle = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text("10〜3000文字で入力してください。", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                        Button(
-                            onClick = { scope.launch { if (onSubmitAppeal(message)) message = "" } },
-                            enabled = !appeal.sending,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text("異議申し立てを送信")
-                        }
-                    }
-                    OutlinedButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) {
-                        Text("ログアウト")
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** Web `banned.html` `.alert.success` / `.alert.error`. */
-@Composable
-private fun BanAlert(text: String, tint: Color) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = tint,
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(tint.copy(alpha = 0.15f))
-            .border(1.dp, tint.copy(alpha = 0.35f), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 8.dp))
-}
-
-/**
- * Web `#offline-banner` (`connection_monitor.js`): a pill with the state's colours, icon and wording.
- * The "再試行" button is Android's own (ANDROID_ONLY.md).
- */
-@Composable
-private fun ConnectionBanner(status: ConnectionStatus, message: String, onRetry: () -> Unit) {
-    val (fg, border, background) = when (status) {
-        ConnectionStatus.MAINTENANCE -> Triple(Color(0xFFE9D5FF), Color(192, 132, 252).copy(alpha = 0.62f), Color(32, 12, 52).copy(alpha = 0.94f))
-        ConnectionStatus.UNSTABLE -> Triple(Color(0xFFFEF3C7), Color(245, 158, 11).copy(alpha = 0.55f), Color(40, 24, 0).copy(alpha = 0.92f))
-        ConnectionStatus.ONLINE -> Triple(Color(0xFFD1FAE5), Color(52, 211, 153).copy(alpha = 0.58f), Color(3, 34, 26).copy(alpha = 0.92f))
-        ConnectionStatus.SERVER_DOWN -> Triple(Color(0xFFFECACA), Color(239, 68, 68).copy(alpha = 0.75f), Color(48, 5, 12).copy(alpha = 0.95f))
-        ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> Triple(Color(0xFFFECACA), Color(248, 113, 113).copy(alpha = 0.6f), Color(28, 8, 14).copy(alpha = 0.92f))
-    }
-    val icon = when (status) {
-        ConnectionStatus.MAINTENANCE -> com.minashin1120.aiplayground.R.drawable.fa_solid_screwdriver_wrench
-        ConnectionStatus.UNSTABLE -> com.minashin1120.aiplayground.R.drawable.fa_solid_exclamation_triangle
-        ConnectionStatus.ONLINE -> com.minashin1120.aiplayground.R.drawable.fa_solid_check_circle
-        ConnectionStatus.SERVER_DOWN -> com.minashin1120.aiplayground.R.drawable.fa_solid_server
-        ConnectionStatus.OFFLINE, ConnectionStatus.UNKNOWN -> com.minashin1120.aiplayground.R.drawable.fa_solid_unlink
-    }
-    val reduce = LocalReduceMotion.current
-    // Web `bannerPulse`: the icon pulses once whenever the connection gets worse.
-    val pulse = remember { Animatable(1f) }
-    LaunchedEffect(status) {
-        if (reduce || status == ConnectionStatus.ONLINE) return@LaunchedEffect
-        pulse.animateTo(1.25f, tween(PlaygroundMotion.SHORT, easing = PlaygroundMotion.Emphasized))
-        pulse.animateTo(1f, tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Standard))
-    }
-    val screen = LocalConfiguration.current.screenWidthDp.dp
-    Row(
-        Modifier.widthIn(max = minOf(screen - 32.dp, 420.dp)).shadow(20.dp, CircleShape, ambientColor = Color.Black.copy(alpha = 0.35f))
-            .clip(CircleShape).background(background).border(1.dp, border, CircleShape).padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        FaIcon(icon, null, size = 12.dp, tint = fg, modifier = Modifier.graphicsLayer { scaleX = pulse.value; scaleY = pulse.value })
-        Text(message.ifBlank { status.defaultMessage() }, fontSize = 12.sp, lineHeight = 16.sp, color = fg, modifier = Modifier.weight(1f, fill = false))
-        if (status != ConnectionStatus.ONLINE) Text("再試行", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = fg,
-            modifier = Modifier.clip(CircleShape).clickable(role = Role.Button, onClick = onRetry).padding(horizontal = 6.dp, vertical = 2.dp))
-    }
-}
-
-@Composable
-private fun AuthScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -> Unit) {
-    var signup by rememberSaveable { mutableStateOf(false) }
-    var username by rememberSaveable { mutableStateOf("") }
-    var password by rememberSaveable { mutableStateOf("") }
-    var confirmation by rememberSaveable { mutableStateOf("") }
-    var totp by rememberSaveable { mutableStateOf("") }
-    val clipboard = LocalClipboardManager.current
-    val colors = MaterialTheme.colorScheme
-    LaunchedEffect(state.authTurnstileUrl) {
-        state.authTurnstileUrl?.let { path -> onWeb(path) }
-    }
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        item {
-            Surface(shape = RoundedCornerShape(28.dp), color = colors.primaryContainer, contentColor = colors.onPrimaryContainer) {
-                Column(Modifier.fillMaxWidth().padding(28.dp)) {
-                    Text("✦", fontSize = 48.sp, color = colors.primary)
-                    Text("ひとつの場所で、\nいろいろなAIと。", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(12.dp))
-                    Text("アプリ内でアカウントを作成・ログインできます。", color = colors.onPrimaryContainer)
-                }
-            }
-        }
-        item { ServerOriginField(state, model) }
-        item { LocalProfileEntry(state, model) }
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (state.authTwoFactorTransaction != null) {
-                    Text("2段階認証", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                    Text("認証アプリに表示されたコードを入力してください。", color = colors.onSurfaceVariant)
-                    OutlinedTextField(
-                        value = totp, onValueChange = { totp = it }, label = { Text("認証コード") },
-                        singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !state.authBusy,
-                    )
-                    state.authError?.let { Text(it, color = colors.error) }
-                    Button(
-                        onClick = { model.verifyTotp(totp) },
-                        enabled = !state.authBusy && totp.trim().isNotEmpty(),
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
-                    ) { Text(if (state.authBusy) "確認しています…" else "ログイン") }
-                    if (state.auth2faMethod == "webauthn") {
-                        OutlinedButton(
-                            onClick = { model.beginWebauthnTwoFactor() },
-                            enabled = !state.authBusy,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
-                        ) { Text("パスキーで認証") }
-                    }
-                } else {
-                    Text(if (signup) "アカウントを作成" else "ログイン", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                    OutlinedTextField(
-                        value = username, onValueChange = { username = it }, label = { Text("ユーザー名") },
-                        singleLine = true, enabled = !state.authBusy,
-                        modifier = Modifier.fillMaxWidth().semantics { contentType = if (signup) ContentType.NewUsername else ContentType.Username },
-                    )
-                    OutlinedTextField(
-                        value = password, onValueChange = { password = it }, label = { Text("パスワード") },
-                        singleLine = true, visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        modifier = Modifier.fillMaxWidth().secretField(if (signup) ContentType.NewPassword else ContentType.Password),
-                        enabled = !state.authBusy,
-                    )
-                    if (signup) {
-                        OutlinedTextField(
-                            value = confirmation, onValueChange = { confirmation = it }, label = { Text("パスワード（確認）") },
-                            singleLine = true, visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                            modifier = Modifier.fillMaxWidth().secretField(ContentType.NewPassword),
-                            enabled = !state.authBusy,
-                        )
-                    }
-                    state.authError?.let { Text(it, color = colors.error) }
-                    state.googleAuthDiagnostics?.let { diagnostics ->
-                        Surface(
-                            color = colors.surfaceVariant,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Googleログイン診断ログ", style = MaterialTheme.typography.titleSmall)
-                                Text(
-                                    "IDトークンやnonceは含まれていません。OAuth設定の確認に利用できます。",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.onSurfaceVariant,
-                                )
-                                SelectionContainer {
-                                    Text(diagnostics, style = MaterialTheme.typography.bodySmall)
-                                }
-                                OutlinedButton(
-                                    onClick = {
-                                        clipboard.setText(AnnotatedString(diagnostics))
-                                        model.notify("診断ログをコピーしました。")
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) { Text("診断ログをコピー") }
-                            }
-                        }
-                    }
-                    Button(
-                        onClick = {
-                            if (signup && password != confirmation) model.notify("パスワードが一致しません。")
-                            else if (signup) model.signup(username, password) else model.login(username, password)
-                        },
-                        enabled = !state.authBusy && username.isNotBlank() && password.isNotBlank(),
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
-                    ) { Text(if (state.authBusy) "処理しています…" else if (signup) "アカウントを作成" else "ログイン") }
-                    TextButton(onClick = { signup = !signup; confirmation = "" }) {
-                        Text(if (signup) "すでにアカウントをお持ちですか？ログイン" else "アカウントを新規作成")
-                    }
-                    if (!signup) {
-                        val server = state.serverInfo
-                        if (server?.passkey != false) OutlinedButton(
-                            onClick = { model.beginPasskeyLogin(username) },
-                            enabled = !state.authBusy && username.isNotBlank(),
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
-                        ) { Text("パスキーでログイン") }
-                        if (server?.googleNative ?: ServerOrigin.isOfficial) Button(
-                            onClick = model::beginGoogleLogin,
-                            enabled = !state.authBusy,
-                            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp),
-                        ) { Text(if (state.authBusy) "Googleログインを処理しています…" else "Googleでログイン") }
-                    }
-                }
-            }
-        }
-        item {
-            HorizontalDivider()
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("ブラウザーでログイン", style = MaterialTheme.typography.titleMedium)
-                if (state.serverInfo?.googleBrowser ?: ServerOrigin.isOfficial) {
-                    OutlinedButton(onClick = { onWeb(model.browserLoginPath("google")) }, modifier = Modifier.fillMaxWidth()) { Text("Google（ブラウザー・旧方式）") }
-                }
-                if (state.serverInfo?.minashin ?: ServerOrigin.isOfficial) {
-                    OutlinedButton(onClick = { onWeb(model.browserLoginPath("minashin")) }, modifier = Modifier.fillMaxWidth()) { Text("Minashinでログイン") }
-                }
-                TextButton(onClick = { onWeb("/") }, modifier = Modifier.fillMaxWidth()) { Text("Web版を開く") }
-            }
-        }
-    }
-}
-
-/** Login screen "サーバーを使わずに始める": the no-account profile (ANDROID_ONLY.md). */
-@Composable
-private fun LocalProfileEntry(state: ChatState, model: ChatViewModel) {
-    val colors = MaterialTheme.colorScheme
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        OutlinedButton(onClick = model::startLocalProfile, enabled = !state.authBusy,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) { Text("サーバーを使わずに始める") }
-        Text("アカウントなしで、この端末だけで使います。APIキーとチャットは端末内に暗号化して保存し、AIの各社APIへ直接送信します。あとからサーバーにログインしてチャットを同期できます。",
-            style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-    }
-}
-
-/** Login screen "接続先": the official server by default, or a self-hosted AI Playground server. */
-@Composable
-private fun ServerOriginField(state: ChatState, model: ChatViewModel) {
-    val colors = MaterialTheme.colorScheme
-    var editing by rememberSaveable { mutableStateOf(false) }
-    var input by rememberSaveable(state.serverLabel) { mutableStateOf(state.serverLabel) }
-    LaunchedEffect(state.serverLabel, state.serverChecking) { if (!state.serverChecking && state.serverError == null) editing = false }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("接続先", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
-                Text(state.serverInfo?.name?.takeIf { it != state.serverLabel }?.let { "$it（${state.serverLabel}）" } ?: state.serverLabel,
-                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            }
-            TextButton(onClick = { editing = !editing }, enabled = !state.authBusy && !state.serverChecking) {
-                Text(if (editing) "閉じる" else "変更")
-            }
-        }
-        if (editing) {
-            OutlinedTextField(
-                value = input, onValueChange = { input = it }, label = { Text("サーバーのドメイン") },
-                placeholder = { Text("ai.example.com") }, singleLine = true, enabled = !state.serverChecking,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            val recent = (listOf(originLabel(ServerOrigin.DEFAULT)) + state.savedServers).distinct()
-            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                recent.forEach { label -> AssistChip(onClick = { input = label; model.selectServer(label) }, label = { Text(label) }) }
-            }
-            state.serverError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
-            Button(onClick = { model.selectServer(input) }, enabled = !state.serverChecking && input.isNotBlank(),
-                modifier = Modifier.fillMaxWidth()) { Text(if (state.serverChecking) "確認しています…" else "この接続先を使う") }
-            Text("本アプリに対応した AI Playground のサーバーだけに接続できます（https のみ）。", style = MaterialTheme.typography.bodySmall,
-                color = colors.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
-private fun SetupScreen(state: ChatState, model: ChatViewModel, onWeb: (String) -> Unit) {
-    var selectedModel by rememberSaveable(state.setupDefaultModel) { mutableStateOf(state.setupDefaultModel) }
-    var modelMenu by remember { mutableStateOf(false) }
-    var openai by rememberSaveable { mutableStateOf("") }
-    var gemini by rememberSaveable { mutableStateOf("") }
-    var anthropic by rememberSaveable { mutableStateOf("") }
-    var deepseek by rememberSaveable { mutableStateOf("") }
-    var kimi by rememberSaveable { mutableStateOf("") }
-    var mistral by rememberSaveable { mutableStateOf("") }
-    var ideogram by rememberSaveable { mutableStateOf("") }
-    var zai by rememberSaveable { mutableStateOf("") }
-    var xai by rememberSaveable { mutableStateOf("") }
-    var google by rememberSaveable { mutableStateOf("") }
-    var googleProject by rememberSaveable { mutableStateOf("") }
-    var vertexProject by rememberSaveable { mutableStateOf("") }
-    var vertexLocation by rememberSaveable { mutableStateOf("global") }
-    var vertexJson by rememberSaveable { mutableStateOf("") }
-    var e2ee by rememberSaveable { mutableStateOf(false) }
-    val zipPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) model.importAccountZip(uri)
-    }
-    val colors = MaterialTheme.colorScheme
-    if (state.setupImportSettingsChanges.isNotEmpty()) {
-        NoticeAlertDialog(
-            onDismissRequest = { if (!state.setupImportBusy) model.cancelSetupImportConfirmation() },
-            // Cancelling here drops the uploaded archive, so only the buttons (or back) may do it.
-            properties = androidx.compose.ui.window.DialogProperties(dismissOnClickOutside = false),
-            title = { Text("設定の変更を確認") },
-            text = {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.heightIn(max = 360.dp)) {
-                    item {
-                        Text("ZIPに含まれる設定で、現在の設定を上書きします。内容を確認してください。")
-                    }
-                    items(state.setupImportSettingsChanges) { change ->
-                        ImportSettingChangeRow(change)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = model::confirmSetupImportSettings,
-                    enabled = !state.setupImportBusy,
-                ) { Text(if (state.setupImportBusy) "適用中…" else "設定を上書きして続行") }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = model::cancelSetupImportConfirmation,
-                    enabled = !state.setupImportBusy,
-                ) { Text("取り消す") }
-            },
-        )
-    }
-    LazyColumn(
-        Modifier.fillMaxSize(), contentPadding = PaddingValues(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        item {
-            Text("はじめに設定しましょう", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(6.dp))
-            Text("${state.account?.name ?: "アカウント"} の初回セットアップです。後からWebの設定でも変更できます。", color = colors.onSurfaceVariant)
-        }
-        item {
-            Text("既定のモデル", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Box {
-                OutlinedButton(onClick = { modelMenu = true }, modifier = Modifier.fillMaxWidth()) { Text(selectedModel) }
-                DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
-                    state.setupModels.filter { it.selectable }.take(40).forEach { option ->
-                        DropdownMenuItem(text = { Text(option.name) }, onClick = { selectedModel = option.id; modelMenu = false })
-                    }
-                }
-            }
-        }
-        item { Text("APIキー（必要なプロバイダーだけ入力）", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
-        item { SetupSecretField("OpenAI", openai, { openai = it }) }
-        item { SetupSecretField("Gemini", gemini, { gemini = it }) }
-        item { SetupSecretField("Anthropic", anthropic, { anthropic = it }) }
-        item { SetupSecretField("DeepSeek", deepseek, { deepseek = it }) }
-        item { SetupSecretField("Kimi", kimi, { kimi = it }) }
-        item { SetupSecretField("Mistral", mistral, { mistral = it }) }
-        item { SetupSecretField("Ideogram", ideogram, { ideogram = it }) }
-        item { SetupSecretField("Z.AI", zai, { zai = it }) }
-        item { SetupSecretField("xAI", xai, { xai = it }) }
-        item { SetupSecretField("Google API", google, { google = it }) }
-        item { SetupSecretField("Google Cloudプロジェクト", googleProject, { googleProject = it }) }
-        item { SetupSecretField("Vertex AIプロジェクト", vertexProject, { vertexProject = it }) }
-        item { SetupSecretField("Vertex AIリージョン", vertexLocation, { vertexLocation = it }) }
-        item {
-            OutlinedTextField(
-                vertexJson, { vertexJson = it }, label = { Text("Vertex AIサービスアカウントJSON（任意）") },
-                minLines = 3, maxLines = 8, modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = e2ee, onCheckedChange = { e2ee = it })
-                Column(Modifier.weight(1f)) {
-                    Text("保存データを暗号化する")
-                    Text("既存データがある場合はバックグラウンドで移行します。", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                }
-            }
-        }
-        item {
-            state.authError?.let { Text(it, color = colors.error) }
-            Button(
-                onClick = {
-                    model.finishSetup(selectedModel, openai, gemini, anthropic, deepseek, kimi, mistral, ideogram, zai, xai,
-                        google, googleProject, vertexProject, vertexLocation, vertexJson, e2ee)
-                }, enabled = !state.authBusy, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
-            ) { Text(if (state.authBusy) "保存しています…" else "セットアップを完了") }
-        }
-        item {
-            Text("アカウントZIPのインポート（任意）", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text("Web版で書き出したZIPから、履歴・設定・APIキーなどを取り込めます。", color = colors.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
-            if (state.setupImportBusy) {
-                Text(
-                    "${state.setupImportName} をアップロード中… (${state.setupImportProgress}/${state.setupImportTotalChunks})",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                val progress = if (state.setupImportTotalChunks > 0) {
-                    state.setupImportProgress.toFloat() / state.setupImportTotalChunks
-                } else 0f
-                LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
-                TextButton(onClick = model::cancelSetupImport) { Text("インポートをキャンセル") }
-            } else if (state.setupImportDone) {
-                Text("インポートが完了しました。", color = colors.primary, style = MaterialTheme.typography.bodySmall)
-            } else {
-                Button(onClick = {
-                    zipPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream"))
-                }, modifier = Modifier.fillMaxWidth()) { Text("ZIPを選択してインポート") }
-            }
-            state.setupImportError?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodySmall) }
-        }
-        item {
-            TextButton(onClick = { onWeb("/setup") }, modifier = Modifier.fillMaxWidth()) {
-                Text("Webのセットアップ画面を開く")
-            }
-        }
-    }
-}
-
-@Composable
-private fun ImportSettingChangeRow(change: ImportSettingChange) {
-    val label = mapOf(
-        "default_model" to "既定のモデル",
-        "theme_color" to "テーマ色",
-        "system_prompt" to "システムプロンプト",
-        "system_prompt_enabled" to "システムプロンプトの有効化",
-        "light_mode_enabled" to "ライトモード",
-        "liquid_glass_enabled" to "Liquid Glass",
-        "gemini_backend" to "Geminiバックエンド",
-        "gemini_vertex_location" to "Vertex AIリージョン",
-    )[change.field] ?: change.field
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, fontWeight = FontWeight.SemiBold)
-        Text("現在: ${shortImportValue(change.current)}", style = MaterialTheme.typography.bodySmall)
-        Text("取り込み後: ${shortImportValue(change.incoming)}", style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-private fun shortImportValue(value: String): String {
-    val normalized = value.replace("\n", " ").trim()
-    return if (normalized.length > 180) normalized.take(180) + "…" else normalized
-}
-
-@Composable
-private fun SetupSecretField(label: String, value: String, onValueChange: (String) -> Unit) {
-    OutlinedTextField(
-        value = value, onValueChange = onValueChange, label = { Text(label) },
-        singleLine = true, visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth().secretField(),
-    )
-}
-
-
-@Composable
-private fun Conversation(
-    state: ChatState,
-    model: ChatViewModel,
-    onFile: (String) -> Unit,
-    loader: FileBytesLoader?,
-    animationsEnabled: Boolean,
-    bottomOverlay: androidx.compose.ui.unit.Dp = 0.dp,
-    onSettingJump: (String) -> Unit = {},
-) {
-    // What each chat pane last showed, so a leaving pane keeps its own chat while the next one fades in.
-    val shownByTransition = remember { LinkedHashMap<Long, ChatState>() }
-    shownByTransition.remove(state.chatTransitionId)
-    shownByTransition[state.chatTransitionId] = state
-    while (shownByTransition.size > 4) shownByTransition.remove(shownByTransition.keys.first())
-    val slideOffsetPx = with(LocalDensity.current) { 22.dp.roundToPx() }
-    AnimatedContent(
-        targetState = state.chatTransitionId,
-        modifier = Modifier.fillMaxSize(),
-        transitionSpec = {
-            if (!animationsEnabled || targetState == initialState) {
-                EnterTransition.None togetherWith ExitTransition.None
-            } else {
-                // Symmetric dissolve with a shared vertical drift so the swap reads as one motion.
-                (fadeIn(animationSpec = tween(260, easing = FastOutSlowInEasing)) +
-                    slideInVertically(animationSpec = tween(260, easing = FastOutSlowInEasing)) { slideOffsetPx }) togetherWith
-                    (fadeOut(animationSpec = tween(260, easing = FastOutSlowInEasing)) +
-                        slideOutVertically(animationSpec = tween(260, easing = FastOutSlowInEasing)) { -slideOffsetPx / 2 })
-            }
-        },
-        label = "chat conversation transition",
-    ) { transitionId ->
-        val contentState = if (transitionId == state.chatTransitionId) state else shownByTransition[transitionId] ?: state
-        ProvideQuoteSelection({ quoted -> model.quoteMessage(quoted) }) { ConversationContent(contentState, model, onFile, loader, onSettingJump, bottomOverlay) }
-    }
-}
-
-/** Duration of the Web-parity chat transition veil. */
-private const val CHAT_TRANSITION_VEIL_MS = 460
-
-/**
- * Piecewise-linear opacity keyframes matching the Web CSS `chatTransitionVeil` / `chatTransitionNew`.
- * New-chat transitions peak earlier and higher than history transitions.
- */
-internal fun chatTransitionVeilAlpha(progress: Float, newChat: Boolean): Float {
-    val frames = if (newChat) {
-        listOf(0f to 0f, 0.36f to 0.58f, 1f to 0f)
-    } else {
-        listOf(0f to 0f, 0.30f to 0.22f, 0.52f to 0.72f, 1f to 0f)
-    }
-    val p = progress.coerceIn(0f, 1f)
-    for (index in 0 until frames.lastIndex) {
-        val (start, startAlpha) = frames[index]
-        val (end, endAlpha) = frames[index + 1]
-        if (p <= end) return startAlpha + (endAlpha - startAlpha) * ((p - start) / (end - start))
-    }
-    return frames.last().second
-}
-
-/**
- * A quiet theme-colored sweep over the whole screen when a history item is opened or a new chat
- * starts, mirroring the Web `#chat-transition-veil` motion so the swap reads as one continuous move.
- */
-@Composable
-private fun ChatTransitionVeil(
-    navigationId: Long,
-    kind: ChatTransitionKind,
-    animationsEnabled: Boolean,
-) {
-    val accent = MaterialTheme.colorScheme.primary
-    val progress = remember { Animatable(0f) }
-    var active by remember { mutableStateOf(false) }
-    LaunchedEffect(navigationId) {
-        if (navigationId <= 0L || !animationsEnabled) return@LaunchedEffect
-        active = true
-        progress.snapTo(0f)
-        progress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = CHAT_TRANSITION_VEIL_MS, easing = LinearEasing),
-        )
-        active = false
-    }
-    if (!active) return
-    val alpha = chatTransitionVeilAlpha(progress.value, kind == ChatTransitionKind.NEW_CHAT)
-    if (alpha <= 0.001f) return
-    Canvas(Modifier.fillMaxSize()) {
-        val width = size.width
-        val center = width * (-0.7f + 1.9f * progress.value)
-        val half = width * 0.8f
-        drawRect(
-            brush = Brush.horizontalGradient(
-                colors = listOf(Color.Transparent, accent.copy(alpha = 0.30f), Color.Transparent),
-                startX = center - half,
-                endX = center + half,
-            ),
-            alpha = alpha,
-        )
-    }
-}
-
-@Composable
-private fun ConversationContent(
-    state: ChatState,
-    model: ChatViewModel,
-    onFile: (String) -> Unit,
-    loader: FileBytesLoader?,
-    onSettingJump: (String) -> Unit = {},
-    bottomOverlay: androidx.compose.ui.unit.Dp = 0.dp,
-) {
-    val reduce = LocalReduceMotion.current
-    val scroll = rememberLazyListState()
-    val sendMotion = LocalPromptSendMotion.current
-    val scope = rememberCoroutineScope()
-    val keys = remember { ConversationKeyTracker() }
-    val answerMotions = remember(state.chatNavigationId) { AnswerBubbleMotions() }
-    val streamActive = state.streaming || state.liveContent.isNotEmpty() || state.liveThought.isNotEmpty() || state.cards.isNotEmpty()
-    // Web `buildChatLoadingSkeletonHtml` in `#chat-container` while an opened chat's history loads.
-    val loadingThread = state.threadLoadingId != 0L && state.threadLoadingId == state.chatTransitionId && state.messages.isEmpty()
-    keys.update(state.messages, state.streaming, streamActive, loadingHistory = loadingThread)
-    // Once the stored reply has taken over the streamed row, the placeholder must not reappear.
-    val live = streamActive && !keys.liveConsumed
-    // Web `part05` auto-scroll, restarted for every opened or new chat (Web `resumeChatAutoScroll` in `loadMessages`).
-    val thresholdPx = with(LocalDensity.current) { 64.dp.toPx() }
-    val follow = remember(state.chatNavigationId) { ChatAutoScroll(thresholdPx) }
-    fun distanceToBottom(): Float {
-        val info = scroll.layoutInfo
-        val last = info.visibleItemsInfo.lastOrNull() ?: return 0f
-        if (last.index < info.totalItemsCount - 1) return Float.MAX_VALUE
-        return (last.offset + last.size + info.afterContentPadding - info.viewportEndOffset).toFloat().coerceAtLeast(0f)
-    }
-    // Web `performChatAutoScroll` (`scrollTop = scrollHeight`): the very end, even inside a long last message.
-    suspend fun jumpToBottom() {
-        val last = scroll.layoutInfo.totalItemsCount - 1
-        if (last < 0) return
-        try {
-            scroll.scrollToItem(last)
-            scroll.scrollBy(1_000_000f)
-        } catch (e: CancellationException) {
-            // A finger on the list wins over the programmatic scroll; only a cancelled effect stops here.
-            currentCoroutineContext().ensureActive()
-        }
-    }
-    // Web ResizeObserver / MutationObserver: new rows, streamed text, opened thoughts and loaded images.
-    LaunchedEffect(follow) {
-        snapshotFlow {
-            val info = scroll.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull()
-            Triple(info.totalItemsCount, last?.index, last?.size)
-        }.collect { if (follow.following) jumpToBottom() }
-    }
-    LaunchedEffect(follow) { snapshotFlow { distanceToBottom() }.collect { follow.onPosition(it) } }
-    // Preserve a reader's paused position when sending; only existing followers jump.
-    LaunchedEffect(state.streaming) { if (state.streaming && follow.following) jumpToBottom() }
-    SideEffect { sendMotion?.following = follow.following }
-    DisposableEffect(follow) { onDispose { sendMotion?.finish() } }
-    val quoteFocusManager = LocalFocusManager.current
-    // The row the last quote jump landed on and the selection to flash there; the token restarts it.
-    var quoteFlashRow by remember(state.chatNavigationId) { mutableStateOf<String?>(null) }
-    var quoteFlashText by remember(state.chatNavigationId) { mutableStateOf("") }
-    var quoteFlashToken by remember(state.chatNavigationId) { mutableLongStateOf(0L) }
-    // The token whose quoted range was already aligned under the top bar; later layout reports are ignored.
-    var quoteAlignedToken by remember(state.chatNavigationId) { mutableLongStateOf(-1L) }
-    var listTopWindow by remember(state.chatNavigationId) { mutableFloatStateOf(0f) }
-    val quoteTopMarginPx = with(LocalDensity.current) { QUOTE_JUMP_TOP_MARGIN_DP.dp.toPx() }
-    fun markQuoteFlash(row: Int, quote: String?) {
-        if (quote.isNullOrBlank()) return
-        quoteFlashRow = state.messages.getOrNull(row)?.let { keys.keyAt(row, it) } ?: keys.liveKey
-        quoteFlashText = quote.trim()
-        quoteFlashToken += 1
-    }
-    /**
-     * Web has no quote jump. Android first lands on the message row, then moves its quoted range to just
-     * under the token bar; landing on the row alone can leave a selection from a long answer below the
-     * composer, where its flash cannot be seen.
-     */
-    fun alignQuoteUnderTopBar(windowY: Float) {
-        val token = quoteFlashToken
-        if (token == 0L || token == quoteAlignedToken) return
-        quoteAlignedToken = token
-        val delta = quoteScrollDelta(windowY, listTopWindow, quoteTopMarginPx)
-        if (abs(delta) < 0.5f) return
-        scope.launch {
-            try { scroll.scrollBy(delta) }
-            catch (e: CancellationException) { throw e }
-            catch (e: Exception) {}
-        }
-    }
-    /** Shared by the composer quote bar and a sent message's quote strip. */
-    suspend fun scrollToQuoteRow(row: Int) {
-        quoteFocusManager.clearFocus()
-        follow.pause()
-        val index = row + (if (loadingThread) 1 else 0) + (if (state.hasOlder) 1 else 0)
-        if (reduce) scroll.scrollToItem(index) else scroll.animateScrollToItem(index)
-    }
-    fun requestQuoteRow(row: Int, quote: String? = null) {
-        val op = java.util.UUID.randomUUID().toString()
-        fun trace(phase: String) = com.minashin1120.aiplayground.data.ActivityLog.log("ui.interaction",
-            "op" to op, "ui_element" to "message", "interaction_stage" to "scroll", "phase" to phase)
-        trace("start")
-        scope.launch {
-            try {
-                scrollToQuoteRow(row)
-                trace("done")
-                markQuoteFlash(row, quote)
-            }
-            catch (e: CancellationException) { trace("cancelled"); throw e }
-            catch (e: Exception) { trace("error") }
-        }
-    }
-    LaunchedEffect(state.quoteNavigationRequest) {
-        if (state.quoteNavigationRequest == 0L) return@LaunchedEffect
-        val target = resolveQuoteTarget(state.messages, state.quoteSourceId, state.quoteMessageId,
-            keys.liveKey, live) { keys.keyOf(it) }
-        // A draft edit restores the message's quote without its source id; place it by the quote text,
-        // searching the messages before the edited one (or the whole chat for a selection quote).
-        val resolved = if (target is QuoteTarget.Missing) {
-            val before = state.editingMessageId
-                ?.let { id -> state.messages.indexOfFirst { it.id == id } }
-                ?.takeIf { it >= 0 }
-                ?: state.messages.size
-            findQuoteTextIndex(state.messages, before, state.quote)?.let { QuoteTarget.Message(it) }
-                ?: QuoteTarget.Missing
-        } else target
-        val op = java.util.UUID.randomUUID().toString()
-        fun trace(phase: String) = com.minashin1120.aiplayground.data.ActivityLog.log("ui.interaction",
-            "op" to op, "ui_element" to "message", "interaction_stage" to "scroll", "phase" to phase)
-        trace("start")
-        val row = when (resolved) {
-            is QuoteTarget.Message -> resolved.index
-            // The streamed answer is not in `messages` yet; it is the row after them.
-            QuoteTarget.Live -> state.messages.size
-            QuoteTarget.Missing -> { trace("error"); return@LaunchedEffect }
-        }
-        try {
-            scrollToQuoteRow(row)
-            trace("done")
-            markQuoteFlash(row, state.quote)
-        } catch (e: CancellationException) { trace("cancelled"); throw e }
-        catch (e: Exception) { trace("error") }
-    }
-    val showScrollToBottom by remember(follow) { derivedStateOf { follow.showsJumpButton(distanceToBottom()) } }
-    val followConnection = remember(follow) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (source == NestedScrollSource.UserInput && available.y != 0f) {
-                    sendMotion?.finish()
-                    follow.onUserScroll(towardTop = available.y > 0f, canScrollBackward = scroll.canScrollBackward)
-                }
-                return Offset.Zero
-            }
-        }
-    }
-    val temporary = state.selected?.isTemporary == true || (state.selected == null && state.newThreadTemporary)
-    val loadFailed = !loadingThread && state.threadLoadFailedId != null && state.threadLoadFailedId == state.selected?.id &&
-        state.messages.isEmpty() && !live
-    // Web shows the hover controls of the bubble the user last tapped.
-    var activeMessageId by remember { mutableStateOf<String?>(null) }
-    var deletingMessage by remember { mutableStateOf<ChatMessage?>(null) }
-    var tokenDetail by remember { mutableStateOf<TokenDetail?>(null) }
-    var processingDetail by remember { mutableStateOf<com.minashin1120.aiplayground.data.ProcessingTime?>(null) }
-    var pythonRuns by remember { mutableStateOf<List<com.minashin1120.aiplayground.data.PythonExecution>?>(null) }
-    var encryptionState by remember { mutableStateOf<Boolean?>(null) }
-    // Admin decrypt / re-encrypt from the lock modal: the pending confirm, the request and a re-auth retry.
-    var encryptionConfirm by remember { mutableStateOf<Boolean?>(null) }
-    var encryptionBusy by remember { mutableStateOf(false) }
-    var encryptionReauth by remember { mutableStateOf<(() -> Unit)?>(null) }
-    // Choosing a quick-access model hides the welcome screen until the next chat, as on Web.
-    var welcomeDismissed by remember(state.chatTransitionId) { mutableStateOf(false) }
-    val pathTotals = remember(state.messages) { buildTokenTotals(state.messages) }
-    val costContext = LocalContext.current
-    val costPricing = remember(costContext) {
-        com.minashin1120.aiplayground.data.ModelCostEstimator(costContext.assets.open("model-pricing.json").bufferedReader().use { it.readText() })
-    }
-    val pathCost = remember(state.messages, state.allMessages, costPricing) {
-        if (state.messages.any { it.role == "assistant" && (it.content.isNotEmpty() || (it.tokensOut ?: 0) > 0) })
-            costPricing.estimate(state.messages, state.allMessages.ifEmpty { state.messages }) else null
-    }
-    var branchingMessage by remember { mutableStateOf<ChatMessage?>(null) }
-    val actions = MessageActions(
-        onEdit = { model.beginEdit(it) },
-        onRegenerate = { model.regenerate(it) },
-        onDelete = { deletingMessage = it },
-        onBranch = { if (state.selected?.isTemporary == true) branchingMessage = it else model.branchChat(it) },
-        onTokenDetail = { tokenDetail = it },
-        onProcessingTime = { processingDetail = it },
-        onEncryption = { encryptionState = it },
-        onPython = { runs -> if (runs.isEmpty()) model.notify("Python実行結果がありません") else pythonRuns = runs },
-    )
-    Column(Modifier.fillMaxSize()) {
-        state.branchOrigin?.let { origin ->
-            val palette = LocalWebPalette.current
-            Column(Modifier.fillMaxWidth()) {
-                Text(if (origin.optBoolean("available")) "分岐元のチャットを開く" else "分岐元のチャットは利用できません",
-                    fontSize = 12.sp, lineHeight = 16.sp,
-                    color = if (origin.optBoolean("available")) palette.twText(Tw.blue400) else palette.twText(Tw.gray400),
-                    modifier = Modifier.fillMaxWidth().clickable(enabled = origin.optBoolean("available")) { model.openBranchOrigin() }
-                        .padding(horizontal = 16.dp, vertical = 8.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(if (palette.isLight) Color(15, 23, 42).copy(alpha = 0.10f) else Tw.gray700))
-            }
-        }
-        CompositionLocalProvider(LocalComposerEstimator provides model::estimatePromptTokens,
-            LocalComposerDetailsEstimator provides model::estimatePromptTokenDetails) {
-            val hasDraft = state.editingAttachment == null && (state.draft.isNotBlank() || state.quote.isNotBlank() || state.attachments.isNotEmpty())
-            TotalTokenBar(pathTotals, showEstimate = hasDraft,
-                pathCost = pathCost, pricing = costPricing,
-                estimate = { PromptTokenEstimate(state) }) { tokenDetail = it }
-        }
-        state.batchBanner?.let { (text, _) ->
-            BatchCompletionBanner(text, onOpen = { model.dismissBatchBanner(open = true) }, onClose = { model.dismissBatchBanner(open = false) })
-        }
-        val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-        val sideCanvas = state.canvasMode && screenWidth >= CANVAS_SIDE_PANEL_MIN_WIDTH
-        Row(Modifier.weight(1f).fillMaxWidth()) {
-        val focusManager = LocalFocusManager.current
-        Box(Modifier.weight(1f).fillMaxHeight().onBackgroundTap(onTap = { focusManager.clearFocus() }, onUnhandledTap = { activeMessageId = null },
-            listPosition = { scroll.firstVisibleItemIndex to scroll.firstVisibleItemScrollOffset })) {
-            LazyColumn(
-                state = scroll,
-                modifier = Modifier.fillMaxSize().widthIn(max = 832.dp).align(Alignment.TopCenter).nestedScroll(followConnection)
-                    .onGloballyPositioned { coordinates ->
-                        val next = coordinates.boundsInWindow()
-                        val old = sendMotion?.viewport
-                        if (old != null && old.width != next.width) sendMotion?.finish()
-                        sendMotion?.viewport = next
-                        // Quote jumps align the flashed range under this viewport's top edge.
-                        listTopWindow = coordinates.positionInWindow().y
-                    },
-                // `#chat-container`: 12px padding on phones, 20px between message groups.
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp + bottomOverlay),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-            if (loadingThread) item(key = CHAT_LOAD_SKELETON_KEY) { ChatLoadingSkeleton() }
-            if (state.hasOlder) item(key = "older") {
-                Box(Modifier.fillMaxWidth().padding(bottom = 12.dp), contentAlignment = Alignment.Center) {
-                    val web = LocalWebPalette.current
-                    val enabled = !state.busy && !state.offline
-                    Row(
-                        Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .border(1.dp, web.twBorder(Tw.gray600), RoundedCornerShape(4.dp))
-                            .clickable(enabled = enabled, onClick = model::olderMessages)
-                            .graphicsLayer { alpha = if (enabled) 1f else 0.5f }
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        FaIcon(com.minashin1120.aiplayground.R.drawable.fa_solid_clock_rotate_left, null, size = 12.dp,
-                            tint = web.twText(Tw.gray200), modifier = Modifier.padding(end = 4.dp))
-                        Text(if (state.busy) "読み込み中..." else "過去メッセージを読み込む", color = web.twText(Tw.gray200), fontSize = 12.sp, lineHeight = 16.sp)
-                    }
-                }
-            }
-            itemsIndexed(state.messages, key = { row, message -> keys.keyAt(row, message) }) { row, message ->
-                val rowKey = keys.keyAt(row, message)
-                val entering = remember { keys.consumeFresh(rowKey) }
-                val siblings = siblingGroup(state.allMessages, message)
-                val index = siblings.indexOfFirst { it.id == message.id }
-                Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
-                    ConversationMessageEntry(rowKey, answer = message.role == "assistant",
-                        animate = entering && message.id != state.promptSendMotionId, answers = answerMotions) {
-                        // Web sends `quote_message_id`: a selection inside this bubble remembers which message it came from.
-                        ProvideQuoteSelection({ quoted ->
-                            model.quoteMessage(quoted, numericId(message), rowKey)
-                        }) {
-                        MessageBubble(
-                            message = message,
-                            sendMotion = promptSendBubbleModifier(message.id),
-                            onFile = onFile,
-                            loader = loader,
-                            onQuoteJump = if (message.quote.isBlank()) null else {
-                                { findQuotedMessageIndex(state.messages, row, message.quote)?.let { requestQuoteRow(it, quote = message.quote) } }
-                            },
-                            flashToken = if (quoteFlashRow == rowKey) quoteFlashToken else 0L,
-                            flashQuote = if (quoteFlashRow == rowKey) quoteFlashText else null,
-                            onQuoteFlashLocated = if (quoteFlashRow == rowKey) { y -> alignQuoteUnderTopBar(y) } else null,
-                            actions = MessageActions(
-                                onEdit = actions.onEdit, onRegenerate = actions.onRegenerate, onDelete = actions.onDelete, onBranch = actions.onBranch,
-                                canBranch = !state.busy && !state.streaming && !state.branchBusy,
-                                onSwitchBranch = { target -> model.switchBranchByIndex(siblings, target) },
-                                onTokenDetail = actions.onTokenDetail, onProcessingTime = actions.onProcessingTime,
-                                onEncryption = actions.onEncryption,
-                                onPython = actions.onPython,
-                            ),
-                            controlsVisible = activeMessageId == message.id,
-                            preserveLiveLayout = keys.isLiveReply(message),
-                            thoughtCollapsed = keys.isLiveReply(message),
-                            // Web's tap-to-hover: tapping the bubble again keeps its controls; a tap elsewhere hides them.
-                            onToggleControls = { activeMessageId = message.id },
-                            branchIndex = if (index < 0) 0 else index,
-                            branchCount = if (numericId(message) != null) siblings.size else 0,
-                        )
-                        }
-                    }
-                }
-            }
-                if (live) item(key = keys.liveKey) {
-                    val entering = remember { keys.consumeFresh(keys.liveKey) }
-                    Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
-                        ConversationMessageEntry(keys.liveKey, answer = true, animate = entering, answers = answerMotions) {
-                            LiveMessage(state, onFile, { quoted -> model.quoteMessage(quoted, null, keys.liveKey) }, loader, model::resolveMcpDecision)
-                        }
-                    }
-                }
-                items(state.settingsBubbles, key = { it.id }) { bubble ->
-                    Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
-                        SettingsBubbleView(bubble, state.model, onFile, loader, onSettingJump)
-                    }
-                }
-            }
-            if (loadFailed) ChatLoadError(onRetry = model::retryOpenThread, modifier = Modifier.align(Alignment.TopCenter))
-            val showWelcome = state.messages.isEmpty() && !state.busy && !loadingThread && !loadFailed && !live && !welcomeDismissed
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showWelcome,
-                modifier = Modifier.padding(bottom = bottomOverlay),
-                enter = fadeIn(motionTween(reduce)),
-                exit = fadeOut(motionTween(reduce, PlaygroundMotion.SHORT)),
-                label = "welcome",
-            ) {
-                if (temporary) TemporaryChatWelcome(state.preferences?.tempChatTimeoutSeconds ?: 90,
-                    onSettings = { model.requestSettings(SettingsTab.General.id, "temp-chat") })
-                else WelcomeScreen(
-                    recentWebModels(state.account?.models.orEmpty()).map { info -> info.id to "${info.emoji} ${info.name}".trim() },
-                    onChoose = { id -> model.chooseModelByUser(id); welcomeDismissed = true },
-                )
-            }
-            // Qualified so the outer Column's scoped overload is not picked inside this Box.
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showScrollToBottom && !showWelcome,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp + bottomOverlay),
-                enter = popIn(reduce),
-                exit = popOut(reduce),
-                label = "scroll to bottom",
-            ) {
-                // Web `scrollToBottom(true)`: back to the very bottom, following again.
-                ScrollToBottomPill(onClick = { follow.resume(); scope.launch { jumpToBottom() } })
-            }
-        }
-        if (sideCanvas) CanvasPanel(canvasSourceText(state), fullScreen = false, notify = model::notify, onClose = model::toggleCanvas,
-            modifier = Modifier.width(canvasSidePanelWidth(screenWidth)).fillMaxHeight())
-        }
-    }
-    branchingMessage?.let { message ->
-        NoticeAlertDialog(onDismissRequest = { branchingMessage = null },
-            title = { Text("新しいチャットに分岐") },
-            text = { Text(com.minashin1120.aiplayground.data.BRANCH_SAVE_WARNING) },
-            confirmButton = { TextButton(onClick = { branchingMessage = null; model.branchChat(message, confirmed = true) }) { Text("保存して分岐") } },
-            dismissButton = { TextButton(onClick = { branchingMessage = null }) { Text("キャンセル") } })
-    }
-    deletingMessage?.let { message ->
-        BrowserConfirmDialog("Delete this message and subsequent history?") { ok ->
-            if (ok) model.deleteMessage(message)
-            deletingMessage = null
-        }
-    }
-    ModalValueHost(tokenDetail) { detail -> TokenDetailDialog(detail, onDismiss = { tokenDetail = null }) }
-    ModalValueHost(processingDetail) { detail -> ProcessingTimeDialog(detail, onDismiss = { processingDetail = null }) }
-    ModalValueHost(pythonRuns) { runs -> PythonExecutionDialog(runs, onDismiss = { pythonRuns = null }, loader = loader, onFile = onFile) }
-    ModalValueHost(encryptionState) { encrypted ->
-        EncryptionStatusDialog(
-            encrypted,
-            admin = state.preferences?.isAdmin == true,
-            canToggle = state.preferences?.isAdmin == true && state.selected != null && !state.offline,
-            busy = encryptionBusy,
-            onToggle = { encryptionConfirm = !encrypted },
-            // Web `goToEncryptionSettings`: the security tab, scrolled to the E2EE card.
-            onSettings = { encryptionState = null; model.requestSettings(SettingsTab.Security.id, "e2ee") },
-            onDismiss = { encryptionState = null },
-        )
-    }
-    encryptionConfirm?.let { enable ->
-        BrowserConfirmDialog("このチャットを${if (enable) "再暗号化" else "復号化"}しますか？") { ok ->
-            encryptionConfirm = null
-            if (ok) {
-                encryptionBusy = true
-                model.setThreadEncryption(enable,
-                    onReauth = { retry -> encryptionReauth = { encryptionBusy = true; retry() } },
-                    onDone = { done -> encryptionBusy = false; if (done) encryptionState = null })
-            }
-        }
-    }
-    encryptionReauth?.let { retry ->
-        ReauthDialog(model::accountApi, onDismiss = { encryptionReauth = null }) {
-            encryptionReauth = null
-            retry()
-        }
-    }
-}
-
-/** `#welcome-temporary-content`: amber card that replaces the welcome screen in a temporary chat. */
-@Composable
-private fun TemporaryChatWelcome(timeoutSeconds: Int, onSettings: () -> Unit) {
-    val web = LocalWebPalette.current
-    val seconds = timeoutSeconds.coerceIn(10, 3600)
-    Box(Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 24.dp), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier
-                .widthIn(max = 448.dp)
-                .padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(web.twBg(Tw.amber900, 0.2f))
-                .border(1.dp, Tw.amber500.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
-                .padding(16.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                FaIcon(com.minashin1120.aiplayground.R.drawable.fa_solid_user_secret, null, size = 14.dp, tint = web.twText(Tw.amber300),
-                    modifier = Modifier.padding(end = 8.dp))
-                Text("一時チャットモード", color = web.twText(Tw.amber300), fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold)
-            }
-            Text(
-                "このページが非表示/切断の状態で $seconds 秒経過すると、この一時チャットとこのチャットでアップロードした添付を自動削除します（ライブラリ添付は除外）。",
-                color = if (web.isLight) Color(0xFF92400E) else Color(0xFFFEF3C7).copy(alpha = 0.9f), fontSize = 12.sp, lineHeight = 19.5.sp,
-                modifier = Modifier.padding(top = 8.dp),
-            )
-            // `openTemporaryChatSettings()` button: `border-amber-400/50 bg-amber-950/30 text-amber-200 text-[11px] font-bold`.
-            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.End) {
-                val shape = RoundedCornerShape(4.dp)
-                Row(
-                    Modifier.clip(shape).background(Color(69, 26, 3).copy(alpha = 0.3f)).border(1.dp, Tw.amber400.copy(alpha = 0.5f), shape)
-                        .clickable(role = Role.Button, onClick = onSettings).padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    FaIcon(com.minashin1120.aiplayground.R.drawable.fa_solid_cog, null, size = 11.dp, tint = web.twText(Tw.amber200),
-                        modifier = Modifier.padding(end = 4.dp))
-                    Text("一時チャット設定", color = web.twText(Tw.amber200), fontSize = 11.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-    }
-}
-
-/**
- * Web on a phone: a tap outside the textarea blurs it (closing the keyboard and the `/`・`@` palettes) and a
- * tap that no control handles drops the bubble's tap-hover. Scrolling is not a tap.
- *
- * With ログの収集を強化, a press held for a long press (or cancelled) is recorded as `ui.press`: how far the
- * finger moved, whether another handler consumed the pointer, whether the list scrolled under it, whether a
- * text selection started and how often a handle drag changed the selection since the last entry. When the press
- * touched the selection, `ui.selection_windows` follows with the windows shown shortly after release (the
- * selection handles and the toolbar are windows of their own). It records no text.
- */
-private fun Modifier.onBackgroundTap(onTap: () -> Unit, onUnhandledTap: () -> Unit, listPosition: () -> Pair<Int, Int>): Modifier = pointerInput(Unit) {
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-        val startList = listPosition()
-        val startSelection = SelectionSignals.snapshot()
-        var moved = false
-        var maxDistance = 0f
-        var downConsumed: Boolean? = null
-        var firstConsumedMs: Long? = null
-        var up: PointerInputChange? = null
-        SelectionSignals.pressStarted()
-        try {
-            while (true) {
-                val change = awaitPointerEvent(PointerEventPass.Final).changes.firstOrNull { it.id == down.id } ?: break
-                val distance = (change.position - down.position).getDistance()
-                maxDistance = maxOf(maxDistance, distance)
-                if (distance > viewConfiguration.touchSlop) moved = true
-                if (downConsumed == null) downConsumed = change.isConsumed
-                else if (change.isConsumed && firstConsumedMs == null) firstConsumedMs = change.uptimeMillis - down.uptimeMillis
-                if (!change.pressed) { up = change; break }
-            }
-        } finally {
-            SelectionSignals.pressEnded()
-        }
-        val held = (up?.uptimeMillis ?: currentEvent.changes.firstOrNull()?.uptimeMillis ?: down.uptimeMillis) - down.uptimeMillis
-        if (ActivityLog.enabled && (up == null || held >= viewConfiguration.longPressTimeoutMillis)) {
-            val endList = listPosition()
-            val selection = SelectionSignals.snapshot()
-            ActivityLog.log(
-                "ui.press",
-                "x" to down.position.x.toDp().value.toInt(), "y" to down.position.y.toDp().value.toInt(),
-                "ms" to held, "cancelled" to (up == null),
-                "moved_dp" to maxDistance.toDp().value.toInt(), "slop_dp" to viewConfiguration.touchSlop.toDp().value.toInt(),
-                "long_press_ms" to viewConfiguration.longPressTimeoutMillis,
-                "down_consumed" to downConsumed, "consumed_after_ms" to firstConsumedMs,
-                "scrolled_px" to (if (endList.first == startList.first) endList.second - startList.second else null),
-                "item_changed" to (endList.first != startList.first),
-                "selection_changes" to selection.first - startSelection.first,
-                "selection_menus" to selection.second - startSelection.second,
-                "handle_changes" to SelectionSignals.takeHandleChanges(),
-            )
-            if (selection != startSelection) {
-                val density = 1.dp.toPx()
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    ActivityLog.log("ui.selection_windows", "after_ms" to SELECTION_WINDOWS_DELAY_MS,
-                        "windows" to com.minashin1120.aiplayground.data.LogPolicy.windows(visibleWindows(density)))
-                }, SELECTION_WINDOWS_DELAY_MS)
-            }
-        }
-        val released = up ?: return@awaitEachGesture
-        // A selection long press also ends with an unmoved pointer-up. Treating that as a
-        // background tap clears focus and dismisses the selection as soon as the finger lifts.
-        if (moved || released.uptimeMillis - down.uptimeMillis >= viewConfiguration.longPressTimeoutMillis) return@awaitEachGesture
-        onTap()
-        if (!released.isConsumed) onUnhandledTap()
-    }
-}
-
-/** Long enough after release for Compose to show the selection toolbar, which follows the handles. */
-private const val SELECTION_WINDOWS_DELAY_MS = 400L

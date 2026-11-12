@@ -37,12 +37,13 @@ class ChatCorePartsRegressionTests(unittest.TestCase):
     def test_parts_are_reasonably_sized_for_reading(self):
         # Keep each part small enough that agents and editors can read it in one
         # pass.  The big DOMContentLoaded callback is still split into chunks.
-        # scripts/verify_changes.sh warns (non-blocking) once a part exceeds
-        # CHAT_CORE_PART_MAX_LINES (2000); this test is the hard release cap.
+        # scripts/verify_changes.sh warns (non-blocking) once a part exceeds the
+        # 1,000-line warning budget; CHAT_CORE_PART_MAX_LINES (1,500) is the hard
+        # release cap enforced here and by scripts/rebuild_chat_core_parts.sh.
         for part in sorted(PARTS_DIR.glob("chat_core.part*.js")):
             with self.subTest(part=part.name):
                 line_count = part.read_text(encoding="utf-8").count("\n")
-                self.assertLessEqual(line_count, 2200, part.name)
+                self.assertLessEqual(line_count, 1500, part.name)
 
 
 if __name__ == "__main__":

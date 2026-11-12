@@ -2,12 +2,14 @@
 import json
 import subprocess
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 PRICING = json.loads((ROOT / 'static/model_pricing.json').read_text())
-SOURCE = (ROOT / 'static/js/chat_core_parts/chat_core.part21_cost_pricing.js').read_text() + (ROOT / 'static/js/chat_core_parts/chat_core.part20_cost_estimate.js').read_text()
+SOURCE = read_chat_core_source()
+SOURCE = SOURCE[SOURCE.index("// Costs use each saved answer's model"):]
 
 
 def estimate(messages, context=None):
@@ -106,7 +108,7 @@ def test_batch_usage_is_saved_with_existing_encryption_without_changing_display_
     import ast
     from types import SimpleNamespace
     utils = ast.parse((ROOT / 'server/token_utils.py').read_text())
-    route = ast.parse((ROOT / 'server/routes_chat.py').read_text())
+    route = ast.parse((ROOT / 'server/routes_batch.py').read_text())
     usage = next(n for n in utils.body if isinstance(n, ast.FunctionDef) and n.name == '_cost_input_tokens')
     payload = next(n for n in ast.walk(route) if isinstance(n, ast.FunctionDef) and n.name == '_set_message_payload')
     scope = dict(json=json, encrypt_val=lambda value: 'ENCRYPTED:' + value,

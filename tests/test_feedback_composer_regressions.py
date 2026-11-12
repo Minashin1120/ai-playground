@@ -1,13 +1,14 @@
 """Run composer interactions with a small DOM harness and synthetic files."""
 import subprocess
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 
 ROOT = Path(__file__).resolve().parents[1]
 PARTS = ROOT / 'static/js/chat_core_parts'
 
 
 def section(part, start, end):
-    source = next(PARTS.glob(f'chat_core.part{part}_*.js')).read_text()
+    source = read_chat_core_source()
     return source[source.index(start):source.index(end, source.index(start))]
 
 
@@ -57,7 +58,7 @@ assert.equal(changed, 0);
 
 def test_minimal_thinking_opens_slider_without_toggling_and_off_is_selectable():
     source = section('03', 'function activeThinkingSelect', 'function buildMinimalOptionItem')
-    raw = next(PARTS.glob('chat_core.part03_*.js')).read_text()
+    raw = read_chat_core_source()
     handler = raw[raw.index('function handleMinimalOptionClick'):raw.index('function handleMinimalOptionClick') + raw[raw.index('function handleMinimalOptionClick'):].index('            if (minimalOptionDisabled(item)) return;')] + '}'
     run_js('''
 const assert = require('node:assert/strict');
@@ -112,7 +113,7 @@ class FormData { append() {} }
 
 def test_slider_can_disable_and_reenable_thinking_without_extra_panel_visit():
     helpers = section('03', 'function activeThinkingSelect', 'function buildMinimalOptionItem')
-    script = next(PARTS.glob('chat_core.part04_*.js')).read_text()
+    script = read_chat_core_source()
     start = script.index("                slider.addEventListener('input'")
     handler = script[start:script.index("            const closeSlider", start)].rsplit('            }', 1)[0]
     run_js('''

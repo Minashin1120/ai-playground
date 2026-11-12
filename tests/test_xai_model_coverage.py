@@ -16,10 +16,9 @@ SETUP = (ROOT / "templates/setup.html").read_text(encoding="utf-8")
 
 class XaiModelCoverageRegressionTests(unittest.TestCase):
     def test_native_chat_only_sends_tool_controls_with_tools(self):
-        source = (ROOT / "server/background.py").read_text(encoding="utf-8")
-        native_branch = source.index('# --- 2. xAI Grok (Native SDK) ---')
-        start = source.index('                create_kwargs = {"model": model_key}', native_branch)
-        end = source.index('                grok_sys = ', start)
+        source = (ROOT / "server/background_stream_grok_native.py").read_text(encoding="utf-8")
+        start = source.index('    create_kwargs = {"model": model_key}')
+        end = source.index('    grok_sys = ', start)
         request_code = compile(textwrap.dedent(source[start:end]), "<grok-request>", "exec")
         for tools, legacy_search in (([], None), ([], object()), ([object()], None)):
             for choice in (None, "auto", "none", "required", "invalid"):

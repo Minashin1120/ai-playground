@@ -1,0 +1,1017 @@
+        function ensureCurrentChatHeaderTicker() {}
+        function normalizeTemporaryChatTimeoutSeconds(value, fallback = TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS) {
+            let sec = Number(value);
+            if (!Number.isFinite(sec)) sec = Number(fallback);
+            if (!Number.isFinite(sec)) sec = TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS;
+            sec = Math.trunc(sec);
+            if (sec < TEMP_CHAT_TIMEOUT_MIN_SECONDS) sec = TEMP_CHAT_TIMEOUT_MIN_SECONDS;
+            if (sec > TEMP_CHAT_TIMEOUT_MAX_SECONDS) sec = TEMP_CHAT_TIMEOUT_MAX_SECONDS;
+            return sec;
+        }
+        function updateTemporaryChatDescriptionText() {
+            const sec = normalizeTemporaryChatTimeoutSeconds(temporaryChatTimeoutSeconds);
+            const desc = `このページが非表示/切断の状態で ${sec} 秒経過すると、この一時チャットとこのチャットでアップロードした添付を自動削除します（ライブラリ添付は除外）。`;
+            const welcome = get('temporary-chat-welcome-desc');
+            if (welcome) welcome.textContent = desc;
+            const tempToggle = get('temporary-chat-container');
+            if (tempToggle) tempToggle.title = `切断後 ${sec} 秒で、このチャットとアップロード添付を自動削除`;
+        }
+        function applyTemporaryChatTimeoutSeconds(value) {
+            temporaryChatTimeoutSeconds = normalizeTemporaryChatTimeoutSeconds(value, temporaryChatTimeoutSeconds);
+            const input = get('set-temp-chat-timeout-seconds');
+            if (input) input.value = String(temporaryChatTimeoutSeconds);
+            updateTemporaryChatDescriptionText();
+            updateCurrentChatHeaderUi();
+            if (temporaryChatEnabled) ensureTemporaryChatHeartbeat(false);
+        }
+        function getTemporaryChatHeartbeatIntervalMs() {
+            const sec = normalizeTemporaryChatTimeoutSeconds(temporaryChatTimeoutSeconds);
+            const byTimeout = Math.floor((sec * 1000) / 3);
+            return Math.max(TEMP_CHAT_HEARTBEAT_MIN_MS, Math.min(TEMP_CHAT_HEARTBEAT_MAX_MS, byTimeout));
+        }
+        function setTemporaryChatUiState(enabled) {
+            temporaryChatEnabled = !!enabled;
+            const chk = get('enable-temporary-chat');
+            if (chk && chk.checked !== temporaryChatEnabled) chk.checked = temporaryChatEnabled;
+            const welcomeDefault = get('welcome-default-content');
+            if (welcomeDefault) welcomeDefault.classList.toggle('hidden', temporaryChatEnabled);
+            const welcomeTemporary = get('welcome-temporary-content');
+            if (welcomeTemporary) welcomeTemporary.classList.toggle('hidden', !temporaryChatEnabled);
+            if (!temporaryChatEnabled) tempChatExpiresAtMs = null;
+            updateTemporaryChatDescriptionText();
+            updateCurrentChatHeaderUi();
+        }
+        function stopTemporaryChatHeartbeat() {
+            if (tempChatHeartbeatTimer) {
+                clearInterval(tempChatHeartbeatTimer);
+                tempChatHeartbeatTimer = null;
+            }
+            tempChatHeartbeatIntervalMs = 0;
+            tempChatHeartbeatInFlight = false;
+        }
+        function canHeartbeatTemporaryChat() {
+            return !!(temporaryChatEnabled && currentThreadId && document.visibilityState === 'visible');
+        }
+        async function sendTemporaryChatHeartbeat(force = false) {
+            if (!canHeartbeatTemporaryChat()) return;
+            if (tempChatHeartbeatInFlight && !force) return;
+            tempChatHeartbeatInFlight = true;
+            try {
+                const res = await apiFetch('/api/temporary_chat/heartbeat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ thread_id: currentThreadId, active: true })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data) applyTemporaryChatRuntimeMeta(data);
+                if (res.ok && data && data.is_temporary === false) {
+                    setTemporaryChatUiState(false);
+                    stopTemporaryChatHeartbeat();
+                }
+            } catch (e) {
+            } finally {
+                tempChatHeartbeatInFlight = false;
+            }
+        }
+        function ensureTemporaryChatHeartbeat(force = false) {
+            if (!temporaryChatEnabled || !currentThreadId) {
+                stopTemporaryChatHeartbeat();
+                return;
+            }
+            const nextInterval = getTemporaryChatHeartbeatIntervalMs();
+            if (!tempChatHeartbeatTimer || tempChatHeartbeatIntervalMs !== nextInterval) {
+                if (tempChatHeartbeatTimer) clearInterval(tempChatHeartbeatTimer);
+                tempChatHeartbeatIntervalMs = nextInterval;
+                tempChatHeartbeatTimer = setInterval(() => {
+                    sendTemporaryChatHeartbeat(false);
+                }, tempChatHeartbeatIntervalMs);
+            }
+            if (force) sendTemporaryChatHeartbeat(true);
+        }
+        async function applyTemporaryChatSetting(enabled) {
+            const next = !!enabled;
+            setTemporaryChatUiState(next);
+            if (!currentThreadId) {
+                ensureTemporaryChatHeartbeat(true);
+                return true;
+            }
+            try {
+                const res = await apiFetch(`/api/threads/${currentThreadId}/settings`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ is_temporary: next })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error((data && data.error) || '設定更新に失敗しました');
+                setTemporaryChatUiState(!!(data && data.is_temporary));
+                applyTemporaryChatRuntimeMeta(data || {});
+                ensureTemporaryChatHeartbeat(true);
+                return true;
+            } catch (err) {
+                showToast("一時チャット設定の更新に失敗しました", "error", true);
+                return false;
+            }
+        }
+        function startNewChat(opts = {}) {
+            playChatTransition('new');
+            threadLoadSequence++;
+            if(abortController) abortController.abort();
+            cancelEdit();
+            modelChosenManually = false;
+            restoreLatestPromptOptions();
+            resetUploadState();
+            stopTemporaryChatHeartbeat();
+            setTemporaryChatUiState(false);
+            currentThreadTitle = null;
+            tempChatExpiresAtMs = null;
+            currentThreadId = null;
+            renderBranchOrigin(null);
+            allMessages = [];
+            promptHistory = [];
+            historyIndex = -1;
+            tempPrompt = "";
+            threadHasOlderMessages = false;
+            oldestLoadedMessageId = null;
+            loadingOlderMessages = false;
+            currentLeafId = null;
+            currentParentId = null;
+            currentThreadPending = null;
+            updateTotalTokenBar(0);
+            if (typeof window.__refreshAdminThreadEncState === 'function') {
+                try { window.__refreshAdminThreadEncState(); } catch (_) {}
+            }
+            if (!opts.skipHistory) history.pushState({}, '', '/');
+            get('chat-container').innerHTML = '';
+            get('welcome-screen').classList.remove('hidden');
+            updateCurrentChatHeaderUi();
+            if (get('thread-custom-instruction')) get('thread-custom-instruction').value = '';
+            // A new chat starts with Skills on; an existing chat's saved value is restored with its prompt options.
+            if (get('enable-skills')) get('enable-skills').checked = true;
+            if (get('enable-prompt-cache')) {
+                get('enable-prompt-cache').checked = false;
+                updatePromptCacheUi();
+            }
+            if (!opts.preserveSkill) {
+                applyActiveSkill(null);
+            } else if (activeSkill) {
+                applyActiveSkill(activeSkill);
+            }
+            loadThreads();
+            const defaultModelSequence = threadLoadSequence;
+            fetchSettingsSnapshot().then(settings => {
+                if (threadLoadSequence !== defaultModelSequence || currentThreadId || modelChosenManually || (opts.preserveSkill && activeSkill)) return;
+                const model = (settings.use_last_chat_settings && settings.last_model) || settings.default_model;
+                if (model && MODELS.some(group => group.items.some(item => item.id === model))) selectModelById(model);
+            }).catch(err => console.warn('Failed to load chat defaults', err));
+
+            if(window.innerWidth < 768) get('overlay').click();
+        }
+
+        let threadModalLoadSeq = 0;
+        window.openThreadModal = async () => {
+            if (!currentThreadId) {
+                try {
+                    const r = await apiFetch(CHAT_CONFIG.urls.handleThreads, {
+                        method:'POST',
+                        headers:{'Content-Type':'application/json'},
+                        body: JSON.stringify({ is_temporary: temporaryChatEnabled })
+                    });
+                    const d = await r.json();
+                    currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id;
+                    setTemporaryChatUiState(!!(d && d.is_temporary));
+                    setCurrentChatHeaderTitle(d && d.title);
+                    applyTemporaryChatRuntimeMeta(d || {});
+                    ensureTemporaryChatHeartbeat(true);
+                    history.pushState({}, '', '/c/' + d.id);
+                    loadThreads();
+                } catch (err) {
+                    showToast("チャットの作成に失敗しました", "error", true);
+                    return;
+                }
+            }
+            const modalLoadSeq = ++threadModalLoadSeq;
+            const targetThreadId = String(currentThreadId);
+            modalThreadId = targetThreadId;
+            showModal('thread-modal');
+            if (location.pathname !== '/chat-settings') {
+                history.pushState({ modal: 'thread' }, '', '/chat-settings');
+            }
+            try {
+                const [settingsRes, threadSettingsRes] = await Promise.all([
+                    apiFetch(CHAT_CONFIG.urls.handleSettingsQuery),
+                    apiFetch(`/api/threads/${targetThreadId}/settings`)
+                ]);
+                if (modalLoadSeq !== threadModalLoadSeq) return;
+                if (modalThreadId !== targetThreadId) return;
+                if (settingsRes.ok) {
+                    const d = await settingsRes.json();
+
+                    const threadGlobalPreview = get('thread-app-global-sys-prompt-preview');
+                    if (threadGlobalPreview) {
+                        threadGlobalPreview.value = d.global_system_prompt_effective || '';
+                    }
+                    const threadGlobalPreviewStatus = get('thread-app-global-sys-prompt-preview-status');
+                    if (threadGlobalPreviewStatus) {
+                        if (d.global_system_prompt_enabled === false) {
+                            threadGlobalPreviewStatus.textContent = '現在は無効化されています。';
+                        } else if (d.global_system_prompt_uses_time_fallback) {
+                            threadGlobalPreviewStatus.textContent = '管理者設定が空欄のため、時刻の既定プロンプトが適用されています。';
+                        } else {
+                            threadGlobalPreviewStatus.textContent = '管理者が設定した全体システムプロンプトが適用されています。';
+                        }
+                    }
+                    if (get('thread-global-sys-prompt')) get('thread-global-sys-prompt').value = d.system_prompt || '';
+                    if (get('thread-global-sys-prompt-enabled')) get('thread-global-sys-prompt-enabled').checked = d.system_prompt_enabled !== false;
+                    if (get('thread-apply-global-sys-prompt')) get('thread-apply-global-sys-prompt').checked = d.apply_global_system_prompt !== false;
+
+                    window.ensureThreadAutoSystemPromptCard();
+                    if (get('thread-apply-auto-sys-prompt-notices')) get('thread-apply-auto-sys-prompt-notices').checked = d.apply_auto_system_prompt_notices !== false;
+                    window.applyAutoSystemPromptConfigToForm('thread', d.auto_system_prompt_notices_config || {});
+                }
+                if (threadSettingsRes.ok) {
+                    const threadSettings = await threadSettingsRes.json();
+                    if (modalLoadSeq !== threadModalLoadSeq) return;
+                    if (modalThreadId !== targetThreadId) return;
+                    const customInstructionEl = get('thread-custom-instruction');
+                    if (customInstructionEl) customInstructionEl.value = threadSettings.custom_instruction || '';
+                    const includeGlobalEl = get('thread-include-global-instruction');
+                    if (includeGlobalEl) includeGlobalEl.checked = threadSettings.include_global_instruction !== false;
+                }
+            } catch (err) {
+                showToast("チャット設定の読み込みに失敗しました", "error", true);
+            }
+            };
+            window.closeThreadModal = (skipHistory = false) => {
+            hideModal('thread-modal');
+            if (!skipHistory && location.pathname === '/chat-settings') {
+                history.back();
+            }
+            };
+
+        get('save-thread-settings-btn').onclick = async () => {
+            const targetId = modalThreadId;
+            sendClientDebugLog('info', "Save clicked for thread: " + targetId);
+            if (!targetId) return;
+            const saveBtn = get('save-thread-settings-btn');
+            const originalLabel = saveBtn ? saveBtn.textContent : '';
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.textContent = '保存中...';
+            }
+            const customInstructionEl = get('thread-custom-instruction');
+            const custom_instruction = customInstructionEl ? customInstructionEl.value : '';
+            const includeGlobalEl = get('thread-include-global-instruction');
+            const include_global_instruction = includeGlobalEl ? includeGlobalEl.checked : true;
+
+            const globalPromptEl = get('thread-global-sys-prompt');
+            const globalEnabledEl = get('thread-global-sys-prompt-enabled');
+            let userPromptPayload = null;
+            try {
+                userPromptPayload = (globalPromptEl || globalEnabledEl) ? {
+                    system_prompt: globalPromptEl ? globalPromptEl.value : '',
+                    system_prompt_enabled: globalEnabledEl ? globalEnabledEl.checked : true,
+                    apply_global_system_prompt: get('thread-apply-global-sys-prompt') ? get('thread-apply-global-sys-prompt').checked : true,
+                    apply_auto_system_prompt_notices: get('thread-apply-auto-sys-prompt-notices') ? get('thread-apply-auto-sys-prompt-notices').checked : true,
+                    auto_system_prompt_notices_config: window.collectAutoSystemPromptConfigFromForm('thread')
+                } : null;
+            } catch (payloadErr) {
+                // ユーザーシステムプロンプトを保存できないまま「保存されました」と出さない。
+                sendClientDebugLog('error', "Payload construction failed: " + payloadErr.message);
+                showToast("保存に失敗しました", "error", true);
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalLabel || '保存';
+                }
+                return;
+            }
+
+            try {
+                sendClientDebugLog('info', "Starting PUT request for thread: " + targetId);
+                const res = await apiFetch(`/api/threads/${targetId}/settings`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ custom_instruction, include_global_instruction })
+                });
+                sendClientDebugLog('info', "PUT request finished, status: " + res.status);
+                let userResOk = true;
+                if (userPromptPayload) {
+                    sendClientDebugLog('info', "Starting POST request for user settings");
+                    const userRes = await apiFetch(CHAT_CONFIG.urls.handleSettings, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(userPromptPayload)
+                    });
+                    userResOk = userRes.ok;
+                    if (userRes.ok) window.applySavedUserSystemPromptSettings(userPromptPayload);
+                    sendClientDebugLog('info', "POST request finished, status: " + userRes.status);
+                }
+                if (res.ok && userResOk) {
+                    window.closeThreadModal();
+                    showToast("保存されました", "success");
+                } else {
+                    showToast("保存に失敗しました", "error", true);
+                }
+            } catch (err) {
+                sendClientDebugLog('error', "Save failed with error: " + err.message);
+                showToast("エラー: " + err.message, "error", true);
+            } finally {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalLabel || '保存';
+                }
+            }
+        };
+
+        window.openCompressionModal = () => {
+            syncCompressionSettingsUi();
+            showModal('compression-modal');
+            if (location.pathname !== '/compression') {
+                history.pushState({ modal: 'compression' }, '', '/compression');
+            }
+        };
+        window.closeCompressionModal = (skipHistory = false) => {
+            hideModal('compression-modal');
+            if (!skipHistory && location.pathname === '/compression') {
+                history.back();
+            }
+        };
+
+        get('save-compression-settings-btn').onclick = () => {
+            const size = get('compression-max-size').value;
+            const dim = get('compression-max-dim').value;
+            const type = get('compression-output-type').value;
+            const formatOnly = get('compression-format-only').checked;
+            setCompressionSettings(size, dim, type, formatOnly);
+
+            // Sync back to the prompt bar inputs
+            const syncBack = (modalId, targetId) => { if(get(modalId) && get(targetId)) get(targetId).value = get(modalId).value; };
+            syncBack('modal-gpt-image-size', 'gpt-image-size');
+            syncBack('modal-gpt-image-quality', 'gpt-image-quality');
+            syncBack('modal-gpt-image-complexity', 'gpt-image-complexity');
+            syncBack('modal-gpt-image-format', 'gpt-image-format');
+            syncBack('modal-gpt-image-compression', 'gpt-image-compression');
+            syncBack('modal-gpt-image-frame-count', 'gpt-image-frame-count');
+            syncBack('modal-gpt-image-frame-duration', 'gpt-image-frame-duration');
+            syncBack('modal-gemini-image-aspect', 'gemini-image-aspect');
+            syncBack('modal-gemini-image-size', 'gemini-image-size');
+            syncBack('modal-grok-image-aspect', 'grok-image-aspect');
+            syncBack('modal-grok-image-resolution', 'grok-image-resolution');
+            syncBack('modal-grok-image-quality', 'grok-image-quality');
+            IDEOGRAM_IMAGE_FIELDS.forEach(f => syncBack(`modal-ideogram-image-${f}`, `ideogram-image-${f}`));
+            syncBack('modal-ocr-table-format', 'ocr-table-format');
+            syncBack('modal-ocr-pages', 'ocr-pages');
+            const syncBackChk = (modalId, targetId) => {
+                if (get(modalId) && get(targetId)) get(targetId).checked = get(modalId).checked;
+            };
+            syncBackChk('modal-ocr-extract-header', 'ocr-extract-header');
+            syncBackChk('modal-ocr-extract-footer', 'ocr-extract-footer');
+            syncBackChk('modal-ocr-include-blocks', 'ocr-include-blocks');
+            syncBackChk('modal-ocr-include-images', 'ocr-include-images');
+
+            window.closeCompressionModal();
+            showToast('設定を保存しました', 'success');
+        };
+        async function deleteSkill(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleSkillItem.replace('0', id), {method: 'DELETE'}); loadSkills(); }
+        function renameThread(e, id) {
+            e.stopPropagation();
+            const modal = get('thread-rename-modal');
+            const form = get('thread-rename-form');
+            const input = get('thread-rename-input');
+            const save = get('thread-rename-save');
+            const cancel = get('thread-rename-cancel');
+            const error = get('thread-rename-error');
+            const opener = e.currentTarget;
+            input.value = opener.closest('[data-thread-id]')?.dataset.threadTitle || '';
+            error.textContent = '';
+            save.disabled = false;
+            let busy = false;
+            const close = () => {
+                if (busy) return;
+                hideModal('thread-rename-modal');
+                opener.focus();
+            };
+            cancel.onclick = close;
+            modal.onclick = event => { if (event.target === modal) close(); };
+            modal.onkeydown = event => {
+                if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+                if (event.key === 'Tab') {
+                    if (event.shiftKey && document.activeElement === input) { event.preventDefault(); cancel.focus(); }
+                    else if (!event.shiftKey && document.activeElement === cancel) { event.preventDefault(); input.focus(); }
+                }
+            };
+            form.onsubmit = async event => {
+                event.preventDefault();
+                const title = input.value.trim();
+                if (busy || !title) { if (!title) input.focus(); return; }
+                busy = true;
+                save.disabled = true;
+                cancel.disabled = true;
+                try {
+                    const res = await apiFetch(CHAT_CONFIG.urls.updateTitle.replace('0', id), {
+                        method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title})
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error('rename failed');
+                    if (currentThreadId === String(id)) setCurrentChatHeaderTitle(data.title || title);
+                    busy = false;
+                    close();
+                    loadThreads();
+                } catch (_) {
+                    error.textContent = '名前の変更に失敗しました。もう一度お試しください。';
+                } finally {
+                    busy = false;
+                    save.disabled = false;
+                    cancel.disabled = false;
+                }
+            };
+            cancel.disabled = false;
+            showModal('thread-rename-modal');
+            input.focus();
+        }
+
+        async function deleteThread(e, id) { e.stopPropagation(); if(!confirm("Delete?")) return; await apiFetch(CHAT_CONFIG.urls.handleThreadItem.replace('0', id), {method:'DELETE'}); if(currentThreadId === id) startNewChat(); else loadThreads(); }
+        async function deleteMessage(id, confirmed) { if(!confirmed && !confirm("Delete this message and subsequent history?")) return; await apiFetch(CHAT_CONFIG.urls.deleteMessage.replace('0', id), {method:'DELETE'}); loadMessages(currentThreadId); }
+        let activePdfPrintFrame = null;
+        const PDF_IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'svg']);
+        const PDF_PRINT_ROUTE = CHAT_CONFIG.urls.exportThreadPdf;
+        const pdfEscapeAttr = (value) => escapeHtml(value == null ? '' : String(value));
+        const pdfFormatTimestamp = (value) => {
+            if (!value) return '';
+            try {
+                const date = new Date(value);
+                if (Number.isNaN(date.getTime())) return String(value);
+                return new Intl.DateTimeFormat('ja-JP', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                }).format(date);
+            } catch (e) {
+                return String(value);
+            }
+        };
+        const pdfNormalizeAttachmentPath = (path) => {
+            if (!path) return '';
+            let v = String(path).trim();
+            if (!v) return '';
+            try {
+                if (v.includes('://')) {
+                    v = new URL(v, window.location.origin).pathname || '';
+                }
+            } catch (e) {}
+            if (v.includes('?')) v = v.split('?', 1)[0];
+            if (v.includes('#')) v = v.split('#', 1)[0];
+            v = v.replace(/^\/+/, '');
+            if (v.startsWith('files/')) v = v.slice(6);
+            try { v = decodeURIComponent(v); } catch (e) {}
+            return v;
+        };
+        const buildPdfAttachmentUrl = (path) => {
+            const norm = pdfNormalizeAttachmentPath(path);
+            return norm ? `${window.location.origin}/files/${encodeURI(norm)}` : '';
+        };
+        const buildPdfAttachmentPreviewUrl = (path) => {
+            const norm = pdfNormalizeAttachmentPath(path);
+            if (!norm) return '';
+            return `${window.location.origin}/${PDF_IMAGE_EXTS.has((norm.split('.').pop() || '').toLowerCase()) ? 'files/thumb/' : 'files/'}${encodeURI(norm)}`;
+        };
+        const buildPdfMessageAttachments = (message) => {
+            const attachments = Array.isArray(message && message.attachments) ? message.attachments : [];
+            return attachments.map((attachment) => {
+                const path = pdfNormalizeAttachmentPath(attachment && attachment.path ? attachment.path : attachment);
+                if (!path) return null;
+                const filename = attachment && attachment.filename ? attachment.filename : path.split('/').pop();
+                const source = attachment && attachment.source ? String(attachment.source) : 'attachment';
+                const isImage = !!(attachment && attachment.is_image);
+                const url = attachment && attachment.url ? attachment.url : buildPdfAttachmentUrl(path);
+                const previewUrl = attachment && attachment.preview_url ? attachment.preview_url : buildPdfAttachmentPreviewUrl(path);
+                return { path, filename, source, isImage, url, previewUrl };
+            }).filter(Boolean);
+        };
+        const buildPdfDocumentHtml = (data) => {
+            const thread = data && data.thread ? data.thread : {};
+            const messages = Array.isArray(data && data.messages) ? data.messages : [];
+            const needsMathJax = messages.some(m => maybeNeedsMathJax(m.content) || maybeNeedsMathJax(m.thought_text));
+            // Remove inline configuration script to avoid CSP violation
+            const mathJaxScript = needsMathJax ? `
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" id="MathJax-script" async data-cfasync="false"></script>` : '';
+            const coverTitle = thread.title || 'AI Chat';
+            const coverMeta = [
+                { label: 'Exported At', value: pdfFormatTimestamp(data && data.generated_at) },
+                { label: 'Leaf Message', value: data && data.leaf_id ? `#${data.leaf_id}` : 'none' },
+                { label: 'Messages', value: String(messages.length) },
+                { label: 'Version', value: `AI Playground ${appVersion}` }
+            ];
+            const messageHtml = messages.map((message) => {
+                const isUser = message.role === 'user';
+                const quoteHtml = message.quote_text
+                    ? `<div class="quote"><strong>Quote</strong><br>${escapeHtml(message.quote_text)}</div>`
+                    : '';
+                const thoughtHtml = message.thought_text
+                    ? `<div class="thought">${escapeHtml(message.thought_text)}</div>`
+                    : '';
+                const contentHtml = isUser
+                    ? `<div class="content" style="white-space: pre-wrap;">${escapeHtml(message.content || '')}</div>`
+                    : `<div class="content">${sanitizeMarkdownHtml(message.content || '')}</div>`;
+                const attachments = buildPdfMessageAttachments(message);
+                const attachmentsHtml = attachments.length
+                    ? `<div class="attachments">${attachments.map((attachment) => {
+                        if (attachment.isImage) {
+                            return `<div class="attachment"><img src="${pdfEscapeAttr(attachment.previewUrl)}" alt="${pdfEscapeAttr(attachment.filename)}"><div class="file-caption">${pdfEscapeAttr(attachment.filename)}</div></div>`;
+                        }
+                        return `<div class="attachment"><a class="file" href="${pdfEscapeAttr(attachment.url)}" target="_blank" rel="noreferrer noopener"><span class="file-icon">📄</span><span><span class="file-name">${pdfEscapeAttr(attachment.filename)}</span><span class="file-source">${pdfEscapeAttr(attachment.source)}</span></span></a></div>`;
+                    }).join('')}</div>`
+                    : '';
+                const metaBits = [];
+                if (message.model && !isUser) metaBits.push(message.model);
+                if (message.tokens !== null && message.tokens !== undefined) metaBits.push(`tokens:${message.tokens}`);
+                if (message.tokens_in !== null && message.tokens_in !== undefined) metaBits.push(`in:${message.tokens_in}`);
+                if (message.tokens_out !== null && message.tokens_out !== undefined) metaBits.push(`out:${message.tokens_out}`);
+                if (message.tokens_thought !== null && message.tokens_thought !== undefined) metaBits.push(`thought:${message.tokens_thought}`);
+                if (message.is_encrypted) metaBits.push('encrypted');
+                if (message.parent_id !== null && message.parent_id !== undefined) metaBits.push(`parent:#${message.parent_id}`);
+                const metaHtml = metaBits.length ? `<div class="message-meta">${pdfEscapeAttr(metaBits.join(' • '))}</div>` : '';
+                return `
+                    <article class="message ${isUser ? 'user' : 'ai'}">
+                        <div class="message-head">
+                            <div class="message-role" style="color:${isUser ? 'var(--user)' : 'var(--ai)'}"><span class="dot"></span><span>${isUser ? 'User' : 'Assistant'}</span></div>
+                            <div class="message-time">${pdfEscapeAttr(pdfFormatTimestamp(message.timestamp))}</div>
+                        </div>
+                        <div class="message-body">
+                            ${quoteHtml}
+                            ${contentHtml}
+                            ${thoughtHtml}
+                            ${attachmentsHtml}
+                            ${metaHtml}
+                        </div>
+                    </article>
+                `;
+            }).join('');
+            return `
+        <!DOCTYPE html>
+        <html lang="ja">
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${pdfEscapeAttr(coverTitle)} - PDF Export</title>
+        ${mathJaxScript}
+        <style>
+        :root { --ink:#0f172a; --muted:#475569; --line:#dbe3ee; --panel:#fff; --panel-soft:#f8fafc; --user:#0ea5e9; --ai:#10b981; --accent:#0f766e; }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; }
+        body { font-family: "Noto Sans JP", system-ui, sans-serif; color: var(--ink); background: linear-gradient(180deg, #eef4fb 0%, #f8fbff 45%, #eef2f7 100%); }
+        .page { max-width: 980px; margin: 0 auto; padding: 24px 18px 48px; }
+        .cover { position: relative; overflow: hidden; border-radius: 26px; padding: 26px 24px; color: #eff6ff; background: linear-gradient(135deg, #0f172a 0%, #0b3b57 56%, #0f766e 100%); box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18); }
+        .cover h1 { margin: 0 0 8px; font-size: 40px; line-height: 1.1; }
+        .cover p { margin: 0; max-width: 72ch; color: rgba(226, 232, 240, 0.88); font-size: 14px; line-height: 1.8; }
+        .meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+        .meta-card { padding: 12px 14px; border-radius: 16px; background: rgba(15, 23, 42, 0.2); border: 1px solid rgba(255,255,255,0.15); }
+        .meta-label { font-size: 11px; letter-spacing: 0.08em; color: rgba(226,232,240,0.68); margin-bottom: 6px; text-transform: uppercase; }
+        .meta-value { font-size: 14px; font-weight: 700; word-break: break-word; }
+        .message-list { margin-top: 20px; display: flex; flex-direction: column; gap: 16px; }
+        .message { border-radius: 22px; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 14px 30px rgba(15, 23, 42, 0.06); overflow: hidden; break-inside: avoid; page-break-inside: avoid; }
+        .message.user { border-left: 6px solid var(--user); }
+        .message.ai { border-left: 6px solid var(--ai); }
+        .message-head { display:flex; gap:10px; justify-content:space-between; align-items:flex-start; padding:14px 18px 0; }
+        .message-role { display:inline-flex; align-items:center; gap:8px; font-weight:900; font-size:13px; }
+        .message-role .dot { width:10px; height:10px; border-radius:50%; background: currentColor; }
+        .message-time { color: var(--muted); font-size: 11px; white-space: nowrap; }
+        .message-body { padding: 12px 18px 18px; }
+        .quote { margin:0 0 12px; padding:10px 12px; border-left:4px solid rgba(14,165,233,0.7); background: var(--panel-soft); color: var(--muted); border-radius:12px; font-size:12px; line-height:1.7; }
+        .thought { margin: 12px 0 0; padding: 12px 14px; border-radius: 14px; background: rgba(139, 92, 246, 0.06); border: 1px solid rgba(139, 92, 246, 0.18); color: #4c1d95; font-size: 12px; line-height: 1.8; white-space: pre-wrap; }
+        .content { font-size: 14px; line-height: 1.85; word-break: break-word; }
+        .content pre { overflow:auto; padding:12px 14px; border-radius:14px; background:#0b1020; color:#e2e8f0; border:1px solid rgba(15,23,42,0.18); }
+        .content code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+        .content blockquote { margin:12px 0; padding:8px 12px; border-left:4px solid rgba(14,165,233,0.65); background: rgba(14,165,233,0.06); border-radius:10px; color:#334155; }
+        .content img { max-width:100%; height:auto; border-radius:14px; border:1px solid rgba(148,163,184,0.28); margin:10px 0; }
+        .attachments { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+        .attachment { border-radius: 16px; border: 1px solid var(--line); background: #f8fafc; overflow: hidden; break-inside: avoid; }
+        .attachment img { width: 100%; height: auto; display: block; }
+        .attachment .file { display:flex; gap:10px; align-items:center; padding:12px 14px; color: var(--ink); text-decoration:none; }
+        .file-icon { font-size: 18px; color: var(--accent); }
+        .file-name { display:block; font-weight:700; font-size:13px; word-break:break-word; }
+        .file-source { display:block; color: var(--muted); font-size: 11px; margin-top: 3px; }
+        .file-caption { padding:10px 12px; font-size:11px; color: var(--muted); }
+        .message-meta { margin-top: 14px; text-align: right; color: var(--muted); font-size: 11px; line-height: 1.7; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+        @media print { body { background:#fff; } .page { padding:0; max-width:none; } .cover, .message { box-shadow:none; } .message, .attachment, .meta-card { break-inside: avoid; page-break-inside: avoid; } a { color: inherit; text-decoration: none; } }
+        </style>
+        </head>
+        <body>
+        <div class="page">
+        <section class="cover">
+        <h1>${pdfEscapeAttr(coverTitle)}</h1>
+        <p>スレッド ID: ${pdfEscapeAttr(thread.public_id || '')}。表示中の履歴をそのまま印刷できるように、画面キャプチャではなく全メッセージを再構成して出力しています。</p>
+        <div class="meta-grid">
+        ${coverMeta.map((item) => `<div class="meta-card"><div class="meta-label">${pdfEscapeAttr(item.label)}</div><div class="meta-value">${pdfEscapeAttr(item.value)}</div></div>`).join('')}
+        </div>
+        </section>
+        <main id="pdf-message-list" class="message-list">${messageHtml || '<div class="meta-card" style="margin-top:20px;background:#fff;color:var(--muted);text-align:center;border:1px dashed rgba(148,163,184,0.5);padding:28px;border-radius:20px;">このスレッドにはメッセージがありません。</div>'}</main>
+        </div>
+        </body>
+        </html>`;
+        };
+        async function openThreadPdfPrintDialog() {
+            if (!currentThreadId) {
+                showToast("PDF化するスレッドを開いてください", "warning", true);
+                return;
+            }
+            if (activePdfPrintFrame) {
+                showToast("PDF出力の準備中です。しばらくお待ちください。", "warning", true);
+                return;
+            }
+
+            // Set temporary lock to prevent double clicks during fetch
+            const lockPlaceholder = { isLock: true };
+            activePdfPrintFrame = lockPlaceholder;
+
+            const progress = showProgressToast("PDF出力の準備中です", "info");
+            progress.update(5);
+
+            try {
+                const url = new URL(PDF_PRINT_ROUTE.replace('0', currentThreadId), window.location.origin);
+                if (currentLeafId !== null && currentLeafId !== undefined && String(currentLeafId).trim()) {
+                    url.searchParams.set('leaf_id', String(currentLeafId));
+                }
+                const res = await apiFetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+                progress.update(20);
+                if (!res.ok) {
+                    activePdfPrintFrame = null;
+                    if (progress) progress.remove();
+                    showToast("PDFデータの取得に失敗しました", "error", true);
+                    return;
+                }
+                const data = await res.json().catch(() => null);
+                progress.update(30);
+                if (!data) {
+                    activePdfPrintFrame = null;
+                    if (progress) progress.remove();
+                    showToast("PDFデータの解析に失敗しました", "error", true);
+                    return;
+                }
+
+                const frame = document.createElement('iframe');
+                activePdfPrintFrame = frame;
+                frame.setAttribute('aria-hidden', 'true');
+                frame.style.position = 'fixed';
+                frame.style.right = '0';
+                frame.style.bottom = '0';
+                frame.style.width = '1px';
+                frame.style.height = '1px';
+                frame.style.opacity = '0';
+                frame.style.pointerEvents = 'none';
+                frame.style.border = '0';
+
+                let cleanupTimeout = null;
+                const cleanup = () => {
+                    if (cleanupTimeout) {
+                        clearTimeout(cleanupTimeout);
+                        cleanupTimeout = null;
+                    }
+                    if (progress) progress.remove();
+                    if (activePdfPrintFrame === frame || activePdfPrintFrame === lockPlaceholder) activePdfPrintFrame = null;
+                    try {
+                        if (frame.parentNode) frame.parentNode.removeChild(frame);
+                    } catch (e) {}
+                };
+
+                // Fallback cleanup
+                cleanupTimeout = setTimeout(() => {
+                    if (activePdfPrintFrame === frame) {
+                        console.log("PDF print cleanup fallback triggered");
+                        cleanup();
+                    }
+                }, 60000);
+
+                frame.onload = async () => {
+                    try {
+                        const doc = frame.contentDocument;
+                        const win = frame.contentWindow;
+                        if (!doc || !win) {
+                            cleanup();
+                            showToast("PDF印刷モーダルの準備に失敗しました", "error", true);
+                            return;
+                        }
+                        progress.update(40);
+
+                        // Setup MathJax configuration from parent context to avoid CSP violation
+                        const messages = Array.isArray(data && data.messages) ? data.messages : [];
+                        const needsMathJax = messages.some(m => maybeNeedsMathJax(m.content) || maybeNeedsMathJax(m.thought_text));
+                        if (needsMathJax) {
+                            win.MathJax = {
+                                tex: {
+                                    inlineMath: [['\\(', '\\)'], ['$', '$']],
+                                    displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                                    processEscapes: true
+                                },
+                                options: {
+                                    ignoreHtmlClass: 'tex2jax_ignore|mathjax_ignore',
+                                    processHtmlClass: 'tex2jax_process|mathjax_process'
+                                },
+                                startup: {
+                                    typeset: false
+                                }
+                            };
+                        }
+                        progress.update(50);
+
+                        if (doc.fonts && doc.fonts.ready) {
+                            try { await doc.fonts.ready; } catch (e) {}
+                        }
+                        progress.update(60);
+
+                        const imgs = Array.from(doc.images || []);
+                        const imageLoadPromise = Promise.all(imgs.map((img) => {
+                            if (img.complete) return Promise.resolve();
+                            return new Promise((resolve) => {
+                                img.addEventListener('load', resolve, { once: true });
+                                img.addEventListener('error', resolve, { once: true });
+                            });
+                        }));
+
+                        // Wait for images with 5s timeout to avoid hanging
+                        await Promise.race([
+                            imageLoadPromise,
+                            new Promise(resolve => setTimeout(resolve, 5000))
+                        ]);
+                        progress.update(80);
+
+                        const mathJaxScript = doc.getElementById('MathJax-script');
+                        if (mathJaxScript) {
+                            let retryCount = 0;
+                            while (retryCount < 100 && (!win.MathJax || typeof win.MathJax.typesetPromise !== 'function')) {
+                                await new Promise(r => setTimeout(r, 50));
+                                retryCount++;
+                            }
+                            if (win.MathJax && typeof win.MathJax.typesetPromise === 'function') {
+                                try {
+                                    await win.MathJax.typesetPromise();
+                                } catch (e) {
+                                    console.error("PDF MathJax typeset failed", e);
+                                }
+                            }
+                        }
+                        progress.update(95);
+
+                        setTimeout(() => {
+                            try {
+                                win.focus();
+                                win.addEventListener('afterprint', () => { cleanup(); }, { once: true });
+                                progress.update(100);
+                                setTimeout(() => { if (progress) progress.remove(); }, 1000);
+                                win.print();
+                            } catch (e) {
+                                cleanup();
+                                showToast("PDF印刷モーダルを開けませんでした", "error", true);
+                            }
+                        }, 100);
+                    } catch (e) {
+                        cleanup();
+                        showToast("PDF印刷モーダルの準備に失敗しました", "error", true);
+                    }
+                };
+
+                const html = buildPdfDocumentHtml(data);
+                const blob = new Blob([html], { type: 'text/html' });
+                frame.src = URL.createObjectURL(blob);
+                document.body.appendChild(frame);
+            } catch (e) {
+                if (progress) progress.remove();
+                activePdfPrintFrame = null;
+                showToast("PDF出力中にエラーが発生しました", "error", true);
+            }
+        }
+        function exportCurrentThreadPdf() {
+            openThreadPdfPrintDialog().catch(() => {
+                showToast("PDF出力に失敗しました", "error", true);
+            });
+        }
+        window.regenerateMessage = (id) => {
+            const msg = allMessages.find(m => m.id == id);
+            if (!msg || !msg.parent_id) { showToast("再生成できるメッセージが見つかりません", "error", true); return; }
+            beginEditMessage(msg.parent_id, true);
+        };
+        function getLibSortOrder() {
+            const sel = get('lib-sort');
+            let v = sel ? sel.value : '';
+            if (!v) v = localStorage.getItem(LIB_SORT_KEY) || 'newest';
+            if (sel && sel.value !== v) sel.value = v;
+            return v || 'newest';
+        }
+        function sortLibraryFiles(list) {
+            const order = getLibSortOrder();
+            const files = Array.isArray(list) ? list.slice() : [];
+            const collator = new Intl.Collator('ja', { numeric: true, sensitivity: 'base' });
+            const nameAsc = (a, b) => collator.compare(a.filename || '', b.filename || '');
+            const nameDesc = (a, b) => collator.compare(b.filename || '', a.filename || '');
+            const tsDesc = (a, b) => (Number(b.ts) || 0) - (Number(a.ts) || 0);
+            const tsAsc = (a, b) => (Number(a.ts) || 0) - (Number(b.ts) || 0);
+            if (order === 'name_asc') files.sort((a, b) => nameAsc(a, b) || tsDesc(a, b));
+            else if (order === 'name_desc') files.sort((a, b) => nameDesc(a, b) || tsDesc(a, b));
+            else if (order === 'oldest') files.sort((a, b) => tsAsc(a, b) || nameAsc(a, b));
+            else files.sort((a, b) => tsDesc(a, b) || nameAsc(a, b));
+            return files;
+        }
+        function getLibSearchQuery() {
+            const q = lib.searchQuery || (get('lib-search') ? get('lib-search').value : '') || '';
+            return String(q).trim().toLocaleLowerCase();
+        }
+        function updateLibraryLoadMoreUi() {
+            const btn = get('lib-load-more-btn');
+            if (!btn) return;
+            btn.hidden = !lib.hasMore || !!lib.loading;
+            btn.disabled = !!lib.loading;
+        }
+        function updateLibFavoriteFilterUi() {
+            const btn = get('lib-favorite-filter-btn');
+            if (!btn) return;
+            const active = !!lib.favoritesOnly;
+            btn.classList.toggle('is-active', active);
+            btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+            const icon = btn.querySelector('i');
+            if (icon) icon.className = active ? 'fas fa-star' : 'far fa-star';
+        }
+        function fileNameForSearch(item) {
+            return String((item && item.filename) || '').toLocaleLowerCase();
+        }
+        function renderLibraryGrid(appendFiles = null) {
+            const grid = get('lib-grid');
+            if (!grid) return;
+            updateLibFavoriteFilterUi();
+            updateLibraryLoadMoreUi();
+            const isAppend = Array.isArray(appendFiles);
+            if (isAppend) {
+                const emptyState = grid.querySelector('.lib-empty-state');
+                if (emptyState) emptyState.remove();
+            } else {
+                grid.innerHTML = '';
+            }
+            if (!lib.files || !lib.files.length) {
+                if (isAppend) return;
+                grid.innerHTML = '<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas fa-folder"></i></div><p class="lib-empty-title">ファイルがまだありません</p><p class="lib-empty-sub">アップロードしたファイルがここに表示されます。</p></div>';
+                const countEl = get('lib-total-count');
+                if (countEl) countEl.innerText = "0 files";
+                return;
+            }
+            const ordered = sortLibraryFiles(lib.files);
+            const q = getLibSearchQuery();
+            const filtered = ordered.filter((f) => {
+                if (lib.favoritesOnly && !f.is_favorite) return false;
+                return !q || fileNameForSearch(f).includes(q);
+            });
+            const countEl = get('lib-total-count');
+            if (countEl) {
+                const totalCount = Number(lib.totalCount) || lib.files.length;
+                if (lib.hasMore || q || lib.favoritesOnly) countEl.innerText = `${lib.files.length} / ${totalCount} files`;
+                else countEl.innerText = `${totalCount} files`;
+            }
+            if (!filtered.length) {
+                if (isAppend) return;
+                const icon = lib.favoritesOnly && !q ? 'fa-star' : 'fa-search';
+                const title = lib.favoritesOnly && !q ? 'お気に入りがありません' : '一致するファイルがありません';
+                const sub = lib.favoritesOnly && !q ? 'ファイルの星ボタンからお気に入りに追加できます。' : '検索条件や並び順を変更してください。';
+                grid.innerHTML = `<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas ${icon}"></i></div><p class="lib-empty-title">${title}</p><p class="lib-empty-sub">${sub}</p></div>`;
+                return;
+            }
+            let idx = 0;
+            const itemsToRender = isAppend
+                ? sortLibraryFiles(appendFiles).filter((f) => {
+                    if (lib.favoritesOnly && !f.is_favorite) return false;
+                    return !q || fileNameForSearch(f).includes(q);
+                })
+                : filtered;
+            itemsToRender.forEach((f) => {
+                try {
+                    const el = renderLibraryItem(f, idx++);
+                    grid.appendChild(el);
+                } catch (e) {
+                    // Skip broken entries instead of failing entire render.
+                }
+            });
+        }
+        function openLibraryImage(f) {
+            if (!lib.files) return;
+            const ordered = sortLibraryFiles(lib.files);
+            const q = getLibSearchQuery();
+            const filtered = q ? ordered.filter((x) => fileNameForSearch(x).includes(q)) : ordered;
+            const images = filtered.filter((x) => x.type === 'image');
+            const visibleImages = lib.favoritesOnly ? images.filter((x) => x.is_favorite) : images;
+            if (!visibleImages.length) return;
+            const items = visibleImages.map((x) => ({
+                url: x.url,
+                filename: x.filename || x.original_filename || x.url.split('/').pop(),
+                element: null
+            }));
+            let idx = items.findIndex((x) => x.url === f.url);
+            if (idx === -1) idx = 0;
+            openViewerWithItems(items, idx);
+        }
+        function libraryFileIcon(ext) {
+            const safe = {
+                pdf: 'fa-file-pdf',
+                image: 'fa-image',
+                file: 'fa-file'
+            };
+            const e = String(ext || '').toLowerCase();
+            if (e === 'pdf') return safe.pdf;
+            if (['png','jpg','jpeg','gif','webp','bmp','svg','heic'].includes(e)) return safe.image;
+            return safe.file;
+        }
+        function renderLibraryItem(f, i = 0) {
+            const el = document.createElement('div');
+            el.className = 'library-thumb-card';
+            if (i !== null && i !== undefined) el.style.animationDelay = `${Math.min(i * 0.035, 0.45)}s`;
+            const thumbSrc = f.thumbnail_url || f.thumb_url || f.url;
+            const extName = String(f.ext || (f.filename || '').split('.').pop() || '').toLowerCase();
+            const media = f.type === 'image'
+                ? `<img src="${escapeHtml(thumbSrc)}" alt="${escapeHtml(f.filename)}" loading="lazy" decoding="async" class="library-thumb-media">`
+                : `<div class="library-thumb-file"><div class="lib-file-icon"><i class="fas ${libraryFileIcon(extName)}"></i></div><span class="lib-file-badge">${escapeHtml(extName ? extName.toUpperCase() : 'FILE')}</span></div>`;
+            const overlay = `<div class="lib-overlay"><a href="${escapeHtml(f.url)}" download="${escapeHtml(f.filename)}" class="lib-overlay-btn" onclick="event.stopPropagation()" title="ダウンロード"><i class="fas fa-download"></i></a></div>`;
+            const favoriteClass = f.is_favorite ? ' is-favorite' : '';
+            const favoriteIcon = f.is_favorite ? 'fas fa-star' : 'far fa-star';
+            const favoriteLabel = f.is_favorite ? 'お気に入りから外す' : 'お気に入りに追加';
+            const actions = `<div class="lib-thumb-actions"><button class="lib-favorite-btn lib-action-circle${favoriteClass}" title="${favoriteLabel}" aria-label="${favoriteLabel}" aria-pressed="${f.is_favorite ? 'true' : 'false'}"><i class="${favoriteIcon}"></i></button><button class="lib-open-btn lib-action-circle" title="開く"><i class="fas fa-eye"></i></button><button class="lib-del-btn lib-action-circle lib-del" title="削除"><i class="fas fa-trash"></i></button></div>`;
+            const bar = `<div class="lib-thumb-bar"><span class="lib-thumb-name" title="${escapeHtml(f.filename)}">${escapeHtml(f.filename)}</span></div>`;
+            el.innerHTML = `<div class="lib-thumb-media-wrap">${media}</div>${overlay}${actions}${bar}`;
+            el.dataset.filepath = f.filepath;
+            el.addEventListener('mousedown', (e) => {
+                if (e.shiftKey) e.preventDefault();
+            });
+            el.onclick = (e) => {
+                if (e && e.shiftKey && lib.anchorPath && lib.anchorPath !== f.filepath) {
+                    const cards = Array.from(el.parentNode ? el.parentNode.querySelectorAll('.library-thumb-card') : []);
+                    const anchorIdx = cards.findIndex((c) => c.dataset.filepath === lib.anchorPath);
+                    const targetIdx = cards.indexOf(el);
+                    if (anchorIdx !== -1 && targetIdx !== -1) {
+                        const from = Math.min(anchorIdx, targetIdx);
+                        const to = Math.max(anchorIdx, targetIdx);
+                        for (let k = from; k <= to; k++) {
+                            const path = cards[k].dataset.filepath;
+                            if (!path) continue;
+                            lib.selected.add(path);
+                            cards[k].classList.add('is-selected');
+                        }
+                        try {
+                            const sel = window.getSelection && window.getSelection();
+                            if (sel) sel.removeAllRanges();
+                        } catch (_) {}
+                        window.updateLibSelectionUi();
+                        return;
+                    }
+                }
+                lib.anchorPath = f.filepath;
+                if (lib.selected.has(f.filepath)) {
+                    lib.selected.delete(f.filepath);
+                    el.classList.remove('is-selected');
+                } else {
+                    lib.selected.add(f.filepath);
+                    el.classList.add('is-selected');
+                }
+                window.updateLibSelectionUi();
+            };
+            if (lib.selected && lib.selected.has(f.filepath)) {
+                el.classList.add('is-selected');
+            }
+            const openBtns = el.querySelectorAll('.lib-open-btn');
+            openBtns.forEach((btn) => {
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (f.type === 'image') {
+                        openLibraryImage(f);
+                    } else {
+                        openFileViewer(f.url, f.filename);
+                    }
+                };
+            });
+            const delBtn = el.querySelector('.lib-del-btn');
+            if (delBtn) {
+                delBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    await deleteSingleLibraryFile(f.filepath, el);
+                };
+            }
+            const favoriteBtn = el.querySelector('.lib-favorite-btn');
+            if (favoriteBtn) {
+                favoriteBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    favoriteBtn.disabled = true;
+                    try {
+                        const r = await apiFetch(CHAT_CONFIG.urls.toggleFileFavorite, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({filepath: f.filepath})
+                        });
+                        const d = await r.json().catch(() => ({}));
+                        if (!r.ok || typeof d.is_favorite !== 'boolean') throw new Error(d.error || 'favorite update failed');
+                        f.is_favorite = d.is_favorite;
+                        renderLibraryGrid();
+                        showToast(d.is_favorite ? 'お気に入りに追加しました' : 'お気に入りから外しました', 'success');
+                    } catch (err) {
+                        showToast('お気に入りの更新に失敗しました', 'error', true);
+                        favoriteBtn.disabled = false;
+                    }
+                };
+            }
+            return el;
+        }

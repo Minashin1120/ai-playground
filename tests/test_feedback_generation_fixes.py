@@ -36,8 +36,17 @@ def test_native_vision_compresses_large_images_and_keeps_original_on_failure():
 
 
 def test_saved_error_exits_before_normal_answer_storage():
-    tree = ast.parse((ROOT / "server/background.py").read_text())
+    source = (ROOT / "server/background.py").read_text()
+    tree = ast.parse(source)
     worker = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "background_chat_task")
-    guards = [n for n in ast.walk(worker) if isinstance(n, ast.If) and isinstance(n.test, ast.Name)
+    tail_source = (ROOT / "server/background_stream_tail.py").read_text()
+    tail_tree = ast.parse(tail_source)
+    tail = next(n for n in tail_tree.body if isinstance(n, ast.FunctionDef)
+                and n.name == "background_stream_tail")
+    guards = [n for n in ast.walk(tail) if isinstance(n, ast.If) and isinstance(n.test, ast.Name)
               and n.test.id == "stream_error_persisted" and any(isinstance(x, ast.Return) for x in n.body)]
-    assert any(n.lineno > 7000 for n in guards)
+    assert guards
+    # The guard must run after the provider branches, not before they stream.
+    provider_index = source.index("background_stream_openai(locals())")
+    tail_index = source.index("background_stream_tail(locals())")
+    assert tail_index > provider_index

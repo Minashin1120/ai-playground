@@ -259,7 +259,7 @@ def _new_feedback_public_id():
 
 class Feedback(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    # The identifier people see and quote; ``id`` stays an internal key (see server/routes_admin.py).
+    # The identifier people see and quote; ``id`` stays an internal key (see server/routes_admin_feedback.py).
     public_id = db.Column(db.String(16), unique=True, index=True, nullable=True, default=_new_feedback_public_id)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     title = db.Column(db.String(200), default="")
@@ -276,7 +276,7 @@ class Feedback(db.Model):
     import_signature = db.Column(db.String(64), nullable=True, index=True)
 
 class FeedbackReply(db.Model):
-    """One reply in a feedback's history, by an administrator or by the sender (server/routes_admin.py)."""
+    """One reply in a feedback's history, by an administrator or by the sender (server/routes_admin_feedback.py)."""
     id = db.Column(db.Integer, primary_key=True)
     feedback_id = db.Column(db.Integer, db.ForeignKey('feedback.id', ondelete='CASCADE'), nullable=False, index=True)
     # Who wrote it. No foreign key: an administrator's reply stays after their account is deleted.

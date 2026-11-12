@@ -114,9 +114,9 @@ class DeepSeekPythonToolTests(unittest.TestCase):
         self.assertNotIn("venv/bin/python3", result)
 
     def test_execution_guidance_respects_notice_and_python_switches(self):
-        source = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
-        start = source.index('                    python_tools = []', source.index('            elif is_deepseek:', source.index('def background_chat_task')))
-        end = source.index('                    if options.get("enable_file_creation"):', start)
+        source = (APP_ROOT / "server/background_stream_deepseek.py").read_text(encoding="utf-8")
+        start = source.index('        python_tools = []')
+        end = source.index('        if options.get("enable_file_creation"):', start)
         snippet = textwrap.dedent(source[start:end])
         for python_enabled in (False, True):
             for notice_enabled in (False, True):
@@ -164,9 +164,9 @@ class DeepSeekPythonToolTests(unittest.TestCase):
 
     def _assert_python_rounds(self, rounds):
         # Run the production provider branch without a database, Redis, or API key.
-        source = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
-        start = source.index('                log_force("Routing: DeepSeek V4 Branch (Chat Completions)")')
-        end = source.index('            elif is_kimi or is_zai:', start)
+        source = (APP_ROOT / "server/background_stream_deepseek.py").read_text(encoding="utf-8")
+        start = source.index('    log_force("Routing: DeepSeek V4 Branch (Chat Completions)")')
+        end = source.index('    return (full_res, m, search_used,', start)
         branch = textwrap.dedent(source[start:end])
         module = ast.parse("def run_branch():\n    global thought_accumulated\n    full_res = ''\n" + textwrap.indent(branch, "    "))
         requests = []
@@ -199,6 +199,7 @@ class DeepSeekPythonToolTests(unittest.TestCase):
             _latency_mark_once=lambda *a: None, job_id="test", _refresh_pending_job=lambda: None,
             final_message_text="Calculate 6 * 7",
             thought_accumulated="", full_res="", deepseek_tool_context=[],
+            BACKGROUND_STREAM_EARLY_RETURN=object(),
             accumulate_deepseek_tool_call_deltas=target.accumulate_deepseek_tool_call_deltas,
             safe_execute_python=execute, _markdown_fence_for_code=target._markdown_fence_for_code,
             _build_list_branch_images_tool_schema=target._build_list_branch_images_tool_schema,

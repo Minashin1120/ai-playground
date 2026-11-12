@@ -151,7 +151,7 @@ class AgenticImageRegressionTests(unittest.TestCase):
                          "![download](/files/1/agentic_result.png)")
 
     def test_completed_answer_resolves_image_citation_received_after_the_download_link(self):
-        source = (Path(__file__).resolve().parents[1] / "server/background.py").read_text()
+        source = (Path(__file__).resolve().parents[1] / "server/background_stream_tail.py").read_text()
         block = next(n for n in ast.walk(ast.parse(source)) if isinstance(n, ast.If)
                      and ast.unparse(n.test) == "agentic_filename_url_map or agentic_saved_urls")
         saved = "/files/1/agentic_result.png"

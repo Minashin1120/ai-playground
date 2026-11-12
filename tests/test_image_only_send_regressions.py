@@ -63,7 +63,7 @@ class ImageOnlySendRegressionTests(unittest.TestCase):
     def test_deepseek_and_kimi_image_only_use_vision_analysis_as_user_turn(self):
         for branch_marker in (
             'log_force("Routing: DeepSeek V4 Branch (Chat Completions)")',
-            'elif is_kimi or is_zai:',
+            "log_force(f\"Routing: {'Z.AI GLM' if is_zai else 'Kimi K3'} Branch (Chat Completions)\")",
         ):
             branch = APP_SOURCE[APP_SOURCE.index(branch_marker) :]
             build = branch[: branch.index("messages.append({\"role\": \"user\", \"content\": user_text})")]

@@ -780,7 +780,7 @@ scripts/publish_version.sh --message "Add Android pairing and scoped native API 
 
 ### 10.1 サーバーの自動試験
 
-`tests/test_mobile_api.py` は分離SQLiteとUnixソケットの一時Redisを使って検証します。redis-serverがない環境ではこのテスト群はskipされるため、公開確認ではskipを成功と取り違えないでください。
+`tests/mobile_api_common.py` と `tests/test_mobile_api_*.py` は分離SQLiteとUnixソケットの一時Redisを使って検証します。redis-serverがない環境ではこのテスト群はskipされるため、公開確認ではskipを成功と取り違えないでください。
 
 対象は、旧連携の新規申請・承認・過去のコード交換の拒否・HTTPS・停止スイッチ・Cookie/Origin混在拒否・WebのCSRF維持・失効・BAN・E2EE・Turnstile・ネイティブ登録／ログイン／TOTP・TOTPの登録／有効化／無効化・セキュリティ設定の入力検証とパスキーのみログインガード・パスキー開始時の存在秘匿・Android origin導出・セットアップ未完了時のセキュリティ／取り込み許可と通常API拒否・Android認証許可リストへの取り込みAPI登録・スレッド所有者・タイトル・スレッド指示・ブックマーク・一時チャット・添付所有者・チャンクアップロードの確定と順序検証・ファイルライブラリの所有者境界・Skillの所有者境界とCRUD・一般設定の許可項目と秘密鍵の拒否・PDF出力の所有者境界・モデルメタデータと選択可否です。取り込み本体はアプリの取り込みディレクトリへ書き込むため、自動試験では許可リスト登録と未認証拒否だけを確認します。
 
@@ -858,7 +858,7 @@ Turnstileの確認は、認証要求でPlay Integrityの判定が高リスクま
 | [templates/android_connect.html](../templates/android_connect.html) | コード入力・権限確認・承認／拒否 |
 | [server/request_security.py](../server/request_security.py) | 既存セッション・BAN・Bot・メンテナンスとの統合 |
 | [server/app_settings_schema.py](../server/app_settings_schema.py) | 条件を満たすnative通信だけのCSRF免除 |
-| [tests/test_mobile_api.py](../tests/test_mobile_api.py) | 分離環境での認証・API・競合回帰テスト |
+| [tests/mobile_api_common.py](../tests/mobile_api_common.py) / [tests/test_mobile_api_config.py](../tests/test_mobile_api_config.py) / [tests/test_mobile_api_threads.py](../tests/test_mobile_api_threads.py) / [tests/test_mobile_api_files.py](../tests/test_mobile_api_files.py) / [tests/test_mobile_api_auth.py](../tests/test_mobile_api_auth.py) / [tests/test_mobile_api_account.py](../tests/test_mobile_api_account.py) | 分離環境での認証・API・競合回帰テスト |
 | [apache/mobile-api.inc.conf](apache/mobile-api.inc.conf) | ApacheのHTTPS転送、JSONエラー維持、キャッシュ設定 |
 
 APIの具体的な契約は本書と現行サーバーコードが正本です。Android・HTTPライブラリ・Apacheの一般仕様は各節の公式資料を参照し、依存更新・配布時には情報を再確認してください。

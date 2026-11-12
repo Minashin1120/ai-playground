@@ -6,6 +6,7 @@ import textwrap
 import types
 import unittest
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 
 import httpx
 
@@ -82,7 +83,7 @@ class IdeogramRegistrationTests(unittest.TestCase):
 
 class IdeogramComposerTests(unittest.TestCase):
     def test_background_mode_disables_input_and_sends_without_text_or_attachments(self):
-        source = (APP_ROOT / "static/js/chat_core_parts/chat_core.part05_settings_modal.js").read_text()
+        source = read_chat_core_source()
         helpers = source[source.index("        const isIdeogramModelKey"):source.index("        const IDEOGRAM_IMAGE_FIELDS")]
         script = r"""
 const assert = require('node:assert/strict');
@@ -120,21 +121,22 @@ assert.equal(input.value, '/settings private draft');
 assert.equal(ideogramPromptForSend('other provider'), 'other provider');
 """
         subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
-        send_source = (APP_ROOT / "static/js/chat_core_parts/chat_core.part14_send_message_browser_fast.js").read_text()
+        send_source = read_chat_core_source()
         self.assertIn("const rawText = ideogramPromptForSend(get('prompt-input').value)", send_source)
         self.assertIn("if (pendingSlashCommand && !removeBackground)", send_source)
-        self.assertIn("updateIdeogramPromptInputUi();", (APP_ROOT / "static/js/chat_core_parts/chat_core.part07_domcontent_initial.js").read_text())
+        self.assertIn("updateIdeogramPromptInputUi();", read_chat_core_source())
 
 
 class IdeogramRequestTests(unittest.TestCase):
     def test_worker_edits_last_output_of_selected_branch(self):
-        source = (APP_ROOT / "server" / "background.py").read_text(encoding="utf-8")
-        start = source.index('                    # Edit the last model output')
-        end = source.index('\n                    if remove_background:', start)
+        source = (APP_ROOT / "server" / "background_stream_ideogram.py").read_text(encoding="utf-8")
+        start = source.index('        # Edit the last model output')
+        end = source.index('\n        if remove_background:', start)
         selection = textwrap.dedent(source[start:end])
-        loader_start = source.index('            def _load_history_image_parts(')
-        loader_end = source.index('            def _load_message_history_images(', loader_start)
-        loader = textwrap.dedent(source[loader_start:loader_end])
+        background_source = (APP_ROOT / "server" / "background_history.py").read_text(encoding="utf-8")
+        loader_start = background_source.index('def background_history_image_parts(')
+        loader_end = background_source.index('def background_message_history_images(', loader_start)
+        loader = textwrap.dedent(background_source[loader_start:loader_end])
         def message(role, *names):
             return dict(role=role, image_url=json.dumps(list(names)))
         def image(name):
@@ -167,6 +169,10 @@ class IdeogramRequestTests(unittest.TestCase):
                     thread_id=1, user_id=1, msg=types.SimpleNamespace(parent_id=2),
                     _iter_chat_history_ancestors=lambda *args: iter(types.SimpleNamespace(**m) for m in reversed(history)))
                 exec(loader, namespace)
+                namespace["_load_history_image_parts"] = (
+                    lambda *args, **kwargs: namespace["background_history_image_parts"](
+                        namespace["history"], *args, **kwargs)
+                )
                 exec(selection, namespace)
                 self.assertEqual([image(name) for name in expected], namespace["ideogram_sources"])
 

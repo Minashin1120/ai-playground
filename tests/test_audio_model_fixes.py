@@ -6,6 +6,7 @@ import threading
 import types as pytypes
 import unittest
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 from unittest import mock
 
 import app as target
@@ -51,8 +52,7 @@ class GeminiTranscribeTests(unittest.TestCase):
         self.assertEqual(target._gemini_transcribe_mime("audio/mpeg", "a.mp3"), "audio/mpeg")
 
     def test_webm_is_no_longer_truncated_by_conversion(self):
-        source = (APP_ROOT / "server" / "background.py").read_text(encoding="utf-8")
-        block = source[source.index("# Gemini Transcribe (audio file -> text"):source.index("# Gemini TTS (Preview)")]
+        block = (APP_ROOT / "server" / "background_stream_gemini_transcribe.py").read_text(encoding="utf-8")
         self.assertNotIn("_convert_audio_to_pcm", block)
         self.assertIn("_gemini_transcribe_mime(audio_mime, audio_name)", block)
         self.assertIn('== "FAILED"', block)
@@ -90,7 +90,7 @@ class GeminiTranscribeTests(unittest.TestCase):
 
 class TtsTests(unittest.TestCase):
     def setUp(self):
-        self.source = (APP_ROOT / "server" / "background.py").read_text(encoding="utf-8")
+        self.source = (APP_ROOT / "server" / "background_stream_tts.py").read_text(encoding="utf-8")
 
     def test_xai_tts_voice_and_errors(self):
         block = self.source[self.source.index("elif 'grok-tts' in model_key"):self.source.index("# OpenAI TTS (default")]
@@ -100,7 +100,7 @@ class TtsTests(unittest.TestCase):
         self.assertNotIn("resp.raise_for_status()", block)
 
     def test_gemini_tts_joins_parts_and_detects_wav(self):
-        block = self.source[self.source.index("# Gemini TTS (Preview)"):self.source.index("# Image Generation")]
+        block = (APP_ROOT / "server" / "background_stream_gemini_tts.py").read_text(encoding="utf-8")
         self.assertIn("for p0 in parts0:", block)
         self.assertIn('audio_bytes[:4] == b"RIFF"', block)
         self.assertIn('re.search(r"rate=(\\d+)", audio_mime)', block)
@@ -170,7 +170,7 @@ class NewAudioModelTests(unittest.TestCase):
             self.assertEqual(target._mobile_model_metadata(model)["mode"], "tts")
 
     def test_new_models_are_listed_in_the_web_catalog(self):
-        source = (APP_ROOT / "static" / "js" / "chat_core_parts" / "chat_core.part05_settings_modal.js").read_text(encoding="utf-8")
+        source = read_chat_core_source()
         for model in ("gpt-realtime-2.1", "gpt-realtime-2.1-mini", "gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"):
             self.assertIn(f'{{ id: "{model}", implementedAt: "2026-09-29"', source)
         sts_block = source[source.index("const STS_MODELS = new Set(["):]

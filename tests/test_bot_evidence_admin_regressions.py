@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from tests.app_source import read_chat_core_source
 from unittest import mock
 
 from tests.chat_template import read_chat_markup
@@ -14,7 +15,7 @@ os.environ.setdefault("RUN_SCHEMA_MIGRATIONS", "0")
 os.environ.setdefault("VERBOSE_DEBUG_LOGS", "0")
 
 import app as target
-from tests.test_turnstile_bot_detection_regressions import _FakeRedis
+from tests.bot_detection_test_support import _FakeRedis
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
@@ -297,8 +298,8 @@ class BotEvidenceAdminRegressionTests(unittest.TestCase):
             self.assertIsNotNone(target.db.session.get(target.User, other_id))
             self.assertIsNotNone(target.db.session.get(target.User, self.ids["site-admin"]))
             self.assertIsNone(target.db.session.get(target.User, self.ids["locker"]))
-        part08 = (PARTS / "chat_core.part08_domcontent_account_transfer.js").read_text(encoding="utf-8")
-        self.assertIn("${u.is_admin ? '' : `<button class=\"bot-delete-account", part08)
+        part09 = read_chat_core_source()
+        self.assertIn("${u.is_admin ? '' : `<button class=\"bot-delete-account", part09)
 
     def test_admin_ui_wires_log_view(self):
         markup = read_chat_markup()
@@ -307,16 +308,16 @@ class BotEvidenceAdminRegressionTests(unittest.TestCase):
         self.assertIn('id="bot-log-modal"', markup)
         self.assertIn('id="bot-log-account-list"', markup)
         self.assertIn('id="bot-log-detail"', markup)
-        part08 = (PARTS / "chat_core.part08_domcontent_account_transfer.js").read_text(encoding="utf-8")
-        part16 = (PARTS / "chat_core.part16_library_branch_debug.js").read_text(encoding="utf-8")
-        self.assertIn("'/admin-bot-logs': { id: 'bot-log-modal'", part08)
-        self.assertIn("case 'bot-log-modal'", part08)
-        self.assertNotIn("bot-open-log", part08)
-        self.assertIn("window.BotAdminLog = BotAdminLog", part16)
-        self.assertIn("/api/bot/evidence/accounts", part16)
-        self.assertIn("user_ids: ids", part16)
-        self.assertIn("/api/bot/account/clear-lock", part16)
-        self.assertIn("/api/bot/account/clear-identifiers", part16)
+        part09 = read_chat_core_source()
+        part17 = read_chat_core_source()
+        self.assertIn("'/admin-bot-logs': { id: 'bot-log-modal'", part09)
+        self.assertIn("case 'bot-log-modal'", part09)
+        self.assertNotIn("bot-open-log", part09)
+        self.assertIn("window.BotAdminLog = BotAdminLog", part17)
+        self.assertIn("/api/bot/evidence/accounts", part17)
+        self.assertIn("user_ids: ids", part17)
+        self.assertIn("/api/bot/account/clear-lock", part17)
+        self.assertIn("/api/bot/account/clear-identifiers", part17)
         page = self.client_for("site-admin").get("/admin-bot-logs")
         self.assertEqual(page.status_code, 200)
 

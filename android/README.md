@@ -29,7 +29,53 @@
 | `docs/PENDING_FEEDBACK.md` | フィードバックの端末保存、再送のタイミング、添付とログの扱い | フィードバック送信保留の動作を確認するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/OfflineCacheStore.kt` | アカウント別の暗号化オフライン履歴・ファイル保存、同期設定、カテゴリ削除 | オフライン閲覧・端末保存・キャッシュ管理を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AppUpdateDialog.kt` | APK更新の確認、進捗、設定案内、再試行ダイアログと、非表示中（ダウンロード中・インストール待ち）の画面上部バー | 更新UI・文言・導線 |
-| `app/src/main/java/com/minashin1120/aiplayground/ChatViewModel.kt` | ネイティブ認証・パスキー／TOTP 2FA・セキュリティ管理・初回セットアップ／ZIP取り込み・履歴・送信・再接続・アップロード状態 | アプリ操作・通信フロー |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatViewModel.kt` | 画面の入口と状態：アカウント・履歴・スレッド・アップロード状態、各協作者への薄い公開入口（協作者の組み立ては `ChatGraph.kt`） | アプリ操作・通信フロー |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatGraph.kt` | 協作者の組み立てと配線：状態・保存先・各協作者（接続・認証・送信・添付・音声・設定）を生成し、終了時に解放する | 協作者を追加・並び替えるとき、起動時の配線を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatAttachmentFiles.kt` | 添付の読み込み・プレビュー・保存：端末内ファイル、サーバー（同じ接続先）、外部https画像、オフラインキャッシュ | 添付の表示・ダウンロードを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatAttachmentUpload.kt` | 添付アップロードのキュー・転送（全体／分割）・進捗・キャンセル・リセット、マスク画像・編集済み添付のアップロード | 添付の送信やマスク・編集画像の反映を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatImageSplit.kt` | 画像分割ダイアログの状態と、分割結果の添付・端末保存の流れ | 画像分割を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatMicRecorder.kt` | チャット入力の音声録音と文字起こし（レベル表示・`/transcribe` 送信） | マイク入力や文字起こしを変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatRealtimeSession.kt` | Web `RealtimeVoiceSession`：リアルタイム音声セッションの開始・停止、PCM音声の送受信、文字起こしと応答の反映、`/sts` の一回録音（文字起こし系モデル） | リアルタイム音声・`/sts` を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatLyriaStudio.kt` | Web `LyriaRealtimeStudio`：重み付きプロンプト、音楽設定、再生・一時停止・停止・コンテキストリセット、音声のチャット保存 | Lyria RealTime スタジオを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatAudioOutput.kt` | リアルタイム音声と Lyria が共有するPCM再生（`AudioTrack`）の作成 | 音声出力の形式・バッファを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatSyncRunner.kt` | 端末モードの未送信分の同期：回答後・復帰時・接続回復時の予約、失敗時の再試行（30秒から10分）、「今すぐ同期」、進捗と結果の表示 | 同期のタイミング・再試行・表示を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatState.kt` | チャット画面の状態（`ChatState`・画面遷移種別・取り込み設定の差分） | 状態の項目や初期値、画面遷移の種別を変えるとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatDeviceAnswer.kt` | 端末で生成する回答の判定・停止・送信可否（オフライン時を含む） | 端末回答の停止や送信の端末モード判定を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatLibrary.kt` | Web `#files-modal`：ファイル一覧・検索・並び順・お気に入り・名前変更・削除・添付（再アップロードなし）・保存・使用チャットの表示 | ライブラリの一覧・操作・ダウンロードを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatFeedback.kt` | Web `#feedback-modal`・`#fb-admin-list`：フィードバックの一覧・状態変更・返信・削除、端末保存しての送信と再送、チャットのコピーと添付 | フィードバックの送信・返信・再送を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatMessageLoader.kt` | Web `loadMessages`：履歴の取得（サーバー／オフラインキャッシュ）・過去分の追加・送信中を保つ再読込・停止したジョブの再結合抑止 | 履歴の読み込みや再読込の条件を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatComposer.kt` | 送信準備：入力・引用、モデル選択と各モデルのオプション規則、PromptCache、Coding対象、添付名 | プロンプトバーの状態やモデル切替・オプションを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatPreferences.kt` | 全般設定：設定の読込・保存、リッチ貼り付けプロンプト、ストレージ使用量、MCPサーバー、オフライン履歴キャッシュ（方式・モバイル通信・全件同期・削除） | 設定の保存読込・MCP・オフラインキャッシュを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatDiagnostics.kt` | 管理者向け診断の送信（10秒ごと・停滞時のスレッドダンプ）と、端末の活動ログ（`ChatState` の変化の記録・所有者の切替） | 診断の送信・活動ログの記録項目を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatBanState.kt` | BAN境界：BAN時の作業停止、理由・日時の表示（`/banned`）、異議申し立ての送信と解除後の復帰 | BAN画面や異議申し立てを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatAuth.kt` | ログインとアカウントセキュリティ：ID/Google/ブラウザ（PKCE）ログイン、Play Integrity・Turnstile、TOTP・パスキー（ログイン・2段階認証・登録）、セキュリティ設定の保存 | ログイン方式や2段階認証・パスキーを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatAccountImport.kt` | 初回設定のアカウントZIP取り込み：分割アップロード（再開・中止）、適用、設定の上書き確認 | アカウントのインポート手順や確認画面を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatAccountTransfer.kt` | 設定のデータタブ：アカウントのエクスポート・取り込み・重複修復の本体（設定モーダルを閉じても継続）と、取り込み後の変更カテゴリだけの再読込 | データの移行・取り込み・重複修復を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatAnswerState.kt` | 回答の状態更新：`updateAnswer` / `updateLive` / `markApiAccepted`（受け付け済みの骨組み表示）を送信・受信・端末回答で共有 | 回答の状態更新や受け付け表示を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatAccountSetup.kt` | アカウント読込と初回設定：`/me`・`/setup` の取得と保存、表示用モデル一覧の合成、最後のアカウントのオフライン復元 | アカウント情報の読込・初回設定・起動時の復元を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatAiSettings.kt` | AI設定コマンド（`/settings <指示>`）：会話（直近10件）、モデル経由の設定の確認・変更、結果の一時バブル | `/settings` の会話・結果表示を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatSlashCommands.kt` | 最小モードのスラッシュコマンド：ON/OFF・Thinkingの段階・Safety・Compress・一時チャットの切替と案内文 | `/canvas` などのコマンド動作・案内文を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatPdfExport.kt` | スレッドのPDF出力：分岐（`leaf_id`）のペイロード取得と、共有キャッシュへの端末生成A4 PDF | PDF出力の対象・保存先・失敗時の案内を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatProfiles.kt` | 端末プロフィールと接続先：アカウントなし／サーバー不使用モードの切替、端末チャットの保存先、オフライン時の可否判定、接続先の確認・保存 | 端末モード・オフライン判定・接続先を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatEditing.kt` | プロンプトオプションの復元と編集：編集開始・再生成・編集の取消・分岐の切替（‑ Web `restorePromptOptionsForEdit` / `beginEditMessage`） | 編集・再生成・分岐の切替を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatSendEntry.kt` | 送信の入口の確認：Xリンクの自動検索（`applyXLinkAuto` / `#auto-search-banner`）、APIキーの保存と再送、モデル表示名 | 送信前の確認・APIキー要求を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatAttachments.kt` | 添付の入口：アップロード・中止・一覧のクリア・圧縮設定・ダウンロード・共有テキストのプレビュー・画像分割 | 添付の受け渡し・中止・ダウンロードを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatForeground.kt` | 前面／背面の切替：復帰時の接続・回答の再結合判定、背面時の音声・Lyria・ポーリング停止、一時チャットの期限更新（ハートビート） | 前面復帰・バックグラウンド・一時チャットの期限を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatConnectionMonitor.kt` | サーバー到達性：ネットワークコールバック、前面時のハートビート、低速3回で不安定、復帰バナーの自動非表示、接続の活動ログ、待機ソケットの破棄とView Model終了時の解放 | 接続判定・ハートビート・接続バナーを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatThreadList.kt` | スレッド一覧と検索：300msデバウンス、ページ送り、オフラインキャッシュ、サーバー不使用時の端末チャット | 履歴一覧・検索・ページ送りを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatNavigator.kt` | 画面のチャット移動：新規チャット、スレッドを開く（読み込み中の骨組み・失敗時の再試行）、戻る、過去分の追加、前面復帰時の再読込 | チャットの切替・戻る・読み込みを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatThreadActions.kt` | スレッドとメッセージの操作：削除・名前変更・ブックマーク・分岐・メッセージ削除・暗号化の変更・チャット設定の保存 | 履歴やメッセージの操作・分岐を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatSessionLifecycle.kt` | セッションの終了：ログアウト、401 の後始末（履歴・進行中ジョブ・音声セッション・端末バブルの解放）、失敗の通知（通信状態と案内文） | ログアウト・401・エラー表示を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatStartup.kt` | 起動時の復元（プロフィール・保存済みアカウント・サーバー設定・モデル一覧）と、接続バナーの「再接続」 | 起動時の読み込み順・復元・再接続を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatBatch.kt` | Batch処理：履歴一覧、完了バナー、2秒ごとの状態確認、停止と削除 | Batchの一覧・通知・ポーリングを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatSkills.kt` | Skill：一覧の取得、保存・削除、このチャットへの適用（`last_skill_uuid`）、`@` 候補からの適用 | Skillの一覧・適用を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatStreamReceiver.kt` | 回答ストリームの受信：イベントの適用（本文・推論・ツールカード・MCP確認・エラー）と、サーバーで継続中の回答への再接続 | 受信イベントの扱い・再接続を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatSendStream.kt` | 回答の送信：受け付け待ちの再試行（メンテナンス・サーバー停止・オフライン）、受け付け後のサーバー継続回答への再接続 | 送信の再試行・切断時の再接続を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatSendRequest.kt` | 送信内容の組み立て：`/chat_stream` へ送る本文・添付・生成設定・Coding Mode・Skill・分岐（親メッセージ） | 送信する内容や項目を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatSendCompletion.kt` | 送信後の後処理：回答終了時の履歴の再読込・タイトル生成・Batch通知と、受け付けられなかった送信の入力の復元・案内 | 送信完了後の画面・エラー表示を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatSubmissionRunner.kt` | 送信・再開・停止：送信前の確認と本文の組み立て、回答ジョブの開始（新規スレッド作成）、サーバーで継続中の回答への再結合、停止要求（端末生成の回答は取り消し） | 送信の手順・再開・停止を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatLowBandwidth.kt` | 低速回線モード：回線とデータ節約からの自動判定、サイドバーの auto → on → off 切替と保存 | 低速回線モードの判定・切替を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatBotGuard.kt` | 連投ロック（`/api/bot/lock`）、タップのテレメトリ（`/api/bot-telemetry`）、送信時の振動 | 連投の判定・BOTテレメトリ・振動を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/PromptEditSettings.kt` | 編集開始直前のプロンプト設定の退避とキャンセル時の復元 | プロンプト編集をキャンセルしたときの設定を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatDefaults.kt` | 起動時・新規チャット共通の既定モデルとプロンプト設定の適用 | 起動時と新規チャットの設定を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatGenerations.kt` | チャットごとの回答生成ジョブ・受信状態・同期前後のIDと画面への反映、生成中のサービス保持 | チャット切り替え後の生成継続・並行生成・停止対象を変更するとき |
@@ -40,6 +86,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/SseReader.kt` | Server-Sent Eventsの読み取り（サーバーのRealtime／Lyriaと事業者APIのストリーム） | SSEの解析を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/` | サーバー不使用モードの直接送信：事業者APIへのHTTP（`DirectHttp.kt`、許可ホストのみ）、モデル別の振り分け（`DirectRouter.kt`）、Gemini（`GeminiDirect.kt`、Vertex AIは `VertexAuth.kt`）／OpenAI Responses（xAI含む、`OpenAiResponsesDirect.kt`）／Anthropic（`AnthropicDirect.kt`）／Chat Completions（`ChatCompletionsDirect.kt`）／画像生成（OpenAI／xAI／Ideogram）とTTS（`MediaDirect.kt`）の各エンジン（共通の枠は `DirectEngine.kt`）、システムプロンプトの組み立て（`SystemPromptBuilder.kt`）、添付のテキスト化（`AttachmentExtractor.kt`） | 端末からの送信・対応モデル・プロンプト組み立てを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/ProviderTokenCounter.kt` | 入力欄の本文・引用・添付の公式API計測、短時間キャッシュ | 端末からの入力見積の精度・計測APIを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/direct/SkillTool.kt` | サーバー不使用モードのSkillツール：保存済みSkillの名前と短い説明をツール定義に載せ、`use_skill` で指示全文（長さの上限あり）を読み込む | 端末からのSkill適用・ツール定義を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/TokenEstimateBreakdown.kt` | 詳細を開いたときの本文・引用・添付の増分計測と結合時の差の算出 | 端末内の入力トークン見積の内訳を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PromptTokenEstimateDialog.kt` | 入力見積の詳細（開いた時点の入力、計測方法、本文・引用・添付ごとの内訳、再試行） | 入力見積をタップしたときの詳細画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/AttachmentTokenEstimator.kt` | 入力見積の添付トークン計算（Geminiの画像・PDF・音声・動画、テキスト抽出） | 端末内の添付トークン計算を変更するとき |
@@ -58,7 +105,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/PlayIntegrityClient.kt` | Play Integrity Standard APIの事前準備・要求内容に結び付いた認証token取得 | Android認証の端末リスク信号 |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BotTelemetry.kt` | Web版のBot判定に合わせたタップの集計（`/api/bot-telemetry`）と、送信の連打の回数（`/api/bot/lock`） | Bot判定の基準・送信条件を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BrowserLoginPkce.kt` | ブラウザー経由ログインのPKCE（S256）verifier・challenge生成 | Google・MinashinのApp Link復帰を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `ChatComponents.kt` | Compose画面の組み立て（ドロワー／タブレット2ペイン、各モーダルの開閉）、メッセージ操作、Coding差分（Live Code Changes）とBatch完了バナー、生成中の回答 | 画面構造と操作を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `PlaygroundDialogs.kt`, `PlaygroundOverlays.kt`, `PlaygroundAuthScreens.kt`, `PlaygroundConversation.kt`, `ChatComponents.kt` | Compose画面の組み立て（ドロワー／タブレット2ペイン）、ダイアログ・シート・確認の開閉条件とその状態（`PlaygroundDialogs.kt` / `PlaygroundOverlays.kt`）、認証・初期設定・BAN・接続バナー画面、メッセージ操作、Coding差分（Live Code Changes）とBatch完了バナー、生成中の回答 | 画面構造と操作を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InAppCameraDialog.kt` | CameraXを使うアプリ内カメラのプレビュー、権限、ズーム、無音撮影、端末の向きに応じた撮影、画質優先の撮影設定、連続撮影と撮影分の一覧・添付・クリア、撮影分を画像分割へ渡す切り替え | カメラ撮影を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InAppCameraSession.kt` | CameraXのプレビュー・撮影の接続、ライフサイクルに応じた向きの検知、撮影の向き、ズーム・フォーカス | カメラの端末連携や撮影設定を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/CapturedPhotoOrientation.kt` | 撮影したJPEGのEXIFの向きを画素へ反映 | 撮影後の画像の向きを変更するとき |
@@ -73,9 +120,11 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/ProgressText.kt` | Web `progress_spinner.js` の文言表と通信中の処理一覧（`PlaygroundApi.progress`） | 通信スピナーの文言や対象を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AnswerBubbleMotion.kt` | プロンプト到着後の回答バブルの横スライド、回答待ちから保存済み回答への登場状態の引き継ぎ | 回答バブルの登場順序・アニメーションを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PromptSendMotion.kt` | 送信内容の移動・縮小・吹き出しへの切替、描画レイヤーと座標の一時管理、動きの削減・中断時の後始末 | プロンプト送信アニメーションを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/Composer.kt` | Webのプロンプトバー（引用・Coding対象・編集バー、モデルボタン、Canvas／Coding／Batch、詳細チップ、Skillsスイッチ、添付プレビュー、Skill表示、`/`・`@` 候補、入力シェル、送信・停止、トークン見積もり） | 入力欄の見た目や操作を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/Composer.kt` | Webのプロンプトバー（引用・Coding対象・編集バー、モデルボタン、Canvas／Coding／Batch、Skillsスイッチ、添付プレビュー、Skill表示、`/`・`@` 候補、入力シェル、送信・停止、トークン見積もり） | 入力欄の見た目や操作を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ComposerChips.kt` | Webのプロンプトバーのオプションチップ（詳細チップの表示切替、Thinking／SysPrompt／Safety／PromptCache／Compress／一時チャット、チップ内のセレクトとバジェット入力） | 詳細チップの中身や見た目を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InteractionDiagnostics.kt` | 選択・数式操作の受動的なログ観測（ランダムID、フォーカス、メニュー、400ms後の状態、横スクロール・描画状態） | 選択や数式操作のログを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/QuoteSelection.kt` | 会話の範囲選択に「Quote」を加える選択ツールバー | 引用の操作を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/QuoteNavigation.kt` | 引用バーの「引用元へ移動」の位置決め：引用の上余白、引用元の行の解決（安定した行キーを優先し数値IDは予備、生成中の回答は進行中の行）、必要なスクロール量 | 引用元へ移動するときの位置を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ComposerRules.kt` | Webの `toggleOptions()` 相当（モデル別のチップ表示・強制値・Thinking levelの候補。EffortのモデルはThinkingボタン内にEffortを表示）、PromptCacheの提供元、トークン見積もりの文言 | モデル追加でチップの表示条件を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/CodingTargets.kt` | Coding Modeの対象候補の抽出、対象バーの文言、送信時の候補と上限 | Coding Modeの送信内容を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/Sidebar.kt` | Webの `#sidebar` 相当（ツールバー、検索、Skills、スレッド一覧、引っ張って更新、フッター） | サイドバーを編集するとき |
@@ -144,7 +193,9 @@
 | `app/src/main/res/drawable/fa_*.xml`, `ci/sync-web-icons.py` | WebのFont Awesomeサブセットから生成したアイコン（手で編集しない。`--check` で一致確認） | Webで使うアイコンが増減したとき |
 | `ci/test-html-preview.py` | AndroidのHTMLプレビュー用HTMLをChromiumで描画し、日本語・CSS・JavaScript・隔離・危険スクリプト除去を検証 | HTMLプレビューの描画を確認するとき（AndroidのビルドやWebViewの実機検証は行わない） |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/HtmlCodePreviewDialog.kt`, `app/src/main/assets/html-preview-security.js` | HTMLコードブロックのプレビュー（専用URLから読み込む隔離したWebView、Webと共通の危険スクリプト除去） | HTMLプレビューの表示・安全対策を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | Webの `marked`（GFM・`breaks`）と `pre-wrap` 表示を再現するMarkdown（リスト、引用、表、コード、`chat_error`、色分け、インラインコード）、回答中の生HTML（`<details>`・表を含む）とSVG | メッセージ本文表示を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | Webの `marked`（GFM・`breaks`）と `pre-wrap` 表示を再現するMarkdownの描画（リスト、引用、表、コード、`chat_error`、インラインコード）、回答中の生HTML（`<details>`・表を含む）とSVG | メッセージ本文表示を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownBlocks.kt` | Webの `marked` が作るブロックの解析（見出し・引用・リスト・表・フェンス・生HTML／SVG・画像・数式と、リンク先の検証） | Markdownのブロック解釈を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownColors.kt` | 回答本文の色（本文・引用・リンク・インラインコード・コードブロック・表・区切り線・highlight.js のテーマ色） | 回答本文の配色を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SvgAnimation.kt` | アニメーション付きSVG（SMIL・CSS `@keyframes`）の検出と、スクリプト・外部参照を止めたWebViewでの再生（Webと同じ `<img>` のデータURI） | SVGのアニメーション表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InlineAudioPlayer.kt` | 回答内の `<audio controls src>`（TTS・音楽・Lyriaの出力）を再生するインラインプレーヤー（初回タップで取得、再生・シーク・再生速度の切り替え。Web版の専用プレーヤーと同じ見た目）と、画面が渡す添付ダウンローダー `LocalAttachmentDownloader` | 回答内の音声の再生を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MessageBubble.kt` | Webの `.message-bubble`（吹き出し、タップで出る操作ボタン、引用、Thinking、添付グリッドとObject Removerマスク画像、分岐切替、フッター、回答処理時間と内訳）、合計・入力見積トークン帯、トークン詳細・暗号化モーダル、Welcome、一番下へ | メッセージの見た目を編集するとき |

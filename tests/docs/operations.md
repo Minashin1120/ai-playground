@@ -5,8 +5,11 @@
 | テストファイル | 主な対象 |
 |---|---|
 | [test_documentation_regressions.py](../test_documentation_regressions.py) | documentation |
+| [test_extract_before_extend.py](../test_extract_before_extend.py) | 予算超過ファイルを増やさない判定（`check-extract`、`~/docs/file_layout_rules.md`） |
+| [test_file_size_budget.py](../test_file_size_budget.py) | ファイルサイズ予算・例外リスト（`~/docs/context_cost_reduction_plan.md`） |
 | [test_key_rotation_regressions.py](../test_key_rotation_regressions.py) | key / rotation |
 | [test_prepare_preflight.py](../test_prepare_preflight.py) | 版更新前の検証順序・失敗時の無変更・スキップの範囲・文書索引 |
+| [test_readme_change_units.py](../test_readme_change_units.py) | 分割READMEの変更単位表（`主な内容` / `いつ開くか`）と `server/` `android/` の被覆（`~/docs/file_layout_rules.md`） |
 | [test_production_schema_guard_regressions.py](../test_production_schema_guard_regressions.py) | production / schema / guard |
 | [test_release_scripts.py](../test_release_scripts.py) | 版・資産・changelog・記録範囲・公開スクリプト契約 |
 | [test_server_memory_regressions.py](../test_server_memory_regressions.py) | server / memory |

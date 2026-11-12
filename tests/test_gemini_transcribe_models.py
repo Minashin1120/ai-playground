@@ -47,9 +47,24 @@ class GeminiTranscribeRegressionTests(unittest.TestCase):
         self.assertIn("gemini-3.5-transcribe-live", APP_SOURCE)
         self.assertIn('mk == "gemini-3.5-transcribe"', APP_SOURCE)
         self.assertIn('"gemini-3.5-transcribe", "gemini-3.5-transcribe-live"', APP_SOURCE)
-        # In the worker, the transcribe branch runs before TTS/image/text.
-        transcribe_idx = APP_SOURCE.index("Gemini Transcribe (audio file -> text")
-        self.assertLess(transcribe_idx, APP_SOURCE.index("# Gemini TTS (Preview)"))
+        # In the worker, the transcribe branch is dispatched before TTS/image/text.
+        dispatcher = (APP_ROOT / "server" / "background_stream_gemini.py").read_text(encoding="utf-8")
+        self.assertLess(
+            dispatcher.index("background_stream_gemini_transcribe(local)"),
+            dispatcher.index("background_stream_gemini_tts(local)"),
+        )
+        self.assertLess(
+            dispatcher.index("background_stream_gemini_tts(local)"),
+            dispatcher.index("background_stream_gemini_image(local)"),
+        )
+        self.assertLess(
+            dispatcher.index("background_stream_gemini_image(local)"),
+            dispatcher.index("background_stream_gemini_chat(local)"),
+        )
+        self.assertIn(
+            "Gemini 3.5 Transcribe",
+            (APP_ROOT / "server" / "background_stream_gemini_transcribe.py").read_text(encoding="utf-8"),
+        )
 
     def test_rest_transcription_helper_present(self):
         self.assertIn("def _gemini_transcribe_rest(", APP_SOURCE)

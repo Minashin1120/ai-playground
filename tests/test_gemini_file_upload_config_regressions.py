@@ -12,7 +12,7 @@ class GeminiFileUploadConfigRegressionTests(unittest.TestCase):
     """Videos and large files go to the Gemini Files API; a rejected config fails every such send."""
 
     def _upload_block(self):
-        match = re.search(r'config = \{"mime_type": mime\}.*?g_client\.files\.upload\(file=tmp\.name, config=config\)', APP_SOURCE, re.S)
+        match = re.search(r'config = \{"mime_type": mime\}.*?client\.files\.upload\(file=tmp\.name, config=config\)', APP_SOURCE, re.S)
         self.assertIsNotNone(match, "Gemini Files API upload config not found")
         return match.group(0)
 

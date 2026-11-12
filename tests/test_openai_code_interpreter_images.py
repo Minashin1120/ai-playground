@@ -2,7 +2,11 @@
 from pathlib import Path
 import ast
 import base64
+import hashlib
+import json
+import os
 import re
+import time
 from types import SimpleNamespace
 from unittest.mock import Mock, MagicMock
 from urllib.parse import urlparse
@@ -10,52 +14,58 @@ import unittest
 
 
 APP_ROOT = Path(__file__).resolve().parents[1]
+IMAGES_PART = APP_ROOT / "server" / "background_stream_openai_images.py"
+
+
+def load_outputs_class(scope):
+    """Exec the extracted part and return its `OpenAICodeInterpreterOutputs` class."""
+    source = IMAGES_PART.read_text(encoding="utf-8")
+    exec(compile(source, str(IMAGES_PART), "exec"), scope)
+    return scope["OpenAICodeInterpreterOutputs"]
+
+
+def make_outputs(scope, client, **kwargs):
+    return load_outputs_class(scope)(
+        client,
+        kwargs.get("pub", Mock()),
+        kwargs.get("user_id", "user"),
+        kwargs.get("user_config", {}),
+        kwargs.get("agentic_image_digests", set()),
+        kwargs.get("agentic_saved_urls", []),
+        kwargs.get("agentic_filename_url_map", {}),
+        kwargs.get("append_content", Mock()),
+        kwargs.get("append_text", Mock()),
+        kwargs.get("get_full_res", lambda: ""),
+    )
 
 
 class OpenAICodeInterpreterImageTests(unittest.TestCase):
     def test_image_downloads_work_without_entering_auto_search_branches(self):
-        source = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
-        task = next(n for n in ast.parse(source).body
-                    if isinstance(n, ast.FunctionDef) and n.name == "background_chat_task")
-        helpers = {n.name: n for n in ast.walk(task) if isinstance(n, ast.FunctionDef)
-                   and n.name in ("_download_openai_api_bytes", "_save_container_file")}
-        # Keep the entire task body for Python's real lexical scope, including imports
-        # inside search branches, but return its image helpers before app/DB/network setup.
-        leading = 0
-        while isinstance(task.body[leading], (ast.Import, ast.ImportFrom)):
-            leading += 1
-        setup = ast.parse("""
-client = test_client
-ci_saved_files = {}
-_emit_code_interpreter_image = test_emit
-return _download_openai_api_bytes, _save_container_file
-""").body
-        task.body = task.body[:leading] + list(helpers.values()) + setup + task.body[leading:]
+        # The Responses branch's image helpers live on the extracted part now.
         http = MagicMock()
         response = http.Client.return_value.__enter__.return_value.get.return_value
         response.status_code = 200
         response.content = b"image bytes"
-        emit = Mock(return_value="/files/test/result.png")
         scope = dict(base64=base64, re=re, urlparse=urlparse, httpx=http, log_force=Mock(),
-                     test_client=SimpleNamespace(api_key="test-key"), test_emit=emit)
-        exec(compile(ast.fix_missing_locations(ast.Module(body=[task], type_ignores=[])),
-                     "<task-image-scope>", "exec"), scope)
-        download, save = scope[task.name]("job", None, "gpt-test", None, {"enable_search": False}, 1, {})
-        self.assertEqual(download("data:image/png;base64,AQID"), b"\x01\x02\x03")
+                     hashlib=hashlib, time=time, os=os, json=json,
+                     _prepare_agentic_image_bytes=lambda data, mime=None: (data, "png"),
+                     _save_user_generated_bytes_verified=Mock(
+                         return_value=(None, "/files/test/result.png")))
+        outputs = make_outputs(scope, SimpleNamespace(api_key="test-key"))
+        self.assertEqual(outputs.download_api_bytes("data:image/png;base64,AQID"), b"\x01\x02\x03")
         http.Client.assert_not_called()
-        self.assertEqual(save("cntr_test", "cfile_test", "result.png"), "/files/test/result.png")
-        emit.assert_called_once_with(b"image bytes", "result.png")
-        self.assertEqual(save("cntr_test", "cfile_test", "result.png"), "/files/test/result.png")
+        self.assertEqual(
+            outputs.save_container_file("cntr_test", "cfile_test", "result.png"),
+            "/files/test/result.png")
+        self.assertEqual(
+            outputs.save_container_file("cntr_test", "cfile_test", "result.png"),
+            "/files/test/result.png")
         http.Client.return_value.__enter__.return_value.get.assert_called_once()
 
     def test_inline_interpreter_images_are_decoded_without_an_http_request(self):
-        source = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
-        node = next(n for n in ast.walk(ast.parse(source))
-                    if isinstance(n, ast.FunctionDef) and n.name == "_download_openai_api_bytes")
         http = Mock()
         scope = dict(base64=base64, re=re, httpx=http, log_force=Mock(), urlparse=urlparse)
-        exec(compile(ast.Module(body=[node], type_ignores=[]), "<image-download>", "exec"), scope)
-        download = scope[node.name]
+        download = make_outputs(scope, None).download_api_bytes
         self.assertEqual(download("data:image/png;base64,AQID"), b"\x01\x02\x03")
         self.assertEqual(download("data:image/jpeg;base64,AQ\r\nID"), b"\x01\x02\x03")
         for invalid in ("data:text/html;base64,AQID", "data:image/png;base64,%%%%", "data:image/png;base64,A"):
@@ -63,9 +73,8 @@ return _download_openai_api_bytes, _save_container_file
         http.Client.assert_not_called()
 
     def test_responses_branch_mounts_images_on_the_hosted_python_tool(self):
-        background = (APP_ROOT / "server/background.py").read_text(encoding="utf-8")
-        start = background.index('log_force("Routing: Responses API Branch")')
-        source = background[start:background.index("if (is_gem or is_deepseek)", start)]
+        source = (APP_ROOT / "server/background_stream_openai.py").read_text(encoding="utf-8")
+        images_source = IMAGES_PART.read_text(encoding="utf-8")
         python_tool = source.index("if options.get('enable_python'):")
         grok_tool = source.index('"name": "execute_python"', python_tool)
         hosted_tool = source.index('{"type": "code_interpreter", "container": container}', python_tool)
@@ -78,9 +87,10 @@ return _download_openai_api_bytes, _save_container_file
         self.assertIn('call_name in (SKILL_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images")', source)
         self.assertIn("list_branch_images", source)
         self.assertIn("import_branch_images", source)
-        self.assertIn("container_file_citation", source)
-        self.assertIn('!= "api.openai.com"', source)
-        self.assertIn("https://api.openai.com/v1/containers/", source)
+        self.assertIn("container_file_citation", images_source)
+        self.assertIn('!= "api.openai.com"', images_source)
+        self.assertIn("https://api.openai.com/v1/containers/", images_source)
+        self.assertIn("code_interpreter = OpenAICodeInterpreterOutputs(", source)
         # History images must not be queued into the code interpreter container or local sandbox.
         # Only the current prompt's loaded_files should be uploaded/passed as input images.
         history_loop = source[source.index("for m in history:"):source.index("curr_content = []")]

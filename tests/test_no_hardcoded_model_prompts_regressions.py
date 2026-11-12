@@ -26,9 +26,9 @@ MECHANISM_PREFIX = "AUTO_SYSTEM_PROMPT_NOTICE_"
 # file is still reported. Keep this list short; add to it only for text that is not a chat instruction
 # (a feature's own definition, an internal prompt of another feature).
 ALLOWED = {
-    ("server/background.py", "CODING_MODE_SYSTEM_PROMPT", "[Coding Mode]"):
+    ("server/background_coding.py", "CODING_MODE_SYSTEM_PROMPT", "[Coding Mode]"):
         "Coding Mode's own definition: the answer format is parsed, so the text is not user-editable.",
-    ("server/background.py", "retry_prompt", "Return an image for this request"):
+    ("server/background_stream_gemini_image.py", "retry_prompt", "Return an image for this request"):
         "Internal retry of an image generation request, not a chat instruction.",
     ("server/agentic_media.py", "DEFAULT_LLM_TRANSCRIBE_PROMPT", "この音声を正確に"):
         "Default of the user's own transcription prompt setting.",
@@ -36,7 +36,7 @@ ALLOWED = {
         "Default of the image_analysis notice (kept for the Vision Model path).",
     ("server/settings_ai.py", "transcription_prompt", "聞き取れない、無音"):
         "Speech-to-text request, not a chat.",
-    ("server/routes_settings.py", "sys_prompt", "あなたはチャットアプリの『設定アシスタント』"):
+    ("server/routes_settings_ai.py", "sys_prompt", "あなたはチャットアプリの『設定アシスタント』"):
         "Prompt of the settings assistant (/settings), not a chat.",
     ("server/routes_chat.py", "system message", "Generate a short title"):
         "Chat title generation, not a chat instruction.",

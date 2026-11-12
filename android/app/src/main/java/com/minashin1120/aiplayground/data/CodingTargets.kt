@@ -2,7 +2,7 @@ package com.minashin1120.aiplayground.data
 
 /*
  * Coding Mode target resolution, ported from chat_core part03 (`extractPromptCodingTargets`,
- * `collectCodingCandidates`, `resolveCodingTarget`, `syncCodingModeUi`) and the send step of part14.
+ * `collectCodingCandidates`, `resolveCodingTarget`, `syncCodingModeUi`) and the send step of part15.
  */
 
 /** Largest code (single target, or all prompt candidates) the Web sends in Coding Mode. */
@@ -112,7 +112,7 @@ data class CodingSendPlan(val target: CodingCandidate?, val candidates: List<Cod
     val active: Boolean get() = error == null && target != null && target.code.isNotBlank()
 }
 
-/** Web part14: size limits, history budget, and the text-model check. */
+/** Web part15: size limits, history budget, and the text-model check. */
 fun planCodingSend(prompt: String, history: List<CodingCandidate>, selection: CodingTarget?, model: String): CodingSendPlan {
     val all = collectCodingCandidates(prompt, history, selection)
     val promptCandidates = all.filter { it.promptSource }

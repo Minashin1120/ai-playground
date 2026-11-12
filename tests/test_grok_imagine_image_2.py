@@ -27,7 +27,8 @@ class GrokImagineImage2RegressionTests(unittest.TestCase):
 
     def test_imagine_branch_accepts_image_2_and_official_parameters(self):
         branch = APP_SOURCE[APP_SOURCE.index("Routing: Grok Imagine Branch"):]
-        self.assertIn(f'"{self.MODEL_ID}"', APP_SOURCE[APP_SOURCE.index("# --- 1.5 Grok Imagine Image Generation ---"): APP_SOURCE.index("Routing: Grok Imagine Branch") + 400])
+        branch_header = APP_SOURCE.index("# --- 1.5 Grok Imagine Image Generation ---")
+        self.assertIn(f'"{self.MODEL_ID}"', APP_SOURCE[branch_header:branch_header + 600])
         self.assertIn('grok_supports_quality = model_key == "grok-imagine-image-2.0"', branch)
         self.assertIn('eb["quality"] = quality', branch)
         self.assertIn('payload["quality"] = quality', branch)

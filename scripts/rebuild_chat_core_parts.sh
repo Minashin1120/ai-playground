@@ -3,8 +3,8 @@
 # static/js/chat_core_parts/ and regenerate the part README base table.
 #
 # Run this when scripts/verify_changes.sh warns that a chat_core part exceeds
-# CHAT_CORE_PART_MAX_LINES (2000).  It:
-#   1. re-splits the current combined source into parts of ~1700 lines
+# CHAT_CORE_PART_MAX_LINES (1500).  It:
+#   1. re-splits the current combined source into parts of ~1000 lines
 #   2. regenerates static/js/chat_core_parts/README.md (line ranges are exact;
 #      the "概要" descriptions must be reviewed/filled in afterwards)
 #   3. rebuilds the combined source and minified assets via build_frontend.sh

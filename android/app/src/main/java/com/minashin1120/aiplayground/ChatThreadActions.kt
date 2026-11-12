@@ -45,7 +45,7 @@ internal class ChatThreadActions(
     private val syncRunner: ChatSyncRunner,
     private val uploadsLocal: () -> Boolean,
     private val notifyChatOffline: (String?, String) -> Boolean,
-    private val notifyDeleteMessageOffline: (String?, Long, String) -> Boolean,
+    private val notifyDeleteMessageOffline: (String?, Int, String) -> Boolean,
     private val notify: (String) -> Unit,
     private val accountApi: () -> AccountApi,
     private val fetchThreads: suspend (Boolean) -> Unit,

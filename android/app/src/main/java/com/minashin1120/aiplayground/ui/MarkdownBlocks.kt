@@ -1,5 +1,7 @@
 package com.minashin1120.aiplayground.ui
 
+import com.minashin1120.aiplayground.data.CANVAS_PLACEHOLDER_LINE
+import com.minashin1120.aiplayground.data.fileReferencePath
 import java.net.URI
 
 /*

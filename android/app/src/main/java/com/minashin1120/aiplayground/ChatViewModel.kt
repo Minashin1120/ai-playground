@@ -131,7 +131,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     internal fun deviceChat(id: String?): Boolean = profiles.deviceChat(id)
     internal fun notifySendOffline(offline: Boolean = state.value.offline): Boolean = profiles.notifySendOffline(offline)
     internal fun isChatOfflineBlocked(id: String?): Boolean = profiles.isChatOfflineBlocked(id)
-    internal fun notifyDeleteMessageOffline(threadId: String?, messageId: Long, notice: String): Boolean =
+    internal fun notifyDeleteMessageOffline(threadId: String?, messageId: Int, notice: String): Boolean =
         profiles.notifyDeleteMessageOffline(threadId, messageId, notice)
     internal fun isThreadListOfflineBlocked(): Boolean = profiles.isThreadListOfflineBlocked()
     internal fun notifyChatOffline(id: String?, notice: String): Boolean = profiles.notifyChatOffline(id, notice)

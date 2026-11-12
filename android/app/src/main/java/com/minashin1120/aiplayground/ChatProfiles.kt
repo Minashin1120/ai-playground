@@ -104,11 +104,11 @@ internal class ChatProfiles(
     fun isChatOfflineBlocked(id: String?): Boolean = state.value.offline && !deviceChat(id)
 
     /** Delete a message: a pending local message in serverless mode can be removed offline (not synced to server). */
-    fun isDeleteMessageOfflineBlocked(threadId: String?, messageId: Long): Boolean =
+    fun isDeleteMessageOfflineBlocked(threadId: String?, messageId: Int): Boolean =
         isChatOfflineBlocked(threadId) && !(state.value.serverless && LocalChatStore.isPendingId(messageId))
 
     /** Notifies and returns true when deleting [messageId] cannot run offline (pending local messages in serverless mode are allowed). */
-    fun notifyDeleteMessageOffline(threadId: String?, messageId: Long, notice: String): Boolean {
+    fun notifyDeleteMessageOffline(threadId: String?, messageId: Int, notice: String): Boolean {
         if (!isDeleteMessageOfflineBlocked(threadId, messageId)) return false
         notify(notice); return true
     }

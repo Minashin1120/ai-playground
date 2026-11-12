@@ -12,6 +12,7 @@ import com.minashin1120.aiplayground.data.local.LocalProfiles
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * チャットの協作者（受信・送信・添付・同期・音声・設定など）の組み立てと配線。
@@ -709,7 +710,7 @@ internal class ChatGraph(
     private val uploadsLocal: Boolean get() = host.uploadsLocal
     private fun notifySendOffline(offline: Boolean = state.value.offline): Boolean = host.notifySendOffline(offline)
     private fun isChatOfflineBlocked(id: String?): Boolean = host.isChatOfflineBlocked(id)
-    private fun notifyDeleteMessageOffline(threadId: String?, messageId: Long, notice: String): Boolean =
+    private fun notifyDeleteMessageOffline(threadId: String?, messageId: Int, notice: String): Boolean =
         host.notifyDeleteMessageOffline(threadId, messageId, notice)
     private fun isThreadListOfflineBlocked(): Boolean = host.isThreadListOfflineBlocked()
     private fun notifyChatOffline(id: String?, notice: String): Boolean = host.notifyChatOffline(id, notice)

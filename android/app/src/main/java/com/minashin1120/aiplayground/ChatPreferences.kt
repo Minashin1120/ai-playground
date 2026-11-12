@@ -5,7 +5,6 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import com.minashin1120.aiplayground.data.*
 import com.minashin1120.aiplayground.data.backend.ChatBackend
-import com.minashin1120.aiplayground.data.local.OfflineCacheStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

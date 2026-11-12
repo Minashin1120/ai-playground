@@ -7,6 +7,7 @@ import android.media.MediaRecorder
 import android.os.Build
 import com.minashin1120.aiplayground.data.PlaygroundApi
 import com.minashin1120.aiplayground.data.backend.ChatBackend
+import com.minashin1120.aiplayground.data.direct.TranscriptionDirect
 import com.minashin1120.aiplayground.data.local.LocalSettingsStore
 import com.minashin1120.aiplayground.data.modelMediaSupport
 import kotlinx.coroutines.CancellationException

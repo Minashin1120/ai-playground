@@ -6,6 +6,7 @@ import com.minashin1120.aiplayground.data.backend.ChatBackend
 import com.minashin1120.aiplayground.data.local.GenerationKeepAlive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -237,7 +238,7 @@ internal class ChatSubmissionRunner(
             }
             runCatching { reloadAfterResume(id) }.onFailure { report(it) }
             Diagnostics.log("send.stream.done", "op" to answer.operationId, "failed" to failed)
-            notifyAnswerFinishedIfAway(id, failed)
+            notifyFinishedIfAway(id, failed)
         }
     }
     fun stop() { scope.launch {

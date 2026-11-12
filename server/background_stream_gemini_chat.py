@@ -2,7 +2,8 @@
 
 Extracted from `server/background_stream_gemini.py`.  The branch used to run
 inline in `background_chat_task`, so it shared that function's locals.  It now
-receives a `locals()` snapshot as ``local`` and returns (updated answer text, accumulated thought text).
+receives a `locals()` snapshot as ``local`` and returns the updated answer text,
+accumulated thought text, and Gemini usage metadata.
 
 File upload / Files API cache helpers live in `background_stream_gemini_files.py`
 and the grounding / citation / thought helpers in
@@ -17,7 +18,7 @@ BACKGROUND_STREAM_EARLY_RETURN = object()
 
 
 def background_stream_gemini_chat(local):
-    """Stream a chat answer and return the updated answer text and thought text."""
+    """Stream a chat answer and return the text, thoughts, and usage metadata."""
     # region: Stream setup, request configuration, and tools
 
     _auto_notice_enabled = local.get("_auto_notice_enabled")
@@ -1129,5 +1130,5 @@ def background_stream_gemini_chat(local):
         _url_retrieval_status_label,
     )
 
-    return (full_res, thought_accumulated)
+    return (full_res, thought_accumulated, final_usage_metadata)
     # endregion

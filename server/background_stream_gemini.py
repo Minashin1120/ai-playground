@@ -45,7 +45,7 @@ def background_stream_gemini(local):
         _chat_result = background_stream_gemini_chat(local)
         if _chat_result is BACKGROUND_STREAM_EARLY_RETURN:
             return BACKGROUND_STREAM_EARLY_RETURN
-        full_res, thought_accumulated = _chat_result
+        full_res, thought_accumulated, final_usage_metadata = _chat_result
     # endregion
 
     return (full_res, m, thought_accumulated, final_usage_metadata)

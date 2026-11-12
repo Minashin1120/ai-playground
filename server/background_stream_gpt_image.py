@@ -283,3 +283,4 @@ def background_stream_gpt_image(local):
         pub("error", f"GPT Image Gen Error: {str(e)}")
     except Exception as e:
         pub("error", f"GPT Image Gen Error: {str(e)}")
+    return full_res

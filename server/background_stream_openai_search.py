@@ -206,3 +206,4 @@ def background_stream_openai_search(local):
         pub("error", f"Search API Error: {str(e)}")
     finally:
         pub("search_status", "done")
+    return full_res

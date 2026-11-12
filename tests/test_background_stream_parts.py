@@ -81,6 +81,61 @@ class BackgroundStreamPartBindingTests(unittest.TestCase):
                         f"arguments nor defined on the app module: {missing}",
                     )
 
+    def test_extracted_branches_return_the_values_the_tail_reads(self):
+        """A locals() snapshot does not publish assignments. The caller must get them back."""
+        def top_returns(path, name):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            function = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name)
+            found = []
+
+            def walk(node):
+                for child in ast.iter_child_nodes(node):
+                    if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                        continue
+                    if isinstance(child, ast.Return):
+                        found.append(child.value)
+                    else:
+                        walk(child)
+
+            walk(function)
+            return found
+
+        def returns_name(values, name):
+            return any(isinstance(value, ast.Name) and value.id == name for value in values)
+
+        def returns_pair(values, first, second):
+            for value in values:
+                if not isinstance(value, ast.Tuple) or len(value.elts) < 2:
+                    continue
+                left, right = value.elts[0], value.elts[1]
+                if isinstance(left, ast.Name) and left.id == first and isinstance(right, ast.Name) and right.id == second:
+                    return True
+            return False
+
+        claude = top_returns(APP_ROOT / "server/background_stream_claude.py", "background_stream_claude")
+        grok = top_returns(APP_ROOT / "server/background_stream_grok_native.py", "background_stream_grok_native")
+        self.assertTrue(returns_pair(claude, "full_res", "thought_accumulated"))
+        self.assertTrue(returns_pair(grok, "full_res", "thought_accumulated"))
+
+        image = top_returns(APP_ROOT / "server/background_stream_gpt_image.py", "background_stream_gpt_image")
+        search = top_returns(APP_ROOT / "server/background_stream_openai_search.py", "background_stream_openai_search")
+        self.assertTrue(returns_name(image, "full_res"))
+        self.assertTrue(returns_name(search, "full_res"))
+
+        chat = top_returns(APP_ROOT / "server/background_stream_gemini_chat.py", "background_stream_gemini_chat")
+        self.assertTrue(any(
+            isinstance(value, ast.Tuple)
+            and len(value.elts) == 3
+            and all(isinstance(elt, ast.Name) for elt in value.elts)
+            and [elt.id for elt in value.elts] == ["full_res", "thought_accumulated", "final_usage_metadata"]
+            for value in chat
+        ))
+        dispatcher = (APP_ROOT / "server/background_stream_gemini.py").read_text(encoding="utf-8")
+        self.assertIn(
+            "full_res, thought_accumulated, final_usage_metadata = _chat_result",
+            dispatcher,
+        )
+
     def test_extracted_parts_are_registered_before_background(self):
         parts = list(app_module._SERVER_PARTS)
         self.assertIn("background.py", parts)

@@ -244,3 +244,4 @@ def background_stream_claude(local):
     except Exception as e:
         logger.exception("Claude Branch Error")
         pub("error", f"Claude Error: {str(e)}")
+    return (full_res, thought_accumulated)

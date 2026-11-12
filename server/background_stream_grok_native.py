@@ -247,3 +247,4 @@ def background_stream_grok_native(local):
                 citations_text += f"- {label}\n"
         full_res += citations_text
         pub("content", citations_text)
+    return (full_res, thought_accumulated)

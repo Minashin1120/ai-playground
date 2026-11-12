@@ -2,6 +2,7 @@ package com.minashin1120.aiplayground
 
 import android.app.Application
 import android.content.Context
+import android.net.ConnectivityManager
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -22,10 +23,10 @@ import java.io.File
 import java.io.IOException
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
-    private val api = PlaygroundApi()
-    private val serverBackend = ServerChatBackend(api)
+    internal val api = PlaygroundApi()
+    internal val serverBackend = ServerChatBackend(api)
     internal val backend: ChatBackend get() = profiles.localBackend ?: serverBackend
-    private val localProfiles = LocalProfiles(application)
+    internal val localProfiles = LocalProfiles(application)
     internal val directHttp by lazy { DirectHttp() }
     /** Separate client for background sync, so its requests never show the global spinner. */
     internal val syncApi by lazy { PlaygroundApi().also(::observeServerResponses) }
@@ -34,7 +35,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     internal val playIntegrity = PlayIntegrityClient(application)
     internal val offlineCache = OfflineCacheStore(application)
     internal val prefs = application.getSharedPreferences("navigation", 0)
-    internal val connectivity = application.getSystemService(ConnectivityManager::class.java)
+    internal val connectivity: ConnectivityManager? = application.getSystemService(ConnectivityManager::class.java)
     internal val mutable = MutableStateFlow(ChatState())
     val state = mutable.asStateFlow()
     internal val chatHistory = ChatNavigationHistory()

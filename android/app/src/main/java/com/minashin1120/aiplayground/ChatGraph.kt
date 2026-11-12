@@ -2,9 +2,16 @@ package com.minashin1120.aiplayground
 
 import android.app.Application
 import android.content.Context
+import android.content.SharedPreferences
+import android.net.ConnectivityManager
 import com.minashin1120.aiplayground.data.*
 import com.minashin1120.aiplayground.data.backend.ChatBackend
+import com.minashin1120.aiplayground.data.backend.ServerChatBackend
+import com.minashin1120.aiplayground.data.direct.DirectHttp
+import com.minashin1120.aiplayground.data.local.LocalProfiles
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * チャットの協作者（受信・送信・添付・同期・音声・設定など）の組み立てと配線。
@@ -17,7 +24,7 @@ internal class ChatGraph(
     private val application: Application,
     private val viewModelScope: CoroutineScope,
 ) {
-    internal val lowBandwidth = ChatLowBandwidth(
+    internal val lowBandwidth: ChatLowBandwidth = ChatLowBandwidth(
         connectivity = connectivity,
         state = state,
         mutable = mutable,
@@ -25,7 +32,7 @@ internal class ChatGraph(
         notify = { message -> notify(message) },
     )
     /** サーバー到達性（ネットワーク監視・ハートビート・接続バナー）。 */
-    internal val connection = ChatConnectionMonitor(
+    internal val connection: ChatConnectionMonitor = ChatConnectionMonitor(
         application = application,
         state = state,
         mutable = mutable,
@@ -43,7 +50,7 @@ internal class ChatGraph(
         lowBandwidthChanged = { lowBandwidth.recompute(state.value.lowBandwidthPreference == "auto") },
     )
     /** 管理者向け診断の送信と端末の活動ログ ([ChatDiagnostics])。 */
-    internal val diagnostics = ChatDiagnostics(
+    internal val diagnostics: ChatDiagnostics = ChatDiagnostics(
         scope = viewModelScope,
         state = state,
         token = { session?.token },
@@ -51,7 +58,7 @@ internal class ChatGraph(
         observe = { client -> observeServerResponses(client) },
     )
     /** 初回設定のアカウントZIP取り込み ([ChatAccountImport])。 */
-    internal val accountImport = ChatAccountImport(
+    internal val accountImport: ChatAccountImport = ChatAccountImport(
         context = application,
         api = api,
         state = state,
@@ -60,7 +67,7 @@ internal class ChatGraph(
         token = { token() },
     )
     /** 設定のデータタブ（エクスポート・取り込み・重複修復）([ChatAccountTransfer])。 */
-    internal val accountTransferOps = ChatAccountTransfer(
+    internal val accountTransferOps: ChatAccountTransfer = ChatAccountTransfer(
         scope = viewModelScope,
         api = api,
         token = { token() },
@@ -72,7 +79,7 @@ internal class ChatGraph(
         loadPreferences = { loadPreferences() },
     )
     /** ログイン・2段階認証・パスキー・セキュリティ設定 ([ChatAuth])。 */
-    internal val auth = ChatAuth(
+    internal val auth: ChatAuth = ChatAuth(
         api = api,
         backend = { backend },
         state = state,
@@ -90,10 +97,10 @@ internal class ChatGraph(
 
 
     /** 回答の状態更新（`updateAnswer` / `updateLive` / `markApiAccepted`）。各協作者はこれを受け取る。 */
-    internal val answers = ChatAnswerState(generations, mutable)
+    internal val answers: ChatAnswerState = ChatAnswerState(generations, mutable)
     internal val streamJob: Job? get() = generations.current(state.value)?.job
     /** 端末モードの未送信分をサーバーへ送る同期（予約・再試行・今すぐ同期）。 */
-    internal val syncRunner = ChatSyncRunner(
+    internal val syncRunner: ChatSyncRunner = ChatSyncRunner(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -110,7 +117,7 @@ internal class ChatGraph(
         report = { e -> report(e) },
     )
     /** 添付の読み込み・プレビュー・保存（端末内ファイル／サーバー／オフラインキャッシュ）。 */
-    internal val attachmentFiles = ChatAttachmentFiles(
+    internal val attachmentFiles: ChatAttachmentFiles = ChatAttachmentFiles(
         state = state,
         store = { profiles.localChats },
         cache = offlineCache,
@@ -121,7 +128,7 @@ internal class ChatGraph(
         refreshCacheStats = { id -> refreshOfflineCacheStats(id) },
     )
     /** ファイルライブラリ（一覧・検索・並び順・お気に入り・名前変更・削除・添付・保存）。 */
-    internal val library = ChatLibrary(
+    internal val library: ChatLibrary = ChatLibrary(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -135,7 +142,7 @@ internal class ChatGraph(
         refreshCacheStats = { id -> refreshOfflineCacheStats(id) },
     )
     /** フィードバック（一覧・状態変更・返信・削除・送信と端末側の再送）。 */
-    internal val feedback = ChatFeedback(
+    internal val feedback: ChatFeedback = ChatFeedback(
         app = application,
         state = state,
         mutable = mutable,
@@ -153,7 +160,7 @@ internal class ChatGraph(
         observeResponses = { client -> observeServerResponses(client) },
     )
     /** 添付アップロード本体（キュー・転送・進捗）。 */
-    internal val attachmentUploader = ChatAttachmentUploader(
+    internal val attachmentUploader: ChatAttachmentUploader = ChatAttachmentUploader(
         scope = viewModelScope,
         state = state,
         mutable = mutable,
@@ -167,7 +174,7 @@ internal class ChatGraph(
         report = { e, msg -> report(e, msg) },
     )
     /** 画像分割 (ANDROID_ONLY.md): ダイアログ状態と分割・添付・保存の流れ。 */
-    internal val imageSplitManager = ChatImageSplitManager(
+    internal val imageSplitManager: ChatImageSplitManager = ChatImageSplitManager(
         scope = viewModelScope,
         app = application,
         isUploading = { state.value.uploading },
@@ -175,7 +182,7 @@ internal class ChatGraph(
         notify = ::notify,
     )
     /** チャット入力の音声録音と文字起こし。 */
-    internal val micInput = ChatMicRecorder(
+    internal val micInput: ChatMicRecorder = ChatMicRecorder(
         scope = viewModelScope,
         state = state,
         mutable = mutable,
@@ -187,7 +194,7 @@ internal class ChatGraph(
         notify = ::notify,
     )
     /** 端末モードの回答（送信の端末モード判定・停止）。 */
-    internal val deviceAnswer = ChatDeviceAnswer(
+    internal val deviceAnswer: ChatDeviceAnswer = ChatDeviceAnswer(
         scope = viewModelScope,
         state = state,
         mutable = mutable,
@@ -195,11 +202,11 @@ internal class ChatGraph(
         syncRunner = syncRunner,
         updateAnswer = answers::update,
         loadMessages = { id, inPlace, streamFinished -> loadMessages(id, inPlace = inPlace, streamFinished = streamFinished) },
-        report = ::report,
+        report = { e -> viewModelScope.launch { report(e) } },
         uploadsLocal = { uploadsLocal },
     )
     /** 回答ストリームの受信（イベント適用・再接続）。送信や添付とは別ファイルで読めるよう切り出している。 */
-    internal val streamReceiver = ChatStreamReceiver(
+    internal val streamReceiver: ChatStreamReceiver = ChatStreamReceiver(
         isAlive = { generations.contains(it) },
         updateAnswer = answers::update,
         updateLive = answers::updateLive,
@@ -208,7 +215,7 @@ internal class ChatGraph(
         waitingStatusFor = ::streamWaitingStatusFor,
     )
     /** 回答の送信と再接続（受け付け待ちの再試行ループ）。送信全体とは別ファイルで読めるよう切り出している。 */
-    internal val sendStream = ChatSendStream(
+    internal val sendStream: ChatSendStream = ChatSendStream(
         receiver = streamReceiver,
         isAlive = { generations.contains(it) },
         waitingStatusFor = ::streamWaitingStatusFor,
@@ -219,9 +226,9 @@ internal class ChatGraph(
         notify = { notify(it) },
     )
     /** 送信・編集の途中状態（受け付けられなかった送信、編集中の親、編集前の入力設定）。 */
-    internal val pendingSend = ChatPendingState()
+    internal val pendingSend: ChatPendingState = ChatPendingState()
     /** 送信後の後処理（履歴の再読込・タイトル生成・Batch 通知・受け付けられなかった送信の復元）。 */
-    internal val sendCompletion = ChatSendCompletion(
+    internal val sendCompletion: ChatSendCompletion = ChatSendCompletion(
         state = state,
         scope = viewModelScope,
         pending = pendingSend,
@@ -248,7 +255,7 @@ internal class ChatGraph(
         canReloadHistory = { session != null || chatLocal },
     )
     /** 送信準備（入力・引用・モデル／オプション・添付名）。画面の状態は ViewModel に置いたまま切り出す。 */
-    internal val composer = ChatComposer(
+    internal val composer: ChatComposer = ChatComposer(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -260,7 +267,7 @@ internal class ChatGraph(
         notifyChatOffline = ::notifyChatOffline,
     )
     /** 最小モードのスラッシュコマンド（Web `executeMinimalSlashCommand`）。 */
-    internal val slashCommands = ChatSlashCommands(
+    internal val slashCommands: ChatSlashCommands = ChatSlashCommands(
         state = state,
         composer = composer,
         notify = ::notify,
@@ -268,7 +275,7 @@ internal class ChatGraph(
         toggleTemporaryChat = ::toggleTemporaryChat,
     )
     /** スレッドのPDF出力（Web `openThreadPdfPrintDialog`）。 */
-    internal val pdfExport = ChatPdfExport(
+    internal val pdfExport: ChatPdfExport = ChatPdfExport(
         application = application,
         state = state,
         mutable = mutable,
@@ -279,7 +286,7 @@ internal class ChatGraph(
         notifyChatOffline = ::notifyChatOffline,
     )
     /** 全般設定（設定の保存読込・ストレージ使用量・MCP）とオフライン履歴キャッシュの設定。 */
-    internal val preferences = ChatPreferences(
+    internal val preferences: ChatPreferences = ChatPreferences(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -295,7 +302,7 @@ internal class ChatGraph(
         report = { e -> report(e) },
     )
     /** AI設定コマンド（`/settings <指示>`）の会話・モデル経由の設定変更・結果バブル。 */
-    internal val aiSettings = ChatAiSettings(
+    internal val aiSettings: ChatAiSettings = ChatAiSettings(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -305,7 +312,7 @@ internal class ChatGraph(
         refreshPreferences = { preferences.fetchPreferences() },
     )
     /** アカウント読込・初回設定・オフライン復元。 */
-    internal val accountSetup = ChatAccountSetup(
+    internal val accountSetup: ChatAccountSetup = ChatAccountSetup(
         application = application,
         state = state,
         mutable = mutable,
@@ -330,7 +337,7 @@ internal class ChatGraph(
         report = { e -> report(e) },
     )
     /** スレッド一覧と検索（デバウンス・ページ送り・オフラインキャッシュ・端末モードの端末チャット）。 */
-    internal val threadList = ChatThreadList(
+    internal val threadList: ChatThreadList = ChatThreadList(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -344,7 +351,7 @@ internal class ChatGraph(
         report = { e -> report(e) },
     )
     /** Batch処理の履歴・完了バナー・状態ポーリング・停止と削除。 */
-    internal val batch = ChatBatch(
+    internal val batch: ChatBatch = ChatBatch(
         app = application,
         state = state,
         mutable = mutable,
@@ -360,7 +367,7 @@ internal class ChatGraph(
         openThread = { id -> openThreadId(id) },
     )
     /** Skill の一覧・保存・削除と、このチャットに適用する Skill。 */
-    internal val skills = ChatSkills(
+    internal val skills: ChatSkills = ChatSkills(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -372,7 +379,7 @@ internal class ChatGraph(
         report = { e, message -> report(e, message) },
     )
     /** チャット履歴の読み込み（サーバー／オフラインキャッシュ・過去分・送信中を保つ再読込）。 */
-    internal val messageLoader = ChatMessageLoader(
+    internal val messageLoader: ChatMessageLoader = ChatMessageLoader(
         state = state,
         mutable = mutable,
         backend = { backend },
@@ -394,7 +401,7 @@ internal class ChatGraph(
     )
 
     /** 端末プロフィール・オフライン可否・接続先 ([ChatProfiles])。 */
-    internal val profiles = ChatProfiles(
+    internal val profiles: ChatProfiles = ChatProfiles(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -425,7 +432,7 @@ internal class ChatGraph(
         report = { e -> report(e) },
     )
     /** 前面／背面の切替と一時チャットの期限更新 ([ChatForeground])。 */
-    internal val foreground = ChatForeground(
+    internal val foreground: ChatForeground = ChatForeground(
         application = application,
         state = state,
         mutable = mutable,
@@ -449,7 +456,7 @@ internal class ChatGraph(
         report = { e -> report(e) },
     )
     /** 添付の入口（アップロード・中止・圧縮・ダウンロード・画像分割）([ChatAttachments])。 */
-    internal val attachments = ChatAttachments(
+    internal val attachments: ChatAttachments = ChatAttachments(
         mutable = mutable,
         scope = viewModelScope,
         prefs = prefs,
@@ -460,7 +467,7 @@ internal class ChatGraph(
         report = { e -> report(e) },
     )
     /** Xリンクの自動検索とAPIキーの保存 ([ChatSendEntry])。 */
-    internal val sendEntry = ChatSendEntry(
+    internal val sendEntry: ChatSendEntry = ChatSendEntry(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -471,7 +478,7 @@ internal class ChatGraph(
         send = { send() },
     )
     /** プロンプトオプションの復元・編集・分岐 ([ChatEditing])。 */
-    internal val editing = ChatEditing(
+    internal val editing: ChatEditing = ChatEditing(
         state = state,
         mutable = mutable,
         composer = composer,
@@ -480,7 +487,7 @@ internal class ChatGraph(
         send = { send() },
     )
     /** 画面のチャット移動（新規・戻る・スレッドを開く・再読込）。 */
-    internal val navigator = ChatNavigator(
+    internal val navigator: ChatNavigator = ChatNavigator(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -504,7 +511,7 @@ internal class ChatGraph(
         report = { e, message -> report(e, message) },
     )
     /** スレッドとメッセージの削除・名前変更・分岐・設定の保存。 */
-    internal val threadActions = ChatThreadActions(
+    internal val threadActions: ChatThreadActions = ChatThreadActions(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -532,7 +539,7 @@ internal class ChatGraph(
         notifySendOffline = { notifySendOffline() },
     )
     /** Realtime voice session and the one-shot `/sts` recorder (Web `RealtimeVoiceSession`). */
-    internal val realtimeSession = ChatRealtimeSession(
+    internal val realtimeSession: ChatRealtimeSession = ChatRealtimeSession(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -547,7 +554,7 @@ internal class ChatGraph(
         loadMessages = { id -> loadMessages(id) },
     )
     /** Lyria RealTime studio (Web `LyriaRealtimeStudio`). */
-    internal val lyriaStudio = ChatLyriaStudio(
+    internal val lyriaStudio: ChatLyriaStudio = ChatLyriaStudio(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -558,7 +565,7 @@ internal class ChatGraph(
         openThreadId = { id -> openThreadId(id) },
     )
     /** BAN状態と異議申し立て ([ChatBanState])。 */
-    internal val banState = ChatBanState(
+    internal val banState: ChatBanState = ChatBanState(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -576,7 +583,7 @@ internal class ChatGraph(
         report = { e -> report(e) },
     )
     /** 連投ロック・タップのテレメトリ・振動 ([ChatBotGuard])。 */
-    internal val botGuard = ChatBotGuard(
+    internal val botGuard: ChatBotGuard = ChatBotGuard(
         app = application,
         state = state,
         mutable = mutable,
@@ -588,7 +595,7 @@ internal class ChatGraph(
         notify = { message -> notify(message) },
     )
     /** 送信の確認・送信本文の組み立て・送信ジョブの開始・再開・停止 ([ChatSubmissionRunner])。 */
-    internal val sendRunner = ChatSubmissionRunner(
+    internal val sendRunner: ChatSubmissionRunner = ChatSubmissionRunner(
         api = api,
         state = state,
         mutable = mutable,
@@ -617,7 +624,7 @@ internal class ChatGraph(
         notifyFinishedIfAway = { id, failed -> foreground.notifyAnswerFinishedIfAway(id, failed) },
     )
     /** ログアウト・401 の後始末・失敗の通知 ([ChatSessionLifecycle])。 */
-    internal val lifecycle = ChatSessionLifecycle(
+    internal val lifecycle: ChatSessionLifecycle = ChatSessionLifecycle(
         application = application,
         state = state,
         mutable = mutable,
@@ -649,7 +656,7 @@ internal class ChatGraph(
     internal val navigationJob: Job? get() = navigator.activeJob
 
     /** 起動時の復元（[ChatStartup]）。 */
-    internal val startup = ChatStartup(
+    internal val startup: ChatStartup = ChatStartup(
         state = state,
         mutable = mutable,
         scope = viewModelScope,
@@ -670,20 +677,20 @@ internal class ChatGraph(
     )
 
     // region: Host helpers (ChatViewModel) — 組み立てから使う薄い入口
-    private val api get() = host.api
-    private val serverBackend get() = host.serverBackend
+    private val api: PlaygroundApi get() = host.api
+    private val serverBackend: ServerChatBackend get() = host.serverBackend
     private val backend: ChatBackend get() = host.backend
-    private val localProfiles get() = host.localProfiles
-    private val directHttp get() = host.directHttp
-    private val syncApi get() = host.syncApi
-    private val store get() = host.store
-    private val playIntegrity get() = host.playIntegrity
-    private val offlineCache get() = host.offlineCache
-    private val prefs get() = host.prefs
-    private val connectivity get() = host.connectivity
-    private val mutable get() = host.mutable
-    private val state get() = host.state
-    private val chatHistory get() = host.chatHistory
+    private val localProfiles: LocalProfiles get() = host.localProfiles
+    private val directHttp: DirectHttp get() = host.directHttp
+    private val syncApi: PlaygroundApi get() = host.syncApi
+    private val store: TokenStore get() = host.store
+    private val playIntegrity: PlayIntegrityClient get() = host.playIntegrity
+    private val offlineCache: OfflineCacheStore get() = host.offlineCache
+    private val prefs: SharedPreferences get() = host.prefs
+    private val connectivity: ConnectivityManager? get() = host.connectivity
+    private val mutable: MutableStateFlow<ChatState> get() = host.mutable
+    private val state: StateFlow<ChatState> get() = host.state
+    private val chatHistory: ChatNavigationHistory get() = host.chatHistory
     private var session: StoredSession?
         get() = host.session
         set(value) { host.session = value }

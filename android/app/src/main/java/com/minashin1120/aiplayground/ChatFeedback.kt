@@ -60,7 +60,7 @@ internal class ChatFeedback(
     }
 
     /** Drops idle connections of the feedback client (Web `discardIdleServerConnections`). */
-    fun discardIdleConnections() {
+    suspend fun discardIdleConnections() {
         feedbackApi?.discardIdleConnections()
     }
 

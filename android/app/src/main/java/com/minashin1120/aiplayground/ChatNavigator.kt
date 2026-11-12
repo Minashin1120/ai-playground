@@ -3,6 +3,7 @@ package com.minashin1120.aiplayground
 import com.minashin1120.aiplayground.data.ChatLocation
 import com.minashin1120.aiplayground.data.ChatNavigationHistory
 import com.minashin1120.aiplayground.data.Diagnostics
+import com.minashin1120.aiplayground.data.LiveAnswer
 import com.minashin1120.aiplayground.data.ThreadItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope

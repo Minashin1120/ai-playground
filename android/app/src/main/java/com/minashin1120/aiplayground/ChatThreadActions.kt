@@ -3,6 +3,7 @@ package com.minashin1120.aiplayground
 import com.minashin1120.aiplayground.data.AccountApi
 import com.minashin1120.aiplayground.data.ApiException
 import com.minashin1120.aiplayground.data.ChatMessage
+import com.minashin1120.aiplayground.data.ChatNavigationHistory
 import com.minashin1120.aiplayground.data.Diagnostics
 import com.minashin1120.aiplayground.data.OfflineCacheStore
 import com.minashin1120.aiplayground.data.Preferences

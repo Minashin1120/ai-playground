@@ -47,7 +47,7 @@ internal class ChatConnectionMonitor(
     private val scheduleSync: () -> Unit,
     private val client: () -> PlaygroundApi,
     private val syncClient: () -> PlaygroundApi,
-    private val discardIdle: () -> Unit,
+    private val discardIdle: suspend () -> Unit,
     private val lowBandwidthChanged: () -> Unit,
 ) {
     private val connectivity = application.getSystemService(ConnectivityManager::class.java)
@@ -241,7 +241,7 @@ internal class ChatConnectionMonitor(
     }
 
     /** Web `discardIdleServerConnections`: drops the idle sockets of the clients the screen keeps around. */
-    fun discardIdleServerConnections() {
+    fun discardIdleServerConnections() = scope.launch {
         client().discardIdleConnections()
         syncClient().discardIdleConnections()
         discardIdle()

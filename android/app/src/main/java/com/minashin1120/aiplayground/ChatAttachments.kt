@@ -3,6 +3,7 @@ package com.minashin1120.aiplayground
 import android.content.SharedPreferences
 import android.net.Uri
 import com.minashin1120.aiplayground.data.CompressionSettings
+import com.minashin1120.aiplayground.data.ImageSplitOptions
 import com.minashin1120.aiplayground.data.saveCompressionSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow

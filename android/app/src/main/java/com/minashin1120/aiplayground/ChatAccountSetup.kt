@@ -3,12 +3,14 @@ package com.minashin1120.aiplayground
 import android.app.Application
 import android.content.SharedPreferences
 import com.minashin1120.aiplayground.data.Account
+import com.minashin1120.aiplayground.data.ChatNavigationHistory
 import com.minashin1120.aiplayground.data.ConnectionStatus
 import com.minashin1120.aiplayground.data.HistoryCacheMode
 import com.minashin1120.aiplayground.data.ModelInfo
 import com.minashin1120.aiplayground.data.OfflineCacheStore
 import com.minashin1120.aiplayground.data.applyWebModelCatalog
 import com.minashin1120.aiplayground.data.backend.ChatBackend
+import com.minashin1120.aiplayground.data.defaultMessage
 import com.minashin1120.aiplayground.data.parseModels
 import com.minashin1120.aiplayground.data.parsePreferences
 import kotlinx.coroutines.CancellationException

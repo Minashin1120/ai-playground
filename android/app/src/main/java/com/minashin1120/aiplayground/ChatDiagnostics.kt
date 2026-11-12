@@ -3,6 +3,8 @@ package com.minashin1120.aiplayground
 import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.data.ApiException
 import com.minashin1120.aiplayground.data.Diagnostics
+import com.minashin1120.aiplayground.data.PlaygroundApi
+import com.minashin1120.aiplayground.data.ServerOrigin
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +38,7 @@ internal class ChatDiagnostics(
     }
 
     /** Stops the diagnostics client's idle sockets (BAN・ログアウトの境界). */
-    fun discardIdleConnections() {
+    suspend fun discardIdleConnections() {
         api.discardIdleConnections()
     }
 

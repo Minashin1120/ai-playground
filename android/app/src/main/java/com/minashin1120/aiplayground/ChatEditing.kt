@@ -110,8 +110,7 @@ internal class ChatEditing(
         val all = state.value.allMessages
         val leaf = latestLeafId(all, targetMessageId)
         // Web keeps ‹ › choices for this visit only; reopening shows the pinned or the latest branch.
-        mutable.update { it.copy(leafId = leaf, messages = activeBranchPath(all, leaf))
-            .withLatestPromptOptions() }
+        mutable.update { withLatestPromptOptions(it.copy(leafId = leaf, messages = activeBranchPath(all, leaf))) }
     }
 
     fun switchBranchByIndex(siblings: List<ChatMessage>, index: Int) {

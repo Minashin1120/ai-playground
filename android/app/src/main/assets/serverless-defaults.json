@@ -750,6 +750,44 @@
   },
   {
    "capabilities": [
+    "chat",
+    "attachments",
+    "thinking",
+    "search",
+    "prompt_cache",
+    "python",
+    "mcp",
+    "batch"
+   ],
+   "deprecated": false,
+   "id": "gemini-4-carbon",
+   "mode": "chat",
+   "name": "Gemini 4 Carbon",
+   "provider": "gemini",
+   "provider_label": "Gemini",
+   "selectable": true
+  },
+  {
+   "capabilities": [
+    "chat",
+    "attachments",
+    "thinking",
+    "search",
+    "prompt_cache",
+    "python",
+    "mcp",
+    "batch"
+   ],
+   "deprecated": false,
+   "id": "gemini-4-hydrogen",
+   "mode": "chat",
+   "name": "Gemini 4 Hydrogen",
+   "provider": "gemini",
+   "provider_label": "Gemini",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "embedding"
    ],
    "deprecated": false,

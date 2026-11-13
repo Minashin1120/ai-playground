@@ -105,7 +105,7 @@ fun parseSlashToggle(argument: String): SlashToggle {
 }
 
 /** Web thinking-level aliases for `/thinking <level>`. */
-val SLASH_THINKING_LEVELS = mapOf("min" to "minimal", "minimal" to "minimal", "low" to "low", "mid" to "medium", "medium" to "medium", "high" to "high")
+val SLASH_THINKING_LEVELS = mapOf("min" to "minimal", "minimal" to "minimal", "low" to "low", "mid" to "medium", "medium" to "medium", "high" to "high", "xhigh" to "xhigh")
 
 /** `/thinking <level>` aliases when the Thinking button hosts reasoning-effort levels. */
 val SLASH_EFFORT_THINKING_LEVELS = mapOf(

@@ -71,6 +71,10 @@ def background_stream_gemini_chat(local):
     rm = model_key
     if model_key == "gemini-3.8-flash-cyber":
         rm = "gemini-3.8-flash-cyber"
+    elif "gemini-4-hydrogen" in model_key:
+        rm = "gemini-4-hydrogen"
+    elif "gemini-4-carbon" in model_key:
+        rm = "gemini-4-carbon"
     elif "gemini-4-argon" in model_key:
         rm = "gemini-4-argon"
     elif "gemini-3.8-flash" in model_key:
@@ -100,8 +104,8 @@ def background_stream_gemini_chat(local):
     elif "gemini-2.5" in model_key:
         rm = "gemini-2.5-flash"
 
-    is_latest_flash = rm in ("gemini-4-argon", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")
-    # Gemini 4 Argon, 3.8/3.7/3.6 Flash and 3.5 Flash-Lite deprecate sampling
+    is_latest_flash = rm in ("gemini-4-hydrogen", "gemini-4-carbon", "gemini-4-argon", "gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite")
+    # Gemini 4 Hydrogen/Carbon/Argon, 3.8/3.7/3.6 Flash and 3.5 Flash-Lite deprecate sampling
     # parameters. Omit them so future API generations do not
     # reject otherwise valid requests.
     conf = {} if is_latest_flash else {'temperature': 0.7}
@@ -110,8 +114,10 @@ def background_stream_gemini_chat(local):
         options['enable_thinking'] = True
     if options.get('enable_thinking'):
         raw_lvl = (options.get('thinking_level') or 'high').lower()
-        lvl = raw_lvl if raw_lvl in ("minimal", "low", "medium", "high") else "high"
-        if rm == "gemini-4-argon" and lvl not in ("low", "medium", "high"):
+        lvl = raw_lvl if raw_lvl in ("minimal", "low", "medium", "high", "xhigh") else "high"
+        if rm == "gemini-4-hydrogen" and lvl not in ("low", "medium", "high", "xhigh"):
+            lvl = "high"
+        elif rm in ("gemini-4-carbon", "gemini-4-argon") and lvl not in ("low", "medium", "high"):
             lvl = "medium"
         elif rm == "gemini-3.8-flash" and lvl not in ("low", "medium", "high"):
             lvl = "medium"

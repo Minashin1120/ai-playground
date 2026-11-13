@@ -47,7 +47,7 @@ data class ComposerRules(
     val effortAsThinking: Boolean = false,
 )
 
-val THINKING_LEVELS = listOf("minimal", "low", "medium", "high")
+val THINKING_LEVELS = listOf("minimal", "low", "medium", "high", "xhigh")
 val EFFORT_LEVELS = listOf("none", "low", "medium", "high", "xhigh", "max")
 /** Web `#reasoning-effort` option text. */
 val EFFORT_OPTION_LABELS = mapOf("none" to "None", "low" to "Low", "medium" to "Med", "high" to "High", "xhigh" to "XHigh", "max" to "Max")
@@ -197,10 +197,11 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
             if (gemini3) { maps.visible = true; maps.dimmed = false } else { maps.off(); maps.visible = false; maps.dimmed = true }
             val flash = model.contains("flash")
             when (model) {
-                "gemini-4-argon", "gemini-3.8-flash", "gemini-3.7-flash" -> { levels = mutableSetOf("low", "medium", "high"); fallback = "medium" }
+                "gemini-4-hydrogen" -> { levels = mutableSetOf("low", "medium", "high", "xhigh"); fallback = "high" }
+                "gemini-4-carbon", "gemini-4-argon", "gemini-3.8-flash", "gemini-3.7-flash" -> { levels = mutableSetOf("low", "medium", "high"); fallback = "medium" }
                 "gemini-3.6-flash" -> { levels = mutableSetOf("medium", "high"); fallback = "medium" }
                 "gemini-3.5-flash-lite" -> { levels = mutableSetOf("minimal", "medium", "high"); fallback = "minimal" }
-                else -> { levels = if (flash) THINKING_LEVELS.toMutableSet() else mutableSetOf("low", "high"); fallback = if (flash) null else "high" }
+                else -> { levels = if (flash) mutableSetOf("minimal", "low", "medium", "high") else mutableSetOf("low", "high"); fallback = if (flash) null else "high" }
             }
             if (gemini3) { thinking.forced = true; thinking.disabled = true } else thinking.disabled = false
             budget = model.contains("gemini-2.5")

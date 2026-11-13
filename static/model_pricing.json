@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-11-06",
+  "checked_at": "2026-11-13",
   "currency": "USD",
   "sources": {
     "openai": "https://developers.openai.com/api/docs/pricing",
@@ -13,6 +13,8 @@
     "ideogram": "https://ideogram.ai/pricing/?pricing_tab=api"
   },
   "aliases": {
+    "Gemini 4 Hydrogen": "gemini-4-hydrogen",
+    "Gemini 4 Carbon": "gemini-4-carbon",
     "Gemini 4 Argon": "gemini-4-argon",
     "Gemini 3.8 Flash": "gemini-3.8-flash",
     "Gemini 3.6 Flash": "gemini-3.6-flash",
@@ -422,6 +424,34 @@
         "web_search_preview": 0.01,
         "file_search": 0.0025,
         "container_session": 0.03
+      }
+    },
+    "gemini-4-hydrogen": {
+      "provider": "google",
+      "input": 1.5,
+      "output": 7.5,
+      "batch_multiplier": 0.5,
+      "cached_input": 0.075,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
+    },
+    "gemini-4-carbon": {
+      "provider": "google",
+      "input": 2,
+      "output": 10,
+      "changes": [
+        {
+          "from": "2026-12-01",
+          "input": 4,
+          "output": 20,
+          "cached_input": 0.2
+        }
+      ],
+      "batch_multiplier": 0.5,
+      "cached_input": 0.1,
+      "tool_rates": {
+        "grounding_query": 0.014
       }
     },
     "gemini-4-argon": {

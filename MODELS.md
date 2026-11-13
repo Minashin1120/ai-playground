@@ -1,9 +1,9 @@
-# 対応モデル (V4.8.1165)
+# 対応モデル (V4.8.1166)
 
-主な対応モデルと料金の一覧です（画像・音声・Realtimeなど一部のモデルは省いています）。モデル定義の一次ソースは `static/js/chat_core.v4.8.1165.js` の `MODELS` 配列です。
+主な対応モデルと料金の一覧です（画像・音声・Realtimeなど一部のモデルは省いています）。モデル定義の一次ソースは `static/js/chat_core.v4.8.1166.js` の `MODELS` 配列です。
 モデル選択モーダルには各モデルの公式 API 価格（`price` フィールド）が表示されます。
 
-**価格最終確認:** 2026-10-02
+**価格最終確認:** 2026-11-13
 **出典:** OpenAI / Google Gemini / Anthropic / DeepSeek / xAI / Mistral 公式 pricing ページ
 
 ---
@@ -22,6 +22,8 @@
 
 | 系統 | 代表モデル | 料金（要約） |
 |------|-----------|-------------|
+| Gemini 4 | gemini-4-hydrogen | In $1.50/1M, Cached $0.075/1M, Out $7.50/1M |
+| Gemini 4 | gemini-4-carbon | In $2.00/1M, Out $10.00/1M（2026-11-30までの導入価格。12/1から In $4.00/1M, Out $20.00/1M） |
 | Gemini 4 | gemini-4-argon | In $2.00/1M, Out $10.00/1M（2026-11-30までの導入価格。12/1から In $4.00/1M, Out $20.00/1M） |
 | Gemini 3.8 | gemini-3.8-flash | In $0.75/1M, Out $3.75/1M（2026-12-31までの導入価格） |
 | Gemini 3.7 | gemini-3.7-flash | In $0.75/1M, Out $3.75/1M（導入価格） |
@@ -77,5 +79,5 @@
 
 ---
 
-*最終更新: 2026-11-12 (V4.8.1165)*
-*ソース: `static/js/chat_core.v4.8.1165.js` MODELS配列*
+*最終更新: 2026-11-13 (V4.8.1166)*
+*ソース: `static/js/chat_core.v4.8.1166.js` MODELS配列*

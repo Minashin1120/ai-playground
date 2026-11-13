@@ -4854,7 +4854,8 @@
             { value: 'minimal', label: 'Min' },
             { value: 'low', label: 'Low' },
             { value: 'medium', label: 'Mid' },
-            { value: 'high', label: 'High' }
+            { value: 'high', label: 'High' },
+            { value: 'xhigh', label: 'XHigh' }
         ];
         const MINIMAL_POPUP_ITEMS = [
             { key: 'attach', icon: 'fa-paperclip', label: 'ファイルを添付', action: 'upload' },
@@ -7882,6 +7883,8 @@
                 icon: "fas fa-star text-yellow-400",
                 description: "Google's latest multimodal models",
                 items: [
+                    { id: "gemini-4-hydrogen", implementedAt: "2026-11-13", implementedRank: 11652, quickEmoji: "💧", name: "Gemini 4 Hydrogen", desc: "Fast, efficient Gemini 4 model for everyday coding, agentic workflows, and multimodal knowledge work, with a 1M-token context window, long decodes, and thinking levels up to xhigh.", price: "In $1.50/1M, Out $7.50/1M", agenticView: true },
+                    { id: "gemini-4-carbon", implementedAt: "2026-11-13", implementedRank: 11651, quickEmoji: "💠", name: "Gemini 4 Carbon", desc: "Strongest reasoning model for complex software engineering, multimodal knowledge work, scientific reasoning, and cybersecurity defense, with a 1M-token context window and long decodes.", price: "In $2.00/1M, Out $10.00/1M (through 2026-11-30)", agenticView: true },
                     { id: "gemini-4-argon", implementedAt: "2026-10-16", implementedRank: 10921, quickEmoji: "⚛️", name: "Gemini 4 Argon", desc: "Flagship reasoning model for complex coding, agentic workflows, and multimodal tasks, with a 1M-token context window and long decodes.", price: "In $2.00/1M, Out $10.00/1M (through 2026-11-30)", agenticView: true },
                     { id: "gemini-3.8-flash", implementedAt: "2026-09-05", implementedRank: 9160, quickEmoji: "⚡", name: "Gemini 3.8 Flash", desc: "Most intelligent Flash model for long-horizon software engineering, autonomous agents, and complex enterprise workflows.", price: "In $0.75/1M, Out $3.75/1M (through 2026-12-31)", agenticView: true },
                     { id: "gemini-3.8-flash-cyber", implementedAt: "2026-09-20", implementedRank: 9180, quickEmoji: "🛡️", name: "Gemini 3.8 Flash Cyber", desc: "Gemini 3.8 Flash post-trained for cybersecurity workflows. Vertex AI only; access is allowlisted by Google.", price: "Google Cloud Standard PayGo / Flex PayGo / Priority PayGo", agenticView: true },
@@ -9899,7 +9902,9 @@
                 add('thinking', '思考', 'minimal', 'high', 'thinking level');
             } else if (model.includes('gemini') && !isNonTextModel) {
                 add('thinking', '思考', 'thinking level');
-                if (model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') {
+                if (model === 'gemini-4-hydrogen') {
+                    add('low', 'medium', 'high', 'xhigh');
+                } else if (model === 'gemini-4-carbon' || model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') {
                     add('low', 'medium', 'high');
                 } else if (model === 'gemini-3.6-flash') {
                     add('medium', 'high');
@@ -11127,20 +11132,27 @@
                         }
                     }
                     const isFlash = model.includes('flash');
+                    const isHydrogen = model === 'gemini-4-hydrogen';
                     Array.from(thinkLvl.options).forEach(opt => {
-                        if (model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') {
+                        if (isHydrogen) {
+                            opt.disabled = !['low', 'medium', 'high', 'xhigh'].includes(opt.value);
+                        } else if (model === 'gemini-4-carbon' || model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') {
                             opt.disabled = !['low', 'medium', 'high'].includes(opt.value);
                         } else if (model === 'gemini-3.6-flash') {
                             opt.disabled = !['medium', 'high'].includes(opt.value);
                         } else if (model === 'gemini-3.5-flash-lite') {
                             opt.disabled = !['minimal', 'medium', 'high'].includes(opt.value);
+                        } else if(opt.value === 'xhigh') {
+                            opt.disabled = true;
                         } else if(['minimal', 'medium'].includes(opt.value)) {
                             opt.disabled = !isFlash;
                         } else {
                             opt.disabled = false;
                         }
                     });
-                    if ((model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') && !['low', 'medium', 'high'].includes(thinkLvl.value)) {
+                    if (isHydrogen && !['low', 'medium', 'high', 'xhigh'].includes(thinkLvl.value)) {
+                        thinkLvl.value = 'high';
+                    } else if ((model === 'gemini-4-carbon' || model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') && !['low', 'medium', 'high'].includes(thinkLvl.value)) {
                         thinkLvl.value = 'medium';
                     } else if (model === 'gemini-3.6-flash' && !['medium', 'high'].includes(thinkLvl.value)) {
                         thinkLvl.value = 'medium';

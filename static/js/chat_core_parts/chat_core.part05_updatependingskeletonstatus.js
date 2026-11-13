@@ -870,7 +870,8 @@
             { value: 'minimal', label: 'Min' },
             { value: 'low', label: 'Low' },
             { value: 'medium', label: 'Mid' },
-            { value: 'high', label: 'High' }
+            { value: 'high', label: 'High' },
+            { value: 'xhigh', label: 'XHigh' }
         ];
         const MINIMAL_POPUP_ITEMS = [
             { key: 'attach', icon: 'fa-paperclip', label: 'ファイルを添付', action: 'upload' },

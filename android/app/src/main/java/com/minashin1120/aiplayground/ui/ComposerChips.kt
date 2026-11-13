@@ -160,7 +160,7 @@ internal fun DetailChips(
     }
 }
 
-internal val THINKING_LABELS = mapOf("minimal" to "Min", "low" to "Low", "medium" to "Mid", "high" to "High")
+internal val THINKING_LABELS = mapOf("minimal" to "Min", "low" to "Low", "medium" to "Mid", "high" to "High", "xhigh" to "XHigh")
 internal val EFFORT_LABELS = mapOf("none" to "None", "low" to "Low", "medium" to "Med", "high" to "High", "xhigh" to "XHigh", "max" to "Max")
 
 /** `<label class="composer-opt">` checkbox chip. */

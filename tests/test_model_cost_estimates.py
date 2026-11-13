@@ -190,10 +190,13 @@ def test_dates_are_from_saved_answer_and_not_wall_clock():
     after = estimate([answer('gemini-4-argon', 1000000, 0, created_at='2026-12-01T00:00:00Z')])
     assert before['low'] == 2 and after['low'] == 4
     assert estimate([answer('gemini-4-argon', 1000000, 0)])['low'] == 2
+    assert estimate([answer('gemini-4-carbon', 1000000, 0)])['low'] == 2
+    assert estimate([answer('gemini-4-carbon', 1000000, 0, created_at='2026-12-01T00:00:00Z')])['low'] == 4
+    assert estimate([answer('gemini-4-hydrogen', 1000000, 0)])['low'] == pytest.approx(1.5)
     assert estimate([answer('Gemini 2.5 Pro', 300000, 0)])['low'] == pytest.approx(.75)
 
 
 def test_android_and_web_use_identical_official_rate_data():
     assert (ROOT / 'static/model_pricing.json').read_bytes() == (ROOT / 'android/app/src/main/assets/model-pricing.json').read_bytes()
-    assert PRICING['checked_at'] == '2026-11-06'
+    assert PRICING['checked_at'] == '2026-11-13'
     assert all(model['provider'] in PRICING['sources'] for model in PRICING['models'].values())

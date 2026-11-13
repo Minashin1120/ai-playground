@@ -930,8 +930,8 @@ new Error("PDF chunk rendering timed out")),12e4);h(y,{scale:1,useCORS:!0,allowT
 background,logging:!1,imageTimeout:5e3,x:0,y:M,width:x,height:j,windowWidth:x,scrollX:0,scrollY:0,signal:richPasteAbortController?
 richPasteAbortController.signal:void 0,onclone:o(P=>{prepareRichPastePdfClone(P,c);const q=P.querySelector(
 ".pdf-root-wrapper");q&&(q.style.position="relative",q.style.left="0",q.style.top="0")},"onclone")}).
-then(P=>{clearTimeout(U),$(P)}).catch(P=>{clearTimeout(U),R(P)})})).toDataURL("image/jpeg",.95),pe=v.
-getImageProperties(oe),ie=Math.min(k,pe.height*w/pe.width);E||v.addPage(),v.addImage(oe,"JPEG",0,0,w,
+then(P=>{clearTimeout(U),$(P)}).catch(P=>{clearTimeout(U),R(P)})})).toDataURL("image/jpeg",.95),me=v.
+getImageProperties(oe),ie=Math.min(k,me.height*w/me.width);E||v.addPage(),v.addImage(oe,"JPEG",0,0,w,
 ie),E=!1,M+=j,N++;const ye=Math.min(100,15+Math.round(N/D*85));i(ye),await new Promise($=>setTimeout(
 $,100))}return i(100),{blob:v.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
@@ -1580,11 +1580,11 @@ o(setMinimalPromptMode,"setMinimalPromptMode");function togglePromptControlDetai
 "togglePromptControlDetails");const MINIMAL_MODEL_PANEL_IDS=["gpt-image-options","gemini-image-optio\
 ns","grok-image-options","ideogram-image-options","xai-chat-options","grok-video-options","mistral-o\
 cr-options","image-input-limits","audio-gen-options"],THINKING_LEVELS=[{value:"minimal",label:"Min"},
-{value:"low",label:"Low"},{value:"medium",label:"Mid"},{value:"high",label:"High"}],MINIMAL_POPUP_ITEMS=[
-{key:"attach",icon:"fa-paperclip",label:"\u30D5\u30A1\u30A4\u30EB\u3092\u6DFB\u4ED8",action:"upload"},
-{key:"mask",icon:"fa-mask",label:"\u30DE\u30B9\u30AF\u3092\u4F5C\u6210",action:"button",buttonId:"ma\
-sk-btn",requiresMask:!0},{key:"voice-input",icon:"fa-microphone",label:"Voice Input",action:"button",
-buttonId:"mic-btn"},{key:"rich-paste",icon:"fa-paste",label:"\u30EA\u30C3\u30C1\u8CBC\u308A\u4ED8\u3051",
+{value:"low",label:"Low"},{value:"medium",label:"Mid"},{value:"high",label:"High"},{value:"xhigh",label:"\
+XHigh"}],MINIMAL_POPUP_ITEMS=[{key:"attach",icon:"fa-paperclip",label:"\u30D5\u30A1\u30A4\u30EB\u3092\u6DFB\u4ED8",
+action:"upload"},{key:"mask",icon:"fa-mask",label:"\u30DE\u30B9\u30AF\u3092\u4F5C\u6210",action:"but\
+ton",buttonId:"mask-btn",requiresMask:!0},{key:"voice-input",icon:"fa-microphone",label:"Voice Input",
+action:"button",buttonId:"mic-btn"},{key:"rich-paste",icon:"fa-paste",label:"\u30EA\u30C3\u30C1\u8CBC\u308A\u4ED8\u3051",
 action:"button",buttonId:"rich-paste-btn"},{key:"canvas",icon:"fa-window-restore",label:"Canvas",checkboxId:"\
 enable-canvas-mode",containerId:"canvas-mode-container"},{key:"coding",icon:"fa-code-branch",label:"\
 Coding",checkboxId:"enable-coding-mode",containerId:"coding-mode-container"},{key:"fast",icon:"fa-bo\
@@ -2378,47 +2378,54 @@ mpt-input").focus(),schedulePromptTokenEstimate()},window.clearQuote=()=>{curren
 null,quotePreviewText="",quotePreviewMessageId=null;const e=get("quote-bar");e.classList.remove("pre\
 view"),e.classList.remove("visible"),get("quote-text-display").innerText="",schedulePromptTokenEstimate()};
 const MODELS=[{category:"Gemini 4 / 3.8 / 3.7 / 3.6 / 3.5",icon:"fas fa-star text-yellow-400",description:"\
-Google's latest multimodal models",items:[{id:"gemini-4-argon",implementedAt:"2026-10-16",implementedRank:10921,
-quickEmoji:"\u269B\uFE0F",name:"Gemini 4 Argon",desc:"Flagship reasoning model for complex coding, a\
-gentic workflows, and multimodal tasks, with a 1M-token context window and long decodes.",price:"In \
-$2.00/1M, Out $10.00/1M (through 2026-11-30)",agenticView:!0},{id:"gemini-3.8-flash",implementedAt:"\
-2026-09-05",implementedRank:9160,quickEmoji:"\u26A1",name:"Gemini 3.8 Flash",desc:"Most intelligent \
-Flash model for long-horizon software engineering, autonomous agents, and complex enterprise workflo\
-ws.",price:"In $0.75/1M, Out $3.75/1M (through 2026-12-31)",agenticView:!0},{id:"gemini-3.8-flash-cy\
-ber",implementedAt:"2026-09-20",implementedRank:9180,quickEmoji:"\u{1F6E1}\uFE0F",name:"Gemini 3.8 F\
-lash Cyber",desc:"Gemini 3.8 Flash post-trained for cybersecurity workflows. Vertex AI only; access \
-is allowlisted by Google.",price:"Google Cloud Standard PayGo / Flex PayGo / Priority PayGo",agenticView:!0},
-{id:"gemini-3.7-flash",implementedAt:"2026-08-14",implementedRank:8e3,quickEmoji:"\u26A1",name:"Gemi\
-ni 3.7 Flash",desc:"Most capable Flash model for complex coding, agentic workflows, and multimodal t\
-asks.",price:"In $0.75/1M, Out $3.75/1M (introductory)",agenticView:!0},{id:"gemini-3.6-flash",implementedAt:"\
-2026-07-30",implementedRank:6411,quickEmoji:"\u26A1",name:"Gemini 3.6 Flash",desc:"Latest Flash mode\
-l for agentic, coding, and multimodal tasks.",price:"In $0.75/1M, Out $3.75/1M (through 2026-12-31)",
-agenticView:!0},{id:"gemini-3.5-flash",implementedAt:"2026-06-13",implementedRank:5900,quickEmoji:"\u2728",
-name:"Gemini 3.5 Flash",desc:"Most intelligent Gemini 3.5 model built for speed.",price:"In $1.50/1M\
-, Out $9.00/1M",agenticView:!0},{id:"gemini-3.5-flash-lite",implementedAt:"2026-07-30",implementedRank:6410,
-quickEmoji:"\u{1F680}",name:"Gemini 3.5 Flash-Lite",desc:"Fastest, lowest-cost Gemini 3.5 model for \
-high-throughput execution.",price:"In $0.30/1M, Out $2.50/1M",agenticView:!0}]},{category:"Gemini 3.\
-1 / Previous",icon:"fas fa-star text-yellow-400",description:"Previous Gemini 3.x generation models",
-items:[{id:"gemini-3.1-flash-lite",implementedAt:"2026-07-30",implementedRank:6440,quickEmoji:"\u{1F4A8}",
-name:"Gemini 3.1 Flash-Lite",desc:"Stable, cost-efficient model for high-volume lightweight tasks.",
-price:"In $0.25/1M, Out $1.50/1M",agenticView:!0},{id:"gemini-3.1-pro-preview",implementedAt:"2026-0\
-2-20",implementedRank:2430,name:"Gemini 3.1 Pro",desc:"Next-gen native multimodal model.",price:"In \
-$2.00/1M, Out $12.00/1M (\u2264200k)"},{id:"gemini-3.1-flash-lite-preview",implementedAt:"2026-03-04",
-implementedRank:3e3,name:"Gemini 3.1 Flash-Lite Preview",desc:"Retired preview model retained for ch\
-at history compatibility.",price:"In $0.25/1M, Out $1.50/1M",deprecated:!0},{id:"gemini-3-flash-prev\
-iew",implementedAt:"2026-06-13",implementedRank:5930,name:"Gemini 3.0 Flash",desc:"Fastest and most \
-cost-efficient.",price:"In $0.50/1M, Out $3.00/1M"},{id:"gemini-3-pro-preview",implementedAt:"2026-0\
-1-15",implementedRank:100,name:"Gemini 3.0 Pro",desc:"Shut down by Google (March 2026). Retained for\
- chat history compatibility.",price:"In $2.00/1M, Out $12.00/1M (\u2264200k)",deprecated:!0}]},{category:"\
-Gemini 2.5",icon:"fas fa-history text-gray-400",description:"Gemini 2.5 generation models",items:[{id:"\
-gemini-2.5-pro",implementedAt:"2026-08-25",implementedRank:8524,quickEmoji:"\u{1F9E0}",name:"Gemini \
-2.5 Pro",desc:"Most advanced Gemini 2.5 model for complex reasoning, coding, and long-context analys\
-is.",price:"In $1.25/1M (\u2264200k), Out $10.00/1M (\u2264200k)"},{id:"gemini-2.5-flash-lite",implementedAt:"\
-2026-02-07",implementedRank:1530,name:"Gemini 2.5 Flash-Lite",desc:"Fastest and most cost-efficient \
-Gemini 2.5 model.",price:"In $0.10/1M, Out $0.40/1M"},{id:"gemini-2.5-flash",implementedAt:"2026-02-\
-07",implementedRank:1531,name:"Gemini 2.5 Flash",desc:"Balanced performance.",price:"In $0.30/1M, Ou\
-t $2.50/1M"}]},{category:"Gemini Image (Banana)",icon:"fas fa-image text-pink-400",description:"Gemi\
-ni image generation models",items:[{id:"gemini-2.5-flash-image",implementedAt:"2026-01-20",implementedRank:120,
+Google's latest multimodal models",items:[{id:"gemini-4-hydrogen",implementedAt:"2026-11-13",implementedRank:11652,
+quickEmoji:"\u{1F4A7}",name:"Gemini 4 Hydrogen",desc:"Fast, efficient Gemini 4 model for everyday co\
+ding, agentic workflows, and multimodal knowledge work, with a 1M-token context window, long decodes\
+, and thinking levels up to xhigh.",price:"In $1.50/1M, Out $7.50/1M",agenticView:!0},{id:"gemini-4-\
+carbon",implementedAt:"2026-11-13",implementedRank:11651,quickEmoji:"\u{1F4A0}",name:"Gemini 4 Carbo\
+n",desc:"Strongest reasoning model for complex software engineering, multimodal knowledge work, scie\
+ntific reasoning, and cybersecurity defense, with a 1M-token context window and long decodes.",price:"\
+In $2.00/1M, Out $10.00/1M (through 2026-11-30)",agenticView:!0},{id:"gemini-4-argon",implementedAt:"\
+2026-10-16",implementedRank:10921,quickEmoji:"\u269B\uFE0F",name:"Gemini 4 Argon",desc:"Flagship rea\
+soning model for complex coding, agentic workflows, and multimodal tasks, with a 1M-token context wi\
+ndow and long decodes.",price:"In $2.00/1M, Out $10.00/1M (through 2026-11-30)",agenticView:!0},{id:"\
+gemini-3.8-flash",implementedAt:"2026-09-05",implementedRank:9160,quickEmoji:"\u26A1",name:"Gemini 3\
+.8 Flash",desc:"Most intelligent Flash model for long-horizon software engineering, autonomous agent\
+s, and complex enterprise workflows.",price:"In $0.75/1M, Out $3.75/1M (through 2026-12-31)",agenticView:!0},
+{id:"gemini-3.8-flash-cyber",implementedAt:"2026-09-20",implementedRank:9180,quickEmoji:"\u{1F6E1}\uFE0F",
+name:"Gemini 3.8 Flash Cyber",desc:"Gemini 3.8 Flash post-trained for cybersecurity workflows. Verte\
+x AI only; access is allowlisted by Google.",price:"Google Cloud Standard PayGo / Flex PayGo / Prior\
+ity PayGo",agenticView:!0},{id:"gemini-3.7-flash",implementedAt:"2026-08-14",implementedRank:8e3,quickEmoji:"\
+\u26A1",name:"Gemini 3.7 Flash",desc:"Most capable Flash model for complex coding, agentic workflows\
+, and multimodal tasks.",price:"In $0.75/1M, Out $3.75/1M (introductory)",agenticView:!0},{id:"gemin\
+i-3.6-flash",implementedAt:"2026-07-30",implementedRank:6411,quickEmoji:"\u26A1",name:"Gemini 3.6 Fl\
+ash",desc:"Latest Flash model for agentic, coding, and multimodal tasks.",price:"In $0.75/1M, Out $3\
+.75/1M (through 2026-12-31)",agenticView:!0},{id:"gemini-3.5-flash",implementedAt:"2026-06-13",implementedRank:5900,
+quickEmoji:"\u2728",name:"Gemini 3.5 Flash",desc:"Most intelligent Gemini 3.5 model built for speed.",
+price:"In $1.50/1M, Out $9.00/1M",agenticView:!0},{id:"gemini-3.5-flash-lite",implementedAt:"2026-07\
+-30",implementedRank:6410,quickEmoji:"\u{1F680}",name:"Gemini 3.5 Flash-Lite",desc:"Fastest, lowest-\
+cost Gemini 3.5 model for high-throughput execution.",price:"In $0.30/1M, Out $2.50/1M",agenticView:!0}]},
+{category:"Gemini 3.1 / Previous",icon:"fas fa-star text-yellow-400",description:"Previous Gemini 3.\
+x generation models",items:[{id:"gemini-3.1-flash-lite",implementedAt:"2026-07-30",implementedRank:6440,
+quickEmoji:"\u{1F4A8}",name:"Gemini 3.1 Flash-Lite",desc:"Stable, cost-efficient model for high-volu\
+me lightweight tasks.",price:"In $0.25/1M, Out $1.50/1M",agenticView:!0},{id:"gemini-3.1-pro-preview",
+implementedAt:"2026-02-20",implementedRank:2430,name:"Gemini 3.1 Pro",desc:"Next-gen native multimod\
+al model.",price:"In $2.00/1M, Out $12.00/1M (\u2264200k)"},{id:"gemini-3.1-flash-lite-preview",implementedAt:"\
+2026-03-04",implementedRank:3e3,name:"Gemini 3.1 Flash-Lite Preview",desc:"Retired preview model ret\
+ained for chat history compatibility.",price:"In $0.25/1M, Out $1.50/1M",deprecated:!0},{id:"gemini-\
+3-flash-preview",implementedAt:"2026-06-13",implementedRank:5930,name:"Gemini 3.0 Flash",desc:"Faste\
+st and most cost-efficient.",price:"In $0.50/1M, Out $3.00/1M"},{id:"gemini-3-pro-preview",implementedAt:"\
+2026-01-15",implementedRank:100,name:"Gemini 3.0 Pro",desc:"Shut down by Google (March 2026). Retain\
+ed for chat history compatibility.",price:"In $2.00/1M, Out $12.00/1M (\u2264200k)",deprecated:!0}]},
+{category:"Gemini 2.5",icon:"fas fa-history text-gray-400",description:"Gemini 2.5 generation models",
+items:[{id:"gemini-2.5-pro",implementedAt:"2026-08-25",implementedRank:8524,quickEmoji:"\u{1F9E0}",name:"\
+Gemini 2.5 Pro",desc:"Most advanced Gemini 2.5 model for complex reasoning, coding, and long-context\
+ analysis.",price:"In $1.25/1M (\u2264200k), Out $10.00/1M (\u2264200k)"},{id:"gemini-2.5-flash-lite",
+implementedAt:"2026-02-07",implementedRank:1530,name:"Gemini 2.5 Flash-Lite",desc:"Fastest and most \
+cost-efficient Gemini 2.5 model.",price:"In $0.10/1M, Out $0.40/1M"},{id:"gemini-2.5-flash",implementedAt:"\
+2026-02-07",implementedRank:1531,name:"Gemini 2.5 Flash",desc:"Balanced performance.",price:"In $0.3\
+0/1M, Out $2.50/1M"}]},{category:"Gemini Image (Banana)",icon:"fas fa-image text-pink-400",description:"\
+Gemini image generation models",items:[{id:"gemini-2.5-flash-image",implementedAt:"2026-01-20",implementedRank:120,
 quickEmoji:"\u{1F34C}",name:"Nano Banana",desc:"Fast image generation.",price:"In $0.30/1M, Out $0.0\
 39/image"},{id:"gemini-nano-banana-2.1",implementedAt:"2026-10-06",implementedRank:9810,quickEmoji:"\
 \u{1F34C}",name:"Nano Banana 2.1",desc:"High-efficiency image generation and editing with 1K/2K/4K o\
@@ -3384,37 +3391,37 @@ t.includes("gemini-3-pro-image")||t.includes("gemini-2.5-flash-image"))&&d("imag
  editing"),t==="gemini-nano-banana-2.1"?d("thinking","\u601D\u8003","minimal","medium","high","think\
 ing level","video input"):t==="gemini-3.1-flash-lite-image"||t==="gemini-3.1-flash-image"?d("thinkin\
 g","\u601D\u8003","minimal","high","thinking level"):t.includes("gemini")&&!l&&(d("thinking","\u601D\u8003",
-"thinking level"),t==="gemini-4-argon"||t==="gemini-3.8-flash"||t==="gemini-3.7-flash"?d("low","medi\
-um","high"):t==="gemini-3.6-flash"?d("medium","high"):t==="gemini-3.5-flash-lite"?d("minimal","mediu\
-m","high"):t.includes("flash")?d("minimal","low","medium","high"):d("low","high")),i&&(d("thinking",
-"\u601D\u8003","reasoning","\u63A8\u8AD6","reasoning effort","high"),t!=="deepseek-v4-pro"&&d("low"),
-t.includes("v4-flash")&&d("none","max")),c&&(t.includes("gpt-5")||t.includes("o1")||t.includes("o3")||
-t.includes("grok-4.3")||t.includes("grok-4.5")||t.includes("grok-4.6")||t.includes("grok-4.20-0309-r\
-easoning")||t.includes("grok-build")||t.includes("multi-agent")||t.includes("gpt")&&!a)){d("reasonin\
-g","\u63A8\u8AD6","reasoning effort","low","high");const h=t==="gpt-5.6"||t.startsWith("gpt-5.6-"),y=t.
-startsWith("gpt-6"),v=t.includes("grok-4.6"),w=t.includes("grok-4.3")||t.includes("grok-4.5")||v||t.
-includes("grok-4.20-0309-reasoning")||t.includes("grok-build")||t.includes("multi-agent")||t.includes(
-"gpt-5")||y||t.includes("o1")||t.includes("o3"),k=t.includes("grok-4.3")||t.includes("grok-build")||
-t.includes("gpt-5")||t==="gpt-6-sol"||t==="gpt-6-luna"||t==="gpt-6.1-terra"||i;w&&d("medium"),k&&d("\
-none"),(h||y||i)&&d("max"),(v||t.includes("multi-agent")||h||y)&&d("xhigh")}return t.includes("claud\
-e")&&d("thinking","\u601D\u8003","thinking budget","budget"),e.agenticView&&d("agentic view"),[...new Set(
-n)]}o(getModelCapabilitySearchTerms,"getModelCapabilitySearchTerms");let settingsModelPickerTarget=null;
-const settingsModelPickerTargets=["set-default-model","set-default-vision-model"];function syncSettingsModelPickerLabels(){
-settingsModelPickerTargets.forEach(e=>{var i;const t=get(e),n=get(e+"-label");t&&n&&(n.textContent=((i=
-t.selectedOptions[0])==null?void 0:i.textContent)||t.value||"\u30E2\u30C7\u30EB\u3092\u9078\u629E")})}
-o(syncSettingsModelPickerLabels,"syncSettingsModelPickerLabels");function modelPickerSelectedId(){var e;
-return((e=get(settingsModelPickerTarget||"model-select"))==null?void 0:e.value)||""}o(modelPickerSelectedId,
-"modelPickerSelectedId");function settingsModelPickerAllows(e){var t;return settingsModelPickerTarget?
-Array.from(((t=get(settingsModelPickerTarget))==null?void 0:t.options)||[]).some(n=>n.value===e):!0}
-o(settingsModelPickerAllows,"settingsModelPickerAllows");function openSettingsModelPicker(e,t=!1){const n=get(
-"settings-modal");if(!settingsModalLoaded||!settingsModelPickerTargets.includes(e)||!(n!=null&&n.classList.
-contains("modal-open")||n!=null&&n.classList.contains("modal-prep")))return;const i=get(e);!i||i.disabled||
-!i.options.length||(settingsModelPickerTarget=e,window._visionPickerActive=!1,t||history.pushState({
-...history.state,settingsModelPicker:e},"","/settings"),get("settings-modal").inert=!0,activeModelTag=
-"all",openModelModal())}o(openSettingsModelPicker,"openSettingsModelPicker"),window.openSettingsModelPicker=
-openSettingsModelPicker;const modelListGroups=[];let modelListBanner=null,modelListEmpty=null,modelListBuilt=!1,
-modelListAnimated=!1,modelListRenderFrame=0;function isLlmModelForDisplay(e){const t=String(e&&e.id||
-"").toLowerCase();return!/(ocr|tts|transcri|realtime|voice-agent|native-audio|\blive\b|image|video|embedding|lyria|veo|omni-|ideogram|deep-research|antigravity|computer-use|robotics)/.
+"thinking level"),t==="gemini-4-hydrogen"?d("low","medium","high","xhigh"):t==="gemini-4-carbon"||t===
+"gemini-4-argon"||t==="gemini-3.8-flash"||t==="gemini-3.7-flash"?d("low","medium","high"):t==="gemin\
+i-3.6-flash"?d("medium","high"):t==="gemini-3.5-flash-lite"?d("minimal","medium","high"):t.includes(
+"flash")?d("minimal","low","medium","high"):d("low","high")),i&&(d("thinking","\u601D\u8003","reason\
+ing","\u63A8\u8AD6","reasoning effort","high"),t!=="deepseek-v4-pro"&&d("low"),t.includes("v4-flash")&&
+d("none","max")),c&&(t.includes("gpt-5")||t.includes("o1")||t.includes("o3")||t.includes("grok-4.3")||
+t.includes("grok-4.5")||t.includes("grok-4.6")||t.includes("grok-4.20-0309-reasoning")||t.includes("\
+grok-build")||t.includes("multi-agent")||t.includes("gpt")&&!a)){d("reasoning","\u63A8\u8AD6","reaso\
+ning effort","low","high");const h=t==="gpt-5.6"||t.startsWith("gpt-5.6-"),y=t.startsWith("gpt-6"),v=t.
+includes("grok-4.6"),w=t.includes("grok-4.3")||t.includes("grok-4.5")||v||t.includes("grok-4.20-0309\
+-reasoning")||t.includes("grok-build")||t.includes("multi-agent")||t.includes("gpt-5")||y||t.includes(
+"o1")||t.includes("o3"),k=t.includes("grok-4.3")||t.includes("grok-build")||t.includes("gpt-5")||t===
+"gpt-6-sol"||t==="gpt-6-luna"||t==="gpt-6.1-terra"||i;w&&d("medium"),k&&d("none"),(h||y||i)&&d("max"),
+(v||t.includes("multi-agent")||h||y)&&d("xhigh")}return t.includes("claude")&&d("thinking","\u601D\u8003",
+"thinking budget","budget"),e.agenticView&&d("agentic view"),[...new Set(n)]}o(getModelCapabilitySearchTerms,
+"getModelCapabilitySearchTerms");let settingsModelPickerTarget=null;const settingsModelPickerTargets=[
+"set-default-model","set-default-vision-model"];function syncSettingsModelPickerLabels(){settingsModelPickerTargets.
+forEach(e=>{var i;const t=get(e),n=get(e+"-label");t&&n&&(n.textContent=((i=t.selectedOptions[0])==null?
+void 0:i.textContent)||t.value||"\u30E2\u30C7\u30EB\u3092\u9078\u629E")})}o(syncSettingsModelPickerLabels,
+"syncSettingsModelPickerLabels");function modelPickerSelectedId(){var e;return((e=get(settingsModelPickerTarget||
+"model-select"))==null?void 0:e.value)||""}o(modelPickerSelectedId,"modelPickerSelectedId");function settingsModelPickerAllows(e){
+var t;return settingsModelPickerTarget?Array.from(((t=get(settingsModelPickerTarget))==null?void 0:t.
+options)||[]).some(n=>n.value===e):!0}o(settingsModelPickerAllows,"settingsModelPickerAllows");function openSettingsModelPicker(e,t=!1){
+const n=get("settings-modal");if(!settingsModalLoaded||!settingsModelPickerTargets.includes(e)||!(n!=
+null&&n.classList.contains("modal-open")||n!=null&&n.classList.contains("modal-prep")))return;const i=get(
+e);!i||i.disabled||!i.options.length||(settingsModelPickerTarget=e,window._visionPickerActive=!1,t||
+history.pushState({...history.state,settingsModelPicker:e},"","/settings"),get("settings-modal").inert=
+!0,activeModelTag="all",openModelModal())}o(openSettingsModelPicker,"openSettingsModelPicker"),window.
+openSettingsModelPicker=openSettingsModelPicker;const modelListGroups=[];let modelListBanner=null,modelListEmpty=null,
+modelListBuilt=!1,modelListAnimated=!1,modelListRenderFrame=0;function isLlmModelForDisplay(e){const t=String(
+e&&e.id||"").toLowerCase();return!/(ocr|tts|transcri|realtime|voice-agent|native-audio|\blive\b|image|video|embedding|lyria|veo|omni-|ideogram|deep-research|antigravity|computer-use|robotics)/.
 test(t)}o(isLlmModelForDisplay,"isLlmModelForDisplay");function buildModelList(){const e=get("model-\
 list-container");if(!e||modelListBuilt)return;e.innerHTML="",modelListBanner=document.createElement(
 "div"),modelListBanner.className="model-banner hidden",e.appendChild(modelListBanner);const t=new Map;

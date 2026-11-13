@@ -209,20 +209,27 @@
                         }
                     }
                     const isFlash = model.includes('flash');
+                    const isHydrogen = model === 'gemini-4-hydrogen';
                     Array.from(thinkLvl.options).forEach(opt => {
-                        if (model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') {
+                        if (isHydrogen) {
+                            opt.disabled = !['low', 'medium', 'high', 'xhigh'].includes(opt.value);
+                        } else if (model === 'gemini-4-carbon' || model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') {
                             opt.disabled = !['low', 'medium', 'high'].includes(opt.value);
                         } else if (model === 'gemini-3.6-flash') {
                             opt.disabled = !['medium', 'high'].includes(opt.value);
                         } else if (model === 'gemini-3.5-flash-lite') {
                             opt.disabled = !['minimal', 'medium', 'high'].includes(opt.value);
+                        } else if(opt.value === 'xhigh') {
+                            opt.disabled = true;
                         } else if(['minimal', 'medium'].includes(opt.value)) {
                             opt.disabled = !isFlash;
                         } else {
                             opt.disabled = false;
                         }
                     });
-                    if ((model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') && !['low', 'medium', 'high'].includes(thinkLvl.value)) {
+                    if (isHydrogen && !['low', 'medium', 'high', 'xhigh'].includes(thinkLvl.value)) {
+                        thinkLvl.value = 'high';
+                    } else if ((model === 'gemini-4-carbon' || model === 'gemini-4-argon' || model === 'gemini-3.8-flash' || model === 'gemini-3.7-flash') && !['low', 'medium', 'high'].includes(thinkLvl.value)) {
                         thinkLvl.value = 'medium';
                     } else if (model === 'gemini-3.6-flash' && !['medium', 'high'].includes(thinkLvl.value)) {
                         thinkLvl.value = 'medium';

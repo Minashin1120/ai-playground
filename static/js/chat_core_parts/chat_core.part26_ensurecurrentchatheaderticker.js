@@ -512,9 +512,12 @@
                 const thoughtHtml = message.thought_text
                     ? `<div class="thought">${escapeHtml(message.thought_text)}</div>`
                     : '';
+                const mathStepsPdfHtml = !isUser && typeof window.buildMathStepsPdfHtml === 'function'
+                    ? window.buildMathStepsPdfHtml(message.content || '', message.math_steps_state)
+                    : '';
                 const contentHtml = isUser
                     ? `<div class="content" style="white-space: pre-wrap;">${escapeHtml(message.content || '')}</div>`
-                    : `<div class="content">${sanitizeMarkdownHtml(message.content || '')}</div>`;
+                    : `<div class="content">${mathStepsPdfHtml || sanitizeMarkdownHtml(message.content || '')}</div>`;
                 const attachments = buildPdfMessageAttachments(message);
                 const attachmentsHtml = attachments.length
                     ? `<div class="attachments">${attachments.map((attachment) => {
@@ -586,6 +589,11 @@
         .content code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
         .content blockquote { margin:12px 0; padding:8px 12px; border-left:4px solid rgba(14,165,233,0.65); background: rgba(14,165,233,0.06); border-radius:10px; color:#334155; }
         .content img { max-width:100%; height:auto; border-radius:14px; border:1px solid rgba(148,163,184,0.28); margin:10px 0; }
+        .math-steps-pdf-step { margin: 0 0 18px; }
+        .math-steps-pdf-heading { margin: 0 0 8px; font-size: 15px; font-weight: 800; color: var(--accent); }
+        .math-steps-pdf-note { color: var(--muted); font-size: 11px; margin-top: 4px; }
+        .mathsvg-render { display:block; text-align:center; margin: 10px 0; }
+        .mathsvg-render img { max-width:100%; height:auto; border-radius:12px; border:1px solid rgba(148,163,184,0.28); }
         .attachments { margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
         .attachment { border-radius: 16px; border: 1px solid var(--line); background: #f8fafc; overflow: hidden; break-inside: avoid; }
         .attachment img { width: 100%; height: auto; display: block; }

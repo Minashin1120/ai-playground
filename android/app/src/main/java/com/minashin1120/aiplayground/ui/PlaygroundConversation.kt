@@ -58,6 +58,7 @@ import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.data.ChatAutoScroll
 import com.minashin1120.aiplayground.data.ChatMessage
+import com.minashin1120.aiplayground.data.MathStepsConfig
 import com.minashin1120.aiplayground.data.buildTokenTotals
 import com.minashin1120.aiplayground.data.numericId
 import com.minashin1120.aiplayground.data.recentWebModels
@@ -434,6 +435,14 @@ private fun ConversationContent(
                 val entering = remember { keys.consumeFresh(rowKey) }
                 val siblings = siblingGroup(state.allMessages, message)
                 val index = siblings.indexOfFirst { it.id == message.id }
+                val parentMathSteps = message.parentId?.let { parentId ->
+                    state.allMessages.firstOrNull { it.id.toIntOrNull() == parentId }
+                        ?.promptOptions?.optBoolean("math_steps") == true
+                } == true
+                val hasMathStepHeadings = remember(message.content) {
+                    message.role == "assistant" &&
+                        com.minashin1120.aiplayground.data.parseMathSteps(message.content).isNotEmpty()
+                }
                 Box(Modifier.animateItem(fadeInSpec = null, placementSpec = listPlacement(reduce), fadeOutSpec = null)) {
                     ConversationMessageEntry(rowKey, answer = message.role == "assistant",
                         animate = entering && message.id != state.promptSendMotionId, answers = answerMotions) {
@@ -467,6 +476,18 @@ private fun ConversationContent(
                             onToggleControls = { activeMessageId = message.id },
                             branchIndex = if (index < 0) 0 else index,
                             branchCount = if (numericId(message) != null) siblings.size else 0,
+                            mathSteps = message.role == "assistant" &&
+                                (hasMathStepHeadings ||
+                                    message.promptOptions?.optBoolean("math_steps") == true ||
+                                    parentMathSteps ||
+                                    message.mathStepsState != null ||
+                                    (keys.isLiveReply(message) && state.mathStepsMode)),
+                            mathStepsActions = MathStepsActions(
+                                onProgress = { target, step, max -> model.saveMathStepProgress(target, step, max) },
+                                onSimplify = { target, step, done -> model.simplifyMathStep(target, step, done) },
+                                onRestoreOriginal = { target, step -> model.clearMathStepSimplified(target, step) },
+                            ),
+                            mathStepsConfig = state.preferences?.mathStepsConfig ?: MathStepsConfig(),
                         )
                         }
                     }

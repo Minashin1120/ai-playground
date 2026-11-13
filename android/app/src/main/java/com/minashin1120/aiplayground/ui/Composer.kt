@@ -77,6 +77,7 @@ import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.ChatViewModel
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ComposerRules
+import com.minashin1120.aiplayground.data.MathStepsConfig
 import com.minashin1120.aiplayground.data.OptionRule
 import com.minashin1120.aiplayground.data.isGptImageModel
 import com.minashin1120.aiplayground.data.isIdeogramBackgroundRemoval
@@ -167,6 +168,7 @@ fun Composer(
     }
     // Web minimal mode: ＋ opens `#minimal-options-popup`; Thinking opens `#thinking-slide-bar`.
     var minimalOptionsOpen by remember { mutableStateOf(false) }
+    var mathStepsConfigOpen by remember { mutableStateOf(false) }
     var thinkingSliderOpen by remember { mutableStateOf(false) }
     var dockHeight by remember { mutableIntStateOf(0) }
     LaunchedEffect(minimal) { if (!minimal) { minimalOptionsOpen = false; thinkingSliderOpen = false } }
@@ -282,6 +284,12 @@ fun Composer(
             onShowThinkingSlider = { thinkingSliderOpen = true },
             onChatInstructions = onChatInstructions, onCompressionSettings = onCompressionSettings,
             onTemporarySettings = onTemporarySettings, onLyria = onLyria,
+            onMathStepsSettings = { mathStepsConfigOpen = true },
+        )
+        if (mathStepsConfigOpen) MathStepsSettingsDialog(
+            config = state.preferences?.mathStepsConfig ?: MathStepsConfig(),
+            onDismiss = { mathStepsConfigOpen = false },
+            onSave = { model.saveMathStepsConfig(it.withAllowedValues()) },
         )
         if (thinkingSliderOpen && minimal) ThinkingSlideBar(state, model, rules, onDismiss = { thinkingSliderOpen = false })
         Column(
@@ -322,6 +330,7 @@ fun Composer(
                 showDetails = showDetails, onToggleDetails = { expanded = !expanded },
                 pickModel = pickModel, onChatInstructions = onChatInstructions,
                 onCompressionSettings = onCompressionSettings, onTemporarySettings = onTemporarySettings,
+                onMathStepsSettings = { mathStepsConfigOpen = true },
             )
             AttachmentPreview(state, model, loader, onOpenFile, onEdit = pickFiles)
             // Web `#file-preview` while a recording is transcribed.
@@ -503,6 +512,7 @@ private fun ControlsRow(
     onChatInstructions: () -> Unit,
     onCompressionSettings: () -> Unit,
     onTemporarySettings: () -> Unit,
+    onMathStepsSettings: () -> Unit,
 ) {
     val web = LocalWebPalette.current
     val reduce = LocalReduceMotion.current
@@ -522,6 +532,13 @@ private fun ControlsRow(
             ModelButton(state, pickModel, Modifier.align(Alignment.CenterVertically))
             ModeChip("Canvas", state.canvasMode, ChipTone.Canvas, rules.canvas, model::toggleCanvas, Modifier.align(Alignment.CenterVertically))
             ModeChip("Coding", state.codingMode, ChipTone.Coding, rules.coding, model::toggleCoding, Modifier.align(Alignment.CenterVertically))
+            // Web `enable-math-steps`: in the primary prompt bar, hidden until the account's master switch is ON.
+            if (state.preferences?.mathStepsEnabled == true) {
+                MathStepsChip(
+                    state.mathStepsMode, model::toggleMathSteps, onMathStepsSettings,
+                    Modifier.align(Alignment.CenterVertically),
+                )
+            }
             if (rules.batch.visible) ModeChip("Batch", state.batchMode, ChipTone.Batch, rules.batch, model::toggleBatchMode,
                 Modifier.align(Alignment.CenterVertically))
             if (rules.geminiFree.visible) ModeChip("無料枠", state.geminiFreeTier, ChipTone.GeminiFree, rules.geminiFree,

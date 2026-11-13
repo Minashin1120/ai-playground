@@ -1166,10 +1166,12 @@ private fun SvgRenderBox(markup: String, style: TextStyle, fromCode: Boolean = f
                 SvgFrame((docW * scale).toInt().coerceIn(1, 4096), (docH * scale).toInt().coerceIn(1, 4096))
             }.getOrNull()
         }
-        val animated = remember(markup) { svgHasAnimation(markup) }
-        if (animated && frame != null) {
+        val animated = remember(markup) { svgHasAnimation(markup) && svgAnimationSafe(markup) }
+        val animate = LocalSvgAnimation.current && !LocalReduceMotion.current
+        var webViewFailed by remember(markup) { mutableStateOf(false) }
+        if (animated && animate && frame != null && !webViewFailed) {
             // AndroidSVG freezes SMIL/CSS animation; WebView plays it like the browser on Web.
-            AnimatedSvg(markup, frame.width, frame.height)
+            AnimatedSvg(markup, frame.width, frame.height, onError = { webViewFailed = true })
         } else {
             val bitmap = remember(markup, available, density, frame) {
                 if (svg == null || frame == null) return@remember null

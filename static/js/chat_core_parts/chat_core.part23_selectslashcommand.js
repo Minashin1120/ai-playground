@@ -506,6 +506,7 @@
                 reasoning_effort: value('reasoning-effort'),
                 safety_setting: value('safety-setting'),
                 enable_prompt_caching: checked('enable-prompt-cache', false),
+                math_steps: (typeof window.collectMathStepsSendOption === 'function' ? window.collectMathStepsSendOption() : false),
             };
         }
 
@@ -531,6 +532,9 @@
                 ],
                 generationConfig,
             };
+            if (bootstrap.math_steps_system_prompt) {
+                payload.systemInstruction = { parts: [{ text: String(bootstrap.math_steps_system_prompt) }] };
+            }
             const fastPythonEnabled = !!(get('enable-python') && get('enable-python').checked);
             if (fastPythonEnabled) {
                 payload.tools = [{ codeExecution: {} }];
@@ -675,7 +679,7 @@
                             contentEl.className = 'content-area prose prose-invert text-sm break-words';
                             adiv.appendChild(contentEl);
                         }
-                        renderAiMarkdownInto(contentEl, content, { incrementalMath: true });
+                        renderAiMarkdownInto(contentEl, content, { incrementalMath: true, streaming: true, mathSteps: { jobId: null, streaming: true } });
                     }
                     scrollToBottom();
                 };
@@ -693,7 +697,7 @@
                 buffer += decoder.decode();
                 if (buffer.trim()) consumeEvent(buffer);
                 if (!content.trim()) throw new Error('Geminiから回答本文が返されませんでした');
-                if (contentEl) renderAiMarkdownInto(contentEl, content, { incrementalMath: true });
+                if (contentEl) renderAiMarkdownInto(contentEl, content, { incrementalMath: true, streaming: false, mathSteps: { jobId: null, streaming: false } });
                 if (thoughtEl) thoughtEl.classList.add('collapsed');
                 if (pyExecPayloads.length) {
                     content += pyExecPayloads.map((payload) => `\n\`\`\`pyexec\n${JSON.stringify(payload)}\n\`\`\`\n`).join('');
@@ -729,6 +733,10 @@
                 }), adiv);
                 const saved = await saveResponse.json().catch(() => ({}));
                 if (!saveResponse.ok || !saved.thread_id) throw new Error(saved.error || 'DB保存に失敗しました');
+                if (saved.assistant_message_id !== undefined && saved.assistant_message_id !== null && typeof window.bindMathStepsMessageId === 'function') {
+                    const stepRoot = adiv ? adiv.querySelector('.math-steps') : null;
+                    if (stepRoot) await window.bindMathStepsMessageId(stepRoot, saved.assistant_message_id);
+                }
                 const createdThread = !currentThreadId;
                 currentThreadId = String(saved.thread_id);
                 currentParentId = saved.assistant_message_id || null;

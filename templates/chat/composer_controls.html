@@ -15,6 +15,15 @@
                             <input type="checkbox" id="enable-coding-mode" class="accent-emerald-400 w-3 h-3">
                             <span>Coding</span>
                         </label>
+                        <div id="math-steps-container" class="composer-chip flex items-center gap-0.5 select-none px-2 py-0.5 rounded-full border border-sky-500/40 bg-sky-900/20 text-sky-200 hidden" title="数学の問題を小さなステップに分けて、1つずつ表示します">
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="checkbox" id="enable-math-steps" class="accent-sky-400 w-3 h-3">
+                                <span>数学ステップ</span>
+                            </label>
+                            <button type="button" id="math-steps-config-gear" onclick="openMathStepsModal()" class="text-sky-300/80 hover:text-sky-100 transition p-1" title="数学ステップの設定" aria-label="数学ステップの設定" data-progress-no-spinner="true">
+                                <i class="fas fa-cog text-[10px]"></i>
+                            </button>
+                        </div>
                         <label id="browser-fast-mode-container" class="composer-chip flex items-center gap-1 cursor-pointer select-none px-2 py-0.5 rounded-full border border-amber-500/40 bg-amber-900/20 text-amber-200" title="新規Geminiチャットをブラウザから直接送信します">
                             <input type="checkbox" id="enable-browser-fast-mode" class="accent-amber-400 w-3 h-3">
                             <span>高速</span>

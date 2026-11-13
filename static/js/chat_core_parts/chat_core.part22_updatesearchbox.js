@@ -11,7 +11,7 @@
             return box;
         }
 
-        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, skillName = null, batchInfo = null, maskImageUrl = null, processingTime = null) {
+        function renderMessage(id, role, text, imgUrl, thoughtData, modelName, versionInfo = null, animate = true, quoteText = null, tokenCount = null, tokenIn = null, tokenOut = null, isEncrypted = null, tokensContent = null, tokensThought = null, target = null, doScroll = true, parentId = null, skillName = null, batchInfo = null, maskImageUrl = null, processingTime = null, mathStepsState = null) {
             const isUser = role === 'user';
             const bg = isUser ? 'bg-blue-600' : 'bg-gray-700';
             const align = isUser ? 'justify-end' : 'justify-start';
@@ -192,8 +192,8 @@
             } else {
                 // AI message: Markdown rendered with tool notices grouped after the prose.
                 contentHtml = batchStatusHtml + (displayText && String(displayText).trim()
-                    ? buildAiMarkdownHtml(displayText)
-                    : (batchInfo ? '<div class="content-area prose prose-invert text-sm break-words text-gray-300">回答を準備しています…</div>' : buildAiMarkdownHtml(displayText)));
+                    ? buildAiMarkdownHtml(displayText, { mathSteps: { messageId: id, state: mathStepsState } })
+                    : (batchInfo ? '<div class="content-area prose prose-invert text-sm break-words text-gray-300">回答を準備しています…</div>' : buildAiMarkdownHtml(displayText, { mathSteps: { messageId: id, state: mathStepsState } })));
                 // Ensure content-area class is present if not already in buildAiMarkdownHtml
                 if (!contentHtml.includes('content-area')) {
                     contentHtml = contentHtml.replace('prose ', 'content-area prose ');
@@ -225,6 +225,16 @@
                 container.appendChild(msgEl);
                 if (doScroll) scrollToBottom();
                 if (!isUser) {
+                    // 数学ステップの進捗APIは吹き出しの message id を参照する。
+                    const bubbleEl = msgEl.querySelector('.message-bubble');
+                    if (bubbleEl) {
+                        bubbleEl.setAttribute('data-message-id', String(id));
+                        if (mathStepsState !== null && mathStepsState !== undefined) {
+                            try {
+                                bubbleEl.setAttribute('data-math-steps-state', typeof mathStepsState === 'string' ? mathStepsState : JSON.stringify(mathStepsState));
+                            } catch (e) {}
+                        }
+                    }
                     if (msgEl.isConnected) queueMessageDecorations(msgEl, displayText);
                     syncCodingTargetButtons(msgEl);
                     syncCodingModeUi(codingModeEnabled, { persist: false });

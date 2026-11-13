@@ -18,6 +18,7 @@ AI_SAFE_EDITABLE_FIELDS = {
     # UI / behavior prefs (safe)
     'enter_to_send', 'use_sw_cache', 'compact_prompt_mode', 'minimal_prompt_mode', 'auto_search_on_links',
     'use_last_chat_settings', 'voice_studio_ui', 'temp_chat_timeout_seconds', 'theme_color', 'liquid_glass_enabled', 'light_mode_enabled',
+    'math_steps_enabled', 'math_steps_config', 'default_math_steps',
     # Rich paste custom prompt
     'rich_paste_prompt_default', 'rich_paste_prompt_use_custom_default',
     # Debug / metrics (user opt-in)
@@ -73,6 +74,9 @@ def _get_ai_safe_settings_snapshot(user):
         'compact_prompt_mode': bool(getattr(user, 'compact_prompt_mode', False)),
         'minimal_prompt_mode': bool(getattr(user, 'minimal_prompt_mode', False)),
         'voice_studio_ui': bool(getattr(user, 'voice_studio_ui', True)),
+        'math_steps_enabled': bool(getattr(user, 'math_steps_enabled', False)),
+        'math_steps_config': normalize_math_steps_config(getattr(user, 'math_steps_config', None)),
+        'default_math_steps': bool(getattr(user, 'default_math_steps', False)),
         'enable_latency_metrics': bool(getattr(user, 'enable_latency_metrics', False)),
         'enable_client_debug_log': bool(getattr(user, 'enable_client_debug_log', False)),
         'bot_detection_enabled': user.bot_detection_enabled if user.bot_detection_enabled is not None else True,
@@ -173,6 +177,15 @@ def _apply_ai_settings_update(current_user, delta):
             elif key == 'voice_studio_ui':
                 current_user.voice_studio_ui = bool(val)
                 applied[key] = current_user.voice_studio_ui
+            elif key == 'math_steps_enabled':
+                current_user.math_steps_enabled = bool(val)
+                applied[key] = current_user.math_steps_enabled
+            elif key == 'math_steps_config':
+                current_user.math_steps_config = dump_math_steps_config(val)
+                applied[key] = "(更新)"
+            elif key == 'default_math_steps':
+                current_user.default_math_steps = bool(val)
+                applied[key] = current_user.default_math_steps
             elif key == 'temp_chat_timeout_seconds':
                 current_user.temp_chat_timeout_seconds = _normalize_temp_chat_timeout_seconds(val)
                 applied[key] = current_user.temp_chat_timeout_seconds

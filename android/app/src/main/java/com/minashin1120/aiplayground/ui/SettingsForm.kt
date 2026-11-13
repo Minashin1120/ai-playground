@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.minashin1120.aiplayground.data.AutoSystemPrompt
+import com.minashin1120.aiplayground.data.MathStepsConfig
 import com.minashin1120.aiplayground.data.PROVIDER_KEY_FIELDS
 import com.minashin1120.aiplayground.data.Preferences
 import com.minashin1120.aiplayground.data.SECRET_MASK
@@ -46,6 +47,11 @@ internal class SettingsForm(prefs: Preferences?) {
     var llmPrompt by mutableStateOf(prefs?.llmTranscribePrompt.orEmpty())
     val llmPromptDefault = prefs?.llmTranscribePromptDefault.orEmpty()
     var tempTimeout by mutableStateOf((prefs?.tempChatTimeoutSeconds ?: 90).toString())
+
+    /** 「数学ステップ解説」master, prompt-bar default and the five gear options. */
+    var mathStepsEnabled by mutableStateOf(prefs?.mathStepsEnabled ?: false)
+    var defaultMathSteps by mutableStateOf(prefs?.defaultMathSteps ?: false)
+    var mathConfig by mutableStateOf(prefs?.mathStepsConfig ?: MathStepsConfig())
 
     val providerKeys = mutableStateMapOf<String, String>().apply {
         PROVIDER_KEY_FIELDS.forEach { put(it, prefs?.providerKeys?.get(it).orEmpty()) }
@@ -135,6 +141,9 @@ internal class SettingsForm(prefs: Preferences?) {
         .put("stt_model", sttModel)
         .put("llm_transcribe_prompt", llmPrompt)
         .put("temp_chat_timeout_seconds", normalizeTempChatTimeout(tempTimeout))
+        .put("math_steps_enabled", mathStepsEnabled)
+        .put("default_math_steps", defaultMathSteps)
+        .put("math_steps_config", mathConfig.toJson())
         .put("system_prompt", userPrompt)
         .put("system_prompt_enabled", userPromptEnabled)
         .put("apply_global_system_prompt", applyGlobal)

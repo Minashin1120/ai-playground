@@ -66,6 +66,7 @@ class PromptSendMotionTests(unittest.TestCase):
             function updateFilePreview() {}
             function updateMaskPreview() {}
             function schedulePromptTokenEstimate() {}
+            function renderQuoteBarContent() {}
         ''')
         self.page.add_script_tag(content=MOTION)
         uploads = read_chat_core_source()

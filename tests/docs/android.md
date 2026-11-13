@@ -12,6 +12,7 @@
 | [test_mobile_api_files.py](../test_mobile_api_files.py) | Android専用API（添付・ライブラリ・暗号化履歴） |
 | [test_mobile_api_threads.py](../test_mobile_api_threads.py) | Android専用API（スレッド・メッセージ・設定・PDF/Batch） |
 | [test_mobile_sync_api.py](../test_mobile_sync_api.py) | 端末とサーバーの同期 |
+| [test_math_steps_server.py](../test_math_steps_server.py) | 数学ステップのモバイル設定（`/api/mobile/v1/preferences`）と共有API |
 
 ## Android側のテスト
 

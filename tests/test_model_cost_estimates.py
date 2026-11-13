@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PRICING = json.loads((ROOT / 'static/model_pricing.json').read_text())
 SOURCE = read_chat_core_source()
 SOURCE = SOURCE[SOURCE.index("// Costs use each saved answer's model"):]
+if '// 数学ステップ解説' in SOURCE:
+    SOURCE = SOURCE[:SOURCE.index('// 数学ステップ解説')]
 
 
 def estimate(messages, context=None):

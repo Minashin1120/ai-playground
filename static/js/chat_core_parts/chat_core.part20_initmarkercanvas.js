@@ -979,10 +979,10 @@
             return fence ? body.join('\n') : null;
         }
         const SVG_CODE_RENDER_MAX_CHARS = 300000;
-        // A closed ```svg (or ```xml holding one <svg> document) fence: the markup to draw, or ''.
+        // A closed ```svg (or ```xml / ```mathsvg holding one <svg> document) fence: the markup to draw, or ''.
         function getRenderableSvgCode(lang, raw) {
             const token = String(lang || '').trim().toLowerCase();
-            if (token !== 'svg' && token !== 'xml' && token !== 'image/svg+xml') return '';
+            if (token !== 'svg' && token !== 'xml' && token !== 'image/svg+xml' && token !== 'mathsvg') return '';
             const code = String(raw || '').trim();
             if (!code || code.length > SVG_CODE_RENDER_MAX_CHARS) return '';
             const body = code.replace(/^(?:<\?xml[\s\S]*?\?>\s*|<!--[\s\S]*?-->\s*|<!DOCTYPE[^>]*>\s*)*/i, '');

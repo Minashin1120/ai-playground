@@ -757,7 +757,8 @@
                     m.skill_name,
                     m.batch_job,
                     m.prompt_options && typeof m.prompt_options === 'object' ? m.prompt_options.image_mask : null,
-                    m.processing_time
+                    m.processing_time,
+                    m.math_steps_state
                 );
             });
             const pending = currentThreadPending;

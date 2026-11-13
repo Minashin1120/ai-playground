@@ -118,6 +118,7 @@
                 '/python-execution': { id: 'python-exec-modal', open: () => showPythonExecDetailModal() },
                 '/skill': { id: 'skill-modal', open: () => { editingSkillUuid = null; get('skill-modal-title').textContent = 'Create New Skill'; showModal('skill-modal'); } },
                 '/compression': { id: 'compression-modal', open: () => window.openCompressionModal() },
+                '/math-steps': { id: 'math-steps-config-modal', open: () => window.openMathStepsModal() },
                 '/admin-bots': { id: 'bot-admin-modal', open: () => openBotAdminModal() },
                 '/admin-bot-logs': { id: 'bot-log-modal', open: () => openBotLogModal() }
             };
@@ -144,6 +145,7 @@
                     case 'python-exec-modal': closePythonExecDetail(skipHistory); break;
                     case 'skill-modal': if (window.closeSkillModal) window.closeSkillModal(skipHistory); break;
                     case 'compression-modal': if (window.closeCompressionModal) window.closeCompressionModal(skipHistory); break;
+                    case 'math-steps-config-modal': if (window.closeMathStepsModal) window.closeMathStepsModal(skipHistory); else hideModal(id); break;
                     case 'bot-admin-modal': if (window.closeBotAdminModal) window.closeBotAdminModal(skipHistory); break;
                     case 'bot-log-modal': if (window.closeBotLogModal) window.closeBotLogModal(skipHistory); break;
                     case 'mcp-decision-modal':

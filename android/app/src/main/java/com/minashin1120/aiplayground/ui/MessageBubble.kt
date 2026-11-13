@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ChatMessage
+import com.minashin1120.aiplayground.data.MathStepsConfig
 import com.minashin1120.aiplayground.data.ProcessingTime
 import com.minashin1120.aiplayground.data.TokenTotals
 import com.minashin1120.aiplayground.data.isAudioPath
@@ -165,6 +166,10 @@ internal fun MessageBubble(
     thoughtCollapsed: Boolean = false,
     preserveLiveLayout: Boolean = false,
     sendMotion: Modifier = Modifier,
+    /** The answer was requested with 数学ステップ: split it on the step headings. */
+    mathSteps: Boolean = false,
+    mathStepsActions: MathStepsActions = MathStepsActions(),
+    mathStepsConfig: MathStepsConfig = MathStepsConfig(),
 ) {
     val web = LocalWebPalette.current
     val user = message.role == "user"
@@ -249,10 +254,23 @@ internal fun MessageBubble(
                     liveSkeleton()
                 } else {
                     message.batch?.let { BatchStatusCard(it) }
-                    if (display.isNotEmpty()) MarkdownText(com.minashin1120.aiplayground.data.missingFileMarkup(display, message.missingFiles), loader, onFile,
-                        startCollapsed = true, canvasMode = LocalCanvasMode.current,
-                        flashQuote = flashQuote, flashAlpha = flash.value,
-                        onQuoteFlashLocated = onQuoteFlashLocated)
+                    if (display.isNotEmpty()) {
+                        val markup = com.minashin1120.aiplayground.data.missingFileMarkup(display, message.missingFiles)
+                        if (mathSteps) {
+                            MathStepsContent(
+                                text = markup, message = message, actions = mathStepsActions, config = mathStepsConfig,
+                                loader = loader, onOpen = onFile, startCollapsed = true,
+                                canvasMode = LocalCanvasMode.current,
+                                flashQuote = flashQuote, flashAlpha = flash.value,
+                                onQuoteFlashLocated = onQuoteFlashLocated,
+                            )
+                        } else {
+                            MarkdownText(markup, loader, onFile,
+                                startCollapsed = true, canvasMode = LocalCanvasMode.current,
+                                flashQuote = flashQuote, flashAlpha = flash.value,
+                                onQuoteFlashLocated = onQuoteFlashLocated)
+                        }
+                    }
                 }
                 liveBottom?.invoke()
                 val files = message.files.filterNot { !user && message.content.contains(it) }
@@ -288,7 +306,7 @@ internal fun MessageBubble(
                     LaunchedEffect(copied) { if (copied != null) { delay(2000); copied = null } }
                     val clipboard = LocalClipboardManager.current
                     ControlButton(when (copied) { true -> R.drawable.fa_solid_check; false -> R.drawable.fa_solid_times; null -> R.drawable.fa_solid_copy }, "コピー") {
-                        copied = runCatching { clipboard.setText(AnnotatedString(message.content)) }.isSuccess
+                        copied = runCatching { clipboard.setText(AnnotatedString(if (user) message.content else com.minashin1120.aiplayground.data.mathStepsCopyText(message.content))) }.isSuccess
                     }
                     if (user && persisted) ControlButton(R.drawable.fa_solid_pen, "編集") { actions.onEdit(message) }
                     if (!user) ControlButton(R.drawable.fa_solid_rotate_right, "再生成") { actions.onRegenerate(message) }

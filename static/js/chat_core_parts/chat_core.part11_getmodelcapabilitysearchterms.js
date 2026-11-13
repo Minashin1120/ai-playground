@@ -409,6 +409,9 @@
                 if (get('set-stt-model')) get('set-stt-model').value = d.stt_model || 'gpt-4o-mini-transcribe';
                 if (get('set-llm-transcribe-prompt')) get('set-llm-transcribe-prompt').value = d.llm_transcribe_prompt || '';
                 if (get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
+                if (typeof window.applyMathStepsSettings === 'function') window.applyMathStepsSettings(d);
+                if (get('set-math-steps-enabled')) get('set-math-steps-enabled').checked = d.math_steps_enabled === true;
+                if (get('set-default-math-steps')) get('set-default-math-steps').checked = d.default_math_steps === true;
                 if (get('set-compact-prompt-mode') || get('set-minimal-prompt-mode') || get('set-prompt-bar-mode-normal')) {
                     writePromptBarModeToForm(!!d.compact_prompt_mode, !!d.minimal_prompt_mode);
                 }
@@ -593,6 +596,8 @@
             if (String(data.thread_id || '') !== String(threadId || '')) return false;
             const wantFree = typeof geminiFreeTierChecked === 'function' && geminiFreeTierChecked();
             if (!!data.gemini_free_tier !== wantFree) return false;
+            const wantMathSteps = typeof window.collectMathStepsSendOption === 'function' ? window.collectMathStepsSendOption() : false;
+            if (!!data.math_steps !== wantMathSteps) return false;
             return String(data.parent_id || '') === String(parentId || '');
         }
 
@@ -611,6 +616,7 @@
                     thread_id: threadId,
                     parent_id: parentId,
                     gemini_free_tier: typeof geminiFreeTierChecked === 'function' && geminiFreeTierChecked(),
+                    math_steps: typeof window.collectMathStepsSendOption === 'function' ? window.collectMathStepsSendOption() : false,
                 }),
             });
             const data = await response.json().catch(() => ({}));

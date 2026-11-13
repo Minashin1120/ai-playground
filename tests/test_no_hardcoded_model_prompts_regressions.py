@@ -28,6 +28,8 @@ MECHANISM_PREFIX = "AUTO_SYSTEM_PROMPT_NOTICE_"
 ALLOWED = {
     ("server/background_coding.py", "CODING_MODE_SYSTEM_PROMPT", "[Coding Mode]"):
         "Coding Mode's own definition: the answer format is parsed, so the text is not user-editable.",
+    ("server/background_math_steps.py", "MATH_STEPS_FORMAT_PROMPT", "[Math Steps]"):
+        "Math Steps' own format definition: Web/Android parse the step headings and mathsvg fences, so it is not user-editable.",
     ("server/background_stream_gemini_image.py", "retry_prompt", "Return an image for this request"):
         "Internal retry of an image generation request, not a chat instruction.",
     ("server/agentic_media.py", "DEFAULT_LLM_TRANSCRIBE_PROMPT", "この音声を正確に"):

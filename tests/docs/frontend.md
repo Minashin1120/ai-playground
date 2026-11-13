@@ -15,6 +15,7 @@
 | [test_feedback_ui_requests.py](../test_feedback_ui_requests.py) | feedback / ui / requests |
 | [test_minimal_prompt_mode_regressions.py](../test_minimal_prompt_mode_regressions.py) | minimal / prompt / mode |
 | [test_modal_design_system_regressions.py](../test_modal_design_system_regressions.py) | モーダルの共通構造・共通CSS・ライトテーマ上書き |
+| [test_math_steps_ui.py](../test_math_steps_ui.py) | 数学ステップの描画・次へ/前へ・mathsvg・進捗保存・「もっとやさしく」 |
 | [test_modal_performance_regressions.py](../test_modal_performance_regressions.py) | modal / performance |
 | [test_processing_time_regressions.py](../test_processing_time_regressions.py) | 回答処理時間の表示・内訳モーダル |
 | [test_progress_spinner_regressions.py](../test_progress_spinner_regressions.py) | progress / spinner |

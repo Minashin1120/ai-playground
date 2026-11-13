@@ -115,6 +115,7 @@ internal fun MinimalOptionsPopup(
     onCompressionSettings: () -> Unit,
     onTemporarySettings: () -> Unit,
     onLyria: () -> Unit,
+    onMathStepsSettings: () -> Unit = {},
 ) {
     val web = LocalWebPalette.current
     val reduce = LocalReduceMotion.current
@@ -140,6 +141,8 @@ internal fun MinimalOptionsPopup(
             MinimalAction.Toggle(rules.canvas, on(state.canvasMode, rules.canvas), model::toggleCanvas)))
         if (rules.coding.visible) add(MinimalItem("coding", R.drawable.fa_solid_code_branch, "Coding",
             MinimalAction.Toggle(rules.coding, on(state.codingMode, rules.coding), model::toggleCoding)))
+        if (state.preferences?.mathStepsEnabled == true) add(MinimalItem("math-steps", R.drawable.fa_solid_lightbulb, "数学ステップ",
+            MinimalAction.Toggle(null, state.mathStepsMode, model::toggleMathSteps), gear = onMathStepsSettings))
         if (rules.batch.visible) add(MinimalItem("batch", R.drawable.fa_solid_layer_group, "Batch",
             MinimalAction.Toggle(rules.batch, on(state.batchMode, rules.batch), model::toggleBatchMode)))
         if (rules.geminiFree.visible) add(MinimalItem("gemini-free", R.drawable.fa_solid_tag, "無料枠",

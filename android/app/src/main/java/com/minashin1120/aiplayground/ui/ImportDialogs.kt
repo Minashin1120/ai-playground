@@ -54,6 +54,8 @@ internal val ACCOUNT_SETTING_LABELS = mapOf(
     "last_reasoning_effort" to "直前: Reasoning effort", "last_enable_system_prompt" to "直前: システムプロンプト", "last_enable_mcp" to "直前: MCP",
     "last_safety_setting" to "直前: 安全設定", "enable_latency_metrics" to "レスポンス速度の計測",
     "enable_client_debug_log" to "デバッグログの拡張送信",
+    "math_steps_enabled" to "数学ステップ解説", "math_steps_config" to "数学ステップの設定",
+    "default_math_steps" to "既定: 数学ステップ",
 )
 
 /** Web `importFormatBytes`. */

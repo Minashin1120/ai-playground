@@ -580,6 +580,7 @@
             chatDefaultsLoaded = true;
             // toggleOptions は DOMContentLoaded 内（part08）で定義され、window 経由で公開される。
             if (typeof window.toggleOptions === 'function') window.toggleOptions();
+            if (typeof window.applyMathStepsChatDefaults === 'function') window.applyMathStepsChatDefaults(d, useLast);
             applyMcpPromptChipUi();
         }
         function setEditUi(active) {
@@ -642,7 +643,8 @@
                 if (el) options[key] = el.type === 'checkbox' ? !!el.checked : el.value;
             }
             Object.assign(options, { canvas_mode: !!canvasModeEnabled, coding_mode: !!codingModeEnabled,
-                browser_fast_mode: !!browserFastModeEnabled, batch_mode: !!get('enable-batch-mode')?.checked });
+                browser_fast_mode: !!browserFastModeEnabled, batch_mode: !!get('enable-batch-mode')?.checked,
+                math_steps: (typeof window.collectMathStepsSendOption === 'function' ? window.collectMathStepsSendOption() : false) });
             const sys = get('enable-sys-prompt');
             return { model: get('model-select')?.value, prompt_options: options,
                 modelChosenManually, visionModel: currentVisionModel, mask: currentMaskImage,
@@ -722,6 +724,9 @@
             }
             if (Object.prototype.hasOwnProperty.call(options, 'canvas_mode')) {
                 syncCanvasModeUi(!!options.canvas_mode, { persist: false });
+            }
+            if (Object.prototype.hasOwnProperty.call(options, 'math_steps')) {
+                if (typeof window.setMathStepsEnabled === 'function') window.setMathStepsEnabled(!!options.math_steps, { persist: false });
             }
             if (Object.prototype.hasOwnProperty.call(options, 'coding_mode')) {
                 syncCodingModeUi(!!options.coding_mode, { persist: false });

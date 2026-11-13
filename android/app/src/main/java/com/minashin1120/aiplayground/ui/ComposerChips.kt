@@ -70,6 +70,24 @@ internal fun DetailsToggle(expanded: Boolean, onClick: () -> Unit, modifier: Mod
     }
 }
 
+/** Web `#enable-math-steps`: the 数学ステップ switch and its gear in the primary prompt bar. */
+@Composable
+internal fun MathStepsChip(
+    checked: Boolean,
+    onToggle: () -> Unit,
+    onSettings: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val web = LocalWebPalette.current
+    OptGroup(checked, modifier) {
+        GroupCheck(
+            "数学ステップ", checked, OptionRule(), onToggle,
+            if (web.isLight) Color(3, 105, 161) else Color(186, 230, 253),
+        )
+        MathStepsGear(onSettings)
+    }
+}
+
 /** `#standard-chat-controls` and `#temporary-chat-controls`. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

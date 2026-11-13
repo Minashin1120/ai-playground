@@ -71,10 +71,12 @@ internal class ChatComposer(
         fun active(p: Preferences?) = p != null && p.systemPrompt.isNotBlank() && p.systemPromptEnabled
         val before = current.preferences
         val next = current.copy(preferences = saved)
+        // Turning the master switch off also hides the prompt-bar switch on this device immediately.
+        val gated = if (saved.mathStepsEnabled) next else next.copy(mathStepsMode = false)
         val changed = before == null || before.systemPrompt != saved.systemPrompt || before.systemPromptEnabled != saved.systemPromptEnabled
-        if (!changed) return next
+        if (!changed) return gated
         val on = active(saved)
-        return if (next.sysPromptSuppressed) next.copy(sysPromptRestore = on) else next.copy(enableSystemPrompt = on)
+        return if (gated.sysPromptSuppressed) gated.copy(sysPromptRestore = on) else gated.copy(enableSystemPrompt = on)
     }
 
     /**
@@ -133,6 +135,7 @@ internal class ChatComposer(
         mutable.update { it.copy(model = model,
             canvasMode = it.canvasMode && !ocr,
             codingMode = it.codingMode && !ocr,
+            mathStepsMode = it.mathStepsMode && !ocr,
             codingTarget = if (ocr) null else it.codingTarget,
             imageMask = if (info.id.contains("gpt-image") || isIdeogramObjectRemoval(info.id, it.generationValues)) it.imageMask else null).let { next -> applyModelRules(next) } }
         state.value.account?.let { prefs.edit().putString("model_${it.id}", model).apply() }
@@ -196,8 +199,34 @@ internal class ChatComposer(
     fun togglePython() { mutable.update { it.copy(enablePython = !it.enablePython) } }
     fun toggleMcp() { mutable.update { it.copy(enableMcp = !it.enableMcp) } }
     fun toggleSkills() { mutable.update { it.copy(enableSkills = !it.enableSkills) } }
-    fun toggleCanvas() { mutable.update { it.copy(canvasMode = !it.canvasMode) } }
-    fun toggleCoding() { mutable.update { it.copy(codingMode = !it.codingMode) } }
+    fun toggleCanvas() {
+        val on = !state.value.canvasMode
+        if (on && state.value.mathStepsMode) notify("Canvasを開いたため数学ステップをオフにしました")
+        mutable.update { it.copy(canvasMode = on, mathStepsMode = if (on) false else it.mathStepsMode) }
+    }
+
+    fun toggleCoding() {
+        val on = !state.value.codingMode
+        if (on && state.value.mathStepsMode) notify("Coding Modeをオンにしたため数学ステップをオフにしました")
+        mutable.update { it.copy(codingMode = on, mathStepsMode = if (on) false else it.mathStepsMode) }
+    }
+
+    /** Web `enable-math-steps`: the whole feature is hidden unless the account master switch is ON. */
+    fun toggleMathSteps() {
+        if (state.value.preferences?.mathStepsEnabled != true) {
+            notify("設定の「数学ステップ解説を有効にする」をオンにしてください")
+            return
+        }
+        val on = !state.value.mathStepsMode
+        if (on && (state.value.canvasMode || state.value.codingMode)) {
+            notify("数学ステップではCanvas／Coding Modeを解除しました")
+        }
+        mutable.update { it.copy(
+            mathStepsMode = on,
+            canvasMode = if (on) false else it.canvasMode,
+            codingMode = if (on) false else it.codingMode,
+        ) }
+    }
     /** Web `selectCodingTargetFromButton` / `clear-coding-target-btn`; selecting does not turn Coding on. */
     fun selectCodingTarget(target: CodingTarget?) {
         mutable.update { it.copy(codingTarget = target) }

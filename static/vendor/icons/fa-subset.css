@@ -13,8 +13,8 @@
 .fa-xs{font-size:.75em}
 .fa-sm{font-size:.875em}
 .fa-lg{font-size:1.25em;line-height:.05em;vertical-align:-.075em}
-@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;font-display:swap;src:url(fa-solid-subset.woff2?h=bf1995683a) format("woff2")}
-@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:400;font-display:swap;src:url(fa-regular-subset.woff2?h=ac55f0d96e) format("woff2")}
+@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;font-display:swap;src:url(fa-solid-subset.woff2?h=bbebd3dc8b) format("woff2")}
+@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:400;font-display:swap;src:url(fa-regular-subset.woff2?h=90d17abbc5) format("woff2")}
 @font-face{font-family:"Font Awesome 6 Brands";font-style:normal;font-weight:400;font-display:swap;src:url(fa-brands-subset.woff2?h=1c2d4c8983) format("woff2")}
 .fa-align-left:before{content:"\f036"}
 .fa-arrow-down:before{content:"\f063"}
@@ -37,6 +37,7 @@
 .fa-chevron-right:before{content:"\f054"}
 .fa-chevron-up:before{content:"\f077"}
 .fa-circle-info:before{content:"\f05a"}
+.fa-circle-notch:before{content:"\f1ce"}
 .fa-circle-question:before{content:"\f059"}
 .fa-clapperboard:before{content:"\e131"}
 .fa-clock-rotate-left:before{content:"\f1da"}
@@ -64,10 +65,10 @@
 .fa-file-upload:before{content:"\f574"}
 .fa-fingerprint:before{content:"\f577"}
 .fa-folder:before{content:"\f07b"}
-.fa-gem:before{content:"\f3a5"}
 .fa-github:before{content:"\f09b"}
 .fa-globe:before{content:"\f0ac"}
 .fa-google:before{content:"\f1a0"}
+.fa-graduation-cap:before{content:"\f19d"}
 .fa-headset:before{content:"\f590"}
 .fa-highlighter:before{content:"\f591"}
 .fa-history:before{content:"\f1da"}

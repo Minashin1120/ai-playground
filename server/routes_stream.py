@@ -210,6 +210,11 @@ def chat_stream():
                 and default_target_id == coding_candidates[0]['id']
             ),
         }
+    math_steps = data.get('math_steps') is True
+    math_steps_config = (
+        normalize_math_steps_config(getattr(current_user, 'math_steps_config', None))
+        if math_steps else None
+    )
     resolved_auth = _resolve_chat_model_auth(current_user, model_key, gemini_free_tier=data.get('gemini_free_tier'))
     if resolved_auth.get("error_code"):
         return jsonify({
@@ -368,7 +373,7 @@ def chat_stream():
             skill_name=skill_name_val,
             prompt_options=_build_prompt_options_record(
                 data,
-                {'browser_fast_mode': False, 'batch_mode': batch_mode, 'coding_mode': coding_mode},
+                {'browser_fast_mode': False, 'batch_mode': batch_mode, 'coding_mode': coding_mode, 'math_steps': math_steps},
             ),
         )
         db.session.add(user_msg)
@@ -548,6 +553,8 @@ def chat_stream():
         'coding_mode': coding_mode,
         'coding_target': coding_target if coding_mode else None,
         'coding_candidates': coding_candidates if coding_mode else [],
+        'math_steps': math_steps,
+        'math_steps_config': math_steps_config,
         'batch_mode': batch_mode,
     }
     # Persist prompt-cache flags on the thread (provider locked while enabled)

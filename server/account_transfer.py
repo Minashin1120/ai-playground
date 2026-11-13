@@ -16,6 +16,7 @@ ACCOUNT_SETTING_FIELDS = (
     "llm_transcribe_prompt", "enter_to_send", "use_sw_cache", "clear_cache_on_version_update",
     "theme_color", "liquid_glass_enabled", "light_mode_enabled", "auto_search_on_links", "compact_prompt_mode",
     "minimal_prompt_mode",
+    "math_steps_enabled", "math_steps_config", "default_math_steps",
     "use_last_chat_settings", "voice_studio_ui", "temp_chat_timeout_seconds", "default_model",
     "default_enable_search", "default_gemini_free_tier", "default_enable_url_context", "default_enable_maps",
     "default_enable_python", "default_enable_file_creation", "default_enable_thinking", "default_thinking_level",
@@ -39,6 +40,7 @@ ACCOUNT_BOOL_SETTING_FIELDS = frozenset({
     "enter_to_send", "use_sw_cache", "clear_cache_on_version_update", "liquid_glass_enabled", "light_mode_enabled",
     "auto_search_on_links", "compact_prompt_mode", "minimal_prompt_mode", "use_last_chat_settings",
     "voice_studio_ui",
+    "math_steps_enabled", "default_math_steps",
     "default_enable_search", "default_gemini_free_tier", "default_enable_url_context", "default_enable_maps",
     "default_enable_python", "default_enable_file_creation", "default_enable_thinking", "default_enable_system_prompt",
     "default_enable_mcp",
@@ -54,6 +56,7 @@ ACCOUNT_TEXT_SETTING_LIMITS = {
     "auto_system_prompt_notices_config": 500_000,
     "llm_transcribe_prompt": 100_000,
     "rich_paste_prompt_default": 100_000,
+    "math_steps_config": 20_000,
 }
 ACCOUNT_TRANSFER_JOB_RE = re.compile(r"^[a-f0-9]{32}$")
 ACCOUNT_EXPORT_RETENTION_SECONDS = 3600
@@ -411,6 +414,11 @@ def _account_export_threads(user_id):
         for message in Message.query.filter_by(thread_id=thread.id).order_by(Message.id.asc()).all():
             content = decrypt_val(message.content) if message.is_encrypted else message.content
             thought = decrypt_val(message.thought_data) if message.is_encrypted and message.thought_data else message.thought_data
+            math_steps_state = (
+                decrypt_val(message.math_steps_state)
+                if message.is_encrypted and message.math_steps_state
+                else message.math_steps_state
+            )
             messages.append({
                 "export_id": message.id,
                 "parent_export_id": message.parent_id,
@@ -427,6 +435,7 @@ def _account_export_threads(user_id):
                 "quote_text": message.quote_text,
                 "thought_signature": message.thought_signature,
                 "prompt_options": message.prompt_options,
+                "math_steps_state": math_steps_state,
                 "skill_uuid": message.skill_uuid,
                 "skill_name": message.skill_name,
                 # Legacy aliases so older app versions can import new archives.
@@ -886,6 +895,12 @@ def _normalize_imported_account_settings(user, values):
                 value = _normalize_temp_chat_timeout_seconds(value)
             else:
                 value = max(0, min(value, 32768))
+        elif field == "math_steps_config":
+            # Old archives and users who never opened the gear export null.
+            # Treat that as "no change" instead of writing the defaults.
+            if value is None or value == "":
+                continue
+            value = dump_math_steps_config(value)
         else:
             value = _safe_account_import_text(value, ACCOUNT_TEXT_SETTING_LIMITS.get(field, 4096))
         if field in {"default_model", "default_vision_model", "last_model"} and value not in ALL_VALID_MODEL_IDS:

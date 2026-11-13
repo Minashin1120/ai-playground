@@ -42,7 +42,7 @@ private val SVG_CODE_END = Regex("</svg\\s*>$", RegexOption.IGNORE_CASE)
 
 /** Web `getRenderableSvgCode`: a closed ```svg fence (or ```xml holding one `<svg>` document) is also drawn. */
 internal fun renderableSvgCode(language: String, text: String): String? {
-    if (language.lowercase() !in setOf("svg", "xml", "image/svg+xml")) return null
+    if (language.lowercase() !in setOf("svg", "xml", "image/svg+xml", "mathsvg")) return null
     val code = text.trim()
     if (code.isEmpty() || code.length > 300_000) return null
     val body = SVG_CODE_PROLOG.replaceFirst(code, "")
@@ -210,6 +210,8 @@ private fun parseBlocks(lines: List<String>): List<MarkdownBlock> {
                     // Web keeps Python runs out of the answer body (they open from the footer button).
                     "pyexec" -> Unit
                     "chat_error" -> result += MarkdownBlock.ChatError(text)
+                    // Web `mathsvg`: the drawing only, never the usual code header/preview/download UI.
+                    "mathsvg" -> if (closed) renderableSvgCode(language, text)?.let { result += MarkdownBlock.Svg(it, fromCode = true) }
                     else -> {
                         // A fence still open while the answer streams stays code until it closes.
                         if (closed) renderableSvgCode(language, text)?.let { result += MarkdownBlock.Svg(it, fromCode = true) }

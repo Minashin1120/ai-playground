@@ -22,7 +22,7 @@ def build():
     import app as target  # noqa: E402  (shared namespace of all server parts)
 
     notices = target._build_default_auto_system_prompt_notices_config()
-    return {
+    payload = {
         'format': 'ai-playground-serverless-defaults',
         'version': 1,
         'default_model': target.User.default_model.default.arg,
@@ -33,6 +33,12 @@ def build():
         },
         'coding_mode_system_prompt': target.CODING_MODE_SYSTEM_PROMPT,
     }
+    # Added with the 「数学ステップ解説」server prompt module; the key stays absent until then so
+    # --check keeps passing on servers that do not have it yet.
+    math_steps_prompt = getattr(target, 'MATH_STEPS_FORMAT_PROMPT', '')
+    if math_steps_prompt:
+        payload['math_steps_system_prompt'] = math_steps_prompt
+    return payload
 
 
 def render(payload):

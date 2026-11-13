@@ -49,7 +49,12 @@ fun writeThreadPdf(title: String, generatedAt: String, messages: List<ChatMessag
     if (generatedAt.isNotBlank()) drawLayout(generatedAt, metaPaint, 16)
     messages.forEach { message ->
         drawLayout(if (message.role == "user") "あなた" else "AI", headerPaint, 4)
-        drawLayout(message.content.ifBlank { "（本文なし）" }, bodyPaint, 16)
+        val bodyText = if (message.role == "assistant") {
+            mathStepsPdfText(message.content, message.mathStepsState).ifBlank { "（本文なし）" }
+        } else {
+            message.content.ifBlank { "（本文なし）" }
+        }
+        drawLayout(bodyText, bodyPaint, 16)
     }
 
     document.finishPage(page)

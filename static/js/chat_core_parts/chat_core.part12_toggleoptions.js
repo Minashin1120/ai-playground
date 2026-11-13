@@ -472,6 +472,13 @@
                         }
                         const raw = c || '';
                         const lowerLang = (l || '').toLowerCase();
+                        if (lowerLang === 'mathsvg') {
+                            // 数学ステップの図: 画像だけを描き、コード用のUIは出さない。
+                            const mathSvgCode = getRenderableSvgCode('mathsvg', raw);
+                            return mathSvgCode && typeof window.buildMathSvgRenderHtml === 'function'
+                                ? window.buildMathSvgRenderHtml(mathSvgCode)
+                                : '';
+                        }
                         let h = '';
                         try {
                             const lang = hljs.getLanguage(l) ? l : 'plaintext';

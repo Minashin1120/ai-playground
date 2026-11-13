@@ -58,6 +58,7 @@ internal object ChatSendRequest {
             .put("enable_skills", current.enableSkills)
             .put("coding_mode", current.codingMode)
             .put("canvas_mode", current.canvasMode)
+            .put("math_steps", current.mathStepsMode && current.preferences?.mathStepsEnabled == true)
             .put("temporary_chat", current.selected?.isTemporary ?: current.newThreadTemporary)
             .put("disable_auto_search", disableAutoSearch)
         current.imageMask?.let { body.put("image_mask", it) }

@@ -367,6 +367,13 @@ internal class ChatGraph(
         reloadThread = { id -> loadMessages(id) },
         openThread = { id -> openThreadId(id) },
     )
+    /** 数学ステップの進捗保存と「もっとやさしく」([ChatMathSteps])。 */
+    internal val mathSteps: ChatMathSteps = ChatMathSteps(
+        mutable = mutable,
+        scope = viewModelScope,
+        backend = { backend },
+        token = { token() },
+    )
     /** Skill の一覧・保存・削除と、このチャットに適用する Skill。 */
     internal val skills: ChatSkills = ChatSkills(
         state = state,
@@ -643,7 +650,7 @@ internal class ChatGraph(
         banState = banState,
         connection = connection,
         jobs = { listOf(pairingJob, navigationJob, threadListJob, streamJob, attachmentUploader.activeJob,
-            foreground.heartbeat, libraryJob, preferences.activeJob, batchPollJob, importJob) },
+            foreground.heartbeat, libraryJob, preferences.activeJob, batchPollJob, importJob, mathSteps.activeJob) },
         saveSession = { session = it },
     )
     /** The library's running list request (BAN・ログアウトで止める対象)。 */

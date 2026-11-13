@@ -732,6 +732,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     combined_prompt = f"{combined_prompt}\n\n{CODING_MODE_SYSTEM_PROMPT}"
                 else:
                     combined_prompt = CODING_MODE_SYSTEM_PROMPT
+            if options.get("math_steps"):
+                math_steps_prompt = build_math_steps_system_prompt(
+                    normalize_math_steps_config(options.get("math_steps_config"))
+                )
+                combined_prompt = (
+                    f"{combined_prompt}\n\n{math_steps_prompt}" if combined_prompt else math_steps_prompt
+                )
             
             options['system_prompt'] = combined_prompt
 

@@ -18,6 +18,8 @@ internal fun ChatState.withNewChatDefaults(preserveSelectedModel: Boolean = fals
         enableFileCreation = if (useLast) saved.lastEnableFileCreation else saved.defaultEnableFileCreation,
         enableSystemPrompt = if (useLast) saved.lastEnableSystemPrompt else saved.defaultEnableSystemPrompt,
         enableMcp = if (useLast) saved.lastEnableMcp else saved.defaultEnableMcp,
+        // 前回の設定を継続: the switch keeps the state the user used last in this session.
+        mathStepsMode = saved.mathStepsEnabled && (if (useLast) mathStepsMode else saved.defaultMathSteps),
         enableSkills = true,
         sysPromptSuppressed = false,
         sysPromptRestore = false,

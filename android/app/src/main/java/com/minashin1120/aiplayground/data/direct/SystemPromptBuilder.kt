@@ -4,6 +4,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import com.minashin1120.aiplayground.data.MathStepsConfig
+import com.minashin1120.aiplayground.data.mathStepsConfig
 
 /**
  * Port of the server's system prompt assembly (`background.py` "System Prompt Construction"): the Skill
@@ -44,6 +46,10 @@ object SystemPromptBuilder {
         if (local.isNotEmpty()) combined = if (combined.isNotEmpty()) "$combined\n\n[Chat Specific Instructions]:\n$local" else local
         if (body.flag("coding_mode") && defaults.codingModePrompt.isNotBlank()) {
             combined = if (combined.isNotEmpty()) "$combined\n\n${defaults.codingModePrompt}" else defaults.codingModePrompt
+        }
+        if (body.flag("math_steps") && defaults.mathStepsPrompt.isNotBlank()) {
+            val math = fillMathStepsPrompt(defaults.mathStepsPrompt, preferences.mathStepsConfig())
+            combined = if (combined.isNotEmpty()) "$combined\n\n$math" else math
         }
         val notices = Notices(preferences, defaults)
         if (notices.enabled("skills") && body.optBoolean("enable_skills", true)) {
@@ -154,6 +160,18 @@ object SystemPromptBuilder {
     fun timeNotice(now: ZonedDateTime): String =
         "Current time: ${now.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss zzz"))} (UTC${now.format(DateTimeFormatter.ofPattern("xx"))})"
 
+    /** Server `build_math_steps_system_prompt`: fills the five config placeholders. */
+    fun fillMathStepsPrompt(template: String, config: MathStepsConfig): String {
+        var rendered = template.replace("\r\n", "\n")
+        config.promptValues().forEach { (key, value) ->
+            val regex = Regex("\\{\\{\\s*${Regex.escape(key)}\\s*\\}\\}|\\{${Regex.escape(key)}\\}")
+            rendered = regex.replace(rendered, Regex.escapeReplacement(value))
+        }
+        // The server template also caps the number of steps (MATH_STEPS_MAX_STEPS).
+        rendered = Regex("\\{\\{\\s*math_max_steps\\s*\\}\\}|\\{math_max_steps\\}").replace(rendered, "50")
+        return rendered.trim()
+    }
+
     private class Notices(private val preferences: JSONObject, private val defaults: ServerlessDefaults) {
         private val config = preferences.optJSONObject("auto_system_prompt_notices_config")
         private val all = preferences.optBoolean("apply_auto_system_prompt_notices", true)
@@ -170,6 +188,8 @@ object SystemPromptBuilder {
  */
 class ServerlessDefaults(val json: JSONObject) {
     val codingModePrompt: String get() = json.optString("coding_mode_system_prompt")
+    /** 「数学ステップ解説」format-critical prompt (added to the asset once the server module exists). */
+    val mathStepsPrompt: String get() = json.optString("math_steps_system_prompt")
     fun noticeText(key: String): String =
         json.optJSONObject("auto_system_prompt_notices_config")?.optJSONObject(key)?.optString("text").orEmpty()
     val noticesConfig: JSONObject get() = json.optJSONObject("auto_system_prompt_notices_config") ?: JSONObject()

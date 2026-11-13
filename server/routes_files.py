@@ -270,6 +270,13 @@ def handle_thread_item(thread_id):
                 prompt_options = json.loads(m.prompt_options) if m.prompt_options else None
             except (TypeError, ValueError):
                 prompt_options = None
+            try:
+                raw_math_steps_state = m.math_steps_state
+                if raw_math_steps_state and m.is_encrypted:
+                    raw_math_steps_state = decrypt_val(raw_math_steps_state)
+                math_steps_state = json.loads(raw_math_steps_state) if raw_math_steps_state else None
+            except (TypeError, ValueError):
+                math_steps_state = None
             tht = decrypt_val(m.thought_data) if (m.is_encrypted and m.thought_data) else m.thought_data
             thought_text = extract_reasoning_text(tht)
             token_in = None
@@ -332,6 +339,7 @@ def handle_thread_item(thread_id):
                 'image_url': m.image_url, 
                 'model': m.model, 
                 'prompt_options': prompt_options if isinstance(prompt_options, dict) else None,
+                'math_steps_state': math_steps_state if isinstance(math_steps_state, dict) else None,
                 'thought_data': tht,
                 'tokens': token_total,
                 'tokens_in': token_in,

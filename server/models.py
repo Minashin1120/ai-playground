@@ -44,6 +44,10 @@ class User(UserMixin, db.Model):
     minimal_prompt_mode = db.Column(db.Boolean, default=False)
     use_last_chat_settings = db.Column(db.Boolean, default=False)
     voice_studio_ui = db.Column(db.Boolean, default=True)
+    # 数学ステップ解説: 全体スイッチ、詳細設定JSON、プロンプトバーの既定値
+    math_steps_enabled = db.Column(db.Boolean, default=False)
+    math_steps_config = db.Column(db.Text, nullable=True)
+    default_math_steps = db.Column(db.Boolean, default=False)
     temp_chat_timeout_seconds = db.Column(db.Integer, default=_TEMP_CHAT_DEFAULT_TIMEOUT_SECONDS)
     default_model = db.Column(db.String(64), default="gemini-3.6-flash")
     default_enable_search = db.Column(db.Boolean, default=False)
@@ -180,6 +184,8 @@ class Message(db.Model):
     skill_name = db.Column(db.String(100), nullable=True)
     # 送信時のプロンプト設定と添付参照（JSON。ユーザー発言のみ。本文・画像そのものではなく設定とファイル参照を保存する）
     prompt_options = db.Column(db.Text, nullable=True)
+    # 数学ステップの進捗（JSON: current / max_reached / simplified）
+    math_steps_state = db.Column(db.Text, nullable=True)
     # 回答を生成したジョブ。処理時間の内訳（chat_latency_trace）と回答を結び付ける。
     job_id = db.Column(db.String(64), nullable=True, index=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('message.id'), nullable=True)

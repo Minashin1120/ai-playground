@@ -1,3 +1,4 @@
+        //! @chat-core-bundle-split: scripts/build_frontend.sh starts the next browser file here (see README.md).
         function buildSvgCodeRenderHtml(code, key) {
             let fill = true;
             const markup = String(code || '').replace(/<svg\b([^>]*)>/i, (tag, attrs) => {
@@ -908,9 +909,17 @@
         }
         window.closePythonExecDetail = closePythonExecDetail;
 
-        function buildAiMarkdownHtml(text) {
+        function buildAiMarkdownHtml(text, opts = {}) {
             const mcpExtract = extractMcpExecutionNotesFromContent(text);
             const displayText = appendMcpExecutionNotes(mcpExtract.text, mcpExtract.notes);
+            // 数学ステップ: 見出しがあれば1ステップずつ表示する（なければ通常のMarkdown）。
+            if (typeof window.buildMathStepsBubbleHtml === 'function') {
+                const stepsHtml = window.buildMathStepsBubbleHtml(displayText, opts);
+                if (stepsHtml) {
+                    if (!lowBandwidthMode && maybeNeedsMathJax(displayText)) ensureMathJaxLoaded().catch(() => {});
+                    return stepsHtml;
+                }
+            }
             const canvasData = canvasModeEnabled ? parseCanvasMarkdown(displayText) : { renderText: displayText, blocks: [], primaryBlock: null, rawText: displayText };
             if (canvasModeEnabled) {
                 updateCanvasPreviewState(canvasData);
@@ -930,6 +939,12 @@
             if (!container) return;
             const mcpExtract = extractMcpExecutionNotesFromContent(text);
             const displayText = appendMcpExecutionNotes(mcpExtract.text, mcpExtract.notes);
+            if (typeof window.renderMathStepsInto === 'function' && window.renderMathStepsInto(container, displayText, opts)) {
+                if (!lowBandwidthMode) {
+                    if (maybeNeedsMathJax(displayText)) ensureMathJaxLoaded().catch(() => {});
+                }
+                return;
+            }
             const canvasData = canvasModeEnabled ? parseCanvasMarkdown(displayText) : { renderText: displayText, blocks: [], primaryBlock: null, rawText: displayText };
             if (canvasModeEnabled) {
                 updateCanvasPreviewState(canvasData);

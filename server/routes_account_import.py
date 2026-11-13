@@ -584,6 +584,13 @@ def import_account_data():
                         content = _rewrite_imported_file_links(content, file_map, current_user.id)
                         thought = _safe_account_import_text(message_item.get("thought_data"), 20_000_000) if message_item.get("thought_data") else None
                         encrypted = bool(current_user.enable_e2ee)
+                        math_steps_state = (
+                            _dump_math_steps_state(
+                                _safe_account_import_text(message_item.get("math_steps_state"), 200_000)
+                            ) if message_item.get("math_steps_state") else None
+                        )
+                        if math_steps_state and encrypted:
+                            math_steps_state = encrypt_val(math_steps_state)
                         message = Message(
                             thread_id=thread.id,
                             role=_safe_account_import_text(message_item.get("role"), 20)[:20],
@@ -600,6 +607,7 @@ def import_account_data():
                             is_encrypted=encrypted,
                             thought_signature=_safe_account_import_text(message_item.get("thought_signature"), 20_000_000) if message_item.get("thought_signature") else None,
                             prompt_options=_safe_account_import_text(message_item.get("prompt_options"), 100_000) if message_item.get("prompt_options") else None,
+                            math_steps_state=math_steps_state,
                             skill_uuid=skill_uuid_map.get(str(
                                 message_item.get("skill_uuid") or message_item.get("gem_uuid") or ""
                             )),

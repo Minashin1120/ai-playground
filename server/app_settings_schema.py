@@ -845,6 +845,42 @@ def ensure_user_voice_studio_ui_column():
     except Exception:
         pass
 
+def ensure_user_math_steps_columns():
+    try:
+        with db.engine.connect() as conn:
+            columns = [
+                ("math_steps_enabled", "ALTER TABLE user ADD COLUMN math_steps_enabled BOOLEAN DEFAULT 0"),
+                ("math_steps_config", "ALTER TABLE user ADD COLUMN math_steps_config TEXT"),
+                ("default_math_steps", "ALTER TABLE user ADD COLUMN default_math_steps BOOLEAN DEFAULT 0"),
+            ]
+            for column_name, ddl in columns:
+                res = conn.execute(text(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                    "WHERE TABLE_SCHEMA=DATABASE() "
+                    "AND TABLE_NAME='user' "
+                    "AND COLUMN_NAME=:column_name"
+                ), {"column_name": column_name}).scalar()
+                if not res:
+                    conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                    conn.execute(text(ddl))
+    except Exception:
+        pass
+
+def ensure_message_math_steps_state_column():
+    try:
+        with db.engine.connect() as conn:
+            res = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() "
+                "AND TABLE_NAME='message' "
+                "AND COLUMN_NAME='math_steps_state'"
+            )).scalar()
+            if not res:
+                conn.execute(text("SET SESSION lock_wait_timeout=1"))
+                conn.execute(text("ALTER TABLE message ADD COLUMN math_steps_state TEXT"))
+    except Exception:
+        pass
+
 def ensure_skill_fixed_prompts_column():
     try:
         from sqlalchemy import text

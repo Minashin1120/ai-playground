@@ -198,6 +198,7 @@ _MOBILE_PREFERENCE_BOOLS = (
     'default_enable_maps', 'default_enable_python', 'default_enable_file_creation',
     'default_enable_system_prompt', 'default_enable_mcp',
     'use_last_chat_settings', 'voice_studio_ui', 'liquid_glass_enabled',
+    'math_steps_enabled', 'default_math_steps',
     'system_prompt_enabled', 'apply_global_system_prompt',
     'apply_auto_system_prompt_notices', 'skip_2fa_on_google_login',
     'rich_paste_prompt_use_custom_default', 'enable_latency_metrics', 'enable_client_debug_log',
@@ -273,6 +274,9 @@ def _mobile_preferences_payload():
         'auto_search_on_links': bool(user.auto_search_on_links) if user.auto_search_on_links is not None else True,
         'use_last_chat_settings': bool(user.use_last_chat_settings),
         'voice_studio_ui': bool(user.voice_studio_ui) if getattr(user, 'voice_studio_ui', None) is not None else True,
+        'math_steps_enabled': bool(getattr(user, 'math_steps_enabled', False)),
+        'math_steps_config': normalize_math_steps_config(getattr(user, 'math_steps_config', None)),
+        'default_math_steps': bool(getattr(user, 'default_math_steps', False)),
         'compact_prompt_mode': bool(getattr(user, 'compact_prompt_mode', False)),
         'minimal_prompt_mode': bool(getattr(user, 'minimal_prompt_mode', False)),
         'prompt_bar_mode': _mobile_prompt_bar_mode(user),
@@ -410,6 +414,8 @@ def mobile_preferences():
     for key in _MOBILE_PREFERENCE_BOOLS:
         if key in data:
             setattr(current_user, key, bool(data[key]))
+    if 'math_steps_config' in data:
+        current_user.math_steps_config = dump_math_steps_config(data.get('math_steps_config'))
     if 'prompt_bar_mode' in data:
         mode = str(data.get('prompt_bar_mode') or '').strip()
         if mode not in _MOBILE_PROMPT_BAR_MODES:

@@ -38,7 +38,7 @@ class PythonExecUiRegressionTests(unittest.TestCase):
         self.assertIn("python_executions:", source)
         self.assertIn('class="python-exec-btn"', source)
         self.assertIn("openPythonExecDetail('${id}')", source)
-        self.assertIn("buildAiMarkdownHtml(displayText)", source)
+        self.assertIn("buildAiMarkdownHtml(displayText", source)
         self.assertIn("function showPythonExecDetailModal(messageId = null)", source)
         self.assertIn("history.pushState(state, '', '/python-execution')", source)
         self.assertIn("if (!skipHistory && location.pathname === '/python-execution')", source)

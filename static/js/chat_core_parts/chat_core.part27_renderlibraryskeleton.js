@@ -338,7 +338,8 @@
             );
         };
         window.copyMessage = (id, btn) => {
-            const txt = messageStore[id] || "";
+            const raw = messageStore[id] || "";
+            const txt = typeof window.prepareMathStepsCopyText === 'function' ? window.prepareMathStepsCopyText(raw) : raw;
             copyToClipboard(txt,
                 () => { btn.innerHTML = '<i class="fas fa-check"></i>'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 2000); },
                 (err) => { console.error(err); btn.innerHTML = '<i class="fas fa-times"></i>'; setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i>', 2000); }

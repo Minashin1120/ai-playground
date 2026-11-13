@@ -28,7 +28,9 @@ data class ChatMessage(val id: String, val role: String, val content: String,
                        /** `created_at` (UTC ISO), shown as 作成 in the branch manager. */
                        val createdAt: String = "", val promptOptions: JSONObject? = null, val missingFiles: Set<String> = emptySet(),
                        /** UI-only identity retained when sync replaces a pending message id. Never sent to the server. */
-                       val conversationKey: String? = null)
+                       val conversationKey: String? = null,
+                       /** Server `math_steps_state`: step progress and simplified step texts. */
+                       val mathStepsState: MathStepsState? = null)
 /**
  * One composer attachment (Web `#upload-list` row). [name] is the send name ("送信名"), [defaultName] what it
  * falls back to; [source] is Web `upload` / `library`. After an image edit, [original] keeps the pre-edit file,
@@ -221,6 +223,10 @@ data class Preferences(
     val migrationProgress: String = "",
     val defaultGeminiFreeTier: Boolean = false,
     val lastGeminiFreeTier: Boolean = false,
+    /** 「数学ステップ解説」master switch, prompt-bar default and the gear options (`math_steps_*`). */
+    val mathStepsEnabled: Boolean = false,
+    val mathStepsConfig: MathStepsConfig = MathStepsConfig(),
+    val defaultMathSteps: Boolean = false,
 ) {
     val effectivePromptBarMode: String
         get() = when {
@@ -386,6 +392,9 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
     migrationProgress = json.nullableString("migration_progress"),
     defaultGeminiFreeTier = json.optBoolean("default_gemini_free_tier"),
     lastGeminiFreeTier = json.optBoolean("last_gemini_free_tier"),
+    mathStepsEnabled = json.optBoolean("math_steps_enabled"),
+    mathStepsConfig = json.mathStepsConfig(),
+    defaultMathSteps = json.optBoolean("default_math_steps"),
 )
 
 /** Server mask for stored secrets (Web `_SECRET_MASK`): sending it back keeps the stored value. */
@@ -653,7 +662,8 @@ fun parseMessages(json: JSONObject): List<ChatMessage> {
             batch = parseBatchInfo(row), processing = parseProcessingTime(row.optJSONObject("processing_time")),
             createdAt = row.nullableString("created_at"),
             promptOptions = row.optJSONObject("prompt_options"),
-            missingFiles = row.optJSONArray("missing_files")?.strings()?.toSet() ?: emptySet())
+            missingFiles = row.optJSONArray("missing_files")?.strings()?.toSet() ?: emptySet(),
+            mathStepsState = MathStepsState.parse(row.opt("math_steps_state")))
     }
 }
 
@@ -1076,7 +1086,7 @@ internal fun reasoningText(raw: String): String {
 /** Match the server prompt-options allowlist; never persist request text or credentials here. */
 internal fun promptOptionsRecord(body: JSONObject): JSONObject = JSONObject().apply {
     listOf(
-        "turn_time_notice", "canvas_mode", "coding_mode", "browser_fast_mode", "batch_mode", "enable_search", "gemini_free_tier",
+        "turn_time_notice", "canvas_mode", "coding_mode", "math_steps", "browser_fast_mode", "batch_mode", "enable_search", "gemini_free_tier",
         "enable_url_context", "enable_maps", "enable_python", "enable_file_creation", "enable_mcp",
         "enable_skills", "enable_thinking", "thinking_level", "thinking_budget", "reasoning_effort", "safety_setting",
         "enable_prompt_caching", "image_vision_model", "image_mask", "tts_voice", "tts_voice_custom",

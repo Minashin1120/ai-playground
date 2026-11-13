@@ -107,6 +107,8 @@
                 liquid_glass_enabled: 'Liquid Glass', light_mode_enabled: 'ライトモード', auto_search_on_links: 'リンクで自動検索',
                 compact_prompt_mode: 'プロンプトバー表示（コンパクト）', minimal_prompt_mode: 'プロンプトバー表示（ミニマル）',
                 use_last_chat_settings: '直前のチャット設定を使用', voice_studio_ui: '音声スタジオUI',
+                math_steps_enabled: '数学ステップ解説', math_steps_config: '数学ステップの設定',
+                default_math_steps: '既定: 数学ステップ',
                 temp_chat_timeout_seconds: '一時チャットの有効時間（秒）', default_model: '既定のモデル',
                 default_enable_search: '既定: Search', default_gemini_free_tier: '既定: Gemini無料枠', default_enable_url_context: '既定: URLコンテキスト',
                 default_enable_maps: '既定: Maps', default_enable_python: '既定: Python',
@@ -121,7 +123,7 @@
                 last_enable_maps: '直前: Maps', last_enable_python: '直前: Python', last_enable_file_creation: '直前: File', last_enable_thinking: '直前: Thinking',
                 last_thinking_level: '直前: Thinkingレベル', last_thinking_budget: '直前: Thinking budget',
                 last_reasoning_effort: '直前: Reasoning effort', last_enable_system_prompt: '直前: システムプロンプト', last_enable_mcp: '直前: MCP',
-                last_safety_setting: '直前: 安全設定', enable_latency_metrics: 'レスポンス速度の計測',
+                last_safety_setting: '直前: 安全設定', last_math_steps: '直前: 数学ステップ', enable_latency_metrics: 'レスポンス速度の計測',
                 enable_client_debug_log: 'デバッグログの拡張送信',
             };
             const formatAccountSettingValue = (value) => {

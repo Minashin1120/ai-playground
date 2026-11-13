@@ -71,9 +71,10 @@ class ChatLoadingRegressionTests(unittest.TestCase):
         self.assertNotIn("typesetClear", incremental)
 
         # All three generation paths (browser-fast, normal, resume) and their final
-        # renders must opt into the DOM-preserving renderer.
-        self.assertEqual(source.count("renderAiMarkdownInto(contentEl, content, { incrementalMath: true })"), 2)
-        self.assertEqual(source.count("renderAiMarkdownInto(cEl, acc, { incrementalMath: true })"), 4)
+        # renders must opt into the DOM-preserving renderer.  Extra renderer options
+        # (streaming / math steps) may follow incrementalMath, so match the prefix.
+        self.assertEqual(source.count("renderAiMarkdownInto(contentEl, content, { incrementalMath: true"), 2)
+        self.assertEqual(source.count("renderAiMarkdownInto(cEl, acc, { incrementalMath: true"), 4)
 
     def test_prompt_cache_ui_helper_is_available_to_thread_loader(self):
         source = _current_chat_core_source()

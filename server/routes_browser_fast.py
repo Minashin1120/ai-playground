@@ -144,7 +144,7 @@ def bootstrap_browser_fast_mode():
         else:
             parent_message = Message.query.filter_by(thread_id=thread.id).order_by(Message.id.desc()).first()
 
-    response = jsonify({
+    response_payload = {
         'status': 'ok',
         'api_key': api_key,
         'key_source': key_source,
@@ -152,7 +152,12 @@ def bootstrap_browser_fast_mode():
         'thread_id': thread.public_id if thread else None,
         'parent_id': parent_message.id if parent_message else None,
         'history': _browser_fast_mode_history(thread, parent_message),
-    })
+    }
+    if data.get('math_steps') is True:
+        response_payload['math_steps_system_prompt'] = build_math_steps_system_prompt(
+            normalize_math_steps_config(getattr(current_user, 'math_steps_config', None))
+        )
+    response = jsonify(response_payload)
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, private'
     response.headers['Pragma'] = 'no-cache'
     return response
@@ -162,7 +167,7 @@ def bootstrap_browser_fast_mode():
 # 自由記述の項目（TTSスタイル・ネガティブプロンプト・stop文字列など）は記録しない。
 _PROMPT_OPTION_KEYS = (
     'turn_time_notice',
-    'canvas_mode', 'coding_mode', 'browser_fast_mode', 'batch_mode',
+    'canvas_mode', 'coding_mode', 'browser_fast_mode', 'batch_mode', 'math_steps',
     'enable_search', 'gemini_free_tier', 'enable_url_context', 'enable_maps', 'enable_python',
     'enable_file_creation', 'enable_mcp', 'enable_skills', 'enable_thinking', 'thinking_level',
     'thinking_budget', 'reasoning_effort', 'safety_setting', 'enable_prompt_caching',
@@ -351,6 +356,13 @@ def save_browser_fast_mode_chat():
                 "error": "This browser-fast turn is still being saved",
                 "code": "submission_in_progress",
             }), 425
+        math_steps_requested = data.get('math_steps') is True
+        if not math_steps_requested:
+            raw_prompt_options = data.get('prompt_options')
+            math_steps_requested = (
+                isinstance(raw_prompt_options, dict)
+                and raw_prompt_options.get('math_steps') is True
+            )
         user_msg = Message(
             thread_id=thread.id,
             role='user',
@@ -360,7 +372,12 @@ def save_browser_fast_mode_chat():
             is_encrypted=is_enc,
             prompt_options=_build_prompt_options_record(
                 data.get('prompt_options'),
-                {'browser_fast_mode': True, 'batch_mode': False, 'coding_mode': False},
+                {
+                    'browser_fast_mode': True,
+                    'batch_mode': False,
+                    'coding_mode': False,
+                    'math_steps': math_steps_requested,
+                },
             ),
             parent_id=parent_message.id if parent_message else None,
             tokens_in=user_tokens,

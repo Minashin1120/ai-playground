@@ -142,3 +142,57 @@
             </div>
         </div>
     </div>
+
+    <!-- 数学ステップ解説の設定（プロンプトバーの歯車から開く） -->
+    <div id="math-steps-config-modal" role="dialog" aria-modal="true" aria-labelledby="math-steps-config-heading" class="fixed inset-0 bg-gray-900/95 z-[200] hidden items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay overflow-y-auto">
+        <div class="app-modal-panel app-modal-panel--md modal-panel">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--info"><i class="fas fa-graduation-cap"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 id="math-steps-config-heading" class="app-modal-title">数学ステップの設定</h2>
+                        <p class="app-modal-subtitle">説明の詳しさと進め方を選びます</p>
+                    </div>
+                </div>
+                <button type="button" class="app-modal-close" aria-label="閉じる" data-progress-no-spinner="true" onclick="closeMathStepsModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="app-modal-body space-y-4">
+                <label class="flex items-start gap-2 text-xs text-gray-200">
+                    <input type="checkbox" id="math-steps-cfg-basics" class="accent-sky-400 w-4 h-4 mt-0.5">
+                    <span>基礎から説明する<div class="text-[10px] text-gray-500 mt-0.5">最初に必要な用語や公式のおさらいを入れます。</div></span>
+                </label>
+                <div>
+                    <label for="math-steps-cfg-level" class="text-xs text-gray-400 block mb-1">説明の詳しさ</label>
+                    <select id="math-steps-cfg-level" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white">
+                        <option value="easy">やさしい（ことば中心）</option>
+                        <option value="normal">ふつう</option>
+                        <option value="detailed">くわしい（式変形も丁寧に）</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="math-steps-cfg-step-size" class="text-xs text-gray-400 block mb-1">1ステップの大きさ</label>
+                    <select id="math-steps-cfg-step-size" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white">
+                        <option value="small">小さめ（多いステップ）</option>
+                        <option value="normal">ふつう</option>
+                        <option value="large">大きめ（少ないステップ）</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="math-steps-cfg-diagrams" class="text-xs text-gray-400 block mb-1">図の使用</label>
+                    <select id="math-steps-cfg-diagrams" class="w-full bg-gray-900 border border-gray-600 rounded px-3 py-2 text-sm text-white">
+                        <option value="auto">必要なら使う（おすすめ）</option>
+                        <option value="off">使わない</option>
+                    </select>
+                </div>
+                <label class="flex items-start gap-2 text-xs text-gray-200">
+                    <input type="checkbox" id="math-steps-cfg-animation" class="accent-sky-400 w-4 h-4 mt-0.5">
+                    <span>図のアニメーションを使う<div class="text-[10px] text-gray-500 mt-0.5">端末が「視差効果を減らす」設定なら自動で静止します。</div></span>
+                </label>
+                <div id="math-steps-config-status" role="status" aria-live="polite" class="text-[11px] text-sky-300 min-h-[1em]"></div>
+            </div>
+            <div class="app-modal-footer">
+                <button type="button" id="math-steps-config-cancel" data-progress-no-spinner="true" class="app-modal-btn app-modal-btn--ghost" onclick="closeMathStepsModal()">キャンセル</button>
+                <button type="button" id="math-steps-config-save" data-progress-no-spinner="true" class="app-modal-btn app-modal-btn--primary" onclick="saveMathStepsConfig()">保存</button>
+            </div>
+        </div>
+    </div>

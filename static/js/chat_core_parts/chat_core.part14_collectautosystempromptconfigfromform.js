@@ -158,6 +158,9 @@
             updateGoogleLinkUI(d);
             updateMinashinLinkUI(d);
             if(get('set-enter-to-send')) get('set-enter-to-send').checked = !!d.enter_to_send;
+            if (typeof window.applyMathStepsSettings === 'function') window.applyMathStepsSettings(d);
+            if(get('set-math-steps-enabled')) get('set-math-steps-enabled').checked = d.math_steps_enabled === true;
+            if(get('set-default-math-steps')) get('set-default-math-steps').checked = d.default_math_steps === true;
             writePromptBarModeToForm(!!d.compact_prompt_mode, !!d.minimal_prompt_mode);
                 if(get('set-use-sw-cache')) get('set-use-sw-cache').checked = !!d.use_sw_cache;
                 if(get('set-clear-cache-on-version-update')) get('set-clear-cache-on-version-update').checked = !!d.clear_cache_on_version_update;
@@ -478,6 +481,8 @@
                     stt_model: get('set-stt-model') ? get('set-stt-model').value : null,
                     llm_transcribe_prompt: get('set-llm-transcribe-prompt') ? get('set-llm-transcribe-prompt').value : '',
                     enter_to_send: get('set-enter-to-send') ? get('set-enter-to-send').checked : false,
+                    math_steps_enabled: get('set-math-steps-enabled') ? get('set-math-steps-enabled').checked : false,
+                    default_math_steps: get('set-default-math-steps') ? get('set-default-math-steps').checked : false,
                     compact_prompt_mode: promptBarMode.compact_prompt_mode,
                     minimal_prompt_mode: promptBarMode.minimal_prompt_mode,
                     use_sw_cache: get('set-use-sw-cache') ? get('set-use-sw-cache').checked : false,
@@ -562,8 +567,14 @@
                     // and showed both display-mode switches as OFF until a full reload.
                     cacheUserSettings(Object.assign({}, userSettingsSnapshot || {}, {
                         light_mode_enabled: !!b.light_mode_enabled,
-                        liquid_glass_enabled: !!b.liquid_glass_enabled
+                        liquid_glass_enabled: !!b.liquid_glass_enabled,
+                        math_steps_enabled: !!b.math_steps_enabled,
+                        default_math_steps: !!b.default_math_steps
                     }));
+                    if (typeof window.applyMathStepsSettings === 'function') {
+                        window.applyMathStepsSettings({ math_steps_enabled: !!b.math_steps_enabled });
+                        if (!b.math_steps_enabled) setMathStepsEnabled(false, { persist: false });
+                    }
                     window.applySavedUserSystemPromptSettings({
                         system_prompt: b.system_prompt,
                         system_prompt_enabled: b.system_prompt_enabled,

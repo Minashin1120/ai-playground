@@ -8,7 +8,7 @@
 | `main_stage.html` | モバイルヘッダー、Batch完了バナー、会話コンテナ、確定・入力見積トークン集計欄、Welcome、Canvas パネル | ヘッダー、Batch完了通知、チャット表示、Welcome、Canvas |
 | `composer.html` | 束ね役。下記 `composer_*.html` を include するだけ | 分割先を決めるとき（下の行へ） |
 | `composer_context_bars.html` | 引用バー、Coding対象バー、編集バー | 引用、編集、Coding対象のバー表示 |
-| `composer_controls.html` | モデル選択行と標準オプション行（Gemini／OpenAI／xAI／Z.AI Batch / File / MCP 等のチェック） | 送信まわりのオプション、MCPスイッチ |
+| `composer_controls.html` | モデル選択行と標準オプション行（Gemini／OpenAI／xAI／Z.AI Batch / File / MCP / 数学ステップ 等のチェック） | 送信まわりのオプション、MCPスイッチ、数学ステップのスイッチ |
 | `composer_attachments.html` | 添付ファイル／マスクのプレビュー | 添付、マスク表示 |
 | `composer_gen_image.html` | GPT / Gemini / Grok / Ideogram の画像生成パネル | 画像生成の詳細設定 |
 | `composer_gen_media.html` | xAI 詳細パネル、動画/音楽/OCR/TTS パネル | メディア生成の詳細設定 |
@@ -22,7 +22,7 @@
 | `overlay_thread.html` | 履歴モーダル、スレッド設定、圧縮設定、Batch処理一覧モーダル | 履歴、スレッド設定、画像圧縮、Batch処理の確認・停止・削除 |
 | `overlay_model_skill.html` | モデル選択モーダル、Skill 作成/編集 | モデル一覧、Skill |
 | `overlay_settings.html` | 設定モーダル（タブ、2FA、MCP 設定を含む） | 設定画面、MCP タブ、2FA タブ |
-| `overlay_dialogs.html` | チャット名の変更、MCP 変更確認、Gemini ローカル Python、インポート確認 | 確認ダイアログ |
+| `overlay_dialogs.html` | チャット名の変更、MCP 変更確認、Gemini ローカル Python、インポート確認、数学ステップの設定 | 確認ダイアログ、数学ステップの設定 |
 | `overlay_library.html` | ファイルライブラリ、規約、Alpha 案内、ブランチ管理、管理者の Bot 画面 | ライブラリ、ブランチ |
 | `overlay_version.html` | 新バージョン通知モーダル | 更新通知 |
 | `scripts.html` | `CHAT_CONFIG`、コア JS（`chat_core_bundles` の複数ファイル）の読み込み、トークン/回答処理時間/Python/暗号化モーダル、サイドバー用インライン JS | 初期 JS 設定、インラインスクリプト |

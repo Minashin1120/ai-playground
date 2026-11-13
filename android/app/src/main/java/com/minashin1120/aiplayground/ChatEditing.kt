@@ -57,6 +57,7 @@ internal class ChatEditing(
             batchMode = savedBoolean("batch_mode", batchMode),
             canvasMode = savedBoolean("canvas_mode", canvasMode),
             codingMode = savedBoolean("coding_mode", codingMode),
+            mathStepsMode = savedBoolean("math_steps", mathStepsMode),
             visionModel = options?.optString("image_vision_model")?.takeIf { it.isNotBlank() } ?: visionModel,
             chipValues = selects, generationValues = generation,
         ))

@@ -89,6 +89,18 @@ internal class ChatPreferences(
         }
     }
 
+    /** Web `saveMathStepsConfig`: only the gear options change; the answer is not re-sent. */
+    fun saveMathStepsConfig(config: MathStepsConfig) {
+        scope.launch {
+            if (notifyOffline("オフライン中は設定を保存できません。")) return@launch
+            runCatching {
+                val reply = backend().put("/api/mobile/v1/preferences",
+                    JSONObject().put("math_steps_config", config.toJson()), token())
+                mutable.update { it.copy(preferences = parsePreferences(reply)) }
+            }.onFailure { report(it) }
+        }
+    }
+
     fun savePreferences(payload: JSONObject, message: String = "設定を保存しました") {
         scope.launch {
             if (notifyOffline("オフライン中はアカウント設定を保存できません。接続後に再試行してください。")) return@launch

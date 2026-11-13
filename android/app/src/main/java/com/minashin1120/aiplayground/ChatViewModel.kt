@@ -74,6 +74,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val accountSetup get() = graph.accountSetup
     private val threadList get() = graph.threadList
     private val batch get() = graph.batch
+    private val mathSteps get() = graph.mathSteps
     private val skills get() = graph.skills
     private val messageLoader get() = graph.messageLoader
     private val profiles get() = graph.profiles
@@ -277,6 +278,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleSkills() = composer.toggleSkills()
     fun toggleCanvas() = composer.toggleCanvas()
     fun toggleCoding() = composer.toggleCoding()
+    fun toggleMathSteps() = composer.toggleMathSteps()
+    fun saveMathStepProgress(message: ChatMessage, current: Int, maxReached: Int) =
+        mathSteps.saveProgress(message, current, maxReached)
+    fun clearMathStepSimplified(message: ChatMessage, stepIndex: Int) =
+        mathSteps.clearSimplified(message, stepIndex)
+    fun simplifyMathStep(message: ChatMessage, stepIndex: Int, done: (String?) -> Unit) =
+        mathSteps.simplify(message, stepIndex, done)
+    fun saveMathStepsConfig(config: MathStepsConfig) = preferences.saveMathStepsConfig(config)
     fun toggleTemporaryChat() = threadActions.toggleTemporaryChat()
     fun selectCodingTarget(target: CodingTarget?) = composer.selectCodingTarget(target)
     fun setImageMask(reference: String?) = composer.setImageMask(reference)

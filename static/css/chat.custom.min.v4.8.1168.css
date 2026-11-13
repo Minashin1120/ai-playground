@@ -3221,7 +3221,8 @@ body.liquid-glass-mode .liquid-glass-surface.liquid-glass-pressed {
    the static bundle, so give them an explicit high z-index here; otherwise
    they paint behind the settings modal and are invisible while it is open. */
 #import-files-modal,
-#settings-confirmation-modal {
+#settings-confirmation-modal,
+#math-steps-config-modal {
     position: fixed;
     inset: 0;
     z-index: 200;
@@ -7203,4 +7204,174 @@ body:not(.liquid-glass-mode) #send-btn.pulse-ready {
 .message-bubble mjx-container * {
     -webkit-user-select: text;
     user-select: text;
+}
+
+/* ------------------------------------------------------------------
+   数学ステップ解説（math steps）
+   1ステップずつ表示し、操作は吹き出しの中に収める。
+   ------------------------------------------------------------------ */
+.math-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: 100%;
+    max-width: 100%;
+}
+.math-steps-header {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.6rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--line-soft, rgba(148, 163, 184, 0.18));
+}
+.math-steps-counter {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: var(--theme-300, #7dd3fc);
+}
+.math-steps-title {
+    font-size: 0.72rem;
+    color: var(--muted, #94a3b8);
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.math-steps-body {
+    font-size: 0.9rem;
+    line-height: 1.8;
+    min-height: 3rem;
+}
+.math-steps-prose > :first-child { margin-top: 0; }
+.math-steps-prose > :last-child { margin-bottom: 0; }
+.math-steps-empty {
+    font-size: 0.78rem;
+    color: var(--muted, #94a3b8);
+}
+.math-steps-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-top: 0.15rem;
+}
+.math-steps-next {
+    width: 100%;
+    min-height: 3rem;
+    padding: 0.7rem 1rem;
+    border-radius: 0.85rem;
+    border: 1px solid rgba(var(--theme-rgb, 13, 212, 191), 0.5);
+    background: linear-gradient(160deg, rgba(var(--theme-rgb, 13, 212, 191), 0.28), rgba(var(--theme-rgb, 13, 212, 191), 0.16));
+    color: var(--text, #f8fafc);
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: filter 0.16s ease, transform 0.16s ease;
+}
+.math-steps-next:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-1px); }
+.math-steps-next:disabled {
+    cursor: default;
+    opacity: 0.62;
+    transform: none;
+}
+.math-steps-sub-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+.math-steps-prev,
+.math-steps-restart,
+.math-steps-simplify,
+.math-steps-restore {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 2.25rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--line-strong, rgba(148, 163, 184, 0.3));
+    background: rgba(148, 163, 184, 0.08);
+    color: var(--muted, #cbd5e1);
+    font-size: 0.72rem;
+    cursor: pointer;
+    transition: background 0.16s ease, color 0.16s ease;
+}
+.math-steps-prev:hover:not(:disabled),
+.math-steps-restart:hover:not(:disabled),
+.math-steps-simplify:hover:not(:disabled),
+.math-steps-restore:hover { background: rgba(148, 163, 184, 0.18); color: var(--text, #f8fafc); }
+.math-steps-prev:disabled,
+.math-steps-restart:disabled,
+.math-steps-simplify:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+.math-steps-simplify { margin-left: auto; }
+.math-steps-simplify[data-busy="1"] { opacity: 0.8; }
+.math-steps-restore {
+    margin-top: 0.5rem;
+    border-style: dashed;
+    color: var(--theme-300, #7dd3fc);
+}
+.math-steps-status {
+    min-height: 1em;
+    font-size: 0.7rem;
+    color: var(--muted, #94a3b8);
+}
+.mathsvg-render {
+    display: block;
+    margin: 0.7rem 0;
+    padding: 0.65rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--line-soft, rgba(148, 163, 184, 0.25));
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+    overflow: auto;
+}
+.mathsvg-render > img {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    cursor: default;
+}
+@media (max-width: 640px) {
+    .math-steps-next { min-height: 3.25rem; font-size: 1rem; }
+    .math-steps-simplify { margin-left: 0; }
+    .math-steps-sub-actions { gap: 0.4rem; }
+    .math-steps-prev,
+    .math-steps-restart,
+    .math-steps-simplify { min-height: 2.5rem; padding: 0.4rem 0.75rem; }
+}
+@media (prefers-color-scheme: light) {
+    .math-steps-header { border-bottom-color: rgba(15, 23, 42, 0.12); }
+    .math-steps-counter { color: #0f766e; }
+    .math-steps-title,
+    .math-steps-status,
+    .math-steps-empty { color: #475569; }
+    .math-steps-next {
+        color: #0f172a;
+        border-color: rgba(15, 118, 110, 0.35);
+        background: linear-gradient(160deg, rgba(13, 148, 136, 0.2), rgba(13, 148, 136, 0.1));
+    }
+    .math-steps-prev,
+    .math-steps-restart,
+    .math-steps-simplify {
+        color: #334155;
+        border-color: rgba(15, 23, 42, 0.18);
+        background: rgba(15, 23, 42, 0.04);
+    }
+    .math-steps-restore { color: #0f766e; }
+    .mathsvg-render { border-color: rgba(15, 23, 42, 0.14); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .math-steps-next,
+    .math-steps-prev,
+    .math-steps-restart,
+    .math-steps-simplify,
+    .math-steps-restore { transition: none; }
+    .math-steps-next:hover:not(:disabled) { transform: none; }
 }

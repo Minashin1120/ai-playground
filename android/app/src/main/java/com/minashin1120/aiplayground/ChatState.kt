@@ -97,6 +97,8 @@ data class ChatState(
     val batchMode: Boolean = false, val enablePython: Boolean = false, val enableMcp: Boolean = true,
     val enableSkills: Boolean = true,
     val canvasMode: Boolean = false, val codingMode: Boolean = false,
+    /** 「数学ステップ解説」prompt-bar switch; hidden unless the account's master switch is ON. */
+    val mathStepsMode: Boolean = false,
     val codingTarget: CodingTarget? = null,
     val imageMask: String? = null,
     /** Web `currentVisionModel` changed from the upload sheet; null follows the Vision Model setting. */

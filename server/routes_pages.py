@@ -32,6 +32,7 @@ def index():
 @app.route('/skill')
 @app.route('/gem')
 @app.route('/compression')
+@app.route('/math-steps')
 @app.route('/admin-bots')
 @app.route('/admin-bot-logs')
 @login_required

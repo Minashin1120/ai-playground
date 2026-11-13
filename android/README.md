@@ -44,7 +44,9 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ChatLibrary.kt` | Web `#files-modal`：ファイル一覧・検索・並び順・お気に入り・名前変更・削除・添付（再アップロードなし）・保存・使用チャットの表示 | ライブラリの一覧・操作・ダウンロードを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatFeedback.kt` | Web `#feedback-modal`・`#fb-admin-list`：フィードバックの一覧・状態変更・返信・削除、端末保存しての送信と再送、チャットのコピーと添付 | フィードバックの送信・返信・再送を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatMessageLoader.kt` | Web `loadMessages`：履歴の取得（サーバー／オフラインキャッシュ）・過去分の追加・送信中を保つ再読込・停止したジョブの再結合抑止 | 履歴の読み込みや再読込の条件を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ChatComposer.kt` | 送信準備：入力・引用、モデル選択と各モデルのオプション規則、PromptCache、Coding対象、添付名 | プロンプトバーの状態やモデル切替・オプションを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatComposer.kt` | 送信準備：入力・引用、モデル選択と各モデルのオプション規則、PromptCache、Coding対象、添付名、数学ステップのオン／オフ | プロンプトバーの状態やモデル切替・オプションを変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatMathSteps.kt` | 数学ステップの進捗保存（`/api/math_steps/progress`）と「もっとやさしく」（`/api/math_steps/simplify`）、メッセージ状態の楽観更新 | ステップの進捗・簡易化の通信を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/MathSteps.kt` | 数学ステップの設定（`math_steps_config`）、メッセージ進捗（`math_steps_state`）、見出しからのステップ分割 | ステップの解析・設定値・上限を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatPreferences.kt` | 全般設定：設定の読込・保存、リッチ貼り付けプロンプト、ストレージ使用量、MCPサーバー、オフライン履歴キャッシュ（方式・モバイル通信・全件同期・削除） | 設定の保存読込・MCP・オフラインキャッシュを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatDiagnostics.kt` | 管理者向け診断の送信（10秒ごと・停滞時のスレッドダンプ）と、端末の活動ログ（`ChatState` の変化の記録・所有者の切替） | 診断の送信・活動ログの記録項目を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatBanState.kt` | BAN境界：BAN時の作業停止、理由・日時の表示（`/banned`）、異議申し立ての送信と解除後の復帰 | BAN画面や異議申し立てを変更するとき |
@@ -92,7 +94,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/AttachmentTokenEstimator.kt` | 入力見積の添付トークン計算（Geminiの画像・PDF・音声・動画、テキスト抽出） | 端末内の添付トークン計算を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/` | 端末内プロファイル：チャット・添付・プロンプト設定とマスク参照の暗号化保存、サーバー不使用モードの送信待ち（`LocalChatStore.kt`）、設定・Skill・APIキー（`LocalSettingsStore.kt`）、プロファイルの切り替え（`LocalProfiles.kt`）、サーバーと同じ形で応答する窓口（`LocalChatBackend.kt`）、回答の生成に使うサーバーの履歴・添付の読み込み（`ServerHistory.kt`） | アカウントなし利用・サーバー不使用モードの保存や応答を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/sync/SyncEngine.kt` | サーバー不使用モードの送信待ちの保存（添付の先行アップロード、メッセージの送信、新しいチャットのタイトル、旧版の削除の反映） | 回答をアカウントへ送る手順・失敗時の扱いを変更するとき |
-| `app/src/main/assets/serverless-defaults.json`, `ci/sync-serverless-defaults.py` | サーバーから生成したモデル一覧・自動注入プロンプト・Coding Mode指示（`--check` で差分検査） | サーバーのモデル一覧や自動注入プロンプトを変えたとき |
+| `app/src/main/assets/serverless-defaults.json`, `ci/sync-serverless-defaults.py` | サーバーから生成したモデル一覧・自動注入プロンプト・Coding Mode指示・数学ステップ指示（`--check` で差分検査） | サーバーのモデル一覧や自動注入プロンプトを変えたとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ServerlessSettings.kt` | 設定の「接続」カード（サーバー不使用モード、アカウントなしの説明とサーバーへのログイン） | 接続モードの設定画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/ConnectionStatus.kt` | Web相当のハートビート接続状態・HTTP障害分類・監視間隔 | 接続状態・復帰表示を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/BatchNotifications.kt` | Batch完了通知チャンネルと安全な通知表示 | Batch通知を編集するとき |
@@ -120,7 +122,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/ProgressText.kt` | Web `progress_spinner.js` の文言表と通信中の処理一覧（`PlaygroundApi.progress`） | 通信スピナーの文言や対象を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/AnswerBubbleMotion.kt` | プロンプト到着後の回答バブルの横スライド、回答待ちから保存済み回答への登場状態の引き継ぎ | 回答バブルの登場順序・アニメーションを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PromptSendMotion.kt` | 送信内容の移動・縮小・吹き出しへの切替、描画レイヤーと座標の一時管理、動きの削減・中断時の後始末 | プロンプト送信アニメーションを変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/Composer.kt` | Webのプロンプトバー（引用・Coding対象・編集バー、モデルボタン、Canvas／Coding／Batch、Skillsスイッチ、添付プレビュー、Skill表示、`/`・`@` 候補、入力シェル、送信・停止、トークン見積もり） | 入力欄の見た目や操作を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/Composer.kt` | Webのプロンプトバー（引用・Coding対象・編集バー、モデルボタン、Canvas／Coding／Batch／数学ステップ、Skillsスイッチ、添付プレビュー、Skill表示、`/`・`@` 候補、入力シェル、送信・停止、トークン見積もり） | 入力欄の見た目や操作を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ComposerChips.kt` | Webのプロンプトバーのオプションチップ（詳細チップの表示切替、Thinking／SysPrompt／Safety／PromptCache／Compress／一時チャット、チップ内のセレクトとバジェット入力） | 詳細チップの中身や見た目を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InteractionDiagnostics.kt` | 選択・数式操作の受動的なログ観測（ランダムID、フォーカス、メニュー、400ms後の状態、横スクロール・描画状態） | 選択や数式操作のログを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/QuoteSelection.kt` | 会話の範囲選択に「Quote」を加える選択ツールバー | 引用の操作を変更するとき |
@@ -196,10 +198,11 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | Webの `marked`（GFM・`breaks`）と `pre-wrap` 表示を再現するMarkdownの描画（リスト、引用、表、コード、`chat_error`、インラインコード）、回答中の生HTML（`<details>`・表を含む）とSVG | メッセージ本文表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownBlocks.kt` | Webの `marked` が作るブロックの解析（見出し・引用・リスト・表・フェンス・生HTML／SVG・画像・数式と、リンク先の検証） | Markdownのブロック解釈を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownColors.kt` | 回答本文の色（本文・引用・リンク・インラインコード・コードブロック・表・区切り線・highlight.js のテーマ色） | 回答本文の配色を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/SvgAnimation.kt` | アニメーション付きSVG（SMIL・CSS `@keyframes`）の検出と、スクリプト・外部参照を止めたWebViewでの再生（Webと同じ `<img>` のデータURI） | SVGのアニメーション表示を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/SvgAnimation.kt` | アニメーション付きSVG（SMIL・CSS `@keyframes`）の検出と安全確認、スクリプト・外部参照を止めたWebViewでの再生（Webと同じ `<img>` のデータURI）、アニメーション設定・視差効果を減らす設定への追従 | SVGのアニメーション表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InlineAudioPlayer.kt` | 回答内の `<audio controls src>`（TTS・音楽・Lyriaの出力）を再生するインラインプレーヤー（初回タップで取得、再生・シーク・再生速度の切り替え。Web版の専用プレーヤーと同じ見た目）と、画面が渡す添付ダウンローダー `LocalAttachmentDownloader` | 回答内の音声の再生を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/MessageBubble.kt` | Webの `.message-bubble`（吹き出し、タップで出る操作ボタン、引用、Thinking、添付グリッドとObject Removerマスク画像、分岐切替、フッター、回答処理時間と内訳）、合計・入力見積トークン帯、トークン詳細・暗号化モーダル、Welcome、一番下へ | メッセージの見た目を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MessageBubble.kt` | Webの `.message-bubble`（吹き出し、タップで出る操作ボタン、引用、Thinking、添付グリッドとObject Removerマスク画像、分岐切替、フッター、回答処理時間と内訳）、合計・入力見積トークン帯、トークン詳細・暗号化モーダル、Welcome、一番下へ、数学ステップの表示切替 | メッセージの見た目を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MathJaxRenderer.kt` | 同梱MathJaxを画面に出さないWebViewで動かしてTeXをSVGへ組版、キャッシュ、文中・独立行の数式の配置と描画 | 数式の組版・配置を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MathSteps.kt` | 「数学ステップ解説」の1ステップ表示（見出し・本文・次へ／前へ／最初から／完了・もっとやさしく）、プロンプトバーの歯車ダイアログ、設定の5項目 | ステップの表示・操作・設定画面を編集するとき |
 | `app/src/main/assets/mathjax/` | MathJax 3.2.2（`tex-svg.js`、TeX拡張、`LICENSE`）と実行用の `host.html` | MathJaxの版や設定を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LatexText.kt` | LaTeXの読みやすい近似（MathJaxの読み込み中・組版できない式・コピー時の文字） | 近似表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RemoteImage.kt` | 同一originの添付画像をBearer付きで取得し、キャッシュしてプレビュー | 添付・画像プレビューを編集するとき |

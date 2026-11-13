@@ -171,6 +171,14 @@ with app.app_context():
     except Exception:
         pass
     try:
+        ensure_user_math_steps_columns()
+    except Exception:
+        pass
+    try:
+        ensure_message_math_steps_state_column()
+    except Exception:
+        pass
+    try:
         ensure_skill_fixed_prompts_column()
     except Exception:
         pass

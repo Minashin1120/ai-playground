@@ -77,6 +77,9 @@ def handle_settings():
             'minimal_prompt_mode': current_user.minimal_prompt_mode if getattr(current_user, 'minimal_prompt_mode', None) is not None else False,
             'use_last_chat_settings': current_user.use_last_chat_settings,
             'voice_studio_ui': current_user.voice_studio_ui if getattr(current_user, 'voice_studio_ui', None) is not None else True,
+            'math_steps_enabled': bool(getattr(current_user, 'math_steps_enabled', False)),
+            'math_steps_config': normalize_math_steps_config(getattr(current_user, 'math_steps_config', None)),
+            'default_math_steps': bool(getattr(current_user, 'default_math_steps', False)),
             'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user),
             'default_model': current_user.default_model or "gemini-3.6-flash",
             'default_enable_search': current_user.default_enable_search,
@@ -215,6 +218,10 @@ def handle_settings():
     if 'auto_search_on_links' in d: current_user.auto_search_on_links = bool(d['auto_search_on_links'])
     if 'use_last_chat_settings' in d: current_user.use_last_chat_settings = bool(d['use_last_chat_settings'])
     if 'voice_studio_ui' in d: current_user.voice_studio_ui = bool(d['voice_studio_ui'])
+    if 'math_steps_enabled' in d: current_user.math_steps_enabled = bool(d['math_steps_enabled'])
+    if 'math_steps_config' in d:
+        current_user.math_steps_config = dump_math_steps_config(d.get('math_steps_config'))
+    if 'default_math_steps' in d: current_user.default_math_steps = bool(d['default_math_steps'])
     if 'default_model' in d: current_user.default_model = d['default_model']
     if 'last_skill_uuid' in d or 'last_gem_uuid' in d:
         val = d.get('last_skill_uuid', d.get('last_gem_uuid'))

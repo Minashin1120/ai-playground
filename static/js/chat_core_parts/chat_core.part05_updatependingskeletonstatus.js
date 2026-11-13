@@ -881,6 +881,7 @@
             { key: 'rich-paste', icon: 'fa-paste', label: 'リッチ貼り付け', action: 'button', buttonId: 'rich-paste-btn' },
             { key: 'canvas', icon: 'fa-window-restore', label: 'Canvas', checkboxId: 'enable-canvas-mode', containerId: 'canvas-mode-container' },
             { key: 'coding', icon: 'fa-code-branch', label: 'Coding', checkboxId: 'enable-coding-mode', containerId: 'coding-mode-container' },
+            { key: 'mathsteps', icon: 'fa-graduation-cap', label: '数学ステップ', checkboxId: 'enable-math-steps', containerId: 'math-steps-container', gear: true, gearAction: () => { if (window.openMathStepsModal) window.openMathStepsModal(); } },
             { key: 'fast', icon: 'fa-bolt', label: '高速', checkboxId: 'enable-browser-fast-mode', containerId: 'browser-fast-mode-container' },
             { key: 'batch', icon: 'fa-layer-group', label: 'Batch', checkboxId: 'enable-batch-mode', containerId: 'batch-mode-container' },
             { key: 'gemini-free', icon: 'fa-tag', label: '無料枠', checkboxId: 'enable-gemini-free-tier', containerId: 'gemini-free-tier-container' },

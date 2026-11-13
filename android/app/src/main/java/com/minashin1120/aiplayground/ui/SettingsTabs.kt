@@ -125,13 +125,26 @@ internal fun generalCards(
             SettingsDesc("入力欄の位置にマイク・文字起こし・折りたたみ式の音声設定をまとめ、必要なときだけ拡大表示できます。オフにすると、すべての音声設定を常に表示します。",
                 Modifier.padding(top = 4.dp))
         },
+        SettingsCardSpec(SettingsTab.General, "math-steps", "数学ステップ解説",
+            "数学ステップ解説 数学ステップ解説を有効にする 数学の問題を小さなステップに分け、1つずつ表示します。オフのときはプロンプトバーの「数学ステップ」を表示せず、案内文も送りません。 基礎から説明 説明の詳しさ 1ステップの大きさ 図の使用 アニメーション") {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingsCheck("数学ステップ解説を有効にする", form.mathStepsEnabled, { form.mathStepsEnabled = it })
+                SettingsDesc("数学の問題を小さなステップに分け、1つずつ表示します。オフのときはプロンプトバーの「数学ステップ」を表示せず、案内文も送りません。",
+                    Modifier.padding(start = 28.dp))
+                if (form.mathStepsEnabled) {
+                    Box(Modifier.padding(start = 28.dp, top = 4.dp)) {
+                        MathStepsConfigFields(form.mathConfig, onChange = { form.mathConfig = it })
+                    }
+                }
+            }
+        },
         SettingsCardSpec(SettingsTab.General, "confirm-dialogs", "確認ダイアログ",
             "確認ダイアログ Gemini音声/動画 + Python のローカル実行切替を送信前に確認 OFF にすると確認を表示しません（このブラウザに保存）。") {
             SettingsCheck("Gemini音声/動画 + Python のローカル実行切替を送信前に確認", localPythonDialog, onLocalPythonDialog)
             SettingsDesc("OFF にすると確認を表示しません（このブラウザに保存）。", Modifier.padding(top = 4.dp))
         },
         SettingsCardSpec(SettingsTab.General, "chat-defaults", "チャット既定値",
-            "チャット既定値 既定のモデル 新規チャット開始時に適用されるモデルです。 Vision Model（画像解析用） DeepSeek V4 Pro などの画像非対応モデルで画像が添付された場合、このモデルで解析します。V4.1 Flash は画像入力に対応しています。 前回の設定を保存して継続する ONの場合は下の「デフォルト設定」は無視され、直近の送信時設定を引き継ぎます。 Search URLs Maps Python File Thinking SysPrompt MCP Thinking Level Budget Effort Safety") {
+            "チャット既定値 既定のモデル 新規チャット開始時に適用されるモデルです。 Vision Model（画像解析用） DeepSeek V4 Pro などの画像非対応モデルで画像が添付された場合、このモデルで解析します。V4.1 Flash は画像入力に対応しています。 前回の設定を保存して継続する ONの場合は下の「デフォルト設定」は無視され、直近の送信時設定を引き継ぎます。 数学ステップ Search URLs Maps Python File Thinking SysPrompt MCP Thinking Level Budget Effort Safety") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column {
                     SettingsFieldLabel("既定のモデル", Modifier.padding(bottom = 4.dp))
@@ -206,6 +219,8 @@ private fun DefaultOptionChecks(form: SettingsForm) {
         SettingsCheck("Thinking", form.thinking, { form.thinking = it }, labelColor = c(Color(216, 180, 254), Color(126, 34, 206)))
         SettingsCheck("SysPrompt", form.sysPrompt, { form.sysPrompt = it }, labelColor = c(Color(134, 239, 172), Color(21, 128, 61)))
         SettingsCheck("MCP", form.mcp, { form.mcp = it }, labelColor = c(Color(165, 243, 252), Color(14, 116, 144)))
+        SettingsCheck("数学ステップ", form.defaultMathSteps, { form.defaultMathSteps = it },
+            labelColor = c(Color(186, 230, 253), Color(3, 105, 161)))
     }
 }
 

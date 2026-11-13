@@ -3,6 +3,8 @@ package com.minashin1120.aiplayground.ui
 import android.graphics.Color
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.RenderProcessGoneDetail
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
@@ -10,8 +12,12 @@ import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.viewinterop.AndroidView
@@ -28,6 +34,16 @@ import java.io.ByteArrayInputStream
 
 private val SMIL_ANIMATION = Regex(
     """<\s*(?:[A-Za-z_][\w.-]*:)?(?:animate|animateTransform|animateMotion|animateColor|set|discard)\b""",
+    RegexOption.IGNORE_CASE,
+)
+/** Active content the animated WebView path must not receive (the SVG is also loaded as an `<img>`). */
+private val UNSAFE_MARKUP = Regex(
+    """<\s*(?:script|foreignObject|iframe|object|embed)\b|javascript\s*:|(?:^|[\s;"'])on[a-z]+\s*=""",
+    RegexOption.IGNORE_CASE,
+)
+/** External references never load in the app; only data URIs and fragment (`#id`) links are kept. */
+private val EXTERNAL_REFERENCE = Regex(
+    """(?:href|src)\s*=\s*["']\s*(?:https?:)?//|url\(\s*["']?\s*(?:https?:)?//""",
     RegexOption.IGNORE_CASE,
 )
 private val STYLE_BLOCK = Regex("""<style\b[^>]*>([\s\S]*?)</style\s*>""", RegexOption.IGNORE_CASE)
@@ -48,6 +64,13 @@ internal fun svgHasAnimation(markup: String): Boolean {
         }) return true
     return STYLE_ATTRIBUTE.findAll(markup).any { ANIMATION_PROPERTY.containsMatchIn(it.groupValues[2]) }
 }
+
+/**
+ * The animated path is only used for markup that cannot run scripts, embed foreign HTML or reach
+ * the network. Anything else falls back to the still AndroidSVG rendering (scripts are ignored).
+ */
+internal fun svgAnimationSafe(markup: String): Boolean =
+    !UNSAFE_MARKUP.containsMatchIn(markup) && !EXTERNAL_REFERENCE.containsMatchIn(markup)
 
 /**
  * Web `buildSvgCodeRenderHtml`: the drawing is a data-URI `<img>`, so scripts and external
@@ -92,11 +115,14 @@ private fun percentEncode(text: String): String {
  * and the animation is paused while the app is not started. It is destroyed with the message row.
  */
 @Composable
-internal fun AnimatedSvg(markup: String, widthPx: Int, heightPx: Int) {
+internal fun AnimatedSvg(markup: String, widthPx: Int, heightPx: Int, onError: () -> Unit = {}) {
     val density = LocalDensity.current
     val document = remember(markup) { animatedSvgHtml(markup) }
     val holder = remember { SvgWebViewHolder() }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var failed by remember(markup) { mutableStateOf(false) }
+
+    LaunchedEffect(failed) { if (failed) onError() }
 
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
@@ -111,6 +137,7 @@ internal fun AnimatedSvg(markup: String, widthPx: Int, heightPx: Int) {
     }
 
     key(markup, widthPx, heightPx) {
+        if (failed) return@key
         AndroidView(
             modifier = Modifier.size(
                 with(density) { widthPx.toDp() },
@@ -141,6 +168,16 @@ internal fun AnimatedSvg(markup: String, widthPx: Int, heightPx: Int) {
                         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                             if (request.url.scheme == "data") null
                             else WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+
+                        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                            if (request.isForMainFrame) failed = true
+                        }
+
+                        override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                            holder.view = null
+                            failed = true
+                            return true
+                        }
                     }
                     loadDataWithBaseURL(null, document, "text/html", "utf-8", null)
                     holder.view = this

@@ -326,7 +326,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         # file nears its cap, move a split line (static/js/chat_core_parts/README.md).
         for path in min_js_files:
             self.assertLess(path.stat().st_size, 400_000, path.name)
-        self.assertLess(total_min, 1_000_000)
+        self.assertLess(total_min, 1_050_000)
         self.assertIn("{% for bundle in chat_core_bundles %}", template)
         self.assertNotIn("filename='js/chat_core.'", template)
         self.assertIn("chat.custom.min.", template)

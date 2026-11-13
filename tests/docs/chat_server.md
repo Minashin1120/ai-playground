@@ -9,6 +9,7 @@
 | [test_connection_status_regressions.py](../test_connection_status_regressions.py) | connection / status |
 | [test_generation_restart_resilience.py](../test_generation_restart_resilience.py) | generation / restart / resilience |
 | [test_history_document_text_regressions.py](../test_history_document_text_regressions.py) | history / document / text |
+| [test_math_steps_server.py](../test_math_steps_server.py) | 数学ステップの設定・プロンプト・進捗API・簡略化API・メッセージ状態 |
 | [test_network_read_deadline.py](../test_network_read_deadline.py) | network / read / deadline |
 | [test_performance_regressions.py](../test_performance_regressions.py) | performance |
 | [test_processing_time_regressions.py](../test_processing_time_regressions.py) | 回答処理時間の内訳・メッセージ応答 |

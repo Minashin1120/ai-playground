@@ -267,7 +267,8 @@
                     explicit: candidate.explicit === true
                 })) : [],
                 batch_mode: batchModeRequested,
-                canvas_mode: !!canvasModeEnabled
+                canvas_mode: !!canvasModeEnabled,
+                math_steps: (typeof window.collectMathStepsSendOption === 'function' ? window.collectMathStepsSendOption() : false)
             };
             if (botTurnstileToken) p.turnstile_token = botTurnstileToken;
             const threadCustomInstructionEl = get('thread-custom-instruction');
@@ -455,6 +456,7 @@
                             if (j.type === 'job_id') {
                                 markApiAccepted();
                                 currentJobId = j.content;
+                                if (adiv) adiv.setAttribute('data-job-id', String(currentJobId || ''));
                                 if (batchModeRequested) {
                                     showToast('Batch登録', 'info');
                                 }
@@ -593,7 +595,7 @@
                         const now = Date.now();
                         if (now - lastRenderTime > 100) {
                             const collapseState = snapshotCodeCollapse(cEl);
-                            renderAiMarkdownInto(cEl, acc, { incrementalMath: true });
+                            renderAiMarkdownInto(cEl, acc, { incrementalMath: true, streaming: true, mathSteps: { jobId: currentJobId, streaming: true } });
                             applyCodeCollapse(cEl, collapseState, true);
                             lastRenderTime = now;
                         }
@@ -604,7 +606,7 @@
                 // Final render to catch any remaining content
                 if (cEl) {
                     const collapseState = snapshotCodeCollapse(cEl);
-                    renderAiMarkdownInto(cEl, acc, { incrementalMath: true });
+                    renderAiMarkdownInto(cEl, acc, { incrementalMath: true, streaming: false, mathSteps: { jobId: currentJobId, streaming: false } });
                     applyCodeCollapse(cEl, collapseState, true);
                 }
                 scrollToBottom();
@@ -795,6 +797,7 @@
             }
             const stopPendingElapsed = startPendingElapsed(adiv, pending.pendingStartedAt);
             currentJobId = jobId;
+            if (adiv) adiv.setAttribute('data-job-id', String(jobId || ''));
             setSendBtnToStopMode();
             resumeChatAutoScroll();
             if (canvasModeEnabled) {
@@ -873,7 +876,7 @@
                         if (!l.trim()) continue;
                         try {
                             const j = JSON.parse(l);
-                            if (j.type === 'job_id') { currentJobId = j.content || jobId; continue; }
+                            if (j.type === 'job_id') { currentJobId = j.content || jobId; if (adiv) adiv.setAttribute('data-job-id', String(currentJobId || '')); continue; }
                             if (j.type === 'search_status') {
                                 searchBox = updateSearchBox(adiv, searchBox, j.content);
                                 continue;
@@ -1002,7 +1005,7 @@
                         const now = Date.now();
                         if (now - lastRenderTime > 100) {
                             const collapseState = snapshotCodeCollapse(cEl);
-                            renderAiMarkdownInto(cEl, acc, { incrementalMath: true });
+                            renderAiMarkdownInto(cEl, acc, { incrementalMath: true, streaming: true, mathSteps: { jobId: jobId, streaming: true } });
                             applyCodeCollapse(cEl, collapseState, true);
                             lastRenderTime = now;
                         }
@@ -1013,7 +1016,7 @@
                 // Final render to catch any remaining content
                 if (cEl) {
                     const collapseState = snapshotCodeCollapse(cEl);
-                    renderAiMarkdownInto(cEl, acc, { incrementalMath: true });
+                    renderAiMarkdownInto(cEl, acc, { incrementalMath: true, streaming: false, mathSteps: { jobId: currentJobId || jobId, streaming: false } });
                     applyCodeCollapse(cEl, collapseState, true);
                 }
 

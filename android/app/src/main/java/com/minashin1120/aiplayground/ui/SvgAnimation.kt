@@ -137,44 +137,45 @@ internal fun AnimatedSvg(markup: String, widthPx: Int, heightPx: Int, onError: (
     }
 
     key(markup, widthPx, heightPx) {
-        if (failed) return@key
-        AndroidView(
-            modifier = Modifier.size(
-                with(density) { widthPx.toDp() },
-                with(density) { heightPx.toDp() },
-            ),
-            factory = { viewContext ->
-                WebView(viewContext).apply {
-                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                    setBackgroundColor(Color.TRANSPARENT)
-                    overScrollMode = View.OVER_SCROLL_NEVER
-                    isVerticalScrollBarEnabled = false
-                    isHorizontalScrollBarEnabled = false
-                    isScrollContainer = false
-                    isEnabled = false
-                    isFocusable = false
-                    isFocusableInTouchMode = false
-                    isLongClickable = false
-                    settings.apply {
-                        javaScriptEnabled = false
-                        blockNetworkLoads = true
-                        allowFileAccess = false
-                        allowContentAccess = false
-                        domStorageEnabled = false
+        if (!failed) {
+            AndroidView(
+                modifier = Modifier.size(
+                    with(density) { widthPx.toDp() },
+                    with(density) { heightPx.toDp() },
+                ),
+                factory = { viewContext ->
+                    WebView(viewContext).apply {
+                        layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+                        setBackgroundColor(Color.TRANSPARENT)
+                        overScrollMode = View.OVER_SCROLL_NEVER
+                        isVerticalScrollBarEnabled = false
+                        isHorizontalScrollBarEnabled = false
+                        isScrollContainer = false
+                        isEnabled = false
+                        isFocusable = false
+                        isFocusableInTouchMode = false
+                        isLongClickable = false
+                        settings.apply {
+                            javaScriptEnabled = false
+                            blockNetworkLoads = true
+                            allowFileAccess = false
+                            allowContentAccess = false
+                            domStorageEnabled = false
+                        }
+                        webViewClient = SvgAnimationWebViewClient(holder) { failed = true }
+                        loadDataWithBaseURL(null, document, "text/html", "utf-8", null)
+                        holder.view = this
                     }
-                    webViewClient = SvgAnimationWebViewClient(holder) { failed = true }
-                    loadDataWithBaseURL(null, document, "text/html", "utf-8", null)
-                    holder.view = this
-                }
-            },
-            onRelease = { view ->
-                holder.view = null
-                runCatching {
-                    view.stopLoading()
-                    view.destroy()
-                }
-            },
-        )
+                },
+                onRelease = { view ->
+                    holder.view = null
+                    runCatching {
+                        view.stopLoading()
+                        view.destroy()
+                    }
+                },
+            )
+        }
     }
 }
 

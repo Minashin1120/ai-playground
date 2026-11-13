@@ -162,33 +162,41 @@ internal fun AnimatedSvg(markup: String, widthPx: Int, heightPx: Int, onError: (
                         allowContentAccess = false
                         domStorageEnabled = false
                     }
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = true
-
-                        override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-                            if (request.url.scheme == "data") null
-                            else WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
-
-                        override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-                            if (request.isForMainFrame) failed = true
-                        }
-
-                        override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
-                            holder.view = null
-                            failed = true
-                            return true
-                        }
-                    }
+                    webViewClient = SvgAnimationWebViewClient(holder) { failed = true }
                     loadDataWithBaseURL(null, document, "text/html", "utf-8", null)
                     holder.view = this
                 }
             },
             onRelease = { view ->
                 holder.view = null
-                runCatching { view.stopLoading(); view.destroy() }
+                runCatching {
+                    view.stopLoading()
+                    view.destroy()
+                }
             },
         )
     }
 }
 
 private class SvgWebViewHolder(var view: WebView? = null)
+
+private class SvgAnimationWebViewClient(
+    private val holder: SvgWebViewHolder,
+    private val onFailed: () -> Unit,
+) : WebViewClient() {
+    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = true
+
+    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
+        if (request.url.scheme == "data") null
+        else WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream(ByteArray(0)))
+
+    override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+        if (request.isForMainFrame) onFailed()
+    }
+
+    override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+        holder.view = null
+        onFailed()
+        return true
+    }
+}

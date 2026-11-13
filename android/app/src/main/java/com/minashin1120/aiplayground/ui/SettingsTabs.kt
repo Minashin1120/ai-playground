@@ -197,6 +197,7 @@ private fun DefaultOptionChecks(form: SettingsForm) {
     val web = LocalWebPalette.current
     fun c(dark: Color, light: Color) = if (web.isLight) light else dark
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SettingsCheck("無料枠", form.geminiFree, { form.geminiFree = it }, labelColor = c(Color(153, 246, 228), Color(15, 118, 110)))
         SettingsCheck("Search", form.search, { form.search = it })
         SettingsCheck("URLs", form.urlContext, { form.urlContext = it })
         SettingsCheck("Maps", form.maps, { form.maps = it })
@@ -230,10 +231,12 @@ private fun DefaultOptionSelects(form: SettingsForm) {
 
 internal fun apiCards(state: ChatState, form: SettingsForm, notify: (String) -> Unit): List<SettingsCardSpec> = listOf(
     SettingsCardSpec(SettingsTab.Api, "api-keys", "APIキー",
-        "APIキー OpenAI API Key Gemini API Key DeepSeek API Key Z.AI API Key Kimi (Moonshot) API Key Mistral API Key Ideogram API Key Anthropic API Key Gemini 接続方式 Gemini API API Key で認証 Vertex AI Project/Location + ADC or JSON Vertex AI Project ID Vertex AI Location Vertex Service Account JSON (任意) xAI API Key Google API Key (TTS) Google Cloud Project ID (TTS) モデル別APIキー（特例） 通常のプロバイダーAPIキーより優先して、指定モデルにだけ適用します。 モデル別のAPIキーを設定する") {
+        "APIキー OpenAI API Key Gemini API Key（有料枠） Gemini API Key（無料枠） DeepSeek API Key Z.AI API Key Kimi (Moonshot) API Key Mistral API Key Ideogram API Key Anthropic API Key Gemini 接続方式 Gemini API API Key で認証 Vertex AI Project/Location + ADC or JSON Vertex AI Project ID Vertex AI Location Vertex Service Account JSON (任意) xAI API Key Google API Key (TTS) Google Cloud Project ID (TTS) モデル別APIキー（特例） 通常のプロバイダーAPIキーより優先して、指定モデルにだけ適用します。 モデル別のAPIキーを設定する") {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             KeyField("OpenAI API Key", "openai_key", form)
-            KeyField("Gemini API Key", "gemini_key", form)
+            KeyField("Gemini API Key（有料枠）", "gemini_key", form)
+            KeyField("Gemini API Key（無料枠）", "gemini_free_key", form)
+            SettingsDesc("プロンプトバーの「無料枠」がオンのときだけ無料枠のキーを使います。オフのときは有料枠のキーとモデル別キーを使います。")
             KeyField("DeepSeek API Key", "deepseek_key", form)
             KeyField("Z.AI API Key", "zai_key", form)
             KeyField("Kimi (Moonshot) API Key", "kimi_key", form)
@@ -292,10 +295,10 @@ private fun GeminiBackendBox(form: SettingsForm) {
             form.geminiBackend,
         ) { form.geminiBackend = it }
         val vertex = form.geminiBackend == "vertex_ai"
-        Text(if (vertex) "現在: Vertex AI（Project ID / Location / 認証情報が必要）" else "現在: Gemini API（Gemini API Key を使用）",
+        Text(if (vertex) "現在: Vertex AI（Project ID / Location / 認証情報が必要）" else "現在: Gemini API（有料枠・無料枠のAPIキーとプロンプトバーの「無料枠」スイッチを使用）",
             fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Tw.cyan300, modifier = Modifier.padding(top = 2.dp))
-        SettingsDesc(if (vertex) "Vertex AI を利用します。Project ID / Location を設定し、ADC または Vertex Service Account JSON を用意してください。"
-            else "Gemini API を利用します。API Key を設定してください。")
+        SettingsDesc(if (vertex) "Vertex AI を利用します。Project ID / Location を設定し、ADC または Vertex Service Account JSON を用意してください。プロンプトバーの「無料枠」はVertex AIでは使いません。"
+            else "Gemini API を利用します。プロンプトバーの「無料枠」がオンのときは無料枠のキー、オフのときは有料枠のキーで送信します。")
     }
 }
 

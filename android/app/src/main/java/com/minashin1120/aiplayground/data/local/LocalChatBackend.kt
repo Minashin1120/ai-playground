@@ -1,6 +1,7 @@
 package com.minashin1120.aiplayground.data.local
 
 import com.minashin1120.aiplayground.data.ApiException
+import com.minashin1120.aiplayground.data.apiKeyInfoFor
 import com.minashin1120.aiplayground.data.Diagnostics
 import com.minashin1120.aiplayground.data.backend.ChatBackend
 import com.minashin1120.aiplayground.data.direct.AttachmentExtractor
@@ -257,7 +258,7 @@ class LocalChatBackend(
         val found = router.route(model, modeOf(model)) ?: return null
         try {
             val vertex = if (found.provider == "gemini") vertexTarget() else null
-            val key = if (vertex != null) "" else settings.apiKeyFor(model) ?: return null
+            val key = if (vertex != null) "" else settings.apiKeyFor(model, payload.optBoolean("gemini_free_tier")) ?: return null
             var remaining = 16L * 1024 * 1024 - text.toByteArray().size
             if (remaining < 0) return null
             val attachments = refs.map { ref ->
@@ -537,8 +538,9 @@ class LocalChatBackend(
             .put("error", "このモデルはサーバー不使用モードでは使えません。"))
         val vertex = if (found.provider == "gemini" && found.engine is com.minashin1120.aiplayground.data.direct.GeminiDirect) vertexTarget() else null
         val route = if (vertex != null) DirectRouter.Route("gemini", router.vertexGemini(vertex)) else found
-        val apiKey = if (vertex != null) "" else settings.apiKeyFor(model) ?: throw ApiException(400, JSONObject().put("code", "api_key_missing")
-            .put("error", "このモデルのAPIキーが端末に設定されていません。").put("model", model))
+        val apiKey = if (vertex != null) "" else settings.apiKeyFor(model, body.optBoolean("gemini_free_tier"))
+            ?: throw ApiException(400, JSONObject().put("code", "api_key_missing")
+                .put("error", missingKeyMessage(model, body.optBoolean("gemini_free_tier"))).put("model", model))
         if (body.optBoolean("batch_mode")) throw ApiException(400, JSONObject().put("code", "serverless_unsupported")
             .put("error", "Batchはサーバー不使用モードでは使えません。"))
         val files = attachmentRefs(body)
@@ -687,8 +689,15 @@ class LocalChatBackend(
         result.content
     }
 
-    private var vertexAuth: com.minashin1120.aiplayground.data.direct.VertexAuth? = null
-    private var vertexCredentials: String? = null
+    /** Web/server message for a missing device key; the free-tier switch never falls back to the paid key. */
+    private fun missingKeyMessage(model: String, geminiFreeTier: Boolean): String =
+        if (geminiFreeTier && apiKeyInfoFor(model)?.provider == "gemini") {
+            "Gemini 無料枠のAPIキーが端末に設定されていません。"
+        } else {
+            "このモデルのAPIキーが端末に設定されていません。"
+        }
+
+    private var vertexAuth: com.minashin1120.aiplayground.data.direct.VertexAuth? = null    private var vertexCredentials: String? = null
 
     /** Gemini on Vertex AI when the profile (or the account) chose it and a service account JSON is on the device. */
     private fun vertexTarget(): com.minashin1120.aiplayground.data.direct.VertexTarget? {

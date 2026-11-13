@@ -26,6 +26,7 @@ internal data class PromptEditSettings(
     val imageMask: String?,
     val chipValues: Map<String, String>,
     val generationValues: Map<String, String>,
+    val geminiFreeTier: Boolean = false,
 ) {
     fun restore(current: ChatState): ChatState = current.copy(
         model = model,
@@ -49,6 +50,7 @@ internal data class PromptEditSettings(
         imageMask = imageMask,
         chipValues = chipValues,
         generationValues = generationValues,
+        geminiFreeTier = geminiFreeTier,
     )
 
     companion object {
@@ -75,6 +77,7 @@ internal data class PromptEditSettings(
             imageMask = state.imageMask,
             chipValues = state.chipValues.toMap(),
             generationValues = state.generationValues.toMap(),
+            geminiFreeTier = state.geminiFreeTier,
         )
     }
 }

@@ -1014,8 +1014,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     return os.getenv(env_key)
                 return None
 
-            resolved_auth = _resolve_chat_model_auth(user, model_key)
-            gemini_runtime = resolved_auth.get("gemini_runtime") or _resolve_gemini_runtime(user)
+            gemini_free_tier = _coerce_gemini_free_tier(options.get("gemini_free_tier")) if isinstance(options, dict) else False
+            resolved_auth = _resolve_chat_model_auth(user, model_key, gemini_free_tier=gemini_free_tier)
+            gemini_runtime = resolved_auth.get("gemini_runtime") or _resolve_gemini_runtime(user, use_free_tier=gemini_free_tier)
             model_api_key_override = _get_model_specific_api_key(user, model_key)
 
             api_keys = {

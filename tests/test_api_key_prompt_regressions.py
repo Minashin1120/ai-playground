@@ -18,9 +18,10 @@ class ApiKeyPromptRegressionTests(unittest.TestCase):
         route = APP_SOURCE[APP_SOURCE.index("def chat_stream():") :]
         route = route[: route.index("@app.route('/api/token_estimate'")]
 
-        auth_check_at = route.index("_resolve_chat_model_auth(current_user, model_key)")
+        auth_check_at = route.index("_resolve_chat_model_auth(current_user, model_key")
         message_save_at = route.index("user_msg = Message(")
         self.assertLess(auth_check_at, message_save_at)
+        self.assertIn("gemini_free_tier=data.get('gemini_free_tier')", route)
         self.assertIn('"code": resolved_auth["error_code"]', route)
         self.assertIn('"model": model_key', route)
         self.assertIn('"provider": resolved_auth.get("provider")', route)

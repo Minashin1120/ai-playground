@@ -310,14 +310,14 @@ def build_coding_mode_repair_prompt(
         f"--- BEGIN CURRENT WORKING CODE ---\n{current_code}\n--- END CURRENT WORKING CODE ---"
     )
 
-def _call_coding_mode_repair_model(user, model_key, repair_prompt):
-    resolved = _resolve_chat_model_auth(user, model_key)
+def _call_coding_mode_repair_model(user, model_key, repair_prompt, gemini_free_tier=False):
+    resolved = _resolve_chat_model_auth(user, model_key, gemini_free_tier=gemini_free_tier)
     if resolved.get("error_code"):
         raise RuntimeError(resolved.get("error") or "修復用モデルの認証情報がありません")
     provider = resolved.get("provider")
     api_key = resolved.get("api_key")
     if provider == "gemini":
-        runtime = resolved.get("gemini_runtime") or _resolve_gemini_runtime(user)
+        runtime = resolved.get("gemini_runtime") or _resolve_gemini_runtime(user, use_free_tier=gemini_free_tier)
         client = _get_gemini_client(
             api_key=api_key,
             backend=runtime.get("backend"),

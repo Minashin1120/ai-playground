@@ -11,6 +11,7 @@ val AI_SETTING_JUMP_TARGETS = mapOf(
     "default_vision_model" to AiSettingTarget("Vision Model"),
     "use_last_chat_settings" to AiSettingTarget("前回の設定を継続"),
     "default_enable_search" to AiSettingTarget("既定のSearch"),
+    "default_gemini_free_tier" to AiSettingTarget("既定の無料枠"),
     "default_enable_url_context" to AiSettingTarget("既定のURLs"),
     "default_enable_maps" to AiSettingTarget("既定のMaps"),
     "default_enable_python" to AiSettingTarget("既定のPython"),
@@ -79,12 +80,16 @@ data class SettingsBubble(
 /** Web `getModelProviderInfo`: which API key a model needs (for the "APIキーが必要です" dialog). */
 data class ApiKeyInfo(val provider: String, val keyField: String, val label: String)
 
-fun apiKeyInfoFor(model: String): ApiKeyInfo? {
+fun apiKeyInfoFor(model: String, useFree: Boolean = false): ApiKeyInfo? {
     val id = model.lowercase().trim()
     if (id.isEmpty()) return null
     return when {
         id.startsWith("gemini") || id.startsWith("veo-") || id.startsWith("lyria-") || id.startsWith("deep-research-") ||
-            id.startsWith("antigravity-") -> ApiKeyInfo("gemini", "gemini_key", "Gemini API Key")
+            id.startsWith("antigravity-") -> if (useFree) {
+                ApiKeyInfo("gemini", "gemini_free_key", "Gemini API Key（無料枠）")
+            } else {
+                ApiKeyInfo("gemini", "gemini_key", "Gemini API Key")
+            }
         id.startsWith("gpt") || id.startsWith("o1") || id.startsWith("o3") -> ApiKeyInfo("openai", "openai_key", "OpenAI API Key")
         id.startsWith("deepseek") -> ApiKeyInfo("deepseek", "deepseek_key", "DeepSeek API Key")
         id.startsWith("glm-") -> ApiKeyInfo("zai", "zai_key", "Z.AI API Key")

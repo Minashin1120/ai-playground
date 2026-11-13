@@ -308,13 +308,13 @@ internal fun composerOptStyle(checked: Boolean, group: Boolean = false): WebPill
     }
 }
 
-/** The three `.composer-chip` toggles next to the model button. */
+/** The `.composer-chip` toggles next to the model button. */
 internal enum class ChipTone(val accent: Color) {
-    Canvas(Tw.cyan400), Coding(Tw.emerald400), Batch(Tw.violet400),
+    Canvas(Tw.cyan400), Coding(Tw.emerald400), Batch(Tw.violet400), GeminiFree(Tw.teal400),
 }
 
 /**
- * `.composer-chip` (Canvas / Coding / Batch): 11px semibold, `min-height: 1.9rem`, `padding: .32rem .62rem`,
+ * `.composer-chip` (Canvas / Coding / Batch / 無料枠): 11px semibold, `min-height: 1.9rem`, `padding: .32rem .62rem`,
  * 12px radius. Canvas keeps its teal tint; Coding and Batch are neutral in dark and tinted in light.
  */
 @Composable
@@ -338,6 +338,11 @@ internal fun composerChipStyle(checked: Boolean, tone: ChipTone): WebPillStyle {
             if (web.isLight) Color(139, 92, 246).copy(alpha = 0.12f) else neutralBg,
             neutralBorder,
             if (web.isLight) Color(109, 40, 217) else Color(154, 166, 186),
+        )
+        ChipTone.GeminiFree -> Triple(
+            if (web.isLight) Color(13, 148, 136).copy(alpha = 0.12f) else neutralBg,
+            if (checked) Color(45, 212, 191).copy(alpha = 0.55f) else neutralBorder,
+            if (web.isLight) Color(15, 118, 110) else Color(153, 246, 228),
         )
     }
     return WebPillStyle(

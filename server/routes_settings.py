@@ -45,6 +45,7 @@ def handle_settings():
             'username': current_user.username, 
             'openai_key': _masked_secret(current_user.openai_api_key),
             'gemini_key': _masked_secret(current_user.gemini_api_key),
+            'gemini_free_key': _masked_secret(getattr(current_user, 'gemini_free_api_key', None)),
             'anthropic_key': _masked_secret(current_user.anthropic_api_key),
             'deepseek_key': _masked_secret(current_user.deepseek_api_key),
             'zai_key': _masked_secret(current_user.zai_api_key),
@@ -79,6 +80,7 @@ def handle_settings():
             'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(current_user),
             'default_model': current_user.default_model or "gemini-3.6-flash",
             'default_enable_search': current_user.default_enable_search,
+            'default_gemini_free_tier': bool(getattr(current_user, 'default_gemini_free_tier', False)),
             'default_enable_url_context': current_user.default_enable_url_context,
             'default_enable_maps': current_user.default_enable_maps,
             'default_enable_python': current_user.default_enable_python,
@@ -98,6 +100,7 @@ def handle_settings():
             # Legacy alias for clients that still read the old field name.
             'last_gem_uuid': current_user.last_skill_uuid,
             'last_enable_search': current_user.last_enable_search,
+            'last_gemini_free_tier': bool(getattr(current_user, 'last_gemini_free_tier', False)),
             'last_enable_url_context': current_user.last_enable_url_context,
             'last_enable_maps': current_user.last_enable_maps,
             'last_enable_python': current_user.last_enable_python,
@@ -142,7 +145,7 @@ def handle_settings():
     if len(json.dumps(d, ensure_ascii=False, default=str)) > 2 * 1024 * 1024:
         return jsonify({'error': 'payload_too_large'}), 413
     for secret_key in (
-        'openai_key', 'gemini_key', 'anthropic_key', 'deepseek_key', 'xai_key',
+        'openai_key', 'gemini_key', 'gemini_free_key', 'anthropic_key', 'deepseek_key', 'xai_key',
         'kimi_key', 'mistral_key', 'ideogram_key', 'zai_key', 'google_key', 'google_project', 'gemini_vertex_project'
     ):
         if secret_key in d and len(str(d.get(secret_key) or '')) > 4096:
@@ -172,6 +175,7 @@ def handle_settings():
         set_user_auto_system_prompt_notices_config(current_user, d.get('auto_system_prompt_notices_config'))
     if 'openai_key' in d and d['openai_key'] != _SECRET_MASK: current_user.openai_api_key = encrypt_val(d['openai_key'])
     if 'gemini_key' in d and d['gemini_key'] != _SECRET_MASK: current_user.gemini_api_key = encrypt_val(d['gemini_key'])
+    if 'gemini_free_key' in d and d['gemini_free_key'] != _SECRET_MASK: current_user.gemini_free_api_key = encrypt_val(d['gemini_free_key'])
     if 'anthropic_key' in d and d['anthropic_key'] != _SECRET_MASK: current_user.anthropic_api_key = encrypt_val(d['anthropic_key'])
     if 'deepseek_key' in d and d['deepseek_key'] != _SECRET_MASK: current_user.deepseek_api_key = encrypt_val(d['deepseek_key'])
     if 'zai_key' in d and d['zai_key'] != _SECRET_MASK: current_user.zai_api_key = encrypt_val(d['zai_key'])
@@ -230,6 +234,7 @@ def handle_settings():
             d.get('temp_chat_timeout_seconds')
         )
     if 'default_enable_search' in d: current_user.default_enable_search = bool(d['default_enable_search'])
+    if 'default_gemini_free_tier' in d: current_user.default_gemini_free_tier = bool(d['default_gemini_free_tier'])
     if 'default_enable_url_context' in d: current_user.default_enable_url_context = bool(d['default_enable_url_context'])
     if 'default_enable_maps' in d: current_user.default_enable_maps = bool(d['default_enable_maps'])
     if 'default_enable_python' in d: current_user.default_enable_python = bool(d['default_enable_python'])

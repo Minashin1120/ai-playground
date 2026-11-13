@@ -56,6 +56,7 @@
             default_vision_model: { label: 'Vision Model', tab: 'general', control: 'set-default-vision-model' },
             use_last_chat_settings: { label: '前回の設定を継続', tab: 'general', control: 'set-use-last-settings' },
             default_enable_search: { label: '既定のSearch', tab: 'general', control: 'set-default-search' },
+            default_gemini_free_tier: { label: '既定の無料枠', tab: 'general', control: 'set-default-gemini-free-tier' },
             default_enable_url_context: { label: '既定のURLs', tab: 'general', control: 'set-default-url-context' },
             default_enable_maps: { label: '既定のMaps', tab: 'general', control: 'set-default-maps' },
             default_enable_python: { label: '既定のPython', tab: 'general', control: 'set-default-python' },
@@ -492,6 +493,7 @@
             return {
                 canvas_mode: !!canvasModeEnabled,
                 enable_search: checked('enable-search', false),
+                gemini_free_tier: checked('enable-gemini-free-tier', false),
                 enable_url_context: checked('enable-url-context', false),
                 enable_maps: checked('enable-maps', false),
                 enable_python: checked('enable-python', false),

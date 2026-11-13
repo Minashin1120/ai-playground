@@ -13,8 +13,13 @@ def _is_browser_fast_mode_model(model_key):
     )
 
 # region: browser fast mode routes
-def _get_browser_fast_mode_user_key(user, model_key):
+def _get_browser_fast_mode_user_key(user, model_key, use_free=False):
     """Return only a key owned by this user; never disclose admin/env fallback keys."""
+    if _coerce_gemini_free_tier(use_free):
+        free_value = decrypt_val(getattr(user, 'gemini_free_api_key', None)) if user else None
+        if free_value and str(free_value).strip():
+            return str(free_value).strip(), 'gemini_free'
+        return None, None
     model_key_value = _get_model_specific_api_key(user, model_key)
     if model_key_value:
         return model_key_value, 'model_specific'
@@ -97,8 +102,24 @@ def bootstrap_browser_fast_mode():
     model_key = str(data.get('model') or '').strip()
     if not _is_browser_fast_mode_model(model_key):
         return jsonify({'error': 'Browser fast mode supports Gemini text models only'}), 400
-    api_key, key_source = _get_browser_fast_mode_user_key(current_user, model_key)
+    use_free = _coerce_gemini_free_tier(data.get('gemini_free_tier'))
+    api_key, key_source = _get_browser_fast_mode_user_key(current_user, model_key, use_free=use_free)
+    try:
+        logger.info(
+            "gemini_api_tier user=%s model=%s tier=%s backend=%s",
+            current_user.id,
+            model_key,
+            "free" if use_free else "paid",
+            "browser_fast",
+        )
+    except Exception:
+        pass
     if not api_key:
+        if use_free:
+            return jsonify({
+                'error': 'Gemini 無料枠のAPIキーが設定されていません。',
+                'code': 'user_api_key_missing',
+            }), 400
         return jsonify({
             'error': '選択中モデルのモデル別APIキーまたは共通Gemini APIキーを設定してください',
             'code': 'user_api_key_missing',
@@ -142,7 +163,7 @@ def bootstrap_browser_fast_mode():
 _PROMPT_OPTION_KEYS = (
     'turn_time_notice',
     'canvas_mode', 'coding_mode', 'browser_fast_mode', 'batch_mode',
-    'enable_search', 'enable_url_context', 'enable_maps', 'enable_python',
+    'enable_search', 'gemini_free_tier', 'enable_url_context', 'enable_maps', 'enable_python',
     'enable_file_creation', 'enable_mcp', 'enable_skills', 'enable_thinking', 'thinking_level',
     'thinking_budget', 'reasoning_effort', 'safety_setting', 'enable_prompt_caching',
     'image_vision_model', 'image_mask',

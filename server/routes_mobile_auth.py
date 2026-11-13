@@ -12,6 +12,7 @@ _MOBILE_NATIVE_CODE_TTL = 300
 _MOBILE_SETUP_SECRET_FIELDS = {
     'openai_api_key': 'openai_api_key',
     'gemini_api_key': 'gemini_api_key',
+    'gemini_free_api_key': 'gemini_free_api_key',
     'anthropic_api_key': 'anthropic_api_key',
     'deepseek_api_key': 'deepseek_api_key',
     'kimi_api_key': 'kimi_api_key',

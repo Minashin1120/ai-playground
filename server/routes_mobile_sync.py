@@ -21,6 +21,7 @@ _DIAGNOSTICS_LOG_MAX_BYTES = 20 * 1024 * 1024
 _SYNC_UUID_RE = re.compile(r'^[0-9a-fA-F-]{16,36}$')
 _SYNC_SECRET_FIELDS = (
     ('openai_key', 'openai_api_key'), ('gemini_key', 'gemini_api_key'),
+    ('gemini_free_key', 'gemini_free_api_key'),
     ('anthropic_key', 'anthropic_api_key'), ('deepseek_key', 'deepseek_api_key'),
     ('kimi_key', 'kimi_api_key'), ('mistral_key', 'mistral_api_key'),
     ('ideogram_key', 'ideogram_api_key'),

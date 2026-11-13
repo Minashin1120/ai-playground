@@ -45,6 +45,7 @@ internal class ChatEditing(
             model = modelId,
             imageMask = options?.optString("image_mask")?.takeIf { it.isNotBlank() },
             enableSearch = savedBoolean("enable_search", enableSearch),
+            geminiFreeTier = savedBoolean("gemini_free_tier", geminiFreeTier),
             enableUrlContext = savedBoolean("enable_url_context", enableUrlContext),
             enableMaps = savedBoolean("enable_maps", enableMaps),
             enablePython = savedBoolean("enable_python", enablePython),

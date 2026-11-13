@@ -167,6 +167,7 @@
                 uploaded_image_urls: uploadedImageUrlsToSend,
                 temporary_chat: temporaryChatEnabled,
                 enable_search: get('enable-search').checked,
+                gemini_free_tier: !!(get('enable-gemini-free-tier') && get('enable-gemini-free-tier').checked),
                 enable_url_context: get('enable-url-context') ? get('enable-url-context').checked : false,
                 enable_maps: get('enable-maps') ? get('enable-maps').checked : false,
                 enable_python: get('enable-python').checked,

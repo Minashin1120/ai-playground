@@ -35,8 +35,19 @@ class LocalSettingsStoreTest {
         assertFalse(folder.root.resolve("preferences.enc").readBytes().toString(Charsets.ISO_8859_1).contains("sk-ant"))
     }
 
-    @Test fun importKeepsExistingKeysUnlessOverwriting() {
+    @Test fun freeTierUsesOnlyTheFreeKeyAndSkipsModelKeys() {
+        settings.savePreferences(JSONObject().put("gemini_key", "AIza-paid").put("gemini_free_key", "AIza-free")
+            .put("model_api_keys", JSONObject().put("gemini-3.6-flash", "AIza-model")))
+        assertEquals("AIza-model", settings.apiKeyFor("gemini-3.6-flash"))
+        assertEquals("AIza-paid", settings.apiKeyFor("gemini-2.5-pro"))
+        assertEquals("AIza-free", settings.apiKeyFor("gemini-3.6-flash", geminiFreeTier = true))
         settings.savePreferences(JSONObject().put("openai_key", "sk-device"))
+        assertEquals("sk-device", settings.apiKeyFor("gpt-5.5", geminiFreeTier = true))
+        settings.savePreferences(JSONObject().put("gemini_free_key", ""))
+        assertNull(settings.apiKeyFor("gemini-3.6-flash", geminiFreeTier = true))
+    }
+
+    @Test fun importKeepsExistingKeysUnlessOverwriting() {        settings.savePreferences(JSONObject().put("openai_key", "sk-device"))
         settings.importSecrets(JSONObject().put("openai_key", "sk-server").put("xai_key", "xai-server"), overwrite = false)
         assertEquals("sk-device", settings.providerKey("openai_key"))
         assertEquals("xai-server", settings.providerKey("xai_key"))

@@ -125,4 +125,11 @@ class ComposerRulesTest {
         assertEquals("入力見積: 12,345 tokens · 詳細", counted.text)
         assertEquals("count", line.tone)
     }
+
+    @Test fun geminiFreeIsVisibleOnlyForGeminiApi() {
+        assertTrue(composerRules("gemini-3.6-flash", mcpEnabledServer = false).geminiFree.visible)
+        assertTrue(composerRules("veo-3.1-generate-preview", mcpEnabledServer = false).geminiFree.visible)
+        assertFalse(composerRules("gemini-3.6-flash", mcpEnabledServer = false, geminiBackend = "vertex_ai").geminiFree.visible)
+        assertFalse(composerRules("gpt-5.5", mcpEnabledServer = false).geminiFree.visible)
+    }
 }

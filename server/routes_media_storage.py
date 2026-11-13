@@ -295,6 +295,9 @@ with app.app_context():
             try_alter("ALTER TABLE user ADD COLUMN gemini_vertex_credentials_json TEXT")
         except: pass
         try:
+            try_alter("ALTER TABLE user ADD COLUMN gemini_free_api_key TEXT")
+        except: pass
+        try:
             try_alter("ALTER TABLE user ADD COLUMN deepseek_api_key TEXT")
         except: pass
         try:
@@ -376,6 +379,9 @@ with app.app_context():
             try_alter("ALTER TABLE user ADD COLUMN default_enable_search BOOLEAN DEFAULT 0")
         except: pass
         try:
+            try_alter("ALTER TABLE user ADD COLUMN default_gemini_free_tier BOOLEAN DEFAULT 0")
+        except: pass
+        try:
             try_alter("ALTER TABLE user ADD COLUMN default_enable_mcp BOOLEAN DEFAULT 1")
         except: pass
         try:
@@ -428,6 +434,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN last_enable_search BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_gemini_free_tier BOOLEAN DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN last_enable_mcp BOOLEAN DEFAULT 1")

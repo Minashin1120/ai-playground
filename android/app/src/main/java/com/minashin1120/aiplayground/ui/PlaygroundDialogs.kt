@@ -71,7 +71,8 @@ internal fun PlaygroundDialogs(
         SessionTurnstileOverlay(onOpen = { onWeb(url) }, onDismiss = model::dismissSessionTurnstile)
     }
     state.apiKeyPrompt?.let { modelId ->
-        apiKeyInfoFor(modelId)?.let { info ->
+        val useFree = state.geminiFreeTier && state.preferences?.geminiBackend != "vertex_ai"
+        apiKeyInfoFor(modelId, useFree)?.let { info ->
             ApiKeyRequiredDialog(model.modelDisplayName(modelId), modelId, info, onSave = model::saveApiKeyAndResend,
                 onSwitch = { model.dismissApiKeyPrompt(false); overlays.modelPicker = true },
                 onCancel = { model.dismissApiKeyPrompt(true) })

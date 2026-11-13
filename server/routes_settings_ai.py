@@ -6,6 +6,7 @@ def _build_ai_settings_tool_schema():
     props = {
         "default_model": {"type": "string", "description": "既定モデルID", "enum": sorted(ALL_VALID_MODEL_IDS)},
         "default_enable_search": {"type": "boolean", "description": "Searchツールの既定ON/OFF"},
+        "default_gemini_free_tier": {"type": "boolean", "description": "Gemini無料枠APIを既定で使うか（オンで無料枠キー、オフで有料枠キー）"},
         "default_enable_url_context": {"type": "boolean", "description": "URLs (URLコンテキスト) の既定ON/OFF"},
         "default_enable_maps": {"type": "boolean", "description": "Maps (Google Maps grounding) の既定ON/OFF"},
         "default_enable_python": {"type": "boolean", "description": "Python実行ツールの既定ON/OFF"},

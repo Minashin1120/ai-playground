@@ -313,10 +313,22 @@ def _format_gemini_runtime_error(err, backend="gemini_api"):
         pass
     return str(err)
 
-def _resolve_gemini_runtime(user):
+def _coerce_gemini_free_tier(value):
+    """True only for an explicit free-tier request. Anything else stays on the paid key."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str) and value.strip().lower() in ("1", "true", "yes", "on"):
+        return True
+    return False
+
+def _resolve_gemini_runtime(user, use_free_tier=False):
+    use_free = _coerce_gemini_free_tier(use_free_tier)
     backend_raw = getattr(user, "gemini_backend", None) if user else None
     backend = _normalize_gemini_backend(backend_raw)
-    api_key = decrypt_val(getattr(user, "gemini_api_key", None)) if user else None
+    key_field = "gemini_free_api_key" if use_free else "gemini_api_key"
+    api_key = decrypt_val(getattr(user, key_field, None)) if user else None
     vertex_project = decrypt_val(getattr(user, "gemini_vertex_project", None)) if user else None
     vertex_location_raw = getattr(user, "gemini_vertex_location", None) if user else None
     vertex_credentials_json = decrypt_val(getattr(user, "gemini_vertex_credentials_json", None)) if user else None
@@ -325,7 +337,7 @@ def _resolve_gemini_runtime(user):
         env_backend = os.getenv("GEMINI_BACKEND")
         if env_backend and (not backend_raw or not str(backend_raw).strip()):
             backend = _normalize_gemini_backend(env_backend)
-        if not api_key:
+        if not use_free and not api_key:
             api_key = os.getenv("GEMINI_API_KEY")
         if not vertex_project:
             vertex_project = (
@@ -355,6 +367,7 @@ def _resolve_gemini_runtime(user):
         "vertex_project": vertex_project,
         "vertex_location": vertex_location,
         "vertex_credentials_json": vertex_credentials_json,
+        "api_tier": "free" if use_free else "paid",
     }
 
 _MODEL_API_KEY_MAX_ENTRIES = 256
@@ -450,7 +463,7 @@ def _get_model_specific_api_key(user, model_key):
             return str(legacy_value).strip()
     return None
 
-def _resolve_chat_model_auth(user, model_key):
+def _resolve_chat_model_auth(user, model_key, gemini_free_tier=False):
     """Resolve chat credentials exactly as the worker does, without calling a provider."""
     mk = str(model_key or "").strip()
     mk_l = mk.lower()
@@ -477,8 +490,15 @@ def _resolve_chat_model_auth(user, model_key):
         api_key = model_key_override or user_or_admin_env("google_api_key", "GOOGLE_API_KEY")
     elif is_gemini_model_key(mk_l):
         provider = "gemini"
-        gemini_runtime = _resolve_gemini_runtime(user)
-        api_key = model_key_override or gemini_runtime.get("api_key")
+        backend_preview = _normalize_gemini_backend(getattr(user, "gemini_backend", None) if user else None)
+        if _admin_env_fallback_enabled(user):
+            env_backend = os.getenv("GEMINI_BACKEND")
+            raw_backend = getattr(user, "gemini_backend", None) if user else None
+            if env_backend and (not raw_backend or not str(raw_backend).strip()):
+                backend_preview = _normalize_gemini_backend(env_backend)
+        apply_free = _coerce_gemini_free_tier(gemini_free_tier) and backend_preview != "vertex_ai"
+        gemini_runtime = _resolve_gemini_runtime(user, use_free_tier=apply_free)
+        api_key = gemini_runtime.get("api_key") if apply_free else (model_key_override or gemini_runtime.get("api_key"))
         if mk_l == "gemini-3.8-flash-cyber" and gemini_runtime.get("backend") != "vertex_ai":
             error_code = "provider_configuration_missing"
             error_message = "Gemini 3.8 Flash Cyber は Vertex AI バックエンドでのみ利用できます。"
@@ -489,9 +509,22 @@ def _resolve_chat_model_auth(user, model_key):
                     "Vertex AI Project ID が未設定です。設定で Gemini Backend を "
                     "Vertex AI にした場合は Project ID を入力してください。"
                 )
+        elif apply_free and not api_key:
+            error_code = "api_key_missing"
+            error_message = "Gemini 無料枠のAPIキーが設定されていません。"
         elif not api_key:
             error_code = "api_key_missing"
             error_message = "Gemini APIキーが設定されていません。"
+        try:
+            logger.info(
+                "gemini_api_tier user=%s model=%s tier=%s backend=%s",
+                getattr(user, "id", None),
+                mk,
+                gemini_runtime.get("api_tier") or "paid",
+                gemini_runtime.get("backend"),
+            )
+        except Exception:
+            pass
     elif is_anthropic_model_key(mk_l):
         provider = "anthropic"
         api_key = model_key_override or user_or_admin_env("anthropic_api_key", "ANTHROPIC_API_KEY")
@@ -770,8 +803,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-11-13-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.1166'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-11-13-002')
+app.config['SYSTEM_VERSION'] = 'V4.8.1167'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

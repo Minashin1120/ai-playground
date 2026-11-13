@@ -63,7 +63,8 @@ def estimate_prompt_tokens_api():
 
     provider_estimate = _provider_draft_estimate(current_user, model_key, message_for_count, norm_image_urls,
                                                 message_text=message_text, quote_text=quote_text,
-                                                include_details=data.get('include_details') is True)
+                                                include_details=data.get('include_details') is True,
+                                                gemini_free_tier=data.get('gemini_free_tier'))
     if provider_estimate is not None:
         return jsonify(provider_estimate)
 

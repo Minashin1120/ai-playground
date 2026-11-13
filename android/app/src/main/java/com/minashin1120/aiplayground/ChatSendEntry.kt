@@ -55,7 +55,8 @@ internal class ChatSendEntry(
         val modelId = state.value.apiKeyPrompt ?: return
         val trimmed = key.trim()
         if (trimmed.isEmpty()) { notify("APIキーを入力してください"); return }
-        val info = apiKeyInfoFor(modelId) ?: return
+        val useFree = state.value.geminiFreeTier && state.value.preferences?.geminiBackend != "vertex_ai"
+        val info = apiKeyInfoFor(modelId, useFree) ?: return
         scope.launch {
             try {
                 val reply = backend().put("/api/mobile/v1/preferences", JSONObject().put(info.keyField, trimmed), token())

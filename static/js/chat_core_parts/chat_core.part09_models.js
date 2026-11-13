@@ -383,10 +383,27 @@
             if (txt.length <= 8) return '********';
             return `${txt.slice(0, 4)}...${txt.slice(-4)}`;
         };
+        const isGeminiApiModel = (modelId) => {
+            const id = String(modelId || '').toLowerCase().trim();
+            return id.startsWith('gemini') || id.startsWith('veo-') || id.startsWith('lyria-') || id.startsWith('deep-research-') || id.startsWith('antigravity-');
+        };
+        const currentGeminiBackend = () => {
+            const el = get('set-gemini-backend');
+            return normalizeGeminiBackend(el ? el.value : 'gemini_api');
+        };
+        const geminiFreeTierChecked = () => {
+            const el = get('enable-gemini-free-tier');
+            return !!(el && el.checked);
+        };
         const getModelProviderInfo = (modelId) => {
             const id = String(modelId || '').toLowerCase().trim();
             if (!id) return null;
-            if (id.startsWith('gemini') || id.startsWith('veo-') || id.startsWith('lyria-') || id.startsWith('deep-research-') || id.startsWith('antigravity-')) return { provider: 'gemini', keyField: 'gemini_key', inputId: 'set-gemini', label: 'Gemini API Key' };
+            if (isGeminiApiModel(id)) {
+                if (geminiFreeTierChecked() && currentGeminiBackend() !== 'vertex_ai') {
+                    return { provider: 'gemini', keyField: 'gemini_free_key', inputId: 'set-gemini-free', label: 'Gemini API Key（無料枠）' };
+                }
+                return { provider: 'gemini', keyField: 'gemini_key', inputId: 'set-gemini', label: 'Gemini API Key（有料枠）' };
+            }
             if (id.startsWith('gpt') || id.startsWith('o1') || id.startsWith('o3')) return { provider: 'openai', keyField: 'openai_key', inputId: 'set-openai', label: 'OpenAI API Key' };
             if (id.startsWith('deepseek')) return { provider: 'deepseek', keyField: 'deepseek_key', inputId: 'set-deepseek', label: 'DeepSeek API Key' };
             if (id.startsWith('glm-')) return { provider: 'zai', keyField: 'zai_key', inputId: 'set-zai', label: 'Z.AI API Key' };
@@ -538,6 +555,7 @@
             { id: 'canvas', label: '/canvas', description: 'Canvasを切り替える（on / off）', icon: 'fa-window-restore', kind: 'minimal', itemKey: 'canvas' },
             { id: 'coding', label: '/coding', description: 'Codingを切り替える（on / off）', icon: 'fa-code-branch', kind: 'minimal', itemKey: 'coding' },
             { id: 'fast', label: '/fast', description: '高速モードを切り替える（on / off）', icon: 'fa-bolt', kind: 'minimal', itemKey: 'fast' },
+            { id: 'gemini-free', label: '/gemini-free', description: 'Gemini無料枠APIを切り替える（on / off）', icon: 'fa-tag', kind: 'minimal', itemKey: 'gemini-free' },
             { id: 'search', label: '/search', description: 'Searchを切り替える（on / off）', icon: 'fa-search', kind: 'minimal', itemKey: 'search' },
             { id: 'urls', label: '/urls', description: 'URLsを切り替える（on / off）', icon: 'fa-link', kind: 'minimal', itemKey: 'urls' },
             { id: 'maps', label: '/maps', description: 'Mapsを切り替える（on / off）', icon: 'fa-map-location-dot', kind: 'minimal', itemKey: 'maps' },

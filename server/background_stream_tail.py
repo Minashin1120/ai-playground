@@ -181,6 +181,7 @@ def background_stream_tail(local):
                             user,
                             model_key,
                             repair_prompt,
+                            gemini_free_tier=_coerce_gemini_free_tier(options.get("gemini_free_tier")) if isinstance(options, dict) else False,
                         )
                         coding_repair_outputs += f"\n{repair_output}"
                         repair_payload = _parse_coding_mode_edit_payload(repair_output)

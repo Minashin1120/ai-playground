@@ -100,7 +100,7 @@ def _draft_count_call(user, resolved, model, text, attachments):
     return value
 
 
-def _provider_draft_estimate(user, model, text, references, message_text=None, quote_text=None, include_details=False):
+def _provider_draft_estimate(user, model, text, references, message_text=None, quote_text=None, include_details=False, gemini_free_tier=False):
     """Return an API count, or None so the caller can supply a labelled approximation."""
     provider = get_model_api_provider(model)
     if provider not in {'gemini', 'anthropic', 'openai', 'xai', 'kimi'}:
@@ -108,7 +108,7 @@ def _provider_draft_estimate(user, model, text, references, message_text=None, q
     # Image generation / STT etc. have different input and billing contracts.
     if any(word in model.lower() for word in ('image', 'banana', 'imagine', 'tts', 'transcribe', 'search', 'agent', 'deep-research')):
         return None
-    resolved = _resolve_chat_model_auth(user, model)
+    resolved = _resolve_chat_model_auth(user, model, gemini_free_tier=gemini_free_tier)
     if resolved.get('error_code') or (not resolved.get('api_key') and (resolved.get('gemini_runtime') or {}).get('backend') != 'vertex_ai'):
         return None
     op = secrets.token_hex(16)

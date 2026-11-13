@@ -4,7 +4,7 @@
 # Keep in sync with settings modal UI and handle_settings POST handling for these fields.
 AI_SAFE_EDITABLE_FIELDS = {
     # Default chat behaviors
-    'default_model', 'default_enable_search', 'default_enable_url_context', 'default_enable_maps',
+    'default_model', 'default_enable_search', 'default_gemini_free_tier', 'default_enable_url_context', 'default_enable_maps',
     'default_enable_python', 'default_enable_file_creation', 'default_enable_thinking', 'default_thinking_level',
     'default_thinking_budget', 'default_reasoning_effort', 'default_enable_system_prompt', 'default_enable_mcp',
     'default_safety_setting',
@@ -31,7 +31,7 @@ AI_SAFE_EDITABLE_FIELDS = {
 # Fields that must NEVER be settable via AI prompt (secrets, high-impact, admin-only, or runtime)
 AI_NEVER_EDITABLE_FIELDS = {
     # Secrets / credentials
-    'openai_key', 'gemini_key', 'anthropic_key', 'deepseek_key', 'xai_key', 'kimi_key',
+    'openai_key', 'gemini_key', 'gemini_free_key', 'anthropic_key', 'deepseek_key', 'xai_key', 'kimi_key',
     'mistral_key', 'ideogram_key', 'google_key',
     'google_project', 'gemini_vertex_project', 'gemini_vertex_location',
     'gemini_vertex_credentials_json', 'model_api_keys',
@@ -186,6 +186,9 @@ def _apply_ai_settings_update(current_user, delta):
             elif key == 'default_enable_search':
                 current_user.default_enable_search = bool(val)
                 applied[key] = current_user.default_enable_search
+            elif key == 'default_gemini_free_tier':
+                current_user.default_gemini_free_tier = bool(val)
+                applied[key] = current_user.default_gemini_free_tier
             elif key == 'default_enable_url_context':
                 current_user.default_enable_url_context = bool(val)
                 applied[key] = current_user.default_enable_url_context

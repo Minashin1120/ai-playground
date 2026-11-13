@@ -24,6 +24,17 @@ class SettingsFormTest {
     }
 
     @Test
+    fun defaultFreeTierIsReadAndSavedWithTheOtherDefaults() {
+        val prefs = parsePreferences(JSONObject().put("default_gemini_free_tier", true))
+        val form = SettingsForm(prefs)
+        assertEquals(true, form.geminiFree)
+        assertEquals(true, form.payload().getBoolean("default_gemini_free_tier"))
+        form.geminiFree = false
+        assertEquals(false, SettingsForm(prefs.copy(defaultGeminiFreeTier = false)).geminiFree)
+        assertEquals(false, form.payload().getBoolean("default_gemini_free_tier"))
+    }
+
+    @Test
     fun reloadKeysTakesImportedKeysIntoOpenForm() {
         val form = SettingsForm(parsePreferences(JSONObject().put("username", "user")))
         form.providerKeys["openai_key"] = "sk-typed"

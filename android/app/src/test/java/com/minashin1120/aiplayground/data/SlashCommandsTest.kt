@@ -47,6 +47,8 @@ class SlashCommandsTest {
         assertEquals("未設定", formatAiSettingValue(null))
         assertEquals("3", formatAiSettingValue(3.0))
         assertEquals("Gemini API Key", apiKeyInfoFor("veo-3.1-generate-preview")?.label)
+        assertEquals("Gemini API Key（無料枠）", apiKeyInfoFor("veo-3.1-generate-preview", useFree = true)?.label)
+        assertEquals("gemini_free_key", apiKeyInfoFor("gemini-3.6-flash", useFree = true)?.keyField)
         assertEquals("xai_key", apiKeyInfoFor("grok-4")?.keyField)
         assertTrue(X_LINK_PATTERN.containsMatchIn("見て https://x.com/user/status/1"))
         assertFalse(X_LINK_PATTERN.containsMatchIn("https://example.com/x"))

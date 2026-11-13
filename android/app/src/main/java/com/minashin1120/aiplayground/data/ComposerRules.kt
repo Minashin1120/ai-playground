@@ -42,6 +42,7 @@ data class ComposerRules(
     val canvas: OptionRule,
     val coding: OptionRule,
     val batch: OptionRule,
+    val geminiFree: OptionRule = OptionRule(visible = false),
     val mask: Boolean,
     /** True when [thinking] hosts the reasoning-effort levels (Web shows one Thinking control for both). */
     val effortAsThinking: Boolean = false,
@@ -127,7 +128,7 @@ private class MutableRule(var visible: Boolean = true, var dimmed: Boolean = fal
 }
 
 /** Web `toggleOptions()` for [model]; [mcpEnabledServer] is whether any MCP server is enabled. */
-fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
+fun composerRules(model: String, mcpEnabledServer: Boolean, geminiBackend: String = "gemini_api"): ComposerRules {
     val ml = model.lowercase(Locale.ROOT)
     val isDeepSeek = ml.contains("deepseek")
     val isZai = ml.startsWith("glm-")
@@ -293,6 +294,7 @@ fun composerRules(model: String, mcpEnabledServer: Boolean): ComposerRules {
         canvas = OptionRule(dimmed = chipDim),
         coding = OptionRule(dimmed = chipDim),
         batch = OptionRule(visible = isBatchModelKey(model), disabled = !isBatchModelKey(model)),
+        geminiFree = OptionRule(visible = modelApiProvider(model) == "gemini" && geminiBackend != "vertex_ai"),
         mask = model.contains("gpt-image") || isIdeogramModelKey(model),
         effortAsThinking = effortAsThinking,
     )

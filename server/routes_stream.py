@@ -210,7 +210,7 @@ def chat_stream():
                 and default_target_id == coding_candidates[0]['id']
             ),
         }
-    resolved_auth = _resolve_chat_model_auth(current_user, model_key)
+    resolved_auth = _resolve_chat_model_auth(current_user, model_key, gemini_free_tier=data.get('gemini_free_tier'))
     if resolved_auth.get("error_code"):
         return jsonify({
             "error": resolved_auth.get("error") or "APIキーが設定されていません。",
@@ -397,6 +397,7 @@ def chat_stream():
                 user_message_id=user_msg.id,
                 assistant_message_id=assistant_batch_msg.id,
                 model=model_key,
+                gemini_free_tier=_coerce_gemini_free_tier(data.get('gemini_free_tier')),
                 provider=resolved_auth.get('provider') or get_model_api_provider(model_key) or 'unknown',
                 state='JOB_STATE_QUEUED',
                 status_text='Batch APIへ送信する準備中です',
@@ -404,6 +405,7 @@ def chat_stream():
         if current_user.use_last_chat_settings:
             current_user.last_model = data.get('model')
             current_user.last_enable_search = bool(data.get('enable_search'))
+            current_user.last_gemini_free_tier = _coerce_gemini_free_tier(data.get('gemini_free_tier'))
             current_user.last_enable_url_context = bool(data.get('enable_url_context'))
             current_user.last_enable_maps = bool(data.get('enable_maps'))
             current_user.last_enable_python = bool(data.get('enable_python'))
@@ -463,6 +465,7 @@ def chat_stream():
     options = {
         'system_prompt': None,
         'enable_search': data.get('enable_search'),
+        'gemini_free_tier': _coerce_gemini_free_tier(data.get('gemini_free_tier')),
         'enable_url_context': data.get('enable_url_context'),
         'enable_maps': data.get('enable_maps'),
         'disable_auto_search': data.get('disable_auto_search'),

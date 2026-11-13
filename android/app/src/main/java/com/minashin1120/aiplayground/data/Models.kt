@@ -219,6 +219,8 @@ data class Preferences(
     /** Web `migration_status` / `migration_progress` of the E2EE switch. */
     val migrationStatus: String = "idle",
     val migrationProgress: String = "",
+    val defaultGeminiFreeTier: Boolean = false,
+    val lastGeminiFreeTier: Boolean = false,
 ) {
     val effectivePromptBarMode: String
         get() = when {
@@ -382,13 +384,15 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
     minashinLinked = json.optBoolean("minashin_linked", json.nullableString("minashin_email").isNotBlank()),
     migrationStatus = json.nullableString("migration_status").ifBlank { "idle" },
     migrationProgress = json.nullableString("migration_progress"),
+    defaultGeminiFreeTier = json.optBoolean("default_gemini_free_tier"),
+    lastGeminiFreeTier = json.optBoolean("last_gemini_free_tier"),
 )
 
 /** Server mask for stored secrets (Web `_SECRET_MASK`): sending it back keeps the stored value. */
 const val SECRET_MASK = "********"
 
 val PROVIDER_KEY_FIELDS = listOf(
-    "openai_key", "gemini_key", "deepseek_key", "zai_key", "kimi_key", "mistral_key", "ideogram_key", "anthropic_key", "xai_key", "google_key",
+    "openai_key", "gemini_key", "gemini_free_key", "deepseek_key", "zai_key", "kimi_key", "mistral_key", "ideogram_key", "anthropic_key", "xai_key", "google_key",
 )
 
 /** One row of the Web "自動注入システムプロンプト" list (`AUTO_SYS_PROMPT_ITEMS`). */
@@ -1072,7 +1076,7 @@ internal fun reasoningText(raw: String): String {
 /** Match the server prompt-options allowlist; never persist request text or credentials here. */
 internal fun promptOptionsRecord(body: JSONObject): JSONObject = JSONObject().apply {
     listOf(
-        "turn_time_notice", "canvas_mode", "coding_mode", "browser_fast_mode", "batch_mode", "enable_search",
+        "turn_time_notice", "canvas_mode", "coding_mode", "browser_fast_mode", "batch_mode", "enable_search", "gemini_free_tier",
         "enable_url_context", "enable_maps", "enable_python", "enable_file_creation", "enable_mcp",
         "enable_skills", "enable_thinking", "thinking_level", "thinking_budget", "reasoning_effort", "safety_setting",
         "enable_prompt_caching", "image_vision_model", "image_mask", "tts_voice", "tts_voice_custom",

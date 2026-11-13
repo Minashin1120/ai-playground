@@ -11,6 +11,7 @@ internal fun ChatState.withNewChatDefaults(preserveSelectedModel: Boolean = fals
         model = if (preserveSelectedModel) model else selectable ?: model,
         enableThinking = if (useLast) saved.lastEnableThinking else saved.defaultEnableThinking,
         enableSearch = if (useLast) saved.lastEnableSearch else saved.defaultEnableSearch,
+        geminiFreeTier = if (useLast) saved.lastGeminiFreeTier else saved.defaultGeminiFreeTier,
         enableUrlContext = if (useLast) saved.lastEnableUrlContext else saved.defaultEnableUrlContext,
         enableMaps = if (useLast) saved.lastEnableMaps else saved.defaultEnableMaps,
         enablePython = if (useLast) saved.lastEnablePython else saved.defaultEnablePython,

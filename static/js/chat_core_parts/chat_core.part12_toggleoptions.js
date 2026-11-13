@@ -350,6 +350,12 @@
                 updateGeminiVideoUi();
                 updateGeminiMusicUi();
                 updateBatchUi(model);
+                const freeCont = get('gemini-free-tier-container');
+                if (freeCont) {
+                    const showFree = typeof isGeminiApiModel === 'function' && isGeminiApiModel(model)
+                        && (typeof currentGeminiBackend !== 'function' || currentGeminiBackend() !== 'vertex_ai');
+                    freeCont.classList.toggle('hidden', !showFree);
+                }
                 updateXaiChatUi();
                 updateMistralOcrUi();
                 updateImageInputLimits();

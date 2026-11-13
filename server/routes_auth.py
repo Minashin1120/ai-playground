@@ -833,6 +833,7 @@ def setup():
         for field, raw_value in (
             ('openai_api_key', request.form.get('openai_key')),
             ('gemini_api_key', request.form.get('gemini_key')),
+            ('gemini_free_api_key', request.form.get('gemini_free_key')),
             ('deepseek_api_key', request.form.get('deepseek_key')),
             ('kimi_api_key', request.form.get('kimi_key')),
             ('mistral_api_key', request.form.get('mistral_key')),

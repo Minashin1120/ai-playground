@@ -389,6 +389,7 @@
                 if (get('set-default-vision-model')) get('set-default-vision-model').value = d.default_vision_model || 'gemini-3-flash-preview';
                 syncSettingsModelPickerLabels();
                 if (get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
+                if (get('set-default-gemini-free-tier')) get('set-default-gemini-free-tier').checked = !!d.default_gemini_free_tier;
                 if (get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
                 if (get('set-default-maps')) get('set-default-maps').checked = !!d.default_enable_maps;
                 if (get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
@@ -590,6 +591,8 @@
         function browserFastBootstrapMatches(data, model, threadId, parentId) {
             if (!data || data.model !== model) return false;
             if (String(data.thread_id || '') !== String(threadId || '')) return false;
+            const wantFree = typeof geminiFreeTierChecked === 'function' && geminiFreeTierChecked();
+            if (!!data.gemini_free_tier !== wantFree) return false;
             return String(data.parent_id || '') === String(parentId || '');
         }
 
@@ -603,7 +606,12 @@
             const response = await apiFetch('/api/browser_fast_mode/bootstrap', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model, thread_id: threadId, parent_id: parentId }),
+                body: JSON.stringify({
+                    model,
+                    thread_id: threadId,
+                    parent_id: parentId,
+                    gemini_free_tier: typeof geminiFreeTierChecked === 'function' && geminiFreeTierChecked(),
+                }),
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data.api_key) {
@@ -611,7 +619,9 @@
             }
             browserFastApiKey = String(data.api_key);
             browserFastApiKeyModel = model;
-            browserFastBootstrap = data;
+            browserFastBootstrap = Object.assign({}, data, {
+                gemini_free_tier: typeof geminiFreeTierChecked === 'function' && geminiFreeTierChecked(),
+            });
             return data;
         }
 
@@ -672,6 +682,15 @@
                     }
                     else setBrowserFastModeEnabled(false);
                 };
+            }
+            const freeTierToggle = get('enable-gemini-free-tier');
+            if (freeTierToggle) {
+                freeTierToggle.addEventListener('change', () => {
+                    browserFastApiKey = '';
+                    browserFastApiKeyModel = '';
+                    browserFastBootstrap = null;
+                    if (typeof schedulePromptTokenEstimate === 'function') schedulePromptTokenEstimate(true);
+                });
             }
             const batchToggle = get('enable-batch-mode');
             if (batchToggle) {

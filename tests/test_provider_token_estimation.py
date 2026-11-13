@@ -65,7 +65,7 @@ def test_invalid_counts_cannot_be_reported_as_zero(value):
 
 def setup_estimate(scope):
     scope.update(get_model_api_provider=lambda _: 'openai',
-                 _resolve_chat_model_auth=lambda *_: {'provider': 'openai', 'api_key': 'fake'},
+                 _resolve_chat_model_auth=lambda *a, **k: {'provider': 'openai', 'api_key': 'fake'},
                  _get_file_disk_info=lambda _: {'exists': True, 'size': 4},
                  _load_user_file_bytes=lambda *_: b'fake',
                  _draft_count_call=mock.Mock(side_effect=[8, 1108]))
@@ -180,7 +180,7 @@ const clearTimeout = id => timers.delete(id);
 let promptTokenEstimateTimer = null, promptTokenEstimateAbort = null, promptTokenEstimateSeq = 0;
 let promptTokenEstimateLastData = {tokens_total:1};
 let payload = {model:'gpt-5',message:'cached',quote_text:'',image_urls:[]};
-let promptTokenEstimateLastKey = JSON.stringify([payload.model,payload.message,'',[]]);
+let promptTokenEstimateLastKey = JSON.stringify([payload.model,payload.message,'',[],false]);
 const PROMPT_TOKEN_ESTIMATE_DEBOUNCE_MS = 700;
 const buildPromptTokenEstimatePayload = () => payload;
 const renderPromptTokenEstimate = () => {};

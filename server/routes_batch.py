@@ -553,7 +553,7 @@ def gemini_batch_status_api():
         if row.provider_job_name and (state not in terminal_states or row.notified_at is None):
             try:
                 provider = row.provider or get_model_api_provider(row.model)
-                resolved = _resolve_chat_model_auth(current_user, row.model)
+                resolved = _resolve_chat_model_auth(current_user, row.model, gemini_free_tier=getattr(row, "gemini_free_tier", False))
                 if provider == 'xai':
                     api_key = resolved.get('api_key')
                     if not api_key:
@@ -834,7 +834,7 @@ def cancel_batch_job_api(job_id):
         return jsonify({'error': 'Batch APIへ送信中のため停止できません。少し待ってから再度お試しください。'}), 400
 
     provider = row.provider or get_model_api_provider(row.model)
-    resolved = _resolve_chat_model_auth(current_user, row.model)
+    resolved = _resolve_chat_model_auth(current_user, row.model, gemini_free_tier=getattr(row, "gemini_free_tier", False))
     try:
         if provider == 'openai':
             api_key = resolved.get('api_key')

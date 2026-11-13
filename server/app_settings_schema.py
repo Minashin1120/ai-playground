@@ -625,6 +625,9 @@ def ensure_user_gemini_backend_columns():
                 ("gemini_vertex_project", "ALTER TABLE user ADD COLUMN gemini_vertex_project TEXT"),
                 ("gemini_vertex_location", "ALTER TABLE user ADD COLUMN gemini_vertex_location VARCHAR(64) DEFAULT 'global'"),
                 ("gemini_vertex_credentials_json", "ALTER TABLE user ADD COLUMN gemini_vertex_credentials_json TEXT"),
+                ("gemini_free_api_key", "ALTER TABLE user ADD COLUMN gemini_free_api_key TEXT"),
+                ("default_gemini_free_tier", "ALTER TABLE user ADD COLUMN default_gemini_free_tier BOOLEAN DEFAULT 0"),
+                ("last_gemini_free_tier", "ALTER TABLE user ADD COLUMN last_gemini_free_tier BOOLEAN DEFAULT 0"),
             ]
             for column_name, ddl in columns:
                 res = conn.execute(text(
@@ -636,6 +639,7 @@ def ensure_user_gemini_backend_columns():
                 if not res:
                     conn.execute(text("SET SESSION lock_wait_timeout=1"))
                     conn.execute(text(ddl))
+            conn.commit()
     except Exception:
         pass
 
@@ -1082,6 +1086,7 @@ def ensure_batch_job_columns():
         ('provider', "ALTER TABLE gemini_batch_job ADD COLUMN provider VARCHAR(24) NOT NULL DEFAULT 'gemini'"),
         ('output_file_id', "ALTER TABLE gemini_batch_job ADD COLUMN output_file_id VARCHAR(255)"),
         ('error_file_id', "ALTER TABLE gemini_batch_job ADD COLUMN error_file_id VARCHAR(255)"),
+        ('gemini_free_tier', "ALTER TABLE gemini_batch_job ADD COLUMN gemini_free_tier BOOLEAN DEFAULT 0"),
     ]
     try:
         table_names = set(inspect(db.engine).get_table_names())

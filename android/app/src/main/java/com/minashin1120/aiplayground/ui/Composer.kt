@@ -142,7 +142,8 @@ fun Composer(
     val showDetails = if (minimal) expanded else !compact || expanded
     val selectedModel = state.account?.models?.firstOrNull { it.id == state.model }
     val mcpServerOn = state.mcpServers.any { it.enabled }
-    val rules = remember(state.model, mcpServerOn) { composerRules(state.model, mcpServerOn) }
+    val geminiBackend = state.preferences?.geminiBackend ?: "gemini_api"
+    val rules = remember(state.model, mcpServerOn, geminiBackend) { composerRules(state.model, mcpServerOn, geminiBackend) }
     // Web slash palette: shown while the input starts with `/` and no command is pending.
     val pendingSlash = state.pendingSlashCommand
     // Web hides the `/` and `@` palettes 150ms after the textarea loses focus; typing shows them again.
@@ -523,6 +524,8 @@ private fun ControlsRow(
             ModeChip("Coding", state.codingMode, ChipTone.Coding, rules.coding, model::toggleCoding, Modifier.align(Alignment.CenterVertically))
             if (rules.batch.visible) ModeChip("Batch", state.batchMode, ChipTone.Batch, rules.batch, model::toggleBatchMode,
                 Modifier.align(Alignment.CenterVertically))
+            if (rules.geminiFree.visible) ModeChip("無料枠", state.geminiFreeTier, ChipTone.GeminiFree, rules.geminiFree,
+                model::toggleGeminiFreeTier, Modifier.align(Alignment.CenterVertically))
             if (compact) DetailsToggle(showDetails, onToggleDetails, Modifier.align(Alignment.CenterVertically))
         }
         AnimatedVisibility(showDetails, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {
@@ -1001,6 +1004,7 @@ internal fun slashIcon(name: String): Int? = when (name) {
     "hourglass-half" -> R.drawable.fa_solid_hourglass_half
     "file-lines" -> R.drawable.fa_solid_file_lines
     "plug" -> R.drawable.fa_solid_plug
+    "tag" -> R.drawable.fa_solid_tag
     else -> null
 }
 

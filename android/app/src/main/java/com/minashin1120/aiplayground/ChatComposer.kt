@@ -82,7 +82,7 @@ internal class ChatComposer(
      * selects to an allowed option; the new values stay after switching to another model.
      */
     fun applyModelRules(current: ChatState): ChatState = with(current) {
-        val rules = composerRules(model, mcpServers.any { it.enabled })
+        val rules = composerRules(model, mcpServers.any { it.enabled }, preferences?.geminiBackend ?: "gemini_api")
         val level = chipValues["thinking_level"].orEmpty()
         val effort = chipValues["reasoning_effort"].orEmpty()
         val nextLevel = if (!rules.effortAsThinking && level !in rules.thinkingLevels && rules.thinkingFallback != null) rules.thinkingFallback else level
@@ -145,6 +145,7 @@ internal class ChatComposer(
     }
     fun toggleThinking() { mutable.update { it.copy(enableThinking = !it.enableThinking) } }
     fun toggleSearch() { mutable.update { it.copy(enableSearch = !it.enableSearch) } }
+    fun toggleGeminiFreeTier() { mutable.update { it.copy(geminiFreeTier = !it.geminiFreeTier) } }
     fun toggleUrlContext() { mutable.update { it.copy(enableUrlContext = !it.enableUrlContext) } }
     fun toggleMaps() { mutable.update { it.copy(enableMaps = !it.enableMaps) } }
     fun toggleFileCreation() { mutable.update { it.copy(enableFileCreation = !it.enableFileCreation) } }
@@ -228,11 +229,13 @@ internal class ChatComposer(
     /** Web `schedulePromptTokenEstimate` request (`POST /api/token_estimate`). */
     suspend fun estimatePromptTokens(model: String, message: String, quote: String, imageUrls: List<String>): JSONObject =
         backend().post("/api/token_estimate", JSONObject().put("model", model).put("message", message)
-            .put("quote_text", quote).put("image_urls", JSONArray(imageUrls)), token())
+            .put("quote_text", quote).put("image_urls", JSONArray(imageUrls))
+            .put("gemini_free_tier", state.value.geminiFreeTier), token())
 
     suspend fun estimatePromptTokenDetails(model: String, message: String, quote: String, imageUrls: List<String>): JSONObject =
         backend().post("/api/token_estimate", JSONObject().put("model", model).put("message", message)
-            .put("quote_text", quote).put("image_urls", JSONArray(imageUrls)).put("include_details", true), token())
+            .put("quote_text", quote).put("image_urls", JSONArray(imageUrls)).put("include_details", true)
+            .put("gemini_free_tier", state.value.geminiFreeTier), token())
 
     fun removeAttachment(reference: String) { mutable.update { it.copy(attachments = it.attachments.filterNot { a -> a.reference == reference }) } }
 }

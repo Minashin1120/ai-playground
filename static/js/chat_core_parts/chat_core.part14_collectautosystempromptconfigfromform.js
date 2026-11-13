@@ -125,6 +125,7 @@
                 if(get('set-client-debug-log')) syncClientDebugLogToggle(d.enable_client_debug_log === true, 'settings modal sync');
                 if(get('set-openai')) get('set-openai').value = d.openai_key || '';
                 if(get('set-gemini')) get('set-gemini').value = d.gemini_key || '';
+                if(get('set-gemini-free')) get('set-gemini-free').value = d.gemini_free_key || '';
                 if(get('set-deepseek')) get('set-deepseek').value = d.deepseek_key || '';
                 if(get('set-zai')) get('set-zai').value = d.zai_key || '';
                 if(get('set-kimi')) get('set-kimi').value = d.kimi_key || '';
@@ -137,6 +138,7 @@
                 ensureGeminiVertexCredentialsField();
                 if(get('set-gemini-vertex-credentials-json')) get('set-gemini-vertex-credentials-json').value = d.gemini_vertex_credentials_json || '';
                 syncGeminiBackendUi();
+                if (typeof window.toggleOptions === 'function') window.toggleOptions();
                 if(get('set-admin-api-key-mode')) get('set-admin-api-key-mode').value = normalizeAdminApiKeyMode(d.admin_api_key_mode || 'env_fallback');
                 syncAdminApiKeyModeUi();
                 if(get('set-xai')) get('set-xai').value = d.xai_key || '';
@@ -168,6 +170,7 @@
             syncSettingsModelPickerLabels();
             applyTemporaryChatTimeoutSeconds(d.temp_chat_timeout_seconds);
             if(get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
+            if(get('set-default-gemini-free-tier')) get('set-default-gemini-free-tier').checked = !!d.default_gemini_free_tier;
             if(get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
             if(get('set-default-maps')) get('set-default-maps').checked = !!d.default_enable_maps;
             if(get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
@@ -428,7 +431,10 @@
             }
             const geminiBackendSetting = get('set-gemini-backend');
             if (geminiBackendSetting) {
-                geminiBackendSetting.onchange = () => syncGeminiBackendUi();
+                geminiBackendSetting.onchange = () => {
+                    syncGeminiBackendUi();
+                    if (typeof window.toggleOptions === 'function') window.toggleOptions();
+                };
             }
             const adminApiModeSetting = get('set-admin-api-key-mode');
             if (adminApiModeSetting) {
@@ -486,6 +492,7 @@
                         get('set-temp-chat-timeout-seconds') ? get('set-temp-chat-timeout-seconds').value : temporaryChatTimeoutSeconds
                     ),
                     default_enable_search: get('set-default-search') ? get('set-default-search').checked : false,
+                    default_gemini_free_tier: get('set-default-gemini-free-tier') ? get('set-default-gemini-free-tier').checked : false,
                     default_enable_url_context: get('set-default-url-context') ? get('set-default-url-context').checked : false,
                     default_enable_maps: get('set-default-maps') ? get('set-default-maps').checked : false,
                     default_enable_python: get('set-default-python') ? get('set-default-python').checked : false,
@@ -520,6 +527,7 @@
                 }
                 if (get('set-openai')) b.openai_key = get('set-openai').value;
                 if (get('set-gemini')) b.gemini_key = get('set-gemini').value;
+                if (get('set-gemini-free')) b.gemini_free_key = get('set-gemini-free').value;
                 if (get('set-deepseek')) b.deepseek_key = get('set-deepseek').value;
                 if (get('set-zai')) b.zai_key = get('set-zai').value;
                 if (get('set-kimi')) b.kimi_key = get('set-kimi').value;

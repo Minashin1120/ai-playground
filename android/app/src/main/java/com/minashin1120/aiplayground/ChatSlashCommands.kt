@@ -30,6 +30,7 @@ internal class ChatSlashCommands(
     private fun slashItem(key: String, current: ChatState, rules: ComposerRules): SlashItem? = when (key) {
         "canvas" -> SlashItem("Canvas", rules.canvas, current.canvasMode, composer::toggleCanvas)
         "coding" -> SlashItem("Coding", rules.coding, current.codingMode, composer::toggleCoding)
+        "gemini-free" -> SlashItem("無料枠", rules.geminiFree, current.geminiFreeTier, composer::toggleGeminiFreeTier)
         "search" -> SlashItem("Search", rules.search, current.enableSearch, composer::toggleSearch)
         "urls" -> SlashItem("URLs", rules.urls, current.enableUrlContext, composer::toggleUrlContext)
         "maps" -> SlashItem("Maps", rules.maps, current.enableMaps, composer::toggleMaps)
@@ -66,7 +67,7 @@ internal class ChatSlashCommands(
             "options", "attach", "voice", "paste" -> { onLocal(command.id); return true }
         }
         val current = state.value
-        val rules = composerRules(current.model, current.mcpServers.any { it.enabled })
+        val rules = composerRules(current.model, current.mcpServers.any { it.enabled }, current.preferences?.geminiBackend ?: "gemini_api")
         val raw = command.presetArgument.ifBlank { argument }.trim()
         if (command.id == "safety") {
             if (raw.isEmpty()) {

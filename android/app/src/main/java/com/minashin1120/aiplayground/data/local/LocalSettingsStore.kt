@@ -73,8 +73,12 @@ class LocalSettingsStore(
 
     /** Server key choice: the model-specific key first (case-insensitive), then the provider key. */
     @Synchronized
-    fun apiKeyFor(model: String): String? {
+    fun apiKeyFor(model: String, geminiFreeTier: Boolean = false): String? {
         val keys = loadSecrets()
+        // The free-tier switch uses only the free key; model-specific and paid keys are not fallbacks.
+        if (geminiFreeTier && apiKeyInfoFor(model)?.provider == "gemini") {
+            return keys.optString("gemini_free_key").takeIf { it.isNotBlank() }
+        }
         val modelKeys = keys.optJSONObject(MODEL_KEYS)
         if (modelKeys != null) {
             modelKeys.optString(model).takeIf { it.isNotBlank() }?.let { return it }

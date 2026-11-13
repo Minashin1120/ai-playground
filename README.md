@@ -38,6 +38,7 @@ AI Chat Playground は、複数の生成AIを1つの画面から利用するた�
 - PWA、オフライン画面、テーマ、低帯域・パフォーマンス設定
 - Batch処理（Gemini／OpenAI／xAI）による非同期生成（[Batch処理の機能と実装](static/docs/batch.md)）
 - 会話・プロンプト単位でプロンプトバーの設定を復元（[プロンプトバーの設定と復元](static/docs/prompt_bar_settings.md)）
+- 数学・数式の段階的ステップ解説（[数学ステップ解説の機能と実装](static/docs/math_steps/README.md)）
 - 公式Androidクライアント（端末連携、ネイティブログイン、サーバー不使用モード。[Androidプロジェクト](android/README.md)）
 - 外部MCP（Model Context Protocol）サーバー連携（Gmail / Google Drive 等のGoogle Workspace プリセットと、URLを登録するカスタムMCPサーバー）。設定はユーザーごとに「設定 → MCP」タブで管理し、チャット中のモデルが登録済みツールを呼び出せます（変更操作は実行前に確認）。
 
@@ -368,6 +369,7 @@ journalctl -u 'ai-chat-worker@1.service' -n 100 --no-pager
 - [Batch処理の機能と実装](static/docs/batch.md)：利用方法、非同期処理フロー、API、状態管理、コード配置
 - [プロンプトバーの設定と復元](static/docs/prompt_bar_settings.md)：保存先、復元の優先順位、モデル切替・編集・新規チャットでの扱い
 - [モーダル デザインガイド](static/docs/design_modals.md)：モーダルの共通構造・見た目・ライトテーマ・追加時のチェックリスト
+- [数学ステップ解説の機能と実装](static/docs/math_steps/README.md)：利用方法、全体アーキテクチャ、API、プロンプト規約、Web/Android実装、テスト・セキュリティ
 - [MODELS.md](MODELS.md)：対応モデルと価格表示の扱い
 - [CONTRIBUTING.md](CONTRIBUTING.md)：変更、テスト、Pull Request
 - [SECURITY.md](SECURITY.md)：脆弱性報告と安全な運用

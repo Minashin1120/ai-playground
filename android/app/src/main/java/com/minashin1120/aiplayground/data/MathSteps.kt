@@ -196,7 +196,7 @@ private val MATHSVG_FENCE = Regex("""(?s)(`{3,}|~{3,})mathsvg[^\n]*\n.*?\n\1[ \t
 
 /** Web `prepareMathStepsCopyText`: keep readable headings, replace mathsvg fences with ［図］. */
 fun mathStepsCopyText(text: String): String {
-    val source = String(text ?: "")
+    val source = text
     val withoutSvg = MATHSVG_FENCE.replace(source, "［図］")
     val steps = parseMathSteps(withoutSvg)
     if (steps.isEmpty()) return withoutSvg

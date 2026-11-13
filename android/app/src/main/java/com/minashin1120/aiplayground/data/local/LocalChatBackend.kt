@@ -697,7 +697,8 @@ class LocalChatBackend(
             "このモデルのAPIキーが端末に設定されていません。"
         }
 
-    private var vertexAuth: com.minashin1120.aiplayground.data.direct.VertexAuth? = null    private var vertexCredentials: String? = null
+    private var vertexAuth: com.minashin1120.aiplayground.data.direct.VertexAuth? = null
+    private var vertexCredentials: String? = null
 
     /** Gemini on Vertex AI when the profile (or the account) chose it and a service account JSON is on the device. */
     private fun vertexTarget(): com.minashin1120.aiplayground.data.direct.VertexTarget? {

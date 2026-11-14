@@ -266,6 +266,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleThinking() = composer.toggleThinking()
     fun toggleSearch() = composer.toggleSearch()
     fun toggleGeminiFreeTier() = composer.toggleGeminiFreeTier()
+    fun toggleGeminiFlex() = composer.toggleGeminiFlex()
     fun toggleUrlContext() = composer.toggleUrlContext()
     fun toggleMaps() = composer.toggleMaps()
     fun toggleFileCreation() = composer.toggleFileCreation()

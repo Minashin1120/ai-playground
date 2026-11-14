@@ -311,6 +311,7 @@ internal fun composerOptStyle(checked: Boolean, group: Boolean = false): WebPill
 /** The `.composer-chip` toggles next to the model button. */
 internal enum class ChipTone(val accent: Color) {
     Canvas(Tw.cyan400), Coding(Tw.emerald400), Batch(Tw.violet400), GeminiFree(Tw.teal400),
+    GeminiFlex(Tw.lime400),
 }
 
 /**
@@ -343,6 +344,11 @@ internal fun composerChipStyle(checked: Boolean, tone: ChipTone): WebPillStyle {
             if (web.isLight) Color(13, 148, 136).copy(alpha = 0.12f) else neutralBg,
             if (checked) Color(45, 212, 191).copy(alpha = 0.55f) else neutralBorder,
             if (web.isLight) Color(15, 118, 110) else Color(153, 246, 228),
+        )
+        ChipTone.GeminiFlex -> Triple(
+            if (web.isLight) Color(101, 163, 13).copy(alpha = 0.12f) else neutralBg,
+            if (checked) Color(163, 230, 53).copy(alpha = 0.55f) else neutralBorder,
+            if (web.isLight) Tw.lime700 else Tw.lime200,
         )
     }
     return WebPillStyle(

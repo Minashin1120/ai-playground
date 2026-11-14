@@ -31,6 +31,7 @@ internal class ChatSlashCommands(
         "canvas" -> SlashItem("Canvas", rules.canvas, current.canvasMode, composer::toggleCanvas)
         "coding" -> SlashItem("Coding", rules.coding, current.codingMode, composer::toggleCoding)
         "gemini-free" -> SlashItem("無料枠", rules.geminiFree, current.geminiFreeTier, composer::toggleGeminiFreeTier)
+        "gemini-flex" -> SlashItem("Flex", rules.geminiFlex, current.geminiFlex, composer::toggleGeminiFlex)
         "search" -> SlashItem("Search", rules.search, current.enableSearch, composer::toggleSearch)
         "urls" -> SlashItem("URLs", rules.urls, current.enableUrlContext, composer::toggleUrlContext)
         "maps" -> SlashItem("Maps", rules.maps, current.enableMaps, composer::toggleMaps)

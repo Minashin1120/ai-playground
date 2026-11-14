@@ -101,6 +101,22 @@ class MathStepsServerTests(unittest.TestCase):
         self.assertNotIn("{{math_", prompt)
         self.assertIn("図は使わない", prompt)
 
+    def test_prompt_continues_from_a_handwritten_note(self):
+        prompt = target.build_math_steps_system_prompt(target.MATH_STEPS_DEFAULTS)
+        for phrase in (
+            "問題を最初から解き直さない",
+            "消しゴムで消して",
+            "書き直す正しい式",
+            "指摘だけで終わらせない",
+            "1回で全部書く",
+            "最初の見出しを「問題を整理する」にしない",
+        ):
+            self.assertIn(phrase, prompt)
+        for basics in (False, True):
+            built = target.build_math_steps_system_prompt({"basics": basics})
+            self.assertIn("ノートの確認から始める", built)
+        self.assertNotIn("{{math_", prompt)
+
     def test_background_and_browser_fast_inject_the_math_prompt(self):
         background = Path("server/background.py").read_text()
         browser_fast = Path("server/routes_browser_fast.py").read_text()
@@ -349,6 +365,8 @@ class MathStepsServerTests(unittest.TestCase):
         prompt = resp.get_json()["math_steps_system_prompt"]
         self.assertIn("## ステップ 1", prompt)
         self.assertIn("mathsvg", prompt)
+        self.assertIn("消しゴム", prompt)
+        self.assertIn("問題を最初から解き直さない", prompt)
 
 
 if __name__ == "__main__":

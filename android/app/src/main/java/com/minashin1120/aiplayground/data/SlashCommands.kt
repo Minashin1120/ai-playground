@@ -34,6 +34,7 @@ val SLASH_COMMANDS = listOf(
     minimal("canvas", "/canvas", "Canvasを切り替える（on / off）", "window-restore"),
     minimal("coding", "/coding", "Codingを切り替える（on / off）", "code-branch"),
     minimal("gemini-free", "/gemini-free", "Gemini無料枠APIを切り替える（on / off）", "tag"),
+    minimal("gemini-flex", "/gemini-flex", "Gemini Flex推論（低優先度・50%料金）を切り替える（on / off）", "hourglass-half"),
     minimal("search", "/search", "Searchを切り替える（on / off）", "search"),
     minimal("urls", "/urls", "URLsを切り替える（on / off）", "link"),
     minimal("maps", "/maps", "Mapsを切り替える（on / off）", "map-location-dot"),

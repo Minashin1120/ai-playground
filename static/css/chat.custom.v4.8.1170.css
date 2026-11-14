@@ -7375,3 +7375,10 @@ body:not(.liquid-glass-mode) #send-btn.pulse-ready {
     .math-steps-restore { transition: none; }
     .math-steps-next:hover:not(:disabled) { transform: none; }
 }
+
+/* Gemini Flex chip (lime) — utility names are not part of the prebuilt Tailwind file. */
+.border-lime-500\/40 { border-color: rgba(163, 230, 53, 0.4); }
+.bg-lime-900\/20 { background-color: rgba(54, 83, 20, 0.2); }
+.text-lime-200 { color: #d9f99d; }
+.accent-lime-400 { accent-color: #a3e635; }
+.ring-lime-300 { --tw-ring-color: #bef264; }

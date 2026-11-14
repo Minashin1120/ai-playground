@@ -168,7 +168,7 @@ def bootstrap_browser_fast_mode():
 _PROMPT_OPTION_KEYS = (
     'turn_time_notice',
     'canvas_mode', 'coding_mode', 'browser_fast_mode', 'batch_mode', 'math_steps',
-    'enable_search', 'gemini_free_tier', 'enable_url_context', 'enable_maps', 'enable_python',
+    'enable_search', 'gemini_free_tier', 'gemini_flex', 'enable_url_context', 'enable_maps', 'enable_python',
     'enable_file_creation', 'enable_mcp', 'enable_skills', 'enable_thinking', 'thinking_level',
     'thinking_budget', 'reasoning_effort', 'safety_setting', 'enable_prompt_caching',
     'image_vision_model', 'image_mask',

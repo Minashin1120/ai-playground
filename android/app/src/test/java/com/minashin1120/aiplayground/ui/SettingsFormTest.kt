@@ -35,6 +35,17 @@ class SettingsFormTest {
     }
 
     @Test
+    fun defaultFlexIsReadAndSavedWithTheOtherDefaults() {
+        val prefs = parsePreferences(JSONObject().put("default_gemini_flex", true))
+        val form = SettingsForm(prefs)
+        assertEquals(true, form.geminiFlex)
+        assertEquals(true, form.payload().getBoolean("default_gemini_flex"))
+        form.geminiFlex = false
+        assertEquals(false, SettingsForm(prefs.copy(defaultGeminiFlex = false)).geminiFlex)
+        assertEquals(false, form.payload().getBoolean("default_gemini_flex"))
+    }
+
+    @Test
     fun reloadKeysTakesImportedKeysIntoOpenForm() {
         val form = SettingsForm(parsePreferences(JSONObject().put("username", "user")))
         form.providerKeys["openai_key"] = "sk-typed"

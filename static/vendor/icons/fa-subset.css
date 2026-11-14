@@ -13,7 +13,7 @@
 .fa-xs{font-size:.75em}
 .fa-sm{font-size:.875em}
 .fa-lg{font-size:1.25em;line-height:.05em;vertical-align:-.075em}
-@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;font-display:swap;src:url(fa-solid-subset.woff2?h=bbebd3dc8b) format("woff2")}
+@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;font-display:swap;src:url(fa-solid-subset.woff2?h=174c4b9d53) format("woff2")}
 @font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:400;font-display:swap;src:url(fa-regular-subset.woff2?h=90d17abbc5) format("woff2")}
 @font-face{font-family:"Font Awesome 6 Brands";font-style:normal;font-weight:400;font-display:swap;src:url(fa-brands-subset.woff2?h=1c2d4c8983) format("woff2")}
 .fa-align-left:before{content:"\f036"}
@@ -65,6 +65,7 @@
 .fa-file-upload:before{content:"\f574"}
 .fa-fingerprint:before{content:"\f577"}
 .fa-folder:before{content:"\f07b"}
+.fa-gauge-simple-high:before{content:"\f62a"}
 .fa-github:before{content:"\f09b"}
 .fa-globe:before{content:"\f0ac"}
 .fa-google:before{content:"\f1a0"}

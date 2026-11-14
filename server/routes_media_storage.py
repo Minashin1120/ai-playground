@@ -390,6 +390,9 @@ with app.app_context():
             try_alter("ALTER TABLE user ADD COLUMN default_gemini_free_tier BOOLEAN DEFAULT 0")
         except: pass
         try:
+            try_alter("ALTER TABLE user ADD COLUMN default_gemini_flex BOOLEAN DEFAULT 0")
+        except: pass
+        try:
             try_alter("ALTER TABLE user ADD COLUMN default_enable_mcp BOOLEAN DEFAULT 1")
         except: pass
         try:
@@ -445,6 +448,9 @@ with app.app_context():
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN last_gemini_free_tier BOOLEAN DEFAULT 0")
+        except: pass
+        try:
+            try_alter("ALTER TABLE user ADD COLUMN last_gemini_flex BOOLEAN DEFAULT 0")
         except: pass
         try:
             try_alter("ALTER TABLE user ADD COLUMN last_enable_mcp BOOLEAN DEFAULT 1")

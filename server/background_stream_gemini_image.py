@@ -138,6 +138,45 @@ def background_stream_gemini_image(local):
                 types.SafetySetting(category="HARM_CATEGORY_HARASSMENT", threshold="BLOCK_NONE")
             ]
         }
+        # Flex is offered for Gemini 3 Pro Image and 2.5 Flash Image. It is a
+        # synchronous, paid-only tier and is meaningless with Batch.
+        flex_image_active = bool(
+            options.get('gemini_flex')
+            and not options.get('gemini_free_tier')
+            and not batch_mode
+            and img_model in ("gemini-3-pro-image", "gemini-2.5-flash-image")
+        )
+        if flex_image_active:
+            config_kwargs["service_tier"] = types.ServiceTier.FLEX
+            config_kwargs["http_options"] = types.HttpOptions(timeout=_GEMINI_FLEX_TIMEOUT_MS)
+            log_force(f"Gemini Flex tier enabled for image job={job_id} model={img_model}")
+
+        def _gemini_image_generate(contents, cfg):
+            """Generate one image, retrying Flex shedable errors with backoff."""
+            attempt = 0
+            while True:
+                try:
+                    return g_client.models.generate_content(
+                        model=img_model,
+                        contents=contents,
+                        config=types.GenerateContentConfig(**cfg),
+                    )
+                except Exception as exc:
+                    text = str(exc)
+                    retryable = flex_image_active and (
+                        "503" in text or "429" in text
+                        or "UNAVAILABLE" in text or "RESOURCE_EXHAUSTED" in text
+                        or "504" in text or "DEADLINE_EXCEEDED" in text
+                    )
+                    if not retryable or attempt >= _GEMINI_FLEX_RETRIES:
+                        raise
+                    attempt += 1
+                    delay = min(30, 5 * (2 ** (attempt - 1)))
+                    log_force(
+                        f"Gemini Flex image busy, retry {attempt}/{_GEMINI_FLEX_RETRIES} "
+                        f"in {delay}s for {job_id}: {text[:200]}"
+                    )
+                    time.sleep(delay)
         if img_model in ("gemini-nano-banana-2.1", "gemini-3.1-flash-image", "gemini-3.1-flash-image-preview", "gemini-3.1-flash-lite-image"):
             default_level = (
                 "medium" if img_model == "gemini-nano-banana-2.1"
@@ -247,13 +286,12 @@ def background_stream_gemini_image(local):
                 _persist_batch_failure(str(batch_error))
             return BACKGROUND_STREAM_EARLY_RETURN
 
-        resp = g_client.models.generate_content(
-            model=img_model,
-            contents=[
+        resp = _gemini_image_generate(
+            [
                 *gemini_image_parts,
                 types.Part(text=img_prompt)
             ],
-            config=types.GenerateContentConfig(**config_kwargs)
+            config_kwargs
         )
 
         text_outputs, image_outputs = _collect_gemini_image_output_parts(
@@ -273,13 +311,12 @@ def background_stream_gemini_image(local):
                 f"{img_prompt}\n\n"
                 "Return an image for this request. Do not answer with text only."
             )
-            retry_resp = g_client.models.generate_content(
-                model=img_model,
-                contents=[
+            retry_resp = _gemini_image_generate(
+                [
                     *gemini_image_parts,
                     types.Part(text=retry_prompt)
                 ],
-                config=types.GenerateContentConfig(**retry_cfg_kwargs)
+                retry_cfg_kwargs
             )
             retry_text_outputs, retry_image_outputs = _collect_gemini_image_output_parts(
                 retry_resp,

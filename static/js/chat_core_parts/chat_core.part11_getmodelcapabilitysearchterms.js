@@ -390,6 +390,7 @@
                 syncSettingsModelPickerLabels();
                 if (get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
                 if (get('set-default-gemini-free-tier')) get('set-default-gemini-free-tier').checked = !!d.default_gemini_free_tier;
+                if (get('set-default-gemini-flex')) get('set-default-gemini-flex').checked = !!d.default_gemini_flex;
                 if (get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
                 if (get('set-default-maps')) get('set-default-maps').checked = !!d.default_enable_maps;
                 if (get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
@@ -559,6 +560,39 @@
             if (!supported) checkbox.checked = false;
             container.classList.toggle('ring-1', supported && checkbox.checked);
             container.classList.toggle('ring-violet-300', supported && checkbox.checked);
+            updateGeminiFlexUi(model);
+        }
+
+        // Gemini Flex inference (service_tier="flex") is only offered for the
+        // models listed in the Gemini API Flex documentation. Keep this list in
+        // sync with GEMINI_FLEX_MODEL_KEYS in server/providers.py and the Android
+        // ComposerRules.
+        const GEMINI_FLEX_MODELS = new Set([
+            'gemini-4-carbon', 'gemini-4-argon', 'gemini-4-hydrogen',
+            'gemini-3.8-flash', 'gemini-3.8-flash-cyber', 'gemini-3.6-flash',
+            'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview',
+            'gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash',
+            'gemini-2.5-flash-lite', 'gemini-3-pro-image', 'gemini-2.5-flash-image'
+        ]);
+
+        function isGeminiFlexModel(model) {
+            return GEMINI_FLEX_MODELS.has(String(model || '').trim().toLowerCase());
+        }
+
+        function updateGeminiFlexUi(model) {
+            const container = get('gemini-flex-container');
+            const checkbox = get('enable-gemini-flex');
+            if (!container || !checkbox) return;
+            const supported = isGeminiFlexModel(model);
+            const batch = get('enable-batch-mode');
+            const free = get('enable-gemini-free-tier');
+            const blocked = browserFastModeEnabled || !!(batch && batch.checked) || !!(free && free.checked);
+            container.classList.toggle('hidden', !supported);
+            checkbox.disabled = !supported || blocked;
+            // Flex is paid-only, synchronous, and cannot be combined with Batch / browser-direct mode.
+            if (!supported || blocked) checkbox.checked = false;
+            container.classList.toggle('ring-1', supported && checkbox.checked);
+            container.classList.toggle('ring-lime-300', supported && checkbox.checked);
         }
 
         function setBrowserFastModeEnabled(enabled, opts = {}) {
@@ -695,7 +729,36 @@
                     browserFastApiKey = '';
                     browserFastApiKeyModel = '';
                     browserFastBootstrap = null;
+                    if (freeTierToggle.checked) {
+                        const flex = get('enable-gemini-flex');
+                        if (flex && flex.checked) flex.checked = false;
+                    }
+                    if (typeof updateGeminiFlexUi === 'function') {
+                        updateGeminiFlexUi(get('model-select') ? get('model-select').value : '');
+                    }
                     if (typeof schedulePromptTokenEstimate === 'function') schedulePromptTokenEstimate(true);
+                });
+            }
+            const flexToggle = get('enable-gemini-flex');
+            if (flexToggle) {
+                flexToggle.addEventListener('change', () => {
+                    const container = get('gemini-flex-container');
+                    if (container) {
+                        container.classList.toggle('ring-1', flexToggle.checked);
+                        container.classList.toggle('ring-lime-300', flexToggle.checked);
+                    }
+                    if (flexToggle.checked) {
+                        const free = get('enable-gemini-free-tier');
+                        if (free && free.checked) {
+                            free.checked = false;
+                            showToast('Flexは有料枠のみのため、無料枠を解除しました', 'info', false);
+                        }
+                        const batch = get('enable-batch-mode');
+                        if (batch && batch.checked) batch.checked = false;
+                        if (typeof updateBatchUi === 'function') {
+                            updateBatchUi(get('model-select') ? get('model-select').value : '');
+                        }
+                    }
                 });
             }
             const batchToggle = get('enable-batch-mode');

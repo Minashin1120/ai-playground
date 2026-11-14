@@ -411,6 +411,7 @@ def chat_stream():
             current_user.last_model = data.get('model')
             current_user.last_enable_search = bool(data.get('enable_search'))
             current_user.last_gemini_free_tier = _coerce_gemini_free_tier(data.get('gemini_free_tier'))
+            current_user.last_gemini_flex = _coerce_gemini_free_tier(data.get('gemini_flex'))
             current_user.last_enable_url_context = bool(data.get('enable_url_context'))
             current_user.last_enable_maps = bool(data.get('enable_maps'))
             current_user.last_enable_python = bool(data.get('enable_python'))
@@ -471,6 +472,7 @@ def chat_stream():
         'system_prompt': None,
         'enable_search': data.get('enable_search'),
         'gemini_free_tier': _coerce_gemini_free_tier(data.get('gemini_free_tier')),
+        'gemini_flex': _coerce_gemini_free_tier(data.get('gemini_flex')),
         'enable_url_context': data.get('enable_url_context'),
         'enable_maps': data.get('enable_maps'),
         'disable_auto_search': data.get('disable_auto_search'),

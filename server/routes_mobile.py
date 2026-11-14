@@ -193,7 +193,7 @@ def mobile_revoke():
 # Settings shared with the Web settings modal. Provider API keys are write-only
 # (masked on read, like Web). MCP OAuth secrets stay on Web.
 _MOBILE_PREFERENCE_BOOLS = (
-    'default_enable_thinking', 'default_enable_search', 'default_gemini_free_tier', 'enter_to_send',
+    'default_enable_thinking', 'default_enable_search', 'default_gemini_free_tier', 'default_gemini_flex', 'enter_to_send',
     'light_mode_enabled', 'auto_search_on_links', 'default_enable_url_context',
     'default_enable_maps', 'default_enable_python', 'default_enable_file_creation',
     'default_enable_system_prompt', 'default_enable_mcp',
@@ -203,6 +203,7 @@ _MOBILE_PREFERENCE_BOOLS = (
     'apply_auto_system_prompt_notices', 'skip_2fa_on_google_login',
     'rich_paste_prompt_use_custom_default', 'enable_latency_metrics', 'enable_client_debug_log',
     'last_gemini_free_tier',
+    'last_gemini_flex',
 )
 # Provider credentials follow Web /api/settings: GET returns only the mask, and a
 # submitted mask keeps the stored value, so a native client never sees plaintext keys.
@@ -262,6 +263,7 @@ def _mobile_preferences_payload():
         'default_enable_thinking': bool(user.default_enable_thinking),
         'default_enable_search': bool(user.default_enable_search),
         'default_gemini_free_tier': bool(getattr(user, 'default_gemini_free_tier', False)),
+        'default_gemini_flex': bool(getattr(user, 'default_gemini_flex', False)),
         'default_enable_url_context': bool(user.default_enable_url_context),
         'default_enable_maps': bool(user.default_enable_maps),
         'default_enable_python': bool(user.default_enable_python),
@@ -299,6 +301,7 @@ def _mobile_preferences_payload():
         'last_model': user.last_model or "",
         'last_enable_search': bool(user.last_enable_search),
         'last_gemini_free_tier': bool(getattr(user, 'last_gemini_free_tier', False)),
+        'last_gemini_flex': bool(getattr(user, 'last_gemini_flex', False)),
         'last_enable_url_context': bool(user.last_enable_url_context),
         'last_enable_maps': bool(user.last_enable_maps),
         'last_enable_python': bool(user.last_enable_python) if user.last_enable_python is not None else True,

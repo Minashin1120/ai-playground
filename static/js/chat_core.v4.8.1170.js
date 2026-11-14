@@ -4869,6 +4869,7 @@
             { key: 'fast', icon: 'fa-bolt', label: '高速', checkboxId: 'enable-browser-fast-mode', containerId: 'browser-fast-mode-container' },
             { key: 'batch', icon: 'fa-layer-group', label: 'Batch', checkboxId: 'enable-batch-mode', containerId: 'batch-mode-container' },
             { key: 'gemini-free', icon: 'fa-tag', label: '無料枠', checkboxId: 'enable-gemini-free-tier', containerId: 'gemini-free-tier-container' },
+            { key: 'gemini-flex', icon: 'fa-gauge-simple-high', label: 'Flex', checkboxId: 'enable-gemini-flex', containerId: 'gemini-flex-container' },
             { key: 'search', icon: 'fa-search', label: 'Search', checkboxId: 'enable-search', containerId: 'search-container' },
             { key: 'urls', icon: 'fa-link', label: 'URLs', checkboxId: 'enable-url-context', containerId: 'url-context-container' },
             { key: 'maps', icon: 'fa-map-location-dot', label: 'Maps', checkboxId: 'enable-maps', containerId: 'maps-grounding-container' },
@@ -5513,6 +5514,7 @@
                 model: d.last_model,
                 enable_search: d.last_enable_search,
                 gemini_free_tier: d.last_gemini_free_tier,
+                gemini_flex: d.last_gemini_flex,
                 enable_url_context: d.last_enable_url_context,
                 enable_maps: d.last_enable_maps,
                 enable_python: d.last_enable_python,
@@ -5528,6 +5530,7 @@
                 model: d.default_model,
                 enable_search: d.default_enable_search,
                 gemini_free_tier: d.default_gemini_free_tier,
+                gemini_flex: d.default_gemini_flex,
                 enable_url_context: d.default_enable_url_context,
                 enable_maps: d.default_enable_maps,
                 enable_python: d.default_enable_python,
@@ -5544,6 +5547,7 @@
             if (src.model) selectModelById(src.model);
             if (get('enable-search')) get('enable-search').checked = !!s(src.enable_search, get('enable-search').checked);
             if (get('enable-gemini-free-tier')) get('enable-gemini-free-tier').checked = !!s(src.gemini_free_tier, get('enable-gemini-free-tier').checked);
+            if (get('enable-gemini-flex')) get('enable-gemini-flex').checked = !!s(src.gemini_flex, get('enable-gemini-flex').checked);
             if (get('enable-url-context')) get('enable-url-context').checked = !!s(src.enable_url_context, get('enable-url-context').checked);
             if (get('enable-maps')) get('enable-maps').checked = !!s(src.enable_maps, get('enable-maps').checked);
             if (get('enable-python')) get('enable-python').checked = !!s(src.enable_python, get('enable-python').checked);
@@ -5575,7 +5579,7 @@
             syncCodingModeUi(codingModeEnabled, { persist: false });
         }
         const PROMPT_OPTION_INPUT_IDS = {
-            enable_search: 'enable-search', gemini_free_tier: 'enable-gemini-free-tier', enable_url_context: 'enable-url-context',
+            enable_search: 'enable-search', gemini_free_tier: 'enable-gemini-free-tier', gemini_flex: 'enable-gemini-flex', enable_url_context: 'enable-url-context',
             enable_maps: 'enable-maps', enable_python: 'enable-python',
             enable_file_creation: 'enable-file-creation', enable_mcp: 'enable-mcp',
             enable_skills: 'enable-skills',
@@ -8446,6 +8450,7 @@
             { id: 'coding', label: '/coding', description: 'Codingを切り替える（on / off）', icon: 'fa-code-branch', kind: 'minimal', itemKey: 'coding' },
             { id: 'fast', label: '/fast', description: '高速モードを切り替える（on / off）', icon: 'fa-bolt', kind: 'minimal', itemKey: 'fast' },
             { id: 'gemini-free', label: '/gemini-free', description: 'Gemini無料枠APIを切り替える（on / off）', icon: 'fa-tag', kind: 'minimal', itemKey: 'gemini-free' },
+            { id: 'gemini-flex', label: '/gemini-flex', description: 'Gemini Flex推論（低優先度・50%料金）を切り替える（on / off）', icon: 'fa-gauge-simple-high', kind: 'minimal', itemKey: 'gemini-flex' },
             { id: 'search', label: '/search', description: 'Searchを切り替える（on / off）', icon: 'fa-search', kind: 'minimal', itemKey: 'search' },
             { id: 'urls', label: '/urls', description: 'URLsを切り替える（on / off）', icon: 'fa-link', kind: 'minimal', itemKey: 'urls' },
             { id: 'maps', label: '/maps', description: 'Mapsを切り替える（on / off）', icon: 'fa-map-location-dot', kind: 'minimal', itemKey: 'maps' },
@@ -10296,6 +10301,7 @@
                 syncSettingsModelPickerLabels();
                 if (get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
                 if (get('set-default-gemini-free-tier')) get('set-default-gemini-free-tier').checked = !!d.default_gemini_free_tier;
+                if (get('set-default-gemini-flex')) get('set-default-gemini-flex').checked = !!d.default_gemini_flex;
                 if (get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
                 if (get('set-default-maps')) get('set-default-maps').checked = !!d.default_enable_maps;
                 if (get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
@@ -10465,6 +10471,39 @@
             if (!supported) checkbox.checked = false;
             container.classList.toggle('ring-1', supported && checkbox.checked);
             container.classList.toggle('ring-violet-300', supported && checkbox.checked);
+            updateGeminiFlexUi(model);
+        }
+
+        // Gemini Flex inference (service_tier="flex") is only offered for the
+        // models listed in the Gemini API Flex documentation. Keep this list in
+        // sync with GEMINI_FLEX_MODEL_KEYS in server/providers.py and the Android
+        // ComposerRules.
+        const GEMINI_FLEX_MODELS = new Set([
+            'gemini-4-carbon', 'gemini-4-argon', 'gemini-4-hydrogen',
+            'gemini-3.8-flash', 'gemini-3.8-flash-cyber', 'gemini-3.6-flash',
+            'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.1-pro-preview',
+            'gemini-3-flash-preview', 'gemini-2.5-pro', 'gemini-2.5-flash',
+            'gemini-2.5-flash-lite', 'gemini-3-pro-image', 'gemini-2.5-flash-image'
+        ]);
+
+        function isGeminiFlexModel(model) {
+            return GEMINI_FLEX_MODELS.has(String(model || '').trim().toLowerCase());
+        }
+
+        function updateGeminiFlexUi(model) {
+            const container = get('gemini-flex-container');
+            const checkbox = get('enable-gemini-flex');
+            if (!container || !checkbox) return;
+            const supported = isGeminiFlexModel(model);
+            const batch = get('enable-batch-mode');
+            const free = get('enable-gemini-free-tier');
+            const blocked = browserFastModeEnabled || !!(batch && batch.checked) || !!(free && free.checked);
+            container.classList.toggle('hidden', !supported);
+            checkbox.disabled = !supported || blocked;
+            // Flex is paid-only, synchronous, and cannot be combined with Batch / browser-direct mode.
+            if (!supported || blocked) checkbox.checked = false;
+            container.classList.toggle('ring-1', supported && checkbox.checked);
+            container.classList.toggle('ring-lime-300', supported && checkbox.checked);
         }
 
         function setBrowserFastModeEnabled(enabled, opts = {}) {
@@ -10601,7 +10640,36 @@
                     browserFastApiKey = '';
                     browserFastApiKeyModel = '';
                     browserFastBootstrap = null;
+                    if (freeTierToggle.checked) {
+                        const flex = get('enable-gemini-flex');
+                        if (flex && flex.checked) flex.checked = false;
+                    }
+                    if (typeof updateGeminiFlexUi === 'function') {
+                        updateGeminiFlexUi(get('model-select') ? get('model-select').value : '');
+                    }
                     if (typeof schedulePromptTokenEstimate === 'function') schedulePromptTokenEstimate(true);
+                });
+            }
+            const flexToggle = get('enable-gemini-flex');
+            if (flexToggle) {
+                flexToggle.addEventListener('change', () => {
+                    const container = get('gemini-flex-container');
+                    if (container) {
+                        container.classList.toggle('ring-1', flexToggle.checked);
+                        container.classList.toggle('ring-lime-300', flexToggle.checked);
+                    }
+                    if (flexToggle.checked) {
+                        const free = get('enable-gemini-free-tier');
+                        if (free && free.checked) {
+                            free.checked = false;
+                            showToast('Flexは有料枠のみのため、無料枠を解除しました', 'info', false);
+                        }
+                        const batch = get('enable-batch-mode');
+                        if (batch && batch.checked) batch.checked = false;
+                        if (typeof updateBatchUi === 'function') {
+                            updateBatchUi(get('model-select') ? get('model-select').value : '');
+                        }
+                    }
                 });
             }
             const batchToggle = get('enable-batch-mode');
@@ -12108,7 +12176,7 @@
                 math_steps_enabled: '数学ステップ解説', math_steps_config: '数学ステップの設定',
                 default_math_steps: '既定: 数学ステップ',
                 temp_chat_timeout_seconds: '一時チャットの有効時間（秒）', default_model: '既定のモデル',
-                default_enable_search: '既定: Search', default_gemini_free_tier: '既定: Gemini無料枠', default_enable_url_context: '既定: URLコンテキスト',
+                default_enable_search: '既定: Search', default_gemini_free_tier: '既定: Gemini無料枠', default_gemini_flex: '既定: Gemini Flex', default_enable_url_context: '既定: URLコンテキスト',
                 default_enable_maps: '既定: Maps', default_enable_python: '既定: Python',
                 default_enable_file_creation: '既定: File',
                 default_enable_thinking: '既定: Thinking', default_thinking_level: '既定: Thinkingレベル',
@@ -12117,7 +12185,7 @@
                 default_safety_setting: '既定: 安全設定',
                 default_vision_model: 'Vision Model', rich_paste_prompt_default: 'リッチ貼り付けプロンプト',
                 rich_paste_prompt_use_custom_default: 'リッチ貼り付けカスタムプロンプト既定',
-                last_model: '直前のモデル', last_enable_search: '直前: Search', last_gemini_free_tier: '直前: Gemini無料枠', last_enable_url_context: '直前: URLコンテキスト',
+                last_model: '直前のモデル', last_enable_search: '直前: Search', last_gemini_free_tier: '直前: Gemini無料枠', last_gemini_flex: '直前: Gemini Flex', last_enable_url_context: '直前: URLコンテキスト',
                 last_enable_maps: '直前: Maps', last_enable_python: '直前: Python', last_enable_file_creation: '直前: File', last_enable_thinking: '直前: Thinking',
                 last_thinking_level: '直前: Thinkingレベル', last_thinking_budget: '直前: Thinking budget',
                 last_reasoning_effort: '直前: Reasoning effort', last_enable_system_prompt: '直前: システムプロンプト', last_enable_mcp: '直前: MCP',
@@ -13174,6 +13242,7 @@
             applyTemporaryChatTimeoutSeconds(d.temp_chat_timeout_seconds);
             if(get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
             if(get('set-default-gemini-free-tier')) get('set-default-gemini-free-tier').checked = !!d.default_gemini_free_tier;
+            if(get('set-default-gemini-flex')) get('set-default-gemini-flex').checked = !!d.default_gemini_flex;
             if(get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
             if(get('set-default-maps')) get('set-default-maps').checked = !!d.default_enable_maps;
             if(get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
@@ -13498,6 +13567,7 @@
                     ),
                     default_enable_search: get('set-default-search') ? get('set-default-search').checked : false,
                     default_gemini_free_tier: get('set-default-gemini-free-tier') ? get('set-default-gemini-free-tier').checked : false,
+                    default_gemini_flex: get('set-default-gemini-flex') ? get('set-default-gemini-flex').checked : false,
                     default_enable_url_context: get('set-default-url-context') ? get('set-default-url-context').checked : false,
                     default_enable_maps: get('set-default-maps') ? get('set-default-maps').checked : false,
                     default_enable_python: get('set-default-python') ? get('set-default-python').checked : false,
@@ -22089,6 +22159,7 @@
             use_last_chat_settings: { label: '前回の設定を継続', tab: 'general', control: 'set-use-last-settings' },
             default_enable_search: { label: '既定のSearch', tab: 'general', control: 'set-default-search' },
             default_gemini_free_tier: { label: '既定の無料枠', tab: 'general', control: 'set-default-gemini-free-tier' },
+            default_gemini_flex: { label: '既定のFlex', tab: 'general', control: 'set-default-gemini-flex' },
             default_enable_url_context: { label: '既定のURLs', tab: 'general', control: 'set-default-url-context' },
             default_enable_maps: { label: '既定のMaps', tab: 'general', control: 'set-default-maps' },
             default_enable_python: { label: '既定のPython', tab: 'general', control: 'set-default-python' },
@@ -23210,6 +23281,7 @@
                 temporary_chat: temporaryChatEnabled,
                 enable_search: get('enable-search').checked,
                 gemini_free_tier: !!(get('enable-gemini-free-tier') && get('enable-gemini-free-tier').checked),
+                gemini_flex: !!(get('enable-gemini-flex') && get('enable-gemini-flex').checked),
                 enable_url_context: get('enable-url-context') ? get('enable-url-context').checked : false,
                 enable_maps: get('enable-maps') ? get('enable-maps').checked : false,
                 enable_python: get('enable-python').checked,
@@ -28037,7 +28109,7 @@
         let costPricingFailed = false;
         let costBarPath = [];
         let costBarReady = false;
-        const COST_ESTIMATE_NOTE = '有料APIの通常料金による概算（USD）。回答ごとの保存済みモデルで計算します。入力使用量がない回答は会話履歴から推定します。モデルAPIの呼び出しごとに入力・出力（Thinkingを含む）を合算します。Ideogramはモデル・品質・速度・処理別の単価と画像枚数で計算します。単価未公表の設定は公表最安値を下限として「以上・一部未算入」で表示します。使用量未取得の呼び出しは一部未算入です。API報告のキャッシュ読込・書込と検索などの追加料金を含みます。Batch APIは事業者ごとの割引率（割引のない事業者を含む）で計算し、割引対象外のキャッシュ読込は通常単価のままです。保存時間や実行時間など取得できない課金情報は一部未算入です。その他の画像・音声・動画生成、税、無料枠・個別契約は含みません。時間帯や入力種別で単価が異なる場合は範囲で表示します。過去の請求額を再現するものではありません。';
+        const COST_ESTIMATE_NOTE = '有料APIの通常料金による概算（USD）。回答ごとの保存済みモデルで計算します。入力使用量がない回答は会話履歴から推定します。モデルAPIの呼び出しごとに入力・出力（Thinkingを含む）を合算します。Ideogramはモデル・品質・速度・処理別の単価と画像枚数で計算します。単価未公表の設定は公表最安値を下限として「以上・一部未算入」で表示します。使用量未取得の呼び出しは一部未算入です。API報告のキャッシュ読込・書込と検索などの追加料金を含みます。Batch APIは事業者ごとの割引率（割引のない事業者を含む）、Gemini Flexは標準料金の50%で計算し、割引対象外のキャッシュ読込は通常単価のままです。保存時間や実行時間など取得できない課金情報は一部未算入です。その他の画像・音声・動画生成、税、無料枠・個別契約は含みません。時間帯や入力種別で単価が異なる場合は範囲で表示します。過去の請求額を再現するものではありません。';
 
         function costTokenNumber(value) {
             if (value === null || value === undefined || value === '') return null;
@@ -28083,7 +28155,7 @@
             return rate;
         }
 
-        function addRequestCost(result, request, pricing, date, batch = false) {
+        function addRequestCost(result, request, pricing, date, batch = false, flex = false) {
             result.requests++;
             if (String(request.model).startsWith('grok-') && Number.isSafeInteger(request.cost_in_usd_ticks) && request.cost_in_usd_ticks >= 0) {
                 result.low += request.cost_in_usd_ticks / 1e10; result.high += request.cost_in_usd_ticks / 1e10;
@@ -28101,8 +28173,8 @@
                 const unit = typeof prices === 'number' ? prices : typeof selected === 'number' ? selected : minimum;
                 const lowerBound = Number.isFinite(unit) && typeof prices !== 'number' && typeof selected !== 'number';
                 if (count === null || !Number.isFinite(unit)) { result.unpriced++; return; }
-                result.low += count * unit;
-                result.high += count * unit;
+                result.low += count * unit * (flex ? 0.5 : 1);
+                result.high += count * unit * (flex ? 0.5 : 1);
                 result.priced++;
                 if (lowerBound) result.lowerBound = true;
                 if (request.complete === false || lowerBound) result.unpriced++;
@@ -28113,7 +28185,7 @@
             if (input === null && output === null) { result.unpriced++; return; }
             const long = rate.threshold != null && (rate.threshold_inclusive ? (input || 0) >= rate.threshold : (input || 0) > rate.threshold);
             if (long) result.long++;
-            const cost = requestTokenCost(request, rate, long, batch);
+            const cost = requestTokenCost(request, rate, long, batch, flex);
             result.low += cost.low; result.high += cost.high;
             if (cost.lowerBound) result.lowerBound = true;
             result.priced++;
@@ -28157,6 +28229,8 @@
                 try { metadata = typeof m.thought_data === 'string' ? JSON.parse(m.thought_data) : m.thought_data; } catch (_) { /* Legacy reasoning. */ }
                 const date = /^\d{4}-\d{2}-\d{2}/.exec(m.created_at || '')?.[0] || pricing?.checked_at;
                 const batch = m.batch_job?.state === 'JOB_STATE_SUCCEEDED';
+                const promptOptions = (rows.get(String(m.parent_id)) || m).prompt_options || m.prompt_options || {};
+                const flex = promptOptions && promptOptions.gemini_flex === true;
                 if (Array.isArray(metadata?.pricing_calls)) {
                     if (!metadata.pricing_calls.length) result.priced++; // All requests explicitly rejected before generation.
                     for (const call of metadata.pricing_calls) {
@@ -28166,12 +28240,12 @@
                         const rate = costRate(pricing, call.model, callDate);
                         const request = rate?.image_selector === 'speed' && !call.speed && call.model === m.model
                             ? { ...call, speed: legacyImageRequest(m, rows).speed } : call;
-                        addRequestCost(result, request, pricing, callDate, batch);
+                        addRequestCost(result, request, pricing, callDate, batch, flex);
                     }
                     continue;
                 }
                 if (costRate(pricing, m.model, date)?.unit === 'image') {
-                    addRequestCost(result, legacyImageRequest(m, rows), pricing, date);
+                    addRequestCost(result, legacyImageRequest(m, rows), pricing, date, false, flex);
                     continue;
                 }
                 const out = costTokenNumber(m.tokens_out);
@@ -28198,7 +28272,7 @@
                         parent = ancestor.parent_id;
                     }
                 }
-                addRequestCost(result, { model: m.model, input_tokens: input, output_tokens: out, complete: !incomplete }, pricing, date, batch);
+                addRequestCost(result, { model: m.model, input_tokens: input, output_tokens: out, complete: !incomplete }, pricing, date, batch, flex);
             }
             return result;
         }
@@ -28232,7 +28306,7 @@
             .then(data => { costPricing = data; if (costBarReady) refreshCostBar(); })
             .catch(() => { costPricingFailed = true; if (costBarReady) refreshCostBar(); });
         // Cache portions replace ordinary input, while hosted tool fees are added once.
-        function requestTokenCost(request, rate, long, batch) {
+        function requestTokenCost(request, rate, long, batch, flex = false) {
             const input = costTokenNumber(request.input_tokens) || 0;
             const output = costTokenNumber(request.output_tokens) || 0;
             const read = costTokenNumber(request.cache_read_tokens) || 0;
@@ -28266,8 +28340,8 @@
                 lowInput += unknownWrites * inRate * (possible.length ? Math.min(...possible) : 1);
                 highInput += unknownWrites * (long ? inRate : rate.max_input ?? inRate) * (possible.length ? Math.max(...possible) : 1);
             }
-            let low = (lowInput + output * outRate) * multiplier / 1e6;
-            let high = (highInput + output * (rate.max_output ?? outRate)) * multiplier / 1e6;
+            let low = (lowInput + output * outRate) * multiplier * (flex ? 0.5 : 1) / 1e6;
+            let high = (highInput + output * (rate.max_output ?? outRate)) * multiplier * (flex ? 0.5 : 1) / 1e6;
             let lowerBound = false;
             const tools = rate.tool_rates || {};
             const add = (count, name) => {

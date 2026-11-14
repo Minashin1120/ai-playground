@@ -223,6 +223,8 @@ data class Preferences(
     val migrationProgress: String = "",
     val defaultGeminiFreeTier: Boolean = false,
     val lastGeminiFreeTier: Boolean = false,
+    val defaultGeminiFlex: Boolean = false,
+    val lastGeminiFlex: Boolean = false,
     /** 「数学ステップ解説」master switch, prompt-bar default and the gear options (`math_steps_*`). */
     val mathStepsEnabled: Boolean = false,
     val mathStepsConfig: MathStepsConfig = MathStepsConfig(),
@@ -392,6 +394,8 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
     migrationProgress = json.nullableString("migration_progress"),
     defaultGeminiFreeTier = json.optBoolean("default_gemini_free_tier"),
     lastGeminiFreeTier = json.optBoolean("last_gemini_free_tier"),
+    defaultGeminiFlex = json.optBoolean("default_gemini_flex"),
+    lastGeminiFlex = json.optBoolean("last_gemini_flex"),
     mathStepsEnabled = json.optBoolean("math_steps_enabled"),
     mathStepsConfig = json.mathStepsConfig(),
     defaultMathSteps = json.optBoolean("default_math_steps"),
@@ -1087,6 +1091,7 @@ internal fun reasoningText(raw: String): String {
 internal fun promptOptionsRecord(body: JSONObject): JSONObject = JSONObject().apply {
     listOf(
         "turn_time_notice", "canvas_mode", "coding_mode", "math_steps", "browser_fast_mode", "batch_mode", "enable_search", "gemini_free_tier",
+        "gemini_flex",
         "enable_url_context", "enable_maps", "enable_python", "enable_file_creation", "enable_mcp",
         "enable_skills", "enable_thinking", "thinking_level", "thinking_budget", "reasoning_effort", "safety_setting",
         "enable_prompt_caching", "image_vision_model", "image_mask", "tts_voice", "tts_voice_custom",

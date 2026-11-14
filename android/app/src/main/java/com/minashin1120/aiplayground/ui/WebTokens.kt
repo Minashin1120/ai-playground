@@ -255,6 +255,12 @@ internal object Tw {
     val violet600 = Color(0xFF7C3AED)
     val violet900 = Color(0xFF4C1D95)
 
+    val lime200 = Color(0xFFD9F99D)
+    val lime300 = Color(0xFFBEF264)
+    val lime400 = Color(0xFFA3E635)
+    val lime700 = Color(0xFF4D7C0F)
+    val lime900 = Color(0xFF365314)
+
     val purple100 = Color(0xFFF3E8FF)
     val purple200 = Color(0xFFE9D5FF)
     val purple300 = Color(0xFFD8B4FE)

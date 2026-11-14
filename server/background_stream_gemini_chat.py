@@ -109,6 +109,19 @@ def background_stream_gemini_chat(local):
     # parameters. Omit them so future API generations do not
     # reject otherwise valid requests.
     conf = {} if is_latest_flash else {'temperature': 0.7}
+    # Flex inference is synchronous and only meaningful outside Batch mode. It is
+    # a per-request tier (50% price, best-effort capacity), so it is passed through
+    # GenerateContentConfig rather than changing the endpoint.
+    gemini_flex_active = bool(
+        options.get('gemini_flex')
+        and not options.get('gemini_free_tier')
+        and not batch_mode
+        and is_gemini_flex_model_key(rm)
+    )
+    if gemini_flex_active:
+        conf['service_tier'] = types.ServiceTier.FLEX
+        conf['http_options'] = types.HttpOptions(timeout=_GEMINI_FLEX_TIMEOUT_MS)
+        log_force(f"Gemini Flex tier enabled for {job_id} model={rm}")
     if is_gemini_3:
         # Gemini 3 does not support fully disabling thinking; force enabled.
         options['enable_thinking'] = True
@@ -185,7 +198,10 @@ def background_stream_gemini_chat(local):
             _gemini_code_exec_active = True
             # Agentic View runs Python server-side; give it a longer
             # deadline so it doesn't hit 504 DEADLINE_EXCEEDED.
-            conf['http_options'] = types.HttpOptions(timeout=_GEMINI_AGENTIC_TIMEOUT_MS)
+            conf['http_options'] = types.HttpOptions(timeout=(
+                max(_GEMINI_AGENTIC_TIMEOUT_MS, _GEMINI_FLEX_TIMEOUT_MS)
+                if gemini_flex_active else _GEMINI_AGENTIC_TIMEOUT_MS
+            ))
             # The sandbox still has its own hard runtime limit (~30s) that
             # the request timeout cannot extend, so also guide the model to
             # write code that finishes within it (especially for image edits).
@@ -958,9 +974,34 @@ def background_stream_gemini_chat(local):
             _gemini_first_chunk = next(_gemini_stream_iter)
             break
         except Exception as _stream_exc:
+            _exc_text = str(_stream_exc)
             _is_deadline = (
-                "504" in str(_stream_exc) or "DEADLINE_EXCEEDED" in str(_stream_exc)
+                "504" in _exc_text or "DEADLINE_EXCEEDED" in _exc_text
             )
+            _is_flex_retryable = gemini_flex_active and (
+                "503" in _exc_text or "429" in _exc_text
+                or "UNAVAILABLE" in _exc_text or "RESOURCE_EXHAUSTED" in _exc_text
+                or _is_deadline
+            )
+            if (
+                _is_flex_retryable
+                and _gemini_stream_attempts < _GEMINI_FLEX_RETRIES
+                and not check_stop()
+            ):
+                _gemini_stream_attempts += 1
+                _flex_delay = min(30, 5 * (2 ** (_gemini_stream_attempts - 1)))
+                log_force(
+                    f"STREAM-TRACE: Gemini Flex busy before first chunk, retry "
+                    f"{_gemini_stream_attempts}/{_GEMINI_FLEX_RETRIES} in {_flex_delay}s "
+                    f"for {job_id}: {_exc_text[:200]}"
+                )
+                time.sleep(_flex_delay)
+                continue
+            if gemini_flex_active and _is_flex_retryable:
+                log_force(
+                    f"STREAM-TRACE: Gemini Flex capacity unavailable after "
+                    f"{_gemini_stream_attempts} retries for {job_id}: {_exc_text[:200]}"
+                )
             if (
                 _gemini_code_exec_active
                 and _is_deadline

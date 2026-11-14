@@ -1,6 +1,7 @@
 package com.minashin1120.aiplayground.data.direct
 
 import com.minashin1120.aiplayground.data.Diagnostics
+import com.minashin1120.aiplayground.data.isGeminiFlexModel
 import java.util.Base64
 import java.util.IdentityHashMap
 import kotlinx.coroutines.delay
@@ -378,6 +379,10 @@ class GeminiDirect(
         }
         val payload = JSONObject().put("contents", contents)
         if (request.system.isNotBlank()) payload.put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", request.system))))
+        // Gemini Flex (50% price, best-effort) is a request-level service tier.
+        if (options.flag("gemini_flex") && isGeminiFlexModel(model)) {
+            payload.put("serviceTier", "flex")
+        }
         val generation = JSONObject()
         thinkingConfig(model, options)?.let { generation.put("thinkingConfig", it) }
         if (isImageModel(model)) {

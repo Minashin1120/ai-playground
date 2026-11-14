@@ -70,7 +70,10 @@ class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
             block_start,
         )
         block = APP_SOURCE[block_start:block_end]
-        self.assertIn("conf['http_options'] = types.HttpOptions(timeout=_GEMINI_AGENTIC_TIMEOUT_MS)", block)
+        # Flex tier requests use the longer of the agentic and flex deadlines.
+        self.assertIn("conf['http_options'] = types.HttpOptions(timeout=(", block)
+        self.assertIn("max(_GEMINI_AGENTIC_TIMEOUT_MS, _GEMINI_FLEX_TIMEOUT_MS)", block)
+        self.assertIn("else _GEMINI_AGENTIC_TIMEOUT_MS", block)
         self.assertIn('_auto_notice_enabled("gemini_code_execution")', block)
         self.assertIn('_auto_notice_text("gemini_code_execution")', block)
         self.assertIn("system_instruction", block)
@@ -109,7 +112,8 @@ class GeminiAgenticTimeoutRegressionTests(unittest.TestCase):
         block_end = APP_SOURCE.index(chain_line, block_start)
         block = APP_SOURCE[block_start:block_end]
         self.assertIn("_gemini_code_exec_active", block)
-        self.assertIn('"504" in str(_stream_exc) or "DEADLINE_EXCEEDED" in str(_stream_exc)', block)
+        self.assertIn("_exc_text = str(_stream_exc)", block)
+        self.assertIn('"504" in _exc_text or "DEADLINE_EXCEEDED" in _exc_text', block)
         self.assertIn("_GEMINI_STREAM_DEADLINE_RETRIES", block)
         self.assertIn("time.sleep(2)", block)
         # itertools.chain is used to feed the already-pulled first chunk into the loop.

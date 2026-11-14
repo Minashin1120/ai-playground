@@ -543,6 +543,8 @@ private fun ControlsRow(
                 Modifier.align(Alignment.CenterVertically))
             if (rules.geminiFree.visible) ModeChip("無料枠", state.geminiFreeTier, ChipTone.GeminiFree, rules.geminiFree,
                 model::toggleGeminiFreeTier, Modifier.align(Alignment.CenterVertically))
+            if (rules.geminiFlex.visible) ModeChip("Flex", state.geminiFlex, ChipTone.GeminiFlex, rules.geminiFlex,
+                model::toggleGeminiFlex, Modifier.align(Alignment.CenterVertically))
             if (compact) DetailsToggle(showDetails, onToggleDetails, Modifier.align(Alignment.CenterVertically))
         }
         AnimatedVisibility(showDetails, enter = expandFadeIn(reduce), exit = shrinkFadeOut(reduce)) {

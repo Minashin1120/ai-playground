@@ -48,6 +48,7 @@ internal object ChatSendRequest {
             .put("enable_thinking", !deepSeekNonThinking && !effortNonThinking && effective(current.enableThinking, rules.thinking))
             .put("enable_search", effective(current.enableSearch, rules.search))
             .put("gemini_free_tier", current.geminiFreeTier)
+            .put("gemini_flex", current.geminiFlex)
             .put("enable_url_context", effective(current.enableUrlContext, rules.urls))
             .put("enable_maps", effective(current.enableMaps, rules.maps))
             .put("enable_file_creation", effective(current.enableFileCreation, rules.file))

@@ -5,7 +5,7 @@ import org.json.JSONObject
 /** Replaces cached input portions and adds tool fees independently of Batch token discounts. */
 internal object ModelCostPricing {
     data class Amount(val low: Double, val high: Double, val incomplete: Boolean, val lowerBound: Boolean)
-    fun amount(call: JSONObject, rate: JSONObject, long: Boolean, batch: Boolean): Amount {
+    fun amount(call: JSONObject, rate: JSONObject, long: Boolean, batch: Boolean, flex: Boolean = false): Amount {
         fun n(key: String) = ModelUsagePricing.count(call, key) ?: 0
         fun price(key: String, fallback: Double) = if (rate.isNull(key)) fallback else rate.optDouble(key, fallback)
         val input = n("input_tokens"); val output = n("output_tokens"); val read = n("cache_read_tokens")
@@ -39,8 +39,8 @@ internal object ModelCostPricing {
             lowInput += unknown * inRate * (possible.minOrNull() ?: 1.0)
             highInput += unknown * maxInput * (possible.maxOrNull() ?: 1.0)
         }
-        var low = (lowInput + output * outRate) * multiplier / 1e6
-        var high = (highInput + output * price("max_output", outRate)) * multiplier / 1e6
+        var low = (lowInput + output * outRate) * multiplier * (if (flex) 0.5 else 1.0) / 1e6
+        var high = (highInput + output * price("max_output", outRate)) * multiplier * (if (flex) 0.5 else 1.0) / 1e6
         var lowerBound = false
         val tools = rate.optJSONObject("tool_rates") ?: JSONObject()
         fun add(count: Int, key: String) {

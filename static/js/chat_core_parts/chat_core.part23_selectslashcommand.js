@@ -57,6 +57,7 @@
             use_last_chat_settings: { label: '前回の設定を継続', tab: 'general', control: 'set-use-last-settings' },
             default_enable_search: { label: '既定のSearch', tab: 'general', control: 'set-default-search' },
             default_gemini_free_tier: { label: '既定の無料枠', tab: 'general', control: 'set-default-gemini-free-tier' },
+            default_gemini_flex: { label: '既定のFlex', tab: 'general', control: 'set-default-gemini-flex' },
             default_enable_url_context: { label: '既定のURLs', tab: 'general', control: 'set-default-url-context' },
             default_enable_maps: { label: '既定のMaps', tab: 'general', control: 'set-default-maps' },
             default_enable_python: { label: '既定のPython', tab: 'general', control: 'set-default-python' },

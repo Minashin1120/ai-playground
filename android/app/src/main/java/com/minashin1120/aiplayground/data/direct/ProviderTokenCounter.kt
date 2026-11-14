@@ -57,7 +57,7 @@ class ProviderTokenCounter(private val http: DirectHttp, private val bases: Map<
                 val encoded = URLEncoder.encode(request.model, "UTF-8")
                 url = vertex?.modelUrl(encoded, "countTokens") ?: "$base/v1beta/models/$encoded:countTokens"
                 headers = if (vertex != null) mapOf("Authorization" to "Bearer ${vertex.token()}") else mapOf("x-goog-api-key" to request.apiKey)
-                payload = GeminiDirect(http).buildPayload(request).apply { remove("generationConfig"); remove("safetySettings") }
+                payload = GeminiDirect(http).buildPayload(request).apply { remove("generationConfig"); remove("safetySettings"); remove("serviceTier") }
             }
             "anthropic" -> {
                 url = "$base/v1/messages/count_tokens"

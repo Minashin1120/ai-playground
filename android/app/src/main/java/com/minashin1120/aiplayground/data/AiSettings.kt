@@ -12,6 +12,7 @@ val AI_SETTING_JUMP_TARGETS = mapOf(
     "use_last_chat_settings" to AiSettingTarget("前回の設定を継続"),
     "default_enable_search" to AiSettingTarget("既定のSearch"),
     "default_gemini_free_tier" to AiSettingTarget("既定の無料枠"),
+    "default_gemini_flex" to AiSettingTarget("既定のFlex"),
     "default_enable_url_context" to AiSettingTarget("既定のURLs"),
     "default_enable_maps" to AiSettingTarget("既定のMaps"),
     "default_enable_python" to AiSettingTarget("既定のPython"),

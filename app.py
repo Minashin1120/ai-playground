@@ -646,10 +646,16 @@ _GEMINI_TIMEOUT_MS = _env_int("GEMINI_TIMEOUT_MS", 120000)
 # so a short value makes the API abort with 504 DEADLINE_EXCEEDED before the
 # sandboxed Python finishes. Use a dedicated, longer deadline for these requests.
 _GEMINI_AGENTIC_TIMEOUT_MS = _env_int("GEMINI_AGENTIC_TIMEOUT_MS", 600000)
+# Flex requests may sit in a queue for minutes; Google recommends a 10+ minute
+# client timeout so the request is not cut off before the server answers.
+_GEMINI_FLEX_TIMEOUT_MS = _env_int("GEMINI_FLEX_TIMEOUT_MS", 900000)
 # Google intermittently returns 504 DEADLINE_EXCEEDED on the initial response of
 # code-execution requests before any content is generated. A plain retry usually
 # succeeds, so re-pull the first streaming chunk this many times before failing.
 _GEMINI_STREAM_DEADLINE_RETRIES = max(0, _env_int("GEMINI_STREAM_DEADLINE_RETRIES", 2))
+# Flex capacity is shedable: 503/429 are expected when the system is busy and
+# the docs ask clients to retry with exponential backoff.
+_GEMINI_FLEX_RETRIES = max(0, _env_int("GEMINI_FLEX_RETRIES", 3))
 
 _HTTPX_LIMITS = httpx.Limits(
     max_connections=_HTTP_MAX_CONNECTIONS,
@@ -803,8 +809,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-11-14-001')
-app.config['SYSTEM_VERSION'] = 'V4.8.1169'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-11-15-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.1170'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

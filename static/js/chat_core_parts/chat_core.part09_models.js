@@ -556,6 +556,7 @@
             { id: 'coding', label: '/coding', description: 'Codingを切り替える（on / off）', icon: 'fa-code-branch', kind: 'minimal', itemKey: 'coding' },
             { id: 'fast', label: '/fast', description: '高速モードを切り替える（on / off）', icon: 'fa-bolt', kind: 'minimal', itemKey: 'fast' },
             { id: 'gemini-free', label: '/gemini-free', description: 'Gemini無料枠APIを切り替える（on / off）', icon: 'fa-tag', kind: 'minimal', itemKey: 'gemini-free' },
+            { id: 'gemini-flex', label: '/gemini-flex', description: 'Gemini Flex推論（低優先度・50%料金）を切り替える（on / off）', icon: 'fa-gauge-simple-high', kind: 'minimal', itemKey: 'gemini-flex' },
             { id: 'search', label: '/search', description: 'Searchを切り替える（on / off）', icon: 'fa-search', kind: 'minimal', itemKey: 'search' },
             { id: 'urls', label: '/urls', description: 'URLsを切り替える（on / off）', icon: 'fa-link', kind: 'minimal', itemKey: 'urls' },
             { id: 'maps', label: '/maps', description: 'Mapsを切り替える（on / off）', icon: 'fa-map-location-dot', kind: 'minimal', itemKey: 'maps' },

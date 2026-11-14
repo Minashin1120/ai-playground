@@ -174,6 +174,7 @@
             applyTemporaryChatTimeoutSeconds(d.temp_chat_timeout_seconds);
             if(get('set-default-search')) get('set-default-search').checked = !!d.default_enable_search;
             if(get('set-default-gemini-free-tier')) get('set-default-gemini-free-tier').checked = !!d.default_gemini_free_tier;
+            if(get('set-default-gemini-flex')) get('set-default-gemini-flex').checked = !!d.default_gemini_flex;
             if(get('set-default-url-context')) get('set-default-url-context').checked = !!d.default_enable_url_context;
             if(get('set-default-maps')) get('set-default-maps').checked = !!d.default_enable_maps;
             if(get('set-default-python')) get('set-default-python').checked = !!d.default_enable_python;
@@ -498,6 +499,7 @@
                     ),
                     default_enable_search: get('set-default-search') ? get('set-default-search').checked : false,
                     default_gemini_free_tier: get('set-default-gemini-free-tier') ? get('set-default-gemini-free-tier').checked : false,
+                    default_gemini_flex: get('set-default-gemini-flex') ? get('set-default-gemini-flex').checked : false,
                     default_enable_url_context: get('set-default-url-context') ? get('set-default-url-context').checked : false,
                     default_enable_maps: get('set-default-maps') ? get('set-default-maps').checked : false,
                     default_enable_python: get('set-default-python') ? get('set-default-python').checked : false,

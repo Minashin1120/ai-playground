@@ -23,9 +23,9 @@ data class MathStepsConfig(
     /** Filled values for the serverless prompt placeholders (same wording as the server). */
     fun promptValues(): Map<String, String> = mapOf(
         "math_basics" to if (basics) {
-            "ON。最初のステップで、この問題に必要な前提の定義・公式を、小さな具体例つきで確認する。その後に問題を解き始める。"
+            "ON。最初のステップで、この問題に必要な前提の定義・公式を、小さな具体例つきで確認する。その後に問題を解き始める（ノートの続きから説明するときは、前提の復習を挟まずノートの確認から始める）。"
         } else {
-            "OFF。前提の復習は最小限にし、問題の整理から始める。"
+            "OFF。前提の復習は最小限にし、問題の整理から始める（ノートの続きから説明するときは、ノートの確認から始める）。"
         },
         "math_level" to when (level) {
             "detailed" -> "式の意味と根拠を丁寧に。ただし1ステップ1話題は守る。"

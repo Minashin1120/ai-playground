@@ -43,6 +43,7 @@ data class ComposerRules(
     val coding: OptionRule,
     val batch: OptionRule,
     val geminiFree: OptionRule = OptionRule(visible = false),
+    val geminiFlex: OptionRule = OptionRule(visible = false),
     val mask: Boolean,
     /** True when [thinking] hosts the reasoning-effort levels (Web shows one Thinking control for both). */
     val effortAsThinking: Boolean = false,
@@ -94,6 +95,17 @@ fun isBatchModelKey(model: String): Boolean {
     if (!m.startsWith("gemini-")) return false
     return !Regex("(embedding|video|veo|music|lyria|native-audio|tts|live|transcribe|agent|deep-research|robotics|computer-use)").containsMatchIn(m)
 }
+
+/** Gemini Flex (`service_tier="flex"`) models; mirrors `GEMINI_FLEX_MODELS` in the Web chat core. */
+val GEMINI_FLEX_MODELS = setOf(
+    "gemini-4-carbon", "gemini-4-argon", "gemini-4-hydrogen",
+    "gemini-3.8-flash", "gemini-3.8-flash-cyber", "gemini-3.6-flash",
+    "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.1-pro-preview",
+    "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite",
+    "gemini-3-pro-image", "gemini-2.5-flash-image",
+)
+
+fun isGeminiFlexModel(model: String): Boolean = model.trim().lowercase(Locale.ROOT) in GEMINI_FLEX_MODELS
 
 /** Web `mcpModelSupported`. */
 fun mcpModelSupported(model: String): Boolean {
@@ -295,6 +307,7 @@ fun composerRules(model: String, mcpEnabledServer: Boolean, geminiBackend: Strin
         coding = OptionRule(dimmed = chipDim),
         batch = OptionRule(visible = isBatchModelKey(model), disabled = !isBatchModelKey(model)),
         geminiFree = OptionRule(visible = modelApiProvider(model) == "gemini" && geminiBackend != "vertex_ai"),
+        geminiFlex = OptionRule(visible = isGeminiFlexModel(model)),
         mask = model.contains("gpt-image") || isIdeogramModelKey(model),
         effortAsThinking = effortAsThinking,
     )

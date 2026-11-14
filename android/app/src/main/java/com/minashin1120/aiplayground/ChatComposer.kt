@@ -113,6 +113,7 @@ internal class ChatComposer(
             enableThinking = rules.thinking.forced ?: enableThinking,
             enablePromptCache = rules.promptCache.forced ?: enablePromptCache,
             batchMode = batchMode && rules.batch.visible,
+            geminiFlex = geminiFlex && rules.geminiFlex.visible && !batchMode && !geminiFreeTier,
             chipValues = chipValues + mapOf("thinking_level" to nextLevel, "reasoning_effort" to nextEffort),
         )
     }
@@ -148,7 +149,21 @@ internal class ChatComposer(
     }
     fun toggleThinking() { mutable.update { it.copy(enableThinking = !it.enableThinking) } }
     fun toggleSearch() { mutable.update { it.copy(enableSearch = !it.enableSearch) } }
-    fun toggleGeminiFreeTier() { mutable.update { it.copy(geminiFreeTier = !it.geminiFreeTier) } }
+    fun toggleGeminiFreeTier() {
+        val enabling = !state.value.geminiFreeTier
+        val releaseFlex = enabling && state.value.geminiFlex
+        mutable.update { it.copy(geminiFreeTier = enabling, geminiFlex = if (releaseFlex) false else it.geminiFlex) }
+        if (releaseFlex) notify("Flexは有料枠のみのため解除しました")
+    }
+    fun toggleGeminiFlex() {
+        val enabling = !state.value.geminiFlex
+        val releaseBatch = enabling && state.value.batchMode
+        val releaseFree = enabling && state.value.geminiFreeTier
+        mutable.update { it.copy(geminiFlex = enabling, batchMode = if (releaseBatch) false else it.batchMode,
+            geminiFreeTier = if (releaseFree) false else it.geminiFreeTier) }
+        if (releaseBatch) notify("FlexではBatch APIを利用できないため解除しました")
+        if (releaseFree) notify("Flexは有料枠のみのため、無料枠を解除しました")
+    }
     fun toggleUrlContext() { mutable.update { it.copy(enableUrlContext = !it.enableUrlContext) } }
     fun toggleMaps() { mutable.update { it.copy(enableMaps = !it.enableMaps) } }
     fun toggleFileCreation() { mutable.update { it.copy(enableFileCreation = !it.enableFileCreation) } }
@@ -193,8 +208,10 @@ internal class ChatComposer(
     /** Web `enable-batch-mode` change: turning Batch on releases Coding, which Batch cannot run. */
     fun toggleBatchMode() {
         val releaseCoding = !state.value.batchMode && state.value.codingMode
-        mutable.update { it.copy(batchMode = !it.batchMode, codingMode = if (releaseCoding) false else it.codingMode) }
+        val releaseFlex = !state.value.batchMode && state.value.geminiFlex
+        mutable.update { it.copy(batchMode = !it.batchMode, geminiFlex = if (!it.batchMode) false else it.geminiFlex, codingMode = if (releaseCoding) false else it.codingMode) }
         if (releaseCoding) notify("Batch APIではCoding Modeを利用できないため解除しました")
+        if (releaseFlex) notify("Batch APIではFlexを利用できないため解除しました")
     }
     fun togglePython() { mutable.update { it.copy(enablePython = !it.enablePython) } }
     fun toggleMcp() { mutable.update { it.copy(enableMcp = !it.enableMcp) } }

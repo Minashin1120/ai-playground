@@ -329,6 +329,28 @@ def is_gemini_transcribe_model_key(model_key):
     mk = str(model_key or "").lower().strip()
     return mk == "gemini-3.5-transcribe"
 
+# Gemini Flex inference (service_tier="flex"): 50% of Standard pricing with
+# best-effort, shedable capacity (503/429) and minute-scale latency. The list
+# follows the "Supported models" table in the Gemini API Flex documentation;
+# gemini-3.8-flash-cyber is included because its Vertex AI model card offers
+# Flex PayGo. Keep in sync with `GEMINI_FLEX_MODELS` in the Web chat core parts
+# and the Android ComposerRules.
+GEMINI_FLEX_MODEL_KEYS = frozenset({
+    "gemini-4-carbon", "gemini-4-argon", "gemini-4-hydrogen",
+    "gemini-3.8-flash", "gemini-3.8-flash-cyber", "gemini-3.6-flash",
+    "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.1-pro-preview",
+    "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    # Image models listed under Flex "Supported models" in the GenerateContent docs.
+    "gemini-3-pro-image", "gemini-2.5-flash-image",
+})
+
+
+def is_gemini_flex_model_key(model_key):
+    """True when the Gemini model can be served by the Flex inference tier."""
+    mk = str(model_key or "").lower().strip()
+    return mk in GEMINI_FLEX_MODEL_KEYS
+
 def _extract_interaction_text(interaction):
     """Extract the full text from a Gemini Interactions API response.
 

@@ -535,6 +535,7 @@
                 model: d.last_model,
                 enable_search: d.last_enable_search,
                 gemini_free_tier: d.last_gemini_free_tier,
+                gemini_flex: d.last_gemini_flex,
                 enable_url_context: d.last_enable_url_context,
                 enable_maps: d.last_enable_maps,
                 enable_python: d.last_enable_python,
@@ -550,6 +551,7 @@
                 model: d.default_model,
                 enable_search: d.default_enable_search,
                 gemini_free_tier: d.default_gemini_free_tier,
+                gemini_flex: d.default_gemini_flex,
                 enable_url_context: d.default_enable_url_context,
                 enable_maps: d.default_enable_maps,
                 enable_python: d.default_enable_python,
@@ -566,6 +568,7 @@
             if (src.model) selectModelById(src.model);
             if (get('enable-search')) get('enable-search').checked = !!s(src.enable_search, get('enable-search').checked);
             if (get('enable-gemini-free-tier')) get('enable-gemini-free-tier').checked = !!s(src.gemini_free_tier, get('enable-gemini-free-tier').checked);
+            if (get('enable-gemini-flex')) get('enable-gemini-flex').checked = !!s(src.gemini_flex, get('enable-gemini-flex').checked);
             if (get('enable-url-context')) get('enable-url-context').checked = !!s(src.enable_url_context, get('enable-url-context').checked);
             if (get('enable-maps')) get('enable-maps').checked = !!s(src.enable_maps, get('enable-maps').checked);
             if (get('enable-python')) get('enable-python').checked = !!s(src.enable_python, get('enable-python').checked);
@@ -597,7 +600,7 @@
             syncCodingModeUi(codingModeEnabled, { persist: false });
         }
         const PROMPT_OPTION_INPUT_IDS = {
-            enable_search: 'enable-search', gemini_free_tier: 'enable-gemini-free-tier', enable_url_context: 'enable-url-context',
+            enable_search: 'enable-search', gemini_free_tier: 'enable-gemini-free-tier', gemini_flex: 'enable-gemini-flex', enable_url_context: 'enable-url-context',
             enable_maps: 'enable-maps', enable_python: 'enable-python',
             enable_file_creation: 'enable-file-creation', enable_mcp: 'enable-mcp',
             enable_skills: 'enable-skills',

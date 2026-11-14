@@ -13,6 +13,7 @@
 | [test_gemini_media_token_estimate_regressions.py](../test_gemini_media_token_estimate_regressions.py) | gemini / media / token / estimate |
 | [test_gemini_new_models.py](../test_gemini_new_models.py) | gemini / new / models |
 | [test_gemini_free_tier_regressions.py](../test_gemini_free_tier_regressions.py) | Gemini無料枠スイッチと有料・無料キーの分離 |
+| [test_gemini_flex_regressions.py](../test_gemini_flex_regressions.py) | Gemini Flex推論（service_tier・再試行・料金表示） |
 | [test_gpt_5_6_family.py](../test_gpt_5_6_family.py) | gpt / 5 / 6 / family |
 | [test_gpt_6_family.py](../test_gpt_6_family.py) | gpt / 6 / family |
 | [test_grok_45_46_family.py](../test_grok_45_46_family.py) | grok / 45 / 46 / family |

@@ -1,6 +1,6 @@
 # AI Chat Playground
 
-[![Version](https://img.shields.io/badge/version-V4.8.1169-2563eb)](static/changelogs/20261114_v4.8.1169.md)
+[![Version](https://img.shields.io/badge/version-V4.8.1170-2563eb)](static/changelogs/20261115_v4.8.1170.md)
 [![Python](https://img.shields.io/badge/Python-3.11-3776ab)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-f59e0b)](LICENSE)
 
@@ -37,6 +37,7 @@ AI Chat Playground は、複数の生成AIを1つの画面から利用するた�
 - Cloudflare Turnstile、レート制限、管理者向けBAN・診断機能
 - PWA、オフライン画面、テーマ、低帯域・パフォーマンス設定
 - Batch処理（Gemini／OpenAI／xAI）による非同期生成（[Batch処理の機能と実装](static/docs/batch.md)）
+- Gemini Flex推論（低優先度・標準の50%料金。対応モデル・有料枠のみ。Batch／高速モード／無料枠とは排他。チャットと対応画像モデル）
 - 会話・プロンプト単位でプロンプトバーの設定を復元（[プロンプトバーの設定と復元](static/docs/prompt_bar_settings.md)）
 - 数学・数式の段階的ステップ解説（[数学ステップ解説の機能と実装](static/docs/math_steps/README.md)）
 - 公式Androidクライアント（端末連携、ネイティブログイン、サーバー不使用モード。[Androidプロジェクト](android/README.md)）

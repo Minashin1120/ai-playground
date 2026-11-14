@@ -4,7 +4,7 @@
 # Keep in sync with settings modal UI and handle_settings POST handling for these fields.
 AI_SAFE_EDITABLE_FIELDS = {
     # Default chat behaviors
-    'default_model', 'default_enable_search', 'default_gemini_free_tier', 'default_enable_url_context', 'default_enable_maps',
+    'default_model', 'default_enable_search', 'default_gemini_free_tier', 'default_gemini_flex', 'default_enable_url_context', 'default_enable_maps',
     'default_enable_python', 'default_enable_file_creation', 'default_enable_thinking', 'default_thinking_level',
     'default_thinking_budget', 'default_reasoning_effort', 'default_enable_system_prompt', 'default_enable_mcp',
     'default_safety_setting',
@@ -61,6 +61,7 @@ def _get_ai_safe_settings_snapshot(user):
         'llm_transcribe_prompt': _normalize_llm_transcribe_prompt(getattr(user, 'llm_transcribe_prompt', None)) or '',
         'temp_chat_timeout_seconds': _get_user_temp_chat_timeout_seconds(user),
         'default_model': getattr(user, 'default_model', None) or 'gemini-3.6-flash',
+        'default_gemini_flex': bool(getattr(user, 'default_gemini_flex', False)),
         'default_vision_model': getattr(user, 'default_vision_model', None) or 'gemini-3-flash-preview',
         'default_thinking_level': getattr(user, 'default_thinking_level', None) or 'high',
         'default_thinking_budget': user.default_thinking_budget if user.default_thinking_budget is not None else 4096,
@@ -202,6 +203,9 @@ def _apply_ai_settings_update(current_user, delta):
             elif key == 'default_gemini_free_tier':
                 current_user.default_gemini_free_tier = bool(val)
                 applied[key] = current_user.default_gemini_free_tier
+            elif key == 'default_gemini_flex':
+                current_user.default_gemini_flex = bool(val)
+                applied[key] = current_user.default_gemini_flex
             elif key == 'default_enable_url_context':
                 current_user.default_enable_url_context = bool(val)
                 applied[key] = current_user.default_enable_url_context

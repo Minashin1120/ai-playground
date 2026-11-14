@@ -85,6 +85,7 @@ data class ChatState(
     val promptSendMotionId: String? = null,
     val draft: String = "", val model: String = "", val attachments: List<Attachment> = emptyList(),
     val enableThinking: Boolean = false, val enableSearch: Boolean = false, val geminiFreeTier: Boolean = false,
+    val geminiFlex: Boolean = false,
     val enableUrlContext: Boolean = false, val enableMaps: Boolean = false,
     val enableFileCreation: Boolean = true, val enableSystemPrompt: Boolean = false,
     /** Web `enable-sys-prompt.dataset.restoreChecked`: the model turned SysPrompt off, [sysPromptRestore] is the choice to bring back. */

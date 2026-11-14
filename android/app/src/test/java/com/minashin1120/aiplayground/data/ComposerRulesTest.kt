@@ -132,4 +132,12 @@ class ComposerRulesTest {
         assertFalse(composerRules("gemini-3.6-flash", mcpEnabledServer = false, geminiBackend = "vertex_ai").geminiFree.visible)
         assertFalse(composerRules("gpt-5.5", mcpEnabledServer = false).geminiFree.visible)
     }
+
+    @Test fun geminiFlexIsVisibleOnlyForSupportedModels() {
+        assertTrue(composerRules("gemini-3.6-flash", mcpEnabledServer = false).geminiFlex.visible)
+        assertTrue(composerRules("gemini-2.5-pro", mcpEnabledServer = false).geminiFlex.visible)
+        assertFalse(composerRules("gemini-3.7-flash", mcpEnabledServer = false).geminiFlex.visible)
+        assertFalse(composerRules("gemini-3.1-flash-image", mcpEnabledServer = false).geminiFlex.visible)
+        assertFalse(composerRules("gpt-5.5", mcpEnabledServer = false).geminiFlex.visible)
+    }
 }

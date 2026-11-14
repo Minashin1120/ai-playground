@@ -147,6 +147,8 @@ internal fun MinimalOptionsPopup(
             MinimalAction.Toggle(rules.batch, on(state.batchMode, rules.batch), model::toggleBatchMode)))
         if (rules.geminiFree.visible) add(MinimalItem("gemini-free", R.drawable.fa_solid_tag, "無料枠",
             MinimalAction.Toggle(rules.geminiFree, on(state.geminiFreeTier, rules.geminiFree), model::toggleGeminiFreeTier)))
+        if (rules.geminiFlex.visible) add(MinimalItem("gemini-flex", R.drawable.fa_solid_hourglass_half, "Flex",
+            MinimalAction.Toggle(rules.geminiFlex, on(state.geminiFlex, rules.geminiFlex), model::toggleGeminiFlex)))
         if (rules.search.visible) add(MinimalItem("search", R.drawable.fa_solid_search, "Search",
             MinimalAction.Toggle(rules.search, on(state.enableSearch, rules.search), model::toggleSearch)))
         if (rules.urls.visible) add(MinimalItem("urls", R.drawable.fa_solid_link, "URLs",

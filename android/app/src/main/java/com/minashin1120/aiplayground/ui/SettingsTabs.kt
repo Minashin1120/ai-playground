@@ -211,6 +211,7 @@ private fun DefaultOptionChecks(form: SettingsForm) {
     fun c(dark: Color, light: Color) = if (web.isLight) light else dark
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SettingsCheck("無料枠", form.geminiFree, { form.geminiFree = it }, labelColor = c(Color(153, 246, 228), Color(15, 118, 110)))
+        SettingsCheck("Flex", form.geminiFlex, { form.geminiFlex = it }, labelColor = c(Tw.lime200, Tw.lime700))
         SettingsCheck("Search", form.search, { form.search = it })
         SettingsCheck("URLs", form.urlContext, { form.urlContext = it })
         SettingsCheck("Maps", form.maps, { form.maps = it })

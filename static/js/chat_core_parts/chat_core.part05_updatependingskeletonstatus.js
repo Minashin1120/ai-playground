@@ -885,6 +885,7 @@
             { key: 'fast', icon: 'fa-bolt', label: '高速', checkboxId: 'enable-browser-fast-mode', containerId: 'browser-fast-mode-container' },
             { key: 'batch', icon: 'fa-layer-group', label: 'Batch', checkboxId: 'enable-batch-mode', containerId: 'batch-mode-container' },
             { key: 'gemini-free', icon: 'fa-tag', label: '無料枠', checkboxId: 'enable-gemini-free-tier', containerId: 'gemini-free-tier-container' },
+            { key: 'gemini-flex', icon: 'fa-gauge-simple-high', label: 'Flex', checkboxId: 'enable-gemini-flex', containerId: 'gemini-flex-container' },
             { key: 'search', icon: 'fa-search', label: 'Search', checkboxId: 'enable-search', containerId: 'search-container' },
             { key: 'urls', icon: 'fa-link', label: 'URLs', checkboxId: 'enable-url-context', containerId: 'url-context-container' },
             { key: 'maps', icon: 'fa-map-location-dot', label: 'Maps', checkboxId: 'enable-maps', containerId: 'maps-grounding-container' },

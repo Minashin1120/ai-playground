@@ -901,7 +901,7 @@
         let costPricingFailed = false;
         let costBarPath = [];
         let costBarReady = false;
-        const COST_ESTIMATE_NOTE = '有料APIの通常料金による概算（USD）。回答ごとの保存済みモデルで計算します。入力使用量がない回答は会話履歴から推定します。モデルAPIの呼び出しごとに入力・出力（Thinkingを含む）を合算します。Ideogramはモデル・品質・速度・処理別の単価と画像枚数で計算します。単価未公表の設定は公表最安値を下限として「以上・一部未算入」で表示します。使用量未取得の呼び出しは一部未算入です。API報告のキャッシュ読込・書込と検索などの追加料金を含みます。Batch APIは事業者ごとの割引率（割引のない事業者を含む）で計算し、割引対象外のキャッシュ読込は通常単価のままです。保存時間や実行時間など取得できない課金情報は一部未算入です。その他の画像・音声・動画生成、税、無料枠・個別契約は含みません。時間帯や入力種別で単価が異なる場合は範囲で表示します。過去の請求額を再現するものではありません。';
+        const COST_ESTIMATE_NOTE = '有料APIの通常料金による概算（USD）。回答ごとの保存済みモデルで計算します。入力使用量がない回答は会話履歴から推定します。モデルAPIの呼び出しごとに入力・出力（Thinkingを含む）を合算します。Ideogramはモデル・品質・速度・処理別の単価と画像枚数で計算します。単価未公表の設定は公表最安値を下限として「以上・一部未算入」で表示します。使用量未取得の呼び出しは一部未算入です。API報告のキャッシュ読込・書込と検索などの追加料金を含みます。Batch APIは事業者ごとの割引率（割引のない事業者を含む）、Gemini Flexは標準料金の50%で計算し、割引対象外のキャッシュ読込は通常単価のままです。保存時間や実行時間など取得できない課金情報は一部未算入です。その他の画像・音声・動画生成、税、無料枠・個別契約は含みません。時間帯や入力種別で単価が異なる場合は範囲で表示します。過去の請求額を再現するものではありません。';
 
         function costTokenNumber(value) {
             if (value === null || value === undefined || value === '') return null;
@@ -947,7 +947,7 @@
             return rate;
         }
 
-        function addRequestCost(result, request, pricing, date, batch = false) {
+        function addRequestCost(result, request, pricing, date, batch = false, flex = false) {
             result.requests++;
             if (String(request.model).startsWith('grok-') && Number.isSafeInteger(request.cost_in_usd_ticks) && request.cost_in_usd_ticks >= 0) {
                 result.low += request.cost_in_usd_ticks / 1e10; result.high += request.cost_in_usd_ticks / 1e10;
@@ -965,8 +965,8 @@
                 const unit = typeof prices === 'number' ? prices : typeof selected === 'number' ? selected : minimum;
                 const lowerBound = Number.isFinite(unit) && typeof prices !== 'number' && typeof selected !== 'number';
                 if (count === null || !Number.isFinite(unit)) { result.unpriced++; return; }
-                result.low += count * unit;
-                result.high += count * unit;
+                result.low += count * unit * (flex ? 0.5 : 1);
+                result.high += count * unit * (flex ? 0.5 : 1);
                 result.priced++;
                 if (lowerBound) result.lowerBound = true;
                 if (request.complete === false || lowerBound) result.unpriced++;
@@ -977,7 +977,7 @@
             if (input === null && output === null) { result.unpriced++; return; }
             const long = rate.threshold != null && (rate.threshold_inclusive ? (input || 0) >= rate.threshold : (input || 0) > rate.threshold);
             if (long) result.long++;
-            const cost = requestTokenCost(request, rate, long, batch);
+            const cost = requestTokenCost(request, rate, long, batch, flex);
             result.low += cost.low; result.high += cost.high;
             if (cost.lowerBound) result.lowerBound = true;
             result.priced++;

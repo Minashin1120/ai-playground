@@ -628,6 +628,8 @@ def ensure_user_gemini_backend_columns():
                 ("gemini_free_api_key", "ALTER TABLE user ADD COLUMN gemini_free_api_key TEXT"),
                 ("default_gemini_free_tier", "ALTER TABLE user ADD COLUMN default_gemini_free_tier BOOLEAN DEFAULT 0"),
                 ("last_gemini_free_tier", "ALTER TABLE user ADD COLUMN last_gemini_free_tier BOOLEAN DEFAULT 0"),
+                ("default_gemini_flex", "ALTER TABLE user ADD COLUMN default_gemini_flex BOOLEAN DEFAULT 0"),
+                ("last_gemini_flex", "ALTER TABLE user ADD COLUMN last_gemini_flex BOOLEAN DEFAULT 0"),
             ]
             for column_name, ddl in columns:
                 res = conn.execute(text(

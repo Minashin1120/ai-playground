@@ -15,6 +15,7 @@ class MathStepsPromptTest {
         )
         assertFalse(filled.contains("{{"))
         assertTrue(filled.contains("問題の整理から始める"))
+        assertTrue(filled.contains("ノートの確認から始める"))
         assertTrue(filled.contains("標準"))
         assertTrue(filled.contains("大きめ"))
         assertTrue(filled.contains("必要なときだけ使う"))

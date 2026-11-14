@@ -67,6 +67,7 @@ flowchart TD
 | SysPrompt | `last_enable_system_prompt` | `default_enable_system_prompt` |
 | MCP | `last_enable_mcp` | `default_enable_mcp` |
 | Safety | `last_safety_setting` | `default_safety_setting` |
+| Gemini 無料枠 / Flex | `last_gemini_free_tier` / `last_gemini_flex` | `default_gemini_free_tier` / `default_gemini_flex` |
 
 値が未設定の項目は、その時点の画面の値が維持されます。
 
@@ -147,7 +148,7 @@ MCP のオン・オフは、設定画面の「自動注入システムプロン�
 - アカウントのエクスポート/インポートは `prompt_options` をそのまま含みます。
 - メッセージ取得時（`server/routes_files.py`）はJSONを解析してクライアントへ返します。
 
-「前回の設定を保存して継続する」がONのときだけ、送信時に `last_*`（モデル、Search、URLs、Maps、Python、File、Thinking、レベル、Budget、Reasoning effort、SysPrompt、MCP、Safety）を更新します。OFFのときは `last_*` を更新しません。
+「前回の設定を保存して継続する」がONのときだけ、送信時に `last_*`（モデル、Search、URLs、Maps、Python、File、Thinking、レベル、Budget、Reasoning effort、SysPrompt、MCP、Safety、Gemini無料枠、Gemini Flex）を更新します。OFFのときは `last_*` を更新しません。
 
 スレッドの `last_model` と `last_skill_uuid`（旧 `last_gem_uuid`） は、設定にかかわらず送信のたびに更新されます。
 

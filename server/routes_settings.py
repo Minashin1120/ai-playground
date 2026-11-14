@@ -84,6 +84,7 @@ def handle_settings():
             'default_model': current_user.default_model or "gemini-3.6-flash",
             'default_enable_search': current_user.default_enable_search,
             'default_gemini_free_tier': bool(getattr(current_user, 'default_gemini_free_tier', False)),
+            'default_gemini_flex': bool(getattr(current_user, 'default_gemini_flex', False)),
             'default_enable_url_context': current_user.default_enable_url_context,
             'default_enable_maps': current_user.default_enable_maps,
             'default_enable_python': current_user.default_enable_python,
@@ -104,6 +105,7 @@ def handle_settings():
             'last_gem_uuid': current_user.last_skill_uuid,
             'last_enable_search': current_user.last_enable_search,
             'last_gemini_free_tier': bool(getattr(current_user, 'last_gemini_free_tier', False)),
+            'last_gemini_flex': bool(getattr(current_user, 'last_gemini_flex', False)),
             'last_enable_url_context': current_user.last_enable_url_context,
             'last_enable_maps': current_user.last_enable_maps,
             'last_enable_python': current_user.last_enable_python,
@@ -242,6 +244,7 @@ def handle_settings():
         )
     if 'default_enable_search' in d: current_user.default_enable_search = bool(d['default_enable_search'])
     if 'default_gemini_free_tier' in d: current_user.default_gemini_free_tier = bool(d['default_gemini_free_tier'])
+    if 'default_gemini_flex' in d: current_user.default_gemini_flex = bool(d['default_gemini_flex'])
     if 'default_enable_url_context' in d: current_user.default_enable_url_context = bool(d['default_enable_url_context'])
     if 'default_enable_maps' in d: current_user.default_enable_maps = bool(d['default_enable_maps'])
     if 'default_enable_python' in d: current_user.default_enable_python = bool(d['default_enable_python'])

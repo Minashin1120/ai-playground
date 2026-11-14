@@ -10,6 +10,8 @@
                 try { metadata = typeof m.thought_data === 'string' ? JSON.parse(m.thought_data) : m.thought_data; } catch (_) { /* Legacy reasoning. */ }
                 const date = /^\d{4}-\d{2}-\d{2}/.exec(m.created_at || '')?.[0] || pricing?.checked_at;
                 const batch = m.batch_job?.state === 'JOB_STATE_SUCCEEDED';
+                const promptOptions = (rows.get(String(m.parent_id)) || m).prompt_options || m.prompt_options || {};
+                const flex = promptOptions && promptOptions.gemini_flex === true;
                 if (Array.isArray(metadata?.pricing_calls)) {
                     if (!metadata.pricing_calls.length) result.priced++; // All requests explicitly rejected before generation.
                     for (const call of metadata.pricing_calls) {
@@ -19,12 +21,12 @@
                         const rate = costRate(pricing, call.model, callDate);
                         const request = rate?.image_selector === 'speed' && !call.speed && call.model === m.model
                             ? { ...call, speed: legacyImageRequest(m, rows).speed } : call;
-                        addRequestCost(result, request, pricing, callDate, batch);
+                        addRequestCost(result, request, pricing, callDate, batch, flex);
                     }
                     continue;
                 }
                 if (costRate(pricing, m.model, date)?.unit === 'image') {
-                    addRequestCost(result, legacyImageRequest(m, rows), pricing, date);
+                    addRequestCost(result, legacyImageRequest(m, rows), pricing, date, false, flex);
                     continue;
                 }
                 const out = costTokenNumber(m.tokens_out);
@@ -51,7 +53,7 @@
                         parent = ancestor.parent_id;
                     }
                 }
-                addRequestCost(result, { model: m.model, input_tokens: input, output_tokens: out, complete: !incomplete }, pricing, date, batch);
+                addRequestCost(result, { model: m.model, input_tokens: input, output_tokens: out, complete: !incomplete }, pricing, date, batch, flex);
             }
             return result;
         }
@@ -85,7 +87,7 @@
             .then(data => { costPricing = data; if (costBarReady) refreshCostBar(); })
             .catch(() => { costPricingFailed = true; if (costBarReady) refreshCostBar(); });
         // Cache portions replace ordinary input, while hosted tool fees are added once.
-        function requestTokenCost(request, rate, long, batch) {
+        function requestTokenCost(request, rate, long, batch, flex = false) {
             const input = costTokenNumber(request.input_tokens) || 0;
             const output = costTokenNumber(request.output_tokens) || 0;
             const read = costTokenNumber(request.cache_read_tokens) || 0;
@@ -119,8 +121,8 @@
                 lowInput += unknownWrites * inRate * (possible.length ? Math.min(...possible) : 1);
                 highInput += unknownWrites * (long ? inRate : rate.max_input ?? inRate) * (possible.length ? Math.max(...possible) : 1);
             }
-            let low = (lowInput + output * outRate) * multiplier / 1e6;
-            let high = (highInput + output * (rate.max_output ?? outRate)) * multiplier / 1e6;
+            let low = (lowInput + output * outRate) * multiplier * (flex ? 0.5 : 1) / 1e6;
+            let high = (highInput + output * (rate.max_output ?? outRate)) * multiplier * (flex ? 0.5 : 1) / 1e6;
             let lowerBound = false;
             const tools = rate.tool_rates || {};
             const add = (count, name) => {

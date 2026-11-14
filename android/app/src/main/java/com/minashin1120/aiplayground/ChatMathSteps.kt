@@ -2,6 +2,7 @@ package com.minashin1120.aiplayground
 
 import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.Diagnostics
+import com.minashin1120.aiplayground.data.MathStepPart
 import com.minashin1120.aiplayground.data.MathStepsState
 import com.minashin1120.aiplayground.data.backend.ChatBackend
 import kotlinx.coroutines.CoroutineScope
@@ -55,12 +56,19 @@ internal class ChatMathSteps(
         }
     }
 
-    /** Drop the saved simplified variant so another device (and a reload) shows the original. */
-    fun clearSimplified(message: ChatMessage, stepIndex: Int) {
+    /** Drop a saved simplified body or expanded step so another device shows the original. */
+    fun clearVariants(message: ChatMessage, sourceIndex: Int, currentIndex: Int) {
         val id = message.id.toIntOrNull() ?: return
-        val index = stepIndex.coerceIn(0, MathStepsState.MAX_STEP)
+        val index = sourceIndex.coerceIn(0, MathStepsState.MAX_STEP)
+        val current = currentIndex.coerceIn(0, MathStepsState.MAX_STEP)
         updateState(id) { state ->
-            (state ?: MathStepsState()).copy(simplified = (state?.simplified.orEmpty() - index))
+            val base = state ?: MathStepsState()
+            base.copy(
+                current = current,
+                maxReached = maxOf(base.maxReached, current),
+                simplified = base.simplified - index,
+                expanded = base.expanded - index,
+            )
         }
         progressJob = scope.launch {
             try {
@@ -68,44 +76,60 @@ internal class ChatMathSteps(
                     "/api/math_steps/progress",
                     JSONObject()
                         .put("message_id", id)
-                        .put("current", index)
-                        .put("max_reached", index)
-                        .put("remove_simplified", org.json.JSONArray().put(index)),
+                        .put("current", current)
+                        .put("max_reached", maxOf(current, message.mathStepsState?.maxReached ?: current))
+                        .put("remove_simplified", org.json.JSONArray().put(index))
+                        .put("remove_expanded", org.json.JSONArray().put(index)),
                     token(),
                 )
-                Diagnostics.log("math_steps.progress_done", "index" to index, "count" to 1)
+                Diagnostics.log("math_steps.progress_done", "index" to current, "count" to 1)
             } catch (e: Exception) {
-                Diagnostics.log("math_steps.progress_error", "index" to index)
+                Diagnostics.log("math_steps.progress_error", "index" to current)
             }
         }
     }
 
-    fun simplify(message: ChatMessage, stepIndex: Int, done: (String?) -> Unit) {
+    /** Splits the current step (or one of its expanded parts) into easier smaller steps. */
+    fun simplify(
+        message: ChatMessage,
+        stepIndex: Int,
+        partIndex: Int?,
+        done: (List<MathStepPart>?) -> Unit,
+    ) {
         val id = message.id.toIntOrNull()
         if (id == null) { done(null); return }
         val index = stepIndex.coerceIn(0, MathStepsState.MAX_STEP)
         simplifyJob = scope.launch {
             try {
-                Diagnostics.log("math_steps.simplify_start", "index" to index)
-                val reply = backend().post(
-                    "/api/math_steps/simplify",
-                    JSONObject().put("message_id", id).put("step_index", index),
-                    token(),
-                )
-                val text = reply.optString("text").takeIf { it.isNotBlank() && it != "null" }
-                val saved = MathStepsState.parse(reply.opt("math_steps_state"))
-                updateState(id) { current ->
-                    when {
-                        saved != null -> (current ?: MathStepsState()).let { base ->
-                            // The simplify call does not move the reader; keep this device's step.
-                            base.copy(maxReached = maxOf(base.maxReached, saved.maxReached), simplified = saved.simplified)
-                        }
-                        text != null -> (current ?: MathStepsState(current = index, maxReached = index)).withSimplified(index, text)
-                        else -> current ?: MathStepsState()
+                Diagnostics.log("math_steps.simplify_start", "index" to index, "part" to (partIndex ?: -1))
+                val payload = JSONObject().put("message_id", id).put("step_index", index)
+                if (partIndex != null) payload.put("part_index", partIndex)
+                val reply = backend().post("/api/math_steps/simplify", payload, token())
+                val rows = reply.optJSONArray("steps")
+                val parts = ArrayList<MathStepPart>()
+                if (rows != null) {
+                    for (i in 0 until minOf(rows.length(), MathStepsState.MAX_EXPANDED_PER_STEP)) {
+                        val row = rows.optJSONObject(i) ?: continue
+                        val body = row.optString("body")
+                        if (body.isBlank() || body == "null") continue
+                        parts += MathStepPart(row.optString("title"), body)
                     }
                 }
-                Diagnostics.log("math_steps.simplify_done", "index" to index, "chars" to (text?.length ?: 0))
-                done(text)
+                if (parts.isEmpty()) { done(null); return@launch }
+                val saved = MathStepsState.parse(reply.opt("math_steps_state"))
+                updateState(id) { current ->
+                    val base = current ?: MathStepsState()
+                    val server = saved ?: base
+                    // The simplify call does not move the reader; keep this device's step.
+                    server.copy(
+                        current = base.current,
+                        maxReached = maxOf(base.maxReached, server.maxReached),
+                        simplified = server.simplified - index,
+                        expanded = server.expanded + (index to parts.toList()),
+                    )
+                }
+                Diagnostics.log("math_steps.simplify_done", "index" to index, "parts" to parts.size)
+                done(parts)
             } catch (e: Exception) {
                 Diagnostics.log("math_steps.simplify_error", "index" to index)
                 done(null)

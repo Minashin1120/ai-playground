@@ -65,18 +65,18 @@ _.edit?"\u203B Ideogram 4.5: \u753B\u50CF\u3092\u6DFB\u4ED8\uFF08\u307E\u305F\u3
 "\u203B Ideogram: \u30C6\u30AD\u30B9\u30C8\u304B\u3089\u306E\u751F\u6210\u306E\u307F\uFF08\u753B\u50CF\u7DE8\u96C6\u306F Ideogram 4.5 \u306E\u307F\uFF09")}
 r(g,"updateIdeogramImageUi"),["ideogram-image-operation","modal-ideogram-image-operation"].forEach(u=>{
 var f;(f=get(u))==null||f.addEventListener("change",()=>{const h=get(u.startsWith("modal-")?"ideogra\
-m-image-operation":"modal-ideogram-image-operation");h&&(h.value=get(u).value),g(),L()})});function v(){
+m-image-operation":"modal-ideogram-image-operation");h&&(h.value=get(u).value),g(),L()})});function y(){
 var b;const u=get("grok-video-options");if(!u)return;const f=String(((b=get("model-select"))==null?void 0:
 b.value)||"").toLowerCase();isGrokVideoModel()?u.classList.remove("hidden"):u.classList.add("hidden");
 const h=get("grok-video-resolution");if(h){const _=Array.from(h.options).find(M=>M.value==="1080p"),
 S=["grok-imagine-video-1.5","grok-imagine-video-1.5-lite"].includes(f);_&&(_.disabled=!S),!S&&h.value===
-"1080p"&&(h.value="720p")}}r(v,"updateGrokVideoUi");function y(){var _;const u=get("gemini-video-opt\
+"1080p"&&(h.value="720p")}}r(y,"updateGrokVideoUi");function v(){var _;const u=get("gemini-video-opt\
 ions");if(!u)return;const f=String(((_=get("model-select"))==null?void 0:_.value)||"").toLowerCase();
 isGeminiVideoModel()?u.classList.remove("hidden"):u.classList.add("hidden");const h=get("gemini-vide\
 o-resolution");if(h){const S=Array.from(h.options).find(A=>A.value==="4K"),M=f==="veo-3.1-lite-gener\
 ate-preview"||f==="veo-3.1-fast-generate-preview"||f==="gemini-omni-flash";S&&(S.disabled=M),M&&h.value===
 "4K"&&(h.value="1080p")}const b=get("gemini-video-duration-wrap");b&&b.classList.toggle("hidden",f===
-"gemini-omni-1.1-flash")}r(y,"updateGeminiVideoUi");function w(){const u=get("gemini-music-options");
+"gemini-omni-1.1-flash")}r(v,"updateGeminiVideoUi");function w(){const u=get("gemini-music-options");
 if(!u)return;const f=isGeminiRealtimeMusicModel(),h=isGeminiMusicModel()&&!f;u.classList.toggle("hid\
 den",!h);const b=get("lyria-realtime-studio-bar");b&&b.classList.toggle("hidden",!f)}r(w,"updateGemi\
 niMusicUi");function k(){var M;const u=get("xai-chat-options");if(!u)return;const f=String(((M=get("\
@@ -218,7 +218,7 @@ r-events-none")})}_&&(Ce&&Ce.classList.toggle("hidden",["glm-5.3-flash","glm-5.3
 disabled=!0)}),[Q,X].forEach(Le=>{Le&&Le.classList.add("opacity-50","pointer-events-none")}));const mt=get(
 "mask-btn");mt&&(isGptImageModel()||isIdeogramObjectRemoval()?mt.classList.remove("hidden"):(mt.classList.
 add("hidden"),currentMaskImage=null,updateMaskPreview())),updateTtsUi(),updateStsUi(),updateStsOptions(),
-c(),d(),m(),g(),v(),y(),w(),updateBatchUi(f);const Ht=get("gemini-free-tier-container");if(Ht){const Le=typeof isGeminiApiModel==
+c(),d(),m(),g(),y(),v(),w(),updateBatchUi(f);const Ht=get("gemini-free-tier-container");if(Ht){const Le=typeof isGeminiApiModel==
 "function"&&isGeminiApiModel(f)&&(typeof currentGeminiBackend!="function"||currentGeminiBackend()!==
 "vertex_ai");Ht.classList.toggle("hidden",!Le)}k(),x(),C(),purgeUnsupportedAttachments(!0),refreshMinimalOptionsIfOpen(),
 applyMcpPromptChipUi()}r(E,"toggleOptionsForModel"),get("model-select")&&(get("model-select").addEventListener(
@@ -2152,11 +2152,11 @@ d("FILE")),O.style.animationDelay=`${E*32}ms`,a.appendChild(O)}),L.length>0?a.cl
 en"):a.classList.add("hidden")}function d(L){const T=document.createElement("div");return T.className=
 "thumb-item bg-gray-800 flex items-center justify-center text-gray-500 text-[9px] shadow-sm font-bol\
 d",T.innerText=L,T}r(d,"createFileThumb");const m=collectImageUrlsForSend(),g=uploadProgressState.total,
-v=uploadProgressState.completed,y=uploadProgressState.active;g===0&&(e.classList.add("hidden"),n&&n.
+y=uploadProgressState.completed,v=uploadProgressState.active;g===0&&(e.classList.add("hidden"),n&&n.
 classList.add("hidden"),l&&l.classList.add("hidden"),a&&a.classList.add("hidden"));const w=get("send\
--btn"),k=get("mic-btn"),x=get("mask-btn"),C=isStopMode;if(y>0?(w&&(w.disabled=!0),k&&(k.disabled=!0),
-x&&(x.disabled=!0)):C||(w&&(w.disabled=!1),k&&(k.disabled=!1),x&&(x.disabled=!1)),y>0){const L=`Prep\
-aring... (${v}/${g})`;e.classList.remove("hidden"),t.innerText=L,o&&(o.innerText=`(${v}/${g})`);let T=v*
+-btn"),k=get("mic-btn"),x=get("mask-btn"),C=isStopMode;if(v>0?(w&&(w.disabled=!0),k&&(k.disabled=!0),
+x&&(x.disabled=!0)):C||(w&&(w.disabled=!1),k&&(k.disabled=!1),x&&(x.disabled=!1)),v>0){const L=`Prep\
+aring... (${y}/${g})`;e.classList.remove("hidden"),t.innerText=L,o&&(o.innerText=`(${y}/${g})`);let T=y*
 100,E=0;for(let Y in uploadProgressState.perFilePct)T+=uploadProgressState.perFilePct[Y],E++;const H=g>
 0?T/(g*100)*100:0,N=`${Math.min(100,H)}%`;n&&i&&(n.classList.remove("hidden"),i.style.width=N),l&&c&&
 (l.classList.remove("hidden"),c.style.width=N)}else o&&(o.innerText=""),l&&l.classList.add("hidden"),
@@ -2201,9 +2201,9 @@ maskMode),c&&c.classList.toggle("hidden",markerState.maskMode);const d=get("mark
 "marker-tool-auto");d&&(d.textContent=markerState.maskMode?"\u30D6\u30E9\u30B7":"\u30DE\u30FC\u30AB\u30FC"),
 m&&(m.classList.toggle("hidden",!markerState.maskMode),m.classList.toggle("active",e==="auto")),d&&d.
 classList.toggle("active",e==="draw");const g=get("marker-brush-control");g&&g.classList.toggle("hid\
-den",markerState.maskMode&&e==="auto");const v=get("marker-auto-tolerance-control");v&&v.classList.toggle(
-"hidden",!markerState.maskMode||e!=="auto");const y=get("marker-modal-title"),w=get("marker-modal-de\
-scription"),k=get("marker-save");y&&(y.textContent=markerState.maskMode?"\u30DE\u30B9\u30AF\u4F5C\u6210":
+den",markerState.maskMode&&e==="auto");const y=get("marker-auto-tolerance-control");y&&y.classList.toggle(
+"hidden",!markerState.maskMode||e!=="auto");const v=get("marker-modal-title"),w=get("marker-modal-de\
+scription"),k=get("marker-save");v&&(v.textContent=markerState.maskMode?"\u30DE\u30B9\u30AF\u4F5C\u6210":
 "\u753B\u50CF\u7DE8\u96C6"),w&&(w.textContent=markerState.maskMode?"\u767D\u304F\u5857\u3063\u305F\u9818\u57DF\u304C\u524A\u9664\u5BFE\u8C61\u3067\u3059\u3002\u30D6\u30E9\u30B7\u307E\u305F\u306F\u81EA\u52D5\u5857\u308A\u3092\u4F7F\u3048\u307E\u3059\u3002\u30DE\
 \u30B9\u30AF\u306F\u5BFE\u8C61\u753B\u50CF\u3068\u540C\u3058\u30B5\u30A4\u30BA\u3067\u4F5C\u6210\u3055\u308C\u307E\u3059\u3002":
 "\u30DE\u30FC\u30AB\u30FC\u30FB\u30E2\u30B6\u30A4\u30AF\u30FB\u30C8\u30EA\u30DF\u30F3\u30B0\u304C\u53EF\u80FD\u3067\u3059\u3002\u9001\u4FE1\u6642\u306B\u7DE8\u96C6\u6E08\u307F\u753B\u50CF\u306E\u78BA\u8A8D\u3092\u4FC3\u3057\u307E\u3059\u3002"),
@@ -2220,9 +2220,9 @@ markerView.offsetX=0,markerView.offsetY=0;return}const e=get("marker-stage"),t=g
 if(!e||!t)return;const n=Math.max(1,e.clientWidth||0),i=Math.max(1,e.clientHeight||0),a=Math.max(1,t.
 offsetWidth||t.clientWidth||0),o=Math.max(1,t.offsetHeight||t.clientHeight||0);if(n<=1||i<=1||a<=1||
 o<=1)return;const l=(n-a)/2,c=(i-o)/2,d=a*markerView.scale,m=o*markerView.scale,g=Math.min(n*.45,Math.
-max(24,n*.12)),v=Math.min(i*.45,Math.max(24,i*.12)),y=g-l-d,w=n-g-l,k=v-c-m,x=i-v-c,C=r((L,T,E)=>Number.
+max(24,n*.12)),y=Math.min(i*.45,Math.max(24,i*.12)),v=g-l-d,w=n-g-l,k=y-c-m,x=i-y-c,C=r((L,T,E)=>Number.
 isFinite(L)?T>E?(T+E)/2:Math.min(E,Math.max(T,L)):0,"clampOffset");markerView.offsetX=C(markerView.offsetX,
-y,w),markerView.offsetY=C(markerView.offsetY,k,x)}r(clampMarkerViewOffset,"clampMarkerViewOffset");function applyMarkerTransform(){
+v,w),markerView.offsetY=C(markerView.offsetY,k,x)}r(clampMarkerViewOffset,"clampMarkerViewOffset");function applyMarkerTransform(){
 const e=get("marker-viewport");e&&(clampMarkerViewOffset(),e.style.transform=`translate(${markerView.
 offsetX}px, ${markerView.offsetY}px) scale(${markerView.scale})`)}r(applyMarkerTransform,"applyMarke\
 rTransform");function resetMarkerTransform(){markerView.scale=1,markerView.offsetX=0,markerView.offsetY=
@@ -2279,9 +2279,9 @@ const n=e.getAttribute("data-original-filename");return getAttachmentSourceForPa
 a.getImageData(0,0,t,n),markerState.baseCanvas=i):(markerState.baseImageData=null,markerState.baseCanvas=
 null)}r(prepareMarkerBaseCanvas,"prepareMarkerBaseCanvas");function renderCropOverlay(){const e=get(
 "marker-crop-canvas");if(!e)return;const t=e.getContext("2d");if(!t)return;t.clearRect(0,0,e.width,e.
-height);const n=r((l,c,d=null,m=!1)=>{if(!l)return;const g=Math.max(0,l.x),v=Math.max(0,l.y),y=Math.
-max(1,l.w),w=Math.max(1,l.h);d&&(t.fillStyle=d,t.fillRect(g,v,y,w)),t.save(),m&&t.setLineDash([6,4]),
-t.strokeStyle=c,t.lineWidth=2,t.strokeRect(g+.5,v+.5,Math.max(1,y-1),Math.max(1,w-1)),t.restore()},"\
+height);const n=r((l,c,d=null,m=!1)=>{if(!l)return;const g=Math.max(0,l.x),y=Math.max(0,l.y),v=Math.
+max(1,l.w),w=Math.max(1,l.h);d&&(t.fillStyle=d,t.fillRect(g,y,v,w)),t.save(),m&&t.setLineDash([6,4]),
+t.strokeStyle=c,t.lineWidth=2,t.strokeRect(g+.5,y+.5,Math.max(1,v-1),Math.max(1,w-1)),t.restore()},"\
 drawRect"),i=markerState.cropRect,a=i&&i.x===0&&i.y===0&&Math.abs(i.w-e.width)<1&&Math.abs(i.h-e.height)<
 1;if(i&&(markerState.mode==="crop"||!a)){t.fillStyle="rgba(0,0,0,0.35)",t.fillRect(0,0,e.width,e.height);
 const l=Math.max(0,i.x),c=Math.max(0,i.y),d=Math.max(1,i.w),m=Math.max(1,i.h);t.clearRect(l,c,d,m),markerState.
@@ -2293,9 +2293,9 @@ pOverlay");function collectImageUrlsForSend(){return collectAttachmentItemsForSe
 r(collectImageUrlsForSend,"collectImageUrlsForSend");function collectAttachmentItemsForSend(){const e=[],
 t=new Map,n=r((a,o,l)=>{const c=normalizeAttachmentPath(a);if(!c)return;const d=normalizeAttachmentSource(
 o),m=normalizeAttachmentDisplayName(l)||getAttachmentNameForPath(c),g=t.get(c);if(g===void 0){const w=e.
-length;t.set(c,w),e.push({path:c,source:d,name:m});return}const v=e[g];if(!v)return;const y=normalizeAttachmentSource(
-v.source);(y==="unknown"&&d!=="unknown"||y==="library"&&d==="upload")&&(v.source=d),!normalizeAttachmentDisplayName(
-v.name)&&m&&(v.name=m)},"pushItem"),i=get("upload-list");return i&&i.querySelectorAll("[data-filenam\
+length;t.set(c,w),e.push({path:c,source:d,name:m});return}const y=e[g];if(!y)return;const v=normalizeAttachmentSource(
+y.source);(v==="unknown"&&d!=="unknown"||v==="library"&&d==="upload")&&(y.source=d),!normalizeAttachmentDisplayName(
+y.name)&&m&&(y.name=m)},"pushItem"),i=get("upload-list");return i&&i.querySelectorAll("[data-filenam\
 e]").forEach(a=>{const o=a.getAttribute("data-filename");n(o,getRowAttachmentSource(a),getRowAttachmentName(
 a));const l=a.getAttribute("data-original-filename");a.dataset.attachOriginal==="1"&&n(l,getRowOriginalAttachmentSource(
 a),getAttachmentNameForPath(l))}),currentImageUrls&&currentImageUrls.length&&currentImageUrls.forEach(
@@ -2332,7 +2332,7 @@ resetMarkerTransform(),showModal("marker-modal"),location.pathname!=="/edit-imag
 max(1,Math.floor(o.clientWidth)),g=Math.max(1,Math.floor(o.clientHeight));l.width=m,l.height=g,l.style.
 width=`${m}px`,l.style.height=`${g}px`,l.style.left="0px",l.style.top="0px",c&&(c.width=m,c.height=g,
 c.style.width=`${m}px`,c.style.height=`${g}px`,c.style.left="0px",c.style.top="0px"),markerState.naturalWidth=
-o.naturalWidth||m,markerState.naturalHeight=o.naturalHeight||g;const v=l.getContext("2d");v&&v.clearRect(
+o.naturalWidth||m,markerState.naturalHeight=o.naturalHeight||g;const y=l.getContext("2d");y&&y.clearRect(
 0,0,l.width,l.height),prepareMarkerBaseCanvas(o,m,g),saveMarkerHistory(),markerState.mode==="crop"&&
 !markerState.cropRect&&resetCropRectToFull(),renderCropOverlay(),resetMarkerTransform()},o.src=n)}r(
 openMarkerModalForRow,"openMarkerModalForRow");let uploadProgressState={total:0,completed:0,active:0,
@@ -2462,18 +2462,18 @@ if(!e||(e=normalizeAttachmentPath(e),!e))return null;const n=normalizeAttachment
 500")&&(i.innerHTML="");const a=e.split("/").pop()||e,o=normalizeAttachmentDisplayName(t.displayName)||
 getAttachmentNameForPath(e)||a,l=(a.split(".").pop()||"").toLowerCase(),c=["png","jpg","jpeg","webp",
 "gif"].includes(l),d=buildFileUrl(e),m=c?buildAttachmentPreviewUrl(e):d,g=`lib_${Date.now()}_${Math.
-random().toString(36).slice(2,8)}`,v=document.createElement("div");v.className="upload-row ui-enter \
-bg-gray-900/60 rounded p-2",v.dataset.uploadId=g,v.setAttribute("data-filename",e),v.dataset.fileSource=
-n,v.dataset.displayName=o,v.dataset.defaultDisplayName=o,v.dataset.sendNameCustomized="";const y=escapeHtml(
+random().toString(36).slice(2,8)}`,y=document.createElement("div");y.className="upload-row ui-enter \
+bg-gray-900/60 rounded p-2",y.dataset.uploadId=g,y.setAttribute("data-filename",e),y.dataset.fileSource=
+n,y.dataset.displayName=o,y.dataset.defaultDisplayName=o,y.dataset.sendNameCustomized="";const v=escapeHtml(
 o),w=c&&!browserFastModeEnabled?'<button class="upload-marker text-[10px] border rounded px-2 py-1">\
 \u753B\u50CF\u7DE8\u96C6</button>':"",k=c?`<img src="${m}" loading="lazy" decoding="async" class="up\
-load-preview w-12 h-12 object-cover rounded border border-gray-700 cursor-pointer" alt="${y}">`:'<di\
+load-preview w-12 h-12 object-cover rounded border border-gray-700 cursor-pointer" alt="${v}">`:'<di\
 v class="upload-preview w-12 h-12 bg-gray-800 rounded border border-gray-700 flex items-center justi\
-fy-center text-gray-400 text-sm cursor-pointer">FILE</div>';v.innerHTML=`
+fy-center text-gray-400 text-sm cursor-pointer">FILE</div>';y.innerHTML=`
                 <div class="flex items-center gap-3">
                     ${k}
                     <div class="flex-1 min-w-0">
-                        <div class="truncate text-xs text-gray-200">${y}</div>
+                        <div class="truncate text-xs text-gray-200">${v}</div>
                         <div class="flex items-center gap-2">
                             <div class="upload-status text-[10px] text-gray-400">ready</div>
                             <span class="upload-marker-tag hidden">\u7DE8\u96C6\u6E08\u307F</span>
@@ -2490,15 +2490,15 @@ rder border-gray-700 rounded px-2 py-1">\u524A\u9664</button>
                 <div class="upload-progress h-2 rounded mt-2 overflow-hidden">
                     <div style="width:100%"></div>
                 </div>
-            `;const x=v.querySelector(".upload-preview");x&&(x.onclick=()=>openFileViewer(d,getRowAttachmentName(
-v)||o));const C=v.querySelector(".upload-send-name");C&&(C.onclick=()=>promptRowAttachmentName(v));const L=v.
+            `;const x=y.querySelector(".upload-preview");x&&(x.onclick=()=>openFileViewer(d,getRowAttachmentName(
+y)||o));const C=y.querySelector(".upload-send-name");C&&(C.onclick=()=>promptRowAttachmentName(y));const L=y.
 querySelector(".upload-remove");L&&(L.onclick=()=>{uploadCancelTokens.add(g),browserFastLocalFiles.delete(
-g),decrementUploadTotal(g);const E=v.getAttribute("data-filename");E&&(currentImageUrls=currentImageUrls.
-filter(H=>H!==E)),setRowMarkerState(v,!1),v.remove(),updateFilePreview(),i.children.length===0&&(i.innerHTML=
+g),decrementUploadTotal(g);const E=y.getAttribute("data-filename");E&&(currentImageUrls=currentImageUrls.
+filter(H=>H!==E)),setRowMarkerState(y,!1),y.remove(),updateFilePreview(),i.children.length===0&&(i.innerHTML=
 '<div class="text-xs text-gray-500">\u307E\u3060\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u304C\u3042\u308A\u307E\u305B\u3093\u3002</div>')});
-const T=v.querySelector(".upload-marker");return T&&(T.onclick=()=>openMarkerModalForRow(v)),setAttachmentSourceForPath(
-e,n),setAttachmentNameForPath(e,o),i.prepend(v),{row:v,bar:v.querySelector(".upload-progress > div"),
-status:v.querySelector(".upload-status"),uploadId:g}}r(addStoredUploadRow,"addStoredUploadRow");function addUploadRow(e){
+const T=y.querySelector(".upload-marker");return T&&(T.onclick=()=>openMarkerModalForRow(y)),setAttachmentSourceForPath(
+e,n),setAttachmentNameForPath(e,o),i.prepend(y),{row:y,bar:y.querySelector(".upload-progress > div"),
+status:y.querySelector(".upload-status"),uploadId:g}}r(addStoredUploadRow,"addStoredUploadRow");function addUploadRow(e){
 const t=get("upload-list");if(!t)return null;t.children.length===1&&t.children[0].classList.contains(
 "text-gray-500")&&(t.innerHTML="");const n=`up_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,
 i=document.createElement("div");i.className="upload-row ui-enter bg-gray-900/60 rounded p-2",i.dataset.
@@ -2533,28 +2533,28 @@ rder border-gray-700 rounded px-2 py-1">\u524A\u9664</button>
                 </div>
             `,m&&i.setAttribute("data-local-url",m);const g=i.querySelector(".upload-preview");g&&(g.
 onclick=()=>{const k=i.getAttribute("data-filename"),x=k?buildFileUrl(k):i.getAttribute("data-local-\
-url"),C=normalizeAttachmentDisplayName(i.dataset.displayName)||e.name||k||"";openFileViewer(x,C)});const v=i.
-querySelector(".upload-remove");v&&(v.onclick=()=>{uploadCancelTokens.add(n),browserFastLocalFiles.delete(
+url"),C=normalizeAttachmentDisplayName(i.dataset.displayName)||e.name||k||"";openFileViewer(x,C)});const y=i.
+querySelector(".upload-remove");y&&(y.onclick=()=>{uploadCancelTokens.add(n),browserFastLocalFiles.delete(
 n),decrementUploadTotal(n);const k=i.getAttribute("data-local-url");k&&URL.revokeObjectURL(k);const x=i.
 getAttribute("data-filename");x&&(currentImageUrls=currentImageUrls.filter(C=>C!==x)),setRowMarkerState(
 i,!1),i.remove(),updateFilePreview(),t.children.length===0&&(t.innerHTML='<div class="text-xs text-g\
 ray-500">\u307E\u3060\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u304C\u3042\u308A\u307E\u305B\u3093\u3002</div>')});
-const y=i.querySelector(".upload-marker");y&&(y.onclick=()=>openMarkerModalForRow(i));const w=i.querySelector(
+const v=i.querySelector(".upload-marker");v&&(v.onclick=()=>openMarkerModalForRow(i));const w=i.querySelector(
 ".upload-send-name");return w&&(w.onclick=()=>promptRowAttachmentName(i)),t.prepend(i),{uploadId:n,row:i,
 status:i.querySelector(".upload-status"),bar:i.querySelector(".upload-progress > div")}}r(addUploadRow,
 "addUploadRow");const CHUNK_THRESHOLD_BYTES=20*1024*1024;async function uploadFileChunked(e,t){if(isUploadCancelled(
 t)||!e)return!1;let n=!1;window.ConnectionMonitor&&(window.ConnectionMonitor.operationStarted(),n=!0);
 try{const i=await apiFetch("/upload/init",{method:"POST",headers:{"Content-Type":"application/json",
 "X-CSRF-Token":csrfToken},body:JSON.stringify({filename:e.name,size:e.size})}),a=await i.json();if(!i.
-ok){const v=a&&a.error?a.error:"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F";
-return t&&t.status&&(t.status.textContent="\u5931\u6557"),showToast(v,"error",!0),!1}const o=a.upload_id,
-l=a.chunk_size||10*1024*1024,c=Math.ceil(e.size/l);for(let v=0;v<c;v++){const y=v*l,w=Math.min(e.size,
-y+l),k=e.slice(y,w);if(!await new Promise(C=>{const L=new XMLHttpRequest;L.open("POST","/upload/chun\
+ok){const y=a&&a.error?a.error:"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F";
+return t&&t.status&&(t.status.textContent="\u5931\u6557"),showToast(y,"error",!0),!1}const o=a.upload_id,
+l=a.chunk_size||10*1024*1024,c=Math.ceil(e.size/l);for(let y=0;y<c;y++){const v=y*l,w=Math.min(e.size,
+v+l),k=e.slice(v,w);if(!await new Promise(C=>{const L=new XMLHttpRequest;L.open("POST","/upload/chun\
 k",!0),L.setRequestHeader("X-CSRF-Token",csrfToken),L.upload.onprogress=E=>{if(E.lengthComputable&&t&&
-t.bar){const H=y+E.loaded,N=Math.min(100,Math.floor(H/e.size*100));t.bar.style.width=`${N}%`,t.status&&
+t.bar){const H=v+E.loaded,N=Math.min(100,Math.floor(H/e.size*100));t.bar.style.width=`${N}%`,t.status&&
 (t.status.textContent=`${N}%`),t.uploadId&&updateGlobalUploadProgress(t.uploadId,N)}window.ConnectionMonitor&&
 window.ConnectionMonitor.reportActivity()},L.onload=()=>{L.status>=200&&L.status<300?C(!0):C(!1)},L.
-onerror=()=>C(!1);const T=new FormData;T.append("upload_id",o),T.append("index",String(v)),T.append(
+onerror=()=>C(!1);const T=new FormData;T.append("upload_id",o),T.append("index",String(y)),T.append(
 "total",String(c)),T.append("chunk",k,e.name),L.send(T)}))return t&&t.status&&(t.status.textContent=
 "\u5931\u6557"),showToast("\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0),!1}t&&t.status&&(t.status.textContent="\u51E6\u7406\u4E2D...");const d=await apiFetch("/\
@@ -2563,11 +2563,11 @@ body:JSON.stringify({upload_id:o})}),m=await d.json();if(d.ok&&m&&m.filename){if
 return t.row&&t.row.parentNode&&t.row.remove(),!1;if(t&&t.row){const w=t.row.getAttribute("data-loca\
 l-url");w&&URL.revokeObjectURL(w),t.row.removeAttribute("data-local-url");const k=t.row.querySelector(
 "img.upload-preview");if(k){const x=m.filename.replace(/^\d+\//,"");k.src=buildAttachmentPreviewUrl(
-x)}}const v=normalizeAttachmentPath(m.filename);if(v&&currentImageUrls.push(v),t&&t.row&&(t.row.setAttribute(
-"data-filename",v||m.filename),setRowAttachmentSource(t.row,"upload"),v)){const w=isRowAttachmentNameCustomized(
-t.row),k=defaultAttachmentDisplayName(v),x=w&&normalizeAttachmentDisplayName(t.row.dataset.displayName)||
-k;t.row.dataset.defaultDisplayName=k,setRowAttachmentName(t.row,x)}return v&&setAttachmentSourceForPath(
-v,"upload"),t&&t.status&&(t.status.textContent="\u5B8C\u4E86"),updateFilePreview(),(Array.isArray(m.
+x)}}const y=normalizeAttachmentPath(m.filename);if(y&&currentImageUrls.push(y),t&&t.row&&(t.row.setAttribute(
+"data-filename",y||m.filename),setRowAttachmentSource(t.row,"upload"),y)){const w=isRowAttachmentNameCustomized(
+t.row),k=defaultAttachmentDisplayName(y),x=w&&normalizeAttachmentDisplayName(t.row.dataset.displayName)||
+k;t.row.dataset.defaultDisplayName=k,setRowAttachmentName(t.row,x)}return y&&setAttachmentSourceForPath(
+y,"upload"),t&&t.status&&(t.status.textContent="\u5B8C\u4E86"),updateFilePreview(),(Array.isArray(m.
 filenames)&&m.filenames.length?m.filenames:[m.filename]).forEach(w=>addLibraryFileFromPath(w)),!0}const g=m&&
 m.error?m.error:"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F";return t&&
 t.status&&(t.status.textContent="\u5931\u6557"),showToast(g,"error",!0),!1}catch{return t&&t.status&&
@@ -2582,15 +2582,15 @@ t&&t.bar){const m=Math.min(100,Math.floor(d.loaded/d.total*100));t.bar.style.wid
 (t.status.textContent=`${m}%`),t.uploadId&&updateGlobalUploadProgress(t.uploadId,m)}window.ConnectionMonitor&&
 window.ConnectionMonitor.reportActivity()},l.onload=()=>{let d={};try{d=JSON.parse(l.responseText||"\
 {}")}catch{}if(l.status>=200&&l.status<300&&d&&d.filename){if(isUploadCancelled(t)){t.row&&t.row.parentNode&&
-t.row.remove(),o(),i(!1);return}if(t&&t.row){const v=t.row.getAttribute("data-local-url");v&&URL.revokeObjectURL(
-v),t.row.removeAttribute("data-local-url");const y=t.row.querySelector("img.upload-preview");if(y){const w=d.
-filename.replace(/^\d+\//,"");y.src=buildAttachmentPreviewUrl(w)}}const m=normalizeAttachmentPath(d.
+t.row.remove(),o(),i(!1);return}if(t&&t.row){const y=t.row.getAttribute("data-local-url");y&&URL.revokeObjectURL(
+y),t.row.removeAttribute("data-local-url");const v=t.row.querySelector("img.upload-preview");if(v){const w=d.
+filename.replace(/^\d+\//,"");v.src=buildAttachmentPreviewUrl(w)}}const m=normalizeAttachmentPath(d.
 filename);if(m&&currentImageUrls.push(m),t&&t.row&&(t.row.setAttribute("data-filename",m||d.filename),
-setRowAttachmentSource(t.row,"upload"),m)){const v=isRowAttachmentNameCustomized(t.row),y=defaultAttachmentDisplayName(
-m),w=v&&normalizeAttachmentDisplayName(t.row.dataset.displayName)||y;t.row.dataset.defaultDisplayName=
-y,setRowAttachmentName(t.row,w)}m&&setAttachmentSourceForPath(m,"upload"),t&&t.status&&(t.status.textContent=
+setRowAttachmentSource(t.row,"upload"),m)){const y=isRowAttachmentNameCustomized(t.row),v=defaultAttachmentDisplayName(
+m),w=y&&normalizeAttachmentDisplayName(t.row.dataset.displayName)||v;t.row.dataset.defaultDisplayName=
+v,setRowAttachmentName(t.row,w)}m&&setAttachmentSourceForPath(m,"upload"),t&&t.status&&(t.status.textContent=
 "\u5B8C\u4E86"),updateFilePreview(),(Array.isArray(d.filenames)&&d.filenames.length?d.filenames:[d.filename]).
-forEach(v=>addLibraryFileFromPath(v)),o(),i(!0)}else{const m=[502,503,504].includes(l.status)||l.status>=
+forEach(y=>addLibraryFileFromPath(y)),o(),i(!0)}else{const m=[502,503,504].includes(l.status)||l.status>=
 520&&l.status<=527;if(n.cameraCapture&&m&&!d.error&&!isUploadCancelled(t)){t&&t.status&&(t.status.textContent=
 "\u5206\u5272\u3057\u3066\u518D\u9001\u4E2D..."),o(),uploadFileChunked(e,t).then(i);return}const g=d&&
 d.error?d.error:"\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F";t&&
@@ -2602,7 +2602,7 @@ includes(getFileExt(e.name||"")):!1}r(isVideoFile,"isVideoFile");function isAudi
 type&&e.type.startsWith("audio/")?!0:AUDIO_EXTS.includes(getFileExt(e.name||"")):!1}r(isAudioFile,"i\
 sAudioFile");function encodeWav(e,t){let n=0;e.forEach(m=>{n+=m.length});const i=new Float32Array(n);
 let a=0;e.forEach(m=>{i.set(m,a),a+=m.length});const o=new ArrayBuffer(44+i.length*2),l=new DataView(
-o),c=r((m,g)=>{for(let v=0;v<g.length;v++)l.setUint8(m+v,g.charCodeAt(v))},"writeString");c(0,"RIFF"),
+o),c=r((m,g)=>{for(let y=0;y<g.length;y++)l.setUint8(m+y,g.charCodeAt(y))},"writeString");c(0,"RIFF"),
 l.setUint32(4,36+i.length*2,!0),c(8,"WAVE"),c(12,"fmt "),l.setUint32(16,16,!0),l.setUint16(20,1,!0),
 l.setUint16(22,1,!0),l.setUint32(24,t,!0),l.setUint32(28,t*2,!0),l.setUint16(32,2,!0),l.setUint16(34,
 16,!0),c(36,"data"),l.setUint32(40,i.length*2,!0);let d=44;for(let m=0;m<i.length;m++){const g=Math.
@@ -2618,10 +2618,10 @@ o);const l=URL.createObjectURL(t);e.row.setAttribute("data-local-url",l);const c
 "image/"),d=escapeHtml(a),m=c?`<img src="${l}" class="upload-preview w-12 h-12 object-cover rounded \
 border border-gray-700 cursor-pointer" alt="${d}">`:'<div class="upload-preview w-12 h-12 bg-gray-80\
 0 rounded border border-gray-700 flex items-center justify-center text-gray-400 text-sm cursor-point\
-er">FILE</div>',g=e.row.querySelector(".upload-preview");g&&(g.outerHTML=m);const v=e.row.querySelector(
-".upload-preview");v&&(v.onclick=()=>{const w=e.row.getAttribute("data-filename"),k=w?buildFileUrl(w):
-e.row.getAttribute("data-local-url");openFileViewer(k,getRowAttachmentName(e.row)||a||w||"")});const y=e.
-row.querySelector(".upload-marker");y&&y.classList.toggle("hidden",!c),c||(setRowMarkerState(e.row,!1),
+er">FILE</div>',g=e.row.querySelector(".upload-preview");g&&(g.outerHTML=m);const y=e.row.querySelector(
+".upload-preview");y&&(y.onclick=()=>{const w=e.row.getAttribute("data-filename"),k=w?buildFileUrl(w):
+e.row.getAttribute("data-local-url");openFileViewer(k,getRowAttachmentName(e.row)||a||w||"")});const v=e.
+row.querySelector(".upload-marker");v&&v.classList.toggle("hidden",!c),c||(setRowMarkerState(e.row,!1),
 e.row.dataset.originalFilename="",e.row.dataset.originalSource="",e.row.dataset.attachOriginal="")}r(
 updateUploadRowFile,"updateUploadRowFile");function saveMarkerHistory(){const e=get("marker-canvas");
 if(!e)return;const t=e.getContext("2d");if(!t)return;const n=Array.isArray(markerState.mosaicRects)?
@@ -2638,7 +2638,7 @@ const e=get("marker-canvas");if(!e)return;const t=e.getContext("2d");t&&t.clearR
 markerState.hasStroke=!1,markerState.mosaicRects=[],markerState.mosaicPreviewRect=null,renderCropOverlay(),
 saveMarkerHistory()}r(clearMarkerCanvas,"clearMarkerCanvas");function initMarkerCanvas(){const e=get(
 "marker-canvas");if(!e)return;const t=e.getContext("2d"),n=get("marker-size"),i=new Map;let a=!1,o=0,
-l=markerView.scale,c={x:0,y:0},d={x:0,y:0},m=[],g=16,v="",y=null,w=null,k=null,x=null,C=null,L=!1,T=null;
+l=markerView.scale,c={x:0,y:0},d={x:0,y:0},m=[],g=16,y="",v=null,w=null,k=null,x=null,C=null,L=!1,T=null;
 const E=r(P=>{const J=e.getBoundingClientRect(),fe=(P.clientX-J.left)*(e.width/J.width),re=(P.clientY-
 J.top)*(e.height/J.height);return{x:fe,y:re}},"getPoint"),H=r((P,J)=>({x:(P.x+J.x)/2,y:(P.y+J.y)/2}),
 "getMid"),N=r((P,J)=>Math.hypot(P.x-J.x,P.y-J.y),"getDist");let Y=!1;const O=r(()=>{w||(w=document.createElement(
@@ -2647,7 +2647,7 @@ e.width||w.height!==e.height)&&(w.width=e.width,w.height=e.height),(x.width!==e.
 height)&&(x.width=e.width,x.height=e.height)},"ensureDrawBuffers"),V=r(()=>{if(!t||!w||!x)return;const P=markerState.
 maskMode?1:Math.max(MARKER_OPACITY_MIN_ALPHA,Math.min(1,Number(markerState.opacity)||.6));t.clearRect(
 0,0,e.width,e.height),t.drawImage(w,0,0),t.save(),t.globalAlpha=P,t.drawImage(x,0,0),t.restore()},"r\
-enderDrawPreview"),ue=r(()=>{C&&(C.strokeStyle=v,C.fillStyle=v,C.lineWidth=g,C.lineCap="round",C.lineJoin=
+enderDrawPreview"),ue=r(()=>{C&&(C.strokeStyle=y,C.fillStyle=y,C.lineWidth=g,C.lineCap="round",C.lineJoin=
 "round")},"applyMarkerBrush"),ge=r(P=>{if(!P)return!1;if(m.length===0)return m.push(P),!0;const J=m[m.
 length-1],fe=P.x-J.x,re=P.y-J.y,Z=Math.hypot(fe,re),le=Math.max(.35,g*.04);if(Z<le)return!1;const ee=Math.
 max(1,g*.25),ce=Math.max(1,Math.ceil(Z/ee));for(let me=1;me<=ce;me++){const De=me/ce;m.push({x:J.x+fe*
@@ -2670,12 +2670,12 @@ me),Ve=Math.min(e.width-1,Math.max(0,De+Math.floor(Re/2))),se=(Math.min(e.height
 floor(Ke/2)))*e.width+Ve)*4,He=J.data[se],ie=J.data[se+1],ot=J.data[se+2];t.fillStyle=`rgb(${He},${ie}\
 ,${ot})`,t.fillRect(De,me,Re,Ke)}return!0},"applyMosaicRect"),j=r(P=>{if(!t)return;if(i.set(P.pointerId,
 {x:P.clientX,y:P.clientY}),i.size>=2){const fe=Array.from(i.values()),re=fe[0],Z=fe[1];a=!0,Y=!1,m=[],
-L=!1,T=null,y=null,markerState.mosaicPreviewRect=null,o=N(re,Z)||1,l=markerView.scale,c={x:markerView.
+L=!1,T=null,v=null,markerState.mosaicPreviewRect=null,o=N(re,Z)||1,l=markerView.scale,c={x:markerView.
 offsetX,y:markerView.offsetY},d=H(re,Z),renderCropOverlay(),e.setPointerCapture&&e.setPointerCapture(
 P.pointerId),P.preventDefault();return}if(a||markerState.mode==="crop")return;Y=!0;const J=E(P);if(markerState.
-mode==="auto"&&markerState.maskMode)y=J;else if(markerState.mode==="mosaic")L=!0,T=J,markerState.mosaicPreviewRect=
+mode==="auto"&&markerState.maskMode)v=J;else if(markerState.mode==="mosaic")L=!0,T=J,markerState.mosaicPreviewRect=
 $(J),renderCropOverlay();else{if(O(),!k||!C)return;k.clearRect(0,0,w.width,w.height),k.drawImage(e,0,
-0),C.clearRect(0,0,x.width,x.height),g=n?Number(n.value||16):16,v=markerState.maskMode?"#ffffff":normalizeMarkerHexColor(
+0),C.clearRect(0,0,x.width,x.height),g=n?Number(n.value||16):16,y=markerState.maskMode?"#ffffff":normalizeMarkerHexColor(
 markerState.colorHex),m=[],ge(J),ne(),markerState.hasStroke=!0,V()}e.setPointerCapture&&e.setPointerCapture(
 P.pointerId),P.preventDefault()},"start"),F=r(P=>{if(i.has(P.pointerId)&&i.set(P.pointerId,{x:P.clientX,
 y:P.clientY}),a&&i.size>=2){const fe=Array.from(i.values()),re=fe[0],Z=fe[1],le=H(re,Z),ee=N(re,Z)||
@@ -2685,7 +2685,7 @@ if(!Y||!t)return;if(markerState.mode==="auto"&&markerState.maskMode){P.preventDe
 P);if(markerState.mode==="mosaic"){if(!L||!T)return;markerState.mosaicPreviewRect=ke(T,J)||$(J),renderCropOverlay()}else
 ge(J)&&(ne(),V());P.preventDefault()},"move"),pe=r(P=>{const J=Y;if(i.delete(P.pointerId),i.size<2&&
 (a=!1),i.size===0){Y=!1;const fe=J&&P.type!=="pointercancel"&&markerState.mode==="auto"&&markerState.
-maskMode&&y?fillMaskSimilarRegion(y):!1;if(y=null,J&&t&&markerState.mode==="draw"&&m.length>0&&(ne(),
+maskMode&&v?fillMaskSimilarRegion(v):!1;if(v=null,J&&t&&markerState.mode==="draw"&&m.length>0&&(ne(),
 V()),J&&markerState.mode==="mosaic"&&T){const re=E(P);let Z=ke(T,re);(!Z||Z.w<2||Z.h<2)&&(Z=$(T)),U(
 Z)&&(markerState.hasStroke=!0,markerState.mosaicRects.push(Z))}m=[],L=!1,T=null,markerState.mosaicPreviewRect=
 null,renderCropOverlay(),J&&(markerState.mode!=="auto"||fe)&&saveMarkerHistory()}e.releasePointerCapture&&
@@ -2694,10 +2694,10 @@ e.addEventListener("pointermove",F),e.addEventListener("pointerup",pe),e.addEven
 ncel",pe)}r(initMarkerCanvas,"initMarkerCanvas");function fillMaskSimilarRegion(e){var Y;const t=get(
 "marker-canvas"),n=markerState.baseImageData;if(!t||!n)return showToast("\u753B\u50CF\u306E\u8272\u3092\u8AAD\u307F\u53D6\u308C\u307E\u305B\u3093\u3067\u3057\u305F",
 "error",!0),!1;const i=n.width,a=n.height,o=Math.floor(e.x),l=Math.floor(e.y);if(o<0||l<0||o>=i||l>=
-a)return!1;const c=n.data,d=l*i+o,m=d*4;if(c[m+3]<16)return!1;const g=c[m],v=c[m+1],y=c[m+2],w=Number(
+a)return!1;const c=n.data,d=l*i+o,m=d*4;if(c[m+3]<16)return!1;const g=c[m],y=c[m+1],v=c[m+2],w=Number(
 ((Y=get("marker-auto-tolerance"))==null?void 0:Y.value)||32),k=new Uint8Array(i*a),x=[d],C=[],L=25e4,
-T=r(O=>{const V=O*4;return c[V+3]>=16&&Math.max(Math.abs(c[V]-g),Math.abs(c[V+1]-v),Math.abs(c[V+2]-
-y))<=w},"matches");for(k[d]=1;x.length;){const O=x.pop();if(k[O]===2||!T(O))continue;const V=Math.floor(
+T=r(O=>{const V=O*4;return c[V+3]>=16&&Math.max(Math.abs(c[V]-g),Math.abs(c[V+1]-y),Math.abs(c[V+2]-
+v))<=w},"matches");for(k[d]=1;x.length;){const O=x.pop();if(k[O]===2||!T(O))continue;const V=Math.floor(
 O/i);let ue=O%i,ge=ue;for(;ue>0&&k[V*i+ue-1]!==2&&T(V*i+ue-1);)ue--;for(;ge+1<i&&k[V*i+ge+1]!==2&&T(
 V*i+ge+1);)ge++;for(let ne=ue;ne<=ge;ne++)k[V*i+ne]=2;if(C.push(V,ue,ge+1),C.length/3>L)return showToast(
 "\u7BC4\u56F2\u304C\u8907\u96D1\u3067\u3059\u3002\u8A31\u5BB9\u5DEE\u3092\u4E0B\u3052\u3066\u304F\u3060\u3055\u3044",
@@ -2708,7 +2708,7 @@ i,a),N=H.data;for(let O=0;O<C.length;O+=3){const V=C[O]*i+C[O+1],ue=C[O]*i+C[O+2
 const ne=ge*4;N[ne]=N[ne+1]=N[ne+2]=N[ne+3]=255}}return E.putImageData(H,0,0),markerState.hasStroke=
 !0,!0}r(fillMaskSimilarRegion,"fillMaskSimilarRegion");function initCropCanvas(){const e=get("marker\
 -crop-canvas");if(!e)return;const t=e.getContext("2d"),n=new Map;let i=!1,a=null,o=null,l=null,c=!1,
-d=0,m=markerView.scale,g={x:0,y:0},v={x:0,y:0};const y=8,w=14,k=r((O,V,ue)=>Math.min(ue,Math.max(V,O)),
+d=0,m=markerView.scale,g={x:0,y:0},y={x:0,y:0};const v=8,w=14,k=r((O,V,ue)=>Math.min(ue,Math.max(V,O)),
 "clamp"),x=r(O=>{const V=e.getBoundingClientRect(),ue=(O.clientX-V.left)*(e.width/V.width),ge=(O.clientY-
 V.top)*(e.height/V.height);return{x:ue,y:ge}},"getPoint"),C=r((O,V)=>({x:(O.x+V.x)/2,y:(O.y+V.y)/2}),
 "getMid"),L=r((O,V)=>Math.hypot(O.x-V.x,O.y-V.y),"getDist"),T=r(()=>(markerState.cropRect||resetCropRectToFull(),
@@ -2721,16 +2721,16 @@ return"nw";if(pe==="right"&&P==="top")return"ne";if(pe==="left"&&P==="bottom")re
 ght"&&P==="bottom")return"se"}return pe?pe==="left"?"w":"e":P?P==="top"?"n":"s":"move"},"hitTest"),H=r(
 O=>{if(markerState.mode!=="crop")return;if(n.set(O.pointerId,{x:O.clientX,y:O.clientY}),n.size>=2){const ge=Array.
 from(n.values()),ne=ge[0],ke=ge[1];c=!0,i=!1,d=L(ne,ke)||1,m=markerView.scale,g={x:markerView.offsetX,
-y:markerView.offsetY},v=C(ne,ke),e.setPointerCapture&&e.setPointerCapture(O.pointerId),O.preventDefault();
+y:markerView.offsetY},y=C(ne,ke),e.setPointerCapture&&e.setPointerCapture(O.pointerId),O.preventDefault();
 return}if(c)return;i=!0;const V=x(O),ue=T();o=E(V,ue),a=V,l=ue?{x:ue.x,y:ue.y,w:ue.w,h:ue.h}:null,renderCropOverlay(),
 e.setPointerCapture&&e.setPointerCapture(O.pointerId),O.preventDefault()},"start"),N=r(O=>{if(markerState.
 mode!=="crop")return;if(n.has(O.pointerId)&&n.set(O.pointerId,{x:O.clientX,y:O.clientY}),c&&n.size>=
 2){const pe=Array.from(n.values()),P=pe[0],J=pe[1],fe=C(P,J),re=L(P,J)||1,Z=m*(re/d);markerView.scale=
-Math.min(markerView.maxScale,Math.max(markerView.minScale,Z)),markerView.offsetX=g.x+(fe.x-v.x),markerView.
-offsetY=g.y+(fe.y-v.y),applyMarkerTransform(),renderCropOverlay(),O.preventDefault();return}if(!i||!a||
+Math.min(markerView.maxScale,Math.max(markerView.minScale,Z)),markerView.offsetX=g.x+(fe.x-y.x),markerView.
+offsetY=g.y+(fe.y-y.y),applyMarkerTransform(),renderCropOverlay(),O.preventDefault();return}if(!i||!a||
 !l)return;const V=x(O),ue=e.width,ge=e.height,ne={x:l.x,y:l.y,w:l.w,h:l.h},ke=l.x+l.w,$=l.y+l.h,R=r(
-()=>{const pe=k(V.x,0,ke-y);ne.x=pe,ne.w=ke-pe},"applyW"),U=r(()=>{ne.w=k(V.x-l.x,y,ue-l.x)},"applyE"),
-j=r(()=>{const pe=k(V.y,0,$-y);ne.y=pe,ne.h=$-pe},"applyN"),F=r(()=>{ne.h=k(V.y-l.y,y,ge-l.y)},"appl\
+()=>{const pe=k(V.x,0,ke-v);ne.x=pe,ne.w=ke-pe},"applyW"),U=r(()=>{ne.w=k(V.x-l.x,v,ue-l.x)},"applyE"),
+j=r(()=>{const pe=k(V.y,0,$-v);ne.y=pe,ne.h=$-pe},"applyN"),F=r(()=>{ne.h=k(V.y-l.y,v,ge-l.y)},"appl\
 yS");switch(o){case"move":{const pe=V.x-a.x,P=V.y-a.y;ne.x=k(l.x+pe,0,ue-l.w),ne.y=k(l.y+P,0,ge-l.h);
 break}case"w":R();break;case"e":U();break;case"n":j();break;case"s":F();break;case"nw":j(),R();break;case"\
 ne":j(),U();break;case"sw":F(),R();break;case"se":F(),U();break;default:break}ne.x=k(ne.x,0,ue-ne.w),
@@ -2755,46 +2755,46 @@ max(1,Math.floor(markerState.cropRect.w*C))),N=Math.min(l,Math.max(1,Math.floor(
 h*L))),Y=document.createElement("canvas");Y.width=H,Y.height=N;const O=Y.getContext("2d");O&&(O.drawImage(
 a,T,E,H,N,0,0,H,N),a=Y)}const d=await new Promise(C=>a.toBlob(C,"image/png",.92));if(!d){showToast("\
 \u7DE8\u96C6\u753B\u50CF\u306E\u751F\u6210\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error",!0);return}
-const g=(markerState.filename||"marked.png").replace(/\.[^/.]+$/,""),v=new File([d],`${g}_marked.png`,
-{type:"image/png"}),y={row:e,uploadId:e.dataset.uploadId,status:e.querySelector(".upload-status"),bar:e.
-querySelector(".upload-progress > div")};y.status&&(y.status.textContent="\u7DE8\u96C6\u53CD\u6620\u4E2D..."),
-updateUploadRowFile(y,v);const w=e.getAttribute("data-filename"),k=getRowAttachmentSource(e);w&&!e.dataset.
+const g=(markerState.filename||"marked.png").replace(/\.[^/.]+$/,""),y=new File([d],`${g}_marked.png`,
+{type:"image/png"}),v={row:e,uploadId:e.dataset.uploadId,status:e.querySelector(".upload-status"),bar:e.
+querySelector(".upload-progress > div")};v.status&&(v.status.textContent="\u7DE8\u96C6\u53CD\u6620\u4E2D..."),
+updateUploadRowFile(v,y);const w=e.getAttribute("data-filename"),k=getRowAttachmentSource(e);w&&!e.dataset.
 originalFilename&&(e.dataset.originalFilename=w,e.dataset.originalSource=k,setAttachmentSourceForPath(
-w,k)),await uploadFileWithProgress(v,y)?(w&&(currentImageUrls=currentImageUrls.filter(C=>C!==w)),setRowAttachmentSource(
+w,k)),await uploadFileWithProgress(y,v)?(w&&(currentImageUrls=currentImageUrls.filter(C=>C!==w)),setRowAttachmentSource(
 e,"upload"),setRowMarkerState(e,!0)):showToast("\u7DE8\u96C6\u753B\u50CF\u306E\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0),updateFilePreview(),window.closeMarkerModal(),markerState.row=null,markerState.maskMode=
 !1}r(saveMarkerToRow,"saveMarkerToRow");async function extractAudioFromVideo(e,t){return!isVideoFile(
 e)||!HTMLMediaElement.prototype.captureStream?null:(t&&t.status&&(t.status.textContent="\u97F3\u58F0\u62BD\u51FA\u4E2D..."),
 new Promise(n=>{const i=document.createElement("video");i.preload="auto",i.muted=!0,i.playsInline=!0,
 i.src=URL.createObjectURL(e);let a=null,o=null,l=null,c=null,d=[],m=null;const g=r(()=>{m&&clearTimeout(
-m);try{URL.revokeObjectURL(i.src)}catch{}try{i.remove()}catch{}if(a&&a.getTracks().forEach(y=>y.stop()),
-l)try{l.disconnect()}catch{}if(c)try{c.disconnect()}catch{}if(o)try{o.close()}catch{}},"cleanup"),v=r(
-()=>{g(),n(null)},"fail");i.onloadedmetadata=async()=>{try{a=i.captureStream();const y=a.getAudioTracks();
-if(!y||!y.length)return v();o=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16e3}),
-c=o.createMediaStreamSource(new MediaStream(y)),l=o.createScriptProcessor(4096,1,1),l.onaudioprocess=
+m);try{URL.revokeObjectURL(i.src)}catch{}try{i.remove()}catch{}if(a&&a.getTracks().forEach(v=>v.stop()),
+l)try{l.disconnect()}catch{}if(c)try{c.disconnect()}catch{}if(o)try{o.close()}catch{}},"cleanup"),y=r(
+()=>{g(),n(null)},"fail");i.onloadedmetadata=async()=>{try{a=i.captureStream();const v=a.getAudioTracks();
+if(!v||!v.length)return y();o=new(window.AudioContext||window.webkitAudioContext)({sampleRate:16e3}),
+c=o.createMediaStreamSource(new MediaStream(v)),l=o.createScriptProcessor(4096,1,1),l.onaudioprocess=
 k=>{const x=k.inputBuffer.getChannelData(0);d.push(new Float32Array(x))},c.connect(l),l.connect(o.destination);
 const w=isFinite(i.duration)?Math.max(1,Math.ceil(i.duration*1e3)):0;w>0&&(m=setTimeout(()=>{const k=(e.
 name||"video").replace(/\.[^/.]+$/,""),x=encodeWav(d,o.sampleRate),C=new File([x],`${k}.audio.wav`,{
 type:"audio/wav"});g(),n(C)},w+250)),await i.play(),i.onended=()=>{const k=(e.name||"video").replace(
 /\.[^/.]+$/,""),x=encodeWav(d,o.sampleRate),C=new File([x],`${k}.audio.wav`,{type:"audio/wav"});g(),
-n(C)}}catch{v()}},i.onerror=()=>v()}))}r(extractAudioFromVideo,"extractAudioFromVideo");async function handleFiles(e,t={}){
+n(C)}}catch{y()}},i.onerror=()=>y()}))}r(extractAudioFromVideo,"extractAudioFromVideo");async function handleFiles(e,t={}){
 if(!e||!e.length)return;const n=Array.from(e).filter(Boolean);if(!n.length)return;const i=n,a=uploadGeneration;
 t.openModal!==!1?openUploadModal():syncUploadRowsFromCurrent(),uploadProgressState.total+=i.length,uploadProgressState.
 active+=i.length,updateFilePreview();const o=!!(get("upload-audio-only")&&get("upload-audio-only").checked),
-l=getModelMediaSupport(get("model-select").value),c=r(async y=>{let w=null;if(a!==uploadGeneration)return!1;
-try{if(isAudioFile(y)&&!l.audio)return showToast("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u97F3\u58F0\u5165\u529B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
+l=getModelMediaSupport(get("model-select").value),c=r(async v=>{let w=null;if(a!==uploadGeneration)return!1;
+try{if(isAudioFile(v)&&!l.audio)return showToast("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u97F3\u58F0\u5165\u529B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
 "error",!0),uploadProgressState.total>0&&uploadProgressState.total--,uploadProgressState.active>0&&uploadProgressState.
-active--,!1;if(isVideoFile(y)&&!l.video)return showToast("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u52D5\u753B\u5165\u529B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
+active--,!1;if(isVideoFile(v)&&!l.video)return showToast("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u52D5\u753B\u5165\u529B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
 "error",!0),uploadProgressState.total>0&&uploadProgressState.total--,uploadProgressState.active>0&&uploadProgressState.
-active--,!1;if(browserFastModeEnabled&&(!y.type||!y.type.startsWith("image/")))return showToast("\u9AD8\u901F\u30E2\
+active--,!1;if(browserFastModeEnabled&&(!v.type||!v.type.startsWith("image/")))return showToast("\u9AD8\u901F\u30E2\
 \u30FC\u30C9\u3067\u306F\u753B\u50CF\u30D5\u30A1\u30A4\u30EB\u3060\u3051\u3092\u6DFB\u4ED8\u3067\u304D\u307E\u3059",
 "error",!0),uploadProgressState.total>0&&uploadProgressState.total--,uploadProgressState.active>0&&uploadProgressState.
-active--,!1;const k=addUploadRow(y);k.generation=a,updateFilePreview(),w=k.uploadId,uploadProgressState.
-perFilePct[w]=0;let x=y;if(o&&isVideoFile(y)){const L=await extractAudioFromVideo(y,k);L?(x=L,updateUploadRowFile(
+active--,!1;const k=addUploadRow(v);k.generation=a,updateFilePreview(),w=k.uploadId,uploadProgressState.
+perFilePct[w]=0;let x=v;if(o&&isVideoFile(v)){const L=await extractAudioFromVideo(v,k);L?(x=L,updateUploadRowFile(
 k,L),k&&k.status&&(k.status.textContent="\u97F3\u58F0\u306E\u307F")):(k&&k.status&&(k.status.textContent=
 "\u62BD\u51FA\u5931\u6557: \u52D5\u753B\u9001\u4FE1"),showToast("\u97F3\u58F0\u62BD\u51FA\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u52D5\u753B\u306E\u307E\u307E\u9001\u4FE1\u3057\u307E\u3059\u3002",
-"error",!0))}if(!t.skipCompression&&y.type.startsWith("image/"))try{x=await applyImageCompression(y,
-readComposerCompression()),x!==y&&updateUploadRowFile(k,x)}catch{}if(isUploadCancelled(k))return!1;if(browserFastModeEnabled){
+"error",!0))}if(!t.skipCompression&&v.type.startsWith("image/"))try{x=await applyImageCompression(v,
+readComposerCompression()),x!==v&&updateUploadRowFile(k,x)}catch{}if(isUploadCancelled(k))return!1;if(browserFastModeEnabled){
 const L=Array.from(browserFastLocalFiles.values()).reduce((T,E)=>T+Number(E.file&&E.file.size||0),0);
 return browserFastLocalFiles.size>=BROWSER_FAST_MAX_IMAGES||L+x.size>BROWSER_FAST_MAX_BYTES?(k&&k.status&&
 (k.status.textContent="\u4E0A\u9650\u8D85\u904E"),k&&k.row&&k.row.remove(),showToast("\u9AD8\u901F\u30E2\u30FC\u30C9\u306E\u753B\u50CF\u306F4\u679A\u30FB\u5408\u8A08\
@@ -2809,8 +2809,8 @@ a===uploadGeneration&&(w&&uploadProgressState.perFilePct.hasOwnProperty(w)&&(del
 perFilePct[w],uploadProgressState.completed++,uploadProgressState.active--),uploadProgressState.active<=
 0&&(uploadProgressState.total=0,uploadProgressState.completed=0,uploadProgressState.active=0,uploadProgressState.
 perFilePct={}),updateFilePreview())}},"processOne"),d=new Array(i.length).fill(!1);let m=0;const g=Math.
-min(UPLOAD_CONCURRENCY,i.length),v=Array.from({length:g}).map(async()=>{for(;;){const y=m++;if(y>=i.
-length)break;d[y]=await c(i[y])}});return await Promise.all(v),d}r(handleFiles,"handleFiles"),get("c\
+min(UPLOAD_CONCURRENCY,i.length),y=Array.from({length:g}).map(async()=>{for(;;){const v=m++;if(v>=i.
+length)break;d[v]=await c(i[v])}});return await Promise.all(y),d}r(handleFiles,"handleFiles"),get("c\
 lear-file-btn").onclick=e=>{e.stopPropagation(),resetUploadState()},get("clear-mask-btn")&&(get("cle\
 ar-mask-btn").onclick=()=>{currentMaskImage=null,updateMaskPreview()}),get("mask-btn")&&get("mask-in\
 put")&&(get("mask-btn").onclick=()=>{if(isIdeogramObjectRemoval()){const e=Array.from(document.querySelectorAll(

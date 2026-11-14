@@ -10,7 +10,7 @@
 
 | メソッド | パス | 認証 | レートリミット | 概要 |
 |---|---|---|---|---|
-| `POST` | `/api/math_steps/progress` | 要ログイン | 120回 / 60秒 / ユーザー | 現在のステップ位置および最大到達ステップの保存、または簡略化ステップの破棄 |
+| `POST` | `/api/math_steps/progress` | 要ログイン | 120回 / 60秒 / ユーザー | 現在のステップ位置および最大到達ステップの保存、または分割・簡略化ステップの破棄 |
 | `POST` | `/api/math_steps/simplify` | 要ログイン | 20回 / 60秒 / ユーザー | 指定した1ステップを「もっとやさしい解説」に再生成 |
 
 モバイルクライアント（Android）からのアクセスも許可されており、`server/mobile_auth.py`（L37）にエンドポイント名が登録されています。
@@ -21,7 +21,7 @@
 
 ### 2.1 進捗保存：`POST /api/math_steps/progress`
 
-ユーザーのステップ移動（次へ／前へ／最初から）に合わせて進捗を保存します。また、以前に簡略化したステップを元に戻す操作（`remove_simplified`）も本エンドポイントで受け付けます。
+ユーザーのステップ移動（次へ／前へ／最初から）に合わせて進捗を保存します。また、「もっとやさしく」で作った分割ステップや以前に簡略化したステップを元に戻す操作（`remove_expanded` / `remove_simplified`）も本エンドポイントで受け付けます。
 
 #### リクエストヘッダー
 - `Content-Type: application/json`
@@ -32,6 +32,7 @@
   "message_id": 12345,
   "current": 2,
   "max_reached": 3,
+  "remove_expanded": [1],
   "remove_simplified": [2]
 }
 ```
@@ -48,9 +49,10 @@
 |---|---|---|---|
 | `message_id` | 整数 / 文字列 | 条件付き | 対象のアシスタントメッセージID（`job_id` とのいずれか一方必須） |
 | `job_id` | 文字列 | 条件付き | 生成ジョブID（最大128文字） |
-| `current` | 整数 | 任意 | 現在表示しているステップインデックス（0〜50にクランプ） |
+| `current` | 整数 | 任意 | 現在表示しているステップインデックス（0〜50にクランプ、分割後の表示順） |
 | `max_reached` | 整数 | 任意 | 到達した最大ステップインデックス（0〜50にクランプ。現在の `max_reached` や `current` より小さくはならない） |
-| `remove_simplified` | 配列[整数] | 任意 | 保存済みの簡略化テキストを破棄し、元の説明に戻すステップインデックスの配列 |
+| `remove_expanded` | 配列[整数] | 任意 | 「もっとやさしく」で分割したステップを元の1ステップに戻す（元ステップのインデックスを指定） |
+| `remove_simplified` | 配列[整数] | 任意 | 旧形式の簡略化テキストを破棄し、元の説明に戻すステップインデックスの配列 |
 
 #### レスポンス（成功時：HTTP 200 OK）
 ```json
@@ -59,7 +61,8 @@
   "math_steps_state": {
     "current": 2,
     "max_reached": 3,
-    "simplified": {}
+    "simplified": {},
+    "expanded": {}
   }
 }
 ```
@@ -71,54 +74,67 @@
 
 ---
 
-### 2.2 ステップ簡略化：`POST /api/math_steps/simplify`
+### 2.2 ステップ分割：`POST /api/math_steps/simplify`
 
-指定されたステップのみを対象に、「もっとやさしい」説明文をLLMに生成させます。
+指定されたステップを、「もっとやさしい」複数の小さなステップに分けてLLMに生成させます。分割後の各ステップは元の回答へ差し込まれ、読み進めながらステップ数を増やせます。分割済みの小ステップをさらに分割することもできます。
 
 #### リクエストボディ
 ```json
 {
   "message_id": 12345,
-  "step_index": 1
+  "step_index": 1,
+  "part_index": 0
 }
 ```
 
 | フィールド名 | 型 | 必須 | 説明 |
 |---|---|---|---|
 | `message_id` | 整数 / 文字列 | 必須 | 対象のアシスタントメッセージID |
-| `step_index` | 整数 | 必須 | 簡略化したいステップのインデックス（0始まり） |
+| `step_index` | 整数 | 必須 | 対象の元ステップのインデックス（0始まり、`expanded` のキー） |
+| `part_index` | 整数 | 任意 | 分割済みステップのうち、さらに分割したい小ステップの位置。省略すると元ステップ全体を分割 |
 
 #### 処理の流れ
-1. **検証**: ユーザーのメッセージ所有権、メッセージロール（`assistant`）、本文の有無、ステップインデックスの範囲を検証。
+1. **検証**: ユーザーのメッセージ所有権、メッセージロール（`assistant`）、本文の有無、ステップ／`part_index` の範囲を検証。
 2. **モデル対応判定**: 元のメッセージ生成に使用されたモデル（`message.model`）がテキストモデルであるか判定（画像専用・音声専用モデルは除外）。
-3. **対象ステップ抽出**: `extract_math_steps()` で対象ステップの見出しと本文を取得（最大100,000文字以内）。
-4. **プロンプト構築**: ユーザーの `math_steps_config` に基づく `build_math_steps_simplify_prompt()` と対象ステップのテキストを結合。
+3. **対象抽出**: 元テキストから対象ステップを取得。`part_index` 指定時は保存済みの分割ステップを対象にする（最大100,000文字以内）。
+4. **プロンプト構築**: ユーザーの `math_steps_config` に基づく `build_math_steps_simplify_prompt()` と対象テキストを結合。2〜4個の小さなステップへの分割を指示。
 5. **LLM呼び出し**: 元メッセージと同じプロバイダー・APIキー設定でモデルを実行（`_call_math_steps_simplify_model`）。
-6. **サニタイズ・上限チェック**:
-   - 生成結果に余分な見出し（`## ステップ N`）が含まれていれば除去。
-   - 1ステップあたり最大20,000文字、1メッセージ内の全簡略化合計で最大100,000文字の制限を適用。
-7. **保存とUsage記録**: `math_steps_state` を更新（E2EE暗号化考慮）し、モデル使用量（トークン数等）を `thought_data` に記録。
+6. **解析・上限チェック**:
+   - 返答を `extract_math_steps()` でステップ見出しごとに解析。見出しがない場合は全文を1ステップの本文として扱う。
+   - 1元ステップあたり最大8分割、表示ステップ合計は最大50。
+   - 1分割あたり最大20,000文字、1メッセージ内の全分割・簡略化合計で最大100,000文字の制限を適用。
+7. **保存とUsage記録**: `math_steps_state.expanded[step_index]` を更新（E2EE暗号化考慮）し、モデル使用量を `thought_data` に記録。
 
 #### レスポンス（成功時：HTTP 200 OK）
 ```json
 {
   "status": "ok",
-  "text": "ステップ2のよりやさしい解説文...",
+  "text": "やさしい本文1\n\nやさしい本文2",
+  "steps": [
+    { "title": "やさしく整理", "body": "やさしい本文1" },
+    { "title": "やさしく計算", "body": "やさしい本文2" }
+  ],
+  "step_index": 1,
   "math_steps_state": {
     "current": 1,
     "max_reached": 3,
-    "simplified": {
-      "1": "ステップ2のよりやさしい解説文..."
+    "simplified": {},
+    "expanded": {
+      "1": [
+        { "title": "やさしく整理", "body": "やさしい本文1" },
+        { "title": "やさしく計算", "body": "やさしい本文2" }
+      ]
     }
   }
 }
 ```
+`steps` は対象 `step_index` の分割後リスト全体です。旧クライアント向けに `text`（本文の連結）も返します。
 
 #### エラーレスポンス
 - `429 Too Many Requests`: `{"error": "rate_limit"}`（1分間に20回超過）
-- `400 Bad Request`: `{"error": "invalid_step_index"}` / `{"error": "empty_step"}` / `{"error": "unsupported_model"}`
+- `400 Bad Request`: `{"error": "invalid_step_index"}` / `{"error": "invalid_part_index"}` / `{"error": "empty_step"}` / `{"error": "unsupported_model"}`
 - `404 Not Found`: `{"error": "message_not_found"}`
-- `409 Conflict`: `{"error": "message_has_no_content"}` / `{"error": "simplified_limit_reached"}`
+- `409 Conflict`: `{"error": "message_has_no_content"}` / `{"error": "simplified_limit_reached"}` / `{"error": "too_many_steps"}`
 - `413 Payload Too Large`: `{"error": "step_too_large"}`
 - `502 Bad Gateway`: `{"error": "simplify_failed"}` / `{"error": "empty_result"}`
 

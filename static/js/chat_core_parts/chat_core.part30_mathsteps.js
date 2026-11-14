@@ -15,6 +15,8 @@
         const MATH_STEPS_PROGRESS_ROUTE = '/api/math_steps/progress';
         const MATH_STEPS_SIMPLIFY_ROUTE = '/api/math_steps/simplify';
         const MATH_STEPS_SVG_MAX_CHARS = 300000;
+        const MATH_STEPS_MAX_EXPANDED_PER_STEP = 8;
+        const MATH_STEPS_MAX_DISPLAY_STEPS = 50;
         const mathStepsUiState = {
             master: false,
             enabled: false,
@@ -54,6 +56,28 @@
             };
         }
 
+        // 「もっとやさしく」 replaces an original step with smaller easier steps.
+        // The map is keyed by the original step index; a sub-step can be split again.
+        function normalizeMathStepsExpanded(value) {
+            const expanded = {};
+            if (!value || typeof value !== 'object' || Array.isArray(value)) return expanded;
+            Object.keys(value).forEach((key) => {
+                if (!/^\d{1,4}$/.test(String(key))) return;
+                const list = value[key];
+                if (!Array.isArray(list)) return;
+                const parts = [];
+                list.slice(0, MATH_STEPS_MAX_EXPANDED_PER_STEP).forEach((item) => {
+                    if (!item || typeof item !== 'object') return;
+                    const body = typeof item.body === 'string' ? item.body : '';
+                    if (!body.trim()) return;
+                    const title = typeof item.title === 'string' ? item.title : '';
+                    parts.push({ title: title.trim(), body });
+                });
+                if (parts.length) expanded[String(key)] = parts;
+            });
+            return expanded;
+        }
+
         function normalizeMathStepsMessageState(value) {
             let raw = value;
             if (typeof raw === 'string') {
@@ -70,8 +94,43 @@
             return {
                 current: clampMathStepsIndex(src.current, 50),
                 max_reached: clampMathStepsIndex(src.max_reached, 50),
-                simplified
+                simplified,
+                expanded: normalizeMathStepsExpanded(src.expanded)
             };
+        }
+
+        // Flattens the original steps plus any saved replacements into the list the
+        // reader navigates. Display index and source index differ after a split.
+        function buildMathStepsDisplaySteps(originalSteps, expanded) {
+            const out = [];
+            const source = Array.isArray(originalSteps) ? originalSteps : [];
+            const map = (expanded && typeof expanded === 'object') ? expanded : {};
+            source.forEach((step) => {
+                const parts = map[String(step.index)];
+                if (Array.isArray(parts) && parts.length) {
+                    parts.forEach((part, partIndex) => {
+                        out.push({
+                            index: out.length,
+                            sourceIndex: step.index,
+                            partIndex,
+                            expanded: true,
+                            title: String(part.title || step.title || ''),
+                            body: String(part.body || '')
+                        });
+                    });
+                    return;
+                }
+                out.push({
+                    index: out.length,
+                    sourceIndex: step.index,
+                    partIndex: null,
+                    expanded: false,
+                    title: step.title || '',
+                    body: step.body || ''
+                });
+            });
+            if (out.length > MATH_STEPS_MAX_DISPLAY_STEPS) out.length = MATH_STEPS_MAX_DISPLAY_STEPS;
+            return out;
         }
 
         // Splits on step headings only outside fenced code blocks.
@@ -241,9 +300,19 @@
         function mathStepsStepMarkdown(state, index) {
             const step = state.steps[index];
             if (!step) return '';
-            const simplified = state.simplified ? state.simplified[String(index)] : '';
+            if (step.expanded) return step.body;
+            const simplified = state.simplified ? state.simplified[String(step.sourceIndex)] : '';
             const useOriginal = state.showOriginal && state.showOriginal.has(index);
             return (simplified && !useOriginal) ? simplified : step.body;
+        }
+
+        // An expanded step or a legacy simplified step can both be restored.
+        function mathStepsCanRestore(state, index) {
+            const step = state.steps[index];
+            if (!step) return false;
+            if (step.expanded) return true;
+            const simplified = state.simplified ? state.simplified[String(step.sourceIndex)] : '';
+            return !!(simplified && !state.showOriginal.has(index));
         }
 
         function mathStepsTotalLabel(state) {
@@ -259,9 +328,13 @@
             const parsed = parseMathSteps(text);
             if (!parsed.steps.length) return '';
             const incoming = normalizeMathStepsMessageState(opts.state || {});
+            const originalSteps = parsed.steps;
+            const steps = buildMathStepsDisplaySteps(originalSteps, incoming.expanded);
             const state = {
-                steps: parsed.steps,
-                current: clampMathStepsIndex(opts.current !== undefined ? opts.current : incoming.current, parsed.steps.length - 1),
+                originalSteps,
+                expanded: Object.assign({}, incoming.expanded),
+                steps,
+                current: clampMathStepsIndex(opts.current !== undefined ? opts.current : incoming.current, steps.length - 1),
                 maxReached: Math.max(incoming.max_reached, incoming.current),
                 simplified: Object.assign({}, incoming.simplified),
                 showOriginal: new Set(),
@@ -269,7 +342,7 @@
             };
             const step = state.steps[state.current];
             const markdown = mathStepsStepMarkdown(state, state.current);
-            const simplifiedActive = !!(state.simplified[String(state.current)] && !state.showOriginal.has(state.current));
+            const simplifiedActive = mathStepsCanRestore(state, state.current);
             const pendingNext = mathStepsPendingNext(state);
             const isLast = state.current >= state.steps.length - 1;
             const nextLabel = (isLast && !pendingNext) ? '完了' : (pendingNext ? '次のステップを準備中…' : 'わかった、次へ');
@@ -284,7 +357,7 @@
                 `data-streaming="${state.streaming ? '1' : '0'}"`,
                 messageId ? `data-message-id="${escapeHtml(messageId)}"` : '',
                 jobId ? `data-job-id="${escapeHtml(jobId)}"` : '',
-                `data-math-steps-state="${mathStepsStateAttr({ current: incoming.current, max_reached: incoming.max_reached, simplified: incoming.simplified })}"`
+                `data-math-steps-state="${mathStepsStateAttr({ current: incoming.current, max_reached: incoming.max_reached, simplified: incoming.simplified, expanded: incoming.expanded })}"`
             ].filter(Boolean).join(' ');
             return `<div class="math-steps content-area" role="group" aria-label="数学ステップ解説" ${attrs}>`
                 + `<div class="math-steps-header"><span class="math-steps-counter">ステップ ${mathStepsTotalLabel(state)}</span>`
@@ -298,7 +371,7 @@
                 + `<div class="math-steps-sub-actions">`
                 + `<button type="button" class="math-steps-prev" data-math-steps-action="prev"${state.current <= 0 ? ' disabled aria-disabled="true"' : ''}>前へ</button>`
                 + `<button type="button" class="math-steps-restart" data-math-steps-action="restart"${state.current <= 0 ? ' disabled aria-disabled="true"' : ''}>最初から</button>`
-                + `<button type="button" class="math-steps-simplify" data-math-steps-action="simplify"${state.streaming ? ' disabled aria-disabled="true"' : ''} title="このステップだけ、やさしいことばで説明し直します"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>もっとやさしく</button>`
+                + `<button type="button" class="math-steps-simplify" data-math-steps-action="simplify"${state.streaming ? ' disabled aria-disabled="true"' : ''} title="このステップを、やさしい複数のステップに分けます"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>もっとやさしく</button>`
                 + `</div></div>`
                 + `<div class="math-steps-status" role="status" aria-live="polite"></div>`
                 + `</div>`;
@@ -341,10 +414,14 @@
             const parsed = parseMathSteps(text);
             if (!parsed.steps.length) return null;
             const incoming = normalizeMathStepsMessageState(root.getAttribute('data-math-steps-state') || '');
+            const originalSteps = parsed.steps;
+            const steps = buildMathStepsDisplaySteps(originalSteps, incoming.expanded);
             state = {
-                steps: parsed.steps,
-                current: clampMathStepsIndex(root.getAttribute('data-current'), parsed.steps.length - 1),
-                maxReached: Math.max(incoming.max_reached, clampMathStepsIndex(root.getAttribute('data-max-reached'), parsed.steps.length - 1)),
+                originalSteps,
+                expanded: Object.assign({}, incoming.expanded),
+                steps,
+                current: clampMathStepsIndex(root.getAttribute('data-current'), steps.length - 1),
+                maxReached: Math.max(incoming.max_reached, clampMathStepsIndex(root.getAttribute('data-max-reached'), steps.length - 1)),
                 simplified: Object.assign({}, incoming.simplified),
                 showOriginal: new Set(),
                 streaming: root.getAttribute('data-streaming') === '1'
@@ -365,7 +442,7 @@
             if (title) title.textContent = step.title || '';
             const body = root.querySelector('.math-steps-body');
             const markdown = mathStepsStepMarkdown(state, state.current);
-            const simplifiedActive = !!(state.simplified[String(state.current)] && !state.showOriginal.has(state.current));
+            const simplifiedActive = mathStepsCanRestore(state, state.current);
             if (body) {
                 const oldSvg = new Map();
                 body.querySelectorAll('.mathsvg-render[data-svg-key]').forEach((el) => {
@@ -409,6 +486,7 @@
             }
             root.setAttribute('data-current', String(state.current));
             root.setAttribute('data-max-reached', String(state.maxReached));
+            root.setAttribute('data-total', String(state.steps.length));
             root.setAttribute('data-streaming', state.streaming ? '1' : '0');
             state.renderedStep = state.current;
             state.renderedMarkdown = markdown;
@@ -422,16 +500,20 @@
             const previousState = previousRoot ? getMathStepsRootState(previousRoot) : null;
             const incoming = normalizeMathStepsMessageState(opts.state || {});
             const state = previousState || {
-                steps: parsed.steps,
+                originalSteps: parsed.steps,
+                expanded: Object.assign({}, incoming.expanded),
+                steps: buildMathStepsDisplaySteps(parsed.steps, incoming.expanded),
                 current: incoming.current,
                 maxReached: incoming.max_reached,
                 simplified: Object.assign({}, incoming.simplified),
                 showOriginal: new Set(),
                 streaming: !!opts.streaming
             };
-            state.steps = parsed.steps;
+            state.originalSteps = parsed.steps;
+            state.expanded = state.expanded || {};
+            state.steps = buildMathStepsDisplaySteps(state.originalSteps, state.expanded);
             state.streaming = opts.streaming === true;
-            state.current = clampMathStepsIndex(state.current, parsed.steps.length - 1);
+            state.current = clampMathStepsIndex(state.current, state.steps.length - 1);
             state.maxReached = Math.max(state.maxReached, state.current);
             const previousMarkdown = previousRoot && previousState && previousState.renderedStep === state.current
                 ? previousState.renderedMarkdown : null;
@@ -439,7 +521,7 @@
             const previousBody = previousRoot ? previousRoot.querySelector('.math-steps-body') : null;
             const keepBody = !!previousBody && previousMarkdown !== null && previousMarkdown === markdown;
             const html = buildMathStepsHtml(text, {
-                state: { current: state.current, max_reached: state.maxReached, simplified: state.simplified },
+                state: { current: state.current, max_reached: state.maxReached, simplified: state.simplified, expanded: state.expanded },
                 messageId: opts.mathSteps && opts.mathSteps.messageId !== undefined ? opts.mathSteps.messageId : undefined,
                 jobId: opts.mathSteps && opts.mathSteps.jobId !== undefined ? opts.mathSteps.jobId : undefined,
                 streaming: state.streaming
@@ -531,9 +613,9 @@
             }, 450));
         }
 
-        // The reader preferred the original explanation: forget the saved simplified
-        // variant on the server as well, so a reload does not bring it back.
-        function forgetMathStepsSimplified(root, stepIndex) {
+        // The reader preferred the original explanation: forget the saved replacement
+        // (legacy simplified text or an expanded step) on the server as well.
+        function forgetMathStepsVariants(root, stepIndex) {
             const target = mathStepsRootTargets(root);
             const state = getMathStepsRootState(root);
             if (!target || !state) return;
@@ -543,13 +625,14 @@
                 body: JSON.stringify(Object.assign({}, target, {
                     current: state.current,
                     max_reached: state.maxReached,
-                    remove_simplified: [stepIndex]
+                    remove_simplified: [stepIndex],
+                    remove_expanded: [stepIndex]
                 }))
             }).catch(() => {});
         }
 
         // ------------------------------------------------------------------
-        // 「もっとやさしく」（ステップ単位）
+        // 「もっとやさしく」（今のステップを、やさしい複数ステップに分ける）
         // ------------------------------------------------------------------
         function requestMathStepsSimplify(root, button) {
             const state = getMathStepsRootState(root);
@@ -563,29 +646,50 @@
                 showToast('回答の生成が終わってから使えます', 'info', false);
                 return;
             }
+            const current = state.steps[state.current];
+            if (!current) return;
+            const payload = { message_id: target.message_id, step_index: current.sourceIndex };
+            if (current.partIndex !== null && current.partIndex !== undefined) {
+                payload.part_index = current.partIndex;
+            }
             if (button) {
                 button.dataset.busy = '1';
                 button.disabled = true;
                 button.innerHTML = '<i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>やさしくしています…';
             }
-            mathStepsStatus(root, 'このステップをやさしいことばに置き換えています…');
+            mathStepsStatus(root, 'このステップを、やさしい複数のステップに分けています…');
             apiFetch(MATH_STEPS_SIMPLIFY_ROUTE, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message_id: target.message_id, step_index: state.current })
+                body: JSON.stringify(payload)
             }).then(async (res) => {
                 const data = await res.json().catch(() => ({}));
-                if (!res.ok || !data || data.status !== 'ok' || typeof data.text !== 'string') {
+                let rawParts = (data && Array.isArray(data.steps)) ? data.steps : [];
+                // A cached older server only returns `text`; keep the button usable
+                // during the deploy transition by treating it as one easier step.
+                if (!rawParts.length && data && typeof data.text === 'string' && data.text.trim()) {
+                    rawParts = [{ title: current.title, body: data.text }];
+                }
+                if (!res.ok || !data || data.status !== 'ok' || !rawParts.length) {
                     const reason = res.status === 409
-                        ? '回答の生成が終わってから使えます'
+                        ? 'これ以上ステップを増やせません'
                         : (data && data.error ? data.error : 'やさしい説明を作れませんでした');
                     throw new Error(reason);
                 }
+                const parts = normalizeMathStepsExpanded({ [String(current.sourceIndex)]: rawParts })[String(current.sourceIndex)];
+                if (!parts || !parts.length) throw new Error('やさしい説明を作れませんでした');
                 const nextState = normalizeMathStepsMessageState(data.math_steps_state || {});
-                state.simplified = Object.assign({}, state.simplified, nextState.simplified);
-                state.simplified[String(state.current)] = data.text;
+                state.simplified = Object.assign({}, nextState.simplified);
+                state.expanded = Object.assign({}, state.expanded, nextState.expanded, { [String(current.sourceIndex)]: parts });
+                state.steps = buildMathStepsDisplaySteps(state.originalSteps, state.expanded);
+                state.current = clampMathStepsIndex(state.current, state.steps.length - 1);
                 state.showOriginal.delete(state.current);
-                mathStepsStatus(root, 'やさしい説明に置き換えました');
+                if (button) {
+                    delete button.dataset.busy;
+                    button.disabled = false;
+                    button.innerHTML = '<i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>もっとやさしく';
+                }
+                mathStepsStatus(root, `やさしい説明に分けました（${parts.length}ステップ）`);
                 paintMathStepsRoot(root);
             }).catch((error) => {
                 mathStepsStatus(root, '');
@@ -616,9 +720,24 @@
             }
             event.preventDefault();
             if (action === 'restore') {
-                state.showOriginal.add(state.current);
-                forgetMathStepsSimplified(root, state.current);
+                const current = state.steps[state.current];
+                if (!current) return;
+                if (current.expanded) {
+                    // Collapse the whole split back to the original step and stay on it.
+                    const first = state.steps.findIndex((step) => step.sourceIndex === current.sourceIndex);
+                    delete state.expanded[String(current.sourceIndex)];
+                    delete state.simplified[String(current.sourceIndex)];
+                    state.steps = buildMathStepsDisplaySteps(state.originalSteps, state.expanded);
+                    state.current = clampMathStepsIndex(first >= 0 ? first : 0, state.steps.length - 1);
+                    state.maxReached = clampMathStepsIndex(state.maxReached, state.steps.length - 1);
+                    state.showOriginal.delete(state.current);
+                } else {
+                    state.showOriginal.add(state.current);
+                    delete state.simplified[String(current.sourceIndex)];
+                }
+                forgetMathStepsVariants(root, current.sourceIndex);
                 mathStepsStatus(root, '元の説明に戻しました');
+                scheduleMathStepsProgress(root);
             } else if (action === 'next') {
                 if (state.current >= state.steps.length - 1) return;
                 state.current = clampMathStepsIndex(state.current + 1, state.steps.length - 1);
@@ -780,13 +899,14 @@
             const parsed = parseMathSteps(text);
             if (!parsed.steps.length) return '';
             const state = normalizeMathStepsMessageState(stateValue);
-            return parsed.steps.map((step) => {
-                const simplified = state.simplified[String(step.index)];
-                const body = simplified && simplified.trim() ? simplified : step.body;
+            const steps = buildMathStepsDisplaySteps(parsed.steps, state.expanded);
+            return steps.map((step) => {
+                const simplified = step.expanded ? '' : state.simplified[String(step.sourceIndex)];
+                const body = step.expanded ? step.body : ((simplified && simplified.trim()) ? simplified : step.body);
                 return `<div class="math-steps-pdf-step">`
                     + `<h3 class="math-steps-pdf-heading">ステップ ${step.index + 1}${step.title ? ` ${pdfEscapeAttr(step.title)}` : ''}</h3>`
                     + `<div class="math-steps-pdf-body">${sanitizeMarkdownHtml(body)}</div>`
-                    + (simplified && simplified.trim() ? '<div class="math-steps-pdf-note">（やさしい説明）</div>' : '')
+                    + ((step.expanded || (simplified && simplified.trim())) ? '<div class="math-steps-pdf-note">（やさしい説明）</div>' : '')
                     + `</div>`;
             }).join('');
         }

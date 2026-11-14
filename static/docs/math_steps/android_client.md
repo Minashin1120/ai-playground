@@ -6,7 +6,7 @@
 
 ## 1. Web版との同期方針
 
-プロジェクト規約（`AGENTS.md`）に基づき、Android版は**「Web版と見分けがつかない状態」**を目標として設計されています。
+設計方針に基づき、Android版は**「Web版と見分けがつかない状態」**を目標として設計されています。
 - 見た目、文言、カラー、ボタンスタイル、アクセシビリティ表示、設定項目の配置をWeb版と完全同期。
 - データのシリアライズ形式（JSON）および上限値（最大50ステップ、1ステップ20,000文字、合計100,000文字）も共通の規約に従います。
 
@@ -32,15 +32,20 @@ data class MathStepsConfig(
 
 ### 2.2 `MathStepsState`（メッセージ進捗モデル）
 ```kotlin
+data class MathStepPart(val title: String = "", val body: String = "")
+
 data class MathStepsState(
     val current: Int = 0,
     val maxReached: Int = 0,
     val simplified: Map<Int, String> = emptyMap(),
+    val expanded: Map<Int, List<MathStepPart>> = emptyMap(),
 )
 ```
 - `withCurrent(index: Int)`: 現在位置を更新し、`maxReached` も必要に応じて引き上げ。
-- `withSimplified(index: Int, text: String)`: 簡略化された解説を不変Mapに追加。
-- `MAX_STEP = 50`, `MAX_SIMPLIFIED_CHARS = 20_000`, `MAX_SIMPLIFIED_TOTAL = 100_000` の上限ガードを内蔵。
+- `withSimplified(index: Int, text: String)`: 旧形式の簡略化テキストを不変Mapに追加。
+- `expanded`: 「もっとやさしく」で分割した小ステップ。キーは元ステップ番号。
+- `buildMathStepViews(original, expanded)`: 元ステップと分割を表示順に平坦化し、`sourceIndex` / `partIndex` を持つ `MathStepView` を生成（Web版と同一契約）。
+- `MAX_STEP = 50`, `MAX_SIMPLIFIED_CHARS = 20_000`, `MAX_SIMPLIFIED_TOTAL = 100_000`, `MAX_EXPANDED_PER_STEP = 8` の上限ガードを内蔵。
 
 ### 2.3 `extractMathSteps(text: String)`（ステップ解析）
 Web版の `parseMathSteps()` と同一の正規表現を使用し、回答テキストを `List<MathStep>` に分解します。
@@ -51,7 +56,7 @@ Web版の `parseMathSteps()` と同一の正規表現を使用し、回答テキ
 
 ## 3. 非同期通信と状態管理（`ChatMathSteps.kt`）
 
-サーバー通信と画面状態の同期は、`ChatMathSteps.kt`（128行）が担当します。
+サーバー通信と画面状態の同期は、`ChatMathSteps.kt`（152行）が担当します。
 
 ```mermaid
 flowchart LR
@@ -82,7 +87,8 @@ Jetpack Composeにより、Material 3とWeb版のCSSデザインを融合させ�
 - **アクションボタン群**:
   - メインボタン: 次のステップへ進む大型ボタン（「ステップ 2 へ」「解き終わった！」）。
   - サブボタン: 「前へ」「最初から」「もっとやさしく」の丸型チップボタン。
-  - 「元の説明に戻す」ボタン: 簡略化が適用されているステップのみに点線枠で表示。
+  - 「もっとやさしく」: 現在のステップを2〜4個の小ステップに分割する。分割済みの小ステップでは、その小ステップだけをさらに分割する。
+  - 「元の説明に戻す」ボタン: 分割または旧形式の簡略化が適用されているステップのみに点線枠で表示。分割を元の1ステップへ戻す。
 
 ### 4.2 `SvgAnimation.kt` と `mathsvg` の描画
 AIが回答内に ````mathsvg```` を含んでいた場合、Android側では `SvgAnimation.kt` を利用してインライン表示されます。

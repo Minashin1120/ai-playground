@@ -12,6 +12,23 @@ def _math_steps_int(value, low, high, default=0):
     return max(low, min(high, number))
 
 
+def _clean_math_steps_parts(value, fallback_title=""):
+    """Normalize one stored/returned replacement list (title + Markdown body)."""
+    if not isinstance(value, list):
+        return []
+    fallback = str(fallback_title or "").strip()[:MATH_STEPS_MAX_EXPANDED_TITLE]
+    parts = []
+    for item in value[:MATH_STEPS_MAX_EXPANDED_PER_STEP]:
+        if not isinstance(item, dict):
+            continue
+        body = str(item.get("body") or "").strip()[:MATH_STEPS_MAX_SIMPLIFIED_PER_STEP]
+        if not body:
+            continue
+        title = str(item.get("title") or "").strip()[:MATH_STEPS_MAX_EXPANDED_TITLE]
+        parts.append({"title": title or fallback, "body": body})
+    return parts
+
+
 def _load_math_steps_state(raw):
     """Parse a stored state JSON into the clamped canonical shape."""
     data = raw
@@ -42,7 +59,31 @@ def _load_math_steps_state(raw):
             limit = min(MATH_STEPS_MAX_SIMPLIFIED_PER_STEP, remaining)
             simplified[key_text] = value_text[:limit]
             total_chars += len(simplified[key_text])
-    return {"current": current, "max_reached": max_reached, "simplified": simplified}
+    # 「もっとやさしく」 replaces a step with smaller easier steps. The list is
+    # keyed by the original step index, exactly like a saved simplified variant.
+    expanded = {}
+    raw_expanded = data.get("expanded")
+    if isinstance(raw_expanded, dict):
+        for key, value in raw_expanded.items():
+            key_text = str(key)
+            if not key_text.isdigit() or len(key_text) > 4:
+                continue
+            parts = []
+            for part in _clean_math_steps_parts(value):
+                remaining = MATH_STEPS_MAX_SIMPLIFIED_TOTAL - total_chars
+                if remaining <= 0:
+                    break
+                body = part["body"][:min(MATH_STEPS_MAX_SIMPLIFIED_PER_STEP, remaining)]
+                parts.append({"title": part["title"], "body": body})
+                total_chars += len(body)
+            if parts:
+                expanded[key_text] = parts
+    return {
+        "current": current,
+        "max_reached": max_reached,
+        "simplified": simplified,
+        "expanded": expanded,
+    }
 
 
 def _dump_math_steps_state(state):
@@ -248,6 +289,14 @@ def math_steps_progress():
                 state['simplified'].pop(str(int(item)), None)
             except (TypeError, ValueError):
                 continue
+    # The same button collapses an expanded step back to its original text.
+    expanded_removals = data.get('remove_expanded')
+    if isinstance(expanded_removals, list):
+        for item in expanded_removals[:MATH_STEPS_MAX_CURRENT + 1]:
+            try:
+                state['expanded'].pop(str(int(item)), None)
+            except (TypeError, ValueError):
+                continue
     _write_math_steps_state(message, state)
     safe_db_commit()
     logger.info(
@@ -274,6 +323,14 @@ def math_steps_simplify():
         step_index = int(data.get('step_index'))
     except (TypeError, ValueError):
         return jsonify({'error': 'invalid_step_index'}), 400
+    part_index = None
+    if data.get('part_index') is not None:
+        try:
+            part_index = int(data.get('part_index'))
+        except (TypeError, ValueError):
+            return jsonify({'error': 'invalid_part_index'}), 400
+        if part_index < 0:
+            return jsonify({'error': 'invalid_part_index'}), 400
     content = _math_steps_message_content(message)
     if not content.strip():
         return jsonify({'error': 'message_has_no_content'}), 409
@@ -281,7 +338,20 @@ def math_steps_simplify():
     if not steps or step_index < 0 or step_index >= len(steps):
         return jsonify({'error': 'invalid_step_index'}), 400
     step = steps[step_index]
-    step_text = (step.get('title') + "\n" + step.get('body', '')).strip()
+    state = _read_math_steps_state(message)
+    key = str(step_index)
+    entry = state['expanded'].get(key)
+    if part_index is not None:
+        # A sub-step created by an earlier split: make that part even easier too.
+        if not entry or part_index >= len(entry):
+            return jsonify({'error': 'invalid_part_index'}), 400
+        part = entry[part_index]
+        step_title = part.get('title') or step.get('title', '')
+        step_body = part.get('body', '')
+    else:
+        step_title = step.get('title', '')
+        step_body = step.get('body', '')
+    step_text = (str(step_title) + "\n" + str(step_body)).strip()
     if not step_text:
         return jsonify({'error': 'empty_step'}), 400
     if len(step_text) > 100_000:
@@ -293,8 +363,8 @@ def math_steps_simplify():
     config = normalize_math_steps_config(getattr(current_user, 'math_steps_config', None))
     prompt = build_math_steps_simplify_prompt(config) + step_text
     logger.info(
-        "math_steps simplify start user=%s message=%s step=%s model=%s",
-        current_user.id, message.id, step_index, model_key,
+        "math_steps simplify start user=%s message=%s step=%s part=%s model=%s",
+        current_user.id, message.id, step_index, part_index, model_key,
     )
     try:
         simplified, usage_call = _call_math_steps_simplify_model(
@@ -310,35 +380,64 @@ def math_steps_simplify():
         )
         return jsonify({'error': 'simplify_failed'}), 502
     simplified = str(simplified or "").strip()
-    # The simplify prompt asks for the body only. Strip a stray heading so the
-    # client cannot mistake it for an extra step.
-    simplified = re.sub(
-        r"^\s{0,3}#{1,6}\s*(?:ステップ|Step)\s*\d+[^\n]*\n?",
-        "",
-        simplified,
-        count=1,
-        flags=re.IGNORECASE,
-    ).strip()
-    if not simplified:
+    parts = _clean_math_steps_parts(extract_math_steps(simplified), step_title)
+    if not parts:
+        # A model may ignore the heading rule. Keep the reader moving by treating
+        # the whole answer as a single easier replacement for this step.
+        fallback = re.sub(
+            r"^\s{0,3}#{1,6}\s*(?:ステップ|Step)\s*\d+[^\n]*\n?",
+            "",
+            simplified,
+            count=1,
+            flags=re.IGNORECASE,
+        ).strip()
+        if fallback:
+            parts = _clean_math_steps_parts(
+                [{"title": step_title, "body": fallback}], step_title
+            )
+    if not parts:
         return jsonify({'error': 'empty_result'}), 502
-    state = _read_math_steps_state(message)
-    key = str(step_index)
+    existing = dict(state['expanded'])
+    if part_index is None:
+        existing[key] = parts
+    else:
+        merged = list(entry[:part_index]) + parts + list(entry[part_index + 1:])
+        if len(merged) > MATH_STEPS_MAX_EXPANDED_PER_STEP:
+            return jsonify({'error': 'too_many_steps'}), 409
+        existing[key] = merged
+    display_total = len(steps)
+    for other_key, items in existing.items():
+        if not other_key.isdigit() or int(other_key) >= len(steps):
+            continue
+        display_total += max(0, len(items) - 1)
+    if display_total > MATH_STEPS_MAX_STEPS:
+        return jsonify({'error': 'too_many_steps'}), 409
     others_total = sum(
         len(value) for other_key, value in state['simplified'].items() if other_key != key
     )
-    remaining = MATH_STEPS_MAX_SIMPLIFIED_TOTAL - others_total
-    if remaining <= 0:
+    others_total += sum(
+        len(part['body'])
+        for other_key, items in existing.items() if other_key != key
+        for part in items
+    )
+    new_total = sum(len(part['body']) for part in existing[key])
+    if others_total + new_total > MATH_STEPS_MAX_SIMPLIFIED_TOTAL:
         return jsonify({'error': 'simplified_limit_reached'}), 409
-    state['simplified'][key] = simplified[:min(MATH_STEPS_MAX_SIMPLIFIED_PER_STEP, remaining)]
+    state['expanded'] = existing
+    # The expanded list replaces any older single-body simplification.
+    state['simplified'].pop(key, None)
     _write_math_steps_state(message, state)
     _append_math_steps_usage(message, usage_call)
     safe_db_commit()
     logger.info(
-        "math_steps simplify done user=%s message=%s step=%s chars=%s",
-        current_user.id, message.id, step_index, len(state['simplified'][key]),
+        "math_steps simplify done user=%s message=%s step=%s part=%s parts=%s chars=%s",
+        current_user.id, message.id, step_index, part_index, len(existing[key]),
+        new_total,
     )
     return jsonify({
         'status': 'ok',
-        'text': state['simplified'][key],
+        'text': "\n\n".join(part['body'] for part in existing[key]),
+        'steps': existing[key],
+        'step_index': step_index,
         'math_steps_state': _read_math_steps_state(message),
     })

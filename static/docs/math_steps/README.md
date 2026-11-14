@@ -19,9 +19,10 @@ AI Chat Playground の「数学ステップ解説（Math Steps）」機能につ
    - ページのリロードや別端末（Web・Android）からのアクセスでも、学習の続きから再開できます。
    - エンドツーエンド暗号化（E2EE）が有効な会話では、進捗情報も自動的に暗号化されて保存されます。
 
-3. **「もっとやさしく」再生成（ステップ簡略化）**
-   - 理解が難しい特定のステップだけを、元の問題や答えを変えずに「より丁寧・平易な表現」へ書き換えて表示できます。
-   - 簡略化したステップは個別に保存され、いつでも「元の説明に戻す」ことが可能です。
+3. **「もっとやさしく」再生成（ステップ分割）**
+   - 理解が難しい特定のステップを、元の問題や答えを変えずに「より丁寧・平易な表現の複数の小さなステップ」へ分けて表示できます。
+   - 1つのステップを長くするのではなくステップ数が増えるため、読む側は1つずつ確実に進められます。分割済みの小ステップをさらに分割することもできます。
+   - 分割したステップは個別に保存され、いつでも「元の説明に戻す」で元の1ステップに戻せます。
    - 再生成に伴うトークン利用量や料金（Usage）も記録されます。
 
 4. **安全なアニメーション図解（`mathsvg`）**
@@ -56,7 +57,7 @@ AI Chat Playground の「数学ステップ解説（Math Steps）」機能につ
 
 3. **ステップを進める**
    - 画面下部の「ステップ 2 へ」ボタンを押して次へ進みます。
-   - 途中が難しければ「もっとやさしく」ボタンを押すと、そのステップだけが分かりやすい解説に再生成されます。
+   - 途中が難しければ「もっとやさしく」ボタンを押すと、そのステップが分かりやすい複数の小さなステップに分かれます。増えたステップはそのまま「次へ」で読み進められます。
    - 「前へ」や「最初から解き直す」で前のステップに戻ることも可能です。
 
 4. **詳細設定を調整する**
@@ -72,8 +73,8 @@ AI Chat Playground の「数学ステップ解説（Math Steps）」機能につ
 
 | ファイルパス | 行番号 | 主な役割・定義内容 |
 |---|---|---|
-| `app/server/background_math_steps.py` | L1-L227 | **数学ステップ解説のコア仕様・プロンプト・抽出ロジック**<br>- L7-L20: 設定既定値・制限定数（`MATH_STEPS_DEFAULTS`, `MATH_STEPS_MAX_CURRENT=50`, `MATH_STEPS_MAX_SIMPLIFIED_PER_STEP=20_000`, `MATH_STEPS_MAX_SIMPLIFIED_TOTAL=100_000`）<br>- L22-L25: 見出し抽出・コードブロック判定正規表現（`MATH_STEPS_HEADING_RE`, `_FENCE_RE`）<br>- L27-L64: フォーマット強制プロンプト定義（`MATH_STEPS_FORMAT_PROMPT`）<br>- L86-L111: 設定の正規化とJSON変換（`normalize_math_steps_config`, `dump_math_steps_config`）<br>- L114-L142: 各種指示文生成ヘルパー<br>- L145-L156: システムプロンプト動的構築（`build_math_steps_system_prompt`）<br>- L159-L175: ステップ簡略化プロンプト構築（`build_math_steps_simplify_prompt`）<br>- L178-L227: 回答テキストからのステップ抽出（`extract_math_steps`） |
-| `app/server/routes_math_steps.py` | L1-L344 | **数学ステップAPIエンドポイント・状態管理・モデル実行**<br>- L15-L56: 進捗状態のパースと正規化（`_load_math_steps_state`, `_dump_math_steps_state`）<br>- L59-L76: 暗号化（E2EE）対応の状態読み書き（`_read_math_steps_state`, `_write_math_steps_state`）<br>- L78-L96: 所有権検証付きメッセージ解決（`_resolve_math_steps_message`）<br>- L113-L142: トークン利用量記録（`_append_math_steps_usage`）<br>- L144-L205: プロバイダー別モデル呼び出し（Gemini/Anthropic/DeepSeek/xAI/Zai/Kimi/OpenAI）<br>- L220-L257: 進捗保存API（`POST /api/math_steps/progress`、レート制限120回/分）<br>- L260-L344: ステップ簡略化API（`POST /api/math_steps/simplify`、レート制限20回/分） |
+| `app/server/background_math_steps.py` | L1-L237 | **数学ステップ解説のコア仕様・プロンプト・抽出ロジック**<br>- L7-L23: 設定既定値・制限定数（`MATH_STEPS_MAX_EXPANDED_PER_STEP=8` など）<br>- L24-L27: 見出し抽出・コードブロック判定正規表現（`MATH_STEPS_HEADING_RE`, `_FENCE_RE`）<br>- L29-L66: フォーマット強制プロンプト定義（`MATH_STEPS_FORMAT_PROMPT`）<br>- L88-L113: 設定の正規化とJSON変換（`normalize_math_steps_config`, `dump_math_steps_config`）<br>- L116-L144: 各種指示文生成ヘルパー<br>- L147-L158: システムプロンプト動的構築（`build_math_steps_system_prompt`）<br>- L161-L184: ステップ分割プロンプト構築（`build_math_steps_simplify_prompt`）<br>- L187-L237: 回答テキストからのステップ抽出（`extract_math_steps`） |
+| `app/server/routes_math_steps.py` | L1-L443 | **数学ステップAPIエンドポイント・状態管理・モデル実行**<br>- L15-L98: 分割状態の正規化と進捗状態のパース（`_clean_math_steps_parts`, `_load_math_steps_state`）<br>- L100-L117: 暗号化（E2EE）対応の状態読み書き（`_read_math_steps_state`, `_write_math_steps_state`）<br>- L119-L137: 所有権検証付きメッセージ解決（`_resolve_math_steps_message`）<br>- L163-L184: トークン利用量記録（`_append_math_steps_usage`）<br>- L185-L246: プロバイダー別モデル呼び出し（Gemini/Anthropic/DeepSeek/xAI/Zai/Kimi/OpenAI）<br>- L262-L306: 進捗保存API（`POST /api/math_steps/progress`、`remove_expanded` / `remove_simplified`）<br>- L311-L443: ステップ分割API（`POST /api/math_steps/simplify`、`part_index` 対応） |
 | `app/server/models.py` | L48-L50<br>L188 | **データベースモデル定義**<br>- `User` モデル: `math_steps_enabled`, `math_steps_config`, `default_math_steps`<br>- `Message` モデル: `math_steps_state` |
 | `app/server/app_settings_schema.py` | L848-L883 | **データベースマイグレーションDDL**<br>- `ensure_user_math_steps_columns()`: userテーブルのカラム追加<br>- `ensure_message_math_steps_state_column()`: messageテーブルのカラム追加 |
 | `app/server/background.py` | L735-L741 | バックグラウンドワーカーでのシステムプロンプトへの数学ステップ指示結合 |
@@ -91,7 +92,7 @@ AI Chat Playground の「数学ステップ解説（Math Steps）」機能につ
 
 | ファイルパス | 行番号 | 主な役割・定義内容 |
 |---|---|---|
-| `app/static/js/chat_core_parts/chat_core.part30_mathsteps.js` | L1-L874 | **Web版数学ステップ機能の全フロントエンドロジック**<br>- L7-L30: 定数・正規表現・共有状態オブジェクト（`mathStepsUiState`, `mathStepsRootState`）<br>- L32-L75: 設定・進捗状態の正規化ヘルパー<br>- L78-L130: クライアント側ステップ見出し解析（`parseMathSteps`）<br>- L140-L147: KaTeX/Markdownレンダリング（`renderMathStepsBodyHtml`）<br>- L149-L231: `mathsvg` サニタイズ・描画生成（`sanitizeMathSvgMarkup`, `buildMathSvgRenderHtml`）<br>- L258-L415: ステップUIのHTML生成・DOM差分更新（`buildMathStepsHtml`, `paintMathStepsRoot`）<br>- L417-L475: メッセージへの描画適用（`renderMathStepsInto`）<br>- L477-L534: 進捗保存とデバウンス制御（`postMathStepsProgress`, `scheduleMathStepsProgress`）<br>- L536-L602: 「もっとやさしく」リクエストと復元（`requestMathStepsSimplify`, `forgetMathStepsSimplified`）<br>- L604-L647: クリックイベント制御（`handleMathStepsAction`）<br>- L649-L703: プロンプトバーのチップ・設定連動（`setMathStepsEnabled`, `applyMathStepsSettings`）<br>- L705-L777: 設定モーダルの表示・保存処理（`openMathStepsModal`, `saveMathStepsConfig`）<br>- L779-L817: PDFエクスポート・クリップボード用展開ヘルパー<br>- L819-L874: 初期化処理（`initMathSteps`） |
+| `app/static/js/chat_core_parts/chat_core.part30_mathsteps.js` | L1-L994 | **Web版数学ステップ機能の全フロントエンドロジック**<br>- L7-L136: 定数・正規化・`expanded` の平坦化（`normalizeMathStepsExpanded`, `buildMathStepsDisplaySteps`）<br>- L137-L229: ステップ見出し解析（`parseMathSteps`）<br>- L300-L432: ステップ本文解決・UIのHTML生成（`mathStepsStepMarkdown`, `buildMathStepsHtml`）<br>- L434-L549: DOM差分更新・メッセージへの描画（`paintMathStepsRoot`, `renderMathStepsInto`）<br>- L551-L632: 進捗保存と復元送信（`postMathStepsProgress`, `forgetMathStepsVariants`）<br>- L637-L697: 「もっとやさしく」分割リクエスト（`requestMathStepsSimplify`）<br>- L702-L759: クリックイベント制御（前へ/次へ/最初から/分割/復元）<br>- L761-L879: プロンプトバーのチップ・設定モーダル連動<br>- L892-L929: PDFエクスポート・クリップボード用展開ヘルパー<br>- L933-L994: 初期化処理（`initMathSteps`） |
 | `app/templates/chat/composer_controls.html` | L18-L26 | プロンプトバーの「数学ステップ」トグルチップおよび設定歯車ボタンのHTML |
 | `app/templates/chat/overlay_dialogs.html` | L146-L198 | 「数学ステップの設定」モーダルダイアログのHTML（セレクトボックス・チェックボックス） |
 | `app/templates/chat/overlay_settings.html` | （該当箇所） | 全体設定モーダル内の既定値スイッチ（`#set-default-math-steps`） |
@@ -104,9 +105,9 @@ AI Chat Playground の「数学ステップ解説（Math Steps）」機能につ
 
 | ファイルパス | 行番号 | 主な役割・定義内容 |
 |---|---|---|
-| `app/android/app/src/main/java/com/minashin1120/aiplayground/data/MathSteps.kt` | L1-L218 | **Android側データモデル・パーサー・展開ユーティリティ**<br>- L9-L65: `MathStepsConfig`（設定モデル、JSON変換、プロンプト用展開 `promptValues()`）<br>- L75-L130: `MathStepsState`（進捗状態モデル、JSON変換、上限クランプ）<br>- L133: `MathStep`（1ステップの表現）<br>- L135-L177: ステップ見出し抽出パーサー（`extractMathSteps`）<br>- L180-L217: PDF・クリップボード用展開テキスト生成（`mathStepsPdfMarkdown`, `mathStepsCopyText`） |
-| `app/android/app/src/main/java/com/minashin1120/aiplayground/ui/MathSteps.kt` | L1-L332 | **Android版Jetpack Compose UIコンポーネント**<br>- L63-L108: `MathStepsConfigFields`（設定編集フォーム）<br>- L110-L135: `MathStepsSettingsDialog`（設定ダイアログ）<br>- L137-L311: `MathStepsContent`（ステップ表示、プログレスバー、次へ/前へ/最初からボタン、「もっとやさしく」ボタン、アニメーションSVG表示）<br>- L313-L326: `MathStepsGear`（プロンプトバーの歯車アイコン） |
-| `app/android/app/src/main/java/com/minashin1120/aiplayground/ChatMathSteps.kt` | L1-L128 | **Android非同期通信・状態更新コントローラー**<br>- L33-L56: 楽観的進捗保存（`saveProgress` → `/api/math_steps/progress`）<br>- L59-L81: 簡略化の復元（`clearSimplified`）<br>- L83-L114: ステップ簡略化実行（`simplify` → `/api/math_steps/simplify`）<br>- L116-L127: メッセージコレクションの不変更新（`updateState`） |
+| `app/android/app/src/main/java/com/minashin1120/aiplayground/data/MathSteps.kt` | L1-L303 | **Android側データモデル・パーサー・展開ユーティリティ**<br>- L9-L68: `MathStepsConfig`（設定モデル、JSON変換、プロンプト用展開 `promptValues()`）<br>- L70-L171: `MathStepPart` / `MathStepsState`（進捗・分割状態モデル、JSON変換、上限クランプ）<br>- L174-L215: `MathStepView` と `buildMathStepViews`（元ステップ＋分割の平坦化）<br>- L218-L292: ステップ見出し抽出パーサー（`parseMathSteps`）<br>- L294-L303: PDF・クリップボード用展開テキスト生成（`mathStepsPdfText`, `mathStepsCopyText`） |
+| `app/android/app/src/main/java/com/minashin1120/aiplayground/ui/MathSteps.kt` | L1-L361 | **Android版Jetpack Compose UIコンポーネント**<br>- L63-L108: `MathStepsConfigFields`（設定編集フォーム）<br>- L110-L135: `MathStepsSettingsDialog`（設定ダイアログ）<br>- L138-L340: `MathStepsContent`（表示ステップの平坦化、進捗、次へ/前へ/最初から、分割と復元、アニメーションSVG）<br>- L342-L355: `MathStepsGear`（プロンプトバーの歯車アイコン） |
+| `app/android/app/src/main/java/com/minashin1120/aiplayground/ChatMathSteps.kt` | L1-L152 | **Android非同期通信・状態更新コントローラー**<br>- L33-L56: 楽観的進捗保存（`saveProgress` → `/api/math_steps/progress`）<br>- L60-L87: 分割・簡略化の復元（`clearVariants`, `remove_expanded` / `remove_simplified`）<br>- L90-L141: ステップ分割実行（`simplify` → `/api/math_steps/simplify`、`steps` と `expanded` を保存）<br>- L143-L152: メッセージコレクションの不変更新（`updateState`） |
 | `app/android/app/src/main/java/com/minashin1120/aiplayground/ChatComposer.kt` | L21, L188-L189 | プロンプトバーへのチップ追加と状態連動 |
 | `app/android/app/src/main/java/com/minashin1120/aiplayground/ChatPreferences.kt` | L23, L58-L62 | ユーザー環境設定の送受信 |
 | `app/android/app/src/main/java/com/minashin1120/aiplayground/ui/MessageBubble.kt` | L132-L149 | 回答メッセージバブルでの `MathStepsContent` 組み込み |
@@ -119,8 +120,8 @@ AI Chat Playground の「数学ステップ解説（Math Steps）」機能につ
 
 | ファイルパス | 行番号 | 主なテスト内容 |
 |---|---|---|
-| `app/tests/test_math_steps_server.py` | L1-L306 | **サーバー側ユニット・回帰テスト**<br>- 設定既定値とプロンプト生成テスト<br>- バックグラウンド/高速モードでのプロンプト注入テスト<br>- コードブロック内の見出し誤認防止テスト<br>- 暗号化（E2EE）進捗データの読み書きテスト<br>- 設定CRUDテスト<br>- 進捗API（クランプ、所有権検証）テスト<br>- 簡略化API（バリデーション、モデル呼び出し、Usage記録）テスト<br>- モバイル設定同期テスト |
-| `app/tests/test_math_steps_ui.py` | L1-L292 | **WebフロントエンドUI回帰テスト**<br>- JSバンドル結合テスト<br>- `mathsvg` サニタイズ検証<br>- プロンプトバー・設定モーダルの存在検証<br>- ステップの1つずつ表示・ナビゲーション（次へ・前へ・最初から）テスト<br>- 進捗API送信・簡略化置き換え・復元テスト<br>- PDF・クリップボード展開テスト<br>- 通常Markdownフォールバックテスト |
+| `app/tests/test_math_steps_server.py` | L1-L355 | **サーバー側ユニット・回帰テスト**<br>- 設定既定値とプロンプト生成テスト<br>- バックグラウンド/高速モードでのプロンプト注入テスト<br>- コードブロック内の見出し誤認防止テスト<br>- 暗号化（E2EE）進捗・分割データの読み書きテスト<br>- 設定CRUDテスト<br>- 進捗API（クランプ、所有権検証、`remove_expanded`）テスト<br>- 分割API（複数ステップ生成、`part_index` 再分割、バリデーション、Usage記録）テスト<br>- モバイル設定同期テスト |
+| `app/tests/test_math_steps_ui.py` | L1-L328 | **WebフロントエンドUI回帰テスト**<br>- JSバンドル結合テスト<br>- `mathsvg` サニタイズ検証<br>- プロンプトバー・設定モーダルの存在検証<br>- ステップの1つずつ表示・ナビゲーション（次へ・前へ・最初から）テスト<br>- 進捗API送信・「もっとやさしく」分割・増えたステップの移動・復元・小ステップの再分割テスト<br>- PDF・クリップボード展開テスト<br>- 通常Markdownフォールバックテスト |
 | `app/android/app/src/test/java/com/minashin1120/aiplayground/data/MathStepsTest.kt` | L1-L108 | AndroidデータモデルのJSONシリアライズ・デシリアライズ、ステップパーサー、PDF/コピー展開テスト |
 | `app/android/app/src/test/java/com/minashin1120/aiplayground/data/direct/MathStepsPromptTest.kt` | L1-L29 | Androidローカルプロンプトビルダーの展開テスト |
 

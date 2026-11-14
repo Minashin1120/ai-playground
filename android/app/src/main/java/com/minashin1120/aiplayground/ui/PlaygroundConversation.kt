@@ -484,8 +484,8 @@ private fun ConversationContent(
                                     (keys.isLiveReply(message) && state.mathStepsMode)),
                             mathStepsActions = MathStepsActions(
                                 onProgress = { target, step, max -> model.saveMathStepProgress(target, step, max) },
-                                onSimplify = { target, step, done -> model.simplifyMathStep(target, step, done) },
-                                onRestoreOriginal = { target, step -> model.clearMathStepSimplified(target, step) },
+                                onSimplify = { target, step, part, done -> model.simplifyMathStep(target, step, part, done) },
+                                onRestoreOriginal = { target, step, current -> model.clearMathStepSimplified(target, step, current) },
                             ),
                             mathStepsConfig = state.preferences?.mathStepsConfig ?: MathStepsConfig(),
                         )

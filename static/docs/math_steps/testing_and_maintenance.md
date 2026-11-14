@@ -35,7 +35,7 @@
 | `test_steps_render_one_at_a_time_with_image_only_mathsvg` | 1ステップずつ段階的に表示され、不要なステップが隠れていること |
 | `test_next_back_restart_and_finish` | 次へ／前へ／最初から／完了ボタンの動作とDOMの更新 |
 | `test_progress_is_posted_after_step_change` | ステップ移動後に `/api/math_steps/progress` への非同期送信がスケジュールされること |
-| `test_simplify_replaces_only_the_current_step_and_can_be_restored` | 「もっとやさしく」で該当ステップのみが置き換わり、「元の説明に戻す」で元に戻ること |
+| `test_simplify_splits_the_current_step_and_can_be_restored` | 「もっとやさしく」で現在のステップが複数の小ステップへ分割され、増えたステップを移動でき、「元の説明に戻す」で元の1ステップに戻ること |
 | `test_without_step_headings_normal_markdown_is_unchanged` | ステップ見出しを含まない通常の回答は、一切崩れずに通常のMarkdownとして表示されること（フォールバック） |
 | `test_pdf_and_copy_helpers_expand_steps_and_diagrams` | スレッドPDFエクスポートおよびクリップボードコピー時に全ステップが展開されること |
 | `test_master_off_hides_chip_and_gear_modal_saves_partial_config` | マスター設定OFF時にチップが非表示になること、およびモーダルでの部分設定保存 |
@@ -64,12 +64,13 @@ AIが生成したSVGに含まれるスクリプト実行や外部データ持ち
 ### 2.4 リソース枯渇・悪用防止の制約
 - **レートリミット**:
   - 進捗保存: 120回 / 60秒
-  - ステップ簡略化: 20回 / 60秒
-- **文字数上限**:
-  - 1ステップの簡略化テキスト: 最大 20,000 文字
-  - 1メッセージ内の簡略化合計: 最大 100,000 文字
+  - ステップ分割: 20回 / 60秒
+- **文字数・分割数上限**:
+  - 1分割の本文: 最大 20,000 文字
+  - 1元ステップの分割数: 最大 8
+  - 1メッセージ内の分割・簡略化合計: 最大 100,000 文字
   - SVGマークアップ: 最大 300,000 文字
-  - ステップ数: 最大 50 ステップ
+  - 表示ステップ数: 最大 50 ステップ
 
 ---
 

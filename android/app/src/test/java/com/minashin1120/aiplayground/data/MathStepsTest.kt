@@ -72,6 +72,27 @@ class MathStepsTest {
         assertNull(MathStepsState.parse(null))
     }
 
+    @Test fun expandedStepsRoundTripAndFlatten() {
+        val state = MathStepsState.parse(JSONObject(
+            """{"current":0,"max_reached":0,"expanded":{"0":[{"title":"さらに整理","body":"やさしい本文"}]}}""",
+        ))!!
+        assertEquals("やさしい本文", state.expanded.getValue(0)[0].body)
+        val saved = state.toJson().getJSONObject("expanded").getJSONArray("0").getJSONObject(0)
+        assertEquals("さらに整理", saved.getString("title"))
+        assertEquals("やさしい本文", saved.getString("body"))
+
+        val original = parseMathSteps("## ステップ 1 整理\n本文1\n\n## ステップ 2 計算\n本文2")
+        val views = buildMathStepViews(
+            original,
+            mapOf(0 to listOf(MathStepPart("さらに整理", "やさしい本文1"), MathStepPart("続き", "やさしい本文2"))),
+        )
+        assertEquals(3, views.size)
+        assertEquals(0, views[0].sourceIndex)
+        assertEquals(1, views[1].partIndex)
+        assertEquals(1, views[2].sourceIndex)
+        assertTrue(mathStepsPdfText(original.joinToString("\n\n") { "## ステップ ${it.number} ${it.title}\n${it.body}" }, state).contains("やさしい本文"))
+    }
+
     @Test fun configUsesDefaultsAndRejectsUnknownValues() {
         val defaults = MathStepsConfig()
         assertEquals(false, defaults.basics)

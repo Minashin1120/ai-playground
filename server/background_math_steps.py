@@ -18,6 +18,10 @@ MATH_STEPS_MAX_CURRENT = 50
 MATH_STEPS_MAX_SIMPLIFIED_PER_STEP = 20_000
 MATH_STEPS_MAX_SIMPLIFIED_TOTAL = 100_000
 MATH_STEPS_MAX_STEPS = 50
+# 「もっとやさしく」 splits one step into smaller steps. The stored list replaces
+# the original step, so the expanded text is bounded like a simplified variant.
+MATH_STEPS_MAX_EXPANDED_PER_STEP = 8
+MATH_STEPS_MAX_EXPANDED_TITLE = 120
 
 MATH_STEPS_HEADING_RE = re.compile(
     r"^\s{0,3}#{1,6}\s*(?:ステップ|Step)\s*(\d+)\s*(.*)$", re.IGNORECASE
@@ -157,21 +161,27 @@ def build_math_steps_system_prompt(config):
 
 
 def build_math_steps_simplify_prompt(config):
-    """Return the one-step rewrite instruction (the caller appends the step body)."""
+    """Return the split-and-rewrite instruction (the caller appends the step body).
+
+    The answer keeps the normal step-heading format because the Web/Android clients
+    splice the returned steps into the answer and let the reader continue there.
+    """
     normalized = normalize_math_steps_config(config)
     tone = _level_instruction(normalized["level"])
     return (
         "[Math Steps / もっとやさしく]\n"
         "あなたは数学に苦手意識を持つ学習者の隣にいる家庭教師です。"
-        "以下の1ステップだけを、もっとやさしい日本語に書き直してください。\n"
-        "- 元の意味・計算・答えを変えない。省略していた途中式はむしろ増やす。\n"
+        "以下の1ステップを、意味や計算を変えずに、もっとやさしい日本語の"
+        "2〜4個の小さなステップに分けて書き直してください。\n"
+        "- 1ステップにつき1つの考え方だけを扱い、前のステップの結果だけを使う。\n"
+        "- 見出しは「## ステップ N 見出し」の形式を厳守する（N は1から連番、見出しは15文字以内）。\n"
+        "- 計算は途中の行を省略しない。式変形は1行ずつ示す。\n"
         "- 記号や文字が何を表すかを言葉で添える。\n"
-        "- 見出し（## ステップ...）やステップ番号は付けない。書き換えた本文だけを返す。\n"
-        "- 箇条書きや短い文で、1文を長くしすぎない。\n"
-        "- 元のステップに mathsvg がある場合だけ、同じ内容の mathsvg を残してよい。\n"
+        "- 元の意味・計算・答えを変えない。\n"
+        "- 元のステップに mathsvg がある場合だけ、いずれか1つのステップに同じ内容の mathsvg を残してよい。\n"
         f"- やさしさの目安: {tone}\n"
-        "- HTML・JSON・前置き・後書きは禁止。\n\n"
-        "書き換えるステップ本文:\n"
+        "- HTML・JSON・前置き・後書きは禁止。見出しと本文以外を書かない。\n\n"
+        "分けるステップ:\n"
     )
 
 

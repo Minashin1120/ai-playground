@@ -6,14 +6,14 @@
 
 ## 1. 全体アーキテクチャ概要
 
-数学ステップ解説は、プロンプトによる回答形式の制御、クライアント側での段階的レンダリング、サーバー側での進捗永続化、およびオンデマンドのステップ簡略化（再生成）から構成されます。
+数学ステップ解説は、プロンプトによる回答形式の制御、クライアント側での段階的レンダリング、サーバー側での進捗永続化、およびオンデマンドのステップ分割（再生成）から構成されます。
 
 ```mermaid
 flowchart TD
     subgraph Client [クライアント層 (Web / Android)]
         UI[ステップ解説UI<br>KaTeX数式 / mathsvg描画]
         Parser[ステップパーサー<br>## ステップ N の解析]
-        State[進捗状態管理<br>current / max_reached / simplified]
+        State[進捗状態管理<br>current / max_reached / expanded]
     end
 
     subgraph Server [サーバー層 (Flask / RQ)]
@@ -114,9 +114,9 @@ sequenceDiagram
 
 ---
 
-### 2.3 「もっとやさしく」再生成（ステップ簡略化）フロー
+### 2.3 「もっとやさしく」再生成（ステップ分割）フロー
 
-理解が難しいステップで「もっとやさしく」ボタンを押すと、そのステップだけを対象とした平易な解説が生成されます。
+理解が難しいステップで「もっとやさしく」ボタンを押すと、そのステップが平易な複数の小さなステップへ分割され、元の回答に差し込まれます。読み手は増えたステップをそのまま順に進められます。
 
 ```mermaid
 sequenceDiagram
@@ -129,19 +129,19 @@ sequenceDiagram
 
     U->>C: 「もっとやさしく」をクリック (例: ステップ 2)
     C->>C: ボタンをローディング状態（ビジー表示）に変更
-    C->>S: POST /api/math_steps/simplify<br>{ message_id: 123, step_index: 1 }
+    C->>S: POST /api/math_steps/simplify<br>{ message_id: 123, step_index: 1, part_index: 任意 }
     S->>S: レート制限確認 (20回/分)
     S->>S: メッセージ所有権確認 & テキストモデル確認
-    S->>S: extract_math_steps() で対象ステップの本文を取得
-    S->>S: build_math_steps_simplify_prompt() を前置
+    S->>S: extract_math_steps() / expanded から対象テキストを取得
+    S->>S: build_math_steps_simplify_prompt() を前置（2〜4分割を指示）
     S->>P: 回答時と同じモデルへワンショット生成リクエスト
-    P-->>S: 簡略化されたステップ本文
-    S->>S: 見出しタグの除去サニタイズ
-    S->>S: 文字数上限チェック (1ステップ20,000文字 / 全体100,000文字)
-    S->>D: math_steps_state.simplified["1"] を保存 (E2EE暗号化)
+    P-->>S: 「## ステップ N ...」形式のやさしい複数ステップ
+    S->>S: extract_math_steps() で解析（見出しなしは1分割として扱う）
+    S->>S: 分割数・文字数上限チェック (8分割 / 20,000文字 / 全体100,000文字)
+    S->>D: math_steps_state.expanded["1"] を保存 (E2EE暗号化)
     S->>D: トークン利用量（Usage）を thought_data に追記
-    S-->>C: HTTP 200 OK { status: 'ok', text: "...", math_steps_state: {...} }
-    C->>C: ステップ2の表示を簡略化テキストへ差し替え
+    S-->>C: HTTP 200 OK { status: 'ok', steps: [...], math_steps_state: {...} }
+    C->>C: 元ステップを分割ステップ群へ差し替えて再描画
     C->>C: 「元の説明に戻す」ボタンを表示
 ```
 
@@ -184,16 +184,21 @@ AI回答メッセージ（`role == "assistant"`）の進捗状態は、`math_ste
 #### `math_steps_state` のJSON構造
 ```json
 {
-  "current": 1,
-  "max_reached": 3,
-  "simplified": {
-    "1": "このステップのよりやさしい解説文..."
+  "current": 2,
+  "max_reached": 4,
+  "simplified": {},
+  "expanded": {
+    "1": [
+      { "title": "やさしく整理", "body": "やさしい解説1..." },
+      { "title": "やさしく計算", "body": "やさしい解説2..." }
+    ]
   }
 }
 ```
-- `current` (int): 現在表示しているステップのインデックス（0始まり、最大50）。
+- `current` (int): 現在表示しているステップのインデックス（0始まり、最大50）。分割後の表示順で数えます。
 - `max_reached` (int): ユーザーが到達した最大のステップインデックス。一度到達した値より小さくなることはありません。
-- `simplified` (dict[str, str]): 「もっとやさしく」で生成されたステップごとの代替テキスト。キーはステップインデックス文字列。
+- `simplified` (dict[str, str]): 旧形式の「もっとやさしく」代替テキスト。既存データの読み込みと「元の説明に戻す」のために保持します。
+- `expanded` (dict[str, list[dict]]): 「もっとやさしく」で分割したステップ。キーは元ステップのインデックス文字列、値は `{title, body}` のリストです。クライアントは元ステップの位置にこのリストを差し込んで表示し、`part_index` を指定して小ステップをさらに分割できます。
 
 ---
 

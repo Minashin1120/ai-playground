@@ -69,13 +69,17 @@ fun JSONObject.mathStepsConfig(): MathStepsConfig = MathStepsConfig.parse(opt("m
 
 /**
  * Per-message step progress (server `math_steps_state`):
- * `{"current": 0, "max_reached": 0, "simplified": {"2": "..."}}`.
- * `current` is 0-based; `max_reached` never decreases.
+ * `{"current": 0, "max_reached": 0, "simplified": {"2": "..."}, "expanded": {"1": [{"title": "...", "body": "..."}]}}`.
+ * `current` is 0-based into the displayed steps (expanded steps included); `max_reached` never decreases.
+ * `expanded` replaces an original step with smaller easier steps.
  */
+data class MathStepPart(val title: String = "", val body: String = "")
+
 data class MathStepsState(
     val current: Int = 0,
     val maxReached: Int = 0,
     val simplified: Map<Int, String> = emptyMap(),
+    val expanded: Map<Int, List<MathStepPart>> = emptyMap(),
 ) {
     fun withCurrent(index: Int): MathStepsState =
         copy(current = index.coerceIn(0, MAX_STEP), maxReached = maxOf(maxReached, index.coerceIn(0, MAX_STEP)))
@@ -95,11 +99,28 @@ data class MathStepsState(
                 budget -= value.length
             }
         })
+        .put("expanded", JSONObject().apply {
+            var budget = MAX_SIMPLIFIED_TOTAL
+            for ((index, parts) in expanded.toSortedMap()) {
+                if (budget <= 0) break
+                val rows = org.json.JSONArray()
+                for (part in parts.take(MAX_EXPANDED_PER_STEP)) {
+                    if (budget <= 0) break
+                    val body = part.body.take(minOf(MAX_SIMPLIFIED_CHARS, budget))
+                    if (body.isBlank()) continue
+                    rows.put(JSONObject().put("title", part.title.take(MAX_EXPANDED_TITLE)).put("body", body))
+                    budget -= body.length
+                }
+                if (rows.length() > 0) put(index.toString(), rows)
+            }
+        })
 
     companion object {
         const val MAX_STEP = 50
         const val MAX_SIMPLIFIED_CHARS = 20_000
         const val MAX_SIMPLIFIED_TOTAL = 100_000
+        const val MAX_EXPANDED_PER_STEP = 8
+        const val MAX_EXPANDED_TITLE = 120
 
         /** Parses the message payload field; null when the server has no state for this message. */
         fun parse(raw: Any?): MathStepsState? {
@@ -124,9 +145,72 @@ data class MathStepsState(
                     budget -= value.length
                 }
             }
-            return MathStepsState(current, maxReached, simplified)
+            val expanded = LinkedHashMap<Int, List<MathStepPart>>()
+            val expandedRows = json.optJSONObject("expanded")
+            if (expandedRows != null) {
+                expandedRows.keys().asSequence().sortedBy { it.toIntOrNull() ?: Int.MAX_VALUE }.forEach { key ->
+                    val index = key.toIntOrNull() ?: return@forEach
+                    if (index < 0 || index > MAX_STEP || budget <= 0) return@forEach
+                    val list = expandedRows.optJSONArray(key) ?: return@forEach
+                    val parts = ArrayList<MathStepPart>()
+                    for (i in 0 until minOf(list.length(), MAX_EXPANDED_PER_STEP)) {
+                        if (budget <= 0) break
+                        val item = list.optJSONObject(i) ?: continue
+                        val body = item.optString("body")
+                        if (body.isBlank() || body == "null") continue
+                        val value = body.take(minOf(MAX_SIMPLIFIED_CHARS, budget))
+                        parts += MathStepPart(item.optString("title").take(MAX_EXPANDED_TITLE), value)
+                        budget -= value.length
+                    }
+                    if (parts.isNotEmpty()) expanded[index] = parts
+                }
+            }
+            return MathStepsState(current, maxReached, simplified, expanded)
         }
     }
+}
+
+/** One navigable row: an original step, or a smaller step created by 「もっとやさしく」. */
+data class MathStepView(
+    val index: Int,
+    val sourceIndex: Int,
+    val partIndex: Int?,
+    val expanded: Boolean,
+    val title: String,
+    val body: String,
+)
+
+/** Flattens original steps plus saved expanded replacements (same contract as Web). */
+fun buildMathStepViews(
+    original: List<MathStep>,
+    expanded: Map<Int, List<MathStepPart>>,
+): List<MathStepView> {
+    val out = ArrayList<MathStepView>()
+    for (step in original) {
+        val parts = expanded[step.index]
+        if (!parts.isNullOrEmpty()) {
+            parts.forEachIndexed { partIndex, part ->
+                out += MathStepView(
+                    index = out.size,
+                    sourceIndex = step.index,
+                    partIndex = partIndex,
+                    expanded = true,
+                    title = part.title.ifBlank { step.title },
+                    body = part.body,
+                )
+            }
+        } else {
+            out += MathStepView(
+                index = out.size,
+                sourceIndex = step.index,
+                partIndex = null,
+                expanded = false,
+                title = step.title,
+                body = step.body,
+            )
+        }
+    }
+    return out.take(MathStepsState.MAX_STEP + 1)
 }
 
 /** One step of an answer: the heading title and the Markdown body below it. */
@@ -206,13 +290,14 @@ fun mathStepsCopyText(text: String): String {
     }.trim()
 }
 
-/** Android `ThreadPdf`: all steps, preferring the saved simplified body, with ［図］ for mathsvg. */
+/** Android `ThreadPdf`: all steps, preferring expanded/saved easier bodies, with ［図］ for mathsvg. */
 fun mathStepsPdfText(text: String, state: MathStepsState?): String {
     val steps = parseMathSteps(text)
     if (steps.isEmpty()) return mathStepsCopyText(text)
-    return steps.joinToString("\n\n") { step ->
+    return buildMathStepViews(steps, state?.expanded.orEmpty()).joinToString("\n\n") { step ->
         val title = step.title.takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty()
-        val body = state?.simplified?.get(step.index) ?: step.body
+        val simplified = if (step.expanded) null else state?.simplified?.get(step.sourceIndex)
+        val body = if (!simplified.isNullOrBlank()) simplified else step.body
         "## ステップ ${step.index + 1}$title\n\n${MATHSVG_FENCE.replace(body, "［図］").trim()}"
     }.trim()
 }

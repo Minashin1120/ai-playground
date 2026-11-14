@@ -37,7 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ChatMessage
+import com.minashin1120.aiplayground.data.MathStepPart
 import com.minashin1120.aiplayground.data.MathStepsConfig
+import com.minashin1120.aiplayground.data.buildMathStepViews
 import com.minashin1120.aiplayground.data.parseMathSteps
 import kotlinx.coroutines.delay
 
@@ -53,10 +55,11 @@ internal val LocalSvgAnimation = compositionLocalOf { true }
 /** Server calls of the step view; [ChatViewModel] supplies them through the conversation. */
 internal class MathStepsActions(
     val onProgress: (ChatMessage, Int, Int) -> Unit = { _, _, _ -> },
-    /** Calls `/api/math_steps/simplify`; [done] gets the simplified Markdown, or null on failure. */
-    val onSimplify: (ChatMessage, Int, (String?) -> Unit) -> Unit = { _, _, done -> done(null) },
-    /** Removes the saved simplified variant on the server when the reader restores the original. */
-    val onRestoreOriginal: (ChatMessage, Int) -> Unit = { _, _ -> },
+    /** Calls `/api/math_steps/simplify`; [done] gets the whole easier step list, or null on failure. */
+    val onSimplify: (ChatMessage, Int, Int?, (List<MathStepPart>?) -> Unit) -> Unit =
+        { _, _, _, done -> done(null) },
+    /** Removes the saved replacement (expanded step or legacy simplified body) on the server. */
+    val onRestoreOriginal: (ChatMessage, Int, Int) -> Unit = { _, _, _ -> },
 )
 
 /** The five gear options, shared by the settings card and the prompt-bar gear modal. */
@@ -148,19 +151,22 @@ internal fun MathStepsContent(
     flashAlpha: Float = 0f,
     onQuoteFlashLocated: ((Float) -> Unit)? = null,
 ) {
-    val steps = remember(text) { parseMathSteps(text) }
-    if (steps.isEmpty()) {
+    val original = remember(text) { parseMathSteps(text) }
+    if (original.isEmpty()) {
         MarkdownText(text, loader, onOpen, startCollapsed, canvasMode, flashQuote, flashAlpha, onQuoteFlashLocated)
         return
     }
-    val lastIndex = steps.lastIndex
     val saved = message.mathStepsState
-    var current by remember(message.conversationKey ?: message.id) { mutableIntStateOf((saved?.current ?: 0).coerceIn(0, lastIndex)) }
-    var maxReached by remember(message.conversationKey ?: message.id) { mutableIntStateOf((saved?.maxReached ?: current).coerceIn(0, lastIndex)) }
-    var savedCurrent by remember(message.conversationKey ?: message.id) { mutableIntStateOf(saved?.current ?: 0) }
-    var simplified by remember(message.conversationKey ?: message.id) { mutableStateOf(saved?.simplified.orEmpty()) }
-    var simplifying by remember(message.conversationKey ?: message.id) { mutableStateOf(false) }
-    var simplifyFailed by remember(message.conversationKey ?: message.id) { mutableStateOf(false) }
+    val stateKey = message.conversationKey ?: message.id
+    var expanded by remember(stateKey) { mutableStateOf(saved?.expanded.orEmpty()) }
+    var simplified by remember(stateKey) { mutableStateOf(saved?.simplified.orEmpty()) }
+    val steps = remember(original, expanded) { buildMathStepViews(original, expanded) }
+    val lastIndex = steps.lastIndex
+    var current by remember(stateKey) { mutableIntStateOf((saved?.current ?: 0).coerceIn(0, lastIndex)) }
+    var maxReached by remember(stateKey) { mutableIntStateOf((saved?.maxReached ?: current).coerceIn(0, lastIndex)) }
+    var savedCurrent by remember(stateKey) { mutableIntStateOf(saved?.current ?: 0) }
+    var simplifying by remember(stateKey) { mutableStateOf(false) }
+    var simplifyFailed by remember(stateKey) { mutableStateOf(false) }
 
     // A regenerated/shortened answer must never index past the last step.
     LaunchedEffect(lastIndex) {
@@ -174,6 +180,8 @@ internal fun MathStepsContent(
         val next = saved.current.coerceIn(0, lastIndex)
         if (next != current) current = next
         if (saved.maxReached > maxReached) maxReached = saved.maxReached.coerceAtMost(lastIndex)
+        if (saved.expanded != expanded) expanded = saved.expanded
+        if (saved.simplified != simplified) simplified = saved.simplified
         savedCurrent = next
     }
 
@@ -193,7 +201,8 @@ internal fun MathStepsContent(
     }
 
     val web = LocalWebPalette.current
-    val title = steps[current].title
+    val view = steps[current]
+    val title = view.title
     Column(Modifier.fillMaxWidth().semantics { contentDescription = "数学ステップ解説" },
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -218,26 +227,43 @@ internal fun MathStepsContent(
             }
         }
 
-        val body = simplified[current]
+        val easyBody = if (view.expanded) view.body else simplified[view.sourceIndex]
+        val canRestore = view.expanded || easyBody != null
         CompositionLocalProvider(LocalSvgAnimation provides config.animation) {
-            if (body != null) {
+            if (easyBody != null) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    MarkdownText(body, loader, onOpen, startCollapsed, canvasMode)
-                    Text(
-                        "元の説明に戻す",
-                        fontSize = 11.sp,
-                        color = web.theme300,
-                        modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                            .clickable(role = Role.Button) {
-                                simplified = simplified - current
-                                actions.onRestoreOriginal(message, current)
-                            }
-                            .padding(vertical = 6.dp, horizontal = 4.dp),
-                    )
+                    MarkdownText(easyBody, loader, onOpen, startCollapsed, canvasMode)
+                    if (canRestore) {
+                        Text(
+                            "元の説明に戻す",
+                            fontSize = 11.sp,
+                            color = web.theme300,
+                            modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                                .clickable(role = Role.Button) {
+                                    val sourceIndex = view.sourceIndex
+                                    var restoredIndex = current
+                                    if (view.expanded) {
+                                        val without = expanded - sourceIndex
+                                        val nextSteps = buildMathStepViews(original, without)
+                                        val first = nextSteps.indexOfFirst { it.sourceIndex == sourceIndex }
+                                            .takeIf { it >= 0 } ?: 0
+                                        expanded = without
+                                        simplified = simplified - sourceIndex
+                                        current = first.coerceIn(0, nextSteps.lastIndex)
+                                        if (maxReached > nextSteps.lastIndex) maxReached = nextSteps.lastIndex
+                                        restoredIndex = current
+                                    } else {
+                                        simplified = simplified - sourceIndex
+                                    }
+                                    actions.onRestoreOriginal(message, sourceIndex, restoredIndex)
+                                }
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                        )
+                    }
                 }
             } else {
                 MarkdownText(
-                    steps[current].body, loader, onOpen, startCollapsed, canvasMode,
+                    view.body, loader, onOpen, startCollapsed, canvasMode,
                     flashQuote = flashQuote, flashAlpha = flashAlpha, onQuoteFlashLocated = onQuoteFlashLocated,
                 )
             }
@@ -288,13 +314,16 @@ internal fun MathStepsContent(
             WebButton(
                 onClick = {
                     if (simplifying) return@WebButton
-                    val target = current
+                    val target = view
                     simplifying = true
                     simplifyFailed = false
-                    actions.onSimplify(message, target) { text ->
+                    actions.onSimplify(message, target.sourceIndex, target.partIndex) { parts ->
                         simplifying = false
-                        if (text.isNullOrBlank()) simplifyFailed = true
-                        else simplified = simplified + (target to text)
+                        if (parts.isNullOrEmpty()) simplifyFailed = true
+                        else {
+                            expanded = expanded + (target.sourceIndex to parts)
+                            simplified = simplified - target.sourceIndex
+                        }
                     }
                 },
                 variant = WebButtonVariant.Gray,

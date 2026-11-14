@@ -41,7 +41,7 @@
 | `chat_core.part27_renderlibraryskeleton.js` | ファイルライブラリの骨組み・一覧操作、ブランチ管理UI、Batch処理一覧モーダル（取得・停止・履歴削除・チャットを開く） | ライブラリ一覧・ブランチ・Batch一覧を変更するとき |
 | `chat_core.part28_renderaccounts.js` | メッセージコピー、規約・Alpha案内モーダル、Thinking表示切替、クライアントデバッグログ、管理者のBot検出ログ画面、別チャットへの全分岐コピー、画像分割、送信アニメーション | コピー・デバッグ・Botログ・分岐・画像分割・送信アニメーションを変更するとき |
 | `chat_core.part29_estimateconversationcost.js` | API呼び出しごとの費用予想・長文料金、Ideogram全モデルの画像単価と削除料金、会話・全分岐の合算、トークン詳細向けキャッシュ読込・TTL別書込の集計、公式料金データの読込 | 費用予想・キャッシュ内訳の計算を変更するとき |
-| `chat_core.part30_mathsteps.js` | 数学ステップ解説（`parseMathSteps` / `buildMathStepsHtml` / `renderMathStepsInto` / ステップ操作・進捗保存・「もっとやさしく」）、`mathsvg` の画像描画、設定（マスター・チャット既定値・歯車モーダル）、PDF・コピー用の変換 | 数学ステップ・mathsvg・その設定を変更するとき |
+| `chat_core.part30_mathsteps.js` | 数学ステップ解説（`parseMathSteps` / `buildMathStepsHtml` / `renderMathStepsInto` / `buildMathStepsDisplaySteps` / ステップ操作・進捗保存・「もっとやさしく」のステップ分割と復元）、`mathsvg` の画像描画、設定（マスター・チャット既定値・歯車モーダル）、PDF・コピー用の変換 | 数学ステップ・mathsvg・その設定を変更するとき |
 | `../../../scripts/build_frontend.sh` | 部品を番号順に連結し、トップレベルの `//! @chat-core-bundle-split` で配信用JSを分割・圧縮する | JS部品の編集後にビルドするとき。結合ソース・圧縮ファイルは手で編集しない |
 
 ## 再分割が必要になったら

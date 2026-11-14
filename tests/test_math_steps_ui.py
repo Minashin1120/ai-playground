@@ -116,7 +116,7 @@ class MathStepsBrowserTests(unittest.TestCase):
         relevant = [e for e in errors if 'serviceWorker' not in e]
         self.assertEqual(relevant, [])
 
-    def open_page(self, progress_requests=None, settings_requests=None):
+    def open_page(self, progress_requests=None, settings_requests=None, simplify_requests=None):
         context = self.browser.new_context(service_workers='block')
         self.addCleanup(context.close)
         page = context.new_page()
@@ -124,6 +124,7 @@ class MathStepsBrowserTests(unittest.TestCase):
         page.on('pageerror', lambda error: errors.append(str(error).splitlines()[0]))
         progress_requests = progress_requests if progress_requests is not None else []
         settings_requests = settings_requests if settings_requests is not None else []
+        simplify_requests = simplify_requests if simplify_requests is not None else []
 
         def handle(route):
             url = urlparse(route.request.url)
@@ -140,7 +141,15 @@ class MathStepsBrowserTests(unittest.TestCase):
                 progress_requests.append(route.request.post_data or '')
                 return route.fulfill(status=200, content_type='application/json', body='{"status":"ok","math_steps_state":{"current":1,"max_reached":1}}')
             if url.path == '/api/math_steps/simplify':
-                body = '{"status":"ok","text":"やさしい説明です","math_steps_state":{"current":0,"max_reached":2,"simplified":{"0":"やさしい説明です"}}}'
+                simplify_requests.append(route.request.post_data or '')
+                body = (
+                    '{"status":"ok","text":"やさしい説明です\\n\\nやさしい計算です",'
+                    '"steps":[{"title":"やさしく整理","body":"やさしい説明です"},'
+                    '{"title":"やさしく計算","body":"やさしい計算です"}],'
+                    '"step_index":0,"math_steps_state":{"current":0,"max_reached":2,'
+                    '"simplified":{},"expanded":{"0":[{"title":"やさしく整理","body":"やさしい説明です"},'
+                    '{"title":"やさしく計算","body":"やさしい計算です"}]}}}'
+                )
                 return route.fulfill(status=200, content_type='application/json', body=body)
             if url.path == '/api/settings' and route.request.method == 'POST':
                 settings_requests.append(route.request.post_data or '')
@@ -211,21 +220,48 @@ class MathStepsBrowserTests(unittest.TestCase):
         self.assertIn('"message_id":42', progress[-1])
         self.assertNoPageErrors(errors)
 
-    def test_simplify_replaces_only_the_current_step_and_can_be_restored(self):
+    def test_simplify_splits_the_current_step_and_can_be_restored(self):
         progress = []
         page, errors = self.open_page(progress_requests=progress)
         self.render(page, STEP_TEXT, streaming=False)
         page.click('#math-steps-test-host .math-steps-simplify')
         page.wait_for_timeout(400)
+        self.assertIn('1 / 4', page.inner_text('#math-steps-test-host .math-steps-counter'))
         body = page.inner_text('#math-steps-test-host .math-steps-prose')
         self.assertIn('やさしい説明です', body)
         self.assertNotIn('まず、わかっていること', body)
         self.assertEqual(page.locator('#math-steps-test-host .math-steps-restore').count(), 1)
+        # The new smaller steps are navigable, then the untouched original step follows.
+        page.click('#math-steps-test-host .math-steps-next')
+        self.assertIn('2 / 4', page.inner_text('#math-steps-test-host .math-steps-counter'))
+        self.assertIn('やさしい計算です', page.inner_text('#math-steps-test-host .math-steps-prose'))
+        page.click('#math-steps-test-host .math-steps-next')
+        self.assertIn('3 / 4', page.inner_text('#math-steps-test-host .math-steps-counter'))
+        self.assertIn('式を立てる', page.inner_text('#math-steps-test-host .math-steps-title'))
+        # Restoring collapses the split back to the original step.
+        page.click('#math-steps-test-host .math-steps-prev')
         page.click('#math-steps-test-host .math-steps-restore')
+        self.assertIn('1 / 3', page.inner_text('#math-steps-test-host .math-steps-counter'))
         self.assertIn('まず、わかっていること', page.inner_text('#math-steps-test-host .math-steps-prose'))
-        page.wait_for_timeout(300)
-        self.assertTrue(any('remove_simplified' in body for body in progress),
-                        'restore must remove the saved simplified variant')
+        page.wait_for_timeout(600)
+        self.assertTrue(any('remove_expanded' in body for body in progress),
+                        'restore must remove the saved expanded step')
+        self.assertNoPageErrors(errors)
+
+    def test_simplify_again_on_a_split_substep_sends_part_index(self):
+        simplify = []
+        page, errors = self.open_page(simplify_requests=simplify)
+        self.render(page, STEP_TEXT, streaming=False)
+        page.click('#math-steps-test-host .math-steps-simplify')
+        page.wait_for_timeout(400)
+        self.assertIn('1 / 4', page.inner_text('#math-steps-test-host .math-steps-counter'))
+        self.assertIn('"step_index":0', simplify[-1])
+        self.assertNotIn('part_index', simplify[-1])
+        page.click('#math-steps-test-host .math-steps-next')
+        page.click('#math-steps-test-host .math-steps-simplify')
+        page.wait_for_timeout(400)
+        self.assertIn('"step_index":0', simplify[-1])
+        self.assertIn('"part_index":1', simplify[-1])
         self.assertNoPageErrors(errors)
 
     def test_streaming_single_step_shows_disabled_preparing_button(self):

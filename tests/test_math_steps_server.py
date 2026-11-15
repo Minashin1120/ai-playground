@@ -117,6 +117,20 @@ class MathStepsServerTests(unittest.TestCase):
             self.assertIn("ノートの確認から始める", built)
         self.assertNotIn("{{math_", prompt)
 
+    def test_prompt_answers_a_quoted_step_without_restarting_from_basics(self):
+        for basics in (False, True):
+            prompt = target.build_math_steps_system_prompt({"basics": basics})
+            for phrase in (
+                "Context (User Quote)",
+                "問題全体を最初から解き直さない",
+                "最初の見出しを「問題を整理する」「基礎を確認する」「前提の確認」にしない",
+                "前提の復習を独立したステップにしない",
+                "引用部分の説明に必要なステップだけ",
+                "引用がどのステップ・式か特定できないときは、推測で別の式を解説せず",
+            ):
+                self.assertIn(phrase, prompt)
+            self.assertNotIn("{{math_", prompt)
+
     def test_background_and_browser_fast_inject_the_math_prompt(self):
         background = Path("server/background.py").read_text()
         browser_fast = Path("server/routes_browser_fast.py").read_text()

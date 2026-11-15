@@ -121,6 +121,8 @@ class MathStepsTest {
         val values = MathStepsConfig(basics = true, level = "detailed", stepSize = "small", diagrams = "off", animation = false).promptValues()
         assertEquals(5, values.size)
         assertTrue(values.getValue("math_basics").contains("前提"))
+        assertTrue(values.getValue("math_basics").contains("引用への追加質問"))
+        assertTrue(values.getValue("math_basics").contains("引用部分の説明から始める"))
         assertTrue(values.getValue("math_level").contains("根拠"))
         assertTrue(values.getValue("math_step_size").contains("小さめ"))
         assertTrue(values.getValue("math_diagrams").contains("使わない"))

@@ -169,7 +169,7 @@ sequenceDiagram
   "animation": true
 }
 ```
-- `basics` (bool): 基礎から説明するかどうか（前提公式の復習の有無）
+- `basics` (bool): 新しい問題の冒頭で基礎から説明するかどうか（前提公式の復習の有無）。引用への追加質問では基礎を独立ステップにしない。
 - `level` (str): `"easy"`（やさしい）, `"normal"`（ふつう）, `"detailed"`（くわしい）
 - `step_size` (str): `"small"`（小さめ）, `"normal"`（ふつう）, `"large"`（大きめ）
 - `diagrams` (str): `"auto"`（必要なら使う）, `"off"`（使わない）

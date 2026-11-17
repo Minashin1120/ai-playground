@@ -320,6 +320,13 @@
             return `${state.current + 1} / ${total}${state.streaming ? '+' : ''}`;
         }
 
+        // A step produced by 「もっとやさしく」 keeps the source step in view, so the
+        // reader can tell which original step the easier explanation belongs to.
+        function mathStepsOriginLabel(step) {
+            if (!step || step.partIndex === null || step.partIndex === undefined) return '';
+            return `元のステップ${step.sourceIndex + 1}のやさしい説明`;
+        }
+
         function mathStepsPendingNext(state) {
             return !!state.streaming && state.current >= state.steps.length - 1;
         }
@@ -343,6 +350,7 @@
             const step = state.steps[state.current];
             const markdown = mathStepsStepMarkdown(state, state.current);
             const simplifiedActive = mathStepsCanRestore(state, state.current);
+            const originLabel = mathStepsOriginLabel(step);
             const pendingNext = mathStepsPendingNext(state);
             const isLast = state.current >= state.steps.length - 1;
             const nextLabel = (isLast && !pendingNext) ? '完了' : (pendingNext ? '次のステップを準備中…' : 'わかった、次へ');
@@ -361,6 +369,7 @@
             ].filter(Boolean).join(' ');
             return `<div class="math-steps content-area" role="group" aria-label="数学ステップ解説" ${attrs}>`
                 + `<div class="math-steps-header"><span class="math-steps-counter">ステップ ${mathStepsTotalLabel(state)}</span>`
+                + (originLabel ? `<span class="math-steps-origin">${escapeHtml(originLabel)}</span>` : '<span class="math-steps-origin" hidden></span>')
                 + `<span class="math-steps-title">${escapeHtml(step.title || '')}</span></div>`
                 + `<div class="math-steps-body" data-step-index="${state.current}" aria-live="polite">`
                 + `<div class="prose prose-invert text-sm break-words math-steps-prose">${renderMathStepsBodyHtml(markdown)}</div>`
@@ -440,6 +449,12 @@
             if (counter) counter.textContent = `ステップ ${mathStepsTotalLabel(state)}`;
             const title = root.querySelector('.math-steps-title');
             if (title) title.textContent = step.title || '';
+            const origin = root.querySelector('.math-steps-origin');
+            if (origin) {
+                const originLabel = mathStepsOriginLabel(step);
+                origin.textContent = originLabel;
+                origin.hidden = !originLabel;
+            }
             const body = root.querySelector('.math-steps-body');
             const markdown = mathStepsStepMarkdown(state, state.current);
             const simplifiedActive = mathStepsCanRestore(state, state.current);

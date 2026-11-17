@@ -40,6 +40,7 @@ import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.MathStepPart
 import com.minashin1120.aiplayground.data.MathStepsConfig
 import com.minashin1120.aiplayground.data.buildMathStepViews
+import com.minashin1120.aiplayground.data.mathStepsOriginLabel
 import com.minashin1120.aiplayground.data.parseMathSteps
 import kotlinx.coroutines.delay
 
@@ -203,6 +204,7 @@ internal fun MathStepsContent(
     val web = LocalWebPalette.current
     val view = steps[current]
     val title = view.title
+    val originLabel = mathStepsOriginLabel(view)
     Column(Modifier.fillMaxWidth().semantics { contentDescription = "数学ステップ解説" },
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -221,6 +223,14 @@ internal fun MathStepsContent(
                     fontWeight = FontWeight.Bold,
                     color = if (web.isLight) web.theme.t700 else web.theme200,
                 )
+                if (originLabel != null) {
+                    Text(
+                        originLabel,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp,
+                        color = web.muted,
+                    )
+                }
                 if (title.isNotBlank()) {
                     Text(title, fontSize = 11.sp, lineHeight = 16.sp, color = web.muted)
                 }

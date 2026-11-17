@@ -102,14 +102,38 @@ class MathStepsServerTests(unittest.TestCase):
         self.assertIn("図は使わない", prompt)
 
     def test_simplify_prompt_explains_why_before_each_operation(self):
-        prompt = target.build_math_steps_simplify_prompt(target.MATH_STEPS_DEFAULTS)
+        context = {
+            "problem": "2x + 3 = 9 を解いて",
+            "previous": "まず式を確認します。",
+            "next": "答え",
+            "step_number": 2,
+            "step_title": "3を引く",
+            "step_body": "両辺から3を引きます。",
+            "anchor": "元のステップ2「3を引く」の『両辺から3を引きます。』から説明します。",
+        }
+        prompt = target.build_math_steps_simplify_prompt(target.MATH_STEPS_DEFAULTS, context)
         self.assertIn("[Math Steps / もっとやさしく]", prompt)
-        self.assertIn("「〇〇なので、〇〇します」の形", prompt)
-        self.assertIn("理由を先に述べ", prompt)
+        self.assertIn("## 元の問題（参考）\n2x + 3 = 9 を解いて", prompt)
+        self.assertIn("## 直前のステップ（この続きから始まります）\nまず式を確認します。", prompt)
+        self.assertIn("## 分けるステップ（元のステップ2「3を引く」）", prompt)
+        self.assertIn("## このあと\n答え", prompt)
+        self.assertIn("目的 → 根拠 → 操作 → 結果", prompt)
         self.assertIn("等式の性質", prompt)
-        self.assertIn("漠然とした理由だけにしない", prompt)
+        self.assertIn("「わかりやすくするため」「整理するため」", prompt)
+        self.assertIn("前提知識・用語の定義・公式の復習を新しいステップとして先頭に置かない", prompt)
+        self.assertIn("分割数は1〜3個", prompt)
+        self.assertIn("4個以上に分けない", prompt)
+        self.assertIn("「基礎知識」「前提の確認」「整理する」のような曖昧な見出しにしない", prompt)
+        self.assertIn("元のステップ2「3を引く」の『両辺から3を引きます。』から説明します。", prompt)
         self.assertIn("元の意味・計算・答えを変えない", prompt)
         self.assertNotIn("{{math_", prompt)
+
+    def test_simplify_prompt_without_context_still_works(self):
+        prompt = target.build_math_steps_simplify_prompt(target.MATH_STEPS_DEFAULTS)
+        self.assertIn("## 分けるステップ", prompt)
+        self.assertIn("分割数は1〜3個", prompt)
+        self.assertNotIn("## 元の問題（参考）", prompt)
+        self.assertNotIn("## 直前のステップ", prompt)
 
     def test_prompt_continues_from_a_handwritten_note(self):
         prompt = target.build_math_steps_system_prompt(target.MATH_STEPS_DEFAULTS)
@@ -279,6 +303,12 @@ class MathStepsServerTests(unittest.TestCase):
         self.assertEqual(done.status_code, 200, done.get_data(as_text=True))
         body = done.get_json()
         self.assertEqual([step["title"] for step in body["steps"]], ["やさしく整理", "やさしく計算"])
+        self.assertTrue(
+            body["steps"][0]["body"].startswith(
+                "元のステップ2「計算する」の『本文2』から説明します。"
+            ),
+            body["steps"][0]["body"],
+        )
         self.assertIn("やさしい本文1", body["text"])
         self.assertIn("やさしい本文2", body["text"])
         self.assertNotIn("1", body["math_steps_state"]["simplified"])
@@ -301,7 +331,13 @@ class MathStepsServerTests(unittest.TestCase):
         self.assertEqual(again.status_code, 200, again.get_data(as_text=True))
         parts = again.get_json()["math_steps_state"]["expanded"]["1"]
         self.assertEqual(len(parts), 3)
-        self.assertEqual(parts[0]["body"], "さらに本文A")
+        self.assertTrue(
+            parts[0]["body"].startswith(
+                "元のステップ2の1つ目の小ステップ「やさしく整理」の『やさしい本文1』から説明します。"
+            ),
+            parts[0]["body"],
+        )
+        self.assertTrue(parts[0]["body"].endswith("さらに本文A"))
         self.assertEqual(parts[2]["body"], "やさしい本文2")
 
         invalid_part = self.call(client, "POST", "/api/math_steps/simplify", json={
@@ -317,7 +353,13 @@ class MathStepsServerTests(unittest.TestCase):
                 "message_id": self.message_id, "step_index": 0,
             })
         self.assertEqual(fallback.status_code, 200, fallback.get_data(as_text=True))
-        self.assertEqual(fallback.get_json()["steps"][0]["body"], "見出しなしの本文")
+        self.assertTrue(
+            fallback.get_json()["steps"][0]["body"].startswith(
+                "元のステップ1「整理する」の『本文1』から説明します。"
+            ),
+            fallback.get_json()["steps"][0]["body"],
+        )
+        self.assertTrue(fallback.get_json()["steps"][0]["body"].endswith("見出しなしの本文"))
 
         restored = self.call(client, "POST", "/api/math_steps/progress", json={
             "message_id": self.message_id,
@@ -329,6 +371,59 @@ class MathStepsServerTests(unittest.TestCase):
         self.assertEqual(restored.status_code, 200, restored.get_data(as_text=True))
         self.assertNotIn("1", restored.get_json()["math_steps_state"]["simplified"])
         self.assertNotIn("1", restored.get_json()["math_steps_state"]["expanded"])
+
+    def test_simplify_prompt_gets_problem_and_neighbours(self):
+        with target.app.app_context():
+            thread = target.Thread(
+                user_id=self.user_id,
+                public_id=target.generate_thread_public_id(),
+                title="Context",
+                include_global_instruction=False,
+            )
+            target.db.session.add(thread)
+            target.db.session.flush()
+            question = target.Message(
+                thread_id=thread.id, role="user", content="2x + 3 = 9 を解いて",
+            )
+            target.db.session.add(question)
+            target.db.session.flush()
+            message = target.Message(
+                thread_id=thread.id, role="assistant", model="gemini-3.6-flash",
+                content=(
+                    "## ステップ 1 問題を整理する\nまず式を確認します。\n\n"
+                    "## ステップ 2 3を引く\n両辺から3を引きます。\n\n"
+                    "## ステップ 3 答え\nx = 3"
+                ),
+            )
+            target.db.session.add(message)
+            target.db.session.commit()
+            message_id = message.id
+        captured = {}
+
+        def fake(user, model_key, prompt, gemini_free_tier=False):
+            captured["prompt"] = prompt
+            return "## ステップ 1 3を引く理由\n両辺から3を引くと x = 3 になります。", None
+
+        with mock.patch.object(target, "_call_math_steps_simplify_model", side_effect=fake):
+            resp = self.call(self.client(), "POST", "/api/math_steps/simplify", json={
+                "message_id": message_id, "step_index": 1,
+            })
+        self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True))
+        prompt = captured["prompt"]
+        self.assertIn("2x + 3 = 9 を解いて", prompt)
+        self.assertIn("## 直前のステップ（この続きから始まります）\nまず式を確認します。", prompt)
+        self.assertIn("## このあと\n答え", prompt)
+        self.assertIn(
+            "元のステップ2「3を引く」の『両辺から3を引きます。』から説明します。", prompt
+        )
+        self.assertNotIn("x = 3", prompt)
+        body = resp.get_json()["steps"][0]["body"]
+        self.assertTrue(
+            body.startswith(
+                "元のステップ2「3を引く」の『両辺から3を引きます。』から説明します。"
+            ),
+            body,
+        )
 
     def test_prompt_options_and_message_payload(self):
         record = target._build_prompt_options_record({"math_steps": True})

@@ -35,7 +35,7 @@
 | `test_steps_render_one_at_a_time_with_image_only_mathsvg` | 1ステップずつ段階的に表示され、不要なステップが隠れていること |
 | `test_next_back_restart_and_finish` | 次へ／前へ／最初から／完了ボタンの動作とDOMの更新 |
 | `test_progress_is_posted_after_step_change` | ステップ移動後に `/api/math_steps/progress` への非同期送信がスケジュールされること |
-| `test_simplify_splits_the_current_step_and_can_be_restored` | 「もっとやさしく」で現在のステップが複数の小ステップへ分割され、増えたステップを移動でき、「元の説明に戻す」で元の1ステップに戻ること（分割本文の理由づけはサーバーのプロンプトテストで検証） |
+| `test_simplify_splits_the_current_step_and_can_be_restored` | 「もっとやさしく」で現在のステップが複数の小ステップへ分割され、増えたステップを移動でき、「元の説明に戻す」で元の1ステップに戻ること（分割本文の理由づけはサーバーのプロンプトテストで検証）。分割由来のステップだけヘッダーに「元のステップNのやさしい説明」が出ること |
 | `test_without_step_headings_normal_markdown_is_unchanged` | ステップ見出しを含まない通常の回答は、一切崩れずに通常のMarkdownとして表示されること（フォールバック） |
 | `test_pdf_and_copy_helpers_expand_steps_and_diagrams` | スレッドPDFエクスポートおよびクリップボードコピー時に全ステップが展開されること |
 | `test_master_off_hides_chip_and_gear_modal_saves_partial_config` | マスター設定OFF時にチップが非表示になること、およびモーダルでの部分設定保存 |

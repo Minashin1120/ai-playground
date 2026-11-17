@@ -202,7 +202,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InlineAudioPlayer.kt` | 回答内の `<audio controls src>`（TTS・音楽・Lyriaの出力）を再生するインラインプレーヤー（初回タップで取得、再生・シーク・再生速度の切り替え。Web版の専用プレーヤーと同じ見た目）と、画面が渡す添付ダウンローダー `LocalAttachmentDownloader` | 回答内の音声の再生を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MessageBubble.kt` | Webの `.message-bubble`（吹き出し、タップで出る操作ボタン、引用、Thinking、添付グリッドとObject Removerマスク画像、分岐切替、フッター、回答処理時間と内訳）、合計・入力見積トークン帯、トークン詳細・暗号化モーダル、Welcome、一番下へ、数学ステップの表示切替 | メッセージの見た目を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MathJaxRenderer.kt` | 同梱MathJaxを画面に出さないWebViewで動かしてTeXをSVGへ組版、キャッシュ、文中・独立行の数式の配置と描画 | 数式の組版・配置を編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/MathSteps.kt` | 「数学ステップ解説」の1ステップ表示（見出し・本文・次へ／前へ／最初から／完了・もっとやさしく）、プロンプトバーの歯車ダイアログ、設定の5項目 | ステップの表示・操作・設定画面を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MathSteps.kt` | 「数学ステップ解説」の1ステップ表示（見出し・本文・分割元の表示・次へ／前へ／最初から／完了・もっとやさしく）、プロンプトバーの歯車ダイアログ、設定の5項目 | ステップの表示・操作・設定画面を編集するとき |
 | `app/src/main/assets/mathjax/` | MathJax 3.2.2（`tex-svg.js`、TeX拡張、`LICENSE`）と実行用の `host.html` | MathJaxの版や設定を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LatexText.kt` | LaTeXの読みやすい近似（MathJaxの読み込み中・組版できない式・コピー時の文字） | 近似表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RemoteImage.kt` | 同一originの添付画像をBearer付きで取得し、キャッシュしてプレビュー | 添付・画像プレビューを編集するとき |

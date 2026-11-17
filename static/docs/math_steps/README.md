@@ -20,8 +20,10 @@ AI Chat Playground の「数学ステップ解説（Math Steps）」機能につ
    - エンドツーエンド暗号化（E2EE）が有効な会話では、進捗情報も自動的に暗号化されて保存されます。
 
 3. **「もっとやさしく」再生成（ステップ分割と理由の補足）**
-   - 理解が難しい特定のステップを、元の問題や答えを変えずに「より丁寧・平易な表現の複数の小さなステップ」へ分けて表示できます。
-   - 分かれた各ステップは「〇〇なので、〇〇します」の形で、計算や式変形の前にその理由（等式の性質・分配法則・代入など）を述べます。計算の行だけを並べず、「なぜその操作をするのか」を文章で説明します。
+   - 理解が難しい特定のステップを、元の問題や答えを変えずに「より丁寧・平易な表現の小さなステップ」へ分けて表示できます。分割は1〜3個で、1回の計算だけで分ける必要がなければ1個のまま理由を補います。
+   - 分かれた各ステップは「目的 → 根拠 → 操作 → 結果」の順で、計算や式変形の前にその理由（等式の性質・分配法則・代入など）を述べます。計算の行だけを並べず、「なぜその操作をするのか」を文章で説明します。
+   - 前提知識・用語の定義・公式の復習を新しいステップとして先頭に置きません。必要な前提は、その操作の理由の中で1文だけ添えます。
+   - 分割した最初の小ステップは「元のステップ2の『…』から説明します」と書き出し、画面のヘッダーにも「元のステップ2のやさしい説明」と表示します。分割前のどのステップの説明か分かるようにしています。
    - 1つのステップを長くするのではなくステップ数が増えるため、読む側は1つずつ確実に進められます。分割済みの小ステップをさらに分割することもできます。
    - 分割したステップは個別に保存され、いつでも「元の説明に戻す」で元の1ステップに戻せます。
    - 再生成に伴うトークン利用量や料金（Usage）も記録されます。
@@ -70,7 +72,7 @@ AI Chat Playground の「数学ステップ解説（Math Steps）」機能につ
 
 4. **ステップを進める**
    - 画面下部の「ステップ 2 へ」ボタンを押して次へ進みます。
-   - 途中が難しければ「もっとやさしく」ボタンを押すと、そのステップが分かりやすい複数の小さなステップに分かれます。各ステップには「〇〇なので、〇〇します」のように、その計算をする理由も書かれます。増えたステップはそのまま「次へ」で読み進められます。
+   - 途中が難しければ「もっとやさしく」ボタンを押すと、そのステップが分かりやすい1〜3個の小さなステップに分かれます。各ステップには「なぜその操作をするのか」という目的と根拠が書かれ、本文は「元のステップ2の『…』から説明します」と始まります。増えたステップはそのまま「次へ」で読み進められます。
    - 「前へ」や「最初から解き直す」で前のステップに戻ることも可能です。
 
 5. **詳細設定を調整する**
@@ -86,8 +88,8 @@ AI Chat Playground の「数学ステップ解説（Math Steps）」機能につ
 
 | ファイルパス | 行番号 | 主な役割・定義内容 |
 |---|---|---|
-| `app/server/background_math_steps.py` | L1-L287 | **数学ステップ解説のコア仕様・プロンプト・抽出ロジック**<br>- L7-L24: 設定既定値・制限定数（`MATH_STEPS_MAX_EXPANDED_PER_STEP=8` など）<br>- L26-L29: 見出し抽出・コードブロック判定正規表現（`MATH_STEPS_HEADING_RE`, `_FENCE_RE`）<br>- L31-L112: フォーマット強制プロンプト定義（`MATH_STEPS_FORMAT_PROMPT`、引用への追加質問の規則を含む）<br>- L134-L159: 設定の正規化とJSON変換（`normalize_math_steps_config`, `dump_math_steps_config`）<br>- L162-L197: 各種指示文生成ヘルパー<br>- L199-L211: システムプロンプト動的構築（`build_math_steps_system_prompt`）<br>- L213-L236: ステップ分割プロンプト構築（`build_math_steps_simplify_prompt`）<br>- L238-L287: 回答テキストからのステップ抽出（`extract_math_steps`） |
-| `app/server/routes_math_steps.py` | L1-L443 | **数学ステップAPIエンドポイント・状態管理・モデル実行**<br>- L15-L98: 分割状態の正規化と進捗状態のパース（`_clean_math_steps_parts`, `_load_math_steps_state`）<br>- L100-L117: 暗号化（E2EE）対応の状態読み書き（`_read_math_steps_state`, `_write_math_steps_state`）<br>- L119-L137: 所有権検証付きメッセージ解決（`_resolve_math_steps_message`）<br>- L163-L184: トークン利用量記録（`_append_math_steps_usage`）<br>- L185-L246: プロバイダー別モデル呼び出し（Gemini/Anthropic/DeepSeek/xAI/Zai/Kimi/OpenAI）<br>- L262-L306: 進捗保存API（`POST /api/math_steps/progress`、`remove_expanded` / `remove_simplified`）<br>- L311-L443: ステップ分割API（`POST /api/math_steps/simplify`、`part_index` 対応） |
+| `app/server/background_math_steps.py` | L1-L342 | **数学ステップ解説のコア仕様・プロンプト・抽出ロジック**<br>- L7-L24: 設定既定値・制限定数（`MATH_STEPS_MAX_EXPANDED_PER_STEP=8` など）<br>- L26-L29: 見出し抽出・コードブロック判定正規表現（`MATH_STEPS_HEADING_RE`, `_FENCE_RE`）<br>- L31-L112: フォーマット強制プロンプト定義（`MATH_STEPS_FORMAT_PROMPT`、引用への追加質問の規則を含む）<br>- L134-L159: 設定の正規化とJSON変換（`normalize_math_steps_config`, `dump_math_steps_config`）<br>- L162-L205: 各種指示文生成ヘルパー（分割用の `_simplify_tone_instruction` を含む）<br>- L208-L220: システムプロンプト動的構築（`build_math_steps_system_prompt`）<br>- L222-L290: ステップ分割プロンプト構築（`build_math_steps_simplify_prompt`、問題文・直前ステップ・次の見出しを `context` で受け取る）<br>- L293-L342: 回答テキストからのステップ抽出（`extract_math_steps`） |
+| `app/server/routes_math_steps.py` | L1-L581 | **数学ステップAPIエンドポイント・状態管理・モデル実行**<br>- L10-L12: 分割時の文脈長の上限（問題文1,200字・直前600字・書き出し80字）<br>- L14-L98: 分割状態の正規化と進捗状態のパース（`_clean_math_steps_parts`, `_load_math_steps_state`）<br>- L100-L124: 暗号化（E2EE）対応の状態読み書き（`_read_math_steps_state`, `_write_math_steps_state`）<br>- L126-L159: 所有権検証付きメッセージ解決と本文・オプション取得（`_resolve_math_steps_message`, `_math_steps_message_content`, `_math_steps_prompt_options`）<br>- L161-L284: 分割用の文脈組み立て（問題文・直前ステップ・次の見出し・書き出し文の生成と前置き。`_math_steps_simplify_context`, `_math_steps_with_anchor`）<br>- L286-L314: トークン利用量記録（`_append_math_steps_usage`）<br>- L317-L378: プロバイダー別モデル呼び出し（Gemini/Anthropic/DeepSeek/xAI/Zai/Kimi/OpenAI）<br>- L393-L439: 進捗保存API（`POST /api/math_steps/progress`、`remove_expanded` / `remove_simplified`）<br>- L441-L581: ステップ分割API（`POST /api/math_steps/simplify`、`part_index` 対応） |
 | `app/server/models.py` | L48-L50<br>L188 | **データベースモデル定義**<br>- `User` モデル: `math_steps_enabled`, `math_steps_config`, `default_math_steps`<br>- `Message` モデル: `math_steps_state` |
 | `app/server/app_settings_schema.py` | L848-L883 | **データベースマイグレーションDDL**<br>- `ensure_user_math_steps_columns()`: userテーブルのカラム追加<br>- `ensure_message_math_steps_state_column()`: messageテーブルのカラム追加 |
 | `app/server/background.py` | L735-L741 | バックグラウンドワーカーでのシステムプロンプトへの数学ステップ指示結合 |
@@ -105,7 +107,7 @@ AI Chat Playground の「数学ステップ解説（Math Steps）」機能につ
 
 | ファイルパス | 行番号 | 主な役割・定義内容 |
 |---|---|---|
-| `app/static/js/chat_core_parts/chat_core.part30_mathsteps.js` | L1-L994 | **Web版数学ステップ機能の全フロントエンドロジック**<br>- L7-L136: 定数・正規化・`expanded` の平坦化（`normalizeMathStepsExpanded`, `buildMathStepsDisplaySteps`）<br>- L137-L229: ステップ見出し解析（`parseMathSteps`）<br>- L300-L432: ステップ本文解決・UIのHTML生成（`mathStepsStepMarkdown`, `buildMathStepsHtml`）<br>- L434-L549: DOM差分更新・メッセージへの描画（`paintMathStepsRoot`, `renderMathStepsInto`）<br>- L551-L632: 進捗保存と復元送信（`postMathStepsProgress`, `forgetMathStepsVariants`）<br>- L637-L697: 「もっとやさしく」分割リクエスト（`requestMathStepsSimplify`）<br>- L702-L759: クリックイベント制御（前へ/次へ/最初から/分割/復元）<br>- L761-L879: プロンプトバーのチップ・設定モーダル連動<br>- L892-L929: PDFエクスポート・クリップボード用展開ヘルパー<br>- L933-L994: 初期化処理（`initMathSteps`） |
+| `app/static/js/chat_core_parts/chat_core.part30_mathsteps.js` | L1-L1009 | **Web版数学ステップ機能の全フロントエンドロジック**<br>- L7-L136: 定数・正規化・`expanded` の平坦化（`normalizeMathStepsExpanded`, `buildMathStepsDisplaySteps`）<br>- L137-L229: ステップ見出し解析（`parseMathSteps`）<br>- L300-L441: ステップ本文解決・UIのHTML生成（`mathStepsStepMarkdown`, `mathStepsOriginLabel`, `buildMathStepsHtml`）<br>- L443-L581: DOM差分更新・メッセージへの描画（`paintMathStepsRoot`, `renderMathStepsInto`）<br>- L583-L650: 進捗保存と復元送信（`postMathStepsProgress`, `forgetMathStepsVariants`）<br>- L652-L712: 「もっとやさしく」分割リクエスト（`requestMathStepsSimplify`）<br>- L718-L816: クリックイベント制御（前へ/次へ/最初から/分割/復元）<br>- L817-L894: プロンプトバーのチップ・設定モーダル連動<br>- L913-L952: PDFエクスポート・クリップボード用展開ヘルパー<br>- L954-L1009: 初期化処理（`initMathSteps`） |
 | `app/templates/chat/composer_controls.html` | L18-L26 | プロンプトバーの「数学ステップ」トグルチップおよび設定歯車ボタンのHTML |
 | `app/templates/chat/overlay_dialogs.html` | L146-L198 | 「数学ステップの設定」モーダルダイアログのHTML（セレクトボックス・チェックボックス） |
 | `app/templates/chat/overlay_settings.html` | （該当箇所） | 全体設定モーダル内の既定値スイッチ（`#set-default-math-steps`） |

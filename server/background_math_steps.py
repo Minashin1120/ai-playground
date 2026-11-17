@@ -167,6 +167,15 @@ def _level_instruction(level):
     }[level]
 
 
+def _simplify_tone_instruction(level):
+    """Tone for 「もっとやさしく」. Paraphrasing must not add lines there."""
+    return {
+        "easy": "小学高学年でも読める言葉。ただし、言い換えや前提の復習で行数を増やさない。",
+        "normal": "高校生くらいの標準的な言葉。ただし、前提の復習で行数を増やさない。",
+        "detailed": "式の意味と根拠を丁寧に。ただし1ステップ1話題を守り、行数を増やしすぎない。",
+    }[level]
+
+
 def _step_size_instruction(step_size):
     return {
         "small": "小さめ（1ステップは短く、式変形を細かく分ける）",
@@ -210,38 +219,75 @@ def build_math_steps_system_prompt(config):
     )
 
 
-def build_math_steps_simplify_prompt(config):
-    """Return the split-and-rewrite instruction (the caller appends the step body).
+def build_math_steps_simplify_prompt(config, context=None):
+    """Return the rewrite instruction for the 「もっとやさしく」 button.
 
-    The answer keeps the normal step-heading format because the Web/Android clients
-    splice the returned steps into the answer and let the reader continue there.
-    Each small step explains why the operation is done, so the reader does not have
-    to ask "なぜそうなるのか" after reading a line of calculation.
+    The caller appends the split result to the original answer, so the prompt gets
+    the surrounding context (problem, previous step, next heading). Each small step
+    states the purpose and the rule before the operation, and the first body starts
+    with an anchor sentence so the reader knows where the explanation came from.
     """
     normalized = normalize_math_steps_config(config)
-    tone = _level_instruction(normalized["level"])
-    return (
+    data = context if isinstance(context, dict) else {}
+    problem = str(data.get("problem") or "").strip()
+    previous = str(data.get("previous") or "").strip()
+    following = str(data.get("next") or "").strip()
+    step_title = str(data.get("step_title") or "").strip()
+    step_body = str(data.get("step_body") or "").strip()
+    step_number = data.get("step_number")
+    anchor = str(data.get("anchor") or "").strip()
+    if step_number and step_title:
+        target_heading = f"分けるステップ（元のステップ{step_number}「{step_title}」）"
+    elif step_title:
+        target_heading = f"分けるステップ（{step_title}）"
+    else:
+        target_heading = "分けるステップ"
+    sections = [
         "[Math Steps / もっとやさしく]\n"
         "あなたは数学に苦手意識を持つ学習者の隣にいる家庭教師です。"
-        "以下の1ステップを、意味や計算を変えずに、もっとやさしい日本語の"
-        "2〜4個の小さなステップに分けて書き直してください。\n"
-        "- 1ステップにつき1つの考え方だけを扱い、前のステップの結果だけを使う。\n"
-        "- 計算や式変形は「〇〇なので、〇〇します」の形で書く。理由を先に述べ、"
-        "そのあとに操作と結果を続ける"
-        "（例:「両辺から同じ数を引いても等式は成り立つので、両辺から3を引きます。"
-        "すると x = 2 になります」）。\n"
-        "- 理由は「等式の性質」「分配法則」「代入」など、実際に使った根拠を具体的に示す。"
-        "「わかりやすくするため」「計算しやすくするため」のような漠然とした理由だけにしない。\n"
-        "- 計算の行だけを並べず、各行で何が変わったのかを言葉でも説明する。\n"
-        "- 見出しは「## ステップ N 見出し」の形式を厳守する（N は1から連番、見出しは15文字以内）。\n"
-        "- 計算は途中の行を省略しない。式変形は1行ずつ示す。\n"
-        "- 記号や文字が何を表すかを言葉で添える。\n"
-        "- 元の意味・計算・答えを変えない。\n"
-        "- 元のステップに mathsvg がある場合だけ、いずれか1つのステップに同じ内容の mathsvg を残してよい。\n"
-        f"- やさしさの目安: {tone}\n"
-        "- HTML・JSON・前置き・後書きは禁止。見出しと本文以外を書かない。\n\n"
-        "分けるステップ:\n"
-    )
+        "「分けるステップ」だけを、意味や計算を変えずに、"
+        "もっとやさしい日本語へ書き直してください。"
+    ]
+    if problem:
+        sections.append("## 元の問題（参考）\n" + problem)
+    if previous:
+        sections.append("## 直前のステップ（この続きから始まります）\n" + previous)
+    sections.append(f"## {target_heading}\n{step_body}")
+    if following:
+        sections.append("## このあと\n" + following)
+    rules = [
+        "書き方:",
+        "- 1ステップにつき1つの考え方だけを扱い、前のステップの結果だけを使う。",
+        "- 各ステップは「目的 → 根拠 → 操作 → 結果」の順で書く。"
+        "例:「xだけを残したいので、等式の性質を使って両辺から3を引きます。"
+        "すると x = 2 になります。」",
+        "- 理由には、その操作の目的（何を求めたいのか）と根拠"
+        "（等式の性質・分配法則・代入など）の両方を示す。",
+        "- 「わかりやすくするため」「整理するため」「計算しやすくするため」だけの理由にしない。",
+        "- 計算は途中の行を省略しない。式変形は1行ずつ示し、"
+        "前の行から何が変わったのかを言葉でも説明する。",
+        "- 前提知識・用語の定義・公式の復習を新しいステップとして先頭に置かない。"
+        "必要な前提は、その操作の理由の中で1文だけ添える。"
+        "「基礎から説明」がONでも、ここでは前提の復習を独立したステップにしない。",
+        "- 分割数は1〜3個。1回の計算だけで分ける必要がなければ、"
+        "1個のまま理由を補って書き直す。4個以上に分けない。",
+        "- 見出しは「## ステップ N 見出し」の形式を厳守する（N は1から連番、見出しは15文字以内）。"
+        "見出しは何をするか分かる具体名（例:「3を引く理由」「xだけを残す」）にし、"
+        "「基礎知識」「前提の確認」「整理する」のような曖昧な見出しにしない。",
+        "- 記号や文字が何を表すかを、その式で初めて出るときに短く添える。",
+        "- 元の意味・計算・答えを変えない。",
+        "- 元のステップに mathsvg がある場合だけ、いずれか1つのステップに同じ内容の mathsvg を残してよい。",
+        f"- やさしさの目安: {_simplify_tone_instruction(normalized['level'])}",
+        "- HTML・JSON・前置き・後書きは禁止。見出しと本文以外を書かない。",
+    ]
+    if anchor:
+        rules.insert(
+            1,
+            "- 最初の小ステップの本文は、次の一文から始める（そのまま使う）: "
+            f"「{anchor}」",
+        )
+    sections.append("\n".join(rules))
+    return "\n\n".join(sections) + "\n"
 
 
 def extract_math_steps(text):

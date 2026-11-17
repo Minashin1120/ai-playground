@@ -4,6 +4,13 @@
 # 本文・プロンプト・回答はログに出さない。
 # -----------------------------------------------------------
 
+# Context handed to the 「もっとやさしく」 rewrite. The problem and the tail of the
+# previous step are all the model needs to explain why an operation is done; the
+# full answer is not sent.
+MATH_STEPS_SIMPLIFY_PROBLEM_CHARS = 1200
+MATH_STEPS_SIMPLIFY_PREVIOUS_CHARS = 600
+MATH_STEPS_SIMPLIFY_ANCHOR_CHARS = 80
+
 def _math_steps_int(value, low, high, default=0):
     try:
         number = int(value)
@@ -149,6 +156,131 @@ def _math_steps_prompt_options(message):
     except (TypeError, ValueError):
         value = None
     return value if isinstance(value, dict) else {}
+
+
+def _math_steps_head(value, limit):
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "…"
+
+
+def _math_steps_tail(value, limit):
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    return "…" + text[-limit:].lstrip()
+
+
+def _math_steps_first_line(value):
+    """First readable line of a step body (anchors, mathsvg fences and tags are skipped)."""
+    for line in str(value or "").splitlines():
+        text = line.strip()
+        if not text or text.startswith("```") or text.startswith("<"):
+            continue
+        if re.match(r"^元のステップ\d+.*から説明します。$", text):
+            continue
+        return text
+    return ""
+
+
+def _math_steps_anchor(step_index, step_title, step_body, part_index=None):
+    """Sentence that tells the reader which step (or sub-step) this came from."""
+    number = step_index + 1
+    if part_index is None:
+        label = f"元のステップ{number}"
+    else:
+        label = f"元のステップ{number}の{part_index + 1}つ目の小ステップ"
+    title = str(step_title or "").strip()
+    if title:
+        label += f"「{title}」"
+    first = _math_steps_head(
+        _math_steps_first_line(step_body), MATH_STEPS_SIMPLIFY_ANCHOR_CHARS
+    )
+    if first:
+        return f"{label}の『{first}』から説明します。"
+    return f"{label}から説明します。"
+
+
+def _math_steps_problem_text(message, steps):
+    """Latest question in the thread (or the first step when the question is an image)."""
+    question = (
+        Message.query
+        .filter(
+            Message.thread_id == message.thread_id,
+            Message.role == "user",
+            Message.id < message.id,
+        )
+        .order_by(Message.id.desc())
+        .first()
+    )
+    text = _math_steps_message_content(question) if question else ""
+    text = str(text or "").strip()
+    if not text and steps:
+        text = str(steps[0].get("body") or "").strip()
+    return _math_steps_head(text, MATH_STEPS_SIMPLIFY_PROBLEM_CHARS)
+
+
+def _math_steps_previous_text(steps, state, step_index, part_index):
+    expanded = state.get("expanded") or {}
+    if part_index is not None and part_index > 0:
+        entry = expanded.get(str(step_index)) or []
+        if part_index <= len(entry):
+            return _math_steps_tail(
+                entry[part_index - 1].get("body"), MATH_STEPS_SIMPLIFY_PREVIOUS_CHARS
+            )
+    for index in range(step_index - 1, -1, -1):
+        parts = expanded.get(str(index)) or []
+        body = parts[-1].get("body") if parts else steps[index].get("body")
+        text = _math_steps_tail(body, MATH_STEPS_SIMPLIFY_PREVIOUS_CHARS)
+        if text:
+            return text
+    return ""
+
+
+def _math_steps_next_title(steps, state, step_index, part_index):
+    expanded = state.get("expanded") or {}
+    if part_index is not None:
+        entry = expanded.get(str(step_index)) or []
+        if part_index + 1 < len(entry):
+            title = str(entry[part_index + 1].get("title") or "").strip()
+            if title:
+                return title
+    if step_index + 1 < len(steps):
+        next_index = step_index + 1
+        parts = expanded.get(str(next_index)) or []
+        if parts:
+            title = str(parts[0].get("title") or "").strip()
+        else:
+            title = str(steps[next_index].get("title") or "").strip()
+        return title or f"ステップ{next_index + 1}"
+    return "最終ステップ（答え）"
+
+
+def _math_steps_simplify_context(message, steps, state, step_index, part_index,
+                                 step_title, step_body):
+    return {
+        "problem": _math_steps_problem_text(message, steps),
+        "previous": _math_steps_previous_text(steps, state, step_index, part_index),
+        "next": _math_steps_next_title(steps, state, step_index, part_index),
+        "step_number": step_index + 1,
+        "step_title": step_title,
+        "step_body": step_body,
+        "anchor": _math_steps_anchor(step_index, step_title, step_body, part_index),
+    }
+
+
+def _math_steps_with_anchor(parts, anchor):
+    """Guarantee the first body starts with the anchor the model was given."""
+    anchor = str(anchor or "").strip()
+    if not anchor or not parts:
+        return parts
+    body = str(parts[0].get("body") or "").strip()
+    if body.startswith(anchor):
+        return parts
+    parts[0] = dict(parts[0])
+    parts[0]["body"] = (anchor + "\n\n" + body).strip() if body else anchor
+    return parts
 
 
 def _math_steps_usage_observe(call, usage):
@@ -361,10 +493,15 @@ def math_steps_simplify():
         return jsonify({'error': 'unsupported_model'}), 400
     options = _math_steps_prompt_options(message)
     config = normalize_math_steps_config(getattr(current_user, 'math_steps_config', None))
-    prompt = build_math_steps_simplify_prompt(config) + step_text
+    context = _math_steps_simplify_context(
+        message, steps, state, step_index, part_index, step_title, step_body
+    )
+    prompt = build_math_steps_simplify_prompt(config, context)
     logger.info(
-        "math_steps simplify start user=%s message=%s step=%s part=%s model=%s",
+        "math_steps simplify start user=%s message=%s step=%s part=%s model=%s "
+        "problem_chars=%s previous_chars=%s anchor_chars=%s",
         current_user.id, message.id, step_index, part_index, model_key,
+        len(context['problem']), len(context['previous']), len(context['anchor']),
     )
     try:
         simplified, usage_call = _call_math_steps_simplify_model(
@@ -397,6 +534,7 @@ def math_steps_simplify():
             )
     if not parts:
         return jsonify({'error': 'empty_result'}), 502
+    parts = _math_steps_with_anchor(parts, context['anchor'])
     existing = dict(state['expanded'])
     if part_index is None:
         existing[key] = parts

@@ -432,6 +432,8 @@ Android直接通信も同じ記録を暗号化チャット内に保存します�
 
 Ideogramの選択可能な5モデルは、品質・速度・処理ごとの単価を実際の生成枚数へ掛けます。`speed` は `turbo`／`default`／`quality` だけを同期します。背景削除は専用API単価を使います。オブジェクト削除および2a／2.0のQualityは、公式表で確定単価が示されていないため、公表最安値を下限にして「以上・一部未算入」と表示します。既存の回答は保存された親プロンプトのオプションと画像から推定します。未保存の過去のAPI呼び出し回数やThinkingの正確な使用量は復元しません。
 
+費用予想をタップして開くトークン詳細では、USDの概算の下に日本円換算を表示します。換算率は無料・キー不要の公開レート（欧州中央銀行の参考レートを返す `https://api.frankfurter.dev/v2/rates?base=USD&quotes=JPY`、失敗時は `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json`）をアプリから直接取得し、12時間端末内へキャッシュします（`data/JpyExchangeRate.kt`）。送るのはレート取得だけで、チャット・使用量・アカウント情報は送りません。取得できないときは「為替レートを取得できませんでした」と表示し、USDの概算はそのまま残します。Web版も同じ換算と文言で、レートは端末内（`localStorage`）に12時間キャッシュします。
+
 ## 同期API（サーバー `server/routes_mobile_sync.py`、`sync_api_version: 1`）
 
 サーバー不使用モードで端末に残っている回答（送信待ち）を、アカウントへ保存します（`data/sync/SyncEngine.kt`）。どちらもAndroid用Bearerだけで呼べ、WebのCookieでは使えません。

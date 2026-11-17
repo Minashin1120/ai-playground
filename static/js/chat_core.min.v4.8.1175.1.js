@@ -543,7 +543,7 @@ from(a.querySelectorAll("*")).slice(0,5e3)],l=[],c=new Map;let d=0;const m=r(x=>
 []).reduce((k,C)=>C&&C.nodeType===Node.TEXT_NODE?k+String(C.textContent||"").replace(/\s+/g," ").trim().
 length:k,0),"directTextLength");o.forEach(x=>{if(!x||x===a||!x.style)return;const k=window.getComputedStyle(
 x),C=m(x);if(C>0){const M=parseRichPasteCssColor(k.color);if(M&&M.a>=.5){const E=richPasteColorCss(M),
-G=c.get(E)||{color:M,weight:0};G.weight+=C,c.set(E,G),d+=C}}if(!!(String(x.style.backgroundColor||"").
+W=c.get(E)||{color:M,weight:0};W.weight+=C,c.set(E,W),d+=C}}if(!!(String(x.style.backgroundColor||"").
 trim()||String(x.style.background||"").trim())){const M=parseRichPasteCssColor(k.backgroundColor);if(M&&
 M.a>=.72){const E=String(x.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:M,weight:Math.
 max(1,E)})}}});const g=Array.from(c.values()).sort((x,k)=>k.weight-x.weight),y=g.length?g[0].color:null,
@@ -923,16 +923,16 @@ nd); font-weight: bold; }
                 </div>
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const v=new m(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),w=v.internal.pageSize.getWidth(),x=v.internal.
-pageSize.getHeight(),k=794,C=Math.floor(x/w*k),L=y.scrollHeight||y.offsetHeight;let M=0,E=!0;const G=Math.
+pageSize.getHeight(),k=794,C=Math.floor(x/w*k),L=y.scrollHeight||y.offsetHeight;let M=0,E=!0;const W=Math.
 ceil(L/C);let O=0;for(;M<L;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
 "Aborted","AbortError");const P=Math.min(C,L-M),re=(await new Promise(($,N)=>{const V=setTimeout(()=>N(
 new Error("PDF chunk rendering timed out")),12e4);g(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
 background,logging:!1,imageTimeout:5e3,x:0,y:M,width:k,height:P,windowWidth:k,scrollX:0,scrollY:0,signal:richPasteAbortController?
-richPasteAbortController.signal:void 0,onclone:r(j=>{prepareRichPastePdfClone(j,c);const U=j.querySelector(
-".pdf-root-wrapper");U&&(U.style.position="relative",U.style.left="0",U.style.top="0")},"onclone")}).
+richPasteAbortController.signal:void 0,onclone:r(j=>{prepareRichPastePdfClone(j,c);const G=j.querySelector(
+".pdf-root-wrapper");G&&(G.style.position="relative",G.style.left="0",G.style.top="0")},"onclone")}).
 then(j=>{clearTimeout(V),$(j)}).catch(j=>{clearTimeout(V),N(j)})})).toDataURL("image/jpeg",.95),me=v.
 getImageProperties(re),ie=Math.min(x,me.height*w/me.width);E||v.addPage(),v.addImage(re,"JPEG",0,0,w,
-ie),E=!1,M+=P,O++;const he=Math.min(100,15+Math.round(O/G*85));i(he),await new Promise($=>setTimeout(
+ie),E=!1,M+=P,O++;const he=Math.min(100,15+Math.round(O/W*85));i(he),await new Promise($=>setTimeout(
 $,100))}return i(100),{blob:v.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=r(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -2061,8 +2061,8 @@ ordKey"),l=r(v=>{const w=performance.now();if(!(w-e.lastMoveSample<80)){if(e.las
 sqrt(x*x+k*k)/(C/1e3);e.speedMax=Math.max(e.speedMax,L),e.speedSum+=L,e.speedSamples+=1}}e.lastMove=
 {x:v.clientX,y:v.clientY,t:w}}},"recordMove"),c=r(()=>{const v=Math.max(1,performance.now()-e.windowStart),
 w=e.clickTimes.length,x=e.keyTimes.length,k=e.speedSamples?e.speedSum/e.speedSamples:0;let C=0,L=1;if(e.
-clickIntervals.length>=3){const M=e.clickIntervals.reduce((G,O)=>G+O,0)/e.clickIntervals.length,E=e.
-clickIntervals.reduce((G,O)=>G+Math.pow(O-M,2),0)/e.clickIntervals.length;C=M,L=M>0?Math.sqrt(E)/M:1}
+clickIntervals.length>=3){const M=e.clickIntervals.reduce((W,O)=>W+O,0)/e.clickIntervals.length,E=e.
+clickIntervals.reduce((W,O)=>W+Math.pow(O-M,2),0)/e.clickIntervals.length;C=M,L=M>0?Math.sqrt(E)/M:1}
 return{window_ms:Math.round(v),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
 fastKeys,untrusted_input:!!e.untrustedInput,click_burst:w,key_burst:x,avg_click_ms:C,click_cv:L,event_rate:(e.
 clicks+e.keys+e.moves)/(v/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:k}},"computeStats"),d=r(

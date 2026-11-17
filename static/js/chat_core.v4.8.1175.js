@@ -21460,8 +21460,12 @@
                 costDetail.replaceChildren();
                 costDetail.classList.toggle('hidden', meta.role !== 'total');
                 if (meta.role === 'total') {
-                    for (const text of [costEstimateLabel(meta.cost_estimate),
-                        `集計したAPI呼び出し: ${meta.cost_estimate?.requests || 0}回`, COST_ESTIMATE_NOTE,
+                    const usd = document.createElement('p'); usd.textContent = costEstimateLabel(meta.cost_estimate);
+                    const jpy = document.createElement('p');
+                    jpy.id = 'token-detail-cost-jpy';
+                    costDetail.append(usd, jpy);
+                    fillCostEstimateJpy(jpy, meta.cost_estimate);
+                    for (const text of [`集計したAPI呼び出し: ${meta.cost_estimate?.requests || 0}回`, COST_ESTIMATE_NOTE,
                         `公式料金確認日: ${costPricing?.checked_at || '取得できませんでした'}`]) {
                         const p = document.createElement('p'); p.textContent = text; costDetail.appendChild(p);
                     }
@@ -28283,6 +28287,123 @@
             const amount = cost.lowerBound ? `${money(cost.low)}以上`
                 : cost.high - cost.low > 1e-12 ? `${money(cost.low)}〜${money(cost.high)}` : money(cost.low);
             return `${prefix}: ${amount}${cost.unpriced ? '（一部未算入）' : ''}`;
+        }
+
+        // USD→JPY conversion for the token detail. Free, keyless public reference data
+        // (ECB rates via Frankfurter, then a public CDN mirror as a fallback), cached on the
+        // device. Only the rate is fetched; no chat, usage or account data is sent.
+        const COST_JPY_RATE_STORAGE_KEY = 'cost_jpy_rate_v1';
+        const COST_JPY_RATE_TTL_MS = 12 * 60 * 60 * 1000;
+        const COST_JPY_RATE_NOTE = '無料の公開為替レート（欧州中央銀行の参考レートなど）でドルから円へ換算した概算です。実際の請求時のレートとは異なります。';
+        const COST_JPY_RATE_SOURCES = [
+            {
+                name: 'ECB',
+                url: 'https://api.frankfurter.dev/v2/rates?base=USD&quotes=JPY',
+                read: data => {
+                    const row = Array.isArray(data) ? data.find(item => item && item.quote === 'JPY') : null;
+                    return { rate: Number(row?.rate), date: row?.date };
+                }
+            },
+            {
+                name: 'currency-api',
+                url: 'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
+                read: data => ({ rate: Number(data?.usd?.jpy), date: data?.date })
+            }
+        ];
+        let costJpyRate = null;
+        let costJpyRateFailed = false;
+        let costJpyRateFailedAt = 0;
+        let costJpyRatePromise = null;
+
+        function normalizeJpyRate(value) {
+            const rate = Number(value?.rate);
+            if (!Number.isFinite(rate) || rate < 50 || rate > 500) return null;
+            return {
+                rate,
+                date: typeof value.date === 'string' ? value.date.slice(0, 10) : '',
+                source: value.source || ''
+            };
+        }
+
+        function readCachedJpyRate() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(COST_JPY_RATE_STORAGE_KEY) || 'null');
+                if (!saved || !(Date.now() - Number(saved.saved) < COST_JPY_RATE_TTL_MS)) return null;
+                return normalizeJpyRate(saved);
+            } catch (_) { return null; }
+        }
+
+        function loadJpyRate() {
+            if (costJpyRate) return Promise.resolve(costJpyRate);
+            if (costJpyRateFailed && Date.now() - costJpyRateFailedAt < 60000) return Promise.resolve(null);
+            if (costJpyRatePromise) return costJpyRatePromise;
+            costJpyRateFailed = false;
+            const cached = readCachedJpyRate();
+            if (cached) {
+                costJpyRate = cached;
+                return Promise.resolve(cached);
+            }
+            costJpyRatePromise = (async () => {
+                for (const source of COST_JPY_RATE_SOURCES) {
+                    let timer = null;
+                    try {
+                        const controller = new AbortController();
+                        timer = setTimeout(() => controller.abort(), 6000);
+                        const response = await fetch(source.url, { signal: controller.signal, credentials: 'omit' });
+                        if (!response.ok) continue;
+                        const rate = normalizeJpyRate({ ...source.read(await response.json()), source: source.name });
+                        if (!rate) continue;
+                        costJpyRate = rate;
+                        try {
+                            localStorage.setItem(COST_JPY_RATE_STORAGE_KEY, JSON.stringify({ ...rate, saved: Date.now() }));
+                        } catch (_) { /* Storage can be unavailable. */ }
+                        return rate;
+                    } catch (_) {
+                        /* Try the next free source. */
+                    } finally {
+                        clearTimeout(timer);
+                    }
+                }
+                costJpyRateFailed = true;
+                costJpyRateFailedAt = Date.now();
+                return null;
+            })().finally(() => { costJpyRatePromise = null; });
+            return costJpyRatePromise;
+        }
+
+        function jpyMoneyText(amount) {
+            if (!(amount > 0)) return '0円';
+            if (amount < 0.01) return '0.01円未満';
+            if (amount < 1000) return `${amount.toFixed(2)}円`;
+            return `${Math.round(amount).toLocaleString('ja-JP')}円`;
+        }
+
+        function costEstimateJpyLabel(cost, rate) {
+            if (!cost || !cost.priced || !rate) return '日本円換算: 算出不可';
+            const low = jpyMoneyText(cost.low * rate.rate);
+            const amount = cost.lowerBound ? (low.endsWith('未満') ? low : `${low}以上`)
+                : cost.high - cost.low > 1e-12 ? `${low}〜${jpyMoneyText(cost.high * rate.rate)}` : low;
+            const unpriced = cost.unpriced ? '（一部未算入）' : '';
+            const date = rate.date ? `・${rate.date}` : '';
+            return `日本円換算: 約${amount}${unpriced}（参考レート 1ドル=${rate.rate.toFixed(2)}円${date}）`;
+        }
+
+        // Fills the token-detail line under the USD estimate, fetching the rate on first use.
+        function fillCostEstimateJpy(el, cost) {
+            if (!el) return;
+            if (!cost || !cost.priced) {
+                el.textContent = `日本円換算: ${!costPricing && !costPricingFailed ? '換算中…' : '算出不可'}`;
+                return;
+            }
+            el.title = COST_JPY_RATE_NOTE;
+            el.textContent = '日本円換算: 換算中…';
+            if (costJpyRate) {
+                el.textContent = costEstimateJpyLabel(cost, costJpyRate);
+                return;
+            }
+            loadJpyRate().then(rate => {
+                el.textContent = rate ? costEstimateJpyLabel(cost, rate) : '日本円換算: 為替レートを取得できませんでした';
+            });
         }
 
         function refreshCostBar(path = costBarPath) {

@@ -202,3 +202,59 @@ def test_android_and_web_use_identical_official_rate_data():
     assert (ROOT / 'static/model_pricing.json').read_bytes() == (ROOT / 'android/app/src/main/assets/model-pricing.json').read_bytes()
     assert PRICING['checked_at'] == '2026-11-13'
     assert all(model['provider'] in PRICING['sources'] for model in PRICING['models'].values())
+
+
+def test_jpy_label_converts_usd_ranges_with_the_reference_rate():
+    script = '''
+const vm = require('vm');
+const context = vm.createContext({fetch: async () => ({ok: true, json: async () => ({})}), get: () => null});
+vm.runInContext(SOURCE, context);
+console.log(vm.runInContext(`JSON.stringify([
+  costEstimateJpyLabel({priced:1,low:0.75,high:0.75,unpriced:0}, {rate:159.6,date:'2026-11-16'}),
+  costEstimateJpyLabel({priced:1,low:0.01,high:0.02,unpriced:0}, {rate:159.6,date:'2026-11-16'}),
+  costEstimateJpyLabel({priced:1,low:0.01,high:0.01,unpriced:1,lowerBound:true}, {rate:159.6,date:''}),
+  costEstimateJpyLabel({priced:1,low:0.0000001,high:0.0000001,unpriced:0}, {rate:159.6,date:''}),
+  costEstimateJpyLabel({priced:0}, {rate:159.6,date:''})
+])`, context));
+'''.replace('SOURCE', json.dumps(SOURCE))
+    result = subprocess.run(['node', '-e', script], check=True, capture_output=True, text=True)
+    assert json.loads(result.stdout) == [
+        '日本円換算: 約119.70円（参考レート 1ドル=159.60円・2026-11-16）',
+        '日本円換算: 約1.60円〜3.19円（参考レート 1ドル=159.60円・2026-11-16）',
+        '日本円換算: 約1.60円以上（一部未算入）（参考レート 1ドル=159.60円）',
+        '日本円換算: 約0.01円未満（参考レート 1ドル=159.60円）',
+        '日本円換算: 算出不可',
+    ]
+
+
+def test_jpy_conversion_fetches_only_the_free_rate_and_caches_it():
+    script = '''
+const vm = require('vm');
+const requests = [];
+const stored = [];
+const context = vm.createContext({
+  get: () => null,
+  AbortController, setTimeout, clearTimeout,
+  localStorage: {getItem: () => null, setItem: (key, value) => stored.push([key, value])},
+  fetch: async (url) => {
+    if (url.startsWith('http')) requests.push(url);
+    return {ok: true, json: async () => ([{date: '2026-11-17', base: 'USD', quote: 'JPY', rate: 150}])};
+  },
+});
+vm.runInContext(SOURCE, context);
+(async () => {
+  const label = await vm.runInContext(`(async () => {
+    const el = {textContent: '', title: ''};
+    fillCostEstimateJpy(el, {priced: 1, low: 0.01, high: 0.01, unpriced: 0});
+    await new Promise(done => setTimeout(done, 20));
+    return el.textContent;
+  })()`, context);
+  console.log(JSON.stringify({label, requests, stored}));
+})();
+'''.replace('SOURCE', json.dumps(SOURCE))
+    result = subprocess.run(['node', '-e', script], check=True, capture_output=True, text=True)
+    data = json.loads(result.stdout)
+    assert data['label'] == '日本円換算: 約1.50円（参考レート 1ドル=150.00円・2026-11-17）'
+    assert data['requests'] == ['https://api.frankfurter.dev/v2/rates?base=USD&quotes=JPY']
+    assert data['stored'][0][0] == 'cost_jpy_rate_v1'
+    assert '"rate":150' in data['stored'][0][1]

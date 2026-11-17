@@ -784,7 +784,22 @@ internal fun TokenDetailDialog(detail: TokenDetail, onDismiss: () -> Unit) {
                 }
             }
             detail.cost?.let { cost ->
+                val jpyContext = androidx.compose.ui.platform.LocalContext.current
+                var jpyRate by remember(cost) { mutableStateOf<com.minashin1120.aiplayground.data.JpyExchangeRate?>(null) }
+                var jpyLoaded by remember(cost) { mutableStateOf(false) }
+                LaunchedEffect(cost) {
+                    jpyRate = com.minashin1120.aiplayground.data.JpyExchangeRates.load(jpyContext)
+                    jpyLoaded = true
+                }
                 Text(cost.label(), color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
+                Text(
+                    when {
+                        jpyRate != null -> com.minashin1120.aiplayground.data.jpyCostLabel(cost, jpyRate!!)
+                        jpyLoaded -> "日本円換算: 為替レートを取得できませんでした"
+                        else -> "日本円換算: 換算中…"
+                    },
+                    color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp
+                )
                 Text("集計したAPI呼び出し: ${cost.requests}回", color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
                 Text(com.minashin1120.aiplayground.data.COST_ESTIMATE_NOTE, color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
                 Text("公式料金確認日: ${detail.pricing?.checkedAt ?: "取得できませんでした"}", color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)

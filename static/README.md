@@ -6,6 +6,7 @@ Flaskの `/static/` から配信するCSS、JavaScript、PWA資産、公開変�
 - `js/`：クライアントロジックとバージョン付きチャットコア
 - `pwa/`：PWAアイコン
 - `model_pricing.json`：費用予想に使う公式料金表・長文料金の境界・確認日と参照先（Androidの `assets/model-pricing.json` へフロントエンドビルド時に同期）
+- 費用予想の日本円換算：無料・キー不要の公開為替レート（欧州中央銀行の参考レートを返すFrankfurter、失敗時はcurrency-apiのCDN）をブラウザーから取得し、`localStorage` に12時間キャッシュする。送信するのはレート取得だけで、チャット・使用量は含めない
 - `docs/`：機能解説の文書（Batch処理、プロンプトバーの設定復元、数学ステップ解説）
 - `changelogs/`：アプリ内で公開する更新履歴
 - `legal/`：利用規約とプライバシーポリシー

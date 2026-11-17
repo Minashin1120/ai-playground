@@ -46,4 +46,4 @@
 
 実行・失敗時の手順は [workflow.md](workflow.md) を参照してください。
 
-費用予想の内訳計算は連番の末尾（現在は `chat_core.part29_estimateconversationcost.js`）に分離します。Grokの添付のみ送信のテストは `chat_session.stream()` を抽出境界にし、直前へ使用量の記録などが追加されても空本文の検証を維持します。
+費用予想の内訳計算は連番の末尾（現在は `chat_core.part29_estimateconversationcost.js`）に分離します。日本円換算は同じ part29 に置き、トークン詳細モーダルへの表示だけ `chat_core.part22_updatesearchbox.js` が行います。Grokの添付のみ送信のテストは `chat_session.stream()` を抽出境界にし、直前へ使用量の記録などが追加されても空本文の検証を維持します。

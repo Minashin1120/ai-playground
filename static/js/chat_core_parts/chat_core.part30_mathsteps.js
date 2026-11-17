@@ -91,11 +91,22 @@
                     if (typeof text === 'string' && text.trim()) simplified[String(key)] = text;
                 });
             }
+            // 「わかりやすくする」 notes are keyed by source step ("3") or by a split
+            // sub-step ("3-1"), so a note follows the step it explains.
+            const notes = {};
+            if (src.notes && typeof src.notes === 'object' && !Array.isArray(src.notes)) {
+                Object.keys(src.notes).forEach((key) => {
+                    if (!/^\d{1,4}(?:-\d{1,3})?$/.test(String(key))) return;
+                    const text = src.notes[key];
+                    if (typeof text === 'string' && text.trim()) notes[String(key)] = text;
+                });
+            }
             return {
                 current: clampMathStepsIndex(src.current, 50),
                 max_reached: clampMathStepsIndex(src.max_reached, 50),
                 simplified,
-                expanded: normalizeMathStepsExpanded(src.expanded)
+                expanded: normalizeMathStepsExpanded(src.expanded),
+                notes
             };
         }
 
@@ -315,6 +326,32 @@
             return !!(simplified && !state.showOriginal.has(index));
         }
 
+        // The note key is the source step index, or "<source>-<part>" for a split sub-step.
+        function mathStepsNoteKey(step) {
+            if (!step) return '';
+            return (step.partIndex !== null && step.partIndex !== undefined)
+                ? `${step.sourceIndex}-${step.partIndex}`
+                : String(step.sourceIndex);
+        }
+
+        function mathStepsNoteFor(state, index) {
+            const step = state && state.steps ? state.steps[index] : null;
+            if (!step || !state.notes) return '';
+            const note = state.notes[mathStepsNoteKey(step)];
+            return typeof note === 'string' ? note : '';
+        }
+
+        // 「わかりやすくする」: a "why" supplement under the step, not a new step.
+        function buildMathStepsNoteHtml(note) {
+            const text = String(note || '').trim();
+            if (!text) return '';
+            return '<div class="math-steps-note" role="note">'
+                + '<div class="math-steps-note-head"><i class="fas fa-lightbulb" aria-hidden="true"></i>なぜそうなるの？</div>'
+                + `<div class="prose prose-invert text-sm break-words math-steps-note-prose">${sanitizeMarkdownHtml(text)}</div>`
+                + '<button type="button" class="math-steps-note-close" data-math-steps-action="note-close">補足を閉じる</button>'
+                + '</div>';
+        }
+
         function mathStepsTotalLabel(state) {
             const total = state.steps.length;
             return `${state.current + 1} / ${total}${state.streaming ? '+' : ''}`;
@@ -337,12 +374,14 @@
                 current: clampMathStepsIndex(opts.current !== undefined ? opts.current : incoming.current, steps.length - 1),
                 maxReached: Math.max(incoming.max_reached, incoming.current),
                 simplified: Object.assign({}, incoming.simplified),
+                notes: Object.assign({}, incoming.notes),
                 showOriginal: new Set(),
                 streaming: !!opts.streaming
             };
             const step = state.steps[state.current];
             const markdown = mathStepsStepMarkdown(state, state.current);
             const simplifiedActive = mathStepsCanRestore(state, state.current);
+            const note = mathStepsNoteFor(state, state.current);
             const pendingNext = mathStepsPendingNext(state);
             const isLast = state.current >= state.steps.length - 1;
             const nextLabel = (isLast && !pendingNext) ? '完了' : (pendingNext ? '次のステップを準備中…' : 'わかった、次へ');
@@ -357,13 +396,14 @@
                 `data-streaming="${state.streaming ? '1' : '0'}"`,
                 messageId ? `data-message-id="${escapeHtml(messageId)}"` : '',
                 jobId ? `data-job-id="${escapeHtml(jobId)}"` : '',
-                `data-math-steps-state="${mathStepsStateAttr({ current: incoming.current, max_reached: incoming.max_reached, simplified: incoming.simplified, expanded: incoming.expanded })}"`
+                `data-math-steps-state="${mathStepsStateAttr({ current: incoming.current, max_reached: incoming.max_reached, simplified: incoming.simplified, expanded: incoming.expanded, notes: incoming.notes })}"`
             ].filter(Boolean).join(' ');
             return `<div class="math-steps content-area" role="group" aria-label="数学ステップ解説" ${attrs}>`
                 + `<div class="math-steps-header"><span class="math-steps-counter">ステップ ${mathStepsTotalLabel(state)}</span>`
                 + `<span class="math-steps-title">${escapeHtml(step.title || '')}</span></div>`
                 + `<div class="math-steps-body" data-step-index="${state.current}" aria-live="polite">`
                 + `<div class="prose prose-invert text-sm break-words math-steps-prose">${renderMathStepsBodyHtml(markdown)}</div>`
+                + buildMathStepsNoteHtml(note)
                 + (simplifiedActive ? '<button type="button" class="math-steps-restore" data-math-steps-action="restore">元の説明に戻す</button>' : '')
                 + '</div>'
                 + `<div class="math-steps-actions">`
@@ -371,6 +411,7 @@
                 + `<div class="math-steps-sub-actions">`
                 + `<button type="button" class="math-steps-prev" data-math-steps-action="prev"${state.current <= 0 ? ' disabled aria-disabled="true"' : ''}>前へ</button>`
                 + `<button type="button" class="math-steps-restart" data-math-steps-action="restart"${state.current <= 0 ? ' disabled aria-disabled="true"' : ''}>最初から</button>`
+                + `<button type="button" class="math-steps-explain" data-math-steps-action="explain"${state.streaming ? ' disabled aria-disabled="true"' : ''} title="このステップの計算を、なぜそうするのか説明します"><i class="fas fa-lightbulb" aria-hidden="true"></i>わかりやすくする</button>`
                 + `<button type="button" class="math-steps-simplify" data-math-steps-action="simplify"${state.streaming ? ' disabled aria-disabled="true"' : ''} title="このステップを、やさしい複数のステップに分けます"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>もっとやさしく</button>`
                 + `</div></div>`
                 + `<div class="math-steps-status" role="status" aria-live="polite"></div>`
@@ -423,6 +464,7 @@
                 current: clampMathStepsIndex(root.getAttribute('data-current'), steps.length - 1),
                 maxReached: Math.max(incoming.max_reached, clampMathStepsIndex(root.getAttribute('data-max-reached'), steps.length - 1)),
                 simplified: Object.assign({}, incoming.simplified),
+                notes: Object.assign({}, incoming.notes),
                 showOriginal: new Set(),
                 streaming: root.getAttribute('data-streaming') === '1'
             };
@@ -442,6 +484,7 @@
             if (title) title.textContent = step.title || '';
             const body = root.querySelector('.math-steps-body');
             const markdown = mathStepsStepMarkdown(state, state.current);
+            const note = mathStepsNoteFor(state, state.current);
             const simplifiedActive = mathStepsCanRestore(state, state.current);
             if (body) {
                 const oldSvg = new Map();
@@ -451,12 +494,13 @@
                 });
                 body.setAttribute('data-step-index', String(state.current));
                 body.innerHTML = `<div class="prose prose-invert text-sm break-words math-steps-prose">${renderMathStepsBodyHtml(markdown)}</div>`
+                    + buildMathStepsNoteHtml(note)
                     + (simplifiedActive ? '<button type="button" class="math-steps-restore" data-math-steps-action="restore">元の説明に戻す</button>' : '');
                 body.querySelectorAll('.mathsvg-render[data-svg-key]').forEach((fresh) => {
                     const old = oldSvg.get(fresh.getAttribute('data-svg-key'));
                     if (old) fresh.replaceWith(old);
                 });
-                try { queueMessageDecorations(body, markdown); } catch (e) {}
+                try { queueMessageDecorations(body, note ? `${markdown}\n\n${note}` : markdown); } catch (e) {}
             }
             const pendingNext = mathStepsPendingNext(state);
             const isLast = state.current >= state.steps.length - 1;
@@ -484,12 +528,18 @@
                 simplify.disabled = !!state.streaming;
                 simplify.setAttribute('aria-disabled', state.streaming ? 'true' : 'false');
             }
+            const explain = root.querySelector('.math-steps-explain');
+            if (explain && !explain.dataset.busy) {
+                explain.disabled = !!state.streaming;
+                explain.setAttribute('aria-disabled', state.streaming ? 'true' : 'false');
+            }
             root.setAttribute('data-current', String(state.current));
             root.setAttribute('data-max-reached', String(state.maxReached));
             root.setAttribute('data-total', String(state.steps.length));
             root.setAttribute('data-streaming', state.streaming ? '1' : '0');
             state.renderedStep = state.current;
             state.renderedMarkdown = markdown;
+            state.renderedNote = note;
         }
 
         function renderMathStepsInto(container, text, opts = {}) {
@@ -506,11 +556,13 @@
                 current: incoming.current,
                 maxReached: incoming.max_reached,
                 simplified: Object.assign({}, incoming.simplified),
+                notes: Object.assign({}, incoming.notes),
                 showOriginal: new Set(),
                 streaming: !!opts.streaming
             };
             state.originalSteps = parsed.steps;
             state.expanded = state.expanded || {};
+            state.notes = state.notes || {};
             state.steps = buildMathStepsDisplaySteps(state.originalSteps, state.expanded);
             state.streaming = opts.streaming === true;
             state.current = clampMathStepsIndex(state.current, state.steps.length - 1);
@@ -518,10 +570,14 @@
             const previousMarkdown = previousRoot && previousState && previousState.renderedStep === state.current
                 ? previousState.renderedMarkdown : null;
             const markdown = mathStepsStepMarkdown(state, state.current);
+            const note = mathStepsNoteFor(state, state.current);
+            const previousNote = previousRoot && previousState && previousState.renderedStep === state.current
+                ? previousState.renderedNote : null;
             const previousBody = previousRoot ? previousRoot.querySelector('.math-steps-body') : null;
-            const keepBody = !!previousBody && previousMarkdown !== null && previousMarkdown === markdown;
+            const keepBody = !!previousBody && previousMarkdown !== null && previousMarkdown === markdown
+                && String(previousNote || '') === String(note || '');
             const html = buildMathStepsHtml(text, {
-                state: { current: state.current, max_reached: state.maxReached, simplified: state.simplified, expanded: state.expanded },
+                state: { current: state.current, max_reached: state.maxReached, simplified: state.simplified, expanded: state.expanded, notes: state.notes },
                 messageId: opts.mathSteps && opts.mathSteps.messageId !== undefined ? opts.mathSteps.messageId : undefined,
                 jobId: opts.mathSteps && opts.mathSteps.jobId !== undefined ? opts.mathSteps.jobId : undefined,
                 streaming: state.streaming
@@ -534,6 +590,7 @@
             mathStepsTextByRoot.set(root, String(text || ''));
             state.renderedStep = state.current;
             state.renderedMarkdown = markdown;
+            state.renderedNote = note;
             const body = root.querySelector('.math-steps-body');
             if (keepBody && previousBody && body) {
                 const oldSvg = new Map();
@@ -547,7 +604,7 @@
                 });
                 body.replaceWith(previousBody);
             } else if (body) {
-                try { queueMessageDecorations(body, markdown); } catch (e) {}
+                try { queueMessageDecorations(body, note ? `${markdown}\n\n${note}` : markdown); } catch (e) {}
             }
             return true;
         }
@@ -611,24 +668,6 @@
                 mathStepsProgressTimers.delete(root);
                 postMathStepsProgress(root);
             }, 450));
-        }
-
-        // The reader preferred the original explanation: forget the saved replacement
-        // (legacy simplified text or an expanded step) on the server as well.
-        function forgetMathStepsVariants(root, stepIndex) {
-            const target = mathStepsRootTargets(root);
-            const state = getMathStepsRootState(root);
-            if (!target || !state) return;
-            apiFetch(MATH_STEPS_PROGRESS_ROUTE, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(Object.assign({}, target, {
-                    current: state.current,
-                    max_reached: state.maxReached,
-                    remove_simplified: [stepIndex],
-                    remove_expanded: [stepIndex]
-                }))
-            }).catch(() => {});
         }
 
         // ------------------------------------------------------------------
@@ -718,12 +757,40 @@
                 requestMathStepsSimplify(root, button);
                 return;
             }
+            if (action === 'explain') {
+                event.preventDefault();
+                requestMathStepsExplain(root, button);
+                return;
+            }
             event.preventDefault();
+            if (action === 'note-close') {
+                const key = mathStepsNoteKey(state.steps[state.current]);
+                if (!key) return;
+                delete state.notes[key];
+                const target = mathStepsRootTargets(root);
+                if (target) {
+                    apiFetch(MATH_STEPS_PROGRESS_ROUTE, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(Object.assign({}, target, {
+                            current: state.current,
+                            max_reached: state.maxReached,
+                            remove_notes: [key]
+                        }))
+                    }).catch(() => {});
+                }
+                mathStepsStatus(root, '補足を閉じました');
+                paintMathStepsRoot(root);
+                return;
+            }
             if (action === 'restore') {
                 const current = state.steps[state.current];
                 if (!current) return;
+                let noteKeys = null;
                 if (current.expanded) {
                     // Collapse the whole split back to the original step and stay on it.
+                    noteKeys = mathStepsNoteKeysForSource(state, current.sourceIndex);
+                    noteKeys.forEach((key) => { delete state.notes[key]; });
                     const first = state.steps.findIndex((step) => step.sourceIndex === current.sourceIndex);
                     delete state.expanded[String(current.sourceIndex)];
                     delete state.simplified[String(current.sourceIndex)];
@@ -735,7 +802,7 @@
                     state.showOriginal.add(state.current);
                     delete state.simplified[String(current.sourceIndex)];
                 }
-                forgetMathStepsVariants(root, current.sourceIndex);
+                forgetMathStepsVariants(root, current.sourceIndex, noteKeys);
                 mathStepsStatus(root, '元の説明に戻しました');
                 scheduleMathStepsProgress(root);
             } else if (action === 'next') {
@@ -903,10 +970,14 @@
             return steps.map((step) => {
                 const simplified = step.expanded ? '' : state.simplified[String(step.sourceIndex)];
                 const body = step.expanded ? step.body : ((simplified && simplified.trim()) ? simplified : step.body);
+                const note = state.notes ? state.notes[mathStepsNoteKey(step)] : '';
                 return `<div class="math-steps-pdf-step">`
                     + `<h3 class="math-steps-pdf-heading">ステップ ${step.index + 1}${step.title ? ` ${pdfEscapeAttr(step.title)}` : ''}</h3>`
                     + `<div class="math-steps-pdf-body">${sanitizeMarkdownHtml(body)}</div>`
                     + ((step.expanded || (simplified && simplified.trim())) ? '<div class="math-steps-pdf-note">（やさしい説明）</div>' : '')
+                    + (note && note.trim()
+                        ? `<div class="math-steps-pdf-note">（なぜそうなるの？）</div><div class="math-steps-pdf-body">${sanitizeMarkdownHtml(note)}</div>`
+                        : '')
                     + `</div>`;
             }).join('');
         }

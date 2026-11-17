@@ -147,6 +147,35 @@ sequenceDiagram
 
 ---
 
+### 2.4 「わかりやすくする」補足フロー
+
+各ステップで「なぜそうなるのか」が分かりにくいとき、「わかりやすくする」ボタンを押すと、そのステップの計算の理由を説明する補足が本文の下に追加されます。ステップ本文・計算・答え・分割は変わりません。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as ユーザー
+    participant C as クライアント (Web/Android)
+    participant S as Flask サーバー
+    participant P as AI プロバイダー
+    participant D as データベース (Message)
+
+    U->>C: 「わかりやすくする」をクリック (例: ステップ 2)
+    C->>C: ボタンを「説明しています…」に変更
+    C->>S: POST /api/math_steps/simplify<br>{ mode: "explain", message_id: 123, step_index: 1, part_index: 任意 }
+    S->>S: 所有権・モード・対象ステップ（または分割小ステップ）を検証
+    S->>S: build_math_steps_explain_prompt() を前置（理由だけを短く説明）
+    S->>P: 回答時と同じモデルへワンショット生成リクエスト
+    P-->>S: 「なぜその操作をするのか」の補足本文
+    S->>S: 見出し行を除去し、文字数上限を適用 (8,000文字 / 全体40,000文字)
+    S->>D: math_steps_state.notes["1"] を保存 (E2EE暗号化)
+    S->>D: トークン利用量（Usage）を thought_data に追記
+    S-->>C: HTTP 200 OK { status: 'ok', note: "...", note_key: "1", math_steps_state: {...} }
+    C->>C: 本文の下に「なぜそうなるの？」の補足を追加して再描画
+```
+
+---
+
 ## 3. データモデルと永続化
 
 ### 3.1 ユーザー設定（`User` モデル）
@@ -192,6 +221,10 @@ AI回答メッセージ（`role == "assistant"`）の進捗状態は、`math_ste
       { "title": "やさしく整理", "body": "やさしい解説1..." },
       { "title": "やさしく計算", "body": "やさしい解説2..." }
     ]
+  },
+  "notes": {
+    "1": "両辺から3を引くのは、x だけを残すためです...",
+    "1-0": "小ステップの補足..."
   }
 }
 ```
@@ -199,6 +232,7 @@ AI回答メッセージ（`role == "assistant"`）の進捗状態は、`math_ste
 - `max_reached` (int): ユーザーが到達した最大のステップインデックス。一度到達した値より小さくなることはありません。
 - `simplified` (dict[str, str]): 旧形式の「もっとやさしく」代替テキスト。既存データの読み込みと「元の説明に戻す」のために保持します。
 - `expanded` (dict[str, list[dict]]): 「もっとやさしく」で分割したステップ。キーは元ステップのインデックス文字列、値は `{title, body}` のリストです。クライアントは元ステップの位置にこのリストを差し込んで表示し、`part_index` を指定して小ステップをさらに分割できます。
+- `notes` (dict[str, str]): 「わかりやすくする」で追加した「なぜそうなるの？」の補足。キーは元ステップ（`"1"`）または分割小ステップ（`"1-0"`）です。
 
 ---
 

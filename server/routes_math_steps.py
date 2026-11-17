@@ -29,6 +29,20 @@ def _clean_math_steps_parts(value, fallback_title=""):
     return parts
 
 
+def _clean_math_steps_note(value):
+    """Normalize a 「わかりやすくする」 note into plain Markdown (no step headings)."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    text = re.sub(
+        r"^\s{0,3}#{1,6}\s*(?:ステップ|Step)\s*\d+[^\n]*\n?",
+        "",
+        text,
+        flags=re.IGNORECASE | re.MULTILINE,
+    ).strip()
+    return text[:MATH_STEPS_MAX_NOTE_PER_STEP]
+
+
 def _load_math_steps_state(raw):
     """Parse a stored state JSON into the clamped canonical shape."""
     data = raw
@@ -78,11 +92,31 @@ def _load_math_steps_state(raw):
                 total_chars += len(body)
             if parts:
                 expanded[key_text] = parts
+    # 「わかりやすくする」 keeps a short "why" note per step. Expanded sub-steps
+    # use "<source index>-<part index>" so both levels can have their own note.
+    notes = {}
+    notes_total = 0
+    raw_notes = data.get("notes")
+    if isinstance(raw_notes, dict):
+        for key, value in raw_notes.items():
+            key_text = str(key)
+            if not MATH_STEPS_NOTE_KEY_RE.match(key_text):
+                continue
+            text = str(value or "").strip()
+            if not text:
+                continue
+            remaining = MATH_STEPS_MAX_NOTES_TOTAL - notes_total
+            if remaining <= 0:
+                break
+            limit = min(MATH_STEPS_MAX_NOTE_PER_STEP, remaining)
+            notes[key_text] = text[:limit]
+            notes_total += len(notes[key_text])
     return {
         "current": current,
         "max_reached": max_reached,
         "simplified": simplified,
         "expanded": expanded,
+        "notes": notes,
     }
 
 
@@ -297,6 +331,13 @@ def math_steps_progress():
                 state['expanded'].pop(str(int(item)), None)
             except (TypeError, ValueError):
                 continue
+    # 「補足を閉じる」 / collapsing a split drops the "why" notes too.
+    note_removals = data.get('remove_notes')
+    if isinstance(note_removals, list):
+        for item in note_removals[:MATH_STEPS_MAX_CURRENT * 9 + 1]:
+            key = str(item or "").strip()
+            if MATH_STEPS_NOTE_KEY_RE.match(key):
+                state['notes'].pop(key, None)
     _write_math_steps_state(message, state)
     safe_db_commit()
     logger.info(
@@ -319,6 +360,9 @@ def math_steps_simplify():
         return jsonify({'error': error}), 400
     if not message or message.role != 'assistant':
         return jsonify({'error': 'message_not_found'}), 404
+    mode = str(data.get('mode') or 'split').strip().lower()
+    if mode not in ('split', 'explain'):
+        return jsonify({'error': 'invalid_mode'}), 400
     try:
         step_index = int(data.get('step_index'))
     except (TypeError, ValueError):
@@ -361,6 +405,51 @@ def math_steps_simplify():
         return jsonify({'error': 'unsupported_model'}), 400
     options = _math_steps_prompt_options(message)
     config = normalize_math_steps_config(getattr(current_user, 'math_steps_config', None))
+    if mode == 'explain':
+        prompt = build_math_steps_explain_prompt(config) + step_text
+        logger.info(
+            "math_steps explain start user=%s message=%s step=%s part=%s model=%s",
+            current_user.id, message.id, step_index, part_index, model_key,
+        )
+        try:
+            explanation, usage_call = _call_math_steps_simplify_model(
+                current_user,
+                model_key,
+                prompt,
+                gemini_free_tier=options.get('gemini_free_tier') is True,
+            )
+        except Exception as exc:
+            logger.warning(
+                "math_steps explain failed user=%s message=%s step=%s error=%s",
+                current_user.id, message.id, step_index, type(exc).__name__,
+            )
+            return jsonify({'error': 'explain_failed'}), 502
+        note = _clean_math_steps_note(explanation)
+        if not note:
+            return jsonify({'error': 'empty_result'}), 502
+        note_key = f"{step_index}-{part_index}" if part_index is not None else key
+        others_total = sum(
+            len(value) for other_key, value in state['notes'].items() if other_key != note_key
+        )
+        if others_total + len(note) > MATH_STEPS_MAX_NOTES_TOTAL:
+            return jsonify({'error': 'notes_limit_reached'}), 409
+        state['notes'][note_key] = note
+        _write_math_steps_state(message, state)
+        _append_math_steps_usage(message, usage_call)
+        safe_db_commit()
+        logger.info(
+            "math_steps explain done user=%s message=%s step=%s part=%s chars=%s",
+            current_user.id, message.id, step_index, part_index, len(note),
+        )
+        return jsonify({
+            'status': 'ok',
+            'mode': 'explain',
+            'note': note,
+            'note_key': note_key,
+            'step_index': step_index,
+            'part_index': part_index,
+            'math_steps_state': _read_math_steps_state(message),
+        })
     prompt = build_math_steps_simplify_prompt(config) + step_text
     logger.info(
         "math_steps simplify start user=%s message=%s step=%s part=%s model=%s",

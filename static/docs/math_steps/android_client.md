@@ -39,13 +39,16 @@ data class MathStepsState(
     val maxReached: Int = 0,
     val simplified: Map<Int, String> = emptyMap(),
     val expanded: Map<Int, List<MathStepPart>> = emptyMap(),
+    val notes: Map<String, String> = emptyMap(),
 )
 ```
 - `withCurrent(index: Int)`: 現在位置を更新し、`maxReached` も必要に応じて引き上げ。
 - `withSimplified(index: Int, text: String)`: 旧形式の簡略化テキストを不変Mapに追加。
 - `expanded`: 「もっとやさしく」で分割した小ステップ。キーは元ステップ番号。
+- `notes`: 「わかりやすくする」で追加した「なぜそうなるの？」の補足。キーは元ステップ番号（`"1"`）または分割小ステップ（`"1-0"`）。
 - `buildMathStepViews(original, expanded)`: 元ステップと分割を表示順に平坦化し、`sourceIndex` / `partIndex` を持つ `MathStepView` を生成（Web版と同一契約）。
-- `MAX_STEP = 50`, `MAX_SIMPLIFIED_CHARS = 20_000`, `MAX_SIMPLIFIED_TOTAL = 100_000`, `MAX_EXPANDED_PER_STEP = 8` の上限ガードを内蔵。
+- `noteKey(view)`: 表示中のステップから補足キーを求める（Web版の `mathStepsNoteKey()` と同一契約）。
+- `MAX_STEP = 50`, `MAX_SIMPLIFIED_CHARS = 20_000`, `MAX_SIMPLIFIED_TOTAL = 100_000`, `MAX_EXPANDED_PER_STEP = 8`, `MAX_NOTE_CHARS = 8_000`, `MAX_NOTES_TOTAL = 40_000` の上限ガードを内蔵。
 
 ### 2.3 `extractMathSteps(text: String)`（ステップ解析）
 Web版の `parseMathSteps()` と同一の正規表現を使用し、回答テキストを `List<MathStep>` に分解します。
@@ -56,7 +59,7 @@ Web版の `parseMathSteps()` と同一の正規表現を使用し、回答テキ
 
 ## 3. 非同期通信と状態管理（`ChatMathSteps.kt`）
 
-サーバー通信と画面状態の同期は、`ChatMathSteps.kt`（152行）が担当します。
+サーバー通信と画面状態の同期は、`ChatMathSteps.kt`（224行）が担当します。
 
 ```mermaid
 flowchart LR
@@ -86,8 +89,9 @@ Jetpack Composeにより、Material 3とWeb版のCSSデザインを融合させ�
 - **KaTeX数式レンダリング**: AndroidネイティブのMarkdownパーサーおよびLaTeXビューアと連携。
 - **アクションボタン群**:
   - メインボタン: 次のステップへ進む大型ボタン（「ステップ 2 へ」「解き終わった！」）。
-  - サブボタン: 「前へ」「最初から」「もっとやさしく」の丸型チップボタン。
+  - サブボタン: 「前へ」「最初から」「わかりやすくする」「もっとやさしく」の丸型チップボタン。
   - 「もっとやさしく」: 現在のステップを2〜4個の小ステップに分割する。分割済みの小ステップでは、その小ステップだけをさらに分割する。
+  - 「わかりやすくする」: 現在のステップの計算について「なぜその操作をするのか」を説明する補足を本文の下に追加する（`MathStepsState.notes`）。補足は「補足を閉じる」で削除でき、分割を元に戻すとその配下の補足も消える。
   - 「元の説明に戻す」ボタン: 分割または旧形式の簡略化が適用されているステップのみに点線枠で表示。分割を元の1ステップへ戻す。
 
 ### 4.2 `SvgAnimation.kt` と `mathsvg` の描画

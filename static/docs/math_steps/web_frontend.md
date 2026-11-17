@@ -6,7 +6,7 @@
 
 ## 1. フロントエンド構成とモジュール設計
 
-Web版の実装は、JavaScript分割構成ルールに基づき `static/js/chat_core_parts/chat_core.part30_mathsteps.js`（994行）に集約されています。
+Web版の実装は、JavaScript分割構成ルールに基づき `static/js/chat_core_parts/chat_core.part30_mathsteps.js`（1,065行）に表示・操作・設定・出力を、`static/js/chat_core_parts/chat_core.part31_mathstepsnotes.js`（97行）に「わかりやすくする」補足の生成・後始末を分けて置いています。
 
 ### 主な内部状態と管理構造
 ```javascript
@@ -37,12 +37,14 @@ const mathStepsProgressInFlight = new WeakSet(); // element -> 通信中フラ�
 │   ├── .math-steps-counter  ("ステップ 2 / 4" などの進行状況)
 │   └── .math-steps-title    ("使う公式を確認する" などの見出し)
 ├── .math-steps-body.prose
-│   └── (KaTeX数式を含むMarkdown本文、および .mathsvg-render)
+│   ├── (KaTeX数式を含むMarkdown本文、および .mathsvg-render)
+│   └── .math-steps-note ("なぜそうなるの？" 補足。表示中のみ)
 ├── .math-steps-actions
-│   ├── button.math-steps-next ("ステップ 3 へ" / "解き終わった！" などの大型ボタン)
+│   ├── button.math-steps-next ("わかった、次へ" / "完了" などの大型ボタン)
 │   └── .math-steps-sub-actions
 │       ├── button.math-steps-prev ("前へ")
 │       ├── button.math-steps-restart ("最初から")
+│       ├── button.math-steps-explain ("わかりやすくする")
 │       └── button.math-steps-simplify ("もっとやさしく")
 │   └── button.math-steps-restore ("元の説明に戻す" - 簡略化適用時のみ)
 └── .math-steps-status (スクリーンリーダー向け状態通知 aria-live="polite")
@@ -97,6 +99,13 @@ OSのアクセシビリティ設定（`prefers-reduced-motion: reduce`）が有�
 ### 4.4 表示ステップと元ステップの対応
 `math_steps_state.expanded`（元ステップ番号 → `{title, body}` の配列）を `parseMathSteps()` の結果へ適用し、`buildMathStepsDisplaySteps()` が表示用の配列を作ります。各表示ステップは `sourceIndex`（元ステップ）と `partIndex`（分割内の位置）を持ち、進捗の `current` は表示順のインデックスです。
 
+### 4.5 「わかりやすくする」補足（なぜそうなるの？）
+1. 「わかりやすくする」ボタンを押すと、ボタンがビジー状態（文言「説明しています…」）になります。
+2. `POST /api/math_steps/simplify` に `mode: "explain"` を付けて送信します。サーバーはそのステップ（分割済みなら `part_index` の小ステップ）だけを読み、「なぜその計算・式変形をするのか」を説明する短い補足を返します。
+3. 元の本文・計算・答え・分割は変えず、`.math-steps-note`（見出し「なぜそうなるの？」）として本文の下に表示します。
+4. 補足は `math_steps_state.notes` にステップ単位（`"3"`）または分割小ステップ単位（`"3-1"`）で保存されます。「補足を閉じる」を押すと `remove_notes` が送信され、その補足だけが消えます。
+5. 「元の説明に戻す」で分割をたたむと、そのステップ配下の補足も一緒に削除されます。補足のキーは `sourceIndex`、分割小ステップでは `sourceIndex-partIndex` で、表示中のステップからは `mathStepsNoteKey()` で求めます。
+
 ---
 
 ## 5. エクスポートと共有の対応
@@ -105,6 +114,7 @@ OSのアクセシビリティ設定（`prefers-reduced-motion: reduce`）が有�
 チャット画面のPDFエクスポート機能では、画面上で折りたたまれている全ステップをフラットに展開し、印刷用レイアウトとして整形して出力します（`buildMathStepsPdfHtml`）。
 - 各ステップが `<h3>ステップ N 見出し</h3>` と本文の形式で縦に並び、`mathsvg` も埋め込まれた状態で印刷・PDF化されます。
 - 分割または簡略化が適用されているステップは、やさしい説明（分割後の本文）が出力されます。
+- 「わかりやすくする」の補足があるステップは、本文の後に「（なぜそうなるの？）」として補足も出力されます。
 
 ### 5.2 クリップボードコピー（`prepareMathStepsCopyText`）
 メッセージのコピー操作時には、全ステップが「`## ステップ N 見出し`」で整形されたプレーンテキスト（Markdown形式）としてクリップボードへコピーされます（`prepareMathStepsCopyText`）。

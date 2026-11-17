@@ -5,8 +5,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -40,6 +41,7 @@ import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.MathStepPart
 import com.minashin1120.aiplayground.data.MathStepsConfig
 import com.minashin1120.aiplayground.data.buildMathStepViews
+import com.minashin1120.aiplayground.data.noteKey
 import com.minashin1120.aiplayground.data.parseMathSteps
 import kotlinx.coroutines.delay
 
@@ -58,8 +60,13 @@ internal class MathStepsActions(
     /** Calls `/api/math_steps/simplify`; [done] gets the whole easier step list, or null on failure. */
     val onSimplify: (ChatMessage, Int, Int?, (List<MathStepPart>?) -> Unit) -> Unit =
         { _, _, _, done -> done(null) },
+    /** Calls `/api/math_steps/simplify` with mode=explain; [done] gets the "why" note, or null. */
+    val onExplain: (ChatMessage, Int, Int?, (String?) -> Unit) -> Unit =
+        { _, _, _, done -> done(null) },
     /** Removes the saved replacement (expanded step or legacy simplified body) on the server. */
     val onRestoreOriginal: (ChatMessage, Int, Int) -> Unit = { _, _, _ -> },
+    /** Removes one saved 「わかりやすくする」 note on the server. */
+    val onCloseNote: (ChatMessage, String, Int) -> Unit = { _, _, _ -> },
 )
 
 /** The five gear options, shared by the settings card and the prompt-bar gear modal. */
@@ -137,6 +144,7 @@ internal fun MathStepsSettingsDialog(
 }
 
 /** One answer rendered as steps. Falls back to the normal Markdown when no heading is found. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun MathStepsContent(
     text: String,
@@ -160,6 +168,7 @@ internal fun MathStepsContent(
     val stateKey = message.conversationKey ?: message.id
     var expanded by remember(stateKey) { mutableStateOf(saved?.expanded.orEmpty()) }
     var simplified by remember(stateKey) { mutableStateOf(saved?.simplified.orEmpty()) }
+    var notes by remember(stateKey) { mutableStateOf(saved?.notes.orEmpty()) }
     val steps = remember(original, expanded) { buildMathStepViews(original, expanded) }
     val lastIndex = steps.lastIndex
     var current by remember(stateKey) { mutableIntStateOf((saved?.current ?: 0).coerceIn(0, lastIndex)) }
@@ -167,6 +176,8 @@ internal fun MathStepsContent(
     var savedCurrent by remember(stateKey) { mutableIntStateOf(saved?.current ?: 0) }
     var simplifying by remember(stateKey) { mutableStateOf(false) }
     var simplifyFailed by remember(stateKey) { mutableStateOf(false) }
+    var explaining by remember(stateKey) { mutableStateOf(false) }
+    var explainFailed by remember(stateKey) { mutableStateOf(false) }
 
     // A regenerated/shortened answer must never index past the last step.
     LaunchedEffect(lastIndex) {
@@ -182,6 +193,7 @@ internal fun MathStepsContent(
         if (saved.maxReached > maxReached) maxReached = saved.maxReached.coerceAtMost(lastIndex)
         if (saved.expanded != expanded) expanded = saved.expanded
         if (saved.simplified != simplified) simplified = saved.simplified
+        if (saved.notes != notes) notes = saved.notes
         savedCurrent = next
     }
 
@@ -198,11 +210,17 @@ internal fun MathStepsContent(
         current = next
         if (next > maxReached) maxReached = next
         simplifyFailed = false
+        explainFailed = false
     }
+
+    fun noteKeysFor(sourceIndex: Int): List<String> =
+        notes.keys.filter { it == sourceIndex.toString() || it.startsWith("$sourceIndex-") }
 
     val web = LocalWebPalette.current
     val view = steps[current]
     val title = view.title
+    val currentNoteKey = noteKey(view)
+    val note = notes[currentNoteKey]
     Column(Modifier.fillMaxWidth().semantics { contentDescription = "数学ステップ解説" },
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -249,6 +267,7 @@ internal fun MathStepsContent(
                                             .takeIf { it >= 0 } ?: 0
                                         expanded = without
                                         simplified = simplified - sourceIndex
+                                        notes = notes.filterKeys { it !in noteKeysFor(sourceIndex) }
                                         current = first.coerceIn(0, nextSteps.lastIndex)
                                         if (maxReached > nextSteps.lastIndex) maxReached = nextSteps.lastIndex
                                         restoredIndex = current
@@ -269,8 +288,47 @@ internal fun MathStepsContent(
             }
         }
 
+        if (note != null) {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                    .background(web.theme.rgb(if (web.isLight) 0.08f else 0.12f))
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    FaIcon(R.drawable.fa_solid_lightbulb, null, size = 11.dp, tint = web.theme300)
+                    Text(
+                        "なぜそうなるの？",
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (web.isLight) web.theme.t700 else web.theme200,
+                    )
+                }
+                MarkdownText(note, loader, onOpen, startCollapsed, canvasMode)
+                Text(
+                    "補足を閉じる",
+                    fontSize = 11.sp,
+                    color = web.muted,
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                        .clickable(role = Role.Button) {
+                            notes = notes - currentNoteKey
+                            actions.onCloseNote(message, currentNoteKey, current)
+                        }
+                        .padding(vertical = 6.dp, horizontal = 4.dp),
+                )
+            }
+        }
+
         if (simplifyFailed) {
             Text("やさしい説明を作れませんでした",
+                fontSize = 11.sp, lineHeight = 16.sp, color = Tw.rose300)
+        }
+        if (explainFailed) {
+            Text("補足を作れませんでした",
                 fontSize = 11.sp, lineHeight = 16.sp, color = Tw.rose300)
         }
 
@@ -290,10 +348,11 @@ internal fun MathStepsContent(
             ) { Text(if (current < lastIndex) "わかった、次へ" else "完了") }
         }
 
-        Row(
+        FlowRow(
             Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
         ) {
             WebButton(
                 onClick = { goTo(current - 1) },
@@ -310,7 +369,27 @@ internal fun MathStepsContent(
                     .clickable(enabled = current > 0, role = Role.Button) { goTo(0) }
                     .padding(vertical = 10.dp, horizontal = 6.dp),
             )
-            Spacer(Modifier.weight(1f))
+            WebButton(
+                onClick = {
+                    if (explaining) return@WebButton
+                    val target = view
+                    explaining = true
+                    explainFailed = false
+                    actions.onExplain(message, target.sourceIndex, target.partIndex) { savedNote ->
+                        explaining = false
+                        val value = savedNote?.takeIf { it.isNotBlank() }
+                        if (value == null) explainFailed = true
+                        else notes = notes + (noteKey(target) to value)
+                    }
+                },
+                variant = WebButtonVariant.Gray,
+                enabled = !explaining && message.id.toIntOrNull() != null,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                fontSize = 12.sp,
+            ) {
+                FaIcon(R.drawable.fa_solid_lightbulb, null, size = 12.dp)
+                Text(if (explaining) "説明しています…" else "わかりやすくする")
+            }
             WebButton(
                 onClick = {
                     if (simplifying) return@WebButton

@@ -158,6 +158,7 @@ class MathStepsServerTests(unittest.TestCase):
             message.math_steps_state = target.encrypt_val(json.dumps({
                 "current": 2, "max_reached": 3, "simplified": {"0": "暗号化された説明"},
                 "expanded": {"1": [{"title": "やさしい", "body": "暗号化された分割"}]},
+                "notes": {"0": "暗号化された補足", "1-0": "暗号化された小ステップの補足"},
             }, ensure_ascii=False))
             target.db.session.commit()
 
@@ -169,6 +170,8 @@ class MathStepsServerTests(unittest.TestCase):
         self.assertEqual(
             row["math_steps_state"]["expanded"]["1"][0]["body"], "暗号化された分割"
         )
+        self.assertEqual(row["math_steps_state"]["notes"]["0"], "暗号化された補足")
+        self.assertEqual(row["math_steps_state"]["notes"]["1-0"], "暗号化された小ステップの補足")
 
         saved = self.call(self.client(), "POST", "/api/math_steps/progress", json={
             "message_id": self.message_id, "current": 3, "max_reached": 4,
@@ -319,6 +322,64 @@ class MathStepsServerTests(unittest.TestCase):
         self.assertEqual(restored.status_code, 200, restored.get_data(as_text=True))
         self.assertNotIn("1", restored.get_json()["math_steps_state"]["simplified"])
         self.assertNotIn("1", restored.get_json()["math_steps_state"]["expanded"])
+
+    def test_explain_mode_adds_a_why_note_and_can_be_removed(self):
+        prompt = target.build_math_steps_explain_prompt(target.MATH_STEPS_DEFAULTS)
+        self.assertIn("[Math Steps / わかりやすく]", prompt)
+        self.assertIn("なぜ", prompt)
+        self.assertIn("小学高学年", prompt)
+        self.assertNotIn("{{math_", prompt)
+        client = self.client()
+        invalid = self.call(client, "POST", "/api/math_steps/simplify", json={
+            "message_id": self.message_id, "step_index": 0, "mode": "bogus",
+        })
+        self.assertEqual(invalid.status_code, 400)
+
+        with mock.patch.object(
+            target, "_call_math_steps_simplify_model",
+            return_value=("## ステップ 1 なぜ引くのか\n両辺から3を引くと x だけが残ります。", None),
+        ):
+            explained = self.call(client, "POST", "/api/math_steps/simplify", json={
+                "message_id": self.message_id, "step_index": 0, "mode": "explain",
+            })
+        self.assertEqual(explained.status_code, 200, explained.get_data(as_text=True))
+        body = explained.get_json()
+        self.assertEqual(body["mode"], "explain")
+        self.assertEqual(body["note_key"], "0")
+        self.assertIn("両辺から3を引くと", body["note"])
+        self.assertNotIn("## ステップ", body["note"])
+        self.assertEqual(body["math_steps_state"]["notes"]["0"], body["note"])
+
+        payload = self.call(client, "GET", f"/api/threads/{self.thread_public_id}")
+        row = next(r for r in payload.get_json()["messages"] if r["id"] == self.message_id)
+        self.assertIn("両辺から3を引くと", row["math_steps_state"]["notes"]["0"])
+
+        # An expanded sub-step gets its own note key: "<source>-<part>".
+        with mock.patch.object(
+            target, "_call_math_steps_simplify_model",
+            return_value=("## ステップ 1 分ける\nやさしい本文", None),
+        ):
+            split = self.call(client, "POST", "/api/math_steps/simplify", json={
+                "message_id": self.message_id, "step_index": 0,
+            })
+        self.assertEqual(split.status_code, 200, split.get_data(as_text=True))
+        with mock.patch.object(
+            target, "_call_math_steps_simplify_model",
+            return_value=("ここでは x を求めるために同じ数を両辺から引きます。", None),
+        ):
+            part_note = self.call(client, "POST", "/api/math_steps/simplify", json={
+                "message_id": self.message_id, "step_index": 0, "part_index": 0, "mode": "explain",
+            })
+        self.assertEqual(part_note.status_code, 200, part_note.get_data(as_text=True))
+        self.assertEqual(part_note.get_json()["note_key"], "0-0")
+        self.assertIn("0-0", part_note.get_json()["math_steps_state"]["notes"])
+
+        removed = self.call(client, "POST", "/api/math_steps/progress", json={
+            "message_id": self.message_id, "current": 0, "max_reached": 0,
+            "remove_notes": ["0", "0-0"],
+        })
+        self.assertEqual(removed.status_code, 200, removed.get_data(as_text=True))
+        self.assertEqual(removed.get_json()["math_steps_state"]["notes"], {})
 
     def test_prompt_options_and_message_payload(self):
         record = target._build_prompt_options_record({"math_steps": True})

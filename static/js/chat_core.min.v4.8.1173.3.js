@@ -2919,13 +2919,11 @@ isArray(i))return;const a=[];i.slice(0,MATH_STEPS_MAX_EXPANDED_PER_STEP).forEach
 "object")return;const l=typeof o.body=="string"?o.body:"";if(!l.trim())return;const c=typeof o.title==
 "string"?o.title:"";a.push({title:c.trim(),body:l})}),a.length&&(t[String(n)]=a)}),t}r(normalizeMathStepsExpanded,
 "normalizeMathStepsExpanded");function normalizeMathStepsMessageState(e){let t=e;if(typeof t=="strin\
-g")try{t=JSON.parse(t)}catch{t=null}const n=t&&typeof t=="object"&&!Array.isArray(t)?t:{},i={};n.simplified&&
-typeof n.simplified=="object"&&!Array.isArray(n.simplified)&&Object.keys(n.simplified).forEach(o=>{const l=n.
-simplified[o];typeof l=="string"&&l.trim()&&(i[String(o)]=l)});const a={};return n.notes&&typeof n.notes==
-"object"&&!Array.isArray(n.notes)&&Object.keys(n.notes).forEach(o=>{if(!/^\d{1,4}(?:-\d{1,3})?$/.test(
-String(o)))return;const l=n.notes[o];typeof l=="string"&&l.trim()&&(a[String(o)]=l)}),{current:clampMathStepsIndex(
+g")try{t=JSON.parse(t)}catch{t=null}const n=t&&typeof t=="object"&&!Array.isArray(t)?t:{},i={};return n.
+simplified&&typeof n.simplified=="object"&&!Array.isArray(n.simplified)&&Object.keys(n.simplified).forEach(
+a=>{const o=n.simplified[a];typeof o=="string"&&o.trim()&&(i[String(a)]=o)}),{current:clampMathStepsIndex(
 n.current,50),max_reached:clampMathStepsIndex(n.max_reached,50),simplified:i,expanded:normalizeMathStepsExpanded(
-n.expanded),notes:a}}r(normalizeMathStepsMessageState,"normalizeMathStepsMessageState");function buildMathStepsDisplaySteps(e,t){
+n.expanded)}}r(normalizeMathStepsMessageState,"normalizeMathStepsMessageState");function buildMathStepsDisplaySteps(e,t){
 const n=[],i=Array.isArray(e)?e:[],a=t&&typeof t=="object"?t:{};return i.forEach(o=>{const l=a[String(
 o.index)];if(Array.isArray(l)&&l.length){l.forEach((c,d)=>{n.push({index:n.length,sourceIndex:o.index,
 partIndex:d,expanded:!0,title:String(c.title||o.title||""),body:String(c.body||"")})});return}n.push(
@@ -2974,122 +2972,107 @@ r");function mathStepsStepMarkdown(e,t){const n=e.steps[t];if(!n)return"";if(n.e
 const i=e.simplified?e.simplified[String(n.sourceIndex)]:"",a=e.showOriginal&&e.showOriginal.has(t);
 return i&&!a?i:n.body}r(mathStepsStepMarkdown,"mathStepsStepMarkdown");function mathStepsCanRestore(e,t){
 const n=e.steps[t];return n?n.expanded?!0:!!((e.simplified?e.simplified[String(n.sourceIndex)]:"")&&
-!e.showOriginal.has(t)):!1}r(mathStepsCanRestore,"mathStepsCanRestore");function mathStepsNoteKey(e){
-return e?e.partIndex!==null&&e.partIndex!==void 0?`${e.sourceIndex}-${e.partIndex}`:String(e.sourceIndex):
-""}r(mathStepsNoteKey,"mathStepsNoteKey");function mathStepsNoteFor(e,t){const n=e&&e.steps?e.steps[t]:
-null;if(!n||!e.notes)return"";const i=e.notes[mathStepsNoteKey(n)];return typeof i=="string"?i:""}r(
-mathStepsNoteFor,"mathStepsNoteFor");function buildMathStepsNoteHtml(e){const t=String(e||"").trim();
-return t?`<div class="math-steps-note" role="note"><div class="math-steps-note-head"><i class="fas f\
-a-lightbulb" aria-hidden="true"></i>\u306A\u305C\u305D\u3046\u306A\u308B\u306E\uFF1F</div><div class="prose prose-invert text-sm break-words\
- math-steps-note-prose">${sanitizeMarkdownHtml(t)}</div><button type="button" class="math-steps-note\
--close" data-math-steps-action="note-close">\u88DC\u8DB3\u3092\u9589\u3058\u308B</button></div>`:""}
-r(buildMathStepsNoteHtml,"buildMathStepsNoteHtml");function mathStepsTotalLabel(e){const t=e.steps.length;
-return`${e.current+1} / ${t}${e.streaming?"+":""}`}r(mathStepsTotalLabel,"mathStepsTotalLabel");function mathStepsPendingNext(e){
-return!!e.streaming&&e.current>=e.steps.length-1}r(mathStepsPendingNext,"mathStepsPendingNext");function buildMathStepsHtml(e,t={}){
-const n=parseMathSteps(e);if(!n.steps.length)return"";const i=normalizeMathStepsMessageState(t.state||
-{}),a=n.steps,o=buildMathStepsDisplaySteps(a,i.expanded),l={originalSteps:a,expanded:Object.assign({},
-i.expanded),steps:o,current:clampMathStepsIndex(t.current!==void 0?t.current:i.current,o.length-1),maxReached:Math.
-max(i.max_reached,i.current),simplified:Object.assign({},i.simplified),notes:Object.assign({},i.notes),
-showOriginal:new Set,streaming:!!t.streaming},c=l.steps[l.current],d=mathStepsStepMarkdown(l,l.current),
-m=mathStepsCanRestore(l,l.current),g=mathStepsNoteFor(l,l.current),y=mathStepsPendingNext(l),v=l.current>=
-l.steps.length-1,w=v&&!y?"\u5B8C\u4E86":y?"\u6B21\u306E\u30B9\u30C6\u30C3\u30D7\u3092\u6E96\u5099\u4E2D\u2026":
-"\u308F\u304B\u3063\u305F\u3001\u6B21\u3078",x=y||v&&!y,k=t.messageId!==void 0&&t.messageId!==null?String(
-t.messageId):"",C=t.jobId!==void 0&&t.jobId!==null?String(t.jobId):"";return`<div class="math-steps \
-content-area" role="group" aria-label="\u6570\u5B66\u30B9\u30C6\u30C3\u30D7\u89E3\u8AAC" ${['data-ma\
-th-steps-root="1"',`data-current="${l.current}"`,`data-max-reached="${l.maxReached}"`,`data-total="${l.
-steps.length}"`,`data-streaming="${l.streaming?"1":"0"}"`,k?`data-message-id="${escapeHtml(k)}"`:"",
-C?`data-job-id="${escapeHtml(C)}"`:"",`data-math-steps-state="${mathStepsStateAttr({current:i.current,
-max_reached:i.max_reached,simplified:i.simplified,expanded:i.expanded,notes:i.notes})}"`].filter(Boolean).
-join(" ")}><div class="math-steps-header"><span class="math-steps-counter">\u30B9\u30C6\u30C3\u30D7 ${mathStepsTotalLabel(
+!e.showOriginal.has(t)):!1}r(mathStepsCanRestore,"mathStepsCanRestore");function mathStepsTotalLabel(e){
+const t=e.steps.length;return`${e.current+1} / ${t}${e.streaming?"+":""}`}r(mathStepsTotalLabel,"mat\
+hStepsTotalLabel");function mathStepsPendingNext(e){return!!e.streaming&&e.current>=e.steps.length-1}
+r(mathStepsPendingNext,"mathStepsPendingNext");function buildMathStepsHtml(e,t={}){const n=parseMathSteps(
+e);if(!n.steps.length)return"";const i=normalizeMathStepsMessageState(t.state||{}),a=n.steps,o=buildMathStepsDisplaySteps(
+a,i.expanded),l={originalSteps:a,expanded:Object.assign({},i.expanded),steps:o,current:clampMathStepsIndex(
+t.current!==void 0?t.current:i.current,o.length-1),maxReached:Math.max(i.max_reached,i.current),simplified:Object.
+assign({},i.simplified),showOriginal:new Set,streaming:!!t.streaming},c=l.steps[l.current],d=mathStepsStepMarkdown(
+l,l.current),m=mathStepsCanRestore(l,l.current),g=mathStepsPendingNext(l),y=l.current>=l.steps.length-
+1,v=y&&!g?"\u5B8C\u4E86":g?"\u6B21\u306E\u30B9\u30C6\u30C3\u30D7\u3092\u6E96\u5099\u4E2D\u2026":"\u308F\u304B\u3063\
+\u305F\u3001\u6B21\u3078",w=g||y&&!g,x=t.messageId!==void 0&&t.messageId!==null?String(t.messageId):
+"",k=t.jobId!==void 0&&t.jobId!==null?String(t.jobId):"";return`<div class="math-steps content-area"\
+ role="group" aria-label="\u6570\u5B66\u30B9\u30C6\u30C3\u30D7\u89E3\u8AAC" ${['data-math-steps-root\
+="1"',`data-current="${l.current}"`,`data-max-reached="${l.maxReached}"`,`data-total="${l.steps.length}\
+"`,`data-streaming="${l.streaming?"1":"0"}"`,x?`data-message-id="${escapeHtml(x)}"`:"",k?`data-job-i\
+d="${escapeHtml(k)}"`:"",`data-math-steps-state="${mathStepsStateAttr({current:i.current,max_reached:i.
+max_reached,simplified:i.simplified,expanded:i.expanded})}"`].filter(Boolean).join(" ")}><div class=\
+"math-steps-header"><span class="math-steps-counter">\u30B9\u30C6\u30C3\u30D7 ${mathStepsTotalLabel(
 l)}</span><span class="math-steps-title">${escapeHtml(c.title||"")}</span></div><div class="math-ste\
 ps-body" data-step-index="${l.current}" aria-live="polite"><div class="prose prose-invert text-sm br\
-eak-words math-steps-prose">${renderMathStepsBodyHtml(d)}</div>`+buildMathStepsNoteHtml(g)+(m?'<butt\
-on type="button" class="math-steps-restore" data-math-steps-action="restore">\u5143\u306E\u8AAC\u660E\u306B\u623B\u3059</button>':
+eak-words math-steps-prose">${renderMathStepsBodyHtml(d)}</div>`+(m?'<button type="button" class="ma\
+th-steps-restore" data-math-steps-action="restore">\u5143\u306E\u8AAC\u660E\u306B\u623B\u3059</button>':
 "")+`</div><div class="math-steps-actions"><button type="button" class="math-steps-next" data-math-s\
-teps-action="next"${x?' disabled aria-disabled="true"':""}>${escapeHtml(w)}</button><div class="math\
+teps-action="next"${w?' disabled aria-disabled="true"':""}>${escapeHtml(v)}</button><div class="math\
 -steps-sub-actions"><button type="button" class="math-steps-prev" data-math-steps-action="prev"${l.current<=
 0?' disabled aria-disabled="true"':""}>\u524D\u3078</button><button type="button" class="math-steps-restart" d\
 ata-math-steps-action="restart"${l.current<=0?' disabled aria-disabled="true"':""}>\u6700\u521D\u304B\u3089</button><but\
-ton type="button" class="math-steps-explain" data-math-steps-action="explain"${l.streaming?' disable\
-d aria-disabled="true"':""} title="\u3053\u306E\u30B9\u30C6\u30C3\u30D7\u306E\u8A08\u7B97\u3092\u3001\u306A\u305C\u305D\u3046\u3059\u308B\u306E\u304B\u8AAC\u660E\u3057\u307E\u3059"><i class="fas fa-lightbulb" aria-hidden\
-="true"></i>\u308F\u304B\u308A\u3084\u3059\u304F\u3059\u308B</button><button type="button" class="math-steps-simplify" data-math-steps-actio\
-n="simplify"${l.streaming?' disabled aria-disabled="true"':""} title="\u3053\u306E\u30B9\u30C6\u30C3\u30D7\u3092\u3001\u3084\u3055\u3057\u3044\u8907\u6570\u306E\u30B9\u30C6\u30C3\u30D7\u306B\u5206\u3051\u307E\u3059"><i c\
-lass="fas fa-wand-magic-sparkles" aria-hidden="true"></i>\u3082\u3063\u3068\u3084\u3055\u3057\u304F</button></div></div><div class="mat\
-h-steps-status" role="status" aria-live="polite"></div></div>`}r(buildMathStepsHtml,"buildMathStepsH\
-tml"),window.buildMathStepsHtml=buildMathStepsHtml;function buildMathStepsBubbleHtml(e,t={}){if(!parseMathSteps(
-e).steps.length)return"";const i=t.mathSteps||{};return buildMathStepsHtml(e,{state:i.state,messageId:i.
-messageId,jobId:i.jobId,streaming:!!i.streaming})}r(buildMathStepsBubbleHtml,"buildMathStepsBubbleHt\
-ml"),window.buildMathStepsBubbleHtml=buildMathStepsBubbleHtml;function mathStepsRootCounterEl(e){return e?
-e.querySelector(".math-steps-counter"):null}r(mathStepsRootCounterEl,"mathStepsRootCounterEl");function mathStepsStatus(e,t){
-const n=e?e.querySelector(".math-steps-status"):null;n&&(n.textContent=String(t||""))}r(mathStepsStatus,
-"mathStepsStatus");function getMathStepsRootState(e){if(!e)return null;let t=mathStepsRootState.get(
-e);if(t)return t;const n=e.getAttribute("data-message-id")||"";let i=mathStepsTextByRoot.get(e)||"";
-!i&&n&&typeof messageStore=="object"&&messageStore&&(i=messageStore[n]||"");const a=parseMathSteps(i);
-if(!a.steps.length)return null;const o=normalizeMathStepsMessageState(e.getAttribute("data-math-step\
-s-state")||""),l=a.steps,c=buildMathStepsDisplaySteps(l,o.expanded);return t={originalSteps:l,expanded:Object.
-assign({},o.expanded),steps:c,current:clampMathStepsIndex(e.getAttribute("data-current"),c.length-1),
-maxReached:Math.max(o.max_reached,clampMathStepsIndex(e.getAttribute("data-max-reached"),c.length-1)),
-simplified:Object.assign({},o.simplified),notes:Object.assign({},o.notes),showOriginal:new Set,streaming:e.
+ton type="button" class="math-steps-simplify" data-math-steps-action="simplify"${l.streaming?' disab\
+led aria-disabled="true"':""} title="\u306A\u305C\u305D\u3046\u3059\u308B\u306E\u304B\u3082\u542B\u3081\u3066\u3001\u3053\u306E\u30B9\u30C6\u30C3\u30D7\u3092\u3084\u3055\u3057\u3044\u8907\u6570\u306E\u30B9\u30C6\u30C3\u30D7\u306B\u5206\u3051\u307E\u3059"><i class="fas fa-wand-mag\
+ic-sparkles" aria-hidden="true"></i>\u3082\u3063\u3068\u3084\u3055\u3057\u304F</button></div></div><div class="math-steps-status" role=\
+"status" aria-live="polite"></div></div>`}r(buildMathStepsHtml,"buildMathStepsHtml"),window.buildMathStepsHtml=
+buildMathStepsHtml;function buildMathStepsBubbleHtml(e,t={}){if(!parseMathSteps(e).steps.length)return"";
+const i=t.mathSteps||{};return buildMathStepsHtml(e,{state:i.state,messageId:i.messageId,jobId:i.jobId,
+streaming:!!i.streaming})}r(buildMathStepsBubbleHtml,"buildMathStepsBubbleHtml"),window.buildMathStepsBubbleHtml=
+buildMathStepsBubbleHtml;function mathStepsRootCounterEl(e){return e?e.querySelector(".math-steps-co\
+unter"):null}r(mathStepsRootCounterEl,"mathStepsRootCounterEl");function mathStepsStatus(e,t){const n=e?
+e.querySelector(".math-steps-status"):null;n&&(n.textContent=String(t||""))}r(mathStepsStatus,"mathS\
+tepsStatus");function getMathStepsRootState(e){if(!e)return null;let t=mathStepsRootState.get(e);if(t)
+return t;const n=e.getAttribute("data-message-id")||"";let i=mathStepsTextByRoot.get(e)||"";!i&&n&&typeof messageStore==
+"object"&&messageStore&&(i=messageStore[n]||"");const a=parseMathSteps(i);if(!a.steps.length)return null;
+const o=normalizeMathStepsMessageState(e.getAttribute("data-math-steps-state")||""),l=a.steps,c=buildMathStepsDisplaySteps(
+l,o.expanded);return t={originalSteps:l,expanded:Object.assign({},o.expanded),steps:c,current:clampMathStepsIndex(
+e.getAttribute("data-current"),c.length-1),maxReached:Math.max(o.max_reached,clampMathStepsIndex(e.getAttribute(
+"data-max-reached"),c.length-1)),simplified:Object.assign({},o.simplified),showOriginal:new Set,streaming:e.
 getAttribute("data-streaming")==="1"},mathStepsRootState.set(e,t),t}r(getMathStepsRootState,"getMath\
 StepsRootState");function paintMathStepsRoot(e){const t=getMathStepsRootState(e);if(!e||!t||!t.steps.
 length)return;t.current=clampMathStepsIndex(t.current,t.steps.length-1);const n=t.steps[t.current],i=mathStepsRootCounterEl(
 e);i&&(i.textContent=`\u30B9\u30C6\u30C3\u30D7 ${mathStepsTotalLabel(t)}`);const a=e.querySelector("\
 .math-steps-title");a&&(a.textContent=n.title||"");const o=e.querySelector(".math-steps-body"),l=mathStepsStepMarkdown(
-t,t.current),c=mathStepsNoteFor(t,t.current),d=mathStepsCanRestore(t,t.current);if(o){const C=new Map;
-o.querySelectorAll(".mathsvg-render[data-svg-key]").forEach(L=>{const M=L.getAttribute("data-svg-key");
-M&&!C.has(M)&&C.set(M,L)}),o.setAttribute("data-step-index",String(t.current)),o.innerHTML=`<div cla\
-ss="prose prose-invert text-sm break-words math-steps-prose">${renderMathStepsBodyHtml(l)}</div>`+buildMathStepsNoteHtml(
-c)+(d?'<button type="button" class="math-steps-restore" data-math-steps-action="restore">\u5143\u306E\u8AAC\u660E\u306B\u623B\u3059</bu\
-tton>':""),o.querySelectorAll(".mathsvg-render[data-svg-key]").forEach(L=>{const M=C.get(L.getAttribute(
-"data-svg-key"));M&&L.replaceWith(M)});try{queueMessageDecorations(o,c?`${l}
-
-${c}`:l)}catch{}}const m=mathStepsPendingNext(t),g=t.current>=t.steps.length-1,y=e.querySelector(".m\
-ath-steps-next");if(y){y.textContent=g&&!m?"\u5B8C\u4E86":m?"\u6B21\u306E\u30B9\u30C6\u30C3\u30D7\u3092\u6E96\u5099\u4E2D\u2026":
-"\u308F\u304B\u3063\u305F\u3001\u6B21\u3078";const C=m||g&&!m;y.disabled=C,y.setAttribute("aria-disa\
-bled",C?"true":"false")}const v=e.querySelector(".math-steps-prev");if(v){const C=t.current<=0;v.disabled=
-C,v.setAttribute("aria-disabled",C?"true":"false")}const w=e.querySelector(".math-steps-restart");if(w){
-const C=t.current<=0;w.disabled=C,w.setAttribute("aria-disabled",C?"true":"false")}const x=e.querySelector(
-".math-steps-simplify");x&&!x.dataset.busy&&(x.disabled=!!t.streaming,x.setAttribute("aria-disabled",
-t.streaming?"true":"false"));const k=e.querySelector(".math-steps-explain");k&&!k.dataset.busy&&(k.disabled=
-!!t.streaming,k.setAttribute("aria-disabled",t.streaming?"true":"false")),e.setAttribute("data-curre\
-nt",String(t.current)),e.setAttribute("data-max-reached",String(t.maxReached)),e.setAttribute("data-\
-total",String(t.steps.length)),e.setAttribute("data-streaming",t.streaming?"1":"0"),t.renderedStep=t.
-current,t.renderedMarkdown=l,t.renderedNote=c}r(paintMathStepsRoot,"paintMathStepsRoot");function renderMathStepsInto(e,t,n={}){
+t,t.current),c=mathStepsCanRestore(t,t.current);if(o){const x=new Map;o.querySelectorAll(".mathsvg-r\
+ender[data-svg-key]").forEach(k=>{const C=k.getAttribute("data-svg-key");C&&!x.has(C)&&x.set(C,k)}),
+o.setAttribute("data-step-index",String(t.current)),o.innerHTML=`<div class="prose prose-invert text\
+-sm break-words math-steps-prose">${renderMathStepsBodyHtml(l)}</div>`+(c?'<button type="button" cla\
+ss="math-steps-restore" data-math-steps-action="restore">\u5143\u306E\u8AAC\u660E\u306B\u623B\u3059</button>':
+""),o.querySelectorAll(".mathsvg-render[data-svg-key]").forEach(k=>{const C=x.get(k.getAttribute("da\
+ta-svg-key"));C&&k.replaceWith(C)});try{queueMessageDecorations(o,l)}catch{}}const d=mathStepsPendingNext(
+t),m=t.current>=t.steps.length-1,g=e.querySelector(".math-steps-next");if(g){g.textContent=m&&!d?"\u5B8C\u4E86":
+d?"\u6B21\u306E\u30B9\u30C6\u30C3\u30D7\u3092\u6E96\u5099\u4E2D\u2026":"\u308F\u304B\u3063\u305F\u3001\u6B21\u3078";
+const x=d||m&&!d;g.disabled=x,g.setAttribute("aria-disabled",x?"true":"false")}const y=e.querySelector(
+".math-steps-prev");if(y){const x=t.current<=0;y.disabled=x,y.setAttribute("aria-disabled",x?"true":
+"false")}const v=e.querySelector(".math-steps-restart");if(v){const x=t.current<=0;v.disabled=x,v.setAttribute(
+"aria-disabled",x?"true":"false")}const w=e.querySelector(".math-steps-simplify");w&&!w.dataset.busy&&
+(w.disabled=!!t.streaming,w.setAttribute("aria-disabled",t.streaming?"true":"false")),e.setAttribute(
+"data-current",String(t.current)),e.setAttribute("data-max-reached",String(t.maxReached)),e.setAttribute(
+"data-total",String(t.steps.length)),e.setAttribute("data-streaming",t.streaming?"1":"0"),t.renderedStep=
+t.current,t.renderedMarkdown=l}r(paintMathStepsRoot,"paintMathStepsRoot");function renderMathStepsInto(e,t,n={}){
 if(!e)return!1;const i=parseMathSteps(t);if(!i.steps.length)return!1;const a=e.querySelector(".math-\
 steps"),o=a?getMathStepsRootState(a):null,l=normalizeMathStepsMessageState(n.state||{}),c=o||{originalSteps:i.
 steps,expanded:Object.assign({},l.expanded),steps:buildMathStepsDisplaySteps(i.steps,l.expanded),current:l.
-current,maxReached:l.max_reached,simplified:Object.assign({},l.simplified),notes:Object.assign({},l.
-notes),showOriginal:new Set,streaming:!!n.streaming};c.originalSteps=i.steps,c.expanded=c.expanded||
-{},c.notes=c.notes||{},c.steps=buildMathStepsDisplaySteps(c.originalSteps,c.expanded),c.streaming=n.
-streaming===!0,c.current=clampMathStepsIndex(c.current,c.steps.length-1),c.maxReached=Math.max(c.maxReached,
-c.current);const d=a&&o&&o.renderedStep===c.current?o.renderedMarkdown:null,m=mathStepsStepMarkdown(
-c,c.current),g=mathStepsNoteFor(c,c.current),y=a&&o&&o.renderedStep===c.current?o.renderedNote:null,
-v=a?a.querySelector(".math-steps-body"):null,w=!!v&&d!==null&&d===m&&String(y||"")===String(g||""),x=buildMathStepsHtml(
-t,{state:{current:c.current,max_reached:c.maxReached,simplified:c.simplified,expanded:c.expanded,notes:c.
-notes},messageId:n.mathSteps&&n.mathSteps.messageId!==void 0?n.mathSteps.messageId:void 0,jobId:n.mathSteps&&
-n.mathSteps.jobId!==void 0?n.mathSteps.jobId:void 0,streaming:c.streaming});if(!x)return!1;e.innerHTML=
-x;const k=e.querySelector(".math-steps");if(!k)return!1;mathStepsRootState.set(k,c),mathStepsTextByRoot.
-set(k,String(t||"")),c.renderedStep=c.current,c.renderedMarkdown=m,c.renderedNote=g;const C=k.querySelector(
-".math-steps-body");if(w&&v&&C){const L=new Map;v.querySelectorAll(".mathsvg-render[data-svg-key]").
-forEach(M=>{const E=M.getAttribute("data-svg-key");E&&!L.has(E)&&L.set(E,M)}),C.querySelectorAll(".m\
-athsvg-render[data-svg-key]").forEach(M=>{const E=L.get(M.getAttribute("data-svg-key"));E&&M.replaceWith(
-E)}),C.replaceWith(v)}else if(C)try{queueMessageDecorations(C,g?`${m}
-
-${g}`:m)}catch{}return!0}r(renderMathStepsInto,"renderMathStepsInto"),window.renderMathStepsInto=renderMathStepsInto;
-function mathStepsRootTargets(e){if(!e)return null;const t=e.getAttribute("data-message-id"),n=e.getAttribute(
-"data-job-id");return t&&/^\d+$/.test(String(t))?{message_id:Number(t)}:n?{job_id:String(n)}:null}r(
-mathStepsRootTargets,"mathStepsRootTargets");function postMathStepsProgress(e,t=0){const n=getMathStepsRootState(
-e),i=mathStepsRootTargets(e);if(!n||!i||mathStepsProgressInFlight.has(e))return;const a=Object.assign(
-{},i,{current:n.current,max_reached:n.maxReached});return mathStepsProgressInFlight.add(e),apiFetch(
-MATH_STEPS_PROGRESS_ROUTE,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(
-a)}).then(o=>{if(!(o&&o.ok))throw new Error(`progress ${o?o.status:"failed"}`)}).catch(()=>{t<4&&window.
-setTimeout(()=>postMathStepsProgress(e,t+1),1200*(t+1))}).finally(()=>{mathStepsProgressInFlight.delete(
-e)})}r(postMathStepsProgress,"postMathStepsProgress");function bindMathStepsMessageId(e,t){if(!(!e||
-t===void 0||t===null))return e.setAttribute("data-message-id",String(t)),postMathStepsProgress(e)}r(
-bindMathStepsMessageId,"bindMathStepsMessageId"),window.bindMathStepsMessageId=bindMathStepsMessageId;
-function scheduleMathStepsProgress(e){if(!e)return;const t=mathStepsProgressTimers.get(e);t&&window.
-clearTimeout(t),mathStepsProgressTimers.set(e,window.setTimeout(()=>{mathStepsProgressTimers.delete(
-e),postMathStepsProgress(e)},450))}r(scheduleMathStepsProgress,"scheduleMathStepsProgress");function requestMathStepsSimplify(e,t){
+current,maxReached:l.max_reached,simplified:Object.assign({},l.simplified),showOriginal:new Set,streaming:!!n.
+streaming};c.originalSteps=i.steps,c.expanded=c.expanded||{},c.steps=buildMathStepsDisplaySteps(c.originalSteps,
+c.expanded),c.streaming=n.streaming===!0,c.current=clampMathStepsIndex(c.current,c.steps.length-1),c.
+maxReached=Math.max(c.maxReached,c.current);const d=a&&o&&o.renderedStep===c.current?o.renderedMarkdown:
+null,m=mathStepsStepMarkdown(c,c.current),g=a?a.querySelector(".math-steps-body"):null,y=!!g&&d!==null&&
+d===m,v=buildMathStepsHtml(t,{state:{current:c.current,max_reached:c.maxReached,simplified:c.simplified,
+expanded:c.expanded},messageId:n.mathSteps&&n.mathSteps.messageId!==void 0?n.mathSteps.messageId:void 0,
+jobId:n.mathSteps&&n.mathSteps.jobId!==void 0?n.mathSteps.jobId:void 0,streaming:c.streaming});if(!v)
+return!1;e.innerHTML=v;const w=e.querySelector(".math-steps");if(!w)return!1;mathStepsRootState.set(
+w,c),mathStepsTextByRoot.set(w,String(t||"")),c.renderedStep=c.current,c.renderedMarkdown=m;const x=w.
+querySelector(".math-steps-body");if(y&&g&&x){const k=new Map;g.querySelectorAll(".mathsvg-render[da\
+ta-svg-key]").forEach(C=>{const L=C.getAttribute("data-svg-key");L&&!k.has(L)&&k.set(L,C)}),x.querySelectorAll(
+".mathsvg-render[data-svg-key]").forEach(C=>{const L=k.get(C.getAttribute("data-svg-key"));L&&C.replaceWith(
+L)}),x.replaceWith(g)}else if(x)try{queueMessageDecorations(x,m)}catch{}return!0}r(renderMathStepsInto,
+"renderMathStepsInto"),window.renderMathStepsInto=renderMathStepsInto;function mathStepsRootTargets(e){
+if(!e)return null;const t=e.getAttribute("data-message-id"),n=e.getAttribute("data-job-id");return t&&
+/^\d+$/.test(String(t))?{message_id:Number(t)}:n?{job_id:String(n)}:null}r(mathStepsRootTargets,"mat\
+hStepsRootTargets");function postMathStepsProgress(e,t=0){const n=getMathStepsRootState(e),i=mathStepsRootTargets(
+e);if(!n||!i||mathStepsProgressInFlight.has(e))return;const a=Object.assign({},i,{current:n.current,
+max_reached:n.maxReached});return mathStepsProgressInFlight.add(e),apiFetch(MATH_STEPS_PROGRESS_ROUTE,
+{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(a)}).then(o=>{if(!(o&&
+o.ok))throw new Error(`progress ${o?o.status:"failed"}`)}).catch(()=>{t<4&&window.setTimeout(()=>postMathStepsProgress(
+e,t+1),1200*(t+1))}).finally(()=>{mathStepsProgressInFlight.delete(e)})}r(postMathStepsProgress,"pos\
+tMathStepsProgress");function bindMathStepsMessageId(e,t){if(!(!e||t===void 0||t===null))return e.setAttribute(
+"data-message-id",String(t)),postMathStepsProgress(e)}r(bindMathStepsMessageId,"bindMathStepsMessage\
+Id"),window.bindMathStepsMessageId=bindMathStepsMessageId;function scheduleMathStepsProgress(e){if(!e)
+return;const t=mathStepsProgressTimers.get(e);t&&window.clearTimeout(t),mathStepsProgressTimers.set(
+e,window.setTimeout(()=>{mathStepsProgressTimers.delete(e),postMathStepsProgress(e)},450))}r(scheduleMathStepsProgress,
+"scheduleMathStepsProgress");function forgetMathStepsVariants(e,t){const n=mathStepsRootTargets(e),i=getMathStepsRootState(
+e);!n||!i||apiFetch(MATH_STEPS_PROGRESS_ROUTE,{method:"POST",headers:{"Content-Type":"application/js\
+on"},body:JSON.stringify(Object.assign({},n,{current:i.current,max_reached:i.maxReached,remove_simplified:[
+t],remove_expanded:[t]}))}).catch(()=>{})}r(forgetMathStepsVariants,"forgetMathStepsVariants");function requestMathStepsSimplify(e,t){
 const n=getMathStepsRootState(e),i=mathStepsRootTargets(e);if(!n||!i)return;if(!i.message_id){showToast(
 "\u56DE\u7B54\u304C\u4FDD\u5B58\u3055\u308C\u305F\u5F8C\u306B\u300C\u3082\u3063\u3068\u3084\u3055\u3057\u304F\u300D\u3092\u4F7F\u3048\u307E\u3059",
 "info",!1);return}if(n.streaming){showToast("\u56DE\u7B54\u306E\u751F\u6210\u304C\u7D42\u308F\u3063\u3066\u304B\u3089\u4F7F\u3048\u307E\u3059",
@@ -3116,37 +3099,32 @@ s" aria-hidden="true"></i>\u3082\u3063\u3068\u3084\u3055\u3057\u304F')})}r(reque
 "requestMathStepsSimplify");function handleMathStepsAction(e){const t=e.target&&e.target.closest?e.target.
 closest("[data-math-steps-action]"):null;if(!t)return;const n=t.closest(".math-steps");if(!n)return;
 const i=getMathStepsRootState(n);if(!i)return;const a=t.getAttribute("data-math-steps-action");if(a===
-"simplify"){e.preventDefault(),requestMathStepsSimplify(n,t);return}if(a==="explain"){e.preventDefault(),
-requestMathStepsExplain(n,t);return}if(e.preventDefault(),a==="note-close"){const o=mathStepsNoteKey(
-i.steps[i.current]);if(!o)return;delete i.notes[o];const l=mathStepsRootTargets(n);l&&apiFetch(MATH_STEPS_PROGRESS_ROUTE,
-{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.assign({},l,{current:i.
-current,max_reached:i.maxReached,remove_notes:[o]}))}).catch(()=>{}),mathStepsStatus(n,"\u88DC\u8DB3\u3092\u9589\u3058\u307E\u3057\u305F"),
-paintMathStepsRoot(n);return}if(a==="restore"){const o=i.steps[i.current];if(!o)return;let l=null;if(o.
-expanded){l=mathStepsNoteKeysForSource(i,o.sourceIndex),l.forEach(d=>{delete i.notes[d]});const c=i.
-steps.findIndex(d=>d.sourceIndex===o.sourceIndex);delete i.expanded[String(o.sourceIndex)],delete i.
-simplified[String(o.sourceIndex)],i.steps=buildMathStepsDisplaySteps(i.originalSteps,i.expanded),i.current=
-clampMathStepsIndex(c>=0?c:0,i.steps.length-1),i.maxReached=clampMathStepsIndex(i.maxReached,i.steps.
-length-1),i.showOriginal.delete(i.current)}else i.showOriginal.add(i.current),delete i.simplified[String(
-o.sourceIndex)];forgetMathStepsVariants(n,o.sourceIndex,l),mathStepsStatus(n,"\u5143\u306E\u8AAC\u660E\u306B\u623B\u3057\u307E\u3057\u305F"),
-scheduleMathStepsProgress(n)}else if(a==="next"){if(i.current>=i.steps.length-1)return;i.current=clampMathStepsIndex(
-i.current+1,i.steps.length-1),i.maxReached=Math.max(i.maxReached,i.current),i.showOriginal.delete(i.
-current),mathStepsStatus(n,`\u30B9\u30C6\u30C3\u30D7 ${i.current+1} \u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059`),
-scheduleMathStepsProgress(n)}else if(a==="prev"){if(i.current<=0)return;i.current=clampMathStepsIndex(
-i.current-1,i.steps.length-1),i.showOriginal.delete(i.current),mathStepsStatus(n,`\u30B9\u30C6\u30C3\u30D7 ${i.
-current+1} \u306B\u623B\u308A\u307E\u3057\u305F`),scheduleMathStepsProgress(n)}else if(a==="restart")
-i.current=0,i.showOriginal.clear(),mathStepsStatus(n,"\u6700\u521D\u306E\u30B9\u30C6\u30C3\u30D7\u306B\u623B\u308A\u307E\u3057\u305F"),
-scheduleMathStepsProgress(n);else return;paintMathStepsRoot(n)}r(handleMathStepsAction,"handleMathSt\
-epsAction");function mathStepsChip(){return get("enable-math-steps")}r(mathStepsChip,"mathStepsChip");
-function setMathStepsEnabled(e,t={}){const n=!!e&&mathStepsUiState.master;mathStepsUiState.enabled=n;
-const i=mathStepsChip();return i&&i.checked!==n&&(i.checked=n),n}r(setMathStepsEnabled,"setMathSteps\
-Enabled"),window.setMathStepsEnabled=setMathStepsEnabled;function applyMathStepsMaster(e){mathStepsUiState.
-master=!!e;const t=get("math-steps-container");t&&t.classList.toggle("hidden",!mathStepsUiState.master),
-mathStepsUiState.master||setMathStepsEnabled(!1,{persist:!1})}r(applyMathStepsMaster,"applyMathSteps\
-Master");function applyMathStepsSettings(e){!e||typeof e!="object"||(mathStepsUiState.config=normalizeMathStepsConfig(
-Object.prototype.hasOwnProperty.call(e,"math_steps_config")?e.math_steps_config:mathStepsUiState.config),
-Object.prototype.hasOwnProperty.call(e,"math_steps_enabled")&&applyMathStepsMaster(e.math_steps_enabled===
-!0),mathStepsUiState.loaded=!0)}r(applyMathStepsSettings,"applyMathStepsSettings"),window.applyMathStepsSettings=
-applyMathStepsSettings;function applyMathStepsChatDefaults(e,t){if(!e||typeof e!="object")return;if(applyMathStepsSettings(
+"simplify"){e.preventDefault(),requestMathStepsSimplify(n,t);return}if(e.preventDefault(),a==="resto\
+re"){const o=i.steps[i.current];if(!o)return;if(o.expanded){const l=i.steps.findIndex(c=>c.sourceIndex===
+o.sourceIndex);delete i.expanded[String(o.sourceIndex)],delete i.simplified[String(o.sourceIndex)],i.
+steps=buildMathStepsDisplaySteps(i.originalSteps,i.expanded),i.current=clampMathStepsIndex(l>=0?l:0,
+i.steps.length-1),i.maxReached=clampMathStepsIndex(i.maxReached,i.steps.length-1),i.showOriginal.delete(
+i.current)}else i.showOriginal.add(i.current),delete i.simplified[String(o.sourceIndex)];forgetMathStepsVariants(
+n,o.sourceIndex),mathStepsStatus(n,"\u5143\u306E\u8AAC\u660E\u306B\u623B\u3057\u307E\u3057\u305F"),scheduleMathStepsProgress(
+n)}else if(a==="next"){if(i.current>=i.steps.length-1)return;i.current=clampMathStepsIndex(i.current+
+1,i.steps.length-1),i.maxReached=Math.max(i.maxReached,i.current),i.showOriginal.delete(i.current),mathStepsStatus(
+n,`\u30B9\u30C6\u30C3\u30D7 ${i.current+1} \u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059`),scheduleMathStepsProgress(
+n)}else if(a==="prev"){if(i.current<=0)return;i.current=clampMathStepsIndex(i.current-1,i.steps.length-
+1),i.showOriginal.delete(i.current),mathStepsStatus(n,`\u30B9\u30C6\u30C3\u30D7 ${i.current+1} \u306B\u623B\u308A\u307E\u3057\
+\u305F`),scheduleMathStepsProgress(n)}else if(a==="restart")i.current=0,i.showOriginal.clear(),mathStepsStatus(
+n,"\u6700\u521D\u306E\u30B9\u30C6\u30C3\u30D7\u306B\u623B\u308A\u307E\u3057\u305F"),scheduleMathStepsProgress(
+n);else return;paintMathStepsRoot(n)}r(handleMathStepsAction,"handleMathStepsAction");function mathStepsChip(){
+return get("enable-math-steps")}r(mathStepsChip,"mathStepsChip");function setMathStepsEnabled(e,t={}){
+const n=!!e&&mathStepsUiState.master;mathStepsUiState.enabled=n;const i=mathStepsChip();return i&&i.
+checked!==n&&(i.checked=n),n}r(setMathStepsEnabled,"setMathStepsEnabled"),window.setMathStepsEnabled=
+setMathStepsEnabled;function applyMathStepsMaster(e){mathStepsUiState.master=!!e;const t=get("math-s\
+teps-container");t&&t.classList.toggle("hidden",!mathStepsUiState.master),mathStepsUiState.master||setMathStepsEnabled(
+!1,{persist:!1})}r(applyMathStepsMaster,"applyMathStepsMaster");function applyMathStepsSettings(e){!e||
+typeof e!="object"||(mathStepsUiState.config=normalizeMathStepsConfig(Object.prototype.hasOwnProperty.
+call(e,"math_steps_config")?e.math_steps_config:mathStepsUiState.config),Object.prototype.hasOwnProperty.
+call(e,"math_steps_enabled")&&applyMathStepsMaster(e.math_steps_enabled===!0),mathStepsUiState.loaded=
+!0)}r(applyMathStepsSettings,"applyMathStepsSettings"),window.applyMathStepsSettings=applyMathStepsSettings;
+function applyMathStepsChatDefaults(e,t){if(!e||typeof e!="object")return;if(applyMathStepsSettings(
 e),!mathStepsUiState.master){setMathStepsEnabled(!1,{persist:!1});return}const n=Object.prototype.hasOwnProperty.
 call(e,"last_math_steps")?e.last_math_steps:void 0,i=Object.prototype.hasOwnProperty.call(e,"default\
 _math_steps")?e.default_math_steps:!1;if(t&&n!==void 0&&n!==null){setMathStepsEnabled(n===!0,{persist:!1});
@@ -3184,14 +3162,13 @@ mathStepsUiState.modalBusy=!1,t&&(t.disabled=!1)}}r(saveMathStepsConfig,"saveMat
 saveMathStepsConfig=saveMathStepsConfig;function buildMathStepsPdfHtml(e,t){const n=parseMathSteps(e);
 if(!n.steps.length)return"";const i=normalizeMathStepsMessageState(t);return buildMathStepsDisplaySteps(
 n.steps,i.expanded).map(o=>{const l=o.expanded?"":i.simplified[String(o.sourceIndex)],c=o.expanded?o.
-body:l&&l.trim()?l:o.body,d=i.notes?i.notes[mathStepsNoteKey(o)]:"";return`<div class="math-steps-pd\
-f-step"><h3 class="math-steps-pdf-heading">\u30B9\u30C6\u30C3\u30D7 ${o.index+1}${o.title?` ${pdfEscapeAttr(
-o.title)}`:""}</h3><div class="math-steps-pdf-body">${sanitizeMarkdownHtml(c)}</div>`+(o.expanded||l&&
-l.trim()?'<div class="math-steps-pdf-note">\uFF08\u3084\u3055\u3057\u3044\u8AAC\u660E\uFF09</div>':"")+
-(d&&d.trim()?`<div class="math-steps-pdf-note">\uFF08\u306A\u305C\u305D\u3046\u306A\u308B\u306E\uFF1F\uFF09</div><div class="math-steps-pdf-body">${sanitizeMarkdownHtml(
-d)}</div>`:"")+"</div>"}).join("")}r(buildMathStepsPdfHtml,"buildMathStepsPdfHtml"),window.buildMathStepsPdfHtml=
-buildMathStepsPdfHtml;function prepareMathStepsCopyText(e){const t=String(e||"");if(!t)return t;const n=r(
-o=>String(o||"").replace(/(`{3,}|~{3,})mathsvg[^\n]*\n[\s\S]*?\n\1[ \t]*(?=\n|$)/gi,`\uFF3B\u56F3\uFF3D
+body:l&&l.trim()?l:o.body;return`<div class="math-steps-pdf-step"><h3 class="math-steps-pdf-heading"\
+>\u30B9\u30C6\u30C3\u30D7 ${o.index+1}${o.title?` ${pdfEscapeAttr(o.title)}`:""}</h3><div class="mat\
+h-steps-pdf-body">${sanitizeMarkdownHtml(c)}</div>`+(o.expanded||l&&l.trim()?'<div class="math-steps\
+-pdf-note">\uFF08\u3084\u3055\u3057\u3044\u8AAC\u660E\uFF09</div>':"")+"</div>"}).join("")}r(buildMathStepsPdfHtml,
+"buildMathStepsPdfHtml"),window.buildMathStepsPdfHtml=buildMathStepsPdfHtml;function prepareMathStepsCopyText(e){
+const t=String(e||"");if(!t)return t;const n=r(o=>String(o||"").replace(/(`{3,}|~{3,})mathsvg[^\n]*\n[\s\S]*?\n\1[ \t]*(?=\n|$)/gi,
+`\uFF3B\u56F3\uFF3D
 `),"withoutMathSvg"),i=parseMathSteps(t);if(!i.steps.length)return n(t);const a=[];return i.steps.forEach(
 o=>{const l=o.title?` ${o.title}`:"";a.push(`## \u30B9\u30C6\u30C3\u30D7 ${o.index+1}${l}`),a.push(""),
 a.push(n(o.body).trim()),a.push("")}),a.join(`
@@ -3213,28 +3190,3 @@ t.default_math_steps===!0,{persist:!1})}).catch(()=>{}),document.addEventListene
 t.key==="Escape"&&((n=get("math-steps-config-modal"))!=null&&n.classList.contains("modal-open"))&&closeMathStepsModal()})}
 r(initMathSteps,"initMathSteps"),window.initMathSteps=initMathSteps,document.addEventListener("DOMCo\
 ntentLoaded",()=>{try{initMathSteps()}catch(e){console.error("math steps init failed",e)}},{once:!0});
-function forgetMathStepsVariants(e,t,n=null){const i=mathStepsRootTargets(e),a=getMathStepsRootState(
-e);if(!i||!a)return;const o=Object.assign({},i,{current:a.current,max_reached:a.maxReached,remove_simplified:[
-t],remove_expanded:[t]});Array.isArray(n)&&n.length&&(o.remove_notes=n),apiFetch(MATH_STEPS_PROGRESS_ROUTE,
-{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(o)}).catch(()=>{})}r(
-forgetMathStepsVariants,"forgetMathStepsVariants");function mathStepsNoteKeysForSource(e,t){const n=`${t}\
--`,i=[];return Object.keys(e.notes||{}).forEach(a=>{(a===String(t)||a.indexOf(n)===0)&&i.push(a)}),i}
-r(mathStepsNoteKeysForSource,"mathStepsNoteKeysForSource");function requestMathStepsExplain(e,t){const n=getMathStepsRootState(
-e),i=mathStepsRootTargets(e);if(!n||!i)return;if(!i.message_id){showToast("\u56DE\u7B54\u304C\u4FDD\u5B58\u3055\u308C\u305F\u5F8C\u306B\u300C\u308F\u304B\u308A\u3084\u3059\u304F\u3059\u308B\u300D\u3092\u4F7F\u3048\u307E\u3059",
-"info",!1);return}if(n.streaming){showToast("\u56DE\u7B54\u306E\u751F\u6210\u304C\u7D42\u308F\u3063\u3066\u304B\u3089\u4F7F\u3048\u307E\u3059",
-"info",!1);return}const a=n.steps[n.current];if(!a)return;const o={mode:"explain",message_id:i.message_id,
-step_index:a.sourceIndex};a.partIndex!==null&&a.partIndex!==void 0&&(o.part_index=a.partIndex),t&&(t.
-dataset.busy="1",t.disabled=!0,t.innerHTML='<i class="fas fa-circle-notch fa-spin" aria-hidden="true\
-"></i>\u8AAC\u660E\u3057\u3066\u3044\u307E\u3059\u2026'),mathStepsStatus(e,"\u306A\u305C\u305D\u3046\u306A\u308B\u306E\u304B\u3092\u8AAC\u660E\u3057\u3066\u3044\u307E\u3059\u2026"),
-apiFetch(MATH_STEPS_SIMPLIFY_ROUTE,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.
-stringify(o)}).then(async l=>{const c=await l.json().catch(()=>({})),d=c&&typeof c.note=="string"?c.
-note.trim():"";if(!l.ok||!c||c.status!=="ok"||!d){const g=l.status===409?"\u3053\u306E\u30B9\u30C6\u30C3\u30D7\u306E\u88DC\u8DB3\u3092\u3053\u308C\u4EE5\u4E0A\u4FDD\u5B58\u3067\u304D\u307E\u305B\u3093":
-c&&c.error?c.error:"\u88DC\u8DB3\u3092\u4F5C\u308C\u307E\u305B\u3093\u3067\u3057\u305F";throw new Error(
-g)}const m=normalizeMathStepsMessageState(c.math_steps_state||{});n.simplified=Object.assign({},m.simplified),
-n.expanded=Object.assign({},n.expanded,m.expanded),n.notes=Object.assign({},n.notes,m.notes),n.notes[mathStepsNoteKey(
-a)]=d,t&&(delete t.dataset.busy,t.disabled=!1,t.innerHTML='<i class="fas fa-lightbulb" aria-hidden="\
-true"></i>\u308F\u304B\u308A\u3084\u3059\u304F\u3059\u308B'),mathStepsStatus(e,"\u300C\u306A\u305C\u305D\u3046\u306A\u308B\u306E\uFF1F\u300D\u306E\u88DC\u8DB3\u3092\u8FFD\u52A0\u3057\u307E\u3057\u305F"),
-paintMathStepsRoot(e)}).catch(l=>{mathStepsStatus(e,""),showToast(l&&l.message?l.message:"\u88DC\u8DB3\u3092\u4F5C\u308C\u307E\u305B\u3093\u3067\u3057\
-\u305F","error",!0),t&&(delete t.dataset.busy,t.disabled=!1,t.innerHTML='<i class="fas fa-lightbulb"\
- aria-hidden="true"></i>\u308F\u304B\u308A\u3084\u3059\u304F\u3059\u308B')})}r(requestMathStepsExplain,
-"requestMathStepsExplain");

@@ -485,9 +485,7 @@ private fun ConversationContent(
                             mathStepsActions = MathStepsActions(
                                 onProgress = { target, step, max -> model.saveMathStepProgress(target, step, max) },
                                 onSimplify = { target, step, part, done -> model.simplifyMathStep(target, step, part, done) },
-                                onExplain = { target, step, part, done -> model.explainMathStep(target, step, part, done) },
                                 onRestoreOriginal = { target, step, current -> model.clearMathStepSimplified(target, step, current) },
-                                onCloseNote = { target, key, current -> model.clearMathStepNote(target, key, current) },
                             ),
                             mathStepsConfig = state.preferences?.mathStepsConfig ?: MathStepsConfig(),
                         )

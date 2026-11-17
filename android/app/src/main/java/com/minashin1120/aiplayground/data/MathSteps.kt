@@ -80,16 +80,12 @@ data class MathStepsState(
     val maxReached: Int = 0,
     val simplified: Map<Int, String> = emptyMap(),
     val expanded: Map<Int, List<MathStepPart>> = emptyMap(),
-    /** 「わかりやすくする」 notes: key is "3" or "3-1" for a split sub-step. */
-    val notes: Map<String, String> = emptyMap(),
 ) {
     fun withCurrent(index: Int): MathStepsState =
         copy(current = index.coerceIn(0, MAX_STEP), maxReached = maxOf(maxReached, index.coerceIn(0, MAX_STEP)))
 
     fun withSimplified(index: Int, text: String): MathStepsState =
         copy(simplified = simplified + (index to text.take(MAX_SIMPLIFIED_CHARS)))
-
-    fun noteFor(view: MathStepView): String? = notes[noteKey(view)]
 
     fun toJson(): JSONObject = JSONObject()
         .put("current", current)
@@ -118,17 +114,6 @@ data class MathStepsState(
                 if (rows.length() > 0) put(index.toString(), rows)
             }
         })
-        .put("notes", JSONObject().apply {
-            var budget = MAX_NOTES_TOTAL
-            for ((key, text) in notes.toSortedMap()) {
-                if (budget <= 0) break
-                if (!NOTE_KEY.matches(key)) continue
-                val value = text.trim().take(minOf(MAX_NOTE_CHARS, budget))
-                if (value.isBlank()) continue
-                put(key, value)
-                budget -= value.length
-            }
-        })
 
     companion object {
         const val MAX_STEP = 50
@@ -136,9 +121,6 @@ data class MathStepsState(
         const val MAX_SIMPLIFIED_TOTAL = 100_000
         const val MAX_EXPANDED_PER_STEP = 8
         const val MAX_EXPANDED_TITLE = 120
-        const val MAX_NOTE_CHARS = 8_000
-        const val MAX_NOTES_TOTAL = 40_000
-        private val NOTE_KEY = Regex("""^\d{1,4}(?:-\d{1,3})?$""")
 
         /** Parses the message payload field; null when the server has no state for this message. */
         fun parse(raw: Any?): MathStepsState? {
@@ -183,21 +165,7 @@ data class MathStepsState(
                     if (parts.isNotEmpty()) expanded[index] = parts
                 }
             }
-            val notes = LinkedHashMap<String, String>()
-            val noteRows = json.optJSONObject("notes")
-            if (noteRows != null) {
-                var noteBudget = MAX_NOTES_TOTAL
-                noteRows.keys().asSequence().sorted().forEach { key ->
-                    if (noteBudget <= 0) return@forEach
-                    if (!NOTE_KEY.matches(key)) return@forEach
-                    val text = noteRows.optString(key)
-                    if (text.isBlank() || text == "null") return@forEach
-                    val value = text.trim().take(minOf(MAX_NOTE_CHARS, noteBudget))
-                    notes[key] = value
-                    noteBudget -= value.length
-                }
-            }
-            return MathStepsState(current, maxReached, simplified, expanded, notes)
+            return MathStepsState(current, maxReached, simplified, expanded)
         }
     }
 }
@@ -211,10 +179,6 @@ data class MathStepView(
     val title: String,
     val body: String,
 )
-
-/** Same key as Web/server: "3" for a step, "3-1" for one of its split sub-steps. */
-fun noteKey(view: MathStepView): String =
-    if (view.partIndex != null) "${view.sourceIndex}-${view.partIndex}" else view.sourceIndex.toString()
 
 /** Flattens original steps plus saved expanded replacements (same contract as Web). */
 fun buildMathStepViews(
@@ -334,8 +298,6 @@ fun mathStepsPdfText(text: String, state: MathStepsState?): String {
         val title = step.title.takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty()
         val simplified = if (step.expanded) null else state?.simplified?.get(step.sourceIndex)
         val body = if (!simplified.isNullOrBlank()) simplified else step.body
-        val note = state?.notes?.get(noteKey(step))?.trim().orEmpty()
-        val noteText = if (note.isEmpty()) "" else "\n\n（なぜそうなるの？）\n${MATHSVG_FENCE.replace(note, "［図］").trim()}"
-        "## ステップ ${step.index + 1}$title\n\n${MATHSVG_FENCE.replace(body, "［図］").trim()}$noteText"
+        "## ステップ ${step.index + 1}$title\n\n${MATHSVG_FENCE.replace(body, "［図］").trim()}"
     }.trim()
 }

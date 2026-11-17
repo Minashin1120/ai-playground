@@ -61,9 +61,6 @@ internal class ChatMathSteps(
         val id = message.id.toIntOrNull() ?: return
         val index = sourceIndex.coerceIn(0, MathStepsState.MAX_STEP)
         val current = currentIndex.coerceIn(0, MathStepsState.MAX_STEP)
-        val noteKeys = message.mathStepsState?.notes.orEmpty().keys.filter {
-            it == index.toString() || it.startsWith("$index-")
-        }
         updateState(id) { state ->
             val base = state ?: MathStepsState()
             base.copy(
@@ -71,38 +68,6 @@ internal class ChatMathSteps(
                 maxReached = maxOf(base.maxReached, current),
                 simplified = base.simplified - index,
                 expanded = base.expanded - index,
-                notes = base.notes.filterKeys { it !in noteKeys },
-            )
-        }
-        progressJob = scope.launch {
-            try {
-                val payload = JSONObject()
-                    .put("message_id", id)
-                    .put("current", current)
-                    .put("max_reached", maxOf(current, message.mathStepsState?.maxReached ?: current))
-                    .put("remove_simplified", org.json.JSONArray().put(index))
-                    .put("remove_expanded", org.json.JSONArray().put(index))
-                if (noteKeys.isNotEmpty()) {
-                    payload.put("remove_notes", org.json.JSONArray().apply { noteKeys.forEach { put(it) } })
-                }
-                backend().post("/api/math_steps/progress", payload, token())
-                Diagnostics.log("math_steps.progress_done", "index" to current, "count" to 1)
-            } catch (e: Exception) {
-                Diagnostics.log("math_steps.progress_error", "index" to current)
-            }
-        }
-    }
-
-    /** Drops the 「わかりやすくする」 note of one step (its key is "3" or "3-1"). */
-    fun clearNote(message: ChatMessage, noteKey: String, currentIndex: Int) {
-        val id = message.id.toIntOrNull() ?: return
-        val current = currentIndex.coerceIn(0, MathStepsState.MAX_STEP)
-        updateState(id) { state ->
-            val base = state ?: MathStepsState()
-            base.copy(
-                current = current,
-                maxReached = maxOf(base.maxReached, current),
-                notes = base.notes - noteKey,
             )
         }
         progressJob = scope.launch {
@@ -113,7 +78,8 @@ internal class ChatMathSteps(
                         .put("message_id", id)
                         .put("current", current)
                         .put("max_reached", maxOf(current, message.mathStepsState?.maxReached ?: current))
-                        .put("remove_notes", org.json.JSONArray().put(noteKey)),
+                        .put("remove_simplified", org.json.JSONArray().put(index))
+                        .put("remove_expanded", org.json.JSONArray().put(index)),
                     token(),
                 )
                 Diagnostics.log("math_steps.progress_done", "index" to current, "count" to 1)
@@ -164,45 +130,6 @@ internal class ChatMathSteps(
                 }
                 Diagnostics.log("math_steps.simplify_done", "index" to index, "parts" to parts.size)
                 done(parts)
-            } catch (e: Exception) {
-                Diagnostics.log("math_steps.simplify_error", "index" to index)
-                done(null)
-            }
-        }
-    }
-
-    /** Adds a 「なぜそうなるの？」 note under the current step (or one of its split parts). */
-    fun explain(
-        message: ChatMessage,
-        stepIndex: Int,
-        partIndex: Int?,
-        done: (String?) -> Unit,
-    ) {
-        val id = message.id.toIntOrNull()
-        if (id == null) { done(null); return }
-        val index = stepIndex.coerceIn(0, MathStepsState.MAX_STEP)
-        val key = if (partIndex != null) "$index-$partIndex" else index.toString()
-        simplifyJob = scope.launch {
-            try {
-                Diagnostics.log("math_steps.simplify_start", "index" to index, "part" to (partIndex ?: -1))
-                val payload = JSONObject().put("mode", "explain").put("message_id", id).put("step_index", index)
-                if (partIndex != null) payload.put("part_index", partIndex)
-                val reply = backend().post("/api/math_steps/simplify", payload, token())
-                val note = reply.optString("note").trim()
-                if (note.isEmpty() || note == "null") { done(null); return@launch }
-                val saved = MathStepsState.parse(reply.opt("math_steps_state"))
-                updateState(id) { current ->
-                    val base = current ?: MathStepsState()
-                    val server = saved ?: base
-                    // The explain call does not move the reader or change the step split.
-                    base.copy(
-                        simplified = server.simplified,
-                        expanded = server.expanded,
-                        notes = server.notes + (key to note),
-                    )
-                }
-                Diagnostics.log("math_steps.simplify_done", "index" to index, "parts" to 1)
-                done(note)
             } catch (e: Exception) {
                 Diagnostics.log("math_steps.simplify_error", "index" to index)
                 done(null)

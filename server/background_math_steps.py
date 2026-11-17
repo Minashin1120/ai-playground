@@ -22,11 +22,6 @@ MATH_STEPS_MAX_STEPS = 50
 # the original step, so the expanded text is bounded like a simplified variant.
 MATH_STEPS_MAX_EXPANDED_PER_STEP = 8
 MATH_STEPS_MAX_EXPANDED_TITLE = 120
-# 「わかりやすくする」 adds a short "why" note under a step. It is stored per
-# step (or per expanded sub-step) and bounded so one message stays small.
-MATH_STEPS_MAX_NOTE_PER_STEP = 8_000
-MATH_STEPS_MAX_NOTES_TOTAL = 40_000
-MATH_STEPS_NOTE_KEY_RE = re.compile(r"^\d{1,4}(?:-\d{1,3})?$")
 
 MATH_STEPS_HEADING_RE = re.compile(
     r"^\s{0,3}#{1,6}\s*(?:ステップ|Step)\s*(\d+)\s*(.*)$", re.IGNORECASE
@@ -220,6 +215,8 @@ def build_math_steps_simplify_prompt(config):
 
     The answer keeps the normal step-heading format because the Web/Android clients
     splice the returned steps into the answer and let the reader continue there.
+    Each small step explains why the operation is done, so the reader does not have
+    to ask "なぜそうなるのか" after reading a line of calculation.
     """
     normalized = normalize_math_steps_config(config)
     tone = _level_instruction(normalized["level"])
@@ -229,6 +226,13 @@ def build_math_steps_simplify_prompt(config):
         "以下の1ステップを、意味や計算を変えずに、もっとやさしい日本語の"
         "2〜4個の小さなステップに分けて書き直してください。\n"
         "- 1ステップにつき1つの考え方だけを扱い、前のステップの結果だけを使う。\n"
+        "- 計算や式変形は「〇〇なので、〇〇します」の形で書く。理由を先に述べ、"
+        "そのあとに操作と結果を続ける"
+        "（例:「両辺から同じ数を引いても等式は成り立つので、両辺から3を引きます。"
+        "すると x = 2 になります」）。\n"
+        "- 理由は「等式の性質」「分配法則」「代入」など、実際に使った根拠を具体的に示す。"
+        "「わかりやすくするため」「計算しやすくするため」のような漠然とした理由だけにしない。\n"
+        "- 計算の行だけを並べず、各行で何が変わったのかを言葉でも説明する。\n"
         "- 見出しは「## ステップ N 見出し」の形式を厳守する（N は1から連番、見出しは15文字以内）。\n"
         "- 計算は途中の行を省略しない。式変形は1行ずつ示す。\n"
         "- 記号や文字が何を表すかを言葉で添える。\n"
@@ -237,32 +241,6 @@ def build_math_steps_simplify_prompt(config):
         f"- やさしさの目安: {tone}\n"
         "- HTML・JSON・前置き・後書きは禁止。見出しと本文以外を書かない。\n\n"
         "分けるステップ:\n"
-    )
-
-
-def build_math_steps_explain_prompt(config):
-    """Return the 「わかりやすくする」 instruction (the caller appends the step body).
-
-    The answer is a short "why" note, not a new set of steps: it is shown under the
-    original step, so it must not repeat the step body or change the math.
-    """
-    normalized = normalize_math_steps_config(config)
-    tone = _level_instruction(normalized["level"])
-    return (
-        "[Math Steps / わかりやすく]\n"
-        "あなたは数学に苦手意識を持つ学習者の隣にいる家庭教師です。"
-        "以下の1ステップを読んだ学習者は、計算の各行で「なぜそうなるのか」と疑問を持ちます。"
-        "その疑問に先回りして答える補足を書いてください。\n"
-        "- 元の式・計算・答え・方針は変えない。問題を解き直さない。\n"
-        "- 元のステップの文をそのまま繰り返さない。理由・意味・考え方の補足だけを書く。\n"
-        "- 操作ごとに「なぜその操作をするのか」を1つずつ書く（例: 両辺から3を引くのは、x だけを残すため）。\n"
-        "- 式の変形では、前の行と後の行で何が変わったのかを言葉で示す。\n"
-        "- 1文は短く。全体で3〜6個の短い段落か箇条書きにする。長い講義にしない。\n"
-        "- 専門用語は使う前に短く定義し、記号が何を表すかも言葉で添える。\n"
-        "- 数式は LaTeX（$...$）で書いてよい。HTML・JSON・コードフェンス・図（mathsvg）は書かない。\n"
-        "- 見出し（## ステップ N）は書かない。前置き・後書き・「わかりましたか」などの呼びかけも書かない。\n"
-        f"- やさしさの目安: {tone}\n\n"
-        "補足するステップ:\n"
     )
 
 

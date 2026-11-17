@@ -35,22 +35,12 @@ def _read(relative):
 class MathStepsSourceContractTests(unittest.TestCase):
     def test_new_part_is_last_and_wired(self):
         parts = sorted((APP_ROOT / 'static/js/chat_core_parts').glob('chat_core.part*.js'))
-        self.assertTrue(parts[-1].name.startswith('chat_core.part31_'), parts[-1].name)
+        self.assertTrue(parts[-1].name.startswith('chat_core.part30_'), parts[-1].name)
         source = _read('static/js/chat_core_parts/chat_core.part30_mathsteps.js')
-        notes = _read('static/js/chat_core_parts/chat_core.part31_mathstepsnotes.js')
         for name in ('parseMathSteps', 'buildMathStepsHtml', 'renderMathStepsInto',
                      'buildMathSvgRenderHtml', 'buildMathStepsPdfHtml', 'prepareMathStepsCopyText',
                      'openMathStepsModal', 'saveMathStepsConfig', 'applyMathStepsChatDefaults'):
             self.assertIn(f'window.{name} =', source, name)
-        # 「わかりやすくする」 is a "why" supplement under the step, separate from the split.
-        self.assertIn('data-math-steps-action="explain"', source)
-        self.assertIn('わかりやすくする', source)
-        self.assertIn('math-steps-note', source)
-        self.assertIn("MATH_STEPS_SIMPLIFY_ROUTE", source)
-        # The supplement request itself lives in its own part (extract before extend).
-        self.assertIn('function requestMathStepsExplain(', notes)
-        self.assertIn("mode: 'explain'", notes)
-        self.assertIn('MATH_STEPS_SIMPLIFY_ROUTE', notes)
 
     def test_mathsvg_stays_image_only_and_svg_is_unchanged(self):
         renderer = _read('static/js/chat_core_parts/chat_core.part12_toggleoptions.js')
@@ -151,16 +141,7 @@ class MathStepsBrowserTests(unittest.TestCase):
                 progress_requests.append(route.request.post_data or '')
                 return route.fulfill(status=200, content_type='application/json', body='{"status":"ok","math_steps_state":{"current":1,"max_reached":1}}')
             if url.path == '/api/math_steps/simplify':
-                post = route.request.post_data or ''
-                simplify_requests.append(post)
-                if '"mode":"explain"' in post:
-                    body = (
-                        '{"status":"ok","mode":"explain","note":"なぜなら両辺から3を引くからです",'
-                        '"note_key":"0","step_index":0,'
-                        '"math_steps_state":{"current":0,"max_reached":0,"simplified":{},'
-                        '"expanded":{},"notes":{"0":"なぜなら両辺から3を引くからです"}}}'
-                    )
-                    return route.fulfill(status=200, content_type='application/json', body=body)
+                simplify_requests.append(route.request.post_data or '')
                 body = (
                     '{"status":"ok","text":"やさしい説明です\\n\\nやさしい計算です",'
                     '"steps":[{"title":"やさしく整理","body":"やさしい説明です"},'
@@ -283,29 +264,6 @@ class MathStepsBrowserTests(unittest.TestCase):
         self.assertIn('"part_index":1', simplify[-1])
         self.assertNoPageErrors(errors)
 
-    def test_explain_adds_a_why_note_and_can_be_closed(self):
-        simplify = []
-        progress = []
-        page, errors = self.open_page(progress_requests=progress, simplify_requests=simplify)
-        self.render(page, STEP_TEXT, streaming=False)
-        page.click('#math-steps-test-host .math-steps-explain')
-        page.wait_for_timeout(500)
-        self.assertIn('"mode":"explain"', simplify[-1])
-        self.assertIn('"step_index":0', simplify[-1])
-        note = page.locator('#math-steps-test-host .math-steps-note')
-        self.assertEqual(note.count(), 1)
-        self.assertIn('なぜそうなるの？', note.inner_text())
-        self.assertIn('なぜなら両辺から3を引くからです', note.inner_text())
-        # The original step stays readable: the note is a supplement, not a rewrite.
-        self.assertIn('まず、わかっていること', page.inner_text('#math-steps-test-host .math-steps-prose'))
-        self.assertIn('1 / 3', page.inner_text('#math-steps-test-host .math-steps-counter'))
-        page.click('#math-steps-test-host .math-steps-note-close')
-        page.wait_for_timeout(600)
-        self.assertEqual(page.locator('#math-steps-test-host .math-steps-note').count(), 0)
-        self.assertTrue(any('remove_notes' in body and '"0"' in body for body in progress),
-                        'closing the note must remove the saved note')
-        self.assertNoPageErrors(errors)
-
     def test_streaming_single_step_shows_disabled_preparing_button(self):
         page, errors = self.open_page()
         self.render(page, '## ステップ 1 準備\n本文', streaming=True)
@@ -325,14 +283,12 @@ class MathStepsBrowserTests(unittest.TestCase):
     def test_pdf_and_copy_helpers_expand_steps_and_diagrams(self):
         page, errors = self.open_page()
         pdf = page.evaluate(
-            "text => buildMathStepsPdfHtml(text, { current: 1, max_reached: 2, simplified: { '1': 'やさしい式の説明' }, notes: { '0': 'なぜ図で確かめるのかの補足' } })",
+            "text => buildMathStepsPdfHtml(text, { current: 1, max_reached: 2, simplified: { '1': 'やさしい式の説明' } })",
             STEP_TEXT,
         )
         self.assertIn('ステップ 1', pdf)
         self.assertIn('ステップ 2', pdf)
         self.assertIn('やさしい式の説明', pdf)
-        self.assertIn('なぜそうなるの？', pdf)
-        self.assertIn('なぜ図で確かめるのかの補足', pdf)
         self.assertIn('mathsvg-render', pdf)
         copy_text = page.evaluate('text => prepareMathStepsCopyText(text)', STEP_TEXT)
         self.assertIn('## ステップ 1', copy_text)

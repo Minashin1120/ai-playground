@@ -21,7 +21,7 @@
 
 ### 2.1 進捗保存：`POST /api/math_steps/progress`
 
-ユーザーのステップ移動（次へ／前へ／最初から）に合わせて進捗を保存します。また、「もっとやさしく」で作った分割ステップや以前に簡略化したステップを元に戻す操作（`remove_expanded` / `remove_simplified`）、「わかりやすくする」の補足を閉じる操作（`remove_notes`）も本エンドポイントで受け付けます。
+ユーザーのステップ移動（次へ／前へ／最初から）に合わせて進捗を保存します。また、「もっとやさしく」で作った分割ステップや以前に簡略化したステップを元に戻す操作（`remove_expanded` / `remove_simplified`）も本エンドポイントで受け付けます。
 
 #### リクエストヘッダー
 - `Content-Type: application/json`
@@ -33,8 +33,7 @@
   "current": 2,
   "max_reached": 3,
   "remove_expanded": [1],
-  "remove_simplified": [2],
-  "remove_notes": ["1", "1-0"]
+  "remove_simplified": [2]
 }
 ```
 または `job_id` による指定も可能です：
@@ -54,7 +53,6 @@
 | `max_reached` | 整数 | 任意 | 到達した最大ステップインデックス（0〜50にクランプ。現在の `max_reached` や `current` より小さくはならない） |
 | `remove_expanded` | 配列[整数] | 任意 | 「もっとやさしく」で分割したステップを元の1ステップに戻す（元ステップのインデックスを指定） |
 | `remove_simplified` | 配列[整数] | 任意 | 旧形式の簡略化テキストを破棄し、元の説明に戻すステップインデックスの配列 |
-| `remove_notes` | 配列[文字列] | 任意 | 「わかりやすくする」の補足を削除するキーの配列（元ステップは `"1"`、分割小ステップは `"1-0"`） |
 
 #### レスポンス（成功時：HTTP 200 OK）
 ```json
@@ -64,8 +62,7 @@
     "current": 2,
     "max_reached": 3,
     "simplified": {},
-    "expanded": {},
-    "notes": {}
+    "expanded": {}
   }
 }
 ```
@@ -95,7 +92,6 @@
 | `message_id` | 整数 / 文字列 | 必須 | 対象のアシスタントメッセージID |
 | `step_index` | 整数 | 必須 | 対象の元ステップのインデックス（0始まり、`expanded` のキー） |
 | `part_index` | 整数 | 任意 | 分割済みステップのうち、さらに分割したい小ステップの位置。省略すると元ステップ全体を分割 |
-| `mode` | 文字列 | 任意 | `"split"`（既定、より小さい複数ステップへ分割）または `"explain"`（「わかりやすくする」の補足を生成） |
 
 #### 処理の流れ
 1. **検証**: ユーザーのメッセージ所有権、メッセージロール（`assistant`）、本文の有無、ステップ／`part_index` の範囲を検証。
@@ -132,7 +128,7 @@
   }
 }
 ```
-`steps` は対象 `step_index` の分割後リスト全体です。旧クライアント向けに `text`（本文の連結）も返します。
+`steps` は対象 `step_index` の分割後リスト全体です。旧クライアント向けに `text`（本文の連結）も返します。各ステップの本文は「〇〇なので、〇〇します」の形で、計算・式変形の理由を先に述べます。
 
 #### エラーレスポンス
 - `429 Too Many Requests`: `{"error": "rate_limit"}`（1分間に20回超過）
@@ -144,55 +140,9 @@
 
 ---
 
-### 2.3 「わかりやすくする」補足：`POST /api/math_steps/simplify`（`mode: "explain"`）
-
-同じエンドポイントに `mode: "explain"` を付けると、ステップを分割せず、そのステップの計算や式変形について「なぜその操作をするのか」を説明する短い補足を生成します。補足は元の本文の下に表示され、ステップ数・本文・答えは変わりません。
-
-#### リクエストボディ
-```json
-{
-  "message_id": 12345,
-  "step_index": 1,
-  "part_index": 0,
-  "mode": "explain"
-}
-```
-
-#### 処理の流れ
-1. 対象ステップ（`part_index` 指定時は分割小ステップ）を取得し、`build_math_steps_explain_prompt()` で「なぜ」を説明するプロンプトを構築。
-2. 元メッセージと同じプロバイダー・モデルで生成（`_call_math_steps_simplify_model`、Usageを記録）。
-3. 返答から見出し行を除去し、`_clean_math_steps_note()` で整形（1補足8,000文字、メッセージ内合計40,000文字まで）。
-4. `math_steps_state.notes` の `"step_index"`（分割小ステップは `"step_index-part_index"`）へ保存し、E2EE有効時は暗号化。
-
-#### レスポンス（成功時：HTTP 200 OK）
-```json
-{
-  "status": "ok",
-  "mode": "explain",
-  "note": "両辺から3を引くのは、x だけを残すためです。",
-  "note_key": "1",
-  "step_index": 1,
-  "part_index": null,
-  "math_steps_state": {
-    "current": 1,
-    "max_reached": 3,
-    "simplified": {},
-    "expanded": {},
-    "notes": { "1": "両辺から3を引くのは、x だけを残すためです。" }
-  }
-}
-```
-
-#### エラーレスポンス
-- `400 Bad Request`: `{"error": "invalid_mode"}`（`split` / `explain` 以外）ほか、分割時と同じ検証エラー
-- `409 Conflict`: `{"error": "notes_limit_reached"}`（補足の合計文字数が上限に達した）
-- `502 Bad Gateway`: `{"error": "explain_failed"}` / `{"error": "empty_result"}`
-
----
-
 ## 3. モデル呼び出しディスパッチャ（`_call_math_steps_simplify_model`）
 
-ステップ簡略化・「わかりやすくする」補足では、会話で使用されたプロバイダーとモデルに合わせて、`server/routes_math_steps.py`（L218-L292）が適切なSDK・クライアントへ振り分けます。
+ステップ簡略化では、会話で使用されたプロバイダーとモデルに合わせて、`server/routes_math_steps.py`（L144-L205）が適切なSDK・クライアントへ振り分けます。
 
 | プロバイダー | SDK / 接続方式 | 呼び出しメソッド | 認証情報 |
 |---|---|---|---|
@@ -205,14 +155,14 @@
 | **OpenAI** | `openai` SDK | `client.responses.create` または completions | ユーザーの OpenAI API キー |
 
 ### 対象モデルの判定規約（`_is_math_steps_text_model`）
-モデル名に以下のキーワードを含む特殊モデルは、ステップ解説の再生成対象から除外されます（L281-L292）：
+モデル名に以下のキーワードを含む特殊モデルは、ステップ解説の再生成対象から除外されます（L207-L217）：
 `image`, `video`, `tts`, `audio`, `native-audio`, `embedding`, `transcribe`, `realtime`, `ocr`, `music`, `voice`
 
 ---
 
 ## 4. トークン使用量（Usage）とコスト追跡
 
-「もっとやさしく」の再生成と「わかりやすくする」の補足は追加のLLM推論を伴うため、コストの不透明化を防ぐ目的で使用量がメッセージに追跡記録されます（L196-L216）。
+「もっとやさしく」の再生成は追加のLLM推論を伴うため、コストの不透明化を防ぐ目的で使用量がメッセージに追跡記録されます（L122-L142）。
 
 1. `ModelUsageCall` インスタンスを作成し、プロバイダーから返された `usage_metadata` や `usage` オブジェクトを監視。
 2. 処理完了後、`call.snapshot()` を取得。

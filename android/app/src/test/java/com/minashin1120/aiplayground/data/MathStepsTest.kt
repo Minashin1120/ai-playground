@@ -93,27 +93,6 @@ class MathStepsTest {
         assertTrue(mathStepsPdfText(original.joinToString("\n\n") { "## ステップ ${it.number} ${it.title}\n${it.body}" }, state).contains("やさしい本文"))
     }
 
-    @Test fun notesRoundTripPerStepAndPerPart() {
-        val state = MathStepsState.parse(JSONObject(
-            """{"current":0,"max_reached":0,"notes":{"0":"なぜ3を引くのか","0-1":"小ステップの理由"}}""",
-        ))!!
-        assertEquals("なぜ3を引くのか", state.notes["0"])
-        assertEquals("小ステップの理由", state.notes["0-1"])
-        val saved = state.toJson().getJSONObject("notes")
-        assertEquals("なぜ3を引くのか", saved.getString("0"))
-        assertEquals("小ステップの理由", saved.getString("0-1"))
-
-        val original = parseMathSteps("## ステップ 1 整理\n本文1")
-        val views = buildMathStepViews(
-            original,
-            mapOf(0 to listOf(MathStepPart("小1", "本文A"), MathStepPart("小2", "本文B"))),
-        )
-        assertEquals("0-1", noteKey(views[1]))
-        assertEquals("小ステップの理由", state.noteFor(views[1]))
-        assertNull(state.noteFor(views[0]))
-        assertTrue(mathStepsPdfText("## ステップ 1 整理\n本文1", state).contains("なぜそうなるの？"))
-    }
-
     @Test fun configUsesDefaultsAndRejectsUnknownValues() {
         val defaults = MathStepsConfig()
         assertEquals(false, defaults.basics)

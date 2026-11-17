@@ -284,20 +284,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         mathSteps.saveProgress(message, current, maxReached)
     fun clearMathStepSimplified(message: ChatMessage, stepIndex: Int, current: Int) =
         mathSteps.clearVariants(message, stepIndex, current)
-    fun clearMathStepNote(message: ChatMessage, noteKey: String, current: Int) =
-        mathSteps.clearNote(message, noteKey, current)
     fun simplifyMathStep(
         message: ChatMessage,
         stepIndex: Int,
         partIndex: Int?,
         done: (List<MathStepPart>?) -> Unit,
     ) = mathSteps.simplify(message, stepIndex, partIndex, done)
-    fun explainMathStep(
-        message: ChatMessage,
-        stepIndex: Int,
-        partIndex: Int?,
-        done: (String?) -> Unit,
-    ) = mathSteps.explain(message, stepIndex, partIndex, done)
     fun saveMathStepsConfig(config: MathStepsConfig) = preferences.saveMathStepsConfig(config)
     fun toggleTemporaryChat() = threadActions.toggleTemporaryChat()
     fun selectCodingTarget(target: CodingTarget?) = composer.selectCodingTarget(target)

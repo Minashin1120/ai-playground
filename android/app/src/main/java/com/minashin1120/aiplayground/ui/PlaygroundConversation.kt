@@ -456,7 +456,16 @@ private fun ConversationContent(
                             onFile = onFile,
                             loader = loader,
                             onQuoteJump = if (message.quote.isBlank()) null else {
-                                { findQuotedMessageIndex(state.messages, row, message.quote)?.let { requestQuoteRow(it, quote = message.quote) } }
+                                {
+                                    val target = findQuotedMessageIndex(state.messages, row, message.quote)
+                                    if (target == null) {
+                                        val op = UUID.randomUUID().toString()
+                                        fun trace(phase: String) = ActivityLog.log("ui.interaction",
+                                            "op" to op, "ui_element" to "message", "interaction_stage" to "scroll", "phase" to phase)
+                                        trace("start")
+                                        trace("error")
+                                    } else requestQuoteRow(target, quote = message.quote)
+                                }
                             },
                             flashToken = if (quoteFlashRow == rowKey) quoteFlashToken else 0L,
                             flashQuote = if (quoteFlashRow == rowKey) quoteFlashText else null,

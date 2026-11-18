@@ -1,7 +1,12 @@
 package com.minashin1120.aiplayground.ui
 
 import com.minashin1120.aiplayground.data.ChatMessage
+import com.minashin1120.aiplayground.data.MathStepsState
+import com.minashin1120.aiplayground.data.buildMathStepViews
+import com.minashin1120.aiplayground.data.parseMathSteps
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class QuoteNavigationTest {
@@ -127,5 +132,59 @@ class QuoteNavigationTest {
 
     @Test fun aQuoteAlreadyUnderTheTopBarDoesNotScroll() {
         assertEquals(0f, quoteScrollDelta(quoteTop = 112f, viewportTop = 100f, margin = 12f), 0.001f)
+    }
+
+    @Test fun aFormulaOnlyQuoteMatchesTheApproximationTheReaderCopied() {
+        val tex = "\\frac{1}{2}"
+        val messages = listOf(
+            ChatMessage("101", "assistant", "前の説明です。\n\n$$${tex}$$\n\n続きです。"),
+            ChatMessage("102", "user", "質問です。"),
+        )
+        val quote = latexToDisplay(tex)
+        assertEquals("(1)/(2)", quote)
+        assertEquals(0, findQuotedMessageIndex(messages, beforeIndex = 2, quote = quote) ?: -1)
+        assertTrue(readerQuoteText("値は \\($tex\\) です。").contains(quote))
+    }
+
+    @Test fun aQuoteFromALaterMathStepOpensThatStep() {
+        val tex = "\\frac{a}{b}"
+        val content = "## ステップ 1 導入\n前置きです。\n\n## ステップ 2 計算\n計算すると \\($tex\\) です。"
+        val quote = "計算すると ${latexToDisplay(tex)} です。"
+        val messages = listOf(
+            ChatMessage("101", "assistant", content),
+            ChatMessage("102", "user", "質問です。"),
+        )
+        assertEquals(0, findQuotedMessageIndex(messages, beforeIndex = 2, quote = quote) ?: -1)
+        val views = buildMathStepViews(parseMathSteps(content), emptyMap())
+        assertEquals(1, findMathQuoteTarget(views, emptyMap(), quote, current = 0)!!.index)
+        // The step already on screen wins when it contains the same text.
+        assertEquals(1, findMathQuoteTarget(views, emptyMap(), quote, current = 1)!!.index)
+    }
+
+    @Test fun anEasierMathStepQuoteFindsTheMessageAndTheOriginalCanBeRevealed() {
+        val original = "## ステップ 1 元の説明\nむずかしい原文です。"
+        val easier = "やさしい説明です。これは引用です。"
+        val message = ChatMessage(
+            "101", "assistant", original,
+            mathStepsState = MathStepsState(simplified = mapOf(0 to easier)),
+        )
+        val messages = listOf(message, ChatMessage("102", "user", "質問です。"))
+        assertEquals(0, findQuotedMessageIndex(messages, beforeIndex = 2, quote = "これは引用です。") ?: -1)
+        val views = buildMathStepViews(parseMathSteps(original), emptyMap())
+        val hidden = findMathQuoteTarget(views, mapOf(0 to easier), "むずかしい原文です。", current = 0)
+        assertEquals(0, hidden!!.index)
+        assertTrue(hidden.revealOriginal)
+        assertFalse(findMathQuoteTarget(views, mapOf(0 to easier), "これは引用です。", current = 0)!!.revealOriginal)
+    }
+
+    @Test fun codeFencesStayLiteralAndDiagramsBecomeTheFigureMark() {
+        val fenced = "```\n\\frac{1}{2}\n```"
+        assertEquals(fenced, readerQuoteText(fenced))
+        val drawn = "前\n```mathsvg\n<svg></svg>\n```\n後"
+        val reader = readerQuoteText(drawn)
+        assertTrue(reader.contains("［図］"))
+        assertFalse(reader.contains("svg"))
+        assertTrue(reader.contains("前"))
+        assertTrue(reader.contains("後"))
     }
 }

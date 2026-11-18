@@ -40,7 +40,6 @@ import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.MathStepPart
 import com.minashin1120.aiplayground.data.MathStepsConfig
 import com.minashin1120.aiplayground.data.buildMathStepViews
-import com.minashin1120.aiplayground.data.mathStepsOriginLabel
 import com.minashin1120.aiplayground.data.parseMathSteps
 import kotlinx.coroutines.delay
 
@@ -168,6 +167,24 @@ internal fun MathStepsContent(
     var savedCurrent by remember(stateKey) { mutableIntStateOf(saved?.current ?: 0) }
     var simplifying by remember(stateKey) { mutableStateOf(false) }
     var simplifyFailed by remember(stateKey) { mutableStateOf(false) }
+    // A quote jump opens the step that contains the quoted text and holds it against a saved-progress echo.
+    var appliedFlash by remember(stateKey) { mutableStateOf<String?>(null) }
+    var quoteRevealIndex by remember(stateKey) { mutableIntStateOf(-1) }
+    var quoteRevealOriginal by remember(stateKey) { mutableStateOf(false) }
+    val incomingFlash = flashQuote?.takeIf { it.isNotBlank() }
+    if (incomingFlash != null && incomingFlash != appliedFlash) {
+        appliedFlash = incomingFlash
+        val target = findMathQuoteTarget(steps, simplified, incomingFlash, current)
+        if (target != null) {
+            quoteRevealIndex = target.index
+            quoteRevealOriginal = target.revealOriginal
+            if (current != target.index) current = target.index
+            if (current > maxReached) maxReached = current
+        } else {
+            quoteRevealIndex = -1
+            quoteRevealOriginal = false
+        }
+    }
 
     // A regenerated/shortened answer must never index past the last step.
     LaunchedEffect(lastIndex) {
@@ -176,8 +193,9 @@ internal fun MathStepsContent(
     }
 
     // Another device (or this one after a reload) may have moved on: follow the server state.
+    // A quote jump has just opened a different step; don't let the saved index close it again.
     LaunchedEffect(saved, lastIndex) {
-        if (saved == null) return@LaunchedEffect
+        if (saved == null || quoteRevealIndex >= 0) return@LaunchedEffect
         val next = saved.current.coerceIn(0, lastIndex)
         if (next != current) current = next
         if (saved.maxReached > maxReached) maxReached = saved.maxReached.coerceAtMost(lastIndex)
@@ -195,6 +213,8 @@ internal fun MathStepsContent(
     }
 
     fun goTo(index: Int) {
+        quoteRevealIndex = -1
+        quoteRevealOriginal = false
         val next = index.coerceIn(0, lastIndex)
         current = next
         if (next > maxReached) maxReached = next
@@ -204,7 +224,6 @@ internal fun MathStepsContent(
     val web = LocalWebPalette.current
     val view = steps[current]
     val title = view.title
-    val originLabel = mathStepsOriginLabel(view)
     Column(Modifier.fillMaxWidth().semantics { contentDescription = "数学ステップ解説" },
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(
@@ -223,26 +242,23 @@ internal fun MathStepsContent(
                     fontWeight = FontWeight.Bold,
                     color = if (web.isLight) web.theme.t700 else web.theme200,
                 )
-                if (originLabel != null) {
-                    Text(
-                        originLabel,
-                        fontSize = 10.sp,
-                        lineHeight = 14.sp,
-                        color = web.muted,
-                    )
-                }
                 if (title.isNotBlank()) {
                     Text(title, fontSize = 11.sp, lineHeight = 16.sp, color = web.muted)
                 }
             }
         }
 
-        val easyBody = if (view.expanded) view.body else simplified[view.sourceIndex]
-        val canRestore = view.expanded || easyBody != null
+        val storedBody = if (view.expanded) view.body else simplified[view.sourceIndex]
+        val revealOriginal = quoteRevealOriginal && quoteRevealIndex == current && !view.expanded
+        val easyBody = if (revealOriginal) null else storedBody
+        val canRestore = view.expanded || storedBody != null
         CompositionLocalProvider(LocalSvgAnimation provides config.animation) {
             if (easyBody != null) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    MarkdownText(easyBody, loader, onOpen, startCollapsed, canvasMode)
+                    MarkdownText(
+                        easyBody, loader, onOpen, startCollapsed, canvasMode,
+                        flashQuote = flashQuote, flashAlpha = flashAlpha, onQuoteFlashLocated = onQuoteFlashLocated,
+                    )
                     if (canRestore) {
                         Text(
                             "元の説明に戻す",

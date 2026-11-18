@@ -369,18 +369,20 @@ internal object MathCopyText {
         return token
     }
 
-    /** [text] with every token replaced by its approximation. */
+    /** [text] with every token replaced by its approximation, and selection breaks removed. */
     @Synchronized fun restore(text: String): String {
-        if (texts.isEmpty() || text.none { Character.isSurrogate(it) }) return text
-        val out = StringBuilder(text.length)
-        var i = 0
-        while (i < text.length) {
-            val code = text.codePointAt(i)
-            val approximation = texts[code]
-            if (approximation != null) out.append(approximation) else out.appendCodePoint(code)
-            i += Character.charCount(code)
+        val expanded = if (texts.isEmpty() || text.none { Character.isSurrogate(it) }) text else {
+            val out = StringBuilder(text.length)
+            var i = 0
+            while (i < text.length) {
+                val code = text.codePointAt(i)
+                val approximation = texts[code]
+                if (approximation != null) out.append(approximation) else out.appendCodePoint(code)
+                i += Character.charCount(code)
+            }
+            out.toString()
         }
-        return out.toString()
+        return stripSelectionBreaks(expanded)
     }
 }
 

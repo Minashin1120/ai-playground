@@ -197,13 +197,14 @@
 | `ci/test-html-preview.py` | AndroidのHTMLプレビュー用HTMLをChromiumで描画し、日本語・CSS・JavaScript・隔離・危険スクリプト除去を検証 | HTMLプレビューの描画を確認するとき（AndroidのビルドやWebViewの実機検証は行わない） |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/HtmlCodePreviewDialog.kt`, `app/src/main/assets/html-preview-security.js` | HTMLコードブロックのプレビュー（専用URLから読み込む隔離したWebView、Webと共通の危険スクリプト除去） | HTMLプレビューの表示・安全対策を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownText.kt` | Webの `marked`（GFM・`breaks`）と `pre-wrap` 表示を再現するMarkdownの描画（リスト、引用、表、コード、`chat_error`、インラインコード）、回答中の生HTML（`<details>`・表を含む）とSVG | メッセージ本文表示を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/SelectionWords.kt` | 長押し選択を日本語の語句境界で止める幅ゼロの区切り（コピーと引用では除去） | 長押しの選択範囲を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownBlocks.kt` | Webの `marked` が作るブロックの解析（見出し・引用・リスト・表・フェンス・生HTML／SVG・画像・数式と、リンク先の検証） | Markdownのブロック解釈を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MarkdownColors.kt` | 回答本文の色（本文・引用・リンク・インラインコード・コードブロック・表・区切り線・highlight.js のテーマ色） | 回答本文の配色を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/SvgAnimation.kt` | アニメーション付きSVG（SMIL・CSS `@keyframes`）の検出と安全確認、スクリプト・外部参照を止めたWebViewでの再生（Webと同じ `<img>` のデータURI）、アニメーション設定・視差効果を減らす設定への追従 | SVGのアニメーション表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InlineAudioPlayer.kt` | 回答内の `<audio controls src>`（TTS・音楽・Lyriaの出力）を再生するインラインプレーヤー（初回タップで取得、再生・シーク・再生速度の切り替え。Web版の専用プレーヤーと同じ見た目）と、画面が渡す添付ダウンローダー `LocalAttachmentDownloader` | 回答内の音声の再生を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MessageBubble.kt` | Webの `.message-bubble`（吹き出し、タップで出る操作ボタン、引用、Thinking、添付グリッドとObject Removerマスク画像、分岐切替、フッター、回答処理時間と内訳）、合計・入力見積トークン帯、トークン詳細・暗号化モーダル、Welcome、一番下へ、数学ステップの表示切替 | メッセージの見た目を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/MathJaxRenderer.kt` | 同梱MathJaxを画面に出さないWebViewで動かしてTeXをSVGへ組版、キャッシュ、文中・独立行の数式の配置と描画 | 数式の組版・配置を編集するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/MathSteps.kt` | 「数学ステップ解説」の1ステップ表示（見出し・本文・分割元の表示・次へ／前へ／最初から／完了・もっとやさしく）、プロンプトバーの歯車ダイアログ、設定の5項目 | ステップの表示・操作・設定画面を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/MathSteps.kt` | 「数学ステップ解説」の1ステップ表示（見出し・本文・次へ／前へ／最初から／完了・もっとやさしく）、プロンプトバーの歯車ダイアログ、設定の5項目 | ステップの表示・操作・設定画面を編集するとき |
 | `app/src/main/assets/mathjax/` | MathJax 3.2.2（`tex-svg.js`、TeX拡張、`LICENSE`）と実行用の `host.html` | MathJaxの版や設定を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/LatexText.kt` | LaTeXの読みやすい近似（MathJaxの読み込み中・組版できない式・コピー時の文字） | 近似表示を編集するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/RemoteImage.kt` | 同一originの添付画像をBearer付きで取得し、キャッシュしてプレビュー | 添付・画像プレビューを編集するとき |

@@ -702,12 +702,23 @@ internal fun InlineRichText(
     val mathStates = source.math.map { item -> key(item.id, item.tex) { rememberMathState(item.tex, item.display) } }
     val ready = source.math.filterIndexed { index, _ -> mathStates[index] is MathState.Ready }.map { it.id }.toSet()
     val parsed = remember(source, ready) { source.withMathTokens(ready) }
+    // Long-press word boundaries. The laid-out string has the breaks; quote and code offsets stay
+    // in the original string and are mapped when they are read back from the layout.
+    val breaks = remember(parsed.text.text) { selectionBreakOffsets(parsed.text.text) }
+    val shown = remember(parsed.text, breaks) { parsed.text.withSelectionBreaks(breaks) }
+    val shownCode = remember(parsed.codeRanges, breaks) { parsed.codeRanges.map { mapSelectionRange(breaks, it) } }
+    val shownQuote = remember(quoteRange, breaks) { quoteRange?.let { mapSelectionRange(breaks, it) } }
+    // Formula baselines are read from the laid-out string, whose indexes include the breaks.
+    val shownMath = remember(parsed.math, breaks) {
+        if (breaks.isEmpty()) parsed.math
+        else parsed.math.map { item -> item.copy(start = mapSelectionRange(breaks, item.start..item.start).first) }
+    }
     val mathColor = style.color.takeOrElse { LocalContentColor.current }
     val fontPx = with(density) { style.fontSize.takeOrElse { 16.sp }.toPx() }
-    val inline = remember(parsed.math, mathStates, mathColor, availableWidth, fontPx) {
+    val inline = remember(shownMath, mathStates, mathColor, availableWidth, fontPx) {
         val map = HashMap<String, InlineTextContent>()
         map[CODE_PAD] = InlineTextContent(Placeholder(6.4.sp, 1.sp, PlaceholderVerticalAlign.TextCenter)) {}
-        parsed.math.forEachIndexed { index, item ->
+        shownMath.forEachIndexed { index, item ->
             val svg = (mathStates[index] as? MathState.Ready)?.svg ?: return@forEachIndexed
             map[item.id] = inlineMathContent(item, svg, mathColor, availableWidth, fontPx) { textLayout }
         }
@@ -716,16 +727,16 @@ internal fun InlineRichText(
     val chipHeight = with(density) { 24.dp.toPx() }
     val radius = with(density) { 6.4.dp.toPx() }
     // Quote jump: once this block is laid out, tell the conversation where its quoted range starts.
-    LaunchedEffect(textLayout, windowTop, quoteRange, onQuoteLocated) {
+    LaunchedEffect(textLayout, windowTop, shownQuote, onQuoteLocated) {
         val layout = textLayout ?: return@LaunchedEffect
-        val range = quoteRange ?: return@LaunchedEffect
+        val range = shownQuote ?: return@LaunchedEffect
         val report = onQuoteLocated ?: return@LaunchedEffect
         if (!windowTop.isFinite() || range.first < 0 || range.first >= layout.layoutInput.text.length) return@LaunchedEffect
         report(windowTop + layout.getBoundingBox(range.first).top)
     }
     val body: @Composable () -> Unit = {
         Text(
-            parsed.text,
+            shown,
             style = style,
             inlineContent = inline,
             onTextLayout = { textLayout = it },
@@ -746,7 +757,7 @@ internal fun InlineRichText(
                 )
                 .drawBehind {
                 val result = textLayout ?: return@drawBehind
-                parsed.codeRanges.forEach { range ->
+                shownCode.forEach { range ->
                     if (range.first >= result.layoutInput.text.length) return@forEach
                     val last = range.last.coerceAtMost(result.layoutInput.text.length - 1)
                     var lineIndex = result.getLineForOffset(range.first)
@@ -837,9 +848,10 @@ private fun CodeBlock(block: MarkdownBlock.Code, colors: MarkdownColors, startCo
             Column {
                 Box(Modifier.fillMaxWidth().height(1.dp).background(colors.codeWrapperBorder))
                 val highlighted = remember(block.text, block.language, colors.syntax) { highlightCode(block.text, block.language, colors.syntax) }
+                val shown = remember(highlighted) { highlighted.withSelectionBreaks() }
                 MessageSelection {
                     Text(
-                        highlighted,
+                        shown,
                         color = colors.codeText,
                         fontFamily = WebFonts.mono, fontSize = 13.68.sp, lineHeight = 21.2.sp, letterSpacing = 0.01.em,
                         softWrap = false,
@@ -971,7 +983,16 @@ private fun MathBlock(block: MarkdownBlock.Math, style: TextStyle) {
     val trace = rememberInteractionTrace("math_block")
     val naturalWidth = with(LocalDensity.current) { svg?.let { (it.widthEm * WEB_MATH_SCALE * style.fontSize.takeOrElse { 16.sp }.toPx()).toInt() } }
     TraceMathRendering(trace, state, scroll, naturalWidth, WEB_MATH_SCALE)
-    Box(Modifier.fillMaxWidth().observeInteraction(trace, scroll).horizontalScroll(scroll).padding(vertical = 15.2.dp), contentAlignment = Alignment.Center) {
+    // A quote of a display formula is the one-line approximation, which is not in the paragraphs around it.
+    val flash = LocalQuoteFlash.current
+    val reportsQuote = flash != null && formulaHoldsQuote(
+        rendered.replace(Regex("""\s*\n\s*"""), " ").trim(), flash.query)
+    Box(
+        Modifier.fillMaxWidth()
+            .then(if (reportsQuote) Modifier.onGloballyPositioned { flash?.onLocated?.invoke(it.positionInWindow().y) } else Modifier)
+            .observeInteraction(trace, scroll).horizontalScroll(scroll).padding(vertical = 15.2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
         if (svg != null && drawing != null) {
             MathDisplayText(svg, drawing, rendered, color, style)
         } else {

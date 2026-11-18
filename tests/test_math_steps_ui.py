@@ -227,8 +227,6 @@ class MathStepsBrowserTests(unittest.TestCase):
         page.click('#math-steps-test-host .math-steps-simplify')
         page.wait_for_timeout(400)
         self.assertIn('1 / 4', page.inner_text('#math-steps-test-host .math-steps-counter'))
-        self.assertIn('元のステップ1のやさしい説明',
-                      page.inner_text('#math-steps-test-host .math-steps-origin'))
         body = page.inner_text('#math-steps-test-host .math-steps-prose')
         self.assertIn('やさしい説明です', body)
         self.assertNotIn('まず、わかっていること', body)
@@ -240,7 +238,6 @@ class MathStepsBrowserTests(unittest.TestCase):
         page.click('#math-steps-test-host .math-steps-next')
         self.assertIn('3 / 4', page.inner_text('#math-steps-test-host .math-steps-counter'))
         self.assertIn('式を立てる', page.inner_text('#math-steps-test-host .math-steps-title'))
-        self.assertFalse(page.locator('#math-steps-test-host .math-steps-origin').is_visible())
         # Restoring collapses the split back to the original step.
         page.click('#math-steps-test-host .math-steps-prev')
         page.click('#math-steps-test-host .math-steps-restore')

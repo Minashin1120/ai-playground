@@ -74,7 +74,7 @@
 | `background_stream_tail.py` | `background_chat_task` の全プロバイダ共通の後処理（回答本文の整形・Coding Mode の差分適用・使用量と思考の保存・アシスタントメッセージの永続化） | 生成結果の保存・完了通知 |
 | `background_stream_tts.py` | `background_chat_task` の TTS 分岐（Google Cloud TTS・xAI TTS・OpenAI TTS、音声の保存と `<audio>` の追記）。`locals()` を受け取り、更新後の回答本文を返す | 音声合成 |
 | `background_coding.py` | Coding Mode の差分生成・編集適用・修復プロンプト | コーディングモード |
-| `background_math_steps.py` | 数学ステップ解説の固定出力形式（`## ステップ N` と `mathsvg`）、設定の正規化、ステップ抽出、「もっとやさしく」（問題文・直前・次の見出しを渡し、1〜3分割で目的→根拠→操作→結果）のプロンプト | 数学ステップのプロンプト・形式・設定 |
+| `background_math_steps.py` | 数学ステップ解説の固定出力形式（`## ステップ N` と `mathsvg`）、設定の正規化、ステップ抽出、「もっとやさしく」のプロンプト | 数学ステップのプロンプト・形式・設定 |
 | `background_attachments.py` | `background_chat_task` の添付読込（パス・サイズ検証、PDF/DOCX/PPTX/XLSX/テキストの抽出、ファイルキャッシュ更新）。`img_list` / `options` / `user_id` / モデル種別を受け取り、`loaded_files` と `file_errors` を返す | 添付ファイルの読み込み |
 | `background_history.py` | `background_chat_task` の履歴復元（祖先のたどり・トークン数の保存）と、過去メッセージの画像・文書テキストの読み込み。履歴リストは引数で受け取る | 会話履歴・過去添付の復元 |
 | `background_mcp.py` | `background_chat_task` の MCP 実行環境の遅延構築（`tools/list`・案内文のシステムプロンプト注入）と実行結果の Markdown | MCP の準備・結果表示 |

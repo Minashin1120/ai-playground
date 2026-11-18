@@ -248,7 +248,8 @@ internal fun MessageBubble(
                             if (flashQuote == null || flash.value <= 0f) AnnotatedString(message.content)
                             else quoteFlashText(message.content, flashQuote, flash.value)
                         }
-                        Text(body, color = textColor, fontSize = 14.sp, lineHeight = 20.sp, fontFamily = FontFamily.Default)
+                        val shown = remember(body) { body.withSelectionBreaks() }
+                        Text(shown, color = textColor, fontSize = 14.sp, lineHeight = 20.sp, fontFamily = FontFamily.Default)
                     }
                 } else if (liveSkeleton != null) {
                     liveSkeleton()
@@ -364,7 +365,7 @@ private fun QuoteStrip(quote: String, onJump: (() -> Unit)?) {
     ) {
         FaIcon(R.drawable.fa_solid_quote_left, null, size = 12.dp, tint = color.copy(alpha = color.alpha * 0.5f),
             modifier = Modifier.padding(end = 4.dp))
-        Text(quote, color = color, fontSize = 12.sp, lineHeight = 16.sp, fontStyle = FontStyle.Italic,
+        Text(remember(quote) { quote.withSelectionBreaks() }, color = color, fontSize = 12.sp, lineHeight = 16.sp, fontStyle = FontStyle.Italic,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
     }
 }
@@ -411,7 +412,8 @@ private fun ThoughtContainer(thought: String, openInitially: Boolean, preparing:
                 // Its full text extends beyond the clipped 400dp viewport. Registering it with
                 // the bubble makes that hidden text overlap the answer in selection hit testing.
                 MessageSelection(independent = true) {
-                    Text(thought, color = if (web.isLight) Color(0xFF334155) else Color(0xFFCBD5F5), fontSize = 13.6.sp, lineHeight = 20.sp,
+                    val shown = remember(thought) { thought.withSelectionBreaks() }
+                    Text(shown, color = if (web.isLight) Color(0xFF334155) else Color(0xFFCBD5F5), fontSize = 13.6.sp, lineHeight = 20.sp,
                         fontFamily = FontFamily.Monospace)
                 }
             }

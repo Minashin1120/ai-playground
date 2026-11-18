@@ -180,10 +180,6 @@ data class MathStepView(
     val body: String,
 )
 
-/** Header hint that keeps the source step visible for 「もっとやさしく」 sub-steps. */
-fun mathStepsOriginLabel(view: MathStepView): String? =
-    if (view.partIndex == null) null else "元のステップ${view.sourceIndex + 1}のやさしい説明"
-
 /** Flattens original steps plus saved expanded replacements (same contract as Web). */
 fun buildMathStepViews(
     original: List<MathStep>,

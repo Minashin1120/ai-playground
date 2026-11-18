@@ -93,18 +93,6 @@ class MathStepsTest {
         assertTrue(mathStepsPdfText(original.joinToString("\n\n") { "## ステップ ${it.number} ${it.title}\n${it.body}" }, state).contains("やさしい本文"))
     }
 
-    @Test fun originLabelOnlyForSplitSubSteps() {
-        val original = parseMathSteps("## ステップ 1 整理\n本文1\n\n## ステップ 2 計算\n本文2")
-        val views = buildMathStepViews(
-            original,
-            mapOf(1 to listOf(MathStepPart("やさしく整理", "本文2-1"), MathStepPart("続き", "本文2-2"))),
-        )
-        assertEquals(3, views.size)
-        assertNull(mathStepsOriginLabel(views[0]))
-        assertEquals("元のステップ2のやさしい説明", mathStepsOriginLabel(views[1]))
-        assertEquals("元のステップ2のやさしい説明", mathStepsOriginLabel(views[2]))
-    }
-
     @Test fun configUsesDefaultsAndRejectsUnknownValues() {
         val defaults = MathStepsConfig()
         assertEquals(false, defaults.basics)

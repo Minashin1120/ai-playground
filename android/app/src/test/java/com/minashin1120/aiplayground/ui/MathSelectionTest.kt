@@ -18,10 +18,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.TouchInjectionScope
 import androidx.compose.ui.test.click
-import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNode
 import org.junit.Assert.assertTrue
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.TextToolbar
@@ -164,10 +167,21 @@ class MathSelectionTest {
 
         val approximation = latexToDisplay("6(3)^2 = 54")
         // A control: plain text in the same bubble.
-        val plain = pressAndCopy("text", rule.onNodeWithText("前の項に足す数", useUnmergedTree = true)) { centerLeft.copy(x = centerLeft.x + 20f) }
+        val plain = pressAndCopy("text", rule.onNode(hasTextIgnoringSelectionBreaks("前の項に足す数"), useUnmergedTree = true)) { centerLeft.copy(x = centerLeft.x + 20f) }
         // The right end of the formula, where a word of the approximation ("54") used to be selected on its own.
         val formula = pressAndCopy("formula", rule.onNodeWithContentDescription(approximation, useUnmergedTree = true)) { centerRight.copy(x = centerRight.x - 4f) }
         assertTrue("the control selects text: [$plain]", plain.isNotEmpty())
         assertEquals(approximation, formula)
+    }
+}
+
+/** Word-boundary breaks are U+200B inside the laid-out text, so exact text match has to ignore them. */
+private fun hasTextIgnoringSelectionBreaks(text: String): SemanticsMatcher {
+    return SemanticsMatcher("text equals '$text' after removing selection breaks") { node ->
+        fun matches(value: String) = stripSelectionBreaks(value) == text
+        val inInput = node.config.getOrNull(SemanticsProperties.InputText)?.text?.let(::matches) == true
+        val inEditable = node.config.getOrNull(SemanticsProperties.EditableText)?.text?.let(::matches) == true
+        val inText = node.config.getOrNull(SemanticsProperties.Text)?.any { matches(it.text) } == true
+        inInput || inEditable || inText
     }
 }

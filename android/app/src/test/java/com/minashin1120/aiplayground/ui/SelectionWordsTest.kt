@@ -48,12 +48,14 @@ class SelectionWordsTest {
 
     @Test fun stylesStayOnTheSameCharacters() {
         val source = AnnotatedString("そのため", listOf(AnnotatedString.Range(SpanStyle(fontWeight = FontWeight.Bold), 0, 4)))
-        val shown = "前となる。".let { AnnotatedString(it + source) }.withSelectionBreaks()
+        // Concatenate annotated strings. AnnotatedString(string + annotated) keeps only the characters.
+        val shown = (AnnotatedString("前となる。") + source).withSelectionBreaks()
         val start = shown.text.indexOf("そのため")
-        assertTrue(start > 0)
-        assertEquals(SELECTION_BREAK, shown.text[start - 1])
-        val bold = shown.spanStyles.single { it.item.fontWeight == FontWeight.Bold }
-        assertEquals("そのため", shown.text.substring(bold.start, bold.end))
+        assertTrue("そのため stays in [${shown.text}]", start > 0)
+        assertEquals("a break precedes そのため", SELECTION_BREAK, shown.text[start - 1])
+        val bolds = shown.spanStyles.filter { it.item.fontWeight == FontWeight.Bold }
+        assertEquals("one bold span in $bolds", 1, bolds.size)
+        assertEquals("bold text", "そのため", shown.text.substring(bolds[0].start, bolds[0].end))
     }
 
     private fun wordAt(broken: String, needle: String): String {

@@ -36,6 +36,13 @@ fun jpyCostLabel(cost: CostEstimate, rate: JpyExchangeRate): String {
     return "日本円換算: 約$amount$unpriced（参考レート 1ドル=${perDollar}円$date）"
 }
 
+/** Mirrors Web's `costItemJpyText`: the per-request share in yen, or blank when it cannot be priced. */
+fun jpyItemLabel(item: CostItem, rate: JpyExchangeRate): String {
+    if (!item.priced) return ""
+    val low = jpyAmountText(item.low * rate.rate)
+    return if (item.high - item.low > 1e-12) "約$low〜${jpyAmountText(item.high * rate.rate)}" else "約$low"
+}
+
 /**
  * Free, keyless USD→JPY rates: ECB reference rates via Frankfurter, then a public CDN mirror.
  * Only the rate is fetched (no chat, usage or account data) and it is cached on the device.

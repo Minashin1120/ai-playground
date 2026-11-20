@@ -380,6 +380,17 @@
                     jpy.id = 'token-detail-cost-jpy';
                     costDetail.append(usd, jpy);
                     fillCostEstimateJpy(jpy, meta.cost_estimate);
+                    const items = Array.isArray(meta.cost_estimate?.items) ? meta.cost_estimate.items : [];
+                    if (items.length) {
+                        const details = document.createElement('details');
+                        details.className = 'pt-2 border-t border-gray-700';
+                        const summary = document.createElement('summary');
+                        summary.className = 'cursor-pointer';
+                        summary.textContent = `リクエスト内訳（${items.length}件）`;
+                        details.appendChild(summary);
+                        appendCostItemList(details, items);
+                        costDetail.appendChild(details);
+                    }
                     for (const text of [`集計したAPI呼び出し: ${meta.cost_estimate?.requests || 0}回`, COST_ESTIMATE_NOTE,
                         `公式料金確認日: ${costPricing?.checked_at || '取得できませんでした'}`]) {
                         const p = document.createElement('p'); p.textContent = text; costDetail.appendChild(p);

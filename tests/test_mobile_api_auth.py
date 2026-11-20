@@ -154,8 +154,19 @@ class MobileApiTestsAuth(MobileApiTests):
         for _ in range(target._MOBILE_AUTH_TX_MAX_FAILURES):
             self.assertEqual(self._native_totp(transaction_id, wrong).status_code, 401)
         # The password step must be repeated; the correct code no longer completes this sign-in.
-        self.assertEqual(self._native_totp(transaction_id, good).status_code, 401)
-        self.assertEqual(self._native_totp(self._native_login('native-tx-fail').json['transaction_id'], good).status_code, 200)
+        self.assertEqual(self._native_totp(transaction_id, self._fresh_totp(secret)).status_code, 401)
+        # TOTP codes are only valid in their own 30-second step, so the retry uses a fresh code.
+        fresh = self._native_login('native-tx-fail')
+        self.assertEqual(fresh.status_code, 200)
+        self.assertEqual(self._native_totp(fresh.json['transaction_id'], self._fresh_totp(secret)).status_code, 200)
+
+    @staticmethod
+    def _fresh_totp(secret):
+        """Return a code with enough of its 30-second step left to survive the request."""
+        remaining = 30 - (time.time() % 30)
+        if remaining < 5:
+            time.sleep(remaining + 0.5)
+        return target.pyotp.TOTP(secret).now()
 
     def test_account_failure_limits_are_shared_and_reset_on_success(self):
         self.pass_integrity_gate()

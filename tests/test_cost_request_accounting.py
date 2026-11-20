@@ -50,3 +50,41 @@ def test_existing_ideogram_answers_use_saved_parent_options_and_images():
 def test_thinking_is_part_of_output_and_not_billed_twice():
     call = {'model': 'gpt-6.1-sol', 'input_tokens': 100, 'output_tokens': 1000, 'thought_tokens': 900, 'complete': True}
     assert estimate([with_calls([call])])['low'] == pytest.approx(.0102)
+
+
+def test_breakdown_items_carry_each_requests_own_cost_and_usage():
+    calls = [{'model': 'gpt-6.1-sol', 'input_tokens': 300000, 'output_tokens': 1000, 'complete': True,
+              'cache_read_tokens': 20, 'web_search_calls': 2},
+             {'model': 'gpt-4o-mini', 'input_tokens': 100, 'output_tokens': 20, 'complete': True}]
+    cost = estimate([with_calls(calls)])
+    items = cost['items']
+    assert [item['model'] for item in items] == ['gpt-6.1-sol', 'gpt-4o-mini']
+    assert sum(item['low'] for item in items) == pytest.approx(cost['low'])
+    assert sum(item['high'] for item in items) == pytest.approx(cost['high'])
+    assert items[0]['long'] is True and items[1]['long'] is False
+    assert items[0]['input'] == 300000 and items[0]['output'] == 1000
+    assert items[0]['cache_read'] == 20 and items[0]['tools'] == 2
+    assert all(item['priced'] for item in items)
+    assert all(item['reason'] == '' for item in items)
+
+
+def test_breakdown_explains_which_requests_are_unpriced():
+    cost = estimate([with_calls([
+        {'model': 'unknown-model-x', 'input_tokens': 10, 'output_tokens': 10, 'complete': True},
+        {'model': 'gpt-6.1-sol', 'complete': False},
+        {'model': 'gpt-6.1-sol', 'input_tokens': 100, 'output_tokens': 1000, 'complete': True}])])
+    items = cost['items']
+    assert [item['priced'] for item in items] == [False, False, True]
+    assert items[0]['reason'] == '単価未登録'
+    assert items[1]['reason'] == '使用量未取得'
+    assert items[2]['reason'] == ''
+    assert cost['unpriced'] == 2
+
+
+def test_breakdown_flags_usage_reconstructed_from_history():
+    parent = {'id': 1, 'role': 'user', 'tokens_in': 200000}
+    row = answer('gpt-6.1-sol', None, 1000, parent_id=1)
+    item = estimate([parent, row])['items'][-1]
+    assert item['inferred'] is True and item['input'] == 200000
+    assert item['reason'] == ''
+

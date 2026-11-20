@@ -21465,6 +21465,17 @@
                     jpy.id = 'token-detail-cost-jpy';
                     costDetail.append(usd, jpy);
                     fillCostEstimateJpy(jpy, meta.cost_estimate);
+                    const items = Array.isArray(meta.cost_estimate?.items) ? meta.cost_estimate.items : [];
+                    if (items.length) {
+                        const details = document.createElement('details');
+                        details.className = 'pt-2 border-t border-gray-700';
+                        const summary = document.createElement('summary');
+                        summary.className = 'cursor-pointer';
+                        summary.textContent = `リクエスト内訳（${items.length}件）`;
+                        details.appendChild(summary);
+                        appendCostItemList(details, items);
+                        costDetail.appendChild(details);
+                    }
                     for (const text of [`集計したAPI呼び出し: ${meta.cost_estimate?.requests || 0}回`, COST_ESTIMATE_NOTE,
                         `公式料金確認日: ${costPricing?.checked_at || '取得できませんでした'}`]) {
                         const p = document.createElement('p'); p.textContent = text; costDetail.appendChild(p);
@@ -28223,7 +28234,13 @@
         }
 
         function estimateConversationCost(messages, pricing = costPricing, context = messages) {
-            const result = { low: 0, high: 0, priced: 0, unpriced: 0, inferred: 0, long: 0, requests: 0 };
+            const result = { low: 0, high: 0, priced: 0, unpriced: 0, inferred: 0, long: 0, requests: 0, items: [] };
+            // Snapshot the running totals so each saved API request can report its own share.
+            const capture = (request, date, inferred, batch, flex) => {
+                const before = { low: result.low, high: result.high, priced: result.priced, unpriced: result.unpriced, long: result.long };
+                addRequestCost(result, request, pricing, date, batch, flex);
+                result.items.push(describeRequestCost(result, before, request, date, pricing, !!batch, !!flex, !!inferred));
+            };
             const rows = new Map((context || []).filter(Boolean).map(m => [String(m.id), m]));
             const seen = new Set();
             for (const m of messages || []) {
@@ -28244,12 +28261,12 @@
                         const rate = costRate(pricing, call.model, callDate);
                         const request = rate?.image_selector === 'speed' && !call.speed && call.model === m.model
                             ? { ...call, speed: legacyImageRequest(m, rows).speed } : call;
-                        addRequestCost(result, request, pricing, callDate, batch, flex);
+                        capture(request, callDate, false, batch, flex);
                     }
                     continue;
                 }
                 if (costRate(pricing, m.model, date)?.unit === 'image') {
-                    addRequestCost(result, legacyImageRequest(m, rows), pricing, date, false, flex);
+                    capture(legacyImageRequest(m, rows), date, false, false, flex);
                     continue;
                 }
                 const out = costTokenNumber(m.tokens_out);
@@ -28257,8 +28274,10 @@
                 if (out === null) { result.unpriced++; continue; }
                 let input = costTokenNumber(metadata?.pricing_input_tokens) ?? costTokenNumber(m.tokens_in);
                 let incomplete = false;
+                let inferred = false;
                 if (input === null) {
                     result.inferred++;
+                    inferred = true;
                     input = 0;
                     let parent = m.parent_id;
                     const ancestors = new Set([String(m.id)]);
@@ -28276,17 +28295,111 @@
                         parent = ancestor.parent_id;
                     }
                 }
-                addRequestCost(result, { model: m.model, input_tokens: input, output_tokens: out, complete: !incomplete }, pricing, date, batch, flex);
+                capture({ model: m.model, input_tokens: input, output_tokens: out, complete: !incomplete }, date, inferred, batch, flex);
             }
             return result;
         }
 
+        function costMoneyText(value) {
+            const n = Number(value || 0);
+            return n > 0 && n < 0.000001 ? '<$0.000001' : `$${n.toFixed(6)}`;
+        }
+
+        function costAmountText(cost) {
+            if (!cost || !cost.priced) return '算出不可';
+            return cost.lowerBound ? `${costMoneyText(cost.low)}以上`
+                : cost.high - cost.low > 1e-12 ? `${costMoneyText(cost.low)}〜${costMoneyText(cost.high)}`
+                    : costMoneyText(cost.low);
+        }
+
+        // One rows entry for the per-request breakdown; the running totals give its own share.
+        function describeRequestCost(result, before, request, date, pricing, batch, flex, inferred) {
+            const count = value => costTokenNumber(value);
+            let writes = count(request.cache_write_tokens) || 0;
+            for (const ttl of ['5m', '1h', '30m', '12h']) writes = Math.max(writes, count(request[`cache_write_${ttl}_tokens`]) || 0);
+            const ttlWrites = ['5m', '1h', '30m', '12h'].reduce((sum, ttl) => sum + (count(request[`cache_write_${ttl}_tokens`]) || 0), 0);
+            const tools = ['web_search_calls', 'file_search_calls', 'grounding_queries', 'code_execution_calls']
+                .reduce((sum, key) => sum + (count(request[key]) || 0), 0);
+            const priced = result.priced > before.priced;
+            const reason = !priced ? (costRate(pricing, request.model, date) ? '使用量未取得' : '単価未登録')
+                : result.unpriced > before.unpriced ? '一部未算入' : '';
+            return {
+                model: String(request.model || ''),
+                date,
+                input: count(request.input_tokens),
+                output: count(request.output_tokens),
+                cache_read: count(request.cache_read_tokens),
+                cache_write: Math.max(writes, ttlWrites) || null,
+                images: count(request.images),
+                tools,
+                low: result.low - before.low,
+                high: result.high - before.high,
+                priced,
+                reason,
+                inferred: !!inferred,
+                long: result.long > before.long,
+                batch: !!batch,
+                flex: !!flex
+            };
+        }
+
+        function costItemTokenText(item) {
+            const parts = [];
+            if (item.images !== null && item.images !== undefined) parts.push(`${item.images}枚`);
+            if (item.input !== null || item.output !== null) {
+                parts.push(`入 ${item.input ?? '-'} / 出 ${item.output ?? '-'}`);
+            }
+            if (item.cache_read || item.cache_write) {
+                parts.push(`キャッシュ 読込 ${item.cache_read || 0} / 書込 ${item.cache_write || 0}`);
+            }
+            if (item.tools) parts.push(`ツール ${item.tools}回`);
+            return parts.join(' · ');
+        }
+
+        function costItemJpyText(item, rate) {
+            if (!rate || !item.priced) return '';
+            const low = jpyMoneyText(item.low * rate.rate);
+            return item.high - item.low > 1e-12
+                ? `約${low}〜${jpyMoneyText(item.high * rate.rate)}` : `約${low}`;
+        }
+
+        function appendCostItemList(container, items) {
+            const list = document.createElement('div');
+            list.className = 'text-[11px]';
+            list.style.cssText = 'max-height:16rem;overflow-y:auto;margin-top:0.5rem;';
+            items.forEach((item, index) => {
+                const row = document.createElement('div');
+                row.style.cssText = 'border-top:1px solid rgba(107,114,128,0.4);padding:0.25rem 0;';
+                const head = document.createElement('div');
+                head.className = 'flex justify-between';
+                const name = document.createElement('span');
+                name.className = 'font-mono';
+                name.textContent = `${index + 1}. ${item.model || 'モデル不明'}`;
+                const amount = document.createElement('span');
+                amount.className = 'font-mono';
+                amount.textContent = costAmountText(item);
+                head.append(name, amount);
+                row.appendChild(head);
+                const line = document.createElement('div');
+                line.className = 'text-gray-400';
+                const flags = [];
+                if (item.inferred) flags.push('履歴から推定');
+                if (item.long) flags.push('長文料金');
+                if (item.batch) flags.push('Batch');
+                if (item.flex) flags.push('Flex');
+                if (item.reason) flags.push(item.reason);
+                const jpy = costItemJpyText(item, costJpyRate);
+                const parts = [costItemTokenText(item), item.date, flags.join(' / '), jpy].filter(Boolean);
+                if (parts.length) line.textContent = parts.join(' · ');
+                if (parts.length) row.appendChild(line);
+                list.appendChild(row);
+            });
+            container.appendChild(list);
+        }
+
         function costEstimateLabel(cost, prefix = '費用予想') {
             if (!cost || !cost.priced) return `${prefix}: 算出不可`;
-            const money = n => n > 0 && n < 0.000001 ? '<$0.000001' : `$${n.toFixed(6)}`;
-            const amount = cost.lowerBound ? `${money(cost.low)}以上`
-                : cost.high - cost.low > 1e-12 ? `${money(cost.low)}〜${money(cost.high)}` : money(cost.low);
-            return `${prefix}: ${amount}${cost.unpriced ? '（一部未算入）' : ''}`;
+            return `${prefix}: ${costAmountText(cost)}${cost.unpriced ? '（一部未算入）' : ''}`;
         }
 
         // USD→JPY conversion for the token detail. Free, keyless public reference data

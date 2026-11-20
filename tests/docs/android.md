@@ -28,4 +28,4 @@ Androidの文書・配布経路は [android/README.md](../../android/README.md) 
 
 `data/direct/SkillToolTest.kt` は、サーバー不使用モードの `use_skill` が名前の完全一致・大文字小文字無視で指示を返し、未知の名前では有効なSkill名を返すこと、ツール非対応経路の指示同梱を検証します。
 
-キャッシュ・ツール料金とIdeogram全モデルの単価・速度・下限表示は `data/CacheToolCostTest.kt` と `data/IdeogramCostTest.kt` でWebと同じ契約を検証します。Batchのキャッシュ読込単価は `data/ModelCostEstimatorTest.kt` で事業者別に検証します。キャッシュのTTL別書込、32bitを超えるxAI請求ticks、検索の重複イベントを数値メタデータとして保存・同期し、本文・検索文・ツールIDは保存しません。
+キャッシュ・ツール料金とIdeogram全モデルの単価・速度・下限表示は `data/CacheToolCostTest.kt` と `data/IdeogramCostTest.kt` でWebと同じ契約を検証します。Batchのキャッシュ読込単価と、トークン詳細のリクエスト別内訳（金額合計・未算入理由・履歴推定）は `data/ModelCostEstimatorTest.kt` で検証します。キャッシュのTTL別書込、32bitを超えるxAI請求ticks、検索の重複イベントを数値メタデータとして保存・同期し、本文・検索文・ツールIDは保存しません。

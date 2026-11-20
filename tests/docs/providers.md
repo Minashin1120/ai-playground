@@ -20,7 +20,7 @@
 | [test_model_usage_ledger.py](../test_model_usage_ledger.py) | HTTP通信単位の使用量、SDK自動ツール呼び出し・再試行、累積イベント・再取得の重複防止 |
 | [test_cache_tool_costs.py](../test_cache_tool_costs.py) | キャッシュ読込・TTL別書込、トークン詳細向けキャッシュ集計、検索追加料金、xAI実請求、数値のみの保存・同期 |
 | [test_ideogram_costs.py](../test_ideogram_costs.py) | Ideogram全5モデル・速度・削除API・未公表料金の下限・旧回答の速度復元 |
-| [test_cost_request_accounting.py](../test_cost_request_accounting.py) | API呼び出し別の長文料金・モデル・Thinking・Ideogram 4.5画像単価 |
+| [test_cost_request_accounting.py](../test_cost_request_accounting.py) | API呼び出し別の長文料金・モデル・Thinking・Ideogram 4.5画像単価、トークン詳細のリクエスト別内訳と未算入理由 |
 | [test_model_cost_estimates.py](../test_model_cost_estimates.py) | 回答ごとの料金・長文の境界・分岐・公式入力使用量 |
 | [test_no_hardcoded_model_prompts_regressions.py](../test_no_hardcoded_model_prompts_regressions.py) | モデルへの固定指示の直書き防止 |
 | [test_openai_batch_regressions.py](../test_openai_batch_regressions.py) | openai / batch |
@@ -33,7 +33,7 @@
 
 ## 入力計測・費用予想の契約
 
-入力見積と確定した使用量を混ぜません。API計測が失敗したときは概算として扱い、欠損をゼロ使用量にしません。費用予想は回答ごとの保存済みモデルを使い、現在のモデル選択では再計算しません。長文料金は各リクエストの入力で判定し、境界の「超」と「以上」を区別します。Thinkingを出力に二重加算しません。トークン詳細の日本円換算はUSD概算へ公開為替レートを掛けた参考値で、取得できないときはUSD表示のままにし、レート取得にチャット・使用量を含めません。
+入力見積と確定した使用量を混ぜません。API計測が失敗したときは概算として扱い、欠損をゼロ使用量にしません。費用予想は回答ごとの保存済みモデルを使い、現在のモデル選択では再計算しません。長文料金は各リクエストの入力で判定し、境界の「超」と「以上」を区別します。Thinkingを出力に二重加算しません。トークン詳細のリクエスト別内訳は同じ集計から各API呼び出しの金額・使用量・未算入理由を返し、その合計を全体の金額と一致させます。トークン詳細の日本円換算はUSD概算へ公開為替レートを掛けた参考値で、取得できないときはUSD表示のままにし、レート取得にチャット・使用量を含めません。
 
 料金表の正本は `static/model_pricing.json`、Android用の同一データは `android/app/src/main/assets/model-pricing.json` です。公式資料の確認日・参照先・料金を更新し、フロントエンドビルドで同期します。料金や使用量が不明な回答を無料として合算しません。
 

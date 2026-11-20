@@ -803,6 +803,31 @@ internal fun TokenDetailDialog(detail: TokenDetail, onDismiss: () -> Unit) {
                     color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp
                 )
                 Text("集計したAPI呼び出し: ${cost.requests}回", color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
+                if (cost.items.isNotEmpty()) {
+                    val web = LocalWebPalette.current
+                    var expanded by remember(cost) { mutableStateOf(false) }
+                    Text("リクエスト内訳（${cost.items.size}件）", color = web.twText(Tw.slate200), fontSize = 12.sp,
+                        modifier = Modifier.clickable(role = Role.Button) { expanded = !expanded })
+                    if (expanded) {
+                        Column(Modifier.fillMaxWidth().heightIn(max = 256.dp).verticalScroll(rememberScrollState())) {
+                            cost.items.forEachIndexed { index, item ->
+                                if (index > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(web.lineSoft))
+                                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("${index + 1}. ${item.model.ifBlank { "モデル不明" }}",
+                                            color = web.twText(Tw.slate200), fontSize = 11.sp, fontFamily = WebFonts.mono)
+                                        Text(item.amountText(), color = web.twText(Tw.slate200), fontSize = 11.sp, fontFamily = WebFonts.mono)
+                                    }
+                                    val parts = listOf(item.tokenText(), item.date, item.flagsText(),
+                                        jpyRate?.let { com.minashin1120.aiplayground.data.jpyItemLabel(item, it) } ?: "")
+                                        .filter { it.isNotEmpty() }
+                                    if (parts.isNotEmpty()) Text(parts.joinToString(" · "),
+                                        color = web.twText(Tw.gray400), fontSize = 11.sp, fontFamily = WebFonts.mono)
+                                }
+                            }
+                        }
+                    }
+                }
                 Text(com.minashin1120.aiplayground.data.COST_ESTIMATE_NOTE, color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
                 Text("公式料金確認日: ${detail.pricing?.checkedAt ?: "取得できませんでした"}", color = LocalWebPalette.current.twText(Tw.slate200), fontSize = 12.sp)
                 val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current

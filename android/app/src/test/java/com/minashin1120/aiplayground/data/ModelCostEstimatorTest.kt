@@ -83,4 +83,43 @@ class ModelCostEstimatorTest {
         assertEquals((50000 * 1.0 + 50000 * .05 + 1000 * 5) / 1e6,
             batchCost("gpt-6.1-sol", 100000, 50000, 1000).low, 1e-12)
     }
+
+    @Test fun breakdownItemsCarryEachRequestsOwnCostAndUsage() {
+        val calls = """{"pricing_calls":[
+            {"model":"gpt-6.1-sol","input_tokens":300000,"output_tokens":1000,"cache_read_tokens":20,"web_search_calls":2,"complete":true},
+            {"model":"gpt-4o-mini","input_tokens":100,"output_tokens":20,"complete":true}]}"""
+        val cost = estimator.estimate(listOf(answer("gpt-6.1-sol", 300000).copy(thought = calls)))
+        assertEquals(listOf("gpt-6.1-sol", "gpt-4o-mini"), cost.items.map { it.model })
+        assertEquals(cost.low, cost.items.sumOf { it.low }, 1e-12)
+        assertEquals(cost.high, cost.items.sumOf { it.high }, 1e-12)
+        assertTrue(cost.items[0].long)
+        assertFalse(cost.items[1].long)
+        assertEquals(300000, cost.items[0].input)
+        assertEquals(1000, cost.items[0].output)
+        assertEquals(20, cost.items[0].cacheRead)
+        assertEquals(2, cost.items[0].tools)
+        assertTrue(cost.items.all { it.priced && it.reason.isEmpty() })
+    }
+
+    @Test fun breakdownExplainsWhichRequestsAreUnpriced() {
+        val calls = """{"pricing_calls":[
+            {"model":"unknown-model-x","input_tokens":10,"output_tokens":10,"complete":true},
+            {"model":"gpt-6.1-sol","complete":false},
+            {"model":"gpt-6.1-sol","input_tokens":100,"output_tokens":1000,"complete":true}]}"""
+        val cost = estimator.estimate(listOf(answer("gpt-6.1-sol", 100).copy(thought = calls)))
+        assertEquals(listOf(false, false, true), cost.items.map { it.priced })
+        assertEquals("単価未登録", cost.items[0].reason)
+        assertEquals("使用量未取得", cost.items[1].reason)
+        assertEquals("", cost.items[2].reason)
+        assertEquals(2, cost.unpriced)
+    }
+
+    @Test fun breakdownFlagsUsageReconstructedFromHistory() {
+        val user = ChatMessage("1", "user", "test", tokensIn = 200000)
+        val row = ChatMessage("2", "assistant", "test", model = "gpt-6.1-sol", tokensOut = 1000, parentId = 1)
+        val item = estimator.estimate(listOf(user, row)).items.last()
+        assertTrue(item.inferred)
+        assertEquals(200000, item.input)
+        assertEquals("", item.reason)
+    }
 }

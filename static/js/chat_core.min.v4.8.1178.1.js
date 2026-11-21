@@ -2124,44 +2124,44 @@ querySelector(".progress-bar"),l=i.querySelector(".progress-text");o&&(o.style.w
 Math.max(0,a))}%`),l&&(l.innerText=`${Math.round(a)}%`)},"update"),remove:r(()=>{i.parentNode&&i.remove()},
 "remove")}}r(showProgressToast,"showProgressToast");let activeSettingsTab="general";const TAB_LABELS={
 general:"\u4E00\u822C",api:"API\u30AD\u30FC",prompt:"\u30D7\u30ED\u30F3\u30D7\u30C8",display:"\u8868\u793A",
-data:"\u30C7\u30FC\u30BF",account:"\u30A2\u30AB\u30A6\u30F3\u30C8",security:"\u30BB\u30AD\u30E5\u30EA\u30C6\u30A3",
-"2fa":"2\u8981\u7D20\u8A8D\u8A3C",feedback:"\u30D5\u30A3\u30FC\u30C9\u30D0\u30C3\u30AF",mcp:"MCP"},ALL_TABS=[
-"general","api","prompt","display","data","account","security","2fa","feedback","mcp"];function getSectionHeading(e){
-const t=e.querySelector("h3");if(t)return t.textContent.trim();const n=e.querySelector(".font-bold");
-if(n&&!n.querySelector("input")&&!n.querySelector("select"))return n.textContent.trim();const i=e.querySelector(
-"label");if(i){const a=i.textContent.trim().replace(/[：:].*$/,"").trim();if(a)return a}return""}r(
-getSectionHeading,"getSectionHeading");function getSectionSnippet(e,t){const n=e.textContent,a=n.toLowerCase().
-indexOf(t.toLowerCase());if(a===-1)return"";const o=Math.max(0,a-25),l=Math.min(n.length,a+t.length+
-35);let c=n.substring(o,l).replace(/\s+/g," ").trim();return o>0&&(c="\u2026"+c),l<n.length&&(c=c+"\u2026"),
-c}r(getSectionSnippet,"getSectionSnippet");function removeSearchOverlays(){ALL_TABS.forEach(e=>{const t=get(
-"tab-"+e);if(!t)return;const n=t.querySelector(".settings-search-overlay");n&&n.remove(),Array.from(
-t.children).forEach(i=>{i.classList.contains("settings-no-results")||(i.style.display="")})})}r(removeSearchOverlays,
-"removeSearchOverlays");function filterSettings(){const e=get("settings-search");if(!e)return;const t=e.
-value.trim().toLowerCase(),n=get("settings-search-clear");if(n&&n.classList.toggle("hidden",!t),removeSearchOverlays(),
-!t){ALL_TABS.forEach(c=>{const d=get("btn-tab-"+c);if(d){const g=d.querySelector(".settings-search-b\
-adge");g&&g.remove()}const m=get("tab-"+c);m&&m.classList.toggle("hidden",c!==activeSettingsTab)});return}
-let i=[];ALL_TABS.forEach(c=>{const d=get("tab-"+c);d&&(d.classList.add("hidden"),Array.from(d.children).
-forEach(m=>{if(!(m.classList.contains("settings-no-results")||m.classList.contains("settings-search-\
-overlay"))&&m.textContent.toLowerCase().includes(t)){const g=getSectionHeading(m)||c,y=getSectionSnippet(
-m,t);i.push({tabId:c,title:g,snippet:y,element:m})}}))});let a=activeSettingsTab;if(!i.some(c=>c.tabId===
-a)){const c=i.find(d=>d.tabId);c&&(a=c.tabId)}const o=get("tab-"+a);if(!o)return;o.classList.remove(
-"hidden"),Array.from(o.children).forEach(c=>{c.classList.contains("settings-no-results")||c.classList.
-contains("settings-search-overlay")||(c.style.display="none")});const l=document.createElement("div");
-if(l.className="settings-search-overlay",i.length===0){const c=document.createElement("div");c.className=
-"settings-empty-state",c.innerHTML='<div class="settings-empty-icon"><i class="fas fa-search"></i></\
-div><div class="settings-empty-title">\u4E00\u81F4\u3059\u308B\u8A2D\u5B9A\u306F\u3042\u308A\u307E\u305B\u3093</div>';
-const d=document.createElement("div");d.className="settings-empty-sub",d.textContent="\u300C"+t+"\u300D\u306B\u4E00\
-\u81F4\u3059\u308B\u8A2D\u5B9A\u9805\u76EE\u306F\u3042\u308A\u307E\u305B\u3093\u3002",c.appendChild(
-d),l.appendChild(c)}else{const c=document.createElement("div");c.className="settings-search-count",c.
-textContent=i.length+"\u4EF6\u306E\u4E00\u81F4",l.appendChild(c);let d=null;i.forEach((m,g)=>{if(m.tabId!==
-d){if(d!==null){const C=document.createElement("div");C.className="border-t border-gray-700/50 my-1.\
-5",l.appendChild(C)}if(m.tabId!==a){const C=document.createElement("div");C.className="text-[10px] t\
-ext-gray-500 px-1 pb-1 font-bold",C.textContent="\u25BC "+(TAB_LABELS[m.tabId]||m.tabId),l.appendChild(
-C)}d=m.tabId}const y=document.createElement("div");y.className="settings-search-result-item flex ite\
-ms-start gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150",y.style.animation=
-"fadeIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",y.style.animationDelay=g*30+"ms";const v=document.
-createElement("span");v.className="settings-result-tab-badge shrink-0 mt-0.5",v.textContent=TAB_LABELS[m.
-tabId]||m.tabId;const w=document.createElement("div");w.className="min-w-0 flex-1";const x=document.
+data:"\u30C7\u30FC\u30BF",usage:"\u8CBB\u7528",account:"\u30A2\u30AB\u30A6\u30F3\u30C8",security:"\u30BB\u30AD\
+\u30E5\u30EA\u30C6\u30A3","2fa":"2\u8981\u7D20\u8A8D\u8A3C",feedback:"\u30D5\u30A3\u30FC\u30C9\u30D0\u30C3\u30AF",
+mcp:"MCP"},ALL_TABS=["general","api","prompt","display","data","usage","account","security","2fa","f\
+eedback","mcp"];function getSectionHeading(e){const t=e.querySelector("h3");if(t)return t.textContent.
+trim();const n=e.querySelector(".font-bold");if(n&&!n.querySelector("input")&&!n.querySelector("sele\
+ct"))return n.textContent.trim();const i=e.querySelector("label");if(i){const a=i.textContent.trim().
+replace(/[：:].*$/,"").trim();if(a)return a}return""}r(getSectionHeading,"getSectionHeading");function getSectionSnippet(e,t){
+const n=e.textContent,a=n.toLowerCase().indexOf(t.toLowerCase());if(a===-1)return"";const o=Math.max(
+0,a-25),l=Math.min(n.length,a+t.length+35);let c=n.substring(o,l).replace(/\s+/g," ").trim();return o>
+0&&(c="\u2026"+c),l<n.length&&(c=c+"\u2026"),c}r(getSectionSnippet,"getSectionSnippet");function removeSearchOverlays(){
+ALL_TABS.forEach(e=>{const t=get("tab-"+e);if(!t)return;const n=t.querySelector(".settings-search-ov\
+erlay");n&&n.remove(),Array.from(t.children).forEach(i=>{i.classList.contains("settings-no-results")||
+(i.style.display="")})})}r(removeSearchOverlays,"removeSearchOverlays");function filterSettings(){const e=get(
+"settings-search");if(!e)return;const t=e.value.trim().toLowerCase(),n=get("settings-search-clear");
+if(n&&n.classList.toggle("hidden",!t),removeSearchOverlays(),!t){ALL_TABS.forEach(c=>{const d=get("b\
+tn-tab-"+c);if(d){const g=d.querySelector(".settings-search-badge");g&&g.remove()}const m=get("tab-"+
+c);m&&m.classList.toggle("hidden",c!==activeSettingsTab)});return}let i=[];ALL_TABS.forEach(c=>{const d=get(
+"tab-"+c);d&&(d.classList.add("hidden"),Array.from(d.children).forEach(m=>{if(!(m.classList.contains(
+"settings-no-results")||m.classList.contains("settings-search-overlay"))&&m.textContent.toLowerCase().
+includes(t)){const g=getSectionHeading(m)||c,y=getSectionSnippet(m,t);i.push({tabId:c,title:g,snippet:y,
+element:m})}}))});let a=activeSettingsTab;if(!i.some(c=>c.tabId===a)){const c=i.find(d=>d.tabId);c&&
+(a=c.tabId)}const o=get("tab-"+a);if(!o)return;o.classList.remove("hidden"),Array.from(o.children).forEach(
+c=>{c.classList.contains("settings-no-results")||c.classList.contains("settings-search-overlay")||(c.
+style.display="none")});const l=document.createElement("div");if(l.className="settings-search-overla\
+y",i.length===0){const c=document.createElement("div");c.className="settings-empty-state",c.innerHTML=
+'<div class="settings-empty-icon"><i class="fas fa-search"></i></div><div class="settings-empty-titl\
+e">\u4E00\u81F4\u3059\u308B\u8A2D\u5B9A\u306F\u3042\u308A\u307E\u305B\u3093</div>';const d=document.
+createElement("div");d.className="settings-empty-sub",d.textContent="\u300C"+t+"\u300D\u306B\u4E00\u81F4\u3059\u308B\u8A2D\u5B9A\u9805\u76EE\u306F\u3042\u308A\u307E\u305B\u3093\u3002",
+c.appendChild(d),l.appendChild(c)}else{const c=document.createElement("div");c.className="settings-s\
+earch-count",c.textContent=i.length+"\u4EF6\u306E\u4E00\u81F4",l.appendChild(c);let d=null;i.forEach(
+(m,g)=>{if(m.tabId!==d){if(d!==null){const C=document.createElement("div");C.className="border-t bor\
+der-gray-700/50 my-1.5",l.appendChild(C)}if(m.tabId!==a){const C=document.createElement("div");C.className=
+"text-[10px] text-gray-500 px-1 pb-1 font-bold",C.textContent="\u25BC "+(TAB_LABELS[m.tabId]||m.tabId),
+l.appendChild(C)}d=m.tabId}const y=document.createElement("div");y.className="settings-search-result\
+-item flex items-start gap-2.5 px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150",y.
+style.animation="fadeIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",y.style.animationDelay=g*30+"ms";
+const v=document.createElement("span");v.className="settings-result-tab-badge shrink-0 mt-0.5",v.textContent=
+TAB_LABELS[m.tabId]||m.tabId;const w=document.createElement("div");w.className="min-w-0 flex-1";const x=document.
 createElement("div");x.className="text-sm font-bold text-white truncate",x.textContent=m.title;const k=document.
 createElement("div");k.className="text-[11px] text-gray-400 truncate mt-0.5",k.textContent=m.snippet,
 w.appendChild(x),w.appendChild(k),y.appendChild(v),y.appendChild(w),y.addEventListener("click",()=>jumpToSetting(
@@ -2171,22 +2171,23 @@ filterSettings(),e!==activeSettingsTab&&switchTab(e),setTimeout(()=>{t.scrollInt
 oth",block:"center"}),t.classList.add("settings-jump-highlight"),setTimeout(()=>t.classList.remove("\
 settings-jump-highlight"),2e3)},260)}r(jumpToSetting,"jumpToSetting");function clickTab(e){const t=get(
 "settings-search");t&&(t.value=""),switchTab(e)}r(clickTab,"clickTab");function switchTab(e){if(e===
-activeSettingsTab||!ALL_TABS.includes(e))return;const t=get("tab-"+activeSettingsTab);t&&(t.classList.
+activeSettingsTab||!ALL_TABS.includes(e))return;const t=get("tab-"+activeSettingsTab);if(t&&(t.classList.
 remove("tab-enter"),t.classList.add("tab-exit"),setTimeout(()=>{t.classList.add("hidden"),t.classList.
 remove("tab-exit")},170)),ALL_TABS.forEach(n=>{const i=get("btn-tab-"+n),a=get("tab-"+n);if(n===e){if(a&&
 (a.classList.remove("hidden"),a.classList.remove("tab-exit"),a.classList.remove("tab-enter"),a.offsetWidth,
 a.classList.add("tab-enter")),i){i.classList.add("is-active");try{i.scrollIntoView({inline:"nearest",
 block:"nearest",behavior:"smooth"})}catch{}}}else i&&i.classList.remove("is-active")}),activeSettingsTab=
-e,filterSettings(),refreshSettingsTabsScroll()}r(switchTab,"switchTab");function initSettingsSwipeNav(){
-try{const e=document.querySelector("#settings-modal .settings-main");if(!e||e.dataset.swipeBound==="\
-1")return;e.dataset.swipeBound="1";let t=0,n=0,i=0,a=!1;const o=r(l=>{for(let c=l;c&&c!==e;c=c.parentElement){
-if(c.id==="settings-tabs-wrap")return!0;const d=c.tagName;if(d==="INPUT"||d==="TEXTAREA"||d==="SELEC\
-T"||d==="PRE"||d==="CODE")return!0;if(c.scrollWidth>c.clientWidth+2){const m=getComputedStyle(c).overflowX;
-if(m==="auto"||m==="scroll")return!0}}return!1},"blocked");e.addEventListener("touchstart",l=>{if(a=
-!1,l.touches.length!==1)return;const c=get("settings-search");c&&c.value.trim()||o(l.target)||(t=l.touches[0].
-clientX,n=l.touches[0].clientY,i=Date.now(),a=!0)},{passive:!0}),e.addEventListener("touchend",l=>{if(!a)
-return;a=!1;const c=l.changedTouches[0];if(!c)return;const d=c.clientX-t,m=c.clientY-n;if(Date.now()-
-i>600||Math.abs(d)<60||Math.abs(d)<Math.abs(m)*1.5)return;const g=ALL_TABS[ALL_TABS.indexOf(activeSettingsTab)+
+e,filterSettings(),refreshSettingsTabsScroll(),e==="usage")try{loadUsageCostSummary()}catch(n){console.
+error("usage cost summary failed",n)}}r(switchTab,"switchTab");function initSettingsSwipeNav(){try{const e=document.
+querySelector("#settings-modal .settings-main");if(!e||e.dataset.swipeBound==="1")return;e.dataset.swipeBound=
+"1";let t=0,n=0,i=0,a=!1;const o=r(l=>{for(let c=l;c&&c!==e;c=c.parentElement){if(c.id==="settings-t\
+abs-wrap")return!0;const d=c.tagName;if(d==="INPUT"||d==="TEXTAREA"||d==="SELECT"||d==="PRE"||d==="C\
+ODE")return!0;if(c.scrollWidth>c.clientWidth+2){const m=getComputedStyle(c).overflowX;if(m==="auto"||
+m==="scroll")return!0}}return!1},"blocked");e.addEventListener("touchstart",l=>{if(a=!1,l.touches.length!==
+1)return;const c=get("settings-search");c&&c.value.trim()||o(l.target)||(t=l.touches[0].clientX,n=l.
+touches[0].clientY,i=Date.now(),a=!0)},{passive:!0}),e.addEventListener("touchend",l=>{if(!a)return;
+a=!1;const c=l.changedTouches[0];if(!c)return;const d=c.clientX-t,m=c.clientY-n;if(Date.now()-i>600||
+Math.abs(d)<60||Math.abs(d)<Math.abs(m)*1.5)return;const g=ALL_TABS[ALL_TABS.indexOf(activeSettingsTab)+
 (d<0?1:-1)];g&&switchTab(g)},{passive:!0})}catch{}}r(initSettingsSwipeNav,"initSettingsSwipeNav");function getSettingsTabsMaxScroll(e){
 return e?Math.max(0,e.scrollWidth-e.clientWidth):0}r(getSettingsTabsMaxScroll,"getSettingsTabsMaxScr\
 oll");function syncSettingsTabsOverflow(){const e=get("settings-tabs-wrap"),t=get("settings-tabs"),n=get(

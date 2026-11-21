@@ -13,7 +13,7 @@ import com.minashin1120.aiplayground.data.ServerOrigin
 import com.minashin1120.aiplayground.data.originLabel
 
 /** Tabs that need a server account and are hidden in the no-account profile (ANDROID_ONLY.md). */
-internal val LOCAL_PROFILE_HIDDEN_TABS = setOf(SettingsTab.Account, SettingsTab.Security, SettingsTab.TwoFactor, SettingsTab.Feedback, SettingsTab.Mcp)
+internal val LOCAL_PROFILE_HIDDEN_TABS = setOf(SettingsTab.Account, SettingsTab.Security, SettingsTab.TwoFactor, SettingsTab.Feedback, SettingsTab.Mcp, SettingsTab.Usage)
 
 /**
  * ANDROID_ONLY.md: the "接続" card after the Android card in the General tab. Shows the server (or the

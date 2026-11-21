@@ -6739,13 +6739,14 @@
             prompt: 'プロンプト',
             display: '表示',
             data: 'データ',
+            usage: '費用',
             account: 'アカウント',
             security: 'セキュリティ',
             '2fa': '2要素認証',
             feedback: 'フィードバック',
             mcp: 'MCP'
         };
-        const ALL_TABS = ['general', 'api', 'prompt', 'display', 'data', 'account', 'security', '2fa', 'feedback', 'mcp'];
+        const ALL_TABS = ['general', 'api', 'prompt', 'display', 'data', 'usage', 'account', 'security', '2fa', 'feedback', 'mcp'];
         function getSectionHeading(el) {
             const h3 = el.querySelector('h3');
             if (h3) return h3.textContent.trim();
@@ -6933,6 +6934,9 @@
             activeSettingsTab = t;
             filterSettings();
             refreshSettingsTabsScroll();
+            if (t === 'usage') {
+                try { loadUsageCostSummary(); } catch (e) { console.error('usage cost summary failed', e); }
+            }
         }
         function initSettingsSwipeNav() {
             try {
@@ -28248,10 +28252,12 @@
                 seen.add(String(m.id));
                 let metadata = null;
                 try { metadata = typeof m.thought_data === 'string' ? JSON.parse(m.thought_data) : m.thought_data; } catch (_) { /* Legacy reasoning. */ }
+                // The account-wide usage tab sends already-resolved per-request rows.
+                if (!metadata && Array.isArray(m.pricing_calls)) metadata = { pricing_calls: m.pricing_calls };
                 const date = /^\d{4}-\d{2}-\d{2}/.exec(m.created_at || '')?.[0] || pricing?.checked_at;
-                const batch = m.batch_job?.state === 'JOB_STATE_SUCCEEDED';
+                const batch = m.batch_job?.state === 'JOB_STATE_SUCCEEDED' || m.batch === true;
                 const promptOptions = (rows.get(String(m.parent_id)) || m).prompt_options || m.prompt_options || {};
-                const flex = promptOptions && promptOptions.gemini_flex === true;
+                const flex = (promptOptions && promptOptions.gemini_flex === true) || m.flex === true;
                 if (Array.isArray(metadata?.pricing_calls)) {
                     if (!metadata.pricing_calls.length) result.priced++; // All requests explicitly rejected before generation.
                     for (const call of metadata.pricing_calls) {
@@ -28537,8 +28543,16 @@
         // Static official-rate data only; no chat data is sent by this request.
         fetch('/static/model_pricing.json?checked=2026-11-06', { credentials: 'same-origin' })
             .then(response => { if (!response.ok) throw new Error('pricing_unavailable'); return response.json(); })
-            .then(data => { costPricing = data; if (costBarReady) refreshCostBar(); })
-            .catch(() => { costPricingFailed = true; if (costBarReady) refreshCostBar(); });
+            .then(data => {
+                costPricing = data;
+                if (costBarReady) refreshCostBar();
+                if (usageCostPendingData) renderUsageCostSummary(usageCostPendingData);
+            })
+            .catch(() => {
+                costPricingFailed = true;
+                if (costBarReady) refreshCostBar();
+                if (usageCostPendingData) setUsageCostStatus('費用予想: 算出不可');
+            });
         // Cache portions replace ordinary input, while hosted tool fees are added once.
         function requestTokenCost(request, rate, long, batch, flex = false) {
             const input = costTokenNumber(request.input_tokens) || 0;
@@ -28602,6 +28616,163 @@
                 } else add(code, 'code_execution');
             }
             return { low, high, incomplete, lowerBound };
+        }
+
+        // ---- 全チャットの費用予想（設定 > 費用タブ） ----
+        const USAGE_COST_PERIODS = [
+            { id: '1d', label: '1日以内' },
+            { id: '7d', label: '7日以内' },
+            { id: '14d', label: '2週間以内' },
+            { id: '1m', label: '1か月以内' },
+            { id: '3m', label: '3か月以内' },
+            { id: '1y', label: '1年間' }
+        ];
+        let usageCostPeriod = '1m';
+        let usageCostLoadedPeriod = null;
+        let usageCostRequest = 0;
+        let usageCostPendingData = null;
+
+        function usageCostElements() {
+            return {
+                panel: get('tab-usage'),
+                status: get('usage-cost-status'),
+                total: get('usage-cost-total'),
+                jpy: get('usage-cost-jpy'),
+                meta: get('usage-cost-meta'),
+                breakdown: get('usage-cost-breakdown'),
+                note: get('usage-cost-note')
+            };
+        }
+
+        function markUsageCostPeriod(period) {
+            document.querySelectorAll('#usage-period-buttons [data-period]').forEach(btn => {
+                const active = btn.dataset.period === period;
+                btn.classList.toggle('is-active', active);
+                btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+            });
+        }
+
+        function setUsageCostStatus(text) {
+            const el = usageCostElements().status;
+            if (el) el.textContent = text;
+        }
+
+        function usageCostModelRows(items) {
+            const rows = new Map();
+            for (const item of items || []) {
+                if (!item) continue;
+                const key = item.model || 'モデル不明';
+                let row = rows.get(key);
+                if (!row) {
+                    row = { model: key, low: 0, high: 0, priced: 0, unpriced: 0, requests: 0 };
+                    rows.set(key, row);
+                }
+                row.low += Number(item.low) || 0;
+                row.high += Number(item.high) || 0;
+                row.requests++;
+                if (item.priced) row.priced++; else row.unpriced++;
+            }
+            return [...rows.values()].sort((a, b) => (b.high - a.high) || (b.low - a.low));
+        }
+
+        function renderUsageCostBreakdown(rows) {
+            const breakdown = usageCostElements().breakdown;
+            if (!breakdown) return;
+            breakdown.replaceChildren();
+            if (!rows.length) return;
+            const title = document.createElement('div');
+            title.className = 'text-[11px] font-bold text-gray-400 mt-3';
+            title.textContent = 'モデル別';
+            breakdown.appendChild(title);
+            rows.forEach(row => {
+                const line = document.createElement('div');
+                line.className = 'border-t border-gray-700/60 py-1.5';
+                const head = document.createElement('div');
+                head.className = 'flex justify-between gap-3';
+                const name = document.createElement('span');
+                name.className = 'font-mono text-[11px] break-all';
+                name.textContent = row.model;
+                const amount = document.createElement('span');
+                amount.className = 'font-mono text-[11px] shrink-0';
+                amount.textContent = costAmountText(row) + (row.unpriced ? '（一部未算入）' : '');
+                head.append(name, amount);
+                line.appendChild(head);
+                const detail = document.createElement('div');
+                detail.className = 'text-[10px] text-gray-400';
+                detail.textContent = `API ${row.requests}回 · 算定 ${row.priced}回` + (row.unpriced ? ` · 未算入 ${row.unpriced}回` : '');
+                line.appendChild(detail);
+                breakdown.appendChild(line);
+            });
+        }
+
+        function renderUsageCostSummary(data) {
+            const el = usageCostElements();
+            if (!el.panel || !data) return;
+            if (!costPricing) {
+                usageCostPendingData = costPricingFailed ? null : data;
+                setUsageCostStatus(`費用予想: ${costPricingFailed ? '算出不可' : '料金を読み込み中…'}`);
+                return;
+            }
+            usageCostPendingData = null;
+            const messages = Array.isArray(data.messages) ? data.messages : [];
+            const cost = estimateConversationCost(messages, costPricing, messages);
+            if (el.total) {
+                el.textContent = costAmountText(cost) + (cost.unpriced ? '（一部未算入）' : '');
+                el.title = COST_ESTIMATE_NOTE;
+            }
+            if (el.jpy) fillCostEstimateJpy(el.jpy, cost);
+            if (el.meta) {
+                const parts = [`回答 ${data.answers}件`, `API呼び出し ${cost.requests}回`];
+                if (cost.inferred) parts.push(`履歴から推定 ${cost.inferred}件`);
+                if (cost.unpriced) parts.push(`一部未算入 ${cost.unpriced}件`);
+                if (data.unreadable) parts.push(`使用量未取得 ${data.unreadable}件`);
+                if (data.truncated) parts.push('件数が多いため直近分のみ');
+                el.meta.textContent = parts.join(' · ');
+            }
+            renderUsageCostBreakdown(usageCostModelRows(cost.items));
+            setUsageCostStatus('');
+            if (el.note) el.note.classList.remove('hidden');
+        }
+
+        function loadUsageCostSummary(period = usageCostPeriod) {
+            const el = usageCostElements();
+            if (!el.panel) return;
+            usageCostPeriod = USAGE_COST_PERIODS.some(p => p.id === period) ? period : '1m';
+            markUsageCostPeriod(usageCostPeriod);
+            if (usageCostLoadedPeriod === usageCostPeriod && el.total && el.total.textContent && !costPricingFailed) return;
+            const requestId = ++usageCostRequest;
+            setUsageCostStatus('集計中…');
+            fetch(`/api/usage/costs?period=${encodeURIComponent(usageCostPeriod)}`, {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            })
+                .then(response => {
+                    if (!response.ok) throw new Error('usage_unavailable');
+                    return response.json();
+                })
+                .then(data => {
+                    if (requestId !== usageCostRequest) return;
+                    usageCostLoadedPeriod = usageCostPeriod;
+                    renderUsageCostSummary(data);
+                })
+                .catch(() => {
+                    if (requestId !== usageCostRequest) return;
+                    setUsageCostStatus('集計できませんでした。時間をおいて再度お試しください。');
+                });
+        }
+
+        function refreshUsageCostSummary() {
+            usageCostLoadedPeriod = null;
+            loadUsageCostSummary(usageCostPeriod);
+        }
+
+        function selectUsageCostPeriod(period) {
+            if (usageCostPeriod === period && usageCostLoadedPeriod === period) {
+                markUsageCostPeriod(period);
+                return;
+            }
+            usageCostLoadedPeriod = null;
+            loadUsageCostSummary(period);
         }
         // ------------------------------------------------------------------
         // 数学ステップ解説（math steps）

@@ -22,6 +22,7 @@
 | [test_ideogram_costs.py](../test_ideogram_costs.py) | Ideogram全5モデル・速度・削除API・未公表料金の下限・旧回答の速度復元 |
 | [test_cost_request_accounting.py](../test_cost_request_accounting.py) | API呼び出し別の長文料金・モデル・Thinking・Ideogram 4.5画像単価、トークン詳細のリクエスト別内訳と未算入理由 |
 | [test_model_cost_estimates.py](../test_model_cost_estimates.py) | 回答ごとの料金・長文の境界・分岐・公式入力使用量 |
+| [test_usage_cost_summary.py](../test_usage_cost_summary.py) | 全チャット費用の期間集計（1日・7日・2週間・1か月・3か月・1年）、旧回答の入力推定、ライブラリ除外 |
 | [test_no_hardcoded_model_prompts_regressions.py](../test_no_hardcoded_model_prompts_regressions.py) | モデルへの固定指示の直書き防止 |
 | [test_openai_batch_regressions.py](../test_openai_batch_regressions.py) | openai / batch |
 | [test_prompt_cache_clear.py](../test_prompt_cache_clear.py) | prompt / cache / clear |

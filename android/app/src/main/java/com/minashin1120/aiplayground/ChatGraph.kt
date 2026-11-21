@@ -301,6 +301,9 @@ internal class ChatGraph(
         notify = ::notify,
         notifyOffline = ::notifyOffline,
         report = { e -> report(e) },
+        pricingJson = {
+            application.assets.open("model-pricing.json").bufferedReader().use { it.readText() }
+        },
     )
     /** AI設定コマンド（`/settings <指示>`）の会話・モデル経由の設定変更・結果バブル。 */
     internal val aiSettings: ChatAiSettings = ChatAiSettings(

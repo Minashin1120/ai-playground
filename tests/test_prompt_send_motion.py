@@ -73,11 +73,19 @@ class PromptSendMotionTests(unittest.TestCase):
         cancelled = re.search(r'function isUploadCancelled\(row\) \{.*?\n        \}', uploads, re.S)
         self.page.add_script_tag(content=cancelled.group())
 
-    def start(self, follow=True):
-        self.page.evaluate('''follow => {
+    def start(self, follow=True, hold=False):
+        # The overlay only exists for the 350 ms animation. When the next Playwright
+        # command is delayed (loaded CI), waiting for it to attach can miss it and time
+        # out. Hold the animations in the same frame that creates the overlay so tests
+        # can observe it deterministically, then resume when natural completion matters.
+        self.page.evaluate('''({ follow, hold }) => {
             window.tx = takePromptForSend();
             window.stopMotion = animatePromptToMessage(get('row'), tx, follow);
-        }''', follow)
+            if (hold) requestAnimationFrame(() => document.getAnimations().forEach(a => a.pause()));
+        }''', {'follow': follow, 'hold': hold})
+
+    def resume(self):
+        self.page.evaluate("document.getAnimations().forEach(a => a.play())")
 
     def test_take_and_restore_preserve_content_rows_and_attachment_state(self):
         self.start(False)
@@ -106,9 +114,8 @@ class PromptSendMotionTests(unittest.TestCase):
 
     def test_overlay_contains_full_content_without_duplicate_ids_or_accessibility(self):
         self.page.evaluate("get('content').textContent = 'long prompt '.repeat(1000)")
-        self.start()
+        self.start(hold=True)
         self.page.wait_for_selector('.prompt-send-overlay', state='attached')
-        self.page.evaluate("document.getAnimations().forEach(a => a.pause())")
         overlay = self.page.locator('.prompt-send-overlay')
         self.assertIn('attachment.pdf', overlay.inner_text())
         self.assertEqual(overlay.locator('[id]').count(), 0)
@@ -120,8 +127,9 @@ class PromptSendMotionTests(unittest.TestCase):
         self.assertNotIn('prompt-send-hidden', self.page.locator('#row').get_attribute('class') or '')
 
     def test_normal_finish_removes_overlay_and_reveals_real_bubble(self):
-        self.start()
+        self.start(hold=True)
         self.page.wait_for_selector('.prompt-send-overlay', state='attached')
+        self.resume()
         self.page.wait_for_selector('.prompt-send-overlay', state='detached')
         self.assertTrue(self.page.locator('#row').is_visible())
         self.assertEqual(self.page.locator('#row .message-bubble').evaluate('(el) => getComputedStyle(el).opacity'), '1')
@@ -137,7 +145,7 @@ class PromptSendMotionTests(unittest.TestCase):
     def test_scroll_navigation_resize_and_removed_target_clean_up(self):
         for event in ['wheel', 'popstate', 'resize', 'remove']:
             with self.subTest(event=event):
-                self.start()
+                self.start(hold=True)
                 self.page.wait_for_selector('.prompt-send-overlay', state='attached')
                 if event == 'wheel':
                     self.page.dispatch_event('#chat-container', 'wheel')

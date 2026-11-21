@@ -2857,10 +2857,11 @@ unpriced:0,inferred:0,long:0,requests:0,items:[]},a=r((w,x,k,C,L)=>{const M={low
 priced,unpriced:i.unpriced,long:i.long};addRequestCost(i,w,t,x,C,L),i.items.push(describeRequestCost(
 i,M,w,x,t,!!C,!!L,!!k))},"capture"),o=new Map((n||[]).filter(Boolean).map(w=>[String(w.id),w])),l=new Set;
 for(const w of e||[]){if(!w||w.role!=="assistant"||l.has(String(w.id)))continue;l.add(String(w.id));
-let x=null;try{x=typeof w.thought_data=="string"?JSON.parse(w.thought_data):w.thought_data}catch{}const k=((c=
-/^\d{4}-\d{2}-\d{2}/.exec(w.created_at||""))==null?void 0:c[0])||(t==null?void 0:t.checked_at),C=((d=
-w.batch_job)==null?void 0:d.state)==="JOB_STATE_SUCCEEDED",L=(o.get(String(w.parent_id))||w).prompt_options||
-w.prompt_options||{},M=L&&L.gemini_flex===!0;if(Array.isArray(x==null?void 0:x.pricing_calls)){x.pricing_calls.
+let x=null;try{x=typeof w.thought_data=="string"?JSON.parse(w.thought_data):w.thought_data}catch{}!x&&
+Array.isArray(w.pricing_calls)&&(x={pricing_calls:w.pricing_calls});const k=((c=/^\d{4}-\d{2}-\d{2}/.
+exec(w.created_at||""))==null?void 0:c[0])||(t==null?void 0:t.checked_at),C=((d=w.batch_job)==null?void 0:
+d.state)==="JOB_STATE_SUCCEEDED"||w.batch===!0,L=(o.get(String(w.parent_id))||w).prompt_options||w.prompt_options||
+{},M=L&&L.gemini_flex===!0||w.flex===!0;if(Array.isArray(x==null?void 0:x.pricing_calls)){x.pricing_calls.
 length||i.priced++;for(const P of x.pricing_calls){if(!P||typeof P!="object"){i.unpriced++;continue}
 const D=((m=/^\d{4}-\d{2}-\d{2}/.exec(P.created_at||""))==null?void 0:m[0])||k,se=costRate(t,P.model,
 D),re=(se==null?void 0:se.image_selector)==="speed"&&!P.speed&&P.model===w.model?{...P,speed:legacyImageRequest(
@@ -2946,29 +2947,76 @@ costPricing?costEstimateLabel(i,"\u8CBB\u7528\u4E88\u60F3"):`\u8CBB\u7528\u4E88\
 messageMeta.__total__&&(messageMeta.__total__.cost_estimate=costPricing?i:null),t.onclick=()=>openTokenDetail(
 "__total__")}r(refreshCostBar,"refreshCostBar"),fetch("/static/model_pricing.json?checked=2026-11-06",
 {credentials:"same-origin"}).then(e=>{if(!e.ok)throw new Error("pricing_unavailable");return e.json()}).
-then(e=>{costPricing=e,costBarReady&&refreshCostBar()}).catch(()=>{costPricingFailed=!0,costBarReady&&
-refreshCostBar()});function requestTokenCost(e,t,n,i,a=!1){var G,ae,B,H,me,ce,Z,ue,ee,xe;const o=costTokenNumber(
-e.input_tokens)||0,l=costTokenNumber(e.output_tokens)||0,c=costTokenNumber(e.cache_read_tokens)||0,d=costTokenNumber(
-e.cache_write_tokens)||0,m=["5m","1h","30m","12h"],g=m.map(pe=>costTokenNumber(e[`cache_write_${pe}_\
-tokens`])||0),y=Math.max(d,g.reduce((pe,Ce)=>pe+Ce,0)),v=Math.max(0,o-c-y),w=n?t.long_input:t.input,
-x=n?t.long_output:t.output,k=n&&(G=t.long_cached_input)!=null?G:t.cached_input,C=t.cache_write_multipliers||
-{},L=i&&(ae=t.batch_multiplier)!=null?ae:1,M=i?(B=t.batch_cached_multiplier)!=null?B:L:1,E=k!=null&&
-L>0?M/L:1,W=Math.max(0,y-g.reduce((pe,Ce)=>pe+Ce,0)),R=Object.values(C);let V=!!e.pricing_incomplete||
-c+y>o||!!e.explicit_cache;c&&k==null&&(V=!0);let P=v*w+c*(k!=null?k:w)*E,D=v*(n?w:(H=t.max_input)!=null?
-H:w)+c*(n?k!=null?k:w:(ce=(me=t.max_cached_input)!=null?me:k)!=null?ce:w)*E;for(let pe=0;pe<m.length;pe++){
-const Ce=C[m[pe]];g[pe]&&Ce==null&&(V=!0),P+=g[pe]*w*(Ce!=null?Ce:1),D+=g[pe]*(n?w:(Z=t.max_input)!=
-null?Z:w)*(Ce!=null?Ce:1)}W&&(V=!0,P+=W*w*(R.length?Math.min(...R):1),D+=W*(n?w:(ue=t.max_input)!=null?
-ue:w)*(R.length?Math.max(...R):1));let se=(P+l*x)*L*(a?.5:1)/1e6,re=(D+l*((ee=t.max_output)!=null?ee:
-x))*L*(a?.5:1)/1e6,ie=!1;const he=t.tool_rates||{},$=r((pe,Ce)=>{if(pe){if(he[Ce]==null){V=!0;return}
-se+=pe*he[Ce],re+=pe*he[Ce]}},"add"),O=costTokenNumber(e.web_search_calls)||0;$(O,e.search_preview?"\
-web_search_preview":"web_search"),O&&!e.search_preview&&t.search_content_tokens&&(se+=O*t.search_content_tokens*
-w/1e6,re+=O*t.search_content_tokens*w/1e6),$(costTokenNumber(e.file_search_calls),"file_search");const J=costTokenNumber(
-e.grounding_queries)||0;$(he.grounding_prompt!=null?Math.min(1,J):J,he.grounding_prompt!=null?"groun\
-ding_prompt":"grounding_query");const j=costTokenNumber(e.code_execution_calls)||0;return j&&!e.code_execution_free&&
-(t.provider==="openai"?($(((xe=costTokenNumber(e.container_sessions))!=null?xe:1)*(costTokenNumber(e.
-container_memory_gb)||1),"container_session"),V=!0):t.provider==="anthropic"?($(1,"code_execution_mi\
-nimum"),V=!0,ie=!0):$(j,"code_execution")),{low:se,high:re,incomplete:V,lowerBound:ie}}r(requestTokenCost,
-"requestTokenCost");const MATH_STEPS_HEADING_RE=/^\s{0,3}#{1,6}\s*(?:ステップ|Step)\s*(\d+)\s*(.*)$/i,
+then(e=>{costPricing=e,costBarReady&&refreshCostBar(),usageCostPendingData&&renderUsageCostSummary(usageCostPendingData)}).
+catch(()=>{costPricingFailed=!0,costBarReady&&refreshCostBar(),usageCostPendingData&&setUsageCostStatus(
+"\u8CBB\u7528\u4E88\u60F3: \u7B97\u51FA\u4E0D\u53EF")});function requestTokenCost(e,t,n,i,a=!1){var G,
+ae,B,H,me,ce,Z,ue,ee,xe;const o=costTokenNumber(e.input_tokens)||0,l=costTokenNumber(e.output_tokens)||
+0,c=costTokenNumber(e.cache_read_tokens)||0,d=costTokenNumber(e.cache_write_tokens)||0,m=["5m","1h",
+"30m","12h"],g=m.map(pe=>costTokenNumber(e[`cache_write_${pe}_tokens`])||0),y=Math.max(d,g.reduce((pe,Ce)=>pe+
+Ce,0)),v=Math.max(0,o-c-y),w=n?t.long_input:t.input,x=n?t.long_output:t.output,k=n&&(G=t.long_cached_input)!=
+null?G:t.cached_input,C=t.cache_write_multipliers||{},L=i&&(ae=t.batch_multiplier)!=null?ae:1,M=i?(B=
+t.batch_cached_multiplier)!=null?B:L:1,E=k!=null&&L>0?M/L:1,W=Math.max(0,y-g.reduce((pe,Ce)=>pe+Ce,0)),
+R=Object.values(C);let V=!!e.pricing_incomplete||c+y>o||!!e.explicit_cache;c&&k==null&&(V=!0);let P=v*
+w+c*(k!=null?k:w)*E,D=v*(n?w:(H=t.max_input)!=null?H:w)+c*(n?k!=null?k:w:(ce=(me=t.max_cached_input)!=
+null?me:k)!=null?ce:w)*E;for(let pe=0;pe<m.length;pe++){const Ce=C[m[pe]];g[pe]&&Ce==null&&(V=!0),P+=
+g[pe]*w*(Ce!=null?Ce:1),D+=g[pe]*(n?w:(Z=t.max_input)!=null?Z:w)*(Ce!=null?Ce:1)}W&&(V=!0,P+=W*w*(R.
+length?Math.min(...R):1),D+=W*(n?w:(ue=t.max_input)!=null?ue:w)*(R.length?Math.max(...R):1));let se=(P+
+l*x)*L*(a?.5:1)/1e6,re=(D+l*((ee=t.max_output)!=null?ee:x))*L*(a?.5:1)/1e6,ie=!1;const he=t.tool_rates||
+{},$=r((pe,Ce)=>{if(pe){if(he[Ce]==null){V=!0;return}se+=pe*he[Ce],re+=pe*he[Ce]}},"add"),O=costTokenNumber(
+e.web_search_calls)||0;$(O,e.search_preview?"web_search_preview":"web_search"),O&&!e.search_preview&&
+t.search_content_tokens&&(se+=O*t.search_content_tokens*w/1e6,re+=O*t.search_content_tokens*w/1e6),$(
+costTokenNumber(e.file_search_calls),"file_search");const J=costTokenNumber(e.grounding_queries)||0;
+$(he.grounding_prompt!=null?Math.min(1,J):J,he.grounding_prompt!=null?"grounding_prompt":"grounding_\
+query");const j=costTokenNumber(e.code_execution_calls)||0;return j&&!e.code_execution_free&&(t.provider===
+"openai"?($(((xe=costTokenNumber(e.container_sessions))!=null?xe:1)*(costTokenNumber(e.container_memory_gb)||
+1),"container_session"),V=!0):t.provider==="anthropic"?($(1,"code_execution_minimum"),V=!0,ie=!0):$(
+j,"code_execution")),{low:se,high:re,incomplete:V,lowerBound:ie}}r(requestTokenCost,"requestTokenCos\
+t");const USAGE_COST_PERIODS=[{id:"1d",label:"1\u65E5\u4EE5\u5185"},{id:"7d",label:"7\u65E5\u4EE5\u5185"},
+{id:"14d",label:"2\u9031\u9593\u4EE5\u5185"},{id:"1m",label:"1\u304B\u6708\u4EE5\u5185"},{id:"3m",label:"\
+3\u304B\u6708\u4EE5\u5185"},{id:"1y",label:"1\u5E74\u9593"}];let usageCostPeriod="1m",usageCostLoadedPeriod=null,
+usageCostRequest=0,usageCostPendingData=null;function usageCostElements(){return{panel:get("tab-usag\
+e"),status:get("usage-cost-status"),total:get("usage-cost-total"),jpy:get("usage-cost-jpy"),meta:get(
+"usage-cost-meta"),breakdown:get("usage-cost-breakdown"),note:get("usage-cost-note")}}r(usageCostElements,
+"usageCostElements");function markUsageCostPeriod(e){document.querySelectorAll("#usage-period-button\
+s [data-period]").forEach(t=>{const n=t.dataset.period===e;t.classList.toggle("is-active",n),t.setAttribute(
+"aria-pressed",n?"true":"false")})}r(markUsageCostPeriod,"markUsageCostPeriod");function setUsageCostStatus(e){
+const t=usageCostElements().status;t&&(t.textContent=e)}r(setUsageCostStatus,"setUsageCostStatus");function usageCostModelRows(e){
+const t=new Map;for(const n of e||[]){if(!n)continue;const i=n.model||"\u30E2\u30C7\u30EB\u4E0D\u660E";
+let a=t.get(i);a||(a={model:i,low:0,high:0,priced:0,unpriced:0,requests:0},t.set(i,a)),a.low+=Number(
+n.low)||0,a.high+=Number(n.high)||0,a.requests++,n.priced?a.priced++:a.unpriced++}return[...t.values()].
+sort((n,i)=>i.high-n.high||i.low-n.low)}r(usageCostModelRows,"usageCostModelRows");function renderUsageCostBreakdown(e){
+const t=usageCostElements().breakdown;if(!t||(t.replaceChildren(),!e.length))return;const n=document.
+createElement("div");n.className="text-[11px] font-bold text-gray-400 mt-3",n.textContent="\u30E2\u30C7\u30EB\u5225",
+t.appendChild(n),e.forEach(i=>{const a=document.createElement("div");a.className="border-t border-gr\
+ay-700/60 py-1.5";const o=document.createElement("div");o.className="flex justify-between gap-3";const l=document.
+createElement("span");l.className="font-mono text-[11px] break-all",l.textContent=i.model;const c=document.
+createElement("span");c.className="font-mono text-[11px] shrink-0",c.textContent=costAmountText(i)+(i.
+unpriced?"\uFF08\u4E00\u90E8\u672A\u7B97\u5165\uFF09":""),o.append(l,c),a.appendChild(o);const d=document.
+createElement("div");d.className="text-[10px] text-gray-400",d.textContent=`API ${i.requests}\u56DE \xB7 \u7B97\u5B9A ${i.
+priced}\u56DE`+(i.unpriced?` \xB7 \u672A\u7B97\u5165 ${i.unpriced}\u56DE`:""),a.appendChild(d),t.appendChild(
+a)})}r(renderUsageCostBreakdown,"renderUsageCostBreakdown");function renderUsageCostSummary(e){const t=usageCostElements();
+if(!t.panel||!e)return;if(!costPricing){usageCostPendingData=costPricingFailed?null:e,setUsageCostStatus(
+`\u8CBB\u7528\u4E88\u60F3: ${costPricingFailed?"\u7B97\u51FA\u4E0D\u53EF":"\u6599\u91D1\u3092\u8AAD\u307F\u8FBC\u307F\u4E2D\u2026"}`);
+return}usageCostPendingData=null;const n=Array.isArray(e.messages)?e.messages:[],i=estimateConversationCost(
+n,costPricing,n);if(t.total&&(t.textContent=costAmountText(i)+(i.unpriced?"\uFF08\u4E00\u90E8\u672A\u7B97\u5165\uFF09":
+""),t.title=COST_ESTIMATE_NOTE),t.jpy&&fillCostEstimateJpy(t.jpy,i),t.meta){const a=[`\u56DE\u7B54 ${e.
+answers}\u4EF6`,`API\u547C\u3073\u51FA\u3057 ${i.requests}\u56DE`];i.inferred&&a.push(`\u5C65\u6B74\u304B\u3089\u63A8\u5B9A ${i.
+inferred}\u4EF6`),i.unpriced&&a.push(`\u4E00\u90E8\u672A\u7B97\u5165 ${i.unpriced}\u4EF6`),e.unreadable&&
+a.push(`\u4F7F\u7528\u91CF\u672A\u53D6\u5F97 ${e.unreadable}\u4EF6`),e.truncated&&a.push("\u4EF6\u6570\u304C\u591A\u3044\u305F\u3081\u76F4\u8FD1\u5206\
+\u306E\u307F"),t.meta.textContent=a.join(" \xB7 ")}renderUsageCostBreakdown(usageCostModelRows(i.items)),
+setUsageCostStatus(""),t.note&&t.note.classList.remove("hidden")}r(renderUsageCostSummary,"renderUsa\
+geCostSummary");function loadUsageCostSummary(e=usageCostPeriod){const t=usageCostElements();if(!t.panel||
+(usageCostPeriod=USAGE_COST_PERIODS.some(i=>i.id===e)?e:"1m",markUsageCostPeriod(usageCostPeriod),usageCostLoadedPeriod===
+usageCostPeriod&&t.total&&t.total.textContent&&!costPricingFailed))return;const n=++usageCostRequest;
+setUsageCostStatus("\u96C6\u8A08\u4E2D\u2026"),fetch(`/api/usage/costs?period=${encodeURIComponent(usageCostPeriod)}`,
+{credentials:"same-origin",headers:{Accept:"application/json"}}).then(i=>{if(!i.ok)throw new Error("\
+usage_unavailable");return i.json()}).then(i=>{n===usageCostRequest&&(usageCostLoadedPeriod=usageCostPeriod,
+renderUsageCostSummary(i))}).catch(()=>{n===usageCostRequest&&setUsageCostStatus("\u96C6\u8A08\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002\u6642\u9593\u3092\u304A\u3044\u3066\u518D\
+\u5EA6\u304A\u8A66\u3057\u304F\u3060\u3055\u3044\u3002")})}r(loadUsageCostSummary,"loadUsageCostSumm\
+ary");function refreshUsageCostSummary(){usageCostLoadedPeriod=null,loadUsageCostSummary(usageCostPeriod)}
+r(refreshUsageCostSummary,"refreshUsageCostSummary");function selectUsageCostPeriod(e){if(usageCostPeriod===
+e&&usageCostLoadedPeriod===e){markUsageCostPeriod(e);return}usageCostLoadedPeriod=null,loadUsageCostSummary(
+e)}r(selectUsageCostPeriod,"selectUsageCostPeriod");const MATH_STEPS_HEADING_RE=/^\s{0,3}#{1,6}\s*(?:ステップ|Step)\s*(\d+)\s*(.*)$/i,
 MATH_STEPS_DEFAULT_CONFIG=Object.freeze({basics:!1,level:"easy",step_size:"normal",diagrams:"auto",animation:!0}),
 MATH_STEPS_PROGRESS_ROUTE="/api/math_steps/progress",MATH_STEPS_SIMPLIFY_ROUTE="/api/math_steps/simp\
 lify",MATH_STEPS_SVG_MAX_CHARS=3e5,MATH_STEPS_MAX_EXPANDED_PER_STEP=8,MATH_STEPS_MAX_DISPLAY_STEPS=50,

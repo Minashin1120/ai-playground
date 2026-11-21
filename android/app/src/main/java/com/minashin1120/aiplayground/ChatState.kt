@@ -10,6 +10,7 @@ import com.minashin1120.aiplayground.data.ChatMessage
 import com.minashin1120.aiplayground.data.CodingTarget
 import com.minashin1120.aiplayground.data.CompressionSettings
 import com.minashin1120.aiplayground.data.ConnectionStatus
+import com.minashin1120.aiplayground.data.UsageCostSummary
 import com.minashin1120.aiplayground.data.CredentialRequest
 import com.minashin1120.aiplayground.data.FeedbackItem
 import com.minashin1120.aiplayground.data.HistoryCacheMode
@@ -139,6 +140,9 @@ data class ChatState(
     /** The server answered that this account is an administrator: [feedbackItems] then holds every feedback. */
     val feedbackAdmin: Boolean = false,
     val storage: StorageUsage? = null,
+    /** Settings > 費用: account-wide estimate for [usageCostPeriod]. */
+    val usageCostPeriod: String = "1m", val usageCostSummary: UsageCostSummary? = null,
+    val usageCostBusy: Boolean = false,
     val historyCacheMode: HistoryCacheMode = HistoryCacheMode.VIEWED,
     val cacheMobileDataAllowed: Boolean = false,
     val offlineCacheStats: OfflineCacheStats = OfflineCacheStats(),

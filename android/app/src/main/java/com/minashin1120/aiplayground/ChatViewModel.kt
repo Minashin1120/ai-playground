@@ -564,6 +564,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun saveRichPastePrompt(prompt: String, useCustomDefault: Boolean) = preferences.saveRichPastePrompt(prompt, useCustomDefault)
     fun savePreferences(payload: JSONObject, message: String = "設定を保存しました") = preferences.savePreferences(payload, message)
     fun loadStorageUsage() = preferences.loadStorageUsage()
+    fun loadUsageCostSummary(period: String = state.value.usageCostPeriod) = preferences.loadUsageCostSummary(period)
     fun loadFeedback() = feedback.loadFeedback()
 
     /** Web `.fb-save` in `#fb-admin-list`: an administrator sets the status, then the list is read again. */

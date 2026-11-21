@@ -25,6 +25,8 @@ MOBILE_ENDPOINT_METHODS = {
     'complete_account_import_upload': {'POST'}, 'cancel_account_import_upload': {'DELETE'},
     'import_account_data': {'POST'},
     'handle_threads': {'GET', 'POST'}, 'handle_thread_item': {'GET', 'DELETE'},
+    # Settings > 費用: account-wide estimated cost for one period (owner-only aggregation).
+    'handle_usage_costs': {'GET'},
     'update_thread_settings': {'GET', 'PUT'}, 'update_title': {'PUT'},
     'toggle_bookmark': {'POST'}, 'branch_thread': {'POST'},
     # Message delete from the bubble controls (owner-checked in the route, like Web).

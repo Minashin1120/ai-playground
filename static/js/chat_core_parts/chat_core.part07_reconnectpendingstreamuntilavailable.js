@@ -768,13 +768,14 @@
             prompt: 'プロンプト',
             display: '表示',
             data: 'データ',
+            usage: '費用',
             account: 'アカウント',
             security: 'セキュリティ',
             '2fa': '2要素認証',
             feedback: 'フィードバック',
             mcp: 'MCP'
         };
-        const ALL_TABS = ['general', 'api', 'prompt', 'display', 'data', 'account', 'security', '2fa', 'feedback', 'mcp'];
+        const ALL_TABS = ['general', 'api', 'prompt', 'display', 'data', 'usage', 'account', 'security', '2fa', 'feedback', 'mcp'];
         function getSectionHeading(el) {
             const h3 = el.querySelector('h3');
             if (h3) return h3.textContent.trim();
@@ -962,6 +963,9 @@
             activeSettingsTab = t;
             filterSettings();
             refreshSettingsTabsScroll();
+            if (t === 'usage') {
+                try { loadUsageCostSummary(); } catch (e) { console.error('usage cost summary failed', e); }
+            }
         }
         function initSettingsSwipeNav() {
             try {

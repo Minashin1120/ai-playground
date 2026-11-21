@@ -39,6 +39,8 @@ internal class ChatPreferences(
     private val notify: (String) -> Unit,
     private val notifyOffline: (String) -> Boolean,
     private val report: suspend (Throwable) -> Unit,
+    /** `assets/model-pricing.json` (same official table as Web's `static/model_pricing.json`). */
+    private val pricingJson: () -> String,
 ) {
     private var cacheSyncJob: Job? = null
 
@@ -120,6 +122,26 @@ internal class ChatPreferences(
             if (notifyOffline("オフライン中はストレージ使用量を取得できません。")) return@launch
             runCatching { mutable.update { it.copy(storage = parseStorageUsage(backend().get("/api/storage", token()))) } }
                 .onFailure { report(it) }
+        }
+    }
+
+    /** Web `loadUsageCostSummary`: one aggregate estimate across every chat for the selected period. */
+    fun loadUsageCostSummary(period: String = state.value.usageCostPeriod) {
+        val selected = USAGE_COST_PERIODS.firstOrNull { it.first == period }?.first ?: "1m"
+        scope.launch {
+            if (notifyOffline("オフライン中は費用予想を取得できません。")) return@launch
+            mutable.update { it.copy(usageCostPeriod = selected, usageCostBusy = true) }
+            try {
+                val payload = backend().get("/api/usage/costs?period=${URLEncoder.encode(selected, "UTF-8")}", token())
+                val estimator = withContext(Dispatchers.IO) { ModelCostEstimator(pricingJson()) }
+                mutable.update { it.copy(usageCostSummary = parseUsageCostSummary(payload, estimator)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                report(e)
+            } finally {
+                mutable.update { it.copy(usageCostBusy = false) }
+            }
         }
     }
 

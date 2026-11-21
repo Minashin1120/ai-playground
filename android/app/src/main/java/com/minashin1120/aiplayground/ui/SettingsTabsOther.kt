@@ -57,6 +57,10 @@ import com.minashin1120.aiplayground.setTranslationOption
 import com.minashin1120.aiplayground.setTranslationThinking
 import com.minashin1120.aiplayground.TranslationSetting
 import com.minashin1120.aiplayground.data.COMPOSER_SELECT_DEFAULTS
+import com.minashin1120.aiplayground.data.JpyExchangeRate
+import com.minashin1120.aiplayground.data.JpyExchangeRates
+import com.minashin1120.aiplayground.data.USAGE_COST_PERIODS
+import com.minashin1120.aiplayground.data.jpyCostLabel
 import com.minashin1120.aiplayground.data.SelectionTranslator
 import com.minashin1120.aiplayground.data.THINKING_LEVELS
 import com.minashin1120.aiplayground.data.EFFORT_LEVELS
@@ -258,6 +262,125 @@ private fun TranslationReasoningFields(setting: TranslationSetting, onChange: (T
         }
     }
 }
+
+private data class UsageModelRow(
+    val model: String, val low: Double, val high: Double, val priced: Int, val unpriced: Int,
+)
+
+private fun usageMoney(value: Double): String =
+    if (value > 0 && value < 0.000001) "<\$0.000001" else String.format(java.util.Locale.US, "\$%.6f", value)
+
+private fun usageAmountText(row: UsageModelRow): String = when {
+    row.priced == 0 -> "算出不可"
+    row.high - row.low > 1e-12 -> "${usageMoney(row.low)}〜${usageMoney(row.high)}"
+    else -> usageMoney(row.low)
+}
+
+/** Settings > 費用: one estimate across every chat for the selected period (same wording as Web). */
+internal fun usageCards(state: ChatState, model: ChatViewModel): List<SettingsCardSpec> = listOf(
+    SettingsCardSpec(
+        SettingsTab.Usage, "all-chats", "全チャットの費用予想",
+        "全チャットの費用予想 1日以内 7日以内 2週間以内 1か月以内 3か月以内 1年間 合計 モデル別 API呼び出し 一部未算入 使用量未取得",
+    ) {
+        val web = LocalWebPalette.current
+        val context = LocalContext.current
+        val summary = state.usageCostSummary
+        val cost = summary?.estimate
+        var jpyRate by remember(cost) { mutableStateOf<JpyExchangeRate?>(null) }
+        LaunchedEffect(cost) {
+            if (cost != null && cost.priced > 0) jpyRate = JpyExchangeRates.load(context)
+        }
+        LaunchedEffect(Unit) {
+            if (state.usageCostSummary == null && !state.usageCostBusy) model.loadUsageCostSummary(state.usageCostPeriod)
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsDesc("期間を選ぶと、すべてのチャットで使った有料APIの概算費用をまとめて表示します。回答ごとの保存済みモデルと使用量から計算し、請求額を再現するものではありません。")
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                USAGE_COST_PERIODS.forEach { (id, label) ->
+                    val selected = state.usageCostPeriod == id
+                    SettingsSmallButton(
+                        label, { model.loadUsageCostSummary(id) },
+                        fontSize = 10.sp,
+                        tone = if (selected) SettingsButtonTone.Blue else SettingsButtonTone.Gray,
+                    )
+                }
+            }
+            Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                SettingsDesc("合計（USD）")
+                Text(
+                    when {
+                        cost != null -> cost.label("合計").removePrefix("合計: ")
+                        state.usageCostBusy -> "集計中…"
+                        else -> "-"
+                    },
+                    fontSize = 18.sp, lineHeight = 26.sp, fontFamily = FontFamily.Monospace,
+                    color = if (web.isLight) web.text else Tw.amber200,
+                )
+                if (cost != null) {
+                    Text(
+                        when {
+                            jpyRate != null -> jpyCostLabel(cost, jpyRate!!)
+                            cost.priced == 0 -> "日本円換算: 算出不可"
+                            else -> "日本円換算: 換算中…"
+                        },
+                        fontSize = 11.sp, color = if (web.isLight) web.muted else Tw.gray400,
+                    )
+                }
+                val parts = buildList {
+                    if (summary != null) {
+                        add("回答 ${summary.answers}件")
+                        add("API呼び出し ${cost?.requests ?: 0}回")
+                        if ((cost?.inferred ?: 0) > 0) add("履歴から推定 ${cost!!.inferred}件")
+                        if ((cost?.unpriced ?: 0) > 0) add("一部未算入 ${cost!!.unpriced}件")
+                        if (summary.unreadable > 0) add("使用量未取得 ${summary.unreadable}件")
+                        if (summary.truncated) add("件数が多いため直近分のみ")
+                    }
+                }
+                if (parts.isNotEmpty()) {
+                    Text(parts.joinToString(" · "), fontSize = 10.sp, color = if (web.isLight) web.muted else Tw.gray400,
+                        modifier = Modifier.padding(top = 4.dp))
+                }
+                if (state.usageCostBusy && summary != null) {
+                    Text("更新中…", fontSize = 10.sp, color = if (web.isLight) web.muted else Tw.gray400)
+                }
+            }
+            val modelRows = cost?.items?.groupBy { it.model.ifBlank { "モデル不明" } }?.map { (name, items) ->
+                UsageModelRow(name, items.sumOf { it.low }, items.sumOf { it.high },
+                    items.count { it.priced }, items.count { !it.priced })
+            }?.sortedByDescending { it.high } ?: emptyList()
+            if (modelRows.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("モデル別", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        color = if (web.isLight) web.muted else Tw.gray400)
+                    modelRows.forEach { row ->
+                        Column(Modifier.fillMaxWidth().border(1.dp, web.line, RoundedCornerShape(8.dp)).padding(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(row.model, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                                    color = if (web.isLight) web.text else Tw.gray300, modifier = Modifier.weight(1f))
+                                Text(usageAmountText(row) + if (row.unpriced > 0) "（一部未算入）" else "",
+                                    fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                                    color = if (web.isLight) web.text else Tw.gray300)
+                            }
+                            Text(
+                                "API ${row.priced + row.unpriced}回 · 算定 ${row.priced}回" +
+                                    if (row.unpriced > 0) " · 未算入 ${row.unpriced}回" else "",
+                                fontSize = 10.sp, color = if (web.isLight) web.muted else Tw.gray400,
+                            )
+                        }
+                    }
+                }
+            }
+            SettingsDesc(
+                "保存済みの使用量がない古い回答は、会話履歴から入力トークンを推定します。単価未登録・使用量未取得の呼び出しは「一部未算入」として表示し、0円とは扱いません。税・無料枠・個別契約・画像や音声など取得できない課金情報は含みません。",
+                color = if (web.isLight) web.muted else Tw.gray500,
+            )
+            SettingsSmallButton("更新", { model.loadUsageCostSummary(state.usageCostPeriod) }, fontSize = 10.sp)
+        }
+    },
+)
 
 internal fun dataCards(state: ChatState, model: ChatViewModel, form: SettingsForm, extras: SettingsExtras): List<SettingsCardSpec> = listOf(
     // ANDROID_ONLY.md: the device cache card replaces the Web Service Worker cache card.

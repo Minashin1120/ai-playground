@@ -23,13 +23,14 @@ import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.ModelInfo
 
-/** The ten Web settings tabs (`#settings-tabs`). */
+/** The eleven Web settings tabs (`#settings-tabs`). */
 internal enum class SettingsTab(val id: String, val label: String, @DrawableRes val icon: Int?) {
     General("general", "一般", R.drawable.fa_solid_sliders_h),
     Api("api", "APIキー", R.drawable.fa_solid_key),
     Prompt("prompt", "プロンプト", R.drawable.fa_solid_comment_dots),
     Display("display", "表示", R.drawable.fa_solid_palette),
     Data("data", "データ", R.drawable.fa_solid_database),
+    Usage("usage", "費用", R.drawable.fa_solid_coins),
     Account("account", "アカウント", R.drawable.fa_solid_user_shield),
     Security("security", "セキュリティ", R.drawable.fa_solid_shield_alt),
     TwoFactor("2fa", "2要素認証", R.drawable.fa_solid_lock),

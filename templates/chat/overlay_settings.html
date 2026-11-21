@@ -27,6 +27,7 @@
                         <button type="button" id="btn-tab-prompt" data-progress-no-spinner="true" class="settings-tab" onclick="clickTab('prompt')"><i class="fas fa-comment-dots"></i><span>プロンプト</span></button>
                         <button type="button" id="btn-tab-display" data-progress-no-spinner="true" class="settings-tab" onclick="clickTab('display')"><i class="fas fa-palette"></i><span>表示</span></button>
                         <button type="button" id="btn-tab-data" data-progress-no-spinner="true" class="settings-tab" onclick="clickTab('data')"><i class="fas fa-database"></i><span>データ</span></button>
+                        <button type="button" id="btn-tab-usage" data-progress-no-spinner="true" class="settings-tab" onclick="clickTab('usage')"><i class="fas fa-coins"></i><span>費用</span></button>
                         <button type="button" id="btn-tab-account" data-progress-no-spinner="true" class="settings-tab" onclick="clickTab('account')"><i class="fas fa-user-shield"></i><span>アカウント</span></button>
                         <button type="button" id="btn-tab-security" data-progress-no-spinner="true" class="settings-tab" onclick="clickTab('security')"><i class="fas fa-shield-alt"></i><span>セキュリティ</span></button>
                         <button type="button" id="btn-tab-2fa" data-progress-no-spinner="true" class="settings-tab" onclick="clickTab('2fa')"><i class="fas fa-lock"></i><span>2要素認証</span></button>
@@ -249,6 +250,32 @@
                 </div>
             </div>
         </div>
+</div>
+<div class="settings-tab-panel overflow-y-auto hidden animate-fadeIn" id="tab-usage">
+<div class="settings-card">
+    <div class="flex items-center justify-between gap-2">
+        <h3 class="settings-card-title"><i class="fas fa-coins mr-2 text-amber-300"></i>全チャットの費用予想</h3>
+        <button type="button" id="usage-cost-refresh" onclick="refreshUsageCostSummary()" class="text-[10px] text-gray-400 hover:text-white">更新</button>
+    </div>
+    <p class="text-[11px] text-gray-400 mt-1 leading-relaxed">期間を選ぶと、すべてのチャットで使った有料APIの概算費用をまとめて表示します。回答ごとの保存済みモデルと使用量から計算し、請求額を再現するものではありません。</p>
+    <div id="usage-period-buttons" class="flex flex-wrap gap-1.5 mt-3" role="group" aria-label="集計期間">
+        <button type="button" data-period="1d" aria-pressed="false" onclick="selectUsageCostPeriod('1d')" class="usage-period-btn">1日以内</button>
+        <button type="button" data-period="7d" aria-pressed="false" onclick="selectUsageCostPeriod('7d')" class="usage-period-btn">7日以内</button>
+        <button type="button" data-period="14d" aria-pressed="false" onclick="selectUsageCostPeriod('14d')" class="usage-period-btn">2週間以内</button>
+        <button type="button" data-period="1m" aria-pressed="false" onclick="selectUsageCostPeriod('1m')" class="usage-period-btn is-active">1か月以内</button>
+        <button type="button" data-period="3m" aria-pressed="false" onclick="selectUsageCostPeriod('3m')" class="usage-period-btn">3か月以内</button>
+        <button type="button" data-period="1y" aria-pressed="false" onclick="selectUsageCostPeriod('1y')" class="usage-period-btn">1年間</button>
+    </div>
+    <div class="mt-4 border-t border-gray-700 pt-3" aria-live="polite">
+        <div class="text-[11px] text-gray-400">合計（USD）</div>
+        <div id="usage-cost-total" class="font-mono text-lg text-amber-200 mt-0.5">-</div>
+        <div id="usage-cost-jpy" class="text-[11px] text-gray-400 mt-1"></div>
+        <div id="usage-cost-meta" class="text-[10px] text-gray-400 mt-2"></div>
+        <div id="usage-cost-status" class="text-[11px] text-gray-400 mt-2"></div>
+        <div id="usage-cost-breakdown" class="text-xs text-gray-300"></div>
+        <p id="usage-cost-note" class="hidden text-[10px] text-gray-500 mt-3 leading-relaxed">保存済みの使用量がない古い回答は、会話履歴から入力トークンを推定します。単価未登録・使用量未取得の呼び出しは「一部未算入」として表示し、0円とは扱いません。税・無料枠・個別契約・画像や音声など取得できない課金情報は含みません。</p>
+    </div>
+</div>
 </div>
 <div class="settings-tab-panel overflow-y-auto hidden animate-fadeIn" id="tab-account">
 <div class="settings-card"><h3 class="settings-card-title">アカウント設定</h3><div class="space-y-3"><div><label class="text-xs text-gray-500 block">ユーザー名変更</label><input type="text" id="set-username" name="account-username-change" autocomplete="off" autocorrect="off" spellcheck="false" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div><div><label class="text-xs text-gray-500 block">パスワード変更</label><input type="password" id="set-password" name="account-password-change" autocomplete="new-password" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" class="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm text-white" placeholder="変更しない場合は空欄"></div></div></div>

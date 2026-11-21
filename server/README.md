@@ -88,6 +88,7 @@
 | `routes_realtime.py` | Lyria / Realtime の HTTP+SSE、Gemini STS 保存、`robots.txt` | リアルタイム API の HTTP 面 |
 | `thread_branches.py` | 指定時点までの全分岐のコピー、分岐元情報、共有ファイルの参照確認・削除保護 | 別チャットへの分岐、共有ファイルの寿命 |
 | `routes_files.py` | ファイル・サムネイル配信、Batch状態を含むスレッド一覧・作成・取得・削除 | ファイル URL、スレッド基本操作 |
+| `routes_usage.py` | 設定「費用」タブ用の全チャット集計（`/api/usage/costs`）。期間内の回答から数値の使用量だけを返し、旧回答の入力推定と画像操作を補う | 全チャットの費用予想、期間集計 |
 | `rich_paste_pdf.py` | スレッドPDFとリッチペーストPDFの組版・サニタイズ・テーマ処理 | PDF出力、リッチペースト印刷 |
 | `routes_threads_library.py` | 暗号化スキャン、管理者スレッド、スレッド設定、ファイルライブラリ操作 | 暗号化、スレッド設定、ライブラリCRUD |
 | `routes_account.py` | アカウント削除、移行（輸出入）ジョブの状態・中止・完了版の取得・ダウンロード | アカウント削除・エクスポート API |

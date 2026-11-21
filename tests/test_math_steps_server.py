@@ -131,6 +131,35 @@ class MathStepsServerTests(unittest.TestCase):
                 self.assertIn(phrase, prompt)
             self.assertNotIn("{{math_", prompt)
 
+    def test_prompt_handles_a_short_follow_up_without_a_quote(self):
+        for basics in (False, True):
+            prompt = target.build_math_steps_system_prompt({"basics": basics})
+            for phrase in (
+                "引用がない短い追加質問",
+                "直前の回答への追加質問として扱う",
+                "1〜3ステップで答える",
+                "最初の1文で質問への答えを言い切る",
+                "その数がどこから出たか",
+                "式変形の向きを言葉で明示する",
+                "同じ説明を繰り返さない",
+                "別の文字を導入しない",
+                "展開・代入で確かめ",
+            ):
+                self.assertIn(phrase, prompt)
+            self.assertNotIn("{{math_", prompt)
+
+    def test_simplify_prompt_explains_known_values_and_direction(self):
+        prompt = target.build_math_steps_simplify_prompt(target.MATH_STEPS_DEFAULTS)
+        for phrase in (
+            "何がわかっているか",
+            "その数の出どころ",
+            "式変形の向き",
+            "同じ説明を繰り返さず",
+            "学習者が使っている文字をそのまま使う",
+            "## ステップ N 見出し",
+        ):
+            self.assertIn(phrase, prompt)
+
     def test_background_and_browser_fast_inject_the_math_prompt(self):
         background = Path("server/background.py").read_text()
         browser_fast = Path("server/routes_browser_fast.py").read_text()

@@ -48,6 +48,11 @@ AI Chat Playground の「数学ステップ解説（Math Steps）」機能につ
    - 回答の一部を引用して「なぜこうなる？」などと聞くと、問題全体を解き直さず、引用した式の説明から始めます。
    - 「基礎から説明」がONでも、引用への追加質問では基礎を最初の独立ステップにせず、必要な前提だけを説明の中に添えます。
 
+9. **引用なしの短い追加質問**
+   - 同じスレッドで「なぜ？」「11はどこから？」「わからない」などと短く聞くと、直前の回答への追加質問として1〜3ステップで答えます。問題全体は解き直しません。
+   - 前に出てきた数の出どころと、式変形の向きを明示します。「わからない」を繰り返されたときは、同じ説明を繰り返さず、具体的な例や別の言い方に切り替えます。
+   - ノートや問題で使われている文字をそのまま使い、説明の都合で別の文字を導入しません。
+
 ---
 
 ## 2. 利用方法
@@ -85,7 +90,7 @@ AI Chat Playground の「数学ステップ解説（Math Steps）」機能につ
 
 | ファイルパス | 行番号 | 主な役割・定義内容 |
 |---|---|---|
-| `app/server/background_math_steps.py` | L1-L287 | **数学ステップ解説のコア仕様・プロンプト・抽出ロジック**<br>- L7-L24: 設定既定値・制限定数（`MATH_STEPS_MAX_EXPANDED_PER_STEP=8` など）<br>- L26-L29: 見出し抽出・コードブロック判定正規表現（`MATH_STEPS_HEADING_RE`, `_FENCE_RE`）<br>- L31-L112: フォーマット強制プロンプト定義（`MATH_STEPS_FORMAT_PROMPT`、引用への追加質問の規則を含む）<br>- L134-L159: 設定の正規化とJSON変換（`normalize_math_steps_config`, `dump_math_steps_config`）<br>- L162-L197: 各種指示文生成ヘルパー<br>- L199-L211: システムプロンプト動的構築（`build_math_steps_system_prompt`）<br>- L213-L236: ステップ分割プロンプト構築（`build_math_steps_simplify_prompt`）<br>- L238-L287: 回答テキストからのステップ抽出（`extract_math_steps`） |
+| `app/server/background_math_steps.py` | L1-L304 | **数学ステップ解説のコア仕様・プロンプト・抽出ロジック**<br>- L7-L24: 設定既定値・制限定数（`MATH_STEPS_MAX_EXPANDED_PER_STEP=8` など）<br>- L26-L29: 見出し抽出・コードブロック判定正規表現（`MATH_STEPS_HEADING_RE`, `_FENCE_RE`）<br>- L31-L124: フォーマット強制プロンプト定義（`MATH_STEPS_FORMAT_PROMPT`、引用への追加質問・引用なしの短い追加質問の規則を含む）<br>- L146-L171: 設定の正規化とJSON変換（`normalize_math_steps_config`, `dump_math_steps_config`）<br>- L174-L209: 各種指示文生成ヘルパー<br>- L211-L223: システムプロンプト動的構築（`build_math_steps_system_prompt`）<br>- L225-L253: ステップ分割プロンプト構築（`build_math_steps_simplify_prompt`）<br>- L255-L304: 回答テキストからのステップ抽出（`extract_math_steps`） |
 | `app/server/routes_math_steps.py` | L1-L443 | **数学ステップAPIエンドポイント・状態管理・モデル実行**<br>- L15-L98: 分割状態の正規化と進捗状態のパース（`_clean_math_steps_parts`, `_load_math_steps_state`）<br>- L100-L117: 暗号化（E2EE）対応の状態読み書き（`_read_math_steps_state`, `_write_math_steps_state`）<br>- L119-L137: 所有権検証付きメッセージ解決（`_resolve_math_steps_message`）<br>- L163-L184: トークン利用量記録（`_append_math_steps_usage`）<br>- L185-L246: プロバイダー別モデル呼び出し（Gemini/Anthropic/DeepSeek/xAI/Zai/Kimi/OpenAI）<br>- L262-L306: 進捗保存API（`POST /api/math_steps/progress`、`remove_expanded` / `remove_simplified`）<br>- L311-L443: ステップ分割API（`POST /api/math_steps/simplify`、`part_index` 対応） |
 | `app/server/models.py` | L48-L50<br>L188 | **データベースモデル定義**<br>- `User` モデル: `math_steps_enabled`, `math_steps_config`, `default_math_steps`<br>- `Message` モデル: `math_steps_state` |
 | `app/server/app_settings_schema.py` | L848-L883 | **データベースマイグレーションDDL**<br>- `ensure_user_math_steps_columns()`: userテーブルのカラム追加<br>- `ensure_message_math_steps_state_column()`: messageテーブルのカラム追加 |

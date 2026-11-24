@@ -316,20 +316,25 @@ e=>{if(!e)return null;let t=String(e).trim();return!t||(t.startsWith("#")||(t=`#
 "normalizeHex"),hexToRgb=r(e=>{const t=e.replace("#",""),n=parseInt(t.slice(0,2),16),i=parseInt(t.slice(
 2,4),16),a=parseInt(t.slice(4,6),16);return[n,i,a]},"hexToRgb"),mix=r((e,t,n)=>Math.round(e+(t-e)*n),
 "mix"),rgbToHex=r((e,t,n)=>`#${[e,t,n].map(i=>i.toString(16).padStart(2,"0")).join("")}`,"rgbToHex"),
-deriveTheme=r(e=>{const[t,n,i]=hexToRgb(e),a=rgbToHex(mix(t,255,.45),mix(n,255,.45),mix(i,255,.45)),
-o=rgbToHex(mix(t,255,.7),mix(n,255,.7),mix(i,255,.7)),l=rgbToHex(mix(t,0,.18),mix(n,0,.18),mix(i,0,.18)),
-c=rgbToHex(mix(t,0,.32),mix(n,0,.32),mix(i,0,.32));return{base:e,light:a,lighter:o,dark:l,darker:c,rgb:`${t}\
-, ${n}, ${i}`}},"deriveTheme"),applyThemeColor=r((e,t=!1)=>{const n=normalizeHex(e)||THEME_DEFAULT,i=deriveTheme(
+deriveTheme=r(e=>{const[t,n,i]=hexToRgb(e),a=Math.round((t*299+n*587+i*114)/1e3),o=a<135,l=o?(135-a)/
+135:0,c=o?.45+l*.35:.45,d=o?.7+l*.22:.7,m=rgbToHex(mix(t,255,c),mix(n,255,c),mix(i,255,c)),g=rgbToHex(
+mix(t,255,d),mix(n,255,d),mix(i,255,d)),y=o?rgbToHex(mix(t,255,l*.12),mix(n,255,l*.12),mix(n,255,l*.12)):
+rgbToHex(mix(t,0,.18),mix(n,0,.18),mix(i,0,.18)),v=o?rgbToHex(mix(t,255,l*.22),mix(n,255,l*.22),mix(
+i,255,l*.22)):rgbToHex(mix(t,0,.32),mix(n,0,.32),mix(i,0,.32)),w=o?"#ffffff":"#031413",x=o?"rgba(255\
+, 255, 255, 0.18)":`rgba(${t}, ${n}, ${i}, 0.28)`,k=o?"rgba(255, 255, 255, 0.22)":`rgba(${t}, ${n}, ${i}\
+, 0.4)`;return{base:e,light:m,lighter:g,dark:y,darker:v,rgb:`${t}, ${n}, ${i}`,textInverse:w,bubbleBorder:x,
+btnBorder:k}},"deriveTheme"),applyThemeColor=r((e,t=!1)=>{const n=normalizeHex(e)||THEME_DEFAULT,i=deriveTheme(
 n),a=document.documentElement;[["--theme-500",i.base],["--theme-600",i.dark],["--theme-700",i.darker],
-["--theme-300",i.light],["--theme-200",i.lighter],["--theme-rgb",i.rgb]].forEach(([l,c])=>{a.style.getPropertyValue(
-l).trim()!==String(c).trim()&&a.style.setProperty(l,c)}),t&&localStorage.setItem(THEME_STORAGE_KEY,n)},
-"applyThemeColor"),applyLightMode=r(e=>{const t=!!e;let n=get("manual-theme-light-css");if(t&&!n){const i=window.
-CHAT_CONFIG&&window.CHAT_CONFIG.urls&&window.CHAT_CONFIG.urls.manualLightTheme;if(!i)return;n=document.
-createElement("link"),n.id="manual-theme-light-css",n.rel="stylesheet",n.href=i,document.head.appendChild(
-n)}else!t&&n&&n.remove()},"applyLightMode"),syncThemeInputs=r(e=>{const t=normalizeHex(e)||THEME_DEFAULT,
-n=get("set-theme-color"),i=get("set-theme-color-text");n&&(n.value=t),i&&(i.value=t),document.querySelectorAll(
-"#theme-presets .theme-swatch").forEach(o=>{const l=normalizeHex(o.getAttribute("data-color"));o.classList.
-toggle("active",l===t)})},"syncThemeInputs"),initThemeFromServer=r(()=>{INITIAL_LIGHT_MODE_ENABLED&&
+["--theme-300",i.light],["--theme-200",i.lighter],["--theme-rgb",i.rgb],["--text-inverse",i.textInverse],
+["--theme-bubble-border",i.bubbleBorder],["--theme-btn-border",i.btnBorder]].forEach(([l,c])=>{a.style.
+getPropertyValue(l).trim()!==String(c).trim()&&a.style.setProperty(l,c)}),t&&localStorage.setItem(THEME_STORAGE_KEY,
+n)},"applyThemeColor"),applyLightMode=r(e=>{const t=!!e;let n=get("manual-theme-light-css");if(t&&!n){
+const i=window.CHAT_CONFIG&&window.CHAT_CONFIG.urls&&window.CHAT_CONFIG.urls.manualLightTheme;if(!i)
+return;n=document.createElement("link"),n.id="manual-theme-light-css",n.rel="stylesheet",n.href=i,document.
+head.appendChild(n)}else!t&&n&&n.remove()},"applyLightMode"),syncThemeInputs=r(e=>{const t=normalizeHex(
+e)||THEME_DEFAULT,n=get("set-theme-color"),i=get("set-theme-color-text");n&&(n.value=t),i&&(i.value=
+t),document.querySelectorAll("#theme-presets .theme-swatch").forEach(o=>{const l=normalizeHex(o.getAttribute(
+"data-color"));o.classList.toggle("active",l===t)})},"syncThemeInputs"),initThemeFromServer=r(()=>{INITIAL_LIGHT_MODE_ENABLED&&
 applyLightMode(!0);const e=normalizeHex(INITIAL_THEME_COLOR);if(e){applyThemeColor(e,!1);return}const t=normalizeHex(
 localStorage.getItem(THEME_STORAGE_KEY));applyThemeColor(t||THEME_DEFAULT,!1)},"initThemeFromServer"),
 LIQUID_GLASS_SURFACE_SELECTOR=["#sidebar",".composer-dock","body > .flex-1 > header","#top-model-bar",

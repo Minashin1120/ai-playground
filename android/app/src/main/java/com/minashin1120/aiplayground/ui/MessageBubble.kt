@@ -191,7 +191,7 @@ internal fun MessageBubble(
         else -> Brush.verticalGradient(listOf(Color(16, 22, 40).copy(alpha = 0.82f), Color(10, 14, 26).copy(alpha = 0.86f)))
     }
     val border = when {
-        user -> Color.Transparent
+        user -> web.theme.bubbleBorder
         web.isLight -> Color(15, 23, 42).copy(alpha = 0.08f)
         else -> Color.White.copy(alpha = 0.06f)
     }

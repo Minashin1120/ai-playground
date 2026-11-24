@@ -16,6 +16,9 @@ internal data class WebThemeRamp(
     val t700: Color,
     val t300: Color,
     val t200: Color,
+    val textInverse: Color = Color(0xFF031413),
+    val bubbleBorder: Color = Color.Transparent,
+    val btnBorder: Color = Color.Transparent,
 ) {
     /** `rgba(var(--theme-rgb), alpha)` in the Web stylesheet. */
     fun rgb(alpha: Float): Color = t500.copy(alpha = alpha)
@@ -38,13 +41,29 @@ internal fun deriveWebTheme(value: String?): WebThemeRamp {
     val b = hex.substring(5, 7).toInt(16)
     // JS Math.round rounds halves up; roundToInt on these non-negative values matches it.
     fun mix(a: Int, target: Int, p: Double): Int = (a + (target - a) * p).roundToInt()
-    fun rgb(p: Double, target: Int) = Color(mix(r, target, p), mix(g, target, p), mix(b, target, p))
+    val y = ((r * 299 + g * 587 + b * 114) / 1000.0).roundToInt()
+    val isDark = y < 135
+    val darkRatio = if (isDark) (135.0 - y) / 135.0 else 0.0
+    val pLight = if (isDark) 0.45 + darkRatio * 0.35 else 0.45
+    val pLighter = if (isDark) 0.70 + darkRatio * 0.22 else 0.70
+
+    val t300 = Color(mix(r, 255, pLight), mix(g, 255, pLight), mix(b, 255, pLight))
+    val t200 = Color(mix(r, 255, pLighter), mix(g, 255, pLighter), mix(b, 255, pLighter))
+    val t600 = if (isDark) Color(mix(r, 255, darkRatio * 0.12), mix(g, 255, darkRatio * 0.12), mix(b, 255, darkRatio * 0.12)) else Color(mix(r, 0, 0.18), mix(g, 0, 0.18), mix(b, 0, 0.18))
+    val t700 = if (isDark) Color(mix(r, 255, darkRatio * 0.22), mix(g, 255, darkRatio * 0.22), mix(b, 255, darkRatio * 0.22)) else Color(mix(r, 0, 0.32), mix(g, 0, 0.32), mix(b, 0, 0.32))
+    val textInverse = if (isDark) Color.White else Color(0xFF031413)
+    val bubbleBorder = if (isDark) Color.White.copy(alpha = 0.18f) else Color(r, g, b).copy(alpha = 0.28f)
+    val btnBorder = if (isDark) Color.White.copy(alpha = 0.22f) else Color(r, g, b).copy(alpha = 0.40f)
+
     return WebThemeRamp(
         t500 = Color(r, g, b),
-        t600 = rgb(0.18, 0),
-        t700 = rgb(0.32, 0),
-        t300 = rgb(0.45, 255),
-        t200 = rgb(0.7, 255),
+        t600 = t600,
+        t700 = t700,
+        t300 = t300,
+        t200 = t200,
+        textInverse = textInverse,
+        bubbleBorder = bubbleBorder,
+        btnBorder = btnBorder,
     )
 }
 
@@ -97,7 +116,7 @@ internal fun webPalette(light: Boolean, themeColor: String?): WebPalette {
         lineStrong = Color(15, 23, 42).copy(alpha = 0.18f),
         text = Color(0xFF131C2E),
         muted = Color(0xFF5C6779),
-        textInverse = Color(0xFF031413),
+        textInverse = ramp.textInverse,
         accent2 = Color(0xFFF59E0B),
         danger = Color(0xFFF9708D),
         success = Color(0xFF34D399),
@@ -116,7 +135,7 @@ internal fun webPalette(light: Boolean, themeColor: String?): WebPalette {
         lineStrong = Color(226, 232, 240).copy(alpha = 0.16f),
         text = Color(0xFFEEF1F7),
         muted = Color(0xFF8B95A8),
-        textInverse = Color(0xFF031413),
+        textInverse = ramp.textInverse,
         accent2 = Color(0xFFF59E0B),
         danger = Color(0xFFF9708D),
         success = Color(0xFF34D399),

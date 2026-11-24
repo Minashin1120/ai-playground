@@ -26,6 +26,8 @@
     --theme-300: #5eedd9;
     --theme-200: #a5f7ed;
     --theme-rgb: 13, 212, 191;
+    --theme-bubble-border: rgba(var(--theme-rgb), 0.28);
+    --theme-btn-border: rgba(var(--theme-rgb), 0.4);
     --accent: var(--theme-500);
     --accent-2: #f59e0b;
     --danger: #f9708d;

@@ -331,10 +331,29 @@ def build_theme_css_vars(value):
     def to_hex(red, green, blue):
         return f"#{red:02x}{green:02x}{blue:02x}"
 
-    light = to_hex(mix(r, 255, 0.45), mix(g, 255, 0.45), mix(b, 255, 0.45))
-    lighter = to_hex(mix(r, 255, 0.7), mix(g, 255, 0.7), mix(b, 255, 0.7))
-    dark = to_hex(mix(r, 0, 0.18), mix(g, 0, 0.18), mix(b, 0, 0.18))
-    darker = to_hex(mix(r, 0, 0.32), mix(g, 0, 0.32), mix(b, 0, 0.32))
+    y = round((r * 299 + g * 587 + b * 114) / 1000)
+    is_dark = y < 135
+    dark_ratio = (135 - y) / 135 if is_dark else 0.0
+
+    p_light = 0.45 + dark_ratio * 0.35 if is_dark else 0.45
+    p_lighter = 0.70 + dark_ratio * 0.22 if is_dark else 0.70
+
+    light = to_hex(mix(r, 255, p_light), mix(g, 255, p_light), mix(b, 255, p_light))
+    lighter = to_hex(mix(r, 255, p_lighter), mix(g, 255, p_lighter), mix(b, 255, p_lighter))
+
+    if is_dark:
+        dark = to_hex(mix(r, 255, dark_ratio * 0.12), mix(g, 255, dark_ratio * 0.12), mix(g, 255, dark_ratio * 0.12))
+        darker = to_hex(mix(r, 255, dark_ratio * 0.22), mix(g, 255, dark_ratio * 0.22), mix(b, 255, dark_ratio * 0.22))
+        text_inverse = "#ffffff"
+        bubble_border = "rgba(255, 255, 255, 0.18)"
+        btn_border = "rgba(255, 255, 255, 0.22)"
+    else:
+        dark = to_hex(mix(r, 0, 0.18), mix(g, 0, 0.18), mix(b, 0, 0.18))
+        darker = to_hex(mix(r, 0, 0.32), mix(g, 0, 0.32), mix(b, 0, 0.32))
+        text_inverse = "#031413"
+        bubble_border = f"rgba({r}, {g}, {b}, 0.28)"
+        btn_border = f"rgba({r}, {g}, {b}, 0.4)"
+
     rgb = f"{r}, {g}, {b}"
     return (
         ":root{"
@@ -344,6 +363,9 @@ def build_theme_css_vars(value):
         f"--theme-300:{light};"
         f"--theme-200:{lighter};"
         f"--theme-rgb:{rgb};"
+        f"--text-inverse:{text_inverse};"
+        f"--theme-bubble-border:{bubble_border};"
+        f"--theme-btn-border:{btn_border};"
         "}"
     )
 

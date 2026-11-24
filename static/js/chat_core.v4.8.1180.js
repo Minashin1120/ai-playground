@@ -954,11 +954,23 @@
         const rgbToHex = (r, g, b) => `#${[r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')}`;
         const deriveTheme = (hex) => {
             const [r, g, b] = hexToRgb(hex);
-            const light = rgbToHex(mix(r, 255, 0.45), mix(g, 255, 0.45), mix(b, 255, 0.45));
-            const lighter = rgbToHex(mix(r, 255, 0.7), mix(g, 255, 0.7), mix(b, 255, 0.7));
-            const dark = rgbToHex(mix(r, 0, 0.18), mix(g, 0, 0.18), mix(b, 0, 0.18));
-            const darker = rgbToHex(mix(r, 0, 0.32), mix(g, 0, 0.32), mix(b, 0, 0.32));
-            return { base: hex, light, lighter, dark, darker, rgb: `${r}, ${g}, ${b}` };
+            const y = Math.round((r * 299 + g * 587 + b * 114) / 1000);
+            const isDark = y < 135;
+            const darkRatio = isDark ? (135 - y) / 135 : 0;
+            const pLight = isDark ? 0.45 + darkRatio * 0.35 : 0.45;
+            const pLighter = isDark ? 0.70 + darkRatio * 0.22 : 0.70;
+            const light = rgbToHex(mix(r, 255, pLight), mix(g, 255, pLight), mix(b, 255, pLight));
+            const lighter = rgbToHex(mix(r, 255, pLighter), mix(g, 255, pLighter), mix(b, 255, pLighter));
+            const dark = isDark
+                ? rgbToHex(mix(r, 255, darkRatio * 0.12), mix(g, 255, darkRatio * 0.12), mix(g, 255, darkRatio * 0.12))
+                : rgbToHex(mix(r, 0, 0.18), mix(g, 0, 0.18), mix(b, 0, 0.18));
+            const darker = isDark
+                ? rgbToHex(mix(r, 255, darkRatio * 0.22), mix(g, 255, darkRatio * 0.22), mix(b, 255, darkRatio * 0.22))
+                : rgbToHex(mix(r, 0, 0.32), mix(g, 0, 0.32), mix(b, 0, 0.32));
+            const textInverse = isDark ? '#ffffff' : '#031413';
+            const bubbleBorder = isDark ? 'rgba(255, 255, 255, 0.18)' : `rgba(${r}, ${g}, ${b}, 0.28)`;
+            const btnBorder = isDark ? 'rgba(255, 255, 255, 0.22)' : `rgba(${r}, ${g}, ${b}, 0.4)`;
+            return { base: hex, light, lighter, dark, darker, rgb: `${r}, ${g}, ${b}`, textInverse, bubbleBorder, btnBorder };
         };
         const applyThemeColor = (value, persist = false) => {
             const hex = normalizeHex(value) || THEME_DEFAULT;
@@ -970,7 +982,10 @@
                 ['--theme-700', theme.darker],
                 ['--theme-300', theme.light],
                 ['--theme-200', theme.lighter],
-                ['--theme-rgb', theme.rgb]
+                ['--theme-rgb', theme.rgb],
+                ['--text-inverse', theme.textInverse],
+                ['--theme-bubble-border', theme.bubbleBorder],
+                ['--theme-btn-border', theme.btnBorder]
             ];
             nextVars.forEach(([name, nextValue]) => {
                 if (root.style.getPropertyValue(name).trim() !== String(nextValue).trim()) {

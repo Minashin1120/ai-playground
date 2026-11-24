@@ -23,7 +23,23 @@ class WebTokensTest {
         assertEquals(Color(9, 144, 130), ramp.t700)
         assertEquals(Color(122, 231, 220), ramp.t300)
         assertEquals(Color(182, 242, 236), ramp.t200)
+        assertEquals(Color(0xFF031413), ramp.textInverse)
         assertEquals(ramp, deriveWebTheme("not a color"))
+    }
+
+    @Test
+    fun derivesDarkThemeColorsWithWhiteContrastAndLiftedRamp() {
+        val blackRamp = deriveWebTheme("#000000")
+        assertEquals(Color.Black, blackRamp.t500)
+        assertEquals(Color.White, blackRamp.textInverse)
+        assertEquals(Color(31, 31, 31), blackRamp.t600)
+        assertEquals(Color(56, 56, 56), blackRamp.t700)
+        assertEquals(Color(204, 204, 204), blackRamp.t300)
+        assertEquals(Color(235, 235, 235), blackRamp.t200)
+        assertEquals(Color.White.copy(alpha = 0.18f), blackRamp.bubbleBorder)
+
+        val darkPalette = webPalette(light = false, themeColor = "#000000")
+        assertEquals(Color.White, darkPalette.textInverse)
     }
 
     @Test

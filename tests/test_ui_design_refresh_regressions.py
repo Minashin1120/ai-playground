@@ -85,3 +85,20 @@ class UiDesignRefreshRegressionTests(unittest.TestCase):
         for legacy in ("chat-demo-chrome", "chat-demo-composer", "ld-ai-bubble", "ld-user-bubble"):
             self.assertNotIn(legacy, demo)
             self.assertNotIn(legacy, landing_css)
+
+    def test_build_theme_css_vars_contrast_adaptation(self):
+        from app import build_theme_css_vars
+
+        light = build_theme_css_vars("#0dd4bf")
+        self.assertIn("--theme-500:#0dd4bf;", light)
+        self.assertIn("--text-inverse:#031413;", light)
+        self.assertIn("--theme-bubble-border:rgba(13, 212, 191, 0.28);", light)
+        self.assertIn("--theme-btn-border:rgba(13, 212, 191, 0.4);", light)
+
+        dark = build_theme_css_vars("#000000")
+        self.assertIn("--theme-500:#000000;", dark)
+        self.assertIn("--text-inverse:#ffffff;", dark)
+        self.assertIn("--theme-bubble-border:rgba(255, 255, 255, 0.18);", dark)
+        self.assertIn("--theme-btn-border:rgba(255, 255, 255, 0.22);", dark)
+        self.assertIn("--theme-300:#cccccc;", dark)
+        self.assertIn("--theme-600:#1f1f1f;", dark)

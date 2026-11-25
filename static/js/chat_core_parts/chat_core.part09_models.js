@@ -965,13 +965,30 @@
         const isGeminiLiveExtendedThinkingModel = () => get('model-select').value === 'gemini-3.8-live-extended-thinking';
         const isGeminiLiveTranslateModel = () => get('model-select').value === 'gemini-3.5-live-translate-preview';
         const isGeminiLiveTranscribeModel = () => get('model-select').value === 'gemini-3.5-transcribe-live';
+        // Live API documents these canonical BCP-47 codes; the panel offers
+        // the shorter zh-CN / zh-TW / pt labels.
+        const GEMINI_TARGET_LANG_ALIASES = {
+            'zh': 'zh-Hans', 'zh-cn': 'zh-Hans', 'zh-hans': 'zh-Hans',
+            'zh-tw': 'zh-Hant', 'zh-hant': 'zh-Hant',
+            'pt': 'pt-BR', 'pt-br': 'pt-BR', 'pt-pt': 'pt-PT'
+        };
+        const normalizeGeminiTargetLang = (value) => {
+            const key = String(value || 'ja').trim().toLowerCase();
+            if (GEMINI_TARGET_LANG_ALIASES[key]) return GEMINI_TARGET_LANG_ALIASES[key];
+            return key.split('-')[0].split('_')[0] || 'ja';
+        };
+        const isGeminiLiveThinkingModel = () => {
+            const m = get('model-select').value;
+            return m === 'gemini-3.1-flash-live-preview' || m === 'gemini-3.8-live-extended-thinking';
+        };
         const isXaiLiveTranscribeModel = () => !!get('model-select') && get('model-select').value === 'grok-voice-transcribe-2.0';
         const isGeminiRealtimeMusicModel = () => (get('model-select').value || '') === 'lyria-realtime-exp';
         const isLyriaRealtimeModel = () => isGeminiRealtimeMusicModel();
-        // True real-time server-session STS models: OpenAI Realtime conversation
-        // models, Grok Voice, and every Gemini Live model (native audio,
-        // translation and streaming transcription). The server holds the
-        // provider WebSocket so the API key never reaches the browser.
+        // True real-time STS models: OpenAI Realtime conversation models and
+        // Grok Voice use the server-held session. Gemini Live models first try
+        // a browser-direct WebSocket with a one-use ephemeral token (lower
+        // latency) and fall back to the server session for Vertex AI or when
+        // token provisioning fails.
         const isRealtimeSessionModel = () => {
             if (!isStsModel()) return false;
             if (isTranscriptionModel()) return false;

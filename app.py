@@ -54,7 +54,7 @@ from webauthn.helpers.structs import (
 )
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from rq import Queue
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context, redirect, url_for, make_response, flash, send_file, send_from_directory, abort, session, g
 from flask.sessions import SecureCookieSessionInterface
@@ -809,8 +809,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-11-25-002')
-app.config['SYSTEM_VERSION'] = 'V4.8.1182'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-11-26-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.1183'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

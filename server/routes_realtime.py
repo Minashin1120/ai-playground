@@ -298,104 +298,67 @@ def realtime_save():
     return jsonify(result), status
 
 
+GEMINI_LIVE_CONSTRAINED_URL = (
+    'wss://generativelanguage.googleapis.com/ws/'
+    'google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained'
+)
+GEMINI_LIVE_TOKEN_TTL_MINUTES = 30
+
+
 @app.route('/api/gemini/session', methods=['POST'])
 @login_required
 def gemini_session():
+    """Issue a one-use ephemeral token for a browser-direct Gemini Live session.
+
+    Official Gemini API docs ("Ephemeral tokens"): create a short-lived token
+    with v1beta auth_tokens, then connect with
+    BidiGenerateContentConstrained?access_token=...  Audio then travels
+    directly between the browser and Gemini instead of through this server.
+    Vertex AI does not support ephemeral tokens, so it keeps using the
+    server-held /api/realtime session.
+    """
     data = request.get_json(silent=True) or {}
-    model_key = (data.get('model') or "gemini-3.1-flash-live-preview").strip()
+    model_key = (data.get('model') or "").strip()
     if model_key not in STS_MODELS or get_sts_provider(model_key) != 'google':
         return jsonify({'error': 'Invalid Gemini Live model'}), 400
-    
-    # Resolve API key and runtime
+
     gemini_runtime = _resolve_gemini_runtime(current_user)
-    model_specific_key = _get_model_specific_api_key(current_user, model_key)
-    key = model_specific_key or gemini_runtime.get("api_key")
-    
+    if gemini_runtime.get("backend") == "vertex_ai":
+        logger.info("Gemini Live: Vertex AI backend, using server session (model=%s)", model_key)
+        return jsonify({'direct': False, 'reason': 'vertex_ai'})
+
+    key = _get_model_specific_api_key(current_user, model_key) or gemini_runtime.get("api_key")
     if not key:
         return jsonify({'error': 'Gemini API Key not configured'}), 400
-        
-    # Use v1alpha for token creation as seen in test_genai_token.py
-    client = _get_gemini_client(
-        api_key=key,
-        backend=gemini_runtime.get("backend"),
-        vertex_project=gemini_runtime.get("vertex_project"),
-        vertex_location=gemini_runtime.get("vertex_location"),
-        vertex_credentials_json=gemini_runtime.get("vertex_credentials_json"),
-        api_version='v1alpha'
-    )
-    
+
+    # No live_connect_constraints: the browser sends the full setup message
+    # (voice / thinking / translation / transcription) chosen in the panel.
+    client = _get_gemini_client(api_key=key, api_version='v1beta')
     if not client:
         return jsonify({'error': 'Gemini client not configured'}), 400
 
-    # Thinking configuration and other setup
-    thinking_level = data.get('thinking_level') or 'minimal'
-    include_thoughts = data.get('include_thoughts') is True
-    voice = (data.get('voice') or "Kore").strip()
-    is_live_translate = (model_key == "gemini-3.5-live-translate-preview")
-    is_live_transcribe = (model_key == "gemini-3.5-transcribe-live")
-    is_gemini_38_extended = (model_key == "gemini-3.8-live-extended-thinking")
-
-    if is_live_transcribe:
-        # Live Transcription: TEXT output. The transcription config
-        # (language_codes / custom_vocabulary / mode) is sent by the client in
-        # the WebSocket setup message; the installed SDK (v1.75.0) lacks custom_vocabulary / mode
-        # fields, so inputAudioTranscription stays unlocked (see below).
-        generation_config = {
-            'response_modalities': ['TEXT'],
-        }
-    else:
-        generation_config = {
-            'response_modalities': ['AUDIO'],
-            'input_audio_transcription': {},
-            'output_audio_transcription': {},
-        }
-        if not is_live_translate and voice and voice in GEMINI_STS_VOICES:
-            generation_config['speech_config'] = {
-                'voice_config': {
-                    'prebuilt_voice_config': {'voice_name': voice}
-                }
-            }
-        if is_gemini_38_extended:
-            if thinking_level not in {'low', 'medium', 'high'}:
-                thinking_level = 'medium'
-            generation_config['thinking_config'] = {
-                'thinking_level': thinking_level,
-                'include_thoughts': include_thoughts
-            }
-        elif (
-            model_key not in GEMINI_LIVE_NO_THINKING_LEVEL_MODELS
-            and thinking_level in {'minimal', 'low', 'medium', 'high'}
-        ):
-            # Gemini 3.1 Flash Live. Gemini 3.8 Live, 2.5 native audio and
-            # Live Translate do not accept thinking_level.
-            generation_config['thinking_config'] = {
-                'thinking_level': thinking_level,
-                'include_thoughts': include_thoughts
-            }
-
-    config = {
-        'live_connect_constraints': {
-            'model': f'models/{model_key}',
-            'config': generation_config
-        }
-    }
-    if is_live_translate or is_live_transcribe:
-        # Lock only the fields set above so the client can add
-        # generationConfig.translationConfig (target language chosen by the
-        # user) or the detailed inputAudioTranscription.  Without this the
-        # whole setup is locked and those client fields are not applied.
-        config['lock_additional_fields'] = []
-
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(minutes=GEMINI_LIVE_TOKEN_TTL_MINUTES)
     try:
-        # Note: auth_tokens.create is experimental in the SDK
-        token = client.auth_tokens.create(config=config)
-        return jsonify({
-            'token': token.name,
-            'url': 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained'
+        token = client.auth_tokens.create(config={
+            'uses': 1,
+            'expire_time': expires_at,
+            'new_session_expire_time': now + timedelta(minutes=1),
         })
-    except Exception as e:
-        logger.error(f"Failed to create Gemini session token: {e}")
-        return jsonify({'error': str(e)}), 500
+    except Exception as exc:
+        logger.error("Gemini Live ephemeral token creation failed (model=%s): %s", model_key, exc)
+        return jsonify({'direct': False, 'reason': 'token_error'}), 502
+
+    meta = STS_MODELS.get(model_key, {})
+    logger.info("Gemini Live ephemeral token issued (model=%s)", model_key)
+    return jsonify({
+        'direct': True,
+        'token': token.name,
+        'url': GEMINI_LIVE_CONSTRAINED_URL,
+        'expires_at': expires_at.isoformat(),
+        'rate_in': int(meta.get('rate_in') or 16000),
+        'rate_out': int(meta.get('rate_out') or 24000),
+    })
 
 @app.route('/api/gemini/save_sts', methods=['POST'])
 @login_required

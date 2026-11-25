@@ -27,21 +27,23 @@
 | `chat_core.part13_importfileselection.js` | DOMContentLoaded 初期処理（前半）。テーマ初期化、アカウントエクスポート/インポートのファイル選択、一時チャット、セッション管理UI | 初期化・アカウントファイル選択を変更するとき |
 | `chat_core.part14_collectautosystempromptconfigfromform.js` | アカウント移行（エクスポート/インポート/重複修復）続き、管理者スレッド暗号化、自動システムプロンプト設定、テーマ設定バインド | アカウント移行・自動プロンプト・テーマ設定を変更するとき |
 | `chat_core.part15_openbotadminmodal.js` | `MODAL_CONFIG`（URLルート↔モーダル対応）と `closeModalById`、`popstate` ハンドラ（戻る/進むでモーダル開閉・スレッド復元）、Bot管理画面の入口 | モーダルのURL・戻る操作を変更するとき |
-| `chat_core.part16_stopsilencemonitor.js` | 2FA（TOTP/WebAuthn）、リアルタイム音声セッション（Gemini Live・`RealtimeVoiceSession`・録音・無音監視・音声再生）、フィードバック管理 | 認証・音声・フィードバックを変更するとき |
-| `chat_core.part17_handlestreammessage.js` | 音声セッションの応答処理、Lyria RealTime スタジオ、音声スタジオUI（`VoiceStudio`）、ファイルライブラリ／Skillモーダルの閉じる・選択更新 | 音声セッション・音声スタジオ・ライブラリ初期化を変更するとき |
-| `chat_core.part18_setlibbtnlabel.js` | ファイルライブラリの選択UI・ラベル、ファイルプレビュー・画像ビューア、画像編集・Object Remover用マスク作成モーダル、カメラキャプチャ、アップロード行の描画 | ファイル表示・ライブラリ選択・マスク作成を変更するとき |
-| `chat_core.part19_setcameracapturestatus.js` | アップロード進捗、カメラストリーム制御、画像編集（ブラシ・モザイク・切り抜き）とマスク描画、Canvasモバイル表示、音声キャプチャ | 画像編集・カメラ・Canvas・音声入力を変更するとき |
-| `chat_core.part20_initmarkercanvas.js` | マーカーCanvasの初期化、画像マーカーの描画・変換・保存、類似色の自動塗り | 画像マーカー・マスク描画を変更するとき |
-| `chat_core.part21_buildsvgcoderenderhtml.js` | メッセージ吹き出し（本文・添付画像・マスク画像・フッター・回答処理時間と内訳）、SVG/Canvasプレビュー生成、Codingモード | 吹き出し・添付・Canvas・Coding表示を変更するとき |
-| `chat_core.part22_updatesearchbox.js` | ストリーム描画（検索中・ペンディング・Batch状態表示）、スラッシュコマンドパレット、Skill候補、Python実行モーダル | ストリーム表示・スラッシュ・Skill・Python実行を変更するとき |
-| `chat_core.part23_selectslashcommand.js` | スラッシュコマンドの選択・実行、送信処理 `sendMessage` の入口、ブラウザ直接送信・高速モード | 送信・スラッシュコマンド・直接送信を変更するとき |
-| `chat_core.part24_proceed.js` | 各プロバイダのBatch送信、送信後の即時描画、プル更新、Xリンク自動検索、`/settings`（AI設定アシスタント）、引用・返信 | 送信・Batch・履歴一覧を変更するとき |
-| `chat_core.part25_updatethreadhighlighting.js` | スレッド一覧の読み込み・追記、一時チャット（ハートビート・タイムアウト）、各プロバイダのBatch状態ポーリング・完了通知 | 履歴読み込み・一時チャット・Batch状態を変更するとき |
-| `chat_core.part26_ensurecurrentchatheaderticker.js` | 一時チャットの説明文、スレッド設定モーダル、圧縮設定モーダル、PDFエクスポート、Skill適用、ブランチ集計、新規チャット | 一時チャット・スレッド設定・PDFを変更するとき |
-| `chat_core.part27_renderlibraryskeleton.js` | ファイルライブラリの骨組み・一覧操作、ブランチ管理UI、Batch処理一覧モーダル（取得・停止・履歴削除・チャットを開く） | ライブラリ一覧・ブランチ・Batch一覧を変更するとき |
-| `chat_core.part28_renderaccounts.js` | メッセージコピー、規約・Alpha案内モーダル、Thinking表示切替、クライアントデバッグログ、管理者のBot検出ログ画面、別チャットへの全分岐コピー、画像分割、送信アニメーション | コピー・デバッグ・Botログ・分岐・画像分割・送信アニメーションを変更するとき |
-| `chat_core.part29_estimateconversationcost.js` | API呼び出しごとの費用予想・長文料金、トークン詳細のリクエスト別内訳、Ideogram全モデルの画像単価と削除料金、会話・全分岐の合算、設定「費用」タブの全チャット期間集計（1日・7日・2週間・1か月・3か月・1年）とモデル別内訳、トークン詳細向けキャッシュ読込・TTL別書込の集計、公式料金データの読込、日本円換算（無料の公開為替レート・端末内キャッシュ） | 費用予想・全チャット集計・リクエスト内訳・キャッシュ内訳・円換算を変更するとき |
-| `chat_core.part30_mathsteps.js` | 数学ステップ解説（`parseMathSteps` / `buildMathStepsHtml` / `renderMathStepsInto` / `buildMathStepsDisplaySteps` / ステップ操作・進捗保存・「もっとやさしく」のステップ分割と復元）、`mathsvg` の画像描画、設定（マスター・チャット既定値・歯車モーダル）、PDF・コピー用の変換 | 数学ステップ・mathsvg・その設定を変更するとき |
+| `chat_core.part16_stopsilencemonitor.js` | 2FA（TOTP/WebAuthn）、音声再生（`RealTimeAudioPlayer`）、`RealtimeVoiceSession` の開始処理（スレッド作成・ブラウザー直結の試行・サーバーセッションへのフォールバック）、録音・無音監視、フィードバック管理 | 認証・音声セッション開始・音声再生を変更するとき |
+| `chat_core.part17_geminidirectsession.js` | `RealtimeVoiceSession` のGemini Liveブラウザー直結（エフェメラルトークン、WebSocket、再接続、文字起こし・音声イベント処理） | Gemini Liveの直結・再接続を変更するとき |
+| `chat_core.part18_stopsilencemonitorrest.js` | `RealtimeVoiceSession` の残り（サーバーストリーム・音声送信・保存・後始末）、マイク／PCM変換、Lyria RealTimeスタジオの開始部分 | 音声セッションの保存・Lyriaを変更するとき |
+| `chat_core.part19_handlestreammessage.js` | 音声セッションの応答処理、Lyria RealTime スタジオ、音声スタジオUI（`VoiceStudio`）、ファイルライブラリ／Skillモーダルの閉じる・選択更新 | 音声セッション・音声スタジオ・ライブラリ初期化を変更するとき |
+| `chat_core.part20_setlibbtnlabel.js` | ファイルライブラリの選択UI・ラベル、ファイルプレビュー・画像ビューア、画像編集・Object Remover用マスク作成モーダル、カメラキャプチャ、アップロード行の描画 | ファイル表示・ライブラリ選択・マスク作成を変更するとき |
+| `chat_core.part21_setcameracapturestatus.js` | アップロード進捗、カメラストリーム制御、画像編集（ブラシ・モザイク・切り抜き）とマスク描画、Canvasモバイル表示、音声キャプチャ | 画像編集・カメラ・Canvas・音声入力を変更するとき |
+| `chat_core.part22_initmarkercanvas.js` | マーカーCanvasの初期化、画像マーカーの描画・変換・保存、類似色の自動塗り | 画像マーカー・マスク描画を変更するとき |
+| `chat_core.part23_buildsvgcoderenderhtml.js` | メッセージ吹き出し（本文・添付画像・マスク画像・フッター・回答処理時間と内訳）、SVG/Canvasプレビュー生成、Codingモード | 吹き出し・添付・Canvas・Coding表示を変更するとき |
+| `chat_core.part24_updatesearchbox.js` | ストリーム描画（検索中・ペンディング・Batch状態表示）、スラッシュコマンドパレット、Skill候補、Python実行モーダル | ストリーム表示・スラッシュ・Skill・Python実行を変更するとき |
+| `chat_core.part25_selectslashcommand.js` | スラッシュコマンドの選択・実行、送信処理 `sendMessage` の入口、ブラウザ直接送信・高速モード | 送信・スラッシュコマンド・直接送信を変更するとき |
+| `chat_core.part26_proceed.js` | 各プロバイダのBatch送信、送信後の即時描画、プル更新、Xリンク自動検索、`/settings`（AI設定アシスタント）、引用・返信 | 送信・Batch・履歴一覧を変更するとき |
+| `chat_core.part27_updatethreadhighlighting.js` | スレッド一覧の読み込み・追記、一時チャット（ハートビート・タイムアウト）、各プロバイダのBatch状態ポーリング・完了通知 | 履歴読み込み・一時チャット・Batch状態を変更するとき |
+| `chat_core.part28_ensurecurrentchatheaderticker.js` | 一時チャットの説明文、スレッド設定モーダル、圧縮設定モーダル、PDFエクスポート、Skill適用、ブランチ集計、新規チャット | 一時チャット・スレッド設定・PDFを変更するとき |
+| `chat_core.part29_renderlibraryskeleton.js` | ファイルライブラリの骨組み・一覧操作、ブランチ管理UI、Batch処理一覧モーダル（取得・停止・履歴削除・チャットを開く） | ライブラリ一覧・ブランチ・Batch一覧を変更するとき |
+| `chat_core.part30_renderaccounts.js` | メッセージコピー、規約・Alpha案内モーダル、Thinking表示切替、クライアントデバッグログ、管理者のBot検出ログ画面、別チャットへの全分岐コピー、画像分割、送信アニメーション | コピー・デバッグ・Botログ・分岐・画像分割・送信アニメーションを変更するとき |
+| `chat_core.part31_estimateconversationcost.js` | API呼び出しごとの費用予想・長文料金、トークン詳細のリクエスト別内訳、Ideogram全モデルの画像単価と削除料金、会話・全分岐の合算、設定「費用」タブの全チャット期間集計（1日・7日・2週間・1か月・3か月・1年）とモデル別内訳、トークン詳細向けキャッシュ読込・TTL別書込の集計、公式料金データの読込、日本円換算（無料の公開為替レート・端末内キャッシュ） | 費用予想・全チャット集計・リクエスト内訳・キャッシュ内訳・円換算を変更するとき |
+| `chat_core.part32_mathsteps.js` | 数学ステップ解説（`parseMathSteps` / `buildMathStepsHtml` / `renderMathStepsInto` / `buildMathStepsDisplaySteps` / ステップ操作・進捗保存・「もっとやさしく」のステップ分割と復元）、`mathsvg` の画像描画、設定（マスター・チャット既定値・歯車モーダル）、PDF・コピー用の変換 | 数学ステップ・mathsvg・その設定を変更するとき |
 | `../../../scripts/build_frontend.sh` | 部品を番号順に連結し、トップレベルの `//! @chat-core-bundle-split` で配信用JSを分割・圧縮する | JS部品の編集後にビルドするとき。結合ソース・圧縮ファイルは手で編集しない |
 
 ## 再分割が必要になったら

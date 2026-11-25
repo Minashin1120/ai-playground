@@ -46,6 +46,9 @@ class RealtimeStsRegressionTests(unittest.TestCase):
             "translationConfig",
             "customVocabulary",
             "gemini-3.5-transcribe-live",
+            "GEMINI_LIVE_CONSTRAINED_URL",
+            "auth_tokens.create",
+            "new_session_expire_time",
         ):
             self.assertIn(symbol, APP_SOURCE, symbol)
 
@@ -192,22 +195,65 @@ class RealtimeStsRegressionTests(unittest.TestCase):
         self.assertIn("LyriaRealtimeStudio", CHAT_JS)
         self.assertIn("const VoiceStudio", CHAT_JS)
 
-    def test_gemini_live_has_no_browser_direct_path(self):
-        # All Live models (including Gemini Live / Translate / Transcribe) share
-        # the authenticated server session; the API key and ephemeral-token
-        # exchange stay off the client.
-        self.assertNotIn("class GeminiLiveClient", CHAT_JS)
-        self.assertNotIn("BidiGenerateContentConstrained", CHAT_JS)
-        self.assertNotIn("/api/gemini/session", CHAT_JS)
+    def test_gemini_live_uses_a_browser_direct_ephemeral_token(self):
+        # Gemini Live connects directly from the browser with a one-use
+        # ephemeral token (official ephemeral-token flow); the API key never
+        # reaches the client.
+        self.assertIn("/api/gemini/session", CHAT_JS)
+        self.assertIn("access_token=", CHAT_JS)
+        self.assertIn("sessionResumption", CHAT_JS)
+        self.assertIn("BidiGenerateContentConstrained", APP_SOURCE)
         self.assertNotIn("/api/skillini", CHAT_JS)
 
-    def test_gemini_live_streams_through_realtime_session(self):
+    def test_gemini_live_falls_back_to_server_session(self):
         segment = CHAT_JS[CHAT_JS.index("const isRealtimeSessionModel"):]
         segment = segment[:segment.index("const getStsProvider")]
         self.assertNotIn("isGeminiLiveModel()) return false", segment)
         mic = CHAT_JS[CHAT_JS.index("get('mic-btn').onclick"):]
         self.assertIn("if (isRealtimeSessionModel())", mic)
+        self.assertIn("_tryStartDirect", CHAT_JS)
         self.assertNotIn("beginGeminiLiveMic", mic)
+
+    def test_gemini_session_issues_one_use_ephemeral_token(self):
+        from unittest import mock
+        import app as target
+
+        token = mock.Mock()
+        token.name = 'ephemeral-token'
+        token_client = mock.Mock()
+        token_client.auth_tokens.create.return_value = token
+        with target.app.test_request_context(
+            '/api/gemini/session', method='POST', json={'model': 'gemini-3.8-live'}
+        ):
+            with mock.patch.dict(target.app.config, {'LOGIN_DISABLED': True}), \
+                 mock.patch.object(target, '_resolve_gemini_runtime', return_value={'backend': 'gemini_api', 'api_key': 'k'}), \
+                 mock.patch.object(target, '_get_model_specific_api_key', return_value=None), \
+                 mock.patch.object(target, '_get_gemini_client', return_value=token_client) as get_client:
+                body = target.gemini_session().get_json()
+        self.assertTrue(body['direct'])
+        self.assertEqual(body['token'], 'ephemeral-token')
+        self.assertIn('BidiGenerateContentConstrained', body['url'])
+        self.assertEqual(body['rate_in'], 16000)
+        self.assertEqual(body['rate_out'], 24000)
+        get_client.assert_called_once_with(api_key='k', api_version='v1beta')
+        config = token_client.auth_tokens.create.call_args.kwargs['config']
+        self.assertEqual(config['uses'], 1)
+        self.assertIn('expire_time', config)
+        self.assertIn('new_session_expire_time', config)
+
+    def test_gemini_session_keeps_vertex_on_the_server_session(self):
+        from unittest import mock
+        import app as target
+
+        with target.app.test_request_context(
+            '/api/gemini/session', method='POST', json={'model': 'gemini-3.8-live'}
+        ):
+            with mock.patch.dict(target.app.config, {'LOGIN_DISABLED': True}), \
+                 mock.patch.object(target, '_resolve_gemini_runtime', return_value={'backend': 'vertex_ai'}), \
+                 mock.patch.object(target, '_get_gemini_client') as get_client:
+                body = target.gemini_session().get_json()
+        self.assertEqual(body, {'direct': False, 'reason': 'vertex_ai'})
+        get_client.assert_not_called()
 
     def test_gemini_transcribe_is_a_realtime_mobile_model(self):
         from app import _mobile_model_mode

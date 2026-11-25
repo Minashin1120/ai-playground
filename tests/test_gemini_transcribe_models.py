@@ -79,22 +79,23 @@ class GeminiTranscribeRegressionTests(unittest.TestCase):
             APP_SOURCE,
         )
         self.assertIn("'gemini-3.5-transcribe-live',", CHAT_JS)
-        # /api/gemini/session must build TEXT + input_audio_transcription for it.
-        self.assertIn("is_live_transcribe = (model_key == \"gemini-3.5-transcribe-live\")", APP_SOURCE)
-        self.assertIn("'input_audio_transcription': {},", APP_SOURCE)
-        self.assertIn("'response_modalities': ['TEXT']", APP_SOURCE)
-        # Live Translate runs in the server-held session, so the server setup
-        # message carries generationConfig.translationConfig (the browser does
-        # not build the Gemini setup anymore).
+        # The server session and the browser-direct setup both send TEXT output
+        # plus input audio transcription for this model.
+        self.assertIn('"responseModalities": ["TEXT"] if is_transcribe', APP_SOURCE)
+        self.assertIn('setup["inputAudioTranscription"] = transcription', APP_SOURCE)
+        # Live Translate setup carries generationConfig.translationConfig in
+        # both the server setup and the browser-direct setup.
         self.assertIn("translationConfig", APP_SOURCE)
-        self.assertNotIn("translationConfig", CHAT_JS)
+        self.assertIn("translationConfig", CHAT_JS)
 
     def test_frontend_live_transcribe_helpers(self):
         self.assertIn("isGeminiLiveTranscribeModel", CHAT_JS)
         self.assertIn("value === 'gemini-3.5-transcribe-live'", CHAT_JS)
-        # Transcription options travel as session params to the server setup.
+        # Transcription options travel to the direct setup (or the server
+        # session when the direct connection is unavailable).
         self.assertIn("transcription_mode", CHAT_JS)
         self.assertIn("custom_vocabulary", CHAT_JS)
+        self.assertIn("inputAudioTranscription", CHAT_JS)
         self.assertIn('"inputAudioTranscription"', APP_SOURCE)
         # STS panel offers a mode selector + custom vocabulary input.
         self.assertIn("sts-transcribe-mode", CHAT_HTML)

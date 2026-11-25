@@ -29,7 +29,7 @@
 
 | テスト関数名 | 検証内容 |
 |---|---|
-| `test_new_part_is_last_and_wired` | `chat_core.part30_mathsteps.js` が部品順序の末尾に正しく配置され、スクリプトバンドルに結合されていること |
+| `test_new_part_is_last_and_wired` | `chat_core.part32_mathsteps.js` が部品順序の末尾に正しく配置され、スクリプトバンドルに結合されていること |
 | `test_mathsvg_stays_image_only_and_svg_is_unchanged` | `mathsvg` フェンスが画像としてレンダリングされ、コードUIを出さないこと |
 | `test_settings_and_composer_controls_exist` | プロンプトバーのチップ、歯車アイコン、設定モーダルがHTMLに正しく存在すること |
 | `test_steps_render_one_at_a_time_with_image_only_mathsvg` | 1ステップずつ段階的に表示され、不要なステップが隠れていること |

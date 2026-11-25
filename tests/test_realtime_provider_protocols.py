@@ -391,12 +391,15 @@ class WebClientTests(unittest.TestCase):
         assets = list((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.js = assets[0].read_text(encoding="utf-8")
 
-    def test_gemini_live_uses_the_server_session(self):
-        # Gemini Live runs in the authenticated server-held session, so the
-        # browser never needs an ephemeral token or the constrained endpoint.
+    def test_gemini_live_uses_a_browser_direct_token(self):
+        # Gemini Live connects from the browser with a one-use ephemeral token
+        # and a v1beta constrained endpoint; other models and Vertex AI keep
+        # using the authenticated server session.
         self.assertIn("const isRealtimeSessionModel", self.js)
-        self.assertNotIn("BidiGenerateContentConstrained", self.js)
-        self.assertNotIn("/api/gemini/session", self.js)
+        self.assertIn("/api/gemini/session", self.js)
+        self.assertIn("access_token=", self.js)
+        self.assertIn("sessionResumption", self.js)
+        self.assertIn("audioStreamEnd", self.js)
         self.assertNotIn("/api/skillini", self.js)
 
     def test_output_transcription_is_not_deduplicated(self):

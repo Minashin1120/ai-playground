@@ -8894,13 +8894,30 @@
         const isGeminiLiveExtendedThinkingModel = () => get('model-select').value === 'gemini-3.8-live-extended-thinking';
         const isGeminiLiveTranslateModel = () => get('model-select').value === 'gemini-3.5-live-translate-preview';
         const isGeminiLiveTranscribeModel = () => get('model-select').value === 'gemini-3.5-transcribe-live';
+        // Live API documents these canonical BCP-47 codes; the panel offers
+        // the shorter zh-CN / zh-TW / pt labels.
+        const GEMINI_TARGET_LANG_ALIASES = {
+            'zh': 'zh-Hans', 'zh-cn': 'zh-Hans', 'zh-hans': 'zh-Hans',
+            'zh-tw': 'zh-Hant', 'zh-hant': 'zh-Hant',
+            'pt': 'pt-BR', 'pt-br': 'pt-BR', 'pt-pt': 'pt-PT'
+        };
+        const normalizeGeminiTargetLang = (value) => {
+            const key = String(value || 'ja').trim().toLowerCase();
+            if (GEMINI_TARGET_LANG_ALIASES[key]) return GEMINI_TARGET_LANG_ALIASES[key];
+            return key.split('-')[0].split('_')[0] || 'ja';
+        };
+        const isGeminiLiveThinkingModel = () => {
+            const m = get('model-select').value;
+            return m === 'gemini-3.1-flash-live-preview' || m === 'gemini-3.8-live-extended-thinking';
+        };
         const isXaiLiveTranscribeModel = () => !!get('model-select') && get('model-select').value === 'grok-voice-transcribe-2.0';
         const isGeminiRealtimeMusicModel = () => (get('model-select').value || '') === 'lyria-realtime-exp';
         const isLyriaRealtimeModel = () => isGeminiRealtimeMusicModel();
-        // True real-time server-session STS models: OpenAI Realtime conversation
-        // models, Grok Voice, and every Gemini Live model (native audio,
-        // translation and streaming transcription). The server holds the
-        // provider WebSocket so the API key never reaches the browser.
+        // True real-time STS models: OpenAI Realtime conversation models and
+        // Grok Voice use the server-held session. Gemini Live models first try
+        // a browser-direct WebSocket with a one-use ephemeral token (lower
+        // latency) and fall back to the server session for Vertex AI or when
+        // token provisioning fails.
         const isRealtimeSessionModel = () => {
             if (!isStsModel()) return false;
             if (isTranscriptionModel()) return false;
@@ -15247,6 +15264,30 @@
                     this.stopping = false;
                     this.audioQueue = [];
                     this.audioFlush = null;
+                    // Browser-direct Gemini Live transport (ephemeral token).
+                    // Non-Gemini models (and Vertex AI) use the server session.
+                    this.direct = false;
+                    this.ws = null;
+                    this.directReady = null;
+                    this.directUrl = '';
+                    this.directToken = '';
+                    this.directExpiresAt = 0;
+                    this.resumeHandle = null;
+                    this.directResumes = 0;
+                    this.directSetup = null;
+                    this.directModel = '';
+                    this.directTranscribe = false;
+                    this.directTranslate = false;
+                    this.directThinking = false;
+                    this.transcriptionMode = 'VERBATIM';
+                    this.assistantAudioChunks = [];
+                    this.assistantAudioBytes = 0;
+                    this.userRecorder = null;
+                    this.userAudioChunks = [];
+                    this.userRecorderDone = null;
+                    this.userTurnBreak = false;
+                    this.assistantTurnBreak = false;
+                    this.goAwayNotified = false;
                 }
 
                 isActive() {
@@ -15303,41 +15344,52 @@
                             ? get('sts-custom-vocab').value.split(/[,、\n]/).map((s) => s.trim()).filter(Boolean).slice(0, 1000)
                             : [];
                     }
+                    this.saved = false;
+                    this.userTranscript = '';
+                    this.assistantTranscript = '';
+                    this.assistantThought = '';
+                    this.responseDoneCount = 0;
+                    this.lastAudioAt = 0;
+                    this.streamError = null;
+                    this.rtPlayer = null;
+                    this.audioQueue = [];
+                    this.audioFlush = null;
+                    this.assistantAudioChunks = [];
+                    this.assistantAudioBytes = 0;
+                    this.userAudioChunks = [];
+                    this.userTurnBreak = false;
+                    this.assistantTurnBreak = false;
                     setStsStatus('接続中...', true);
-                    try {
-                        const resp = await apiFetch('/api/realtime/start', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                        const data = await resp.json().catch(() => ({}));
-                        if (!resp.ok) throw new Error(data.error || 'セッション開始に失敗しました');
-                        this.sessionId = data.session_id;
-                        this.rateIn = data.rate_in || this.rateIn;
-                        this.rateOut = data.rate_out || this.rateOut;
-                        this.active = true;
-                        this.capturing = true;
-                        this.saved = false;
-                        this.userTranscript = '';
-                        this.assistantTranscript = '';
-                        this.assistantThought = '';
-                        this.responseDoneCount = 0;
-                        this.lastAudioAt = 0;
-                        this.streamError = null;
-                        this.rtPlayer = null;
-                        this.audioQueue = [];
-                        this.audioFlush = null;
-                    } catch (e) {
-                        setStsStatus('接続エラー', false);
-                        showToast('リアルタイムセッションを開始できませんでした: ' + e.message, 'error', true);
-                        return;
+                    let connected = false;
+                    if (isGeminiLiveModel()) {
+                        connected = await this._tryStartDirect(payload);
                     }
+                    if (!connected) {
+                        try {
+                            const resp = await apiFetch('/api/realtime/start', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+                            const data = await resp.json().catch(() => ({}));
+                            if (!resp.ok) throw new Error(data.error || 'セッション開始に失敗しました');
+                            this.sessionId = data.session_id;
+                            this.rateIn = data.rate_in || this.rateIn;
+                            this.rateOut = data.rate_out || this.rateOut;
+                        } catch (e) {
+                            setStsStatus('接続エラー', false);
+                            showToast('リアルタイムセッションを開始できませんでした: ' + e.message, 'error', true);
+                            return;
+                        }
+                        // Open the SSE stream first so audio events are not missed.
+                        this.abortCtrl = new AbortController();
+                        this._openStream();
+                    }
+                    this.active = true;
+                    this.capturing = true;
 
-                    // Open the SSE stream first so audio events are not missed.
-                    this.abortCtrl = new AbortController();
-                    this._openStream();
-
-                    // Start mic capture and stream PCM chunks to the server.
+                    // Start mic capture: direct models send PCM over the
+                    // WebSocket, server sessions POST it to /api/realtime/audio.
                     try {
                         await this._startCapture();
                     } catch (e) {
@@ -15352,6 +15404,261 @@
                     setStsStatus('話してください...', true);
                 }
 
+                // ------------------------------------------------------------------
+                // Browser-direct Gemini Live (ephemeral token, v1beta)
+                // ------------------------------------------------------------------
+                _buildDirectSetup(payload) {
+                    const model = payload.model;
+                    const transcribe = this.directTranscribe;
+                    const translate = this.directTranslate;
+                    const generationConfig = {
+                        responseModalities: transcribe ? ['TEXT'] : ['AUDIO']
+                    };
+                    const setup = {
+                        model: 'models/' + model,
+                        generationConfig,
+                        // Ask for resumption handles so a provider-side reset
+                        // can reconnect within the token lifetime (docs).
+                        sessionResumption: {}
+                    };
+                    if (transcribe) {
+                        setup.inputAudioTranscription = {
+                            mode: payload.transcription_mode || 'VERBATIM',
+                            languageCodes: []
+                        };
+                        if (payload.custom_vocabulary && payload.custom_vocabulary.length) {
+                            setup.inputAudioTranscription.customVocabulary = payload.custom_vocabulary;
+                        }
+                    } else {
+                        setup.inputAudioTranscription = {};
+                        setup.outputAudioTranscription = {};
+                        if (translate) {
+                            generationConfig.translationConfig = {
+                                targetLanguageCode: normalizeGeminiTargetLang(payload.target_lang),
+                                echoTargetLanguage: false
+                            };
+                        } else if (payload.voice) {
+                            generationConfig.speechConfig = {
+                                voiceConfig: { prebuiltVoiceConfig: { voiceName: payload.voice } }
+                            };
+                        }
+                        if (this.directThinking && payload.thinking_level) {
+                            generationConfig.thinkingConfig = {
+                                thinkingLevel: payload.thinking_level,
+                                includeThoughts: !!payload.include_thoughts
+                            };
+                        }
+                    }
+                    return { setup };
+                }
+
+                async _tryStartDirect(payload) {
+                    let info = null;
+                    // Capture the panel choices now so a model change during
+                    // the session cannot alter the running setup or save model.
+                    this.directModel = payload.model;
+                    this.directTranscribe = isGeminiLiveTranscribeModel();
+                    this.directTranslate = isGeminiLiveTranslateModel();
+                    this.directThinking = isGeminiLiveThinkingModel();
+                    const body = { model: payload.model };
+                    if (this.directTranscribe) {
+                        body.transcription_mode = payload.transcription_mode || 'VERBATIM';
+                        body.custom_vocabulary = payload.custom_vocabulary || [];
+                    } else {
+                        body.voice = payload.voice;
+                        body.thinking_level = payload.thinking_level;
+                        body.include_thoughts = payload.include_thoughts;
+                        body.target_lang = payload.target_lang;
+                    }
+                    try {
+                        const resp = await apiFetch('/api/gemini/session', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body)
+                        });
+                        const data = await resp.json().catch(() => ({}));
+                        if (!resp.ok || !data.direct || !data.token) {
+                            if (data.reason !== 'vertex_ai') {
+                                console.warn('Gemini Live: browser-direct unavailable, using the server session', data.reason || data.error || resp.status);
+                            }
+                            return false;
+                        }
+                        info = data;
+                    } catch (e) {
+                        console.warn('Gemini Live: token request failed, using the server session', e);
+                        return false;
+                    }
+                    this.rateIn = info.rate_in || 16000;
+                    this.rateOut = info.rate_out || 24000;
+                    this.directUrl = info.url;
+                    this.directToken = info.token;
+                    this.directExpiresAt = Date.parse(info.expires_at || '') || 0;
+                    this.directSetup = this._buildDirectSetup(payload);
+                    this.transcriptionMode = (payload.transcription_mode || 'VERBATIM').toUpperCase();
+                    this.resumeHandle = null;
+                    this.directResumes = 0;
+                    this.goAwayNotified = false;
+                    try {
+                        await this._connectDirect();
+                        return true;
+                    } catch (e) {
+                        console.warn('Gemini Live: direct connection failed, using the server session', e);
+                        this.direct = false;
+                        this.directSetup = null;
+                        if (this.ws) { try { this.ws.close(); } catch (err) {} this.ws = null; }
+                        this.rateIn = 24000;
+                        this.rateOut = 24000;
+                        return false;
+                    }
+                }
+
+                _connectDirect() {
+                    return new Promise((resolve, reject) => {
+                        let settled = false;
+                        const finish = (err) => {
+                            if (settled) return;
+                            settled = true;
+                            clearTimeout(timer);
+                            if (err) reject(err); else resolve();
+                        };
+                        const timer = setTimeout(() => finish(new Error('接続がタイムアウトしました')), 12000);
+                        let ws;
+                        try {
+                            ws = new WebSocket(this.directUrl + '?access_token=' + encodeURIComponent(this.directToken));
+                        } catch (e) {
+                            finish(e);
+                            return;
+                        }
+                        this.ws = ws;
+                        this.direct = true;
+                        this.directReady = finish;
+                        ws.binaryType = 'arraybuffer';
+                        ws.onopen = () => {
+                            if (this.ws !== ws) return;
+                            const msg = JSON.parse(JSON.stringify(this.directSetup));
+                            if (this.resumeHandle) msg.setup.sessionResumption = { handle: this.resumeHandle };
+                            try { ws.send(JSON.stringify(msg)); } catch (e) { finish(e); }
+                        };
+                        ws.onmessage = (e) => { if (this.ws === ws) this._handleDirectMessage(e); };
+                        ws.onerror = () => finish(new Error('接続に失敗しました'));
+                        ws.onclose = (ev) => { if (this.ws === ws) this._directClosed(ev); };
+                    });
+                }
+
+                _handleDirectMessage(e) {
+                    let msg = null;
+                    try {
+                        msg = JSON.parse(typeof e.data === 'string' ? e.data : new TextDecoder().decode(e.data));
+                    } catch (err) { return; }
+                    if (msg.setupComplete !== undefined) {
+                        const ready = this.directReady;
+                        this.directReady = null;
+                        if (ready) ready();
+                    }
+                    const sc = msg.serverContent;
+                    if (sc) {
+                        if (sc.modelTurn) {
+                            (sc.modelTurn.parts || []).forEach((p) => {
+                                const inline = p.inlineData || {};
+                                if (inline.data) this._playDirectAudio(inline.data);
+                                if (p.text) {
+                                    if (p.thought) {
+                                        this.assistantThought += p.text;
+                                    } else if (!this.directTranscribe) {
+                                        this._appendDirectAssistant(p.text);
+                                    }
+                                }
+                            });
+                        }
+                        if (sc.outputTranscription && sc.outputTranscription.text) {
+                            this._appendDirectAssistant(sc.outputTranscription.text);
+                        }
+                        if (sc.inputTranscription && sc.inputTranscription.text) {
+                            const text = String(sc.inputTranscription.text);
+                            const smart = this.directTranscribe && this.transcriptionMode === 'SMART';
+                            if (smart) {
+                                this.userTranscript = text;
+                            } else {
+                                this.userTranscript += (this.userTurnBreak && this.userTranscript ? '\n' : '') + text;
+                            }
+                            this.userTurnBreak = false;
+                            if (window.VoiceStudio) window.VoiceStudio.log('user', this.userTranscript);
+                        }
+                        if (sc.turnComplete) {
+                            this.userTurnBreak = true;
+                            this.assistantTurnBreak = true;
+                            this.responseDoneCount += 1;
+                        }
+                    }
+                    const interactionStatus = msg.interactionStatus
+                        || (msg.serverContent && msg.serverContent.interactionStatus);
+                    if (interactionStatus) {
+                        const st = String(interactionStatus).toUpperCase();
+                        setStsStatus(st === 'IN_PROGRESS' ? '考え中...' : '話してください...', true);
+                        if (st === 'IDLE') this.responseDoneCount += 1;
+                    }
+                    const update = msg.sessionResumptionUpdate;
+                    if (update && update.resumable && update.newHandle) this.resumeHandle = update.newHandle;
+                    if (msg.goAway && !this.goAwayNotified) {
+                        this.goAwayNotified = true;
+                        showToast('Gemini Liveのセッション上限が近づいています。まもなく自動で終了します。', 'warning', true);
+                    }
+                    if (msg.error) {
+                        this.streamError = (msg.error && msg.error.message) || 'Gemini Live エラー';
+                        setStsStatus('エラー', false);
+                    }
+                }
+
+                _appendDirectAssistant(text) {
+                    if (!text) return;
+                    if (this.assistantTurnBreak && this.assistantTranscript && !this.assistantTranscript.endsWith('\n')) text = '\n' + text;
+                    this.assistantTurnBreak = false;
+                    this.assistantTranscript += text;
+                    if (window.VoiceStudio) window.VoiceStudio.log('assistant', this.assistantTranscript);
+                }
+
+                _playDirectAudio(data) {
+                    this.lastAudioAt = Date.now();
+                    const binary = atob(data);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                    // save_sts accepts 25 MB; stop buffering before that so a
+                    // long session still saves its transcript and newest audio.
+                    if (this.assistantAudioBytes + bytes.length <= 20 * 1024 * 1024) {
+                        this.assistantAudioChunks.push(bytes);
+                        this.assistantAudioBytes += bytes.length;
+                    }
+                    if (!stsOpt('sts-auto-play')) return;
+                    if (!this.rtPlayer) {
+                        this.rtPlayer = new RealTimeAudioPlayer(this.rateOut || 24000);
+                        currentRtPlayer = this.rtPlayer;
+                    }
+                    setStsStatus('再生中...', true);
+                    this.rtPlayer.addChunk(data);
+                }
+
+                _directClosed(ev) {
+                    const ready = this.directReady;
+                    this.directReady = null;
+                    if (ready) ready(new Error('接続が終了しました'));
+                    this.ws = null;
+                    if (!this.direct || !this.active || this.saved || this.stopping) return;
+                    if (this.resumeHandle && (!this.directExpiresAt || Date.now() < this.directExpiresAt) && this.directResumes < 3) {
+                        this.directResumes += 1;
+                        setStsStatus('再接続中...', true);
+                        this._connectDirect().catch(() => {
+                            this.streamError = 'Gemini Live の再接続に失敗しました';
+                            this.stop();
+                        });
+                        return;
+                    }
+                    if (ev && ev.code && ev.code !== 1000) {
+                        this.streamError = 'Gemini Live の接続が終了しました' + (ev.reason ? ': ' + ev.reason : ' (code ' + ev.code + ')');
+                    }
+                    this.stop();
+                }
+
+                // (RealtimeVoiceSession and the remaining voice helpers continued from part16b.)
                 _openStream() {
                     const url = '/api/realtime/stream?session_id=' + encodeURIComponent(this.sessionId);
                     const opts = window.ProgressSpinner && typeof window.ProgressSpinner.manualRequestOptions === 'function'
@@ -15480,6 +15787,24 @@
                 _startCapture() {
                     return navigator.mediaDevices.getUserMedia(getMicCaptureConstraints()).then((stream) => {
                         this.stream = stream;
+                        if (this.direct && window.MediaRecorder) {
+                            try {
+                                this.userAudioChunks = [];
+                                try {
+                                    // Keep the saved microphone audio small
+                                    // enough for the 25 MB save limit.
+                                    this.userRecorder = new MediaRecorder(stream, { audioBitsPerSecond: 32000 });
+                                } catch (e) {
+                                    this.userRecorder = new MediaRecorder(stream);
+                                }
+                                this.userRecorder.ondataavailable = (ev) => {
+                                    if (ev.data && ev.data.size) this.userAudioChunks.push(ev.data);
+                                };
+                                this.userRecorder.start(500);
+                            } catch (e) {
+                                this.userRecorder = null;
+                            }
+                        }
                         const targetRate = this.rateIn || 24000;
                         const mic = openMicAudioSource(stream, targetRate);
                         this.audioCtx = mic.ctx;
@@ -15500,7 +15825,22 @@
                 }
 
                 _sendAudio(pcmBytes) {
-                    if (!this.sessionId || !this.active) return;
+                    if (!this.active) return;
+                    if (this.direct) {
+                        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+                        try {
+                            this.ws.send(JSON.stringify({
+                                realtimeInput: {
+                                    audio: {
+                                        data: bytesToBase64(new Uint8Array(pcmBytes)),
+                                        mimeType: 'audio/pcm;rate=' + (this.rateIn || 16000)
+                                    }
+                                }
+                            }));
+                        } catch (e) {}
+                        return;
+                    }
+                    if (!this.sessionId) return;
                     // One request at a time: parallel POSTs can reach the server
                     // out of order and scramble the audio stream.
                     this.audioQueue.push(new Uint8Array(pcmBytes));
@@ -15535,6 +15875,17 @@
                 _stopCapture() {
                     this.capturing = false;
                     if (this.processor) { try { this.processor.disconnect(); } catch (e) {} this.processor = null; }
+                    if (this.userRecorder) {
+                        const rec = this.userRecorder;
+                        this.userRecorder = null;
+                        this.userRecorderDone = new Promise((resolve) => {
+                            let done = false;
+                            const finish = () => { if (!done) { done = true; resolve(); } };
+                            rec.addEventListener('stop', finish, { once: true });
+                            try { rec.stop(); } catch (e) { finish(); }
+                            setTimeout(finish, 1500);
+                        });
+                    }
                     if (this.stream) { try { this.stream.getTracks().forEach((t) => t.stop()); } catch (e) {} this.stream = null; }
                     if (this.audioCtx) { try { this.audioCtx.close(); } catch (e) {} this.audioCtx = null; }
                     stopSilenceMonitor();
@@ -15550,13 +15901,19 @@
                     // Deliver the audio still queued before ending the input.
                     if (this.audioFlush) { try { await this.audioFlush; } catch (e) {} }
                     // Finalize any trailing audio so the last turn is included.
-                    try {
-                        await apiFetch('/api/realtime/commit', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ session_id: this.sessionId })
-                        });
-                    } catch (e) {}
+                    if (this.direct) {
+                        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                            try { this.ws.send(JSON.stringify({ realtimeInput: { audioStreamEnd: true } })); } catch (e) {}
+                        }
+                    } else {
+                        try {
+                            await apiFetch('/api/realtime/commit', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ session_id: this.sessionId })
+                            });
+                        } catch (e) {}
+                    }
                     // Wait for the final response (or a quiet timeout) before saving.
                     const startedAt = Date.now();
                     const beforeCount = this.responseDoneCount;
@@ -15575,14 +15932,18 @@
                     this.saved = true;
                     this.saving = true;
                     try {
-                        const resp = await apiFetch('/api/realtime/save', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ session_id: this.sessionId, thread_id: currentThreadId })
-                        });
-                        const data = await resp.json().catch(() => ({}));
-                        if (!resp.ok) throw new Error(data.error || '保存に失敗しました');
-                        if (data.thread_id && !currentThreadId) currentThreadId = String(data.thread_id);
+                        if (this.direct) {
+                            await this._postDirectSave();
+                        } else {
+                            const resp = await apiFetch('/api/realtime/save', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ session_id: this.sessionId, thread_id: currentThreadId })
+                            });
+                            const data = await resp.json().catch(() => ({}));
+                            if (!resp.ok) throw new Error(data.error || '保存に失敗しました');
+                            if (data.thread_id && !currentThreadId) currentThreadId = String(data.thread_id);
+                        }
                         if (this.streamError) {
                             setStsStatus('エラー', false);
                             showToast('リアルタイム会話でエラーが発生しました: ' + this.streamError, 'error', true);
@@ -15601,8 +15962,45 @@
                     }
                 }
 
+                async _postDirectSave() {
+                    // The browser collected PCM 24 kHz assistant audio and the
+                    // raw microphone recording; persist them like the previous
+                    // direct Gemini flow did.
+                    let assistantB64 = '';
+                    if (this.assistantAudioChunks.length) {
+                        const total = this.assistantAudioChunks.reduce((n, c) => n + c.byteLength, 0);
+                        const merged = new Uint8Array(total);
+                        let offset = 0;
+                        this.assistantAudioChunks.forEach((c) => { merged.set(c, offset); offset += c.byteLength; });
+                        assistantB64 = bytesToBase64(merged);
+                    }
+                    if (this.userRecorderDone) { try { await this.userRecorderDone; } catch (e) {} }
+                    const userB64 = this.userAudioChunks.length
+                        ? await blobToBase64(new Blob(this.userAudioChunks))
+                        : '';
+                    const resp = await apiFetch('/api/gemini/save_sts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            thread_id: currentThreadId,
+                            model: this.directModel || get('model-select').value,
+                            user_text: this.userTranscript,
+                            assistant_text: this.assistantTranscript,
+                            assistant_thought: this.assistantThought,
+                            audio_base64: assistantB64,
+                            user_audio_base64: userB64
+                        })
+                    });
+                    const data = await resp.json().catch(() => ({}));
+                    if (!resp.ok) throw new Error(data.error || '保存に失敗しました');
+                    if (data.thread_id && !currentThreadId) currentThreadId = String(data.thread_id);
+                }
+
                 _cancel() {
-                    if (this.sessionId) {
+                    if (this.direct) {
+                        this.active = false;
+                        if (this.ws) { try { this.ws.close(1000); } catch (e) {} this.ws = null; }
+                    } else if (this.sessionId) {
                         apiFetch('/api/realtime/cancel', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
@@ -15619,6 +16017,15 @@
                     this.capturing = false;
                     this.stopping = false;
                     this.audioQueue = [];
+                    if (this.ws) { try { this.ws.close(1000); } catch (e) {} this.ws = null; }
+                    this.direct = false;
+                    this.directReady = null;
+                    this.directSetup = null;
+                    this.resumeHandle = null;
+                    this.assistantAudioChunks = [];
+                    this.assistantAudioBytes = 0;
+                    this.userAudioChunks = [];
+                    this.userRecorderDone = null;
                     this._stopCapture();
                     this._stopPlayback();
                     if (this.abortCtrl) { try { this.abortCtrl.abort(); } catch (e) {} this.abortCtrl = null; }
@@ -15666,6 +16073,24 @@
                     pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
                 }
                 return pcm.buffer;
+            }
+
+            function bytesToBase64(bytes) {
+                let binary = '';
+                const step = 0x8000;
+                for (let i = 0; i < bytes.length; i += step) {
+                    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + step));
+                }
+                return btoa(binary);
+            }
+
+            function blobToBase64(blob) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
+                    reader.onerror = () => reject(reader.error || new Error('音声の読み取りに失敗しました'));
+                    reader.readAsDataURL(blob);
+                });
             }
 
             const rtVoiceSession = new RealtimeVoiceSession();

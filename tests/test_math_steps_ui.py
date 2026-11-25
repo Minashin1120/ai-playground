@@ -35,8 +35,8 @@ def _read(relative):
 class MathStepsSourceContractTests(unittest.TestCase):
     def test_new_part_is_last_and_wired(self):
         parts = sorted((APP_ROOT / 'static/js/chat_core_parts').glob('chat_core.part*.js'))
-        self.assertTrue(parts[-1].name.startswith('chat_core.part30_'), parts[-1].name)
-        source = _read('static/js/chat_core_parts/chat_core.part30_mathsteps.js')
+        self.assertTrue(parts[-1].name.startswith('chat_core.part32_'), parts[-1].name)
+        source = _read('static/js/chat_core_parts/chat_core.part32_mathsteps.js')
         for name in ('parseMathSteps', 'buildMathStepsHtml', 'renderMathStepsInto',
                      'buildMathSvgRenderHtml', 'buildMathStepsPdfHtml', 'prepareMathStepsCopyText',
                      'openMathStepsModal', 'saveMathStepsConfig', 'applyMathStepsChatDefaults'):
@@ -47,7 +47,7 @@ class MathStepsSourceContractTests(unittest.TestCase):
         self.assertIn("lowerLang === 'mathsvg'", renderer)
         self.assertIn('window.buildMathSvgRenderHtml', renderer)
         self.assertIn("token !== 'svg' && token !== 'xml' && token !== 'image/svg+xml' && token !== 'mathsvg'",
-                      _read('static/js/chat_core_parts/chat_core.part20_initmarkercanvas.js'))
+                      _read('static/js/chat_core_parts/chat_core.part22_initmarkercanvas.js'))
 
     def test_settings_and_composer_controls_exist(self):
         settings = _read('templates/chat/overlay_settings.html')
@@ -63,11 +63,11 @@ class MathStepsSourceContractTests(unittest.TestCase):
             self.assertIn(f'id="{control}"', modal, control)
 
     def test_message_state_and_send_options_are_passed(self):
-        self.assertIn('m.math_steps_state', _read('static/js/chat_core_parts/chat_core.part25_updatethreadhighlighting.js'))
+        self.assertIn('m.math_steps_state', _read('static/js/chat_core_parts/chat_core.part27_updatethreadhighlighting.js'))
         self.assertIn('math_steps: (typeof window.collectMathStepsSendOption',
-                      _read('static/js/chat_core_parts/chat_core.part24_proceed.js'))
+                      _read('static/js/chat_core_parts/chat_core.part26_proceed.js'))
         self.assertIn('math_steps: (typeof window.collectMathStepsSendOption',
-                      _read('static/js/chat_core_parts/chat_core.part23_selectslashcommand.js'))
+                      _read('static/js/chat_core_parts/chat_core.part25_selectslashcommand.js'))
 
 
 @unittest.skipUnless(importlib.util.find_spec('playwright'), 'playwright is not installed')

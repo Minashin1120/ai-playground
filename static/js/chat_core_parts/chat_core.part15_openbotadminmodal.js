@@ -901,7 +901,6 @@
 
             // Microphone / STT or STS
             let mediaRecorder;
-            let currentGeminiLive = null;
             let audioChunks = [];
             let stsCancelPending = false;
             let stsSilenceInterval = null;

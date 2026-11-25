@@ -13,7 +13,7 @@ async def _rt_gemini_send_loop(session, ws):
         try:
             if item[0] == "audio":
                 data = item[1]
-                if not data:
+                if not data or session.input_closed:
                     continue
                 await ws.send(json.dumps({
                     "realtimeInput": {
@@ -40,6 +40,22 @@ def _rt_gemini_close_user_turn(session):
     session.user_turn_index += 1
 
 
+def _rt_gemini_store_final_input(session, text):
+    """Merge one finalized input transcript.
+
+    VERBATIM transcripts are per-segment deltas, while SMART transcription
+    returns the cumulative session text (docs), so SMART must replace.
+    """
+    key = f"turn{session.user_turn_index}"
+    smart = (
+        session.model_key in GEMINI_LIVE_TRANSCRIBE_MODELS
+        and session.params.get("transcription_mode") == "SMART"
+    )
+    session.user_live[key] = str(text) if smart else session.user_live.get(key, "") + str(text)
+    session.user_interim = ""
+    _rt_refresh_user_transcript(session)
+
+
 async def _rt_gemini_receive_loop(session, ws):
     try:
         while True:
@@ -60,6 +76,11 @@ async def _rt_gemini_receive_loop(session, ws):
                     "type": "interaction_status",
                     "status": status_text,
                 })
+                if status_text == "IDLE":
+                    # Thinking sessions may not emit turnComplete; IDLE is the
+                    # documented "ready for the next user turn" signal, so let
+                    # the client's stop/save loop treat it as response done.
+                    _rt_push_event(session, {"type": "response_done"})
             if msg.get("setupComplete") is not None:
                 session.status = "ready"
                 _rt_push_event(session, {"type": "status", "status": "ready"})
@@ -83,10 +104,7 @@ async def _rt_gemini_receive_loop(session, ws):
                 in_tr = sc.get("inputTranscription") or {}
                 interim = sc.get("interimInputTranscription") or {}
                 if in_tr.get("text"):
-                    key = f"turn{session.user_turn_index}"
-                    session.user_live[key] = session.user_live.get(key, "") + in_tr["text"]
-                    session.user_interim = ""
-                    _rt_refresh_user_transcript(session)
+                    _rt_gemini_store_final_input(session, in_tr["text"])
                 elif "text" in interim:
                     session.user_interim = str(interim.get("text") or "")
                     _rt_refresh_user_transcript(session)
@@ -98,8 +116,15 @@ async def _rt_gemini_receive_loop(session, ws):
                     if session.model_key not in GEMINI_LIVE_TRANSCRIBE_MODELS:
                         _rt_gemini_close_user_turn(session)
                     _rt_push_event(session, {"type": "turn_complete"})
-            if msg.get("goAway") is not None:
-                logger.info(f"Realtime STS Gemini goAway: {msg.get('goAway')}")
+            go_away = msg.get("goAway")
+            if go_away is not None:
+                # The provider closes a Live session shortly after this notice.
+                # Keep the current turn alive and let the client save on close.
+                logger.info(f"Realtime STS Gemini goAway: {go_away}")
+                _rt_push_event(session, {
+                    "type": "notice",
+                    "message": "Gemini Liveのセッション上限が近づいています。まもなく自動で終了します。",
+                })
             if msg.get("error"):
                 raise RuntimeError(_rt_error_message(msg.get("error")))
     except asyncio.CancelledError:
@@ -115,7 +140,7 @@ async def _rt_gemini_receive_loop(session, ws):
             session.pending_cond.notify_all()
 
 
-def _rt_gemini_setup_message(session):
+def _rt_gemini_setup_message(session, model_resource=None):
     """BidiGenerateContentSetup for the server-held Gemini Live session."""
     is_translate = session.model_key in GEMINI_LIVE_TRANSLATE_MODELS
     is_transcribe = session.model_key in GEMINI_LIVE_TRANSCRIBE_MODELS
@@ -123,11 +148,15 @@ def _rt_gemini_setup_message(session):
         "responseModalities": ["TEXT"] if is_transcribe else ["AUDIO"],
     }
     setup = {
-        "model": f"models/{session.model_key}",
+        "model": model_resource or f"models/{session.model_key}",
         "generationConfig": generation_config,
     }
     if is_transcribe:
-        transcription = {"mode": session.params.get("transcription_mode", "VERBATIM")}
+        transcription = {
+            "mode": session.params.get("transcription_mode", "VERBATIM"),
+            # An empty list keeps automatic language detection (docs).
+            "languageCodes": [],
+        }
         vocabulary = session.params.get("custom_vocabulary") or []
         if vocabulary:
             transcription["customVocabulary"] = vocabulary
@@ -139,7 +168,7 @@ def _rt_gemini_setup_message(session):
         # translationConfig is a GenerationConfig field (not a setup field).
         generation_config["translationConfig"] = {
             "targetLanguageCode": session.params.get("target_lang", "ja"),
-            "echoTargetLanguage": True,
+            "echoTargetLanguage": False,
         }
     voice = session.params.get("voice")
     if not is_translate and not is_transcribe and voice and voice in GEMINI_STS_VOICES:
@@ -156,14 +185,26 @@ def _rt_gemini_setup_message(session):
 
 
 async def _rt_gemini_session_async(session):
-    ws_url = (
-        "wss://generativelanguage.googleapis.com/ws/"
-        "google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
-        f"?key={quote(session.api_key, safe='')}"
-    )
-    async with websockets.connect(ws_url, max_size=None) as ws:
+    runtime = session.params.get("gemini_runtime") or {}
+    if runtime.get("backend") == "vertex_ai":
+        ws_url, model_resource, headers = _rt_gemini_vertex_target(runtime, session.model_key)
+        logger.info(
+            "Realtime STS Gemini: backend=vertex_ai location=%s model=%s",
+            runtime.get("vertex_location") or "global",
+            session.model_key,
+        )
+        connect_kwargs = {"additional_headers": headers, "max_size": None}
+    else:
+        ws_url = (
+            "wss://generativelanguage.googleapis.com/ws/"
+            "google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+            f"?key={quote(session.api_key, safe='')}"
+        )
+        model_resource = f"models/{session.model_key}"
+        connect_kwargs = {"max_size": None}
+    async with websockets.connect(ws_url, **connect_kwargs) as ws:
         session.ws = ws
-        await ws.send(json.dumps(_rt_gemini_setup_message(session)))
+        await ws.send(json.dumps(_rt_gemini_setup_message(session, model_resource)))
         while True:
             raw = await asyncio.wait_for(ws.recv(), timeout=30)
             if isinstance(raw, bytes):

@@ -152,12 +152,20 @@ def realtime_start():
     model_key = XAI_STS_MODEL_ALIASES.get(model_key, model_key)
     provider = get_sts_provider(model_key)
 
-    key, _ = _rt_resolve_api_key(current_user, model_key, provider)
+    key, gemini_runtime = _rt_resolve_api_key(current_user, model_key, provider)
+    use_vertex = provider == "google" and (gemini_runtime or {}).get("backend") == "vertex_ai"
+    if not key and use_vertex:
+        # Vertex AI authenticates with ADC / the stored service account instead
+        # of a Gemini API key. Keep the placeholder out of any client response.
+        key = "__vertex_ai__"
     if not key:
         labels = {"google": "Gemini", "openai": "OpenAI", "xai": "xAI"}
         return jsonify({'error': f'{labels.get(provider, "API")} API Key not configured'}), 400
 
     params = _normalize_rt_params(provider, model_key, data)
+    if use_vertex:
+        # The account's backend selection wins even when an API key also exists.
+        params["gemini_runtime"] = gemini_runtime
     session_id = f"rt_{int(time.time())}_{secrets.token_hex(8)}"
     session = RtSession(session_id, current_user.id, model_key, key, params)
     try:

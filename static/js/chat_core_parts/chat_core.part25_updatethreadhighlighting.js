@@ -412,7 +412,7 @@
             if (geminiBatchStatusPollBusy) return;
             geminiBatchStatusPollBusy = true;
             try {
-                const response = await apiFetch('/api/skillini/batch/status');
+                const response = await apiFetch('/api/gemini/batch/status');
                 if (!response.ok) return;
                 const data = await response.json().catch(() => ({}));
                 const hasActiveBatch = (data.active || []).some((j) => (

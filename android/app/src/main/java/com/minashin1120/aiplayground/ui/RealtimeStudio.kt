@@ -70,7 +70,9 @@ internal fun isRealtimeTranslation(model: String): Boolean =
 internal val OPENAI_REALTIME_VOICES = listOf("alloy", "ash", "ballad", "coral", "echo", "sage", "shimmer", "verse", "marin", "cedar")
 /** Web `OPENAI_LIVE_VOICES`: GPT-Live adds regional voices (default marin). */
 internal val OPENAI_LIVE_VOICES = OPENAI_REALTIME_VOICES + listOf(
-    "quartz", "ripple", "vesper", "willow", "stone", "gleam", "meridian", "bossa", "tempo", "beacon", "delta", "cinder",
+    "pearl", "quartz", "ripple", "halo", "vesper", "willow", "stone", "gleam", "meridian", "bossa", "tempo",
+    "beacon", "delta", "cinder", "calandria", "compas", "hornero", "luciernaga", "destello", "nuri", "juni",
+    "flitz", "brise", "sillage", "nira", "harema", "shida", "noeul",
 )
 /** Web `OPENAI_REASONING_STS_MODELS` and the `#sts-reasoning-effort` choices. */
 internal val OPENAI_REASONING_REALTIME_MODELS = setOf("gpt-realtime-2", "gpt-realtime-2.1", "gpt-realtime-2.1-mini")

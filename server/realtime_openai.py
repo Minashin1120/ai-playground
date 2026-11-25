@@ -387,8 +387,8 @@ async def _rt_openai_xai_session_async(session):
 
 async def _rt_run_until_stopped(session, recv_task, send_task):
     while not session.stop_event.is_set():
-        if time.time() - session.started_at > RT_MAX_SESSION_SECONDS:
-            session.error = "最大セッション時間（15分）に達したため自動停止しました。"
+        if time.time() - session.started_at > _rt_max_session_seconds(session):
+            session.error = "最大セッション時間に達したため自動停止しました。"
             session.status = "stopped"
             session.stop_event.set()
             break

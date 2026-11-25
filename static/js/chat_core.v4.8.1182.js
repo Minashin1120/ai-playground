@@ -8775,7 +8775,9 @@
         ];
         const OPENAI_STS_VOICES = ['alloy','ash','ballad','coral','echo','sage','shimmer','verse','marin','cedar'];
         // GPT-Live adds regional voices to the standard set (default: marin).
-        const OPENAI_LIVE_VOICES = [...OPENAI_STS_VOICES, 'quartz','ripple','vesper','willow','stone','gleam','meridian','bossa','tempo','beacon','delta','cinder'];
+        const OPENAI_LIVE_VOICES = [...OPENAI_STS_VOICES,
+            'pearl','quartz','ripple','halo','vesper','willow','stone','gleam','meridian','bossa','tempo','beacon','delta','cinder',
+            'calandria','compas','hornero','luciernaga','destello','nuri','juni','flitz','brise','sillage','nira','harema','shida','noeul'];
         const OPENAI_LIVE_STS_MODELS = new Set(['gpt-live-1']);
         const OPENAI_REASONING_STS_MODELS = new Set(['gpt-realtime-2', 'gpt-realtime-2.1', 'gpt-realtime-2.1-mini']);
         const GEMINI_INTERACTIONS_TTS_MODELS = new Set(['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts']);
@@ -8896,11 +8898,11 @@
         const isGeminiRealtimeMusicModel = () => (get('model-select').value || '') === 'lyria-realtime-exp';
         const isLyriaRealtimeModel = () => isGeminiRealtimeMusicModel();
         // True real-time server-session STS models: OpenAI Realtime conversation
-        // models, Grok Voice, and Gemini native-audio. Gemini Live models stream
-        // browser-direct, transcription models stay one-shot.
+        // models, Grok Voice, and every Gemini Live model (native audio,
+        // translation and streaming transcription). The server holds the
+        // provider WebSocket so the API key never reaches the browser.
         const isRealtimeSessionModel = () => {
             if (!isStsModel()) return false;
-            if (isGeminiLiveModel()) return false;
             if (isTranscriptionModel()) return false;
             if (get('model-select') && get('model-select').value === 'gpt-realtime-whisper') return false;
             return true;
@@ -15024,7 +15026,6 @@
 
             // Microphone / STT or STS
             let mediaRecorder;
-            let currentGeminiLive = null;
             let audioChunks = [];
             let stsCancelPending = false;
             let stsSilenceInterval = null;
@@ -15172,226 +15173,6 @@
                     }
                 }, 200);
             }
-            class GeminiLiveClient {
-                constructor() {
-                    this.ws = null;
-                    this.audioContext = null;
-                    this.processor = null;
-                    this.stream = null;
-                    this.rtPlayer = null;
-                    this.assistantText = '';
-                    this.assistantThought = '';
-                    this.inputTranscript = '';
-                    this.interimInputTranscript = '';
-                    this.assistantAudioChunks = [];
-                    this.userAudioChunks = [];
-                    this.onMessage = null;
-                    this.onClose = null;
-                    this.onError = null;
-                    this.setupComplete = false;
-                    this.model = null;
-                    this.assistantTurnBreak = false;
-                    this.userTurnBreak = false;
-                }
-                async start(token, url, model, config = {}, prepared = null) {
-                    this.model = model;
-                    this.ws = new WebSocket(`${url}?access_token=${encodeURIComponent(token)}`);
-                    this.ws.binaryType = 'arraybuffer';
-
-                    this.ws.onopen = () => {
-                        console.log("Gemini Live WebSocket opened. Sending setup...");
-                        // Live Transcription: TEXT output + input audio transcription config.
-                        // Otherwise: audio-to-audio Live agent with transcription metadata.
-                        const isTranscribeMode = !!(config && config.transcriptionConfig);
-                        const setupMsg = {
-                            setup: {
-                                model: `models/${model}`,
-                                generationConfig: {
-                                    responseModalities: isTranscribeMode ? ["TEXT"] : ["AUDIO"]
-                                },
-                                // Enable transcription at setup level (as per docs)
-                                inputAudioTranscription: isTranscribeMode
-                                    ? (config.transcriptionConfig || {})
-                                    : {}
-                            }
-                        };
-                        // Text-only transcription has no model audio to transcribe.
-                        if (!isTranscribeMode) setupMsg.setup.outputAudioTranscription = {};
-
-                        // speechConfig is inside generationConfig
-                        if (config.speechConfig) {
-                            setupMsg.setup.generationConfig.speechConfig = config.speechConfig;
-                        }
-
-                        // thinkingConfig is also inside generationConfig in the Live API schema
-                        if (config.thinkingConfig) {
-                            setupMsg.setup.generationConfig.thinkingConfig = config.thinkingConfig;
-                        }
-
-                        // Live Translate: translationConfig is a generationConfig field
-                        if (config.translationConfig) {
-                            setupMsg.setup.generationConfig.translationConfig = config.translationConfig;
-                        }
-
-                        console.log("Sending setup:", JSON.stringify(setupMsg));
-                        this.ws.send(JSON.stringify(setupMsg));
-                    };
-
-                    this.ws.onmessage = (e) => this._handleMessage(e);
-                    this.ws.onerror = (e) => {
-                        console.error("Gemini Live WebSocket error:", e);
-                        if (this.onError) this.onError(e);
-                    };
-                    this.ws.onclose = (e) => {
-                        console.log("Gemini Live WebSocket closed:", e.code, e.reason);
-                        this.closedEvent = e;
-                        if (this.onClose) this.onClose(e);
-                    };
-
-                    if (prepared && prepared.stream && prepared.ctx && prepared.source) {
-                        this.stream = prepared.stream;
-                        this.audioContext = prepared.ctx;
-                        var source = prepared.source;
-                    } else {
-                        this.stream = await navigator.mediaDevices.getUserMedia(getMicCaptureConstraints());
-                        const mic = openMicAudioSource(this.stream, 16000);
-                        this.audioContext = mic.ctx;
-                        var source = mic.source;
-                    }
-                    if (this.audioContext.state === 'suspended') {
-                        try { await this.audioContext.resume(); } catch (e) {}
-                    }
-                    this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
-
-                    this.userAudioChunks = [];
-                    const backupRecorder = new MediaRecorder(this.stream);
-                    backupRecorder.ondataavailable = (e) => {
-                        if (e.data.size > 0) this.userAudioChunks.push(e.data);
-                    };
-                    backupRecorder.start(500);
-                    this.backupRecorder = backupRecorder;
-
-                    this.processor.onaudioprocess = (e) => {
-                        if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.setupComplete) return;
-                        const pcm = pcm16FromFloat32(e.inputBuffer.getChannelData(0), this.audioContext.sampleRate, 16000);
-                        if (!pcm || !pcm.byteLength) return;
-                        this.ws.send(JSON.stringify({
-                            realtimeInput: {
-                                audio: {
-                                    data: btoa(String.fromCharCode.apply(null, new Uint8Array(pcm))),
-                                    mimeType: "audio/pcm;rate=16000"
-                                }
-                            }
-                        }));
-                    };
-                    source.connect(this.processor);
-                    this.processor.connect(this.audioContext.destination);
-                }
-                _handleMessage(e) {
-                    let data = null;
-                    try {
-                        data = JSON.parse(typeof e.data === 'string' ? e.data : new TextDecoder().decode(e.data));
-                    } catch (err) {
-                        return;
-                    }
-
-                    if (data.setupComplete) {
-                        console.log("Gemini Live setup complete confirmed");
-                        this.setupComplete = true;
-                    }
-                    if (data.serverContent) {
-                        const sc = data.serverContent;
-                        if (sc.modelTurn) {
-                            sc.modelTurn.parts.forEach(p => {
-                                if (p.text) {
-                                    if (p.thought) {
-                                        console.log("Gemini thought delta:", p.text);
-                                        this.assistantThought += p.text;
-                                    } else if (!(this.model === 'gemini-3.5-transcribe-live')) {
-                                        this._appendAssistantText(p.text);
-                                    }
-                                }
-                                if (p.inlineData && p.inlineData.data) {
-                                    const audioBase64 = p.inlineData.data;
-                                    console.log("Gemini audio chunk received, size:", audioBase64.length);
-                                    if (this.rtPlayer) this.rtPlayer.addChunk(audioBase64);
-                                    const binary = atob(audioBase64);
-                                    const bytes = new Uint8Array(binary.length);
-                                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-                                    this.assistantAudioChunks.push(bytes);
-                                }
-                            });
-                        }
-                        // Native-audio models deliver the spoken text only here.
-                        if (sc.outputTranscription && sc.outputTranscription.text) {
-                            this._appendAssistantText(sc.outputTranscription.text);
-                        }
-                        if (sc.inputTranscription && sc.inputTranscription.text) {
-                            if (this.userTurnBreak && this.inputTranscript && !this.inputTranscript.endsWith('\n')) this.inputTranscript += '\n';
-                            this.userTurnBreak = false;
-                            this.inputTranscript += sc.inputTranscription.text;
-                            this.interimInputTranscript = '';
-                        }
-                        if (sc.interimInputTranscription) {
-                            this.interimInputTranscript = sc.interimInputTranscription.text || '';
-                        }
-                        if (sc.turnComplete) {
-                            this.assistantTurnBreak = true;
-                            if (this.model !== 'gemini-3.5-transcribe-live') this.userTurnBreak = true;
-                        }
-                    }
-                    if (data.error && this.onError) this.onError(data.error);
-                    if (this.onMessage) this.onMessage(data);
-                }
-                _appendAssistantText(text) {
-                    if (!text) return;
-                    if (this.assistantTurnBreak && this.assistantText && !this.assistantText.endsWith('\n')) this.assistantText += '\n';
-                    this.assistantTurnBreak = false;
-                    this.assistantText += text;
-                }
-                stop() {
-                    // Stop the recorder before the mic tracks. Stopping the tracks first drops
-                    // the buffered recording, and getFinalData used to read it before `stop` fired.
-                    const recorder = this.backupRecorder;
-                    this.backupRecorder = null;
-                    this._stopped = new Promise((resolve) => {
-                        let settled = false;
-                        const finish = () => { if (!settled) { settled = true; resolve(); } };
-                        if (!recorder || recorder.state === 'inactive') { finish(); return; }
-                        recorder.addEventListener('stop', finish, { once: true });
-                        try { recorder.stop(); } catch (e) { finish(); }
-                        setTimeout(finish, 1500);
-                    });
-                    if (this.ws) { try { this.ws.close(); } catch (e) {} }
-                    if (this.processor) { try { this.processor.disconnect(); } catch (e) {} }
-                    const release = () => {
-                        if (this.stream) this.stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
-                        if (this.audioContext) { try { this.audioContext.close(); } catch (e) {} }
-                    };
-                    this._stopped.then(release);
-                }
-                async getFinalData() {
-                    if (this._stopped) await this._stopped;
-                    const assistantAudioBlob = new Blob(this.assistantAudioChunks);
-                    const assistantAudioBase64 = await this._blobToBase64(assistantAudioBlob);
-                    const userAudioBlob = new Blob(this.userAudioChunks);
-                    const userAudioBase64 = await this._blobToBase64(userAudioBlob);
-                    return {
-                        user_text: this.inputTranscript,
-                        assistant_text: this.assistantText,
-                        assistant_thought: this.assistantThought,
-                        audio_base64: assistantAudioBase64,
-                        user_audio_base64: userAudioBase64
-                    };
-                }
-                _blobToBase64(blob) {
-                    return new Promise(resolve => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result.split(',')[1]);
-                        reader.readAsDataURL(blob);
-                    });
-                }
-            }
             class RealTimeAudioPlayer {
                 constructor(sampleRate = 24000) {
                     const AC = window.AudioContext || window.webkitAudioContext;
@@ -15516,6 +15297,12 @@
                         target_lang: ((isGeminiLiveTranslateModel() || model === 'gpt-realtime-translate') && get('sts-target-lang')) ? get('sts-target-lang').value : ''
                     };
                     if (isXaiLiveTranscribeModel() && get('sts-custom-vocab')) payload.custom_vocabulary = get('sts-custom-vocab').value.split(/[,、\n]/);
+                    if (isGeminiLiveTranscribeModel()) {
+                        payload.transcription_mode = get('sts-transcribe-mode') ? get('sts-transcribe-mode').value : 'VERBATIM';
+                        payload.custom_vocabulary = get('sts-custom-vocab')
+                            ? get('sts-custom-vocab').value.split(/[,、\n]/).map((s) => s.trim()).filter(Boolean).slice(0, 1000)
+                            : [];
+                    }
                     setStsStatus('接続中...', true);
                     try {
                         const resp = await apiFetch('/api/realtime/start', {
@@ -15661,6 +15448,9 @@
                             break;
                         case 'status':
                             if (ev.status === 'ready' && this.active) setStsStatus('話してください...', true);
+                            break;
+                        case 'interaction_status':
+                            if (this.active) setStsStatus(ev.status === 'IN_PROGRESS' ? '考え中...' : '話してください...', true);
                             break;
                         case 'notice':
                             // Recoverable provider error: the session stays open.
@@ -16091,7 +15881,7 @@
                     streamController = new AbortController();
                     streamOpen = true;
                     try {
-                        const res = await fetch(`/api/skillini/music/stream?session_id=${encodeURIComponent(sessionId)}`, noSpinner({
+                        const res = await fetch(`/api/gemini/music/stream?session_id=${encodeURIComponent(sessionId)}`, noSpinner({
                             method: 'GET',
                             signal: streamController.signal,
                             headers: { 'Accept': 'text/event-stream' },
@@ -16208,7 +15998,7 @@
                 }
 
                 async function apiCommand(type, payload) {
-                    const res = await fetch('/api/skillini/music/command', noSpinner({
+                    const res = await fetch('/api/gemini/music/command', noSpinner({
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(Object.assign({ session_id: sessionId, type }, payload || {}))
@@ -16229,7 +16019,7 @@
                     updateTransportButtons();
                     setStatus('接続中...', 'connecting');
                     try {
-                        const res = await fetch('/api/skillini/music/start', noSpinner({
+                        const res = await fetch('/api/gemini/music/start', noSpinner({
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ weighted_prompts: prompts, config: collectConfig() })
@@ -16317,7 +16107,7 @@
                     setStatus('保存中...', 'connecting');
                     updateTransportButtons();
                     try {
-                        const res = await fetch('/api/skillini/music/save', noSpinner({
+                        const res = await fetch('/api/gemini/music/save', noSpinner({
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ session_id: sessionId, thread_id: currentThreadId || null })
@@ -16347,7 +16137,7 @@
                     closeStream();
                     if (sessionId) {
                         try {
-                            await fetch('/api/skillini/music/cancel', noSpinner({
+                            await fetch('/api/gemini/music/cancel', noSpinner({
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ session_id: sessionId })
@@ -16385,7 +16175,7 @@
                 function closeAndCleanup(keepThread) {
                     closeStream();
                     if (sessionId) {
-                        fetch('/api/skillini/music/cancel', noSpinner({
+                        fetch('/api/gemini/music/cancel', noSpinner({
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ session_id: sessionId })
@@ -16675,17 +16465,6 @@
                     rtVoiceSession._cancel();
                     return;
                 }
-                if (currentGeminiLive) {
-                    currentGeminiLive.stop();
-                    currentGeminiLive = null;
-                    stopStsPlayback();
-                    get('mic-btn').classList.remove('bg-red-600', 'animate-pulse');
-                    get('mic-btn').classList.add('bg-gray-700');
-                    setStsStatus('Canceled', false);
-                    setTimeout(() => setStsStatus('Tap to speak', false), 800);
-                    stopMicWaveform();
-                    return;
-                }
                 if (mediaRecorder && mediaRecorder.state === "recording") {
                     stsCancelPending = true;
                     mediaRecorder.stop();
@@ -16703,36 +16482,6 @@
                 if (supported.autoGainControl) audio.autoGainControl = false;
                 return { audio };
             }
-            // Open the mic during the click. A later await (the session token)
-            // drops mobile Chrome's user activation, and an AudioContext created
-            // after that stays suspended, so Live never receives PCM.
-            function beginGeminiLiveMic() {
-                const AC = window.AudioContext || window.webkitAudioContext;
-                if (!AC || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    throw new Error('マイクを利用できません');
-                }
-                let ctx = null;
-                try {
-                    ctx = new AC({ sampleRate: 16000 });
-                } catch (e) {
-                    if (ctx) { try { ctx.close(); } catch (err) {} ctx = null; }
-                    ctx = new AC();
-                }
-                const resumePromise = ctx.resume();
-                const streamPromise = navigator.mediaDevices.getUserMedia(getMicCaptureConstraints());
-                return { ctx, resumePromise, streamPromise };
-            }
-            function releaseGeminiLiveMic(prepared) {
-                if (!prepared) return;
-                if (prepared.streamPromise) {
-                    prepared.streamPromise.then(stream => {
-                        try { stream.getTracks().forEach(track => track.stop()); } catch (e) {}
-                    }).catch(() => {});
-                } else if (prepared.stream) {
-                    try { prepared.stream.getTracks().forEach(track => track.stop()); } catch (e) {}
-                }
-                if (prepared.ctx) { try { prepared.ctx.close(); } catch (e) {} }
-            }
             get('mic-btn').onclick = async () => {
                 if (abortController) {
                     showToast("回答生成中です。完了までお待ちいただくか、停止してください。", "warning", true);
@@ -16740,72 +16489,6 @@
                 }
                 if (uploadProgressState.active > 0) {
                     showToast("ファイルの送信・処理中です。しばらくお待ちください。", "warning", true);
-                    return;
-                }
-                if (currentGeminiLive) {
-                    setStsStatus('Processing...', true);
-                    const client = currentGeminiLive;
-                    currentGeminiLive = null;
-                    client.stop();
-
-                    get('mic-btn').classList.remove('bg-red-600', 'animate-pulse');
-                    get('mic-btn').classList.add('bg-gray-700');
-
-                    try {
-                        const finalData = await client.getFinalData();
-
-                        if (isGeminiLiveTranscribeModel()) {
-                            // Live transcription: transcript is the assistant output;
-                            // user message keeps the recorded audio + placeholder text.
-                            finalData.user_text = '音声文字起こし';
-                            finalData.assistant_text = (client.inputTranscript || '').trim();
-                            finalData.assistant_thought = '';
-                            if (!finalData.assistant_text) {
-                                setStsStatus('No transcript', false);
-                                setTimeout(() => setStsStatus('Tap to speak', false), 1000);
-                                return;
-                            }
-                        }
-
-                        const hasLiveText = (finalData.user_text || '').trim()
-                            || (finalData.assistant_text || '').trim()
-                            || (finalData.assistant_thought || '').trim();
-                        const hasLiveAudio = !!(finalData.audio_base64 || finalData.user_audio_base64);
-                        if (!hasLiveText && !hasLiveAudio) {
-                            setStsStatus('Error', false);
-                            showToast('Gemini Live の音声を取得できませんでした。もう一度お試しください。', 'error', true);
-                            setTimeout(() => setStsStatus('Tap to speak', false), 1000);
-                            return;
-                        }
-
-                        if (!currentThreadId) {
-                            const r = await apiFetch(CHAT_CONFIG.urls.handleThreads, {
-                                method:'POST',
-                                headers:{'Content-Type':'application/json'},
-                                body: JSON.stringify({ is_temporary: temporaryChatEnabled })
-                            });
-                            const d = await r.json();
-                            currentThreadId = String(d.id);
-                            history.pushState({}, '', '/c/' + d.id);
-                            get('welcome-screen').classList.add('hidden');
-                        }
-
-                        finalData.thread_id = currentThreadId;
-                        finalData.model = get('model-select').value;
-
-                        await apiFetch('/api/skillini/save_sts', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(finalData)
-                        });
-
-                        setStsStatus('Saved', false);
-                        setTimeout(() => setStsStatus('Tap to speak', false), 1000);
-                        await loadMessages(currentThreadId);
-                    } catch (e) {
-                        console.error("Failed to save Gemini Live session:", e);
-                        setStsStatus('Error saving', false);
-                    }
                     return;
                 }
                 if (rtVoiceSession.isActive()) {
@@ -16830,195 +16513,6 @@
                             dummyAudio.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFRm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
                             dummyAudio.play().catch(() => {});
                         } catch (e) {}
-                    }
-
-                    if (isGeminiLiveModel()) {
-                        setStsStatus('Connecting...', true);
-                        let liveMic = null;
-                        try {
-                            liveMic = beginGeminiLiveMic();
-                            const modelKeyForSession = get('model-select').value;
-                            const sessionBody = {
-                                model: modelKeyForSession
-                            };
-                            if (isGeminiLiveTranscribeModel()) {
-                                sessionBody.transcription_mode = get('sts-transcribe-mode') ? get('sts-transcribe-mode').value : 'VERBATIM';
-                                if (get('sts-custom-vocab')) {
-                                    const cv = get('sts-custom-vocab').value.split(/[,、\n]/).map(s => s.trim()).filter(Boolean);
-                                    if (cv.length) sessionBody.custom_vocabulary = cv.slice(0, 1000);
-                                }
-                            } else {
-                                sessionBody.voice = get('sts-voice') ? get('sts-voice').value : 'Kore';
-                                if (isGeminiLiveExtendedThinkingModel()) {
-                                    sessionBody.thinking_level = get('sts-thinking-level') ? get('sts-thinking-level').value : 'medium';
-                                    sessionBody.include_thoughts = get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false;
-                                }
-                                if (isGeminiLiveTranslateModel() && get('sts-target-lang')) {
-                                    sessionBody.target_lang = get('sts-target-lang').value;
-                                }
-                            }
-                            const micStream = await liveMic.streamPromise;
-                            try { await liveMic.resumePromise; } catch (e) {}
-                            liveMic = {
-                                stream: micStream,
-                                ctx: liveMic.ctx,
-                                source: liveMic.ctx.createMediaStreamSource(micStream)
-                            };
-                            const res = await apiFetch('/api/skillini/session', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify(sessionBody)
-                            });
-                            if (!res.ok) throw new Error("Failed to get session token");
-                            const { token, url } = await res.json();
-
-                            const modelKey = get('model-select').value;
-                            const voice = get('sts-voice') ? get('sts-voice').value : 'Kore';
-                            const thinking_level = get('sts-thinking-level') ? get('sts-thinking-level').value : 'minimal';
-                            const include_thoughts = get('sts-include-thoughts') ? get('sts-include-thoughts').checked : false;
-
-                            currentGeminiLive = new GeminiLiveClient();
-                            if (stsOpt('sts-auto-play') && !isGeminiLiveTranscribeModel()) {
-                                currentGeminiLive.rtPlayer = new RealTimeAudioPlayer();
-                            }
-
-                            if (isGeminiLiveTranscribeModel()) {
-                                const tMode = get('sts-transcribe-mode') ? get('sts-transcribe-mode').value : 'VERBATIM';
-                                const transcriptionConfig = { languageCodes: [] };
-                                if (tMode === 'SMART' || tMode === 'VERBATIM') transcriptionConfig.mode = tMode;
-                                if (get('sts-custom-vocab')) {
-                                    const cv = get('sts-custom-vocab').value.split(/[,、\n]/).map(s => s.trim()).filter(Boolean);
-                                    if (cv.length) transcriptionConfig.customVocabulary = cv.slice(0, 1000);
-                                }
-                                await currentGeminiLive.start(token, url, modelKey, {
-                                    transcriptionConfig
-                                }, liveMic);
-                            } else if (isGeminiLiveTranslateModel()) {
-                                const targetLang = get('sts-target-lang') ? get('sts-target-lang').value : 'ja';
-                                await currentGeminiLive.start(token, url, modelKey, {
-                                    translationConfig: { targetLanguageCode: targetLang, echoTargetLanguage: true }
-                                }, liveMic);
-                            } else {
-                                const liveConfig = {
-                                    speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } }
-                                };
-                                if (isGeminiLiveExtendedThinkingModel()) {
-                                    liveConfig.thinkingConfig = { thinkingLevel: thinking_level, includeThoughts: include_thoughts };
-                                }
-                                await currentGeminiLive.start(token, url, modelKey, liveConfig, liveMic);
-                            }
-                            liveMic = null;
-                            mediaRecorder = currentGeminiLive.backupRecorder; // For silence monitor
-
-                            // Bind onstop to trigger the save logic (clicking mic-btn again)
-                            mediaRecorder.onstop = () => {
-                                if (currentGeminiLive) get('mic-btn').click();
-                            };
-
-                            let firstAudio = true;
-                            let liveMsgId = 'live-sts-' + Date.now();
-                            currentGeminiLive.onMessage = (data) => {
-                                if (data.serverContent) {
-                                    if (isGeminiLiveTranscribeModel()) {
-                                        // Live transcription: show interim + finalized user transcript.
-                                        const interim = currentGeminiLive.interimInputTranscript;
-                                        const finalText = currentGeminiLive.inputTranscript;
-                                        const displayText = finalText + (interim && !finalText.endsWith(interim) ? (finalText ? '\n' : '') + interim : '');
-                                        const container = get('chat-messages');
-                                        let msgEl = document.getElementById(liveMsgId);
-                                        if (!msgEl) {
-                                            msgEl = document.createElement('div');
-                                            msgEl.id = liveMsgId;
-                                            msgEl.className = 'flex flex-col gap-2 mb-4 assistant-message bg-slate-800/40 p-3 rounded-lg border border-slate-700/50';
-                                            msgEl.innerHTML = `
-                                                <div class="text-[10px] text-teal-400 font-bold uppercase tracking-wider flex items-center gap-2">
-                                                    <i class="fas fa-microphone"></i> Gemini 3.5 Transcribe Live
-                                                </div>
-                                                <div class="message-content text-sm text-slate-100 leading-relaxed"></div>
-                                            `;
-                                            container.appendChild(msgEl);
-                                            container.scrollTop = container.scrollHeight;
-                                        }
-                                        const contentEl = msgEl.querySelector('.message-content');
-                                        contentEl.innerText = displayText || '聴き取り中...';
-                                        container.scrollTop = container.scrollHeight;
-                                        if (window.VoiceStudio && finalText) window.VoiceStudio.log('user', finalText);
-                                        return;
-                                    }
-                                    if (data.serverContent.modelTurn) {
-                                        if (firstAudio) {
-                                            setStsStatus('Gemini is speaking...', false);
-                                            firstAudio = false;
-                                        }
-                                        // Update UI with transcript so far
-                                        const container = get('chat-messages');
-                                        let msgEl = document.getElementById(liveMsgId);
-                                        if (!msgEl) {
-                                            msgEl = document.createElement('div');
-                                            msgEl.id = liveMsgId;
-                                            msgEl.className = 'flex flex-col gap-2 mb-4 assistant-message bg-slate-800/40 p-3 rounded-lg border border-slate-700/50';
-                                            msgEl.innerHTML = `
-                                                <div class="text-[10px] text-cyan-400 font-bold uppercase tracking-wider flex items-center gap-2">
-                                                    <i class="fas fa-robot"></i> Gemini Live (Streaming)
-                                                </div>
-                                                <div class="thought-container hidden italic text-slate-400 text-xs border-l-2 border-slate-600 pl-2 my-1"></div>
-                                                <div class="message-content text-sm text-slate-100 leading-relaxed"></div>
-                                            `;
-                                            container.appendChild(msgEl);
-                                            container.scrollTop = container.scrollHeight;
-                                        }
-
-                                        const thoughtEl = msgEl.querySelector('.thought-container');
-                                        const contentEl = msgEl.querySelector('.message-content');
-
-                                        if (currentGeminiLive.assistantThought) {
-                                            thoughtEl.classList.remove('hidden');
-                                            thoughtEl.innerText = currentGeminiLive.assistantThought;
-                                        }
-                                        contentEl.innerText = currentGeminiLive.assistantText;
-                                        container.scrollTop = container.scrollHeight;
-                                        if (window.VoiceStudio) {
-                                            if (currentGeminiLive.inputTranscript) window.VoiceStudio.log('user', currentGeminiLive.inputTranscript);
-                                            if (currentGeminiLive.assistantText) window.VoiceStudio.log('assistant', currentGeminiLive.assistantText);
-                                        }
-                                    }
-                                }
-                            };
-
-                            setStsStatus('Listening...', true);
-                            get('mic-btn').classList.remove('bg-gray-700');
-                            get('mic-btn').classList.add('bg-red-600', 'animate-pulse');
-                            startMicWaveform(currentGeminiLive.stream);
-                            startSilenceMonitor(currentGeminiLive.stream);
-
-                            // Provider-side end (setup rejected, session limit, network):
-                            // report it and close out like a manual stop so the
-                            // conversation so far is saved.
-                            const liveClient = currentGeminiLive;
-                            liveClient.onError = (err) => {
-                                const msg = err && err.message ? err.message : (typeof err === 'string' ? err : '');
-                                if (msg) showToast('Gemini Live: ' + msg, 'error', true);
-                            };
-                            liveClient.onClose = (ev) => {
-                                if (currentGeminiLive !== liveClient) return;
-                                if (ev && ev.code && ev.code !== 1000) {
-                                    const reason = ev.reason ? ': ' + ev.reason : ' (code ' + ev.code + ')';
-                                    showToast('Gemini Live の接続が終了しました' + reason, 'error', true);
-                                }
-                                get('mic-btn').click();
-                            };
-                            if (liveClient.closedEvent) liveClient.onClose(liveClient.closedEvent);
-                            return;
-                        } catch (e) {
-                            releaseGeminiLiveMic(liveMic);
-                            if (currentGeminiLive) {
-                                try { currentGeminiLive.stop(); } catch (err) {}
-                                currentGeminiLive = null;
-                            }
-                            showToast("Gemini Live connection failed: " + e.message, "error", true);
-                            setStsStatus('Error', false);
-                            return;
-                        }
                     }
 
                     if (isRealtimeSessionModel()) {
@@ -24640,7 +24134,7 @@
             if (geminiBatchStatusPollBusy) return;
             geminiBatchStatusPollBusy = true;
             try {
-                const response = await apiFetch('/api/skillini/batch/status');
+                const response = await apiFetch('/api/gemini/batch/status');
                 if (!response.ok) return;
                 const data = await response.json().catch(() => ({}));
                 const hasActiveBatch = (data.active || []).some((j) => (

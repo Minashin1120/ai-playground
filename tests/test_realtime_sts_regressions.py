@@ -117,6 +117,18 @@ class RealtimeStsRegressionTests(unittest.TestCase):
         })
         self.assertEqual(p6["target_lang"], "en")
         self.assertEqual(p6["transcription_mode"], "VERBATIM")
+        self.assertEqual(
+            _normalize_rt_params("google", "gemini-3.5-live-translate-preview", {"target_lang": "zh-CN"})["target_lang"],
+            "zh-Hans",
+        )
+        self.assertEqual(
+            _normalize_rt_params("google", "gemini-3.5-live-translate-preview", {"target_lang": "zh-TW"})["target_lang"],
+            "zh-Hant",
+        )
+        self.assertEqual(
+            _normalize_rt_params("google", "gemini-3.5-live-translate-preview", {"target_lang": "pt"})["target_lang"],
+            "pt-BR",
+        )
         p7 = _normalize_rt_params("google", "gemini-3.5-transcribe-live", {
             "transcription_mode": "smart", "custom_vocabulary": ["AI Playground", "  Gemini  "],
         })
@@ -179,7 +191,37 @@ class RealtimeStsRegressionTests(unittest.TestCase):
         # Previous features must remain intact.
         self.assertIn("LyriaRealtimeStudio", CHAT_JS)
         self.assertIn("const VoiceStudio", CHAT_JS)
-        self.assertIn("class GeminiLiveClient", CHAT_JS)
+
+    def test_gemini_live_has_no_browser_direct_path(self):
+        # All Live models (including Gemini Live / Translate / Transcribe) share
+        # the authenticated server session; the API key and ephemeral-token
+        # exchange stay off the client.
+        self.assertNotIn("class GeminiLiveClient", CHAT_JS)
+        self.assertNotIn("BidiGenerateContentConstrained", CHAT_JS)
+        self.assertNotIn("/api/gemini/session", CHAT_JS)
+        self.assertNotIn("/api/skillini", CHAT_JS)
+
+    def test_gemini_live_streams_through_realtime_session(self):
+        segment = CHAT_JS[CHAT_JS.index("const isRealtimeSessionModel"):]
+        segment = segment[:segment.index("const getStsProvider")]
+        self.assertNotIn("isGeminiLiveModel()) return false", segment)
+        mic = CHAT_JS[CHAT_JS.index("get('mic-btn').onclick"):]
+        self.assertIn("if (isRealtimeSessionModel())", mic)
+        self.assertNotIn("beginGeminiLiveMic", mic)
+
+    def test_gemini_transcribe_is_a_realtime_mobile_model(self):
+        from app import _mobile_model_mode
+
+        self.assertEqual(_mobile_model_mode("gemini-3.5-transcribe-live"), "realtime_audio")
+        self.assertEqual(_mobile_model_mode("gpt-live-transcribe"), "transcription")
+        self.assertEqual(_mobile_model_mode("grok-voice-transcribe-2.0"), "realtime_audio")
+
+    def test_gemini_transcription_drains_before_save(self):
+        from app import RtSession, _normalize_rt_params, _rt_drains_on_stop
+
+        params = _normalize_rt_params("google", "gemini-3.5-transcribe-live", {})
+        session = RtSession("rt_test", 1, "gemini-3.5-transcribe-live", "key", params)
+        self.assertTrue(_rt_drains_on_stop(session))
 
 
 if __name__ == "__main__":

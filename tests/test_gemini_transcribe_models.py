@@ -83,14 +83,19 @@ class GeminiTranscribeRegressionTests(unittest.TestCase):
         self.assertIn("is_live_transcribe = (model_key == \"gemini-3.5-transcribe-live\")", APP_SOURCE)
         self.assertIn("'input_audio_transcription': {},", APP_SOURCE)
         self.assertIn("'response_modalities': ['TEXT']", APP_SOURCE)
-        # The installed SDK rejects `translation_config` inside the ephemeral token
-        # config; the WebSocket setup message carries it instead.
-        self.assertIn("translationConfig", CHAT_JS)
+        # Live Translate runs in the server-held session, so the server setup
+        # message carries generationConfig.translationConfig (the browser does
+        # not build the Gemini setup anymore).
+        self.assertIn("translationConfig", APP_SOURCE)
+        self.assertNotIn("translationConfig", CHAT_JS)
 
     def test_frontend_live_transcribe_helpers(self):
         self.assertIn("isGeminiLiveTranscribeModel", CHAT_JS)
         self.assertIn("value === 'gemini-3.5-transcribe-live'", CHAT_JS)
-        self.assertIn("transcriptionConfig", CHAT_JS)
+        # Transcription options travel as session params to the server setup.
+        self.assertIn("transcription_mode", CHAT_JS)
+        self.assertIn("custom_vocabulary", CHAT_JS)
+        self.assertIn('"inputAudioTranscription"', APP_SOURCE)
         # STS panel offers a mode selector + custom vocabulary input.
         self.assertIn("sts-transcribe-mode", CHAT_HTML)
         self.assertIn("sts-custom-vocab", CHAT_HTML)

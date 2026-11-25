@@ -225,7 +225,7 @@ class GeminiLiveTests(unittest.TestCase):
         session = _session("google", "gemini-3.5-live-translate-preview", {"target_lang": "en"})
         setup = target._rt_gemini_setup_message(session)["setup"]
         self.assertNotIn("translationConfig", setup)
-        self.assertEqual(setup["generationConfig"]["translationConfig"], {"targetLanguageCode": "en", "echoTargetLanguage": True})
+        self.assertEqual(setup["generationConfig"]["translationConfig"], {"targetLanguageCode": "en", "echoTargetLanguage": False})
         self.assertNotIn("speechConfig", setup["generationConfig"])
         self.assertIn("inputAudioTranscription", setup)
 
@@ -244,7 +244,7 @@ class GeminiLiveTests(unittest.TestCase):
         session = _session("google", "gemini-3.5-transcribe-live", {"transcription_mode": "smart", "custom_vocabulary": ["Gemini"]})
         setup = target._rt_gemini_setup_message(session)["setup"]
         self.assertEqual(setup["generationConfig"]["responseModalities"], ["TEXT"])
-        self.assertEqual(setup["inputAudioTranscription"], {"mode": "SMART", "customVocabulary": ["Gemini"]})
+        self.assertEqual(setup["inputAudioTranscription"], {"mode": "SMART", "languageCodes": [], "customVocabulary": ["Gemini"]})
         ws = _FakeWs([
             {"serverContent": {"interimInputTranscription": {"text": "こんに"}}},
             {"serverContent": {"inputTranscription": {"text": "こんにちは。"}}},
@@ -253,6 +253,24 @@ class GeminiLiveTests(unittest.TestCase):
         shown = [e["delta"] for e in session.pending if e.get("role") == "user"]
         self.assertEqual(shown, ["こんに", "こんにちは。"])
         self.assertTrue(target._rt_is_transcription_session(session))
+
+    def test_smart_transcription_replaces_cumulative_text(self):
+        session = _session("google", "gemini-3.5-transcribe-live", {"transcription_mode": "SMART"})
+        ws = _FakeWs([
+            {"serverContent": {"inputTranscription": {"text": "こんにちは"}}},
+            {"serverContent": {"inputTranscription": {"text": "こんにちは。元気ですか"}}},
+        ])
+        asyncio.run(target._rt_gemini_receive_loop(session, ws))
+        self.assertEqual(session.user_transcript, "こんにちは。元気ですか")
+
+    def test_verbatim_transcription_appends_segments(self):
+        session = _session("google", "gemini-3.5-transcribe-live", {"transcription_mode": "VERBATIM"})
+        ws = _FakeWs([
+            {"serverContent": {"inputTranscription": {"text": "こんにちは。"}}},
+            {"serverContent": {"inputTranscription": {"text": "元気ですか。"}}},
+        ])
+        asyncio.run(target._rt_gemini_receive_loop(session, ws))
+        self.assertEqual(session.user_transcript, "こんにちは。元気ですか。")
 
     def test_commit_sends_audio_stream_end(self):
         session = _session("google", "gemini-3.8-live")
@@ -267,6 +285,55 @@ class GeminiLiveTests(unittest.TestCase):
 
         asyncio.run(run())
         self.assertEqual(json.loads(ws.sent[0]), {"realtimeInput": {"audioStreamEnd": True}})
+
+    def test_vertex_target_uses_regional_endpoint_and_model_path(self):
+        runtime = {"backend": "vertex_ai", "vertex_project": "proj", "vertex_location": "us-central1"}
+        with mock.patch.object(target, "_rt_gemini_vertex_access_token", return_value="tok"):
+            url, model_resource, headers = target._rt_gemini_vertex_target(runtime, "gemini-3.8-live")
+        self.assertEqual(
+            url,
+            "wss://us-central1-aiplatform.googleapis.com/ws/"
+            "google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent",
+        )
+        self.assertEqual(
+            model_resource,
+            "projects/proj/locations/us-central1/publishers/google/models/gemini-3.8-live",
+        )
+        self.assertEqual(headers, {"Authorization": "Bearer tok"})
+
+    def test_vertex_native_audio_alias_and_global_host(self):
+        runtime = {"backend": "vertex_ai", "vertex_project": "proj", "vertex_location": "global"}
+        with mock.patch.object(target, "_rt_gemini_vertex_access_token", return_value="tok"):
+            url, model_resource, _headers = target._rt_gemini_vertex_target(
+                runtime, "gemini-2.5-flash-native-audio-preview-12-2025"
+            )
+        self.assertTrue(url.startswith("wss://aiplatform.googleapis.com/"))
+        self.assertTrue(model_resource.endswith("/gemini-live-2.5-flash-native-audio"))
+
+    def test_setup_uses_supplied_vertex_model_resource(self):
+        session = _session("google", "gemini-3.8-live")
+        setup = target._rt_gemini_setup_message(session, "projects/p/locations/l/publishers/google/models/gemini-3.8-live")["setup"]
+        self.assertEqual(setup["model"], "projects/p/locations/l/publishers/google/models/gemini-3.8-live")
+
+    def test_vertex_access_token_prefers_the_stored_service_account(self):
+        class _Creds:
+            token = "svc-token"
+
+            def refresh(self, request):
+                self.refreshed = True
+
+        created = {}
+
+        def fake_from_info(info, scopes=None):
+            created["info"] = info
+            created["scopes"] = scopes
+            return _Creds()
+
+        runtime = {"vertex_credentials_json": json.dumps({"type": "service_account", "project_id": "p"})}
+        with mock.patch.object(target.service_account.Credentials, "from_service_account_info", side_effect=fake_from_info):
+            self.assertEqual(target._rt_gemini_vertex_access_token(runtime), "svc-token")
+        self.assertEqual(created["info"]["project_id"], "p")
+        self.assertEqual(created["scopes"], target.GEMINI_VERTEX_SCOPES)
 
 
 class RealtimeBridgeTests(unittest.TestCase):
@@ -324,9 +391,13 @@ class WebClientTests(unittest.TestCase):
         assets = list((APP_ROOT / "static" / "js").glob("chat_core.v4.8.*.js"))
         self.js = assets[0].read_text(encoding="utf-8")
 
-    def test_gemini_translation_config_in_generation_config(self):
-        self.assertIn("setupMsg.setup.generationConfig.translationConfig = config.translationConfig", self.js)
-        self.assertNotIn("setupMsg.setup.translationConfig =", self.js)
+    def test_gemini_live_uses_the_server_session(self):
+        # Gemini Live runs in the authenticated server-held session, so the
+        # browser never needs an ephemeral token or the constrained endpoint.
+        self.assertIn("const isRealtimeSessionModel", self.js)
+        self.assertNotIn("BidiGenerateContentConstrained", self.js)
+        self.assertNotIn("/api/gemini/session", self.js)
+        self.assertNotIn("/api/skillini", self.js)
 
     def test_output_transcription_is_not_deduplicated(self):
         self.assertNotIn("this.assistantText.includes(sc.outputTranscription.text)", self.js)

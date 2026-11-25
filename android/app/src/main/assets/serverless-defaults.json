@@ -599,11 +599,11 @@
   },
   {
    "capabilities": [
-    "transcription"
+    "realtime_audio"
    ],
    "deprecated": false,
    "id": "gemini-3.5-transcribe-live",
-   "mode": "transcription",
+   "mode": "realtime_audio",
    "name": "Gemini 3.5 Transcribe Live",
    "provider": "gemini",
    "provider_label": "Gemini",

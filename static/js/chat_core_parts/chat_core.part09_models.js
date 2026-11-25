@@ -846,7 +846,9 @@
         ];
         const OPENAI_STS_VOICES = ['alloy','ash','ballad','coral','echo','sage','shimmer','verse','marin','cedar'];
         // GPT-Live adds regional voices to the standard set (default: marin).
-        const OPENAI_LIVE_VOICES = [...OPENAI_STS_VOICES, 'quartz','ripple','vesper','willow','stone','gleam','meridian','bossa','tempo','beacon','delta','cinder'];
+        const OPENAI_LIVE_VOICES = [...OPENAI_STS_VOICES,
+            'pearl','quartz','ripple','halo','vesper','willow','stone','gleam','meridian','bossa','tempo','beacon','delta','cinder',
+            'calandria','compas','hornero','luciernaga','destello','nuri','juni','flitz','brise','sillage','nira','harema','shida','noeul'];
         const OPENAI_LIVE_STS_MODELS = new Set(['gpt-live-1']);
         const OPENAI_REASONING_STS_MODELS = new Set(['gpt-realtime-2', 'gpt-realtime-2.1', 'gpt-realtime-2.1-mini']);
         const GEMINI_INTERACTIONS_TTS_MODELS = new Set(['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts']);
@@ -967,11 +969,11 @@
         const isGeminiRealtimeMusicModel = () => (get('model-select').value || '') === 'lyria-realtime-exp';
         const isLyriaRealtimeModel = () => isGeminiRealtimeMusicModel();
         // True real-time server-session STS models: OpenAI Realtime conversation
-        // models, Grok Voice, and Gemini native-audio. Gemini Live models stream
-        // browser-direct, transcription models stay one-shot.
+        // models, Grok Voice, and every Gemini Live model (native audio,
+        // translation and streaming transcription). The server holds the
+        // provider WebSocket so the API key never reaches the browser.
         const isRealtimeSessionModel = () => {
             if (!isStsModel()) return false;
-            if (isGeminiLiveModel()) return false;
             if (isTranscriptionModel()) return false;
             if (get('model-select') && get('model-select').value === 'gpt-realtime-whisper') return false;
             return true;

@@ -40,226 +40,6 @@
                     }
                 }, 200);
             }
-            class GeminiLiveClient {
-                constructor() {
-                    this.ws = null;
-                    this.audioContext = null;
-                    this.processor = null;
-                    this.stream = null;
-                    this.rtPlayer = null;
-                    this.assistantText = '';
-                    this.assistantThought = '';
-                    this.inputTranscript = '';
-                    this.interimInputTranscript = '';
-                    this.assistantAudioChunks = [];
-                    this.userAudioChunks = [];
-                    this.onMessage = null;
-                    this.onClose = null;
-                    this.onError = null;
-                    this.setupComplete = false;
-                    this.model = null;
-                    this.assistantTurnBreak = false;
-                    this.userTurnBreak = false;
-                }
-                async start(token, url, model, config = {}, prepared = null) {
-                    this.model = model;
-                    this.ws = new WebSocket(`${url}?access_token=${encodeURIComponent(token)}`);
-                    this.ws.binaryType = 'arraybuffer';
-
-                    this.ws.onopen = () => {
-                        console.log("Gemini Live WebSocket opened. Sending setup...");
-                        // Live Transcription: TEXT output + input audio transcription config.
-                        // Otherwise: audio-to-audio Live agent with transcription metadata.
-                        const isTranscribeMode = !!(config && config.transcriptionConfig);
-                        const setupMsg = {
-                            setup: {
-                                model: `models/${model}`,
-                                generationConfig: {
-                                    responseModalities: isTranscribeMode ? ["TEXT"] : ["AUDIO"]
-                                },
-                                // Enable transcription at setup level (as per docs)
-                                inputAudioTranscription: isTranscribeMode
-                                    ? (config.transcriptionConfig || {})
-                                    : {}
-                            }
-                        };
-                        // Text-only transcription has no model audio to transcribe.
-                        if (!isTranscribeMode) setupMsg.setup.outputAudioTranscription = {};
-
-                        // speechConfig is inside generationConfig
-                        if (config.speechConfig) {
-                            setupMsg.setup.generationConfig.speechConfig = config.speechConfig;
-                        }
-
-                        // thinkingConfig is also inside generationConfig in the Live API schema
-                        if (config.thinkingConfig) {
-                            setupMsg.setup.generationConfig.thinkingConfig = config.thinkingConfig;
-                        }
-
-                        // Live Translate: translationConfig is a generationConfig field
-                        if (config.translationConfig) {
-                            setupMsg.setup.generationConfig.translationConfig = config.translationConfig;
-                        }
-
-                        console.log("Sending setup:", JSON.stringify(setupMsg));
-                        this.ws.send(JSON.stringify(setupMsg));
-                    };
-
-                    this.ws.onmessage = (e) => this._handleMessage(e);
-                    this.ws.onerror = (e) => {
-                        console.error("Gemini Live WebSocket error:", e);
-                        if (this.onError) this.onError(e);
-                    };
-                    this.ws.onclose = (e) => {
-                        console.log("Gemini Live WebSocket closed:", e.code, e.reason);
-                        this.closedEvent = e;
-                        if (this.onClose) this.onClose(e);
-                    };
-
-                    if (prepared && prepared.stream && prepared.ctx && prepared.source) {
-                        this.stream = prepared.stream;
-                        this.audioContext = prepared.ctx;
-                        var source = prepared.source;
-                    } else {
-                        this.stream = await navigator.mediaDevices.getUserMedia(getMicCaptureConstraints());
-                        const mic = openMicAudioSource(this.stream, 16000);
-                        this.audioContext = mic.ctx;
-                        var source = mic.source;
-                    }
-                    if (this.audioContext.state === 'suspended') {
-                        try { await this.audioContext.resume(); } catch (e) {}
-                    }
-                    this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
-
-                    this.userAudioChunks = [];
-                    const backupRecorder = new MediaRecorder(this.stream);
-                    backupRecorder.ondataavailable = (e) => {
-                        if (e.data.size > 0) this.userAudioChunks.push(e.data);
-                    };
-                    backupRecorder.start(500);
-                    this.backupRecorder = backupRecorder;
-
-                    this.processor.onaudioprocess = (e) => {
-                        if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.setupComplete) return;
-                        const pcm = pcm16FromFloat32(e.inputBuffer.getChannelData(0), this.audioContext.sampleRate, 16000);
-                        if (!pcm || !pcm.byteLength) return;
-                        this.ws.send(JSON.stringify({
-                            realtimeInput: {
-                                audio: {
-                                    data: btoa(String.fromCharCode.apply(null, new Uint8Array(pcm))),
-                                    mimeType: "audio/pcm;rate=16000"
-                                }
-                            }
-                        }));
-                    };
-                    source.connect(this.processor);
-                    this.processor.connect(this.audioContext.destination);
-                }
-                _handleMessage(e) {
-                    let data = null;
-                    try {
-                        data = JSON.parse(typeof e.data === 'string' ? e.data : new TextDecoder().decode(e.data));
-                    } catch (err) {
-                        return;
-                    }
-
-                    if (data.setupComplete) {
-                        console.log("Gemini Live setup complete confirmed");
-                        this.setupComplete = true;
-                    }
-                    if (data.serverContent) {
-                        const sc = data.serverContent;
-                        if (sc.modelTurn) {
-                            sc.modelTurn.parts.forEach(p => {
-                                if (p.text) {
-                                    if (p.thought) {
-                                        console.log("Gemini thought delta:", p.text);
-                                        this.assistantThought += p.text;
-                                    } else if (!(this.model === 'gemini-3.5-transcribe-live')) {
-                                        this._appendAssistantText(p.text);
-                                    }
-                                }
-                                if (p.inlineData && p.inlineData.data) {
-                                    const audioBase64 = p.inlineData.data;
-                                    console.log("Gemini audio chunk received, size:", audioBase64.length);
-                                    if (this.rtPlayer) this.rtPlayer.addChunk(audioBase64);
-                                    const binary = atob(audioBase64);
-                                    const bytes = new Uint8Array(binary.length);
-                                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-                                    this.assistantAudioChunks.push(bytes);
-                                }
-                            });
-                        }
-                        // Native-audio models deliver the spoken text only here.
-                        if (sc.outputTranscription && sc.outputTranscription.text) {
-                            this._appendAssistantText(sc.outputTranscription.text);
-                        }
-                        if (sc.inputTranscription && sc.inputTranscription.text) {
-                            if (this.userTurnBreak && this.inputTranscript && !this.inputTranscript.endsWith('\n')) this.inputTranscript += '\n';
-                            this.userTurnBreak = false;
-                            this.inputTranscript += sc.inputTranscription.text;
-                            this.interimInputTranscript = '';
-                        }
-                        if (sc.interimInputTranscription) {
-                            this.interimInputTranscript = sc.interimInputTranscription.text || '';
-                        }
-                        if (sc.turnComplete) {
-                            this.assistantTurnBreak = true;
-                            if (this.model !== 'gemini-3.5-transcribe-live') this.userTurnBreak = true;
-                        }
-                    }
-                    if (data.error && this.onError) this.onError(data.error);
-                    if (this.onMessage) this.onMessage(data);
-                }
-                _appendAssistantText(text) {
-                    if (!text) return;
-                    if (this.assistantTurnBreak && this.assistantText && !this.assistantText.endsWith('\n')) this.assistantText += '\n';
-                    this.assistantTurnBreak = false;
-                    this.assistantText += text;
-                }
-                stop() {
-                    // Stop the recorder before the mic tracks. Stopping the tracks first drops
-                    // the buffered recording, and getFinalData used to read it before `stop` fired.
-                    const recorder = this.backupRecorder;
-                    this.backupRecorder = null;
-                    this._stopped = new Promise((resolve) => {
-                        let settled = false;
-                        const finish = () => { if (!settled) { settled = true; resolve(); } };
-                        if (!recorder || recorder.state === 'inactive') { finish(); return; }
-                        recorder.addEventListener('stop', finish, { once: true });
-                        try { recorder.stop(); } catch (e) { finish(); }
-                        setTimeout(finish, 1500);
-                    });
-                    if (this.ws) { try { this.ws.close(); } catch (e) {} }
-                    if (this.processor) { try { this.processor.disconnect(); } catch (e) {} }
-                    const release = () => {
-                        if (this.stream) this.stream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
-                        if (this.audioContext) { try { this.audioContext.close(); } catch (e) {} }
-                    };
-                    this._stopped.then(release);
-                }
-                async getFinalData() {
-                    if (this._stopped) await this._stopped;
-                    const assistantAudioBlob = new Blob(this.assistantAudioChunks);
-                    const assistantAudioBase64 = await this._blobToBase64(assistantAudioBlob);
-                    const userAudioBlob = new Blob(this.userAudioChunks);
-                    const userAudioBase64 = await this._blobToBase64(userAudioBlob);
-                    return {
-                        user_text: this.inputTranscript,
-                        assistant_text: this.assistantText,
-                        assistant_thought: this.assistantThought,
-                        audio_base64: assistantAudioBase64,
-                        user_audio_base64: userAudioBase64
-                    };
-                }
-                _blobToBase64(blob) {
-                    return new Promise(resolve => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => resolve(reader.result.split(',')[1]);
-                        reader.readAsDataURL(blob);
-                    });
-                }
-            }
             class RealTimeAudioPlayer {
                 constructor(sampleRate = 24000) {
                     const AC = window.AudioContext || window.webkitAudioContext;
@@ -384,6 +164,12 @@
                         target_lang: ((isGeminiLiveTranslateModel() || model === 'gpt-realtime-translate') && get('sts-target-lang')) ? get('sts-target-lang').value : ''
                     };
                     if (isXaiLiveTranscribeModel() && get('sts-custom-vocab')) payload.custom_vocabulary = get('sts-custom-vocab').value.split(/[,、\n]/);
+                    if (isGeminiLiveTranscribeModel()) {
+                        payload.transcription_mode = get('sts-transcribe-mode') ? get('sts-transcribe-mode').value : 'VERBATIM';
+                        payload.custom_vocabulary = get('sts-custom-vocab')
+                            ? get('sts-custom-vocab').value.split(/[,、\n]/).map((s) => s.trim()).filter(Boolean).slice(0, 1000)
+                            : [];
+                    }
                     setStsStatus('接続中...', true);
                     try {
                         const resp = await apiFetch('/api/realtime/start', {
@@ -529,6 +315,9 @@
                             break;
                         case 'status':
                             if (ev.status === 'ready' && this.active) setStsStatus('話してください...', true);
+                            break;
+                        case 'interaction_status':
+                            if (this.active) setStsStatus(ev.status === 'IN_PROGRESS' ? '考え中...' : '話してください...', true);
                             break;
                         case 'notice':
                             // Recoverable provider error: the session stays open.
@@ -959,7 +748,7 @@
                     streamController = new AbortController();
                     streamOpen = true;
                     try {
-                        const res = await fetch(`/api/skillini/music/stream?session_id=${encodeURIComponent(sessionId)}`, noSpinner({
+                        const res = await fetch(`/api/gemini/music/stream?session_id=${encodeURIComponent(sessionId)}`, noSpinner({
                             method: 'GET',
                             signal: streamController.signal,
                             headers: { 'Accept': 'text/event-stream' },

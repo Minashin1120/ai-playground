@@ -205,7 +205,9 @@ OPENAI_STS_VOICES = {
 }
 # GPT-Live adds regional voices to the standard set (default: marin).
 OPENAI_LIVE_VOICES = OPENAI_STS_VOICES | {
-    "quartz","ripple","vesper","willow","stone","gleam","meridian","bossa","tempo","beacon","delta","cinder"
+    "pearl","quartz","ripple","halo","vesper","willow","stone","gleam","meridian","bossa","tempo",
+    "beacon","delta","cinder","calandria","compas","hornero","luciernaga","destello","nuri","juni",
+    "flitz","brise","sillage","nira","harema","shida","noeul",
 }
 XAI_STS_VOICES = {"ara", "rex", "sal", "eve", "leo"}
 GEMINI_STS_VOICES = {

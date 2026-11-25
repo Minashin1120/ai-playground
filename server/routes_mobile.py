@@ -23,7 +23,7 @@ def _mobile_model_mode(model_id):
         return 'ocr'
     if model_id == 'gemini-embedding-2':
         return 'embedding'
-    if model_id in XAI_LIVE_STT_MODELS:
+    if model_id in XAI_LIVE_STT_MODELS or model_id in GEMINI_LIVE_TRANSCRIBE_MODELS:
         return 'realtime_audio'
     if 'transcribe' in model_id:
         return 'transcription'

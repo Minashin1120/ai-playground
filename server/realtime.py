@@ -42,6 +42,66 @@ OPENAI_LIVE_DELEGATION_MODEL = "gpt-5.6-luna"
 
 GEMINI_LIVE_TRANSLATE_MODELS = {"gemini-3.5-live-translate-preview"}
 GEMINI_LIVE_TRANSCRIBE_MODELS = {"gemini-3.5-transcribe-live"}
+# Vertex AI exposes the native-audio Live model under its GA id.
+GEMINI_VERTEX_LIVE_MODEL_ALIASES = {
+    "gemini-2.5-flash-native-audio-preview-12-2025": "gemini-live-2.5-flash-native-audio",
+}
+GEMINI_VERTEX_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
+# Live Translate documents these canonical BCP-47 codes; the panel and the
+# Android picker use the shorter zh-CN / zh-TW / pt labels.
+GEMINI_LIVE_TARGET_LANG_ALIASES = {
+    "zh": "zh-Hans",
+    "zh-cn": "zh-Hans",
+    "zh-hans": "zh-Hans",
+    "zh-tw": "zh-Hant",
+    "zh-hant": "zh-Hant",
+    "pt": "pt-BR",
+    "pt-br": "pt-BR",
+    "pt-pt": "pt-PT",
+}
+
+
+def _normalize_gemini_target_lang(value):
+    raw = str(value or "ja").strip()
+    key = raw.lower()
+    if key in GEMINI_LIVE_TARGET_LANG_ALIASES:
+        return GEMINI_LIVE_TARGET_LANG_ALIASES[key]
+    base = key.split("-")[0].split("_")[0]
+    return base[:16] or "ja"
+
+
+def _rt_gemini_vertex_access_token(runtime):
+    """OAuth token for the regional Vertex AI Live endpoint (ADC or service account)."""
+    import google.auth
+    from google.auth.transport.requests import Request as GoogleAuthRequest
+    credentials_json = (runtime or {}).get("vertex_credentials_json")
+    if credentials_json and str(credentials_json).strip():
+        info = json.loads(credentials_json)
+        credentials = service_account.Credentials.from_service_account_info(
+            info, scopes=GEMINI_VERTEX_SCOPES
+        )
+    else:
+        credentials, _project = google.auth.default(scopes=GEMINI_VERTEX_SCOPES)
+    credentials.refresh(GoogleAuthRequest())
+    if not credentials.token:
+        raise RuntimeError("Vertex AIの認証トークンを取得できませんでした")
+    return credentials.token
+
+
+def _rt_gemini_vertex_target(runtime, model_key):
+    """(WebSocket URL, model resource name, auth headers) for Vertex AI Live."""
+    project = str((runtime or {}).get("vertex_project") or "").strip()
+    location = str((runtime or {}).get("vertex_location") or "global").strip() or "global"
+    if not project:
+        raise RuntimeError("Vertex AIのプロジェクトIDが設定されていません")
+    vertex_model = GEMINI_VERTEX_LIVE_MODEL_ALIASES.get(model_key, model_key)
+    model_resource = (
+        f"projects/{project}/locations/{location}/publishers/google/models/{vertex_model}"
+    )
+    host = "aiplatform.googleapis.com" if location == "global" else f"{location}-aiplatform.googleapis.com"
+    url = f"wss://{host}/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent"
+    headers = {"Authorization": f"Bearer {_rt_gemini_vertex_access_token(runtime)}"}
+    return url, model_resource, headers
 # Gemini Live models that reject thinkingConfig.thinkingLevel (2.5 uses a
 # thinking budget, 3.8 Live has fixed latency, translate/transcribe do not think).
 GEMINI_LIVE_NO_THINKING_LEVEL_MODELS = {
@@ -96,9 +156,17 @@ def _rt_drains_on_stop(session):
     """Sessions that flush buffered audio after the input ends and then close."""
     return (
         _rt_is_live_transcription_session(session)
+        or session.model_key in GEMINI_LIVE_TRANSCRIBE_MODELS
         or session.model_key in OPENAI_TRANSLATE_MODELS
         or session.model_key in OPENAI_LIVE_MODELS
     )
+
+
+def _rt_max_session_seconds(session):
+    """Provider-side session ceiling used by the run loop."""
+    if session.model_key in GEMINI_LIVE_TRANSCRIBE_MODELS:
+        return 10 * 60  # Gemini 3.5 Transcribe Live is limited to 10 minutes.
+    return RT_MAX_SESSION_SECONDS
 
 
 def _rt_key(kind, session_id):
@@ -322,7 +390,7 @@ def _normalize_rt_params(provider, model_key, data):
         else:
             params["thinking_level"] = thinking if thinking in {"minimal", "low", "medium", "high"} else None
         params["include_thoughts"] = bool(data.get("include_thoughts")) and params["thinking_level"] is not None
-        params["target_lang"] = str(data.get("target_lang") or "ja").strip().lower()[:16] or "ja"
+        params["target_lang"] = _normalize_gemini_target_lang(data.get("target_lang"))
         mode = str(data.get("transcription_mode") or "VERBATIM").strip().upper()
         params["transcription_mode"] = mode if mode in {"SMART", "VERBATIM"} else "VERBATIM"
         vocabulary = data.get("custom_vocabulary")
@@ -626,7 +694,7 @@ def _rt_resolve_api_key(current_user_obj, model_key, provider):
     model_specific_key = _get_model_specific_api_key(current_user_obj, model_key)
     if provider == "google":
         runtime = _resolve_gemini_runtime(current_user_obj)
-        return (model_specific_key or runtime.get("api_key")), None
+        return (model_specific_key or runtime.get("api_key")), runtime
     if provider == "openai":
         key = model_specific_key or decrypt_val(current_user_obj.openai_api_key)
         if not key and _admin_env_fallback_enabled(current_user_obj):

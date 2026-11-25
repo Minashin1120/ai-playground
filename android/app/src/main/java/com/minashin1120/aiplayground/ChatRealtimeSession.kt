@@ -146,6 +146,10 @@ internal class ChatRealtimeSession(
     private fun handleRealtimeEvent(event: JSONObject, rateOut: Int) {
         when (event.optString("type")) {
             "status" -> if (event.optString("status") == "ready" && state.value.realtime.active && !rtStopping) setRealtimeStatus("話してください...")
+            // Gemini 3.8 Extended Thinking: interaction_status replaces turnComplete for the UI state.
+            "interaction_status" -> if (state.value.realtime.active && !rtStopping) {
+                setRealtimeStatus(if (event.optString("status") == "IN_PROGRESS") "考え中..." else "話してください...")
+            }
             "audio" -> {
                 rtLastAudioAt = System.currentTimeMillis()
                 if (!rtAutoPlay) return

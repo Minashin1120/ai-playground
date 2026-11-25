@@ -490,8 +490,8 @@ internal fun WebButton(
     val shape = RoundedCornerShape(radius)
     val (background, border, fg) = when (variant) {
         WebButtonVariant.Primary -> Triple(
-            Brush.linearGradient(listOf(web.theme.t500, web.theme.t600), start = Offset.Zero, end = Offset.Infinite),
-            web.theme.rgb(0.45f), web.textInverse,
+            Brush.linearGradient(listOf(web.theme.btnBgStart, web.theme.btnBgEnd), start = Offset.Zero, end = Offset.Infinite),
+            web.theme.btnBorder, web.textInverse,
         )
         WebButtonVariant.Ghost -> Triple(Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)), Color.Transparent, web.muted)
         WebButtonVariant.Gray -> Triple(

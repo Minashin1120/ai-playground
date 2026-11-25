@@ -28,6 +28,9 @@
     --theme-rgb: 13, 212, 191;
     --theme-bubble-border: rgba(var(--theme-rgb), 0.28);
     --theme-btn-border: rgba(var(--theme-rgb), 0.4);
+    --theme-btn-bg: linear-gradient(135deg, var(--theme-500), var(--theme-600));
+    --theme-tab-active-bg: rgba(var(--theme-rgb), 0.14);
+    --theme-tab-active-border: rgba(var(--theme-rgb), 0.28);
     --accent: var(--theme-500);
     --accent-2: #f59e0b;
     --danger: #f9708d;

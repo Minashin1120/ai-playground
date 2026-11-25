@@ -25,15 +25,15 @@ replace("/files/thumb/","/files/"),"fullFileUrl");document.addEventListener("err
 if(!c||c.tagName!=="IMG")return;const d=c.currentSrc||c.src||"";if(!t(d)){const k=c.closest&&c.closest(
 ".svg-code-render");if(k){k.dataset.svgState="error";return}const C=c.closest&&c.closest(".chat-imag\
 e-frame");if(C){C.dataset.chatImageState="error",C.removeAttribute("aria-busy");const L=C.querySelector(
-".chat-image-loading"),M=L&&L.querySelector("span");M&&(M.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
+".chat-image-loading"),T=L&&L.querySelector("span");T&&(T.textContent="\u753B\u50CF\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
 const E=L&&L.querySelector("i");E&&(E.className="fas fa-image")}return}l.stopImmediatePropagation(),
 l.preventDefault();const m=String(d).split("?")[0],g=c.getAttribute("data-viewer-filename")||m.split(
 "/").pop(),y=r(k=>{const C=c.closest&&c.closest(".chat-image-frame");C&&(C.dataset.chatImageState="f\
 ailed",C.removeAttribute("aria-busy"));const L=i(g,!!k);try{c.replaceWith(L)}catch{}},"showWarning"),
 v=r(()=>{const k=c.closest&&c.closest(".chat-image-frame");k&&(k.dataset.chatImageState="busy",k.removeAttribute(
 "aria-busy"));const C=a(g);try{c.replaceWith(C)}catch{}},"showBusyWarning"),w=r((k,C)=>{const L=c.cloneNode(
-!1);L.setAttribute("data-file-retry",String(C));const M=k+(k.includes("?")?"&":"?")+"retry="+Date.now()+
-"_"+C;L.setAttribute("src",M);try{c.replaceWith(L)}catch{}},"retryLoad"),x=r(k=>{if(k===429||k===503){
+!1);L.setAttribute("data-file-retry",String(C));const T=k+(k.includes("?")?"&":"?")+"retry="+Date.now()+
+"_"+C;L.setAttribute("src",T);try{c.replaceWith(L)}catch{}},"retryLoad"),x=r(k=>{if(k===429||k===503){
 v();return}if(k===409){y(!0);return}if(k===404||k===410||k===403){y(!1);return}const C=parseInt(c.getAttribute&&
 c.getAttribute("data-file-retry")||"0",10);if(C<2){w(d,C+1);return}if(d.includes("/files/thumb/")&&!c.
 getAttribute("data-file-fallback")){c.setAttribute("data-file-fallback","1"),w(o(d),0);return}y(!1)},
@@ -321,20 +321,25 @@ deriveTheme=r(e=>{const[t,n,i]=hexToRgb(e),a=Math.round((t*299+n*587+i*114)/1e3)
 mix(t,255,d),mix(n,255,d),mix(i,255,d)),y=o?rgbToHex(mix(t,255,l*.12),mix(n,255,l*.12),mix(n,255,l*.12)):
 rgbToHex(mix(t,0,.18),mix(n,0,.18),mix(i,0,.18)),v=o?rgbToHex(mix(t,255,l*.22),mix(n,255,l*.22),mix(
 i,255,l*.22)):rgbToHex(mix(t,0,.32),mix(n,0,.32),mix(i,0,.32)),w=o?"#ffffff":"#031413",x=o?"rgba(255\
-, 255, 255, 0.18)":`rgba(${t}, ${n}, ${i}, 0.28)`,k=o?"rgba(255, 255, 255, 0.22)":`rgba(${t}, ${n}, ${i}\
-, 0.4)`;return{base:e,light:m,lighter:g,dark:y,darker:v,rgb:`${t}, ${n}, ${i}`,textInverse:w,bubbleBorder:x,
-btnBorder:k}},"deriveTheme"),applyThemeColor=r((e,t=!1)=>{const n=normalizeHex(e)||THEME_DEFAULT,i=deriveTheme(
-n),a=document.documentElement;[["--theme-500",i.base],["--theme-600",i.dark],["--theme-700",i.darker],
-["--theme-300",i.light],["--theme-200",i.lighter],["--theme-rgb",i.rgb],["--text-inverse",i.textInverse],
-["--theme-bubble-border",i.bubbleBorder],["--theme-btn-border",i.btnBorder]].forEach(([l,c])=>{a.style.
-getPropertyValue(l).trim()!==String(c).trim()&&a.style.setProperty(l,c)}),t&&localStorage.setItem(THEME_STORAGE_KEY,
-n)},"applyThemeColor"),applyLightMode=r(e=>{const t=!!e;let n=get("manual-theme-light-css");if(t&&!n){
-const i=window.CHAT_CONFIG&&window.CHAT_CONFIG.urls&&window.CHAT_CONFIG.urls.manualLightTheme;if(!i)
-return;n=document.createElement("link"),n.id="manual-theme-light-css",n.rel="stylesheet",n.href=i,document.
-head.appendChild(n)}else!t&&n&&n.remove()},"applyLightMode"),syncThemeInputs=r(e=>{const t=normalizeHex(
-e)||THEME_DEFAULT,n=get("set-theme-color"),i=get("set-theme-color-text");n&&(n.value=t),i&&(i.value=
-t),document.querySelectorAll("#theme-presets .theme-swatch").forEach(o=>{const l=normalizeHex(o.getAttribute(
-"data-color"));o.classList.toggle("active",l===t)})},"syncThemeInputs"),initThemeFromServer=r(()=>{INITIAL_LIGHT_MODE_ENABLED&&
+, 255, 255, 0.18)":`rgba(${t}, ${n}, ${i}, 0.28)`,k=o?"rgba(255, 255, 255, 0.28)":`rgba(${t}, ${n}, ${i}\
+, 0.4)`,C=o?rgbToHex(mix(t,255,l*.18),mix(n,255,l*.18),mix(i,255,l*.18)):e,L=o?rgbToHex(mix(t,255,l*
+.28),mix(n,255,l*.28),mix(n,255,l*.28)):y,T=`linear-gradient(135deg, ${C}, ${L})`,E=o?"rgba(255, 255\
+, 255, 0.09)":`rgba(${t}, ${n}, ${i}, 0.14)`,G=o?"rgba(255, 255, 255, 0.20)":`rgba(${t}, ${n}, ${i},\
+ 0.28)`;return{base:e,light:m,lighter:g,dark:y,darker:v,rgb:`${t}, ${n}, ${i}`,textInverse:w,bubbleBorder:x,
+btnBorder:k,btnBg:T,btnBgStart:C,btnBgEnd:L,tabActiveBg:E,tabActiveBorder:G}},"deriveTheme"),applyThemeColor=r(
+(e,t=!1)=>{const n=normalizeHex(e)||THEME_DEFAULT,i=deriveTheme(n),a=document.documentElement;[["--t\
+heme-500",i.base],["--theme-600",i.dark],["--theme-700",i.darker],["--theme-300",i.light],["--theme-\
+200",i.lighter],["--theme-rgb",i.rgb],["--text-inverse",i.textInverse],["--theme-bubble-border",i.bubbleBorder],
+["--theme-btn-border",i.btnBorder],["--theme-btn-bg",i.btnBg],["--theme-tab-active-bg",i.tabActiveBg],
+["--theme-tab-active-border",i.tabActiveBorder]].forEach(([l,c])=>{a.style.getPropertyValue(l).trim()!==
+String(c).trim()&&a.style.setProperty(l,c)}),t&&localStorage.setItem(THEME_STORAGE_KEY,n)},"applyThe\
+meColor"),applyLightMode=r(e=>{const t=!!e;let n=get("manual-theme-light-css");if(t&&!n){const i=window.
+CHAT_CONFIG&&window.CHAT_CONFIG.urls&&window.CHAT_CONFIG.urls.manualLightTheme;if(!i)return;n=document.
+createElement("link"),n.id="manual-theme-light-css",n.rel="stylesheet",n.href=i,document.head.appendChild(
+n)}else!t&&n&&n.remove()},"applyLightMode"),syncThemeInputs=r(e=>{const t=normalizeHex(e)||THEME_DEFAULT,
+n=get("set-theme-color"),i=get("set-theme-color-text");n&&(n.value=t),i&&(i.value=t),document.querySelectorAll(
+"#theme-presets .theme-swatch").forEach(o=>{const l=normalizeHex(o.getAttribute("data-color"));o.classList.
+toggle("active",l===t)})},"syncThemeInputs"),initThemeFromServer=r(()=>{INITIAL_LIGHT_MODE_ENABLED&&
 applyLightMode(!0);const e=normalizeHex(INITIAL_THEME_COLOR);if(e){applyThemeColor(e,!1);return}const t=normalizeHex(
 localStorage.getItem(THEME_STORAGE_KEY));applyThemeColor(t||THEME_DEFAULT,!1)},"initThemeFromServer"),
 LIQUID_GLASS_SURFACE_SELECTOR=["#sidebar",".composer-dock","body > .flex-1 > header","#top-model-bar",
@@ -547,10 +552,10 @@ ransparent",a.appendChild(i.content.cloneNode(!0)),document.body.appendChild(a);
 from(a.querySelectorAll("*")).slice(0,5e3)],l=[],c=new Map;let d=0;const m=r(x=>Array.from(x.childNodes||
 []).reduce((k,C)=>C&&C.nodeType===Node.TEXT_NODE?k+String(C.textContent||"").replace(/\s+/g," ").trim().
 length:k,0),"directTextLength");o.forEach(x=>{if(!x||x===a||!x.style)return;const k=window.getComputedStyle(
-x),C=m(x);if(C>0){const M=parseRichPasteCssColor(k.color);if(M&&M.a>=.5){const E=richPasteColorCss(M),
-W=c.get(E)||{color:M,weight:0};W.weight+=C,c.set(E,W),d+=C}}if(!!(String(x.style.backgroundColor||"").
-trim()||String(x.style.background||"").trim())){const M=parseRichPasteCssColor(k.backgroundColor);if(M&&
-M.a>=.72){const E=String(x.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:M,weight:Math.
+x),C=m(x);if(C>0){const T=parseRichPasteCssColor(k.color);if(T&&T.a>=.5){const E=richPasteColorCss(T),
+G=c.get(E)||{color:T,weight:0};G.weight+=C,c.set(E,G),d+=C}}if(!!(String(x.style.backgroundColor||"").
+trim()||String(x.style.background||"").trim())){const T=parseRichPasteCssColor(k.backgroundColor);if(T&&
+T.a>=.72){const E=String(x.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:T,weight:Math.
 max(1,E)})}}});const g=Array.from(c.values()).sort((x,k)=>k.weight-x.weight),y=g.length?g[0].color:null,
 v=g.reduce((x,k)=>x+(richPasteColorLuminance(k.color)>=.6?k.weight:0),0);l.sort((x,k)=>k.weight-x.weight);
 let w=l.length?l[0].color:null;return w||(w=d>0&&v/d>=.55?{r:11,g:11,b:12,a:1}:t),makeRichPasteTheme(
@@ -928,16 +933,16 @@ nd); font-weight: bold; }
                 </div>
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const v=new m(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),w=v.internal.pageSize.getWidth(),x=v.internal.
-pageSize.getHeight(),k=794,C=Math.floor(x/w*k),L=y.scrollHeight||y.offsetHeight;let M=0,E=!0;const W=Math.
-ceil(L/C);let R=0;for(;M<L;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
-"Aborted","AbortError");const P=Math.min(C,L-M),se=(await new Promise(($,O)=>{const J=setTimeout(()=>O(
+pageSize.getHeight(),k=794,C=Math.floor(x/w*k),L=y.scrollHeight||y.offsetHeight;let T=0,E=!0;const G=Math.
+ceil(L/C);let R=0;for(;T<L;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
+"Aborted","AbortError");const P=Math.min(C,L-T),se=(await new Promise(($,O)=>{const J=setTimeout(()=>O(
 new Error("PDF chunk rendering timed out")),12e4);g(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
-background,logging:!1,imageTimeout:5e3,x:0,y:M,width:k,height:P,windowWidth:k,scrollX:0,scrollY:0,signal:richPasteAbortController?
-richPasteAbortController.signal:void 0,onclone:r(j=>{prepareRichPastePdfClone(j,c);const G=j.querySelector(
-".pdf-root-wrapper");G&&(G.style.position="relative",G.style.left="0",G.style.top="0")},"onclone")}).
+background,logging:!1,imageTimeout:5e3,x:0,y:T,width:k,height:P,windowWidth:k,scrollX:0,scrollY:0,signal:richPasteAbortController?
+richPasteAbortController.signal:void 0,onclone:r(j=>{prepareRichPastePdfClone(j,c);const U=j.querySelector(
+".pdf-root-wrapper");U&&(U.style.position="relative",U.style.left="0",U.style.top="0")},"onclone")}).
 then(j=>{clearTimeout(J),$(j)}).catch(j=>{clearTimeout(J),O(j)})})).toDataURL("image/jpeg",.95),re=v.
 getImageProperties(se),ie=Math.min(x,re.height*w/re.width);E||v.addPage(),v.addImage(se,"JPEG",0,0,w,
-ie),E=!1,M+=P,R++;const he=Math.min(100,15+Math.round(R/W*85));i(he),await new Promise($=>setTimeout(
+ie),E=!1,T+=P,R++;const he=Math.min(100,15+Math.round(R/G*85));i(he),await new Promise($=>setTimeout(
 $,100))}return i(100),{blob:v.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.
 add("hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPas\
 tePdfBlob"),createRichPastePdfBlob=r(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),
@@ -2066,8 +2071,8 @@ ordKey"),l=r(v=>{const w=performance.now();if(!(w-e.lastMoveSample<80)){if(e.las
 sqrt(x*x+k*k)/(C/1e3);e.speedMax=Math.max(e.speedMax,L),e.speedSum+=L,e.speedSamples+=1}}e.lastMove=
 {x:v.clientX,y:v.clientY,t:w}}},"recordMove"),c=r(()=>{const v=Math.max(1,performance.now()-e.windowStart),
 w=e.clickTimes.length,x=e.keyTimes.length,k=e.speedSamples?e.speedSum/e.speedSamples:0;let C=0,L=1;if(e.
-clickIntervals.length>=3){const M=e.clickIntervals.reduce((W,R)=>W+R,0)/e.clickIntervals.length,E=e.
-clickIntervals.reduce((W,R)=>W+Math.pow(R-M,2),0)/e.clickIntervals.length;C=M,L=M>0?Math.sqrt(E)/M:1}
+clickIntervals.length>=3){const T=e.clickIntervals.reduce((G,R)=>G+R,0)/e.clickIntervals.length,E=e.
+clickIntervals.reduce((G,R)=>G+Math.pow(R-T,2),0)/e.clickIntervals.length;C=T,L=T>0?Math.sqrt(E)/T:1}
 return{window_ms:Math.round(v),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
 fastKeys,untrusted_input:!!e.untrustedInput,click_burst:w,key_burst:x,avg_click_ms:C,click_cv:L,event_rate:(e.
 clicks+e.keys+e.moves)/(v/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:k}},"computeStats"),d=r(
@@ -2313,8 +2318,8 @@ mx:(n.clientX+i.clientX)/2,my:(n.clientY+i.clientY)/2,x:vX,y:vY},s=null,e.preven
 touches.length!==1)return;const t=e.touches[0];if(z>1){s={startX:t.clientX,startY:t.clientY,dx:vX,dy:vY};
 return}s={startX:t.clientX,startY:t.clientY,lastX:t.clientX,dx:0,dy:0,vx:0,dir:0,active:!1,resist:!1,
 adjacent:null,lastTime:Date.now()}}r(onViewerTouchStart,"onViewerTouchStart");function onViewerTouchMove(e){
-if(e.touches.length>=2){if(!p){const M=e.touches[0],E=e.touches[1];p={d:Math.hypot(M.clientX-E.clientX,
-M.clientY-E.clientY)||1,s:z,mx:(M.clientX+E.clientX)/2,my:(M.clientY+E.clientY)/2,x:vX,y:vY},s=null}
+if(e.touches.length>=2){if(!p){const T=e.touches[0],E=e.touches[1];p={d:Math.hypot(T.clientX-E.clientX,
+T.clientY-E.clientY)||1,s:z,mx:(T.clientX+E.clientX)/2,my:(T.clientY+E.clientY)/2,x:vX,y:vY},s=null}
 const v=e.touches[0],w=e.touches[1],x=Math.hypot(v.clientX-w.clientX,v.clientY-w.clientY)||1,k=(v.clientX+
 w.clientX)/2,C=(v.clientY+w.clientY)/2;z=Math.min(6,Math.max(1,p.s*x/p.d)),z<=1.0001?(z=1,vX=0,vY=0):
 (vX=p.x+k-p.mx,vY=p.y+C-p.my);const L=get("image-viewer-img");if(!L)return;e.preventDefault(),L.style.
@@ -3038,8 +3043,8 @@ v=get("sts-auto-play-wrap"),w=get("sts-mode-label"),x=isTranscriptionModel()||is
 isXaiLiveTranscribeModel(),k=get("sts-lang-wrap"),C=get("sts-reasoning-wrap");if(C&&C.classList.toggle(
 "hidden",!OPENAI_REASONING_STS_MODELS.has(e)),x){w&&(w.textContent="Realtime Speech-to-Text"),y&&y.classList.
 add("hidden"),v&&v.classList.add("hidden"),i&&i.classList.add("hidden"),l&&l.classList.add("hidden"),
-m&&m.classList.add("hidden"),k&&k.classList.add("hidden");const L=get("sts-transcribe-wrap"),M=get("\
-sts-custom-vocab-wrap");L&&L.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),M&&M.classList.
+m&&m.classList.add("hidden"),k&&k.classList.add("hidden");const L=get("sts-transcribe-wrap"),T=get("\
+sts-custom-vocab-wrap");L&&L.classList.toggle("hidden",!isGeminiLiveTranscribeModel()),T&&T.classList.
 toggle("hidden",!isGeminiLiveTranscribeModel()&&!isXaiLiveTranscribeModel()),g&&(g.textContent=isGeminiLiveTranscribeModel()?
 "\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u4F4E\u9045\u5EF6\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM / \u6700\u592710\u5206\uFF09":
 isXaiLiveTranscribeModel()?"xAI \u30B9\u30C8\u30EA\u30FC\u30DF\u30F3\u30B0\u6587\u5B57\u8D77\u3053\u3057\uFF0816kHz PCM\uFF09":
@@ -3068,13 +3073,13 @@ textContent="Speech-to-Speech Live"),y&&y.classList.remove("hidden"),v&&v.classL
 setSelectOptions(n,GEMINI_STS_VOICES,n.value||"Kore"),i&&i.classList.add("hidden"),l&&l.classList.add(
 "hidden"),m&&m.classList.remove("hidden"),k&&k.classList.add("hidden"),g&&(g.textContent="Gemini Liv\
 e\u306F\u97F3\u58F0\u901F\u5EA6\u5909\u66F4\u975E\u5BFE\u5FDC");const L=get("sts-thinking-level");if(Array.
-from(L&&L.options||[]).forEach(M=>{M.disabled=!1}),e==="gemini-2.5-flash-native-audio-preview-12-202\
+from(L&&L.options||[]).forEach(T=>{T.disabled=!1}),e==="gemini-2.5-flash-native-audio-preview-12-202\
 5")m&&m.classList.add("hidden");else if(e==="gemini-3.8-live")m&&m.classList.add("hidden"),g&&(g.textContent=
 "Gemini 3.8 Flash Live\u306F\u56FA\u5B9A\u30EC\u30A4\u30C6\u30F3\u30B7\u306ELive API\u30E2\u30C7\u30EB\uFF08Thinking level\u975E\u5BFE\u5FDC\uFF09");else if(e===
 "gemini-3.8-live-extended-thinking"){g&&(g.textContent="Gemini 3.8 Live Extended Thinking\u306Flow / medi\
-um / high\u306E\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u63A8\u8AD6\u306B\u5BFE\u5FDC");const M=get(
-"sts-thinking-level");Array.from(M&&M.options||[]).forEach(E=>{E.disabled=E.value==="minimal"}),M&&![
-"low","medium","high"].includes(M.value)&&(M.value="medium")}e==="gemini-3.5-live-translate-preview"&&
+um / high\u306E\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u63A8\u8AD6\u306B\u5BFE\u5FDC");const T=get(
+"sts-thinking-level");Array.from(T&&T.options||[]).forEach(E=>{E.disabled=E.value==="minimal"}),T&&![
+"low","medium","high"].includes(T.value)&&(T.value="medium")}e==="gemini-3.5-live-translate-preview"&&
 (w&&(w.textContent="Realtime Translation"),m&&m.classList.add("hidden"),y&&y.classList.add("hidden"),
 k&&k.classList.remove("hidden"),g&&(g.textContent="70\u4EE5\u4E0A\u306E\u8A00\u8A9E\u306B\u5BFE\u5FDC\u3059\u308B\u30EA\u30A2\u30EB\u30BF\u30A4\u30E0\u97F3\u58F0\u7FFB\u8A33\uFF08Think\u975E\u5BFE\u5FDC\u30FB\u97F3\u58F0\u9078\u629E\u4E0D\u53EF\uFF09"))}
 i&&o&&a&&!i.classList.contains("hidden")&&(o.textContent=`${Number(a.value||1).toFixed(2)}x`)}r(updateStsOptions,

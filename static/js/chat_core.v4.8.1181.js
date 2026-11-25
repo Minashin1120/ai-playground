@@ -969,8 +969,21 @@
                 : rgbToHex(mix(r, 0, 0.32), mix(g, 0, 0.32), mix(b, 0, 0.32));
             const textInverse = isDark ? '#ffffff' : '#031413';
             const bubbleBorder = isDark ? 'rgba(255, 255, 255, 0.18)' : `rgba(${r}, ${g}, ${b}, 0.28)`;
-            const btnBorder = isDark ? 'rgba(255, 255, 255, 0.22)' : `rgba(${r}, ${g}, ${b}, 0.4)`;
-            return { base: hex, light, lighter, dark, darker, rgb: `${r}, ${g}, ${b}`, textInverse, bubbleBorder, btnBorder };
+            const btnBorder = isDark ? 'rgba(255, 255, 255, 0.28)' : `rgba(${r}, ${g}, ${b}, 0.4)`;
+            const btnBgStart = isDark
+                ? rgbToHex(mix(r, 255, darkRatio * 0.18), mix(g, 255, darkRatio * 0.18), mix(b, 255, darkRatio * 0.18))
+                : hex;
+            const btnBgEnd = isDark
+                ? rgbToHex(mix(r, 255, darkRatio * 0.28), mix(g, 255, darkRatio * 0.28), mix(g, 255, darkRatio * 0.28))
+                : dark;
+            const btnBg = `linear-gradient(135deg, ${btnBgStart}, ${btnBgEnd})`;
+            const tabActiveBg = isDark ? 'rgba(255, 255, 255, 0.09)' : `rgba(${r}, ${g}, ${b}, 0.14)`;
+            const tabActiveBorder = isDark ? 'rgba(255, 255, 255, 0.20)' : `rgba(${r}, ${g}, ${b}, 0.28)`;
+            return {
+                base: hex, light, lighter, dark, darker, rgb: `${r}, ${g}, ${b}`,
+                textInverse, bubbleBorder, btnBorder, btnBg, btnBgStart, btnBgEnd,
+                tabActiveBg, tabActiveBorder
+            };
         };
         const applyThemeColor = (value, persist = false) => {
             const hex = normalizeHex(value) || THEME_DEFAULT;
@@ -985,7 +998,10 @@
                 ['--theme-rgb', theme.rgb],
                 ['--text-inverse', theme.textInverse],
                 ['--theme-bubble-border', theme.bubbleBorder],
-                ['--theme-btn-border', theme.btnBorder]
+                ['--theme-btn-border', theme.btnBorder],
+                ['--theme-btn-bg', theme.btnBg],
+                ['--theme-tab-active-bg', theme.tabActiveBg],
+                ['--theme-tab-active-border', theme.tabActiveBorder]
             ];
             nextVars.forEach(([name, nextValue]) => {
                 if (root.style.getPropertyValue(name).trim() !== String(nextValue).trim()) {

@@ -346,13 +346,21 @@ def build_theme_css_vars(value):
         darker = to_hex(mix(r, 255, dark_ratio * 0.22), mix(g, 255, dark_ratio * 0.22), mix(b, 255, dark_ratio * 0.22))
         text_inverse = "#ffffff"
         bubble_border = "rgba(255, 255, 255, 0.18)"
-        btn_border = "rgba(255, 255, 255, 0.22)"
+        btn_border = "rgba(255, 255, 255, 0.28)"
+        btn_bg_start = to_hex(mix(r, 255, dark_ratio * 0.18), mix(g, 255, dark_ratio * 0.18), mix(g, 255, dark_ratio * 0.18))
+        btn_bg_end = to_hex(mix(r, 255, dark_ratio * 0.28), mix(g, 255, dark_ratio * 0.28), mix(g, 255, dark_ratio * 0.28))
+        btn_bg = f"linear-gradient(135deg, {btn_bg_start}, {btn_bg_end})"
+        tab_active_bg = "rgba(255, 255, 255, 0.09)"
+        tab_active_border = "rgba(255, 255, 255, 0.20)"
     else:
         dark = to_hex(mix(r, 0, 0.18), mix(g, 0, 0.18), mix(b, 0, 0.18))
         darker = to_hex(mix(r, 0, 0.32), mix(g, 0, 0.32), mix(b, 0, 0.32))
         text_inverse = "#031413"
         bubble_border = f"rgba({r}, {g}, {b}, 0.28)"
         btn_border = f"rgba({r}, {g}, {b}, 0.4)"
+        btn_bg = f"linear-gradient(135deg, {hex_value}, {dark})"
+        tab_active_bg = f"rgba({r}, {g}, {b}, 0.14)"
+        tab_active_border = f"rgba({r}, {g}, {b}, 0.28)"
 
     rgb = f"{r}, {g}, {b}"
     return (
@@ -366,6 +374,9 @@ def build_theme_css_vars(value):
         f"--text-inverse:{text_inverse};"
         f"--theme-bubble-border:{bubble_border};"
         f"--theme-btn-border:{btn_border};"
+        f"--theme-btn-bg:{btn_bg};"
+        f"--theme-tab-active-bg:{tab_active_bg};"
+        f"--theme-tab-active-border:{tab_active_border};"
         "}"
     )
 

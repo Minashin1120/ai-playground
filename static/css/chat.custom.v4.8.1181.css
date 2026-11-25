@@ -21,6 +21,9 @@
             --theme-rgb: 13, 212, 191;
             --theme-bubble-border: rgba(var(--theme-rgb), 0.28);
             --theme-btn-border: rgba(var(--theme-rgb), 0.4);
+            --theme-btn-bg: linear-gradient(135deg, var(--theme-500), var(--theme-600));
+            --theme-tab-active-bg: rgba(var(--theme-rgb), 0.14);
+            --theme-tab-active-border: rgba(var(--theme-rgb), 0.28);
             --accent: var(--theme-500);
             --accent-2: #f59e0b;
             --danger: #f9708d;
@@ -715,7 +718,7 @@
         .btn-modern:hover { transform: translateY(-1px); box-shadow: 0 16px 36px rgba(2,6,23,0.48); }
         .btn-glass { background: rgba(13, 21, 40, 0.65); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
         .btn-primary {
-            background: linear-gradient(135deg, var(--theme-500), var(--theme-600));
+            background: var(--theme-btn-bg, linear-gradient(135deg, var(--theme-500), var(--theme-600)));
             color: var(--text-inverse);
             border-color: var(--theme-btn-border, rgba(var(--theme-rgb), 0.4));
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 16px 32px rgba(var(--theme-rgb), 0.2);
@@ -1716,8 +1719,8 @@
         }
         #settings-modal .settings-tab.is-active {
             color: var(--theme-200);
-            background: rgba(var(--theme-rgb), 0.14);
-            border-color: rgba(var(--theme-rgb), 0.28);
+            background: var(--theme-tab-active-bg, rgba(var(--theme-rgb), 0.14));
+            border-color: var(--theme-tab-active-border, rgba(var(--theme-rgb), 0.28));
             box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
         }
         #settings-modal .settings-tab.is-active i { color: var(--theme-300); opacity: 1; }
@@ -1930,9 +1933,9 @@
         }
         #settings-modal .settings-btn-primary {
             color: var(--text-inverse);
-            background: linear-gradient(135deg, var(--theme-500), var(--theme-600));
-            border: 1px solid rgba(var(--theme-rgb), 0.45);
-            box-shadow: var(--shadow-glow);
+            background: var(--theme-btn-bg, linear-gradient(135deg, var(--theme-500), var(--theme-600)));
+            border: 1px solid var(--theme-btn-border, rgba(var(--theme-rgb), 0.45));
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), var(--shadow-glow);
         }
         #settings-modal .settings-btn-primary:hover { transform: translateY(-1px); filter: brightness(1.06); }
         #settings-modal .admin-mode-btn,
@@ -2424,7 +2427,7 @@
             transition: transform 0.26s var(--ease-out), box-shadow 0.26s var(--ease-standard), filter 0.2s var(--ease-standard), background 0.26s var(--ease-standard), border-color 0.26s var(--ease-standard), color 0.2s var(--ease-standard);
         }
         #new-chat-btn, #send-btn, #upload-select-btn, #save-skill-btn, #save-settings-btn, #fb-submit {
-            background: linear-gradient(135deg, var(--theme-500), var(--theme-600)) !important;
+            background: var(--theme-btn-bg, linear-gradient(135deg, var(--theme-500), var(--theme-600))) !important;
             color: var(--text-inverse) !important;
             border-color: var(--theme-btn-border, rgba(var(--theme-rgb), 0.4)) !important;
             box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 16px 32px rgba(var(--theme-rgb), 0.2);
@@ -3976,7 +3979,7 @@ header.bg-gray-800 {
 #welcome-screen h2 i {
     background: none;
     -webkit-background-clip: unset;
-    color: var(--theme-500) !important;
+    color: var(--theme-300) !important;
 }
 
 /* Message bubbles polish */
@@ -5635,6 +5638,16 @@ body.liquid-glass-mode #top-model-bar {
     filter: brightness(1.06);
     transform: translateY(-1px) !important;
 }
+#sidebar #settings-btn.sidebar-icon-btn {
+    color: var(--text-muted, #cbd5e1);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+#sidebar #settings-btn.sidebar-icon-btn:hover {
+    color: var(--theme-300, #38bdf8);
+    background: rgba(var(--theme-rgb), 0.14);
+    border-color: rgba(var(--theme-rgb), 0.28);
+}
 #sidebar #lib-btn.sidebar-icon-btn {
     transform: none;
     box-shadow: none;
@@ -5654,6 +5667,16 @@ body.liquid-glass-mode #top-model-bar {
     /* アイコンボタンが増えてもサイドバー幅からはみ出さないよう折り返す */
     row-gap: 0.35rem !important;
     flex-wrap: wrap !important;
+}
+#prompt-controls-row button[title="Chat Settings"],
+#prompt-controls-row button[title="Compression Settings"],
+#prompt-controls-row #math-steps-config-gear {
+    color: var(--muted, #94a3b8);
+}
+#prompt-controls-row button[title="Chat Settings"]:hover,
+#prompt-controls-row button[title="Compression Settings"]:hover,
+#prompt-controls-row #math-steps-config-gear:hover {
+    color: var(--theme-300, #38bdf8);
 }
 .sidebar-divider {
     border-color: var(--line-soft) !important;

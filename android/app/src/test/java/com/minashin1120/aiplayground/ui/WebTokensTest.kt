@@ -37,6 +37,11 @@ class WebTokensTest {
         assertEquals(Color(204, 204, 204), blackRamp.t300)
         assertEquals(Color(235, 235, 235), blackRamp.t200)
         assertEquals(Color.White.copy(alpha = 0.18f), blackRamp.bubbleBorder)
+        assertEquals(Color.White.copy(alpha = 0.28f), blackRamp.btnBorder)
+        assertEquals(Color(46, 46, 46), blackRamp.btnBgStart)
+        assertEquals(Color(71, 71, 71), blackRamp.btnBgEnd)
+        assertEquals(Color.White.copy(alpha = 0.09f), blackRamp.tabActiveBg)
+        assertEquals(Color.White.copy(alpha = 0.20f), blackRamp.tabActiveBorder)
 
         val darkPalette = webPalette(light = false, themeColor = "#000000")
         assertEquals(Color.White, darkPalette.textInverse)

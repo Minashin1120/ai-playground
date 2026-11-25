@@ -966,7 +966,7 @@ internal fun WelcomeScreen(models: List<Pair<String, String>>, onChoose: (String
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.verticalScroll(rememberScrollState())) {
             StaggerIn(0) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FaIcon(R.drawable.fa_solid_wand_magic_sparkles, null, size = 22.4.dp, tint = web.theme.t500)
+                    FaIcon(R.drawable.fa_solid_wand_magic_sparkles, null, size = 22.4.dp, tint = web.theme.t300)
                     val gradient = if (web.isLight) listOf(Color(0xFF0F766E), web.theme.t600, Color(0xFFB45309))
                         else listOf(Color(0xFFF8FAFC), web.theme.t200, Tw.amber200)
                     Text("AI Skills & Chat", fontSize = 22.4.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.035).em,

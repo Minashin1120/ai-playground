@@ -19,6 +19,10 @@ internal data class WebThemeRamp(
     val textInverse: Color = Color(0xFF031413),
     val bubbleBorder: Color = Color.Transparent,
     val btnBorder: Color = Color.Transparent,
+    val btnBgStart: Color = t500,
+    val btnBgEnd: Color = t600,
+    val tabActiveBg: Color = Color.Transparent,
+    val tabActiveBorder: Color = Color.Transparent,
 ) {
     /** `rgba(var(--theme-rgb), alpha)` in the Web stylesheet. */
     fun rgb(alpha: Float): Color = t500.copy(alpha = alpha)
@@ -53,7 +57,11 @@ internal fun deriveWebTheme(value: String?): WebThemeRamp {
     val t700 = if (isDark) Color(mix(r, 255, darkRatio * 0.22), mix(g, 255, darkRatio * 0.22), mix(b, 255, darkRatio * 0.22)) else Color(mix(r, 0, 0.32), mix(g, 0, 0.32), mix(b, 0, 0.32))
     val textInverse = if (isDark) Color.White else Color(0xFF031413)
     val bubbleBorder = if (isDark) Color.White.copy(alpha = 0.18f) else Color(r, g, b).copy(alpha = 0.28f)
-    val btnBorder = if (isDark) Color.White.copy(alpha = 0.22f) else Color(r, g, b).copy(alpha = 0.40f)
+    val btnBorder = if (isDark) Color.White.copy(alpha = 0.28f) else Color(r, g, b).copy(alpha = 0.40f)
+    val btnBgStart = if (isDark) Color(mix(r, 255, darkRatio * 0.18), mix(g, 255, darkRatio * 0.18), mix(b, 255, darkRatio * 0.18)) else Color(r, g, b)
+    val btnBgEnd = if (isDark) Color(mix(r, 255, darkRatio * 0.28), mix(g, 255, darkRatio * 0.28), mix(g, 255, darkRatio * 0.28)) else t600
+    val tabActiveBg = if (isDark) Color.White.copy(alpha = 0.09f) else Color(r, g, b).copy(alpha = 0.14f)
+    val tabActiveBorder = if (isDark) Color.White.copy(alpha = 0.20f) else Color(r, g, b).copy(alpha = 0.28f)
 
     return WebThemeRamp(
         t500 = Color(r, g, b),
@@ -64,6 +72,10 @@ internal fun deriveWebTheme(value: String?): WebThemeRamp {
         textInverse = textInverse,
         bubbleBorder = bubbleBorder,
         btnBorder = btnBorder,
+        btnBgStart = btnBgStart,
+        btnBgEnd = btnBgEnd,
+        tabActiveBg = tabActiveBg,
+        tabActiveBorder = tabActiveBorder,
     )
 }
 

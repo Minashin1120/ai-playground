@@ -63,54 +63,57 @@ internal class ChatRealtimeSession(
         rtStreamError = null
         if (state.value.realtime.active || modelId.isBlank()) return
         rtStopping = false
-        mutable.update { it.copy(realtime = RealtimeState(model = modelId, status = "接続中...")) }
-        scope.launch {
-            try {
-                val started = backend().post("/api/realtime/start", JSONObject()
-                    .put("model", modelId)
-                    .put("voice", voice)
-                    .put("target_lang", targetLanguage.trim().lowercase().take(16).ifBlank { "ja" })
-                    .put("thinking_level", thinkingLevel.trim().lowercase().ifBlank { "minimal" })
-                    .put("include_thoughts", includeThoughts)
-                    .put("transcription_mode", transcriptionMode.trim().uppercase().ifBlank { "VERBATIM" })
-                    .put("custom_vocabulary", JSONArray(customVocabulary.split(',', '、', '\n')
-                        .map { it.trim() }.filter { it.isNotBlank() }.take(1000)))
-                    .apply {
-                        speed?.let { put("speed", it.toDouble()) }
-                        rateIn?.let { put("rate_in", it) }
-                        rateOut?.let { put("rate_out", it) }
-                        reasoningEffort?.let { put("reasoning_effort", it) }
-                    }, token())
-                val sessionId = started.getString("session_id")
-                val rateOut = started.optInt("rate_out", 24000).coerceIn(8000, 48000)
-                realtimeTrack = newChatAudioTrack(rateOut, stereo = false)
-                mutable.update { it.copy(realtime = RealtimeState(true, modelId, sessionId, "話してください...")) }
-                realtimeCaptureJob = scope.launch(Dispatchers.IO) {
-                    try { captureRealtimeAudio(sessionId, started.optInt("rate_in", rateOut).coerceIn(8000, 48000)) }
-                    catch (e: CancellationException) { throw e }
-                    catch (e: Exception) {
-                        mutable.update { it.copy(realtime = it.realtime.copy(status = "マイクエラー", error = e.message)) }
-                        notify("マイクを利用できません: " + (e.message ?: ""))
-                    }
-                }
-                realtimeStreamJob = scope.launch(Dispatchers.IO) {
-                    try {
-                        api().streamSse("/api/realtime/stream?session_id=${URLEncoder.encode(sessionId, "UTF-8")}", token()) { event ->
-                            handleRealtimeEvent(event, rateOut)
-                        }
-                    } catch (e: CancellationException) { throw e }
-                    catch (e: Exception) {
-                        if (state.value.realtime.sessionId == sessionId && !rtStopping) {
-                            mutable.update { it.copy(realtime = it.realtime.copy(status = "ストリームエラー")) }
-                            notify("リアルタイム接続が切断されました")
+        // Web creates the chat before starting so the saved answer stays in this conversation.
+        ensureThread {
+            mutable.update { it.copy(realtime = RealtimeState(model = modelId, status = "接続中...")) }
+            scope.launch {
+                try {
+                    val started = backend().post("/api/realtime/start", JSONObject()
+                        .put("model", modelId)
+                        .put("voice", voice)
+                        .put("target_lang", targetLanguage.trim().lowercase().take(16).ifBlank { "ja" })
+                        .put("thinking_level", thinkingLevel.trim().lowercase().ifBlank { "minimal" })
+                        .put("include_thoughts", includeThoughts)
+                        .put("transcription_mode", transcriptionMode.trim().uppercase().ifBlank { "VERBATIM" })
+                        .put("custom_vocabulary", JSONArray(customVocabulary.split(',', '、', '\n')
+                            .map { it.trim() }.filter { it.isNotBlank() }.take(1000)))
+                        .apply {
+                            speed?.let { put("speed", it.toDouble()) }
+                            rateIn?.let { put("rate_in", it) }
+                            rateOut?.let { put("rate_out", it) }
+                            reasoningEffort?.let { put("reasoning_effort", it) }
+                        }, token())
+                    val sessionId = started.getString("session_id")
+                    val rateOut = started.optInt("rate_out", 24000).coerceIn(8000, 48000)
+                    realtimeTrack = newChatAudioTrack(rateOut, stereo = false)
+                    mutable.update { it.copy(realtime = RealtimeState(true, modelId, sessionId, "話してください...")) }
+                    realtimeCaptureJob = scope.launch(Dispatchers.IO) {
+                        try { captureRealtimeAudio(sessionId, started.optInt("rate_in", rateOut).coerceIn(8000, 48000)) }
+                        catch (e: CancellationException) { throw e }
+                        catch (e: Exception) {
+                            mutable.update { it.copy(realtime = it.realtime.copy(status = "マイクエラー", error = e.message)) }
+                            notify("マイクを利用できません: " + (e.message ?: ""))
                         }
                     }
+                    realtimeStreamJob = scope.launch(Dispatchers.IO) {
+                        try {
+                            api().streamSse("/api/realtime/stream?session_id=${URLEncoder.encode(sessionId, "UTF-8")}", token()) { event ->
+                                handleRealtimeEvent(event, rateOut)
+                            }
+                        } catch (e: CancellationException) { throw e }
+                        catch (e: Exception) {
+                            if (state.value.realtime.sessionId == sessionId && !rtStopping) {
+                                mutable.update { it.copy(realtime = it.realtime.copy(status = "ストリームエラー")) }
+                                notify("リアルタイム接続が切断されました")
+                            }
+                        }
+                    }
+                } catch (e: CancellationException) { throw e }
+                catch (e: Exception) {
+                    val message = (e as? ApiException)?.payload?.optString("error")?.ifBlank { null } ?: e.message ?: "セッション開始に失敗しました"
+                    mutable.update { it.copy(realtime = RealtimeState(status = "接続エラー")) }
+                    notify("リアルタイムセッションを開始できませんでした: $message")
                 }
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
-                val message = (e as? ApiException)?.payload?.optString("error")?.ifBlank { null } ?: e.message ?: "セッション開始に失敗しました"
-                mutable.update { it.copy(realtime = RealtimeState(status = "接続エラー")) }
-                notify("リアルタイムセッションを開始できませんでした: $message")
             }
         }
     }

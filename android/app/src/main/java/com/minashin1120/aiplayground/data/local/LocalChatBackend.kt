@@ -26,6 +26,14 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLDecoder
 
+/** Catalog mode of the server-mediated realtime voice sessions (Web `STS_MODELS`). */
+private const val REALTIME_AUDIO_MODE = "realtime_audio"
+
+/** Web one-shot `/sts` models (`RealtimeStudio.ONE_SHOT_STS_MODELS`): recorded here, sent to the account server. */
+private val SERVER_ONE_SHOT_STS_MODELS = setOf(
+    "gpt-transcribe", "gpt-live-transcribe", "gpt-realtime-whisper", "grok-voice-transcribe-2.0-file",
+)
+
 /**
  * Answers the chat screen's endpoints on the device: answers come from the AI providers ([router])
  * with the profile's own keys ([settings]).
@@ -872,13 +880,27 @@ class LocalChatBackend(
     /** The server account, with only the models this device can run selectable. */
     private fun accountFrom(server: JSONObject): JSONObject = server.put("models", runnable(server.optJSONArray("models") ?: JSONArray()))
 
-    /** Marks models the device cannot generate with (not yet supported in serverless mode) as not selectable. */
+    /**
+     * Marks models the device cannot generate with (not yet supported in serverless mode) as not selectable.
+     * Realtime voice and one-shot `/sts` models are the exception for a signed-in account: the app starts
+     * them through the account server (`/api/realtime/*`, `/sts`), so the server catalog decides instead of
+     * the device router. The no-account profile has no server to fall back to, so those models stay
+     * unselectable there.
+     */
     private fun runnable(models: JSONArray): JSONArray {
         val out = JSONArray()
+        var serverRealtimeModels = 0
         for (i in 0 until models.length()) {
             val row = JSONObject(models.optJSONObject(i)?.toString() ?: continue)
-            if (router.route(row.optString("id"), row.optString("mode", "chat")) == null) row.put("selectable", false)
+            val mode = row.optString("mode", "chat")
+            val servedByServer = fallback != null &&
+                (mode == REALTIME_AUDIO_MODE || row.optString("id") in SERVER_ONE_SHOT_STS_MODELS)
+            if (servedByServer) serverRealtimeModels++
+            if (!servedByServer && router.route(row.optString("id"), mode) == null) row.put("selectable", false)
             out.put(row)
+        }
+        if (serverRealtimeModels > 0) {
+            ActivityLog.log("state", "route" to "/api/mobile/v1/me", "phase" to "done", "count" to serverRealtimeModels)
         }
         return out
     }

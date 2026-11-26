@@ -920,7 +920,7 @@ class LocalChatBackend(
     /**
      * Marks models the device cannot generate with (not yet supported in serverless mode) as not selectable.
      * Realtime voice and one-shot `/sts` models are the exception for a signed-in account: the app starts
-     * them through the account server (`/api/realtime/*`, `/sts`), so the server catalog decides instead of
+     * them through the account server (`/api/realtime/` endpoints, `/sts`), so the server catalog decides instead of
      * the device router. The no-account profile has no server to fall back to, so those models stay
      * unselectable there.
      */

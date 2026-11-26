@@ -26,14 +26,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLDecoder
 
-/** Catalog mode of the server-mediated realtime voice sessions (Web `STS_MODELS`). */
-private const val REALTIME_AUDIO_MODE = "realtime_audio"
-
-/** Web one-shot `/sts` models (`RealtimeStudio.ONE_SHOT_STS_MODELS`): recorded here, sent to the account server. */
-private val SERVER_ONE_SHOT_STS_MODELS = setOf(
-    "gpt-transcribe", "gpt-live-transcribe", "gpt-realtime-whisper", "grok-voice-transcribe-2.0-file",
-)
-
 /**
  * Answers the chat screen's endpoints on the device: answers come from the AI providers ([router])
  * with the profile's own keys ([settings]).
@@ -64,6 +56,51 @@ class LocalChatBackend(
     /** Uploads a device attachment to the account and returns its server reference (null: the server cannot take it). */
     private val uploadAttachment: suspend (String) -> String? = { null },
 ) : ChatBackend {
+
+    companion object {
+        const val LOCAL_ACCOUNT_ID = 0
+        private const val MAX_ATTACHMENT_BYTES = 48L * 1024 * 1024
+        private const val HISTORY_ATTACHMENT_BYTES = 24L * 1024 * 1024
+
+        /** Catalog mode of the server-mediated realtime voice sessions (Web `STS_MODELS`). */
+        private const val REALTIME_AUDIO_MODE = "realtime_audio"
+
+        /** Web one-shot `/sts` models (`RealtimeStudio.ONE_SHOT_STS_MODELS`): recorded here, sent to the account server. */
+        private val SERVER_ONE_SHOT_STS_MODELS = setOf(
+            "gpt-transcribe", "gpt-live-transcribe", "gpt-realtime-whisper", "grok-voice-transcribe-2.0-file",
+        )
+
+        /** Server `_normalize_thread_title`: one line, at most 200 characters. */
+        fun normalizeTitle(value: String): String = value.replace(Regex("\\s+"), " ").trim().take(200).ifBlank { "Untitled" }
+
+        /** Server `format_chat_error_content`. */
+        fun errorContent(error: String, partial: String): String {
+            val body = error.trim().ifBlank { "Unknown error" }.take(50_000).replace("```", "'''")
+            val fence = "```chat_error\n$body\n```"
+            return if (partial.isBlank()) fence else partial.trimEnd() + "\n\n" + fence
+        }
+
+        private fun stripErrorFence(text: String): String = text.replace(Regex("\\n*```chat_error\\n[\\s\\S]*?\\n```"), "").trimEnd()
+
+        /** Rough token count (about 4 characters per token; CJK characters count one each). */
+        fun estimateTokens(text: String): Int {
+            val cjk = text.count { it.code in 0x3000..0x9FFF || it.code in 0xAC00..0xD7AF || it.code in 0xFF00..0xFFEF }
+            return cjk + (text.length - cjk + 3) / 4
+        }
+    }
+
+    private fun split(path: String): Pair<String, Map<String, String>> {
+        val route = path.substringBefore('?')
+        val query = path.substringAfter('?', "").split('&').filter { it.contains('=') }.associate {
+            URLDecoder.decode(it.substringBefore('='), "UTF-8") to URLDecoder.decode(it.substringAfter('='), "UTF-8")
+        }
+        return route to query
+    }
+
+    private fun threadIdOf(route: String, suffix: String): String = route.removePrefix("/api/threads/").removeSuffix(suffix)
+
+    private fun unavailable(): ApiException = ApiException(403, JSONObject().put("code", "local_unavailable")
+        .put("error", "この機能はサーバーにログインすると使えます。"))
 
     // Every call runs on the IO dispatcher: the store reads and writes encrypted files.
     override suspend fun get(path: String, token: String?): JSONObject = withContext(Dispatchers.IO) { getLocal(path, token) }
@@ -891,7 +928,8 @@ class LocalChatBackend(
         val out = JSONArray()
         var serverRealtimeModels = 0
         for (i in 0 until models.length()) {
-            val row = JSONObject(models.optJSONObject(i)?.toString() ?: continue)
+            val item = models.optJSONObject(i) ?: continue
+            val row = JSONObject(item.toString())
             val mode = row.optString("mode", "chat")
             val servedByServer = fallback != null &&
                 (mode == REALTIME_AUDIO_MODE || row.optString("id") in SERVER_ONE_SHOT_STS_MODELS)
@@ -903,43 +941,6 @@ class LocalChatBackend(
             ActivityLog.log("state", "route" to "/api/mobile/v1/me", "phase" to "done", "count" to serverRealtimeModels)
         }
         return out
-    }
-
-    private fun split(path: String): Pair<String, Map<String, String>> {
-        val route = path.substringBefore('?')
-        val query = path.substringAfter('?', "").split('&').filter { it.contains('=') }.associate {
-            URLDecoder.decode(it.substringBefore('='), "UTF-8") to URLDecoder.decode(it.substringAfter('='), "UTF-8")
-        }
-        return route to query
-    }
-
-    private fun threadIdOf(route: String, suffix: String) = route.removePrefix("/api/threads/").removeSuffix(suffix)
-
-    private fun unavailable() = ApiException(403, JSONObject().put("code", "local_unavailable")
-        .put("error", "この機能はサーバーにログインすると使えます。"))
-
-    companion object {
-        const val LOCAL_ACCOUNT_ID = 0
-        private const val MAX_ATTACHMENT_BYTES = 48L * 1024 * 1024
-        private const val HISTORY_ATTACHMENT_BYTES = 24L * 1024 * 1024
-
-        /** Server `_normalize_thread_title`: one line, at most 200 characters. */
-        fun normalizeTitle(value: String): String = value.replace(Regex("\\s+"), " ").trim().take(200).ifBlank { "Untitled" }
-
-        /** Server `format_chat_error_content`. */
-        fun errorContent(error: String, partial: String): String {
-            val body = error.trim().ifBlank { "Unknown error" }.take(50_000).replace("```", "'''")
-            val fence = "```chat_error\n$body\n```"
-            return if (partial.isBlank()) fence else partial.trimEnd() + "\n\n" + fence
-        }
-
-        private fun stripErrorFence(text: String): String = text.replace(Regex("\\n*```chat_error\\n[\\s\\S]*?\\n```"), "").trimEnd()
-
-        /** Rough token count (about 4 characters per token; CJK characters count one each). */
-        fun estimateTokens(text: String): Int {
-            val cjk = text.count { it.code in 0x3000..0x9FFF || it.code in 0xAC00..0xD7AF || it.code in 0xFF00..0xFFEF }
-            return cjk + (text.length - cjk + 3) / 4
-        }
     }
 }
 

@@ -92,16 +92,20 @@ def test_feedback_report_names_logs_and_chat_copy():
     _run_node(r"""
 load();
 const toasts = [];
-window.showToast = (text, type) => toasts.push([text, type]);
+const opened = [];
+window.showToast = (text, type, sticky, onClick) => { toasts.push([text, type]); if (onClick) onClick(); };
 const reply = (ok, data) => ({ ok, json: () => Promise.resolve(data) });
 (async () => {
   const logs = { entries: [1, 2] };
   assert.equal(await window.ActivityLog.reportFeedback(reply(true, {}), null, false), true);
+  assert.equal(await window.ActivityLog.reportFeedback(reply(true, {}), null, false, null, () => opened.push('sent')), true);
   assert.equal(await window.ActivityLog.reportFeedback(reply(true, { logs_saved: true, chat_copy_saved: true }), logs, true), true);
   assert.equal(await window.ActivityLog.reportFeedback(reply(true, { chat_copy_saved: true }), null, true), true);
   assert.equal(await window.ActivityLog.reportFeedback(reply(true, { logs_saved: true, chat_copy_saved: false }), logs, true), true);
   assert.equal(await window.ActivityLog.reportFeedback(reply(false, { error: 'rate_limit' }), null, true), false);
+  assert.deepEqual(opened, ['sent']);
   assert.deepEqual(toasts.map(t => t[0]), [
+    'フィードバックを送信しました',
     'フィードバックを送信しました',
     'フィードバック、保存期間内のログ（2件）、チャットのコピーを送信しました',
     'フィードバックとチャットのコピーを送信しました',

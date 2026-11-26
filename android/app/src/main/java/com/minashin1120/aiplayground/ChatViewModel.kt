@@ -352,6 +352,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun requestSettings(tab: String? = null, card: String? = null) {
         mutable.update { it.copy(settingsRequest = it.settingsRequest + 1, settingsRequestTab = tab, settingsRequestCard = card) }
     }
+
+    /** Web toast tap: opens the feedback tab at the feedback that was just sent. */
+    fun openFeedback(id: String) {
+        if (id.isBlank()) return
+        val card = if (state.value.feedbackAdmin) "admin" else "mine"
+        mutable.update { it.copy(feedbackFocusId = id) }
+        requestSettings("feedback", card)
+    }
+
+    fun clearFeedbackFocus() {
+        mutable.update { if (it.feedbackFocusId == null) it else it.copy(feedbackFocusId = null) }
+    }
     /** Pull-to-refresh of the sidebar Skill list. */
     fun reloadSkills(onDone: () -> Unit) { viewModelScope.launch {
         if (notifyOffline("オフライン中はスキルを更新できません。")) { onDone(); return@launch }

@@ -5,14 +5,19 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,11 +39,13 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -59,7 +66,8 @@ internal fun InAppNoticeStack(state: InAppNoticeState, width: Dp, windowPadding:
     val reduce = LocalReduceMotion.current
     val list = rememberLazyListState()
     val firstId = state.notices.firstOrNull()?.id
-    LaunchedEffect(firstId) {
+    val progress = state.progress
+    LaunchedEffect(firstId, progress != null) {
         // LazyColumn normally preserves the old top item's key when a newer item is prepended.
         list.scrollToItem(0)
     }
@@ -68,6 +76,11 @@ internal fun InAppNoticeStack(state: InAppNoticeState, width: Dp, windowPadding:
         state = list,
         userScrollEnabled = false,
     ) {
+        if (progress != null) {
+            item(key = "feedback-progress") {
+                InAppProgressBar(progress, state.progressText)
+            }
+        }
         items(state.notices, key = { it.id }) { notice ->
             InAppNoticeBanner(
                 notice,
@@ -78,6 +91,31 @@ internal fun InAppNoticeStack(state: InAppNoticeState, width: Dp, windowPadding:
                     placementSpec = if (reduce) snap() else tween(PlaygroundMotion.MEDIUM, easing = PlaygroundMotion.Standard),
                 ),
             )
+        }
+    }
+}
+
+/** Web `showTopProgress`: the slim top bar and its current step, above every notice and dialog. */
+@Composable
+private fun InAppProgressBar(progress: Float, text: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp).testTag("in_app_progress")
+            .semantics(mergeDescendants = true) {
+                contentDescription = "${text} ${(progress * 100).toInt()}%".trim()
+            },
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shadowElevation = 4.dp,
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().height(3.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+            )
+            if (text.isNotBlank()) Text(text, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -130,6 +168,7 @@ private fun InAppNoticeBanner(notice: InAppNotice, state: InAppNoticeState, modi
                 liveRegion = LiveRegionMode.Polite
                 dismiss { state.dismiss(notice.id); true }
             }
+            .clickable(enabled = notice.actionKind != null) { state.openAction(notice) }
             .pointerInput(notice.id) {
                 detectVerticalDragGestures(
                     onDragStart = {

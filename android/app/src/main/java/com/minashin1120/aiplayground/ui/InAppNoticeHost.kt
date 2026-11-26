@@ -43,10 +43,15 @@ private val LocalNoticeWindowLayout = compositionLocalOf { NoticeWindowLayout(0.
 
 /** Read insets in the Activity: an AlertDialog's own inset values describe its small central panel. */
 @Composable
-internal fun InAppNoticeProvider(content: @Composable () -> Unit) {
+internal fun InAppNoticeProvider(
+    progress: Float? = null,
+    progressText: String = "",
+    content: @Composable () -> Unit,
+) {
     val state = rememberSaveable(saver = InAppNoticeState.Saver) { InAppNoticeState() }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val accessibility = LocalAccessibilityManager.current
+    LaunchedEffect(state, progress, progressText) { state.setProgress(progress, progressText) }
     LaunchedEffect(state, lifecycle, accessibility) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
             NetworkDns.notices.collect {
@@ -110,7 +115,7 @@ internal fun NoticeWindowHost() {
             state.unregisterWindow(window)
         }
     }
-    if (state.activeWindow === window && state.notices.isNotEmpty()) {
+    if (state.activeWindow === window && (state.notices.isNotEmpty() || state.progress != null)) {
         Popup(
             popupPositionProvider = NoticeTopPosition,
             properties = PopupProperties(

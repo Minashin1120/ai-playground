@@ -6763,6 +6763,75 @@
                 remove: () => { if (el.parentNode) el.remove(); }
             };
         }
+        // A slim bar at the top edge for work whose steps are only known to the page (feedback sending).
+        window.showTopProgress = function showTopProgress(message = '') {
+            const previous = get('global-top-progress');
+            if (previous && previous.parentNode) previous.parentNode.removeChild(previous);
+            const host = document.createElement('div');
+            host.id = 'global-top-progress';
+            host.setAttribute('role', 'progressbar');
+            host.setAttribute('aria-valuemin', '0');
+            host.setAttribute('aria-valuemax', '100');
+            host.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;pointer-events:none;';
+            host.innerHTML = `
+                <div style="height:4px;width:100%;background:rgba(23,37,84,0.75);overflow:hidden">
+                    <div class="top-progress-fill" style="height:100%;width:0%;background:#3b82f6;transition:width 0.3s ease"></div>
+                </div>
+                <div style="display:flex;justify-content:center">
+                    <div style="margin-top:4px;border-radius:0 0 4px 4px;background:rgba(17,24,39,0.92);border:1px solid rgba(59,130,246,0.4);border-top:0;padding:2px 8px;font-size:10px;line-height:1.4;color:#dbeafe;box-shadow:0 2px 6px rgba(0,0,0,0.35);display:flex;align-items:center;gap:6px">
+                        <span class="top-progress-text"></span><span class="top-progress-percent" style="font-family:ui-monospace,monospace"></span>
+                    </div>
+                </div>`;
+            document.body.appendChild(host);
+            const fill = host.querySelector('.top-progress-fill');
+            const text = host.querySelector('.top-progress-text');
+            const percent = host.querySelector('.top-progress-percent');
+            let value = 0;
+            let timer = null;
+            const render = (next, label) => {
+                value = Math.max(0, Math.min(100, next));
+                if (fill) fill.style.width = `${value}%`;
+                if (text && typeof label === 'string') text.textContent = label;
+                if (percent) percent.textContent = `${Math.round(value)}%`;
+                host.setAttribute('aria-valuenow', String(Math.round(value)));
+                if (text) host.setAttribute('aria-valuetext', `${text.textContent} ${Math.round(value)}%`.trim());
+            };
+            const stop = () => {
+                if (timer) {
+                    clearInterval(timer);
+                    timer = null;
+                }
+            };
+            const removeLater = (delay) => {
+                setTimeout(() => {
+                    if (host.parentNode) host.parentNode.removeChild(host);
+                }, delay);
+            };
+            render(0, message);
+            return {
+                set(next, label) { stop(); render(next, label); },
+                /** Eases toward [target] so a request that is still running does not look finished. */
+                ramp(target, label) {
+                    stop();
+                    if (typeof label === 'string' && text) text.textContent = label;
+                    timer = setInterval(() => {
+                        if (value >= target) { stop(); return; }
+                        render(value + Math.max(0.5, (target - value) * 0.08));
+                    }, 180);
+                },
+                done(label = '完了しました') {
+                    stop();
+                    render(100, label);
+                    removeLater(900);
+                },
+                fail(label = '失敗しました') {
+                    stop();
+                    render(100, label);
+                    if (fill) fill.style.background = '#ef4444';
+                    removeLater(3200);
+                },
+            };
+        };
         let activeSettingsTab = 'general';
         const TAB_LABELS = {
             general: '一般',
@@ -14458,10 +14527,41 @@
                 } catch (e) { return false; }
             }
             const fbImagePicker = createFbImagePicker(get('fb-images-add'), get('fb-images-input'), get('fb-images-list'));
+            // Opens the settings feedback tab at [id] (the sender's row, or the administrator row) after the toast tap.
+            function openFeedbackById(id) {
+                const target = String(id || '');
+                if (!target) return;
+                const selector = `[data-feedback-id="${target.replace(/["\\]/g, '\\$&')}"]`;
+                const findRow = () => document.querySelector(selector);
+                const reveal = () => {
+                    const row = findRow();
+                    if (!row) return false;
+                    if (typeof jumpToSetting === 'function') {
+                        jumpToSetting('feedback', row);
+                    } else {
+                        row.scrollIntoView({behavior: 'smooth', block: 'center'});
+                        row.classList.add('settings-jump-highlight');
+                        setTimeout(() => row.classList.remove('settings-jump-highlight'), 2000);
+                    }
+                    return true;
+                };
+                if (reveal()) return;
+                const modal = get('settings-modal');
+                const isOpen = modal && (modal.classList.contains('modal-open') || modal.classList.contains('modal-prep'));
+                if (!isOpen && typeof window.openSettingsModal === 'function') window.openSettingsModal();
+                let tries = 0;
+                const timer = setInterval(() => {
+                    tries++;
+                    if (reveal() || tries >= 40) clearInterval(timer);
+                }, 150);
+            }
             get('fb-submit').onclick = async () => {
                 const title = get('fb-title').value.trim();
                 const message = get('fb-message').value.trim();
                 if(!message) { showToast("フィードバック内容を入力してください", "error", true); return; }
+                const logFeedback = (state) => {
+                    try { if (window.ActivityLog) window.ActivityLog.log('change', {tab: 'feedback', state}); } catch (_) {}
+                };
                 // Attach recorded logs only when selected for this feedback.
                 const payload = {title, message, client: 'web', version: (window.CHAT_CONFIG && window.CHAT_CONFIG.appVersion) || ''};
                 const attachLogs = get('fb-attach-logs');
@@ -14472,19 +14572,42 @@
                 const chatCopy = !!(attachChat && attachChat.checked);
                 if (chatCopy && !currentThreadId) { showToast("コピーを送信するチャットが開かれていません", "error", true); return; }
                 if (chatCopy) payload.chat_copy = window.ActivityLog ? window.ActivityLog.chatCopyPayload(currentThreadId) : {client: 'web', thread_id: String(currentThreadId)};
-                const res = await apiFetch("/api/feedback", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-                // The feedback's number comes back with the answer; the images follow it.
-                const sent = res.ok ? await res.clone().json().catch(() => ({})) : {};
-                const files = fbImagePicker.files();
-                const images = {count: files.length, saved: true};
-                if (res.ok && images.count) images.saved = await uploadFbImages(`/api/feedback/${sent.public_id}/images`, files);
-                if (!(window.ActivityLog ? await window.ActivityLog.reportFeedback(res, clientLogs, chatCopy, images) : res.ok)) return;
-                get('fb-title').value = '';
-                get('fb-message').value = '';
-                fbImagePicker.clear();
-                if (attachChat) attachChat.checked = false;
-                if (attachLogs) attachLogs.checked = true;
-                loadFeedback();
+                const progress = typeof window.showTopProgress === 'function' ? window.showTopProgress('送信内容を準備しています') : null;
+                progress?.set(8, '送信内容を準備しています');
+                logFeedback('start');
+                try {
+                    progress?.set(22, 'フィードバックを送信しています');
+                    progress?.ramp(58, 'フィードバックを送信しています');
+                    const res = await apiFetch("/api/feedback", {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+                    // The feedback's number comes back with the answer; the images follow it.
+                    const sent = res.ok ? await res.clone().json().catch(() => ({})) : {};
+                    progress?.set(res.ok ? 62 : 92, res.ok ? 'フィードバックを受け付けました' : '送信結果を確認しています');
+                    const files = fbImagePicker.files();
+                    const images = {count: files.length, saved: true};
+                    if (res.ok && images.count) {
+                        progress?.set(68, `画像を送信しています（${images.count}枚）`);
+                        progress?.ramp(90, `画像を送信しています（${images.count}枚）`);
+                        images.saved = await uploadFbImages(`/api/feedback/${sent.public_id}/images`, files);
+                    }
+                    progress?.set(92, '送信結果を確認しています');
+                    const sentWithId = res.ok && sent.public_id ? sent : null;
+                    const reported = window.ActivityLog
+                        ? await window.ActivityLog.reportFeedback(res, clientLogs, chatCopy, images, sentWithId ? () => openFeedbackById(sentWithId.public_id) : null)
+                        : res.ok;
+                    if (!reported) { logFeedback('error'); progress?.fail('送信に失敗しました'); return; }
+                    logFeedback('done');
+                    progress?.done('送信しました');
+                    get('fb-title').value = '';
+                    get('fb-message').value = '';
+                    fbImagePicker.clear();
+                    if (attachChat) attachChat.checked = false;
+                    if (attachLogs) attachLogs.checked = true;
+                    loadFeedback();
+                } catch (e) {
+                    logFeedback('error');
+                    progress?.fail('送信に失敗しました');
+                    showToast("フィードバックの送信に失敗しました", "error", true);
+                }
             };
 
             // The sender (or an administrator) deletes a feedback; the server removes its directory too.
@@ -14607,6 +14730,7 @@
                     if(data.is_admin) return;
                     const el = document.createElement('div');
                     el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50';
+                    if (item.public_id) el.dataset.feedbackId = String(item.public_id);
                     el.innerHTML = `<div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.created_at}</div><div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div><div class="text-sm whitespace-pre-wrap">${escapeHtml(item.message)}</div><div class="text-[11px] text-gray-400 mt-1">Status: ${escapeHtml(item.status === "resolved_unreleased" ? "resolved（non-released）" : item.status)}</div>${item.image_count ? `<div class="text-[11px] text-gray-400 mt-1">添付画像: ${item.image_count}枚</div>` : ''}${feedbackRepliesHtml(item, false)}${feedbackReplyFormHtml()}<div class="mt-2"><button type="button" class="fb-delete bg-red-700 hover:bg-red-600 text-white px-2 py-1 rounded text-[10px]">削除</button></div>`;
                     el.querySelector('.fb-delete').onclick = () => deleteFeedback(item.public_id);
                     bindFeedbackReply(item, el);
@@ -14622,6 +14746,7 @@
                         const el = document.createElement('div');
                         el.className = 'p-2 rounded border border-gray-700 bg-gray-800/50 space-y-2';
                         el.dataset.feedbackStatus = item.status || 'new';
+                        if (item.public_id) el.dataset.feedbackId = String(item.public_id);
                         el.innerHTML = `
                             <div class="text-[11px] text-gray-400">ID: <span class="select-all font-mono">${escapeHtml(item.public_id||'')}</span> / ${item.agent_name ? `agent:${escapeHtml(item.agent_name)}` : `user:${item.user_id}`} / ${item.created_at}${item.handled_by ? ` / 対応: ${escapeHtml(item.handled_by)}` : ''}</div>
                             <div class="font-bold text-sm">${escapeHtml(item.title||'No Title')}</div>

@@ -18,6 +18,9 @@ internal data class InAppNotice(
     val dragging: Boolean = false,
     val entered: Boolean = false,
     val removeAtMillis: Long? = null,
+    /** Web toast `onClick`: tapping the notice opens this target (feedback id). */
+    val actionKind: String? = null,
+    val actionValue: String? = null,
 )
 
 internal class InAppNoticeState(private val nowMillis: () -> Long = SystemClock::elapsedRealtime) {
@@ -27,17 +30,38 @@ internal class InAppNoticeState(private val nowMillis: () -> Long = SystemClock:
     var activeWindow by mutableStateOf<Any?>(null)
         private set
 
+    /** Web `showTopProgress`: a slim bar above the notices while a feedback is being sent. */
+    var progress by mutableStateOf<Float?>(null)
+        private set
+    var progressText by mutableStateOf("")
+        private set
+    /** Resolves a tapped notice; the screen installs it (the action itself must survive rotation as strings). */
+    var onAction: ((String, String?) -> Unit)? = null
+
+    fun setProgress(value: Float?, text: String) {
+        progress = value?.coerceIn(0f, 1f)
+        progressText = if (value == null) "" else text
+    }
+
     val nextDeadline: Long?
         get() = notices.mapNotNull {
             if (it.exitDirection != null) it.removeAtMillis else if (!it.dragging) it.expiresAtMillis else null
         }.minOrNull()
 
-    fun add(message: String, durationMillis: Long = NOTICE_DURATION_MILLIS) {
+    fun add(message: String, durationMillis: Long = NOTICE_DURATION_MILLIS,
+            actionKind: String? = null, actionValue: String? = null) {
         val now = nowMillis()
         val duration = durationMillis.coerceAtLeast(0L)
         // Accessibility may request Long.MAX_VALUE (keep controls until explicitly dismissed).
         val deadline = if (duration >= Long.MAX_VALUE - now) Long.MAX_VALUE else now + duration
-        notices.add(0, InAppNotice(++nextId, message, deadline))
+        notices.add(0, InAppNotice(++nextId, message, deadline, actionKind = actionKind, actionValue = actionValue))
+    }
+
+    /** Web toast tap: runs the installed action and closes the notice it came from. */
+    fun openAction(notice: InAppNotice) {
+        val kind = notice.actionKind ?: return
+        onAction?.invoke(kind, notice.actionValue)
+        dismiss(notice.id)
     }
 
     fun expire() {
@@ -104,6 +128,8 @@ internal class InAppNoticeState(private val nowMillis: () -> Long = SystemClock:
             add(it.id)
             add(it.message)
             add(it.expiresAtMillis)
+            add(it.actionKind ?: "")
+            add(it.actionValue ?: "")
         }
     }
 
@@ -113,9 +139,13 @@ internal class InAppNoticeState(private val nowMillis: () -> Long = SystemClock:
         fun restore(values: List<Any>, nowMillis: () -> Long = SystemClock::elapsedRealtime): InAppNoticeState =
             InAppNoticeState(nowMillis).apply {
                 nextId = values.first() as Long
-                values.drop(1).chunked(3).forEach { row ->
+                values.drop(1).chunked(5).forEach { row ->
                     val deadline = row[2] as Long
-                    if (deadline > nowMillis()) notices.add(InAppNotice(row[0] as Long, row[1] as String, deadline, entered = true))
+                    if (deadline > nowMillis()) {
+                        notices.add(InAppNotice(row[0] as Long, row[1] as String, deadline, entered = true,
+                            actionKind = (row[3] as? String)?.ifBlank { null },
+                            actionValue = (row[4] as? String)?.ifBlank { null }))
+                    }
                 }
             }
     }

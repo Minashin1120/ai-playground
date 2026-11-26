@@ -573,10 +573,11 @@
     }
 
     /**
-     * Shows the result of a feedback sent with [feedbackPayload] (null when the log is off) and, when
-     * [chatCopy], a copy of the open chat; false keeps the form (the request failed).
+     * Shows the result of a feedback sent with [feedbackPayload] (null when the log is off), when
+     * [chatCopy] a copy of the open chat, and [onOpen] for opening that feedback from the toast;
+     * false keeps the form (the request failed).
      */
-    function reportFeedback(res, payload, chatCopy, images) {
+    function reportFeedback(res, payload, chatCopy, images, onOpen) {
         var toast = typeof window.showToast === 'function' ? window.showToast : function () {};
         return res.json().catch(function () { return {}; }).then(function (data) {
             if (!res.ok) {
@@ -595,7 +596,7 @@
             if (payload) sent.push('保存期間内のログ（' + (typeof data.logs_count === 'number' ? data.logs_count : payload.entries.length) + '件）');
             if (chatCopy) sent.push('チャットのコピー');
             if (images && images.count) sent.push('画像（' + images.count + '枚）');
-            toast(sent.join(sent.length > 2 ? '、' : 'と') + 'を送信しました', 'success');
+            toast(sent.join(sent.length > 2 ? '、' : 'と') + 'を送信しました', 'success', false, onOpen || null);
             return true;
         });
     }

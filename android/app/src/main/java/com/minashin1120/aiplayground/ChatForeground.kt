@@ -100,7 +100,7 @@ internal class ChatForeground(
         notifyAnswerFinished(application, title, failed)
     }
 
-    fun dismissNotice() { mutable.update { it.copy(notice = null) } }
+    fun dismissNotice() { mutable.update { it.copy(notice = null, noticeActionKind = null, noticeActionValue = null) } }
 
     /** Login screen "端末を連携" cancel: drops the device-code prompt. */
     fun cancelPairing() { mutable.update { it.copy(pairing = false, userCode = "") } }

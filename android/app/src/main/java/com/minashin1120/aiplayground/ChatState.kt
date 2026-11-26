@@ -137,6 +137,10 @@ data class ChatState(
     val compression: CompressionSettings = CompressionSettings(),
     val mcpServers: List<McpServerInfo> = emptyList(), val mcpBusy: Boolean = false,
     val feedbackItems: List<FeedbackItem> = emptyList(), val feedbackBusy: Boolean = false,
+    /** Web top progress bar while a feedback is being sent: 0..1 and its current step. */
+    val feedbackProgress: Float? = null, val feedbackProgressText: String = "",
+    /** The feedback opened from the sent notice (null when no jump is pending). */
+    val feedbackFocusId: String? = null,
     /** The server answered that this account is an administrator: [feedbackItems] then holds every feedback. */
     val feedbackAdmin: Boolean = false,
     val storage: StorageUsage? = null,
@@ -165,6 +169,8 @@ data class ChatState(
     val banAt: String = "",
     val banAppeal: BanAppealState = BanAppealState(),
     val jobId: String? = null, val retryAvailable: Boolean = false, val notice: String? = null,
+    /** Web toast click: the notice opens [noticeActionValue] with [noticeActionKind] (feedback). */
+    val noticeActionKind: String? = null, val noticeActionValue: String? = null,
     val chatTransitionId: Long = 0L,
     val chatTransitionKind: ChatTransitionKind = ChatTransitionKind.NONE,
     /** Advances the moment a history/new-chat navigation starts, before its content loads. */

@@ -28,6 +28,8 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -66,6 +68,7 @@ import com.minashin1120.aiplayground.data.THINKING_LEVELS
 import com.minashin1120.aiplayground.data.EFFORT_LEVELS
 import com.minashin1120.aiplayground.data.composerRules
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import com.minashin1120.aiplayground.setToolbarNotificationEnabled
 
@@ -540,6 +543,7 @@ private const val FEEDBACK_REPLY_LOGS_LABEL = "保存期間内の操作ログを
 private const val FEEDBACK_REPLY_LOGS_ON = "チェックしたときだけ、「ログの収集を強化」で記録した保存期間内のログを返信と一緒に送信します。"
 private const val FEEDBACK_REPLY_LOGS_OFF = "「ログの収集を強化」がオフのため、ログは送信できません。"
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (String) -> Unit, form: SettingsForm): List<SettingsCardSpec> = listOfNotNull(
     SettingsCardSpec(SettingsTab.Feedback, "send", "フィードバック送信",
         "フィードバック送信 タイトル (任意) バグ報告・要望などを入力してください $FEEDBACK_LOGS_LABEL $FEEDBACK_LOGS_DESCRIPTION $FEEDBACK_CHAT_COPY_LABEL $FEEDBACK_CHAT_COPY_DESCRIPTION 画像を添付 $FEEDBACK_IMAGES_NOTE 送信",
@@ -605,13 +609,31 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
     SettingsCardSpec(SettingsTab.Feedback, "mine", "あなたのフィードバック", "あなたのフィードバック 返信内容 画像を添付 $FEEDBACK_REPLY_LOGS_LABEL 返信 削除") {
         val web = LocalWebPalette.current
         var deleting by remember { mutableStateOf<FeedbackItem?>(null) }
+        val focusId = state.feedbackFocusId
+        val requesters = remember { mutableMapOf<Long, BringIntoViewRequester>() }
+        LaunchedEffect(focusId, state.feedbackItems) {
+            val targetId = focusId ?: return@LaunchedEffect
+            val target = state.feedbackItems.firstOrNull { it.publicId == targetId || it.id.toString() == targetId }
+            if (target != null) {
+                delay(420)
+                requesters[target.id]?.bringIntoView()
+                delay(1600)
+                model.clearFeedbackFocus()
+            }
+        }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Web `loadFeedback`: an administrator's feedback is listed in the administrator card only.
             if (!state.feedbackAdmin) state.feedbackItems.forEach { item ->
                 val shape = RoundedCornerShape(4.dp)
+                val focused = focusId != null && (item.publicId == focusId || item.id.toString() == focusId)
+                val requester = remember(item.id) { BringIntoViewRequester() }
+                DisposableEffect(item.id) {
+                    requesters[item.id] = requester
+                    onDispose { requesters.remove(item.id) }
+                }
                 Column(
-                    Modifier.fillMaxWidth().clip(shape).background(web.twBg(Tw.gray800).copy(alpha = 0.5f))
-                        .border(1.dp, web.twBorder(Tw.gray700), shape).padding(8.dp),
+                    Modifier.fillMaxWidth().bringIntoViewRequester(requester).clip(shape).background(web.twBg(Tw.gray800).copy(alpha = 0.5f))
+                        .border(if (focused) 2.dp else 1.dp, if (focused) Tw.amber400 else web.twBorder(Tw.gray700), shape).padding(8.dp),
                 ) {
                     if (item.publicId.isBlank()) Text(item.createdAt, fontSize = 11.sp, color = Tw.gray400)
                     else FeedbackIdLine(item.publicId, " / ${item.createdAt}")
@@ -639,6 +661,19 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
         "管理者: すべてのフィードバック 状態を保存 返信内容 画像を添付 $FEEDBACK_REPLY_LOGS_LABEL 返信 削除") {
         var deleting by remember { mutableStateOf<FeedbackItem?>(null) }
         var statusFilter by remember { mutableStateOf("all") }
+        val focusId = state.feedbackFocusId
+        val requesters = remember { mutableMapOf<Long, BringIntoViewRequester>() }
+        LaunchedEffect(focusId, state.feedbackItems) {
+            val targetId = focusId ?: return@LaunchedEffect
+            val target = state.feedbackItems.firstOrNull { it.publicId == targetId || it.id.toString() == targetId }
+            if (target != null) {
+                statusFilter = "all"
+                delay(420)
+                requesters[target.id]?.bringIntoView()
+                delay(1600)
+                model.clearFeedbackFocus()
+            }
+        }
         val filteredItems = state.feedbackItems.filter { item ->
             statusFilter == "all" || if (statusFilter == "unresolved")
                 item.status in listOf("new", "in_review", "replied") else item.status == statusFilter
@@ -649,8 +684,17 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
             if (filteredItems.isEmpty()) SettingsDesc("該当するフィードバックはありません。")
             filteredItems.forEach { item ->
                 key(item.id) {
+                    val requester = remember(item.id) { BringIntoViewRequester() }
+                    DisposableEffect(item.id) {
+                        requesters[item.id] = requester
+                        onDispose { requesters.remove(item.id) }
+                    }
                     AdminFeedbackRow(item, !state.feedbackBusy, notify, { status -> model.updateFeedback(item, status) },
-                        { message, withLogs, images, withChat -> model.replyFeedback(item, message, withLogs, images, withChat) }, chatAvailable = state.selected != null, serverLogs = state.preferences?.enableServerDiagnosticLog == true) { deleting = item }
+                        { message, withLogs, images, withChat -> model.replyFeedback(item, message, withLogs, images, withChat) },
+                        chatAvailable = state.selected != null, serverLogs = state.preferences?.enableServerDiagnosticLog == true,
+                        onDelete = { deleting = item },
+                        focused = focusId != null && (item.publicId == focusId || item.id.toString() == focusId),
+                        modifier = Modifier.bringIntoViewRequester(requester))
                 }
             }
         }
@@ -754,6 +798,7 @@ private fun FeedbackReplyForm(enabled: Boolean, notify: (String) -> Unit, server
 private fun AdminFeedbackRow(
     item: FeedbackItem, enabled: Boolean, notify: (String) -> Unit, onSave: (String) -> Unit,
     onReply: (String, Boolean, List<Uri>, Boolean) -> Unit, serverLogs: Boolean = false, chatAvailable: Boolean = true, onDelete: () -> Unit,
+    focused: Boolean = false, modifier: Modifier = Modifier,
 ) {
     val web = LocalWebPalette.current
     val shape = RoundedCornerShape(4.dp)
@@ -766,8 +811,8 @@ private fun AdminFeedbackRow(
         item.imageDir.takeIf { it.isNotBlank() }?.let { "添付画像（${item.imageCount}枚）: $it" },
     )
     Column(
-        Modifier.fillMaxWidth().clip(shape).background(web.twBg(Tw.gray800).copy(alpha = 0.5f))
-            .border(1.dp, web.twBorder(Tw.gray700), shape).padding(8.dp),
+        modifier.fillMaxWidth().clip(shape).background(web.twBg(Tw.gray800).copy(alpha = 0.5f))
+            .border(if (focused) 2.dp else 1.dp, if (focused) Tw.amber400 else web.twBorder(Tw.gray700), shape).padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         FeedbackIdLine(item.publicId, " / $sender / ${item.createdAt}$handled")

@@ -51,6 +51,26 @@ internal class ChatFeedback(
     private val sendMutex = Mutex()
     private var retryJob: Job? = null
 
+    /** Web `showTopProgress`: the top bar text and fraction while a feedback is being sent. */
+    private fun setFeedbackProgress(value: Float, text: String) {
+        mutable.update { it.copy(feedbackProgress = value.coerceIn(0f, 1f), feedbackProgressText = text) }
+    }
+
+    private fun clearFeedbackProgress() {
+        mutable.update { if (it.feedbackProgress == null) it else it.copy(feedbackProgress = null, feedbackProgressText = "") }
+    }
+
+    /** Web toast tap: the sent notice carries the new feedback's id so it can open that row. */
+    private fun notifyFeedbackSent(message: String, feedbackId: String) {
+        mutable.update {
+            it.copy(
+                notice = message,
+                noticeActionKind = if (feedbackId.isBlank()) null else "feedback",
+                noticeActionValue = feedbackId.ifBlank { null },
+            )
+        }
+    }
+
     private fun client(origin: HttpUrl): PlaygroundApi {
         if (apiOrigin != origin || feedbackApi == null) {
             apiOrigin = origin
@@ -162,6 +182,7 @@ internal class ChatFeedback(
         scope.launch {
             if (state.value.localProfile || state.value.account == null) { notify("フィードバックの送信にはログインが必要です。"); return@launch }
             mutable.update { it.copy(feedbackBusy = true) }
+            setFeedbackProgress(0.05f, "送信内容を準備しています")
             val origin = ServerOrigin.current
             val account = state.value.account!!.id
             val auth = sessionToken()
@@ -195,13 +216,16 @@ internal class ChatFeedback(
                 }
                 onStored()
                 ActivityLog.log("change", "tab" to "feedback", "state" to "pending", "persisted" to true)
+                setFeedbackProgress(0.3f, "フィードバックを送信しています")
                 if (auth == null) {
                     notify("フィードバックを端末に保存しました。サーバーに接続できると自動送信します。")
                 } else {
                     try {
+                        setFeedbackProgress(0.45f, "フィードバックを送信しています")
                         val sent = sendMutex.withLock { PendingFeedbackSender(pendingFeedback, app.cacheDir, client(origin), auth).send(record) }
+                        setFeedbackProgress(0.9f, "送信結果を確認しています")
                         loadFeedback()
-                        notify(sent)
+                        notifyFeedbackSent(sent, record.data.optString("feedback_id"))
                     } catch (e: CancellationException) { throw e }
                     catch (e: Exception) {
                         Diagnostics.failure("error", e, "tab" to "feedback", "state" to "pending", "retry" to true)
@@ -212,7 +236,10 @@ internal class ChatFeedback(
                 }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { report(e, "フィードバックを端末に保存できませんでした") }
-            finally { mutable.update { it.copy(feedbackBusy = false) } }
+            finally {
+                clearFeedbackProgress()
+                mutable.update { it.copy(feedbackBusy = false) }
+            }
         }
     }
 
@@ -233,7 +260,7 @@ internal class ChatFeedback(
                             if (!PendingFeedbackSender.canRetry(record)) null
                             else PendingFeedbackSender(pendingFeedback, app.cacheDir, client(origin), auth).send(record)
                         }
-                        if (sent != null) { sentAny = true; notify(sent) }
+                        if (sent != null) { sentAny = true; notifyFeedbackSent(sent, record.data.optString("feedback_id")) }
                     } catch (e: CancellationException) { throw e }
                     catch (e: Exception) {
                         Diagnostics.failure("error", e, "tab" to "feedback", "state" to "pending", "retry" to !record.data.optBoolean("retry_paused"))

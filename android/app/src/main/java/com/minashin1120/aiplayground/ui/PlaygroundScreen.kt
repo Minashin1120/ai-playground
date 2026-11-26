@@ -201,7 +201,10 @@ fun PlaygroundScreen(
             LocalAttachmentDownloader provides model::downloadAttachment,
             LocalImageCacheKey provides model::attachmentImageCacheKey,
         ) {
-            InAppNoticeProvider {
+            InAppNoticeProvider(
+                progress = state.feedbackProgress,
+                progressText = state.feedbackProgressText,
+            ) {
             BoxWithConstraints(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(listOf(colors.background, colors.surfaceContainerLow))
@@ -400,6 +403,11 @@ fun PlaygroundScreen(
             }
             val launchCamera: () -> Unit = { overlays.attachMenu = false; overlays.cameraOpen = true }
             val notices = checkNotNull(LocalInAppNotices.current)
+            SideEffect {
+                notices.onAction = { kind, value ->
+                    if (kind == "feedback" && !value.isNullOrBlank()) model.openFeedback(value)
+                }
+            }
             val noticeAccessibility = LocalAccessibilityManager.current
             val loader: FileBytesLoader = { reference, thumbnail, limit ->
                 model.loadAttachmentBytes(reference, thumbnail, limit)
@@ -490,7 +498,7 @@ fun PlaygroundScreen(
                     val duration = noticeAccessibility?.calculateRecommendedTimeoutMillis(
                         NOTICE_DURATION_MILLIS, containsText = true, containsControls = true,
                     ) ?: NOTICE_DURATION_MILLIS
-                    notices.add(it, duration)
+                    notices.add(it, duration, state.noticeActionKind, state.noticeActionValue)
                     model.dismissNotice()
                 }
             }

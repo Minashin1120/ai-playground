@@ -761,6 +761,75 @@
                 remove: () => { if (el.parentNode) el.remove(); }
             };
         }
+        // A slim bar at the top edge for work whose steps are only known to the page (feedback sending).
+        window.showTopProgress = function showTopProgress(message = '') {
+            const previous = get('global-top-progress');
+            if (previous && previous.parentNode) previous.parentNode.removeChild(previous);
+            const host = document.createElement('div');
+            host.id = 'global-top-progress';
+            host.setAttribute('role', 'progressbar');
+            host.setAttribute('aria-valuemin', '0');
+            host.setAttribute('aria-valuemax', '100');
+            host.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;pointer-events:none;';
+            host.innerHTML = `
+                <div style="height:4px;width:100%;background:rgba(23,37,84,0.75);overflow:hidden">
+                    <div class="top-progress-fill" style="height:100%;width:0%;background:#3b82f6;transition:width 0.3s ease"></div>
+                </div>
+                <div style="display:flex;justify-content:center">
+                    <div style="margin-top:4px;border-radius:0 0 4px 4px;background:rgba(17,24,39,0.92);border:1px solid rgba(59,130,246,0.4);border-top:0;padding:2px 8px;font-size:10px;line-height:1.4;color:#dbeafe;box-shadow:0 2px 6px rgba(0,0,0,0.35);display:flex;align-items:center;gap:6px">
+                        <span class="top-progress-text"></span><span class="top-progress-percent" style="font-family:ui-monospace,monospace"></span>
+                    </div>
+                </div>`;
+            document.body.appendChild(host);
+            const fill = host.querySelector('.top-progress-fill');
+            const text = host.querySelector('.top-progress-text');
+            const percent = host.querySelector('.top-progress-percent');
+            let value = 0;
+            let timer = null;
+            const render = (next, label) => {
+                value = Math.max(0, Math.min(100, next));
+                if (fill) fill.style.width = `${value}%`;
+                if (text && typeof label === 'string') text.textContent = label;
+                if (percent) percent.textContent = `${Math.round(value)}%`;
+                host.setAttribute('aria-valuenow', String(Math.round(value)));
+                if (text) host.setAttribute('aria-valuetext', `${text.textContent} ${Math.round(value)}%`.trim());
+            };
+            const stop = () => {
+                if (timer) {
+                    clearInterval(timer);
+                    timer = null;
+                }
+            };
+            const removeLater = (delay) => {
+                setTimeout(() => {
+                    if (host.parentNode) host.parentNode.removeChild(host);
+                }, delay);
+            };
+            render(0, message);
+            return {
+                set(next, label) { stop(); render(next, label); },
+                /** Eases toward [target] so a request that is still running does not look finished. */
+                ramp(target, label) {
+                    stop();
+                    if (typeof label === 'string' && text) text.textContent = label;
+                    timer = setInterval(() => {
+                        if (value >= target) { stop(); return; }
+                        render(value + Math.max(0.5, (target - value) * 0.08));
+                    }, 180);
+                },
+                done(label = '完了しました') {
+                    stop();
+                    render(100, label);
+                    removeLater(900);
+                },
+                fail(label = '失敗しました') {
+                    stop();
+                    render(100, label);
+                    if (fill) fill.style.background = '#ef4444';
+                    removeLater(3200);
+                },
+            };
+        };
         let activeSettingsTab = 'general';
         const TAB_LABELS = {
             general: '一般',

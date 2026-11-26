@@ -89,6 +89,19 @@ fun SettingsDialog(
     var jumpTarget by remember { mutableStateOf(initialCard) }
     // Search results flash the card they jump to; an opening jump scrolls (and rings the temporary-chat card).
     var jumpStyle by remember { mutableStateOf(if (initialCard == "temp-chat") JumpStyle.AmberRing else JumpStyle.ScrollOnly) }
+    // A request while the modal is already open (e.g. a tapped feedback notice) changes tab/card without reopening it.
+    var handledRequest by remember { mutableLongStateOf(state.settingsRequest) }
+    LaunchedEffect(state.settingsRequest) {
+        if (state.settingsRequest <= handledRequest) return@LaunchedEffect
+        handledRequest = state.settingsRequest
+        state.settingsRequestTab?.let { requested ->
+            tab = SettingsTab.entries.firstOrNull { it.label == requested || it.id == requested } ?: tab
+        }
+        state.settingsRequestCard?.let { requested ->
+            jumpTarget = requested
+            jumpStyle = if (requested == "temp-chat") JumpStyle.AmberRing else JumpStyle.ScrollOnly
+        }
+    }
     var colorPicker by remember { mutableStateOf(false) }
     var confirmCache by remember { mutableStateOf<CacheCategory?>(null) }
     // The form is filled from the payload fetched when the modal opens (Web `openSettingsModal`).

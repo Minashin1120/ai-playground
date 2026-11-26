@@ -3,14 +3,19 @@ package com.minashin1120.aiplayground.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
@@ -69,6 +74,9 @@ fun AppUpdateDialog(
                     AppUpdatePhase.UpToDate -> Unit
                     AppUpdatePhase.Checking -> Unit
                 }
+                // Shows what the installed version will change, using the GitHub Release body
+                // (the same bullets as the Android release notes) without leaving this dialog.
+                update.releaseNotes?.let { notes -> UpdateReleaseNotes(notes) }
             }
         },
         confirmButton = {
@@ -89,6 +97,33 @@ fun AppUpdateDialog(
             }
         },
     )
+}
+
+/** Bullet list of the update contents, scrollable so a long release body keeps the dialog usable. */
+@Composable
+private fun UpdateReleaseNotes(markdown: String) {
+    val items = remember(markdown) { appChangelogItems(markdown) }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("更新内容", style = MaterialTheme.typography.titleSmall)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 200.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (items == null) {
+                MarkdownText(markdown)
+            } else {
+                items.forEach { item ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("・")
+                        Box(Modifier.weight(1f)) { MarkdownText(item) }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /** Thin bar over the top edge while the update dialog is hidden (download running or APK ready); tapping it reopens the dialog. */

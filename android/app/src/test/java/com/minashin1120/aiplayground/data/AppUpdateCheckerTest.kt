@@ -33,6 +33,34 @@ class AppUpdateCheckerTest {
         assertEquals(12345L, update?.apkSizeBytes)
     }
 
+    @Test fun releaseBodyIsUsedAsUpdateNotes() {
+        val payload = """
+            [
+              {"tag_name":"android-v1.20.0","draft":false,"prerelease":false,
+               "body":"- 変更点1\r\n- 変更点2\n\n","assets":[
+                {"name":"app-release.apk"},
+                {"name":"app-release.apk.sha256"}
+              ]}
+            ]
+        """.trimIndent()
+
+        assertEquals("- 変更点1\n- 変更点2", latestAndroidUpdateFromJson(payload, "1.19.0")?.releaseNotes)
+    }
+
+    @Test fun blankReleaseBodyHasNoUpdateNotes() {
+        val payload = """
+            [
+              {"tag_name":"android-v1.20.0","draft":false,"prerelease":false,"body":"   \n",
+               "assets":[
+                {"name":"app-release.apk"},
+                {"name":"app-release.apk.sha256"}
+              ]}
+            ]
+        """.trimIndent()
+
+        assertNull(latestAndroidUpdateFromJson(payload, "1.19.0")?.releaseNotes)
+    }
+
     @Test fun olderAndroidReleaseDoesNotTriggerUpdate() {
         val payload = """[{"tag_name":"android-v1.13.4","draft":false,"prerelease":false,"assets":[]}]"""
 

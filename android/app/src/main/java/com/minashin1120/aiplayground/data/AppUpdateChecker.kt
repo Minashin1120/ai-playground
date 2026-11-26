@@ -15,6 +15,8 @@ data class AppUpdate(
     val apkUrl: String,
     val checksumUrl: String,
     val apkSizeBytes: Long?,
+    /** GitHub Release の本文（`ci/changelogs/vX.Y.Z.md` と同じ箇条書き）。更新内容の表示に使う。 */
+    val releaseNotes: String? = null,
 )
 
 sealed interface AppUpdateCheckResult {
@@ -39,6 +41,10 @@ private fun parseVersion(value: String): AppVersion? {
     val values = match.groupValues.drop(1).take(3).map { it.toIntOrNull() ?: return null }
     return AppVersion(values[0], values[1], values[2])
 }
+
+/** The release body is the same bullet list as `ci/changelogs/vX.Y.Z.md`; blank bodies become null. */
+private fun releaseNotesFrom(body: String): String? =
+    body.replace("\r\n", "\n").trim().takeIf { it.isNotEmpty() }
 
 /** Finds the newest stable Android release without considering Web release tags. */
 internal fun latestAndroidUpdateFromJson(payload: String, currentVersion: String): AppUpdate? {
@@ -74,6 +80,7 @@ internal fun latestAndroidUpdateFromJson(payload: String, currentVersion: String
             apkUrl = "https://github.com/$REPOSITORY/releases/download/$tag/$APK_ASSET",
             checksumUrl = "https://github.com/$REPOSITORY/releases/download/$tag/$CHECKSUM_ASSET",
             apkSizeBytes = apkSizeBytes,
+            releaseNotes = releaseNotesFrom(release.optString("body")),
         )
     }
     return newest?.second

@@ -28,7 +28,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/PendingFeedbackStore.kt`, `PendingFeedbackSender.kt` | 接続できないときのフィードバックと選択した添付の暗号化保存、送信済み段階の保存、自動再送 | フィードバックの送信保留・再送を変更するとき |
 | `docs/PENDING_FEEDBACK.md` | フィードバックの端末保存、再送のタイミング、添付とログの扱い | フィードバック送信保留の動作を確認するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/OfflineCacheStore.kt` | アカウント別の暗号化オフライン履歴・ファイル保存、同期設定、カテゴリ削除 | オフライン閲覧・端末保存・キャッシュ管理を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/ui/AppUpdateDialog.kt` | APK更新の確認、進捗、設定案内、再試行ダイアログと、非表示中（ダウンロード中・インストール待ち）の画面上部バー | 更新UI・文言・導線 |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/AppUpdateDialog.kt` | APK更新の確認、更新内容（GitHub Release の本文）、進捗、設定案内、再試行ダイアログと、非表示中（ダウンロード中・インストール待ち）の画面上部バー | 更新UI・文言・導線 |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatViewModel.kt` | 画面の入口と状態：アカウント・履歴・スレッド・アップロード状態、各協作者への薄い公開入口（協作者の組み立ては `ChatGraph.kt`） | アプリ操作・通信フロー |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatGraph.kt` | 協作者の組み立てと配線：状態・保存先・各協作者（接続・認証・送信・添付・音声・設定）を生成し、終了時に解放する | 協作者を追加・並び替えるとき、起動時の配線を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatAttachmentFiles.kt` | 添付の読み込み・プレビュー・保存：端末内ファイル、サーバー（同じ接続先）、外部https画像、オフラインキャッシュ | 添付の表示・ダウンロードを変更するとき |

@@ -148,6 +148,22 @@ class MathStepsServerTests(unittest.TestCase):
                 self.assertIn(phrase, prompt)
             self.assertNotIn("{{math_", prompt)
 
+    def test_prompt_keeps_the_explanation_when_only_the_wording_changes(self):
+        for basics in (False, True):
+            prompt = target.build_math_steps_system_prompt({"basics": basics})
+            for phrase in (
+                "書き方の変更を求められたとき",
+                "説明を短くしたり省略したりしない",
+                "指摘された部分だけを言い換え",
+                "説明そのものを止めない",
+                "謝罪や前置きだけで終わらせない",
+                "直前の回答のステップ数と詳しさを保つ",
+                "書き方の変更には適用しない",
+                "見出しを付けずに1〜2文だけで終えない",
+            ):
+                self.assertIn(phrase, prompt)
+            self.assertNotIn("{{math_", prompt)
+
     def test_simplify_prompt_explains_known_values_and_direction(self):
         prompt = target.build_math_steps_simplify_prompt(target.MATH_STEPS_DEFAULTS)
         for phrase in (

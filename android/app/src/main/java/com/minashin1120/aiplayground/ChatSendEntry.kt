@@ -25,6 +25,8 @@ internal class ChatSendEntry(
     private val composer: ChatComposer,
     private val notify: (String) -> Unit,
     private val send: () -> Unit,
+    /** Continues the send that showed `#auto-search-banner` with the answered choice (Web's inline continuation). */
+    private val sendAnsweringXLink: (enable: Boolean) -> Unit,
 ) {
     /** The original failure text of the API-key prompt (shown by `api-key-modal-cancel-btn`). */
     var apiKeyMissingMessage: String? = null
@@ -47,7 +49,9 @@ internal class ChatSendEntry(
                 }
             }
         }
-        send()
+        // Web `#auto-search-banner`: the answer continues the send that asked, so the question is not asked
+        // again. 「検索OFFで回答」 tells the server to answer without search (`disable_auto_search`).
+        sendAnsweringXLink(enable)
     }
 
     /** Web `api-key-modal-save-btn`: saves the key for the model's provider, then sends again. */

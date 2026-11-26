@@ -145,7 +145,8 @@ internal class ChatSubmissionRunner(
             val sendStarted = System.currentTimeMillis()
             Diagnostics.log("send.start", "op" to answer.operationId, "model" to modelId, "serverless" to state.value.serverless, "new_thread" to id.isBlank(),
                 "attachments" to submission.files.map { it.mime.ifBlank { "unknown" } }, "text_chars" to body.optString("message").length,
-                "prompt_cache" to body.optBoolean("enable_prompt_caching"), "memory" to Diagnostics.memory())
+                "prompt_cache" to body.optBoolean("enable_prompt_caching"), "search" to body.optBoolean("enable_search"),
+                "memory" to Diagnostics.memory())
             try {
                 if (body.optBoolean("parent_id_explicit")) {
                     // Branching send (edit-and-resend, regenerate): drop the old branch's tail

@@ -487,6 +487,7 @@ internal class ChatGraph(
         composer = composer,
         notify = { message -> notify(message) },
         send = { send() },
+        sendAnsweringXLink = { enable -> send(xLinkChecked = true, disableAutoSearch = !enable, preChecked = true) },
     )
     /** プロンプトオプションの復元・編集・分岐 ([ChatEditing])。 */
     internal val editing: ChatEditing = ChatEditing(
@@ -760,7 +761,8 @@ internal class ChatGraph(
     private fun chooseModel(model: String) = host.chooseModel(model)
     private fun openThreadId(id: String) = host.openThreadId(id)
     private fun ensureThread(onReady: () -> Unit) = host.ensureThread(onReady)
-    private fun send() = host.send()
+    private fun send(xLinkChecked: Boolean = false, disableAutoSearch: Boolean = false, preChecked: Boolean = false) =
+        host.send(xLinkChecked, disableAutoSearch, preChecked)
     private fun resume() = host.resume()
     private fun beginSend() = host.beginSend()
     private fun applyXLinkSearch() = host.applyXLinkSearch()

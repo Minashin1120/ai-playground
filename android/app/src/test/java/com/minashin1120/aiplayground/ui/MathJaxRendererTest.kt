@@ -48,6 +48,23 @@ class MathJaxRendererTest {
         assertEquals(WEB_MATH_SCALE, fittedMathScale(10f, androidx.compose.ui.unit.Constraints.Infinity, 16f), 1e-6f)
     }
 
+    @Test fun tallFormulasNeedTheirLineToGrow() {
+        // MathJax 3 SVG output for x^4-\dfrac1{x^4} and 21\sqrt5 (the viewBox is in 1/1000 em).
+        val fraction = parseMathSvg("""<svg viewBox="0 -1342 3679.6 2080.7"></svg>""")!!
+        val plain = parseMathSvg("""<svg viewBox="0 -949.5 2353 1060"></svg>""")!!
+        val line = 1.72f
+        // A \dfrac is about 2.85em tall: a 1.72em line cannot hold it, so the text drops the fixed height.
+        assertEquals(true, inlineMathHeightEm(fraction, WEB_MATH_SCALE, false) > line)
+        // Ordinary inline math still fits the line and keeps Web's fixed line height.
+        assertEquals(true, inlineMathHeightEm(plain, WEB_MATH_SCALE, false) < line)
+        // Web's display formula keeps 1em above and below it.
+        assertEquals(
+            2f,
+            inlineMathHeightEm(plain, WEB_MATH_SCALE, true) - inlineMathHeightEm(plain, WEB_MATH_SCALE, false),
+            1e-3f,
+        )
+    }
+
     @Test fun displayFormulasAreOneSelectablePlaceholderOverTheirApproximation() {
         // The rendered formula stays text, so a selection includes it and copies the approximation.
         val approximation = latexToDisplay("\\begin{aligned} a &= 1 \\\\ b &= 2 \\end{aligned}")

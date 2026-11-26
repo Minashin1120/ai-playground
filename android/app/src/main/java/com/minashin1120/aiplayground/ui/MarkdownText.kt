@@ -83,8 +83,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.R
 import com.minashin1120.aiplayground.data.codingTargetKey
@@ -715,6 +717,18 @@ internal fun InlineRichText(
     }
     val mathColor = style.color.takeOrElse { LocalContentColor.current }
     val fontPx = with(density) { style.fontSize.takeOrElse { 16.sp }.toPx() }
+    // A specified lineHeight makes Compose force every line of the text to that height, so a formula
+    // taller than it (e.g. \dfrac) was drawn over the lines above and below. Web only grows the line
+    // that holds the formula; without the fixed height the placeholder's metrics expand just that line.
+    val tallestMathPx = shownMath.foldIndexed(0f) { index, tallest, item ->
+        val svg = (mathStates[index] as? MathState.Ready)?.svg ?: return@foldIndexed tallest
+        val scale = fittedMathScale(svg.widthEm, availableWidth, fontPx)
+        maxOf(tallest, inlineMathHeightEm(svg, scale, item.display) * fontPx)
+    }
+    val lineHeightPx = if (style.lineHeight.isSpecified && style.lineHeight.isSp) with(density) { style.lineHeight.toPx() } else 0f
+    val bodyStyle = if (lineHeightPx > 0f && tallestMathPx > lineHeightPx) {
+        style.copy(lineHeight = TextUnit.Unspecified)
+    } else style
     val inline = remember(shownMath, mathStates, mathColor, availableWidth, fontPx) {
         val map = HashMap<String, InlineTextContent>()
         map[CODE_PAD] = InlineTextContent(Placeholder(6.4.sp, 1.sp, PlaceholderVerticalAlign.TextCenter)) {}
@@ -737,7 +751,7 @@ internal fun InlineRichText(
     val body: @Composable () -> Unit = {
         Text(
             shown,
-            style = style,
+            style = bodyStyle,
             inlineContent = inline,
             onTextLayout = { textLayout = it },
             maxLines = maxLines,

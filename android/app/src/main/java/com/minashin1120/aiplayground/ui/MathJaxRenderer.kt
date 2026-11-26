@@ -399,6 +399,17 @@ internal fun fittedMathScale(widthEm: Float, availableWidth: Int, fontPx: Float)
     return if (natural > limit) WEB_MATH_SCALE * limit / natural else WEB_MATH_SCALE
 }
 
+/** Half of a formula's placeholder box, in em of the text font, around Compose's text-center line. */
+private fun inlineMathHalfEm(svg: MathSvg, scale: Float): Float =
+    maxOf(svg.ascentEm * scale - TEXT_CENTER_EM, svg.depthEm * scale + TEXT_CENTER_EM, svg.heightEm * scale / 2f) + 0.08f
+
+/**
+ * The height of an inline formula's placeholder in em of the text font. A formula taller than the line
+ * can never fit it, so the text must let that line grow: Web grows the one line around the formula.
+ */
+internal fun inlineMathHeightEm(svg: MathSvg, scale: Float, display: Boolean): Float =
+    2 * inlineMathHalfEm(svg, scale) + if (display) 2f else 0f
+
 /**
  * The placeholder for one formula inside text. Compose can only center a placeholder on the text, so the
  * box is tall enough around that center and the drawing is then moved onto the line's baseline.
@@ -412,10 +423,11 @@ internal fun inlineMathContent(
     textLayout: () -> TextLayoutResult?,
 ): InlineTextContent {
     val scale = fittedMathScale(svg.widthEm, availableWidth, fontPx)
-    val half = maxOf(svg.ascentEm * scale - TEXT_CENTER_EM, svg.depthEm * scale + TEXT_CENTER_EM, svg.heightEm * scale / 2f) + 0.08f
-    // Web `mjx-container[display]` keeps 1em above and below a display formula.
-    val margin = if (item.display) 1f else 0f
-    val placeholder = Placeholder((svg.widthEm * scale).em, (2 * half + 2 * margin).em, PlaceholderVerticalAlign.TextCenter)
+    val placeholder = Placeholder(
+        width = (svg.widthEm * scale).em,
+        height = inlineMathHeightEm(svg, scale, item.display).em,
+        placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+    )
     return InlineTextContent(placeholder) {
         val trace = rememberInteractionTrace("inline_math")
         TraceMathRendering(trace, MathState.Ready(svg), null, (svg.widthEm * WEB_MATH_SCALE * fontPx).toInt(), scale)

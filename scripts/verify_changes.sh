@@ -136,6 +136,13 @@ while IFS= read -r -d '' py; do
 done < <(find server -name '*.py' -print0 | sort -z)
 run_logged "python syntax" "$PYTHON" -m py_compile "${PY_SOURCES[@]}"
 
+# Android Kotlin cannot be compiled on this server; the first compiler is
+# GitHub Actions. Catch the cheap structural mistakes and missing project
+# imports here, before the Android-only or Web+Android release path commits.
+info "Kotlin static checks"
+run_logged "kotlin syntax and comments" "$PYTHON" "$ROOT/scripts/check_kotlin_static.py" --changed
+run_logged "kotlin project imports" "$PYTHON" "$ROOT/scripts/check_kotlin_refs.py" --changed
+
 # Android generated assets are derived from Web sources. Check them here so a
 # stale serverless-defaults/catalog/icon file fails with a direct message before
 # the slower regression suite or version update.

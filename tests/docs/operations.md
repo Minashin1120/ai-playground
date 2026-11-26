@@ -8,6 +8,8 @@
 | [test_extract_before_extend.py](../test_extract_before_extend.py) | 予算超過ファイルを増やさない判定（`check-extract`、`~/docs/file_layout_rules.md`） |
 | [test_file_size_budget.py](../test_file_size_budget.py) | ファイルサイズ予算・例外リスト（`~/docs/context_cost_reduction_plan.md`） |
 | [test_key_rotation_regressions.py](../test_key_rotation_regressions.py) | key / rotation |
+| [test_kotlin_refs_checker.py](../test_kotlin_refs_checker.py) | Kotlinのプロジェクト型import漏れチェック（Android CI前） |
+| [test_kotlin_static_checker.py](../test_kotlin_static_checker.py) | Kotlinのコメント・文字列・括弧の静的チェック（Android CI前） |
 | [test_prepare_preflight.py](../test_prepare_preflight.py) | 版更新前の検証順序・失敗時の無変更・スキップの範囲・文書索引 |
 | [test_readme_change_units.py](../test_readme_change_units.py) | 分割READMEの変更単位表（`主な内容` / `いつ開くか`）と `server/` `android/` の被覆（`~/docs/file_layout_rules.md`） |
 | [test_production_schema_guard_regressions.py](../test_production_schema_guard_regressions.py) | production / schema / guard |

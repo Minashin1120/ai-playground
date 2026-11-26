@@ -63,6 +63,19 @@ git_in() { git -C "$GIT_DIR" "$@"; }
 BRANCH="$(git_in rev-parse --abbrev-ref HEAD)"
 [[ "$BRANCH" == "main" ]] || die "refusing to record from branch '$BRANCH' (main only)"
 
+# Android Kotlin is compiled only in GitHub Actions. Run the local structural
+# checks before committing so comment/literal mistakes and missing project
+# imports do not reach CI or the version bump.
+kotlin_changed="$(git_in diff --name-only -- '*.kt' || true)"
+kotlin_untracked="$(git_in ls-files --others --exclude-standard -- '*.kt' || true)"
+if [[ -n "$kotlin_changed" || -n "$kotlin_untracked" ]]; then
+    info "checking Kotlin syntax and project imports"
+    "$PYTHON" "$ROOT/scripts/check_kotlin_static.py" --changed \
+        || die "Kotlin static check failed; fix the reported lines before recording"
+    "$PYTHON" "$ROOT/scripts/check_kotlin_refs.py" --changed \
+        || die "Kotlin reference check failed; fix the reported imports before recording"
+fi
+
 if [[ "$TARGET" == "android" ]]; then
     # Keep generated assets current before computing the record plan, so the
     # Android-only path does not stop on a stale catalog/defaults/icon file.

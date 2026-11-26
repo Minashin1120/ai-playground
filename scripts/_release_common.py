@@ -97,6 +97,8 @@ OPERATIONS_RECORD_EXACT = {
     ".github/workflows/release.yml",
     "tests/conftest.py",
     "tests/test_mcp_release_allowlist.py",
+    "tests/test_kotlin_refs_checker.py",
+    "tests/test_kotlin_static_checker.py",
     "tests/test_production_schema_guard_regressions.py",
     "tests/test_release_scripts.py",
     "tests/test_prepare_preflight.py",

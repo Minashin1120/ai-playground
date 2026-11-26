@@ -610,7 +610,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
         val web = LocalWebPalette.current
         var deleting by remember { mutableStateOf<FeedbackItem?>(null) }
         val focusId = state.feedbackFocusId
-        val requesters = remember { mutableMapOf<Long, BringIntoViewRequester>() }
+        val requesters = remember { mutableMapOf<Int, BringIntoViewRequester>() }
         LaunchedEffect(focusId, state.feedbackItems) {
             val targetId = focusId ?: return@LaunchedEffect
             val target = state.feedbackItems.firstOrNull { it.publicId == targetId || it.id.toString() == targetId }
@@ -662,7 +662,7 @@ internal fun feedbackCards(state: ChatState, model: ChatViewModel, notify: (Stri
         var deleting by remember { mutableStateOf<FeedbackItem?>(null) }
         var statusFilter by remember { mutableStateOf("all") }
         val focusId = state.feedbackFocusId
-        val requesters = remember { mutableMapOf<Long, BringIntoViewRequester>() }
+        val requesters = remember { mutableMapOf<Int, BringIntoViewRequester>() }
         LaunchedEffect(focusId, state.feedbackItems) {
             val targetId = focusId ?: return@LaunchedEffect
             val target = state.feedbackItems.firstOrNull { it.publicId == targetId || it.id.toString() == targetId }

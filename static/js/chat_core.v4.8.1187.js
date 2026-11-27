@@ -23410,6 +23410,8 @@
             const isDeepSeekNonThinking = String(get('model-select').value || '').toLowerCase().includes('deepseek') && effortLower === 'none';
             const p = {
                 client_request_id: createClientRequestId(),
+                client_platform: 'Web',
+                deepseek_language: (document.documentElement.lang || navigator.language || '').toLowerCase().startsWith('ja') ? '日本語' : ((document.documentElement.lang || navigator.language || '').toLowerCase().startsWith('zh') ? '中文' : 'English'),
                 thread_id: currentThreadId,
                 message: t,
                 model: get('model-select').value,
@@ -23819,6 +23821,14 @@
                                         if (outBtn) outBtn.setAttribute('data-code', encodeURIComponent(outText).replace(/'/g, "%27"));
                                     }
                                 }
+                            } else if(j.type==='content_replace'){
+                                acc = (j.content === null || j.content === undefined) ? '' : String(j.content);
+                                if(!cEl){
+                                    cEl = adiv.querySelector('.content-area') || document.createElement('div');
+                                    cEl.className='prose prose-invert text-sm break-words';
+                                    if(!adiv.contains(cEl)) adiv.appendChild(cEl);
+                                }
+                                contentChanged = true;
                             } else if(j.type==='content'){
                                 const contentDelta = (j.content === null || j.content === undefined) ? '' : String(j.content);
                                 acc += contentDelta;

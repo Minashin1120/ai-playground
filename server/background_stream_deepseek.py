@@ -119,12 +119,18 @@ def background_stream_deepseek(local):
                 user_text += f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
 
         # region: search
-        # DeepSeek Search runs before generation. The official Search API
-        # works with every DeepSeek model, unlike the Responses API web_search
-        # tool (deepseek-v4-pro only) which is ignored by deepseek-flash.
+        # V4.1 Flash exposes search and URL reading as native server tools;
+        # retain the Search API fallback for older DeepSeek model IDs.
+        deepseek_api_model = _deepseek_api_model_id(model_key)
+        has_deepseek_url = "http://" in str(final_message_text or "").lower() or "https://" in str(final_message_text or "").lower()
+        native_deepseek_web_tools = (
+            deepseek_api_model == "deepseek-flash"
+            and (bool(options.get("enable_search")) or has_deepseek_url)
+        )
         deepseek_search_sources = []
         deepseek_search_calls = 0
-        if options.get('enable_search') and key and str(final_message_text or "").strip():
+        if (not native_deepseek_web_tools and options.get('enable_search')
+                and key and str(final_message_text or "").strip()):
             pub("search_status", "searching")
             try:
                 ds_results, ds_search_error = _deepseek_search_request(
@@ -217,6 +223,34 @@ def background_stream_deepseek(local):
             pub("error", "DeepSeek request is empty.")
             return BACKGROUND_STREAM_EARLY_RETURN
 
+        # Pass DeepSeek's per-turn context marker. The app does not have an
+        # explicit location preference, so an empty location avoids inferring
+        # one from IP addresses or other sensitive data.
+        import time
+        now_utc = time.gmtime()
+        user_message_text = str(final_message_text or "")
+        if any("\u3040" <= char <= "\u30ff" for char in user_message_text):
+            reminder_language = "日本語"
+        elif any("\u4e00" <= char <= "\u9fff" for char in user_message_text):
+            reminder_language = "中文"
+        else:
+            reminder_language = "English"
+        configured_language = str(options.get("deepseek_language") or "").strip()
+        if configured_language in {"日本語", "中文", "English"}:
+            reminder_language = configured_language
+        reminder_location = str(options.get("deepseek_location") or "").strip()[:120]
+        reminder_weekday = time.strftime("%A", now_utc)
+        if reminder_language == "日本語":
+            reminder_weekday = ("月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日")[now_utc.tm_wday]
+        elif reminder_language == "中文":
+            reminder_weekday = ("星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日")[now_utc.tm_wday]
+        reminder_platform = str(options.get("client_platform") or "Web").strip()
+        if deepseek_api_model == "deepseek-flash":
+            messages.append({
+                "role": "latest_reminder",
+                "content": f"{time.strftime('%Y-%m-%d', now_utc)},{reminder_weekday},{reminder_location},{reminder_platform},{reminder_language}",
+            })
+
         if deepseek_user_content is not None:
             messages.append({"role": "user", "content": deepseek_user_content})
         else:
@@ -283,11 +317,16 @@ def background_stream_deepseek(local):
         if _skills_tool_enabled:
             python_tools.append(build_skill_tool_openai_chat())
 
+        if native_deepseek_web_tools:
+            # DeepSeek rejects server-side web tools mixed with client-side
+            # function tools in the same request.
+            python_tools = []
+
         # region: tool schemas
         # MCP外部ツールの定義を追加（ユーザーが有効化＆認証済みのサーバーのみ）
         ds_mcp_env = None
         try:
-            ds_mcp_env = _ensure_mcp_env()
+            ds_mcp_env = None if native_deepseek_web_tools else _ensure_mcp_env()
         except Exception:
             ds_mcp_env = None
         if ds_mcp_env is not None:
@@ -309,12 +348,19 @@ def background_stream_deepseek(local):
             if tool_round == max_tool_rounds:
                 pub("status", "ツールの実行結果から回答を生成中...")
             deepseek_kwargs = {
-                "model": _deepseek_api_model_id(model_key),
+                "model": deepseek_api_model,
                 "messages": messages,
                 "stream": True,
                 "stream_options": {"include_usage": True},
             }
-            if python_tools:
+            if native_deepseek_web_tools:
+                native_tools = []
+                if options.get("enable_search"):
+                    native_tools.append({"type": "deepseek_web_search"})
+                if has_deepseek_url or options.get("enable_search"):
+                    native_tools.append({"type": "deepseek_read_url"})
+                deepseek_kwargs["_deepseek_native_tools"] = native_tools
+            elif python_tools:
                 deepseek_kwargs["tools"] = python_tools
                 # Reserve one final request for an answer using the collected results.
                 deepseek_kwargs["tool_choice"] = "none" if tool_round == max_tool_rounds else "auto"
@@ -325,6 +371,12 @@ def background_stream_deepseek(local):
                 deepseek_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
             # Official per-user isolation for safety, scheduling, and KV cache.
             deepseek_kwargs["extra_body"]["user_id"] = f"app_user_{user_id}"
+            native_tools = deepseek_kwargs.pop("_deepseek_native_tools", None)
+            if native_deepseek_web_tools:
+                deepseek_kwargs["extra_body"]["safety_check"] = {"level": "high"}
+                deepseek_kwargs["extra_body"]["tools"] = native_tools or []
+            elif deepseek_api_model == "deepseek-flash" and not python_tools:
+                deepseek_kwargs["extra_body"]["safety_check"] = {"level": "high"}
 
             _mark_provider_request_started()
             stream = client.chat.completions.create(**deepseek_kwargs)
@@ -332,6 +384,9 @@ def background_stream_deepseek(local):
             round_reasoning = ""
             round_content = ""
             streamed_tool_calls = {}
+            round_server_tool_calls = None
+            round_annotations = []
+            round_refused = False
 
             for chunk in stream:
                 _latency_mark_once(job_id, "provider_first_chunk_ms")
@@ -373,7 +428,10 @@ def background_stream_deepseek(local):
                 if not choices:
                     continue
 
-                delta = choices[0].delta
+                choice = choices[0]
+                delta = choice.delta
+                if getattr(choice, "finish_reason", None) == "content_filter":
+                    round_refused = True
 
                 # DeepSeek exposes reasoning_content as an OpenAI-compatible extension.
                 r_content = getattr(delta, "reasoning_content", None)
@@ -396,15 +454,56 @@ def background_stream_deepseek(local):
                     getattr(delta, "tool_calls", None) or [],
                 )
 
+                if native_deepseek_web_tools:
+                    choice_extra = getattr(choice, "__pydantic_extra__", None) or {}
+                    delta_extra = getattr(delta, "__pydantic_extra__", None) or {}
+                    server_event = getattr(choice, "server_tool_event", None) or choice_extra.get("server_tool_event")
+                    if server_event:
+                        event_data = server_event if isinstance(server_event, dict) else getattr(server_event, "model_dump", lambda: {})()
+                        if event_data.get("type") == "call_started":
+                            pub("search_status", "searching")
+                            search_used = True
+                        elif event_data.get("type") == "call_completed":
+                            search_used = True
+                    round_server_tool_calls = delta_extra.get("server_tool_calls", round_server_tool_calls)
+                    round_annotations = delta_extra.get("annotations", round_annotations) or []
+
             if not streamed_tool_calls:
-                if deepseek_tool_context:
+                if round_refused:
+                    refusal_text = "The model declined to answer this request."
+                    round_content = refusal_text
+                    full_res = refusal_text
+                    pub("content_replace", refusal_text)
+                if deepseek_tool_context is not None:
                     final_assistant_message = {
                         "role": "assistant",
                         "content": round_content,
                     }
                     if enable_reasoning:
                         final_assistant_message["reasoning_content"] = round_reasoning
+                    if round_server_tool_calls:
+                        final_assistant_message["server_tool_calls"] = round_server_tool_calls
+                    if round_annotations:
+                        final_assistant_message["annotations"] = round_annotations
                     deepseek_tool_context.append(final_assistant_message)
+                if native_deepseek_web_tools:
+                    citation_urls = []
+                    for annotation in round_annotations:
+                        if not isinstance(annotation, dict):
+                            annotation = getattr(annotation, "model_dump", lambda: {})()
+                        citation = annotation.get("url_citation", annotation)
+                        if isinstance(citation, dict):
+                            citation_url = str(citation.get("url") or "").strip()
+                            citation_title = str(citation.get("title") or citation_url).strip()
+                            if citation_url and citation_url not in [item[1] for item in citation_urls]:
+                                citation_urls.append((citation_title, citation_url))
+                    if citation_urls:
+                        citations_text = "\n\n**Sources:**\n" + "".join(
+                            f"- [{title}]({url})\n" for title, url in citation_urls
+                        )
+                        full_res += citations_text
+                        pub("content", citations_text)
+                    pub("search_status", "done")
                 break
 
             if tool_round == max_tool_rounds:

@@ -3,6 +3,7 @@ import copy
 import json
 import os
 import textwrap
+import time
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -186,6 +187,7 @@ class DeepSeekPythonToolTests(unittest.TestCase):
             return iter([chunk(content="The result is 42.")])
 
         namespace = dict(
+            time=time,
             log_force=lambda *a: None, check_stop=lambda: False,
             o_client=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))),
             options={"enable_python": True, "enable_thinking": True},

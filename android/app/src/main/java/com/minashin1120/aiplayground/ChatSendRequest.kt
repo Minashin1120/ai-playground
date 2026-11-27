@@ -38,6 +38,8 @@ internal object ChatSendRequest {
         // Web の Thinking ボタンと同じく、Effort が none のときは思考を有効にしない。
         val effortNonThinking = rules.effortAsThinking && effort.lowercase() == "none"
         val body = JSONObject().put("model", current.model).put("message", current.draft)
+            .put("client_platform", "App")
+            .put("deepseek_language", "日本語")
             .put("client_request_id", UUID.randomUUID().toString()).put("image_urls", JSONArray(items.map { it.reference }))
             .put("image_items", JSONArray().apply {
                 items.forEach { put(JSONObject().put("path", it.reference).put("source", it.source).put("name", it.name)) }

@@ -108,6 +108,7 @@ internal class ChatStreamReceiver(
             "image_analysis" -> updateLive(answer) { it.copy(imageAnalysis = content) }
             "thought" -> updateAnswer(answer) { it.copy(liveThought = it.liveThought + content, live = it.live.copy(thoughtPlaceholder = null)) }
             "content" -> updateAnswer(answer) { it.copy(liveContent = it.liveContent + content) }
+            "content_replace" -> updateAnswer(answer) { it.copy(liveContent = content) }
             "error" -> updateAnswer(answer) { it.copy(live = it.live.copy(error = content.ifBlank { "Unknown error" }), notice = content.ifBlank { "Unknown error" }.take(500)) }
         }
     }

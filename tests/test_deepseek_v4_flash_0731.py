@@ -46,7 +46,8 @@ class DeepSeekV41FlashTests(unittest.TestCase):
     def test_official_alias_and_specs_are_applied(self):
         self.assertIn('if mk.lower() == "deepseek-v4.1-flash":', self.app_source)
         self.assertIn('return "deepseek-flash"', self.app_source)
-        self.assertIn('"model": _deepseek_api_model_id(model_key)', self.app_source)
+        self.assertIn('deepseek_api_model = _deepseek_api_model_id(model_key)', self.app_source)
+        self.assertIn('"model": deepseek_api_model', self.app_source)
         self.assertIn('legacy_value = key_map.get("deepseek-v4-flash")', self.app_source)
         self.assertIn('1M context, 384K output', self.js_source)
         self.assertIn('In $0.003 hit/$0.15 miss, Out $0.60 off-peak', self.js_source)

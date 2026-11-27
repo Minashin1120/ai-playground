@@ -47,9 +47,10 @@ internal class LocalChatProjects(
 
     suspend fun resolve(projectUuid: String?, token: String): JSONObject? {
         val uuid = projectUuid?.trim()?.takeIf { it.isNotEmpty() && it != "null" } ?: return null
-        if (fallback != null) {
+        val fb = fallback
+        if (fb != null) {
             val fetched = runCatching {
-                val raw = fallback.get("/api/projects/$uuid", token)
+                val raw = fb.get("/api/projects/$uuid", token)
                 raw.optJSONObject("project") ?: raw.takeIf { it.optString("uuid").isNotBlank() }
             }.getOrNull()
             if (fetched != null) {

@@ -1,10 +1,47 @@
 """Per-generation usage records. No prompts, response text, URLs or credentials are retained."""
 from contextvars import ContextVar
 from datetime import datetime as _usage_clock
+import hashlib
 import json
 import re
 
 _MODEL_USAGE_CONTEXT = ContextVar('model_usage', default=None)
+
+_USAGE_KEY_SOURCES = (
+    'model_specific', 'gemini_free', 'vertex_ai', 'env_fallback',
+    'openai_common', 'gemini_common', 'anthropic_common', 'deepseek_common',
+    'zai_common', 'kimi_common', 'xai_common', 'mistral_common', 'ideogram_common', 'google_common',
+)
+
+
+def _pricing_key_metadata(api_key=None, key_source=None, provider=None):
+    """Return non-reversible key identity metadata for cost aggregation; never stores raw keys."""
+    source = key_source if key_source in _USAGE_KEY_SOURCES else None
+    prov = re.sub(r'[^a-z0-9_]', '', str(provider or '').lower())[:24] or 'unknown'
+    if source == 'vertex_ai':
+        return {'api_key_id': 'vertex_ai', 'api_key_source': 'vertex_ai'}
+    if source == 'env_fallback':
+        return {'api_key_id': f'env:{prov}', 'api_key_source': 'env_fallback'}
+    raw = str(api_key or '').strip()
+    if not raw:
+        return {}
+    digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()[:12]
+    info = {'api_key_id': f'k:{digest}'}
+    if source:
+        info['api_key_source'] = source
+    if len(raw) >= 8 and re.fullmatch(r'[A-Za-z0-9._:/-]+', raw):
+        info['api_key_hint'] = '...' + raw[-4:]
+    return info
+
+
+def _pricing_key_metadata_from_auth(resolved):
+    if not isinstance(resolved, dict):
+        return {}
+    return _pricing_key_metadata(
+        api_key=resolved.get('api_key'),
+        key_source=resolved.get('key_source'),
+        provider=resolved.get('provider'),
+    )
 
 
 def _usage_value(value, *names):
@@ -76,6 +113,15 @@ class ModelUsageCall:
 class ModelUsageLedger:
     def __init__(self):
         self.calls = []
+        self.default_key_info = {}
+        self.provider_key_info = {}
+
+    def set_default_key_info(self, info):
+        self.default_key_info = dict(info) if isinstance(info, dict) else {}
+
+    def set_provider_key_info(self, provider, info):
+        if provider and isinstance(info, dict):
+            self.provider_key_info[str(provider)] = dict(info)
 
     def begin(self, model, provider):
         call = ModelUsageCall(model, provider)
@@ -91,6 +137,11 @@ class ModelUsageLedger:
                 continue
             identity = (call.provider, call.response_id)
             record = call.snapshot()
+            key_info = self.provider_key_info.get(call.provider) or self.default_key_info
+            if key_info:
+                for k in ('api_key_id', 'api_key_source', 'api_key_hint'):
+                    if k not in record and key_info.get(k):
+                        record[k] = key_info[k]
             used = {item[1] for item in getattr(call, '_price_seen', set()) if item[0] == 'container'}
             if used:
                 record['container_sessions'] = len(used - containers)
@@ -144,6 +195,15 @@ def _sanitize_pricing_calls(value):
         date = entry.get('created_at')
         if isinstance(date, str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}T[0-9:.+Z-]{5,30}', date):
             row['created_at'] = date
+        key_id = entry.get('api_key_id')
+        if isinstance(key_id, str) and re.fullmatch(r'(?:k:[0-9a-f]{12}|env:[a-z0-9_]{1,24}|vertex_ai)', key_id):
+            row['api_key_id'] = key_id
+        key_source = entry.get('api_key_source')
+        if key_source in _USAGE_KEY_SOURCES:
+            row['api_key_source'] = key_source
+        key_hint = entry.get('api_key_hint')
+        if isinstance(key_hint, str) and re.fullmatch(r'\.\.\.[A-Za-z0-9._:/-]{4}', key_hint):
+            row['api_key_hint'] = key_hint
         rows.append(row)
     if len(value) > 1024:
         rows.append({'model': '', 'complete': False})

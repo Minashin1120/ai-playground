@@ -93,6 +93,43 @@ class UsageCostSummaryTests(unittest.TestCase):
     def test_unknown_period_falls_back_to_one_month(self):
         self.assertEqual(self.get('nonsense')['period'], '1m')
 
+    def test_api_key_breakdown_labels_recorded_and_legacy_calls(self):
+        now = datetime.utcnow()
+        common_key = 'sk-test-common-key-1234'
+        special_key = 'sk-test-special-key-9876'
+        old_key = 'sk-test-retired-key-5555'
+        with target.app.app_context():
+            user = target.db.session.get(target.User, self.user_id)
+            user.openai_api_key = target.encrypt_val(common_key)
+            target._save_user_model_api_key_map(user, {'gpt-6.1-sol': special_key})
+            target.db.session.commit()
+        recorded_old_meta = target._pricing_key_metadata(old_key, 'openai_common', 'openai')
+        self.assertNotIn(old_key, json.dumps(recorded_old_meta))
+        self.assertEqual(recorded_old_meta['api_key_hint'], '...5555')
+        saved_old = {'pricing_calls': [{
+            'model': 'gpt-6.1-sol', 'input_tokens': 100, 'output_tokens': 50,
+            'created_at': now.isoformat() + 'Z', 'complete': True,
+            **recorded_old_meta,
+        }]}
+        self.add_thread(messages=[
+            {'role': 'assistant', 'model': 'gpt-6.1-sol', 'content': 'old-key', 'tokens_out': 50,
+             'thought_data': json.dumps(saved_old), 'timestamp': now - timedelta(minutes=2)},
+            {'role': 'assistant', 'model': 'gpt-6.1-sol', 'content': 'legacy-inferred', 'tokens_in': 200,
+             'tokens_out': 80, 'timestamp': now - timedelta(minutes=1)},
+        ])
+        data = self.get('1d')
+        self.assertEqual(data['answers'], 2)
+        old_call = data['messages'][0]['pricing_calls'][0]
+        legacy_call = data['messages'][1]['pricing_calls'][0]
+        self.assertEqual(old_call['api_key_id'], recorded_old_meta['api_key_id'])
+        self.assertIn('...5555', old_call['api_key_label'])
+        self.assertIn('...9876', legacy_call['api_key_label'])
+        self.assertTrue(legacy_call['api_key_inferred'])
+        raw_json = json.dumps(data)
+        self.assertNotIn(common_key, raw_json)
+        self.assertNotIn(special_key, raw_json)
+        self.assertNotIn(old_key, raw_json)
+
 
 if __name__ == '__main__':
     unittest.main()

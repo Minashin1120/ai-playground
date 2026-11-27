@@ -297,6 +297,11 @@ def save_browser_fast_mode_chat():
         pricing_call = ModelUsageCall(model_key, 'google')
         pricing_call.update_usage(data.get('pricing_usage') or {})
         pricing_call.finished = True
+        _use_free = _coerce_gemini_free_tier(data.get('gemini_free_tier'))
+        _fast_key, _fast_source = _get_browser_fast_mode_user_key(current_user, model_key, use_free=_use_free)
+        _key_meta = _pricing_key_metadata(_fast_key, _fast_source, 'gemini')
+        if _key_meta:
+            pricing_call.record.update(_key_meta)
         thought_record['pricing_calls'] = [pricing_call.snapshot()]
     thought_payload = json.dumps(thought_record, ensure_ascii=False) if thought_record else None
     assistant_content = assistant_text

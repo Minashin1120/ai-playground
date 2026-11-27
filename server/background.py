@@ -1039,6 +1039,16 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             }
 
             key = resolved_auth.get("api_key")
+            usage_ledger.set_default_key_info(_pricing_key_metadata_from_auth(resolved_auth))
+            for _prov, _k in api_keys.items():
+                if _k:
+                    _mapped_prov = 'google' if _prov == 'gemini' else _prov
+                    _src = (
+                        resolved_auth.get("key_source")
+                        if _prov == resolved_auth.get("provider")
+                        else f"{_prov}_common"
+                    )
+                    usage_ledger.set_provider_key_info(_mapped_prov, _pricing_key_metadata(_k, _src, _prov))
             if resolved_auth.get("error_code"):
                 pub(
                     "error",

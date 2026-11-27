@@ -190,6 +190,9 @@ def _call_math_steps_simplify_model(user, model_key, prompt, gemini_free_tier=Fa
     provider = resolved.get("provider")
     api_key = resolved.get("api_key")
     call = ModelUsageCall(model_key, provider)
+    _math_key_meta = _pricing_key_metadata_from_auth(resolved)
+    if _math_key_meta:
+        call.record.update(_math_key_meta)
     try:
         if provider == "gemini":
             runtime = resolved.get("gemini_runtime") or _resolve_gemini_runtime(

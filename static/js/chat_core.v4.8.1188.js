@@ -21253,6 +21253,7 @@
                 image_mask: maskImageUrl,
                 skill_name: skillName,
                 batch_job: batchInfo,
+                thought_data: thoughtData,
                 processing_time: processingTime,
                 python_executions: isUser ? [] : (pythonExtract.executions || [])
             };
@@ -21361,6 +21362,12 @@
             if (tokenParts.length || (tokenCount !== null && tokenCount !== undefined)) {
                 const tLabel = tokenParts.length ? tokenParts.join(' / ') : `${tokenCount} tokens`;
                 footerParts.push(`<button class="underline decoration-dotted hover:text-white token-detail-btn" onclick="openTokenDetail('${id}')">${tLabel}</button>`);
+            }
+            if (!isUser && (text || (tokenOut !== null && tokenOut !== undefined && Number(tokenOut) > 0) || thoughtData)) {
+                const hasPricing = typeof costPricing !== 'undefined' && costPricing;
+                const pricingFailed = typeof costPricingFailed !== 'undefined' && costPricingFailed;
+                const costPlaceholder = hasPricing ? '費用予想: 計算中…' : `費用予想: ${pricingFailed ? '算出不可' : '料金を読み込み中…'}`;
+                footerParts.push(`<button class="underline decoration-dotted hover:text-white msg-cost-estimate-btn" data-msg-id="${escapeHtml(String(id))}" onclick="openTokenDetail('${id}')">${costPlaceholder}</button>`);
             }
             if (isEncrypted !== null && isEncrypted !== undefined) {
                 const lockIcon = isEncrypted ? 'fa-lock' : 'fa-lock-open';
@@ -21581,14 +21588,25 @@
             const costDetail = get('token-detail-cost');
             if (costDetail) {
                 costDetail.replaceChildren();
-                costDetail.classList.toggle('hidden', meta.role !== 'total');
-                if (meta.role === 'total') {
-                    const usd = document.createElement('p'); usd.textContent = costEstimateLabel(meta.cost_estimate);
+                const msgCost = meta.cost_estimate || (
+                    meta.role === 'assistant' && costPricing && typeof estimateConversationCost === 'function'
+                        ? estimateConversationCost([{
+                            id, role: meta.role, model: meta.model, thought_data: meta.thought_data,
+                            tokens_in: meta.tokens_in, tokens_out: meta.tokens_out,
+                            tokens_thought: meta.tokens_thought, tokens_content: meta.tokens_content,
+                            parent_id: meta.parent_id, image_url: meta.image_url, batch_job: meta.batch_job
+                        }], costPricing, costBarPath)
+                        : null
+                );
+                const showCost = (meta.role === 'total' && msgCost) || (meta.role === 'assistant' && msgCost);
+                costDetail.classList.toggle('hidden', !showCost);
+                if (showCost) {
+                    const usd = document.createElement('p'); usd.textContent = costEstimateLabel(msgCost);
                     const jpy = document.createElement('p');
                     jpy.id = 'token-detail-cost-jpy';
                     costDetail.append(usd, jpy);
-                    fillCostEstimateJpy(jpy, meta.cost_estimate);
-                    const items = Array.isArray(meta.cost_estimate?.items) ? meta.cost_estimate.items : [];
+                    fillCostEstimateJpy(jpy, msgCost);
+                    const items = Array.isArray(msgCost?.items) ? msgCost.items : [];
                     if (items.length) {
                         const details = document.createElement('details');
                         details.className = 'pt-2 border-t border-gray-700';
@@ -21599,7 +21617,7 @@
                         appendCostItemList(details, items);
                         costDetail.appendChild(details);
                     }
-                    for (const text of [`集計したAPI呼び出し: ${meta.cost_estimate?.requests || 0}回`, COST_ESTIMATE_NOTE,
+                    for (const text of [`集計したAPI呼び出し: ${msgCost?.requests || 0}回`, COST_ESTIMATE_NOTE,
                         `公式料金確認日: ${costPricing?.checked_at || '取得できませんでした'}`]) {
                         const p = document.createElement('p'); p.textContent = text; costDetail.appendChild(p);
                     }
@@ -28474,7 +28492,10 @@
                 inferred: !!inferred,
                 long: result.long > before.long,
                 batch: !!batch,
-                flex: !!flex
+                flex: !!flex,
+                api_key_id: String(request.api_key_id || ''),
+                api_key_label: String(request.api_key_label || ''),
+                api_key_inferred: !!request.api_key_inferred
             };
         }
 
@@ -28667,6 +28688,18 @@
             el.title = COST_ESTIMATE_NOTE;
             if (messageMeta.__total__) messageMeta.__total__.cost_estimate = costPricing ? cost : null;
             el.onclick = () => openTokenDetail('__total__');
+            if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
+                document.querySelectorAll('.msg-cost-estimate-btn[data-msg-id]').forEach(btn => {
+                    const msgId = btn.dataset.msgId;
+                    const msg = path.find(m => m && String(m.id) === String(msgId));
+                    if (!msg) return;
+                    const msgCost = costPricing ? estimateConversationCost([msg], costPricing, path) : null;
+                    if (messageMeta[msgId]) messageMeta[msgId].cost_estimate = msgCost;
+                    btn.textContent = costPricing ? costEstimateLabel(msgCost, '費用予想')
+                        : `費用予想: ${costPricingFailed ? '算出不可' : '料金を読み込み中…'}`;
+                    btn.title = COST_ESTIMATE_NOTE;
+                });
+            }
         }
 
         // Static official-rate data only; no chat data is sent by this request.
@@ -28804,15 +28837,32 @@
             return [...rows.values()].sort((a, b) => (b.high - a.high) || (b.low - a.low));
         }
 
-        function renderUsageCostBreakdown(rows) {
-            const breakdown = usageCostElements().breakdown;
-            if (!breakdown) return;
-            breakdown.replaceChildren();
+        function usageCostKeyRows(items) {
+            const rows = new Map();
+            for (const item of items || []) {
+                if (!item) continue;
+                const key = item.api_key_id || 'unknown';
+                const label = item.api_key_label || '未記録（キー未設定）';
+                let row = rows.get(key);
+                if (!row) {
+                    row = { key, label, low: 0, high: 0, priced: 0, unpriced: 0, requests: 0, inferred: 0 };
+                    rows.set(key, row);
+                }
+                row.low += Number(item.low) || 0;
+                row.high += Number(item.high) || 0;
+                row.requests++;
+                if (item.priced) row.priced++; else row.unpriced++;
+                if (item.api_key_inferred) row.inferred++;
+            }
+            return [...rows.values()].sort((a, b) => (b.high - a.high) || (b.low - a.low));
+        }
+
+        function appendUsageCostBreakdownSection(container, heading, rows, labelFor, detailFor) {
             if (!rows.length) return;
             const title = document.createElement('div');
             title.className = 'text-[11px] font-bold text-gray-400 mt-3';
-            title.textContent = 'モデル別';
-            breakdown.appendChild(title);
+            title.textContent = heading;
+            container.appendChild(title);
             rows.forEach(row => {
                 const line = document.createElement('div');
                 line.className = 'border-t border-gray-700/60 py-1.5';
@@ -28820,7 +28870,7 @@
                 head.className = 'flex justify-between gap-3';
                 const name = document.createElement('span');
                 name.className = 'font-mono text-[11px] break-all';
-                name.textContent = row.model;
+                name.textContent = labelFor(row);
                 const amount = document.createElement('span');
                 amount.className = 'font-mono text-[11px] shrink-0';
                 amount.textContent = costAmountText(row) + (row.unpriced ? '（一部未算入）' : '');
@@ -28828,10 +28878,32 @@
                 line.appendChild(head);
                 const detail = document.createElement('div');
                 detail.className = 'text-[10px] text-gray-400';
-                detail.textContent = `API ${row.requests}回 · 算定 ${row.priced}回` + (row.unpriced ? ` · 未算入 ${row.unpriced}回` : '');
+                detail.textContent = detailFor(row);
                 line.appendChild(detail);
-                breakdown.appendChild(line);
+                container.appendChild(line);
             });
+        }
+
+        function renderUsageCostBreakdown(modelRows, keyRows = []) {
+            const breakdown = usageCostElements().breakdown;
+            if (!breakdown) return;
+            breakdown.replaceChildren();
+            appendUsageCostBreakdownSection(
+                breakdown,
+                'APIキー別',
+                keyRows,
+                row => row.label,
+                row => `API ${row.requests}回 · 算定 ${row.priced}回` +
+                    (row.unpriced ? ` · 未算入 ${row.unpriced}回` : '') +
+                    (row.inferred ? ' · 一部現在の設定から推定' : '')
+            );
+            appendUsageCostBreakdownSection(
+                breakdown,
+                'モデル別',
+                modelRows,
+                row => row.model,
+                row => `API ${row.requests}回 · 算定 ${row.priced}回` + (row.unpriced ? ` · 未算入 ${row.unpriced}回` : '')
+            );
         }
 
         function renderUsageCostSummary(data) {
@@ -28858,7 +28930,7 @@
                 if (data.truncated) parts.push('件数が多いため直近分のみ');
                 el.meta.textContent = parts.join(' · ');
             }
-            renderUsageCostBreakdown(usageCostModelRows(cost.items));
+            renderUsageCostBreakdown(usageCostModelRows(cost.items), usageCostKeyRows(cost.items));
             setUsageCostStatus('');
             if (el.note) el.note.classList.remove('hidden');
         }

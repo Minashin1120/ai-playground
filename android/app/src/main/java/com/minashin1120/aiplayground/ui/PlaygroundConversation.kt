@@ -356,6 +356,11 @@ private fun ConversationContent(
         if (state.messages.any { it.role == "assistant" && (it.content.isNotEmpty() || (it.tokensOut ?: 0) > 0) })
             costPricing.estimate(state.messages, state.allMessages.ifEmpty { state.messages }) else null
     }
+    val messageCosts = remember(state.messages, state.allMessages, costPricing) {
+        val context = state.allMessages.ifEmpty { state.messages }
+        state.messages.filter { it.role == "assistant" && (it.content.isNotEmpty() || (it.tokensOut ?: 0) > 0 || it.thought.isNotBlank()) }
+            .associate { it.id to costPricing.estimate(listOf(it), context) }
+    }
     var branchingMessage by remember { mutableStateOf<ChatMessage?>(null) }
     val actions = MessageActions(
         onEdit = { model.beginEdit(it) },
@@ -452,6 +457,8 @@ private fun ConversationContent(
                         }) {
                         MessageBubble(
                             message = message,
+                            cost = messageCosts[message.id],
+                            pricing = costPricing,
                             sendMotion = promptSendBubbleModifier(message.id),
                             onFile = onFile,
                             loader = loader,

@@ -189,6 +189,10 @@ def gemini_batch_status_api():
             model = getattr(message, 'model', '') or ''
             provider = 'google' if model.startswith('gemini') else 'xai' if model.startswith('grok') else 'openai'
             call = ModelUsageCall(model, provider)
+            if '_resolve_chat_model_auth' in globals() and 'current_user' in globals():
+                _batch_key_meta = _pricing_key_metadata_from_auth(_resolve_chat_model_auth(current_user, model))
+                if _batch_key_meta:
+                    call.record.update(_batch_key_meta)
             call.update_usage(usage)
             if hasattr(billing_payload, 'model_dump'):
                 billing_payload = billing_payload.model_dump(mode='json', by_alias=True)

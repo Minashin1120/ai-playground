@@ -267,7 +267,7 @@ private fun TranslationReasoningFields(setting: TranslationSetting, onChange: (T
 }
 
 private data class UsageModelRow(
-    val model: String, val low: Double, val high: Double, val priced: Int, val unpriced: Int,
+    val model: String, val low: Double, val high: Double, val priced: Int, val unpriced: Int, val inferred: Int = 0,
 )
 
 private fun usageMoney(value: Double): String =
@@ -283,7 +283,7 @@ private fun usageAmountText(row: UsageModelRow): String = when {
 internal fun usageCards(state: ChatState, model: ChatViewModel): List<SettingsCardSpec> = listOf(
     SettingsCardSpec(
         SettingsTab.Usage, "all-chats", "全チャットの費用予想",
-        "全チャットの費用予想 1日以内 7日以内 2週間以内 1か月以内 3か月以内 1年間 合計 モデル別 API呼び出し 一部未算入 使用量未取得",
+        "全チャットの費用予想 1日以内 7日以内 2週間以内 1か月以内 3か月以内 1年間 合計 APIキー別 モデル別 API呼び出し 一部未算入 使用量未取得",
     ) {
         val web = LocalWebPalette.current
         val context = LocalContext.current
@@ -350,28 +350,38 @@ internal fun usageCards(state: ChatState, model: ChatViewModel): List<SettingsCa
                     Text("更新中…", fontSize = 10.sp, color = if (web.isLight) web.muted else Tw.gray400)
                 }
             }
+            val keyRows = cost?.items?.groupBy { it.apiKeyId.ifBlank { "unknown" } }?.map { (_, items) ->
+                UsageModelRow(
+                    items.firstOrNull()?.apiKeyLabel?.ifBlank { "未記録（キー未設定）" } ?: "未記録（キー未設定）",
+                    items.sumOf { it.low }, items.sumOf { it.high },
+                    items.count { it.priced }, items.count { !it.priced }, items.count { it.apiKeyInferred },
+                )
+            }?.sortedByDescending { it.high } ?: emptyList()
             val modelRows = cost?.items?.groupBy { it.model.ifBlank { "モデル不明" } }?.map { (name, items) ->
                 UsageModelRow(name, items.sumOf { it.low }, items.sumOf { it.high },
                     items.count { it.priced }, items.count { !it.priced })
             }?.sortedByDescending { it.high } ?: emptyList()
-            if (modelRows.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("モデル別", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                        color = if (web.isLight) web.muted else Tw.gray400)
-                    modelRows.forEach { row ->
-                        Column(Modifier.fillMaxWidth().border(1.dp, web.line, RoundedCornerShape(8.dp)).padding(8.dp)) {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(row.model, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                                    color = if (web.isLight) web.text else Tw.gray300, modifier = Modifier.weight(1f))
-                                Text(usageAmountText(row) + if (row.unpriced > 0) "（一部未算入）" else "",
-                                    fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                                    color = if (web.isLight) web.text else Tw.gray300)
+            listOf("APIキー別" to keyRows, "モデル別" to modelRows).forEach { (heading, rows) ->
+                if (rows.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(heading, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = if (web.isLight) web.muted else Tw.gray400)
+                        rows.forEach { row ->
+                            Column(Modifier.fillMaxWidth().border(1.dp, web.line, RoundedCornerShape(8.dp)).padding(8.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text(row.model, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                                        color = if (web.isLight) web.text else Tw.gray300, modifier = Modifier.weight(1f))
+                                    Text(usageAmountText(row) + if (row.unpriced > 0) "（一部未算入）" else "",
+                                        fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                                        color = if (web.isLight) web.text else Tw.gray300)
+                                }
+                                Text(
+                                    "API ${row.priced + row.unpriced}回 · 算定 ${row.priced}回" +
+                                        (if (row.unpriced > 0) " · 未算入 ${row.unpriced}回" else "") +
+                                        if (row.inferred > 0) " · 一部現在の設定から推定" else "",
+                                    fontSize = 10.sp, color = if (web.isLight) web.muted else Tw.gray400,
+                                )
                             }
-                            Text(
-                                "API ${row.priced + row.unpriced}回 · 算定 ${row.priced}回" +
-                                    if (row.unpriced > 0) " · 未算入 ${row.unpriced}回" else "",
-                                fontSize = 10.sp, color = if (web.isLight) web.muted else Tw.gray400,
-                            )
                         }
                     }
                 }

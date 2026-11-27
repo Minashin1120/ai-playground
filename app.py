@@ -472,22 +472,27 @@ def _resolve_chat_model_auth(user, model_key, gemini_free_tier=False):
     def user_or_admin_env(field_name, env_name):
         value = decrypt_val(getattr(user, field_name, None)) if user else None
         if value and str(value).strip():
-            return str(value).strip()
+            return str(value).strip(), False
         if _admin_env_fallback_enabled(user):
             env_value = os.getenv(env_name)
             if env_value and str(env_value).strip():
-                return str(env_value).strip()
-        return None
+                return str(env_value).strip(), True
+        return None, False
 
     provider = "openai"
     api_key = None
+    key_source = None
     gemini_runtime = None
     error_code = None
     error_message = None
 
     if "google-tts" in mk_l:
         provider = "google"
-        api_key = model_key_override or user_or_admin_env("google_api_key", "GOOGLE_API_KEY")
+        if model_key_override:
+            api_key, key_source = model_key_override, "model_specific"
+        else:
+            api_key, is_env = user_or_admin_env("google_api_key", "GOOGLE_API_KEY")
+            key_source = "env_fallback" if is_env else ("google_common" if api_key else None)
     elif is_gemini_model_key(mk_l):
         provider = "gemini"
         backend_preview = _normalize_gemini_backend(getattr(user, "gemini_backend", None) if user else None)
@@ -498,7 +503,20 @@ def _resolve_chat_model_auth(user, model_key, gemini_free_tier=False):
                 backend_preview = _normalize_gemini_backend(env_backend)
         apply_free = _coerce_gemini_free_tier(gemini_free_tier) and backend_preview != "vertex_ai"
         gemini_runtime = _resolve_gemini_runtime(user, use_free_tier=apply_free)
-        api_key = gemini_runtime.get("api_key") if apply_free else (model_key_override or gemini_runtime.get("api_key"))
+        if gemini_runtime.get("backend") == "vertex_ai":
+            api_key = gemini_runtime.get("api_key")
+            key_source = "vertex_ai"
+        elif apply_free:
+            api_key = gemini_runtime.get("api_key")
+            user_free = decrypt_val(getattr(user, "gemini_free_api_key", None)) if user else None
+            key_source = "gemini_free" if (user_free and str(user_free).strip()) else ("env_fallback" if api_key else None)
+        elif model_key_override:
+            api_key = model_key_override
+            key_source = "model_specific"
+        else:
+            api_key = gemini_runtime.get("api_key")
+            user_common = decrypt_val(getattr(user, "gemini_api_key", None)) if user else None
+            key_source = "gemini_common" if (user_common and str(user_common).strip()) else ("env_fallback" if api_key else None)
         if mk_l == "gemini-3.8-flash-cyber" and gemini_runtime.get("backend") != "vertex_ai":
             error_code = "provider_configuration_missing"
             error_message = "Gemini 3.8 Flash Cyber は Vertex AI バックエンドでのみ利用できます。"
@@ -527,27 +545,59 @@ def _resolve_chat_model_auth(user, model_key, gemini_free_tier=False):
             pass
     elif is_anthropic_model_key(mk_l):
         provider = "anthropic"
-        api_key = model_key_override or user_or_admin_env("anthropic_api_key", "ANTHROPIC_API_KEY")
+        if model_key_override:
+            api_key, key_source = model_key_override, "model_specific"
+        else:
+            api_key, is_env = user_or_admin_env("anthropic_api_key", "ANTHROPIC_API_KEY")
+            key_source = "env_fallback" if is_env else ("anthropic_common" if api_key else None)
     elif is_deepseek_model_key(mk_l):
         provider = "deepseek"
-        api_key = model_key_override or user_or_admin_env("deepseek_api_key", "DEEPSEEK_API_KEY")
+        if model_key_override:
+            api_key, key_source = model_key_override, "model_specific"
+        else:
+            api_key, is_env = user_or_admin_env("deepseek_api_key", "DEEPSEEK_API_KEY")
+            key_source = "env_fallback" if is_env else ("deepseek_common" if api_key else None)
     elif mk_l.startswith("glm-"):
         provider = "zai"
-        api_key = model_key_override or user_or_admin_env("zai_api_key", "ZAI_API_KEY")
+        if model_key_override:
+            api_key, key_source = model_key_override, "model_specific"
+        else:
+            api_key, is_env = user_or_admin_env("zai_api_key", "ZAI_API_KEY")
+            key_source = "env_fallback" if is_env else ("zai_common" if api_key else None)
     elif "kimi" in mk_l:
         provider = "kimi"
-        api_key = model_key_override or user_or_admin_env("kimi_api_key", "MOONSHOT_API_KEY")
+        if model_key_override:
+            api_key, key_source = model_key_override, "model_specific"
+        else:
+            api_key, is_env = user_or_admin_env("kimi_api_key", "MOONSHOT_API_KEY")
+            key_source = "env_fallback" if is_env else ("kimi_common" if api_key else None)
     elif "grok" in mk_l and "gpt" not in mk_l:
         provider = "xai"
-        api_key = model_key_override or user_or_admin_env("xai_api_key", "XAI_API_KEY")
+        if model_key_override:
+            api_key, key_source = model_key_override, "model_specific"
+        else:
+            api_key, is_env = user_or_admin_env("xai_api_key", "XAI_API_KEY")
+            key_source = "env_fallback" if is_env else ("xai_common" if api_key else None)
     elif is_mistral_ocr_model_key(mk_l) or mk_l.startswith("mistral"):
         provider = "mistral"
-        api_key = model_key_override or user_or_admin_env("mistral_api_key", "MISTRAL_API_KEY")
+        if model_key_override:
+            api_key, key_source = model_key_override, "model_specific"
+        else:
+            api_key, is_env = user_or_admin_env("mistral_api_key", "MISTRAL_API_KEY")
+            key_source = "env_fallback" if is_env else ("mistral_common" if api_key else None)
     elif mk_l.startswith("ideogram-"):
         provider = "ideogram"
-        api_key = model_key_override or user_or_admin_env("ideogram_api_key", "IDEOGRAM_API_KEY")
+        if model_key_override:
+            api_key, key_source = model_key_override, "model_specific"
+        else:
+            api_key, is_env = user_or_admin_env("ideogram_api_key", "IDEOGRAM_API_KEY")
+            key_source = "env_fallback" if is_env else ("ideogram_common" if api_key else None)
     else:
-        api_key = model_key_override or user_or_admin_env("openai_api_key", "OPENAI_API_KEY")
+        if model_key_override:
+            api_key, key_source = model_key_override, "model_specific"
+        else:
+            api_key, is_env = user_or_admin_env("openai_api_key", "OPENAI_API_KEY")
+            key_source = "env_fallback" if is_env else ("openai_common" if api_key else None)
 
     if not error_code and not api_key and not (
         provider == "gemini"
@@ -572,6 +622,7 @@ def _resolve_chat_model_auth(user, model_key, gemini_free_tier=False):
     return {
         "provider": provider,
         "api_key": api_key,
+        "key_source": key_source,
         "gemini_runtime": gemini_runtime,
         "error_code": error_code,
         "error": error_message,
@@ -809,8 +860,8 @@ class _StaticAssetSessionInterface(SecureCookieSessionInterface):
         return super().save_session(flask_app, session_obj, response)
 
 app.session_interface = _StaticAssetSessionInterface()
-app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-11-27-004')
-app.config['SYSTEM_VERSION'] = 'V4.8.1187'
+app.config['APP_VERSION'] = os.getenv('APP_VERSION', '2026-11-28-001')
+app.config['SYSTEM_VERSION'] = 'V4.8.1188'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

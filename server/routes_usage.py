@@ -188,6 +188,129 @@ def _usage_answer_calls(row, rows_by_id):
     }]
 
 
+_USAGE_KEY_SOURCE_LABELS = {
+    'openai_common': 'OpenAI 共通キー',
+    'gemini_common': 'Gemini 共通キー（有料枠）',
+    'gemini_free': 'Gemini 無料枠キー',
+    'anthropic_common': 'Anthropic 共通キー',
+    'deepseek_common': 'DeepSeek 共通キー',
+    'zai_common': 'Z.AI 共通キー',
+    'kimi_common': 'Kimi 共通キー',
+    'xai_common': 'xAI 共通キー',
+    'mistral_common': 'Mistral 共通キー',
+    'ideogram_common': 'Ideogram 共通キー',
+    'google_common': 'Google 共通キー',
+    'model_specific': 'モデル別キー',
+    'vertex_ai': 'Vertex AI',
+    'env_fallback': 'サーバー環境変数',
+}
+
+_USAGE_PROVIDER_LABELS = {
+    'openai': 'OpenAI',
+    'gemini': 'Gemini',
+    'google': 'Google',
+    'anthropic': 'Anthropic',
+    'deepseek': 'DeepSeek',
+    'zai': 'Z.AI',
+    'kimi': 'Kimi',
+    'xai': 'xAI',
+    'mistral': 'Mistral',
+    'ideogram': 'Ideogram',
+}
+
+
+def _usage_user_key_labels(user):
+    """Map non-reversible key IDs of the user's current keys to safe display labels."""
+    labels = {}
+    if not user:
+        return labels
+    common_fields = (
+        ('openai_api_key', 'openai_common'),
+        ('gemini_api_key', 'gemini_common'),
+        ('gemini_free_api_key', 'gemini_free'),
+        ('anthropic_api_key', 'anthropic_common'),
+        ('deepseek_api_key', 'deepseek_common'),
+        ('zai_api_key', 'zai_common'),
+        ('kimi_api_key', 'kimi_common'),
+        ('mistral_api_key', 'mistral_common'),
+        ('ideogram_api_key', 'ideogram_common'),
+        ('xai_api_key', 'xai_common'),
+        ('google_api_key', 'google_common'),
+    )
+    for field_name, source in common_fields:
+        raw = decrypt_val(getattr(user, field_name, None))
+        if raw and str(raw).strip():
+            meta = _pricing_key_metadata(str(raw).strip(), source)
+            key_id = meta.get('api_key_id')
+            if key_id:
+                hint = f" ({meta['api_key_hint']})" if meta.get('api_key_hint') else ''
+                labels[key_id] = f"{_USAGE_KEY_SOURCE_LABELS[source]}{hint}"
+    model_keys = _load_user_model_api_key_map(user)
+    model_groups = {}
+    for model_name, raw in model_keys.items():
+        if not raw or not str(raw).strip():
+            continue
+        meta = _pricing_key_metadata(str(raw).strip(), 'model_specific')
+        key_id = meta.get('api_key_id')
+        if not key_id or key_id in labels:
+            continue
+        model_groups.setdefault(key_id, {'models': [], 'hint': meta.get('api_key_hint')})
+        model_groups[key_id]['models'].append(model_name)
+    for key_id, info in model_groups.items():
+        models = info['models']
+        model_desc = models[0] if len(models) == 1 else f"{models[0]} 等{len(models)}件"
+        hint = f" ({info['hint']})" if info.get('hint') else ''
+        labels[key_id] = f"モデル別キー: {model_desc}{hint}"
+    return labels
+
+
+def _usage_format_key_label(key_id, key_source, key_hint, user_key_labels):
+    if key_id and key_id in user_key_labels:
+        return user_key_labels[key_id]
+    if key_id == 'vertex_ai' or key_source == 'vertex_ai':
+        return 'Vertex AI'
+    if key_id and key_id.startswith('env:'):
+        prov = key_id.split(':', 1)[1]
+        prov_label = _USAGE_PROVIDER_LABELS.get(prov, prov)
+        return f"サーバー環境変数 ({prov_label})"
+    if key_source == 'env_fallback':
+        return 'サーバー環境変数'
+    base = _USAGE_KEY_SOURCE_LABELS.get(key_source, '過去のAPIキー')
+    if key_hint:
+        return f"{base}（過去のキー {key_hint}）"
+    if key_id:
+        return f"{base}（過去のキー）"
+    return '未記録（キー未設定）'
+
+
+def _usage_attach_api_key_labels(calls, user, fallback_model, gemini_free_tier, user_key_labels, auth_cache):
+    for call in calls:
+        if not isinstance(call, dict):
+            continue
+        key_id = call.get('api_key_id')
+        if key_id:
+            call['api_key_label'] = _usage_format_key_label(
+                key_id, call.get('api_key_source'), call.get('api_key_hint'), user_key_labels
+            )
+            continue
+        call_model = call.get('model') or fallback_model or ''
+        cache_key = (call_model, bool(gemini_free_tier))
+        if cache_key not in auth_cache:
+            resolved = _resolve_chat_model_auth(user, call_model, gemini_free_tier=gemini_free_tier)
+            auth_cache[cache_key] = _pricing_key_metadata_from_auth(resolved)
+        meta = auth_cache[cache_key]
+        inferred_id = meta.get('api_key_id')
+        if inferred_id:
+            call['api_key_id'] = inferred_id
+            call['api_key_label'] = _usage_format_key_label(
+                inferred_id, meta.get('api_key_source'), meta.get('api_key_hint'), user_key_labels
+            )
+            call['api_key_inferred'] = True
+        else:
+            call['api_key_id'] = 'unknown'
+            call['api_key_label'] = '未記録（キー未設定）'
+
+
 @app.route('/api/usage/costs', methods=['GET'])
 @login_required
 def handle_usage_costs():
@@ -222,6 +345,8 @@ def handle_usage_costs():
                 GeminiBatchJob.assistant_message_id.in_(answer_ids),
             ).with_entities(GeminiBatchJob.assistant_message_id, GeminiBatchJob.state).all():
                 batch_states[job.assistant_message_id] = job.state
+        user_key_labels = _usage_user_key_labels(current_user)
+        auth_cache = {}
         messages = []
         unreadable = 0
         for row in answers:
@@ -234,6 +359,10 @@ def handle_usage_costs():
             if calls is None:
                 unreadable += 1
                 continue
+            _usage_attach_api_key_labels(
+                calls, current_user, row.model, bool(options.get('gemini_free_tier')),
+                user_key_labels, auth_cache,
+            )
             messages.append({
                 'id': row.id,
                 'role': 'assistant',

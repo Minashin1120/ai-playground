@@ -104,11 +104,14 @@ internal data class TokenDetail(
     val cacheWriteTtls: Map<String, Int> = emptyMap(),
 )
 
-internal fun ChatMessage.tokenDetail(): TokenDetail {
+internal fun ChatMessage.tokenDetail(
+    cost: com.minashin1120.aiplayground.data.CostEstimate? = null,
+    pricing: com.minashin1120.aiplayground.data.ModelCostEstimator? = null,
+): TokenDetail {
     val total = tokens ?: if (tokensIn != null || tokensOut != null) (tokensIn ?: 0) + (tokensOut ?: 0) else null
     val cache = com.minashin1120.aiplayground.data.cacheUsage(thought)
     return TokenDetail(if (model.isNotBlank()) "$model ($role)" else role, total, tokensIn, tokensOut, tokensContent, tokensThought, encrypted,
-        cacheRead = cache?.read, cacheWrite = cache?.write, cacheWriteTtls = cache?.ttls ?: emptyMap())
+        cost = cost, pricing = pricing, cacheRead = cache?.read, cacheWrite = cache?.write, cacheWriteTtls = cache?.ttls ?: emptyMap())
 }
 
 internal fun TokenTotals.detail(allBranches: Boolean, cost: com.minashin1120.aiplayground.data.CostEstimate? = null,
@@ -163,6 +166,8 @@ internal fun MessageBubble(
     /** A rising token starts the post-jump flash of [flashQuote] inside this bubble. */
     flashToken: Long = 0L,
     flashQuote: String? = null,
+    cost: com.minashin1120.aiplayground.data.CostEstimate? = null,
+    pricing: com.minashin1120.aiplayground.data.ModelCostEstimator? = null,
     /** Window Y of the flashed quote range once laid out, so the jump can align it under the top bar. */
     onQuoteFlashLocated: ((Float) -> Unit)? = null,
     /** The reasoning placeholder is shown collapsed (`.thought-content.collapsed`). */
@@ -289,7 +294,7 @@ internal fun MessageBubble(
                 if (cards.isNotEmpty()) AttachmentGrid(cards, loader, onFile, message.missingFiles)
                 if (maskImage.isNotBlank()) MaskAttachmentPreview(maskImage, loader, onFile)
                 if (branchCount > 1) VersionSwitcher(branchIndex, branchCount, actions.onSwitchBranch)
-                MessageFooter(message, user, actions, pythonRuns)
+                MessageFooter(message, user, actions, pythonRuns, cost, pricing)
                 if (!user) message.processing?.let { processing ->
                     ProcessingTimeFooter(processing) { actions.onProcessingTime(processing) }
                 }
@@ -608,7 +613,9 @@ private fun VersionSwitcher(index: Int, count: Int, onSwitch: (Int) -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageActions,
-                          pythonRuns: List<com.minashin1120.aiplayground.data.PythonExecution> = emptyList()) {
+                          pythonRuns: List<com.minashin1120.aiplayground.data.PythonExecution> = emptyList(),
+                          cost: com.minashin1120.aiplayground.data.CostEstimate? = null,
+                          pricing: com.minashin1120.aiplayground.data.ModelCostEstimator? = null) {
     val web = LocalWebPalette.current
     val color = if (web.isLight) Color(0xFF3F4A5C) else Color(203, 213, 225).copy(alpha = 0.9f)
     val style = TextStyle(color = color, fontSize = 10.sp, lineHeight = 20.sp, fontFamily = FontFamily.Monospace)
@@ -620,7 +627,17 @@ private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageA
                 label, style = style.copy(color = if (web.isLight) web.text else color),
                 modifier = Modifier
                     .dottedUnderline(if (web.isLight) web.text else color)
-                    .clickable(onClickLabel = "トークンの詳細", role = Role.Button) { actions.onTokenDetail(message.tokenDetail()) },
+                    .clickable(onClickLabel = "トークンの詳細", role = Role.Button) { actions.onTokenDetail(message.tokenDetail(cost, pricing)) },
+            )
+        }
+    }
+    if (!user && cost != null) {
+        parts += {
+            Text(
+                cost.label(), style = style.copy(color = if (web.isLight) web.text else color),
+                modifier = Modifier
+                    .dottedUnderline(if (web.isLight) web.text else color)
+                    .clickable(onClickLabel = "費用の詳細", role = Role.Button) { actions.onTokenDetail(message.tokenDetail(cost, pricing)) },
             )
         }
     }

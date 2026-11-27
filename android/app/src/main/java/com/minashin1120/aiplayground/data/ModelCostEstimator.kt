@@ -10,7 +10,8 @@ data class CostItem(val model: String = "", val date: String = "", val input: In
                     val cacheRead: Int? = null, val cacheWrite: Int? = null, val images: Int? = null, val tools: Int = 0,
                     val low: Double = 0.0, val high: Double = 0.0, val priced: Boolean = false, val reason: String = "",
                     val inferred: Boolean = false, val long: Boolean = false, val batch: Boolean = false,
-                    val flex: Boolean = false) {
+                    val flex: Boolean = false, val apiKeyId: String = "", val apiKeyLabel: String = "",
+                    val apiKeyInferred: Boolean = false) {
     fun money(n: Double): String = if (n > 0 && n < 0.000001) "<\$0.000001" else String.format(Locale.US, "\$%.6f", n)
 
     /** Same wording as Web's `costAmountText`. */
@@ -141,6 +142,8 @@ class ModelCostEstimator(json: String) {
             cacheRead = count("cache_read_tokens"), cacheWrite = maxOf(writes, ttlWrites).takeIf { it > 0 },
             images = count("images"), tools = tools, low = total.low - low, high = total.high - high,
             priced = wasPriced, reason = reason, inferred = inferred, long = total.long > long, batch = batch, flex = flex,
+            apiKeyId = call.optString("api_key_id"), apiKeyLabel = call.optString("api_key_label"),
+            apiKeyInferred = call.optBoolean("api_key_inferred"),
         ))
     }
 

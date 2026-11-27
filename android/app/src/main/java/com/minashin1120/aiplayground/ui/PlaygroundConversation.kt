@@ -530,6 +530,10 @@ private fun ConversationContent(
                 else WelcomeScreen(
                     recentWebModels(state.account?.models.orEmpty()).map { info -> info.id to "${info.emoji} ${info.name}".trim() },
                     onChoose = { id -> model.chooseModelByUser(id); welcomeDismissed = true },
+                    presets = state.preferences?.promptPresets.orEmpty().map { it.id to it.name },
+                    onPreset = { id -> model.applyPromptPreset(id) },
+                    onSavePreset = model::saveCurrentPromptPreset,
+                    onDeletePreset = model::deletePromptPreset,
                 )
             }
             // Qualified so the outer Column's scoped overload is not picked inside this Box.

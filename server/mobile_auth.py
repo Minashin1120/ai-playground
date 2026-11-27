@@ -6,6 +6,7 @@ MOBILE_GRANT_TTL = 600
 MOBILE_POLL_INTERVAL = 5
 MOBILE_ENDPOINT_METHODS = {
     'mobile_me': {'GET'}, 'mobile_revoke': {'POST'}, 'mobile_preferences': {'GET', 'PUT'},
+    'prompt_presets_api': {'GET', 'PUT'},
     # Native sign-in is deliberately separate from the legacy browser pairing
     # endpoints.  The latter remains available as a deprecated fallback.
     'mobile_setup': {'GET', 'PUT'},

@@ -13,6 +13,7 @@ class User(UserMixin, db.Model):
     apply_global_system_prompt = db.Column(db.Boolean, default=True)
     apply_auto_system_prompt_notices = db.Column(db.Boolean, default=True)
     auto_system_prompt_notices_config = db.Column(db.Text, nullable=True)
+    prompt_presets = db.Column(db.Text, nullable=True)
     openai_api_key = db.Column(db.Text, nullable=True)
     gemini_api_key = db.Column(db.Text, nullable=True)
     gemini_free_api_key = db.Column(db.Text, nullable=True)

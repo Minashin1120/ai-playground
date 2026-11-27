@@ -2799,48 +2799,75 @@ n)})}),e},"listModelsFlat"),compareModelsByImplementedAt=r((e,t)=>{const n=Strin
 id||""))},"compareModelsByImplementedAt"),getRecentModelsForQuickStart=r((e=WELCOME_QUICK_START_LIMIT)=>listModelsFlat().
 filter(t=>t&&t.id&&!t.deprecated&&t.implementedAt).sort(compareModelsByImplementedAt).slice(0,Math.max(
 0,Number(e)||0)),"getRecentModelsForQuickStart"),renderWelcomeQuickStart=r(()=>{const e=get("welcome\
--quick-start");if(!e)return;const t=getRecentModelsForQuickStart(WELCOME_QUICK_START_LIMIT);if(!t.length){
-e.innerHTML="";return}e.innerHTML=t.map((n,i)=>{const a=(.1+i*.02).toFixed(2),o=n.quickEmoji?`${escapeHtml(
-String(n.quickEmoji))} `:"",l=escapeHtml(String(n.name||n.id)),c=String(n.id).replace(/\\/g,"\\\\").
-replace(/'/g,"\\'");return`<button type="button" class="welcome-btn p-3 rounded text-sm text-left tr\
-ansition btn-hover slide-in-animate" style="animation-delay: ${a}s" onclick="quickStart('${c}')">${o}${l}\
-</button>`}).join("")},"renderWelcomeQuickStart"),normalizeModelApiKeyMap=r(e=>{if(!e||typeof e!="ob\
-ject")return{};const t={};return Object.entries(e).forEach(([n,i])=>{const a=String(n||"").trim(),o=String(
-i||"").trim();!a||!o||(t[a]=o)}),t},"normalizeModelApiKeyMap"),MODEL_NAME_BY_ID=(()=>{const e=new Map;
-return MODELS.forEach(t=>{(t.items||[]).forEach(n=>{const i=String(n.id||"").trim();!i||e.has(i)||e.
-set(i,String(n.name||i))})}),e})(),getModelNameById=r(e=>{const t=String(e||"").trim();return t?MODEL_NAME_BY_ID.
-get(t)||t:""},"getModelNameById"),maskApiKeyPreview=r(e=>{const t=String(e||"");return t?t.length<=8?
-"********":`${t.slice(0,4)}...${t.slice(-4)}`:""},"maskApiKeyPreview"),isGeminiApiModel=r(e=>{const t=String(
-e||"").toLowerCase().trim();return t.startsWith("gemini")||t.startsWith("veo-")||t.startsWith("lyria\
--")||t.startsWith("deep-research-")||t.startsWith("antigravity-")},"isGeminiApiModel"),currentGeminiBackend=r(
-()=>{const e=get("set-gemini-backend");return normalizeGeminiBackend(e?e.value:"gemini_api")},"curre\
-ntGeminiBackend"),geminiFreeTierChecked=r(()=>{const e=get("enable-gemini-free-tier");return!!(e&&e.
-checked)},"geminiFreeTierChecked"),getModelProviderInfo=r(e=>{const t=String(e||"").toLowerCase().trim();
-return t?isGeminiApiModel(t)?geminiFreeTierChecked()&&currentGeminiBackend()!=="vertex_ai"?{provider:"\
-gemini",keyField:"gemini_free_key",inputId:"set-gemini-free",label:"Gemini API Key\uFF08\u7121\u6599\u67A0\uFF09"}:
-{provider:"gemini",keyField:"gemini_key",inputId:"set-gemini",label:"Gemini API Key\uFF08\u6709\u6599\u67A0\uFF09"}:
-t.startsWith("gpt")||t.startsWith("o1")||t.startsWith("o3")?{provider:"openai",keyField:"openai_key",
-inputId:"set-openai",label:"OpenAI API Key"}:t.startsWith("deepseek")?{provider:"deepseek",keyField:"\
-deepseek_key",inputId:"set-deepseek",label:"DeepSeek API Key"}:t.startsWith("glm-")?{provider:"zai",
-keyField:"zai_key",inputId:"set-zai",label:"Z.AI API Key"}:t.startsWith("kimi")?{provider:"kimi",keyField:"\
-kimi_key",inputId:"set-kimi",label:"Kimi (Moonshot) API Key"}:t.startsWith("mistral")?{provider:"mis\
-tral",keyField:"mistral_key",inputId:"set-mistral",label:"Mistral API Key"}:t.startsWith("ideogram")?
-{provider:"ideogram",keyField:"ideogram_key",inputId:"set-ideogram",label:"Ideogram API Key"}:t.startsWith(
-"claude")?{provider:"anthropic",keyField:"anthropic_key",inputId:"set-anthropic",label:"Anthropic AP\
-I Key"}:t.startsWith("grok")?{provider:"xai",keyField:"xai_key",inputId:"set-xai",label:"xAI (Grok) \
-API Key"}:t.startsWith("google")?{provider:"google",keyField:"google_key",inputId:"set-google-key",label:"\
-Google API Key (TTS)"}:{provider:"openai",keyField:"openai_key",inputId:"set-openai",label:"OpenAI A\
-PI Key"}:null},"getModelProviderInfo"),setModelApiKeyPanelOpen=r(e=>{const t=get("model-api-keys-pan\
-el"),n=get("toggle-model-api-keys-btn");if(!t||!n)return;const i=!!e;t.classList.toggle("hidden",!i),
-n.innerText=i?"\u30E2\u30C7\u30EB\u5225API\u30AD\u30FC\u8A2D\u5B9A\u3092\u9589\u3058\u308B":"\u30E2\u30C7\u30EB\u5225\u306EAP\
-I\u30AD\u30FC\u3092\u8A2D\u5B9A\u3059\u308B"},"setModelApiKeyPanelOpen"),syncModelApiKeyModelOptions=r(
-()=>{const e=get("model-api-key-model");if(!e)return;const t=e.value||"";e.innerHTML="";const n=document.
-createElement("option");n.value="",n.textContent="\u30E2\u30C7\u30EB\u3092\u9078\u629E",e.appendChild(
-n),MODELS.forEach(i=>{const a=Array.isArray(i.items)?i.items.filter(l=>!l.deprecated):[];if(!a.length)
-return;const o=document.createElement("optgroup");o.label=String(i.category||"Models"),a.forEach(l=>{
-const c=String(l.id||"").trim();if(!c)return;const d=document.createElement("option");d.value=c,d.textContent=
-`${String(l.name||c)} (${c})`,o.appendChild(d)}),o.children.length>0&&e.appendChild(o)}),t&&Array.from(
-e.options).some(a=>a.value===t)&&(e.value=t)},"syncModelApiKeyModelOptions"),renderModelApiKeyList=r(
+-quick-start");if(!e)return;const t=getRecentModelsForQuickStart(WELCOME_QUICK_START_LIMIT),n=r(i=>{
+const a=i.map((d,m)=>`<button type="button" class="welcome-btn p-3 rounded text-sm text-left transit\
+ion btn-hover slide-in-animate" style="animation-delay:${(.1+m*.02).toFixed(2)}s" onclick="applyProm\
+ptPreset('${String(d.id).replace(/'/g,"\\'")}')">\u2699 ${escapeHtml(d.name)}</button>`),o=Math.max(
+0,WELCOME_QUICK_START_LIMIT-a.length),l=t.slice(0,o).map((d,m)=>{const g=(.1+m*.02).toFixed(2),y=d.quickEmoji?
+`${escapeHtml(String(d.quickEmoji))} `:"",v=escapeHtml(String(d.name||d.id)),w=String(d.id).replace(
+/\\/g,"\\\\").replace(/'/g,"\\'");return`<button type="button" class="welcome-btn p-3 rounded text-s\
+m text-left transition btn-hover slide-in-animate" style="animation-delay: ${g}s" onclick="quickStar\
+t('${w}')">${y}${v}</button>`}),c=`<button type="button" class="text-xs text-gray-400 hover:text-whi\
+te" onclick="managePromptPresets()">${i.length?"\u30D7\u30EA\u30BB\u30C3\u30C8\u3092\u7BA1\u7406":"\u8A2D\
+\u5B9A\u30D7\u30EA\u30BB\u30C3\u30C8\u3092\u4F5C\u6210"}</button>`;e.innerHTML=[...a,...l].join("")+
+`<div class="col-span-full text-center pt-1">${c}</div>`},"render");fetch("/api/prompt-presets").then(
+i=>i.ok?i.json():{presets:[]}).then(i=>n(Array.isArray(i.presets)?i.presets:[])).catch(()=>n([]))},"\
+renderWelcomeQuickStart"),fetchPromptPresets=r(async()=>{const e=await fetch("/api/prompt-presets");
+if(!e.ok)throw new Error("\u30D7\u30EA\u30BB\u30C3\u30C8\u3092\u8AAD\u307F\u8FBC\u3081\u307E\u305B\u3093\u3067\u3057\u305F");
+return(await e.json()).presets||[]},"fetchPromptPresets"),savePromptPresets=r(async e=>{if(!(await fetch(
+"/api/prompt-presets",{method:"PUT",headers:{"Content-Type":"application/json","X-CSRF-Token":csrfToken},
+body:JSON.stringify({presets:e})})).ok)throw new Error("\u30D7\u30EA\u30BB\u30C3\u30C8\u3092\u4FDD\u5B58\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F");
+renderWelcomeQuickStart()},"savePromptPresets");window.applyPromptPreset=async e=>{try{const t=(await fetchPromptPresets()).
+find(n=>n.id===e);if(!t)return;modelChosenManually=!1,restorePromptOptionsForEdit({model:t.model,prompt_options:t.
+options||{}}),modelChosenManually=!0}catch(t){showToast(t.message||"\u30D7\u30EA\u30BB\u30C3\u30C8\u3092\u9069\u7528\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F",
+"error")}},window.managePromptPresets=async()=>{try{const e=await fetchPromptPresets(),t=prompt(`\u30D7\u30EA\u30BB\
+\u30C3\u30C8: ${e.map((o,l)=>`${l+1}. ${o.name}`).join(`
+`)}
+\u64CD\u4F5C: \u65B0\u898F / \u7DE8\u96C6\u756A\u53F7 / \u524A\u9664\u756A\u53F7 / \u2191\u756A\u53F7 / \u2193\u756A\u53F7`,
+"\u65B0\u898F");if(!t)return;const n=t.trim().split(/\s+/),i=n[0],a=Number(n[1])-1;if(i==="\u65B0\u898F"){
+const o=prompt("\u30D7\u30EA\u30BB\u30C3\u30C8\u540D");if(!o)return;const l=capturePromptSettingsBeforeEdit();
+e.push({id:crypto.randomUUID(),name:o,model:l.model,options:l.prompt_options})}else if(Number.isInteger(
+a)&&a>=0&&a<e.length){if(i==="\u524A\u9664")e.splice(a,1);else if((i==="\u2191"||i==="\u2193")&&e[a+
+(i==="\u2191"?-1:1)]){const o=a+(i==="\u2191"?-1:1);[e[a],e[o]]=[e[o],e[a]]}else if(i==="\u7DE8\u96C6"){
+const o=prompt("\u30D7\u30EA\u30BB\u30C3\u30C8\u540D",e[a].name);if(o===null)return;const l=capturePromptSettingsBeforeEdit();
+e[a]={...e[a],name:o,model:l.model,options:l.prompt_options}}}await savePromptPresets(e)}catch(e){showToast(
+e.message||"\u64CD\u4F5C\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error")}};const normalizeModelApiKeyMap=r(
+e=>{if(!e||typeof e!="object")return{};const t={};return Object.entries(e).forEach(([n,i])=>{const a=String(
+n||"").trim(),o=String(i||"").trim();!a||!o||(t[a]=o)}),t},"normalizeModelApiKeyMap"),MODEL_NAME_BY_ID=(()=>{
+const e=new Map;return MODELS.forEach(t=>{(t.items||[]).forEach(n=>{const i=String(n.id||"").trim();
+!i||e.has(i)||e.set(i,String(n.name||i))})}),e})(),getModelNameById=r(e=>{const t=String(e||"").trim();
+return t?MODEL_NAME_BY_ID.get(t)||t:""},"getModelNameById"),maskApiKeyPreview=r(e=>{const t=String(e||
+"");return t?t.length<=8?"********":`${t.slice(0,4)}...${t.slice(-4)}`:""},"maskApiKeyPreview"),isGeminiApiModel=r(
+e=>{const t=String(e||"").toLowerCase().trim();return t.startsWith("gemini")||t.startsWith("veo-")||
+t.startsWith("lyria-")||t.startsWith("deep-research-")||t.startsWith("antigravity-")},"isGeminiApiMo\
+del"),currentGeminiBackend=r(()=>{const e=get("set-gemini-backend");return normalizeGeminiBackend(e?
+e.value:"gemini_api")},"currentGeminiBackend"),geminiFreeTierChecked=r(()=>{const e=get("enable-gemi\
+ni-free-tier");return!!(e&&e.checked)},"geminiFreeTierChecked"),getModelProviderInfo=r(e=>{const t=String(
+e||"").toLowerCase().trim();return t?isGeminiApiModel(t)?geminiFreeTierChecked()&&currentGeminiBackend()!==
+"vertex_ai"?{provider:"gemini",keyField:"gemini_free_key",inputId:"set-gemini-free",label:"Gemini AP\
+I Key\uFF08\u7121\u6599\u67A0\uFF09"}:{provider:"gemini",keyField:"gemini_key",inputId:"set-gemini",
+label:"Gemini API Key\uFF08\u6709\u6599\u67A0\uFF09"}:t.startsWith("gpt")||t.startsWith("o1")||t.startsWith(
+"o3")?{provider:"openai",keyField:"openai_key",inputId:"set-openai",label:"OpenAI API Key"}:t.startsWith(
+"deepseek")?{provider:"deepseek",keyField:"deepseek_key",inputId:"set-deepseek",label:"DeepSeek API \
+Key"}:t.startsWith("glm-")?{provider:"zai",keyField:"zai_key",inputId:"set-zai",label:"Z.AI API Key"}:
+t.startsWith("kimi")?{provider:"kimi",keyField:"kimi_key",inputId:"set-kimi",label:"Kimi (Moonshot) \
+API Key"}:t.startsWith("mistral")?{provider:"mistral",keyField:"mistral_key",inputId:"set-mistral",label:"\
+Mistral API Key"}:t.startsWith("ideogram")?{provider:"ideogram",keyField:"ideogram_key",inputId:"set\
+-ideogram",label:"Ideogram API Key"}:t.startsWith("claude")?{provider:"anthropic",keyField:"anthropi\
+c_key",inputId:"set-anthropic",label:"Anthropic API Key"}:t.startsWith("grok")?{provider:"xai",keyField:"\
+xai_key",inputId:"set-xai",label:"xAI (Grok) API Key"}:t.startsWith("google")?{provider:"google",keyField:"\
+google_key",inputId:"set-google-key",label:"Google API Key (TTS)"}:{provider:"openai",keyField:"open\
+ai_key",inputId:"set-openai",label:"OpenAI API Key"}:null},"getModelProviderInfo"),setModelApiKeyPanelOpen=r(
+e=>{const t=get("model-api-keys-panel"),n=get("toggle-model-api-keys-btn");if(!t||!n)return;const i=!!e;
+t.classList.toggle("hidden",!i),n.innerText=i?"\u30E2\u30C7\u30EB\u5225API\u30AD\u30FC\u8A2D\u5B9A\u3092\u9589\u3058\u308B":
+"\u30E2\u30C7\u30EB\u5225\u306EAPI\u30AD\u30FC\u3092\u8A2D\u5B9A\u3059\u308B"},"setModelApiKeyPanelO\
+pen"),syncModelApiKeyModelOptions=r(()=>{const e=get("model-api-key-model");if(!e)return;const t=e.value||
+"";e.innerHTML="";const n=document.createElement("option");n.value="",n.textContent="\u30E2\u30C7\u30EB\u3092\u9078\u629E",
+e.appendChild(n),MODELS.forEach(i=>{const a=Array.isArray(i.items)?i.items.filter(l=>!l.deprecated):
+[];if(!a.length)return;const o=document.createElement("optgroup");o.label=String(i.category||"Models"),
+a.forEach(l=>{const c=String(l.id||"").trim();if(!c)return;const d=document.createElement("option");
+d.value=c,d.textContent=`${String(l.name||c)} (${c})`,o.appendChild(d)}),o.children.length>0&&e.appendChild(
+o)}),t&&Array.from(e.options).some(a=>a.value===t)&&(e.value=t)},"syncModelApiKeyModelOptions"),renderModelApiKeyList=r(
 ()=>{const e=get("model-api-key-list");if(!e)return;modelApiKeyMap=normalizeModelApiKeyMap(modelApiKeyMap);
 const t=Object.entries(modelApiKeyMap).sort((n,i)=>n[0].localeCompare(i[0]));if(e.innerHTML="",!t.length){
 const n=document.createElement("div");n.className="text-[11px] text-gray-500",n.textContent="\u30E2\u30C7\u30EB\u5225\u30AD\u30FC\u306F\

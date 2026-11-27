@@ -37,6 +37,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -948,8 +951,12 @@ internal fun SmallInfoModal(onDismiss: () -> Unit, content: @Composable () -> Un
  * (one column, two from 640px), over the theme radial glow.
  */
 @Composable
-internal fun WelcomeScreen(models: List<Pair<String, String>>, onChoose: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun WelcomeScreen(models: List<Pair<String, String>>, onChoose: (String) -> Unit, modifier: Modifier = Modifier,
+    presets: List<Pair<String, String>> = emptyList(), onPreset: (String) -> Unit = {},
+    onSavePreset: (String) -> Unit = {}, onDeletePreset: (String) -> Unit = {}) {
     val web = LocalWebPalette.current
+    var presetName by remember { mutableStateOf("") }
+    var saveDialog by remember { mutableStateOf(false) }
     BoxWithConstraints(
         modifier
             .fillMaxSize()
@@ -979,6 +986,15 @@ internal fun WelcomeScreen(models: List<Pair<String, String>>, onChoose: (String
                     fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.01.em,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.padding(top = 20.dp))
             }
+            presets.forEachIndexed { index, (id, label) ->
+                StaggerIn(index + 2) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        WelcomeModelButton("⚙ $label") { onPreset(id) }
+                        Text("×", color = web.muted, modifier = Modifier.clickable { onDeletePreset(id) }.padding(8.dp))
+                    }
+                }
+            }
+            TextButton(onClick = { presetName = ""; saveDialog = true }) { Text("現在の設定をプリセットに保存") }
             Column(
                 Modifier.padding(top = 20.dp).widthIn(max = 576.dp).fillMaxWidth().padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -996,6 +1012,13 @@ internal fun WelcomeScreen(models: List<Pair<String, String>>, onChoose: (String
             }
         }
     }
+    if (saveDialog) AlertDialog(
+        onDismissRequest = { saveDialog = false },
+        title = { Text("設定プリセットを保存") },
+        text = { OutlinedTextField(value = presetName, onValueChange = { presetName = it.take(40) }, label = { Text("プリセット名") }, singleLine = true) },
+        confirmButton = { TextButton(onClick = { onSavePreset(presetName); saveDialog = false }) { Text("保存") } },
+        dismissButton = { TextButton(onClick = { saveDialog = false }) { Text("キャンセル") } },
+    )
 }
 
 @Composable

@@ -8335,17 +8335,61 @@
             const grid = get('welcome-quick-start');
             if (!grid) return;
             const models = getRecentModelsForQuickStart(WELCOME_QUICK_START_LIMIT);
-            if (!models.length) {
-                grid.innerHTML = '';
-                return;
-            }
-            grid.innerHTML = models.map((m, idx) => {
+            const render = (presets) => {
+                const presetButtons = presets.map((p, idx) => `<button type="button" class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate" style="animation-delay:${(0.1 + idx * 0.02).toFixed(2)}s" onclick="applyPromptPreset('${String(p.id).replace(/'/g, "\\'")}')">⚙ ${escapeHtml(p.name)}</button>`);
+                const remaining = Math.max(0, WELCOME_QUICK_START_LIMIT - presetButtons.length);
+                const modelButtons = models.slice(0, remaining).map((m, idx) => {
                 const delay = (0.1 + idx * 0.02).toFixed(2);
                 const emoji = m.quickEmoji ? `${escapeHtml(String(m.quickEmoji))} ` : '';
                 const name = escapeHtml(String(m.name || m.id));
                 const id = String(m.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
                 return `<button type="button" class="welcome-btn p-3 rounded text-sm text-left transition btn-hover slide-in-animate" style="animation-delay: ${delay}s" onclick="quickStart('${id}')">${emoji}${name}</button>`;
-            }).join('');
+                });
+                const manage = `<button type="button" class="text-xs text-gray-400 hover:text-white" onclick="managePromptPresets()">${presets.length ? 'プリセットを管理' : '設定プリセットを作成'}</button>`;
+                grid.innerHTML = [...presetButtons, ...modelButtons].join('') + `<div class="col-span-full text-center pt-1">${manage}</div>`;
+            };
+            fetch('/api/prompt-presets').then(r => r.ok ? r.json() : {presets: []}).then(data => render(Array.isArray(data.presets) ? data.presets : [])).catch(() => render([]));
+        };
+        const fetchPromptPresets = async () => {
+            const r = await fetch('/api/prompt-presets');
+            if (!r.ok) throw new Error('プリセットを読み込めませんでした');
+            return (await r.json()).presets || [];
+        };
+        const savePromptPresets = async (presets) => {
+            const r = await fetch('/api/prompt-presets', {method:'PUT', headers:{'Content-Type':'application/json','X-CSRF-Token':csrfToken}, body:JSON.stringify({presets})});
+            if (!r.ok) throw new Error('プリセットを保存できませんでした');
+            renderWelcomeQuickStart();
+        };
+        window.applyPromptPreset = async (id) => {
+            try {
+                const preset = (await fetchPromptPresets()).find(p => p.id === id);
+                if (!preset) return;
+                modelChosenManually = false;
+                restorePromptOptionsForEdit({model:preset.model, prompt_options:preset.options || {}});
+                modelChosenManually = true;
+            } catch (e) { showToast(e.message || 'プリセットを適用できませんでした', 'error'); }
+        };
+        window.managePromptPresets = async () => {
+            try {
+                const presets = await fetchPromptPresets();
+                const action = prompt(`プリセット: ${presets.map((p,i)=>`${i+1}. ${p.name}`).join('\n')}\n操作: 新規 / 編集番号 / 削除番号 / ↑番号 / ↓番号`, '新規');
+                if (!action) return;
+                const parts = action.trim().split(/\s+/); const op = parts[0]; const n = Number(parts[1]) - 1;
+                if (op === '新規') {
+                    const name = prompt('プリセット名'); if (!name) return;
+                    const captured = capturePromptSettingsBeforeEdit();
+                    presets.push({id:crypto.randomUUID(), name, model:captured.model, options:captured.prompt_options});
+                } else if (Number.isInteger(n) && n >= 0 && n < presets.length) {
+                    if (op === '削除') presets.splice(n, 1);
+                    else if ((op === '↑' || op === '↓') && presets[n + (op === '↑' ? -1 : 1)]) { const j=n+(op==='↑'?-1:1); [presets[n],presets[j]]=[presets[j],presets[n]]; }
+                    else if (op === '編集') {
+                        const name = prompt('プリセット名', presets[n].name); if (name === null) return;
+                        const captured = capturePromptSettingsBeforeEdit();
+                        presets[n] = {...presets[n], name, model:captured.model, options:captured.prompt_options};
+                    }
+                }
+                await savePromptPresets(presets);
+            } catch (e) { showToast(e.message || '操作に失敗しました', 'error'); }
         };
 
         const normalizeModelApiKeyMap = (raw) => {

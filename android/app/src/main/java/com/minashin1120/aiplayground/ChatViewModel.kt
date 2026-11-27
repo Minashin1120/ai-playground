@@ -263,6 +263,61 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun clearQuote() = composer.clearQuote()
     fun chooseModel(model: String) = composer.chooseModel(model)
     fun chooseModelByUser(model: String) = composer.chooseModelByUser(model)
+    fun applyPromptPreset(id: String) {
+        val preset = state.value.preferences?.promptPresets?.firstOrNull { it.id == id } ?: return
+        composer.chooseModel(preset.model)
+        mutable.update { current ->
+            val options = preset.options
+            current.copy(
+                enableSearch = options.optBoolean("enable_search", current.enableSearch),
+                enableUrlContext = options.optBoolean("enable_url_context", current.enableUrlContext),
+                enableMaps = options.optBoolean("enable_maps", current.enableMaps),
+                enablePython = options.optBoolean("enable_python", current.enablePython),
+                enableFileCreation = options.optBoolean("enable_file_creation", current.enableFileCreation),
+                enableThinking = options.optBoolean("enable_thinking", current.enableThinking),
+                enableSystemPrompt = options.optBoolean("enable_system_prompt", current.enableSystemPrompt),
+                enableMcp = options.optBoolean("enable_mcp", current.enableMcp),
+                geminiFreeTier = options.optBoolean("gemini_free_tier", current.geminiFreeTier),
+                geminiFlex = options.optBoolean("gemini_flex", current.geminiFlex),
+                batchMode = options.optBoolean("batch_mode", current.batchMode),
+                canvasMode = options.optBoolean("canvas_mode", current.canvasMode),
+                codingMode = options.optBoolean("coding_mode", current.codingMode),
+                mathStepsMode = options.optBoolean("math_steps", current.mathStepsMode),
+                chipValues = current.chipValues + mapOf(
+                    "thinking_level" to options.optString("thinking_level", current.chipValues["thinking_level"] ?: "high"),
+                    "thinking_budget" to options.optString("thinking_budget", current.chipValues["thinking_budget"] ?: "4096"),
+                    "reasoning_effort" to options.optString("reasoning_effort", current.chipValues["reasoning_effort"] ?: "medium"),
+                    "safety_setting" to options.optString("safety_setting", current.chipValues["safety_setting"] ?: "default"),
+                ),
+                generationValues = current.generationValues + options.keys().asSequence().mapNotNull { key ->
+                    if (key in setOf("enable_search", "enable_url_context", "enable_maps", "enable_python", "enable_file_creation", "enable_thinking", "enable_system_prompt", "enable_mcp", "gemini_free_tier", "gemini_flex", "batch_mode", "canvas_mode", "coding_mode", "math_steps", "thinking_level", "thinking_budget", "reasoning_effort", "safety_setting")) null
+                    else key to options.optString(key)
+                }.toMap(),
+            ).let(composer::applyModelRules)
+        }
+    }
+    fun saveCurrentPromptPreset(name: String) {
+        val current = state.value
+        val options = JSONObject()
+        mapOf(
+            "enable_search" to current.enableSearch, "enable_url_context" to current.enableUrlContext,
+            "enable_maps" to current.enableMaps, "enable_python" to current.enablePython,
+            "enable_file_creation" to current.enableFileCreation, "enable_thinking" to current.enableThinking,
+            "enable_system_prompt" to current.enableSystemPrompt, "enable_mcp" to current.enableMcp,
+            "gemini_free_tier" to current.geminiFreeTier, "gemini_flex" to current.geminiFlex,
+            "batch_mode" to current.batchMode, "canvas_mode" to current.canvasMode,
+            "coding_mode" to current.codingMode, "math_steps" to current.mathStepsMode,
+        ).forEach { (key, value) -> options.put(key, value) }
+        current.chipValues.forEach { (key, value) -> options.put(key, value) }
+        current.generationValues.forEach { (key, value) -> options.put(key, value) }
+        val all = current.preferences?.promptPresets.orEmpty()
+        val preset = PromptPreset(UUID.randomUUID().toString(), name.trim().take(40), current.model, options)
+        if (preset.name.isNotBlank()) preferences.savePromptPresets(all + preset)
+    }
+    fun deletePromptPreset(id: String) {
+        val all = state.value.preferences?.promptPresets.orEmpty().filterNot { it.id == id }
+        preferences.savePromptPresets(all)
+    }
     fun toggleThinking() = composer.toggleThinking()
     fun toggleSearch() = composer.toggleSearch()
     fun toggleGeminiFreeTier() = composer.toggleGeminiFreeTier()

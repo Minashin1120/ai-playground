@@ -45,6 +45,13 @@ with app.app_context():
     # This column is required by every authenticated User SELECT, so it must not depend on
     # RUN_SCHEMA_MIGRATIONS. Fail startup clearly instead of serving HTTP 500 to all sessions.
     ensure_user_liquid_glass_column()
+    try:
+        with db.engine.begin() as conn:
+            exists = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='prompt_presets'")).fetchone()
+            if not exists:
+                conn.execute(text("ALTER TABLE user ADD COLUMN prompt_presets TEXT NULL"))
+    except Exception as e:
+        logger.error("prompt preset schema setup failed: %s", e)
     # Model output, reasoning, and Fernet ciphertext can exceed MySQL TEXT's 64 KiB
     # limit. This is correctness-critical and must run even when optional migrations
     # are disabled.

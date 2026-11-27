@@ -252,9 +252,15 @@ def _mobile_global_prompt_status():
 
 def _mobile_preferences_payload():
     user = current_user
+    try:
+        prompt_presets = json.loads(getattr(user, 'prompt_presets', None) or '[]')
+        if not isinstance(prompt_presets, list): prompt_presets = []
+    except Exception:
+        prompt_presets = []
     global_prompt_value, global_prompt_enabled, global_prompt_effective, global_prompt_time_fallback = _mobile_global_prompt_status()
     payload = {
         'api_version': 1,
+        'prompt_presets': prompt_presets,
         'username': user.username,
         'google_email': user.google_email or "",
         'minashin_email': user.minashin_email or "",

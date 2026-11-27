@@ -47,6 +47,19 @@ internal class ChatPreferences(
     /** The running full-cache sync (cancelled at the BAN and logout boundaries). */
     val activeJob: Job? get() = cacheSyncJob
 
+    fun savePromptPresets(presets: List<PromptPreset>) {
+        scope.launch {
+            try {
+                val rows = org.json.JSONArray()
+                presets.forEach { rows.put(JSONObject().put("id", it.id).put("name", it.name).put("model", it.model).put("options", it.options)) }
+                val reply = backend().put("/api/prompt-presets", JSONObject().put("presets", rows), token())
+                val saved = parsePresetRows(reply.optJSONArray("presets"))
+                mutable.update { current -> current.copy(preferences = current.preferences?.copy(promptPresets = saved)) }
+                notify("設定プリセットを保存しました")
+            } catch (e: Exception) { report(e) }
+        }
+    }
+
     suspend fun fetchPreferences(applyDefaults: Boolean = false) {
         val transitionId = state.value.chatTransitionId
         val accountId = state.value.account?.id

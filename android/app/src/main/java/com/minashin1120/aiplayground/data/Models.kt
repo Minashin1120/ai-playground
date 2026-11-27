@@ -228,6 +228,7 @@ data class Preferences(
     /** 「数学ステップ解説」master switch, prompt-bar default and the gear options (`math_steps_*`). */
     val mathStepsEnabled: Boolean = false,
     val mathStepsConfig: MathStepsConfig = MathStepsConfig(),
+    val promptPresets: List<PromptPreset> = emptyList(),
     val defaultMathSteps: Boolean = false,
 ) {
     val effectivePromptBarMode: String
@@ -254,6 +255,17 @@ data class McpServerInfo(
     val oauthClientRegistered: Boolean = false,
     val authHasToken: Boolean = false,
 )
+
+data class PromptPreset(val id: String, val name: String, val model: String, val options: JSONObject)
+
+fun parsePresetRows(rows: org.json.JSONArray?): List<PromptPreset> = rows?.let { array -> buildList {
+    for (i in 0 until array.length()) {
+        val row = array.optJSONObject(i) ?: continue
+        if (row.optString("id").isNotBlank() && row.optString("model").isNotBlank()) {
+            add(PromptPreset(row.optString("id"), row.optString("name"), row.optString("model"), row.optJSONObject("options") ?: JSONObject()))
+        }
+    }
+} }.orEmpty()
 
 data class FeedbackItem(
     val id: Int,
@@ -399,6 +411,7 @@ fun parsePreferences(json: JSONObject): Preferences = Preferences(
     mathStepsEnabled = json.optBoolean("math_steps_enabled"),
     mathStepsConfig = json.mathStepsConfig(),
     defaultMathSteps = json.optBoolean("default_math_steps"),
+    promptPresets = parsePresetRows(json.optJSONArray("prompt_presets")),
 )
 
 /** Server mask for stored secrets (Web `_SECRET_MASK`): sending it back keeps the stored value. */

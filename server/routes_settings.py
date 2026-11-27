@@ -1,3 +1,36 @@
+@app.route('/api/prompt-presets', methods=['GET', 'PUT'])
+@login_required
+def prompt_presets_api():
+    if request.method == 'GET':
+        try:
+            value = json.loads(getattr(current_user, 'prompt_presets', None) or '[]')
+        except Exception:
+            value = []
+        return jsonify({'presets': value if isinstance(value, list) else []})
+    data = request.get_json(silent=True) or {}
+    presets = data.get('presets') if isinstance(data, dict) else None
+    if not isinstance(presets, list) or len(presets) > 24:
+        return jsonify({'error': 'invalid_presets'}), 400
+    clean = []
+    allowed = _PRESET_OPTION_KEYS
+    for item in presets:
+        if not isinstance(item, dict) or not isinstance(item.get('options', {}), dict):
+            return jsonify({'error': 'invalid_preset'}), 400
+        name = str(item.get('name') or '').strip()[:40]
+        model = str(item.get('model') or '')
+        if not name or model not in ALL_VALID_MODEL_IDS:
+            return jsonify({'error': 'invalid_preset'}), 400
+        options = {k: v for k, v in item.get('options', {}).items()
+                   if isinstance(k, str) and k in allowed and k not in {'tts_style', 'ideogram_negative_prompt', 'xai_stop', 'tts_voice_custom'}
+                   and isinstance(v, (str, int, float, bool, type(None)))}
+        clean.append({'id': str(item.get('id') or '')[:64], 'name': name, 'model': model, 'options': options})
+    encoded = json.dumps(clean, ensure_ascii=False, separators=(',', ':'))
+    if len(encoded) > 60000:
+        return jsonify({'error': 'presets_too_large'}), 413
+    current_user.prompt_presets = encoded
+    safe_db_commit()
+    return jsonify({'presets': clean})
+
 @app.route('/api/settings', methods=['GET', 'POST'])
 @login_required
 def handle_settings():
@@ -365,3 +398,24 @@ def receive_client_log():
     except Exception as e:
         log_force(f"CLIENT-DEBUG-ERROR: user={getattr(current_user, 'id', 'unknown')} err={e}")
         return jsonify({'status': 'error'}), 400
+import json
+
+_PRESET_OPTION_KEYS = {
+    'enable_search', 'enable_url_context', 'enable_maps', 'enable_python', 'enable_file_creation',
+    'enable_thinking', 'thinking_level', 'thinking_budget', 'reasoning_effort', 'enable_system_prompt',
+    'enable_mcp', 'safety_setting', 'gemini_free_tier', 'gemini_flex', 'enable_prompt_caching',
+    'image_vision_model', 'canvas_mode', 'coding_mode', 'browser_fast_mode', 'batch_mode', 'math_steps',
+    'enable_fast_mode', 'temperature', 'top_p', 'seed', 'presence_penalty', 'frequency_penalty',
+    'max_tokens', 'image_size', 'image_quality', 'image_aspect_ratio', 'video_duration', 'video_aspect_ratio',
+    'music_instrumental', 'ocr_table_format', 'ocr_extract_header', 'ocr_extract_footer', 'ocr_include_blocks',
+    'ocr_include_image_base64', 'ocr_pages', 'tts_voice', 'tts_language', 'grok_video_duration',
+    'grok_video_aspect', 'grok_video_resolution', 'gemini_video_duration', 'gemini_video_aspect',
+    'gemini_video_resolution', 'image_mask', 'enable_skills', 'tts_voice_custom', 'tts_speed',
+    'image_complexity', 'image_format', 'image_compression', 'image_frame_count', 'image_frame_duration_ms',
+    'gemini_image_aspect', 'gemini_image_size', 'grok_image_aspect', 'grok_image_resolution',
+    'grok_image_quality', 'grok_image_format', 'grok_image_count', 'ideogram_operation', 'ideogram_aspect',
+    'ideogram_resolution', 'ideogram_quality', 'ideogram_speed', 'ideogram_magic_prompt',
+    'ideogram_style_type', 'ideogram_count', 'ideogram_seed', 'xai_temperature', 'xai_top_p',
+    'xai_max_completion_tokens', 'xai_seed', 'xai_presence_penalty', 'xai_frequency_penalty',
+    'xai_response_format', 'xai_tool_choice', 'xai_parallel_tool_calls', 'xai_logprobs', 'xai_top_logprobs'
+}

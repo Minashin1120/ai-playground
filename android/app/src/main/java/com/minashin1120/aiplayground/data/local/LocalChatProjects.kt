@@ -1,6 +1,6 @@
 package com.minashin1120.aiplayground.data.local
 
-import com.minashin1120.aiplayground.data.ChatBackend
+import com.minashin1120.aiplayground.data.backend.ChatBackend
 import com.minashin1120.aiplayground.data.direct.DirectAttachment
 import com.minashin1120.aiplayground.data.direct.DirectRequest
 import com.minashin1120.aiplayground.data.direct.DirectRouter

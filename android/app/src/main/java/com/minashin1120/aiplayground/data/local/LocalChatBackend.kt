@@ -63,7 +63,7 @@ class LocalChatBackend(
     }
 
     private val projects = LocalChatProjects(store, settings, fallback, router, defaults, ::vertexTarget)
-    private val promptEstimator = LocalChatPromptEstimator(store, remote, router, settings, ::vertexTarget, ::attachmentRefs)
+    private val promptEstimator = LocalChatPromptEstimator(store, remote, router, settings, modeOf, ::vertexTarget, ::attachmentRefs)
 
     companion object {
         const val LOCAL_ACCOUNT_ID = 0

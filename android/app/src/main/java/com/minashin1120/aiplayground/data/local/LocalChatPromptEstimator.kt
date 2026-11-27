@@ -1,14 +1,12 @@
 package com.minashin1120.aiplayground.data.local
 
 import com.minashin1120.aiplayground.data.ActivityLog
-import com.minashin1120.aiplayground.data.RemoteDataSource
 import com.minashin1120.aiplayground.data.direct.AttachmentExtractor
 import com.minashin1120.aiplayground.data.direct.DirectAttachment
 import com.minashin1120.aiplayground.data.direct.DirectRequest
 import com.minashin1120.aiplayground.data.direct.DirectRouter
 import com.minashin1120.aiplayground.data.direct.DirectTurn
 import com.minashin1120.aiplayground.data.direct.VertexTarget
-import com.minashin1120.aiplayground.data.direct.modeOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -18,9 +16,10 @@ import org.json.JSONObject
 
 internal class LocalChatPromptEstimator(
     private val store: LocalChatStore,
-    private val remote: RemoteDataSource?,
+    private val remote: ServerHistory?,
     private val router: DirectRouter,
     private val settings: LocalSettingsStore,
+    private val modeOf: (String) -> String,
     private val vertexTarget: () -> VertexTarget?,
     private val attachmentRefs: (JSONObject) -> List<String>,
 ) {

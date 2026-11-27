@@ -22,6 +22,7 @@ import com.minashin1120.aiplayground.data.McpServerInfo
 import com.minashin1120.aiplayground.data.ModelInfo
 import com.minashin1120.aiplayground.data.OfflineCacheStats
 import com.minashin1120.aiplayground.data.Preferences
+import com.minashin1120.aiplayground.data.ProjectItem
 import com.minashin1120.aiplayground.data.RealtimeState
 import com.minashin1120.aiplayground.data.SecurityInfo
 import com.minashin1120.aiplayground.data.ServerInfo
@@ -79,6 +80,11 @@ data class ChatState(
     val hasOlder: Boolean = false, val oldestId: String? = null,
     val allMessages: List<ChatMessage> = emptyList(), val leafId: Int? = null, val editingMessageId: String? = null,
     val customInstruction: String = "", val includeGlobalInstruction: Boolean = true,
+    val includeProjectInstruction: Boolean = true, val projectInstructionPreview: String = "",
+    val projects: List<ProjectItem> = emptyList(), val projectsBusy: Boolean = false,
+    val activeProjectId: String? = null, val activeProjectName: String = "",
+    val viewingProject: ProjectItem? = null, val projectThreads: List<ThreadItem> = emptyList(),
+    val projectThreadsNextPage: Int? = null, val projectThreadsQuery: String = "",
     val newThreadTemporary: Boolean = false, val tempChatRemainingSeconds: Long? = null,
     /** The open chat's temporary-chat timeout (`timeout_seconds`); null falls back to the setting. */
     val tempChatTimeoutSeconds: Int? = null,

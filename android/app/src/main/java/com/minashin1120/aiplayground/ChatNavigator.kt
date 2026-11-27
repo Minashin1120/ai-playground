@@ -59,7 +59,7 @@ internal class ChatNavigator(
         else openThread(previous.thread, recordHistory = false)
     }
 
-    fun newChat(temporary: Boolean = false, recordHistory: Boolean = true) {
+    fun newChat(temporary: Boolean = false, recordHistory: Boolean = true, preserveProject: Boolean = false) {
         if (recordHistory) recordNavigation(ChatLocation(null, temporary))
         job?.cancel(); pendingSend.clearFailed()
         cancelHeartbeat()
@@ -70,7 +70,12 @@ internal class ChatNavigator(
             editingMessageId = null, jobId = null, streaming = false,
             liveContent = "", liveThought = "", live = LiveAnswer(), mcpDecision = null, status = "", busy = false, retryAvailable = false,
             cards = emptyList(), branchOrigin = null, hasOlder = false, oldestId = null, customInstruction = "",
-            includeGlobalInstruction = true, newThreadTemporary = temporary, tempChatRemainingSeconds = null, tempChatTimeoutSeconds = null,
+            includeGlobalInstruction = true, includeProjectInstruction = true,
+            viewingProject = null,
+            activeProjectId = if (preserveProject) current.activeProjectId else null,
+            activeProjectName = if (preserveProject) current.activeProjectName else "",
+            projectInstructionPreview = if (preserveProject) current.projectInstructionPreview else "",
+            newThreadTemporary = temporary, tempChatRemainingSeconds = null, tempChatTimeoutSeconds = null,
             selectedSkill = null, codingTarget = null, imageMask = null,
             // Web `startNewChat`: cancelEdit + resetUploadState, and PromptCache starts off.
             draft = "", attachments = emptyList(), quote = "", quoteSourceId = null, quoteNavigationRequest = 0L, enablePromptCache = false,
@@ -88,7 +93,9 @@ internal class ChatNavigator(
         if (state.value.selected?.id != thread.id) composer.modelChosenManually = false
         val transition = nextTransition(ChatTransitionKind.OPEN_THREAD)
         val pinned = pinnedLeaf(thread.id)
-        mutable.update { it.copy(selected = thread, messages = emptyList(), allMessages = emptyList(), settingsBubbles = emptyList(),
+        mutable.update { it.copy(selected = thread, viewingProject = null,
+            activeProjectId = thread.projectId, activeProjectName = thread.projectName,
+            messages = emptyList(), allMessages = emptyList(), settingsBubbles = emptyList(),
             branchOrigin = null, leafId = focusMessageId ?: pinned, editingMessageId = null, streaming = false, busy = true,
             draft = "", attachments = emptyList(), quote = "", quoteSourceId = null, quoteNavigationRequest = 0L,
             liveContent = "", liveThought = "", live = LiveAnswer(), mcpDecision = null, jobId = null, retryAvailable = false,

@@ -18,6 +18,8 @@ def background_stream_kimi_zai(local):
     """Run the branch and report the values the stream tail needs."""
     _auto_notice_text = local.get('_auto_notice_text')
     _execute_skill_tool = local.get('_execute_skill_tool')
+    _execute_project_file_tool = local.get('_execute_project_file_tool')
+    _project_files_tool_enabled = local.get('_project_files_tool_enabled')
     _kimi_reasoning_effort = local.get('_kimi_reasoning_effort')
     _mark_provider_request_started = local.get('_mark_provider_request_started')
     _persist_batch_failure = local.get('_persist_batch_failure')
@@ -151,6 +153,8 @@ def background_stream_kimi_zai(local):
         kimi_tools = []
         if _skills_tool_enabled:
             kimi_tools.append(build_skill_tool_openai_chat())
+        if _project_files_tool_enabled:
+            kimi_tools.append(build_project_file_tool_openai_chat())
         _mark_provider_request_started()
         final_openai_usage = None
         kimi_max_rounds = 8
@@ -244,6 +248,18 @@ def background_stream_kimi_zai(local):
                         )
                     except Exception as tool_exc:
                         result = f"Error: Invalid use_skill arguments: {tool_exc}"
+                elif call_name == PROJECT_FILE_TOOL_NAME and _project_files_tool_enabled:
+                    try:
+                        parsed_arguments = json.loads(call_arguments or "{}")
+                        if not isinstance(parsed_arguments, dict):
+                            raise ValueError("arguments must be a JSON object")
+                        result = _execute_project_file_tool(
+                            str(parsed_arguments.get("name") or ""),
+                            offset=parsed_arguments.get("offset", 0),
+                            limit=parsed_arguments.get("limit", PROJECT_FILE_READ_DEFAULT_LIMIT),
+                        )
+                    except Exception as tool_exc:
+                        result = f"Error: Invalid read_project_file arguments: {tool_exc}"
                 else:
                     result = f"Error: Unsupported tool: {call_name or '(missing name)'}"
                 messages.append({

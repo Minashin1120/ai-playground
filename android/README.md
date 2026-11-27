@@ -71,6 +71,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/ChatStartup.kt` | 起動時の復元（プロフィール・保存済みアカウント・サーバー設定・モデル一覧）と、接続バナーの「再接続」 | 起動時の読み込み順・復元・再接続を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatBatch.kt` | Batch処理：履歴一覧、完了バナー、2秒ごとの状態確認、停止と削除 | Batchの一覧・通知・ポーリングを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatSkills.kt` | Skill：一覧の取得、保存・削除、このチャットへの適用（`last_skill_uuid`）、`@` 候補からの適用 | Skillの一覧・適用を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ChatProjects.kt` | プロジェクト：一覧・専用ビュー・作成／編集／削除・共有ファイル（アップロード／ライブラリ追加／メモ／解除）・Vision設定更新・チャットの移動 | プロジェクトの操作やオフラインキャッシュを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatStreamReceiver.kt` | 回答ストリームの受信：イベントの適用（本文・推論・ツールカード・MCP確認・エラー）と、サーバーで継続中の回答への再接続 | 受信イベントの扱い・再接続を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatSendStream.kt` | 回答の送信：受け付け待ちの再試行（メンテナンス・サーバー停止・オフライン）、受け付け後のサーバー継続回答への再接続 | 送信の再試行・切断時の再接続を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ChatSendRequest.kt` | 送信内容の組み立て：`/chat_stream` へ送る本文・添付・生成設定・Coding Mode・Skill・分岐（親メッセージ） | 送信する内容や項目を変更するとき |
@@ -89,10 +90,11 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/` | サーバー不使用モードの直接送信：事業者APIへのHTTP（`DirectHttp.kt`、許可ホストのみ）、モデル別の振り分け（`DirectRouter.kt`）、Gemini（`GeminiDirect.kt`、Vertex AIは `VertexAuth.kt`）／OpenAI Responses（xAI含む、`OpenAiResponsesDirect.kt`）／Anthropic（`AnthropicDirect.kt`）／Chat Completions（`ChatCompletionsDirect.kt`）／画像生成（OpenAI／xAI／Ideogram）とTTS（`MediaDirect.kt`）の各エンジン（共通の枠は `DirectEngine.kt`）、システムプロンプトの組み立て（`SystemPromptBuilder.kt`）、添付のテキスト化（`AttachmentExtractor.kt`） | 端末からの送信・対応モデル・プロンプト組み立てを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/ProviderTokenCounter.kt` | 入力欄の本文・引用・添付の公式API計測、短時間キャッシュ | 端末からの入力見積の精度・計測APIを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/direct/SkillTool.kt` | サーバー不使用モードのSkillツール：保存済みSkillの名前と短い説明をツール定義に載せ、`use_skill` で指示全文（長さの上限あり）を読み込む | 端末からのSkill適用・ツール定義を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/direct/ProjectFileTool.kt` | サーバー不使用モードのプロジェクト共有ファイルツール：`read_project_file` の各プロバイダ向け定義、カタログ整形、画像Vision ON/OFF 制御とチャンク読込 | 端末からのプロジェクト共有ファイル参照を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/TokenEstimateBreakdown.kt` | 詳細を開いたときの本文・引用・添付の増分計測と結合時の差の算出 | 端末内の入力トークン見積の内訳を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PromptTokenEstimateDialog.kt` | 入力見積の詳細（開いた時点の入力、計測方法、本文・引用・添付ごとの内訳、再試行） | 入力見積をタップしたときの詳細画面を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/local/AttachmentTokenEstimator.kt` | 入力見積の添付トークン計算（Geminiの画像・PDF・音声・動画、テキスト抽出） | 端末内の添付トークン計算を変更するとき |
-| `app/src/main/java/com/minashin1120/aiplayground/data/local/` | 端末内プロファイル：チャット・添付・プロンプト設定とマスク参照の暗号化保存、サーバー不使用モードの送信待ち（`LocalChatStore.kt`）、設定・Skill・APIキー（`LocalSettingsStore.kt`）、プロファイルの切り替え（`LocalProfiles.kt`）、サーバーと同じ形で応答する窓口（`LocalChatBackend.kt`）、回答の生成に使うサーバーの履歴・添付の読み込み（`ServerHistory.kt`） | アカウントなし利用・サーバー不使用モードの保存や応答を変更するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/data/local/` | 端末内プロファイル：チャット・添付・プロンプト設定とマスク参照の暗号化保存、サーバー不使用モードの送信待ち（`LocalChatStore.kt`）、設定・Skill・APIキー（`LocalSettingsStore.kt`）、プロファイルの切り替え（`LocalProfiles.kt`）、サーバーと同じ形で応答する窓口（`LocalChatBackend.kt`）、回答の生成に使うサーバーの履歴・添付の読み込み（`ServerHistory.kt`）、入力見積の実行（`LocalChatPromptEstimator.kt`）、プロジェクト情報と画像解析（`LocalChatProjects.kt`） | アカウントなし利用・サーバー不使用モードの保存や応答を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/sync/SyncEngine.kt` | サーバー不使用モードの送信待ちの保存（添付の先行アップロード、メッセージの送信、新しいチャットのタイトル、旧版の削除の反映） | 回答をアカウントへ送る手順・失敗時の扱いを変更するとき |
 | `app/src/main/assets/serverless-defaults.json`, `ci/sync-serverless-defaults.py` | サーバーから生成したモデル一覧・自動注入プロンプト・Coding Mode指示・数学ステップ指示（`--check` で差分検査） | サーバーのモデル一覧や自動注入プロンプトを変えたとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/ServerlessSettings.kt` | 設定の「接続」カード（サーバー不使用モード、アカウントなしの説明とサーバーへのログイン） | 接続モードの設定画面を変更するとき |
@@ -108,6 +110,7 @@
 | `app/src/main/java/com/minashin1120/aiplayground/data/BotTelemetry.kt` | Web版のBot判定に合わせたタップの集計（`/api/bot-telemetry`）と、送信の連打の回数（`/api/bot/lock`） | Bot判定の基準・送信条件を変えるとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/BrowserLoginPkce.kt` | ブラウザー経由ログインのPKCE（S256）verifier・challenge生成 | Google・MinashinのApp Link復帰を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/PlaygroundScreen.kt`, `PlaygroundDialogs.kt`, `PlaygroundOverlays.kt`, `PlaygroundAuthScreens.kt`, `PlaygroundConversation.kt`, `ChatComponents.kt` | Compose画面の組み立て（ドロワー／タブレット2ペイン）、ダイアログ・シート・確認の開閉条件とその状態（`PlaygroundDialogs.kt` / `PlaygroundOverlays.kt`）、認証・初期設定・BAN・接続バナー画面、メッセージ操作、Coding差分（Live Code Changes）とBatch完了バナー、生成中の回答 | 画面構造と操作を編集するとき |
+| `app/src/main/java/com/minashin1120/aiplayground/ui/ProjectView.kt`, `ProjectDialogs.kt` | プロジェクト専用ビュー（ヘッダー、システムプロンプト、共有ファイル、プロジェクト単位の画像Vision設定、プロジェクト内チャット一覧）、チャット上部のプロジェクトバナー、プロジェクト作成・編集／チャット移動／ファイルメモ編集ダイアログ | プロジェクトのUIやダイアログを変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InAppCameraDialog.kt` | CameraXを使うアプリ内カメラのプレビュー、権限、ズーム、無音撮影、端末の向きに応じた撮影、画質優先の撮影設定、連続撮影と撮影分の一覧・添付・クリア、撮影分を画像分割へ渡す切り替え | カメラ撮影を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/ui/InAppCameraSession.kt` | CameraXのプレビュー・撮影の接続、ライフサイクルに応じた向きの検知、撮影の向き、ズーム・フォーカス | カメラの端末連携や撮影設定を変更するとき |
 | `app/src/main/java/com/minashin1120/aiplayground/data/CapturedPhotoOrientation.kt` | 撮影したJPEGのEXIFの向きを画素へ反映 | 撮影後の画像の向きを変更するとき |

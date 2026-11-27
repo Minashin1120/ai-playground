@@ -271,8 +271,10 @@
                 })) : [],
                 batch_mode: batchModeRequested,
                 canvas_mode: !!canvasModeEnabled,
-                math_steps: (typeof window.collectMathStepsSendOption === 'function' ? window.collectMathStepsSendOption() : false)
+                math_steps: (typeof window.collectMathStepsSendOption === 'function' ? window.collectMathStepsSendOption() : false),
+                project_id: (!currentThreadId && typeof window.getActiveProjectId === 'function') ? window.getActiveProjectId() : null
             };
+            if (typeof window.hideProjectViewForChat === 'function') window.hideProjectViewForChat();
             if (botTurnstileToken) p.turnstile_token = botTurnstileToken;
             const threadCustomInstructionEl = get('thread-custom-instruction');
             if (threadCustomInstructionEl) {

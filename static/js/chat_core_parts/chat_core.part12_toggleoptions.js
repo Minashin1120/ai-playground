@@ -739,7 +739,7 @@
                 } catch (error) {}
             }
             snapshotSidebarHistory('page-init');
-            loadThreads(); loadSkills();
+            loadThreads(); loadSkills(); if (typeof window.loadProjects === 'function') window.loadProjects();
 
             get('send-btn').onclick = () => { if (isStopMode) stopGeneration(); else sendMessage(); };
             get('new-chat-btn').onclick = () => startNewChat();

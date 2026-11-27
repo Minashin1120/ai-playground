@@ -48,7 +48,21 @@ internal fun PlaygroundDialogs(
     // region: Pickers, viewers and dialogs
     ModalHost(overlays.modelPicker) { ModelPicker(state, onDismiss = { overlays.modelPicker = false }, onSelect = { model.chooseModelByUser(it); overlays.modelPicker = false }) }
 
-    ModalHost(overlays.libraryOpen) { LibraryDialog(state, model, onOpenFile = { overlays.viewingFile = it }, onDismiss = { overlays.libraryOpen = false }) }
+    ModalHost(overlays.libraryOpen) {
+        val projectUuid = overlays.projectLibraryAttachUuid
+        LibraryDialog(
+            state,
+            model,
+            onOpenFile = { overlays.viewingFile = it },
+            onDismiss = { overlays.libraryOpen = false; overlays.projectLibraryAttachUuid = null },
+            onCustomAttach = projectUuid?.let { uuid ->
+                { files ->
+                    model.addProjectFilesFromLibrary(uuid, files.map { it.filepath })
+                    overlays.projectLibraryAttachUuid = null
+                }
+            },
+        )
+    }
     ModalValueHost(overlays.viewingFile) { request ->
         FileViewerDialog(
             request, loader,
@@ -63,6 +77,36 @@ internal fun PlaygroundDialogs(
         SkillEditorDialog(skill = editing, onDismiss = { overlays.skillEditorOpen = false }) { n, d, i, done ->
             model.saveSkill(editing?.uuid, n, d, i) { ok -> if (ok) overlays.skillEditorOpen = false; done(ok) }
         }
+    }
+    ModalHost(overlays.projectEditorOpen) {
+        val editing = overlays.projectEditing
+        ProjectEditorDialog(project = editing, state = state, onDismiss = { overlays.projectEditorOpen = false }) { n, d, i, useVision, visionModel, done ->
+            model.saveProject(editing?.uuid, n, d, i, useVision, visionModel) { ok ->
+                if (ok) overlays.projectEditorOpen = false
+                done(ok)
+            }
+        }
+    }
+    overlays.movingThreadProject?.let { thread ->
+        MoveThreadProjectDialog(
+            thread = thread,
+            projects = state.projects,
+            onDismiss = { overlays.movingThreadProject = null },
+            onMove = { targetUuid ->
+                model.moveThreadToProject(thread, targetUuid)
+                overlays.movingThreadProject = null
+            },
+        )
+    }
+    overlays.projectFileNoteEditing?.let { (projectUuid, file) ->
+        ProjectFileNoteDialog(
+            file = file,
+            onDismiss = { overlays.projectFileNoteEditing = null },
+            onSave = { note ->
+                model.updateProjectFileNote(projectUuid, file.id, note)
+                overlays.projectFileNoteEditing = null
+            },
+        )
     }
     state.mcpDecision?.let { decision -> key(decision.id) { McpDecisionDialog(decision, model::resolveMcpDecision) } }
     state.accountLock?.let { lock -> AccountLockOverlay(lock, model::accountLockExpired) }
@@ -88,8 +132,14 @@ internal fun PlaygroundDialogs(
     ModalHost(overlays.historyOpen) { HistoryDialog(state, sidebarActions(closeDrawer), onDismiss = { overlays.historyOpen = false }) }
     ModalHost(overlays.alphaOpen) { AlphaInfoDialog(onDismiss = { overlays.alphaOpen = false }) }
     ModalValueHost(overlays.legalKind) { kind -> LegalDialog(kind, model::legalMarkdown, onDismiss = { overlays.legalKind = null }) }
-    // Web `confirm("Delete?")` / `prompt("Title:")` for Skills and threads.
+    // Web `confirm("Delete?")` / `prompt("Title:")` for Skills, Projects and threads.
     overlays.skillDeleting?.let { skill -> BrowserConfirmDialog("Delete?") { ok -> if (ok) model.deleteSkill(skill); overlays.skillDeleting = null } }
+    overlays.projectDeleting?.let { project ->
+        BrowserConfirmDialog("プロジェクト「${project.name}」を削除しますか？（所属チャットは削除されず未所属になります）") { ok ->
+            if (ok) model.deleteProject(project)
+            overlays.projectDeleting = null
+        }
+    }
     overlays.renaming?.let { thread ->
         ThreadRenameDialog(thread.title) { title -> if (!title.isNullOrBlank()) model.renameThread(thread, title.trim()); overlays.renaming = null }
     }
@@ -184,9 +234,16 @@ internal fun PlaygroundDialogs(
             onError = model::notify)
     }
     ModalHost(overlays.threadSettings && state.selected != null) {
-        ChatInstructionsDialog(state, onRefresh = model::loadPreferences, onDismiss = { overlays.threadSettings = false }) {
-            instruction, includeGlobal, userPrompt, done ->
-            model.saveChatInstructions(instruction, includeGlobal, userPrompt) { ok -> if (ok) overlays.threadSettings = false; done(ok) }
+        ChatInstructionsDialog(
+            state,
+            onRefresh = model::loadPreferences,
+            onDismiss = { overlays.threadSettings = false },
+            onOpenProject = { uuid -> model.openProjectView(uuid) },
+        ) { instruction, includeGlobal, userPrompt, includeProject, projectId, done ->
+            model.saveChatInstructions(instruction, includeGlobal, userPrompt, includeProject, projectId) { ok ->
+                if (ok) overlays.threadSettings = false
+                done(ok)
+            }
         }
     }
     overlays.deleting?.let { thread -> BrowserConfirmDialog("Delete?") { ok -> if (ok) model.deleteThread(thread, onNewChat = closeDrawer); overlays.deleting = null } }

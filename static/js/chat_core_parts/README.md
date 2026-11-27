@@ -44,6 +44,7 @@
 | `chat_core.part30_renderaccounts.js` | メッセージコピー、規約・Alpha案内モーダル、Thinking表示切替、クライアントデバッグログ、管理者のBot検出ログ画面、別チャットへの全分岐コピー、画像分割、送信アニメーション | コピー・デバッグ・Botログ・分岐・画像分割・送信アニメーションを変更するとき |
 | `chat_core.part31_estimateconversationcost.js` | API呼び出しごとの費用予想・長文料金、トークン詳細のリクエスト別内訳、Ideogram全モデルの画像単価と削除料金、会話・全分岐の合算、設定「費用」タブの全チャット期間集計（1日・7日・2週間・1か月・3か月・1年）とモデル別内訳、トークン詳細向けキャッシュ読込・TTL別書込の集計、公式料金データの読込、日本円換算（無料の公開為替レート・端末内キャッシュ） | 費用予想・全チャット集計・リクエスト内訳・キャッシュ内訳・円換算を変更するとき |
 | `chat_core.part32_mathsteps.js` | 数学ステップ解説（`parseMathSteps` / `buildMathStepsHtml` / `renderMathStepsInto` / `buildMathStepsDisplaySteps` / ステップ操作・進捗保存・「もっとやさしく」のステップ分割と復元）、`mathsvg` の画像描画、設定（マスター・チャット既定値・歯車モーダル）、PDF・コピー用の変換 | 数学ステップ・mathsvg・その設定を変更するとき |
+| `chat_core.part33_projects.js` | プロジェクト管理（サイドバーのProjects一覧、専用ビュー、作成/編集モーダル、共有ファイル追加・メモ・削除、画像ファイル用VisionモデルON/OFF＆モデル選択、所属チャット一覧、チャットのプロジェクト移動・解除、`Chat Instructions` 連動） | プロジェクトUI・共有ファイル・Vision設定を変更するとき |
 | `../../../scripts/build_frontend.sh` | 部品を番号順に連結し、トップレベルの `//! @chat-core-bundle-split` で配信用JSを分割・圧縮する | JS部品の編集後にビルドするとき。結合ソース・圧縮ファイルは手で編集しない |
 
 ## 再分割が必要になったら

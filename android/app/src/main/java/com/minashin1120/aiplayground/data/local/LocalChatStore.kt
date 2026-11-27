@@ -38,6 +38,9 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
     /** Shared by eager upload, send and outbox sync; never holds a JVM monitor across network IO. */
     internal val attachmentUploadMutex = kotlinx.coroutines.sync.Mutex()
 
+    /** Optional hook to keep device files still referenced by a local Project from being pruned on thread deletion. */
+    internal var isFileProtected: (String) -> Boolean = { false }
+
     private val indexFile get() = File(root, "index.enc")
 
     /** Private, short-lived seekable file for PDF metadata; the caller always deletes it. */
@@ -85,9 +88,24 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
 
     /** `GET /api/threads`: bookmarked first, then most recently active; 20 per page like the server. */
     @Synchronized
-    fun listThreads(page: Int, query: String): JSONObject {
+    fun listThreads(
+        page: Int,
+        query: String,
+        projectScope: String = "",
+        projectId: String? = null,
+        projectNames: Map<String, String> = emptyMap(),
+    ): JSONObject {
         val needle = query.trim()
+        val targetProject = projectId?.trim()?.takeIf { it.isNotEmpty() }
         val visible = threads(loadIndex()).filter { !it.optBoolean("deleted") && !it.optString("title").startsWith("[LIBRARY]") }
+            .filter { row ->
+                val pid = row.textOf("project_id")
+                when {
+                    targetProject != null -> pid == targetProject
+                    projectScope == "unassigned" && needle.isEmpty() -> pid.isBlank()
+                    else -> true
+                }
+            }
             .filter { row ->
                 needle.isEmpty() || row.optString("title").contains(needle, ignoreCase = true) ||
                     loadMessages(row.getString("id")).any { it.optString("content").contains(needle, ignoreCase = true) }
@@ -99,28 +117,63 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
         val slice = visible.subList(start, (start + PAGE_SIZE).coerceAtMost(visible.size))
         val rows = JSONArray()
         slice.forEach { row ->
+            val pid = row.textOf("project_id").ifBlank { null }
+            val pname = pid?.let { projectNames[it] }
             rows.put(JSONObject().put("id", row.getString("id")).put("title", row.optString("title", "New Chat"))
                 .put("is_bookmarked", row.optBoolean("is_bookmarked")).put("last_model", row.opt("last_model") ?: JSONObject.NULL)
-                .put("is_temporary", row.optBoolean("is_temporary")))
+                .put("is_temporary", row.optBoolean("is_temporary"))
+                .put("project_id", pid ?: JSONObject.NULL)
+                .put("project_name", pname ?: JSONObject.NULL))
         }
         val hasNext = start + PAGE_SIZE < visible.size
         return JSONObject().put("threads", rows).put("has_next", hasNext).put("next_page", if (hasNext) page + 1 else JSONObject.NULL)
     }
 
     @Synchronized
-    fun createThread(temporary: Boolean, title: String = "New Chat"): JSONObject {
+    fun createThread(temporary: Boolean, title: String = "New Chat", projectId: String? = null): JSONObject {
         val index = loadIndex()
         val id = "l_" + UUID.randomUUID().toString().replace("-", "")
         val stamp = now()
+        val cleanProjectId = projectId?.trim()?.takeIf { it.isNotEmpty() && it != "null" }
         val row = JSONObject().put("id", id).put("uuid", UUID.randomUUID().toString()).put("title", title)
             .put("is_temporary", temporary).put("is_bookmarked", false).put("bookmarked_at", 0L)
-            .put("custom_instruction", "").put("include_global_instruction", true).put("last_model", JSONObject.NULL)
+            .put("custom_instruction", "").put("include_global_instruction", true)
+            .put("include_project_instruction", true).put("project_id", cleanProjectId ?: JSONObject.NULL)
+            .put("last_model", JSONObject.NULL)
             .put("last_skill_uuid", JSONObject.NULL).put("enable_prompt_caching", false)
             .put("created_at", stamp).put("updated_at", stamp).put("meta_changed_at", stamp)
             .put("server_id", JSONObject.NULL).put("dirty", true)
         putThreads(index, threads(index) + row)
         saveIndex(index)
         return JSONObject().put("id", id).put("title", title).put("is_temporary", temporary)
+            .put("project_id", cleanProjectId ?: JSONObject.NULL)
+    }
+
+    @Synchronized
+    fun unassignProjectThreads(projectUuid: String) {
+        val index = loadIndex()
+        val rows = threads(index)
+        var changed = false
+        rows.forEach { row ->
+            if (row.textOf("project_id") == projectUuid) {
+                row.put("project_id", JSONObject.NULL).put("dirty", true).put("meta_changed_at", now())
+                changed = true
+            }
+        }
+        if (changed) {
+            putThreads(index, rows)
+            saveIndex(index)
+        }
+    }
+
+    @Synchronized
+    fun projectThreadCounts(): Map<String, Int> {
+        val counts = HashMap<String, Int>()
+        threads(loadIndex()).filter { !it.optBoolean("deleted") && !it.optString("title").startsWith("[LIBRARY]") }.forEach { row ->
+            val pid = row.textOf("project_id")
+            if (pid.isNotBlank()) counts[pid] = (counts[pid] ?: 0) + 1
+        }
+        return counts
     }
 
     /** Copy every route up to the selected message; attachment bodies stay shared. */
@@ -215,6 +268,8 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
             .put("title", thread.optString("title", "New Chat"))
             .put("custom_instruction", thread.optString("custom_instruction"))
             .put("include_global_instruction", thread.optBoolean("include_global_instruction", true))
+            .put("include_project_instruction", thread.optBoolean("include_project_instruction", true))
+            .put("project_id", thread.opt("project_id") ?: JSONObject.NULL)
             .put("last_model", thread.opt("last_model") ?: JSONObject.NULL)
             .put("last_skill_uuid", thread.opt("last_skill_uuid") ?: thread.opt("last_gem_uuid") ?: JSONObject.NULL)
             .put("enable_prompt_caching", thread.optBoolean("enable_prompt_caching"))
@@ -448,19 +503,37 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
 
     /** Device chats for the top of the chat list (server `/api/threads` row shape), most recent first. */
     @Synchronized
-    fun deviceThreads(query: String): JSONArray {
+    fun deviceThreads(
+        query: String,
+        projectScope: String = "",
+        projectId: String? = null,
+        projectNames: Map<String, String> = emptyMap(),
+    ): JSONArray {
         val needle = query.trim()
+        val targetProject = projectId?.trim()?.takeIf { it.isNotEmpty() }
         val rows = JSONArray()
         threads(loadIndex()).filter { !it.optBoolean("deleted") && it.isNull("server_id") }
+            .filter { row ->
+                val pid = row.textOf("project_id")
+                when {
+                    targetProject != null -> pid == targetProject
+                    projectScope == "unassigned" && needle.isEmpty() -> pid.isBlank()
+                    else -> true
+                }
+            }
             .filter { row ->
                 needle.isEmpty() || row.optString("title").contains(needle, ignoreCase = true) ||
                     loadMessages(row.getString("id")).any { it.optString("content").contains(needle, ignoreCase = true) }
             }
             .sortedByDescending { it.optLong("updated_at") }
             .forEach { row ->
+                val pid = row.textOf("project_id").ifBlank { null }
+                val pname = pid?.let { projectNames[it] }
                 rows.put(JSONObject().put("id", row.getString("id")).put("title", row.optString("title", "New Chat"))
                     .put("is_bookmarked", row.optBoolean("is_bookmarked")).put("last_model", row.opt("last_model") ?: JSONObject.NULL)
-                    .put("is_temporary", row.optBoolean("is_temporary")))
+                    .put("is_temporary", row.optBoolean("is_temporary"))
+                    .put("project_id", pid ?: JSONObject.NULL)
+                    .put("project_name", pname ?: JSONObject.NULL))
             }
         return rows
     }
@@ -714,6 +787,8 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
                 entry.put("client_uuid", thread.getString("uuid")).put("title", thread.optString("title", "New Chat"))
                     .put("is_bookmarked", thread.optBoolean("is_bookmarked")).put("custom_instruction", thread.optString("custom_instruction"))
                     .put("include_global_instruction", thread.optBoolean("include_global_instruction", true))
+                    .put("include_project_instruction", thread.optBoolean("include_project_instruction", true))
+                    .put("project_id", thread.opt("project_id") ?: JSONObject.NULL)
                     .put("last_skill_uuid", thread.opt("last_skill_uuid") ?: thread.opt("last_gem_uuid") ?: JSONObject.NULL)
                     .put("branch_origin", thread.opt("branch_origin") ?: JSONObject.NULL)
                     .put("meta_changed_at_ms", thread.optLong("meta_changed_at"))
@@ -1004,7 +1079,8 @@ class LocalChatStore(private val root: File, private val crypto: EncryptedFileSt
 
     @Synchronized
     private fun deleteFile(reference: String) {
-        // A sync prune and an expiring temporary chat must also respect branches.
+        // A sync prune and an expiring temporary chat must also respect branches and project shared files.
+        if (isFileProtected(reference)) return
         if (threads(loadIndex()).any { thread -> loadMessages(thread.getString("id")).any { reference in fileRefs(it) } }) return
         fileTarget(reference).delete()
         val index = loadFileIndex()

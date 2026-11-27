@@ -13,8 +13,8 @@
 .fa-xs{font-size:.75em}
 .fa-sm{font-size:.875em}
 .fa-lg{font-size:1.25em;line-height:.05em;vertical-align:-.075em}
-@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;font-display:swap;src:url(fa-solid-subset.woff2?h=174c4b9d53) format("woff2")}
-@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:400;font-display:swap;src:url(fa-regular-subset.woff2?h=90d17abbc5) format("woff2")}
+@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:900;font-display:swap;src:url(fa-solid-subset.woff2?h=d36ed48dec) format("woff2")}
+@font-face{font-family:"Font Awesome 6 Free";font-style:normal;font-weight:400;font-display:swap;src:url(fa-regular-subset.woff2?h=3ae836fe40) format("woff2")}
 @font-face{font-family:"Font Awesome 6 Brands";font-style:normal;font-weight:400;font-display:swap;src:url(fa-brands-subset.woff2?h=1c2d4c8983) format("woff2")}
 .fa-align-left:before{content:"\f036"}
 .fa-arrow-down:before{content:"\f063"}
@@ -48,6 +48,7 @@
 .fa-cog:before{content:"\f013"}
 .fa-coins:before{content:"\f51e"}
 .fa-comment-dots:before{content:"\f4ad"}
+.fa-comments:before{content:"\f086"}
 .fa-compress-alt:before{content:"\f422"}
 .fa-copy:before{content:"\f0c5"}
 .fa-database:before{content:"\f1c0"}
@@ -65,6 +66,7 @@
 .fa-file-upload:before{content:"\f574"}
 .fa-fingerprint:before{content:"\f577"}
 .fa-folder:before{content:"\f07b"}
+.fa-folder-open:before{content:"\f07c"}
 .fa-gauge-simple-high:before{content:"\f62a"}
 .fa-github:before{content:"\f09b"}
 .fa-globe:before{content:"\f0ac"}
@@ -91,6 +93,7 @@
 .fa-mobile-screen:before{content:"\f3cf"}
 .fa-mouse-pointer:before{content:"\f245"}
 .fa-music:before{content:"\f001"}
+.fa-note-sticky:before{content:"\f249"}
 .fa-paint-brush:before{content:"\f1fc"}
 .fa-palette:before{content:"\f53f"}
 .fa-paper-plane:before{content:"\f1d8"}
@@ -112,6 +115,7 @@
 .fa-route:before{content:"\f4d7"}
 .fa-save:before{content:"\f0c7"}
 .fa-screwdriver-wrench:before{content:"\f7d9"}
+.fa-scroll:before{content:"\f70e"}
 .fa-search:before{content:"\f002"}
 .fa-server:before{content:"\f233"}
 .fa-share-nodes:before{content:"\f1e0"}
@@ -135,6 +139,7 @@
 .fa-triangle-exclamation:before{content:"\f071"}
 .fa-unlink:before{content:"\f127"}
 .fa-up-right-from-square:before{content:"\f35d"}
+.fa-upload:before{content:"\f093"}
 .fa-user-secret:before{content:"\f21b"}
 .fa-user-shield:before{content:"\f505"}
 .fa-volume-up:before{content:"\f028"}

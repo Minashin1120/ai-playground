@@ -144,6 +144,20 @@ def bootstrap_browser_fast_mode():
         else:
             parent_message = Message.query.filter_by(thread_id=thread.id).order_by(Message.id.desc()).first()
 
+    project = None
+    include_project_instruction = True
+    if thread and getattr(thread, 'project_id', None):
+        project = Project.query.filter_by(id=thread.project_id, user_id=current_user.id).first()
+        include_project_instruction = (
+            thread.include_project_instruction
+            if getattr(thread, 'include_project_instruction', None) is not None
+            else True
+        )
+    elif not thread and data.get('project_id'):
+        project = resolve_project_for_user(data.get('project_id'), current_user.id)
+        if not project:
+            return jsonify({'error': 'Invalid project'}), 404
+
     response_payload = {
         'status': 'ok',
         'api_key': api_key,
@@ -153,6 +167,21 @@ def bootstrap_browser_fast_mode():
         'parent_id': parent_message.id if parent_message else None,
         'history': _browser_fast_mode_history(thread, parent_message),
     }
+    if project:
+        response_payload['project_uuid'] = project.uuid
+        response_payload['project_name'] = project.name
+        if include_project_instruction and str(project.instruction or '').strip():
+            response_payload['project_instruction'] = str(project.instruction).strip()
+        if get_user_auto_system_prompt_notices_enabled(current_user):
+            auto_cfg = get_user_auto_system_prompt_notices_config(current_user)
+            if get_user_auto_system_prompt_notice_enabled(current_user, 'project_files', auto_cfg):
+                p_files = get_project_files_for_prompt(project, current_user.id)
+                if p_files:
+                    notice_tpl = get_user_auto_system_prompt_notice_text(current_user, 'project_files', auto_cfg)
+                    response_payload['project_files_notice'] = render_project_files_notice(
+                        notice_tpl, project, p_files, include_contents=False
+                    )
+                    response_payload['project_file_tool_declaration'] = build_project_file_tool_definition()
     if data.get('math_steps') is True:
         response_payload['math_steps_system_prompt'] = build_math_steps_system_prompt(
             normalize_math_steps_config(getattr(current_user, 'math_steps_config', None))
@@ -329,12 +358,19 @@ def save_browser_fast_mode_chat():
             if not thread:
                 return jsonify({'error': 'Invalid thread'}), 403
         else:
+            fast_project = None
+            if data.get('project_id'):
+                fast_project = resolve_project_for_user(data.get('project_id'), current_user.id)
+                if not fast_project:
+                    return jsonify({'error': 'Invalid project'}), 404
             thread = Thread(
                 user_id=current_user.id,
                 public_id=generate_thread_public_id(),
                 title=_normalize_thread_title(user_text.strip()[:160] or 'New Chat'),
                 is_temporary=bool(data.get('temporary_chat')),
                 include_global_instruction=False,
+                project_id=fast_project.id if fast_project else None,
+                include_project_instruction=True,
                 last_model=model_key,
                 updated_at=datetime.utcnow(),
             )

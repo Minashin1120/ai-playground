@@ -70,13 +70,27 @@ internal fun ChatInstructionsDialog(
     state: ChatState,
     onRefresh: () -> Unit,
     onDismiss: () -> Unit,
-    onSave: (instruction: String, includeGlobal: Boolean, userPrompt: JSONObject, done: (Boolean) -> Unit) -> Unit,
+    onOpenProject: (String) -> Unit = {},
+    onSave: (
+        instruction: String,
+        includeGlobal: Boolean,
+        userPrompt: JSONObject,
+        includeProject: Boolean,
+        projectId: String?,
+        done: (Boolean) -> Unit,
+    ) -> Unit,
 ) {
     val web = LocalWebPalette.current
     val thread = state.selected ?: return
     LaunchedEffect(thread.id) { onRefresh() }
     var instruction by remember(thread.id, state.customInstruction) { mutableStateOf(state.customInstruction) }
     var includeGlobal by remember(thread.id, state.includeGlobalInstruction) { mutableStateOf(state.includeGlobalInstruction) }
+    var includeProject by remember(thread.id, state.includeProjectInstruction) { mutableStateOf(state.includeProjectInstruction) }
+    var selectedProjectId by remember(thread.id, thread.projectId) { mutableStateOf(thread.projectId.orEmpty()) }
+    val selectedProject = state.projects.firstOrNull { it.uuid == selectedProjectId }
+    val projectOptions = remember(state.projects) {
+        listOf(WebOption("", "未所属（なし）")) + state.projects.map { WebOption(it.uuid, it.name) }
+    }
     val prefs = state.preferences
     val form = remember(prefs) { ThreadPromptForm(prefs) }
     var saving by remember { mutableStateOf(false) }
@@ -103,6 +117,56 @@ internal fun ChatInstructionsDialog(
                         Text("全体プロンプトをこのチャットに含める", fontSize = 11.sp, lineHeight = 16.sp, color = web.twText(Tw.gray300),
                             modifier = Modifier.weight(1f))
                         SmallGreenToggle(includeGlobal) { includeGlobal = it }
+                    }
+                    // Project assignment + include-project-instruction toggle & preview
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(web.twBg(Tw.gray900).copy(alpha = 0.5f))
+                            .border(1.dp, border.copy(alpha = border.alpha * 0.5f), RoundedCornerShape(6.dp))
+                            .padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            TwLabel("所属プロジェクト", Modifier.weight(1f))
+                            if (selectedProjectId.isNotBlank()) {
+                                Text(
+                                    "プロジェクトを開く",
+                                    fontSize = 11.sp, color = web.theme300, fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.clickable(role = Role.Button) {
+                                        onDismiss()
+                                        onOpenProject(selectedProjectId)
+                                    }.padding(horizontal = 4.dp),
+                                )
+                            }
+                        }
+                        WebSelect(
+                            value = selectedProjectId,
+                            options = projectOptions,
+                            onSelect = { selectedProjectId = it },
+                            fillWidth = true,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        )
+                        if (selectedProjectId.isNotBlank()) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "プロジェクトのプロンプトをこのチャットに含める",
+                                    fontSize = 11.sp, lineHeight = 16.sp, color = web.twText(Tw.gray300),
+                                    modifier = Modifier.weight(1f),
+                                )
+                                SmallGreenToggle(includeProject) { includeProject = it }
+                            }
+                            TwInput(
+                                value = selectedProject?.instruction ?: state.projectInstructionPreview,
+                                onChange = {},
+                                placeholder = "プロジェクトのシステムプロンプトは未設定です",
+                                singleLine = false,
+                                height = 72.dp,
+                                fontSize = 12.sp,
+                                background = Tw.gray950,
+                                borderColor = Tw.gray700,
+                                textColor = Tw.gray200,
+                                readOnly = true,
+                            )
+                        }
                     }
                     Column(Modifier.fillMaxWidth()) {
                         Box(Modifier.fillMaxWidth().height(1.dp).background(border))
@@ -148,7 +212,7 @@ internal fun ChatInstructionsDialog(
             WebButton(
                 onClick = {
                     saving = true
-                    onSave(instruction, includeGlobal, form.payload()) { saving = false }
+                    onSave(instruction, includeGlobal, form.payload(), includeProject, selectedProjectId.ifBlank { null }) { saving = false }
                 },
                 variant = WebButtonVariant.Primary,
                 enabled = !saving,

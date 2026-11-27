@@ -533,13 +533,36 @@
                 ],
                 generationConfig,
             };
-            if (bootstrap.math_steps_system_prompt) {
-                payload.systemInstruction = { parts: [{ text: String(bootstrap.math_steps_system_prompt) }] };
+            const fastSysParts = [];
+            if (bootstrap.project_files_notice) fastSysParts.push(String(bootstrap.project_files_notice));
+            if (bootstrap.project_instruction) fastSysParts.push(`[Project Instructions]:\n${String(bootstrap.project_instruction)}`);
+            if (bootstrap.math_steps_system_prompt) fastSysParts.push(String(bootstrap.math_steps_system_prompt));
+            if (fastSysParts.length) {
+                payload.systemInstruction = { parts: [{ text: fastSysParts.join('\n\n') }] };
             }
             const fastPythonEnabled = !!(get('enable-python') && get('enable-python').checked);
+            const fastTools = [];
             if (fastPythonEnabled) {
-                payload.tools = [{ codeExecution: {} }];
+                fastTools.push({ codeExecution: {} });
             }
+            const fastProjectToolDecl = (bootstrap.project_uuid && bootstrap.project_file_tool_declaration)
+                ? {
+                    name: bootstrap.project_file_tool_declaration.name,
+                    description: bootstrap.project_file_tool_declaration.description,
+                    parameters: {
+                        type: 'object',
+                        properties: (bootstrap.project_file_tool_declaration.parameters && bootstrap.project_file_tool_declaration.parameters.properties) || {},
+                        required: (bootstrap.project_file_tool_declaration.parameters && bootstrap.project_file_tool_declaration.parameters.required) || ['name'],
+                    },
+                }
+                : null;
+            if (fastProjectToolDecl) {
+                fastTools.push({ functionDeclarations: [fastProjectToolDecl] });
+            }
+            if (fastTools.length) {
+                payload.tools = fastTools;
+            }
+            if (typeof window.hideProjectViewForChat === 'function') window.hideProjectViewForChat();
 
             if (rawText.trim() && (promptHistory.length === 0 || promptHistory[0] !== rawText)) {
                 promptHistory.unshift(rawText);
@@ -586,117 +609,160 @@
             const finishProgress = window.ProgressSpinner ? window.ProgressSpinner.startFlow('browserFast') : null;
             let browserFastOpStarted = false;
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, manualSpinnerRequestOptions({
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': browserFastApiKey },
-                    body: JSON.stringify(payload),
-                    signal: abortController.signal,
-                }));
-                if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({}));
-                    throw new Error(errorData && errorData.error && errorData.error.message ? errorData.error.message : `Gemini API HTTP ${response.status}`);
-                }
-                if (window.ConnectionMonitor) {
-                    browserFastOpStarted = true;
-                    window.ConnectionMonitor.operationStarted();
-                }
-                if (finishProgress) finishProgress.setPhase('waiting');
-                sentPrompt.accept(false);
-                window.ActivityLog?.log('send.stream.start');
                 let loggedFirstChunk = false;
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-                const consumeEvent = (block) => {
-                    const dataText = block.split(/\r?\n/).filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).join('');
-                    if (!dataText || dataText === '[DONE]') return;
-                    const evt = JSON.parse(dataText);
-                    if (Number.isInteger(evt.usageMetadata?.promptTokenCount)) {
-                        pricingUsage = pricingUsage || {};
-                        for (const key of ['promptTokenCount', 'candidatesTokenCount', 'thoughtsTokenCount', 'cachedContentTokenCount']) {
-                            if (Number.isInteger(evt.usageMetadata[key]) && evt.usageMetadata[key] >= 0) pricingUsage[key] = evt.usageMetadata[key];
-                        }
+                const maxFastToolRounds = fastProjectToolDecl ? 8 : 1;
+                for (let fastRound = 0; fastRound < maxFastToolRounds; fastRound++) {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, manualSpinnerRequestOptions({
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': browserFastApiKey },
+                        body: JSON.stringify(payload),
+                        signal: abortController.signal,
+                    }));
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData && errorData.error && errorData.error.message ? errorData.error.message : `Gemini API HTTP ${response.status}`);
                     }
-                    for (const candidate of evt.candidates || []) {
-                        for (const query of candidate.groundingMetadata?.webSearchQueries || []) {
-                            if (typeof query === 'string' && query.trim()) pricingQueries.add(query);
-                        }
+                    if (window.ConnectionMonitor && !browserFastOpStarted) {
+                        browserFastOpStarted = true;
+                        window.ConnectionMonitor.operationStarted();
                     }
-                    if (pricingQueries.size) { pricingUsage = pricingUsage || {}; pricingUsage.grounding_queries = pricingQueries.size; }
-                    if (evt.error) throw new Error(evt.error.message || 'Gemini API error');
-                    const candidates = Array.isArray(evt.candidates) ? evt.candidates : [];
-                    candidates.forEach((candidate) => {
-                        const parts = candidate && candidate.content && Array.isArray(candidate.content.parts) ? candidate.content.parts : [];
-                        parts.forEach((part) => {
-                            if (part && typeof part.thoughtSignature === 'string' && !thoughtSignatures.includes(part.thoughtSignature)) {
-                                thoughtSignatures.push(part.thoughtSignature);
+                    if (finishProgress) finishProgress.setPhase('waiting');
+                    if (fastRound === 0) {
+                        sentPrompt.accept(false);
+                        window.ActivityLog?.log('send.stream.start');
+                    }
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    const roundModelParts = [];
+                    const roundToolCalls = [];
+                    const consumeEvent = (block) => {
+                        const dataText = block.split(/\r?\n/).filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).join('');
+                        if (!dataText || dataText === '[DONE]') return;
+                        const evt = JSON.parse(dataText);
+                        if (Number.isInteger(evt.usageMetadata?.promptTokenCount)) {
+                            pricingUsage = pricingUsage || {};
+                            for (const key of ['promptTokenCount', 'candidatesTokenCount', 'thoughtsTokenCount', 'cachedContentTokenCount']) {
+                                if (Number.isInteger(evt.usageMetadata[key]) && evt.usageMetadata[key] >= 0) pricingUsage[key] = evt.usageMetadata[key];
                             }
-                            if (part && part.executableCode && typeof part.executableCode.code === 'string') {
-                                const pyCode = part.executableCode.code;
-                                content += `\n\`\`\`python\n${pyCode}\n\`\`\`\n`;
-                                currentPyId = `browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                                currentPyCode = pyCode;
-                                if (!pyBoxes[currentPyId]) {
-                                    adiv.insertAdjacentHTML('afterbegin', browserFastPythonBoxHtml(currentPyId));
-                                    pyBoxes[currentPyId] = adiv.querySelector(`[data-py-id="${currentPyId}"]`);
+                        }
+                        for (const candidate of evt.candidates || []) {
+                            for (const query of candidate.groundingMetadata?.webSearchQueries || []) {
+                                if (typeof query === 'string' && query.trim()) pricingQueries.add(query);
+                            }
+                        }
+                        if (pricingQueries.size) { pricingUsage = pricingUsage || {}; pricingUsage.grounding_queries = pricingQueries.size; }
+                        if (evt.error) throw new Error(evt.error.message || 'Gemini API error');
+                        const candidates = Array.isArray(evt.candidates) ? evt.candidates : [];
+                        candidates.forEach((candidate) => {
+                            const parts = candidate && candidate.content && Array.isArray(candidate.content.parts) ? candidate.content.parts : [];
+                            parts.forEach((part) => {
+                                if (part && typeof part.thoughtSignature === 'string' && !thoughtSignatures.includes(part.thoughtSignature)) {
+                                    thoughtSignatures.push(part.thoughtSignature);
                                 }
-                                updateBrowserFastPythonBox(pyBoxes[currentPyId], 'code', pyCode);
-                                return;
-                            }
-                            if (part && part.codeExecutionResult && typeof part.codeExecutionResult.output === 'string') {
-                                const pyOutput = part.codeExecutionResult.output;
-                                content += `\n**Output:**\n\`\`\`\n${pyOutput}\n\`\`\`\n`;
-                                const pyId = currentPyId || `browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                                pyExecPayloads.push({ code: currentPyCode || '', output: pyOutput });
-                                if (!pyBoxes[pyId]) {
-                                    adiv.insertAdjacentHTML('afterbegin', browserFastPythonBoxHtml(pyId));
-                                    pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`);
+                                if (part && part.functionCall && part.functionCall.name === 'read_project_file') {
+                                    roundModelParts.push(part);
+                                    roundToolCalls.push(part.functionCall);
+                                    return;
                                 }
-                                updateBrowserFastPythonBox(pyBoxes[pyId], 'output', pyOutput);
-                                return;
-                            }
-                            const text = typeof part.text === 'string' ? part.text : '';
-                            if (!text) return;
-                            if (part.thought === true) thought += text;
-                            else content += text;
+                                if (part && part.executableCode && typeof part.executableCode.code === 'string') {
+                                    const pyCode = part.executableCode.code;
+                                    content += `\n\`\`\`python\n${pyCode}\n\`\`\`\n`;
+                                    currentPyId = `browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                    currentPyCode = pyCode;
+                                    if (!pyBoxes[currentPyId]) {
+                                        adiv.insertAdjacentHTML('afterbegin', browserFastPythonBoxHtml(currentPyId));
+                                        pyBoxes[currentPyId] = adiv.querySelector(`[data-py-id="${currentPyId}"]`);
+                                    }
+                                    updateBrowserFastPythonBox(pyBoxes[currentPyId], 'code', pyCode);
+                                    return;
+                                }
+                                if (part && part.codeExecutionResult && typeof part.codeExecutionResult.output === 'string') {
+                                    const pyOutput = part.codeExecutionResult.output;
+                                    content += `\n**Output:**\n\`\`\`\n${pyOutput}\n\`\`\`\n`;
+                                    const pyId = currentPyId || `browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                                    pyExecPayloads.push({ code: currentPyCode || '', output: pyOutput });
+                                    if (!pyBoxes[pyId]) {
+                                        adiv.insertAdjacentHTML('afterbegin', browserFastPythonBoxHtml(pyId));
+                                        pyBoxes[pyId] = adiv.querySelector(`[data-py-id="${pyId}"]`);
+                                    }
+                                    updateBrowserFastPythonBox(pyBoxes[pyId], 'output', pyOutput);
+                                    return;
+                                }
+                                const text = typeof part.text === 'string' ? part.text : '';
+                                if (!text) return;
+                                if (part.thought === true) thought += text;
+                                else content += text;
+                            });
                         });
-                    });
-                    if (!started && (content || thought)) {
-                        beginPendingToStreamTransition(adiv);
-                        const pending = adiv.querySelector('.content-area');
-                        if (pending) pending.remove();
-                        started = true;
-                    }
-                    if (thought) {
-                        if (!thoughtEl) {
-                            adiv.insertAdjacentHTML('afterbegin', '<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>');
-                            thoughtEl = adiv.querySelector('.thought-content');
+                        if (!started && (content || thought)) {
+                            beginPendingToStreamTransition(adiv);
+                            const pending = adiv.querySelector('.content-area');
+                            if (pending) pending.remove();
+                            started = true;
                         }
-                        thoughtEl.textContent = thought;
-                    }
-                    if (content) {
-                        if (!contentEl) {
-                            contentEl = document.createElement('div');
-                            contentEl.className = 'content-area prose prose-invert text-sm break-words';
-                            adiv.appendChild(contentEl);
+                        if (thought) {
+                            if (!thoughtEl) {
+                                adiv.insertAdjacentHTML('afterbegin', '<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>');
+                                thoughtEl = adiv.querySelector('.thought-content');
+                            }
+                            thoughtEl.textContent = thought;
                         }
-                        renderAiMarkdownInto(contentEl, content, { incrementalMath: true, streaming: true, mathSteps: { jobId: null, streaming: true } });
+                        if (content) {
+                            if (!contentEl) {
+                                contentEl = document.createElement('div');
+                                contentEl.className = 'content-area prose prose-invert text-sm break-words';
+                                adiv.appendChild(contentEl);
+                            }
+                            renderAiMarkdownInto(contentEl, content, { incrementalMath: true, streaming: true, mathSteps: { jobId: null, streaming: true } });
+                        }
+                        scrollToBottom();
+                    };
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (!done && !loggedFirstChunk) { loggedFirstChunk = true; window.ActivityLog?.log('send.stream.first'); }
+                        if (done) break;
+                        if (window.ConnectionMonitor) window.ConnectionMonitor.reportActivity();
+                        if (finishProgress) finishProgress.setPhase('receiving');
+                        buffer += decoder.decode(value, { stream: true });
+                        const blocks = buffer.split(/\r?\n\r?\n/);
+                        buffer = blocks.pop() || '';
+                        blocks.forEach(consumeEvent);
                     }
-                    scrollToBottom();
-                };
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (!done && !loggedFirstChunk) { loggedFirstChunk = true; window.ActivityLog?.log('send.stream.first'); }
-                    if (done) break;
-                    if (window.ConnectionMonitor) window.ConnectionMonitor.reportActivity();
-                    if (finishProgress) finishProgress.setPhase('receiving');
-                    buffer += decoder.decode(value, { stream: true });
-                    const blocks = buffer.split(/\r?\n\r?\n/);
-                    buffer = blocks.pop() || '';
-                    blocks.forEach(consumeEvent);
+                    buffer += decoder.decode();
+                    if (buffer.trim()) consumeEvent(buffer);
+                    if (!roundToolCalls.length || !bootstrap.project_uuid) break;
+                    payload.contents.push({ role: 'model', parts: roundModelParts });
+                    const fnRespParts = [];
+                    const readUrl = String((window.CHAT_CONFIG && window.CHAT_CONFIG.urls && window.CHAT_CONFIG.urls.readProjectFileApi) || '/api/projects/0/files/read')
+                        .replace('/projects/0/', '/projects/' + encodeURIComponent(String(bootstrap.project_uuid)) + '/');
+                    for (const fc of roundToolCalls) {
+                        let outText = 'Error reading project file.';
+                        try {
+                            const rRes = await apiFetch(readUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    name: (fc.args && fc.args.name) || '',
+                                    offset: (fc.args && fc.args.offset) || 0,
+                                    limit: (fc.args && fc.args.limit) || 20000,
+                                }),
+                                signal: abortController.signal,
+                            });
+                            const rData = await rRes.json().catch(() => ({}));
+                            outText = rData.content || rData.error || outText;
+                        } catch (toolErr) {
+                            outText = `Error reading project file: ${toolErr && toolErr.message ? toolErr.message : toolErr}`;
+                        }
+                        fnRespParts.push({
+                            functionResponse: {
+                                name: 'read_project_file',
+                                response: { response: outText },
+                            },
+                        });
+                    }
+                    payload.contents.push({ role: 'user', parts: fnRespParts });
                 }
-                buffer += decoder.decode();
-                if (buffer.trim()) consumeEvent(buffer);
                 if (!content.trim()) throw new Error('Geminiから回答本文が返されませんでした');
                 if (contentEl) renderAiMarkdownInto(contentEl, content, { incrementalMath: true, streaming: false, mathSteps: { jobId: null, streaming: false } });
                 if (thoughtEl) thoughtEl.classList.add('collapsed');
@@ -726,6 +792,7 @@
                         prompt_options: collectBrowserFastPromptOptions(),
                         temporary_chat: temporaryChatEnabled,
                         thread_id: currentThreadId || null,
+                        project_id: (!currentThreadId && typeof window.getActiveProjectId === 'function') ? window.getActiveProjectId() : null,
                         parent_id: bootstrap.parent_id || null,
                         thought_signatures: thoughtSignatures,
                         turnstile_token: botTurnstileTokenForRequest(),

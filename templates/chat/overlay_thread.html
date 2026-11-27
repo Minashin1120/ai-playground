@@ -51,6 +51,26 @@
                         <div class="w-8 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-green-600"></div>
                     </label>
                 </div>
+                <div id="thread-project-section" class="border-t border-gray-700 pt-4 space-y-3">
+                    <div>
+                        <label for="thread-project-select" class="text-xs text-gray-400 block mb-1">所属プロジェクト</label>
+                        <select id="thread-project-select" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-xs text-white outline-none"></select>
+                    </div>
+                    <div id="thread-project-instruction-controls" class="hidden space-y-2">
+                        <div class="flex items-center justify-between py-2 px-2 bg-gray-900/50 rounded border border-gray-700/50">
+                            <label class="text-[11px] text-gray-300">プロジェクトのプロンプトをこのチャットに含める</label>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="thread-include-project-instruction" class="sr-only peer" checked>
+                                <div class="w-8 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-green-600"></div>
+                            </label>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] text-gray-400">プロジェクトのシステムプロンプト（参照のみ）</span>
+                            <button type="button" id="thread-open-project-btn" data-progress-no-spinner="true" class="text-[10px] text-blue-400 hover:text-blue-300">プロジェクトを開く</button>
+                        </div>
+                        <textarea id="thread-project-instruction-preview" readonly class="w-full h-20 bg-gray-950 border border-gray-700 rounded p-2 text-xs text-gray-200" placeholder="プロジェクトのシステムプロンプトは未設定です"></textarea>
+                    </div>
+                </div>
                 <div class="border-t border-gray-700 pt-4">
                     <div class="text-xs text-gray-400 mb-2">全体システムプロンプト（参照のみ）</div>
                     <div class="space-y-2 mb-4">

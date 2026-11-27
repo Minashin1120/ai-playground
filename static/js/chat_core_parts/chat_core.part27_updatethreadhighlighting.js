@@ -31,7 +31,8 @@
                     snapshotSidebarHistory('loadThreads-skipped-settings-open');
                     return;
                 }
-                const r = await apiFetch(`${CHAT_CONFIG.urls.handleThreads}?q=${encodeURIComponent(q)}&page=${threadPage}`);
+                const scopeParam = String(q || '').trim() ? '' : '&project_scope=unassigned';
+                const r = await apiFetch(`${CHAT_CONFIG.urls.handleThreads}?q=${encodeURIComponent(q)}&page=${threadPage}${scopeParam}`);
                 const d = await r.json();
                 const l = get('thread-list');
                 if (!l) return;
@@ -63,6 +64,7 @@
                         const row = document.createElement('div');
                         const star = t.is_bookmarked ? 'text-yellow-400' : 'text-gray-500';
                         const tempBadge = t.is_temporary ? '<span class="text-[9px] text-amber-300 border border-amber-500/50 rounded px-1 py-0">一時</span>' : '';
+                        const projBadge = t.project_name ? `<span class="text-[9px] text-amber-200 bg-amber-900/30 border border-amber-500/40 rounded px-1 py-0 shrink-0 max-w-[76px] truncate" title="${escapeHtml(t.project_name)}">${escapeHtml(t.project_name)}</span>` : '';
 
                         // Active highlighting
                         const isActive = (tid === String(currentThreadId));
@@ -71,7 +73,15 @@
                         row.className = `p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex justify-between items-center group ${activeClass}`;
                         row.dataset.threadId = tid;
                         row.dataset.threadTitle = t.title || '';
-                        row.innerHTML = `<div class="flex items-center gap-1 truncate flex-1"><button class="${star} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${tid}')"><i class="fas fa-star text-[10px]"></i></button><span class="truncate">${escapeHtml(t.title || "No Title")}</span>${tempBadge}</div><div class="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition" data-thread-actions="1"><button class="text-gray-500 hover:text-white px-1 transition" onclick="renameThread(event, '${tid}')"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1 transition" onclick="deleteThread(event, '${tid}')"><i class="fas fa-trash text-xs"></i></button></div>`;
+                        row.innerHTML = `<div class="flex items-center gap-1 truncate flex-1"><button class="${star} hover:text-yellow-400 px-1" onclick="toggleBookmark(event, '${tid}')"><i class="fas fa-star text-[10px]"></i></button><span class="truncate">${escapeHtml(t.title || "No Title")}</span>${projBadge}${tempBadge}</div><div class="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition" data-thread-actions="1"><button class="text-gray-500 hover:text-amber-300 px-1 transition" title="プロジェクトへ移動" data-move-project-btn="1"><i class="fas fa-folder-open text-xs"></i></button><button class="text-gray-500 hover:text-white px-1 transition" onclick="renameThread(event, '${tid}')"><i class="fas fa-pen text-xs"></i></button><button class="text-gray-500 hover:text-red-400 px-1 transition" onclick="deleteThread(event, '${tid}')"><i class="fas fa-trash text-xs"></i></button></div>`;
+                        const moveProjBtn = row.querySelector('[data-move-project-btn]');
+                        if (moveProjBtn) {
+                            moveProjBtn.onclick = (e) => {
+                                if (typeof window.openMoveThreadProjectModal === 'function') {
+                                    window.openMoveThreadProjectModal(e, tid, t.title || 'No Title', t.project_id || null);
+                                }
+                            };
+                        }
                         row.onclick = (e) => {
                             if (e.target.closest('button') || e.target.closest('[data-thread-actions]')) return;
                             loadMessages(tid);
@@ -521,6 +531,10 @@
                 if (!threadData || !Array.isArray(threadData.messages)) throw new Error('invalid thread response');
                 if (loadSequence !== threadLoadSequence) return false;
             setCurrentChatHeaderTitle(threadData && threadData.title);
+            if (typeof window.hideProjectViewForChat === 'function') window.hideProjectViewForChat();
+            if (typeof window.setActiveProjectContext === 'function') {
+                window.setActiveProjectContext(threadData && threadData.project_id ? threadData.project_id : null, threadData && threadData.project_name ? threadData.project_name : '');
+            }
             allMessages = threadData.messages;
             renderBranchOrigin(threadData.branch_origin);
             threadHasOlderMessages = !!threadData.has_older_messages;

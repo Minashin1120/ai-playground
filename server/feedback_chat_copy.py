@@ -390,6 +390,10 @@ def _feedback_chat_server_rows(thread, user_id, files_dir, totals):
     if skill_uuids:
         for skill in Skill.query.filter(Skill.user_id == user_id, Skill.uuid.in_(sorted(skill_uuids))):
             yield _feedback_chat_row(skill, 'skill')
+    if getattr(thread, 'project_id', None):
+        proj = Project.query.filter_by(id=thread.project_id, user_id=user_id).first()
+        if proj:
+            yield _feedback_chat_row(proj, 'project')
 
     user = db.session.get(User, user_id)
     try:

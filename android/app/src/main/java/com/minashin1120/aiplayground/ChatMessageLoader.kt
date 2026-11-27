@@ -134,6 +134,14 @@ internal class ChatMessageLoader(
         val keepsEarlier = earlier.isNotEmpty()
         if (state.value.selected?.id != id || fetchGeneration != generation ||
             (inPlace && !streamFinished && (state.value.streaming || state.value.busy))) return
+        val replyProjectId = if (reply.has("project_id")) {
+            if (reply.isNull("project_id")) null else reply.optString("project_id").takeIf { it.isNotBlank() && it != "null" }
+        } else state.value.selected?.projectId
+        val replyProjectName = if (reply.has("project_name")) {
+            if (reply.isNull("project_name")) "" else reply.optString("project_name").takeIf { it != "null" }.orEmpty()
+        } else if (replyProjectId != null) {
+            state.value.projects.firstOrNull { it.uuid == replyProjectId }?.name ?: state.value.selected?.projectName.orEmpty()
+        } else ""
         mutable.update { it.copy(messages = path, allMessages = all, leafId = leaf,
             hasOlder = if (keepsEarlier) it.hasOlder else reply.optBoolean("has_older_messages"),
             oldestId = if (keepsEarlier) it.oldestId else reply.nullableString("oldest_loaded_id"),
@@ -142,10 +150,17 @@ internal class ChatMessageLoader(
                 title = reply.optString("title", selected.title),
                 model = reply.nullableString("last_model").ifBlank { selected.model },
                 isTemporary = reply.optBoolean("is_temporary", selected.isTemporary),
+                projectId = if (older) selected.projectId else replyProjectId,
+                projectName = if (older) selected.projectName else replyProjectName,
             ) },
+            activeProjectId = if (older) it.activeProjectId else replyProjectId,
+            activeProjectName = if (older) it.activeProjectName else replyProjectName,
+            projectInstructionPreview = if (older) it.projectInstructionPreview else
+                replyProjectId?.let { pid -> it.projects.firstOrNull { p -> p.uuid == pid }?.instruction.orEmpty() }.orEmpty(),
             branchOrigin = if (older) it.branchOrigin else reply.optJSONObject("branch_origin"),
             customInstruction = if (older) it.customInstruction else reply.nullableString("custom_instruction"),
             includeGlobalInstruction = if (older) it.includeGlobalInstruction else reply.optBoolean("include_global_instruction", true),
+            includeProjectInstruction = if (older) it.includeProjectInstruction else reply.optBoolean("include_project_instruction", true),
             newThreadTemporary = if (older) it.newThreadTemporary else false,
             tempChatTimeoutSeconds = if (older) it.tempChatTimeoutSeconds else
                 reply.optInt("timeout_seconds").takeIf { value -> reply.has("timeout_seconds") && value > 0 },
@@ -176,6 +191,7 @@ internal class ChatMessageLoader(
                     reply.nullableString("custom_instruction"), reply.optBoolean("include_global_instruction", true),
                     reply.optLong("temp_chat_remaining_seconds").takeIf { value -> !reply.isNull("temp_chat_remaining_seconds") && value >= 0 },
                     leaf,
+                    includeProjectInstruction = reply.optBoolean("include_project_instruction", true),
                 )
             }
             refreshCacheStats(account.id)
@@ -217,6 +233,7 @@ internal class ChatMessageLoader(
             branchOrigin = cached.optJSONObject("branch_origin"),
             customInstruction = cached.nullableString("custom_instruction"),
             includeGlobalInstruction = cached.optBoolean("include_global_instruction", true),
+            includeProjectInstruction = cached.optBoolean("include_project_instruction", true),
             tempChatRemainingSeconds = cached.optLong("temp_chat_remaining_seconds")
                 .takeIf { value -> !cached.isNull("temp_chat_remaining_seconds") && value >= 0 },
             offline = true,

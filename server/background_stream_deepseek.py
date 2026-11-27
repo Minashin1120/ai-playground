@@ -22,6 +22,8 @@ def background_stream_deepseek(local):
     _deepseek_reasoning_effort = local.get("_deepseek_reasoning_effort")
     _ensure_mcp_env = local.get("_ensure_mcp_env")
     _execute_skill_tool = local.get("_execute_skill_tool")
+    _execute_project_file_tool = local.get("_execute_project_file_tool")
+    _project_files_tool_enabled = local.get("_project_files_tool_enabled")
     _load_message_history_images = local.get("_load_message_history_images")
     _mark_provider_request_started = local.get("_mark_provider_request_started")
     _refresh_pending_job = local.get("_refresh_pending_job")
@@ -316,6 +318,8 @@ def background_stream_deepseek(local):
             python_tools.append(_build_edit_file_tool_schema())
         if _skills_tool_enabled:
             python_tools.append(build_skill_tool_openai_chat())
+        if _project_files_tool_enabled:
+            python_tools.append(build_project_file_tool_openai_chat())
 
         if native_deepseek_web_tools:
             # DeepSeek rejects server-side web tools mixed with client-side
@@ -548,6 +552,18 @@ def background_stream_deepseek(local):
                         )
                     except Exception as tool_exc:
                         result = f"Error: Invalid use_skill arguments: {tool_exc}"
+                elif call_name == PROJECT_FILE_TOOL_NAME and _project_files_tool_enabled:
+                    try:
+                        parsed_arguments = json.loads(call_arguments or "{}")
+                        if not isinstance(parsed_arguments, dict):
+                            raise ValueError("arguments must be a JSON object")
+                        result = _execute_project_file_tool(
+                            str(parsed_arguments.get("name") or ""),
+                            offset=parsed_arguments.get("offset", 0),
+                            limit=parsed_arguments.get("limit", PROJECT_FILE_READ_DEFAULT_LIMIT),
+                        )
+                    except Exception as tool_exc:
+                        result = f"Error: Invalid read_project_file arguments: {tool_exc}"
                 elif call_name == "create_file":
                     try:
                         parsed_arguments = json.loads(call_arguments)

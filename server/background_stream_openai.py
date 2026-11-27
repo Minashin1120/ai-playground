@@ -19,6 +19,8 @@ def background_stream_openai(local):
     # region: setup and input preparation
     _ensure_mcp_env = local.get('_ensure_mcp_env')
     _execute_skill_tool = local.get('_execute_skill_tool')
+    _execute_project_file_tool = local.get('_execute_project_file_tool')
+    _project_files_tool_enabled = local.get('_project_files_tool_enabled')
     _grok_reasoning_effort = local.get('_grok_reasoning_effort')
     _grok_system_prompt = local.get('_grok_system_prompt')
     _load_message_history_images = local.get('_load_message_history_images')
@@ -290,6 +292,9 @@ def background_stream_openai(local):
     if _skills_tool_enabled:
         if 'tools' not in kwargs: kwargs['tools'] = []
         kwargs['tools'].append(build_skill_tool_openai_responses())
+    if _project_files_tool_enabled:
+        if 'tools' not in kwargs: kwargs['tools'] = []
+        kwargs['tools'].append(build_project_file_tool_openai_responses())
 
     # MCP外部ツール（Responses API の function tool として追加）
     resp_mcp_env = None
@@ -709,7 +714,7 @@ def background_stream_openai(local):
                 _queue_response_mcp_call(tool_call_id, call_name, call_args)
                 continue
 
-            if item_type == "function_call" and call_name in (SKILL_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images"):
+            if item_type == "function_call" and call_name in (SKILL_TOOL_NAME, PROJECT_FILE_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images"):
                 try:
                     def _handle_direct_tool_call(name, args_str, call_id):
                         nonlocal full_res, generated_images
@@ -751,6 +756,12 @@ def background_stream_openai(local):
                             return res_text
                         elif name == SKILL_TOOL_NAME:
                             return _execute_skill_tool(str(args_json.get("name") or ""))
+                        elif name == PROJECT_FILE_TOOL_NAME:
+                            return _execute_project_file_tool(
+                                str(args_json.get("name") or ""),
+                                offset=args_json.get("offset", 0),
+                                limit=args_json.get("limit", PROJECT_FILE_READ_DEFAULT_LIMIT),
+                            )
                         elif name == "list_branch_images":
                             imported_keys = set(openai_ci_keys)
                             return _execute_list_branch_images(
@@ -814,7 +825,7 @@ def background_stream_openai(local):
                             }],
                             "stream": True,
                         }
-                        if (options.get('enable_python') and not is_grok) or _skills_tool_enabled:
+                        if (options.get('enable_python') and not is_grok) or _skills_tool_enabled or _project_files_tool_enabled:
                             followup_tools = []
                             for t in kwargs.get('tools', []):
                                 t_copy = dict(t)
@@ -858,7 +869,7 @@ def background_stream_openai(local):
                                 elif t_type == "function_call":
                                     if str(t_cname or "").startswith("mcp__"):
                                         _queue_response_mcp_call(t_cid, t_cname, t_cargs)
-                                    elif t_cname in (SKILL_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images"):
+                                    elif t_cname in (SKILL_TOOL_NAME, PROJECT_FILE_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images"):
                                         next_call = (t_cid, t_cname, t_cargs)
                             elif t_event == "response.completed":
                                 t_resp = tchunk.get('response') if isinstance(tchunk, dict) else getattr(tchunk, 'response', None)
@@ -875,7 +886,7 @@ def background_stream_openai(local):
                                         elif out_type == "function_call":
                                             if str(out_cname or "").startswith("mcp__"):
                                                 _queue_response_mcp_call(out_cid, out_cname, out_cargs)
-                                            elif out_cname in (SKILL_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images") and not next_call:
+                                            elif out_cname in (SKILL_TOOL_NAME, PROJECT_FILE_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images") and not next_call:
                                                 next_call = (out_cid, out_cname, out_cargs)
                         if next_call:
                             cur_tool_id, cur_call_name, cur_call_args = next_call

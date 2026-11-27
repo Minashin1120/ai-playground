@@ -84,7 +84,7 @@ class OpenAICodeInterpreterImageTests(unittest.TestCase):
         self.assertIn("def _queue_openai_code_interpreter_image", source)
         self.assertIn("upload_name=filename", source)
         self.assertIn("input_images=response_python_images", source)
-        self.assertIn('call_name in (SKILL_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images")', source)
+        self.assertIn('call_name in (SKILL_TOOL_NAME, PROJECT_FILE_TOOL_NAME, "execute_python", "create_file", "edit_file", "list_branch_images", "import_branch_images")', source)
         self.assertIn("list_branch_images", source)
         self.assertIn("import_branch_images", source)
         self.assertIn("container_file_citation", images_source)

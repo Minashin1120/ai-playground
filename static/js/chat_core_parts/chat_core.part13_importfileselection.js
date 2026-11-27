@@ -324,6 +324,7 @@
                             showToast('選択したアカウントデータをインポートしました', 'success');
                             if (categories.includes('chats')) loadThreads();
                             if (categories.includes('skills')) loadSkills();
+                            if (categories.includes('projects') && typeof window.loadProjects === 'function') window.loadProjects();
                             if (categories.includes('files')) loadStorageUsage();
                             if (categories.includes('settings') || categories.includes('api_credentials')) refreshSettingsFormAfterImport();
                         };
@@ -483,6 +484,7 @@
                             showToast('選択したアカウントデータをインポートしました', 'success');
                             if (categories.includes('chats')) loadThreads();
                             if (categories.includes('skills')) loadSkills();
+                            if (categories.includes('projects') && typeof window.loadProjects === 'function') window.loadProjects();
                             if (categories.includes('files')) loadStorageUsage();
                             if (categories.includes('settings') || categories.includes('api_credentials')) refreshSettingsFormAfterImport();
                             importDone = true;
@@ -918,7 +920,8 @@
                 { key: 'mathjax', label: 'MathJax（LaTeX数式）' },
                 { key: 'image_analysis', label: '画像解析（Vision Model指示文）' },
                 { key: 'mcp', label: 'MCP（外部ツール接続）', hint: '利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）', barLocked: true, barLabel: 'MCP' },
-                { key: 'skills', label: 'Skills（保存した指示の利用）', hint: '利用可能変数: {{skills}} / {{skill_count}}', barLocked: true, barLabel: 'Skills' }
+                { key: 'skills', label: 'Skills（保存した指示の利用）', hint: '利用可能変数: {{skills}} / {{skill_count}}', barLocked: true, barLabel: 'Skills' },
+                { key: 'project_files', label: 'プロジェクト共有ファイル（参照案内）', hint: '利用可能変数: {{project_name}} / {{project_files}} / {{project_file_count}}' }
             ];
             window.buildAutoSystemPromptRows = (prefix, compact = false) => {
                 const textClass = compact

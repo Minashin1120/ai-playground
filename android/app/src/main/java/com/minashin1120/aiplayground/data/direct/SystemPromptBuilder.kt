@@ -15,7 +15,12 @@ import com.minashin1120.aiplayground.data.mathStepsConfig
  * the device profile's settings); [defaults] holds the notice texts shipped with the app.
  */
 object SystemPromptBuilder {
-    data class ThreadSettings(val customInstruction: String, val includeGlobalInstruction: Boolean)
+    data class ThreadSettings(
+        val customInstruction: String,
+        val includeGlobalInstruction: Boolean,
+        val projectInstruction: String = "",
+        val includeProjectInstruction: Boolean = true,
+    )
 
     fun build(
         body: JSONObject,
@@ -41,8 +46,10 @@ object SystemPromptBuilder {
             userPrompt = preferences.optString("system_prompt").takeIf { it.isNotBlank() }
         }
         val local = (if (body.has("thread_custom_instruction")) body.optString("thread_custom_instruction") else thread.customInstruction).trim()
+        val projectInst = if (thread.includeProjectInstruction) thread.projectInstruction.trim() else ""
         var combined = listOf(body.optString("system_prompt"), globalPrompt.orEmpty(), userPrompt.orEmpty())
             .filter { it.isNotBlank() }.joinToString("\n\n") { it.trim() }
+        if (projectInst.isNotEmpty()) combined = if (combined.isNotEmpty()) "$combined\n\n[Project Instructions]:\n$projectInst" else "[Project Instructions]:\n$projectInst"
         if (local.isNotEmpty()) combined = if (combined.isNotEmpty()) "$combined\n\n[Chat Specific Instructions]:\n$local" else local
         if (body.flag("coding_mode") && defaults.codingModePrompt.isNotBlank()) {
             combined = if (combined.isNotEmpty()) "$combined\n\n${defaults.codingModePrompt}" else defaults.codingModePrompt
@@ -60,6 +67,19 @@ object SystemPromptBuilder {
                     val rendered = renderSkillNotice(notices.text("skills"), catalog, skills.length())
                     combined = if (combined.isBlank()) rendered else "$rendered\n\n$combined"
                 }
+            }
+        }
+        if (notices.enabled("project_files")) {
+            val proj = body.optJSONObject("project_context")
+            val projFiles = proj?.optJSONArray("files")
+            if (proj != null && projFiles != null && projFiles.length() > 0) {
+                val rendered = ProjectFileTool.renderNotice(
+                    notices.text("project_files"),
+                    proj.optString("name"),
+                    projFiles,
+                    proj.optBoolean("use_vision_for_images", false),
+                )
+                if (rendered.isNotBlank()) combined = if (combined.isBlank()) rendered else "$rendered\n\n$combined"
             }
         }
         if (body.flag("enable_python") && notices.enabled("python")) {

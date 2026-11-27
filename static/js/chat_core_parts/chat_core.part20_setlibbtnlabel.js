@@ -50,6 +50,7 @@
             }
         };
         window.closeLibModal = (skipHistory = false) => {
+            window.__libProjectAttachCallback = null;
             hideModal('lib-modal');
             if (!skipHistory && location.pathname === '/library') {
                 history.back();
@@ -58,7 +59,15 @@
         get('lib-btn').onclick = () => openLibModal(false);
         get('lib-del-btn').onclick = deleteSelectedFiles;
         if (get('lib-download-btn')) get('lib-download-btn').onclick = () => downloadSelectedLibraryFiles();
-        if (get('lib-attach-btn')) get('lib-attach-btn').onclick = () => attachSelectedLibraryFiles();
+        if (get('lib-attach-btn')) get('lib-attach-btn').onclick = () => {
+            if (typeof window.__libProjectAttachCallback === 'function') {
+                const cb = window.__libProjectAttachCallback;
+                window.__libProjectAttachCallback = null;
+                cb(Array.from(lib.selected || []));
+                return;
+            }
+            attachSelectedLibraryFiles();
+        };
         if (get('lib-rename-btn')) get('lib-rename-btn').onclick = () => renameSelectedLibraryFile();
         if (get('lib-usage-btn')) get('lib-usage-btn').onclick = () => showSelectedFileUsage();
         if (get('upload-lib-btn')) get('upload-lib-btn').onclick = () => openLibModal(true);

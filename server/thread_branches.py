@@ -47,6 +47,20 @@ def _delete_unreferenced_upload_refs(user_id, refs, exclude_threads=(), exclude_
                   and ref.startswith(f'{user_id}/')}
     if not candidates:
         return
+    # Protect files still referenced by any ProjectFile belonging to this user.
+    try:
+        proj_refs = db.session.query(ProjectFile.rel_path).filter(
+            ProjectFile.user_id == user_id,
+            ProjectFile.rel_path.in_(list(candidates)),
+        ).all()
+        for (p_ref,) in proj_refs:
+            norm_p = _normalize_upload_ref(p_ref)
+            if norm_p:
+                candidates.discard(norm_p)
+    except Exception:
+        pass
+    if not candidates:
+        return
     # Scan once per cleanup, with bounded payload reads. Include generated file
     # links and encrypted answers, not only image_url attachments.
     cursor = 0
@@ -180,6 +194,8 @@ def branch_thread(thread_id):
     dest = Thread(user_id=current_user.id, public_id=generate_thread_public_id(),
         title=(str(source.title or 'New Chat')[:196] + '（分岐）'), is_temporary=False,
         custom_instruction=source.custom_instruction, include_global_instruction=source.include_global_instruction,
+        project_id=getattr(source, 'project_id', None),
+        include_project_instruction=source.include_project_instruction if getattr(source, 'include_project_instruction', None) is not None else True,
         last_model=source.last_model, last_skill_uuid=source.last_skill_uuid,
         enable_prompt_caching=source.enable_prompt_caching, prompt_cache_nonce=generate_thread_public_id()[:32])
     db.session.add(dest)

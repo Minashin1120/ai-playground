@@ -63,8 +63,9 @@ internal class ChatThreadList(
         }
         val current = state.value
         val page = if (more) current.nextPage ?: return else 1
+        val scopeParam = if (current.search.isBlank()) "&project_scope=unassigned" else ""
         val reply = try {
-            backend().get("/api/threads?page=$page&q=${URLEncoder.encode(current.search, "UTF-8")}", token())
+            backend().get("/api/threads?page=$page&q=${URLEncoder.encode(current.search, "UTF-8")}$scopeParam", token())
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -90,12 +91,14 @@ internal class ChatThreadList(
         val accountId = state.value.account?.id ?: return
         val cached = withContext(Dispatchers.IO) { offlineCache.loadThreads(accountId) }
         val normalized = query.trim()
-        val visible = if (normalized.isBlank()) cached else cached.filter {
+        val visible = if (normalized.isBlank()) cached.filter { it.projectId.isNullOrBlank() } else cached.filter {
             it.title.contains(normalized, ignoreCase = true) || it.model.contains(normalized, ignoreCase = true)
         }
         // Serverless mode: chats created on the device while the server was out of reach come first.
         val device = store()?.takeIf { state.value.serverless }?.let { chatStore ->
-            val rows = withContext(Dispatchers.IO) { chatStore.deviceThreads(normalized) }
+            val rows = withContext(Dispatchers.IO) {
+                chatStore.deviceThreads(normalized, projectScope = if (normalized.isBlank()) "unassigned" else "")
+            }
             (0 until rows.length()).map { parseThreadItem(rows.getJSONObject(it)) }
         }.orEmpty()
         if (query != state.value.search || accountId != state.value.account?.id) return

@@ -151,8 +151,21 @@ def _trace_dedupe_signature(trace):
     return hashlib.sha256("\x1f".join(fields).encode("utf-8", "replace")).hexdigest()
 
 
+def _project_dedupe_signature(project):
+    if project.import_signature:
+        return f"sig:{project.import_signature}"
+    parts = [
+        (project.name or "").strip().casefold(),
+        (project.description or "").strip(),
+        (project.instruction or "").strip(),
+        str(bool(getattr(project, "use_vision_for_images", False))),
+        str(getattr(project, "vision_model", None) or ""),
+    ]
+    return hashlib.sha256("\x1f".join(parts).encode("utf-8", "replace")).hexdigest()
+
+
 def _collect_referenced_file_paths(user_id, exclude_thread_ids=None):
-    """Return the set of local upload refs referenced by the user's messages.
+    """Return the set of local upload refs referenced by the user's messages or projects.
 
     ``exclude_thread_ids`` (an iterable of thread ids) is used to ignore messages
     that belong to duplicate threads scheduled for deletion, so files referenced
@@ -160,6 +173,13 @@ def _collect_referenced_file_paths(user_id, exclude_thread_ids=None):
     """
     excluded = set(exclude_thread_ids or [])
     referenced = set()
+    try:
+        for (p_ref,) in db.session.query(ProjectFile.rel_path).filter(ProjectFile.user_id == user_id).all():
+            norm_p = _normalize_upload_ref(p_ref)
+            if norm_p:
+                referenced.add(norm_p)
+    except Exception:
+        pass
     cursor = 0
     while True:
         query = db.session.query(Message.id, Message.image_url, Message.content, Message.is_encrypted).join(
@@ -182,7 +202,7 @@ def _dedupe_plan_for_user(user_id):
       - ``kept_referenced_files``: number of content-duplicate files that must be
         kept because they are still referenced from chat messages
     """
-    removed = {"chats": [], "skills": [], "files": [], "feedback": [], "metrics": [], "traces": []}
+    removed = {"chats": [], "skills": [], "projects": [], "files": [], "feedback": [], "metrics": [], "traces": []}
     kept_referenced_files = 0
 
     thread_groups = {}
@@ -200,6 +220,13 @@ def _dedupe_plan_for_user(user_id):
     for ids in skill_groups.values():
         if len(ids) > 1:
             removed["skills"].extend(ids[1:])
+
+    project_groups = {}
+    for proj in Project.query.filter_by(user_id=user_id).order_by(Project.id.asc()).yield_per(200):
+        project_groups.setdefault(_project_dedupe_signature(proj), []).append(proj.id)
+    for ids in project_groups.values():
+        if len(ids) > 1:
+            removed["projects"].extend(ids[1:])
 
     feedback_groups = {}
     for feedback in Feedback.query.filter_by(user_id=user_id).order_by(Feedback.id.asc()).yield_per(200):
@@ -252,6 +279,7 @@ def _dedupe_count_payload(plan):
     return {
         "chats": len(removed["chats"]),
         "skills": len(removed["skills"]),
+        "projects": len(removed["projects"]),
         # Legacy alias for clients that still show the old category name.
         "gems": len(removed["skills"]),
         "files": len(removed["files"]),
@@ -259,7 +287,7 @@ def _dedupe_count_payload(plan):
         "diagnostics": len(removed["metrics"]) + len(removed["traces"]),
         "kept_referenced_files": plan["kept_referenced_files"],
         "total": (
-            len(removed["chats"]) + len(removed["skills"]) + len(removed["files"])
+            len(removed["chats"]) + len(removed["skills"]) + len(removed["projects"]) + len(removed["files"])
             + len(removed["feedback"]) + len(removed["metrics"]) + len(removed["traces"])
         ),
     }
@@ -274,7 +302,7 @@ def account_dedupe_preview():
     counts = _dedupe_count_payload(plan)
     response = jsonify({
         "status": "ok",
-        "duplicates": {key: counts[key] for key in ("chats", "skills", "gems", "files", "feedback", "diagnostics")},
+        "duplicates": {key: counts[key] for key in ("chats", "skills", "projects", "gems", "files", "feedback", "diagnostics")},
         "kept_referenced_files": counts["kept_referenced_files"],
         "total": counts["total"],
         "has_duplicates": counts["total"] > 0,
@@ -326,6 +354,26 @@ def account_dedupe_execute():
                         {"last_skill_uuid": keep_uuid}, synchronize_session=False
                     )
                 db.session.delete(skill)
+        if removed["projects"]:
+            proj_groups = {}
+            for proj in Project.query.filter_by(user_id=current_user.id).order_by(Project.id.asc()).all():
+                proj_groups.setdefault(_project_dedupe_signature(proj), []).append(proj)
+            proj_twin = {}
+            for group in proj_groups.values():
+                if len(group) > 1:
+                    keep = group[0]
+                    for dup in group[1:]:
+                        proj_twin[dup.id] = keep.id
+            for proj_id in removed["projects"]:
+                proj = db.session.get(Project, proj_id)
+                if not proj:
+                    continue
+                keep_id = proj_twin.get(proj.id)
+                if keep_id and keep_id != proj.id:
+                    Thread.query.filter_by(user_id=current_user.id, project_id=proj.id).update(
+                        {"project_id": keep_id}, synchronize_session=False
+                    )
+                db.session.delete(proj)
         if removed["files"]:
             for rel_path in removed["files"]:
                 info = _get_file_disk_info(rel_path)
@@ -358,7 +406,7 @@ def account_dedupe_execute():
     counts = _dedupe_count_payload(plan)
     response = jsonify({
         "status": "ok",
-        "removed": {key: counts[key] for key in ("chats", "skills", "gems", "files", "feedback", "diagnostics")},
+        "removed": {key: counts[key] for key in ("chats", "skills", "projects", "gems", "files", "feedback", "diagnostics")},
         "kept_referenced_files": counts["kept_referenced_files"],
         "total": counts["total"],
     })

@@ -5,7 +5,7 @@
 ACCOUNT_EXPORT_FORMAT = "ai-playground-account-export"
 ACCOUNT_EXPORT_VERSION = 1
 ACCOUNT_IMPORT_CATEGORIES = frozenset({
-    "settings", "api_credentials", "chats", "skills", "files", "feedback", "diagnostics",
+    "settings", "api_credentials", "chats", "skills", "projects", "files", "feedback", "diagnostics",
     # Legacy alias accepted when importing archives created before the rename.
     "gems",
 })
@@ -442,6 +442,10 @@ def _account_export_threads(user_id):
                 "gem_uuid": message.skill_uuid,
                 "gem_name": message.skill_name,
             })
+        thread_proj = (
+            Project.query.filter_by(id=thread.project_id, user_id=user_id).first()
+            if getattr(thread, "project_id", None) else None
+        )
         rows.append({
             "branch_origin": _branch_origin(thread),
             "public_id": thread.public_id,
@@ -451,6 +455,11 @@ def _account_export_threads(user_id):
             "is_temporary": bool(thread.is_temporary),
             "custom_instruction": thread.custom_instruction,
             "include_global_instruction": bool(thread.include_global_instruction),
+            "project_uuid": thread_proj.uuid if thread_proj else None,
+            "include_project_instruction": (
+                bool(thread.include_project_instruction)
+                if getattr(thread, "include_project_instruction", None) is not None else True
+            ),
             "last_model": thread.last_model,
             "last_skill_uuid": thread.last_skill_uuid,
             "last_gem_uuid": thread.last_skill_uuid,
@@ -461,6 +470,31 @@ def _account_export_threads(user_id):
             "messages": messages,
         })
     return rows
+
+
+def _account_export_projects(user_id):
+    projects = Project.query.filter_by(user_id=user_id).order_by(Project.id.asc()).all()
+    if not projects:
+        return []
+    files_by_proj = {}
+    for pf in ProjectFile.query.filter_by(user_id=user_id).order_by(ProjectFile.id.asc()).all():
+        files_by_proj.setdefault(pf.project_id, []).append({
+            "rel_path": pf.rel_path,
+            "display_name": pf.display_name,
+            "note": pf.note,
+            "created_at": _portable_datetime(pf.created_at),
+        })
+    return [{
+        "uuid": row.uuid,
+        "name": row.name,
+        "description": row.description,
+        "instruction": row.instruction,
+        "use_vision_for_images": bool(getattr(row, "use_vision_for_images", False)),
+        "vision_model": getattr(row, "vision_model", None),
+        "created_at": _portable_datetime(row.created_at),
+        "updated_at": _portable_datetime(row.updated_at),
+        "files": files_by_proj.get(row.id, []),
+    } for row in projects]
 
 
 def _account_export_skills(user_id):
@@ -632,6 +666,7 @@ def _build_account_export_archive(user, job_id, export_path):
             "api_credentials": _account_export_secrets(user),
             "chats": [],
             "skills": [],
+            "projects": [],
             # Legacy alias for older importers.
             "gems": [],
             "feedback": [],
@@ -642,9 +677,10 @@ def _build_account_export_archive(user, job_id, export_path):
     }
     _account_transfer_checkpoint(user.id, job_id, 5, "preparing", "チャット履歴を読み込んでいます")
     manifest["data"]["chats"] = _account_export_threads(user.id)
-    _account_transfer_checkpoint(user.id, job_id, 12, "preparing", "Skillとフィードバックを読み込んでいます")
+    _account_transfer_checkpoint(user.id, job_id, 12, "preparing", "Skill・プロジェクト・フィードバックを読み込んでいます")
     manifest["data"]["skills"] = _account_export_skills(user.id)
     manifest["data"]["gems"] = manifest["data"]["skills"]
+    manifest["data"]["projects"] = _account_export_projects(user.id)
     manifest["data"]["feedback"] = _account_export_feedback(user.id)
     _account_transfer_checkpoint(user.id, job_id, 16, "preparing", "診断データを読み込んでいます")
     manifest["data"]["diagnostics"] = _account_export_diagnostics(user.id)

@@ -649,6 +649,7 @@
                     model,
                     thread_id: threadId,
                     parent_id: parentId,
+                    project_id: (!threadId && typeof window.getActiveProjectId === 'function') ? window.getActiveProjectId() : null,
                     gemini_free_tier: typeof geminiFreeTierChecked === 'function' && geminiFreeTierChecked(),
                     math_steps: typeof window.collectMathStepsSendOption === 'function' ? window.collectMathStepsSendOption() : false,
                 }),

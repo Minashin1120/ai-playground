@@ -25,6 +25,8 @@ def background_stream_gemini_chat(local):
     _auto_notice_text = local.get("_auto_notice_text")
     _ensure_mcp_env = local.get("_ensure_mcp_env")
     _execute_skill_tool = local.get("_execute_skill_tool")
+    _execute_project_file_tool = local.get("_execute_project_file_tool")
+    _project_files_tool_enabled = local.get("_project_files_tool_enabled")
     _load_message_history_images = local.get("_load_message_history_images")
     _mark_provider_request_started = local.get("_mark_provider_request_started")
     _persist_batch_failure = local.get("_persist_batch_failure")
@@ -359,6 +361,13 @@ def background_stream_gemini_chat(local):
                     "description": _skill_decl["description"],
                     "parameters": _strip_additional_properties(_skill_decl["parameters"]),
                 })
+            if _project_files_tool_enabled:
+                _pf_decl = build_project_file_tool_definition()
+                _gemini_manual_decls.append({
+                    "name": _pf_decl["name"],
+                    "description": _pf_decl["description"],
+                    "parameters": _strip_additional_properties(_pf_decl["parameters"]),
+                })
             conf['tools'].append(types.Tool(function_declarations=_gemini_manual_decls))
 
     # MCP外部ツール（google-genai の Automatic Function Calling 用の
@@ -405,6 +414,13 @@ def background_stream_gemini_chat(local):
             log_force(f"Gemini skill tool attached: {len(_skills_for_tools)}")
         except Exception as _skill_tool_exc:
             log_force(f"Gemini skill tool attach failed: {_skill_tool_exc}")
+    if _project_files_tool_enabled and not _gemini_manual_function_tools:
+        try:
+            if 'tools' not in conf: conf['tools'] = []
+            conf['tools'].append(build_gemini_project_file_tool(_execute_project_file_tool))
+            log_force("Gemini project file tool attached")
+        except Exception as _pf_tool_exc:
+            log_force(f"Gemini project file tool attach failed: {_pf_tool_exc}")
     # Gemini 3 は、組み込みツール（検索・URL Context・マップ・コード実行）と
     # 関数ツール（File・MCP）を同時に渡すとき、この指定がないと 400 を返す。
     # 応答の toolCall / toolResponse パートは、SDK の自動関数呼び出しと
@@ -915,6 +931,8 @@ def background_stream_gemini_chat(local):
                         call_id = getattr(function_call, "id", None)
                     if call_name in ("create_file", "edit_file") or (
                         call_name == SKILL_TOOL_NAME and _skills_tool_enabled
+                    ) or (
+                        call_name == PROJECT_FILE_TOOL_NAME and _project_files_tool_enabled
                     ):
                         calls.append((call_name, call_args, call_id))
             if not calls:
@@ -931,6 +949,12 @@ def background_stream_gemini_chat(local):
                     elif call_name == SKILL_TOOL_NAME:
                         result_text = _execute_skill_tool(
                             str((call_args or {}).get("name") or "")
+                        )
+                    elif call_name == PROJECT_FILE_TOOL_NAME:
+                        result_text = _execute_project_file_tool(
+                            str((call_args or {}).get("name") or ""),
+                            offset=(call_args or {}).get("offset", 0),
+                            limit=(call_args or {}).get("limit", PROJECT_FILE_READ_DEFAULT_LIMIT),
                         )
                     else:
                         result_text = _gemini_edit_file_tool(**call_args)

@@ -178,9 +178,11 @@ class MathStepsServerTests(unittest.TestCase):
 
     def test_background_and_browser_fast_inject_the_math_prompt(self):
         background = Path("server/background.py").read_text()
+        projects = Path("server/projects.py").read_text()
         browser_fast = Path("server/routes_browser_fast.py").read_text()
-        self.assertIn('options.get("math_steps")', background)
-        self.assertIn("build_math_steps_system_prompt", background)
+        self.assertIn("combine_system_prompt_layers", background)
+        self.assertIn('options.get("math_steps")', projects)
+        self.assertIn("build_math_steps_system_prompt", projects)
         self.assertIn("math_steps_system_prompt", browser_fast)
 
     def test_extract_math_steps_ignores_fenced_headings(self):

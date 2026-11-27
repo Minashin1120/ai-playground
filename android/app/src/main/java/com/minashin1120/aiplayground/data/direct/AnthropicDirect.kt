@@ -86,8 +86,15 @@ class AnthropicDirect(private val http: DirectHttp, private val baseUrl: String 
                 val name = tool.optString("name")
                 val inputText = (tool.get("input") as? StringBuilder)?.toString().orEmpty()
                 val input = runCatching { JSONObject(inputText.ifBlank { "{}" }) }.getOrElse { JSONObject() }
-                val result = if (name == SkillTool.NAME) SkillTool.execute(skills, input.optString("name"))
-                else "Error: Unsupported tool: $name"
+                val result = when {
+                    name == SkillTool.NAME -> SkillTool.execute(skills, input.optString("name"))
+                    name == ProjectFileTool.NAME && request.readProjectFile != null -> request.readProjectFile.invoke(
+                        input.optString("name"),
+                        input.optInt("offset", 0),
+                        input.optInt("limit", ProjectFileTool.DEFAULT_LIMIT),
+                    )
+                    else -> "Error: Unsupported tool: $name"
+                }
                 results.put(JSONObject().put("type", "tool_result")
                     .put("tool_use_id", tool.optString("id")).put("content", result))
             }
@@ -129,6 +136,7 @@ class AnthropicDirect(private val http: DirectHttp, private val baseUrl: String 
         val tools = JSONArray()
         val skills = options.optJSONArray("skills")
         if (skills != null && skills.length() > 0) tools.put(SkillTool.anthropicDefinition())
+        if (request.readProjectFile != null) tools.put(ProjectFileTool.anthropicDefinition())
         if (options.flag("enable_search")) {
             tools.put(JSONObject().put("type", "web_search_20250305").put("name", "web_search").put("max_uses", 5))
         }

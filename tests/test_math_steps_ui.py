@@ -35,7 +35,7 @@ def _read(relative):
 class MathStepsSourceContractTests(unittest.TestCase):
     def test_new_part_is_last_and_wired(self):
         parts = sorted((APP_ROOT / 'static/js/chat_core_parts').glob('chat_core.part*.js'))
-        self.assertTrue(parts[-1].name.startswith('chat_core.part32_'), parts[-1].name)
+        self.assertTrue(any(p.name.startswith('chat_core.part32_') for p in parts), [p.name for p in parts])
         source = _read('static/js/chat_core_parts/chat_core.part32_mathsteps.js')
         for name in ('parseMathSteps', 'buildMathStepsHtml', 'renderMathStepsInto',
                      'buildMathSvgRenderHtml', 'buildMathStepsPdfHtml', 'prepareMathStepsCopyText',

@@ -43,6 +43,7 @@ internal class ChatAccountSetup(
     private val applyServerlessMode: (Account) -> Unit,
     private val fetchThreads: suspend (Boolean) -> Unit,
     private val fetchSkills: suspend () -> Unit,
+    private val fetchProjects: suspend () -> Unit = {},
     private val fetchBatchJobs: suspend (Boolean) -> Unit,
     private val loadMcpServers: () -> Unit,
     private val fetchPreferences: suspend (Boolean) -> Unit,
@@ -141,6 +142,7 @@ internal class ChatAccountSetup(
             canGoBackInChats = chatHistory.canGoBack,
         ) }
         fetchThreads(false)
+        runCatching { fetchProjects() }.onFailure { report(it) }
         runCatching { fetchSkills() }.onFailure { report(it) }
         runCatching {
             fetchPreferences(state.value.selected == null && !state.value.streaming && !composer.modelChosenManually)
@@ -176,7 +178,8 @@ internal class ChatAccountSetup(
             .takeIf { value -> account.models.any { it.id == value && it.selectable } }
             ?: account.models.firstOrNull { it.selectable }?.id.orEmpty()
         val cachedPrefs = withContext(Dispatchers.IO) { offlineCache.loadPreferences(account.id) }
-        val cachedThreads = withContext(Dispatchers.IO) { offlineCache.loadThreads(account.id) }
+        val cachedThreads = withContext(Dispatchers.IO) { offlineCache.loadThreads(account.id).filter { it.projectId.isNullOrBlank() } }
+        val cachedProjects = withContext(Dispatchers.IO) { offlineCache.loadProjects(account.id) }
         if (!asOffline) applyServerlessMode(account)
         mutable.update { current -> current.copy(
             account = account,
@@ -184,6 +187,7 @@ internal class ChatAccountSetup(
             model = selected,
             preferences = cachedPrefs?.let { parsePreferences(it) } ?: current.preferences,
             threads = cachedThreads,
+            projects = cachedProjects,
             nextPage = null,
             pairing = false,
         ).let { restored ->

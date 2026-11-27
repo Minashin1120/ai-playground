@@ -31,6 +31,7 @@ def index():
 @app.route('/python-execution')
 @app.route('/skill')
 @app.route('/gem')
+@app.route('/project')
 @app.route('/compression')
 @app.route('/math-steps')
 @app.route('/admin-bots')
@@ -69,6 +70,25 @@ def chat_permalink(thread_id):
     }
     initial_thread_id = thread.public_id or thread.id
     return render_template('chat.html', initial_thread_id=initial_thread_id, easy_login_used=easy_login_used, bot_config=bot_config)
+
+
+@app.route('/p/<project_uuid>')
+@login_required
+def project_permalink(project_uuid):
+    project = resolve_project_for_user(project_uuid, current_user.id)
+    if not project:
+        return render_template('404.html', message="指定されたプロジェクトは存在しません。"), 404
+    easy_login_used = bool(session.pop('easy_login_used', False))
+    bot_config = {
+        "username": current_user.username,
+        "isAdmin": bool(getattr(current_user, "is_admin", False)),
+        "globalEnabled": get_bot_detection_global_enabled(),
+        "accountEnabled": current_user.bot_detection_enabled if current_user.bot_detection_enabled is not None else True,
+        "turnstileSiteKey": os.getenv('TURNSTILE_SITE_KEY') or "",
+        "turnstileVerified": _bot_turnstile_active() and _bot_turnstile_verified(),
+        "lock": _bot_lock_config()
+    }
+    return render_template('chat.html', initial_project_id=project.uuid, easy_login_used=easy_login_used, bot_config=bot_config)
 
 def _get_changelogs(page=1, limit=10):
     log_dir = app.config.get('CHANGELOG_FOLDER', os.path.join(os.path.dirname(__file__), 'static/changelogs'))

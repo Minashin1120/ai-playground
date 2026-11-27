@@ -117,6 +117,7 @@
                 '/encryption-status': { id: 'encryption-status-modal', open: () => showEncryptionStatusModal() },
                 '/python-execution': { id: 'python-exec-modal', open: () => showPythonExecDetailModal() },
                 '/skill': { id: 'skill-modal', open: () => { editingSkillUuid = null; get('skill-modal-title').textContent = 'Create New Skill'; showModal('skill-modal'); } },
+                '/project': { id: 'project-modal', open: () => { if (typeof window.openProjectModal === 'function') window.openProjectModal(null); } },
                 '/compression': { id: 'compression-modal', open: () => window.openCompressionModal() },
                 '/math-steps': { id: 'math-steps-config-modal', open: () => window.openMathStepsModal() },
                 '/admin-bots': { id: 'bot-admin-modal', open: () => openBotAdminModal() },
@@ -144,6 +145,8 @@
                     case 'encryption-status-modal': closeEncryptionModal(skipHistory); break;
                     case 'python-exec-modal': closePythonExecDetail(skipHistory); break;
                     case 'skill-modal': if (window.closeSkillModal) window.closeSkillModal(skipHistory); break;
+                    case 'project-modal': if (window.closeProjectModal) window.closeProjectModal(skipHistory); else hideModal(id); break;
+                    case 'move-thread-project-modal': if (window.closeMoveThreadProjectModal) window.closeMoveThreadProjectModal(); else hideModal(id); break;
                     case 'compression-modal': if (window.closeCompressionModal) window.closeCompressionModal(skipHistory); break;
                     case 'math-steps-config-modal': if (window.closeMathStepsModal) window.closeMathStepsModal(skipHistory); else hideModal(id); break;
                     case 'bot-admin-modal': if (window.closeBotAdminModal) window.closeBotAdminModal(skipHistory); break;
@@ -190,14 +193,23 @@
                     }
                 });
 
-                // Restore a chat thread when back/forward lands on /c/<id>
+                // Restore a chat thread or project view when back/forward lands on /c/<id> or /p/<uuid>
                 const threadMatch = location.pathname.match(/^\/c\/(.+)$/);
+                const projectMatch = location.pathname.match(/^\/p\/(.+)$/);
                 if (threadMatch) {
                     const tid = decodeURIComponent(threadMatch[1]);
                     if (String(currentThreadId) !== String(tid)) {
                         loadMessages(tid, { skipHistory: true });
                     }
+                } else if (projectMatch) {
+                    const pid = decodeURIComponent(projectMatch[1]);
+                    if (typeof window.openProjectView === 'function') {
+                        window.openProjectView(pid, { skipHistory: true });
+                    }
                 } else if (location.pathname === '/') {
+                    if (typeof window.closeProjectView === 'function') {
+                        window.closeProjectView({ skipHistory: true });
+                    }
                     // Returned to the home/new-chat view
                     if (currentThreadId) {
                         startNewChat({ skipHistory: true });

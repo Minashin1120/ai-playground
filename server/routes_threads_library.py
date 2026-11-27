@@ -178,9 +178,24 @@ def update_thread_settings(thread_id):
         return jsonify({'error': '403'}), 403
     if request.method == 'GET':
         log_force(f"DEBUG: update_thread_settings GET returning data for {thread_id}")
+        proj = (
+            Project.query.filter_by(id=t.project_id, user_id=current_user.id).first()
+            if getattr(t, 'project_id', None) else None
+        )
+        proj_file_count = (
+            ProjectFile.query.filter_by(project_id=proj.id, user_id=current_user.id).count()
+            if proj else 0
+        )
         return jsonify({
             'custom_instruction': t.custom_instruction,
             'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
+            'project_id': proj.uuid if proj else None,
+            'project_name': proj.name if proj else None,
+            'project_instruction': (proj.instruction or '') if proj else '',
+            'project_file_count': proj_file_count,
+            'project_use_vision_for_images': bool(getattr(proj, 'use_vision_for_images', False)) if proj else False,
+            'project_vision_model': (getattr(proj, 'vision_model', None) or '') if proj else '',
+            'include_project_instruction': t.include_project_instruction if getattr(t, 'include_project_instruction', None) is not None else True,
             'is_temporary': bool(getattr(t, "is_temporary", False)),
             **_get_temp_chat_runtime_meta(t, user=current_user)
         })
@@ -193,6 +208,17 @@ def update_thread_settings(thread_id):
         t.custom_instruction = custom_instruction
     if 'include_global_instruction' in d:
         t.include_global_instruction = bool(d['include_global_instruction'])
+    if 'include_project_instruction' in d:
+        t.include_project_instruction = bool(d['include_project_instruction'])
+    if 'project_id' in d:
+        raw_pid = d.get('project_id')
+        if raw_pid is None or str(raw_pid).strip() == '':
+            t.project_id = None
+        else:
+            target_proj = resolve_project_for_user(raw_pid, current_user.id)
+            if not target_proj:
+                return jsonify({'error': 'invalid_project'}), 404
+            t.project_id = target_proj.id
     if 'is_temporary' in d:
         requested_temp = _coerce_bool_or_none(d.get('is_temporary'))
         t.is_temporary = bool(requested_temp)
@@ -217,10 +243,17 @@ def update_thread_settings(thread_id):
         _clear_temp_chat_tracking_for_thread(t)
     log_force(f"DEBUG: update_thread_settings returning ok")
     temp_meta = _get_temp_chat_runtime_meta(t, user=current_user)
+    saved_proj = (
+        Project.query.filter_by(id=t.project_id, user_id=current_user.id).first()
+        if getattr(t, 'project_id', None) else None
+    )
     return jsonify({
         'status': 'ok',
         'is_temporary': bool(getattr(t, "is_temporary", False)),
         'enable_prompt_caching': bool(getattr(t, "enable_prompt_caching", False)),
+        'project_id': saved_proj.uuid if saved_proj else None,
+        'project_name': saved_proj.name if saved_proj else None,
+        'include_project_instruction': t.include_project_instruction if getattr(t, 'include_project_instruction', None) is not None else True,
         'timeout_seconds': temp_meta.get('timeout_seconds'),
         'temp_chat_expires_at': temp_meta.get('temp_chat_expires_at'),
         'temp_chat_remaining_seconds': temp_meta.get('temp_chat_remaining_seconds')
@@ -456,9 +489,27 @@ def get_file_usage_chats():
                     'title': title or '新しいチャット',
                     'updated_at': updated_at.isoformat() if updated_at else None,
                 })
+        project_usages = []
+        try:
+            proj_rows = (
+                db.session.query(Project.uuid, Project.name)
+                .join(ProjectFile, ProjectFile.project_id == Project.id)
+                .filter(
+                    Project.user_id == current_user.id,
+                    ProjectFile.user_id == current_user.id,
+                    ProjectFile.rel_path == rel_path,
+                )
+                .order_by(Project.updated_at.desc(), Project.id.desc())
+                .limit(50)
+                .all()
+            )
+            project_usages = [{'uuid': u, 'name': n} for u, n in proj_rows]
+        except Exception:
+            project_usages = []
         return jsonify({
             'filepath': rel_path,
             'chats': threads,
+            'projects': project_usages,
             'has_more': has_more,
         })
     except Exception as exc:
@@ -515,6 +566,8 @@ def delete_files_batch():
             secure_delete(fp)
             secure_delete(fp + '.enc')
             _delete_file_cache_for_path(current_user.id, norm)
+            ProjectFile.query.filter_by(user_id=current_user.id, rel_path=norm).delete(synchronize_session=False)
+    safe_db_commit()
     return jsonify({'status': 'ok'})
 
 @app.route('/api/files/rename', methods=['POST'])

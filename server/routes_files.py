@@ -120,23 +120,43 @@ def handle_threads():
     if request.method == 'GET':
         q = request.args.get('q', '').strip()
         page = request.args.get('page', 1, type=int)
+        project_scope = (request.args.get('project_scope') or '').strip().lower()
+        project_filter_ref = (request.args.get('project_id') or '').strip()
         per_page = 20
         log_force(f"DEBUG: handle_threads query q={q}, page={page}")
         try:
             query = Thread.query.filter_by(user_id=current_user.id).filter(~Thread.title.startswith("[LIBRARY]"))
+            if project_filter_ref:
+                if project_filter_ref.lower() in ('none', 'unassigned'):
+                    query = query.filter(Thread.project_id.is_(None))
+                else:
+                    proj = resolve_project_for_user(project_filter_ref, current_user.id)
+                    if not proj:
+                        return jsonify({'threads': [], 'has_next': False, 'next_page': None})
+                    query = query.filter(Thread.project_id == proj.id)
+            elif project_scope == 'unassigned' and not q:
+                query = query.filter(Thread.project_id.is_(None))
             if q: 
                 if current_user.enable_e2ee: query = query.filter(Thread.title.contains(q))
                 else: query = query.join(Message).filter(or_(Thread.title.contains(q), Message.content.contains(q))).distinct()
             
             pagination = query.order_by(Thread.is_bookmarked.desc(), Thread.bookmarked_at.desc(), Thread.updated_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
+            proj_ids = sorted({t.project_id for t in pagination.items if getattr(t, 'project_id', None)})
+            proj_map = {}
+            if proj_ids:
+                for p in Project.query.filter(Project.user_id == current_user.id, Project.id.in_(proj_ids)).all():
+                    proj_map[p.id] = p
             threads = []
             for t in pagination.items:
+                p_obj = proj_map.get(getattr(t, 'project_id', None))
                 threads.append({
                     'id': t.public_id or t.id,
                     'title': t.title,
                     'is_bookmarked': bool(t.is_bookmarked),
                     'last_model': t.last_model,
-                    'is_temporary': bool(getattr(t, "is_temporary", False))
+                    'is_temporary': bool(getattr(t, "is_temporary", False)),
+                    'project_id': p_obj.uuid if p_obj else None,
+                    'project_name': p_obj.name if p_obj else None,
                 })
             log_force(f"DEBUG: handle_threads returning {len(threads)} threads")
             return jsonify({
@@ -152,11 +172,19 @@ def handle_threads():
     try:
         payload = request.get_json(silent=True) or {}
         requested_temp = _coerce_bool_or_none(payload.get('is_temporary'))
+        requested_project_ref = payload.get('project_id')
+        resolved_project = None
+        if requested_project_ref:
+            resolved_project = resolve_project_for_user(requested_project_ref, current_user.id)
+            if not resolved_project:
+                return jsonify({'error': 'invalid_project'}), 404
         log_force(f"DEBUG: handle_threads creating new thread, is_temporary={requested_temp}")
         t = Thread(
             user_id=current_user.id,
             public_id=generate_thread_public_id(),
-            is_temporary=bool(requested_temp)
+            is_temporary=bool(requested_temp),
+            project_id=resolved_project.id if resolved_project else None,
+            include_project_instruction=True,
         )
         db.session.add(t)
         safe_db_commit()
@@ -171,6 +199,9 @@ def handle_threads():
             'id': t.public_id,
             'title': t.title,
             'is_temporary': bool(t.is_temporary),
+            'project_id': resolved_project.uuid if resolved_project else None,
+            'project_name': resolved_project.name if resolved_project else None,
+            'include_project_instruction': True,
             **_get_temp_chat_runtime_meta(t, user=current_user)
         })
     except Exception as e:
@@ -385,10 +416,17 @@ def handle_thread_item(thread_id):
                         pending_job = {"job_id": pending_raw.decode("utf-8", "ignore")}
             except Exception:
                 pending_job = None
+            thread_project = (
+                Project.query.filter_by(id=t.project_id, user_id=current_user.id).first()
+                if getattr(t, 'project_id', None) else None
+            )
             payload.update({
                 'title': t.title,
                 'custom_instruction': t.custom_instruction,
                 'include_global_instruction': t.include_global_instruction if t.include_global_instruction is not None else True,
+                'project_id': thread_project.uuid if thread_project else None,
+                'project_name': thread_project.name if thread_project else None,
+                'include_project_instruction': t.include_project_instruction if getattr(t, 'include_project_instruction', None) is not None else True,
                 'last_model': t.last_model,
                 'last_skill_uuid': t.last_skill_uuid,
                 'last_gem_uuid': t.last_skill_uuid,

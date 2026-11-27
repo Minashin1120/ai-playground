@@ -1,0 +1,72 @@
+    <!-- Project Create/Edit Modal -->
+    <div id="project-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-start sm:items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay overflow-y-auto">
+        <div class="app-modal-panel app-modal-panel--lg modal-panel" role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--warn"><i class="fas fa-folder-open"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 class="app-modal-title" id="project-modal-title">Create New Project</h2>
+                        <p class="app-modal-subtitle">複数のチャットで指示とファイルを共有</p>
+                    </div>
+                </div>
+                <button type="button" class="app-modal-close" data-progress-no-spinner="true" aria-label="閉じる" onclick="closeProjectModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="app-modal-body space-y-4">
+                <div>
+                    <label for="project-name-input" class="block text-xs text-gray-400 mb-1">プロジェクト名</label>
+                    <input type="text" id="project-name-input" maxlength="100" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm focus:ring-1 focus:ring-blue-500 outline-none" placeholder="My Project">
+                </div>
+                <div>
+                    <label for="project-desc-input" class="block text-xs text-gray-400 mb-1">説明（任意）</label>
+                    <input type="text" id="project-desc-input" maxlength="1000" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-sm focus:ring-1 focus:ring-blue-500 outline-none" placeholder="このプロジェクトの用途やメモ...">
+                </div>
+                <div>
+                    <label for="project-inst-input" class="block text-xs text-gray-400 mb-1">システムプロンプト（プロジェクト共通の指示）</label>
+                    <textarea id="project-inst-input" class="w-full h-36 bg-gray-900 border border-gray-600 rounded p-2.5 text-white text-sm focus:ring-1 focus:ring-green-500 outline-none" placeholder="このプロジェクト内のすべてのチャットに共有する指示を入力してください..."></textarea>
+                    <div class="text-[10px] text-gray-500 mt-1">全体・ユーザーシステムプロンプトの後、チャット専用プロンプトの前に結合されます。</div>
+                </div>
+                <div class="rounded-lg border border-gray-700 bg-gray-900/60 p-3 space-y-2.5">
+                    <label class="flex items-center justify-between gap-2 text-xs text-gray-200 cursor-pointer">
+                        <span>画像ファイルにVisionモデルを使う</span>
+                        <input type="checkbox" id="project-use-vision-toggle" class="accent-blue-500 w-4 h-4">
+                    </label>
+                    <div id="project-vision-model-wrap" class="hidden space-y-1">
+                        <label for="project-vision-model-select" class="block text-[11px] text-gray-400">使用するVisionモデル</label>
+                        <select id="project-vision-model-select" class="w-full bg-gray-800 border border-gray-600 rounded p-2 text-xs text-white outline-none"></select>
+                    </div>
+                    <div class="text-[10px] text-gray-500">OFFのときは共有画像の中身を読まずメタ情報と案内のみ返します（追加の画像解析課金は発生しません）。</div>
+                </div>
+            </div>
+            <div class="app-modal-footer">
+                <button type="button" onclick="closeProjectModal()" data-progress-no-spinner="true" class="app-modal-btn app-modal-btn--ghost">キャンセル</button>
+                <button type="button" id="save-project-btn" class="app-modal-btn app-modal-btn--primary">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Move Thread to Project Modal -->
+    <div id="move-thread-project-modal" class="fixed inset-0 bg-gray-900/95 z-50 hidden items-center justify-center backdrop-blur-sm modal-overlay app-modal-overlay">
+        <div class="app-modal-panel app-modal-panel--sm modal-panel" role="dialog" aria-modal="true" aria-labelledby="move-thread-project-title">
+            <div class="app-modal-header">
+                <div class="app-modal-title-wrap">
+                    <div class="app-modal-title-icon app-modal-title-icon--info"><i class="fas fa-folder-open"></i></div>
+                    <div class="app-modal-title-text">
+                        <h2 class="app-modal-title" id="move-thread-project-title">プロジェクトへ移動</h2>
+                        <p class="app-modal-subtitle">チャットの所属プロジェクトを変更</p>
+                    </div>
+                </div>
+                <button type="button" class="app-modal-close" data-progress-no-spinner="true" aria-label="閉じる" onclick="closeMoveThreadProjectModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="app-modal-body space-y-3">
+                <div id="move-thread-project-chat-name" class="text-xs text-gray-300 truncate"></div>
+                <div>
+                    <label for="move-thread-project-select" class="block text-xs text-gray-400 mb-1">移動先プロジェクト</label>
+                    <select id="move-thread-project-select" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-sm text-white outline-none"></select>
+                </div>
+            </div>
+            <div class="app-modal-footer">
+                <button type="button" onclick="closeMoveThreadProjectModal()" data-progress-no-spinner="true" class="app-modal-btn app-modal-btn--ghost">キャンセル</button>
+                <button type="button" id="save-move-thread-project-btn" class="app-modal-btn app-modal-btn--primary">移動</button>
+            </div>
+        </div>
+    </div>

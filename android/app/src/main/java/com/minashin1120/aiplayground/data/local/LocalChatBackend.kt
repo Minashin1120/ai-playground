@@ -12,6 +12,7 @@ import com.minashin1120.aiplayground.data.direct.DirectRouter
 import com.minashin1120.aiplayground.data.direct.GeminiDirect
 import com.minashin1120.aiplayground.data.direct.OpenAiResponsesDirect
 import com.minashin1120.aiplayground.data.direct.DirectTurn
+import com.minashin1120.aiplayground.data.direct.ProjectFileTool
 import com.minashin1120.aiplayground.data.direct.ServerlessDefaults
 import com.minashin1120.aiplayground.data.direct.SystemPromptBuilder
 import kotlinx.coroutines.CancellationException
@@ -57,9 +58,16 @@ class LocalChatBackend(
     private val uploadAttachment: suspend (String) -> String? = { null },
 ) : ChatBackend {
 
+    init {
+        store.isFileProtected = { ref -> settings.isFileReferencedByProject(ref) }
+    }
+
+    private val projects = LocalChatProjects(store, settings, fallback, router, defaults, ::vertexTarget)
+    private val promptEstimator = LocalChatPromptEstimator(store, remote, router, settings, ::vertexTarget, ::attachmentRefs)
+
     companion object {
         const val LOCAL_ACCOUNT_ID = 0
-        private const val MAX_ATTACHMENT_BYTES = 48L * 1024 * 1024
+        internal const val MAX_ATTACHMENT_BYTES = 48L * 1024 * 1024
         private const val HISTORY_ATTACHMENT_BYTES = 24L * 1024 * 1024
 
         /** Catalog mode of the server-mediated realtime voice sessions (Web `STS_MODELS`). */
@@ -130,17 +138,44 @@ class LocalChatBackend(
 
     private fun server(): ChatBackend = fallback ?: throw unavailable()
 
+
     private suspend fun getLocal(path: String, token: String?): JSONObject {
         val (route, query) = split(path)
         return when {
             route == "/api/mobile/v1/me" -> fallback?.get(path, token)?.let { accountFrom(it) } ?: localAccount()
-            route == "/api/threads" -> if (remote == null) store.listThreads(query["page"]?.toIntOrNull() ?: 1, query["q"].orEmpty())
-                else withDeviceThreads(server().get(path, token), query)
+            route == "/api/threads" -> if (remote == null) store.listThreads(
+                query["page"]?.toIntOrNull() ?: 1,
+                query["q"].orEmpty(),
+                projectScope = query["project_scope"].orEmpty(),
+                projectId = query["project_id"],
+                projectNames = projects.names(),
+            ) else withDeviceThreads(server().get(path, token), query)
+            route.startsWith("/api/threads/") && route.endsWith("/settings") -> {
+                val (id, resolved) = threadPath(route, "/settings")
+                if (!onDevice(id)) return server().get(resolved, token)
+                val row = store.threadRow(id)?.takeIf { !it.optBoolean("deleted") }
+                    ?: throw ApiException(403, JSONObject().put("error", "403"))
+                val pid = row.textOf("project_id").ifBlank { null }
+                val proj = pid?.let { settings.getProject(it) }
+                JSONObject()
+                    .put("custom_instruction", row.optString("custom_instruction"))
+                    .put("include_global_instruction", row.optBoolean("include_global_instruction", true))
+                    .put("include_project_instruction", row.optBoolean("include_project_instruction", true))
+                    .put("project_id", pid ?: JSONObject.NULL)
+                    .put("project_name", proj?.optString("name") ?: JSONObject.NULL)
+                    .put("project_instruction", proj?.optString("instruction").orEmpty())
+                    .put("is_temporary", row.optBoolean("is_temporary"))
+            }
             route.startsWith("/api/threads/") && route.count { it == '/' } == 3 -> {
                 val (id, resolved) = threadPath(route, "")
                 if (onDevice(id)) {
                     (store.getThread(id, query["limit"]?.toIntOrNull()?.coerceIn(1, 200), query["before_id"]?.toIntOrNull()?.minus(idOffset), idOffset)
                         ?: throw ApiException(403, JSONObject().put("error", "403"))).also { reply ->
+                            val pid = reply.textOf("project_id").ifBlank { null }
+                            if (pid != null) {
+                                val proj = settings.getProject(pid)
+                                reply.put("project_name", proj?.optString("name") ?: JSONObject.NULL)
+                            }
                             val origin = reply.optJSONObject("branch_origin")
                             if (origin != null && idOffset != 0 && LocalChatStore.isDeviceThreadId(origin.optString("thread_id")) && !origin.isNull("message_id"))
                                 origin.put("message_id", origin.getInt("message_id") + idOffset)
@@ -149,6 +184,23 @@ class LocalChatBackend(
                     val reply = server().get(resolved + path.substring(route.length), token)
                     if (query["before_id"] == null) store.overlayPending(id, reply, encrypted = accountEncryption()) else reply
                 }
+            }
+            route.startsWith("/api/projects/") && route.endsWith("/threads") && fallback == null -> {
+                val uuid = route.removePrefix("/api/projects/").removeSuffix("/threads")
+                store.listThreads(
+                    query["page"]?.toIntOrNull() ?: 1,
+                    query["q"].orEmpty(),
+                    projectId = uuid,
+                    projectNames = projects.names(),
+                )
+            }
+            route.startsWith("/api/projects/") && route.count { it == '/' } == 3 && fallback == null -> {
+                val uuid = route.removePrefix("/api/projects/")
+                val proj = settings.getProject(uuid) ?: throw ApiException(404, JSONObject().put("error", "Project not found"))
+                val counts = store.projectThreadCounts()
+                proj.put("thread_count", counts[uuid] ?: 0)
+                proj.put("file_count", proj.optJSONArray("files")?.length() ?: 0)
+                proj
             }
             route == "/api/mobile/v1/preferences" -> preferences(token)
             route.startsWith("/c/") && route.endsWith("/pdf") -> {
@@ -168,7 +220,12 @@ class LocalChatBackend(
     /** The server's chat list with the device chats on top of the first page. */
     private fun withDeviceThreads(reply: JSONObject, query: Map<String, String>): JSONObject {
         if ((query["page"]?.toIntOrNull() ?: 1) != 1) return reply
-        val device = store.deviceThreads(query["q"].orEmpty())
+        val device = store.deviceThreads(
+            query["q"].orEmpty(),
+            projectScope = query["project_scope"].orEmpty(),
+            projectId = query["project_id"],
+            projectNames = projects.names(),
+        )
         if (device.length() == 0) return reply
         val server = reply.optJSONArray("threads") ?: JSONArray()
         for (i in 0 until server.length()) device.put(server.get(i))
@@ -177,6 +234,7 @@ class LocalChatBackend(
 
     private suspend fun getArrayLocal(path: String, token: String?): JSONArray = when (split(path).first) {
         "/api/skills" -> if (fallback != null) fallback.getArray(path, token) else settings.skills()
+        "/api/projects" -> if (fallback != null) fallback.getArray(path, token) else projects.enriched()
         else -> fallback?.getArray(path, token) ?: throw unavailable()
     }
 
@@ -206,143 +264,20 @@ class LocalChatBackend(
                 JSONObject().put("status", "ok").put("is_bookmarked", row.optBoolean("is_bookmarked"))
             }
             route == "/api/temporary_chat/heartbeat" -> JSONObject().put("status", "ok")
-            route == "/api/token_estimate" -> estimatePrompt(payload)
+            route == "/api/token_estimate" -> promptEstimator.estimatePrompt(payload)
             // A server answer being rejoined (it has a job id) is stopped on the server.
             route == "/api/stop_chat" -> if (fallback != null && payload.has("job_id")) fallback.post(path, payload, token)
                 else JSONObject().put("status", "ok")
             route == "/api/skills" && fallback == null -> settings.saveSkill(null, payload)
+            route == "/api/projects" && fallback == null -> settings.saveProject(null, payload)
+            route.startsWith("/api/projects/") && route.endsWith("/files") && fallback == null -> {
+                val uuid = route.removePrefix("/api/projects/").removeSuffix("/files")
+                settings.addProjectFiles(uuid, payload) { ref -> store.fileInfo(ref) }
+            }
             else -> fallback?.post(path, payload, token) ?: throw unavailable()
         }
     }
 
-    private val tokenEstimates = LinkedHashMap<String, AttachmentTokenEstimate>()
-
-    private suspend fun estimatePrompt(payload: JSONObject): JSONObject {
-        val started = System.currentTimeMillis()
-        ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "start")
-        try {
-            val model = payload.optString("model")
-            val quote = payload.optString("quote_text")
-            val message = payload.optString("message")
-            val text = if (quote.isEmpty()) message else
-                "Context (User Quote):\n\"\"\"\n$quote\n\"\"\"\n\nUser Message:\n$message"
-            val prompt = estimateTokens(text)
-            val refs = attachmentRefs(payload)
-            providerEstimate(model, text, refs, payload)?.let {
-                ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "done", "files" to refs.size,
-                    "ms" to System.currentTimeMillis() - started)
-                return it
-            }
-            var tokens = 0
-            var counted = 0
-            var missing = 0
-            var errors = 0
-            var nonText = 0
-            val detailFiles = JSONArray()
-            for (ref in refs) {
-                currentCoroutineContext().ensureActive()
-                val key = "$model\n$ref"
-                val cached = synchronized(tokenEstimates) { tokenEstimates[key] }
-                val estimate = cached ?: try {
-                    val local = LocalChatStore.isLocalReference(ref)
-                    val info = if (local) store.fileInfo(ref) else null
-                    val name = info?.optString("name") ?: ref.substringAfterLast('/')
-                    val mime = info?.optString("mime") ?: java.net.URLConnection.guessContentTypeFromName(name).orEmpty()
-                    val job = currentCoroutineContext()[Job]
-                    val bytes = if (local) store.loadFile(ref, MAX_ATTACHMENT_BYTES) { job?.isActive == false }
-                        else remote?.file(ref, MAX_ATTACHMENT_BYTES)
-                    if (bytes == null) AttachmentTokenEstimate(reason = "missing")
-                    else AttachmentTokenEstimator.estimate(model, name, mime, bytes, store::temporaryProbeFile)
-                } catch (e: CancellationException) { throw e }
-                catch (e: Exception) { AttachmentTokenEstimate(reason = "error") }
-                if (cached == null && estimate.reason == "ok") synchronized(tokenEstimates) {
-                    if (tokenEstimates.size >= 128) tokenEstimates.remove(tokenEstimates.keys.first())
-                    tokenEstimates[key] = estimate
-                }
-                if (payload.optBoolean("include_details")) detailFiles.put(JSONObject()
-                    .put("reference", ref).put("name", store.fileInfo(ref)?.optString("name") ?: ref.substringAfterLast('/'))
-                    .put("tokens", if (estimate.reason == "ok") estimate.tokens else JSONObject.NULL)
-                    .put("method", "approximate").put("reason", estimate.reason))
-                tokens += estimate.tokens
-                when (estimate.reason) {
-                    "ok" -> counted++
-                    "missing" -> missing++
-                    "non_text" -> nonText++
-                    else -> errors++
-                }
-            }
-            ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "done",
-                "files" to refs.size, "failed_files" to errors + missing, "ms" to System.currentTimeMillis() - started)
-            val result = JSONObject().put("estimate_method", "approximate").put("estimate_scope", "draft")
-                .put("countable", true).put("tokens_total", prompt + tokens).put("tokens_prompt", prompt)
-                .put("tokens_files", tokens).put("files_total", refs.size).put("files_counted", counted)
-                .put("files_non_text", nonText).put("files_missing", missing).put("files_error", errors)
-            if (payload.optBoolean("include_details")) {
-                val messageTokens = estimateTokens(message)
-                result.put("breakdown", tokenEstimateBreakdown(result, messageTokens,
-                    if (quote.isEmpty()) 0 else maxOf(0, prompt - messageTokens), detailFiles))
-            }
-            return result
-        } catch (e: CancellationException) {
-            ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "cancelled")
-            throw e
-        } catch (e: Exception) {
-            ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "error")
-            throw e
-        }
-    }
-
-    private suspend fun providerEstimate(model: String, text: String, refs: List<String>, payload: JSONObject): JSONObject? {
-        if (modeOf(model) != "chat") return null
-        // Automatic recounts must not resend megabytes of media for every draft edit.
-        // The details dialog remains an explicit request for full provider counting.
-        if (!payload.optBoolean("include_details") && refs.any { ref ->
-                !LocalChatStore.isLocalReference(ref) ||
-                    (store.fileInfo(ref)?.optLong("size") ?: Long.MAX_VALUE) > 1024 * 1024
-            }) return null
-        val found = router.route(model, modeOf(model)) ?: return null
-        try {
-            val vertex = if (found.provider == "gemini") vertexTarget() else null
-            val key = if (vertex != null) "" else settings.apiKeyFor(model, payload.optBoolean("gemini_free_tier")) ?: return null
-            var remaining = 16L * 1024 * 1024 - text.toByteArray().size
-            if (remaining < 0) return null
-            val attachments = refs.map { ref ->
-                val local = LocalChatStore.isLocalReference(ref)
-                val info = if (local) store.fileInfo(ref) else null
-                if (remaining <= 0 || (info != null && info.optLong("size") > remaining)) return null
-                val job = currentCoroutineContext()[Job]
-                val bytes = if (local) store.loadFile(ref, remaining) { job?.isActive == false }
-                    else remote?.file(ref, remaining)
-                if (bytes == null) return null
-                remaining -= bytes.size
-                val name = info?.optString("name") ?: ref.substringAfterLast('/')
-                val mime = info?.optString("mime") ?: java.net.URLConnection.guessContentTypeFromName(name).orEmpty()
-                AttachmentExtractor.prepare(name, mime, bytes)
-            }
-            val request = DirectRequest(model, key, "", listOf(DirectTurn("user", text)), JSONObject())
-            val prompt = router.tokenCounter.count(request, vertex) ?: return null
-            val total = if (attachments.isEmpty()) prompt else router.tokenCounter.count(
-                request.copy(turns = listOf(DirectTurn("user", text, attachments))), vertex) ?: return null
-            if (total < prompt) return null
-            val result = JSONObject().put("countable", true).put("tokens_total", total).put("tokens_prompt", prompt)
-                .put("tokens_files", total - prompt).put("files_total", refs.size).put("files_counted", refs.size)
-                .put("files_non_text", 0).put("files_missing", 0).put("files_error", 0)
-                .put("estimate_method", "provider").put("estimate_scope", "draft")
-            if (payload.optBoolean("include_details")) result.put("breakdown", providerTokenBreakdown(
-                result, payload.optString("quote_text").isNotEmpty(), refs, attachments,
-                countMessage = {
-                    val message = payload.optString("message")
-                    if (message.isEmpty()) 0 else router.tokenCounter.count(request.copy(turns = listOf(DirectTurn("user", message))), vertex)
-                },
-                countFiles = { subset -> router.tokenCounter.count(request.copy(turns = listOf(DirectTurn("user", text, subset))), vertex) },
-            ))
-            return result
-        } catch (e: CancellationException) { throw e }
-        catch (e: Exception) {
-            ActivityLog.log("state", "route" to "/api/token_estimate", "phase" to "error")
-            return null
-        }
-    }
 
     /**
      * A new chat: on the server in serverless mode, on the device in the no-account profile, for
@@ -359,7 +294,8 @@ class LocalChatBackend(
                 if (!ServerHistory.unreachable(e)) throw e
             }
         }
-        return store.createThread(temporary).also { onChanged() }
+        val projectId = payload.optString("project_id").takeIf { !payload.isNull("project_id") && it.isNotBlank() && it != "null" }
+        return store.createThread(temporary, projectId = projectId).also { onChanged() }
     }
 
     private suspend fun putLocal(path: String, payload: JSONObject, token: String): JSONObject {
@@ -379,16 +315,35 @@ class LocalChatBackend(
                 val row = store.updateThread(id, touch = true) { row ->
                     if (payload.has("custom_instruction")) row.put("custom_instruction", payload.optString("custom_instruction").take(100_000))
                     if (payload.has("include_global_instruction")) row.put("include_global_instruction", payload.optBoolean("include_global_instruction"))
+                    if (payload.has("include_project_instruction")) row.put("include_project_instruction", payload.optBoolean("include_project_instruction"))
+                    if (payload.has("project_id")) {
+                        val pid = payload.optString("project_id").takeIf { !payload.isNull("project_id") && it.isNotBlank() && it != "null" }
+                        row.put("project_id", pid ?: JSONObject.NULL)
+                    }
                     if (payload.has("is_temporary")) row.put("is_temporary", payload.optBoolean("is_temporary"))
                     if (payload.has("enable_prompt_caching")) row.put("enable_prompt_caching", payload.optBoolean("enable_prompt_caching"))
                 } ?: throw ApiException(403, JSONObject().put("error", "403"))
                 onChanged()
+                val pid = row.textOf("project_id").ifBlank { null }
+                val proj = pid?.let { settings.getProject(it) }
                 JSONObject().put("status", "ok").put("is_temporary", row.optBoolean("is_temporary"))
+                    .put("include_project_instruction", row.optBoolean("include_project_instruction", true))
+                    .put("project_id", pid ?: JSONObject.NULL)
+                    .put("project_name", proj?.optString("name") ?: JSONObject.NULL)
                     .put("timeout_seconds", JSONObject.NULL).put("temp_chat_expires_at", JSONObject.NULL)
                     .put("temp_chat_remaining_seconds", JSONObject.NULL)
             }
             route == "/api/mobile/v1/preferences" -> savePreferences(payload, token)
             route.startsWith("/api/skills/") && fallback == null -> settings.saveSkill(route.removePrefix("/api/skills/"), payload)
+            route.startsWith("/api/projects/") && route.contains("/files/") && fallback == null -> {
+                val parts = route.removePrefix("/api/projects/").split("/files/")
+                val uuid = parts.getOrNull(0).orEmpty()
+                val fileId = parts.getOrNull(1)?.toIntOrNull() ?: throw ApiException(404, JSONObject().put("error", "not_found"))
+                settings.updateProjectFile(uuid, fileId, payload)
+            }
+            route.startsWith("/api/projects/") && route.count { it == '/' } == 3 && fallback == null -> {
+                settings.saveProject(route.removePrefix("/api/projects/"), payload)
+            }
             else -> fallback?.put(path, payload, token) ?: throw unavailable()
         }
     }
@@ -413,6 +368,19 @@ class LocalChatBackend(
                 JSONObject().put("status", "ok")
             }
             route.startsWith("/api/skills/") && fallback == null -> { settings.deleteSkill(route.removePrefix("/api/skills/")); JSONObject().put("status", "ok") }
+            route.startsWith("/api/projects/") && route.contains("/files/") && fallback == null -> {
+                val parts = route.removePrefix("/api/projects/").split("/files/")
+                val uuid = parts.getOrNull(0).orEmpty()
+                val fileId = parts.getOrNull(1)?.toIntOrNull() ?: throw ApiException(404, JSONObject().put("error", "not_found"))
+                settings.deleteProjectFile(uuid, fileId)
+            }
+            route.startsWith("/api/projects/") && route.count { it == '/' } == 3 && fallback == null -> {
+                val uuid = route.removePrefix("/api/projects/")
+                settings.deleteProject(uuid)
+                store.unassignProjectThreads(uuid)
+                onChanged()
+                JSONObject().put("status", "ok")
+            }
             else -> fallback?.delete(path, token) ?: throw unavailable()
         }
     }
@@ -432,7 +400,7 @@ class LocalChatBackend(
                 // Image and video answers take minutes; the hold lasts until the answer is saved and uploaded.
                 val mode = modeOf(payload.optString("model"))
                 val hold = if (needsKeepAlive(mode)) keepAlive.begin(mode) else null
-                try { generate(payload, onAccepted, onEvent) } finally { hold?.close() }
+                try { generate(payload, token, onAccepted, onEvent) } finally { hold?.close() }
             }
             // An answer running on the server (started on the Web) can be rejoined; device answers never outlive the app.
             fallback != null && !onDevice(store.resolveAlias(payload.optString("thread_id"))) ->
@@ -572,7 +540,8 @@ class LocalChatBackend(
         return Conversation(store.ensureOutboxThread(threadId), threadId, snapshot.thread, rows, parent)
     }
 
-    private suspend fun generate(body: JSONObject, onAccepted: () -> Unit, onEvent: (JSONObject) -> Unit) {
+
+    private suspend fun generate(body: JSONObject, token: String, onAccepted: () -> Unit, onEvent: (JSONObject) -> Unit) {
         val started = System.currentTimeMillis()
         fun elapsed() = System.currentTimeMillis() - started
         Diagnostics.log("gen.start", "model" to body.optString("model"))
@@ -603,9 +572,40 @@ class LocalChatBackend(
         val onServerParent = chat.serverId != null && parent != null && !LocalChatStore.isPendingId(parent)
         val preferences = promptPreferences()
         if (!body.has("skills") && body.optBoolean("enable_skills", true)) body.put("skills", settings.skills())
+        val projectUuid = chat.settings.optString("project_id").takeIf { !chat.settings.isNull("project_id") && it.isNotBlank() && it != "null" }
+            ?: body.optString("project_id").takeIf { !body.isNull("project_id") && it.isNotBlank() && it != "null" }
+        val projectJson = projects.resolve(projectUuid, token)
+        val projectInstruction = projectJson?.optString("instruction").orEmpty()
+        val includeProjectInstruction = chat.settings.optBoolean("include_project_instruction", true)
+        val projectFiles = projectJson?.optJSONArray("files")
+        if (projectJson != null && projectFiles != null && projectFiles.length() > 0) {
+            body.put("project_context", projectJson)
+        }
+        val readProjectFileCallback: (suspend (String, Int, Int) -> String)? =
+            if (projectJson != null && projectFiles != null && projectFiles.length() > 0) {
+                { name, offset, limit ->
+                    ProjectFileTool.execute(
+                        project = projectJson,
+                        name = name,
+                        offset = offset,
+                        limit = limit,
+                        loadBytes = { filepath ->
+                            if (LocalChatStore.isLocalReference(filepath)) store.loadFile(filepath, MAX_ATTACHMENT_BYTES)
+                            else remote?.file(filepath, MAX_ATTACHMENT_BYTES)
+                        },
+                        visionAnalyze = if (projectJson.optBoolean("use_vision_for_images", false)) {
+                            { bytes, mime, filename -> projects.analyzeImage(projectJson, preferences, bytes, mime, filename) }
+                        } else null,
+                    )
+                }
+            } else null
         val system = SystemPromptBuilder.build(body, preferences,
-            SystemPromptBuilder.ThreadSettings(chat.settings.optString("custom_instruction").takeIf { it != "null" }.orEmpty(),
-                chat.settings.optBoolean("include_global_instruction", true)),
+            SystemPromptBuilder.ThreadSettings(
+                chat.settings.optString("custom_instruction").takeIf { it != "null" }.orEmpty(),
+                chat.settings.optBoolean("include_global_instruction", true),
+                projectInstruction = projectInstruction,
+                includeProjectInstruction = includeProjectInstruction,
+            ),
             defaults, route.provider, cacheableConversation = modeOf(model) !in setOf("image", "tts", "transcription", "video", "music"))
         val userId = store.appendMessage(chat.outboxId, LocalChatStore.NewMessage("user", message,
             parentId = if (chat.serverId != null && parent != null && !onServerParent) parent - LocalChatStore.PENDING_ID_BASE
@@ -664,7 +664,7 @@ class LocalChatBackend(
                 val ref = store.saveFile(file.name, file.mime, file.bytes.inputStream(), file.bytes.size.toLong())
                 streamedOutputs += ref
                 ref
-            }), { event ->
+            }, readProjectFile = readProjectFileCallback), { event ->
                 if (event.optString("type") == "search_status") searchUsed = true
                 onEvent(event)
             }) { content, thought ->

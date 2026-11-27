@@ -76,6 +76,7 @@ internal class ChatGraph(
         notify = ::notify,
         reloadThreads = { done -> reloadThreads(done) },
         reloadSkills = { done -> reloadSkills(done) },
+        reloadProjects = { done -> reloadProjects(done) },
         loadStorageUsage = { loadStorageUsage() },
         loadPreferences = { loadPreferences() },
     )
@@ -331,6 +332,7 @@ internal class ChatGraph(
         applyServerlessMode = { account -> profiles.applyServerlessMode(account) },
         fetchThreads = { more -> fetchThreads(more) },
         fetchSkills = { fetchSkills() },
+        fetchProjects = { fetchProjects() },
         fetchBatchJobs = { notify -> fetchBatchJobs(notify) },
         loadMcpServers = ::loadMcpServers,
         fetchPreferences = { applyDefaults -> preferences.fetchPreferences(applyDefaults) },
@@ -387,6 +389,24 @@ internal class ChatGraph(
         notify = { notify(it) },
         notifyOffline = { message -> notifyOffline(message) },
         notifyChatOffline = { id, message -> notifyChatOffline(id, message) },
+        report = { e, message -> report(e, message) },
+    )
+    /** プロジェクトの一覧・専用ビュー・共有ファイル・チャット移動。 */
+    internal val projects: ChatProjects = ChatProjects(
+        state = state,
+        mutable = mutable,
+        scope = viewModelScope,
+        backend = { backend },
+        token = { token() },
+        offlineCache = offlineCache,
+        uploader = attachmentUploader,
+        isChatLocal = { chatLocal },
+        notify = { notify(it) },
+        notifyOffline = { message -> notifyOffline(message) },
+        notifyChatOffline = { id, message -> notifyChatOffline(id, message) },
+        fetchThreads = { more -> fetchThreads(more) },
+        startNewChatForProject = { _, _ -> navigator.newChat(temporary = false, recordHistory = true, preserveProject = true) },
+        refreshCacheStats = { id -> refreshOfflineCacheStats(id) },
         report = { e, message -> report(e, message) },
     )
     /** チャット履歴の読み込み（サーバー／オフラインキャッシュ・過去分・送信中を保つ再読込）。 */
@@ -549,6 +569,7 @@ internal class ChatGraph(
         report = { e -> report(e) },
         reportWithMessage = { e, message -> report(e, message) },
         notifySendOffline = { notifySendOffline() },
+        onProjectsChanged = { projects.refreshAfterThreadChange() },
     )
     /** Realtime voice session and the one-shot `/sts` recorder (Web `RealtimeVoiceSession`). */
     internal val realtimeSession: ChatRealtimeSession = ChatRealtimeSession(
@@ -729,6 +750,7 @@ internal class ChatGraph(
     private suspend fun serverIdOf(id: String): String = host.serverIdOf(id)
     private suspend fun fetchThreads(more: Boolean) = host.fetchThreads(more)
     private suspend fun fetchSkills() = host.fetchSkills()
+    private suspend fun fetchProjects() = host.fetchProjects()
     private suspend fun fetchBatchJobs(notify: Boolean, status: Boolean = notify) = host.fetchBatchJobs(notify, status)
     private fun loadMcpServers() = host.loadMcpServers()
     private fun startBatchPolling() = host.startBatchPolling()
@@ -772,6 +794,7 @@ internal class ChatGraph(
     private fun startSessionTurnstile() = host.startSessionTurnstile()
     private fun reloadThreads(done: () -> Unit) = host.reloadThreads(done)
     private fun reloadSkills(done: () -> Unit) = host.reloadSkills(done)
+    private fun reloadProjects(done: () -> Unit) = host.reloadProjects(done)
     private fun saveCompressionSettings(settings: CompressionSettings) = host.saveCompressionSettings(settings)
     private fun toggleTemporaryChat() = host.toggleTemporaryChat()
     private fun loadStorageUsage() = host.loadStorageUsage()

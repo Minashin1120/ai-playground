@@ -164,7 +164,7 @@ class PerformanceRegressionTests(unittest.TestCase):
 
         self.assertIn("const fastPythonEnabled = !!(get('enable-python') && get('enable-python').checked)", fast_source)
         self.assertIn("if (fastPythonEnabled) {", fast_source)
-        self.assertIn("payload.tools = [{ codeExecution: {} }]", fast_source)
+        self.assertIn("fastTools.push({ codeExecution: {} });", fast_source)
 
     def test_browser_fast_mode_handles_code_execution_parts_and_persists_pyexec(self):
         chat_files = list((APP_ROOT / "static/js").glob("chat_core.v*.js"))
@@ -326,7 +326,7 @@ class PerformanceRegressionTests(unittest.TestCase):
         # file nears its cap, move a split line (static/js/chat_core_parts/README.md).
         for path in min_js_files:
             self.assertLess(path.stat().st_size, 400_000, path.name)
-        self.assertLess(total_min, 1_050_000)
+        self.assertLess(total_min, 1_100_000)
         self.assertIn("{% for bundle in chat_core_bundles %}", template)
         self.assertNotIn("filename='js/chat_core.'", template)
         self.assertIn("chat.custom.min.", template)

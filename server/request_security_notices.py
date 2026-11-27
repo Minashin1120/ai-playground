@@ -106,6 +106,15 @@ AUTO_SYSTEM_PROMPT_NOTICE_SKILLS = (
     "Available skills:\n{{skills}}"
 )
 
+AUTO_SYSTEM_PROMPT_NOTICE_PROJECT_FILES = (
+    "This chat belongs to the project \"{{project_name}}\", which has shared reference files listed below.\n"
+    "Call read_project_file(name, offset, limit) with the exact file name when the user asks about a file "
+    "or when a listed file appears relevant to answering the request. Load only the files you need; "
+    "for long files, pass offset to read further chunks. Never invent a file that is not listed. "
+    "When file contents are already included below, read them directly without calling a tool.\n\n"
+    "Project shared files:\n{{project_files}}"
+)
+
 # 保存済みの設定に残っている旧既定文。読み込み時に新しい既定文へ移行し、
 # 利用者が編集した文面はそのまま残す。
 AUTO_SYSTEM_PROMPT_NOTICE_LEGACY_DEFAULTS = {
@@ -135,6 +144,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_KEYS = (
     "image_analysis",
     "mcp",
     "skills",
+    "project_files",
 )
 
 AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
@@ -152,6 +162,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_LABELS = {
     "image_analysis": "画像解析 (Vision Model指示文)",
     "mcp": "MCP (外部ツール接続)",
     "skills": "Skills (保存した指示の利用)",
+    "project_files": "プロジェクト共有ファイル (参照案内)",
 }
 
 AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
@@ -169,6 +180,7 @@ AUTO_SYSTEM_PROMPT_NOTICE_DEFAULTS = {
     "image_analysis": AUTO_SYSTEM_PROMPT_NOTICE_IMAGE_ANALYSIS,
     "mcp": AUTO_SYSTEM_PROMPT_NOTICE_MCP,
     "skills": AUTO_SYSTEM_PROMPT_NOTICE_SKILLS,
+    "project_files": AUTO_SYSTEM_PROMPT_NOTICE_PROJECT_FILES,
 }
 
 AUTO_SYSTEM_PROMPT_NOTICE_MAX_CHARS = 4000

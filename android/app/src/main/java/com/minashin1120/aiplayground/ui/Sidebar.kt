@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.minashin1120.aiplayground.ChatState
 import com.minashin1120.aiplayground.R
+import com.minashin1120.aiplayground.data.ProjectItem
 import com.minashin1120.aiplayground.data.Skill
 import com.minashin1120.aiplayground.data.ThreadItem
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -196,6 +197,12 @@ internal class SidebarActions(
     val onEditSkill: (Skill) -> Unit,
     val onDeleteSkill: (Skill) -> Unit,
     val onRefreshSkills: (() -> Unit) -> Unit,
+    val onOpenProject: (ProjectItem) -> Unit = {},
+    val onNewProject: () -> Unit = {},
+    val onEditProject: (ProjectItem) -> Unit = {},
+    val onDeleteProject: (ProjectItem) -> Unit = {},
+    val onRefreshProjects: (() -> Unit) -> Unit = { it() },
+    val onMoveThreadProject: (ThreadItem) -> Unit = {},
     val onHelp: () -> Unit,
     val onLegal: (String) -> Unit,
     val onAlphaInfo: () -> Unit,
@@ -213,6 +220,8 @@ internal fun Sidebar(state: ChatState, versionName: String, actions: SidebarActi
             Modifier.weight(1f).fillMaxHeight().background(colors.background),
         ) {
             SidebarHeader(state, colors, actions)
+            SidebarProjects(state, colors, actions)
+            Box(Modifier.fillMaxWidth().height(1.dp).graphicsLayer { alpha = 0.85f }.background(colors.rule))
             SidebarSkills(state, colors, actions)
             Box(Modifier.fillMaxWidth().height(1.dp).graphicsLayer { alpha = 0.85f }.background(colors.rule))
             ThreadList(
@@ -370,6 +379,81 @@ internal fun SidebarSearch(value: String, placeholder: String, colors: SidebarCo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun SidebarProjects(state: ChatState, colors: SidebarColors, actions: SidebarActions) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 6.dp).padding(bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("PROJECTS", color = colors.skillsLabel, fontSize = 10.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = 0.14.em, modifier = Modifier.weight(1f))
+            Row(
+                Modifier
+                    .border(1.dp, Color.White.copy(alpha = 0.06f))
+                    .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.04f), Color.Black.copy(alpha = 0.06f))))
+                    .clickable(onClickLabel = "プロジェクトを作成", role = Role.Button) { actions.onNewProject() }
+                    .padding(horizontal = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FaIcon(R.drawable.fa_solid_plus, null, size = 12.dp, tint = colors.addSkill)
+                Text(" New", color = colors.addSkill, fontSize = 12.sp, lineHeight = 16.sp)
+            }
+        }
+        PullToRefreshArea(onRefresh = actions.onRefreshProjects, modifier = Modifier.heightIn(max = 160.dp)) {
+            LazyColumn(Modifier.fillMaxWidth()) {
+                items(state.projects, key = { it.uuid }) { project ->
+                    ProjectSidebarRow(
+                        project = project,
+                        active = state.viewingProject?.uuid == project.uuid || state.activeProjectId == project.uuid,
+                        colors = colors,
+                        actions = actions,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectSidebarRow(project: ProjectItem, active: Boolean, colors: SidebarColors, actions: SidebarActions) {
+    val web = LocalWebPalette.current
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp)
+            .clip(shape)
+            .background(if (active) colors.threadSelected else colors.skillBackground)
+            .border(1.dp, if (active) web.theme.t500 else colors.rule, shape)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                actions.onOpenProject(project)
+                actions.onNavigate()
+            }
+            .padding(horizontal = 8.dp, vertical = 5.6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        FaIcon(R.drawable.fa_solid_folder, null, size = 13.dp, tint = web.theme300)
+        Spacer(Modifier.width(8.dp))
+        Text(project.name, color = colors.skillText, fontSize = 14.sp, lineHeight = 20.sp, maxLines = 1,
+            overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (project.threadCount > 0) {
+            Text(
+                project.threadCount.toString(),
+                color = colors.skillsLabel, fontSize = 10.sp,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
+        RowGlyphButton(R.drawable.fa_solid_pencil_alt, "プロジェクトを編集", 10.dp, colors.skillAction, horizontal = 6.dp) {
+            actions.onEditProject(project)
+        }
+        RowGlyphButton(R.drawable.fa_solid_trash, "プロジェクトを削除", 10.dp, colors.skillAction, horizontal = 6.dp) {
+            actions.onDeleteProject(project)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun SidebarSkills(state: ChatState, colors: SidebarColors, actions: SidebarActions) {
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         Row(
@@ -487,6 +571,13 @@ private fun ThreadRow(thread: ThreadItem, selected: Boolean, offline: Boolean, c
                 thread.title.ifBlank { "No Title" }, color = colors.threadText, fontSize = 14.sp, lineHeight = 20.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
             )
+            if (thread.projectName.isNotBlank()) {
+                Text(
+                    thread.projectName, color = web.theme300, fontSize = 9.sp, lineHeight = 18.sp, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.border(1.dp, web.theme.rgb(0.45f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp),
+                )
+            }
             if (thread.isTemporary) {
                 Text(
                     "一時", color = colors.amberText.takeIf { web.isLight } ?: Tw.amber300, fontSize = 9.sp, lineHeight = 20.sp,
@@ -495,6 +586,9 @@ private fun ThreadRow(thread: ThreadItem, selected: Boolean, offline: Boolean, c
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            RowGlyphButton(R.drawable.fa_solid_folder, "プロジェクトへ移動", 11.dp, colors.threadAction, horizontal = 4.dp, enabled = !offline) {
+                actions.onMoveThreadProject(thread)
+            }
             RowGlyphButton(R.drawable.fa_solid_pen, "名前を変更", 12.dp, colors.threadAction, horizontal = 4.dp, enabled = !offline) {
                 actions.onRenameThread(thread)
             }

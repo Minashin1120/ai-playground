@@ -24,8 +24,12 @@ class ChatCompletionsDirect(
         val messages = payload.optJSONArray("messages") ?: JSONArray()
         val skills = request.options.optJSONArray("skills")
         val hasSkills = skills != null && skills.length() > 0
-        if (hasSkills && !openAiSearch) {
-            payload.put("tools", JSONArray().put(SkillTool.openAiChatDefinition())).put("tool_choice", "auto")
+        val hasProjectFiles = request.readProjectFile != null
+        if ((hasSkills || hasProjectFiles) && !openAiSearch) {
+            val chatTools = JSONArray()
+            if (hasSkills) chatTools.put(SkillTool.openAiChatDefinition())
+            if (hasProjectFiles) chatTools.put(ProjectFileTool.openAiChatDefinition())
+            payload.put("tools", chatTools).put("tool_choice", "auto")
         } else if (hasSkills) {
             // Search-only models keep their tool contract; instructions are embedded instead.
             val first = messages.optJSONObject(0)
@@ -99,10 +103,16 @@ class ChatCompletionsDirect(
             toolCalls.toSortedMap().forEach { (index, state) ->
                 val name = state.optString("name")
                 val arguments = state.get("arguments").toString()
-                val result = if (name == SkillTool.NAME) {
-                    val skillName = runCatching { JSONObject(arguments.ifBlank { "{}" }).optString("name") }.getOrDefault("")
-                    SkillTool.execute(skills, skillName)
-                } else "Error: Unsupported tool: $name"
+                val parsedArgs = runCatching { JSONObject(arguments.ifBlank { "{}" }) }.getOrElse { JSONObject() }
+                val result = when {
+                    name == SkillTool.NAME -> SkillTool.execute(skills, parsedArgs.optString("name"))
+                    name == ProjectFileTool.NAME && request.readProjectFile != null -> request.readProjectFile.invoke(
+                        parsedArgs.optString("name"),
+                        parsedArgs.optInt("offset", 0),
+                        parsedArgs.optInt("limit", ProjectFileTool.DEFAULT_LIMIT),
+                    )
+                    else -> "Error: Unsupported tool: $name"
+                }
                 messages.put(JSONObject().put("role", "tool")
                     .put("tool_call_id", state.optString("id").ifBlank { "skill_${round}_$index" })
                     .put("content", result))

@@ -88,7 +88,9 @@ class GeminiDirect(
                         part.optString("thoughtSignature").takeIf { it.isNotBlank() && it !in signatures }?.let { signatures += it }
                         part.optJSONObject("functionCall")?.let { call ->
                             val name = call.optString("name")
-                            if (name == SkillTool.NAME && skills != null && skills.length() > 0) {
+                            if ((name == SkillTool.NAME && skills != null && skills.length() > 0) ||
+                                (name == ProjectFileTool.NAME && request.readProjectFile != null)
+                            ) {
                                 skillCalls += JSONObject().put("name", name)
                                     .put("args", call.optJSONObject("args") ?: JSONObject())
                             }
@@ -141,10 +143,20 @@ class GeminiDirect(
             contents.put(JSONObject().put("role", "model").put("parts", modelParts))
             val responseParts = JSONArray()
             skillCalls.forEach { call ->
-                val skillName = call.optJSONObject("args")?.optString("name").orEmpty()
+                val fnName = call.optString("name")
+                val args = call.optJSONObject("args") ?: JSONObject()
+                val fnResult = when (fnName) {
+                    SkillTool.NAME -> SkillTool.execute(skills, args.optString("name"))
+                    ProjectFileTool.NAME -> request.readProjectFile?.invoke(
+                        args.optString("name"),
+                        args.optInt("offset", 0),
+                        args.optInt("limit", ProjectFileTool.DEFAULT_LIMIT),
+                    ) ?: "Error: project file reader unavailable"
+                    else -> "Error: unsupported tool $fnName"
+                }
                 responseParts.put(JSONObject().put("functionResponse", JSONObject()
-                    .put("name", SkillTool.NAME)
-                    .put("response", JSONObject().put("response", SkillTool.execute(skills, skillName)))))
+                    .put("name", fnName)
+                    .put("response", JSONObject().put("response", fnResult))))
             }
             contents.put(JSONObject().put("role", "user").put("parts", responseParts))
             activePayload = JSONObject(payload.toString()).put("contents", contents)
@@ -408,8 +420,15 @@ class GeminiDirect(
             if (options.flag("enable_python") && !hasNonImage) tools.put(JSONObject().put("codeExecution", JSONObject()))
         }
         val skills = options.optJSONArray("skills")
+        val fnDecls = JSONArray()
         if (!isImageModel(model) && skills != null && skills.length() > 0) {
-            tools.put(JSONObject().put("functionDeclarations", JSONArray().put(SkillTool.geminiDeclaration())))
+            fnDecls.put(SkillTool.geminiDeclaration())
+        }
+        if (!isImageModel(model) && request.readProjectFile != null) {
+            fnDecls.put(ProjectFileTool.geminiDeclaration())
+        }
+        if (fnDecls.length() > 0) {
+            tools.put(JSONObject().put("functionDeclarations", fnDecls))
         }
         if (tools.length() > 0) payload.put("tools", tools)
         safetySettings(options.optString("safety_setting"))?.let { payload.put("safetySettings", it) }

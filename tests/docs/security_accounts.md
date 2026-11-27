@@ -19,6 +19,7 @@
 | [test_setup_import_regressions.py](../test_setup_import_regressions.py) | setup / import |
 | [test_signup_session_regressions.py](../test_signup_session_regressions.py) | signup / session |
 | [test_skills_api_regressions.py](../test_skills_api_regressions.py) | Skill API・旧Gem互換・gem→skill DB移行 |
+| [test_projects_api_regressions.py](../test_projects_api_regressions.py) | Project API・CRUD・チャット所属・共有ファイル管理 |
 | [test_bot_lock_regressions.py](../test_bot_lock_regressions.py) | bot / lock / telemetry / ban |
 | [test_turnstile_challenge_regressions.py](../test_turnstile_challenge_regressions.py) | turnstile / challenge / gate |
 

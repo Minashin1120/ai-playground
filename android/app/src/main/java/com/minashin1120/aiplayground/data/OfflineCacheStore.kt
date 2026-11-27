@@ -103,6 +103,7 @@ class OfflineCacheStore(private val context: Context) {
         includeGlobalInstruction: Boolean,
         temporaryRemainingSeconds: Long?,
         leafId: Int?,
+        includeProjectInstruction: Boolean = true,
     ) {
         val path = File(accountDir(accountId), "thread-${digest(thread.id)}.enc")
         val previous = readJson(path)
@@ -122,6 +123,7 @@ class OfflineCacheStore(private val context: Context) {
             .put("oldest_loaded_id", oldestLoadedId ?: JSONObject.NULL)
             .put("custom_instruction", customInstruction)
             .put("include_global_instruction", includeGlobalInstruction)
+            .put("include_project_instruction", includeProjectInstruction)
             .put("temp_chat_remaining_seconds", temporaryRemainingSeconds ?: JSONObject.NULL)
             .put("leaf_id", leafId ?: JSONObject.NULL)
         writeJson(path, payload)
@@ -136,6 +138,37 @@ class OfflineCacheStore(private val context: Context) {
         File(accountDir(accountId), "thread-${digest(threadId)}.enc").delete()
         val remaining = loadThreads(accountId).filterNot { it.id == threadId }
         saveThreads(accountId, remaining, merge = false)
+    }
+
+    @Synchronized
+    fun saveProjects(accountId: Int, projects: List<ProjectItem>) {
+        val rows = JSONArray()
+        projects.forEach { rows.put(projectJson(it)) }
+        writeJson(File(accountDir(accountId), "projects.enc"), JSONObject().put("projects", rows))
+    }
+
+    @Synchronized
+    fun loadProjects(accountId: Int): List<ProjectItem> {
+        val rows = readJson(File(accountDir(accountId), "projects.enc"))?.optJSONArray("projects") ?: return emptyList()
+        return parseProjects(rows)
+    }
+
+    @Synchronized
+    fun saveProjectDetail(accountId: Int, project: ProjectItem) {
+        writeJson(File(accountDir(accountId), "project-${digest(project.uuid)}.enc"), projectJson(project))
+    }
+
+    @Synchronized
+    fun loadProjectDetail(accountId: Int, uuid: String): ProjectItem? {
+        val row = readJson(File(accountDir(accountId), "project-${digest(uuid)}.enc")) ?: return null
+        return runCatching { parseProject(row) }.getOrNull()
+    }
+
+    @Synchronized
+    fun deleteProject(accountId: Int, uuid: String) {
+        File(accountDir(accountId), "project-${digest(uuid)}.enc").delete()
+        val remaining = loadProjects(accountId).filterNot { it.uuid == uuid }
+        saveProjects(accountId, remaining)
     }
 
     @Synchronized
@@ -211,7 +244,8 @@ class OfflineCacheStore(private val context: Context) {
         when (category) {
             CacheCategory.CHAT_HISTORY -> {
                 File(dir, "threads.enc").delete()
-                dir.listFiles()?.filter { it.name.startsWith("thread-") && it.name.endsWith(".enc") }
+                File(dir, "projects.enc").delete()
+                dir.listFiles()?.filter { (it.name.startsWith("thread-") || it.name.startsWith("project-")) && it.name.endsWith(".enc") }
                     ?.forEach { it.delete() }
             }
             CacheCategory.FILES -> {
@@ -225,8 +259,8 @@ class OfflineCacheStore(private val context: Context) {
     @Synchronized
     fun stats(accountId: Int): OfflineCacheStats {
         val dir = accountDir(accountId)
-        val history = listOf(File(dir, "threads.enc")) +
-            (dir.listFiles()?.filter { it.name.startsWith("thread-") && it.name.endsWith(".enc") }.orEmpty())
+        val history = listOf(File(dir, "threads.enc"), File(dir, "projects.enc")) +
+            (dir.listFiles()?.filter { (it.name.startsWith("thread-") || it.name.startsWith("project-")) && it.name.endsWith(".enc") }.orEmpty())
         val files = listOf(File(dir, "library.enc"), File(dir, "file-index.enc")) +
             (fileDir(accountId).listFiles()?.toList().orEmpty())
         return OfflineCacheStats(history.sumOf { if (it.isFile) it.length() else 0L }, files.sumOf { if (it.isFile) it.length() else 0L })
@@ -252,11 +286,44 @@ class OfflineCacheStore(private val context: Context) {
     private fun threadJson(thread: ThreadItem): JSONObject = JSONObject()
         .put("id", thread.id).put("title", thread.title).put("model", thread.model)
         .put("is_bookmarked", thread.isBookmarked).put("is_temporary", thread.isTemporary)
+        .put("project_id", thread.projectId ?: JSONObject.NULL)
+        .put("project_name", thread.projectName.ifBlank { null } ?: JSONObject.NULL)
 
     private fun parseThread(row: JSONObject): ThreadItem = ThreadItem(
         row.getString("id"), row.optString("title"), row.optString("model"),
         row.optBoolean("is_bookmarked"), row.optBoolean("is_temporary"),
+        projectId = if (row.isNull("project_id")) null else row.optString("project_id").takeIf { it.isNotBlank() && it != "null" },
+        projectName = if (row.isNull("project_name")) "" else row.optString("project_name").takeIf { it != "null" }.orEmpty(),
     )
+
+    private fun projectJson(project: ProjectItem): JSONObject {
+        val files = JSONArray()
+        project.files.forEach { file ->
+            files.put(JSONObject()
+                .put("id", file.id)
+                .put("filepath", file.filepath)
+                .put("filename", file.filename)
+                .put("url", file.url)
+                .put("type", file.type)
+                .put("mime", file.mime)
+                .put("size", file.size)
+                .put("is_image", file.isImage)
+                .put("note", file.note)
+                .put("created_at", file.createdAt))
+        }
+        return JSONObject()
+            .put("uuid", project.uuid)
+            .put("name", project.name)
+            .put("description", project.description)
+            .put("instruction", project.instruction)
+            .put("use_vision_for_images", project.useVisionForImages)
+            .put("vision_model", project.visionModel ?: JSONObject.NULL)
+            .put("file_count", project.fileCount)
+            .put("thread_count", project.threadCount)
+            .put("files", files)
+            .put("created_at", project.createdAt)
+            .put("updated_at", project.updatedAt)
+    }
 
     private fun messageJson(message: ChatMessage): JSONObject = JSONObject()
         .put("id", message.id).put("role", message.role).put("content", message.content)

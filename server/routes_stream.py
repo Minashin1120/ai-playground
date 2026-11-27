@@ -249,10 +249,18 @@ def chat_stream():
             t.is_temporary = bool(temporary_requested)
     else:
         # Avoid a separate round trip on first send; create the thread in the same transaction.
+        project_ref = data.get('project_id')
+        resolved_project = None
+        if project_ref:
+            resolved_project = resolve_project_for_user(project_ref, current_user.id)
+            if not resolved_project:
+                return jsonify({'error': 'Invalid project'}), 404
         t = Thread(
             user_id=current_user.id,
             public_id=generate_thread_public_id(),
-            is_temporary=bool(temporary_requested)
+            is_temporary=bool(temporary_requested),
+            project_id=resolved_project.id if resolved_project else None,
+            include_project_instruction=True,
         )
         db.session.add(t)
         thread_was_created = True

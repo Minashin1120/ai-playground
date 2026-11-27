@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.minashin1120.aiplayground.data.Attachment
 import com.minashin1120.aiplayground.data.ImageSplitOptions
+import com.minashin1120.aiplayground.data.ProjectFileItem
+import com.minashin1120.aiplayground.data.ProjectItem
 import com.minashin1120.aiplayground.data.Skill
 import com.minashin1120.aiplayground.data.ThreadItem
 
@@ -28,6 +30,12 @@ internal class PlaygroundOverlays {
     var skillEditorOpen by mutableStateOf(false)
     var skillEditing by mutableStateOf<Skill?>(null)
     var skillDeleting by mutableStateOf<Skill?>(null)
+    var projectEditorOpen by mutableStateOf(false)
+    var projectEditing by mutableStateOf<ProjectItem?>(null)
+    var projectDeleting by mutableStateOf<ProjectItem?>(null)
+    var movingThreadProject by mutableStateOf<ThreadItem?>(null)
+    var projectLibraryAttachUuid by mutableStateOf<String?>(null)
+    var projectFileNoteEditing by mutableStateOf<Pair<String, ProjectFileItem>?>(null)
     var historyOpen by mutableStateOf(false)
     var branchOpen by mutableStateOf(false)
     var alphaOpen by mutableStateOf(false)

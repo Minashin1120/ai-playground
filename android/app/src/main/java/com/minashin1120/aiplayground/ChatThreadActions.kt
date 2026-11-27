@@ -57,6 +57,7 @@ internal class ChatThreadActions(
     private val report: suspend (Throwable) -> Unit,
     private val reportWithMessage: suspend (Throwable, String) -> Unit,
     private val notifySendOffline: () -> Boolean,
+    private val onProjectsChanged: suspend () -> Unit = {},
 ) {
     private val branchRequestIds = HashMap<String, String>()
 
@@ -85,6 +86,7 @@ internal class ChatThreadActions(
             mutable.update { it.copy(canGoBackInChats = chatHistory.canGoBack) }
             if (state.value.selected?.id == thread.id) { newChat(false, false); onNewChat() }
             fetchThreads(false)
+            onProjectsChanged()
         } catch (e: Exception) { report(e) }
     } }
     /** Web `renameThread`: `prompt("Title:")` then PUT the new title; empty input is ignored. */
@@ -224,20 +226,46 @@ internal class ChatThreadActions(
      * Web `save-thread-settings-btn`: the thread's own instruction, then the user system prompt and
      * auto-injected prompts. Toasts 保存されました only when both requests succeed.
      */
-    fun saveChatInstructions(instruction: String, includeGlobal: Boolean, userPrompt: JSONObject, onDone: (Boolean) -> Unit) {
+    fun saveChatInstructions(
+        instruction: String,
+        includeGlobal: Boolean,
+        userPrompt: JSONObject,
+        includeProject: Boolean = state.value.includeProjectInstruction,
+        projectId: String? = state.value.selected?.projectId,
+        onDone: (Boolean) -> Unit,
+    ) {
         val thread = state.value.selected ?: return onDone(false)
         scope.launch {
             if (notifyChatOffline(thread.id, "オフライン中はチャット設定を変更できません。")) { onDone(false); return@launch }
             try {
-                backend().put("/api/threads/${thread.id}/settings", JSONObject()
+                val cleanProjectId = projectId?.trim()?.takeIf { it.isNotEmpty() }
+                val settingsReply = backend().put("/api/threads/${thread.id}/settings", JSONObject()
                     .put("custom_instruction", instruction)
-                    .put("include_global_instruction", includeGlobal), token())
+                    .put("include_global_instruction", includeGlobal)
+                    .put("include_project_instruction", includeProject)
+                    .put("project_id", cleanProjectId ?: JSONObject.NULL), token())
+                val resolvedProjectName = settingsReply.optString("project_name").takeIf { !settingsReply.isNull("project_name") && it != "null" }
+                    ?: cleanProjectId?.let { id -> state.value.projects.firstOrNull { it.uuid == id }?.name }.orEmpty()
                 mutable.update { current ->
                     if (current.selected?.id != thread.id) current
-                    else current.copy(customInstruction = instruction, includeGlobalInstruction = includeGlobal)
+                    else current.copy(
+                        selected = current.selected.copy(projectId = cleanProjectId, projectName = resolvedProjectName),
+                        customInstruction = instruction,
+                        includeGlobalInstruction = includeGlobal,
+                        includeProjectInstruction = includeProject,
+                        activeProjectId = cleanProjectId,
+                        activeProjectName = resolvedProjectName,
+                        projectInstructionPreview = cleanProjectId?.let { id ->
+                            current.projects.firstOrNull { it.uuid == id }?.instruction.orEmpty()
+                        }.orEmpty(),
+                    )
                 }
                 val reply = backend().put("/api/mobile/v1/preferences", userPrompt, token())
                 mutable.update { applySavedPreferences(it, parsePreferences(reply)).copy(notice = "保存されました") }
+                if (cleanProjectId != thread.projectId) {
+                    runCatching { fetchThreads(false) }
+                    onProjectsChanged()
+                }
                 onDone(true)
             } catch (e: Exception) {
                 if (e is ApiException) notify("保存に失敗しました") else notify("エラー: ${e.message}")
@@ -280,10 +308,15 @@ internal class ChatThreadActions(
         if (notifySendOffline()) return
         scope.launch {
             try {
-                val created = backend().post("/api/threads", JSONObject().put("is_temporary", state.value.newThreadTemporary), token())
+                val activeProjectId = state.value.activeProjectId?.takeIf { it.isNotBlank() }
+                val payload = JSONObject().put("is_temporary", state.value.newThreadTemporary)
+                if (activeProjectId != null) payload.put("project_id", activeProjectId)
+                val created = backend().post("/api/threads", payload, token())
                 val id = created.get("id").toString()
                 mutable.update { it.copy(selected = ThreadItem(id, created.nullableString("title"), it.model,
-                    isTemporary = created.optBoolean("is_temporary")), newThreadTemporary = false) }
+                    isTemporary = created.optBoolean("is_temporary"),
+                    projectId = activeProjectId,
+                    projectName = if (activeProjectId != null) it.activeProjectName else ""), newThreadTemporary = false) }
                 syncHeartbeat()
                 reloadThreads {}
                 onReady()

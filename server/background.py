@@ -676,6 +676,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                 _record_skill_meta(meta)
                 return text
 
+            _project_obj = None
+            _project_files_for_tools = []
+            _project_files_tool_enabled = False
+            _execute_project_file_tool = make_background_project_file_executor(
+                user, lambda: _project_obj, lambda: _project_files_for_tools, pub, log_force
+            )
+
             def _build_attachment_name_block(names):
                 if not (is_llm_model and _auto_notice_enabled("attachment_names")):
                     return ""
@@ -684,6 +691,7 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             # Fetch thread to check instructions
             th = Thread.query.get(thread_id)
             include_global = th.include_global_instruction if th and th.include_global_instruction is not None else True
+            _project_obj, project_sys_prompt = resolve_project_prompt_for_thread(th, user_id)
 
             try:
                 if getattr(user, "apply_global_system_prompt", None) is False:
@@ -715,31 +723,9 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
             if raw_local_sys_prompt and str(raw_local_sys_prompt).strip():
                 local_sys_prompt = str(raw_local_sys_prompt).strip()
             
-            combined_prompt = ""
-            for part in [forced_prompt, global_prompt, user_prompt]:
-                if part and str(part).strip():
-                    if combined_prompt:
-                        combined_prompt = f"{combined_prompt}\n\n{part}"
-                    else:
-                        combined_prompt = str(part).strip()
-            if local_sys_prompt:
-                if combined_prompt:
-                    combined_prompt = f"{combined_prompt}\n\n[Chat Specific Instructions]:\n{local_sys_prompt}"
-                else:
-                    combined_prompt = local_sys_prompt
-            if options.get("coding_mode"):
-                if combined_prompt:
-                    combined_prompt = f"{combined_prompt}\n\n{CODING_MODE_SYSTEM_PROMPT}"
-                else:
-                    combined_prompt = CODING_MODE_SYSTEM_PROMPT
-            if options.get("math_steps"):
-                math_steps_prompt = build_math_steps_system_prompt(
-                    normalize_math_steps_config(options.get("math_steps_config"))
-                )
-                combined_prompt = (
-                    f"{combined_prompt}\n\n{math_steps_prompt}" if combined_prompt else math_steps_prompt
-                )
-            
+            combined_prompt = combine_system_prompt_layers(
+                forced_prompt, global_prompt, user_prompt, project_sys_prompt, local_sys_prompt, options
+            )
             options['system_prompt'] = combined_prompt
 
             if _auto_notice_enabled("python") and options.get('enable_python'):
@@ -1180,6 +1166,13 @@ def background_chat_task(job_id, thread_id, model_key, message_id, options, user
                     log_force(f"Skill prompt inject failed: {_skill_exc}")
             elif is_llm_model and not _skills_enabled:
                 log_force("Skill catalog skipped: disabled by prompt bar")
+
+            # Project shared files catalog (list only for tool-capable routes, text excerpts otherwise).
+            if is_llm_model and _project_obj is not None and _auto_notice_enabled("project_files"):
+                _project_files_for_tools, _project_files_tool_enabled = inject_project_files_into_system_prompt(
+                    options, _project_obj, user_id, model_key, batch_mode, gemini_local_python,
+                    _auto_notice_text("project_files"), log_force,
+                )
 
             if (has_audio and not supports_audio_inputs) or (has_video and not supports_video_inputs):
                 pub("error", "This model does not support audio/video inputs. Please remove them and retry.")

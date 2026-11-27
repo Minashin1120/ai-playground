@@ -144,7 +144,9 @@ class OpenAiResponsesDirect(
                         emit(event("python", JSONObject().put("id", id).put("code", codes[id].toString())))
                     }
                     "response.output_item.done" -> data.optJSONObject("item")?.let { item ->
-                        if (item.optString("type") == "function_call" && item.optString("name") == SkillTool.NAME && nextSkillCall == null) {
+                        val fn = item.optString("name")
+                        val supported = fn == SkillTool.NAME || (fn == ProjectFileTool.NAME && request.readProjectFile != null)
+                        if (item.optString("type") == "function_call" && supported && nextSkillCall == null) {
                             nextSkillCall = item
                         } else absorbItem(item)
                     }
@@ -155,7 +157,9 @@ class OpenAiResponsesDirect(
                         val output = response?.optJSONArray("output")
                         if (output != null) {
                             for (index in 0 until output.length()) output.optJSONObject(index)?.let { item ->
-                                if (item.optString("type") == "function_call" && item.optString("name") == SkillTool.NAME && nextSkillCall == null) {
+                                val fn = item.optString("name")
+                                val supported = fn == SkillTool.NAME || (fn == ProjectFileTool.NAME && request.readProjectFile != null)
+                                if (item.optString("type") == "function_call" && supported && nextSkillCall == null) {
                                     nextSkillCall = item
                                 } else absorbItem(item)
                             }
@@ -173,9 +177,18 @@ class OpenAiResponsesDirect(
             if (call == null || responseId.isBlank() || round >= 3) break
             round++
             val callId = call.optString("call_id").ifBlank { call.optString("id") }
+            val callName = call.optString("name")
             val arguments = call.optString("arguments").ifBlank { "{}" }
-            val skillName = runCatching { JSONObject(arguments).optString("name") }.getOrDefault("")
-            val result = SkillTool.execute(skills, skillName)
+            val parsedArgs = runCatching { JSONObject(arguments) }.getOrElse { JSONObject() }
+            val result = when (callName) {
+                SkillTool.NAME -> SkillTool.execute(skills, parsedArgs.optString("name"))
+                ProjectFileTool.NAME -> request.readProjectFile?.invoke(
+                    parsedArgs.optString("name"),
+                    parsedArgs.optInt("offset", 0),
+                    parsedArgs.optInt("limit", ProjectFileTool.DEFAULT_LIMIT),
+                ) ?: "Error: project file reader unavailable"
+                else -> "Error: unsupported tool $callName"
+            }
             activePayload = JSONObject().put("model", request.model)
                 .put("previous_response_id", responseId)
                 .put("input", JSONArray().put(JSONObject().put("type", "function_call_output")
@@ -306,6 +319,7 @@ class OpenAiResponsesDirect(
         }
         val skills = options.optJSONArray("skills")
         if (skills != null && skills.length() > 0) tools.put(SkillTool.openAiResponsesDefinition())
+        if (request.readProjectFile != null) tools.put(ProjectFileTool.openAiResponsesDefinition())
         if (tools.length() > 0) payload.put("tools", tools)
         val effortOption = options.optString("reasoning_effort").lowercase().trim()
         val reasoningRequested = options.flag("enable_thinking") || (effortOption.isNotEmpty() && effortOption != "none")

@@ -300,6 +300,8 @@ def import_account_data():
             existing_thread_sigs = set()
             existing_skill_sigs = set()
             existing_skill_uuids = set()
+            existing_project_sigs = set()
+            existing_project_uuids = {}
             existing_feedback_sigs = set()
             existing_metric_sigs = set()
             existing_trace_sigs = set()
@@ -318,6 +320,15 @@ def import_account_data():
                 for (sig,) in db.session.query(Skill.import_signature).filter(
                         Skill.user_id == current_user.id, Skill.import_signature.isnot(None)).all():
                     existing_skill_sigs.add(sig)
+            if "projects" in categories or "chats" in categories:
+                for proj_id, proj_uuid, proj_sig in db.session.query(
+                    Project.id, Project.uuid, Project.import_signature
+                ).filter(Project.user_id == current_user.id).all():
+                    existing_project_uuids[proj_uuid] = proj_id
+                    if proj_sig:
+                        existing_project_sigs.add(proj_sig)
+                        if proj_sig.startswith("project:"):
+                            existing_project_uuids.setdefault(proj_sig[len("project:"):], proj_id)
             if "files" in categories:
                 for cache in FileCache.query.filter_by(user_id=current_user.id).all():
                     sig = cache.import_signature or ""
@@ -520,6 +531,69 @@ def import_account_data():
                         )
                     counts["files"] += 1
 
+            project_id_map = dict(existing_project_uuids)
+            if "projects" in categories:
+                project_items = data.get("projects") or []
+                if not isinstance(project_items, list) or len(project_items) > 10_000:
+                    raise ValueError("invalid_projects")
+                import uuid as _uuid_proj_import
+                for item in project_items:
+                    if not isinstance(item, dict):
+                        raise ValueError("invalid_projects")
+                    old_uuid = str(item.get("uuid") or "").strip()
+                    proj_sig = f"project:{old_uuid}" if old_uuid else None
+                    if proj_sig and (proj_sig in existing_project_sigs or old_uuid in existing_project_uuids):
+                        duplicates["projects"] += 1
+                        continue
+                    raw_name = str(item.get("name") or "").strip()[:PROJECT_NAME_MAX_CHARS] or "Project"
+                    candidate_name = raw_name
+                    suffix = 2
+                    while _project_name_conflict(candidate_name, current_user.id):
+                        candidate_name = f"{raw_name[:PROJECT_NAME_MAX_CHARS - 8]} ({suffix})"
+                        suffix += 1
+                    raw_vm = str(item.get("vision_model") or "").strip()
+                    vm_val = raw_vm if raw_vm in ALL_VALID_MODEL_IDS else None
+                    new_proj = Project(
+                        uuid=str(_uuid_proj_import.uuid4()),
+                        user_id=current_user.id,
+                        name=candidate_name,
+                        description=str(item.get("description") or "").strip()[:PROJECT_DESCRIPTION_MAX_CHARS],
+                        instruction=str(item.get("instruction") or "")[:PROJECT_INSTRUCTION_MAX_CHARS],
+                        use_vision_for_images=bool(item.get("use_vision_for_images", False)),
+                        vision_model=vm_val,
+                        created_at=_parse_portable_datetime(item.get("created_at")) or datetime.utcnow(),
+                        updated_at=_parse_portable_datetime(item.get("updated_at")) or datetime.utcnow(),
+                        import_signature=proj_sig,
+                    )
+                    db.session.add(new_proj)
+                    db.session.flush()
+                    if old_uuid:
+                        project_id_map[old_uuid] = new_proj.id
+                    if proj_sig:
+                        existing_project_sigs.add(proj_sig)
+                    seen_pf_paths = set()
+                    for pf_item in (item.get("files") or [])[:PROJECT_MAX_FILES]:
+                        if not isinstance(pf_item, dict):
+                            continue
+                        old_rel = _normalize_upload_ref(pf_item.get("rel_path"))
+                        if not old_rel:
+                            continue
+                        mapped_rel = file_map.get(old_rel)
+                        if not mapped_rel and old_rel.startswith(f"{current_user.id}/") and _get_file_disk_info(old_rel).get("exists"):
+                            mapped_rel = old_rel
+                        if not mapped_rel or mapped_rel in seen_pf_paths:
+                            continue
+                        seen_pf_paths.add(mapped_rel)
+                        db.session.add(ProjectFile(
+                            project_id=new_proj.id,
+                            user_id=current_user.id,
+                            rel_path=mapped_rel,
+                            display_name=str(pf_item.get("display_name") or os.path.basename(mapped_rel))[:255],
+                            note=str(pf_item.get("note") or "").strip()[:PROJECT_FILE_NOTE_MAX_CHARS] or None,
+                            created_at=_parse_portable_datetime(pf_item.get("created_at")) or datetime.utcnow(),
+                        ))
+                    counts["projects"] += 1
+
             if "chats" in categories:
                 chat_items = data.get("chats") or []
                 if not isinstance(chat_items, list) or len(chat_items) > 100_000:
@@ -554,6 +628,8 @@ def import_account_data():
                         is_temporary=False,
                         custom_instruction=_safe_account_import_text(item.get("custom_instruction"), 500_000) if item.get("custom_instruction") else None,
                         include_global_instruction=bool(item.get("include_global_instruction", True)),
+                        project_id=project_id_map.get(str(item.get("project_uuid") or "").strip()),
+                        include_project_instruction=bool(item.get("include_project_instruction", True)),
                         last_model=item.get("last_model") if item.get("last_model") in ALL_VALID_MODEL_IDS else None,
                         last_skill_uuid=skill_uuid_map.get(str(item.get("last_skill_uuid") or item.get("last_gem_uuid") or "")),
                         enable_prompt_caching=bool(item.get("enable_prompt_caching")),

@@ -14,6 +14,8 @@ def background_stream_claude(local):
 
     _ensure_mcp_env = local.get('_ensure_mcp_env')
     _execute_skill_tool = local.get('_execute_skill_tool')
+    _execute_project_file_tool = local.get('_execute_project_file_tool')
+    _project_files_tool_enabled = local.get('_project_files_tool_enabled')
     _load_message_history_images = local.get('_load_message_history_images')
     _mark_provider_request_started = local.get('_mark_provider_request_started')
     _skills_tool_enabled = local.get('_skills_tool_enabled')
@@ -125,7 +127,10 @@ def background_stream_claude(local):
         claude_skill_tools = (
             [build_skill_tool_anthropic()] if _skills_tool_enabled else []
         )
-        claude_tools = list(claude_mcp_tools) + claude_skill_tools
+        claude_project_tools = (
+            [build_project_file_tool_anthropic()] if _project_files_tool_enabled else []
+        )
+        claude_tools = list(claude_mcp_tools) + claude_skill_tools + claude_project_tools
         if claude_tools:
             claude_kwargs["tools"] = claude_tools
             log_force(
@@ -204,6 +209,24 @@ def background_stream_claude(local):
                         tool_result_blocks.append({
                             "type": "tool_result", "tool_use_id": tu_id,
                             "content": f"Error executing skill tool: {_te}",
+                            "is_error": True,
+                        })
+                    continue
+                if tu_name == PROJECT_FILE_TOOL_NAME and _project_files_tool_enabled:
+                    try:
+                        _pf_text = _execute_project_file_tool(
+                            str(_args_in.get("name") or ""),
+                            offset=_args_in.get("offset", 0),
+                            limit=_args_in.get("limit", PROJECT_FILE_READ_DEFAULT_LIMIT),
+                        )
+                        tool_result_blocks.append({
+                            "type": "tool_result", "tool_use_id": tu_id,
+                            "content": _pf_text or "Tool executed.",
+                        })
+                    except Exception as _te:
+                        tool_result_blocks.append({
+                            "type": "tool_result", "tool_use_id": tu_id,
+                            "content": f"Error executing read_project_file: {_te}",
                             "is_error": True,
                         })
                     continue

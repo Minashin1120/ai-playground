@@ -27,6 +27,8 @@ data class DirectRequest(
     val maskImage: DirectAttachment? = null,
     /** Saves a streamed output before exposing its reference in the live answer. */
     val saveOutput: ((DirectOutputFile) -> String)? = null,
+    /** On-demand project shared file reader (`read_project_file`), null when the chat has no project files. */
+    val readProjectFile: (suspend (name: String, offset: Int, limit: Int) -> String)? = null,
 )
 
 /** A file the model produced (generated image or audio), saved by the caller. */

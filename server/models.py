@@ -111,6 +111,7 @@ class User(UserMixin, db.Model):
     server_diagnostic_log_retention_hours = db.Column(db.Integer, default=1)
     threads = db.relationship('Thread', backref='user', lazy=True, cascade="all, delete-orphan")
     skills = db.relationship('Skill', backref='user', lazy=True, cascade="all, delete-orphan")
+    projects = db.relationship('Project', backref='user', lazy=True, cascade="all, delete-orphan")
     sessions = db.relationship('UserSession', backref='user', lazy=True, cascade="all, delete-orphan")
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
@@ -153,6 +154,8 @@ class Thread(db.Model):
     is_temporary = db.Column(db.Boolean, default=False)
     custom_instruction = db.Column(db.Text, nullable=True)
     include_global_instruction = db.Column(db.Boolean, default=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id', ondelete='SET NULL'), nullable=True, index=True)
+    include_project_instruction = db.Column(db.Boolean, default=True)
     last_model = db.Column(db.String(64), nullable=True)
     last_skill_uuid = db.Column(db.String(36), nullable=True)
     enable_prompt_caching = db.Column(db.Boolean, default=False)
@@ -264,6 +267,37 @@ class Skill(db.Model):
     # Source identity of the imported skill (e.g. "skill:<source-uuid>") so repeat
     # imports of the same skill can be detected.
     import_signature = db.Column(db.String(64), nullable=True, index=True)
+
+
+class Project(db.Model):
+    __tablename__ = 'project'
+    id = db.Column(db.Integer, primary_key=True)
+    uuid = db.Column(db.String(36), unique=True, index=True, nullable=False, default=lambda: str(__import__("uuid").uuid4()))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    instruction = db.Column(db.Text, default="")
+    use_vision_for_images = db.Column(db.Boolean, default=False)
+    vision_model = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    import_signature = db.Column(db.String(64), nullable=True, index=True)
+    files = db.relationship('ProjectFile', backref='project', lazy=True, cascade="all, delete-orphan")
+    threads = db.relationship('Thread', backref='project', lazy=True, passive_deletes=True)
+
+
+class ProjectFile(db.Model):
+    __tablename__ = 'project_file'
+    __table_args__ = (
+        db.UniqueConstraint('project_id', 'rel_path', name='uq_project_file_path'),
+    )
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    rel_path = db.Column(db.String(512), nullable=False)
+    display_name = db.Column(db.String(255), nullable=True)
+    note = db.Column(db.String(300), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 def _new_feedback_public_id():
     """Random identifier shown to people and used for the feedback's directory (12 lowercase hex characters)."""

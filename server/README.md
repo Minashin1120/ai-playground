@@ -38,6 +38,7 @@
 | `request_security_notices.py` | 自動注入システムプロンプト（ユーザー単位）の案内文の既定値・一覧・ユーザー設定の読み書き・プレビュー、現在時刻の案内、送信時の補助情報（添付名・引用元・保存済みプロンプト）の再利用 | 案内文の追加・変更、既定値、設定画面のプレビュー |
 | `request_security.py` | リクエストフック（クライアントトークン・レスポンスキャッシュ・gzip・メンテナンス・BAN・セッション）と、Bot検知・Turnstile・連投ロック | リクエストフック、Bot対策、キャッシュヘッダー |
 | `skills.py` | Skillカタログ（名前・短い説明・指示全文の同梱）、`use_skill` の各プロバイダ向けツール定義と実行、経路ごとのツール可否 | Skillのプロンプト注入・ツール呼び出しを変更するとき |
+| `projects.py` | プロジェクトの解決・共有ファイルカタログ・`read_project_file` の各プロバイダ向けツール定義と実行（テキスト/PDF/DOCX/XLSX のチャンク読込、画像ファイルのプロジェクト単位 Vision ON/OFF 制御） | プロジェクトのプロンプト注入・共有ファイルツールを変更するとき |
 | `token_estimation.py` | 入力欄の本文・引用・添付を公式APIで計測、短時間キャッシュ、概算への切替、詳細の増分内訳 | 入力見積の精度・計測APIを変更するとき |
 | `token_utils.py` | レート制限、アカウント単位の認証失敗制限（Web・Android共通）とTOTPコードの再利用防止、モデル別トークン計測、Thinking集計、チャットエラー整形 | トークン数、レート制限、ログイン・2FAの総当たり対策、Botスコア評価 |
 | `model_usage.py` | モデルAPI呼び出しごとの数値使用量、累積usageの統合、Thinking・同期メタデータの正規化 | 費用予想の呼び出し記録とトークン集計を変更するとき |
@@ -103,6 +104,7 @@
 | `routes_settings_ai.py` | AI 設定プロンプト（`/api/settings/apply-ai-prompt`）、設定アシスタントのツール定義とLLM呼び出し | 自然言語での設定変更 |
 | `routes_settings_security.py` | セッション一覧・失効（`/api/sessions*`）、2FA（TOTP）設定、WebAuthn（パスキー）の登録・削除 | セッション・2FA・パスキー |
 | `routes_settings_skills.py` | Skill（`/api/skills` と互換 `/api/gems`）の一覧・作成・更新・削除、メンテナンス切替 | Skill、メンテナンス |
+| `routes_projects.py` | プロジェクト（`/api/projects*`）の一覧・作成・詳細・更新・削除、プロジェクト内スレッド一覧、共有ファイルの追加・メモ更新・解除・オンデマンド読込（`/files/read`） | プロジェクトのREST API・共有ファイル管理を変更するとき |
 | `routes_media.py` | TTS / STT / STS（音声合成・文字起こし・音声間変換） | 音声合成・文字起こし |
 | `routes_media_upload.py` | `/upload`（通常・分割の開始／チャンク／完了）とアップロードサイズ超過（413）の処理 | 添付アップロード API |
 | `routes_media_storage.py` | 容量 API（`/api/storage`）、最初のトークンまでの遅延計測（`/api/metrics/first_token`）、クライアントログ（`/api/client_log`） | 容量表示・遅延計測・端末ログ受信 |

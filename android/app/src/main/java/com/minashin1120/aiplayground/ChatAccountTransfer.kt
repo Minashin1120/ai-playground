@@ -18,6 +18,7 @@ internal class ChatAccountTransfer(
     private val notify: (String) -> Unit,
     private val reloadThreads: (onDone: () -> Unit) -> Unit,
     private val reloadSkills: (onDone: () -> Unit) -> Unit,
+    private val reloadProjects: (onDone: () -> Unit) -> Unit = { it() },
     private val loadStorageUsage: () -> Unit,
     private val loadPreferences: () -> Unit,
 ) {
@@ -29,6 +30,7 @@ internal class ChatAccountTransfer(
         AccountTransferController(scope, ::api, resolver, notify) { categories ->
             if ("chats" in categories) reloadThreads {}
             if ("skills" in categories) reloadSkills {}
+            if ("projects" in categories) reloadProjects {}
             if ("files" in categories) loadStorageUsage()
             if ("settings" in categories || "api_credentials" in categories) loadPreferences()
         }

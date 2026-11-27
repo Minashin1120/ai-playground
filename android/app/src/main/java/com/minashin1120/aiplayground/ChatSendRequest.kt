@@ -104,6 +104,7 @@ internal object ChatSendRequest {
             current.leafId?.let { body.put("parent_id", it) }
         }
         current.selected?.let { body.put("thread_id", it.id) }
+            ?: current.activeProjectId?.takeIf { it.isNotBlank() }?.let { body.put("project_id", it) }
         return Result.Ready(body)
     }
 }

@@ -77,6 +77,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val batch get() = graph.batch
     private val mathSteps get() = graph.mathSteps
     private val skills get() = graph.skills
+    private val projects get() = graph.projects
     private val messageLoader get() = graph.messageLoader
     private val profiles get() = graph.profiles
     private val foreground get() = graph.foreground
@@ -402,8 +403,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun saveThreadSettings(title: String, instruction: String, includeGlobal: Boolean, temporary: Boolean) =
         threadActions.saveThreadSettings(title, instruction, includeGlobal, temporary)
 
-    fun saveChatInstructions(instruction: String, includeGlobal: Boolean, userPrompt: JSONObject, onDone: (Boolean) -> Unit) =
-        threadActions.saveChatInstructions(instruction, includeGlobal, userPrompt, onDone)
+    fun saveChatInstructions(
+        instruction: String,
+        includeGlobal: Boolean,
+        userPrompt: JSONObject,
+        includeProject: Boolean = state.value.includeProjectInstruction,
+        projectId: String? = state.value.selected?.projectId,
+        onDone: (Boolean) -> Unit,
+    ) = threadActions.saveChatInstructions(instruction, includeGlobal, userPrompt, includeProject, projectId, onDone)
 
     fun requestSettings(tab: String? = null, card: String? = null) {
         mutable.update { it.copy(settingsRequest = it.settingsRequest + 1, settingsRequestTab = tab, settingsRequestCard = card) }
@@ -623,6 +630,37 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteSkill(skill: Skill) = skills.delete(skill)
     fun chooseSkill(skill: Skill?) = skills.choose(skill)
     fun applySkillMention(skill: Skill) = skills.applyMention(skill)
+
+    // region: Projects ([ChatProjects])
+
+    internal suspend fun fetchProjects() = projects.fetch()
+    fun loadProjects() = projects.load()
+    fun reloadProjects(onDone: () -> Unit) = projects.reload(onDone)
+    fun openProjectView(uuid: String) = projects.openView(uuid)
+    fun closeProjectView(keepContext: Boolean = false) = projects.closeView(keepContext)
+    fun startNewChatInProject(project: ProjectItem) = projects.startNewChatInProject(project)
+    fun saveProject(
+        uuid: String?,
+        name: String,
+        description: String,
+        instruction: String,
+        useVisionForImages: Boolean,
+        visionModel: String?,
+        onDone: (Boolean) -> Unit,
+    ) = projects.save(uuid, name, description, instruction, useVisionForImages, visionModel, onDone)
+    fun updateProjectVisionSettings(uuid: String, useVisionForImages: Boolean, visionModel: String?) =
+        projects.updateVisionSettings(uuid, useVisionForImages, visionModel)
+    fun deleteProject(project: ProjectItem) = projects.delete(project)
+    fun searchProjectThreads(query: String) = projects.searchProjectThreads(query)
+    fun loadMoreProjectThreads() = projects.loadMoreProjectThreads()
+    fun addProjectFilesFromLibrary(uuid: String, filepaths: List<String>, onDone: (Boolean) -> Unit = {}) =
+        projects.addFilesFromLibrary(uuid, filepaths, onDone)
+    fun uploadProjectFiles(uuid: String, uris: List<Uri>) = projects.uploadFiles(uuid, uris)
+    fun updateProjectFileNote(uuid: String, fileId: Int, note: String, onDone: (Boolean) -> Unit = {}) =
+        projects.updateFileNote(uuid, fileId, note, onDone)
+    fun removeProjectFile(uuid: String, fileId: Int) = projects.removeFile(uuid, fileId)
+    fun moveThreadToProject(thread: ThreadItem, projectUuid: String?, onDone: (Boolean) -> Unit = {}) =
+        projects.moveThread(thread, projectUuid, onDone)
 
     // region: General preferences and this device's session
 

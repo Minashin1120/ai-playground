@@ -76,7 +76,13 @@ private fun LibraryFile.extName(): String = ext.ifBlank { displayName.substringA
 
 /** `#lib-modal` (ファイルライブラリ): search, order, favorites filter, multi-select actions and the file grid. */
 @Composable
-internal fun LibraryDialog(state: ChatState, model: ChatViewModel, onOpenFile: (FileViewRequest) -> Unit, onDismiss: () -> Unit) {
+internal fun LibraryDialog(
+    state: ChatState,
+    model: ChatViewModel,
+    onOpenFile: (FileViewRequest) -> Unit,
+    onDismiss: () -> Unit,
+    onCustomAttach: ((List<LibraryFile>) -> Unit)? = null,
+) {
     val web = LocalWebPalette.current
     val context = LocalContext.current
     val loader: FileBytesLoader = { reference, thumbnail, limit -> model.loadAttachmentBytes(reference, thumbnail, limit) }
@@ -141,7 +147,8 @@ internal fun LibraryDialog(state: ChatState, model: ChatViewModel, onOpenFile: (
             LibraryToolbar(
                 state, phone, selectedCount = selected.size,
                 onAttach = {
-                    model.attachLibraryFiles(chosen)
+                    if (onCustomAttach != null) onCustomAttach(chosen)
+                    else model.attachLibraryFiles(chosen)
                     selected.clear()
                     onDismiss()
                 },

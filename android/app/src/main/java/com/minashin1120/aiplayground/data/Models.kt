@@ -13,6 +13,8 @@ data class ThreadItem(
     val model: String,
     val isBookmarked: Boolean = false,
     val isTemporary: Boolean = false,
+    val projectId: String? = null,
+    val projectName: String = "",
 )
 data class ChatMessage(val id: String, val role: String, val content: String,
                        val thought: String = "", val files: List<String> = emptyList(),
@@ -131,6 +133,31 @@ data class Skill(
     val name: String,
     val description: String,
     val instruction: String,
+)
+
+data class ProjectFileItem(
+    val id: Int,
+    val filepath: String,
+    val filename: String,
+    val note: String = "",
+    val mime: String = "",
+    val isImage: Boolean = false,
+    val size: Long = 0L,
+    val url: String = "",
+    val thumbnailUrl: String = "",
+)
+
+data class ProjectItem(
+    val uuid: String,
+    val name: String,
+    val description: String = "",
+    val instruction: String = "",
+    val useVisionForImages: Boolean = false,
+    val visionModel: String = "",
+    val effectiveVisionModel: String = "",
+    val fileCount: Int = 0,
+    val threadCount: Int = 0,
+    val files: List<ProjectFileItem> = emptyList(),
 )
 
 data class Preferences(
@@ -443,6 +470,7 @@ val AUTO_SYSTEM_PROMPT_ITEMS = listOf(
     Triple("image_analysis", "画像解析（Vision Model指示文）", ""),
     Triple("mcp", "MCP（外部ツール接続）", "利用可能変数: {{mcp_tools}}（接続中のMCPツール一覧が入ります）"),
     Triple("skills", "Skills（保存した指示の利用）", "利用可能変数: {{skills}} / {{skill_count}}"),
+    Triple("project_files", "プロジェクト共有ファイル（参照案内）", "利用可能変数: {{project_name}} / {{project_files}} / {{project_file_count}}"),
 )
 
 fun parseAutoSystemPrompts(json: JSONObject): List<AutoSystemPrompt> = AUTO_SYSTEM_PROMPT_ITEMS.map { (key, label, hint) ->
@@ -558,6 +586,41 @@ fun parseSkills(rows: JSONArray): List<Skill> = (0 until rows.length()).map { in
     )
 }
 
+fun parseProjectFile(row: JSONObject): ProjectFileItem = ProjectFileItem(
+    id = row.optInt("id"),
+    filepath = row.nullableString("filepath"),
+    filename = row.nullableString("filename").ifBlank { row.nullableString("original_filename") },
+    note = row.nullableString("note"),
+    mime = row.nullableString("mime"),
+    isImage = row.optBoolean("is_image") || row.nullableString("type") == "image",
+    size = row.optLong("size", 0L),
+    url = row.nullableString("url"),
+    thumbnailUrl = row.nullableString("thumbnail_url"),
+)
+
+fun parseProject(row: JSONObject): ProjectItem {
+    val fileArray = row.optJSONArray("files")
+    val files = if (fileArray != null) {
+        (0 until fileArray.length()).mapNotNull { i -> fileArray.optJSONObject(i)?.let(::parseProjectFile) }
+    } else emptyList()
+    return ProjectItem(
+        uuid = row.nullableString("uuid"),
+        name = row.nullableString("name").ifBlank { "Project" },
+        description = row.nullableString("description"),
+        instruction = row.nullableString("instruction"),
+        useVisionForImages = row.optBoolean("use_vision_for_images", false),
+        visionModel = row.nullableString("vision_model"),
+        effectiveVisionModel = row.nullableString("effective_vision_model"),
+        fileCount = row.optInt("file_count", files.size),
+        threadCount = row.optInt("thread_count", 0),
+        files = files,
+    )
+}
+
+fun parseProjects(rows: JSONArray): List<ProjectItem> = (0 until rows.length()).mapNotNull { index ->
+    rows.optJSONObject(index)?.let(::parseProject)
+}
+
 /** Web: the Skill candidates show while the whole (trimmed) input starts with `@`; the rest is the filter. */
 fun skillMentionQuery(text: String): String? = text.trim().takeIf { it.startsWith("@") }?.substring(1)
 
@@ -637,6 +700,8 @@ fun parseThreadItem(row: JSONObject): ThreadItem = ThreadItem(
     model = row.nullableString("last_model"),
     isBookmarked = row.optBoolean("is_bookmarked"),
     isTemporary = row.optBoolean("is_temporary"),
+    projectId = row.nullableString("project_id").ifBlank { null },
+    projectName = row.nullableString("project_name"),
 )
 fun parseModels(json: JSONObject): List<ModelInfo> {
     val rows = json.optJSONArray("models")

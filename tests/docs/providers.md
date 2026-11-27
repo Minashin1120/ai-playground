@@ -28,6 +28,7 @@
 | [test_prompt_cache_clear.py](../test_prompt_cache_clear.py) | prompt / cache / clear |
 | [test_provider_token_estimation.py](../test_provider_token_estimation.py) | 事業者の入力計測APIと概算への切替 |
 | [test_skills_prompt_tool_regressions.py](../test_skills_prompt_tool_regressions.py) | Skillカタログ注入、プロンプトバーのSkillsスイッチ（`enable_skills`）、`use_skill` のプロバイダ別ツール |
+| [test_projects_prompt_tool_regressions.py](../test_projects_prompt_tool_regressions.py) | Projectプロンプト注入・共有ファイル一覧・read_project_fileツール・Vision設定 |
 | [test_user_system_prompt_sync_regressions.py](../test_user_system_prompt_sync_regressions.py) | user / system / prompt / sync |
 | [test_xai_batch_regressions.py](../test_xai_batch_regressions.py) | xai / batch |
 | [test_xai_model_coverage.py](../test_xai_model_coverage.py) | xai / model / coverage |

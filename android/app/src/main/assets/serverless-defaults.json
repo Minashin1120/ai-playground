@@ -50,6 +50,11 @@
    "label": "Search補助 (OpenAI/xAI Responses)",
    "text": "You can access external links via the web_search tool. If a URL cannot be accessed, say so clearly."
   },
+  "project_files": {
+   "enabled": true,
+   "label": "プロジェクト共有ファイル (参照案内)",
+   "text": "This chat belongs to the project \"{{project_name}}\", which has shared reference files listed below.\nCall read_project_file(name, offset, limit) with the exact file name when the user asks about a file or when a listed file appears relevant to answering the request. Load only the files you need; for long files, pass offset to read further chunks. Never invent a file that is not listed. When file contents are already included below, read them directly without calling a tool.\n\nProject shared files:\n{{project_files}}"
+  },
   "python": {
    "enabled": true,
    "label": "Python",

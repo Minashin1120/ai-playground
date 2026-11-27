@@ -1147,3 +1147,39 @@ def ensure_batch_job_columns():
                     conn.rollback()
     except Exception:
         pass
+
+
+def ensure_project_schema():
+    """Ensure Project / ProjectFile tables and Thread project columns exist (SQLite + MySQL)."""
+    try:
+        with db.engine.begin() as conn:
+            insp = inspect(conn)
+            tables = set(insp.get_table_names())
+            is_mysql = db.engine.dialect.name in ('mysql', 'mariadb')
+            if 'thread' in tables:
+                t_cols = {c['name'] for c in insp.get_columns('thread')}
+                if 'project_id' not in t_cols:
+                    if is_mysql:
+                        conn.execute(text("SET SESSION lock_wait_timeout=5"))
+                    conn.execute(text("ALTER TABLE thread ADD COLUMN project_id INTEGER NULL"))
+                if 'include_project_instruction' not in t_cols:
+                    if is_mysql:
+                        conn.execute(text("SET SESSION lock_wait_timeout=5"))
+                    conn.execute(text("ALTER TABLE thread ADD COLUMN include_project_instruction BOOLEAN DEFAULT 1"))
+            if 'project' in tables:
+                p_cols = {c['name'] for c in insp.get_columns('project')}
+                if 'use_vision_for_images' not in p_cols:
+                    if is_mysql:
+                        conn.execute(text("SET SESSION lock_wait_timeout=5"))
+                    conn.execute(text("ALTER TABLE project ADD COLUMN use_vision_for_images BOOLEAN DEFAULT 0"))
+                if 'vision_model' not in p_cols:
+                    if is_mysql:
+                        conn.execute(text("SET SESSION lock_wait_timeout=5"))
+                    conn.execute(text("ALTER TABLE project ADD COLUMN vision_model VARCHAR(64) NULL"))
+    except Exception as exc:
+        logger.warning("ensure_project_schema warning: %s", exc)
+    ensure_db_index(
+        "thread",
+        "idx_thread_project_id",
+        "CREATE INDEX idx_thread_project_id ON thread (user_id, project_id, updated_at)"
+    )

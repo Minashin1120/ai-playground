@@ -166,11 +166,17 @@ internal class ChatSubmissionRunner(
                     quote = body.optString("quote_text"), skillName = it.selectedSkill?.name.orEmpty(),
                     promptOptions = com.minashin1120.aiplayground.data.promptOptionsRecord(body))) }
                 if (id.isBlank()) {
-                    val created = answerBackend.post("/api/threads", JSONObject().put("is_temporary", answer.snapshot.value.newThreadTemporary), answerToken)
+                    val createPayload = JSONObject().put("is_temporary", answer.snapshot.value.newThreadTemporary)
+                    val projectId = body.optString("project_id").takeIf { !body.isNull("project_id") && it.isNotBlank() && it != "null" }
+                        ?: answer.snapshot.value.activeProjectId?.takeIf { it.isNotBlank() }
+                    if (projectId != null) createPayload.put("project_id", projectId)
+                    val created = answerBackend.post("/api/threads", createPayload, answerToken)
                     id = created.get("id").toString()
                     body.put("thread_id", id)
                     updateAnswer(answer) { it.copy(selected = ThreadItem(id, created.nullableString("title"), it.model,
-                        isTemporary = created.optBoolean("is_temporary")), newThreadTemporary = false) }
+                        isTemporary = created.optBoolean("is_temporary"),
+                        projectId = projectId,
+                        projectName = if (projectId != null) it.activeProjectName else ""), newThreadTemporary = false) }
                     answer.bind(id)
                     if (answer.matches(state.value)) syncHeartbeat()
                 }

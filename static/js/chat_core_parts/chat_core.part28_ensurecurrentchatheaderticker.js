@@ -156,6 +156,11 @@
             } else if (activeSkill) {
                 applyActiveSkill(activeSkill);
             }
+            if (!opts.preserveProject && typeof window.closeProjectView === 'function') {
+                window.closeProjectView({ skipHistory: true, keepWelcome: true });
+            } else if (opts.preserveProject && typeof window.setActiveProjectContext === 'function') {
+                window.setActiveProjectContext(opts.projectId || (typeof window.getActiveProjectId === 'function' ? window.getActiveProjectId() : null), opts.projectName || '');
+            }
             loadThreads();
             const defaultModelSequence = threadLoadSequence;
             fetchSettingsSnapshot().then(settings => {
@@ -174,7 +179,10 @@
                     const r = await apiFetch(CHAT_CONFIG.urls.handleThreads, {
                         method:'POST',
                         headers:{'Content-Type':'application/json'},
-                        body: JSON.stringify({ is_temporary: temporaryChatEnabled })
+                        body: JSON.stringify({
+                            is_temporary: temporaryChatEnabled,
+                            project_id: (typeof window.getActiveProjectId === 'function' ? window.getActiveProjectId() : null)
+                        })
                     });
                     const d = await r.json();
                     currentThreadId = d.id !== null && d.id !== undefined ? String(d.id) : d.id;
@@ -236,6 +244,9 @@
                     if (customInstructionEl) customInstructionEl.value = threadSettings.custom_instruction || '';
                     const includeGlobalEl = get('thread-include-global-instruction');
                     if (includeGlobalEl) includeGlobalEl.checked = threadSettings.include_global_instruction !== false;
+                    if (typeof window.syncThreadProjectSettingsModal === 'function') {
+                        window.syncThreadProjectSettingsModal(threadSettings);
+                    }
                 }
             } catch (err) {
                 showToast("チャット設定の読み込みに失敗しました", "error", true);
@@ -262,6 +273,13 @@
             const custom_instruction = customInstructionEl ? customInstructionEl.value : '';
             const includeGlobalEl = get('thread-include-global-instruction');
             const include_global_instruction = includeGlobalEl ? includeGlobalEl.checked : true;
+            const includeProjEl = get('thread-include-project-instruction');
+            const include_project_instruction = includeProjEl ? includeProjEl.checked : true;
+            const projSelEl = get('thread-project-select');
+            const threadSettingsBody = { custom_instruction, include_global_instruction, include_project_instruction };
+            if (projSelEl) {
+                threadSettingsBody.project_id = projSelEl.value || null;
+            }
 
             const globalPromptEl = get('thread-global-sys-prompt');
             const globalEnabledEl = get('thread-global-sys-prompt-enabled');
@@ -290,8 +308,12 @@
                 const res = await apiFetch(`/api/threads/${targetId}/settings`, {
                     method: 'PUT',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ custom_instruction, include_global_instruction })
+                    body: JSON.stringify(threadSettingsBody)
                 });
+                let savedThreadSettings = null;
+                if (res.ok) {
+                    try { savedThreadSettings = await res.clone().json(); } catch (_) {}
+                }
                 sendClientDebugLog('info', "PUT request finished, status: " + res.status);
                 let userResOk = true;
                 if (userPromptPayload) {
@@ -306,6 +328,13 @@
                     sendClientDebugLog('info', "POST request finished, status: " + userRes.status);
                 }
                 if (res.ok && userResOk) {
+                    if (savedThreadSettings && String(currentThreadId || '') === String(targetId)) {
+                        if (typeof window.setActiveProjectContext === 'function') {
+                            window.setActiveProjectContext(savedThreadSettings.project_id || null, savedThreadSettings.project_name || '');
+                        }
+                    }
+                    if (typeof window.loadProjects === 'function') window.loadProjects();
+                    loadThreads();
                     window.closeThreadModal();
                     showToast("保存されました", "success");
                 } else {

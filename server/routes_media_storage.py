@@ -45,6 +45,7 @@ with app.app_context():
     # This column is required by every authenticated User SELECT, so it must not depend on
     # RUN_SCHEMA_MIGRATIONS. Fail startup clearly instead of serving HTTP 500 to all sessions.
     ensure_user_liquid_glass_column()
+    ensure_project_schema()
     try:
         with db.engine.begin() as conn:
             exists = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND TABLE_SCHEMA=DATABASE() AND COLUMN_NAME='prompt_presets'")).fetchone()

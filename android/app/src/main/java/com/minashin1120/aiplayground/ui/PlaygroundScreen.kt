@@ -285,7 +285,9 @@ fun PlaygroundScreen(
             val panelStates = listOf(
                 "model_picker" to overlays.modelPicker, "thread_settings" to overlays.threadSettings, "attach_menu" to overlays.attachMenu,
                 "library" to overlays.libraryOpen, "file_view" to (overlays.viewingFile != null), "skill_editor" to overlays.skillEditorOpen,
-                "skill_delete" to (overlays.skillDeleting != null), "history" to overlays.historyOpen, "branch" to overlays.branchOpen, "alpha" to overlays.alphaOpen,
+                "skill_delete" to (overlays.skillDeleting != null), "project_editor" to overlays.projectEditorOpen,
+                "project_delete" to (overlays.projectDeleting != null), "project_move" to (overlays.movingThreadProject != null),
+                "history" to overlays.historyOpen, "branch" to overlays.branchOpen, "alpha" to overlays.alphaOpen,
                 "legal" to (overlays.legalKind != null), "rename" to (overlays.renaming != null), "delete_thread" to (overlays.deleting != null),
                 "settings" to overlays.settingsOpen, "compression" to overlays.compressionOpen, "changelog" to overlays.changelogOpen,
                 "advanced" to overlays.advancedOpen, "realtime" to overlays.realtimeOpen, "lyria" to overlays.lyriaOpen, "rich_paste" to overlays.richPasteOpen,
@@ -339,6 +341,10 @@ fun PlaygroundScreen(
                 }
             }
             val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { model.upload(it) }
+            val projectFilePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+                val uuid = state.viewingProject?.uuid
+                if (uuid != null && uris.isNotEmpty()) model.uploadProjectFiles(uuid, uris)
+            }
             // Web recording mic: record, then transcribe with the STT API or the current LLM.
             val recordPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
                 if (granted) model.toggleMicRecording() else model.notify("Microphone access denied or not available.")
@@ -510,6 +516,12 @@ fun PlaygroundScreen(
                     overlays.deleting = null
                     overlays.renaming = null
                     overlays.skillDeleting = null
+                    overlays.projectEditorOpen = false
+                    overlays.projectEditing = null
+                    overlays.projectDeleting = null
+                    overlays.movingThreadProject = null
+                    overlays.projectLibraryAttachUuid = null
+                    overlays.projectFileNoteEditing = null
                     overlays.modelPicker = false
                     overlays.threadSettings = false
                     overlays.attachMenu = false
@@ -532,9 +544,10 @@ fun PlaygroundScreen(
                 }
             }
             val hasOverlay = overlays.modelPicker || overlays.threadSettings || overlays.attachMenu || overlays.libraryOpen || overlays.viewingFile != null ||
-                overlays.skillEditorOpen || overlays.historyOpen || overlays.branchOpen || overlays.alphaOpen || overlays.legalKind != null ||
+                overlays.skillEditorOpen || overlays.projectEditorOpen || overlays.movingThreadProject != null || overlays.projectFileNoteEditing != null ||
+                overlays.historyOpen || overlays.branchOpen || overlays.alphaOpen || overlays.legalKind != null ||
                 overlays.settingsOpen || overlays.changelogOpen || overlays.advancedOpen || overlays.realtimeOpen || overlays.lyriaOpen || overlays.richPasteOpen || overlays.markerTarget != null || overlays.visionPicker || overlays.compressionOpen
-            BackHandler(enabled = hasOverlay || (!wide && drawer.currentValue == DrawerValue.Open) || state.canGoBackInChats) {
+            BackHandler(enabled = hasOverlay || state.viewingProject != null || (!wide && drawer.currentValue == DrawerValue.Open) || state.canGoBackInChats) {
                 when {
                     overlays.markerTarget != null -> overlays.markerTarget = null
                     overlays.visionPicker -> overlays.visionPicker = false
@@ -549,12 +562,16 @@ fun PlaygroundScreen(
                     overlays.lyriaOpen -> overlays.lyriaOpen = false
                     overlays.richPasteOpen -> overlays.richPasteOpen = false
                     overlays.viewingFile != null -> overlays.viewingFile = null
-                    overlays.libraryOpen -> overlays.libraryOpen = false
+                    overlays.libraryOpen -> { overlays.libraryOpen = false; overlays.projectLibraryAttachUuid = null }
                     overlays.skillEditorOpen -> overlays.skillEditorOpen = false
+                    overlays.projectEditorOpen -> overlays.projectEditorOpen = false
+                    overlays.movingThreadProject != null -> overlays.movingThreadProject = null
+                    overlays.projectFileNoteEditing != null -> overlays.projectFileNoteEditing = null
                     overlays.alphaOpen -> overlays.alphaOpen = false
                     overlays.legalKind != null -> overlays.legalKind = null
                     overlays.historyOpen -> overlays.historyOpen = false
                     overlays.branchOpen -> overlays.branchOpen = false
+                    state.viewingProject != null -> model.closeProjectView()
                     !wide && drawer.currentValue == DrawerValue.Open -> closeDrawer()
                     state.canGoBackInChats -> model.goBackInChats()
                 }
@@ -601,6 +618,12 @@ fun PlaygroundScreen(
                 onEditSkill = { skill -> overlays.skillEditing = skill; overlays.skillEditorOpen = true },
                 onDeleteSkill = { overlays.skillDeleting = it },
                 onRefreshSkills = model::reloadSkills,
+                onOpenProject = { project -> model.openProjectView(project.uuid) },
+                onNewProject = { overlays.projectEditing = null; overlays.projectEditorOpen = true },
+                onEditProject = { project -> overlays.projectEditing = project; overlays.projectEditorOpen = true },
+                onDeleteProject = { overlays.projectDeleting = it },
+                onRefreshProjects = model::reloadProjects,
+                onMoveThreadProject = { overlays.movingThreadProject = it },
                 onHelp = { onWeb("/help") },
                 onLegal = { overlays.legalKind = it },
                 onAlphaInfo = { overlays.alphaOpen = true },
@@ -619,7 +642,7 @@ fun PlaygroundScreen(
                             onOpenWeb = { onWeb(webChatPath(state)) })
                     }, snackbarHost = {},
                     bottomBar = {
-                        if (showThreads) CompositionLocalProvider(LocalComposerEstimator provides model::estimatePromptTokens,
+                        if (showThreads && state.viewingProject == null) CompositionLocalProvider(LocalComposerEstimator provides model::estimatePromptTokens,
                             LocalComposerDetailsEstimator provides model::estimatePromptTokenDetails) {
                         Composer(state, model, { overlays.modelPicker = true }, { overlays.attachMenu = true }, launchSpeech,
                             onRichPaste = { overlays.richPasteOpen = true }, onMask = {
@@ -680,21 +703,65 @@ fun PlaygroundScreen(
                                     PlaygroundScreenKind.Starting -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                                     PlaygroundScreenKind.Setup -> SetupScreen(state, model, onWeb)
                                     PlaygroundScreenKind.Auth -> AuthScreen(state, model, onWeb)
-                                    PlaygroundScreenKind.Chat -> ProvideMarkdownCodeActions(codeActions) {
-                                        CompositionLocalProvider(LocalCanvasMode provides state.canvasMode) {
-                                        Conversation(
-                                            state, model, openInApp, loader,
-                                            animationsEnabled = animationsEnabled,
-                                            bottomOverlay = if (edgeToEdgeMinimal) with(LocalDensity.current) { composerHeight.toDp() } else 0.dp,
-                                            onSettingJump = { key ->
-                                                val target = AI_SETTING_JUMP_TARGETS[key]
-                                                if (target?.richPaste == true) overlays.richPasteOpen = true
-                                                else {
-                                                    overlays.settingsTab = SettingsTab.entries.firstOrNull { it.id == target?.tab }?.label ?: "一般"
-                                                    overlays.settingsOpen = true
+                                    PlaygroundScreenKind.Chat -> {
+                                        val viewingProject = state.viewingProject
+                                        if (viewingProject != null) {
+                                            ProjectView(
+                                                state = state,
+                                                model = model,
+                                                project = viewingProject,
+                                                onBack = { model.closeProjectView() },
+                                                onNewChat = { model.startNewChatInProject(viewingProject) },
+                                                onEdit = { overlays.projectEditing = viewingProject; overlays.projectEditorOpen = true },
+                                                onDelete = { overlays.projectDeleting = viewingProject },
+                                                onUploadFiles = {
+                                                    try { projectFilePicker.launch(arrayOf("*/*")) }
+                                                    catch (_: Exception) { model.notify("ファイル選択を開けませんでした。") }
+                                                },
+                                                onAddFromLibrary = {
+                                                    overlays.projectLibraryAttachUuid = viewingProject.uuid
+                                                    overlays.libraryOpen = true
+                                                },
+                                                onEditFileNote = { file -> overlays.projectFileNoteEditing = viewingProject.uuid to file },
+                                                onRemoveFile = { file -> model.removeProjectFile(viewingProject.uuid, file.id) },
+                                                onOpenFile = { file ->
+                                                    val ref = file.url.ifBlank { file.filepath }
+                                                    overlays.viewingFile = FileViewRequest(ref, file.filename, file.filename.substringAfterLast('.', ""), file.mime)
+                                                },
+                                                onOpenThread = { thread -> model.openThread(thread) },
+                                                onRenameThread = { overlays.renaming = it },
+                                                onMoveThread = { overlays.movingThreadProject = it },
+                                                onDeleteThread = { overlays.deleting = it },
+                                            )
+                                        } else {
+                                            Column(Modifier.fillMaxSize()) {
+                                                state.activeProjectId?.takeIf { it.isNotBlank() }?.let { activeUuid ->
+                                                    ProjectChatBanner(
+                                                        projectName = state.activeProjectName,
+                                                        onOpenProject = { model.openProjectView(activeUuid) },
+                                                        onExitProject = { model.newChat() },
+                                                    )
                                                 }
-                                            },
-                                        )
+                                                Box(Modifier.weight(1f).fillMaxWidth()) {
+                                                    ProvideMarkdownCodeActions(codeActions) {
+                                                        CompositionLocalProvider(LocalCanvasMode provides state.canvasMode) {
+                                                        Conversation(
+                                                            state, model, openInApp, loader,
+                                                            animationsEnabled = animationsEnabled,
+                                                            bottomOverlay = if (edgeToEdgeMinimal) with(LocalDensity.current) { composerHeight.toDp() } else 0.dp,
+                                                            onSettingJump = { key ->
+                                                                val target = AI_SETTING_JUMP_TARGETS[key]
+                                                                if (target?.richPaste == true) overlays.richPasteOpen = true
+                                                                else {
+                                                                    overlays.settingsTab = SettingsTab.entries.firstOrNull { it.id == target?.tab }?.label ?: "一般"
+                                                                    overlays.settingsOpen = true
+                                                                }
+                                                            },
+                                                        )
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }

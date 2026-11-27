@@ -449,6 +449,7 @@ internal fun twoFactorCards(state: ChatState, form: SettingsForm, ctx: AccountSe
 
 private val IMPORT_CATEGORIES = listOf(
     "settings" to "設定", "api_credentials" to "APIキー・クラウド認証", "chats" to "チャット履歴", "skills" to "Skill",
+    "projects" to "プロジェクト",
     "files" to "アップロードファイル", "feedback" to "フィードバック", "diagnostics" to "診断メトリクス",
 )
 

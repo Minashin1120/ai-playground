@@ -54,7 +54,13 @@ def _sync_uuid(value):
     return text_value if _SYNC_UUID_RE.fullmatch(text_value) else None
 
 
-def _sync_thread_row(thread, state):
+def _sync_thread_row(thread, state, project_map=None):
+    proj_obj = None
+    if getattr(thread, 'project_id', None):
+        if project_map is not None:
+            proj_obj = project_map.get(thread.project_id)
+        else:
+            proj_obj = Project.query.filter_by(id=thread.project_id, user_id=thread.user_id).first()
     return {
         'id': thread.public_id or str(thread.id),
         'client_uuid': state.client_uuid if state else None,
@@ -63,6 +69,9 @@ def _sync_thread_row(thread, state):
         'is_bookmarked': bool(thread.is_bookmarked),
         'custom_instruction': thread.custom_instruction or '',
         'include_global_instruction': thread.include_global_instruction if thread.include_global_instruction is not None else True,
+        'project_id': proj_obj.uuid if proj_obj else None,
+        'project_name': proj_obj.name if proj_obj else None,
+        'include_project_instruction': thread.include_project_instruction if getattr(thread, 'include_project_instruction', None) is not None else True,
         'last_model': thread.last_model,
         'last_skill_uuid': thread.last_skill_uuid,
         'last_gem_uuid': thread.last_skill_uuid,
@@ -120,8 +129,22 @@ def mobile_sync_changes():
         safe_db_commit()
     except Exception:
         db.session.rollback()
-    return jsonify({'status': 'ok', 'threads': rows, 'tombstones': tombstones, 'has_more': has_more,
-                    'next_cursor': next_cursor, 'server_time_ms': _sync_to_ms(server_time)})
+    projects_payload = None
+    if cursor == 0:
+        user_projects = (
+            Project.query
+            .filter_by(user_id=current_user.id)
+            .order_by(Project.updated_at.desc(), Project.id.desc())
+            .all()
+        )
+        projects_payload = [_project_response(p, current_user, include_files=True) for p in user_projects]
+    resp_body = {
+        'status': 'ok', 'threads': rows, 'tombstones': tombstones, 'has_more': has_more,
+        'next_cursor': next_cursor, 'server_time_ms': _sync_to_ms(server_time),
+    }
+    if projects_payload is not None:
+        resp_body['projects'] = projects_payload
+    return jsonify(resp_body)
 
 
 def _sync_resolve_thread(entry):
@@ -171,6 +194,16 @@ def _sync_apply_meta(thread, state, entry):
         thread.custom_instruction = str(entry.get('custom_instruction') or '')[:100_000]
     if 'include_global_instruction' in entry:
         thread.include_global_instruction = bool(entry.get('include_global_instruction'))
+    if 'include_project_instruction' in entry:
+        thread.include_project_instruction = bool(entry.get('include_project_instruction'))
+    if 'project_id' in entry:
+        raw_proj = str(entry.get('project_id') or '').strip()
+        if not raw_proj:
+            thread.project_id = None
+        else:
+            proj = resolve_project_for_user(raw_proj, current_user.id)
+            if proj:
+                thread.project_id = proj.id
     if 'last_skill_uuid' in entry or 'last_gem_uuid' in entry:
         value = str(entry.get('last_skill_uuid') or entry.get('last_gem_uuid') or '').strip()[:36]
         thread.last_skill_uuid = value or None

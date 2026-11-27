@@ -239,6 +239,18 @@ internal class ChatAttachmentUploader(
         uploadJob?.cancel()
     }
 
+    /** Uploads one URI through the same device/server pipeline and returns its stored reference path. */
+    suspend fun uploadSingleUri(uri: Uri): String {
+        val resolver = context.contentResolver
+        val local = withContext(Dispatchers.IO) { queryLocalAttachment(resolver, uri) }
+        val source = withContext(Dispatchers.IO) {
+            prepareLocalUpload(context, resolver, uri, local, state.value.compression)
+        }
+        return withContext(Dispatchers.IO) {
+            storeLocal(source.name, source.mime, source.size, source.opener)
+        } ?: if (source.size > CHAT_UPLOAD_CHUNK_THRESHOLD_BYTES) uploadInChunks(source) else uploadWhole(source)
+    }
+
     /** Web `uploadMaskFile`: the chosen mask image is uploaded as it is. */
     fun uploadMask(uri: Uri) {
         if (state.value.banned || (state.value.offline && !uploadsLocal())) return

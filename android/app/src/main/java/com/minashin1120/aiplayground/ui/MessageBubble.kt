@@ -295,9 +295,6 @@ internal fun MessageBubble(
                 if (maskImage.isNotBlank()) MaskAttachmentPreview(maskImage, loader, onFile)
                 if (branchCount > 1) VersionSwitcher(branchIndex, branchCount, actions.onSwitchBranch)
                 MessageFooter(message, user, actions, pythonRuns, cost, pricing)
-                if (!user) message.processing?.let { processing ->
-                    ProcessingTimeFooter(processing) { actions.onProcessingTime(processing) }
-                }
               } }
             }
             // `.msg-controls`: absolute, 12px above the bubble's top-right corner.
@@ -609,7 +606,7 @@ private fun VersionSwitcher(index: Int, count: Int, onSwitch: (Int) -> Unit) {
     }
 }
 
-/** `.message-footer-meta`: model • token counts (dotted underline) • lock, 10px monospace, right-aligned. */
+/** `.message-footer-meta` + processing time: right-aligned `FlowRow` that wraps only when needed. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageActions,
@@ -618,7 +615,7 @@ private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageA
                           pricing: com.minashin1120.aiplayground.data.ModelCostEstimator? = null) {
     val web = LocalWebPalette.current
     val color = if (web.isLight) Color(0xFF3F4A5C) else Color(203, 213, 225).copy(alpha = 0.9f)
-    val style = TextStyle(color = color, fontSize = 10.sp, lineHeight = 20.sp, fontFamily = FontFamily.Monospace)
+    val style = TextStyle(color = color, fontSize = 10.sp, lineHeight = 18.sp, fontFamily = FontFamily.Monospace)
     val parts = mutableListOf<@Composable () -> Unit>()
     if (!user && message.model.isNotBlank()) parts += { Text(message.model, style = style) }
     messageTokenLabel(message)?.let { label ->
@@ -665,15 +662,35 @@ private fun MessageFooter(message: ChatMessage, user: Boolean, actions: MessageA
                 style = style.copy(color = Color(0xFFFDE68A), lineHeight = 12.sp))
         }
     }
+    if (!user) {
+        message.processing?.let { processing ->
+            val processingColor = if (web.isLight) Color(0xFF3F4A5C).copy(alpha = 0.8f) else Color(148, 163, 184).copy(alpha = 0.8f)
+            parts += {
+                Text(
+                    "処理時間 ${formatProcessingDuration(processing.totalMs)}",
+                    style = style.copy(color = processingColor),
+                    modifier = Modifier
+                        .dottedUnderline(processingColor)
+                        .clickable(onClickLabel = "回答処理時間の内訳", role = Role.Button) { actions.onProcessingTime(processing) },
+                )
+            }
+        }
+    }
     if (parts.isEmpty()) return
     FlowRow(
         Modifier.fillMaxWidth().padding(top = 8.dp),
-        horizontalArrangement = Arrangement.End,
-        verticalArrangement = Arrangement.Center,
+        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
     ) {
         parts.forEachIndexed { index, part ->
-            Box(Modifier.heightIn(min = 20.dp), contentAlignment = Alignment.Center) { part() }
-            if (index < parts.lastIndex) Text(" • ", style = style)
+            Row(
+                Modifier.heightIn(min = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (index > 0) Text("•", style = style)
+                part()
+            }
         }
     }
 }
@@ -684,24 +701,6 @@ internal fun formatProcessingDuration(ms: Long): String {
     val seconds = ms / 1000.0
     val minutes = (seconds / 60).toInt()
     return String.format(java.util.Locale.US, "%d分%.1f秒", minutes, seconds - minutes * 60)
-}
-
-/** Web `.processing-time-row`: the answer's total processing time under the footer. */
-@Composable
-private fun ProcessingTimeFooter(processing: ProcessingTime, onClick: () -> Unit) {
-    val web = LocalWebPalette.current
-    val color = if (web.isLight) Color(0xFF3F4A5C).copy(alpha = 0.8f) else Color(148, 163, 184).copy(alpha = 0.8f)
-    Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.End) {
-        Text(
-            "処理時間 ${formatProcessingDuration(processing.totalMs)}",
-            color = color,
-            fontSize = 10.sp,
-            lineHeight = 14.sp,
-            fontFamily = FontFamily.Monospace,
-            modifier = Modifier.dottedUnderline(color)
-                .clickable(onClickLabel = "回答処理時間の内訳", role = Role.Button, onClick = onClick),
-        )
-    }
 }
 
 private val PROCESSING_PHASE_LABELS = mapOf(

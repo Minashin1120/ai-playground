@@ -200,8 +200,81 @@ def test_dates_are_from_saved_answer_and_not_wall_clock():
 
 def test_android_and_web_use_identical_official_rate_data():
     assert (ROOT / 'static/model_pricing.json').read_bytes() == (ROOT / 'android/app/src/main/assets/model-pricing.json').read_bytes()
-    assert PRICING['checked_at'] == '2026-11-13'
+    assert PRICING['checked_at'] == '2026-11-28'
     assert all(model['provider'] in PRICING['sources'] for model in PRICING['models'].values())
+
+
+def test_every_catalog_model_is_registered_and_estimates_without_unpriced():
+    part09 = (ROOT / 'static/js/chat_core_parts/chat_core.part09_models.js').read_text(encoding='utf-8')
+    end_idx = part09.index('\n        ];\n')
+    js = part09[:end_idx + 10] + '\nconsole.log(JSON.stringify(MODELS.flatMap(c => (c.items || []).map(m => m.id))));'
+    ids = json.loads(subprocess.run(['node', '-e', js], check=True, capture_output=True, text=True).stdout)
+    assert len(ids) >= 159
+    for mid in ids:
+        key = PRICING['aliases'].get(mid, mid)
+        assert key in PRICING['models'], f'{mid} missing from model_pricing.json'
+        rate = PRICING['models'][key]
+        unit = rate.get('unit', 'token')
+        if unit == 'image':
+            call = {'model': mid, 'images': 1, 'operation': 'generate', 'quality': 'medium', 'resolution': '1k', 'size': '1024x1024', 'complete': True}
+        elif unit == 'video':
+            call = {'model': mid, 'duration_ms': 5000, 'resolution': '720p', 'complete': True}
+        elif unit == 'song':
+            call = {'model': mid, 'songs': 1, 'complete': True}
+        elif unit == 'page':
+            call = {'model': mid, 'pages': 3, 'complete': True}
+        elif unit == 'character':
+            call = {'model': mid, 'characters': 500, 'complete': True}
+        elif unit == 'duration':
+            call = {'model': mid, 'duration_ms': 30000, 'complete': True}
+        else:
+            call = {'model': mid, 'input_tokens': 1000, 'output_tokens': 500, 'images': 1, 'complete': True}
+        cost = estimate([{'id': 2, 'role': 'assistant', 'model': mid, 'content': 'ok', 'thought_data': json.dumps({'pricing_calls': [call]})}])
+        assert cost['priced'] == 1, f'{mid} was unpriced'
+
+
+def test_new_modalities_and_unlisted_models_price_accurately():
+    def call_est(call, date='2026-11-28'):
+        return estimate([{'id': 2, 'role': 'assistant', 'model': call['model'], 'content': 'ok',
+                         'created_at': f'{date}T00:00:00Z',
+                         'thought_data': json.dumps({'pricing_calls': [call]})}])
+
+    # Gemini image token breakdown vs per-image
+    nb21 = call_est({'model': 'gemini-nano-banana-2.1', 'input_tokens': 1000, 'output_tokens': 1220, 'image_output_tokens': 1120, 'images': 1, 'complete': True})
+    assert nb21['low'] == pytest.approx((1000 * 1.5 + 100 * 7.5 + 1120 * 30.0) / 1e6)
+    assert nb21['unpriced'] == 0
+
+    g25 = call_est({'model': 'gemini-2.5-flash-image', 'input_tokens': 1000, 'output_tokens': 1290, 'image_output_tokens': 1290, 'images': 1, 'complete': True})
+    assert g25['low'] == pytest.approx(1000 * 0.3 / 1e6 + 0.039)
+    assert g25['unpriced'] == 0
+
+    # OpenAI GPT Image token-based vs per-image fallback
+    gimg26 = call_est({'model': 'gpt-image-2.6-sunburst', 'input_tokens': 100, 'output_tokens': 1000,
+                       'text_input_tokens': 40, 'image_input_tokens': 60, 'image_output_tokens': 1000, 'images': 1, 'complete': True})
+    assert gimg26['low'] == pytest.approx((40 * 5.0 + 60 * 8.0 + 1000 * 30.0) / 1e6)
+    gimg15 = call_est({'model': 'gpt-image-1.5', 'images': 1, 'quality': 'medium', 'size': '1024x1024', 'complete': True})
+    assert gimg15['low'] == pytest.approx(0.034) and gimg15['high'] == pytest.approx(0.034)
+
+    # Veo 3.1, Grok Imagine Image/Video, Lyria, Mistral OCR, TTS, STT, Live
+    assert call_est({'model': 'veo-3.1-fast-generate-preview', 'duration_ms': 8000, 'resolution': '1080p', 'complete': True})['low'] == pytest.approx(0.96)
+    assert call_est({'model': 'grok-imagine-image-2.0', 'images': 1, 'resolution': '2k', 'quality': 'medium', 'input_images': 1, 'complete': True})['low'] == pytest.approx(0.09)
+    assert call_est({'model': 'grok-imagine-video-1.5', 'duration_ms': 5000, 'resolution': '1080p', 'input_images': 1, 'complete': True})['low'] == pytest.approx(1.26)
+    assert call_est({'model': 'lyria-3.5', 'songs': 1, 'complete': True})['low'] == pytest.approx(0.08)
+    assert call_est({'model': 'mistral-ocr-4-0', 'pages': 10, 'complete': True})['low'] == pytest.approx(0.04)
+    assert call_est({'model': 'google-tts-studio', 'characters': 1000, 'complete': True})['low'] == pytest.approx(0.16)
+    assert call_est({'model': 'grok-tts', 'characters': 2000, 'complete': True})['low'] == pytest.approx(0.03)
+    assert call_est({'model': 'gpt-transcribe', 'duration_ms': 120000, 'complete': True})['low'] == pytest.approx(0.009)
+    assert call_est({'model': 'grok-voice-3.0', 'duration_ms': 60000, 'text_turns': 2, 'complete': True})['low'] == pytest.approx(0.088)
+    assert call_est({'model': 'gpt-5-search-api', 'input_tokens': 1000, 'output_tokens': 100, 'web_search_calls': 1, 'complete': True})['low'] == pytest.approx((1000 * 1.25 + 100 * 10.0) / 1e6 + 0.01)
+
+    # Unlisted OpenAI models show a documented range instead of unpriced or $0
+    m55 = call_est({'model': 'gpt-5.5-mini', 'input_tokens': 1000, 'output_tokens': 500, 'complete': True})
+    assert m55['priced'] == 1 and m55['unpriced'] == 1 and m55['high'] > m55['low'] > 0
+
+    # Grok 4-1 fast switches to 4.3 rates on 2026-05-15 (and uses 200k threshold)
+    assert call_est({'model': 'grok-4-1-fast-reasoning', 'input_tokens': 100000, 'output_tokens': 0, 'complete': True}, date='2026-05-14')['low'] == pytest.approx(0.02)
+    assert call_est({'model': 'grok-4-1-fast-reasoning', 'input_tokens': 100000, 'output_tokens': 0, 'complete': True}, date='2026-05-15')['low'] == pytest.approx(0.125)
+    assert call_est({'model': 'grok-4-1-fast-reasoning', 'input_tokens': 200000, 'output_tokens': 0, 'complete': True}, date='2026-05-15')['low'] == pytest.approx(0.50)
 
 
 def test_jpy_label_converts_usd_ranges_with_the_reference_rate():

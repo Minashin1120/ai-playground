@@ -328,7 +328,9 @@
                             assistant_text: this.assistantTranscript,
                             assistant_thought: this.assistantThought,
                             audio_base64: assistantB64,
-                            user_audio_base64: userB64
+                            user_audio_base64: userB64,
+                            usage_metadata: this.usageMetadata || null,
+                            duration_ms: this.directStartedAt ? Math.max(0, Date.now() - this.directStartedAt) : null
                         })
                     });
                     const data = await resp.json().catch(() => ({}));

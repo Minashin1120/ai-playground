@@ -1,5 +1,5 @@
 {
-  "checked_at": "2026-11-13",
+  "checked_at": "2026-11-28",
   "currency": "USD",
   "sources": {
     "openai": "https://developers.openai.com/api/docs/pricing",
@@ -88,7 +88,10 @@
     "Ideogram 4.0": "ideogram-4.0",
     "Ideogram 3.0": "ideogram-3.0",
     "Ideogram 2a": "ideogram-2a",
-    "Ideogram 2.0": "ideogram-2.0"
+    "Ideogram 2.0": "ideogram-2.0",
+    "deepseek-v4-flash-0731": "deepseek-v4-flash",
+    "gemini-3.1-flash-image-preview": "gemini-3.1-flash-image",
+    "gemini-3-pro-image-preview": "gemini-3-pro-image"
   },
   "models": {
     "gpt-6-astra": {
@@ -1208,7 +1211,1086 @@
           "minimum": 0.03
         }
       }
+    },
+    "gemini-3.8-flash-cyber": {
+      "provider": "google",
+      "input": 1.5,
+      "output": 7.5,
+      "cached_input": 0.15,
+      "batch_multiplier": 0.5,
+      "flex_multiplier": 0.5
+    },
+    "gemini-3.7-flash": {
+      "provider": "google",
+      "input": 0.75,
+      "output": 3.75,
+      "cached_input": 0.075,
+      "batch_multiplier": 0.5,
+      "tool_rates": {
+        "grounding_query": 0.014
+      },
+      "changes": [
+        {
+          "from": "2027-01-01",
+          "input": 1.5,
+          "output": 7.5,
+          "cached_input": 0.15
+        }
+      ]
+    },
+    "gemini-robotics-er-2-preview": {
+      "provider": "google",
+      "input": 1.0,
+      "output": 5.0,
+      "cached_input": 0.1,
+      "batch_multiplier": 0.5,
+      "tool_rates": {
+        "grounding_query": 0.014
+      },
+      "changes": [
+        {
+          "from": "2027-01-01",
+          "input": 2.0,
+          "output": 10.0,
+          "cached_input": 0.2
+        }
+      ]
+    },
+    "gemini-2.5-computer-use-preview-10-2025": {
+      "provider": "google",
+      "input": 1.25,
+      "output": 10.0,
+      "threshold": 200000,
+      "long_input": 2.5,
+      "long_output": 15.0,
+      "batch_multiplier": 0.5,
+      "batch_cached_multiplier": 1,
+      "cached_input": 0.125,
+      "long_cached_input": 0.25,
+      "tool_rates": {
+        "grounding_prompt": 0.035
+      }
+    },
+    "deep-research-preview-04-2026": {
+      "provider": "google",
+      "input": 2.0,
+      "output": 12.0,
+      "cached_input": 0.2,
+      "batch_multiplier": 0.5,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
+    },
+    "deep-research-max-preview-04-2026": {
+      "provider": "google",
+      "input": 2.0,
+      "output": 12.0,
+      "cached_input": 0.2,
+      "batch_multiplier": 0.5,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
+    },
+    "antigravity-preview-05-2026": {
+      "provider": "google",
+      "input": 1.5,
+      "max_input": 2.0,
+      "output": 7.5,
+      "max_output": 10.0,
+      "cached_input": 0.075,
+      "max_cached_input": 0.1,
+      "tool_rates": {
+        "grounding_query": 0.014
+      },
+      "changes": [
+        {
+          "from": "2026-12-01",
+          "max_input": 4.0,
+          "max_output": 20.0,
+          "max_cached_input": 0.2
+        }
+      ]
+    },
+    "gemini-nano-banana-2.1": {
+      "provider": "google",
+      "input": 1.5,
+      "output": 7.5,
+      "image_output": 30.0,
+      "cached_input": 0.15,
+      "batch_multiplier": 0.5,
+      "tool_rates": {
+        "grounding_query": 0.014
+      },
+      "image_per_image": {
+        "1k": 0.0336,
+        "2k": 0.0504,
+        "4k": 0.113
+      }
+    },
+    "gemini-3.1-flash-image": {
+      "provider": "google",
+      "input": 0.5,
+      "output": 3.0,
+      "image_output": 60.0,
+      "batch_multiplier": 0.5,
+      "tool_rates": {
+        "grounding_query": 0.014
+      },
+      "image_per_image": {
+        "0.5k": 0.045,
+        "512": 0.045,
+        "512px": 0.045,
+        "1k": 0.067,
+        "2k": 0.101,
+        "4k": 0.151
+      }
+    },
+    "gemini-3.1-flash-lite-image": {
+      "provider": "google",
+      "input": 0.25,
+      "output": 1.5,
+      "image_output": 30.0,
+      "batch_multiplier": 0.5,
+      "image_per_image": {
+        "default": 0.0336,
+        "1k": 0.0336
+      }
+    },
+    "gemini-3-pro-image": {
+      "provider": "google",
+      "input": 2.0,
+      "output": 12.0,
+      "image_output": 120.0,
+      "batch_multiplier": 0.5,
+      "flex_multiplier": 0.5,
+      "tool_rates": {
+        "grounding_query": 0.014
+      },
+      "image_per_image": {
+        "1k": 0.134,
+        "2k": 0.134,
+        "4k": 0.24
+      }
+    },
+    "gemini-2.5-flash-image": {
+      "provider": "google",
+      "input": 0.3,
+      "output": 2.5,
+      "batch_multiplier": 0.5,
+      "flex_multiplier": 0.5,
+      "image_per_image": {
+        "default": 0.039
+      }
+    },
+    "veo-3.1-generate-preview": {
+      "provider": "google",
+      "unit": "video",
+      "video_rates": {
+        "default": 0.4,
+        "720p": 0.4,
+        "1080p": 0.4,
+        "4k": 0.6
+      },
+      "video_only_rates": {
+        "default": 0.2,
+        "720p": 0.2,
+        "1080p": 0.2,
+        "4k": 0.4
+      }
+    },
+    "veo-3.1-fast-generate-preview": {
+      "provider": "google",
+      "unit": "video",
+      "video_rates": {
+        "default": 0.1,
+        "720p": 0.1,
+        "1080p": 0.12,
+        "4k": 0.3
+      },
+      "video_only_rates": {
+        "default": 0.08,
+        "720p": 0.08,
+        "1080p": 0.1,
+        "4k": 0.25
+      }
+    },
+    "veo-3.1-lite-generate-preview": {
+      "provider": "google",
+      "unit": "video",
+      "video_rates": {
+        "default": 0.05,
+        "720p": 0.05,
+        "1080p": 0.08
+      },
+      "video_only_rates": {
+        "default": 0.03,
+        "720p": 0.03,
+        "1080p": 0.05
+      }
+    },
+    "gemini-omni-1.1-flash": {
+      "provider": "google",
+      "unit": "video",
+      "input": 1.5,
+      "output": 9.0,
+      "video_output": 17.5,
+      "video_rates": {
+        "default": 0.1,
+        "720p": 0.101
+      },
+      "changes": [
+        {
+          "from": "2026-12-03",
+          "video_output": 12.0,
+          "video_rates": {
+            "default": 0.07,
+            "360p": 0.023,
+            "720p": 0.07,
+            "1080p": 0.104,
+            "4k": 0.209
+          }
+        }
+      ]
+    },
+    "gemini-omni-flash": {
+      "provider": "google",
+      "unit": "video",
+      "input": 1.5,
+      "output": 9.0,
+      "video_output": 12.0,
+      "video_rates": {
+        "default": 0.07,
+        "360p": 0.023,
+        "720p": 0.07,
+        "1080p": 0.104,
+        "4k": 0.209
+      }
+    },
+    "lyria-3.5": {
+      "provider": "google",
+      "unit": "song",
+      "song_rate": 0.08
+    },
+    "lyria-3-pro-preview": {
+      "provider": "google",
+      "unit": "song",
+      "song_rate": 0.08
+    },
+    "lyria-3-clip-preview": {
+      "provider": "google",
+      "unit": "song",
+      "song_rate": 0.04
+    },
+    "lyria-realtime-exp": {
+      "provider": "google",
+      "unit": "duration",
+      "duration_rate_per_minute": 0
+    },
+    "gemini-embedding-2": {
+      "provider": "google",
+      "input": 0.2,
+      "output": 0,
+      "batch_multiplier": 0.5,
+      "image_input": 0.45,
+      "audio_input": 6.5,
+      "video_input": 12.0
+    },
+    "gemini-3.5-transcribe": {
+      "provider": "google",
+      "input": 2.0,
+      "audio_input": 2.0,
+      "output": 12.0,
+      "audio_tokens_per_second": 25
+    },
+    "gemini-3.5-transcribe-live": {
+      "provider": "google",
+      "input": 3.5,
+      "audio_input": 3.5,
+      "output": 21.0,
+      "audio_tokens_per_second": 25
+    },
+    "gemini-3.8-flash-tts": {
+      "provider": "google",
+      "input": 0.5,
+      "output": 9.0,
+      "audio_output": 9.0,
+      "audio_tokens_per_second": 25,
+      "batch_multiplier": 0.5,
+      "changes": [
+        {
+          "from": "2027-01-01",
+          "input": 1.0,
+          "output": 18.0,
+          "audio_output": 18.0
+        }
+      ]
+    },
+    "gemini-3.8-flash-lite-tts": {
+      "provider": "google",
+      "input": 0.5,
+      "output": 6.0,
+      "audio_output": 6.0,
+      "audio_tokens_per_second": 25,
+      "batch_multiplier": 0.5,
+      "changes": [
+        {
+          "from": "2027-01-01",
+          "input": 1.0,
+          "output": 12.0,
+          "audio_output": 12.0
+        }
+      ]
+    },
+    "gemini-3.1-flash-tts-preview": {
+      "provider": "google",
+      "input": 1.0,
+      "output": 20.0,
+      "audio_output": 20.0,
+      "audio_tokens_per_second": 25,
+      "batch_multiplier": 0.5
+    },
+    "gemini-2.5-flash-preview-tts": {
+      "provider": "google",
+      "input": 0.5,
+      "output": 10.0,
+      "audio_output": 10.0,
+      "audio_tokens_per_second": 25,
+      "batch_multiplier": 0.5
+    },
+    "gemini-2.5-pro-preview-tts": {
+      "provider": "google",
+      "input": 1.0,
+      "output": 20.0,
+      "audio_output": 20.0,
+      "audio_tokens_per_second": 25,
+      "batch_multiplier": 0.5
+    },
+    "google-tts-studio": {
+      "provider": "google",
+      "unit": "character",
+      "character_rate": 160.0
+    },
+    "google-tts-neural": {
+      "provider": "google",
+      "unit": "character",
+      "character_rate": 16.0
+    },
+    "gemini-3.8-live": {
+      "provider": "google",
+      "input": 0.75,
+      "audio_input": 3.0,
+      "image_input": 1.0,
+      "output": 4.5,
+      "audio_output": 12.0,
+      "audio_tokens_per_second": 25,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
+    },
+    "gemini-3.8-live-extended-thinking": {
+      "provider": "google",
+      "input": 0.75,
+      "audio_input": 3.0,
+      "image_input": 1.0,
+      "output": 4.5,
+      "audio_output": 12.0,
+      "audio_tokens_per_second": 25,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
+    },
+    "gemini-3.1-flash-live-preview": {
+      "provider": "google",
+      "input": 0.75,
+      "audio_input": 3.0,
+      "image_input": 1.0,
+      "output": 4.5,
+      "audio_output": 12.0,
+      "audio_tokens_per_second": 25,
+      "tool_rates": {
+        "grounding_query": 0.014
+      }
+    },
+    "gemini-2.5-flash-native-audio-preview-12-2025": {
+      "provider": "google",
+      "input": 0.5,
+      "audio_input": 3.0,
+      "image_input": 1.0,
+      "output": 2.0,
+      "audio_output": 12.0,
+      "audio_tokens_per_second": 25,
+      "tool_rates": {
+        "grounding_prompt": 0.035
+      }
+    },
+    "gemini-3.5-live-translate-preview": {
+      "provider": "google",
+      "input": 3.5,
+      "audio_input": 3.5,
+      "output": 21.0,
+      "audio_output": 21.0,
+      "audio_tokens_per_second": 25
+    },
+    "gpt-5-search-api": {
+      "provider": "openai",
+      "input": 1.25,
+      "output": 10.0,
+      "cached_input": 0.125,
+      "tool_rates": {
+        "web_search": 0.01,
+        "web_search_preview": 0.01
+      }
+    },
+    "gpt-5.5-mini": {
+      "provider": "openai",
+      "input": 0.25,
+      "max_input": 5.0,
+      "output": 2.0,
+      "max_output": 30.0,
+      "cached_input": 0.025,
+      "max_cached_input": 0.5,
+      "pricing_unlisted": true
+    },
+    "gpt-5.5-nano": {
+      "provider": "openai",
+      "input": 0.05,
+      "max_input": 5.0,
+      "output": 0.4,
+      "max_output": 30.0,
+      "cached_input": 0.005,
+      "max_cached_input": 0.5,
+      "pricing_unlisted": true
+    },
+    "gpt-image-2.6-sunburst": {
+      "provider": "openai",
+      "unit": "image",
+      "input": 5.0,
+      "output": 30.0,
+      "text_input": 5.0,
+      "cached_input": 1.25,
+      "image_input": 8.0,
+      "cached_image_input": 2.0,
+      "image_output": 30.0,
+      "batch_multiplier": 0.5,
+      "per_image_rates": {
+        "low": {
+          "1024x1024": 0.006,
+          "1024x1536": 0.005,
+          "1536x1024": 0.005
+        },
+        "medium": {
+          "1024x1024": 0.053,
+          "1024x1536": 0.041,
+          "1536x1024": 0.041
+        },
+        "high": {
+          "1024x1024": 0.211,
+          "1024x1536": 0.165,
+          "1536x1024": 0.165
+        }
+      }
+    },
+    "gpt-image-2.6-flare": {
+      "provider": "openai",
+      "unit": "image",
+      "input": 5.0,
+      "output": 30.0,
+      "text_input": 5.0,
+      "cached_input": 1.25,
+      "image_input": 8.0,
+      "cached_image_input": 2.0,
+      "image_output": 30.0,
+      "batch_multiplier": 0.5,
+      "per_image_rates": {
+        "low": {
+          "1024x1024": 0.006,
+          "1024x1536": 0.005,
+          "1536x1024": 0.005
+        },
+        "medium": {
+          "1024x1024": 0.053,
+          "1024x1536": 0.041,
+          "1536x1024": 0.041
+        },
+        "high": {
+          "1024x1024": 0.211,
+          "1024x1536": 0.165,
+          "1536x1024": 0.165
+        }
+      }
+    },
+    "gpt-image-2.5-sunburst": {
+      "provider": "openai",
+      "unit": "image",
+      "input": 5.0,
+      "output": 30.0,
+      "text_input": 5.0,
+      "cached_input": 1.25,
+      "image_input": 8.0,
+      "cached_image_input": 2.0,
+      "image_output": 30.0,
+      "batch_multiplier": 0.5,
+      "per_image_rates": {
+        "low": {
+          "1024x1024": 0.006,
+          "1024x1536": 0.005,
+          "1536x1024": 0.005
+        },
+        "medium": {
+          "1024x1024": 0.053,
+          "1024x1536": 0.041,
+          "1536x1024": 0.041
+        },
+        "high": {
+          "1024x1024": 0.211,
+          "1024x1536": 0.165,
+          "1536x1024": 0.165
+        }
+      }
+    },
+    "gpt-image-2.5-flare": {
+      "provider": "openai",
+      "unit": "image",
+      "input": 5.0,
+      "output": 30.0,
+      "text_input": 5.0,
+      "cached_input": 1.25,
+      "image_input": 8.0,
+      "cached_image_input": 2.0,
+      "image_output": 30.0,
+      "batch_multiplier": 0.5,
+      "per_image_rates": {
+        "low": {
+          "1024x1024": 0.006,
+          "1024x1536": 0.005,
+          "1536x1024": 0.005
+        },
+        "medium": {
+          "1024x1024": 0.053,
+          "1024x1536": 0.041,
+          "1536x1024": 0.041
+        },
+        "high": {
+          "1024x1024": 0.211,
+          "1024x1536": 0.165,
+          "1536x1024": 0.165
+        }
+      }
+    },
+    "gpt-image-2": {
+      "provider": "openai",
+      "unit": "image",
+      "input": 5.0,
+      "output": 30.0,
+      "text_input": 5.0,
+      "cached_input": 1.25,
+      "image_input": 8.0,
+      "cached_image_input": 2.0,
+      "image_output": 30.0,
+      "batch_multiplier": 0.5,
+      "per_image_rates": {
+        "low": {
+          "1024x1024": 0.006,
+          "1024x1536": 0.005,
+          "1536x1024": 0.005
+        },
+        "medium": {
+          "1024x1024": 0.053,
+          "1024x1536": 0.041,
+          "1536x1024": 0.041
+        },
+        "high": {
+          "1024x1024": 0.211,
+          "1024x1536": 0.165,
+          "1536x1024": 0.165
+        }
+      }
+    },
+    "gpt-image-1.5": {
+      "provider": "openai",
+      "unit": "image",
+      "input": 5.0,
+      "output": 10.0,
+      "text_input": 5.0,
+      "cached_input": 1.25,
+      "image_input": 8.0,
+      "cached_image_input": 2.0,
+      "image_output": 32.0,
+      "batch_multiplier": 0.5,
+      "per_image_rates": {
+        "low": {
+          "1024x1024": 0.009,
+          "1024x1536": 0.013,
+          "1536x1024": 0.013
+        },
+        "medium": {
+          "1024x1024": 0.034,
+          "1024x1536": 0.05,
+          "1536x1024": 0.05
+        },
+        "high": {
+          "1024x1024": 0.133,
+          "1024x1536": 0.2,
+          "1536x1024": 0.2
+        }
+      }
+    },
+    "gpt-image-1": {
+      "provider": "openai",
+      "unit": "image",
+      "input": 5.0,
+      "output": 40.0,
+      "text_input": 5.0,
+      "cached_input": 1.25,
+      "image_input": 10.0,
+      "cached_image_input": 2.5,
+      "image_output": 40.0,
+      "batch_multiplier": 0.5,
+      "per_image_rates": {
+        "low": {
+          "1024x1024": 0.011,
+          "1024x1536": 0.016,
+          "1536x1024": 0.016
+        },
+        "medium": {
+          "1024x1024": 0.042,
+          "1024x1536": 0.063,
+          "1536x1024": 0.063
+        },
+        "high": {
+          "1024x1024": 0.167,
+          "1024x1536": 0.25,
+          "1536x1024": 0.25
+        }
+      }
+    },
+    "gpt-image-1-mini": {
+      "provider": "openai",
+      "unit": "image",
+      "input": 2.0,
+      "output": 8.0,
+      "text_input": 2.0,
+      "cached_input": 0.2,
+      "image_input": 2.5,
+      "cached_image_input": 0.25,
+      "image_output": 8.0,
+      "batch_multiplier": 0.5,
+      "per_image_rates": {
+        "low": {
+          "1024x1024": 0.005,
+          "1024x1536": 0.006,
+          "1536x1024": 0.006
+        },
+        "medium": {
+          "1024x1024": 0.011,
+          "1024x1536": 0.015,
+          "1536x1024": 0.015
+        },
+        "high": {
+          "1024x1024": 0.036,
+          "1024x1536": 0.052,
+          "1536x1024": 0.052
+        }
+      }
+    },
+    "gpt-4o-mini-tts": {
+      "provider": "openai",
+      "input": 0.6,
+      "output": 12.0,
+      "audio_output": 12.0,
+      "audio_tokens_per_second": 25
+    },
+    "gpt-transcribe": {
+      "provider": "openai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.0045
+    },
+    "gpt-live-transcribe": {
+      "provider": "openai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.017
+    },
+    "gpt-realtime-whisper": {
+      "provider": "openai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.017
+    },
+    "gpt-realtime-translate": {
+      "provider": "openai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.034
+    },
+    "gpt-live-1": {
+      "provider": "openai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.05,
+      "standby_rate_per_minute": 0.02
+    },
+    "gpt-realtime-2.1": {
+      "provider": "openai",
+      "input": 4.0,
+      "output": 24.0,
+      "cached_input": 0.4,
+      "audio_input": 32.0,
+      "cached_audio_input": 0.4,
+      "audio_output": 64.0,
+      "image_input": 5.0,
+      "cached_image_input": 0.5,
+      "audio_tokens_per_second": 10
+    },
+    "gpt-realtime-2": {
+      "provider": "openai",
+      "input": 4.0,
+      "output": 24.0,
+      "cached_input": 0.4,
+      "audio_input": 32.0,
+      "cached_audio_input": 0.4,
+      "audio_output": 64.0,
+      "image_input": 5.0,
+      "cached_image_input": 0.5,
+      "audio_tokens_per_second": 10
+    },
+    "gpt-realtime-1.5": {
+      "provider": "openai",
+      "input": 4.0,
+      "output": 16.0,
+      "cached_input": 0.4,
+      "audio_input": 32.0,
+      "cached_audio_input": 0.4,
+      "audio_output": 64.0,
+      "image_input": 5.0,
+      "cached_image_input": 0.5,
+      "audio_tokens_per_second": 10
+    },
+    "gpt-realtime": {
+      "provider": "openai",
+      "input": 4.0,
+      "output": 16.0,
+      "cached_input": 0.4,
+      "audio_input": 32.0,
+      "cached_audio_input": 0.4,
+      "audio_output": 64.0,
+      "image_input": 5.0,
+      "cached_image_input": 0.5,
+      "audio_tokens_per_second": 10
+    },
+    "gpt-realtime-2.1-mini": {
+      "provider": "openai",
+      "input": 0.6,
+      "output": 2.4,
+      "cached_input": 0.06,
+      "audio_input": 10.0,
+      "cached_audio_input": 0.3,
+      "audio_output": 20.0,
+      "image_input": 0.8,
+      "cached_image_input": 0.08,
+      "audio_tokens_per_second": 10
+    },
+    "gpt-realtime-mini": {
+      "provider": "openai",
+      "input": 0.6,
+      "output": 2.4,
+      "cached_input": 0.06,
+      "audio_input": 10.0,
+      "cached_audio_input": 0.3,
+      "audio_output": 20.0,
+      "image_input": 0.8,
+      "cached_image_input": 0.08,
+      "audio_tokens_per_second": 10
+    },
+    "grok-4-1-fast-reasoning": {
+      "provider": "xai",
+      "input": 0.2,
+      "output": 0.5,
+      "cached_input": 0.05,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      },
+      "changes": [
+        {
+          "from": "2026-05-15",
+          "input": 1.25,
+          "output": 2.5,
+          "threshold": 200000,
+          "threshold_inclusive": true,
+          "long_input": 2.5,
+          "long_output": 5.0,
+          "batch_multiplier": 0.8,
+          "cached_input": 0.2,
+          "long_cached_input": 0.4
+        }
+      ]
+    },
+    "grok-4-1-fast-non-reasoning": {
+      "provider": "xai",
+      "input": 0.2,
+      "output": 0.5,
+      "cached_input": 0.05,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      },
+      "changes": [
+        {
+          "from": "2026-05-15",
+          "input": 1.25,
+          "output": 2.5,
+          "threshold": 200000,
+          "threshold_inclusive": true,
+          "long_input": 2.5,
+          "long_output": 5.0,
+          "batch_multiplier": 0.8,
+          "cached_input": 0.2,
+          "long_cached_input": 0.4
+        }
+      ]
+    },
+    "grok-4-fast-reasoning": {
+      "provider": "xai",
+      "input": 0.2,
+      "output": 0.5,
+      "cached_input": 0.05,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      },
+      "changes": [
+        {
+          "from": "2026-05-15",
+          "input": 1.25,
+          "output": 2.5,
+          "threshold": 200000,
+          "threshold_inclusive": true,
+          "long_input": 2.5,
+          "long_output": 5.0,
+          "batch_multiplier": 0.8,
+          "cached_input": 0.2,
+          "long_cached_input": 0.4
+        }
+      ]
+    },
+    "grok-4-fast-non-reasoning": {
+      "provider": "xai",
+      "input": 0.2,
+      "output": 0.5,
+      "cached_input": 0.05,
+      "tool_rates": {
+        "web_search": 0.005,
+        "code_execution": 0.005,
+        "file_search": 0.0025
+      },
+      "changes": [
+        {
+          "from": "2026-05-15",
+          "input": 1.25,
+          "output": 2.5,
+          "threshold": 200000,
+          "threshold_inclusive": true,
+          "long_input": 2.5,
+          "long_output": 5.0,
+          "batch_multiplier": 0.8,
+          "cached_input": 0.2,
+          "long_cached_input": 0.4
+        }
+      ]
+    },
+    "grok-imagine-image": {
+      "provider": "xai",
+      "unit": "image",
+      "image_rates": {
+        "generate": 0.02,
+        "edit": 0.02
+      },
+      "input_image_rate": 0.002
+    },
+    "grok-imagine-image-2.0": {
+      "provider": "xai",
+      "unit": "image",
+      "image_rates": {
+        "generate": {
+          "low": 0.04,
+          "medium": 0.06,
+          "high": 0.06
+        },
+        "edit": {
+          "low": 0.04,
+          "medium": 0.06,
+          "high": 0.06
+        }
+      },
+      "resolution_rates": {
+        "1k": {
+          "low": 0.04,
+          "medium": 0.06,
+          "high": 0.06
+        },
+        "2k": {
+          "low": 0.06,
+          "medium": 0.08,
+          "high": 0.08
+        }
+      },
+      "input_image_rate": 0.01
+    },
+    "grok-imagine-image-quality": {
+      "provider": "xai",
+      "unit": "image",
+      "image_rates": {
+        "generate": 0.05,
+        "edit": 0.05
+      },
+      "input_image_rate": 0.002,
+      "changes": [
+        {
+          "from": "2026-11-02",
+          "image_rates": {
+            "generate": {
+              "low": 0.04,
+              "medium": 0.04,
+              "high": 0.04
+            },
+            "edit": {
+              "low": 0.04,
+              "medium": 0.04,
+              "high": 0.04
+            }
+          },
+          "resolution_rates": {
+            "1k": 0.04,
+            "2k": 0.06
+          },
+          "input_image_rate": 0.01
+        }
+      ]
+    },
+    "grok-imagine-image-pro": {
+      "provider": "xai",
+      "unit": "image",
+      "image_rates": {
+        "generate": 0.07,
+        "edit": 0.07
+      },
+      "input_image_rate": 0.002,
+      "changes": [
+        {
+          "from": "2026-05-15",
+          "image_rates": {
+            "generate": 0.05,
+            "edit": 0.05
+          }
+        },
+        {
+          "from": "2026-11-02",
+          "image_rates": {
+            "generate": {
+              "low": 0.04,
+              "medium": 0.04,
+              "high": 0.04
+            },
+            "edit": {
+              "low": 0.04,
+              "medium": 0.04,
+              "high": 0.04
+            }
+          },
+          "resolution_rates": {
+            "1k": 0.04,
+            "2k": 0.06
+          },
+          "input_image_rate": 0.01
+        }
+      ]
+    },
+    "grok-imagine-video": {
+      "provider": "xai",
+      "unit": "video",
+      "video_rates": {
+        "default": 0.05,
+        "480p": 0.05,
+        "720p": 0.07
+      },
+      "input_image_rate": 0.002
+    },
+    "grok-imagine-video-1.5": {
+      "provider": "xai",
+      "unit": "video",
+      "video_rates": {
+        "default": 0.08,
+        "480p": 0.08,
+        "720p": 0.14,
+        "1080p": 0.25
+      },
+      "input_image_rate": 0.01
+    },
+    "grok-imagine-video-1.5-lite": {
+      "provider": "xai",
+      "unit": "video",
+      "video_rates": {
+        "default": 0.02,
+        "480p": 0.02,
+        "720p": 0.03,
+        "1080p": 0.14
+      },
+      "input_image_rate": 0.01
+    },
+    "grok-tts": {
+      "provider": "xai",
+      "unit": "character",
+      "character_rate": 15.0
+    },
+    "grok-voice-transcribe-2.0": {
+      "provider": "xai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.0033333333333333335
+    },
+    "grok-voice-transcribe-2.0-file": {
+      "provider": "xai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.0016666666666666668
+    },
+    "grok-voice-3.0": {
+      "provider": "xai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.08,
+      "text_turn_rate": 0.004
+    },
+    "grok-voice-latest": {
+      "provider": "xai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.08,
+      "text_turn_rate": 0.004
+    },
+    "grok-voice-think-fast-2.0": {
+      "provider": "xai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.08,
+      "text_turn_rate": 0.004
+    },
+    "grok-voice-think-fast-1.0": {
+      "provider": "xai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.05
+    },
+    "grok-voice-fast-1.0": {
+      "provider": "xai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.05
+    },
+    "grok-voice-agent": {
+      "provider": "xai",
+      "unit": "duration",
+      "duration_rate_per_minute": 0.05
+    },
+    "mistral-ocr-4-0": {
+      "provider": "mistral",
+      "unit": "page",
+      "page_rate": 0.004,
+      "batch_multiplier": 0.5
     }
   },
-  "image_checked_at": "2026-11-06"
+  "image_checked_at": "2026-11-28"
 }

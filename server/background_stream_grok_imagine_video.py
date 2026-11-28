@@ -145,6 +145,16 @@ def background_stream_grok_imagine_video(local):
                 vid_tag = f'\n<video controls playsinline preload="metadata" src="/files/{user_id}/{fn2}" class="w-full mt-2"></video>\n'
                 pub("content", vid_tag)
                 full_res += f"Generated Video for: {final_message_text}\n"
+                vid_dur = (p_data.get("video") or {}).get("duration") if isinstance(p_data, dict) else None
+                dur_ms = int(round(float(vid_dur) * 1000.0)) if isinstance(vid_dur, (int, float)) and vid_dur > 0 else (_probe_duration_ms(video_bytes, "mp4") or int(duration * 1000))
+                _record_direct_usage(
+                    model_key,
+                    'xai',
+                    usage=p_data.get("usage") if isinstance(p_data, dict) else None,
+                    duration_ms=dur_ms,
+                    resolution=resolution,
+                    input_images=1 if "image" in payload else 0,
+                )
             else:
                 pub("error", "Failed to download generated video safely.")
         else:

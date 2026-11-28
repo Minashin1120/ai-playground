@@ -957,31 +957,23 @@
             }
             const rate = costRate(pricing, request.model, date);
             if (!rate) { result.unpriced++; return; }
-            if (rate.unit === 'image') {
-                const count = costTokenNumber(request.images);
-                const prices = rate.image_rates?.[request.operation];
-                const selected = prices?.[rate.image_selector === 'speed' ? request.speed : request.quality];
-                const minimum = selected?.minimum ?? prices?.minimum;
-                const unit = typeof prices === 'number' ? prices : typeof selected === 'number' ? selected : minimum;
-                const lowerBound = Number.isFinite(unit) && typeof prices !== 'number' && typeof selected !== 'number';
-                if (count === null || !Number.isFinite(unit)) { result.unpriced++; return; }
-                result.low += count * unit * (flex ? 0.5 : 1);
-                result.high += count * unit * (flex ? 0.5 : 1);
-                result.priced++;
-                if (lowerBound) result.lowerBound = true;
-                if (request.complete === false || lowerBound) result.unpriced++;
+            if (rate.unit && rate.unit !== 'token') {
+                requestUnitCost(result, request, rate, batch, flex);
                 return;
             }
             const input = costTokenNumber(request.input_tokens);
             const output = costTokenNumber(request.output_tokens);
-            if (input === null && output === null) { result.unpriced++; return; }
+            const mediaFallback = (rate.image_per_image && request.images != null)
+                || (rate.audio_tokens_per_second && (request.audio_in_ms != null || request.audio_out_ms != null || request.duration_ms != null));
+            if (input === null && output === null && !mediaFallback) { result.unpriced++; return; }
             const long = rate.threshold != null && (rate.threshold_inclusive ? (input || 0) >= rate.threshold : (input || 0) > rate.threshold);
             if (long) result.long++;
             const cost = requestTokenCost(request, rate, long, batch, flex);
             result.low += cost.low; result.high += cost.high;
             if (cost.lowerBound) result.lowerBound = true;
             result.priced++;
-            if (input === null || output === null || request.complete === false || cost.incomplete) result.unpriced++;
+            const missingTok = (input === null || output === null) && !cost.derived;
+            if (missingTok || request.complete === false || cost.incomplete) result.unpriced++;
 
         }
 
@@ -999,6 +991,13 @@
             while (!hasSource && node?.parent_id != null && !seen.has(String(node.id))) {
                 seen.add(String(node.id)); node = rows.get(String(node.parent_id));
                 if (node?.role === 'assistant' && node.image_url && node.image_url !== '[]' && node.image_url !== 'null') hasSource = true;
+            }
+            const modelStr = String(message.model || '');
+            if (modelStr.startsWith('gpt-image-')) {
+                return { model: message.model, images: count || 1, operation: hasSource ? 'edit' : 'generate', quality: options.gpt_image_quality || 'auto', size: options.gpt_image_size || 'auto', complete: !!parent };
+            }
+            if (modelStr.startsWith('grok-imagine-image')) {
+                return { model: message.model, images: count || 1, operation: hasSource ? 'edit' : 'generate', quality: options.grok_image_quality || 'medium', resolution: options.grok_image_resolution || '1k', input_images: hasSource ? 1 : 0, complete: !!parent };
             }
             const operation = ['remove_object', 'remove_background'].includes(options.ideogram_operation)
                 ? options.ideogram_operation : hasSource && message.model === 'ideogram-4.5' ? 'edit' : 'generate';

@@ -90,6 +90,8 @@ async def _rt_openai_xai_receive_loop(session, ws):
                 session.turn_count += 1
                 session.assistant_turn_break = True
                 response = msg.get("response") or {}
+                if isinstance(response.get("usage"), dict):
+                    _rt_record_ws_usage(session, response["usage"])
                 if response.get("status") == "failed":
                     details = (response.get("status_details") or {}).get("error")
                     _rt_push_event(session, {"type": "notice", "message": _rt_error_message(details, "応答の生成に失敗しました")})

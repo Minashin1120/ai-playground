@@ -336,6 +336,9 @@ class RtSession:
         self.input_closed = False
         self.turn_count = 0
         self.saved = False
+        self.usage_calls = []
+        self.gemini_usage_call = None
+        self.text_input_turns = 0
 
 
 def _normalize_rt_params(provider, model_key, data):
@@ -464,6 +467,59 @@ def _rt_worker(session):
         loop.close()
 
 
+def _rt_record_ws_usage(session, usage, cumulative=False):
+    if not isinstance(usage, dict):
+        return
+    if cumulative:
+        call = session.gemini_usage_call
+        if call is None:
+            call = ModelUsageCall(session.model_key, session.provider)
+            session.gemini_usage_call = call
+        call.update_usage(usage)
+        call.finished = True
+        return
+    call = ModelUsageCall(session.model_key, session.provider)
+    call.update_usage(usage)
+    call.finished = True
+    session.usage_calls.append(call.snapshot())
+
+
+def _rt_build_pricing_calls(session, user_pcm, assistant_pcm):
+    in_ms = _pcm_duration_ms(user_pcm, rate=session.rate_in)
+    out_ms = _pcm_duration_ms(assistant_pcm, rate=session.rate_out)
+    elapsed_ms = max(0, int(round((time.time() - session.started_at) * 1000.0)))
+    calls = list(session.usage_calls)
+    if session.gemini_usage_call is not None:
+        snap = session.gemini_usage_call.snapshot()
+        snap.setdefault('audio_in_ms', in_ms)
+        snap.setdefault('audio_out_ms', out_ms)
+        calls.append(snap)
+    if calls:
+        # Ensure live transcription/STS also carries audio durations for duration-priced models
+        last = calls[-1]
+        if last.get('audio_in_ms') is None:
+            last['audio_in_ms'] = in_ms
+        if last.get('audio_out_ms') is None:
+            last['audio_out_ms'] = out_ms
+        if last.get('duration_ms') is None:
+            last['duration_ms'] = max(in_ms, elapsed_ms) if _rt_is_transcription_session(session) else max(in_ms + out_ms, elapsed_ms)
+        return calls
+    active_ms = in_ms if _rt_is_transcription_session(session) else max(1000, in_ms + out_ms)
+    row = {
+        'model': session.model_key,
+        'audio_in_ms': in_ms,
+        'audio_out_ms': out_ms,
+        'duration_ms': active_ms if session.model_key in OPENAI_LIVE_MODELS else max(active_ms, elapsed_ms),
+        'complete': True,
+        'created_at': datetime.utcnow().isoformat() + 'Z',
+    }
+    if session.model_key in OPENAI_LIVE_MODELS:
+        row['standby_ms'] = max(0, elapsed_ms - active_ms)
+    if session.text_input_turns:
+        row['text_turns'] = session.text_input_turns
+    return [row]
+
+
 def _rt_save_session(session, thread_id):
     """Persist the finished session as a user/assistant message pair.
 
@@ -550,6 +606,8 @@ def _rt_save_session(session, thread_id):
         db.session.add(user_msg)
         safe_db_commit()
 
+        pricing_calls = _rt_build_pricing_calls(session, user_pcm, assistant_pcm)
+        assistant_thought_data = _encode_usage_thought_data(pricing_calls, session.e2ee)
         assistant_msg = Message(
             thread_id=thread_db_id,
             role='assistant',
@@ -557,6 +615,7 @@ def _rt_save_session(session, thread_id):
             model=session.model_key,
             is_encrypted=session.e2ee,
             parent_id=user_msg.id,
+            thought_data=assistant_thought_data,
             tokens_out=assistant_tokens_out,
             tokens=sum_token_counts(None, assistant_tokens_out),
         )

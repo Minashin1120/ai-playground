@@ -158,6 +158,18 @@ def background_stream_ideogram(local):
                 pub("error", "Ideogram Error: 安全性チェックにより画像が返されませんでした。プロンプトや入力画像の内容を変更して再度お試しください。")
             else:
                 pub("error", "Ideogram Error: No data returned.")
+        else:
+            op_name = 'remove_background' if remove_background else 'remove_object' if remove_object else _ideogram_edit_mode or ('edit' if ideogram_sources else 'generate')
+            speed_opt = str(options.get('ideogram_speed') or 'default').lower().strip()
+            qual_opt = str(options.get('ideogram_quality') or ('medium' if op_name == 'edit' else 'high')).lower().strip()
+            _record_direct_usage(
+                model_key_l,
+                'ideogram',
+                images=sum(1 for it in ideogram_items if it.get("url") and it.get("is_image_safe") is not False),
+                operation=op_name,
+                speed=speed_opt if speed_opt in ('turbo', 'default', 'quality') else 'default',
+                quality=qual_opt if qual_opt in ('very_low', 'low', 'medium', 'high') else 'medium',
+            )
     except Exception as e:
         logger.exception("Ideogram Error")
         pub("error", f"Ideogram Error: {e}")

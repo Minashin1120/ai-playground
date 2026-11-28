@@ -77,8 +77,10 @@ class ModelUsageCall:
     def __init__(self, model, provider):
         self.record = {'model': model, 'input_tokens': None, 'output_tokens': None, 'thought_tokens': None,
                        'created_at': _usage_clock.utcnow().isoformat() + 'Z'}
-        if provider == 'openai' and 'search-preview' in model:
-            self.record.update(web_search_calls=1, search_preview=True)
+        if provider == 'openai' and ('search-preview' in model or model == 'gpt-5-search-api'):
+            self.record['web_search_calls'] = 1
+            if 'search-preview' in model:
+                self.record['search_preview'] = True
         self.provider = provider
         self.finished = False
         self.rejected = False
@@ -106,7 +108,14 @@ class ModelUsageCall:
                 self.record[key] = max(value, self.record.get(key) or 0)
 
     def snapshot(self):
-        known = 'cost_in_usd_ticks' in self.record or 'images' in self.record or (self.record['input_tokens'] is not None and self.record['output_tokens'] is not None)
+        known = (
+            'cost_in_usd_ticks' in self.record
+            or any(self.record.get(k) is not None for k in (
+                'images', 'pages', 'characters', 'songs', 'duration_ms',
+                'audio_in_ms', 'audio_out_ms', 'standby_ms',
+            ))
+            or (self.record['input_tokens'] is not None and self.record['output_tokens'] is not None)
+        )
         return {**self.record, 'complete': self.finished and known}
 
 
@@ -169,6 +178,13 @@ class ModelUsageLedger:
         return {key: total(key) for key in ('input_tokens', 'output_tokens', 'thought_tokens')}
 
 
+_SANITIZE_INT_FIELDS = (
+    'input_tokens', 'output_tokens', 'thought_tokens', 'images', 'container_memory_gb',
+    'pages', 'characters', 'songs', 'duration_ms', 'audio_in_ms', 'audio_out_ms',
+    'standby_ms', 'text_turns', 'input_images',
+)
+
+
 def _sanitize_pricing_calls(value):
     if not isinstance(value, list):
         return None
@@ -180,16 +196,21 @@ def _sanitize_pricing_calls(value):
         model = entry.get('model')
         model = model if isinstance(model, str) and re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,159}', model) else ''
         row = {'model': model, 'complete': entry.get('complete') is True}
-        for key in ('input_tokens', 'output_tokens', 'thought_tokens', 'images', 'container_memory_gb', *_USAGE_PRICE_FIELDS):
-            row[key] = _usage_value(entry, key)
+        for key in (*_SANITIZE_INT_FIELDS, *_USAGE_PRICE_FIELDS):
+            val = _usage_value(entry, key)
+            if val is not None or key in ('input_tokens', 'output_tokens', 'thought_tokens', 'images', 'container_memory_gb', *_USAGE_PRICE_FIELDS):
+                row[key] = val
         for key, allowed in {'operation': ('generate', 'edit', 'remove_object', 'remove_background'),
-                             'speed': ('turbo', 'default', 'quality'), 'quality': ('very_low', 'low', 'medium', 'high'), 'resolution': ('1k', '2k')}.items():
+                             'speed': ('turbo', 'default', 'quality'),
+                             'quality': ('very_low', 'low', 'medium', 'high', 'auto'),
+                             'resolution': ('360p', '480p', '512px', '0.5k', '720p', '1080p', '1k', '2k', '4k'),
+                             'size': ('1024x1024', '1024x1536', '1536x1024', 'auto')}.items():
             if entry.get(key) in allowed:
                 row[key] = entry[key]
         ticks = entry.get('cost_in_usd_ticks')
         if isinstance(ticks, int) and not isinstance(ticks, bool) and 0 <= ticks <= 9_000_000_000_000_000:
             row['cost_in_usd_ticks'] = ticks
-        for flag in ('search_preview', 'pricing_incomplete', 'explicit_cache', 'code_execution_free'):
+        for flag in ('search_preview', 'pricing_incomplete', 'explicit_cache', 'code_execution_free', 'without_audio'):
             if entry.get(flag) is True:
                 row[flag] = True
         date = entry.get('created_at')
@@ -208,6 +229,91 @@ def _sanitize_pricing_calls(value):
     if len(value) > 1024:
         rows.append({'model': '', 'complete': False})
     return rows
+
+
+def _pcm_duration_ms(pcm_bytes, rate=24000, channels=1):
+    if not pcm_bytes or rate <= 0 or channels <= 0:
+        return 0
+    return max(0, int(round(len(pcm_bytes) / float(rate * 2 * channels) * 1000.0)))
+
+
+def _probe_duration_ms(data, demuxer):
+    if not data or not demuxer:
+        return None
+    try:
+        info = _probe_media_with_ffmpeg(data, demuxer, timeout=10)
+        dur = (info or {}).get('duration')
+        if isinstance(dur, (int, float)) and dur > 0:
+            return int(round(dur * 1000.0))
+    except Exception:
+        return None
+    return None
+
+
+def _interactions_usage_fields(usage):
+    """Normalize Gemini /v1beta/interactions `usage` object into pricing call fields."""
+    if not usage:
+        return {}
+    fields = {}
+    in_tok = _usage_value(usage, 'total_input_tokens', 'input_tokens')
+    out_tok = _usage_value(usage, 'total_output_tokens', 'output_tokens')
+    thought_tok = _usage_value(usage, 'total_thought_tokens', 'thought_tokens', 'thoughts_tokens')
+    if thought_tok is not None and out_tok is not None:
+        # Interactions total_output_tokens may exclude thoughts in some payloads; align to output = text+thoughts+media
+        pass
+    if in_tok is not None:
+        fields['input_tokens'] = in_tok
+    if out_tok is not None:
+        fields['output_tokens'] = out_tok
+    if thought_tok is not None:
+        fields['thought_tokens'] = thought_tok
+    for arr_name, mod_map in (
+        ('input_tokens_by_modality', {'text': 'text_input_tokens', 'image': 'image_input_tokens', 'audio': 'audio_input_tokens', 'video': 'video_input_tokens'}),
+        ('output_tokens_by_modality', {'text': 'text_output_tokens', 'image': 'image_output_tokens', 'audio': 'audio_output_tokens', 'video': 'video_output_tokens'}),
+    ):
+        arr = _usage_field(usage, arr_name)
+        if isinstance(arr, (list, tuple)):
+            for item in arr:
+                mod = str(_usage_field(item, 'modality', '') or '').lower()
+                tok = _usage_value(item, 'tokens', 'token_count', 'tokenCount')
+                key = mod_map.get(mod)
+                if key and tok is not None:
+                    fields[key] = tok
+    return fields
+
+
+def _record_direct_usage(model, provider, enrich_existing=False, usage=None, key_info=None, **fields):
+    """Record or enrich a call in the active ModelUsageLedger (no-op if no ledger context)."""
+    ledger = _MODEL_USAGE_CONTEXT.get()
+    if ledger is None or not model:
+        return None
+    call = None
+    if enrich_existing:
+        for existing in reversed(ledger.calls):
+            if existing.record.get('model') == model:
+                call = existing
+                break
+    if call is None:
+        call = ledger.begin(model, provider)
+    if key_info and not ledger.provider_key_info.get(provider):
+        ledger.set_provider_key_info(provider, key_info)
+    if usage is not None:
+        if isinstance(usage, dict) or hasattr(usage, 'total_input_tokens'):
+            fields = {**_interactions_usage_fields(usage), **fields}
+        call.update_usage(usage)
+    for k, v in fields.items():
+        if v is not None:
+            call.record[k] = v
+    call.finished = True
+    return call
+
+
+def _encode_usage_thought_data(calls, is_encrypted=False):
+    clean = _sanitize_pricing_calls(calls)
+    if not clean:
+        return None
+    payload = json.dumps({'pricing_calls': clean}, ensure_ascii=False)
+    return encrypt_val(payload) if is_encrypted else payload
 
 
 def _usage_model_from_request(request):

@@ -15683,6 +15683,8 @@
                     this.resumeHandle = null;
                     this.directResumes = 0;
                     this.goAwayNotified = false;
+                    this.usageMetadata = null;
+                    this.directStartedAt = Date.now();
                     try {
                         await this._connectDirect();
                         return true;
@@ -15739,6 +15741,10 @@
                         const ready = this.directReady;
                         this.directReady = null;
                         if (ready) ready();
+                    }
+                    const um = msg.usageMetadata || msg.usage_metadata;
+                    if (um && typeof um === 'object') {
+                        this.usageMetadata = um;
                     }
                     const sc = msg.serverContent;
                     if (sc) {
@@ -16173,7 +16179,9 @@
                             assistant_text: this.assistantTranscript,
                             assistant_thought: this.assistantThought,
                             audio_base64: assistantB64,
-                            user_audio_base64: userB64
+                            user_audio_base64: userB64,
+                            usage_metadata: this.usageMetadata || null,
+                            duration_ms: this.directStartedAt ? Math.max(0, Date.now() - this.directStartedAt) : null
                         })
                     });
                     const data = await resp.json().catch(() => ({}));
@@ -28468,31 +28476,23 @@
             }
             const rate = costRate(pricing, request.model, date);
             if (!rate) { result.unpriced++; return; }
-            if (rate.unit === 'image') {
-                const count = costTokenNumber(request.images);
-                const prices = rate.image_rates?.[request.operation];
-                const selected = prices?.[rate.image_selector === 'speed' ? request.speed : request.quality];
-                const minimum = selected?.minimum ?? prices?.minimum;
-                const unit = typeof prices === 'number' ? prices : typeof selected === 'number' ? selected : minimum;
-                const lowerBound = Number.isFinite(unit) && typeof prices !== 'number' && typeof selected !== 'number';
-                if (count === null || !Number.isFinite(unit)) { result.unpriced++; return; }
-                result.low += count * unit * (flex ? 0.5 : 1);
-                result.high += count * unit * (flex ? 0.5 : 1);
-                result.priced++;
-                if (lowerBound) result.lowerBound = true;
-                if (request.complete === false || lowerBound) result.unpriced++;
+            if (rate.unit && rate.unit !== 'token') {
+                requestUnitCost(result, request, rate, batch, flex);
                 return;
             }
             const input = costTokenNumber(request.input_tokens);
             const output = costTokenNumber(request.output_tokens);
-            if (input === null && output === null) { result.unpriced++; return; }
+            const mediaFallback = (rate.image_per_image && request.images != null)
+                || (rate.audio_tokens_per_second && (request.audio_in_ms != null || request.audio_out_ms != null || request.duration_ms != null));
+            if (input === null && output === null && !mediaFallback) { result.unpriced++; return; }
             const long = rate.threshold != null && (rate.threshold_inclusive ? (input || 0) >= rate.threshold : (input || 0) > rate.threshold);
             if (long) result.long++;
             const cost = requestTokenCost(request, rate, long, batch, flex);
             result.low += cost.low; result.high += cost.high;
             if (cost.lowerBound) result.lowerBound = true;
             result.priced++;
-            if (input === null || output === null || request.complete === false || cost.incomplete) result.unpriced++;
+            const missingTok = (input === null || output === null) && !cost.derived;
+            if (missingTok || request.complete === false || cost.incomplete) result.unpriced++;
 
         }
 
@@ -28510,6 +28510,13 @@
             while (!hasSource && node?.parent_id != null && !seen.has(String(node.id))) {
                 seen.add(String(node.id)); node = rows.get(String(node.parent_id));
                 if (node?.role === 'assistant' && node.image_url && node.image_url !== '[]' && node.image_url !== 'null') hasSource = true;
+            }
+            const modelStr = String(message.model || '');
+            if (modelStr.startsWith('gpt-image-')) {
+                return { model: message.model, images: count || 1, operation: hasSource ? 'edit' : 'generate', quality: options.gpt_image_quality || 'auto', size: options.gpt_image_size || 'auto', complete: !!parent };
+            }
+            if (modelStr.startsWith('grok-imagine-image')) {
+                return { model: message.model, images: count || 1, operation: hasSource ? 'edit' : 'generate', quality: options.grok_image_quality || 'medium', resolution: options.grok_image_resolution || '1k', input_images: hasSource ? 1 : 0, complete: !!parent };
             }
             const operation = ['remove_object', 'remove_background'].includes(options.ideogram_operation)
                 ? options.ideogram_operation : hasSource && message.model === 'ideogram-4.5' ? 'edit' : 'generate';
@@ -28555,8 +28562,13 @@
                     }
                     continue;
                 }
-                if (costRate(pricing, m.model, date)?.unit === 'image') {
+                const mRate = costRate(pricing, m.model, date);
+                if (mRate?.unit === 'image') {
                     capture(legacyImageRequest(m, rows), date, false, false, flex);
+                    continue;
+                }
+                if (mRate?.unit && mRate.unit !== 'token') {
+                    capture(legacyUnitRequest(m, rows, mRate), date, true, false, flex);
                     continue;
                 }
                 const out = costTokenNumber(m.tokens_out);
@@ -28585,7 +28597,14 @@
                         parent = ancestor.parent_id;
                     }
                 }
-                capture({ model: m.model, input_tokens: input, output_tokens: out, complete: !incomplete }, date, inferred, batch, flex);
+                const legReq = { model: m.model, input_tokens: input, output_tokens: out, complete: !incomplete };
+                if (mRate?.image_per_image) {
+                    let files = m.image_url;
+                    try { if (typeof files === 'string') files = JSON.parse(files); } catch (_) { files = files ? [files] : []; }
+                    const nImg = Array.isArray(files) && files.length ? files.length : (/!\[Image\]\(/i.test(String(m.content || '')) ? 1 : 0);
+                    if (nImg) legReq.images = nImg;
+                }
+                capture(legReq, date, inferred, batch, flex);
             }
             return result;
         }
@@ -28621,6 +28640,10 @@
                 cache_read: count(request.cache_read_tokens),
                 cache_write: Math.max(writes, ttlWrites) || null,
                 images: count(request.images),
+                pages: count(request.pages),
+                characters: count(request.characters),
+                songs: count(request.songs),
+                duration_ms: count(request.duration_ms),
                 tools,
                 low: result.low - before.low,
                 high: result.high - before.high,
@@ -28639,6 +28662,10 @@
         function costItemTokenText(item) {
             const parts = [];
             if (item.images !== null && item.images !== undefined) parts.push(`${item.images}枚`);
+            if (item.songs !== null && item.songs !== undefined) parts.push(`${item.songs}曲`);
+            if (item.pages !== null && item.pages !== undefined) parts.push(`${item.pages}ページ`);
+            if (item.characters !== null && item.characters !== undefined) parts.push(`${item.characters}文字`);
+            if (item.duration_ms !== null && item.duration_ms !== undefined) parts.push(`${(item.duration_ms / 1000).toFixed(1)}秒`);
             if (item.input !== null || item.output !== null) {
                 parts.push(`入 ${item.input ?? '-'} / 出 ${item.output ?? '-'}`);
             }
@@ -28840,7 +28867,7 @@
         }
 
         // Static official-rate data only; no chat data is sent by this request.
-        fetch('/static/model_pricing.json?checked=2026-11-06', { credentials: 'same-origin' })
+        fetch('/static/model_pricing.json?checked=2026-11-28', { credentials: 'same-origin' })
             .then(response => { if (!response.ok) throw new Error('pricing_unavailable'); return response.json(); })
             .then(data => {
                 costPricing = data;
@@ -28852,17 +28879,175 @@
                 if (costBarReady) refreshCostBar();
                 if (usageCostPendingData) setUsageCostStatus('費用予想: 算出不可');
             });
+        function legacyUnitRequest(message, rows, rate) {
+            const parent = rows.get(String(message.parent_id));
+            if (rate.unit === 'song') return { model: message.model, songs: 1, complete: true };
+            if (rate.unit === 'page') {
+                const match = /合計処理ページ数:\s*(\d+)/.exec(String(message.content || ''));
+                return { model: message.model, pages: match ? Number(match[1]) : 1, complete: !!match };
+            }
+            if (rate.unit === 'character') {
+                const chars = parent?.content ? String(parent.content).length : null;
+                return { model: message.model, characters: chars, complete: chars !== null };
+            }
+            if (rate.unit === 'video') {
+                const opts = parent?.prompt_options || {};
+                const rawDur = String(message.model || '').startsWith('grok-') ? opts.grok_video_duration : opts.gemini_video_duration;
+                const dur = costTokenNumber(rawDur);
+                const res = String((String(message.model || '').startsWith('grok-') ? opts.grok_video_resolution : opts.gemini_video_resolution) || '').toLowerCase();
+                return { model: message.model, duration_ms: dur ? dur * 1000 : null, resolution: res || null, complete: false };
+            }
+            return { model: message.model, complete: false };
+        }
+
+        function requestImageUnitCost(result, request, rate, batch, flex) {
+            const flexMul = flex ? 0.5 : 1;
+            const batchMul = batch ? rate.batch_multiplier ?? 1 : 1;
+            const inTok = costTokenNumber(request.input_tokens);
+            const outTok = costTokenNumber(request.output_tokens);
+            if ((inTok !== null || outTok !== null) && (rate.image_output != null || rate.output != null)) {
+                const cost = requestTokenCost(request, rate, false, batch, flex);
+                result.low += cost.low; result.high += cost.high;
+                if (cost.lowerBound) result.lowerBound = true;
+                result.priced++;
+                if (request.complete === false || cost.incomplete) result.unpriced++;
+                return;
+            }
+            const count = costTokenNumber(request.images);
+            if (count === null) { result.unpriced++; return; }
+            let low = null, high = null, lowerBound = false, incomplete = false;
+            if (rate.per_image_rates) {
+                const qMap = rate.per_image_rates;
+                const qVal = request.quality && request.quality !== 'auto' ? qMap[request.quality] : null;
+                const sVal = request.size && request.size !== 'auto' ? request.size : null;
+                const vals = [];
+                if (qVal) {
+                    if (sVal && qVal[sVal] != null) vals.push(qVal[sVal]);
+                    else Object.values(qVal).forEach(v => { if (typeof v === 'number') vals.push(v); });
+                } else {
+                    Object.values(qMap).forEach(sub => Object.entries(sub).forEach(([k, v]) => {
+                        if ((!sVal || k === sVal) && typeof v === 'number') vals.push(v);
+                    }));
+                }
+                if (vals.length) {
+                    low = count * Math.min(...vals) * batchMul * flexMul;
+                    high = count * Math.max(...vals) * batchMul * flexMul;
+                    if (vals.length > 1) incomplete = true;
+                }
+            }
+            if (low === null && rate.resolution_rates && request.resolution && rate.resolution_rates[request.resolution] != null) {
+                const sub = rate.resolution_rates[request.resolution];
+                const u = typeof sub === 'number' ? sub : (sub[request.quality] ?? sub.low ?? Object.values(sub)[0]);
+                if (Number.isFinite(u)) { low = count * u; high = count * u; }
+            }
+            if (low === null) {
+                const prices = rate.image_rates?.[request.operation] ?? rate.image_rates?.generate;
+                const selected = prices?.[rate.image_selector === 'speed' ? request.speed : request.quality];
+                const minimum = selected?.minimum ?? prices?.minimum;
+                const unit = typeof prices === 'number' ? prices : typeof selected === 'number' ? selected : minimum;
+                lowerBound = Number.isFinite(unit) && typeof prices !== 'number' && typeof selected !== 'number';
+                if (!Number.isFinite(unit)) { result.unpriced++; return; }
+                low = count * unit * flexMul;
+                high = count * unit * flexMul;
+            }
+            const extraIn = (costTokenNumber(request.input_images) || 0) * (rate.input_image_rate || 0);
+            result.low += low + extraIn;
+            result.high += high + extraIn;
+            result.priced++;
+            if (lowerBound) result.lowerBound = true;
+            if (request.complete === false || lowerBound || incomplete) result.unpriced++;
+        }
+
+        function requestUnitCost(result, request, rate, batch = false, flex = false) {
+            if (rate.unit === 'image') { requestImageUnitCost(result, request, rate, batch, flex); return; }
+            const batchMul = batch ? rate.batch_multiplier ?? 1 : 1;
+            const flexMul = flex ? 0.5 : 1;
+            let low = 0, high = 0, incomplete = request.complete === false, lowerBound = false;
+            if (rate.unit === 'song') {
+                const n = costTokenNumber(request.songs) ?? 1;
+                low = high = n * (rate.song_rate || 0);
+            } else if (rate.unit === 'page') {
+                const pages = costTokenNumber(request.pages);
+                if (pages === null) { result.unpriced++; return; }
+                low = high = pages * (rate.page_rate || 0) * batchMul;
+            } else if (rate.unit === 'character') {
+                const chars = costTokenNumber(request.characters);
+                if (chars === null) { result.unpriced++; return; }
+                low = high = chars * (rate.character_rate || 0) / 1e6;
+            } else if (rate.unit === 'duration') {
+                const ms = costTokenNumber(request.duration_ms);
+                const audioMs = (costTokenNumber(request.audio_in_ms) || 0) + (costTokenNumber(request.audio_out_ms) || 0);
+                const mins = ms !== null ? ms / 60000 : (request.audio_in_ms != null || request.audio_out_ms != null) ? audioMs / 60000 : null;
+                if (mins === null && rate.duration_rate_per_minute > 0) {
+                    low = rate.duration_rate_per_minute / 60; high = rate.duration_rate_per_minute; incomplete = true;
+                } else {
+                    const base = (mins || 0) * (rate.duration_rate_per_minute || 0);
+                    const standby = ((costTokenNumber(request.standby_ms) || 0) / 60000) * (rate.standby_rate_per_minute || 0);
+                    const turns = (costTokenNumber(request.text_turns) || 0) * (rate.text_turn_rate || 0);
+                    low = high = base + standby + turns;
+                }
+            } else if (rate.unit === 'video') {
+                const inTok = costTokenNumber(request.input_tokens);
+                const vidTok = costTokenNumber(request.video_output_tokens);
+                if (rate.video_output != null && inTok !== null && vidTok !== null) {
+                    const outTok = costTokenNumber(request.output_tokens) || vidTok;
+                    const textOut = Math.max(0, outTok - vidTok);
+                    low = high = (inTok * (rate.input || 0) + textOut * (rate.output || 0) + vidTok * rate.video_output) / 1e6;
+                } else {
+                    const sec = request.duration_ms != null ? costTokenNumber(request.duration_ms) / 1000 : costTokenNumber(request.duration_seconds);
+                    const tbl = (request.without_audio && rate.video_only_rates) ? rate.video_only_rates : rate.video_rates || {};
+                    const resKey = String(request.resolution || '').toLowerCase();
+                    const rVal = resKey && tbl[resKey] != null ? tbl[resKey] : null;
+                    const vals = Object.values(tbl).filter(v => typeof v === 'number');
+                    if (sec !== null) {
+                        const loRate = rVal ?? tbl.default ?? (vals.length ? Math.min(...vals) : 0);
+                        const hiRate = rVal ?? tbl.default ?? (vals.length ? Math.max(...vals) : 0);
+                        const extra = (costTokenNumber(request.input_images) || 0) * (rate.input_image_rate || 0);
+                        low = sec * loRate + extra; high = sec * hiRate + extra;
+                        if (rVal == null && vals.length > 1) incomplete = true;
+                    } else if (vals.length) {
+                        const dSec = String(request.model || '').startsWith('grok-') ? 5 : 8;
+                        low = dSec * Math.min(...vals); high = dSec * Math.max(...vals);
+                        incomplete = true;
+                    } else { result.unpriced++; return; }
+                }
+            } else { result.unpriced++; return; }
+            result.low += low * flexMul; result.high += high * flexMul;
+            result.priced++;
+            if (lowerBound) result.lowerBound = true;
+            if (incomplete) result.unpriced++;
+        }
+
         // Cache portions replace ordinary input, while hosted tool fees are added once.
         function requestTokenCost(request, rate, long, batch, flex = false) {
-            const input = costTokenNumber(request.input_tokens) || 0;
-            const output = costTokenNumber(request.output_tokens) || 0;
+            const rawIn = costTokenNumber(request.input_tokens);
+            const rawOut = costTokenNumber(request.output_tokens);
+            let input = rawIn || 0;
+            let output = rawOut || 0;
+            let derived = false;
+            const audioInTok = costTokenNumber(request.audio_input_tokens);
+            const textInTok = costTokenNumber(request.text_input_tokens);
+            const imgInTok = costTokenNumber(request.image_input_tokens);
+            const audioOutTok = costTokenNumber(request.audio_output_tokens);
+            const imgOutTok = costTokenNumber(request.image_output_tokens);
+            let estAudioIn = null, estAudioOut = null;
+            if (rate.audio_tokens_per_second) {
+                if (rawIn === null && (request.audio_in_ms != null || request.duration_ms != null)) {
+                    estAudioIn = ((costTokenNumber(request.audio_in_ms ?? request.duration_ms) || 0) / 1000) * rate.audio_tokens_per_second;
+                    derived = true;
+                }
+                if (rawOut === null && request.audio_out_ms != null && rate.audio_output != null) {
+                    estAudioOut = ((costTokenNumber(request.audio_out_ms) || 0) / 1000) * rate.audio_tokens_per_second;
+                    derived = true;
+                }
+            }
             const read = costTokenNumber(request.cache_read_tokens) || 0;
             const writes = costTokenNumber(request.cache_write_tokens) || 0;
             const ttl = ['5m', '1h', '30m', '12h'];
             const parts = ttl.map(t => costTokenNumber(request[`cache_write_${t}_tokens`]) || 0);
             const written = Math.max(writes, parts.reduce((a, b) => a + b, 0));
             const ordinary = Math.max(0, input - read - written);
-            const inRate = long ? rate.long_input : rate.input;
+            const inRate = long ? rate.long_input : (rate.text_input ?? rate.input);
             const outRate = long ? rate.long_output : rate.output;
             const cached = long ? rate.long_cached_input ?? rate.cached_input : rate.cached_input;
             const writeRates = rate.cache_write_multipliers || {};
@@ -28872,10 +29057,36 @@
             const cachedFactor = cached != null && multiplier > 0 ? cachedMultiplier / multiplier : 1;
             const unknownWrites = Math.max(0, written - parts.reduce((a, b) => a + b, 0));
             const possible = Object.values(writeRates);
-            let incomplete = !!request.pricing_incomplete || read + written > input || !!request.explicit_cache;
+            let incomplete = !!request.pricing_incomplete || !!rate.pricing_unlisted || read + written > input || !!request.explicit_cache;
             if (read && cached == null) incomplete = true;
-            let lowInput = ordinary * inRate + read * (cached ?? inRate) * cachedFactor;
-            let highInput = ordinary * (long ? inRate : rate.max_input ?? inRate) + read * (long ? cached ?? inRate : rate.max_cached_input ?? cached ?? inRate) * cachedFactor;
+            let lowInput = 0, highInput = 0;
+            const hasModalityIn = audioInTok !== null || textInTok !== null || imgInTok !== null;
+            if (hasModalityIn) {
+                const cText = costTokenNumber(request.cached_text_tokens);
+                const cImg = costTokenNumber(request.cached_image_tokens);
+                const cAudio = costTokenNumber(request.cached_audio_tokens);
+                const hasModCache = cText !== null || cImg !== null || cAudio !== null;
+                const ordText = Math.max(0, (textInTok || 0) - (cText || 0));
+                const ordImg = Math.max(0, (imgInTok || 0) - (cImg || 0));
+                const ordAudio = Math.max(0, (audioInTok || 0) - (cAudio || 0));
+                const remOrd = Math.max(0, ordinary - ordText - ordImg - ordAudio);
+                lowInput = ordText * inRate + ordImg * (rate.image_input ?? inRate) + ordAudio * (rate.audio_input ?? inRate) + remOrd * inRate;
+                highInput = ordText * (rate.max_input ?? inRate) + ordImg * (rate.image_input ?? inRate) + ordAudio * (rate.audio_input ?? inRate) + remOrd * (rate.max_input ?? inRate);
+                if (hasModCache) {
+                    lowInput += ((cText || 0) * (cached ?? inRate) + (cImg || 0) * (rate.cached_image_input ?? cached ?? rate.image_input ?? inRate) + (cAudio || 0) * (rate.cached_audio_input ?? cached ?? rate.audio_input ?? inRate)) * cachedFactor;
+                    highInput += ((cText || 0) * (cached ?? inRate) + (cImg || 0) * (rate.cached_image_input ?? cached ?? rate.image_input ?? inRate) + (cAudio || 0) * (rate.cached_audio_input ?? cached ?? rate.audio_input ?? inRate)) * cachedFactor;
+                } else {
+                    lowInput += read * (cached ?? inRate) * cachedFactor;
+                    highInput += read * (rate.max_cached_input ?? cached ?? inRate) * cachedFactor;
+                }
+            } else if (estAudioIn !== null) {
+                lowInput = estAudioIn * (rate.audio_input ?? inRate);
+                highInput = lowInput;
+            } else {
+                const modInMax = Math.max(rate.max_input ?? inRate, ...(rate.unit === 'image' && rate.image_input != null ? [rate.image_input] : []));
+                lowInput = ordinary * inRate + read * (cached ?? inRate) * cachedFactor;
+                highInput = ordinary * (long ? inRate : modInMax) + read * (long ? cached ?? inRate : rate.max_cached_input ?? cached ?? inRate) * cachedFactor;
+            }
             for (let i = 0; i < ttl.length; i++) {
                 const factor = writeRates[ttl[i]];
                 if (parts[i] && factor == null) incomplete = true;
@@ -28887,8 +29098,45 @@
                 lowInput += unknownWrites * inRate * (possible.length ? Math.min(...possible) : 1);
                 highInput += unknownWrites * (long ? inRate : rate.max_input ?? inRate) * (possible.length ? Math.max(...possible) : 1);
             }
-            let low = (lowInput + output * outRate) * multiplier * (flex ? 0.5 : 1) / 1e6;
-            let high = (highInput + output * (rate.max_output ?? outRate)) * multiplier * (flex ? 0.5 : 1) / 1e6;
+            let lowOut = 0, highOut = 0, perImageExtra = 0;
+            if (imgOutTok !== null && rate.image_output != null) {
+                const txtOut = Math.max(0, output - imgOutTok);
+                lowOut = txtOut * outRate + imgOutTok * rate.image_output;
+                highOut = txtOut * (rate.max_output ?? outRate) + imgOutTok * rate.image_output;
+            } else if (audioOutTok !== null && rate.audio_output != null) {
+                const txtOut = Math.max(0, output - audioOutTok);
+                lowOut = txtOut * outRate + audioOutTok * rate.audio_output;
+                highOut = txtOut * (rate.max_output ?? outRate) + audioOutTok * rate.audio_output;
+            } else if (estAudioOut !== null && rate.audio_output != null) {
+                lowOut = estAudioOut * rate.audio_output;
+                highOut = lowOut;
+            } else if (rate.image_per_image && request.images != null) {
+                const cnt = costTokenNumber(request.images) || 0;
+                const res = String(request.resolution || '').toLowerCase();
+                const tbl = rate.image_per_image;
+                const pVal = tbl[res] ?? tbl.default;
+                const vals = Object.values(tbl).filter(v => typeof v === 'number');
+                const loP = pVal ?? (vals.length ? Math.min(...vals) : 0);
+                const hiP = pVal ?? (vals.length ? Math.max(...vals) : 0);
+                if (cnt > 0) {
+                    derived = true;
+                    perImageExtra = cnt * loP;
+                    const txtOut = imgOutTok !== null ? Math.max(0, output - imgOutTok) : (rawOut !== null && rate.image_output != null ? 0 : output);
+                    lowOut = txtOut * outRate;
+                    highOut = txtOut * (rate.max_output ?? outRate) + cnt * Math.max(0, hiP - loP) * 1e6;
+                }
+            } else if (rate.image_output != null && output > 0) {
+                // Legacy Gemini image call without separate image token count or image count: bracket text..image output
+                lowOut = output * outRate;
+                highOut = output * rate.image_output;
+                incomplete = true;
+            } else {
+                lowOut = output * outRate;
+                highOut = output * (rate.max_output ?? outRate);
+            }
+            const mul = multiplier * (flex ? 0.5 : 1);
+            let low = ((lowInput + lowOut) / 1e6 + perImageExtra) * mul;
+            let high = ((highInput + highOut) / 1e6 + perImageExtra) * mul;
             let lowerBound = false;
             const tools = rate.tool_rates || {};
             const add = (count, name) => {
@@ -28914,7 +29162,7 @@
                     add(1, 'code_execution_minimum'); incomplete = true; lowerBound = true;
                 } else add(code, 'code_execution');
             }
-            return { low, high, incomplete, lowerBound };
+            return { low, high, incomplete, lowerBound, derived };
         }
 
         // ---- 全チャットの費用予想（設定 > 費用タブ） ----

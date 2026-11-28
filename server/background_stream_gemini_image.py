@@ -336,6 +336,17 @@ def background_stream_gemini_image(local):
 
         if not image_outputs and not text_outputs:
             pub("error", "No image output returned.")
+        else:
+            img_res = str(image_cfg_kwargs.get("image_size") or "1k").lower()
+            _record_direct_usage(
+                img_model,
+                'google',
+                enrich_existing=True,
+                usage=getattr(resp, 'usage_metadata', None),
+                images=len(image_outputs),
+                operation=('edit' if gemini_image_parts else 'generate'),
+                resolution=(img_res if img_res in ('1k', '2k', '4k') else '1k'),
+            )
     except Exception as e:
         logger.exception("Gemini Image Gen Error")
         pub("error", f"Gemini Image Gen Error: {str(e)}")

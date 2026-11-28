@@ -10,7 +10,12 @@ class ModelUsageLedger {
         val row = JSONObject().put("model", model).put("created_at", Instant.now().toString())
         internal val priceSeen = mutableSetOf<String>()
         internal val querySeen = mutableSetOf<String>()
-        init { if (provider == "openai" && model.contains("search-preview")) row.put("web_search_calls", 1).put("search_preview", true) }
+        init {
+            if (provider == "openai" && (model.contains("search-preview") || model == "gpt-5-search-api")) {
+                row.put("web_search_calls", 1)
+                if (model.contains("search-preview")) row.put("search_preview", true)
+            }
+        }
         var finished = false
         var rejected = false
         var responseId: String? = null
@@ -20,11 +25,11 @@ class ModelUsageLedger {
             obj.optString("id").takeIf { it.isNotBlank() && it != "null" }?.let { responseId = it }
             val usage = obj.optJSONObject("usageMetadata") ?: obj.optJSONObject("usage_metadata") ?: obj.optJSONObject("usage") ?: return
             ModelUsagePricing.usage(this, usage, provider)
-            var input = usage.count("promptTokenCount", "prompt_token_count", "prompt_tokens", "input_tokens")
+            var input = usage.count("promptTokenCount", "prompt_token_count", "prompt_tokens", "input_tokens", "total_input_tokens")
             if (provider == "anthropic" && input != null) input += (usage.count("cache_read_input_tokens") ?: 0) + (usage.count("cache_creation_input_tokens") ?: 0)
-            var thought = usage.count("thoughtsTokenCount", "thoughts_token_count", "reasoning_tokens")
+            var thought = usage.count("thoughtsTokenCount", "thoughts_token_count", "reasoning_tokens", "total_thought_tokens")
             (usage.optJSONObject("output_tokens_details") ?: usage.optJSONObject("completion_tokens_details"))?.let { thought = it.count("reasoning_tokens") }
-            var output = usage.count("output_tokens", "completion_tokens")
+            var output = usage.count("output_tokens", "completion_tokens", "total_output_tokens")
             val candidates = usage.count("candidatesTokenCount", "candidates_token_count")
             if (candidates != null) output = candidates + (thought ?: 0)
             else {
@@ -35,13 +40,18 @@ class ModelUsageLedger {
                 if (value != null) row.put(key, maxOf(value, row.count(key) ?: 0))
             }
         }
-        fun snapshot(): JSONObject = JSONObject(row.toString()).put("complete", finished &&
-            (row.has("cost_in_usd_ticks") || row.has("images") || (row.count("input_tokens") != null && row.count("output_tokens") != null)))
+        fun snapshot(): JSONObject {
+            val unitKnown = listOf("images", "pages", "characters", "songs", "duration_ms", "audio_in_ms", "audio_out_ms", "standby_ms")
+                .any { row.has(it) && !row.isNull(it) }
+            return JSONObject(row.toString()).put("complete", finished &&
+                (row.has("cost_in_usd_ticks") || unitKnown || (row.count("input_tokens") != null && row.count("output_tokens") != null)))
+        }
     }
 
     private val calls = mutableListOf<Call>()
     @Synchronized fun records(): JSONArray? = if (calls.isEmpty()) null else snapshot()
     @Synchronized fun begin(model: String, provider: String): Call = Call(model, provider).also { calls += it }
+    @Synchronized fun lastCall(model: String): Call? = calls.lastOrNull { it.row.optString("model") == model }
     @Synchronized fun snapshot(): JSONArray {
         val seen = mutableSetOf<String>()
         val containers = mutableSetOf<String>()

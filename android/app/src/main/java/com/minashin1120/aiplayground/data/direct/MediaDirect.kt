@@ -85,6 +85,17 @@ class OpenAiImageDirect(private val http: DirectHttp, private val baseUrl: Strin
             ?: throw DirectApiException(0, reply.optJSONObject("error")?.optString("message")?.ifBlank { null } ?: "No image data found in the response.")
         val format = request.options.optString("image_format").takeIf { it in setOf("png", "jpeg", "webp") } ?: "png"
         val bytes = Base64.getDecoder().decode(encoded)
+        kotlin.coroutines.coroutineContext[UsageContext]?.ledger?.let { ledger ->
+            ledger.lastCall("gpt-4o-mini")?.row?.remove("pricing_incomplete")
+            ledger.begin(request.model, "openai").apply {
+                row.put("images", 1)
+                    .put("operation", if (request.imageInputs().isEmpty()) "generate" else "edit")
+                    .put("quality", request.options.optString("image_quality").ifBlank { "auto" })
+                    .put("size", request.options.optString("image_size").ifBlank { "auto" })
+                    .put("input_images", request.imageInputs().size)
+                finished = true
+            }
+        }
         emit(event("status", "完了"))
         return DirectResult("Generated Image for: ${request.prompt()}",
             files = listOf(DirectOutputFile("gen_gpt_${System.currentTimeMillis()}.${if (format == "jpeg") "jpg" else format}", "image/$format", bytes)))
@@ -97,6 +108,15 @@ class OpenAiImageDirect(private val http: DirectHttp, private val baseUrl: Strin
         val data = reply.optJSONArray("data") ?: JSONArray()
         val encoded = (0 until data.length()).mapNotNull { data.optJSONObject(it)?.optString("b64_json")?.takeIf { v -> v.isNotBlank() } }
         if (encoded.isEmpty()) throw DirectApiException(0, reply.optJSONObject("error")?.optString("message")?.ifBlank { null } ?: "No image data found in the response.")
+        kotlin.coroutines.coroutineContext[UsageContext]?.ledger?.begin(request.model, "openai")?.apply {
+            reply.optJSONObject("usage")?.let { observe(JSONObject().put("usage", it)) }
+            row.put("images", encoded.size)
+                .put("operation", if (images.isEmpty()) "generate" else "edit")
+                .put("quality", request.options.optString("image_quality").ifBlank { "auto" })
+                .put("size", request.options.optString("image_size").ifBlank { "auto" })
+                .put("input_images", images.size)
+            finished = true
+        }
         val format = imageOutputFormat(request)
         val (extension, mime) = when (format) {
             "jpeg" -> "jpg" to "image/jpeg"
@@ -187,6 +207,16 @@ class XaiImageDirect(private val http: DirectHttp, private val baseUrl: String =
         val encoded = (0 until data.length()).mapNotNull { data.optJSONObject(it)?.optString("b64_json")?.takeIf { v -> v.isNotBlank() } }
             .ifEmpty { listOfNotNull(reply.optString("image").takeIf { it.isNotBlank() }) }
         if (encoded.isEmpty()) throw DirectApiException(0, "No image data found in the response.")
+        kotlin.coroutines.coroutineContext[UsageContext]?.ledger?.begin(request.model, "xai")?.apply {
+            reply.optJSONObject("usage")?.let { observe(JSONObject().put("usage", it)) }
+            row.put("images", encoded.size)
+                .put("operation", if (images.isEmpty()) "generate" else "edit")
+                .put("input_images", images.size)
+            if (request.model in setOf("grok-imagine-image-2.0", "grok-imagine-image-quality")) {
+                row.put("resolution", request.options.optString("grok_image_resolution").lowercase().takeIf { it in setOf("1k", "2k") } ?: "1k")
+            }
+            finished = true
+        }
         return DirectResult("Generated Image for: ${request.prompt()}", files = encoded.mapIndexed { index, value ->
             DirectOutputFile("gen_grok_${System.currentTimeMillis()}_$index.png", "image/png", Base64.getDecoder().decode(value))
         })
@@ -464,6 +494,7 @@ class TtsDirect(private val http: DirectHttp, private val provider: String, priv
         emit(event("status", "音声を生成中..."))
         val options = request.options
         val speed = options.optString("tts_speed").toDoubleOrNull()
+        var interactionsReply: JSONObject? = null
         val (bytes, mime) = when (provider) {
             "openai" -> {
                 val payload = JSONObject().put("model", request.model).put("input", text)
@@ -492,6 +523,7 @@ class TtsDirect(private val http: DirectHttp, private val provider: String, priv
                 // Gemini 3.8 TTS: verbatim text, style metadata and custom voice IDs (Interactions API).
                 val reply = http.postJson("${baseUrl ?: "https://generativelanguage.googleapis.com"}/v1beta/interactions",
                     mapOf("x-goog-api-key" to request.apiKey), geminiInteractionsTtsPayload(request.model, text, options))
+                interactionsReply = reply
                 (geminiInteractionsTtsWav(reply) ?: throw DirectApiException(0, "Gemini TTS Error: No audio data returned.")) to "audio/wav"
             } else {
                 val speech = JSONObject().put("voiceConfig", JSONObject().put("prebuiltVoiceConfig",
@@ -504,6 +536,31 @@ class TtsDirect(private val http: DirectHttp, private val provider: String, priv
                     URLEncoder.encode(request.model, "UTF-8") + ":generateContent", mapOf("x-goog-api-key" to request.apiKey), payload)
                 val parts = reply.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
                 (geminiTtsWav(parts) ?: throw DirectApiException(0, "Gemini TTS Error: No audio data returned.")) to "audio/wav"
+            }
+        }
+        kotlin.coroutines.coroutineContext[UsageContext]?.ledger?.let { ledger ->
+            when (provider) {
+                "google", "xai" -> ledger.begin(request.model, provider).apply { row.put("characters", text.length); finished = true }
+                "openai" -> ledger.begin(request.model, "openai").apply {
+                    val estOutMs = maxOf(1000, (bytes.size * 8L / 24L).toInt())
+                    val estOutTok = (estOutMs / 1000.0 * 25.0).toInt()
+                    row.put("input_tokens", maxOf(1, (text.length + 1) / 2))
+                        .put("output_tokens", estOutTok).put("audio_output_tokens", estOutTok)
+                        .put("duration_ms", estOutMs).put("audio_out_ms", estOutMs)
+                    finished = true
+                }
+                else -> {
+                    val call = ledger.lastCall(request.model) ?: ledger.begin(request.model, "google")
+                    interactionsReply?.optJSONObject("usage")?.let { call.observe(JSONObject().put("usage", it)) }
+                    val durMs = wavDurationMs(bytes)
+                    if (durMs != null) {
+                        call.row.put("duration_ms", durMs).put("audio_out_ms", durMs)
+                        if (call.row.isNull("audio_output_tokens")) call.row.put("audio_output_tokens", (durMs / 1000.0 * 25.0).toInt())
+                        if (call.row.isNull("output_tokens")) call.row.put("output_tokens", call.row.optInt("audio_output_tokens"))
+                    }
+                    if (call.row.isNull("input_tokens")) call.row.put("input_tokens", maxOf(1, (text.length + 1) / 2))
+                    call.finished = true
+                }
             }
         }
         val ext = if (mime == "audio/wav") "wav" else "mp3"
@@ -587,6 +644,14 @@ internal fun geminiTtsWav(parts: JSONArray?): ByteArray? {
 }
 
 /** 16-bit mono PCM (Gemini TTS) as a WAV file. */
+internal fun wavDurationMs(wav: ByteArray): Int? {
+    if (wav.size < 44) return null
+    val rate = ByteBuffer.wrap(wav, 24, 4).order(ByteOrder.LITTLE_ENDIAN).int
+    val channels = ByteBuffer.wrap(wav, 22, 2).order(ByteOrder.LITTLE_ENDIAN).short.toInt()
+    if (rate <= 0 || channels <= 0) return null
+    return ((wav.size - 44).toDouble() / (rate * 2.0 * channels) * 1000.0).toInt().coerceAtLeast(0)
+}
+
 internal fun pcmToWav(pcm: ByteArray, sampleRate: Int, channels: Int = 1): ByteArray {
     val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
     header.put("RIFF".toByteArray()).putInt(36 + pcm.size).put("WAVE".toByteArray())
@@ -662,10 +727,12 @@ class VideoDirect(private val http: DirectHttp, private val provider: String, pr
         request.inputImages().firstOrNull()?.let { image ->
             instance.put("image", JSONObject().put("bytesBase64Encoded", Base64.getEncoder().encodeToString(image.bytes)).put("mimeType", image.mime))
         }
+        val res = options.optString("gemini_video_resolution").takeIf { it in setOf("480p", "720p", "1080p", "4K") } ?: "720p"
+        val durSec = (options.optString("gemini_video_duration").toIntOrNull() ?: 8).coerceIn(1, 8)
         val parameters = JSONObject()
             .put("aspectRatio", options.optString("gemini_video_aspect").takeIf { it in setOf("16:9", "9:16", "1:1", "4:3", "3:4", "3:2", "2:3", "21:9") } ?: "16:9")
-            .put("resolution", options.optString("gemini_video_resolution").takeIf { it in setOf("480p", "720p", "1080p", "4K") } ?: "720p")
-            .put("durationSeconds", (options.optString("gemini_video_duration").toIntOrNull() ?: 8).coerceIn(1, 8))
+            .put("resolution", res)
+            .put("durationSeconds", durSec)
         var operation = http.postJson("$base/v1beta/models/${URLEncoder.encode(request.model, "UTF-8")}:predictLongRunning", headers,
             JSONObject().put("instances", JSONArray().put(instance)).put("parameters", parameters))
         val name = operation.optString("name").ifBlank { throw DirectApiException(0, "No operation returned.") }
@@ -681,6 +748,10 @@ class VideoDirect(private val http: DirectHttp, private val provider: String, pr
         val uri = samples?.optJSONObject(0)?.optJSONObject("video")?.optString("uri")?.takeIf { it.isNotBlank() }
             ?: throw DirectApiException(0, "No video URI in response.")
         emit(event("status", "動画を保存中..."))
+        kotlin.coroutines.coroutineContext[UsageContext]?.ledger?.begin(request.model, "google")?.apply {
+            row.put("duration_ms", durSec * 1000).put("resolution", res.lowercase())
+            finished = true
+        }
         return http.download(uri, headers, 256L * 1024 * 1024)
     }
 
@@ -690,10 +761,12 @@ class VideoDirect(private val http: DirectHttp, private val provider: String, pr
         val headers = mapOf("Authorization" to "Bearer ${request.apiKey}")
         var resolution = options.optString("grok_video_resolution").takeIf { it in setOf("480p", "720p", "1080p") } ?: "720p"
         if (resolution == "1080p" && request.model !in setOf("grok-imagine-video-1.5", "grok-imagine-video-1.5-lite")) resolution = "720p"
+        val durSec = options.optString("grok_video_duration").toIntOrNull() ?: 5
+        val inImg = request.inputImages().firstOrNull()
         val payload = JSONObject().put("model", request.model).put("prompt", request.prompt())
-            .put("duration", options.optString("grok_video_duration").toIntOrNull() ?: 5)
+            .put("duration", durSec)
             .put("aspect_ratio", options.optString("grok_video_aspect").ifBlank { "16:9" }).put("resolution", resolution)
-        request.inputImages().firstOrNull()?.let { image ->
+        inImg?.let { image ->
             payload.put("image", JSONObject().put("url", "data:${image.mime};base64," + Base64.getEncoder().encodeToString(image.bytes)))
         }
         val started = http.postJson("$base/v1/videos/generations", headers, payload)
@@ -705,7 +778,17 @@ class VideoDirect(private val http: DirectHttp, private val provider: String, pr
             delay(2000)
             val status = runCatching { http.getJson("$base/v1/videos/$id", headers) }.getOrNull() ?: continue
             val url = status.optString("url").ifBlank { status.optJSONObject("video")?.optString("url").orEmpty() }
-            if (url.isNotBlank()) return http.download(url, emptyMap(), 256L * 1024 * 1024)
+            if (url.isNotBlank()) {
+                kotlin.coroutines.coroutineContext[UsageContext]?.ledger?.begin(request.model, "xai")?.apply {
+                    status.optJSONObject("usage")?.let { observe(JSONObject().put("usage", it)) }
+                    val actualDur = status.optJSONObject("video")?.optDouble("duration", Double.NaN)?.takeIf { it.isFinite() && it > 0.0 }
+                    row.put("duration_ms", ((actualDur ?: durSec.toDouble()) * 1000.0).toInt())
+                        .put("resolution", resolution)
+                        .put("input_images", if (inImg != null) 1 else 0)
+                    finished = true
+                }
+                return http.download(url, emptyMap(), 256L * 1024 * 1024)
+            }
             if (status.optString("status") == "failed") throw DirectApiException(0, status.optString("error").ifBlank { "Video generation failed." })
         }
     }

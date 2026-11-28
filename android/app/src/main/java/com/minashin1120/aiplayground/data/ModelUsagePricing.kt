@@ -15,13 +15,44 @@ internal object ModelUsagePricing {
     private fun putMax(call: ModelUsageLedger.Call, key: String, value: Int?) {
         if (value != null) call.row.put(key, maxOf(value, count(call.row, key) ?: 0))
     }
+    private fun extractModalities(call: ModelUsageLedger.Call, arr: JSONArray?, map: Map<String, String>) {
+        if (arr == null) return
+        val sums = mutableMapOf<String, Int>()
+        for (i in 0 until arr.length()) {
+            val item = arr.optJSONObject(i) ?: continue
+            val mod = item.optString("modality").uppercase()
+            val cnt = count(item, "tokenCount", "token_count", "tokens") ?: continue
+            val field = map[mod] ?: continue
+            sums[field] = (sums[field] ?: 0) + cnt
+        }
+        for ((field, total) in sums) putMax(call, field, total)
+    }
     fun usage(call: ModelUsageLedger.Call, usage: JSONObject, provider: String) {
         val details = usage.optJSONObject("input_tokens_details") ?: usage.optJSONObject("prompt_tokens_details")
+        val outDetails = usage.optJSONObject("output_tokens_details") ?: usage.optJSONObject("completion_tokens_details")
+        val cachedDetails = details?.optJSONObject("cached_tokens_details")
         val creation = usage.optJSONObject("cache_creation")
         val writes = details?.optJSONObject("cache_write_tokens_details")
         putMax(call, "cache_read_tokens", count(details, "cached_tokens") ?: count(usage, "cache_read_input_tokens", "cachedContentTokenCount", "cached_content_token_count", "prompt_cache_hit_tokens", "cached_prompt_tokens", "total_cached_tokens"))
         putMax(call, "cache_write_tokens", count(details, "cache_write_tokens") ?: count(usage, "cache_creation_input_tokens"))
         for ((ttl, obj, field) in listOf(Triple("5m", creation, "ephemeral_5m_input_tokens"), Triple("1h", creation, "ephemeral_1h_input_tokens"), Triple("30m", writes, "ttl_30m_tokens"), Triple("12h", writes, "ttl_12h_tokens"))) putMax(call, "cache_write_${ttl}_tokens", count(obj, field))
+        putMax(call, "text_input_tokens", count(details, "text_tokens"))
+        putMax(call, "image_input_tokens", count(details, "image_tokens"))
+        putMax(call, "audio_input_tokens", count(details, "audio_tokens"))
+        putMax(call, "text_output_tokens", count(outDetails, "text_tokens"))
+        putMax(call, "image_output_tokens", count(outDetails, "image_tokens"))
+        putMax(call, "audio_output_tokens", count(outDetails, "audio_tokens"))
+        putMax(call, "cached_text_tokens", count(cachedDetails, "text_tokens"))
+        putMax(call, "cached_image_tokens", count(cachedDetails, "image_tokens"))
+        putMax(call, "cached_audio_tokens", count(cachedDetails, "audio_tokens"))
+        extractModalities(call, usage.optJSONArray("promptTokensDetails") ?: usage.optJSONArray("prompt_tokens_details"),
+            mapOf("TEXT" to "text_input_tokens", "IMAGE" to "image_input_tokens", "AUDIO" to "audio_input_tokens", "VIDEO" to "video_input_tokens"))
+        extractModalities(call, usage.optJSONArray("candidatesTokensDetails") ?: usage.optJSONArray("candidates_tokens_details"),
+            mapOf("TEXT" to "text_output_tokens", "IMAGE" to "image_output_tokens", "AUDIO" to "audio_output_tokens", "VIDEO" to "video_output_tokens"))
+        extractModalities(call, usage.optJSONArray("input_tokens_by_modality"),
+            mapOf("TEXT" to "text_input_tokens", "IMAGE" to "image_input_tokens", "AUDIO" to "audio_input_tokens", "VIDEO" to "video_input_tokens"))
+        extractModalities(call, usage.optJSONArray("output_tokens_by_modality"),
+            mapOf("TEXT" to "text_output_tokens", "IMAGE" to "image_output_tokens", "AUDIO" to "audio_output_tokens", "VIDEO" to "video_output_tokens"))
         val server = usage.optJSONObject("server_tool_use")
         putMax(call, "web_search_calls", count(server, "web_search_requests"))
         putMax(call, "code_execution_calls", count(server, "code_execution_requests"))

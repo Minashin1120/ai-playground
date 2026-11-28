@@ -17,14 +17,14 @@ nvasHtmlPreviewCandidate");function normalizeCanvasBlock(e,t){const n=String(e&&
 i=String(e&&e.code!==void 0&&e.code!==null?e.code:""),a=!!(e&&e.open);return{...e,index:t,lang:n,code:i,
 open:a,key:hashString(`${n||"TEXT"}
 ${i||""}`)}}r(normalizeCanvasBlock,"normalizeCanvasBlock");function parseCanvasMarkdown(e){const t=String(
-e||""),n=t.split(/\r?\n/),i=[],a=[],o=/^(\s*)(`{3,}|~{3,})(.*)$/;let l=null,c="",d=[];for(const b of n){
-if(!l){const x=b.match(o);if(x){l=x[2],c=String(x[3]||"").trim(),d=[],i.push({lang:c,code:"",open:!0}),
+e||""),n=t.split(/\r?\n/),i=[],a=[],o=/^(\s*)(`{3,}|~{3,})(.*)$/;let l=null,c="",d=[];for(const y of n){
+if(!l){const x=y.match(o);if(x){l=x[2],c=String(x[3]||"").trim(),d=[],i.push({lang:c,code:"",open:!0}),
 a.push('<div class="canvas-code-placeholder">Canvas\u3067\u8868\u793A\u4E2D</div>');continue}a.push(
-b);continue}const v=String(b||"").trim();if(v&&v.replace(/\s+/g,"")===l){const x=i[i.length-1];x&&(x.
+y);continue}const b=String(y||"").trim();if(b&&b.replace(/\s+/g,"")===l){const x=i[i.length-1];x&&(x.
 code=d.join(`
-`),x.open=!1),l=null,c="",d=[];continue}d.push(b);const w=i[i.length-1];w&&(w.code=d.join(`
-`))}if(l&&i.length){const b=i[i.length-1];b&&(b.code=d.join(`
-`),b.open=!0)}const m=i.map((b,v)=>normalizeCanvasBlock(b,v)),g=selectCanvasPreviewBlock(m,t);return{
+`),x.open=!1),l=null,c="",d=[];continue}d.push(y);const w=i[i.length-1];w&&(w.code=d.join(`
+`))}if(l&&i.length){const y=i[i.length-1];y&&(y.code=d.join(`
+`),y.open=!0)}const m=i.map((y,b)=>normalizeCanvasBlock(y,b)),g=selectCanvasPreviewBlock(m,t);return{
 renderText:a.join(`
 `),blocks:m,primaryBlock:g?g.block:null,primaryIndex:g?g.index:-1,rawText:t}}r(parseCanvasMarkdown,"\
 parseCanvasMarkdown");function selectCanvasPreviewBlock(e,t="",n=-1){const i=Array.isArray(e)?e:[];if(Number.
@@ -71,10 +71,10 @@ length){e.blockList.innerHTML='<div class="px-2 py-3 text-xs text-gray-500">\u30
 return}const n=Number.isInteger(canvasPreviewState.selectedIndex)?canvasPreviewState.selectedIndex:-1;
 e.blockList.innerHTML=t.map((i,a)=>{const o=String(i&&i.lang?i.lang:"text").trim()||"text",l=a===n,c=i&&
 i.open?"\u751F\u6210\u4E2D":"\u8868\u793A",g=(String(i&&i.code?i.code:"").split(/\r?\n/).find(w=>w.trim())||
-"\u7A7A\u306E\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF").trim().replace(/\s+/g," ").slice(0,120),b=`${l?
-"\u73FE\u5728\u8868\u793A\u4E2D":"\u5207\u308A\u66FF\u3048"}: ${o}`,v=`${b}\u3001${g}`;return`<butto\
+"\u7A7A\u306E\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF").trim().replace(/\s+/g," ").slice(0,120),y=`${l?
+"\u73FE\u5728\u8868\u793A\u4E2D":"\u5207\u308A\u66FF\u3048"}: ${o}`,b=`${y}\u3001${g}`;return`<butto\
 n type="button" class="canvas-block-chip${l?" active":""}" data-canvas-block-index="${a}" title="${escapeHtml(
-b)}" aria-label="${escapeHtml(v)}" aria-pressed="${l?"true":"false"}"><span class="canvas-block-chip\
+y)}" aria-label="${escapeHtml(b)}" aria-pressed="${l?"true":"false"}"><span class="canvas-block-chip\
 -index">#${a+1}</span><span class="canvas-block-chip-main"><span class="canvas-block-chip-lang">${escapeHtml(
 o)}</span><span class="canvas-block-chip-preview">${escapeHtml(g)}</span></span><span class="canvas-\
 block-chip-state">${l?"\u8868\u793A\u4E2D":c}</span></button>`}).join("")}r(renderCanvasBlockChips,"\
@@ -149,10 +149,10 @@ i&&i.open?"\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u751F\u6210\u4E2D":"
 "\u30B3\u30FC\u30C9\u30D6\u30ED\u30C3\u30AF\u3092\u5F85\u6A5F\u4E2D",g=o?d?`HTML Canvas Preview${t.length>
 1&&a>=0?` #${a+1}/${t.length}`:""}`:`Canvas Preview: ${l||"text"}${t.length>1&&a>=0?` #${a+1}/${t.length}`:
 ""}`:"Canvas\u3067\u8868\u793A\u4E2D";e.title&&(e.title.textContent=g),e.status&&(e.status.textContent=
-m),e.previewLang&&(e.previewLang.textContent=o?l||"text":"idle");const b=e.sourceScroll?e.sourceScroll.
-scrollTop:canvasPreviewState.sourceScrollTop,v=e.sourceScroll?e.sourceScroll.scrollLeft:canvasPreviewState.
-sourceScrollLeft;if(e.code&&(e.code.textContent=c),e.sourceScroll&&(e.sourceScroll.scrollTop=b,e.sourceScroll.
-scrollLeft=v,canvasPreviewState.sourceScrollTop=e.sourceScroll.scrollTop,canvasPreviewState.sourceScrollLeft=
+m),e.previewLang&&(e.previewLang.textContent=o?l||"text":"idle");const y=e.sourceScroll?e.sourceScroll.
+scrollTop:canvasPreviewState.sourceScrollTop,b=e.sourceScroll?e.sourceScroll.scrollLeft:canvasPreviewState.
+sourceScrollLeft;if(e.code&&(e.code.textContent=c),e.sourceScroll&&(e.sourceScroll.scrollTop=y,e.sourceScroll.
+scrollLeft=b,canvasPreviewState.sourceScrollTop=e.sourceScroll.scrollTop,canvasPreviewState.sourceScrollLeft=
 e.sourceScroll.scrollLeft),e.blockCount&&(e.blockCount.textContent=String(t.length)),renderCanvasBlockChips(),
 renderCanvasSourceOptions(),o){canvasPreviewState.frameRenderToken+=1;const w=canvasPreviewState.frameRenderToken,
 x=instrumentCanvasPreviewDocument(buildCanvasPreviewDocument(i),w);e.frame&&(e.frame.srcdoc=x,e.frame.
@@ -244,8 +244,8 @@ vasModeUi");function normalizeMarkdownNewlines(e){return String(e||"").replace(/
 `)}r(normalizeMarkdownNewlines,"normalizeMarkdownNewlines");function stripExactFencedBlock(e,t,n){let i=normalizeMarkdownNewlines(
 e);const a=normalizeMarkdownNewlines(n);if(!a&&a!=="")return i;const o=t?[String(t),""]:[""];for(const l of[
 "`","~"])for(let c=3;c<=10;c++){const d=l.repeat(c);for(const m of o){const g=`${d}${m}
-`,b=`
-${d}`,v=g+a+b;i.includes(v)&&(i=i.split(v).join(""))}}return i}r(stripExactFencedBlock,"stripExactFe\
+`,y=`
+${d}`,b=g+a+y;i.includes(b)&&(i=i.split(b).join(""))}}return i}r(stripExactFencedBlock,"stripExactFe\
 ncedBlock");function stripVisiblePythonOutputBlock(e,t){let n=normalizeMarkdownNewlines(e);const i=normalizeMarkdownNewlines(
 t==null?"":String(t)),a=[`**Output:**
 `,`**Output:** 
@@ -273,26 +273,26 @@ a+`
 
 `+i:i}r(buildChatErrorMarkdown,"buildChatErrorMarkdown");function extractPythonExecutionsFromContent(e){
 const t=normalizeMarkdownNewlines(e),n=[],i=[];if(!t)return{text:"",executions:n};const a=/(?:^|\n)(`{3,}|~{3,})pyexec[ \t]*\n([\s\S]*?)\n\1[ \t]*(?=\n|$)/g;
-let o=t.replace(a,(v,w,x,k)=>{i.push(k);const C=String(x||"").trim();try{const T=JSON.parse(C);n.push(
+let o=t.replace(a,(b,w,x,k)=>{i.push(k);const C=String(x||"").trim();try{const T=JSON.parse(C);n.push(
 {code:T&&T.code!=null?String(T.code):"",output:T&&T.output!=null?String(T.output):"",images:T&&Array.
-isArray(T.images)?T.images.filter(E=>typeof E=="string"):[]})}catch{n.push({code:C,output:""})}return`\
+isArray(T.images)?T.images.filter(A=>typeof A=="string"):[]})}catch{n.push({code:C,output:""})}return`\
 
 `});const l=/!\[Agentic View\]\(([^)]+)\)/g;if(!n.length&&/!\[Agentic View\]\(/.test(t)&&(o=t.replace(
-/(?:^|\n)```python\n([\s\S]*?)\n```(?:\n+\*\*Output:\*\*\n```\n([\s\S]*?)\n```)?/g,(v,w,x,k)=>(i.push(
+/(?:^|\n)```python\n([\s\S]*?)\n```(?:\n+\*\*Output:\*\*\n```\n([\s\S]*?)\n```)?/g,(b,w,x,k)=>(i.push(
 k),n.push({code:w,output:x||"",images:[]}),`
-`))),n.length){const v=new Set(n.flatMap(w=>w.images||[]));for(const w of t.matchAll(l)){if(v.has(w[1]))
+`))),n.length){const b=new Set(n.flatMap(w=>w.images||[]));for(const w of t.matchAll(l)){if(b.has(w[1]))
 continue;let x=i.length-1;for(;x>0&&i[x]>w.index;)x--;const k=n[x];k.images=Array.from(new Set([...k.
-images||[],w[1]]))}o=o.replace(l,"")}n.forEach(v=>{v.code&&(o=stripExactFencedBlock(o,"python",v.code),
-o=stripExactFencedBlock(o,"py",v.code)),o=stripVisiblePythonOutputBlock(o,v.output)});const c=new Set(
-n.flatMap(v=>v.images||[]));o=o.replace(/(`{3,}[\s\S]*?`{3,}|~{3,}[\s\S]*?~{3,}|`[^`\n]*`)|(?<!!)\[([^\]\n]*)\]\(([^)\s]+)\)/g,
-(v,w,x,k)=>!w&&c.has(k)&&/\.(?:png|jpe?g|webp|gif|bmp)(?:[?#].*)?$/i.test(k)?`![${x}](${k})`:v);const d=n.
-slice().reverse().find(v=>v.images&&v.images.length),m=o.replace(/`{3,}[\s\S]*?`{3,}|~{3,}[\s\S]*?~{3,}|`[^`\n]*`/g,
-""),g=new Set(Array.from(m.matchAll(/!\[[^\]\n]*\]\(([^)\s]+)\)/g),v=>v[1])),b=(d?d.images:[]).filter(
-v=>/^\/files\/[A-Za-z0-9_./%-]+$/.test(v)&&!g.has(v));return b.length&&(o+=`
+images||[],w[1]]))}o=o.replace(l,"")}n.forEach(b=>{b.code&&(o=stripExactFencedBlock(o,"python",b.code),
+o=stripExactFencedBlock(o,"py",b.code)),o=stripVisiblePythonOutputBlock(o,b.output)});const c=new Set(
+n.flatMap(b=>b.images||[]));o=o.replace(/(`{3,}[\s\S]*?`{3,}|~{3,}[\s\S]*?~{3,}|`[^`\n]*`)|(?<!!)\[([^\]\n]*)\]\(([^)\s]+)\)/g,
+(b,w,x,k)=>!w&&c.has(k)&&/\.(?:png|jpe?g|webp|gif|bmp)(?:[?#].*)?$/i.test(k)?`![${x}](${k})`:b);const d=n.
+slice().reverse().find(b=>b.images&&b.images.length),m=o.replace(/`{3,}[\s\S]*?`{3,}|~{3,}[\s\S]*?~{3,}|`[^`\n]*`/g,
+""),g=new Set(Array.from(m.matchAll(/!\[[^\]\n]*\]\(([^)\s]+)\)/g),b=>b[1])),y=(d?d.images:[]).filter(
+b=>/^\/files\/[A-Za-z0-9_./%-]+$/.test(b)&&!g.has(b));return y.length&&(o+=`
 
 **Python\u306E\u6700\u5F8C\u306E\u5B9F\u884C\u753B\u50CF**
 
-`+b.map(v=>`![Python\u306E\u6700\u5F8C\u306E\u5B9F\u884C\u753B\u50CF](${v})`).join(`
+`+y.map(b=>`![Python\u306E\u6700\u5F8C\u306E\u5B9F\u884C\u753B\u50CF](${b})`).join(`
 
 `)),o=o.replace(/[ \t]+\n/g,`
 `).replace(/\n{3,}/g,`
@@ -318,16 +318,16 @@ o=escapeHtml(i)}catch{o=escapeHtml(i)}const l=(e.images||[]).filter(k=>/^\/files
 test(k)).map(k=>`![Python output](${k})`).join(`
 `),c=l?`<div class="python-section"><div class="python-label">Images</div>${sanitizeMarkdownHtml(marked.
 parse(l))}</div>`:"",d=escapeHtml(a),m=encodeURIComponent(i).replace(/'/g,"%27"),g=encodeURIComponent(
-a).replace(/'/g,"%27"),b=hashString(`pyexec-detail
+a).replace(/'/g,"%27"),y=hashString(`pyexec-detail
 ${i}
 ${a}
-${t}`),v=n>1?`Python Execution ${t+1}/${n}`:"Python Execution",w=`<button class="download-btn" data-\
+${t}`),b=n>1?`Python Execution ${t+1}/${n}`:"Python Execution",w=`<button class="download-btn" data-\
 code="${m}" data-lang="python" title="\u30B3\u30FC\u30C9\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9" aria-label="\u30B3\u30FC\u30C9\u3092\u30C0\u30A6\u30F3\u30ED\u30FC\u30C9"><i class="fas fa-download"\
-></i></button>`,x=`<button class="coding-target-btn" data-code="${m}" data-code-key="${b}" data-codi\
+></i></button>`,x=`<button class="coding-target-btn" data-code="${m}" data-code-key="${y}" data-codi\
 ng-lang="python" aria-pressed="false" title="Coding Mode\u306E\u7DE8\u96C6\u5BFE\u8C61\u306B\u6307\u5B9A" aria-label="\u7DE8\u96C6\u5BFE\u8C61\u306B\u6307\u5B9A"><i class="fas\
  fa-quote-right"></i></button>`;return`<div class="code-wrapper python-box" data-collapsed="false" d\
-ata-code-key="${b}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i>\
- ${escapeHtml(v)}</span><div class="code-actions">${x}${w}<button class="copy-btn" data-copy="code" \
+ata-code-key="${y}"><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i>\
+ ${escapeHtml(b)}</span><div class="code-actions">${x}${w}<button class="copy-btn" data-copy="code" \
 data-code="${m}" title="\u30B3\u30FC\u30C9\u3092\u30B3\u30D4\u30FC" aria-label="\u30B3\u30FC\u30C9\u3092\u30B3\u30D4\u30FC"><i class="fas fa-copy"></i></button><button cl\
 ass="copy-btn" data-copy="output" data-code="${g}" title="\u51FA\u529B\u3092\u30B3\u30D4\u30FC" aria-label="\u51FA\u529B\u3092\u30B3\u30D4\u30FC"><i class="fas \
 fa-align-left"></i></button></div></div><div class="code-body"><div class="python-section"><div clas\
@@ -362,10 +362,10 @@ renderMathStepsInto(e,a,n)){lowBandwidthMode||maybeNeedsMathJax(a)&&ensureMathJa
 return}const o=canvasModeEnabled?parseCanvasMarkdown(a):{renderText:a,blocks:[],primaryBlock:null,rawText:a};
 if(canvasModeEnabled&&(updateCanvasPreviewState(o),refreshCanvasPreviewPanel()),n.incrementalMath){const c=document.
 createElement("template");c.innerHTML=sanitizeMarkdownHtml(o.renderText,{streamMathSegments:!0});const d=new Map;
-e.querySelectorAll(".stream-math-segment[data-stream-math-key]").forEach(g=>{const b=g.getAttribute(
-"data-stream-math-key");b&&d.set(b,g)});const m=[];c.content.querySelectorAll(".stream-math-segment[\
-data-stream-math-key]").forEach(g=>{const b=d.get(g.getAttribute("data-stream-math-key"));b?g.replaceWith(
-b):m.push(g)}),restoreSvgCodeRenders(c.content,collectSvgCodeRenders(e)),e.replaceChildren(c.content),
+e.querySelectorAll(".stream-math-segment[data-stream-math-key]").forEach(g=>{const y=g.getAttribute(
+"data-stream-math-key");y&&d.set(y,g)});const m=[];c.content.querySelectorAll(".stream-math-segment[\
+data-stream-math-key]").forEach(g=>{const y=d.get(g.getAttribute("data-stream-math-key"));y?g.replaceWith(
+y):m.push(g)}),restoreSvgCodeRenders(c.content,collectSvgCodeRenders(e)),e.replaceChildren(c.content),
 wrapRenderedSvgBoxes(e),queueHighlight(e,o.renderText),queueIncrementalMathTypeset(m);return}const l=collectSvgCodeRenders(
 e);e.innerHTML=sanitizeMarkdownHtml(o.renderText),restoreSvgCodeRenders(e,l),wrapRenderedSvgBoxes(e),
 queueMessageDecorations(e,o.renderText)}r(renderAiMarkdownInto,"renderAiMarkdownInto");function collectSvgCodeRenders(e){
@@ -383,95 +383,95 @@ k-circle text-green-400"></i> Search complete</div>';function updateSearchBox(e,
 rching"&&n!=="done"||(t||(e.insertAdjacentHTML("afterbegin",SEARCH_COMPLETE_HTML),t=e.querySelector(
 ".search-box")),t.classList.toggle("animate-pulse",n==="searching"),t.innerHTML=n==="searching"?'<i \
 class="fas fa-globe"></i> Searching web...':'<i class="fas fa-check-circle text-green-400"></i> Sear\
-ch complete'),t}r(updateSearchBox,"updateSearchBox");function renderMessage(e,t,n,i,a,o,l=null,c=!0,d=null,m=null,g=null,b=null,v=null,w=null,x=null,k=null,C=!0,T=null,E=null,N=null,U=null,L=null,I=null){
-const A=t==="user",j=A?"bg-blue-600":"bg-gray-700",B=A?"justify-end":"justify-start";messageStore[e]=
-n;const D=!A&&n?extractPythonExecutionsFromContent(n):{text:n||"",executions:[]},V=A?n:D.text;let ee=m;
-if(ee==null){const he=g!=null?Number(g):0,we=b!=null?Number(b):0;(g!=null||b!=null)&&(ee=he+we)}const $=costCacheUsage(
-a);messageMeta[e]={tokens_in:g,tokens_out:b,tokens_total:ee,tokens_content:w,tokens_thought:x,cache_read_tokens:$?
-$.read:null,cache_write_tokens:$?$.write:null,cache_write_ttls:$?$.ttls:null,is_encrypted:v,role:t,model:o,
-parent_id:T,quote_text:d,image_url:i,image_mask:U,skill_name:E,batch_job:N,thought_data:a,processing_time:L,
-python_executions:A?[]:D.executions||[]};let R="";d&&(R=`<div class="mb-2 p-2 bg-black/20 rounded bo\
+ch complete'),t}r(updateSearchBox,"updateSearchBox");function renderMessage(e,t,n,i,a,o,l=null,c=!0,d=null,m=null,g=null,y=null,b=null,w=null,x=null,k=null,C=!0,T=null,A=null,N=null,H=null,L=null,$=null){
+const M=t==="user",P=M?"bg-blue-600":"bg-gray-700",R=M?"justify-end":"justify-start";messageStore[e]=
+n;const q=!M&&n?extractPythonExecutionsFromContent(n):{text:n||"",executions:[]},G=M?n:q.text;let te=m;
+if(te==null){const fe=g!=null?Number(g):0,be=y!=null?Number(y):0;(g!=null||y!=null)&&(te=fe+be)}const O=costCacheUsage(
+a);messageMeta[e]={tokens_in:g,tokens_out:y,tokens_total:te,tokens_content:w,tokens_thought:x,cache_read_tokens:O?
+O.read:null,cache_write_tokens:O?O.write:null,cache_write_ttls:O?O.ttls:null,is_encrypted:b,role:t,model:o,
+parent_id:T,quote_text:d,image_url:i,image_mask:H,skill_name:A,batch_job:N,thought_data:a,processing_time:L,
+python_executions:M?[]:q.executions||[]};let B="";d&&(B=`<div class="mb-2 p-2 bg-black/20 rounded bo\
 rder-l-4 border-blue-400 text-xs text-gray-300 italic truncate max-w-full"><i class="fas fa-quote-le\
-ft mr-1 opacity-50"></i>${escapeHtml(d)}</div>`);const J=E?`<div class="skill-notice visible"><i cla\
-ss="fas fa-wand-magic-sparkles"></i><span>Skill: <span class="font-bold">${escapeHtml(E)}</span></sp\
-an></div>`:"";let F="";if(a&&!A){let he="";try{const we=JSON.parse(a);he=we.text||"",we.search_used===
-!0&&(F=SEARCH_COMPLETE_HTML)}catch{he=a}he&&(F+=`<div class="thought-container"><div class="thought-\
+ft mr-1 opacity-50"></i>${escapeHtml(d)}</div>`);const J=A?`<div class="skill-notice visible"><i cla\
+ss="fas fa-wand-magic-sparkles"></i><span>Skill: <span class="font-bold">${escapeHtml(A)}</span></sp\
+an></div>`:"";let F="";if(a&&!M){let fe="";try{const be=JSON.parse(a);fe=be.text||"",be.search_used===
+!0&&(F=SEARCH_COMPLETE_HTML)}catch{fe=a}fe&&(F+=`<div class="thought-container"><div class="thought-\
 header" onclick="toggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process\
-</div><div class="thought-content collapsed">${escapeHtml(he)}</div></div>`)}let H="";const te=new Set;
-if(!A){const he=String(V||"").replace(/`{3,}[\s\S]*?`{3,}|~{3,}[\s\S]*?~{3,}|`[^`\n]*`/g,""),we=Array.
-from(he.matchAll(/!\[[^\]\n]*\]\(([^)\s]+)\)/g),be=>be[1]);we.push(...(D.executions||[]).flatMap(be=>be.
-images||[])),we.forEach(be=>{if(/^https?:\/\//i.test(be)&&!be.startsWith(FILE_BASE_URL))try{if(new URL(
-be).origin!==window.location.origin)return}catch{return}const ae=normalizeAttachmentPath(be);ae&&te.
-add(ae)})}if(i)try{const he=JSON.parse(i);if(he.length){const we=[];if(he.forEach(be=>{let ae=be,it="\
-unknown";if(ae&&typeof ae=="object"&&(it=normalizeAttachmentSource(ae.source),ae=ae.filepath||ae.path||
-ae.url||ae.file||""),ae=normalizeAttachmentPath(ae)||ae,!ae||!A&&te.has(ae))return;setAttachmentSourceForPath(
-ae,it);const st=ae.replace(/^\d+\//,""),kt=buildFileUrl(st),Lt=buildAttachmentPreviewUrl(st),He=ae.split(
-"/").pop(),at=He.split(".").pop().toLowerCase();["jpg","jpeg","png","webp","gif"].includes(at)?we.push(
-buildChatImageHtml(Lt,{viewerSrc:kt,alt:He,title:He,filename:He})):we.push(`<div class="file-thumb b\
+</div><div class="thought-content collapsed">${escapeHtml(fe)}</div></div>`)}let D="";const Z=new Set;
+if(!M){const fe=String(G||"").replace(/`{3,}[\s\S]*?`{3,}|~{3,}[\s\S]*?~{3,}|`[^`\n]*`/g,""),be=Array.
+from(fe.matchAll(/!\[[^\]\n]*\]\(([^)\s]+)\)/g),ge=>ge[1]);be.push(...(q.executions||[]).flatMap(ge=>ge.
+images||[])),be.forEach(ge=>{if(/^https?:\/\//i.test(ge)&&!ge.startsWith(FILE_BASE_URL))try{if(new URL(
+ge).origin!==window.location.origin)return}catch{return}const se=normalizeAttachmentPath(ge);se&&Z.add(
+se)})}if(i)try{const fe=JSON.parse(i);if(fe.length){const be=[];if(fe.forEach(ge=>{let se=ge,it="unk\
+nown";if(se&&typeof se=="object"&&(it=normalizeAttachmentSource(se.source),se=se.filepath||se.path||
+se.url||se.file||""),se=normalizeAttachmentPath(se)||se,!se||!M&&Z.has(se))return;setAttachmentSourceForPath(
+se,it);const st=se.replace(/^\d+\//,""),vt=buildFileUrl(st),Mt=buildAttachmentPreviewUrl(st),He=se.split(
+"/").pop(),at=He.split(".").pop().toLowerCase();["jpg","jpeg","png","webp","gif"].includes(at)?be.push(
+buildChatImageHtml(Mt,{viewerSrc:vt,alt:He,title:He,filename:He})):be.push(`<div class="file-thumb b\
 g-gray-800 border border-gray-600 rounded flex flex-col items-center justify-center cursor-pointer h\
-over:bg-gray-700" onclick="window.open('${kt}')" title="${He}"><i class="fas fa-file text-2xl text-g\
-ray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${He}</span></div>`)}),we.length>
-0){let be="grid-multi";we.length===1?be="grid-1":we.length===2?be="grid-2":we.length===3?be="grid-3":
-we.length===4&&(be="grid-4"),H=`<div class="image-grid ${be}">${we.join("")}</div>`}}}catch{}let G="";
-if(A&&U)try{const he=normalizeAttachmentPath(U)||String(U),we=he.replace(/^\d+\//,""),be=buildFileUrl(
-we),ae=buildAttachmentPreviewUrl(we),it=he.split("/").pop();G=`<div class="mt-2 max-w-xs rounded-lg \
+over:bg-gray-700" onclick="window.open('${vt}')" title="${He}"><i class="fas fa-file text-2xl text-g\
+ray-400 mb-1"></i><span class="text-[9px] truncate w-20 text-center">${He}</span></div>`)}),be.length>
+0){let ge="grid-multi";be.length===1?ge="grid-1":be.length===2?ge="grid-2":be.length===3?ge="grid-3":
+be.length===4&&(ge="grid-4"),D=`<div class="image-grid ${ge}">${be.join("")}</div>`}}}catch{}let V="";
+if(M&&H)try{const fe=normalizeAttachmentPath(H)||String(H),be=fe.replace(/^\d+\//,""),ge=buildFileUrl(
+be),se=buildAttachmentPreviewUrl(be),it=fe.split("/").pop();V=`<div class="mt-2 max-w-xs rounded-lg \
 border border-amber-300/40 bg-black/10 p-2"><div class="mb-1 text-[10px] font-semibold text-amber-10\
 0"><i class="fas fa-mask mr-1" aria-hidden="true"></i>\u30DE\u30B9\u30AF\u753B\u50CF\uFF08\u524A\u9664\u7BC4\u56F2\uFF09</div>${buildChatImageHtml(
-ae,{viewerSrc:be,alt:"Object Remover mask",title:"\u30DE\u30B9\u30AF\u753B\u50CF\uFF08\u524A\u9664\u7BC4\u56F2\uFF09",
-filename:it})}</div>`}catch{}const X=A?"":`<button class="ctrl-btn" onclick="regenerateMessage('${e}\
-')"><i class="fas fa-rotate-right"></i></button>`,ce=`<div class="msg-controls absolute -top-5 right\
+se,{viewerSrc:ge,alt:"Object Remover mask",title:"\u30DE\u30B9\u30AF\u753B\u50CF\uFF08\u524A\u9664\u7BC4\u56F2\uFF09",
+filename:it})}</div>`}catch{}const X=M?"":`<button class="ctrl-btn" onclick="regenerateMessage('${e}\
+')"><i class="fas fa-rotate-right"></i></button>`,oe=`<div class="msg-controls absolute -top-5 right\
 -0 hidden group-hover:flex gap-1 z-10"><button class="ctrl-btn" onclick="window.copyMessage('${e}', \
-this)"><i class="fas fa-copy"></i></button>${A?`<button class="ctrl-btn edit-btn" data-id="${e}"><i \
+this)"><i class="fas fa-copy"></i></button>${M?`<button class="ctrl-btn edit-btn" data-id="${e}"><i \
 class="fas fa-pen"></i></button>`:""}${X}${/^\d+$/.test(String(e))?`<button class="ctrl-btn" title="\
 \u65B0\u3057\u3044\u30C1\u30E3\u30C3\u30C8\u306B\u5206\u5C90" aria-label="\u65B0\u3057\u3044\u30C1\u30E3\u30C3\u30C8\u306B\u5206\u5C90" onclick="branchChatMessage('${e}\
 ', this)"><i class="fas fa-code-branch"></i></button>`:""}<button class="ctrl-btn" onclick="deleteMe\
-ssage('${e}')"><i class="fas fa-trash"></i></button></div>`,de=[];!A&&o&&de.push(escapeHtml(o));const Q=[];
-if(g!=null&&Q.push(`In ${g}`),b!=null){let he=`Out ${b}`;x!=null&&Number(x)>0&&(he+=` (Thought ${x})`),
-Q.push(he)}if(Q.length||m!=null){const he=Q.length?Q.join(" / "):`${m} tokens`;de.push(`<button clas\
-s="underline decoration-dotted hover:text-white token-detail-btn" onclick="openTokenDetail('${e}')">${he}\
-</button>`)}if(!A&&(n||b!=null&&Number(b)>0||a)){const be=typeof costPricing!="undefined"&&costPricing?
+ssage('${e}')"><i class="fas fa-trash"></i></button></div>`,de=[];!M&&o&&de.push(escapeHtml(o));const Q=[];
+if(g!=null&&Q.push(`In ${g}`),y!=null){let fe=`Out ${y}`;x!=null&&Number(x)>0&&(fe+=` (Thought ${x})`),
+Q.push(fe)}if(Q.length||m!=null){const fe=Q.length?Q.join(" / "):`${m} tokens`;de.push(`<button clas\
+s="underline decoration-dotted hover:text-white token-detail-btn" onclick="openTokenDetail('${e}')">${fe}\
+</button>`)}if(!M&&(n||y!=null&&Number(y)>0||a)){const ge=typeof costPricing!="undefined"&&costPricing?
 "\u8CBB\u7528\u4E88\u60F3: \u8A08\u7B97\u4E2D\u2026":`\u8CBB\u7528\u4E88\u60F3: ${typeof costPricingFailed!=
 "undefined"&&costPricingFailed?"\u7B97\u51FA\u4E0D\u53EF":"\u6599\u91D1\u3092\u8AAD\u307F\u8FBC\u307F\u4E2D\u2026"}`;
 de.push(`<button class="underline decoration-dotted hover:text-white msg-cost-estimate-btn" data-msg\
--id="${escapeHtml(String(e))}" onclick="openTokenDetail('${e}')">${be}</button>`)}if(v!=null){const he=v?
-"fa-lock":"fa-lock-open",we=isAdminUser?v?"\u6697\u53F7\u5316\u72B6\u614B\uFF08\u30BF\u30C3\u30D7\u3067\u5FA9\u53F7\u5316\uFF09":
-"\u5E73\u6587\u72B6\u614B\uFF08\u30BF\u30C3\u30D7\u3067\u518D\u6697\u53F7\u5316\uFF09":v?"Encrypted":
-"Plain",be=isAdminUser?v?"text-amber-300/90 hover:text-amber-200":"text-cyan-300/90 hover:text-cyan-\
-200":"text-slate-300/80 hover:text-white";de.push(`<button class="${be}" title="${we}" onclick="open\
-EncryptionSettings('${e}')"><i class="fas ${he}"></i></button>`)}if(!A&&D.executions&&D.executions.length){
-const he=D.executions.length,we=he>1?`Python \xD7${he}`:"Python";de.push(`<button type="button" clas\
+-id="${escapeHtml(String(e))}" onclick="openTokenDetail('${e}')">${ge}</button>`)}if(b!=null){const fe=b?
+"fa-lock":"fa-lock-open",be=isAdminUser?b?"\u6697\u53F7\u5316\u72B6\u614B\uFF08\u30BF\u30C3\u30D7\u3067\u5FA9\u53F7\u5316\uFF09":
+"\u5E73\u6587\u72B6\u614B\uFF08\u30BF\u30C3\u30D7\u3067\u518D\u6697\u53F7\u5316\uFF09":b?"Encrypted":
+"Plain",ge=isAdminUser?b?"text-amber-300/90 hover:text-amber-200":"text-cyan-300/90 hover:text-cyan-\
+200":"text-slate-300/80 hover:text-white";de.push(`<button class="${ge}" title="${be}" onclick="open\
+EncryptionSettings('${e}')"><i class="fas ${fe}"></i></button>`)}if(!M&&q.executions&&q.executions.length){
+const fe=q.executions.length,be=fe>1?`Python \xD7${fe}`:"Python";de.push(`<button type="button" clas\
 s="python-exec-btn" onclick="openPythonExecDetail('${e}')" title="Python\u5B9F\u884C\u7D50\u679C\u3092\u8868\u793A" aria-label="Python\u5B9F\
-\u884C\u7D50\u679C\u3092\u8868\u793A"><i class="fas fa-terminal"></i><span>${we}</span></button>`)}const me=de.
+\u884C\u7D50\u679C\u3092\u8868\u793A"><i class="fas fa-terminal"></i><span>${be}</span></button>`)}const ue=de.
 length?`<div class="text-[10px] text-slate-300/90 mt-2 text-right font-mono message-footer-meta">${de.
-join(" \u2022 ")}</div>`:"",ne=A?"":buildProcessingTimeHtml(e,L);let ve;const ue=!A&&N?(()=>{const he=String(
-N.state||"").toUpperCase(),we=N.status_text||(he==="JOB_STATE_SUCCEEDED"?"Batch\u51E6\u7406\u304C\u5B8C\u4E86\u3057\u307E\u3057\u305F":
-he==="JOB_STATE_FAILED"?"Batch\u51E6\u7406\u306B\u5931\u6557\u3057\u307E\u3057\u305F":"Batch API\u3067\u51E6\u7406\u4E2D\
-\u3067\u3059");return`<div class="batch-status-card mb-3 rounded-lg border ${he==="JOB_STATE_FAILED"||
-he==="JOB_STATE_CANCELLED"||he==="JOB_STATE_EXPIRED"?"border-red-400/40 bg-red-950/30 text-red-100":
-he==="JOB_STATE_SUCCEEDED"?"border-emerald-400/40 bg-emerald-950/30 text-emerald-100":"border-violet\
+join(" \u2022 ")}</div>`:"",ne=M?"":buildProcessingTimeHtml(e,L);let we;const ye=!M&&N?(()=>{const fe=String(
+N.state||"").toUpperCase(),be=N.status_text||(fe==="JOB_STATE_SUCCEEDED"?"Batch\u51E6\u7406\u304C\u5B8C\u4E86\u3057\u307E\u3057\u305F":
+fe==="JOB_STATE_FAILED"?"Batch\u51E6\u7406\u306B\u5931\u6557\u3057\u307E\u3057\u305F":"Batch API\u3067\u51E6\u7406\u4E2D\
+\u3067\u3059");return`<div class="batch-status-card mb-3 rounded-lg border ${fe==="JOB_STATE_FAILED"||
+fe==="JOB_STATE_CANCELLED"||fe==="JOB_STATE_EXPIRED"?"border-red-400/40 bg-red-950/30 text-red-100":
+fe==="JOB_STATE_SUCCEEDED"?"border-emerald-400/40 bg-emerald-950/30 text-emerald-100":"border-violet\
 -400/40 bg-violet-950/30 text-violet-100"} px-3 py-2 text-xs"><div class="font-semibold"><i class="f\
-as fa-layer-group mr-1"></i>Batch</div><div class="mt-1 opacity-90">${escapeHtml(we)}</div></div>`})():
-"";A?ve=`<div class="content-area whitespace-pre-wrap font-sans text-sm break-words">${escapeHtml(n||
-"")}</div>`:(ve=ue+(V&&String(V).trim()?buildAiMarkdownHtml(V,{mathSteps:{messageId:e,state:I}}):N?'\
+as fa-layer-group mr-1"></i>Batch</div><div class="mt-1 opacity-90">${escapeHtml(be)}</div></div>`})():
+"";M?we=`<div class="content-area whitespace-pre-wrap font-sans text-sm break-words">${escapeHtml(n||
+"")}</div>`:(we=ye+(G&&String(G).trim()?buildAiMarkdownHtml(G,{mathSteps:{messageId:e,state:$}}):N?'\
 <div class="content-area prose prose-invert text-sm break-words text-gray-300">\u56DE\u7B54\u3092\u6E96\u5099\u3057\u3066\u3044\u307E\u3059\u2026</div>':
-buildAiMarkdownHtml(V,{mathSteps:{messageId:e,state:I}})),ve.includes("content-area")||(ve=ve.replace(
-"prose ","content-area prose ")));let ge="";if(l){const he=l.siblings[l.current-2],we=l.siblings[l.current];
-ge=`
+buildAiMarkdownHtml(G,{mathSteps:{messageId:e,state:$}})),we.includes("content-area")||(we=we.replace(
+"prose ","content-area prose ")));let ve="";if(l){const fe=l.siblings[l.current-2],be=l.siblings[l.current];
+ve=`
                     <div class="flex items-center gap-2 text-[10px] text-gray-400 mt-1 select-none">\
 
-                        <button class="hover:text-white disabled:opacity-30" onclick="switchVersion(${he}\
-)" ${he?"":"disabled"}><i class="fas fa-chevron-left"></i></button>
+                        <button class="hover:text-white disabled:opacity-30" onclick="switchVersion(${fe}\
+)" ${fe?"":"disabled"}><i class="fas fa-chevron-left"></i></button>
                         <span>${l.current} / ${l.total}</span>
-                        <button class="hover:text-white disabled:opacity-30" onclick="switchVersion(${we}\
-)" ${we?"":"disabled"}><i class="fas fa-chevron-right"></i></button>
+                        <button class="hover:text-white disabled:opacity-30" onclick="switchVersion(${be}\
+)" ${be?"":"disabled"}><i class="fas fa-chevron-right"></i></button>
                     </div>
-                `}const je=c?"fade-in":"",Me=document.createElement("div");Me.className=`flex ${B} m\
-b-4 ${je} relative message-group group`,Me.id=`msg-${e}`,Me.innerHTML=`<div class="message-bubble ${j}\
- text-white p-4 rounded-2xl shadow-md relative">${ce}${R}${J}${F}${ve}${H}${G}${ge}${me}${ne}</div>`;
-const lt=k||get("chat-container");if(lt&&(lt.appendChild(Me),C&&scrollToBottom(),!A)){const he=Me.querySelector(
-".message-bubble");if(he&&(he.setAttribute("data-message-id",String(e)),I!=null))try{he.setAttribute(
-"data-math-steps-state",typeof I=="string"?I:JSON.stringify(I))}catch{}Me.isConnected&&queueMessageDecorations(
-Me,V),syncCodingTargetButtons(Me),syncCodingModeUi(codingModeEnabled,{persist:!1})}return Me}r(renderMessage,
+                `}const Ie=c?"fade-in":"",Se=document.createElement("div");Se.className=`flex ${R} m\
+b-4 ${Ie} relative message-group group`,Se.id=`msg-${e}`,Se.innerHTML=`<div class="message-bubble ${P}\
+ text-white p-4 rounded-2xl shadow-md relative">${oe}${B}${J}${F}${we}${D}${V}${ve}${ue}${ne}</div>`;
+const lt=k||get("chat-container");if(lt&&(lt.appendChild(Se),C&&scrollToBottom(),!M)){const fe=Se.querySelector(
+".message-bubble");if(fe&&(fe.setAttribute("data-message-id",String(e)),$!=null))try{fe.setAttribute(
+"data-math-steps-state",typeof $=="string"?$:JSON.stringify($))}catch{}Se.isConnected&&queueMessageDecorations(
+Se,G),syncCodingTargetButtons(Se),syncCodingModeUi(codingModeEnabled,{persist:!1})}return Se}r(renderMessage,
 "renderMessage");const PROCESSING_PHASE_LABELS={send:"\u9001\u4FE1\u301C\u53D7\u4ED8",queue:"\u5F85\u3061\u884C\u5217",
 provider:"\u521D\u56DE\u5FDC\u7B54\u307E\u3067",generation:"\u751F\u6210",receive:"\u53D7\u4FE1\u30FB\u8868\u793A"};
 function formatProcessingDuration(e){const t=Number(e);if(!Number.isFinite(t)||t<0)return"-";if(t<6e4)
@@ -488,10 +488,10 @@ const a=get("processing-time-first-row");if(a){const d=n.first_response_ms!==nul
 void 0;a.classList.toggle("hidden",!d),d&&get("processing-time-first")&&(get("processing-time-first").
 textContent=formatProcessingDuration(n.first_response_ms))}const o=get("processing-time-phases");if(o){
 o.replaceChildren();const d=Array.isArray(n.phases)?n.phases:[];for(const m of d){if(!m||m.ms===null||
-m.ms===void 0)continue;const g=PROCESSING_PHASE_LABELS[m.key]||m.key,b=document.createElement("div");
-b.className="flex justify-between gap-4";const v=document.createElement("span");v.textContent=g;const w=document.
-createElement("span");w.className="font-mono",w.textContent=formatProcessingDuration(m.ms),b.appendChild(
-v),b.appendChild(w),o.appendChild(b)}o.classList.toggle("hidden",o.childElementCount===0)}const l=get(
+m.ms===void 0)continue;const g=PROCESSING_PHASE_LABELS[m.key]||m.key,y=document.createElement("div");
+y.className="flex justify-between gap-4";const b=document.createElement("span");b.textContent=g;const w=document.
+createElement("span");w.className="font-mono",w.textContent=formatProcessingDuration(m.ms),y.appendChild(
+b),y.appendChild(w),o.appendChild(y)}o.classList.toggle("hidden",o.childElementCount===0)}const l=get(
 "processing-time-note");l&&(n.source==="client"?l.textContent="\u56DE\u7B54\u5B8C\u4E86\u6642\u306B\u7AEF\u672B\u3067\u8A18\u9332\u3057\u305F\u6642\u9593\u3067\u3059\u3002\u8A73\u7D30\u306A\u5185\u8A33\u306F\u5C65\u6B74\u306E\u518D\u8AAD\u307F\u8FBC\u307F\u5F8C\u306B\u8868\u793A\u3055\
 \u308C\u307E\u3059\u3002":n.phases&&n.phases.length?l.textContent="\u8A18\u9332\u3067\u304D\u305F\u51E6\u7406\u533A\u9593\u306E\u5185\u8A33\u3067\u3059\u3002":
 l.textContent="\u3053\u306E\u56DE\u7B54\u3067\u306F\u5408\u8A08\u6642\u9593\u3060\u3051\u3092\u8A18\u9332\u3057\u3066\u3044\u307E\u3059\u3002");
@@ -509,31 +509,31 @@ void 0?t.tokens_out:"-",l=t.tokens_content!==null&&t.tokens_content!==void 0?t.t
 tokens_thought!==null&&t.tokens_thought!==void 0?t.tokens_thought:"-",d=t.is_encrypted===null||t.is_encrypted===
 void 0?"-":t.is_encrypted?"Encrypted":"Plain",m=t.cache_read_tokens!==null&&t.cache_read_tokens!==void 0?
 t.cache_read_tokens:null,g=t.cache_write_tokens!==null&&t.cache_write_tokens!==void 0?t.cache_write_tokens:
-null,b=m!==null||g!==null;get("token-detail-total").innerText=i,get("token-detail-in").innerText=a,get(
+null,y=m!==null||g!==null;get("token-detail-total").innerText=i,get("token-detail-in").innerText=a,get(
 "token-detail-out").innerText=o,get("token-detail-content").innerText=l,get("token-detail-thought").
-innerText=c,get("token-detail-encrypted").innerText=d;const v=get("token-detail-cache-read-row"),w=get(
-"token-detail-cache-write-row"),x=get("token-detail-cache-write-ttl");if(v&&v.classList.toggle("hidd\
-en",!b),w&&w.classList.toggle("hidden",!b),get("token-detail-cache-read")&&(get("token-detail-cache-\
+innerText=c,get("token-detail-encrypted").innerText=d;const b=get("token-detail-cache-read-row"),w=get(
+"token-detail-cache-write-row"),x=get("token-detail-cache-write-ttl");if(b&&b.classList.toggle("hidd\
+en",!y),w&&w.classList.toggle("hidden",!y),get("token-detail-cache-read")&&(get("token-detail-cache-\
 read").innerText=m===null?"-":m),get("token-detail-cache-write")&&(get("token-detail-cache-write").innerText=
-g===null?"-":g),x){const T=["5m","1h","30m","12h"].map(E=>{var U;const N=Number(((U=t.cache_write_ttls)==
-null?void 0:U[E])||0);return N>0?`${E}: ${N}`:""}).filter(Boolean);x.textContent=T.length?`TTL ${T.join(
-" \xB7 ")}`:"",x.classList.toggle("hidden",!b||!T.length)}const k=get("token-detail-cost");if(k){k.replaceChildren();
+g===null?"-":g),x){const T=["5m","1h","30m","12h"].map(A=>{var H;const N=Number(((H=t.cache_write_ttls)==
+null?void 0:H[A])||0);return N>0?`${A}: ${N}`:""}).filter(Boolean);x.textContent=T.length?`TTL ${T.join(
+" \xB7 ")}`:"",x.classList.toggle("hidden",!y||!T.length)}const k=get("token-detail-cost");if(k){k.replaceChildren();
 const T=t.cost_estimate||(t.role==="assistant"&&costPricing&&typeof estimateConversationCost=="funct\
 ion"?estimateConversationCost([{id:e,role:t.role,model:t.model,thought_data:t.thought_data,tokens_in:t.
 tokens_in,tokens_out:t.tokens_out,tokens_thought:t.tokens_thought,tokens_content:t.tokens_content,parent_id:t.
-parent_id,image_url:t.image_url,batch_job:t.batch_job}],costPricing,costBarPath):null),E=t.role==="t\
-otal"&&T||t.role==="assistant"&&T;if(k.classList.toggle("hidden",!E),E){const N=document.createElement(
-"p");N.textContent=costEstimateLabel(T);const U=document.createElement("p");U.id="token-detail-cost-\
-jpy",k.append(N,U),fillCostEstimateJpy(U,T);const L=Array.isArray(T==null?void 0:T.items)?T.items:[];
-if(L.length){const I=document.createElement("details");I.className="pt-2 border-t border-gray-700";const A=document.
-createElement("summary");A.className="cursor-pointer",A.textContent=`\u30EA\u30AF\u30A8\u30B9\u30C8\u5185\u8A33\uFF08${L.
-length}\u4EF6\uFF09`,I.appendChild(A),appendCostItemList(I,L),k.appendChild(I)}for(const I of[`\u96C6\u8A08\u3057\u305FA\
+parent_id,image_url:t.image_url,batch_job:t.batch_job}],costPricing,costBarPath):null),A=t.role==="t\
+otal"&&T||t.role==="assistant"&&T;if(k.classList.toggle("hidden",!A),A){const N=document.createElement(
+"p");N.textContent=costEstimateLabel(T);const H=document.createElement("p");H.id="token-detail-cost-\
+jpy",k.append(N,H),fillCostEstimateJpy(H,T);const L=Array.isArray(T==null?void 0:T.items)?T.items:[];
+if(L.length){const $=document.createElement("details");$.className="pt-2 border-t border-gray-700";const M=document.
+createElement("summary");M.className="cursor-pointer",M.textContent=`\u30EA\u30AF\u30A8\u30B9\u30C8\u5185\u8A33\uFF08${L.
+length}\u4EF6\uFF09`,$.appendChild(M),appendCostItemList($,L),k.appendChild($)}for(const $ of[`\u96C6\u8A08\u3057\u305FA\
 PI\u547C\u3073\u51FA\u3057: ${(T==null?void 0:T.requests)||0}\u56DE`,COST_ESTIMATE_NOTE,`\u516C\u5F0F\u6599\u91D1\u78BA\u8A8D\u65E5: ${(costPricing==
 null?void 0:costPricing.checked_at)||"\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F"}`]){
-const A=document.createElement("p");A.textContent=I,k.appendChild(A)}for(const[I,A]of Object.entries(
-(costPricing==null?void 0:costPricing.sources)||{})){const j=document.createElement("a");j.href=A,j.
-textContent=`${I} \u516C\u5F0F\u6599\u91D1 `,j.target="_blank",j.rel="noopener noreferrer",j.className=
-"underline",k.appendChild(j)}}}const C=t.model?`${t.model} (${t.role})`:`${t.role}`;get("token-detai\
+const M=document.createElement("p");M.textContent=$,k.appendChild(M)}for(const[$,M]of Object.entries(
+(costPricing==null?void 0:costPricing.sources)||{})){const P=document.createElement("a");P.href=M,P.
+textContent=`${$} \u516C\u5F0F\u6599\u91D1 `,P.target="_blank",P.rel="noopener noreferrer",P.className=
+"underline",k.appendChild(P)}}}const C=t.model?`${t.model} (${t.role})`:`${t.role}`;get("token-detai\
 l-title").innerText=C,showTokenDetailModal(e)}r(openTokenDetail,"openTokenDetail");function closeTokenDetail(e=!1){
 cancelPromptTokenDetail(),get("token-detail-modal")&&(hideModal("token-detail-modal"),!e&&location.pathname===
 "/token-details"&&history.back())}r(closeTokenDetail,"closeTokenDetail");function openEncryptionSettings(e){
@@ -578,17 +578,17 @@ return!0;const t=get("gemini-local-python-dont-show"),n=get("gemini-local-python
 emini-local-python-cancel"),a=get("gemini-local-python-close");return t&&(t.checked=!1),showModal("g\
 emini-local-python-modal"),await new Promise(o=>{let l=!1;function c(){n&&n.removeEventListener("cli\
 ck",m),i&&i.removeEventListener("click",g),a&&a.removeEventListener("click",g),e.removeEventListener(
-"click",b,!0)}r(c,"cleanup");function d(v){if(l)return;l=!0,t&&t.checked&&(setGeminiLocalPyDialogEnabled(
-!1),syncGeminiLocalPyDialogSetting()),c(),hideModal("gemini-local-python-modal"),o(v)}r(d,"finalize");
-function m(){d(!0)}r(m,"onOk");function g(){d(!1)}r(g,"onCancel");function b(v){v.target===e&&(v.preventDefault(),
-v.stopImmediatePropagation(),g())}r(b,"onOverlay"),n&&n.addEventListener("click",m),i&&i.addEventListener(
-"click",g),a&&a.addEventListener("click",g),e.addEventListener("click",b,!0)})},"confirmGeminiLocalP\
+"click",y,!0)}r(c,"cleanup");function d(b){if(l)return;l=!0,t&&t.checked&&(setGeminiLocalPyDialogEnabled(
+!1),syncGeminiLocalPyDialogSetting()),c(),hideModal("gemini-local-python-modal"),o(b)}r(d,"finalize");
+function m(){d(!0)}r(m,"onOk");function g(){d(!1)}r(g,"onCancel");function y(b){b.target===e&&(b.preventDefault(),
+b.stopImmediatePropagation(),g())}r(y,"onOverlay"),n&&n.addEventListener("click",m),i&&i.addEventListener(
+"click",g),a&&a.addEventListener("click",g),e.addEventListener("click",y,!0)})},"confirmGeminiLocalP\
 ythonSwitch");function renderPendingMessage(e=null,t=!0,n=!0,i=null,a=null){const o=t?"fade-in":"",l=i?
 ` id="${i}"`:"",c=buildPendingSkeletonHtml(a,"\u56DE\u7B54\u3092\u751F\u6210\u4E2D..."),d=`<div clas\
 s="flex justify-start mb-4 ai-pending-row ${o}"><div${l} class="message-bubble ai-pending-bubble bg-\
 gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${c}</div></div>`,m=e||get("\
 chat-container");if(m){if(typeof m.insertAdjacentHTML=="function")m.insertAdjacentHTML("beforeend",d);else{
-const g=document.createElement("div");g.innerHTML=d;const b=g.firstElementChild;b&&m.appendChild(b)}
+const g=document.createElement("div");g.innerHTML=d;const y=g.firstElementChild;y&&m.appendChild(y)}
 n&&scrollToBottom()}}r(renderPendingMessage,"renderPendingMessage");function beginPendingToStreamTransition(e){
 if(!e||e.getAttribute("data-stream-transition")==="1")return;const t=e.querySelector(".content-area");
 t&&(t.classList.remove("pending-shimmer","skeleton-pending"),t.removeAttribute("data-skeleton-kind")),
@@ -625,7 +625,7 @@ var c,d;const n=Math.max(0,Number((c=t.retries)!=null?c:1)||0),i=Math.max(0,Numb
 null?d:180)||0),a=!!t.notifyOnFailure,o=e!=null&&e!==""?String(e):null,l=currentThreadId!=null&&currentThreadId!==
 ""?String(currentThreadId):null;if(!l||o&&l!==o)return!1;for(let m=0;m<=n;m++)try{return currentThreadId!=
 null&&currentThreadId!==""&&String(currentThreadId)!==l?!1:(await loadMessages(l,{preserveDraft:!0,silent:!0}),
-!0)}catch{m<n&&i>0&&await new Promise(b=>setTimeout(b,i))}return a&&(currentThreadId!=null&&currentThreadId!==
+!0)}catch{m<n&&i>0&&await new Promise(y=>setTimeout(y,i))}return a&&(currentThreadId!=null&&currentThreadId!==
 ""?String(currentThreadId):null)===l&&showToast("\u505C\u6B62\u5F8C\u306E\u5C65\u6B74\u540C\u671F\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u753B\u9762\u3092\u518D\u8AAD\u307F\u8FBC\u307F\u3059\u308B\u3068\u78BA\u5B9F\u3067\u3059\u3002",
 "warning",!0),!1}r(syncThreadAfterAbortedStream,"syncThreadAfterAbortedStream");function vibrateHelper(e){
 try{typeof navigator!="undefined"&&navigator.vibrate&&navigator.vibrate(e)}catch(t){console.warn("Vi\
@@ -651,13 +651,13 @@ showToast(`${i.label}: ${c.textContent.trim()}`,"success"),!0)}if(i.special==="t
 toLowerCase(),l=activeThinkingSelect(),c=!!(l&&l.id==="reasoning-effort"),d=c?{off:"none",none:"none",
 min:"low",minimal:"low",low:"low",mid:"medium",medium:"medium",high:"high",xhigh:"xhigh",max:"max"}:
 {min:"minimal",minimal:"minimal",low:"low",mid:"medium",medium:"medium",high:"high"},m=parseSlashToggleArgument(
-a),g=get(i.checkboxId);if(Object.prototype.hasOwnProperty.call(d,o)){const b=d[o],v=l?Array.from(l.options).
-find(w=>w.value===b&&!w.disabled&&!w.classList.contains("hidden")):null;if(l&&!v)return showToast(`T\
+a),g=get(i.checkboxId);if(Object.prototype.hasOwnProperty.call(d,o)){const y=d[o],b=l?Array.from(l.options).
+find(w=>w.value===y&&!w.disabled&&!w.classList.contains("hidden")):null;if(l&&!b)return showToast(`T\
 hinking: \u300C${o}\u300D\u306F\u3053\u306E\u30E2\u30C7\u30EB\u3067\u306F\u5229\u7528\u3067\u304D\u307E\u305B\u3093`,
-"warning"),!1;if(b==="none"){if(g&&g.disabled)return showToast("Thinking: \u3053\u306E\u30E2\u30C7\u30EB\u3067\u306FOFF\u306B\u3067\u304D\u307E\u305B\u3093",
+"warning"),!1;if(y==="none"){if(g&&g.disabled)return showToast("Thinking: \u3053\u306E\u30E2\u30C7\u30EB\u3067\u306FOFF\u306B\u3067\u304D\u307E\u305B\u3093",
 "warning"),!1;g&&g.checked?(g.checked=!1,g.dispatchEvent(new Event("change",{bubbles:!0}))):l&&(l.value=
 "none",l.dispatchEvent(new Event("change",{bubbles:!0})))}else g&&!g.checked&&!g.disabled&&(g.checked=
-!0,g.dispatchEvent(new Event("change",{bubbles:!0}))),l&&(l.value=b,l.dispatchEvent(new Event("chang\
+!0,g.dispatchEvent(new Event("change",{bubbles:!0}))),l&&(l.value=y,l.dispatchEvent(new Event("chang\
 e",{bubbles:!0})));return refreshMinimalOptionItems(),showToast(`Thinking: ${o}`,"success"),!0}if(m===
 void 0)return showToast(c?"\u4F7F\u3044\u65B9: /thinking on / off / min / low / mid / high / xhigh / max":
 "\u4F7F\u3044\u65B9: /thinking on / off / min / low / mid / high","info"),!1}if(i.checkboxId&&a){const o=parseSlashToggleArgument(
@@ -680,22 +680,22 @@ const n=pendingSlashCommand==="settings";pendingSlashCommand=null,n&&clearAiSett
 hidePendingSlashCommandIndicator,"hidePendingSlashCommandIndicator");function showSlashCommandSuggestions(e=""){
 const t=get("slash-command-suggestions"),n=get("slash-command-list"),i=get("input-row");if(!t||!n||!i)
 return;const a=visibleSlashCommands(e);if(a.length===0){hideSlashCommandSuggestions();return}slashSelectedIndex=
-Math.min(slashSelectedIndex,a.length-1),n.innerHTML="",a.forEach((v,w)=>{const x=document.createElement(
+Math.min(slashSelectedIndex,a.length-1),n.innerHTML="",a.forEach((b,w)=>{const x=document.createElement(
 "div");x.className=`px-3 py-2 flex items-center gap-3 cursor-pointer text-sm hover:bg-gray-700 ${w===
 slashSelectedIndex?"bg-gray-700":""}`,x.innerHTML=`
-                    <i class="fas ${v.icon||"fa-terminal"} w-4 text-blue-400"></i>
+                    <i class="fas ${b.icon||"fa-terminal"} w-4 text-blue-400"></i>
                     <div class="flex-1 min-w-0">
-                        <div class="font-mono text-blue-300">${v.label}</div>
-                        <div class="text-[11px] text-gray-400 truncate">${v.description}</div>
+                        <div class="font-mono text-blue-300">${b.label}</div>
+                        <div class="text-[11px] text-gray-400 truncate">${b.description}</div>
                     </div>
                 `;let k=!1;x.addEventListener("pointerdown",C=>{typeof C.button=="number"&&C.button!==
-0||(C.preventDefault(),k=!0,selectSlashCommand(v.id))}),x.addEventListener("click",C=>{C.preventDefault(),
-k||selectSlashCommand(v.id)}),x.onmouseenter=()=>{slashSelectedIndex=w,showSlashCommandSuggestions(e)},
+0||(C.preventDefault(),k=!0,selectSlashCommand(b.id))}),x.addEventListener("click",C=>{C.preventDefault(),
+k||selectSlashCommand(b.id)}),x.onmouseenter=()=>{slashSelectedIndex=w,showSlashCommandSuggestions(e)},
 n.appendChild(x)});const o=i.getBoundingClientRect(),l=window.innerHeight,c=l-o.bottom,d=o.top,m=260,
 g=8;if(t.style.position="fixed",t.style.left=`${Math.max(8,o.left)}px`,t.style.zIndex="80",t.style.maxHeight=
-"none",c<180&&d>c){const v=Math.min(m,d-g);t.style.top="auto",t.style.bottom=`${l-o.top+4}px`,n.style.
-maxHeight=`${v}px`}else{const v=Math.min(m,c-g);t.style.top=`${o.bottom+4}px`,t.style.bottom="auto",
-n.style.maxHeight=`${v}px`}t.classList.remove("hidden"),slashSuggestionsVisible=!0}r(showSlashCommandSuggestions,
+"none",c<180&&d>c){const b=Math.min(m,d-g);t.style.top="auto",t.style.bottom=`${l-o.top+4}px`,n.style.
+maxHeight=`${b}px`}else{const b=Math.min(m,c-g);t.style.top=`${o.bottom+4}px`,t.style.bottom="auto",
+n.style.maxHeight=`${b}px`}t.classList.remove("hidden"),slashSuggestionsVisible=!0}r(showSlashCommandSuggestions,
 "showSlashCommandSuggestions");function selectSlashCommand(e){const t=get("prompt-input");if(!t)return;
 const n=t.value,i=extractSlashCommandToken(n);if(i!==null){const l=String(n||"").trimStart();t.value=
 l.substring(1+i.length).trimStart()}else{const l=n.lastIndexOf("/");l!==-1?t.value=n.substring(0,l).
@@ -771,15 +771,15 @@ o?"\u78BA\u8A8D\u3067\u304D\u308B\u8A2D\u5B9A\u9805\u76EE\u304C\u3042\u308A\u307
 c=renderMessage(a,"assistant",l,null,null,t,null,!0,null,null,null,null,null,null,null,null,!0);if(!c)
 return;removeEphemeralMessageControls(c);const d=c.querySelector(".message-bubble");if(!d||!i.length)
 return;const m=document.createElement("div");m.className="mt-3 space-y-2 ai-settings-result-list",i.
-forEach(([b,v])=>{const w=AI_SETTING_JUMP_TARGETS[b]||{label:b},x=document.createElement("button");x.
+forEach(([y,b])=>{const w=AI_SETTING_JUMP_TARGETS[y]||{label:y},x=document.createElement("button");x.
 type="button",x.className="w-full flex items-center gap-3 rounded-xl border border-white/10 bg-black\
 /20 px-3 py-2.5 text-left hover:bg-black/30 hover:border-blue-400/40 transition ai-settings-result-i\
 tem";const k=document.createElement("span");k.className="min-w-0 flex-1";const C=document.createElement(
 "span");C.className="block text-xs font-bold text-blue-200",C.textContent=w.label;const T=document.createElement(
 "span");T.className="block mt-0.5 text-[11px] text-gray-300 break-words",T.textContent=formatAiSettingValue(
-v);const E=document.createElement("i");E.className="fas fa-arrow-up-right-from-square text-[10px] te\
-xt-blue-300 shrink-0",k.appendChild(C),k.appendChild(T),x.appendChild(k),x.appendChild(E),x.addEventListener(
-"click",()=>openAiSettingJumpTarget(b)),m.appendChild(x)});const g=d.querySelector(".message-footer-\
+b);const A=document.createElement("i");A.className="fas fa-arrow-up-right-from-square text-[10px] te\
+xt-blue-300 shrink-0",k.appendChild(C),k.appendChild(T),x.appendChild(k),x.appendChild(A),x.addEventListener(
+"click",()=>openAiSettingJumpTarget(y)),m.appendChild(x)});const g=d.querySelector(".message-footer-\
 meta");g?d.insertBefore(m,g):d.appendChild(m),scrollToBottom()}r(renderAiSettingsResultBubble,"rende\
 rAiSettingsResultBubble");async function runAiSettingsCommand(e,t){pendingSlashCommand!=="settings"&&
 (pendingSlashCommand="settings",showPendingSlashCommandIndicator("settings")),appendAiSettingsConversation(
@@ -797,14 +797,14 @@ showToast(`\u73FE\u5728\u306E\u8A2D\u5B9A\u3092\u78BA\u8A8D\u3057\u307E\u3057\u3
 d.current).length}\u9805\u76EE\uFF09`,"success"),renderAiSettingsResultBubble(d.current,t,"inspect");
 return}if(d&&d.status==="ok"&&d.applied){appendAiSettingsConversation("assistant",summarizeAiSettingsConversationValues(
 d.applied,"update")),showToast(`\u8A2D\u5B9A\u3092\u66F4\u65B0\u3057\u307E\u3057\u305F\uFF08${Object.
-keys(d.applied).length}\u9805\u76EE\uFF09`,"success");try{const v=await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).
-then(w=>w.json());populateAiSafeFormFields(v),cacheUserSettings(v)}catch{}renderAiSettingsResultBubble(
+keys(d.applied).length}\u9805\u76EE\uFF09`,"success");try{const b=await apiFetch(CHAT_CONFIG.urls.handleSettingsQuery).
+then(w=>w.json());populateAiSafeFormFields(b),cacheUserSettings(b)}catch{}renderAiSettingsResultBubble(
 d.applied,t);return}const g=d.message||d.error||"\u8A2D\u5B9A\u5909\u66F4\u306B\u5931\u6557\u3057\u307E\u3057\u305F";
 appendAiSettingsConversation("assistant",`\u8A2D\u5B9A\u64CD\u4F5C\u306B\u5931\u6557\u3057\u307E\u3057\u305F: ${g}`);
-const b=renderMessage(`settings-error-${Date.now()}`,"assistant",`\u8A2D\u5B9A\u5909\u66F4\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002
+const y=renderMessage(`settings-error-${Date.now()}`,"assistant",`\u8A2D\u5B9A\u5909\u66F4\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002
 
 ${g}`,null,null,t,null,!0,null,null,null,null,null,null,null,null,!0);removeEphemeralMessageControls(
-b),showToast(g,"error",!0)}catch{appendAiSettingsConversation("assistant","\u8A2D\u5B9A\u64CD\u4F5C\u306E\u901A\u4FE1\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002");
+y),showToast(g,"error",!0)}catch{appendAiSettingsConversation("assistant","\u8A2D\u5B9A\u64CD\u4F5C\u306E\u901A\u4FE1\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002");
 const d=get(o);d&&d.remove();const m=renderMessage(`settings-error-${Date.now()}`,"assistant","\u8A2D\u5B9A\u5909\u66F4\u306E\
 \u901A\u4FE1\u306B\u5931\u6557\u3057\u307E\u3057\u305F\u3002\u6642\u9593\u3092\u304A\u3044\u3066\u518D\u5EA6\u304A\u8A66\u3057\u304F\u3060\u3055\u3044\u3002",
 null,null,t,null,!0,null,null,null,null,null,null,null,null,!0);removeEphemeralMessageControls(m),showToast(
@@ -826,9 +826,9 @@ w.description)}</div>`:""}
                     </div>
                 `,k.onclick=()=>selectSkillSuggestion(w),k.onmouseenter=()=>{skillSelectedIndex=x,showSkillSuggestions(
 e)},n.appendChild(k)});const l=i.getBoundingClientRect(),c=window.innerHeight,d=c-l.bottom,m=l.top,g=260,
-b=8;if(t.style.position="fixed",t.style.left=`${Math.max(8,l.left)}px`,t.style.zIndex="80",t.style.maxHeight=
-"none",d<180&&m>d){const w=Math.min(g,m-b);t.style.top="auto",t.style.bottom=`${c-l.top+4}px`,n.style.
-maxHeight=`${w}px`}else{const w=Math.min(g,d-b);t.style.top=`${l.bottom+4}px`,t.style.bottom="auto",
+y=8;if(t.style.position="fixed",t.style.left=`${Math.max(8,l.left)}px`,t.style.zIndex="80",t.style.maxHeight=
+"none",d<180&&m>d){const w=Math.min(g,m-y);t.style.top="auto",t.style.bottom=`${c-l.top+4}px`,n.style.
+maxHeight=`${w}px`}else{const w=Math.min(g,d-y);t.style.top=`${l.bottom+4}px`,t.style.bottom="auto",
 n.style.maxHeight=`${w}px`}t.classList.remove("hidden"),skillSuggestionsVisible=!0}r(showSkillSuggestions,
 "showSkillSuggestions");function selectSkillSuggestion(e){const t=get("prompt-input");if(!t)return;const n=t.
 value,i=n.lastIndexOf("@");i!==-1?t.value=n.substring(0,i).trimEnd():t.value="",hideSkillSuggestions(),
@@ -901,7 +901,7 @@ enable_search:e("enable-search",!1),gemini_free_tier:e("enable-gemini-free-tier"
 "thinking-budget"),reasoning_effort:t("reasoning-effort"),safety_setting:t("safety-setting"),enable_prompt_caching:e(
 "enable-prompt-cache",!1),math_steps:typeof window.collectMathStepsSendOption=="function"?window.collectMathStepsSendOption():
 !1}}r(collectBrowserFastPromptOptions,"collectBrowserFastPromptOptions");async function sendBrowserFastMessage(e,t){
-var X,ce,de;const n=String(get("model-select").value||"").trim(),i=await fetchBrowserFastBootstrap(!1);
+var X,oe,de;const n=String(get("model-select").value||"").trim(),i=await fetchBrowserFastBootstrap(!1);
 if(!browserFastApiKey||browserFastApiKeyModel!==n)throw new Error("\u9078\u629E\u4E2D\u30E2\u30C7\u30EB\u306E\u4FDD\u5B58\u6E08\u307FGemini API\u30AD\u30FC\u3092\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\
 \u305F");const a=Array.from(browserFastLocalFiles.values()),o=[];for(const Q of a)o.push({inlineData:{
 mimeType:Q.file.type,data:await fileToBase64Payload(Q.file)}});o.push({text:e});const l={},c=browserFastThinkingConfig(
@@ -911,123 +911,123 @@ i.project_instruction&&m.push(`[Project Instructions]:
 ${String(i.project_instruction)}`),i.math_steps_system_prompt&&m.push(String(i.math_steps_system_prompt)),
 m.length&&(d.systemInstruction={parts:[{text:m.join(`
 
-`)}]});const g=!!(get("enable-python")&&get("enable-python").checked),b=[];g&&b.push({codeExecution:{}});
-const v=i.project_uuid&&i.project_file_tool_declaration?{name:i.project_file_tool_declaration.name,description:i.
+`)}]});const g=!!(get("enable-python")&&get("enable-python").checked),y=[];g&&y.push({codeExecution:{}});
+const b=i.project_uuid&&i.project_file_tool_declaration?{name:i.project_file_tool_declaration.name,description:i.
 project_file_tool_declaration.description,parameters:{type:"object",properties:i.project_file_tool_declaration.
 parameters&&i.project_file_tool_declaration.parameters.properties||{},required:i.project_file_tool_declaration.
-parameters&&i.project_file_tool_declaration.parameters.required||["name"]}}:null;v&&b.push({functionDeclarations:[
-v]}),b.length&&(d.tools=b),typeof window.hideProjectViewForChat=="function"&&window.hideProjectViewForChat(),
+parameters&&i.project_file_tool_declaration.parameters.required||["name"]}}:null;b&&y.push({functionDeclarations:[
+b]}),y.length&&(d.tools=y),typeof window.hideProjectViewForChat=="function"&&window.hideProjectViewForChat(),
 e.trim()&&(promptHistory.length===0||promptHistory[0]!==e)&&(promptHistory.unshift(e),promptHistory.
 length>100&&promptHistory.pop()),historyIndex=-1,tempPrompt="",playSendAnimation(),get("welcome-scre\
 en").classList.add("hidden");const w=userAutoScroll&&isChatNearBottom();w||pauseChatAutoScroll();const x=collectImageUrlsForSend(),
 k=Array.from(((X=get("file-preview-thumbs"))==null?void 0:X.querySelectorAll("img"))||[]).map(Q=>Q.cloneNode(
 !0)),C=renderMessage(Date.now(),"user",e,JSON.stringify(collectImageUrlsForSend()),null,null,null,!1,
 currentQuote,null,null,null,null,null,null,null,w);if(k.length&&!x.length){const Q=document.createElement(
-"div");Q.className="flex gap-2 flex-wrap",k.forEach(me=>{me.removeAttribute("onclick"),Q.appendChild(
-me)}),C.querySelector(".message-bubble").appendChild(Q)}const T=takePromptForSend(),E=animatePromptToMessage(
+"div");Q.className="flex gap-2 flex-wrap",k.forEach(ue=>{ue.removeAttribute("onclick"),Q.appendChild(
+ue)}),C.querySelector(".message-bubble").appendChild(Q)}const T=takePromptForSend(),A=animatePromptToMessage(
 C,T,w),N=`browser-fast-${Date.now()}`;get("chat-container").insertAdjacentHTML("beforeend",`<div cla\
 ss="flex justify-start mb-4 ai-pending-row fade-in"><div id="${N}" class="message-bubble ai-pending-\
 bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${buildPendingSkeletonHtml(
-n,"Gemini\u3078\u76F4\u63A5\u9001\u4FE1\u4E2D...")}</div></div>`);const U=get(N),L=startPendingElapsed(
-U,t);activeStreamingBubbleId=N,setSendBtnToStopMode(),w&&resumeChatAutoScroll(),abortController=new AbortController;
-let I="",A="",j=null;const B=new Set,D=[];let V=null,ee=null,$=!1;const R={},J=[];let F=null,H="";const te=window.
-ProgressSpinner?window.ProgressSpinner.startFlow("browserFast"):null;let G=!1;try{let Q=!1;const me=v?
-8:1;for(let Me=0;Me<me;Me++){const lt=await fetch(`https://generativelanguage.googleapis.com/v1beta/\
+n,"Gemini\u3078\u76F4\u63A5\u9001\u4FE1\u4E2D...")}</div></div>`);const H=get(N),L=startPendingElapsed(
+H,t);activeStreamingBubbleId=N,setSendBtnToStopMode(),w&&resumeChatAutoScroll(),abortController=new AbortController;
+let $="",M="",P=null;const R=new Set,q=[];let G=null,te=null,O=!1;const B={},J=[];let F=null,D="";const Z=window.
+ProgressSpinner?window.ProgressSpinner.startFlow("browserFast"):null;let V=!1;try{let Q=!1;const ue=b?
+8:1;for(let Se=0;Se<ue;Se++){const lt=await fetch(`https://generativelanguage.googleapis.com/v1beta/\
 models/${encodeURIComponent(n)}:streamGenerateContent?alt=sse`,manualSpinnerRequestOptions({method:"\
 POST",headers:{"Content-Type":"application/json","x-goog-api-key":browserFastApiKey},body:JSON.stringify(
 d),signal:abortController.signal}));if(!lt.ok){const He=await lt.json().catch(()=>({}));throw new Error(
 He&&He.error&&He.error.message?He.error.message:`Gemini API HTTP ${lt.status}`)}window.ConnectionMonitor&&
-!G&&(G=!0,window.ConnectionMonitor.operationStarted()),te&&te.setPhase("waiting"),Me===0&&(T.accept(
-!1),(ce=window.ActivityLog)==null||ce.log("send.stream.start"));const he=lt.body.getReader(),we=new TextDecoder;
-let be="";const ae=[],it=[],st=r(He=>{var Ht,At;const at=He.split(/\r?\n/).filter(Ge=>Ge.startsWith(
-"data:")).map(Ge=>Ge.slice(5).trim()).join("");if(!at||at==="[DONE]")return;const Xe=JSON.parse(at);
-if(Number.isInteger((Ht=Xe.usageMetadata)==null?void 0:Ht.promptTokenCount)){j=j||{};for(const Ge of[
+!V&&(V=!0,window.ConnectionMonitor.operationStarted()),Z&&Z.setPhase("waiting"),Se===0&&(T.accept(!1),
+(oe=window.ActivityLog)==null||oe.log("send.stream.start"));const fe=lt.body.getReader(),be=new TextDecoder;
+let ge="";const se=[],it=[],st=r(He=>{var Rt,At;const at=He.split(/\r?\n/).filter(qe=>qe.startsWith(
+"data:")).map(qe=>qe.slice(5).trim()).join("");if(!at||at==="[DONE]")return;const Ke=JSON.parse(at);
+if(Number.isInteger((Rt=Ke.usageMetadata)==null?void 0:Rt.promptTokenCount)){P=P||{};for(const qe of[
 "promptTokenCount","candidatesTokenCount","thoughtsTokenCount","cachedContentTokenCount"])Number.isInteger(
-Xe.usageMetadata[Ge])&&Xe.usageMetadata[Ge]>=0&&(j[Ge]=Xe.usageMetadata[Ge])}for(const Ge of Xe.candidates||
-[])for(const ht of((At=Ge.groundingMetadata)==null?void 0:At.webSearchQueries)||[])typeof ht=="strin\
-g"&&ht.trim()&&B.add(ht);if(B.size&&(j=j||{},j.grounding_queries=B.size),Xe.error)throw new Error(Xe.
-error.message||"Gemini API error");if((Array.isArray(Xe.candidates)?Xe.candidates:[]).forEach(Ge=>{(Ge&&
-Ge.content&&Array.isArray(Ge.content.parts)?Ge.content.parts:[]).forEach(ze=>{if(ze&&typeof ze.thoughtSignature==
-"string"&&!D.includes(ze.thoughtSignature)&&D.push(ze.thoughtSignature),ze&&ze.functionCall&&ze.functionCall.
-name==="read_project_file"){ae.push(ze),it.push(ze.functionCall);return}if(ze&&ze.executableCode&&typeof ze.
-executableCode.code=="string"){const tt=ze.executableCode.code;I+=`
+Ke.usageMetadata[qe])&&Ke.usageMetadata[qe]>=0&&(P[qe]=Ke.usageMetadata[qe])}for(const qe of Ke.candidates||
+[])for(const ut of((At=qe.groundingMetadata)==null?void 0:At.webSearchQueries)||[])typeof ut=="strin\
+g"&&ut.trim()&&R.add(ut);if(R.size&&(P=P||{},P.grounding_queries=R.size),Ke.error)throw new Error(Ke.
+error.message||"Gemini API error");if((Array.isArray(Ke.candidates)?Ke.candidates:[]).forEach(qe=>{(qe&&
+qe.content&&Array.isArray(qe.content.parts)?qe.content.parts:[]).forEach(Ve=>{if(Ve&&typeof Ve.thoughtSignature==
+"string"&&!q.includes(Ve.thoughtSignature)&&q.push(Ve.thoughtSignature),Ve&&Ve.functionCall&&Ve.functionCall.
+name==="read_project_file"){se.push(Ve),it.push(Ve.functionCall);return}if(Ve&&Ve.executableCode&&typeof Ve.
+executableCode.code=="string"){const tt=Ve.executableCode.code;$+=`
 \`\`\`python
 ${tt}
 \`\`\`
-`,F=`browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,H=tt,R[F]||(U.insertAdjacentHTML(
-"afterbegin",browserFastPythonBoxHtml(F)),R[F]=U.querySelector(`[data-py-id="${F}"]`)),updateBrowserFastPythonBox(
-R[F],"code",tt);return}if(ze&&ze.codeExecutionResult&&typeof ze.codeExecutionResult.output=="string"){
-const tt=ze.codeExecutionResult.output;I+=`
+`,F=`browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2,8)}`,D=tt,B[F]||(H.insertAdjacentHTML(
+"afterbegin",browserFastPythonBoxHtml(F)),B[F]=H.querySelector(`[data-py-id="${F}"]`)),updateBrowserFastPythonBox(
+B[F],"code",tt);return}if(Ve&&Ve.codeExecutionResult&&typeof Ve.codeExecutionResult.output=="string"){
+const tt=Ve.codeExecutionResult.output;$+=`
 **Output:**
 \`\`\`
 ${tt}
 \`\`\`
-`;const bt=F||`browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;J.push({code:H||
-"",output:tt}),R[bt]||(U.insertAdjacentHTML("afterbegin",browserFastPythonBoxHtml(bt)),R[bt]=U.querySelector(
-`[data-py-id="${bt}"]`)),updateBrowserFastPythonBox(R[bt],"output",tt);return}const _t=typeof ze.text==
-"string"?ze.text:"";_t&&(ze.thought===!0?A+=_t:I+=_t)})}),!$&&(I||A)){beginPendingToStreamTransition(
-U);const Ge=U.querySelector(".content-area");Ge&&Ge.remove(),$=!0}A&&(ee||(U.insertAdjacentHTML("aft\
+`;const pt=F||`browserFastPy_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;J.push({code:D||
+"",output:tt}),B[pt]||(H.insertAdjacentHTML("afterbegin",browserFastPythonBoxHtml(pt)),B[pt]=H.querySelector(
+`[data-py-id="${pt}"]`)),updateBrowserFastPythonBox(B[pt],"output",tt);return}const wt=typeof Ve.text==
+"string"?Ve.text:"";wt&&(Ve.thought===!0?M+=wt:$+=wt)})}),!O&&($||M)){beginPendingToStreamTransition(
+H);const qe=H.querySelector(".content-area");qe&&qe.remove(),O=!0}M&&(te||(H.insertAdjacentHTML("aft\
 erbegin",'<div class="thought-container"><div class="thought-header" onclick="toggleThinking(this)">\
 <i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content"></di\
-v></div>'),ee=U.querySelector(".thought-content")),ee.textContent=A),I&&(V||(V=document.createElement(
-"div"),V.className="content-area prose prose-invert text-sm break-words",U.appendChild(V)),renderAiMarkdownInto(
-V,I,{incrementalMath:!0,streaming:!0,mathSteps:{jobId:null,streaming:!0}})),scrollToBottom()},"consu\
-meEvent");for(;;){const{done:He,value:at}=await he.read();if(!He&&!Q&&(Q=!0,(de=window.ActivityLog)==
+v></div>'),te=H.querySelector(".thought-content")),te.textContent=M),$&&(G||(G=document.createElement(
+"div"),G.className="content-area prose prose-invert text-sm break-words",H.appendChild(G)),renderAiMarkdownInto(
+G,$,{incrementalMath:!0,streaming:!0,mathSteps:{jobId:null,streaming:!0}})),scrollToBottom()},"consu\
+meEvent");for(;;){const{done:He,value:at}=await fe.read();if(!He&&!Q&&(Q=!0,(de=window.ActivityLog)==
 null||de.log("send.stream.first")),He)break;window.ConnectionMonitor&&window.ConnectionMonitor.reportActivity(),
-te&&te.setPhase("receiving"),be+=we.decode(at,{stream:!0});const Xe=be.split(/\r?\n\r?\n/);be=Xe.pop()||
-"",Xe.forEach(st)}if(be+=we.decode(),be.trim()&&st(be),!it.length||!i.project_uuid)break;d.contents.
-push({role:"model",parts:ae});const kt=[],Lt=String(window.CHAT_CONFIG&&window.CHAT_CONFIG.urls&&window.
+Z&&Z.setPhase("receiving"),ge+=be.decode(at,{stream:!0});const Ke=ge.split(/\r?\n\r?\n/);ge=Ke.pop()||
+"",Ke.forEach(st)}if(ge+=be.decode(),ge.trim()&&st(ge),!it.length||!i.project_uuid)break;d.contents.
+push({role:"model",parts:se});const vt=[],Mt=String(window.CHAT_CONFIG&&window.CHAT_CONFIG.urls&&window.
 CHAT_CONFIG.urls.readProjectFileApi||"/api/projects/0/files/read").replace("/projects/0/","/projects\
 /"+encodeURIComponent(String(i.project_uuid))+"/");for(const He of it){let at="Error reading project\
- file.";try{const Mt=await(await apiFetch(Lt,{method:"POST",headers:{"Content-Type":"application/jso\
+ file.";try{const Lt=await(await apiFetch(Mt,{method:"POST",headers:{"Content-Type":"application/jso\
 n"},body:JSON.stringify({name:He.args&&He.args.name||"",offset:He.args&&He.args.offset||0,limit:He.args&&
-He.args.limit||2e4}),signal:abortController.signal})).json().catch(()=>({}));at=Mt.content||Mt.error||
-at}catch(Xe){at=`Error reading project file: ${Xe&&Xe.message?Xe.message:Xe}`}kt.push({functionResponse:{
-name:"read_project_file",response:{response:at}}})}d.contents.push({role:"user",parts:kt})}if(!I.trim())
+He.args.limit||2e4}),signal:abortController.signal})).json().catch(()=>({}));at=Lt.content||Lt.error||
+at}catch(Ke){at=`Error reading project file: ${Ke&&Ke.message?Ke.message:Ke}`}vt.push({functionResponse:{
+name:"read_project_file",response:{response:at}}})}d.contents.push({role:"user",parts:vt})}if(!$.trim())
 throw new Error("Gemini\u304B\u3089\u56DE\u7B54\u672C\u6587\u304C\u8FD4\u3055\u308C\u307E\u305B\u3093\u3067\u3057\u305F");
-V&&renderAiMarkdownInto(V,I,{incrementalMath:!0,streaming:!1,mathSteps:{jobId:null,streaming:!1}}),ee&&
-ee.classList.add("collapsed"),J.length&&(I+=J.map(Me=>`
+G&&renderAiMarkdownInto(G,$,{incrementalMath:!0,streaming:!1,mathSteps:{jobId:null,streaming:!1}}),te&&
+te.classList.add("collapsed"),J.length&&($+=J.map(Se=>`
 \`\`\`pyexec
-${JSON.stringify(Me)}
+${JSON.stringify(Se)}
 \`\`\`
-`).join(""));let ne=[];a.length&&(te&&te.setPhase("saving"),showToast("\u56DE\u7B54\u304C\u5B8C\u4E86\u3057\u307E\u3057\u305F\u3002\u753B\u50CF\u3068\u5C65\u6B74\u3092\u30B5\u30FC\u30D0\u30FC\u3078\u4FDD\u5B58\u3057\u3066\u3044\u307E\u3059\u3002",
-"info",!1),ne=await uploadBrowserFastLocalFiles(T.files,!0)),te&&te.setPhase("saving");const ve=[...x,
-...ne],ue=await fetchChatStreamWithUnavailableRetry("/api/browser_fast_mode/save",manualSpinnerRequestOptions(
+`).join(""));let ne=[];a.length&&(Z&&Z.setPhase("saving"),showToast("\u56DE\u7B54\u304C\u5B8C\u4E86\u3057\u307E\u3057\u305F\u3002\u753B\u50CF\u3068\u5C65\u6B74\u3092\u30B5\u30FC\u30D0\u30FC\u3078\u4FDD\u5B58\u3057\u3066\u3044\u307E\u3059\u3002",
+"info",!1),ne=await uploadBrowserFastLocalFiles(T.files,!0)),Z&&Z.setPhase("saving");const we=[...x,
+...ne],ye=await fetchChatStreamWithUnavailableRetry("/api/browser_fast_mode/save",manualSpinnerRequestOptions(
 {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({client_request_id:createClientRequestId(),
-message:e,assistant_content:I,pricing_usage:j,thought_content:A,model:n,image_urls:ve,prompt_options:collectBrowserFastPromptOptions(),
+message:e,assistant_content:$,pricing_usage:P,thought_content:M,model:n,image_urls:we,prompt_options:collectBrowserFastPromptOptions(),
 temporary_chat:temporaryChatEnabled,thread_id:currentThreadId||null,project_id:!currentThreadId&&typeof window.
-getActiveProjectId=="function"?window.getActiveProjectId():null,parent_id:i.parent_id||null,thought_signatures:D,
-turnstile_token:botTurnstileTokenForRequest()}),signal:abortController.signal}),U),ge=await ue.json().
-catch(()=>({}));if(!ue.ok||!ge.thread_id)throw new Error(ge.error||"DB\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
-if(ge.assistant_message_id!==void 0&&ge.assistant_message_id!==null&&typeof window.bindMathStepsMessageId==
-"function"){const Me=U?U.querySelector(".math-steps"):null;Me&&await window.bindMathStepsMessageId(Me,
-ge.assistant_message_id)}const je=!currentThreadId;currentThreadId=String(ge.thread_id),currentParentId=
-ge.assistant_message_id||null,currentLeafId=ge.assistant_message_id||null,browserFastBootstrap=null,
-await loadMessages(currentThreadId,{preserveDraft:!0,silent:!0,skipHistory:!je}),applyBrowserFastModeRestrictions(),
+getActiveProjectId=="function"?window.getActiveProjectId():null,parent_id:i.parent_id||null,thought_signatures:q,
+turnstile_token:botTurnstileTokenForRequest()}),signal:abortController.signal}),H),ve=await ye.json().
+catch(()=>({}));if(!ye.ok||!ve.thread_id)throw new Error(ve.error||"DB\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F");
+if(ve.assistant_message_id!==void 0&&ve.assistant_message_id!==null&&typeof window.bindMathStepsMessageId==
+"function"){const Se=H?H.querySelector(".math-steps"):null;Se&&await window.bindMathStepsMessageId(Se,
+ve.assistant_message_id)}const Ie=!currentThreadId;currentThreadId=String(ve.thread_id),currentParentId=
+ve.assistant_message_id||null,currentLeafId=ve.assistant_message_id||null,browserFastBootstrap=null,
+await loadMessages(currentThreadId,{preserveDraft:!0,silent:!0,skipHistory:!Ie}),applyBrowserFastModeRestrictions(),
 loadThreads(!1),showToast("\u9AD8\u901F\u30E2\u30FC\u30C9\u306E\u56DE\u7B54\u3092\u5C65\u6B74\u3078\u4FDD\u5B58\u3057\u307E\u3057\u305F",
-"success",!1)}catch(Q){if(E(),T.restore(),Q.name!=="AbortError"){showToast(`\u9AD8\u901F\u30E2\u30FC\u30C9: ${Q.
-message}`,"error",!0),get("prompt-input").value||(get("prompt-input").value=e);const me=Q.message||"\
-\u30A8\u30E9\u30FC";U&&U.insertAdjacentHTML("beforeend",buildChatErrorBubbleHtml(me));try{let ne=I||
-"";J.length&&(ne+=J.map(Me=>`
+"success",!1)}catch(Q){if(A(),T.restore(),Q.name!=="AbortError"){showToast(`\u9AD8\u901F\u30E2\u30FC\u30C9: ${Q.
+message}`,"error",!0),get("prompt-input").value||(get("prompt-input").value=e);const ue=Q.message||"\
+\u30A8\u30E9\u30FC";H&&H.insertAdjacentHTML("beforeend",buildChatErrorBubbleHtml(ue));try{let ne=$||
+"";J.length&&(ne+=J.map(Se=>`
 \`\`\`pyexec
-${JSON.stringify(Me)}
+${JSON.stringify(Se)}
 \`\`\`
-`).join(""));const ve=buildChatErrorMarkdown(me,ne),ue=a.length?[]:x,ge=await fetchChatStreamWithUnavailableRetry(
+`).join(""));const we=buildChatErrorMarkdown(ue,ne),ye=a.length?[]:x,ve=await fetchChatStreamWithUnavailableRetry(
 "/api/browser_fast_mode/save",manualSpinnerRequestOptions({method:"POST",headers:{"Content-Type":"ap\
-plication/json"},body:JSON.stringify({client_request_id:createClientRequestId(),message:e,assistant_content:ve,
-pricing_usage:j,thought_content:A||"",model:n,image_urls:ue,prompt_options:collectBrowserFastPromptOptions(),
+plication/json"},body:JSON.stringify({client_request_id:createClientRequestId(),message:e,assistant_content:we,
+pricing_usage:P,thought_content:M||"",model:n,image_urls:ye,prompt_options:collectBrowserFastPromptOptions(),
 temporary_chat:temporaryChatEnabled,thread_id:currentThreadId||null,parent_id:i&&i.parent_id?i.parent_id:
-null,thought_signatures:D,turnstile_token:botTurnstileTokenForRequest()}),signal:abortController&&!abortController.
-signal.aborted?abortController.signal:void 0}),U),je=await ge.json().catch(()=>({}));if(ge.ok&&je.thread_id){
-const Me=!currentThreadId;currentThreadId=String(je.thread_id),currentParentId=je.assistant_message_id||
-null,currentLeafId=je.assistant_message_id||null,browserFastBootstrap=null,await loadMessages(currentThreadId,
-{preserveDraft:!0,silent:!0,skipHistory:!Me}),applyBrowserFastModeRestrictions(),loadThreads(!1)}}catch(ne){
+null,thought_signatures:q,turnstile_token:botTurnstileTokenForRequest()}),signal:abortController&&!abortController.
+signal.aborted?abortController.signal:void 0}),H),Ie=await ve.json().catch(()=>({}));if(ve.ok&&Ie.thread_id){
+const Se=!currentThreadId;currentThreadId=String(Ie.thread_id),currentParentId=Ie.assistant_message_id||
+null,currentLeafId=Ie.assistant_message_id||null,browserFastBootstrap=null,await loadMessages(currentThreadId,
+{preserveDraft:!0,silent:!0,skipHistory:!Se}),applyBrowserFastModeRestrictions(),loadThreads(!1)}}catch(ne){
 sendClientDebugLog("error",`Browser fast error persist failed: ${ne&&ne.message?ne.message:ne}`)}}}finally{
-T.releaseFiles(),L&&L(),G&&window.ConnectionMonitor&&window.ConnectionMonitor.operationEnded(),te&&te(),
+T.releaseFiles(),L&&L(),V&&window.ConnectionMonitor&&window.ConnectionMonitor.operationEnded(),Z&&Z(),
 setSendBtnToSendMode(),activeStreamingBubbleId===N&&(activeStreamingBubbleId=null),abortController=null,
 updateFilePreview()}}r(sendBrowserFastMessage,"sendBrowserFastMessage");async function sendMessage(){
 return window.ActivityLog?window.ActivityLog.operation("send",()=>sendMessageLogged()):sendMessageLogged()}
-r(sendMessage,"sendMessage");async function sendMessageLogged(e={}){var It,Ot,Gt,cn,en;const t=performance.
+r(sendMessage,"sendMessage");async function sendMessageLogged(e={}){var Ot,jt,Ft,zt,Dt;const t=performance.
 now();if(vibrateHelper(50),abortController){showToast("\u56DE\u7B54\u751F\u6210\u4E2D\u3067\u3059\u3002\u5B8C\u4E86\u307E\u3067\u304A\u5F85\u3061\u3044\u305F\u3060\u304F\u304B\u3001\u505C\u6B62\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
 "warning",!0);return}if(uploadProgressState.active>0){showToast("\u30D5\u30A1\u30A4\u30EB\u306E\u9001\u4FE1\u30FB\u51E6\u7406\u4E2D\u3067\u3059\u3002\u3057\u3070\u3089\u304F\u304A\u5F85\u3061\u304F\u3060\u3055\u3044\u3002",
 "warning",!0);return}if(isLyriaRealtimeModel()){const Y=get("prompt-input").value;get("prompt-input").
@@ -1039,11 +1039,11 @@ try{await runBotDetectionGate()}catch{}n=await getTurnstileToken()}if(!n&&!botDe
 "\u5B89\u5168\u6027\u306E\u78BA\u8A8D\u3092\u5B8C\u4E86\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002\u3057\u3070\u3089\u304F\u5F85\u3063\u3066\u304B\u3089\u518D\u9001\u4FE1\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
 "error",!0),botTelemetry.send(!0);return}n&&await verifyTurnstileOnServer(n)}const i=isIdeogramBackgroundRemoval(),
 a=ideogramPromptForSend(get("prompt-input").value);if(pendingSlashCommand&&!i){const Y=pendingSlashCommand,
-xe=a.trim(),Be=get("model-select")?get("model-select").value:null;if(Y==="settings"){if(!xe){showToast(
+xe=a.trim(),Ne=get("model-select")?get("model-select").value:null;if(Y==="settings"){if(!xe){showToast(
 "\u8A2D\u5B9A\u5909\u66F4\u306E\u6307\u793A\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044\uFF08\u4F8B: \u30C7\u30D5\u30A9\u30EB\u30C8\u30E2\u30C7\u30EB\u3092gemini-2.5-flash\u306B\uFF09",
-"info"),get("prompt-input").focus();return}if(!Be){showToast("\u30E2\u30C7\u30EB\u3092\u9078\u629E\u3057\u3066\u304F\u3060\u3055\u3044",
+"info"),get("prompt-input").focus();return}if(!Ne){showToast("\u30E2\u30C7\u30EB\u3092\u9078\u629E\u3057\u3066\u304F\u3060\u3055\u3044",
 "error",!0);return}get("prompt-input").value="",get("prompt-input").style.height="auto",await runAiSettingsCommand(
-xe,Be)}else executeMinimalSlashCommand(Y,xe)?(get("prompt-input").value="",get("prompt-input").style.
+xe,Ne)}else executeMinimalSlashCommand(Y,xe)?(get("prompt-input").value="",get("prompt-input").style.
 height="auto",hidePendingSlashCommandIndicator()):get("prompt-input").focus();return}const o=a.trim().
 match(/^\/([a-z][\w-]*)(?:\s+(.*))?$/i);if(o&&minimalPromptMode&&MINIMAL_SLASH_COMMANDS.some(Y=>Y.id===
 o[1].toLowerCase())){executeMinimalSlashCommand(o[1].toLowerCase(),o[2]||"")&&(hideSlashCommandSuggestions(),
@@ -1059,82 +1059,82 @@ xe.message||"\u901A\u5E38\u30E2\u30FC\u30C9\u7528\u30A2\u30C3\u30D7\u30ED\u30FC\
 "error",!0);return}return setBrowserFastModeEnabled(!1),sendMessage()}a.trim()&&(promptHistory.length===
 0||promptHistory[0]!==a)&&(promptHistory.unshift(a),promptHistory.length>100&&promptHistory.pop()),historyIndex=
 -1,tempPrompt="";const c=collectAttachmentItemsForSend(),d=c.map(Y=>Y.path),m=c.filter(Y=>normalizeAttachmentSource(
-Y.source)==="upload").map(Y=>Y.path),g=getModelMediaSupport(get("model-select").value),b=d.some(Y=>isAudioPath(
-Y)),v=d.some(Y=>isVideoPath(Y)),w=(get("model-select").value||"").toLowerCase(),x=get("enable-python"),
-k=!!(x&&x.checked);if(b&&!g.audio||v&&!g.video){showToast("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u97F3\u58F0/\u52D5\u753B\u5165\u529B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
+Y.source)==="upload").map(Y=>Y.path),g=getModelMediaSupport(get("model-select").value),y=d.some(Y=>isAudioPath(
+Y)),b=d.some(Y=>isVideoPath(Y)),w=(get("model-select").value||"").toLowerCase(),x=get("enable-python"),
+k=!!(x&&x.checked);if(y&&!g.audio||b&&!g.video){showToast("\u3053\u306E\u30E2\u30C7\u30EB\u306F\u97F3\u58F0/\u52D5\u753B\u5165\u529B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093",
 "error",!0),purgeUnsupportedAttachments(!0);return}if(!a.trim()&&d.length===0)return;if(isMistralOcrModel(
-w)){const Y=/https?:\/\/\S+/i.test(a);if(d.filter(Be=>isAudioPath(Be)||isVideoPath(Be)).length){showToast(
+w)){const Y=/https?:\/\/\S+/i.test(a);if(d.filter(Ne=>isAudioPath(Ne)||isVideoPath(Ne)).length){showToast(
 "Mistral OCR \u306F\u97F3\u58F0\u30FB\u52D5\u753B\u306B\u5BFE\u5FDC\u3057\u3066\u3044\u307E\u305B\u3093\u3002PDF / \u753B\u50CF / DOCX / PPTX \u3092\u6DFB\u4ED8\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
 "error",!0);return}if(!d.length&&!Y){showToast("Mistral OCR \u306F\u6587\u66F8\u5C02\u7528\u3067\u3059\u3002PDF\u30FB\u753B\u50CF\u30FBDOCX\u30FBPPTX \u3092\u6DFB\u4ED8\u3059\u308B\u304B\u3001\u516C\u958BURL\u3092\u5165\u529B\
 \u3057\u3066\u304F\u3060\u3055\u3044\u3002","error",!0);return}}const C=a.trim();if(/^\/settings(?:\s|$)/i.
 test(C)&&isMistralOcrModel()){showToast("Mistral OCR \u306F\u8A2D\u5B9A\u5909\u66F4\u30B3\u30DE\u30F3\u30C9\u306B\u4F7F\u3048\u307E\u305B\u3093\u3002\u30C1\u30E3\u30C3\u30C8\u30E2\u30C7\u30EB\u3092\u9078\u3093\u3067\u304F\u3060\u3055\u3044\u3002",
 "error",!0);return}if(/^\/settings(?:\s|$)/i.test(C)){const Y=C.replace(/^\/settings\s*/i,"").trim();
 if(!Y){showToast("\u4F7F\u3044\u65B9: /settings \u30C7\u30D5\u30A9\u30EB\u30C8\u30E2\u30C7\u30EB\u3092 gemini-2.5-flash \u306B\u5909\u66F4\u3057\u3066 thinking \u3092\u30AA\u30F3\u306B",
-"info");const Be=get("prompt-input");Be.value="/settings ";const Ue=extractSlashCommandToken(Be.value);
-lastSlashFilter=Ue,showSlashCommandSuggestions(Ue),Be.focus();return}const xe=get("model-select")?get(
+"info");const Ne=get("prompt-input");Ne.value="/settings ";const Ge=extractSlashCommandToken(Ne.value);
+lastSlashFilter=Ge,showSlashCommandSuggestions(Ge),Ne.focus();return}const xe=get("model-select")?get(
 "model-select").value:null;if(!xe){showToast("\u30E2\u30C7\u30EB\u304C\u9078\u629E\u3055\u308C\u3066\u3044\u307E\u305B\u3093",
 "error",!0);return}get("prompt-input").value="",get("prompt-input").style.height="auto",await runAiSettingsCommand(
-Y,xe);return}if(isGeminiLocalPythonMode(w,b,v,k)&&!await confirmGeminiLocalPythonSwitch())return;let T=null,
-E=[];if(codingModeEnabled){const Y=collectCodingCandidates(a),xe=Y.filter(ot=>ot.prompt_source),Be=Y.
-filter(ot=>!ot.prompt_source),Ue=xe.reduce((ot,Tt)=>ot+String(Tt.code||"").length,0);if(Ue>3e5){showToast(
+Y,xe);return}if(isGeminiLocalPythonMode(w,y,b,k)&&!await confirmGeminiLocalPythonSwitch())return;let T=null,
+A=[];if(codingModeEnabled){const Y=collectCodingCandidates(a),xe=Y.filter(ot=>ot.prompt_source),Ne=Y.
+filter(ot=>!ot.prompt_source),Ge=xe.reduce((ot,Le)=>ot+String(Le.code||"").length,0);if(Ge>3e5){showToast(
 "\u5165\u529B\u5185\u306E\u7DE8\u96C6\u5019\u88DC\u30B3\u30FC\u30C9\u5408\u8A08\u304C\u5927\u304D\u3059\u304E\u307E\u3059\uFF08\u4E0A\u9650300,000\u6587\u5B57\uFF09",
-"error",!0);return}let Ye=3e5-Ue;const yt=[];for(let ot=Be.length-1;ot>=0;ot--){const Tt=String(Be[ot].
-code||"").length;Tt>Ye||(yt.unshift(Be[ot]),Ye-=Tt)}E=codingTargetSelection?yt.slice(-1):[...xe,...yt];
-const vt=xe.length?xe[xe.length-1]:null;if(T=codingTargetSelection?E[0]:vt||E[E.length-1]||null,codingModeEffective=
+"error",!0);return}let et=3e5-Ge;const mt=[];for(let ot=Ne.length-1;ot>=0;ot--){const Le=String(Ne[ot].
+code||"").length;Le>et||(mt.unshift(Ne[ot]),et-=Le)}A=codingTargetSelection?mt.slice(-1):[...xe,...mt];
+const ft=xe.length?xe[xe.length-1]:null;if(T=codingTargetSelection?A[0]:ft||A[A.length-1]||null,codingModeEffective=
 !!(T&&String(T.code||"").trim()),codingModeEffective&&T.code.length>3e5){showToast("\u7DE8\u96C6\u5BFE\u8C61\u30B3\u30FC\u30C9\u304C\u5927\u304D\u3059\u304E\u307E\u3059\uFF08\u4E0A\
-\u9650300,000\u6587\u5B57\uFF09","error",!0);return}if(codingModeEffective){const ot=String(((It=get(
-"model-select"))==null?void 0:It.value)||"").toLowerCase();if(/(image|video|tts|audio|native-audio)/.
+\u9650300,000\u6587\u5B57\uFF09","error",!0);return}if(codingModeEffective){const ot=String(((Ot=get(
+"model-select"))==null?void 0:Ot.value)||"").toLowerCase();if(/(image|video|tts|audio|native-audio)/.
 test(ot)){showToast("Coding Mode\u3067\u306F\u30C6\u30AD\u30B9\u30C8\u751F\u6210\u30E2\u30C7\u30EB\u3092\u9078\u629E\u3057\u3066\u304F\u3060\u3055\u3044",
 "error",!0);return}}}const N=codingModeEnabled&&codingModeEffective;sendClientDebugLog("info",`Promp\
 t send start: model=${get("model-select").value} thread=${currentThreadId||"-"} text_len=${a.length}\
- attachments=${d.length} search=${get("enable-search").checked}`);const U=a,L=hasMarkerHint()?MARKER_HINT_TEXT:
-null,I=isIdeogramObjectRemoval();if(isGptImageModel()&&currentMaskImage&&d.length===0){showToast("Ma\
-sk \u306F\u753B\u50CF\u5165\u529B\u304C\u5FC5\u8981\u3067\u3059","error",!0);return}if(I&&!currentMaskImage){
+ attachments=${d.length} search=${get("enable-search").checked}`);const H=a,L=hasMarkerHint()?MARKER_HINT_TEXT:
+null,$=isIdeogramObjectRemoval();if(isGptImageModel()&&currentMaskImage&&d.length===0){showToast("Ma\
+sk \u306F\u753B\u50CF\u5165\u529B\u304C\u5FC5\u8981\u3067\u3059","error",!0);return}if($&&!currentMaskImage){
 showToast("Object Remover \u306B\u306F\u30DE\u30B9\u30AF\u753B\u50CF\u304C\u5FC5\u8981\u3067\u3059",
-"error",!0);return}const A=userAutoScroll&&isChatNearBottom();A||pauseChatAutoScroll();const j=editingMessageId,
-B=promptSettingsBeforeEdit;promptSettingsBeforeEdit=null;const D=currentParentId,V=j!=null;j&&(editingMessageId=
-null,setEditUi(!1)),playSendAnimation(),get("welcome-screen").classList.add("hidden");const ee=[],$=r(
+"error",!0);return}const M=userAutoScroll&&isChatNearBottom();M||pauseChatAutoScroll();const P=editingMessageId,
+R=promptSettingsBeforeEdit;promptSettingsBeforeEdit=null;const q=currentParentId,G=P!=null;P&&(editingMessageId=
+null,setEditUi(!1)),playSendAnimation(),get("welcome-screen").classList.add("hidden");const te=[],O=r(
 Y=>{if(Y==null)return;let xe=document.getElementById(`msg-${Y}`);for(;xe;)xe.classList&&xe.classList.
-contains("message-group")&&(ee.push({node:xe,prevDisplay:xe.style.display}),xe.style.display="none"),
-xe=xe.nextElementSibling},"hideRenderedBranchFrom"),R=r(()=>{ee.forEach(({node:Y,prevDisplay:xe})=>{
-Y&&(Y.style.display=xe||"")}),ee.length=0},"restoreHiddenBranch");j&&$(j);const J=Date.now(),F=isGptImageModel()||
-I?currentMaskImage:null,H=renderMessage(J,"user",U,JSON.stringify(d),null,null,null,!1,currentQuote,
-null,null,null,null,null,null,null,A,D,activeSkill?activeSkill.name:null,null,F);let te=!1;const G=/(https?:\/\/)?(x\.com|twitter\.com)\//i,
-X=!i&&(G.test(U||"")||G.test(currentQuote||"")),ce="grok-4-fast-reasoning",de=r(()=>{get("enable-sea\
-rch").checked=!0,get("model-select").value!==ce&&selectModelById(ce)},"applyXLinkAuto");if(X&&!isMistralOcrModel()&&
+contains("message-group")&&(te.push({node:xe,prevDisplay:xe.style.display}),xe.style.display="none"),
+xe=xe.nextElementSibling},"hideRenderedBranchFrom"),B=r(()=>{te.forEach(({node:Y,prevDisplay:xe})=>{
+Y&&(Y.style.display=xe||"")}),te.length=0},"restoreHiddenBranch");P&&O(P);const J=Date.now(),F=isGptImageModel()||
+$?currentMaskImage:null,D=renderMessage(J,"user",H,JSON.stringify(d),null,null,null,!1,currentQuote,
+null,null,null,null,null,null,null,M,q,activeSkill?activeSkill.name:null,null,F);let Z=!1;const V=/(https?:\/\/)?(x\.com|twitter\.com)\//i,
+X=!i&&(V.test(H||"")||V.test(currentQuote||"")),oe="grok-4-fast-reasoning",de=r(()=>{get("enable-sea\
+rch").checked=!0,get("model-select").value!==oe&&selectModelById(oe)},"applyXLinkAuto");if(X&&!isMistralOcrModel()&&
 !get("enable-search").checked)if(autoSearchOnLinks)de();else{const Y=get("auto-search-banner"),xe=get(
-"auto-search-on-btn"),Be=get("auto-search-off-btn"),Ue=get("auto-search-remember");Y&&xe&&Be&&(Ue&&(Ue.
-checked=!1),await new Promise(Ye=>{Y.classList.remove("hidden");const yt=r(vt=>{Y.classList.add("hid\
-den"),xe.onclick=null,Be.onclick=null,Ye(vt)},"cleanup");xe.onclick=()=>yt("enable"),Be.onclick=()=>yt(
-"disable")}).then(async Ye=>{Ye==="enable"?(de(),Ue&&Ue.checked&&(autoSearchOnLinks=!0,await apiFetch(
+"auto-search-on-btn"),Ne=get("auto-search-off-btn"),Ge=get("auto-search-remember");Y&&xe&&Ne&&(Ge&&(Ge.
+checked=!1),await new Promise(et=>{Y.classList.remove("hidden");const mt=r(ft=>{Y.classList.add("hid\
+den"),xe.onclick=null,Ne.onclick=null,et(ft)},"cleanup");xe.onclick=()=>mt("enable"),Ne.onclick=()=>mt(
+"disable")}).then(async et=>{et==="enable"?(de(),Ge&&Ge.checked&&(autoSearchOnLinks=!0,await apiFetch(
 CHAT_CONFIG.urls.handleSettings,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.
-stringify({auto_search_on_links:!0})}))):te=!0}))}const Q=String(get("reasoning-effort").value||"").
-toLowerCase(),me=String(get("model-select").value||"").toLowerCase().includes("deepseek")&&Q==="none",
-ne={client_request_id:createClientRequestId(),client_platform:"Web",deepseek_language:(document.documentElement.
-lang||navigator.language||"").toLowerCase().startsWith("ja")?"\u65E5\u672C\u8A9E":(document.documentElement.
-lang||navigator.language||"").toLowerCase().startsWith("zh")?"\u4E2D\u6587":"English",thread_id:currentThreadId,
-message:U,model:get("model-select").value,image_urls:d,image_items:c,uploaded_image_urls:m,temporary_chat:temporaryChatEnabled,
-enable_search:get("enable-search").checked,gemini_free_tier:!!(get("enable-gemini-free-tier")&&get("\
-enable-gemini-free-tier").checked),gemini_flex:!!(get("enable-gemini-flex")&&get("enable-gemini-flex").
-checked),enable_url_context:get("enable-url-context")?get("enable-url-context").checked:!1,enable_maps:get(
-"enable-maps")?get("enable-maps").checked:!1,enable_python:get("enable-python").checked,enable_mcp:isMcpEnabledForSend(),
-enable_skills:get("enable-skills")?get("enable-skills").checked:!0,enable_file_creation:get("enable-\
-file-creation")?get("enable-file-creation").checked:!0,enable_thinking:me?!1:get("enable-thinking").
-checked,thinking_level:get("thinking-level").value,thinking_budget:get("thinking-budget")?get("think\
-ing-budget").value:null,reasoning_effort:get("reasoning-effort").value,enable_system_prompt:get("ena\
-ble-sys-prompt").checked,enable_prompt_caching:get("enable-prompt-cache")?get("enable-prompt-cache").
-checked:!1,marker_system_prompt:L,safety_setting:get("safety-setting").value,tts_voice:isTtsModel()&&
-get("tts-voice")?get("tts-voice").value:null,tts_voice_custom:isTtsModel()&&get("tts-voice-custom")?
-get("tts-voice-custom").value:null,tts_language:isTtsModel()&&get("tts-language")?get("tts-language").
-value:null,tts_style:isTtsModel()&&get("tts-style")&&get("tts-style-wrap")&&!get("tts-style-wrap").classList.
-contains("hidden")?get("tts-style").value:null,tts_speed:isTtsModel()&&get("tts-speed")?get("tts-spe\
-ed").value:null,image_size:isGptImageModel()&&get("gpt-image-size")?get("gpt-image-size").value:null,
-image_quality:isGptImageModel()&&get("gpt-image-quality")?get("gpt-image-quality").value:null,image_complexity:isGptImageModel()&&
-get("gpt-image-complexity")?get("gpt-image-complexity").value:null,image_format:isGptImageModel()&&get(
-"gpt-image-format")?get("gpt-image-format").value:null,image_compression:isGptImageModel()&&get("gpt\
--image-compression")?get("gpt-image-compression").value:null,image_frame_count:isGptImageModel()&&get(
-"gpt-image-frame-count")?get("gpt-image-frame-count").value:null,image_frame_duration_ms:isGptImageModel()&&
-get("gpt-image-frame-duration")?get("gpt-image-frame-duration").value:null,image_mask:F,gemini_image_aspect:isGeminiImageModel()&&
+stringify({auto_search_on_links:!0})}))):Z=!0}))}const Q=String(get("reasoning-effort").value||"").toLowerCase(),
+ue=String(get("model-select").value||"").toLowerCase().includes("deepseek")&&Q==="none",ne={client_request_id:createClientRequestId(),
+client_platform:"Web",deepseek_language:(document.documentElement.lang||navigator.language||"").toLowerCase().
+startsWith("ja")?"\u65E5\u672C\u8A9E":(document.documentElement.lang||navigator.language||"").toLowerCase().
+startsWith("zh")?"\u4E2D\u6587":"English",thread_id:currentThreadId,message:H,model:get("model-selec\
+t").value,image_urls:d,image_items:c,uploaded_image_urls:m,temporary_chat:temporaryChatEnabled,enable_search:get(
+"enable-search").checked,gemini_free_tier:!!(get("enable-gemini-free-tier")&&get("enable-gemini-free\
+-tier").checked),gemini_flex:!!(get("enable-gemini-flex")&&get("enable-gemini-flex").checked),enable_url_context:get(
+"enable-url-context")?get("enable-url-context").checked:!1,enable_maps:get("enable-maps")?get("enabl\
+e-maps").checked:!1,enable_python:get("enable-python").checked,enable_mcp:isMcpEnabledForSend(),enable_skills:get(
+"enable-skills")?get("enable-skills").checked:!0,enable_file_creation:get("enable-file-creation")?get(
+"enable-file-creation").checked:!0,enable_thinking:ue?!1:get("enable-thinking").checked,thinking_level:get(
+"thinking-level").value,thinking_budget:get("thinking-budget")?get("thinking-budget").value:null,reasoning_effort:get(
+"reasoning-effort").value,enable_system_prompt:get("enable-sys-prompt").checked,enable_prompt_caching:get(
+"enable-prompt-cache")?get("enable-prompt-cache").checked:!1,marker_system_prompt:L,safety_setting:get(
+"safety-setting").value,tts_voice:isTtsModel()&&get("tts-voice")?get("tts-voice").value:null,tts_voice_custom:isTtsModel()&&
+get("tts-voice-custom")?get("tts-voice-custom").value:null,tts_language:isTtsModel()&&get("tts-langu\
+age")?get("tts-language").value:null,tts_style:isTtsModel()&&get("tts-style")&&get("tts-style-wrap")&&
+!get("tts-style-wrap").classList.contains("hidden")?get("tts-style").value:null,tts_speed:isTtsModel()&&
+get("tts-speed")?get("tts-speed").value:null,image_size:isGptImageModel()&&get("gpt-image-size")?get(
+"gpt-image-size").value:null,image_quality:isGptImageModel()&&get("gpt-image-quality")?get("gpt-imag\
+e-quality").value:null,image_complexity:isGptImageModel()&&get("gpt-image-complexity")?get("gpt-imag\
+e-complexity").value:null,image_format:isGptImageModel()&&get("gpt-image-format")?get("gpt-image-for\
+mat").value:null,image_compression:isGptImageModel()&&get("gpt-image-compression")?get("gpt-image-co\
+mpression").value:null,image_frame_count:isGptImageModel()&&get("gpt-image-frame-count")?get("gpt-im\
+age-frame-count").value:null,image_frame_duration_ms:isGptImageModel()&&get("gpt-image-frame-duratio\
+n")?get("gpt-image-frame-duration").value:null,image_mask:F,gemini_image_aspect:isGeminiImageModel()&&
 get("gemini-image-aspect")?get("gemini-image-aspect").value:null,gemini_image_size:isGeminiImageModel()&&
 get("gemini-image-size")?get("gemini-image-size").value:null,grok_image_aspect:isGrokImageModel()&&get(
 "grok-image-aspect")?get("grok-image-aspect").value:null,grok_image_resolution:isGrokImageModel()&&get(
@@ -1175,91 +1175,91 @@ get("ocr-table-format")?get("ocr-table-format").value:null,ocr_extract_header:is
 get("ocr-include-images")?get("ocr-include-images").checked:!0,ocr_pages:isMistralOcrModel()&&get("o\
 cr-pages")?get("ocr-pages").value:null,transcription_language_codes:[],transcription_custom_vocabulary:[],
 transcription_mode:"verbatim",transcription_diarization:!1,transcription_word_timestamps:!1,quote_text:currentQuote,
-quote_message_id:currentQuote?currentQuoteMessageId:null,parent_id:D,parent_id_explicit:V,disable_auto_search:te,
+quote_message_id:currentQuote?currentQuoteMessageId:null,parent_id:q,parent_id_explicit:G,disable_auto_search:Z,
 image_vision_model:currentVisionModel||null,coding_mode:N,coding_target:N?{id:T.candidate_id,code:T.
 prompt_source?null:T.code,language:T.language||"text",key:T.key||null,message_id:T.message_id||null,
-source:T.prompt_source?"prompt":"history",explicit:T.explicit===!0}:null,coding_candidates:N?E.map(Y=>({
+source:T.prompt_source?"prompt":"history",explicit:T.explicit===!0}:null,coding_candidates:N?A.map(Y=>({
 id:Y.candidate_id,source:Y.prompt_source?"prompt":"history",prompt_index:Y.prompt_source?Y.prompt_index:
 null,code:Y.prompt_source?null:Y.code,language:Y.language||"text",explicit:Y.explicit===!0})):[],batch_mode:l,
 canvas_mode:!!canvasModeEnabled,math_steps:typeof window.collectMathStepsSendOption=="function"?window.
 collectMathStepsSendOption():!1,project_id:!currentThreadId&&typeof window.getActiveProjectId=="func\
 tion"?window.getActiveProjectId():null};typeof window.hideProjectViewForChat=="function"&&window.hideProjectViewForChat(),
-n&&(ne.turnstile_token=n);const ve=get("thread-custom-instruction");ve&&(ne.thread_custom_instruction=
-ve.value||""),activeSkill?(ne.system_prompt=activeSkill.instruction,ne.enable_system_prompt=!0,ne.skill_uuid=
-activeSkill.uuid):ne.skill_uuid=null;const ue=takePromptForSend(e.animate!==!1),ge=animatePromptToMessage(
-H,ue,A&&e.animate!==!1);setSendBtnToStopMode();const je="ai-"+Date.now(),Me=String(ne.model||"").toLowerCase(),
-lt=!!ne.enable_thinking||!!Q&&Q!=="none",he=Me.includes("gemini")||Me.includes("o1")||Me.includes("o\
-3")||Me.includes("gpt-5")||Me.includes("reasoning")&&!Me.includes("non-reasoning"),we=lt&&he;let be=buildPendingSkeletonHtml(
+n&&(ne.turnstile_token=n);const we=get("thread-custom-instruction");we&&(ne.thread_custom_instruction=
+we.value||""),activeSkill?(ne.system_prompt=activeSkill.instruction,ne.enable_system_prompt=!0,ne.skill_uuid=
+activeSkill.uuid):ne.skill_uuid=null;const ye=takePromptForSend(e.animate!==!1),ve=animatePromptToMessage(
+D,ye,M&&e.animate!==!1);setSendBtnToStopMode();const Ie="ai-"+Date.now(),Se=String(ne.model||"").toLowerCase(),
+lt=!!ne.enable_thinking||!!Q&&Q!=="none",fe=Se.includes("gemini")||Se.includes("o1")||Se.includes("o\
+3")||Se.includes("gpt-5")||Se.includes("reasoning")&&!Se.includes("non-reasoning"),be=lt&&fe;let ge=buildPendingSkeletonHtml(
 ne.model,"API\u306B\u9001\u4FE1\u4E2D...");get("chat-container").insertAdjacentHTML("beforeend",`<di\
-v class="flex justify-start mb-4 ai-pending-row fade-in"><div id="${je}" class="message-bubble ai-pe\
-nding-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${be}</div><\
-/div>`),A&&resumeChatAutoScroll();const ae=get(je),it=l?null:startPendingElapsed(ae,t);activeStreamingBubbleId=
-je,canvasModeEnabled&&resetCanvasPreviewPanel();let st=null;const kt=r(Y=>!we||!ae?null:((!st||!ae.contains(
-st))&&(st=ae.querySelector(".thought-content")),st||(ae.insertAdjacentHTML("afterbegin",'<div class=\
+v class="flex justify-start mb-4 ai-pending-row fade-in"><div id="${Ie}" class="message-bubble ai-pe\
+nding-bubble bg-gray-700 text-white p-4 rounded-2xl rounded-tl-none shadow-md relative">${ge}</div><\
+/div>`),M&&resumeChatAutoScroll();const se=get(Ie),it=l?null:startPendingElapsed(se,t);activeStreamingBubbleId=
+Ie,canvasModeEnabled&&resetCanvasPreviewPanel();let st=null;const vt=r(Y=>!be||!se?null:((!st||!se.contains(
+st))&&(st=se.querySelector(".thought-content")),st||(se.insertAdjacentHTML("afterbegin",'<div class=\
 "thought-container"><div class="thought-header thinking-shimmer" onclick="toggleThinking(this)"><i c\
 lass="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content collapsed\
-" data-placeholder="1"></div></div>'),st=ae.querySelector(".thought-content")),st&&(st.setAttribute(
+" data-placeholder="1"></div></div>'),st=se.querySelector(".thought-content")),st&&(st.setAttribute(
 "data-placeholder","1"),st.textContent=Y||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
-st),"ensureThoughtPlaceholder");we&&kt("\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
-abortController=new AbortController;const Lt=currentThreadId,He=nowPerfMs(),at=Date.now();let Xe=!1,
-Mt=!1,Ht=!1,At=null,Ge=null,ht=null,ze=currentThreadId!=null&&currentThreadId!==""?String(currentThreadId):
-null;const _t=r((Y,xe)=>{if(!xe||Y==="status"&&Xe||Y==="thought"&&Mt||Y==="content"&&Ht)return;const Be=Math.
-max(0,nowPerfMs()-He);Y==="status"?At=Be:Y==="thought"?Ge=Be:Y==="content"&&(ht=Be),reportFirstTokenLatency(
-{latency_seconds:Be/1e3,latency_ms:Be,thread_id:ze||currentThreadId,job_id:currentJobId,model:ne.model,
-first_event_type:Y,client_sent_at_ms:at}),Y==="status"?Xe=!0:Y==="thought"?Mt=!0:Y==="content"&&(Ht=
+st),"ensureThoughtPlaceholder");be&&vt("\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
+abortController=new AbortController;const Mt=currentThreadId,He=nowPerfMs(),at=Date.now();let Ke=!1,
+Lt=!1,Rt=!1,At=null,qe=null,ut=null,Ve=currentThreadId!=null&&currentThreadId!==""?String(currentThreadId):
+null;const wt=r((Y,xe)=>{if(!xe||Y==="status"&&Ke||Y==="thought"&&Lt||Y==="content"&&Rt)return;const Ne=Math.
+max(0,nowPerfMs()-He);Y==="status"?At=Ne:Y==="thought"?qe=Ne:Y==="content"&&(ut=Ne),reportFirstTokenLatency(
+{latency_seconds:Ne/1e3,latency_ms:Ne,thread_id:Ve||currentThreadId,job_id:currentJobId,model:ne.model,
+first_event_type:Y,client_sent_at_ms:at}),Y==="status"?Ke=!0:Y==="thought"?Lt=!0:Y==="content"&&(Rt=
 !0)},"maybeReportFirstEventLatency"),tt=window.ProgressSpinner?window.ProgressSpinner.startFlow("cha\
-t"):null;let bt=!1,rn=!1,qt=null,Et=null,ln=!1;try{ne.thread_id&&activeSkill&&(threadSkillMap[ne.thread_id]=
+t"):null;let pt=!1,Gt=!1,Bt=null,Et=null,Ut=!1;try{ne.thread_id&&activeSkill&&(threadSkillMap[ne.thread_id]=
 activeSkill,pendingSkillForNewThread=null);const Y=await fetchChatStreamWithUnavailableRetry(CHAT_CONFIG.
 urls.chatStream,manualSpinnerRequestOptions({method:"POST",headers:{"Content-Type":"application/json"},
-body:JSON.stringify(ne),signal:abortController.signal}),ae);if(sendClientDebugLog("info",`Prompt str\
-eam response status: ${Y.status}`),!Y.ok){const Fe=await Y.json().catch(()=>({})),Ve=new Error(Fe.error||
-`HTTP ${Y.status}`);throw Ve.serverCode=Fe.code||null,Ve.serverModel=Fe.model||ne.model,Ve.acceptedJobId=
-Fe.job_id||null,Ve.acceptedThreadId=Fe.thread_id||null,Ve}bt=!0,window.ConnectionMonitor&&(ln=!0,window.
-ConnectionMonitor.operationStarted()),tt&&tt.setPhase("waiting"),ue.accept(),codingModeEnabled&&syncCodingModeUi(
-!0,{persist:!1});const xe=r(()=>{if(!ae)return;const Fe=ae.querySelector(".content-area");if(Fe&&Fe.
-getAttribute("data-api-accepted")!=="1"&&(Fe.setAttribute("data-api-accepted","1"),!updatePendingSkeletonStatus(
-ae,"\u63A5\u7D9A\u3057\u307E\u3057\u305F\u3002\u5FDC\u7B54\u3092\u5F85\u3063\u3066\u3044\u307E\u3059...",
+body:JSON.stringify(ne),signal:abortController.signal}),se);if(sendClientDebugLog("info",`Prompt str\
+eam response status: ${Y.status}`),!Y.ok){const Ue=await Y.json().catch(()=>({})),Xe=new Error(Ue.error||
+`HTTP ${Y.status}`);throw Xe.serverCode=Ue.code||null,Xe.serverModel=Ue.model||ne.model,Xe.acceptedJobId=
+Ue.job_id||null,Xe.acceptedThreadId=Ue.thread_id||null,Xe}pt=!0,window.ConnectionMonitor&&(Ut=!0,window.
+ConnectionMonitor.operationStarted()),tt&&tt.setPhase("waiting"),ye.accept(),codingModeEnabled&&syncCodingModeUi(
+!0,{persist:!1});const xe=r(()=>{if(!se)return;const Ue=se.querySelector(".content-area");if(Ue&&Ue.
+getAttribute("data-api-accepted")!=="1"&&(Ue.setAttribute("data-api-accepted","1"),!updatePendingSkeletonStatus(
+se,"\u63A5\u7D9A\u3057\u307E\u3057\u305F\u3002\u5FDC\u7B54\u3092\u5F85\u3063\u3066\u3044\u307E\u3059...",
 "\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u72B6\u6CC1\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059"))){
-Fe.outerHTML=buildPendingSkeletonHtml(ne.model,"\u63A5\u7D9A\u3057\u307E\u3057\u305F\u3002\u5FDC\u7B54\u3092\u5F85\u3063\u3066\u3044\u307E\u3059...");
-const Ve=ae.querySelector(".content-area");Ve&&Ve.setAttribute("data-api-accepted","1"),updatePendingSkeletonStatus(
-ae,"\u63A5\u7D9A\u3057\u307E\u3057\u305F\u3002\u5FDC\u7B54\u3092\u5F85\u3063\u3066\u3044\u307E\u3059...",
+Ue.outerHTML=buildPendingSkeletonHtml(ne.model,"\u63A5\u7D9A\u3057\u307E\u3057\u305F\u3002\u5FDC\u7B54\u3092\u5F85\u3063\u3066\u3044\u307E\u3059...");
+const Xe=se.querySelector(".content-area");Xe&&Xe.setAttribute("data-api-accepted","1"),updatePendingSkeletonStatus(
+se,"\u63A5\u7D9A\u3057\u307E\u3057\u305F\u3002\u5FDC\u7B54\u3092\u5F85\u3063\u3066\u3044\u307E\u3059...",
 "\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u72B6\u6CC1\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059")}},
-"markApiAccepted");xe(),(Ot=window.ActivityLog)==null||Ot.log("send.stream.start");let Be=!1;const Ue=Y.
-body.getReader(),Ye=new TextDecoder;let yt="",vt="",ot="",Tt=!0,rt=null,Ze=null,wt=null,dn=!1;const un={};
-let pn=0,Ut=!1;for(;!Ut;){const{done:Fe,value:Ve}=await Ue.read();if(!Fe&&!Be&&(Be=!0,(Gt=window.ActivityLog)==
-null||Gt.log("send.stream.first")),Fe&&((cn=window.ActivityLog)==null||cn.log("send.stream.done")),Fe)
+"markApiAccepted");xe(),(jt=window.ActivityLog)==null||jt.log("send.stream.start");let Ne=!1;const Ge=Y.
+body.getReader(),et=new TextDecoder;let mt="",ft="",ot="",Le=!0,Ee=null,We=null,nt=null,Ct=!1;const $t={};
+let Nt=0,xt=!1;for(;!xt;){const{done:Ue,value:Xe}=await Ge.read();if(!Ue&&!Ne&&(Ne=!0,(Ft=window.ActivityLog)==
+null||Ft.log("send.stream.first")),Ue&&((zt=window.ActivityLog)==null||zt.log("send.stream.done")),Ue)
 break;window.ConnectionMonitor&&window.ConnectionMonitor.reportActivity(),tt&&tt.setPhase("receiving"),
-yt+=Ye.decode(Ve,{stream:!0});let zt=yt.split(`
-`);yt=zt.pop();let $t=!1,Vt=!1;for(let jt of zt)if(jt.trim())try{const _e=JSON.parse(jt);if(_e.type===
-"thread_id"){xe();const Ie=_e.content!==null&&_e.content!==void 0?String(_e.content):_e.content;Ie&&
-(ze=Ie,currentThreadId!==Ie&&(currentThreadId=Ie,history.pushState({},"","/c/"+Ie)),activeSkill&&(threadSkillMap[Ie]=
+mt+=et.decode(Xe,{stream:!0});let Qt=mt.split(`
+`);mt=Qt.pop();let Ht=!1,Zt=!1;for(let Vt of Qt)if(Vt.trim())try{const _e=JSON.parse(Vt);if(_e.type===
+"thread_id"){xe();const Re=_e.content!==null&&_e.content!==void 0?String(_e.content):_e.content;Re&&
+(Ve=Re,currentThreadId!==Re&&(currentThreadId=Re,history.pushState({},"","/c/"+Re)),activeSkill&&(threadSkillMap[Re]=
 activeSkill,pendingSkillForNewThread=null),ensureTemporaryChatHeartbeat(!0));continue}if(_e.type==="\
-job_id"){xe(),currentJobId=_e.content,ae&&ae.setAttribute("data-job-id",String(currentJobId||"")),l&&
-showToast("Batch\u767B\u9332","info");continue}if(_e.type==="search_status"){wt=updateSearchBox(ae,wt,
-_e.content);continue}if(_e.type==="mcp"){handleMcpStreamEvent(ae,_e.content||{});continue}if(_e.type===
-"mcp_decision_request"){openMcpDecisionModal(_e.content||{});continue}if(_e.type==="status"){xe();const Ie=_e.
-content===null||_e.content===void 0?"":String(_e.content);if(_t("status",!!Ie),Tt&&ae){const ut=Ie||
-"\u30E2\u30C7\u30EB\u51E6\u7406\u4E2D...";if(!updatePendingSkeletonStatus(ae,ut,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059")){
-const mt=ae.querySelector(".content-area");mt&&(mt.outerHTML=buildPendingSkeletonHtml(ne.model,ut),updatePendingSkeletonStatus(
-ae,ut,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059"))}}
-we&&kt(Ie||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");continue}if(Tt){beginPendingToStreamTransition(
-ae);const Ie=ae.querySelector(".content-area");Ie&&(Ie.innerHTML=""),Tt=!1}if(_e.type==="coding_diff")
-appendCodingLiveDiff(ae,_e.content||{}),_t("content",!0);else if(_e.type==="thought"){if(rt||(rt=ae.
-querySelector(".thought-content")),ot+=_e.content,_t("thought",!!_e.content),!rt){const Ie='<div cla\
+job_id"){xe(),currentJobId=_e.content,se&&se.setAttribute("data-job-id",String(currentJobId||"")),l&&
+showToast("Batch\u767B\u9332","info");continue}if(_e.type==="search_status"){nt=updateSearchBox(se,nt,
+_e.content);continue}if(_e.type==="mcp"){handleMcpStreamEvent(se,_e.content||{});continue}if(_e.type===
+"mcp_decision_request"){openMcpDecisionModal(_e.content||{});continue}if(_e.type==="status"){xe();const Re=_e.
+content===null||_e.content===void 0?"":String(_e.content);if(wt("status",!!Re),Le&&se){const bt=Re||
+"\u30E2\u30C7\u30EB\u51E6\u7406\u4E2D...";if(!updatePendingSkeletonStatus(se,bt,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059")){
+const kt=se.querySelector(".content-area");kt&&(kt.outerHTML=buildPendingSkeletonHtml(ne.model,bt),updatePendingSkeletonStatus(
+se,bt,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059"))}}
+be&&vt(Re||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");continue}if(Le){beginPendingToStreamTransition(
+se);const Re=se.querySelector(".content-area");Re&&(Re.innerHTML=""),Le=!1}if(_e.type==="coding_diff")
+appendCodingLiveDiff(se,_e.content||{}),wt("content",!0);else if(_e.type==="thought"){if(Ee||(Ee=se.
+querySelector(".thought-content")),ot+=_e.content,wt("thought",!!_e.content),!Ee){const Re='<div cla\
 ss="thought-container"><div class="thought-header" onclick="toggleThinking(this)"><i class="fas fa-b\
-rain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>';wt?wt.insertAdjacentHTML(
-"afterend",Ie):ae.insertAdjacentHTML("afterbegin",Ie),rt=ae.querySelector(".thought-content")}if(rt&&
-rt.getAttribute("data-placeholder")==="1"){if(rt.textContent="",rt.removeAttribute("data-placeholder"),
-rt){const Ie=rt.parentElement.querySelector(".thought-header");Ie&&Ie.classList.remove("thinking-shi\
-mmer")}ot=_e.content}rt.classList.remove("collapsed"),Vt=!0}else if(_e.type==="image_analysis"){const Ie=_e.
-content===null||_e.content===void 0?"":String(_e.content);if(!ae)continue;let ut=ae.querySelector(".\
-image-analysis-box");if(!ut){const nt='<div class="image-analysis-box mb-2 p-2 bg-blue-900/20 border\
+rain text-purple-400"></i> Thinking Process</div><div class="thought-content"></div></div>';nt?nt.insertAdjacentHTML(
+"afterend",Re):se.insertAdjacentHTML("afterbegin",Re),Ee=se.querySelector(".thought-content")}if(Ee&&
+Ee.getAttribute("data-placeholder")==="1"){if(Ee.textContent="",Ee.removeAttribute("data-placeholder"),
+Ee){const Re=Ee.parentElement.querySelector(".thought-header");Re&&Re.classList.remove("thinking-shi\
+mmer")}ot=_e.content}Ee.classList.remove("collapsed"),Zt=!0}else if(_e.type==="image_analysis"){const Re=_e.
+content===null||_e.content===void 0?"":String(_e.content);if(!se)continue;let bt=se.querySelector(".\
+image-analysis-box");if(!bt){const dt='<div class="image-analysis-box mb-2 p-2 bg-blue-900/20 border\
  border-blue-500/30 rounded"><div class="text-[10px] text-blue-300 font-medium mb-1"><i class="fas f\
 a-image mr-1"></i>Image Analysis</div><div class="image-analysis-text text-[11px] text-gray-300"></d\
-iv></div>';wt?wt.insertAdjacentHTML("afterend",nt):ae.insertAdjacentHTML("afterbegin",nt),ut=ae.querySelector(
-".image-analysis-box")}const mt=ut.querySelector(".image-analysis-text");mt&&(mt.textContent=Ie)}else if(_e.
-type==="python"){const Ie=_e.content||{},ut=Ie.id||`py_${Date.now()}`;if(!un[ut]){const nt=`<div cla\
-ss="code-wrapper python-box collapsed" data-py-id="${ut}" data-collapsed="true" data-code-key="${ut}\
+iv></div>';nt?nt.insertAdjacentHTML("afterend",dt):se.insertAdjacentHTML("afterbegin",dt),bt=se.querySelector(
+".image-analysis-box")}const kt=bt.querySelector(".image-analysis-text");kt&&(kt.textContent=Re)}else if(_e.
+type==="python"){const Re=_e.content||{},bt=Re.id||`py_${Date.now()}`;if(!$t[bt]){const dt=`<div cla\
+ss="code-wrapper python-box collapsed" data-py-id="${bt}" data-collapsed="true" data-code-key="${bt}\
 "><div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution<\
 /span><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="\u5C55\u958B" aria-la\
 bel="\u5C55\u958B"><i class="fas fa-chevron-down"></i></button><button class="copy-btn" data-copy="code" data-\
@@ -1268,116 +1268,116 @@ code="" title="\u30B3\u30FC\u30C9\u3092\u30B3\u30D4\u30FC" aria-label="\u30B3\u3
 "></i></button></div></div><div class="code-body"><div class="python-section"><div class="python-lab\
 el">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="pyt\
 hon-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-\
-output"></code></pre></div></div></div>`;wt?wt.insertAdjacentHTML("afterend",nt):ae.insertAdjacentHTML(
-"afterbegin",nt),un[ut]=ae.querySelector(`[data-py-id="${ut}"]`)}const mt=un[ut];if(mt){if(Ie.code!==
-void 0){const nt=Ie.code==null?"":String(Ie.code),Nt=mt.querySelector(".python-code");Nt&&(Nt.textContent=
-nt,Nt.removeAttribute("data-highlighted"),queueHighlight(mt,nt));const Wt=mt.querySelector('.copy-bt\
-n[data-copy="code"]');Wt&&Wt.setAttribute("data-code",encodeURIComponent(nt).replace(/'/g,"%27"))}if(Ie.
-output!==void 0){const nt=Ie.output==null?"":String(Ie.output),Nt=mt.querySelector(".python-output");
-Nt&&(Nt.textContent=nt);const Wt=mt.querySelector('.copy-btn[data-copy="output"]');Wt&&Wt.setAttribute(
-"data-code",encodeURIComponent(nt).replace(/'/g,"%27"))}}}else if(_e.type==="content_replace")vt=_e.
-content===null||_e.content===void 0?"":String(_e.content),Ze||(Ze=ae.querySelector(".content-area")||
-document.createElement("div"),Ze.className="prose prose-invert text-sm break-words",ae.contains(Ze)||
-ae.appendChild(Ze)),$t=!0;else if(_e.type==="content"){const Ie=_e.content===null||_e.content===void 0?
-"":String(_e.content);vt+=Ie,/[`~]/.test(Ie)&&activateDeferredCodingModeFromStream(vt),Ze||(Ze=ae.querySelector(
-".content-area")||document.createElement("div"),Ze.className="prose prose-invert text-sm break-words",
-ae.contains(Ze)||ae.appendChild(Ze)),$t=!0,_t("content",!!Ie)}else if(_e.type==="error"){dn=!0,Ut=!0,
-ae.insertAdjacentHTML("beforeend",buildChatErrorBubbleHtml(_e.content)),showToast(_e.content||"Unkno\
-wn error","error",!0);break}}catch{}if(Vt&&rt&&(rt.textContent=ot,userAutoScroll&&(rt.scrollTop=rt.scrollHeight)),
-$t&&Ze){const jt=Date.now();if(jt-pn>100){const _e=snapshotCodeCollapse(Ze);renderAiMarkdownInto(Ze,
-vt,{incrementalMath:!0,streaming:!0,mathSteps:{jobId:currentJobId,streaming:!0}}),applyCodeCollapse(
-Ze,_e,!0),pn=jt}}scrollToBottom()}if(tt&&tt(),Ze){const Fe=snapshotCodeCollapse(Ze);renderAiMarkdownInto(
-Ze,vt,{incrementalMath:!0,streaming:!1,mathSteps:{jobId:currentJobId,streaming:!1}}),applyCodeCollapse(
-Ze,Fe,!0)}if(scrollToBottom(),vibrateHelper([100,50,100]),ae){queueHighlight(ae,vt);const Fe=nowPerfMs()-
-He;enableLatencyMetrics&&reportFirstTokenLatency({is_total:!0,latency_seconds:Fe/1e3,latency_ms:Fe,thread_id:ze||
+output"></code></pre></div></div></div>`;nt?nt.insertAdjacentHTML("afterend",dt):se.insertAdjacentHTML(
+"afterbegin",dt),$t[bt]=se.querySelector(`[data-py-id="${bt}"]`)}const kt=$t[bt];if(kt){if(Re.code!==
+void 0){const dt=Re.code==null?"":String(Re.code),Wt=kt.querySelector(".python-code");Wt&&(Wt.textContent=
+dt,Wt.removeAttribute("data-highlighted"),queueHighlight(kt,dt));const en=kt.querySelector('.copy-bt\
+n[data-copy="code"]');en&&en.setAttribute("data-code",encodeURIComponent(dt).replace(/'/g,"%27"))}if(Re.
+output!==void 0){const dt=Re.output==null?"":String(Re.output),Wt=kt.querySelector(".python-output");
+Wt&&(Wt.textContent=dt);const en=kt.querySelector('.copy-btn[data-copy="output"]');en&&en.setAttribute(
+"data-code",encodeURIComponent(dt).replace(/'/g,"%27"))}}}else if(_e.type==="content_replace")ft=_e.
+content===null||_e.content===void 0?"":String(_e.content),We||(We=se.querySelector(".content-area")||
+document.createElement("div"),We.className="prose prose-invert text-sm break-words",se.contains(We)||
+se.appendChild(We)),Ht=!0;else if(_e.type==="content"){const Re=_e.content===null||_e.content===void 0?
+"":String(_e.content);ft+=Re,/[`~]/.test(Re)&&activateDeferredCodingModeFromStream(ft),We||(We=se.querySelector(
+".content-area")||document.createElement("div"),We.className="prose prose-invert text-sm break-words",
+se.contains(We)||se.appendChild(We)),Ht=!0,wt("content",!!Re)}else if(_e.type==="error"){Ct=!0,xt=!0,
+se.insertAdjacentHTML("beforeend",buildChatErrorBubbleHtml(_e.content)),showToast(_e.content||"Unkno\
+wn error","error",!0);break}}catch{}if(Zt&&Ee&&(Ee.textContent=ot,userAutoScroll&&(Ee.scrollTop=Ee.scrollHeight)),
+Ht&&We){const Vt=Date.now();if(Vt-Nt>100){const _e=snapshotCodeCollapse(We);renderAiMarkdownInto(We,
+ft,{incrementalMath:!0,streaming:!0,mathSteps:{jobId:currentJobId,streaming:!0}}),applyCodeCollapse(
+We,_e,!0),Nt=Vt}}scrollToBottom()}if(tt&&tt(),We){const Ue=snapshotCodeCollapse(We);renderAiMarkdownInto(
+We,ft,{incrementalMath:!0,streaming:!1,mathSteps:{jobId:currentJobId,streaming:!1}}),applyCodeCollapse(
+We,Ue,!0)}if(scrollToBottom(),vibrateHelper([100,50,100]),se){queueHighlight(se,ft);const Ue=nowPerfMs()-
+He;enableLatencyMetrics&&reportFirstTokenLatency({is_total:!0,latency_seconds:Ue/1e3,latency_ms:Ue,thread_id:Ve||
 currentThreadId,job_id:currentJobId,model:ne.model,client_sent_at_ms:at,client_done_at_ms:Date.now()});
-let Ve=null;At!==null&&(Ve=At),Ge!==null&&(Ve===null||Ge<Ve)&&(Ve=Ge),ht!==null&&(Ve===null||ht<Ve)&&
-(Ve=ht);const zt={total_ms:Fe,first_response_ms:Ve,phases:Ve!==null?[{key:"generation",ms:Math.max(0,
-Fe-Ve)}]:[],source:"client"};messageMeta[je]=Object.assign(messageMeta[je]||{},{role:"assistant",model:ne.
-model,processing_time:zt});const $t=ae.querySelector(".processing-time-row");$t&&$t.remove(),ae.insertAdjacentHTML(
-"beforeend",buildProcessingTimeHtml(je,zt))}editingMessageId=null,setEditUi(!1),ae&&ae.querySelectorAll(
-".thought-content").forEach(Ve=>Ve.classList.add("collapsed")),await loadMessages(currentThreadId,{preserveDraft:!0,
-silent:!0,forceLatestLeaf:!!j}),!dn&&codingModeEnabled&&(codingTargetSelection=null,syncCodingModeUi(
+let Xe=null;At!==null&&(Xe=At),qe!==null&&(Xe===null||qe<Xe)&&(Xe=qe),ut!==null&&(Xe===null||ut<Xe)&&
+(Xe=ut);const Qt={total_ms:Ue,first_response_ms:Xe,phases:Xe!==null?[{key:"generation",ms:Math.max(0,
+Ue-Xe)}]:[],source:"client"};messageMeta[Ie]=Object.assign(messageMeta[Ie]||{},{role:"assistant",model:ne.
+model,processing_time:Qt});const Ht=se.querySelector(".processing-time-row");Ht&&Ht.remove(),se.insertAdjacentHTML(
+"beforeend",buildProcessingTimeHtml(Ie,Qt))}editingMessageId=null,setEditUi(!1),se&&se.querySelectorAll(
+".thought-content").forEach(Xe=>Xe.classList.add("collapsed")),await loadMessages(currentThreadId,{preserveDraft:!0,
+silent:!0,forceLatestLeaf:!!P}),!Ct&&codingModeEnabled&&(codingTargetSelection=null,syncCodingModeUi(
 !0,{persist:!1})),userAutoScroll&&scrollToBottom(),document.querySelectorAll(".message-group").length<=
 2||!currentThreadTitle||currentThreadTitle==="New Chat"||currentThreadTitle==="No Title"?apiFetch("/\
 api/generate_title",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-thread_id:currentThreadId,model_id:get("model-select").value})}).then(Fe=>Fe.json()).then(Fe=>{Fe.title&&
-(document.title=Fe.title+" - AI Chat",setCurrentChatHeaderTitle(Fe.title),loadThreads())}):loadThreads(
-!1)}catch(Y){(en=window.ActivityLog)==null||en.log(Y.name==="AbortError"?"send.cancelled":"send.erro\
-r"),ge();let xe=!1;const Be=Y.name==="AbortError"&&isManualStopAbortForThread(Lt);if(Y.name==="Abort\
-Error"&&!Be&&(xe=await syncThreadAfterAbortedStream(Lt,{retries:2,retryDelayMs:180,notifyOnFailure:!0})),
-sendClientDebugLog("error",`Prompt send error: ${Y.message}`),!bt){H&&H.remove();const Ue=ae&&ae.closest(
-".fade-in");Ue&&Ue.remove(),delete messageStore[J],delete messageMeta[J]}if(Y.serverCode==="request_\
-already_accepted"&&Y.acceptedJobId&&Y.acceptedThreadId)bt=!0,qt={job_id:Y.acceptedJobId,thread_id:String(
-Y.acceptedThreadId),model:ne.model,pendingStartedAt:l?null:t},ue.accept();else if(bt&&!Be)Et={job_id:normalizeJobIdForUi(
+thread_id:currentThreadId,model_id:get("model-select").value})}).then(Ue=>Ue.json()).then(Ue=>{Ue.title&&
+(document.title=Ue.title+" - AI Chat",setCurrentChatHeaderTitle(Ue.title),loadThreads())}):loadThreads(
+!1)}catch(Y){(Dt=window.ActivityLog)==null||Dt.log(Y.name==="AbortError"?"send.cancelled":"send.erro\
+r"),ve();let xe=!1;const Ne=Y.name==="AbortError"&&isManualStopAbortForThread(Mt);if(Y.name==="Abort\
+Error"&&!Ne&&(xe=await syncThreadAfterAbortedStream(Mt,{retries:2,retryDelayMs:180,notifyOnFailure:!0})),
+sendClientDebugLog("error",`Prompt send error: ${Y.message}`),!pt){D&&D.remove();const Ge=se&&se.closest(
+".fade-in");Ge&&Ge.remove(),delete messageStore[J],delete messageMeta[J]}if(Y.serverCode==="request_\
+already_accepted"&&Y.acceptedJobId&&Y.acceptedThreadId)pt=!0,Bt={job_id:Y.acceptedJobId,thread_id:String(
+Y.acceptedThreadId),model:ne.model,pendingStartedAt:l?null:t},ye.accept();else if(pt&&!Ne)Et={job_id:normalizeJobIdForUi(
 currentJobId),thread_id:currentThreadId!=null?String(currentThreadId):null,model:ne.model,pendingStartedAt:l?
 null:t},window.ConnectionMonitor.setUnavailable("offline"),showToast("\u56DE\u7B54\u3078\u306E\u63A5\u7D9A\u304C\u5207\u308C\u307E\u3057\u305F\u3002\u30D0\u30C3\u30AF\u30B0\u30E9\u30A6\u30F3\u30C9\u51E6\u7406\u3078\u81EA\u52D5\u518D\u63A5\u7D9A\u3057\
-\u307E\u3059\u3002","warning",!1);else if(Y.serverCode==="turnstile_required"){const Ue=await getTurnstileToken();
-Ue?(await verifyTurnstileOnServer(Ue,!0),showToast("\u5B89\u5168\u6027\u306E\u78BA\u8A8D\u3092\u5B8C\u4E86\u3057\u307E\u3057\u305F\u3002\u3082\u3046\u4E00\u5EA6\u9001\u4FE1\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
+\u307E\u3059\u3002","warning",!1);else if(Y.serverCode==="turnstile_required"){const Ge=await getTurnstileToken();
+Ge?(await verifyTurnstileOnServer(Ge,!0),showToast("\u5B89\u5168\u6027\u306E\u78BA\u8A8D\u3092\u5B8C\u4E86\u3057\u307E\u3057\u305F\u3002\u3082\u3046\u4E00\u5EA6\u9001\u4FE1\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
 "warning",!1)):showToast("\u5B89\u5168\u6027\u306E\u78BA\u8A8D\u3092\u5B8C\u4E86\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F\u3002\u3057\u3070\u3089\u304F\u5F85\u3063\u3066\u304B\u3089\u518D\u9001\u4FE1\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
-"error",!0)}else if(Y.serverCode==="api_key_missing"){const Ue=Y.serverModel||ne.model,Ye=await showApiKeyRequiredModalAsync(
-Ue);Ye==="set"?rn=!0:Ye==="switch"?showModal("model-modal"):showToast(Y.message||`${getModelNameById(
-Ue)} \u306EAPI\u30AD\u30FC\u304C\u8A2D\u5B9A\u3055\u308C\u3066\u3044\u307E\u305B\u3093`,"error",!0)}else if(Y.
-name!=="AbortError"){const Ue="Connection Error: "+Y.message;showToast(Ue,"error",!0)}if(!bt){const Ue=j&&
-ue.canRetry()&&!editingMessageId;ue.restore(),Ue&&(editingMessageId=j,currentParentId=D,promptSettingsBeforeEdit=
-B,setEditUi(!0))}j&&!xe&&R()}finally{it&&it(),ln&&window.ConnectionMonitor&&window.ConnectionMonitor.
-operationEnded(),tt&&tt(),setSendBtnToSendMode(),updateFilePreview(),activeStreamingBubbleId===je&&(activeStreamingBubbleId=
-null),abortController=null,currentJobId=null,setEditUi(!!editingMessageId)}if(qt){const Y=currentThreadId!=
-null?String(currentThreadId):null;return currentThreadId=qt.thread_id,(Y!==currentThreadId||location.
+"error",!0)}else if(Y.serverCode==="api_key_missing"){const Ge=Y.serverModel||ne.model,et=await showApiKeyRequiredModalAsync(
+Ge);et==="set"?Gt=!0:et==="switch"?showModal("model-modal"):showToast(Y.message||`${getModelNameById(
+Ge)} \u306EAPI\u30AD\u30FC\u304C\u8A2D\u5B9A\u3055\u308C\u3066\u3044\u307E\u305B\u3093`,"error",!0)}else if(Y.
+name!=="AbortError"){const Ge="Connection Error: "+Y.message;showToast(Ge,"error",!0)}if(!pt){const Ge=P&&
+ye.canRetry()&&!editingMessageId;ye.restore(),Ge&&(editingMessageId=P,currentParentId=q,promptSettingsBeforeEdit=
+R,setEditUi(!0))}P&&!xe&&B()}finally{it&&it(),Ut&&window.ConnectionMonitor&&window.ConnectionMonitor.
+operationEnded(),tt&&tt(),setSendBtnToSendMode(),updateFilePreview(),activeStreamingBubbleId===Ie&&(activeStreamingBubbleId=
+null),abortController=null,currentJobId=null,setEditUi(!!editingMessageId)}if(Bt){const Y=currentThreadId!=
+null?String(currentThreadId):null;return currentThreadId=Bt.thread_id,(Y!==currentThreadId||location.
 pathname!=="/c/"+currentThreadId)&&history.pushState({},"","/c/"+currentThreadId),reconnectPendingStreamUntilAvailable(
-qt,currentThreadId)}if(Et&&Et.thread_id)return reconnectPendingStreamUntilAvailable(Et,Et.thread_id);
-if(rn&&ue.canRetry())return sendMessageLogged({animate:!1})}r(sendMessageLogged,"sendMessageLogged");
-async function resumePendingStream(e){var B,D,V,ee;if(abortController||!e||!e.job_id||!currentThreadId||
+Bt,currentThreadId)}if(Et&&Et.thread_id)return reconnectPendingStreamUntilAvailable(Et,Et.thread_id);
+if(Gt&&ye.canRetry())return sendMessageLogged({animate:!1})}r(sendMessageLogged,"sendMessageLogged");
+async function resumePendingStream(e){var R,q,G,te;if(abortController||!e||!e.job_id||!currentThreadId||
 isPendingJobSuppressed(e.job_id))return;const t=e.job_id,n=`pending-${t}`,i=e&&e.model?String(e.model):
 "";get(n)||renderPendingMessage(get("chat-container"),!0,!0,n,i);const a=get(n);if(!a)return;if(activeStreamingBubbleId=
-n,a.classList.add("ai-pending-bubble"),!a.querySelector(".content-area.skeleton-pending")){const $=a.
-querySelector(".content-area");$?$.outerHTML=buildPendingSkeletonHtml(i,"\u56DE\u7B54\u3092\u751F\u6210\u4E2D..."):
+n,a.classList.add("ai-pending-bubble"),!a.querySelector(".content-area.skeleton-pending")){const O=a.
+querySelector(".content-area");O?O.outerHTML=buildPendingSkeletonHtml(i,"\u56DE\u7B54\u3092\u751F\u6210\u4E2D..."):
 a.insertAdjacentHTML("afterbegin",buildPendingSkeletonHtml(i,"\u56DE\u7B54\u3092\u751F\u6210\u4E2D..."))}
 const o=startPendingElapsed(a,e.pendingStartedAt);currentJobId=t,a&&a.setAttribute("data-job-id",String(
 t||"")),setSendBtnToStopMode(),resumeChatAutoScroll(),canvasModeEnabled&&resetCanvasPreviewPanel(),abortController=
 new AbortController;const l=currentThreadId,c=i.toLowerCase(),d=c.includes("gemini")||c.includes("o1")||
 c.includes("o3")||c.includes("gpt-5")||c.includes("reasoning")&&!c.includes("non-reasoning");let m=null;
-const g=r($=>!d||!a?null:((!m||!a.contains(m))&&(m=a.querySelector(".thought-content")),m||(a.insertAdjacentHTML(
+const g=r(O=>!d||!a?null:((!m||!a.contains(m))&&(m=a.querySelector(".thought-content")),m||(a.insertAdjacentHTML(
 "afterbegin",'<div class="thought-container"><div class="thought-header thinking-shimmer" onclick="t\
 oggleThinking(this)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="\
 thought-content collapsed" data-placeholder="1"></div></div>'),m=a.querySelector(".thought-content")),
-m&&(m.setAttribute("data-placeholder","1"),m.textContent=$||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
+m&&(m.setAttribute("data-placeholder","1"),m.textContent=O||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D..."),
 m),"ensureThoughtPlaceholder");d&&g("\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");
-let b="",v="",w="",x=!0,k=null,C=null,T=null,E=!1;const N={};let U=0,L=!1;const I=window.ProgressSpinner?
-window.ProgressSpinner.startFlow("chatResume"):null;let A=!1,j=!1;try{const $=await apiFetch("/chat_\
+let y="",b="",w="",x=!0,k=null,C=null,T=null,A=!1;const N={};let H=0,L=!1;const $=window.ProgressSpinner?
+window.ProgressSpinner.startFlow("chatResume"):null;let M=!1,P=!1;try{const O=await apiFetch("/chat_\
 stream_resume",manualSpinnerRequestOptions({method:"POST",headers:{"Content-Type":"application/json"},
 body:JSON.stringify({thread_id:currentThreadId,job_id:t,turnstile_token:botTurnstileTokenForRequest()}),
-signal:abortController.signal}));if(!$.ok)throw new Error(`Resume failed (${$.status})`);window.ConnectionMonitor&&
-(j=!0,window.ConnectionMonitor.operationStarted()),I&&I.setPhase("waiting"),(B=window.ActivityLog)==
-null||B.log("send.stream.start");let R=!1;const J=$.body.getReader(),F=new TextDecoder;for(;!L;){const{
-done:H,value:te}=await J.read();if(!H&&!R&&(R=!0,(D=window.ActivityLog)==null||D.log("send.stream.fi\
-rst")),H&&((V=window.ActivityLog)==null||V.log("send.stream.done")),H)break;window.ConnectionMonitor&&
-window.ConnectionMonitor.reportActivity(),I&&I.setPhase("receiving"),b+=F.decode(te,{stream:!0});let G=b.
+signal:abortController.signal}));if(!O.ok)throw new Error(`Resume failed (${O.status})`);window.ConnectionMonitor&&
+(P=!0,window.ConnectionMonitor.operationStarted()),$&&$.setPhase("waiting"),(R=window.ActivityLog)==
+null||R.log("send.stream.start");let B=!1;const J=O.body.getReader(),F=new TextDecoder;for(;!L;){const{
+done:D,value:Z}=await J.read();if(!D&&!B&&(B=!0,(q=window.ActivityLog)==null||q.log("send.stream.fir\
+st")),D&&((G=window.ActivityLog)==null||G.log("send.stream.done")),D)break;window.ConnectionMonitor&&
+window.ConnectionMonitor.reportActivity(),$&&$.setPhase("receiving"),y+=F.decode(Z,{stream:!0});let V=y.
 split(`
-`);b=G.pop();let X=!1,ce=!1;for(let de of G)if(de.trim())try{const Q=JSON.parse(de);if(Q.type==="job\
+`);y=V.pop();let X=!1,oe=!1;for(let de of V)if(de.trim())try{const Q=JSON.parse(de);if(Q.type==="job\
 _id"){currentJobId=Q.content||t,a&&a.setAttribute("data-job-id",String(currentJobId||""));continue}if(Q.
 type==="search_status"){T=updateSearchBox(a,T,Q.content);continue}if(Q.type==="mcp"){handleMcpStreamEvent(
 a,Q.content||{});continue}if(Q.type==="mcp_decision_request"){openMcpDecisionModal(Q.content||{});continue}
-if(Q.type==="status"){const me=Q.content===null||Q.content===void 0?"":String(Q.content);if(x&&a){const ne=me||
+if(Q.type==="status"){const ue=Q.content===null||Q.content===void 0?"":String(Q.content);if(x&&a){const ne=ue||
 "\u30E2\u30C7\u30EB\u51E6\u7406\u4E2D...";if(!updatePendingSkeletonStatus(a,ne,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059")){
-const ve=a.querySelector(".content-area");ve&&(ve.outerHTML=buildPendingSkeletonHtml(i,ne),updatePendingSkeletonStatus(
+const we=a.querySelector(".content-area");we&&(we.outerHTML=buildPendingSkeletonHtml(i,ne),updatePendingSkeletonStatus(
 a,ne,"\u5FDC\u7B54\u958B\u59CB\u307E\u3067\u306E\u9032\u6357\u3092\u8868\u793A\u3057\u3066\u3044\u307E\u3059"))}}
-d&&g(me||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");continue}if(x){beginPendingToStreamTransition(
-a);const me=a.querySelector(".content-area");me&&(me.innerHTML=""),x=!1}if(Q.type==="coding_diff")appendCodingLiveDiff(
+d&&g(ue||"\u63A8\u8AD6\u30D7\u30ED\u30BB\u30B9\u3092\u6E96\u5099\u4E2D...");continue}if(x){beginPendingToStreamTransition(
+a);const ue=a.querySelector(".content-area");ue&&(ue.innerHTML=""),x=!1}if(Q.type==="coding_diff")appendCodingLiveDiff(
 a,Q.content||{});else if(Q.type==="thought"){if(k||(k=a.querySelector(".thought-content")),w+=Q.content,
-!k){const me='<div class="thought-container"><div class="thought-header" onclick="toggleThinking(thi\
+!k){const ue='<div class="thought-container"><div class="thought-header" onclick="toggleThinking(thi\
 s)"><i class="fas fa-brain text-purple-400"></i> Thinking Process</div><div class="thought-content">\
-</div></div>';T?T.insertAdjacentHTML("afterend",me):a.insertAdjacentHTML("afterbegin",me),k=a.querySelector(
+</div></div>';T?T.insertAdjacentHTML("afterend",ue):a.insertAdjacentHTML("afterbegin",ue),k=a.querySelector(
 ".thought-content")}if(k&&k.getAttribute("data-placeholder")==="1"){if(k.textContent="",k.removeAttribute(
-"data-placeholder"),k){const me=k.parentElement.querySelector(".thought-header");me&&me.classList.remove(
-"thinking-shimmer")}w=Q.content}k.classList.remove("collapsed"),ce=!0}else if(Q.type==="image_analys\
-is"){const me=Q.content===null||Q.content===void 0?"":String(Q.content);if(!a)continue;let ne=a.querySelector(
-".image-analysis-box");if(!ne){const ue='<div class="image-analysis-box mb-2 p-2 bg-blue-900/20 bord\
+"data-placeholder"),k){const ue=k.parentElement.querySelector(".thought-header");ue&&ue.classList.remove(
+"thinking-shimmer")}w=Q.content}k.classList.remove("collapsed"),oe=!0}else if(Q.type==="image_analys\
+is"){const ue=Q.content===null||Q.content===void 0?"":String(Q.content);if(!a)continue;let ne=a.querySelector(
+".image-analysis-box");if(!ne){const ye='<div class="image-analysis-box mb-2 p-2 bg-blue-900/20 bord\
 er border-blue-500/30 rounded"><div class="text-[10px] text-blue-300 font-medium mb-1"><i class="fas\
  fa-image mr-1"></i>Image Analysis</div><div class="image-analysis-text text-[11px] text-gray-300"><\
-/div></div>';T?T.insertAdjacentHTML("afterend",ue):a.insertAdjacentHTML("afterbegin",ue),ne=a.querySelector(
-".image-analysis-box")}const ve=ne.querySelector(".image-analysis-text");ve&&(ve.textContent=me)}else if(Q.
-type==="python"){const me=Q.content||{},ne=me.id||`py_${Date.now()}`;if(!N[ne]){const ue=`<div class\
+/div></div>';T?T.insertAdjacentHTML("afterend",ye):a.insertAdjacentHTML("afterbegin",ye),ne=a.querySelector(
+".image-analysis-box")}const we=ne.querySelector(".image-analysis-text");we&&(we.textContent=ue)}else if(Q.
+type==="python"){const ue=Q.content||{},ne=ue.id||`py_${Date.now()}`;if(!N[ne]){const ye=`<div class\
 ="code-wrapper python-box collapsed" data-py-id="${ne}" data-collapsed="true" data-code-key="${ne}">\
 <div class="code-header"><span class="code-lang"><i class="fas fa-terminal"></i> Python Execution</s\
 pan><div class="code-actions"><button class="code-toggle" aria-expanded="false" title="\u5C55\u958B" aria-labe\
@@ -1387,31 +1387,31 @@ tn" data-copy="output" data-code="" title="\u51FA\u529B\u3092\u30B3\u30D4\u30FC"
 </i></button></div></div><div class="code-body"><div class="python-section"><div class="python-label\
 ">Code</div><pre><code class="hljs language-python python-code"></code></pre></div><div class="pytho\
 n-section"><div class="python-label">Output</div><pre><code class="hljs language-plaintext python-ou\
-tput"></code></pre></div></div></div>`;T?T.insertAdjacentHTML("afterend",ue):a.insertAdjacentHTML("a\
-fterbegin",ue),N[ne]=a.querySelector(`[data-py-id="${ne}"]`)}const ve=N[ne];if(ve){if(me.code!==void 0){
-const ue=me.code==null?"":String(me.code),ge=ve.querySelector(".python-code");ge&&(ge.textContent=ue,
-ge.removeAttribute("data-highlighted"),queueHighlight(ve,ue));const je=ve.querySelector('.copy-btn[d\
-ata-copy="code"]');je&&je.setAttribute("data-code",encodeURIComponent(ue).replace(/'/g,"%27"))}if(me.
-output!==void 0){const ue=me.output==null?"":String(me.output),ge=ve.querySelector(".python-output");
-ge&&(ge.textContent=ue);const je=ve.querySelector('.copy-btn[data-copy="output"]');je&&je.setAttribute(
-"data-code",encodeURIComponent(ue).replace(/'/g,"%27"))}}}else if(Q.type==="content"){const me=Q.content===
-null||Q.content===void 0?"":String(Q.content);v+=me,/[`~]/.test(me)&&activateDeferredCodingModeFromStream(
-v),C||(C=a.querySelector(".content-area")||document.createElement("div"),C.className="prose prose-in\
-vert text-sm break-words",a.contains(C)||a.appendChild(C)),X=!0}else if(Q.type==="error"){E=!0,L=!0,
+tput"></code></pre></div></div></div>`;T?T.insertAdjacentHTML("afterend",ye):a.insertAdjacentHTML("a\
+fterbegin",ye),N[ne]=a.querySelector(`[data-py-id="${ne}"]`)}const we=N[ne];if(we){if(ue.code!==void 0){
+const ye=ue.code==null?"":String(ue.code),ve=we.querySelector(".python-code");ve&&(ve.textContent=ye,
+ve.removeAttribute("data-highlighted"),queueHighlight(we,ye));const Ie=we.querySelector('.copy-btn[d\
+ata-copy="code"]');Ie&&Ie.setAttribute("data-code",encodeURIComponent(ye).replace(/'/g,"%27"))}if(ue.
+output!==void 0){const ye=ue.output==null?"":String(ue.output),ve=we.querySelector(".python-output");
+ve&&(ve.textContent=ye);const Ie=we.querySelector('.copy-btn[data-copy="output"]');Ie&&Ie.setAttribute(
+"data-code",encodeURIComponent(ye).replace(/'/g,"%27"))}}}else if(Q.type==="content"){const ue=Q.content===
+null||Q.content===void 0?"":String(Q.content);b+=ue,/[`~]/.test(ue)&&activateDeferredCodingModeFromStream(
+b),C||(C=a.querySelector(".content-area")||document.createElement("div"),C.className="prose prose-in\
+vert text-sm break-words",a.contains(C)||a.appendChild(C)),X=!0}else if(Q.type==="error"){A=!0,L=!0,
 a.insertAdjacentHTML("beforeend",buildChatErrorBubbleHtml(Q.content)),showToast(Q.content||"Unknown \
-error","error",!0);break}}catch{}if(ce&&k&&(k.textContent=w,userAutoScroll&&(k.scrollTop=k.scrollHeight)),
-X&&C){const de=Date.now();if(de-U>100){const Q=snapshotCodeCollapse(C);renderAiMarkdownInto(C,v,{incrementalMath:!0,
-streaming:!0,mathSteps:{jobId:t,streaming:!0}}),applyCodeCollapse(C,Q,!0),U=de}}scrollToBottom()}if(I&&
-I(),C){const H=snapshotCodeCollapse(C);renderAiMarkdownInto(C,v,{incrementalMath:!0,streaming:!1,mathSteps:{
-jobId:currentJobId||t,streaming:!1}}),applyCodeCollapse(C,H,!0)}vibrateHelper([100,50,100]),a&&queueHighlight(
-a,v),a&&a.querySelectorAll(".thought-content").forEach(te=>te.classList.add("collapsed")),await loadMessages(
-currentThreadId,{preserveDraft:!0,silent:!0}),loadThreads(!1)}catch($){(ee=window.ActivityLog)==null||
-ee.log($.name==="AbortError"?"send.cancelled":"send.stream.error");const R=$.name==="AbortError"&&isManualStopAbortForThread(
-l);$.name==="AbortError"&&!R&&await syncThreadAfterAbortedStream(l,{retries:2,retryDelayMs:180,notifyOnFailure:!0}),
-R||(A=!0,window.ConnectionMonitor.setUnavailable("offline"),showToast("\u56DE\u7B54\u3078\u306E\u518D\u63A5\u7D9A\u304C\u5207\u308C\u307E\u3057\u305F\u3002\u81EA\u52D5\u7684\u306B\u518D\u8A66\u884C\u3057\u307E\u3059\u3002",
-"warning",!1))}finally{o&&o(),j&&window.ConnectionMonitor&&window.ConnectionMonitor.operationEnded(),
-I&&I(),setSendBtnToSendMode(),updateFilePreview(),activeStreamingBubbleId===n&&(activeStreamingBubbleId=
-null),abortController=null,currentJobId=null,currentThreadPending=null}if(A)return reconnectPendingStreamUntilAvailable(
+error","error",!0);break}}catch{}if(oe&&k&&(k.textContent=w,userAutoScroll&&(k.scrollTop=k.scrollHeight)),
+X&&C){const de=Date.now();if(de-H>100){const Q=snapshotCodeCollapse(C);renderAiMarkdownInto(C,b,{incrementalMath:!0,
+streaming:!0,mathSteps:{jobId:t,streaming:!0}}),applyCodeCollapse(C,Q,!0),H=de}}scrollToBottom()}if($&&
+$(),C){const D=snapshotCodeCollapse(C);renderAiMarkdownInto(C,b,{incrementalMath:!0,streaming:!1,mathSteps:{
+jobId:currentJobId||t,streaming:!1}}),applyCodeCollapse(C,D,!0)}vibrateHelper([100,50,100]),a&&queueHighlight(
+a,b),a&&a.querySelectorAll(".thought-content").forEach(Z=>Z.classList.add("collapsed")),await loadMessages(
+currentThreadId,{preserveDraft:!0,silent:!0}),loadThreads(!1)}catch(O){(te=window.ActivityLog)==null||
+te.log(O.name==="AbortError"?"send.cancelled":"send.stream.error");const B=O.name==="AbortError"&&isManualStopAbortForThread(
+l);O.name==="AbortError"&&!B&&await syncThreadAfterAbortedStream(l,{retries:2,retryDelayMs:180,notifyOnFailure:!0}),
+B||(M=!0,window.ConnectionMonitor.setUnavailable("offline"),showToast("\u56DE\u7B54\u3078\u306E\u518D\u63A5\u7D9A\u304C\u5207\u308C\u307E\u3057\u305F\u3002\u81EA\u52D5\u7684\u306B\u518D\u8A66\u884C\u3057\u307E\u3059\u3002",
+"warning",!1))}finally{o&&o(),P&&window.ConnectionMonitor&&window.ConnectionMonitor.operationEnded(),
+$&&$(),setSendBtnToSendMode(),updateFilePreview(),activeStreamingBubbleId===n&&(activeStreamingBubbleId=
+null),abortController=null,currentJobId=null,currentThreadPending=null}if(M)return reconnectPendingStreamUntilAvailable(
 {job_id:t,model:i,pendingStartedAt:e.pendingStartedAt},l)}r(resumePendingStream,"resumePendingStream");
 function updateThreadHighlighting(){const e=get("thread-list");if(!e)return;e.querySelectorAll("[dat\
 a-thread-id]").forEach(n=>{n.dataset.threadId===String(currentThreadId)?n.classList.add("bg-gray-700\
@@ -1430,16 +1430,16 @@ ator" aria-hidden="true"><i class="fas fa-arrow-down ptr-pull-icon"></i><i class
 spin ptr-pull-spinner"></i><span class="ptr-pull-label"></span></div><div id="scroll-sentinel"></div\
 >',threadObserver){threadObserver.disconnect();const g=get("scroll-sentinel");g&&threadObserver.observe(
 g)}}const c=get("scroll-sentinel");o&&Array.isArray(o.threads)?(o.threads.forEach(d=>{const m=String(
-d.id),g=document.createElement("div"),b=d.is_bookmarked?"text-yellow-400":"text-gray-500",v=d.is_temporary?
+d.id),g=document.createElement("div"),y=d.is_bookmarked?"text-yellow-400":"text-gray-500",b=d.is_temporary?
 '<span class="text-[9px] text-amber-300 border border-amber-500/50 rounded px-1 py-0">\u4E00\u6642</span>':
 "",w=d.project_name?`<span class="text-[9px] text-amber-200 bg-amber-900/30 border border-amber-500/\
 40 rounded px-1 py-0 shrink-0 max-w-[76px] truncate" title="${escapeHtml(d.project_name)}">${escapeHtml(
 d.project_name)}</span>`:"",k=m===String(currentThreadId)?"bg-gray-700/60 border-l-2 border-blue-500":
 "";g.className=`p-2 rounded hover:bg-gray-700 cursor-pointer text-sm text-gray-300 truncate flex jus\
 tify-between items-center group ${k}`,g.dataset.threadId=m,g.dataset.threadTitle=d.title||"",g.innerHTML=
-`<div class="flex items-center gap-1 truncate flex-1"><button class="${b} hover:text-yellow-400 px-1\
+`<div class="flex items-center gap-1 truncate flex-1"><button class="${y} hover:text-yellow-400 px-1\
 " onclick="toggleBookmark(event, '${m}')"><i class="fas fa-star text-[10px]"></i></button><span clas\
-s="truncate">${escapeHtml(d.title||"No Title")}</span>${w}${v}</div><div class="flex items-center ga\
+s="truncate">${escapeHtml(d.title||"No Title")}</span>${w}${b}</div><div class="flex items-center ga\
 p-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition" data-thread-actions="1"><button \
 class="text-gray-500 hover:text-amber-300 px-1 transition" title="\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u3078\u79FB\u52D5" data-move-project-btn="\
 1"><i class="fas fa-folder-open text-xs"></i></button><button class="text-gray-500 hover:text-white \
@@ -1453,22 +1453,22 @@ has_next,hasMoreThreads&&threadPage++,snapshotSidebarHistory("loadThreads-render
 length+" append="+!!e)):snapshotSidebarHistory("loadThreads-empty-or-invalid")}catch(t){console.error(
 "Failed to load threads:",t),snapshotSidebarHistory("loadThreads-error")}finally{threadLoading=!1,updateThreadHighlighting(),
 snapshotSidebarHistory("loadThreads-finally")}}r(loadThreads,"loadThreads");function initPullToRefresh(e,t){
-const n=get(e);if(!n)return;const i=`${e}-pull-indicator`,a=60,o=88,l=52,c=.5,d=8;let m=0,g=!1,b=0,v=null;
+const n=get(e);if(!n)return;const i=`${e}-pull-indicator`,a=60,o=88,l=52,c=.5,d=8;let m=0,g=!1,y=0,b=null;
 const w=r(()=>get(i),"indicatorEl"),x=r(()=>{const T=w();return T?T.querySelector(".ptr-pull-label"):
-null},"labelEl"),k=r(T=>{const E=w();if(!E)return;E.style.height=Math.min(T,o)+"px",E.classList.toggle(
-"active",T>2),E.classList.toggle("pull-ready",T>=a);const N=x();N&&(N.textContent=T>=a?"\u96E2\u3057\u3066\u66F4\u65B0":
+null},"labelEl"),k=r(T=>{const A=w();if(!A)return;A.style.height=Math.min(T,o)+"px",A.classList.toggle(
+"active",T>2),A.classList.toggle("pull-ready",T>=a);const N=x();N&&(N.textContent=T>=a?"\u96E2\u3057\u3066\u66F4\u65B0":
 "\u5F15\u3063\u5F35\u3063\u3066\u66F4\u65B0")},"applyPullUI"),C=r(()=>{const T=w();T&&(T.style.height=
 "0px",T.classList.remove("active","pull-ready","refreshing"),T.classList.remove("dragging"))},"reset\
-PullUI");n.addEventListener("touchstart",T=>{if(v){g=!1;return}if(n.scrollTop>0){g=!1;return}const E=T.
-touches[0];E&&(m=E.clientY,b=0,g=!0)},{passive:!0}),n.addEventListener("touchmove",T=>{if(!g||v)return;
-if(n.scrollTop>0){g=!1;return}const E=T.touches[0];if(!E)return;const N=E.clientY-m;if(N<=0){b>0&&(b=
-0,k(0)),g=!1;return}const U=w();U&&!U.classList.contains("dragging")&&U.classList.add("dragging"),b=
-Math.min(N*c,o),k(b),N>=d&&T.preventDefault()},{passive:!1}),n.addEventListener("touchend",()=>{if(!g||
-(g=!1,v))return;const T=w();T&&T.classList.remove("dragging");const E=b>=a;if(b=0,!E){C();return}let N;
-try{N=t()}catch{N=null}const U=w();if(U){U.classList.add("refreshing"),U.style.height=l+"px";const L=U.
+PullUI");n.addEventListener("touchstart",T=>{if(b){g=!1;return}if(n.scrollTop>0){g=!1;return}const A=T.
+touches[0];A&&(m=A.clientY,y=0,g=!0)},{passive:!0}),n.addEventListener("touchmove",T=>{if(!g||b)return;
+if(n.scrollTop>0){g=!1;return}const A=T.touches[0];if(!A)return;const N=A.clientY-m;if(N<=0){y>0&&(y=
+0,k(0)),g=!1;return}const H=w();H&&!H.classList.contains("dragging")&&H.classList.add("dragging"),y=
+Math.min(N*c,o),k(y),N>=d&&T.preventDefault()},{passive:!1}),n.addEventListener("touchend",()=>{if(!g||
+(g=!1,b))return;const T=w();T&&T.classList.remove("dragging");const A=y>=a;if(y=0,!A){C();return}let N;
+try{N=t()}catch{N=null}const H=w();if(H){H.classList.add("refreshing"),H.style.height=l+"px";const L=H.
 querySelector(".ptr-pull-label");L&&(L.textContent="\u66F4\u65B0\u4E2D...")}N&&typeof N.then=="funct\
-ion"?(v=N,N.catch(()=>{}).finally(()=>{v=null,C()})):(v=Promise.resolve(),setTimeout(()=>{v=null,C()},
-400))}),n.addEventListener("touchcancel",()=>{g=!1,b=0,C()})}r(initPullToRefresh,"initPullToRefresh");
+ion"?(b=N,N.catch(()=>{}).finally(()=>{b=null,C()})):(b=Promise.resolve(),setTimeout(()=>{b=null,C()},
+400))}),n.addEventListener("touchcancel",()=>{g=!1,y=0,C()})}r(initPullToRefresh,"initPullToRefresh");
 const initThreadPullToRefresh=r(()=>initPullToRefresh("thread-list",()=>loadThreads(!1)),"initThread\
 PullToRefresh"),initSkillPullToRefresh=r(()=>initPullToRefresh("skill-list",()=>loadSkills()),"initS\
 killPullToRefresh"),initPullToRefreshAll=r(()=>{initThreadPullToRefresh(),initSkillPullToRefresh()},
@@ -1551,41 +1551,41 @@ reads/${t}/bookmark`,{method:"POST"}),loadThreads()}r(toggleBookmark,"toggleBook
 const n=++threadLoadSequence,i=t.targetMessageId||new URLSearchParams(location.search).get("message");
 window.closeHistoryModal&&window.closeHistoryModal();const a=!!t.preserveDraft,o=!!t.silent;o||resumeChatAutoScroll(
 {scroll:!1});const l=o?snapshotCodeCollapseByMessage(get("chat-container")):null;let c="",d="",m=[];
-if(a){const b=get("prompt-input");c=b?b.value:"",d=b?b.style.height:"",m=currentImageUrls?currentImageUrls.
+if(a){const y=get("prompt-input");c=y?y.value:"",d=y?y.style.height:"",m=currentImageUrls?currentImageUrls.
 slice():[],editingMessageId=null,promptSettingsBeforeEdit=null,setEditUi(!1)}else cancelEdit();o||playChatTransition(
 "history");const g=e!=null?String(e):e;g!==currentThreadId&&(modelChosenManually=!1),currentThreadId=
 g,t.skipHistory||history.pushState({},"","/c/"+e),updateThreadHighlighting(),syncActiveSkillForThread(
 currentThreadId),get("welcome-screen").classList.add("hidden"),o||(get("chat-container").innerHTML=buildChatLoadingSkeletonHtml());
-try{const b=new URL(CHAT_CONFIG.urls.handleThreadItem.replace("0",e),window.location.origin);b.searchParams.
-set("limit",String(getEffectiveThreadInitialMessageLimit()));const v=i;v&&/^\d+$/.test(String(v))&&b.
-searchParams.set("before_id",String(Number(v)+1));const w=await apiFetch(b.toString());if(!w.ok)throw new Error(
+try{const y=new URL(CHAT_CONFIG.urls.handleThreadItem.replace("0",e),window.location.origin);y.searchParams.
+set("limit",String(getEffectiveThreadInitialMessageLimit()));const b=i;b&&/^\d+$/.test(String(b))&&y.
+searchParams.set("before_id",String(Number(b)+1));const w=await apiFetch(y.toString());if(!w.ok)throw new Error(
 `thread request failed (${w.status})`);const x=await w.json();if(!x||!Array.isArray(x.messages))throw new Error(
 "invalid thread response");if(n!==threadLoadSequence)return!1;setCurrentChatHeaderTitle(x&&x.title),
 typeof window.hideProjectViewForChat=="function"&&window.hideProjectViewForChat(),typeof window.setActiveProjectContext==
 "function"&&window.setActiveProjectContext(x&&x.project_id?x.project_id:null,x&&x.project_name?x.project_name:
 ""),allMessages=x.messages,renderBranchOrigin(x.branch_origin),threadHasOlderMessages=!!x.has_older_messages,
 oldestLoadedMessageId=x.oldest_loaded_id||(allMessages.length?allMessages[0].id:null);const k=(allMessages||
-[]).filter(E=>E.role==="user"&&E.content).map(E=>E.content);if(promptHistory=[...new Set(k.slice().reverse())],
+[]).filter(A=>A.role==="user"&&A.content).map(A=>A.content);if(promptHistory=[...new Set(k.slice().reverse())],
 historyIndex=-1,tempPrompt="",currentThreadPending=x.pending_job||null,setTemporaryChatUiState(!!(x&&
 x.is_temporary)),applyTemporaryChatRuntimeMeta(x||{}),ensureTemporaryChatHeartbeat(!0),get("thread-c\
 ustom-instruction")&&(get("thread-custom-instruction").value=x.custom_instruction||""),get("enable-p\
 rompt-cache")&&(get("enable-prompt-cache").checked=!!x.enable_prompt_caching,updatePromptCacheUi()),
 x.last_model&&!modelChosenManually&&selectModelById(x.last_model),x.last_skill_uuid&&loadedSkills.length>
-0){const E=loadedSkills.find(N=>N.uuid===x.last_skill_uuid);E&&(threadSkillMap[currentThreadId]=E,applyActiveSkill(
-E))}const C=t.forceLatestLeaf?null:localStorage.getItem(`fixed_branch_${currentThreadId}`),T=i;if(T&&
-allMessages.some(E=>String(E.id)===String(T))?currentLeafId=Number(T):C&&allMessages.find(E=>String(
-E.id)===String(C))?currentLeafId=C:allMessages.length>0?currentLeafId=allMessages[allMessages.length-
+0){const A=loadedSkills.find(N=>N.uuid===x.last_skill_uuid);A&&(threadSkillMap[currentThreadId]=A,applyActiveSkill(
+A))}const C=t.forceLatestLeaf?null:localStorage.getItem(`fixed_branch_${currentThreadId}`),T=i;if(T&&
+allMessages.some(A=>String(A.id)===String(T))?currentLeafId=Number(T):C&&allMessages.find(A=>String(
+A.id)===String(C))?currentLeafId=C:allMessages.length>0?currentLeafId=allMessages[allMessages.length-
 1].id:currentLeafId=null,renderThreadTree(o?{silent:o,keepScroll:o}:{silent:o,keepScroll:o,animate:!0}),
 a||restoreLatestPromptOptions(),o&&l?applyCodeCollapseByMessage(get("chat-container"),l,!0):o||applyCodeCollapseByMessage(
 get("chat-container"),null,!0),currentThreadPending&&!o&&!isPendingJobSuppressed(currentThreadPending.
-job_id)&&resumePendingStream(currentThreadPending),a){const E=get("prompt-input");E&&(E.value=c||"",
-d?E.style.height=d:E.style.height="auto"),currentImageUrls=m,currentImageUrls&&currentImageUrls.length?
+job_id)&&resumePendingStream(currentThreadPending),a){const A=get("prompt-input");A&&(A.value=c||"",
+d?A.style.height=d:A.style.height="auto"),currentImageUrls=m,currentImageUrls&&currentImageUrls.length?
 (get("file-preview").classList.remove("hidden"),get("file-name").innerText=`${currentImageUrls.length}\
  files ready`):get("file-preview").classList.add("hidden"),schedulePromptTokenEstimate(!0)}if(i&&new URLSearchParams(
 location.search).has("message")&&history.replaceState({},"",location.pathname),a||schedulePromptTokenEstimate(
 !0),window.innerWidth<768&&get("overlay").click(),typeof window.__refreshAdminThreadEncState=="funct\
-ion")try{window.__refreshAdminThreadEncState()}catch{}return!0}catch(b){return n!==threadLoadSequence||
-(console.error("Failed to load chat thread:",b),o||showChatLoadError(e),o||showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\
+ion")try{window.__refreshAdminThreadEncState()}catch{}return!0}catch(y){return n!==threadLoadSequence||
+(console.error("Failed to load chat thread:",y),o||showChatLoadError(e),o||showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\
 \u3057\u305F","error",!0)),!1}}r(loadMessages,"loadMessages");async function loadOlderMessages(){if(loadingOlderMessages||
 !currentThreadId||!threadHasOlderMessages||!oldestLoadedMessageId)return;loadingOlderMessages=!0;const e=get(
 "chat-container"),t=e?e.scrollHeight:0,n=e?e.scrollTop:0;try{const i=new URL(CHAT_CONFIG.urls.handleThreadItem.
@@ -1604,24 +1604,24 @@ k=>k.getBoundingClientRect().height);let c=null;if(i&&(c=a.scrollTop),allMessage
 currentParentId=null,updateTotalTokenBar(0);return}const d={};allMessages.forEach(k=>{d[k.id]=k,k.childrenIds=
 []}),allMessages.forEach(k=>{k.parent_id&&d[k.parent_id]&&d[k.parent_id].childrenIds.push(k.id)}),(!currentLeafId||
 !d[currentLeafId])&&(currentLeafId=allMessages.length>0?allMessages[allMessages.length-1].id:null);const m=[];
-let g=d[currentLeafId];for(;g;)m.unshift(g),g=d[g.parent_id];const b=buildTokenTotals(m),v=document.
+let g=d[currentLeafId];for(;g;)m.unshift(g),g=d[g.parent_id];const y=buildTokenTotals(m),b=document.
 createDocumentFragment();if(threadHasOlderMessages){const k=loadingOlderMessages?"\u8AAD\u307F\u8FBC\u307F\u4E2D...":
 "\u904E\u53BB\u30E1\u30C3\u30BB\u30FC\u30B8\u3092\u8AAD\u307F\u8FBC\u3080",C=loadingOlderMessages?"d\
 isabled":"",T=document.createElement("div");T.className="mb-3 text-center",T.innerHTML=`<button id="\
 load-older-messages-btn" class="px-3 py-1.5 text-xs rounded border border-gray-600 text-gray-200 hov\
 er:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed" onclick="loadOlderMessages()" ${C}><\
-i class="fas fa-clock-rotate-left mr-1"></i>${k}</button>`,v.appendChild(T)}m.forEach(k=>{const C=k.
-parent_id?d[k.parent_id]:null,T=C?C.childrenIds:allMessages.filter(N=>!N.parent_id).map(N=>N.id),E=T.
+i class="fas fa-clock-rotate-left mr-1"></i>${k}</button>`,b.appendChild(T)}m.forEach(k=>{const C=k.
+parent_id?d[k.parent_id]:null,T=C?C.childrenIds:allMessages.filter(N=>!N.parent_id).map(N=>N.id),A=T.
 length>1?{current:T.indexOf(k.id)+1,total:T.length,siblings:T}:null;renderMessage(k.id,k.role,k.content,
-k.image_url,k.thought_data,k.model,E,n,k.quote_text,k.tokens,k.tokens_in,k.tokens_out,k.is_encrypted,
-k.tokens_content,k.tokens_thought,v,!1,k.parent_id,k.skill_name,k.batch_job,k.prompt_options&&typeof k.
+k.image_url,k.thought_data,k.model,A,n,k.quote_text,k.tokens,k.tokens_in,k.tokens_out,k.is_encrypted,
+k.tokens_content,k.tokens_thought,b,!1,k.parent_id,k.skill_name,k.batch_job,k.prompt_options&&typeof k.
 prompt_options=="object"?k.prompt_options.image_mask:null,k.processing_time,k.math_steps_state)});const w=currentThreadPending;
 if(w&&!isPendingJobSuppressed(w.job_id)){const k=w.message_id,C=new Set(m.map(N=>N.id)),T=m.length?m[m.
 length-1]:null;if(k&&C.has(k)&&currentLeafId===k||!k&&T&&T.role==="user"){const N=w.job_id?`pending-${w.
-job_id}`:null;renderPendingMessage(v,n,!1,N,w.model||null)}}const x=[];if(i&&!lowBandwidthMode&&Array.
-from(v.children).forEach((k,C)=>{const T=o.find(N=>N.id&&N.id===k.id)||(o.length===v.children.length?
-o[C]:null),E=T?l[o.indexOf(T)]:0;E>0&&(k.style.minHeight=`${E}px`,x.push(k))}),a.replaceChildren(v),
-displayMissingMessageFiles(a,m),updateTotalTokenBar(b.tokens_total,b),currentParentId=currentLeafId,
+job_id}`:null;renderPendingMessage(b,n,!1,N,w.model||null)}}const x=[];if(i&&!lowBandwidthMode&&Array.
+from(b.children).forEach((k,C)=>{const T=o.find(N=>N.id&&N.id===k.id)||(o.length===b.children.length?
+o[C]:null),A=T?l[o.indexOf(T)]:0;A>0&&(k.style.minHeight=`${A}px`,x.push(k))}),a.replaceChildren(b),
+displayMissingMessageFiles(a,m),updateTotalTokenBar(y.tokens_total,y),currentParentId=currentLeafId,
 i&&c!==null?restoreThreadTreeScroll(a,c):scrollToBottom(),lowBandwidthMode)queueMessageDecorations(a,
 a&&a.textContent||"");else if(queueHighlight(a),m.length){const k=queueMathTypeset(a,m.map(C=>C.content||
 "").join(`
@@ -1778,9 +1778,9 @@ if(sendClientDebugLog("info","Save clicked for thread: "+e),!e)return;const t=ge
 ngs-btn"),n=t?t.textContent:"";t&&(t.disabled=!0,t.textContent="\u4FDD\u5B58\u4E2D...");const i=get(
 "thread-custom-instruction"),a=i?i.value:"",o=get("thread-include-global-instruction"),l=o?o.checked:
 !0,c=get("thread-include-project-instruction"),d=c?c.checked:!0,m=get("thread-project-select"),g={custom_instruction:a,
-include_global_instruction:l,include_project_instruction:d};m&&(g.project_id=m.value||null);const b=get(
-"thread-global-sys-prompt"),v=get("thread-global-sys-prompt-enabled");let w=null;try{w=b||v?{system_prompt:b?
-b.value:"",system_prompt_enabled:v?v.checked:!0,apply_global_system_prompt:get("thread-apply-global-\
+include_global_instruction:l,include_project_instruction:d};m&&(g.project_id=m.value||null);const y=get(
+"thread-global-sys-prompt"),b=get("thread-global-sys-prompt-enabled");let w=null;try{w=y||b?{system_prompt:y?
+y.value:"",system_prompt_enabled:b?b.checked:!0,apply_global_system_prompt:get("thread-apply-global-\
 sys-prompt")?get("thread-apply-global-sys-prompt").checked:!0,apply_auto_system_prompt_notices:get("\
 thread-apply-auto-sys-prompt-notices")?get("thread-apply-auto-sys-prompt-notices").checked:!0,auto_system_prompt_notices_config:window.
 collectAutoSystemPromptConfigFromForm("thread")}:null}catch(x){sendClientDebugLog("error","Payload c\
@@ -1817,14 +1817,14 @@ t-header"),o("modal-ocr-extract-footer","ocr-extract-footer"),o("modal-ocr-inclu
 ude-blocks"),o("modal-ocr-include-images","ocr-include-images"),window.closeCompressionModal(),showToast(
 "\u8A2D\u5B9A\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F","success")};async function deleteSkill(e,t){
 e.stopPropagation(),confirm("Delete?")&&(await apiFetch(CHAT_CONFIG.urls.handleSkillItem.replace("0",
-t),{method:"DELETE"}),loadSkills())}r(deleteSkill,"deleteSkill");function renameThread(e,t){var b;e.
+t),{method:"DELETE"}),loadSkills())}r(deleteSkill,"deleteSkill");function renameThread(e,t){var y;e.
 stopPropagation();const n=get("thread-rename-modal"),i=get("thread-rename-form"),a=get("thread-renam\
 e-input"),o=get("thread-rename-save"),l=get("thread-rename-cancel"),c=get("thread-rename-error"),d=e.
-currentTarget;a.value=((b=d.closest("[data-thread-id]"))==null?void 0:b.dataset.threadTitle)||"",c.textContent=
+currentTarget;a.value=((y=d.closest("[data-thread-id]"))==null?void 0:y.dataset.threadTitle)||"",c.textContent=
 "",o.disabled=!1;let m=!1;const g=r(()=>{m||(hideModal("thread-rename-modal"),d.focus())},"close");l.
-onclick=g,n.onclick=v=>{v.target===n&&g()},n.onkeydown=v=>{v.key==="Escape"&&(v.preventDefault(),v.stopPropagation(),
-g()),v.key==="Tab"&&(v.shiftKey&&document.activeElement===a?(v.preventDefault(),l.focus()):!v.shiftKey&&
-document.activeElement===l&&(v.preventDefault(),a.focus()))},i.onsubmit=async v=>{v.preventDefault();
+onclick=g,n.onclick=b=>{b.target===n&&g()},n.onkeydown=b=>{b.key==="Escape"&&(b.preventDefault(),b.stopPropagation(),
+g()),b.key==="Tab"&&(b.shiftKey&&document.activeElement===a?(b.preventDefault(),l.focus()):!b.shiftKey&&
+document.activeElement===l&&(b.preventDefault(),a.focus()))},i.onsubmit=async b=>{b.preventDefault();
 const w=a.value.trim();if(m||!w){w||a.focus();return}m=!0,o.disabled=!0,l.disabled=!0;try{const x=await apiFetch(
 CHAT_CONFIG.urls.updateTitle.replace("0",t),{method:"PUT",headers:{"Content-Type":"application/json"},
 body:JSON.stringify({title:w})}),k=await x.json();if(!x.ok)throw new Error("rename failed");currentThreadId===
@@ -1860,15 +1860,15 @@ ync data-cfasync="false"><\/script>`:"",o=t.title||"AI Chat",l=[{label:"Exported
 e&&e.generated_at)},{label:"Leaf Message",value:e&&e.leaf_id?`#${e.leaf_id}`:"none"},{label:"Message\
 s",value:String(n.length)},{label:"Version",value:`AI Playground ${appVersion}`}],c=n.map(d=>{const m=d.
 role==="user",g=d.quote_text?`<div class="quote"><strong>Quote</strong><br>${escapeHtml(d.quote_text)}\
-</div>`:"",b=d.thought_text?`<div class="thought">${escapeHtml(d.thought_text)}</div>`:"",v=!m&&typeof window.
+</div>`:"",y=d.thought_text?`<div class="thought">${escapeHtml(d.thought_text)}</div>`:"",b=!m&&typeof window.
 buildMathStepsPdfHtml=="function"?window.buildMathStepsPdfHtml(d.content||"",d.math_steps_state):"",
 w=m?`<div class="content" style="white-space: pre-wrap;">${escapeHtml(d.content||"")}</div>`:`<div c\
-lass="content">${v||sanitizeMarkdownHtml(d.content||"")}</div>`,x=buildPdfMessageAttachments(d),k=x.
-length?`<div class="attachments">${x.map(E=>E.isImage?`<div class="attachment"><img src="${pdfEscapeAttr(
-E.previewUrl)}" alt="${pdfEscapeAttr(E.filename)}"><div class="file-caption">${pdfEscapeAttr(E.filename)}\
-</div></div>`:`<div class="attachment"><a class="file" href="${pdfEscapeAttr(E.url)}" target="_blank\
+lass="content">${b||sanitizeMarkdownHtml(d.content||"")}</div>`,x=buildPdfMessageAttachments(d),k=x.
+length?`<div class="attachments">${x.map(A=>A.isImage?`<div class="attachment"><img src="${pdfEscapeAttr(
+A.previewUrl)}" alt="${pdfEscapeAttr(A.filename)}"><div class="file-caption">${pdfEscapeAttr(A.filename)}\
+</div></div>`:`<div class="attachment"><a class="file" href="${pdfEscapeAttr(A.url)}" target="_blank\
 " rel="noreferrer noopener"><span class="file-icon">\u{1F4C4}</span><span><span class="file-name">${pdfEscapeAttr(
-E.filename)}</span><span class="file-source">${pdfEscapeAttr(E.source)}</span></span></a></div>`).join(
+A.filename)}</span><span class="file-source">${pdfEscapeAttr(A.source)}</span></span></a></div>`).join(
 "")}</div>`:"",C=[];d.model&&!m&&C.push(d.model),d.tokens!==null&&d.tokens!==void 0&&C.push(`tokens:${d.
 tokens}`),d.tokens_in!==null&&d.tokens_in!==void 0&&C.push(`in:${d.tokens_in}`),d.tokens_out!==null&&
 d.tokens_out!==void 0&&C.push(`out:${d.tokens_out}`),d.tokens_thought!==null&&d.tokens_thought!==void 0&&
@@ -1885,7 +1885,7 @@ span class="dot"></span><span>${m?"User":"Assistant"}</span></div>
                         <div class="message-body">
                             ${g}
                             ${w}
-                            ${b}
+                            ${y}
                             ${k}
                             ${T}
                         </div>
@@ -2006,19 +2006,19 @@ o.style.height="1px",o.style.opacity="0",o.style.pointerEvents="none",o.style.bo
 const c=r(()=>{l&&(clearTimeout(l),l=null),t&&t.remove(),(activePdfPrintFrame===o||activePdfPrintFrame===
 e)&&(activePdfPrintFrame=null);try{o.parentNode&&o.parentNode.removeChild(o)}catch{}},"cleanup");l=setTimeout(
 ()=>{activePdfPrintFrame===o&&(console.log("PDF print cleanup fallback triggered"),c())},6e4),o.onload=
-async()=>{try{const g=o.contentDocument,b=o.contentWindow;if(!g||!b){c(),showToast("PDF\u5370\u5237\u30E2\u30FC\u30C0\u30EB\u306E\u6E96\u5099\u306B\u5931\u6557\u3057\
+async()=>{try{const g=o.contentDocument,y=o.contentWindow;if(!g||!y){c(),showToast("PDF\u5370\u5237\u30E2\u30FC\u30C0\u30EB\u306E\u6E96\u5099\u306B\u5931\u6557\u3057\
 \u307E\u3057\u305F","error",!0);return}if(t.update(40),(Array.isArray(a&&a.messages)?a.messages:[]).
-some(T=>maybeNeedsMathJax(T.content)||maybeNeedsMathJax(T.thought_text))&&(b.MathJax={tex:{inlineMath:[
+some(T=>maybeNeedsMathJax(T.content)||maybeNeedsMathJax(T.thought_text))&&(y.MathJax={tex:{inlineMath:[
 ["\\(","\\)"],["$","$"]],displayMath:[["$$","$$"],["\\[","\\]"]],processEscapes:!0},options:{ignoreHtmlClass:"\
 tex2jax_ignore|mathjax_ignore",processHtmlClass:"tex2jax_process|mathjax_process"},startup:{typeset:!1}}),
 t.update(50),g.fonts&&g.fonts.ready)try{await g.fonts.ready}catch{}t.update(60);const x=Array.from(g.
-images||[]),k=Promise.all(x.map(T=>T.complete?Promise.resolve():new Promise(E=>{T.addEventListener("\
-load",E,{once:!0}),T.addEventListener("error",E,{once:!0})})));if(await Promise.race([k,new Promise(
-T=>setTimeout(T,5e3))]),t.update(80),g.getElementById("MathJax-script")){let T=0;for(;T<100&&(!b.MathJax||
-typeof b.MathJax.typesetPromise!="function");)await new Promise(E=>setTimeout(E,50)),T++;if(b.MathJax&&
-typeof b.MathJax.typesetPromise=="function")try{await b.MathJax.typesetPromise()}catch(E){console.error(
-"PDF MathJax typeset failed",E)}}t.update(95),setTimeout(()=>{try{b.focus(),b.addEventListener("afte\
-rprint",()=>{c()},{once:!0}),t.update(100),setTimeout(()=>{t&&t.remove()},1e3),b.print()}catch{c(),showToast(
+images||[]),k=Promise.all(x.map(T=>T.complete?Promise.resolve():new Promise(A=>{T.addEventListener("\
+load",A,{once:!0}),T.addEventListener("error",A,{once:!0})})));if(await Promise.race([k,new Promise(
+T=>setTimeout(T,5e3))]),t.update(80),g.getElementById("MathJax-script")){let T=0;for(;T<100&&(!y.MathJax||
+typeof y.MathJax.typesetPromise!="function");)await new Promise(A=>setTimeout(A,50)),T++;if(y.MathJax&&
+typeof y.MathJax.typesetPromise=="function")try{await y.MathJax.typesetPromise()}catch(A){console.error(
+"PDF MathJax typeset failed",A)}}t.update(95),setTimeout(()=>{try{y.focus(),y.addEventListener("afte\
+rprint",()=>{c()},{once:!0}),t.update(100),setTimeout(()=>{t&&t.remove()},1e3),y.print()}catch{c(),showToast(
 "PDF\u5370\u5237\u30E2\u30FC\u30C0\u30EB\u3092\u958B\u3051\u307E\u305B\u3093\u3067\u3057\u305F","err\
 or",!0)}},100)}catch{c(),showToast("PDF\u5370\u5237\u30E2\u30FC\u30C0\u30EB\u306E\u6E96\u5099\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0)}};const d=buildPdfDocumentHtml(a),m=new Blob([d],{type:"text/html"});o.src=URL.createObjectURL(
@@ -2053,11 +2053,11 @@ a=getLibSearchQuery(),o=i.filter(m=>lib.favoritesOnly&&!m.is_favorite?!1:!a||fil
 a)),l=get("lib-total-count");if(l){const m=Number(lib.totalCount)||lib.files.length;lib.hasMore||a||
 lib.favoritesOnly?l.innerText=`${lib.files.length} / ${m} files`:l.innerText=`${m} files`}if(!o.length){
 if(n)return;const m=lib.favoritesOnly&&!a?"fa-star":"fa-search",g=lib.favoritesOnly&&!a?"\u304A\u6C17\u306B\u5165\u308A\u304C\u3042\u308A\u307E\u305B\u3093":
-"\u4E00\u81F4\u3059\u308B\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308A\u307E\u305B\u3093",b=lib.favoritesOnly&&
+"\u4E00\u81F4\u3059\u308B\u30D5\u30A1\u30A4\u30EB\u304C\u3042\u308A\u307E\u305B\u3093",y=lib.favoritesOnly&&
 !a?"\u30D5\u30A1\u30A4\u30EB\u306E\u661F\u30DC\u30BF\u30F3\u304B\u3089\u304A\u6C17\u306B\u5165\u308A\u306B\u8FFD\u52A0\u3067\u304D\u307E\u3059\u3002":
 "\u691C\u7D22\u6761\u4EF6\u3084\u4E26\u3073\u9806\u3092\u5909\u66F4\u3057\u3066\u304F\u3060\u3055\u3044\u3002";
 t.innerHTML=`<div class="lib-empty-state"><div class="lib-empty-icon"><i class="fas ${m}"></i></div>\
-<p class="lib-empty-title">${g}</p><p class="lib-empty-sub">${b}</p></div>`;return}let c=0;(n?sortLibraryFiles(
+<p class="lib-empty-title">${g}</p><p class="lib-empty-sub">${y}</p></div>`;return}let c=0;(n?sortLibraryFiles(
 e).filter(m=>lib.favoritesOnly&&!m.is_favorite?!1:!a||fileNameForSearch(m).includes(a)):o).forEach(m=>{
 try{const g=renderLibraryItem(m,c++);t.appendChild(g)}catch{}})}r(renderLibraryGrid,"renderLibraryGr\
 id");function openLibraryImage(e){if(!lib.files)return;const t=sortLibraryFiles(lib.files),n=getLibSearchQuery(),
@@ -2081,13 +2081,13 @@ g=`<div class="lib-thumb-actions"><button class="lib-favorite-btn lib-action-cir
 " aria-label="${m}" aria-pressed="${e.is_favorite?"true":"false"}"><i class="${d}"></i></button><but\
 ton class="lib-open-btn lib-action-circle" title="\u958B\u304F"><i class="fas fa-eye"></i></button><button cla\
 ss="lib-del-btn lib-action-circle lib-del" title="\u524A\u9664"><i class="fas fa-trash"></i></button></div>`,
-b=`<div class="lib-thumb-bar"><span class="lib-thumb-name" title="${escapeHtml(e.filename)}">${escapeHtml(
-e.filename)}</span></div>`;n.innerHTML=`<div class="lib-thumb-media-wrap">${o}</div>${l}${g}${b}`,n.
+y=`<div class="lib-thumb-bar"><span class="lib-thumb-name" title="${escapeHtml(e.filename)}">${escapeHtml(
+e.filename)}</span></div>`;n.innerHTML=`<div class="lib-thumb-media-wrap">${o}</div>${l}${g}${y}`,n.
 dataset.filepath=e.filepath,n.addEventListener("mousedown",k=>{k.shiftKey&&k.preventDefault()}),n.onclick=
 k=>{if(k&&k.shiftKey&&lib.anchorPath&&lib.anchorPath!==e.filepath){const C=Array.from(n.parentNode?n.
 parentNode.querySelectorAll(".library-thumb-card"):[]),T=C.findIndex(N=>N.dataset.filepath===lib.anchorPath),
-E=C.indexOf(n);if(T!==-1&&E!==-1){const N=Math.min(T,E),U=Math.max(T,E);for(let L=N;L<=U;L++){const I=C[L].
-dataset.filepath;I&&(lib.selected.add(I),C[L].classList.add("is-selected"))}try{const L=window.getSelection&&
+A=C.indexOf(n);if(T!==-1&&A!==-1){const N=Math.min(T,A),H=Math.max(T,A);for(let L=N;L<=H;L++){const $=C[L].
+dataset.filepath;$&&(lib.selected.add($),C[L].classList.add("is-selected"))}try{const L=window.getSelection&&
 window.getSelection();L&&L.removeAllRanges()}catch{}window.updateLibSelectionUi();return}}lib.anchorPath=
 e.filepath,lib.selected.has(e.filepath)?(lib.selected.delete(e.filepath),n.classList.remove("is-sele\
 cted")):(lib.selected.add(e.filepath),n.classList.add("is-selected")),window.updateLibSelectionUi()},
@@ -2147,7 +2147,7 @@ updated_at).toLocaleString():"";m.innerHTML=`<div class="min-w-0 flex-1"><div cl
 ay-200 truncate" title="${escapeHtml(d.title||"")}">${escapeHtml(d.title||"\u65B0\u3057\u3044\u30C1\u30E3\u30C3\u30C8")}\
 </div><div class="text-[11px] text-gray-500 mt-1">${escapeHtml(g)}</div></div><button type="button" \
 class="lib-action-btn lib-btn-accent shrink-0"><i class="fas fa-folder"></i><span>\u958B\u304F</span></button>`;
-const b=m.querySelector("button");b&&(b.onclick=async()=>{closeFileUsageModal(),window.closeLibModal&&
+const y=m.querySelector("button");y&&(y.onclick=async()=>{closeFileUsageModal(),window.closeLibModal&&
 window.closeLibModal(!0),await loadMessages(String(d.id))}),i.appendChild(m)}),l.has_more){const d=document.
 createElement("p");d.className="text-[11px] text-gray-500 text-center pt-2",d.textContent="\u8868\u793A\u3067\u304D\u308B\u30C1\u30E3\u30C3\u30C8\
 \u306F\u6700\u5927100\u4EF6\u3067\u3059\u3002",i.appendChild(d)}}catch{i.innerHTML='<div class="text\
@@ -2156,9 +2156,9 @@ createElement("p");d.className="text-[11px] text-gray-500 text-center pt-2",d.te
 "lib-grid"),n=get("lib-load-more-btn");if(lib.loading||e&&!lib.hasMore)return;lib.loading=!0,e||(lib.
 nextOffset=0,lib.totalCount=0,lib.hasMore=!1),e||renderLibrarySkeleton(t);let i=null;const a=CHAT_CONFIG.
 urls.getFilesLib;let o=null,l=!1;try{const d=getLibSortOrder(),m=getLibSearchQuery(),g=e?lib.nextOffset:
-0,b=new URLSearchParams({limit:String(LIBRARY_PAGE_SIZE),offset:String(g),sort:d,q:m,favorites_only:lib.
-favoritesOnly?"1":"0"}),v=await apiFetch(a+"?"+b.toString(),{cache:"no-store",headers:{Accept:"appli\
-cation/json"}});if(!v.ok)throw new Error("HTTP "+v.status);o=await v.json(),l=!0}catch(d){i=d}if(!l){
+0,y=new URLSearchParams({limit:String(LIBRARY_PAGE_SIZE),offset:String(g),sort:d,q:m,favorites_only:lib.
+favoritesOnly?"1":"0"}),b=await apiFetch(a+"?"+y.toString(),{cache:"no-store",headers:{Accept:"appli\
+cation/json"}});if(!b.ok)throw new Error("HTTP "+b.status);o=await b.json(),l=!0}catch(d){i=d}if(!l){
 console.error("Library load failed:",i),!e&&t?t.innerHTML='<div class="lib-empty-state"><div class="\
 lib-empty-icon"><i class="fas fa-exclamation-triangle"></i></div><p class="lib-empty-title">\u30E9\u30A4\u30D6\u30E9\u30EA\u306E\u8AAD\u307F\
 \u8FBC\u307F\u306B\u5931\u6557\u3057\u307E\u3057\u305F</p><p class="lib-empty-sub">\u901A\u4FE1\u72B6\u6CC1\u3092\u78BA\u8A8D\u3057\u3066\u6642\u9593\u3092\u304A\u3044\u3066\u518D\u5EA6\u304A\u8A66\u3057\u304F\u3060\u3055\u3044\u3002</p></div>':
@@ -2166,13 +2166,13 @@ e&&showToast("\u8FFD\u52A0\u8AAD\u307F\u8FBC\u307F\u306B\u5931\u6557\u3057\u307E
 "error",!0),lib.loading=!1,n&&(n.disabled=!1,n.hidden=!lib.hasMore);return}let c=Array.isArray(o)?o:
 o&&Array.isArray(o.files)?o.files:[];o&&!Array.isArray(o)&&(lib.totalCount=Number(o.total)||0,lib.hasMore=
 !!o.has_more,lib.nextOffset=(Number(o.offset)||0)+(Number(o.limit)||c.length));try{const d=FILE_BASE_URL,
-m=FILE_THUMB_BASE_URL,g=new Set(c.map(v=>v&&v.filepath).filter(Boolean));(!e&&Array.isArray(currentImageUrls)?
-currentImageUrls:[]).forEach(v=>{if(c.length>=LIBRARY_PAGE_SIZE||!v||g.has(v))return;const w=getAttachmentNameForPath(
-v)||v.split("/").pop()||v,x=(w.split(".").pop()||"").toLowerCase(),k=["png","jpg","jpeg","webp","gif"].
-includes(x)?"image":"file",C=k==="image"?m+v:null;c.unshift({filename:w,original_filename:w,filepath:v,
-url:d+v,thumbnail_url:C,type:k,ext:x,is_favorite:!1,ts:Math.floor(Date.now()/1e3)}),g.add(v)})}catch{}
+m=FILE_THUMB_BASE_URL,g=new Set(c.map(b=>b&&b.filepath).filter(Boolean));(!e&&Array.isArray(currentImageUrls)?
+currentImageUrls:[]).forEach(b=>{if(c.length>=LIBRARY_PAGE_SIZE||!b||g.has(b))return;const w=getAttachmentNameForPath(
+b)||b.split("/").pop()||b,x=(w.split(".").pop()||"").toLowerCase(),k=["png","jpg","jpeg","webp","gif"].
+includes(x)?"image":"file",C=k==="image"?m+b:null;c.unshift({filename:w,original_filename:w,filepath:b,
+url:d+b,thumbnail_url:C,type:k,ext:x,is_favorite:!1,ts:Math.floor(Date.now()/1e3)}),g.add(b)})}catch{}
 try{lib.selected||(lib.selected=new Set),e||lib.selected.clear();const d=c.filter(g=>g&&g.filepath&&
-g.url);let m=[];if(e){const g=new Set(lib.files.map(b=>b.filepath));m=d.filter(b=>!g.has(b.filepath)),
+g.url);let m=[];if(e){const g=new Set(lib.files.map(y=>y.filepath));m=d.filter(y=>!g.has(y.filepath)),
 lib.files.push(...m)}else lib.files=d;lib.files.forEach(g=>{g&&g.filepath&&setAttachmentNameForPath(
 g.filepath,g.filename||g.original_filename||"")}),lib.fileSet=new Set(lib.files.map(g=>g.filepath)),
 lib.totalCount||(lib.totalCount=lib.files.length),window.updateLibSelectionUi(),renderLibraryGrid(e?
@@ -2251,10 +2251,10 @@ e-500/50":"bg-gray-800"}`,l.innerHTML=`
 er border-gray-900 shadow-sm" title="Fixed Branch"></div>':""}
                     ${c?'<div class="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 rounded-full border\
  border-gray-900 shadow-sm" title="Current Branch"></div>':""}
-                `,l.onclick=b=>{b.stopPropagation(),selectedBranchNodeId=a.id,renderBranchTreeVisualization(),
-updateBranchDetailPane()},o.appendChild(l),a.children.length>0){const b=document.createElement("div");
-b.className="w-px h-4 bg-gray-700",o.appendChild(b);const v=document.createElement("div");v.className=
-"flex gap-4 items-start",a.children.forEach(w=>v.appendChild(i(w))),o.appendChild(v)}return o}r(i,"r\
+                `,l.onclick=y=>{y.stopPropagation(),selectedBranchNodeId=a.id,renderBranchTreeVisualization(),
+updateBranchDetailPane()},o.appendChild(l),a.children.length>0){const y=document.createElement("div");
+y.className="w-px h-4 bg-gray-700",o.appendChild(y);const b=document.createElement("div");b.className=
+"flex gap-4 items-start",a.children.forEach(w=>b.appendChild(i(w))),o.appendChild(b)}return o}r(i,"r\
 enderNodeRecursive"),n.forEach(a=>e.appendChild(i(a)))}r(renderBranchTreeVisualization,"renderBranch\
 TreeVisualization");function formatBranchCreatedAt(e){if(!e)return"-";const t=new Date(e);return isNaN(
 t.getTime())?String(e):t.toLocaleString("ja-JP",{year:"numeric",month:"2-digit",day:"2-digit",hour:"\
@@ -2318,7 +2318,7 @@ class="batch-empty"><i class="fas fa-layer-group"></i><span>Batch\u51E6\u7406\u3
 e.animate&&playBatchListAnimation();return}n.forEach(a=>{const o=document.createElement("div");o.className=
 "batch-job-card";const l=escapeHtml(a.thread_title||"\u7121\u984C\u306E\u30C1\u30E3\u30C3\u30C8"),c=escapeHtml(
 batchProviderLabel(a.provider)),d=escapeHtml(a.model||""),m=escapeHtml(batchFormatTime(a.created_at)),
-g=escapeHtml(a.status_text||""),b=batchStateTone(a.state),v=a.thread_exists?'<button type="button" d\
+g=escapeHtml(a.status_text||""),y=batchStateTone(a.state),b=a.thread_exists?'<button type="button" d\
 ata-batch-open class="batch-action-btn batch-action-open"><i class="fas fa-comment-dots"></i>\u958B\u304F</but\
 ton>':"",w=a.can_cancel?'<button type="button" data-batch-cancel class="batch-action-btn batch-actio\
 n-cancel"><i class="fas fa-stop"></i>\u505C\u6B62</button>':"",x=a.is_active?"":'<button type="butto\
@@ -2336,14 +2336,14 @@ group"></i>${c}</span>
                                 <span><i class="fas fa-history mr-1"></i>${m}</span>
                             </div>
                         </div>
-                        <span class="batch-state-badge shrink-0 ${b}">${escapeHtml(batchStateLabelShort(
+                        <span class="batch-state-badge shrink-0 ${y}">${escapeHtml(batchStateLabelShort(
 a.state))}</span>
                     </div>
                     <div class="batch-job-status mt-2 text-[11px] break-words">${g}</div>
                     ${a.error?`<div class="batch-job-error mt-1 text-[10px] break-words">${escapeHtml(
 a.error)}</div>`:""}
                     <div class="mt-3 flex flex-wrap gap-2">
-                        ${v}${w}${x}
+                        ${b}${w}${x}
                     </div>`;const k=o.querySelector("[data-batch-open]");k&&(k.onclick=()=>{window.closeBatchModal(),
 loadMessages(a.thread_id)});const C=o.querySelector("[data-batch-cancel]");C&&(C.onclick=()=>cancelBatchJob(
 a));const T=o.querySelector("[data-batch-delete]");T&&(T.onclick=()=>deleteBatchJob(a)),t.appendChild(
@@ -2381,7 +2381,7 @@ value=a?a.value:"",get("api-key-modal-input").placeholder="API\u30AD\u30FC\u3092
 ()=>{o.onclick=null,l.onclick=null,c.onclick=null},"cleanup"),m=r(g=>{g.key==="Enter"&&(g.preventDefault(),
 o.click())},"onKeydown");get("api-key-modal-input").addEventListener("keydown",m),o.onclick=async()=>{
 const g=get("api-key-modal-input").value.trim();if(!g){showToast("API\u30AD\u30FC\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044",
-"error");return}if(i){const b=get(i.inputId);b&&(b.value=g);try{if(!(await apiFetch(CHAT_CONFIG.urls.
+"error");return}if(i){const y=get(i.inputId);y&&(y.value=g);try{if(!(await apiFetch(CHAT_CONFIG.urls.
 handleSettings,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({[i.keyField]:g})})).
 ok){showToast("API\u30AD\u30FC\u306E\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error",
 !0);return}userSettingsSnapshot&&(userSettingsSnapshot[i.keyField]=g)}catch{showToast("API\u30AD\u30FC\u306E\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\
@@ -2423,134 +2423,133 @@ toggle_detection:"\u691C\u51FA\u306E\u5207\u308A\u66FF\u3048",ban:"BAN",unban:"B
 unban_linked:"BAN\u89E3\u9664\uFF08\u9023\u9396\uFF09",unlock:"\u30ED\u30C3\u30AF\u89E3\u9664",unblock_identifiers:"\
 IP\u30FB\u7AEF\u672B\u306EBAN\u89E3\u9664"},l={userId:0,username:"",exists:!1,type:"",items:[],hasMore:!1,
 selected:new Set,counts:{},total:0,data:null},c={accounts:[],selected:new Set},d=r(()=>get("bot-log-\
-detail"),"view"),m=r(()=>get("bot-log-list-view"),"listView"),g=r($=>{if(!$)return"-";const R=new Date(
-$);return isNaN(R.getTime())?String($):R.toLocaleString("ja-JP")},"formatTime"),b=r($=>{const R=Math.
-max(0,Math.floor(Number($)||0));return R>=60?`${Math.floor(R/60)}\u5206${R%60?R%60+"\u79D2":""}`:`${R}\
-\u79D2`},"formatDuration"),v=r(($,R)=>R==null||R===""?"-":$==="lock_source"?a[R]||String(R):$==="cli\
-ent"||$==="origin_client"?n[R]||String(R):$==="action"?o[R]||String(R):$==="by"?R==="self"?"\u672C\u4EBA":
-R==="admin"?"\u7BA1\u7406\u8005":String(R):$==="enabled"?R?"ON":"OFF":$==="remaining_seconds"||$==="\
-lock_seconds"?b(R):$==="applied_to"&&Array.isArray(R)?R.map(J=>a[J]||J).join("\u30FB"):typeof R=="ob\
-ject"?JSON.stringify(R,null,2):String(R),"formatDetailValue"),w=r($=>{const R=String($||"").trim();if(!R)
-return"";let J=null;if(R.startsWith("{"))try{J=JSON.parse(R)}catch{J=null}if(J&&typeof J=="object"&&
-!Array.isArray(J)){const F=Object.keys(J).map(H=>{const te=v(H,J[H]),G=i[H]||H;return te.length>120||
-te.includes(`
-`)?`<div class="mt-1"><div class="text-gray-500">${escapeHtml(G)}</div><pre class="bot-log-pre">${escapeHtml(
-te)}</pre></div>`:`<div><span class="text-gray-500">${escapeHtml(G)}:</span> <span class="text-gray-\
-300">${escapeHtml(te)}</span></div>`}).join("");return R.length>600?`<details class="mt-1"><summary \
-class="cursor-pointer text-gray-400">\u8A73\u7D30\u3092\u8868\u793A</summary>${F}</details>`:`<div c\
-lass="mt-1 space-y-1">${F}</div>`}return R.length>300?`<details class="mt-1"><summary class="cursor-\
-pointer text-gray-400">\u8A73\u7D30\u3092\u8868\u793A</summary><pre class="bot-log-pre">${escapeHtml(
-R)}</pre></details>`:`<div class="mt-1 text-gray-400 bot-log-wrap">${escapeHtml(R)}</div>`},"renderD\
-etails"),x=r(async($,R)=>{const J=await apiFetch($,{method:"POST",headers:{"Content-Type":"applicati\
-on/json"},body:JSON.stringify(R)}),F=await J.json().catch(()=>({}));if(!J.ok)throw new Error(F.error||
-String(J.status));return F},"postJson"),k=r(($,R)=>`<span class="${R} text-white px-2 py-0.5 rounded\
-">${escapeHtml($)}</span>`,"badge"),C=r(()=>{const $=get("bot-log-account-list");if(!$)return;const R=c.
-accounts,J=R.length&&R.every(H=>c.selected.has(H.user_id)),F=get("bot-log-list-toolbar");if(F&&(F.innerHTML=
-`
+detail"),"view"),m=r(()=>get("bot-log-list-view"),"listView"),g=r(O=>{if(!O)return"-";const B=new Date(
+O);return isNaN(B.getTime())?String(O):B.toLocaleString("ja-JP")},"formatTime"),y=r(O=>{const B=Math.
+max(0,Math.floor(Number(O)||0));return B>=60?`${Math.floor(B/60)}\u5206${B%60?B%60+"\u79D2":""}`:`${B}\
+\u79D2`},"formatDuration"),b=r((O,B)=>B==null||B===""?"-":O==="lock_source"?a[B]||String(B):O==="cli\
+ent"||O==="origin_client"?n[B]||String(B):O==="action"?o[B]||String(B):O==="by"?B==="self"?"\u672C\u4EBA":
+B==="admin"?"\u7BA1\u7406\u8005":String(B):O==="enabled"?B?"ON":"OFF":O==="remaining_seconds"||O==="\
+lock_seconds"?y(B):O==="applied_to"&&Array.isArray(B)?B.map(J=>a[J]||J).join("\u30FB"):typeof B=="ob\
+ject"?JSON.stringify(B,null,2):String(B),"formatDetailValue"),w=r(O=>{const B=String(O||"").trim();if(!B)
+return"";let J=null;if(B.startsWith("{"))try{J=JSON.parse(B)}catch{J=null}if(J&&typeof J=="object"&&
+!Array.isArray(J)){const F=Object.keys(J).map(D=>{const Z=b(D,J[D]),V=i[D]||D;return Z.length>120||Z.
+includes(`
+`)?`<div class="mt-1"><div class="text-gray-500">${escapeHtml(V)}</div><pre class="bot-log-pre">${escapeHtml(
+Z)}</pre></div>`:`<div><span class="text-gray-500">${escapeHtml(V)}:</span> <span class="text-gray-3\
+00">${escapeHtml(Z)}</span></div>`}).join("");return B.length>600?`<details class="mt-1"><summary cl\
+ass="cursor-pointer text-gray-400">\u8A73\u7D30\u3092\u8868\u793A</summary>${F}</details>`:`<div cla\
+ss="mt-1 space-y-1">${F}</div>`}return B.length>300?`<details class="mt-1"><summary class="cursor-po\
+inter text-gray-400">\u8A73\u7D30\u3092\u8868\u793A</summary><pre class="bot-log-pre">${escapeHtml(B)}\
+</pre></details>`:`<div class="mt-1 text-gray-400 bot-log-wrap">${escapeHtml(B)}</div>`},"renderDeta\
+ils"),x=r(async(O,B)=>{const J=await apiFetch(O,{method:"POST",headers:{"Content-Type":"application/\
+json"},body:JSON.stringify(B)}),F=await J.json().catch(()=>({}));if(!J.ok)throw new Error(F.error||String(
+J.status));return F},"postJson"),k=r((O,B)=>`<span class="${B} text-white px-2 py-0.5 rounded">${escapeHtml(
+O)}</span>`,"badge"),C=r(()=>{const O=get("bot-log-account-list");if(!O)return;const B=c.accounts,J=B.
+length&&B.every(D=>c.selected.has(D.user_id)),F=get("bot-log-list-toolbar");if(F&&(F.innerHTML=`
                         <label class="flex items-center gap-1 text-gray-300"><input type="checkbox" \
 class="bot-log-account-select-all" aria-label="\u8868\u793A\u4E2D\u306E\u30A2\u30AB\u30A6\u30F3\u30C8\u3092\u3059\u3079\u3066\u9078\u629E" ${J?
 "checked":""}>\u8868\u793A\u4E2D\u3092\u3059\u3079\u3066\u9078\u629E</label>
                         <button class="bot-log-delete-accounts bg-red-600 hover:bg-red-500 text-whit\
 e px-2 py-1 rounded" ${c.selected.size?"":"disabled"}>\u9078\u629E\u3057\u305F\u30A2\u30AB\u30A6\u30F3\u30C8\u306E\u8A18\u9332\u3092\u4E00\u62EC\u524A\u9664${c.
-selected.size?`\uFF08${c.selected.size}\u4EF6\uFF09`:""}</button>`),!R.length){$.innerHTML='<div cla\
+selected.size?`\uFF08${c.selected.size}\u4EF6\uFF09`:""}</button>`),!B.length){O.innerHTML='<div cla\
 ss="text-xs text-gray-400">\u8A18\u9332\u306E\u3042\u308B\u30A2\u30AB\u30A6\u30F3\u30C8\u306F\u3042\u308A\u307E\u305B\u3093\u3002</div>';
-return}$.innerHTML=R.map(H=>{const te=[];H.exists||te.push(k("\u524A\u9664\u6E08\u307F","bg-gray-600")),
-H.is_bot_banned&&te.push(k("BAN\u4E2D","bg-red-600")),H.lock_remaining_seconds>0&&te.push(k(`\u30ED\u30C3\u30AF\u4E2D\uFF08\u6B8B\u308A${Math.
-ceil(H.lock_remaining_seconds/60)}\u5206\uFF09`,"bg-yellow-600"));const G=H.evidence_count?`\u8A18\u9332 ${H.
-evidence_count}\u4EF6\u30FB\u6700\u7D42 ${escapeHtml(g(H.last_event_at))}`:"\u8A18\u9332\u306A\u3057";
+return}O.innerHTML=B.map(D=>{const Z=[];D.exists||Z.push(k("\u524A\u9664\u6E08\u307F","bg-gray-600")),
+D.is_bot_banned&&Z.push(k("BAN\u4E2D","bg-red-600")),D.lock_remaining_seconds>0&&Z.push(k(`\u30ED\u30C3\u30AF\u4E2D\uFF08\u6B8B\u308A${Math.
+ceil(D.lock_remaining_seconds/60)}\u5206\uFF09`,"bg-yellow-600"));const V=D.evidence_count?`\u8A18\u9332 ${D.
+evidence_count}\u4EF6\u30FB\u6700\u7D42 ${escapeHtml(g(D.last_event_at))}`:"\u8A18\u9332\u306A\u3057";
 return`
                         <div class="flex items-center gap-2 bg-gray-900 border border-gray-700 round\
 ed p-2 text-xs">
-                            <input type="checkbox" class="bot-log-account-select" data-user-id="${H.
-user_id}" ${c.selected.has(H.user_id)?"checked":""} aria-label="${escapeHtml(H.username||"ID "+H.user_id)}\
+                            <input type="checkbox" class="bot-log-account-select" data-user-id="${D.
+user_id}" ${c.selected.has(D.user_id)?"checked":""} aria-label="${escapeHtml(D.username||"ID "+D.user_id)}\
  \u3092\u9078\u629E">
                             <div class="flex-1 min-w-0">
-                                <div class="flex flex-wrap items-center gap-1"><span class="${H.exists?
-"text-gray-200":"text-gray-400"} font-bold bot-log-wrap">${escapeHtml(H.username||"ID "+H.user_id)}<\
-/span>${te.join("")}</div>
-                                <div class="text-[10px] text-gray-500">${G}</div>
+                                <div class="flex flex-wrap items-center gap-1"><span class="${D.exists?
+"text-gray-200":"text-gray-400"} font-bold bot-log-wrap">${escapeHtml(D.username||"ID "+D.user_id)}<\
+/span>${Z.join("")}</div>
+                                <div class="text-[10px] text-gray-500">${V}</div>
                             </div>
                             <button class="bot-log-open-account shrink-0 whitespace-nowrap bg-gray-7\
-00 hover:bg-gray-600 text-white px-2 py-1 rounded" data-user-id="${H.user_id}" data-username="${escapeHtml(
-H.username||"")}">\u8A18\u9332\u3092\u898B\u308B</button>
-                        </div>`}).join("")},"renderAccounts"),T=r(async()=>{const $=get("bot-log-acc\
-ount-list");if(!$)return;$.innerHTML='<div class="text-xs text-gray-400 py-2"><i class="fas fa-spinn\
-er fa-spin mr-1"></i>\u8AAD\u307F\u8FBC\u307F\u4E2D...</div>';const R=get("bot-log-search"),J=R?R.value.
+00 hover:bg-gray-600 text-white px-2 py-1 rounded" data-user-id="${D.user_id}" data-username="${escapeHtml(
+D.username||"")}">\u8A18\u9332\u3092\u898B\u308B</button>
+                        </div>`}).join("")},"renderAccounts"),T=r(async()=>{const O=get("bot-log-acc\
+ount-list");if(!O)return;O.innerHTML='<div class="text-xs text-gray-400 py-2"><i class="fas fa-spinn\
+er fa-spin mr-1"></i>\u8AAD\u307F\u8FBC\u307F\u4E2D...</div>';const B=get("bot-log-search"),J=B?B.value.
 trim():"";try{const F=await apiFetch(`/api/bot/evidence/accounts?q=${encodeURIComponent(J)}`,{cache:"\
-no-store"}),H=await F.json().catch(()=>({}));if(!F.ok)throw new Error(H.error||String(F.status));c.accounts=
-H.accounts||[];const te=new Set(c.accounts.map(G=>G.user_id));Array.from(c.selected).forEach(G=>{te.
-has(G)||c.selected.delete(G)}),C()}catch{$.innerHTML='<div class="text-xs text-red-400">\u30A2\u30AB\u30A6\u30F3\u30C8\u4E00\u89A7\u3092\u53D6\u5F97\u3067\u304D\
-\u307E\u305B\u3093\u3067\u3057\u305F\u3002</div>',showToast("Bot\u691C\u51FA\u30ED\u30B0\u306E\u4E00\u89A7\u3092\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F",
-"error",!0)}},"loadAccounts"),E=r($=>{if(!$)return"";const R=$.locks||[],J=$.banned_identifiers||[],
-F=[];$.exists||F.push(k("\u524A\u9664\u6E08\u307F","bg-gray-600")),$.exists&&(F.push(k($.detection_enabled?
-"\u691C\u51FAON":"\u691C\u51FAOFF",$.detection_enabled?"bg-gray-600":"bg-gray-700")),F.push(k($.is_bot_banned?
-"BAN\u4E2D":"BAN\u306A\u3057",$.is_bot_banned?"bg-red-600":"bg-gray-600"))),F.push(k(R.length?"\u30ED\u30C3\u30AF\u4E2D":
-"\u30ED\u30C3\u30AF\u306A\u3057",R.length?"bg-yellow-600":"bg-gray-600")),J.length&&F.push(k(`IP\u30FB\u7AEF\u672B\u306E\
-BAN ${J.length}\u4EF6`,"bg-red-600")),$.is_admin&&F.push(k("\u7BA1\u7406\u8005\uFF08\u76E3\u8996\u306E\u5BFE\u8C61\u5916\uFF09",
-"bg-blue-600"));const H=!!(l.counts.ban||l.counts.related_ban),te=$.is_bot_banned?`<div class="text-\
-gray-300">BAN\u306E\u7406\u7531: ${escapeHtml($.bot_ban_reason||"-")}\uFF08${escapeHtml(g($.bot_banned_at))}\
-\uFF09</div>${H?"":'<div class="text-gray-400">\u3053\u306EBAN\u306E\u8A18\u9332\u306F\u3042\u308A\u307E\u305B\u3093\uFF08\u8A18\u9332\u3092\u59CB\u3081\u308B\u524D\u306EBAN\u304B\u3001\u8A18\u9332\u304C\u524A\u9664\u3055\u308C\u3066\u3044\u307E\u3059\uFF09\u3002</div>'}`:
-"",G=R.map(ne=>{const ve=a[ne.source]||ne.source,ue=ne.identifier?` ${escapeHtml(ne.identifier)}${ne.
-source==="cookie"?"\u2026":""}`:"",ge=ne.origin?`\u30FB\u304B\u3051\u305F\u30A2\u30AB\u30A6\u30F3\u30C8: ${escapeHtml(
+no-store"}),D=await F.json().catch(()=>({}));if(!F.ok)throw new Error(D.error||String(F.status));c.accounts=
+D.accounts||[];const Z=new Set(c.accounts.map(V=>V.user_id));Array.from(c.selected).forEach(V=>{Z.has(
+V)||c.selected.delete(V)}),C()}catch{O.innerHTML='<div class="text-xs text-red-400">\u30A2\u30AB\u30A6\u30F3\u30C8\u4E00\u89A7\u3092\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3067\
+\u3057\u305F\u3002</div>',showToast("Bot\u691C\u51FA\u30ED\u30B0\u306E\u4E00\u89A7\u3092\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F",
+"error",!0)}},"loadAccounts"),A=r(O=>{if(!O)return"";const B=O.locks||[],J=O.banned_identifiers||[],
+F=[];O.exists||F.push(k("\u524A\u9664\u6E08\u307F","bg-gray-600")),O.exists&&(F.push(k(O.detection_enabled?
+"\u691C\u51FAON":"\u691C\u51FAOFF",O.detection_enabled?"bg-gray-600":"bg-gray-700")),F.push(k(O.is_bot_banned?
+"BAN\u4E2D":"BAN\u306A\u3057",O.is_bot_banned?"bg-red-600":"bg-gray-600"))),F.push(k(B.length?"\u30ED\u30C3\u30AF\u4E2D":
+"\u30ED\u30C3\u30AF\u306A\u3057",B.length?"bg-yellow-600":"bg-gray-600")),J.length&&F.push(k(`IP\u30FB\u7AEF\u672B\u306E\
+BAN ${J.length}\u4EF6`,"bg-red-600")),O.is_admin&&F.push(k("\u7BA1\u7406\u8005\uFF08\u76E3\u8996\u306E\u5BFE\u8C61\u5916\uFF09",
+"bg-blue-600"));const D=!!(l.counts.ban||l.counts.related_ban),Z=O.is_bot_banned?`<div class="text-g\
+ray-300">BAN\u306E\u7406\u7531: ${escapeHtml(O.bot_ban_reason||"-")}\uFF08${escapeHtml(g(O.bot_banned_at))}\
+\uFF09</div>${D?"":'<div class="text-gray-400">\u3053\u306EBAN\u306E\u8A18\u9332\u306F\u3042\u308A\u307E\u305B\u3093\uFF08\u8A18\u9332\u3092\u59CB\u3081\u308B\u524D\u306EBAN\u304B\u3001\u8A18\u9332\u304C\u524A\u9664\u3055\u308C\u3066\u3044\u307E\u3059\uFF09\u3002</div>'}`:
+"",V=B.map(ne=>{const we=a[ne.source]||ne.source,ye=ne.identifier?` ${escapeHtml(ne.identifier)}${ne.
+source==="cookie"?"\u2026":""}`:"",ve=ne.origin?`\u30FB\u304B\u3051\u305F\u30A2\u30AB\u30A6\u30F3\u30C8: ${escapeHtml(
 ne.origin.username||String(ne.origin.user_id||"-"))}\uFF08${escapeHtml(n[ne.origin.client]||ne.origin.
-client||"-")}\uFF09`:"";return`<div class="text-gray-300">\u30ED\u30C3\u30AF: ${escapeHtml(ve)}${ue}\
-\u30FB\u6B8B\u308A${escapeHtml(b(ne.remaining_seconds))}\u30FB${escapeHtml(ne.reason||"")}${ge}</div\
+client||"-")}\uFF09`:"";return`<div class="text-gray-300">\u30ED\u30C3\u30AF: ${escapeHtml(we)}${ye}\
+\u30FB\u6B8B\u308A${escapeHtml(y(ne.remaining_seconds))}\u30FB${escapeHtml(ne.reason||"")}${ve}</div\
 >`}).join(""),X=J.map(ne=>`<div class="text-gray-300">IP\u30FB\u7AEF\u672B\u306EBAN: ${escapeHtml(a[ne.
 kind]||ne.kind)} ${escapeHtml(ne.identifier)}${ne.kind==="cookie"?"\u2026":""}\u30FB${escapeHtml(ne.
-reason||"-")}\uFF08${escapeHtml(g(ne.created_at))}\uFF09</div>`).join(""),ce=J.length?'<div class="t\
+reason||"-")}\uFF08${escapeHtml(g(ne.created_at))}\uFF09</div>`).join(""),oe=J.length?'<div class="t\
 ext-gray-400">IP\u30FB\u7AEF\u672B\u306EBAN\u304C\u3042\u308B\u3068\u3001\u540C\u3058IP\u30A2\u30C9\u30EC\u30B9\u3084\u7AEF\u672B\u304B\u3089\u306F\u65B0\u3057\u3044\u30A2\u30AB\u30A6\u30F3\u30C8\u3092\u4F5C\u308C\u307E\u305B\u3093\u3002</div>':
-"",de=$.turnstile_verified_seconds>0?`\u78BA\u8A8D\u6E08\u307F\uFF08\u6B8B\u308A${b($.turnstile_verified_seconds)}\
-\uFF09`:"\u672A\u78BA\u8A8D",Q=$.appeal_count?`\u30FB\u7570\u8B70\u7533\u3057\u7ACB\u3066 ${escapeHtml(
-String($.appeal_count))}\u4EF6`:"",me=[];return R.length&&me.push('<button class="bot-log-unlock bg-\
+"",de=O.turnstile_verified_seconds>0?`\u78BA\u8A8D\u6E08\u307F\uFF08\u6B8B\u308A${y(O.turnstile_verified_seconds)}\
+\uFF09`:"\u672A\u78BA\u8A8D",Q=O.appeal_count?`\u30FB\u7570\u8B70\u7533\u3057\u7ACB\u3066 ${escapeHtml(
+String(O.appeal_count))}\u4EF6`:"",ue=[];return B.length&&ue.push('<button class="bot-log-unlock bg-\
 yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded">\u30ED\u30C3\u30AF\u3092\u89E3\u9664</button>'),
-J.length&&me.push('<button class="bot-log-unblock bg-red-600 hover:bg-red-500 text-white px-2 py-1 r\
+J.length&&ue.push('<button class="bot-log-unblock bg-red-600 hover:bg-red-500 text-white px-2 py-1 r\
 ounded">IP\u30FB\u7AEF\u672B\u306EBAN\u3092\u89E3\u9664</button>'),`
                     <div class="bg-gray-900 border border-gray-700 rounded p-2 text-xs space-y-1">
                         <div class="flex flex-wrap items-center gap-1">${F.join("")}</div>
-                        ${te}
-                        ${G}
+                        ${Z}
+                        ${V}
                         ${X}
-                        ${ce}
+                        ${oe}
                         <div class="text-gray-400">\u30ED\u30C3\u30AF\u56DE\u6570\uFF081\u6642\u9593\uFF09: ${escapeHtml(
-String($.lock_count))} / ${escapeHtml(String($.lock_count_limit))}\u30FBTurnstile: ${escapeHtml(de)}\
-\u30FB\u5931\u6557 ${escapeHtml(String($.turnstile_fail_count))} / ${escapeHtml(String($.turnstile_fail_limit))}\
-\u30FB\u5224\u5B9A\u30B9\u30B3\u30A2 ${escapeHtml(String(Math.round(($.score||0)*10)/10))}\uFF08\u64CD\u4F5C ${escapeHtml(
-String(Math.round(($.behavior_score||0)*10)/10))}\uFF09${Q}</div>
-                        ${me.length?`<div class="flex flex-wrap gap-2 pt-1">${me.join("")}</div>`:""}\
+String(O.lock_count))} / ${escapeHtml(String(O.lock_count_limit))}\u30FBTurnstile: ${escapeHtml(de)}\
+\u30FB\u5931\u6557 ${escapeHtml(String(O.turnstile_fail_count))} / ${escapeHtml(String(O.turnstile_fail_limit))}\
+\u30FB\u5224\u5B9A\u30B9\u30B3\u30A2 ${escapeHtml(String(Math.round((O.score||0)*10)/10))}\uFF08\u64CD\u4F5C ${escapeHtml(
+String(Math.round((O.behavior_score||0)*10)/10))}\uFF09${Q}</div>
+                        ${ue.length?`<div class="flex flex-wrap gap-2 pt-1">${ue.join("")}</div>`:""}\
 
-                    </div>`},"renderState"),N=r(()=>{const $=r((J,F,H)=>`<button class="bot-log-filt\
+                    </div>`},"renderState"),N=r(()=>{const O=r((J,F,D)=>`<button class="bot-log-filt\
 er ${l.type===J?"bg-blue-600 hover:bg-blue-500":"bg-gray-700 hover:bg-gray-600"} text-white px-2 py-\
-1 rounded" data-type="${escapeHtml(J)}">${escapeHtml(F)} (${H})</button>`,"chip"),R=[$("","\u3059\u3079\u3066",
-l.total)];return Object.keys(l.counts).sort((J,F)=>l.counts[F]-l.counts[J]).forEach(J=>{R.push($(J,(t[J]||
-{label:J}).label,l.counts[J]))}),R.join("")},"renderFilters"),U=r($=>{const R=t[$.event_type]||{label:$.
-event_type,cls:"bg-gray-600"},J=$.client?`<span class="bg-gray-700 text-gray-200 px-1.5 py-0.5 round\
-ed">${escapeHtml(n[$.client]||$.client)}</span>`:"",F=l.selected.has($.id)?"checked":"",H=$.score!==
-null&&$.score!==void 0?`<span class="text-gray-400">\u30B9\u30B3\u30A2 ${escapeHtml(String($.score))}${$.
-behavior_score!==null&&$.behavior_score!==void 0?`\uFF08\u64CD\u4F5C ${escapeHtml(String($.behavior_score))}\
-\uFF09`:""}</span>`:"",te=$.reasons?`<div class="mt-1 text-gray-300 bot-log-wrap">\u7406\u7531: ${escapeHtml(
-$.reasons)}</div>`:"",G=$.ip_address||$.user_agent?`<div class="mt-1 text-[10px] text-gray-500 bot-l\
-og-wrap">${$.ip_address?"IP "+escapeHtml($.ip_address):""}${$.ip_address&&$.user_agent?"\u30FB":""}${escapeHtml(
-$.user_agent||"")}</div>`:"";return`
+1 rounded" data-type="${escapeHtml(J)}">${escapeHtml(F)} (${D})</button>`,"chip"),B=[O("","\u3059\u3079\u3066",
+l.total)];return Object.keys(l.counts).sort((J,F)=>l.counts[F]-l.counts[J]).forEach(J=>{B.push(O(J,(t[J]||
+{label:J}).label,l.counts[J]))}),B.join("")},"renderFilters"),H=r(O=>{const B=t[O.event_type]||{label:O.
+event_type,cls:"bg-gray-600"},J=O.client?`<span class="bg-gray-700 text-gray-200 px-1.5 py-0.5 round\
+ed">${escapeHtml(n[O.client]||O.client)}</span>`:"",F=l.selected.has(O.id)?"checked":"",D=O.score!==
+null&&O.score!==void 0?`<span class="text-gray-400">\u30B9\u30B3\u30A2 ${escapeHtml(String(O.score))}${O.
+behavior_score!==null&&O.behavior_score!==void 0?`\uFF08\u64CD\u4F5C ${escapeHtml(String(O.behavior_score))}\
+\uFF09`:""}</span>`:"",Z=O.reasons?`<div class="mt-1 text-gray-300 bot-log-wrap">\u7406\u7531: ${escapeHtml(
+O.reasons)}</div>`:"",V=O.ip_address||O.user_agent?`<div class="mt-1 text-[10px] text-gray-500 bot-l\
+og-wrap">${O.ip_address?"IP "+escapeHtml(O.ip_address):""}${O.ip_address&&O.user_agent?"\u30FB":""}${escapeHtml(
+O.user_agent||"")}</div>`:"";return`
                     <div class="bg-gray-900 border border-gray-700 rounded p-2 text-xs" data-log-id=\
-"${$.id}">
+"${O.id}">
                         <div class="flex flex-wrap items-center gap-1">
-                            <input type="checkbox" class="bot-log-select" data-log-id="${$.id}" ${F}\
+                            <input type="checkbox" class="bot-log-select" data-log-id="${O.id}" ${F}\
  aria-label="\u3053\u306E\u8A18\u9332\u3092\u9078\u629E">
-                            <span class="text-gray-400">${escapeHtml(g($.created_at))}</span>
-                            <span class="${R.cls} text-white px-1.5 py-0.5 rounded">${escapeHtml(R.label)}\
+                            <span class="text-gray-400">${escapeHtml(g(O.created_at))}</span>
+                            <span class="${B.cls} text-white px-1.5 py-0.5 rounded">${escapeHtml(B.label)}\
 </span>
                             ${J}
-                            ${H}
+                            ${D}
                             <button class="bot-log-delete-one ml-auto text-gray-400 hover:text-white\
- px-1" data-log-id="${$.id}" title="\u3053\u306E\u8A18\u9332\u3092\u524A\u9664" aria-label="\u3053\u306E\u8A18\u9332\u3092\u524A\u9664"><i class="fas fa-trash"></i></butt\
+ px-1" data-log-id="${O.id}" title="\u3053\u306E\u8A18\u9332\u3092\u524A\u9664" aria-label="\u3053\u306E\u8A18\u9332\u3092\u524A\u9664"><i class="fas fa-trash"></i></butt\
 on>
                         </div>
-                        ${te}
-                        ${w($.details)}
-                        ${G}
-                    </div>`},"renderItem"),L=r(()=>{const $=d();if(!$)return;const R=l.items.length?
-l.items.map(U).join(""):'<div class="text-xs text-gray-400 py-2">\u8A18\u9332\u306F\u3042\u308A\u307E\u305B\u3093\u3002</div>',
-J=l.items.length&&l.items.every(F=>l.selected.has(F.id));$.innerHTML=`
+                        ${Z}
+                        ${w(O.details)}
+                        ${V}
+                    </div>`},"renderItem"),L=r(()=>{const O=d();if(!O)return;const B=l.items.length?
+l.items.map(H).join(""):'<div class="text-xs text-gray-400 py-2">\u8A18\u9332\u306F\u3042\u308A\u307E\u305B\u3093\u3002</div>',
+J=l.items.length&&l.items.every(F=>l.selected.has(F.id));O.innerHTML=`
                     <div class="flex flex-wrap items-center gap-2 mb-2">
                         <button class="bot-log-back bg-gray-700 hover:bg-gray-600 text-white px-2 py\
 -1 rounded text-xs"><i class="fas fa-arrow-left mr-1"></i>\u4E00\u89A7\u306B\u623B\u308B</button>
@@ -2560,7 +2559,7 @@ J=l.items.length&&l.items.every(F=>l.selected.has(F.id));$.innerHTML=`
 te px-2 py-1 rounded text-xs">\u66F4\u65B0</button>
                     </div>
                     <div class="flex-1 overflow-y-auto space-y-2">
-                        ${E(l.data&&l.data.state)}
+                        ${A(l.data&&l.data.state)}
                         <div class="flex flex-wrap gap-1 text-xs">${N()}</div>
                         <div class="flex flex-wrap items-center gap-2 text-xs">
                             <label class="flex items-center gap-1 text-gray-300"><input type="checkb\
@@ -2572,61 +2571,60 @@ selected.size?`\uFF08${l.selected.size}\u4EF6\uFF09`:""}</button>
                             <button class="bot-log-delete-all bg-red-800 hover:bg-red-700 text-white\
  px-2 py-1 rounded" ${l.total?"":"disabled"}>\u3059\u3079\u3066\u306E\u8A18\u9332\u3092\u524A\u9664</button>
                         </div>
-                        <div class="space-y-2">${R}</div>
+                        <div class="space-y-2">${B}</div>
                         ${l.hasMore?'<button class="bot-log-more w-full bg-gray-700 hover:bg-gray-60\
 0 text-white px-2 py-1.5 rounded text-xs">\u3055\u3089\u306B\u8AAD\u307F\u8FBC\u3080</button>':""}
-                    </div>`},"render"),I=r(async($=!1)=>{const R=d();if(!R||!l.userId)return;$||(R.innerHTML=
+                    </div>`},"render"),$=r(async(O=!1)=>{const B=d();if(!B||!l.userId)return;O||(B.innerHTML=
 '<div class="text-xs text-gray-400 py-2"><i class="fas fa-spinner fa-spin mr-1"></i>\u8AAD\u307F\u8FBC\u307F\u4E2D...</div>');
 const J=new URLSearchParams({user_id:String(l.userId),limit:String(50)});l.type&&J.set("type",l.type),
-$&&l.items.length&&J.set("before_id",String(l.items[l.items.length-1].id));try{const F=await apiFetch(
-`/api/bot/evidence?${J.toString()}`,{cache:"no-store"}),H=await F.json().catch(()=>({}));if(!F.ok)throw new Error(
-H.error||String(F.status));l.counts=H.counts||{},l.total=H.total||0,l.hasMore=!!H.has_more,H.user&&(l.
-username=H.user.username||l.username,l.exists=!!H.user.exists),$?l.items=l.items.concat(H.items||[]):
-(l.items=H.items||[],l.data=H),L()}catch{$||(R.innerHTML='<div class="text-xs text-red-400">\u8A18\u9332\u306E\u53D6\u5F97\u306B\u5931\u6557\
+O&&l.items.length&&J.set("before_id",String(l.items[l.items.length-1].id));try{const F=await apiFetch(
+`/api/bot/evidence?${J.toString()}`,{cache:"no-store"}),D=await F.json().catch(()=>({}));if(!F.ok)throw new Error(
+D.error||String(F.status));l.counts=D.counts||{},l.total=D.total||0,l.hasMore=!!D.has_more,D.user&&(l.
+username=D.user.username||l.username,l.exists=!!D.user.exists),O?l.items=l.items.concat(D.items||[]):
+(l.items=D.items||[],l.data=D),L()}catch{O||(B.innerHTML='<div class="text-xs text-red-400">\u8A18\u9332\u306E\u53D6\u5F97\u306B\u5931\u6557\
 \u3057\u307E\u3057\u305F\u3002</div>'),showToast("\u30DC\u30C3\u30C8\u691C\u51FA\u306E\u8A18\u9332\u3092\u53D6\u5F97\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F",
-"error",!0)}},"load"),A=r(async($,R)=>{if(confirm(R))try{const J=await x("/api/bot/evidence/delete",
-Object.assign({user_id:l.userId},$));showToast(`${J.deleted||0}\u4EF6\u306E\u8A18\u9332\u3092\u524A\u9664\u3057\u307E\u3057\u305F`,
-"success"),l.selected.clear(),await I(!1)}catch{showToast("\u8A18\u9332\u3092\u524A\u9664\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F",
-"error",!0)}},"deleteLogs"),j=r(async($,R,J)=>{if(confirm(R))try{await x($,{user_id:l.userId}),showToast(
-J,"success"),await I(!1)}catch{showToast("\u64CD\u4F5C\u306B\u5931\u6557\u3057\u307E\u3057\u305F","e\
-rror",!0)}},"runAccountAction"),B=r(()=>{const $=d();$&&($.classList.add("hidden"),$.classList.remove(
-"flex"),$.innerHTML="");const R=m();R&&(R.classList.remove("hidden"),R.classList.add("flex")),l.userId=
-0},"showList"),D=r(async()=>{B(),await T()},"openList"),V=r(async($,R="")=>{const J=d();if(!J)return;
-Object.assign(l,{userId:Number($)||0,username:R,exists:!1,type:"",items:[],hasMore:!1,counts:{},total:0,
+"error",!0)}},"load"),M=r(async(O,B)=>{if(confirm(B))try{const J=await x("/api/bot/evidence/delete",
+Object.assign({user_id:l.userId},O));showToast(`${J.deleted||0}\u4EF6\u306E\u8A18\u9332\u3092\u524A\u9664\u3057\u307E\u3057\u305F`,
+"success"),l.selected.clear(),await $(!1)}catch{showToast("\u8A18\u9332\u3092\u524A\u9664\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F",
+"error",!0)}},"deleteLogs"),P=r(async(O,B,J)=>{if(confirm(B))try{await x(O,{user_id:l.userId}),showToast(
+J,"success"),await $(!1)}catch{showToast("\u64CD\u4F5C\u306B\u5931\u6557\u3057\u307E\u3057\u305F","e\
+rror",!0)}},"runAccountAction"),R=r(()=>{const O=d();O&&(O.classList.add("hidden"),O.classList.remove(
+"flex"),O.innerHTML="");const B=m();B&&(B.classList.remove("hidden"),B.classList.add("flex")),l.userId=
+0},"showList"),q=r(async()=>{R(),await T()},"openList"),G=r(async(O,B="")=>{const J=d();if(!J)return;
+Object.assign(l,{userId:Number(O)||0,username:B,exists:!1,type:"",items:[],hasMore:!1,counts:{},total:0,
 data:null}),l.selected.clear();const F=m();F&&(F.classList.add("hidden"),F.classList.remove("flex")),
-J.classList.remove("hidden"),J.classList.add("flex"),await I(!1)},"open");return{open:V,openList:D,showList:B,
-bind:r(()=>{const $=get("bot-log-modal");if(!$||$.dataset.bound==="1")return;$.dataset.bound="1";const R=get(
-"bot-log-search");R&&R.addEventListener("keydown",J=>{J.key==="Enter"&&T()}),$.addEventListener("cha\
-nge",J=>{const F=J.target;if(!(!F||!F.classList))if(F.classList.contains("bot-log-select")){const H=Number(
-F.getAttribute("data-log-id"));F.checked?l.selected.add(H):l.selected.delete(H),L()}else if(F.classList.
-contains("bot-log-select-all"))l.items.forEach(H=>{F.checked?l.selected.add(H.id):l.selected.delete(
-H.id)}),L();else if(F.classList.contains("bot-log-account-select")){const H=Number(F.getAttribute("d\
-ata-user-id"));F.checked?c.selected.add(H):c.selected.delete(H),C()}else F.classList.contains("bot-l\
-og-account-select-all")&&(c.accounts.forEach(H=>{F.checked?c.selected.add(H.user_id):c.selected.delete(
-H.user_id)}),C())}),$.addEventListener("click",async J=>{const F=J.target.closest("button");if(!(!F||
+J.classList.remove("hidden"),J.classList.add("flex"),await $(!1)},"open");return{open:G,openList:q,showList:R,
+bind:r(()=>{const O=get("bot-log-modal");if(!O||O.dataset.bound==="1")return;O.dataset.bound="1";const B=get(
+"bot-log-search");B&&B.addEventListener("keydown",J=>{J.key==="Enter"&&T()}),O.addEventListener("cha\
+nge",J=>{const F=J.target;if(!(!F||!F.classList))if(F.classList.contains("bot-log-select")){const D=Number(
+F.getAttribute("data-log-id"));F.checked?l.selected.add(D):l.selected.delete(D),L()}else if(F.classList.
+contains("bot-log-select-all"))l.items.forEach(D=>{F.checked?l.selected.add(D.id):l.selected.delete(
+D.id)}),L();else if(F.classList.contains("bot-log-account-select")){const D=Number(F.getAttribute("d\
+ata-user-id"));F.checked?c.selected.add(D):c.selected.delete(D),C()}else F.classList.contains("bot-l\
+og-account-select-all")&&(c.accounts.forEach(D=>{F.checked?c.selected.add(D.user_id):c.selected.delete(
+D.user_id)}),C())}),O.addEventListener("click",async J=>{const F=J.target.closest("button");if(!(!F||
 F.disabled))if(F.id==="bot-log-search-btn"||F.id==="bot-log-refresh-btn")F.id==="bot-log-refresh-btn"&&
-R&&(R.value=""),await T();else if(F.classList.contains("bot-log-open-account")){const H=Number(F.getAttribute(
-"data-user-id"));H&&await V(H,F.getAttribute("data-username")||"")}else if(F.classList.contains("bot\
--log-delete-accounts")){const H=Array.from(c.selected);if(!H.length||!confirm(`\u9078\u629E\u3057\u305F${H.
+B&&(B.value=""),await T();else if(F.classList.contains("bot-log-open-account")){const D=Number(F.getAttribute(
+"data-user-id"));D&&await G(D,F.getAttribute("data-username")||"")}else if(F.classList.contains("bot\
+-log-delete-accounts")){const D=Array.from(c.selected);if(!D.length||!confirm(`\u9078\u629E\u3057\u305F${D.
 length}\u4EF6\u306E\u30A2\u30AB\u30A6\u30F3\u30C8\u306E\u8A18\u9332\u3092\u3059\u3079\u3066\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F\u3053\u306E\u64CD\u4F5C\u306F\u53D6\u308A\u6D88\u305B\u307E\u305B\u3093\u3002`))
-return;try{const te=await x("/api/bot/evidence/delete",{user_ids:H});showToast(`${te.deleted||0}\u4EF6\u306E\u8A18\u9332\
-\u3092\u524A\u9664\u3057\u307E\u3057\u305F`,"success"),c.selected.clear(),await T()}catch{showToast(
-"\u8A18\u9332\u3092\u524A\u9664\u3067\u304D\u307E\u305B\u3093\u3067\u3057\u305F","error",!0)}}else if(F.
-classList.contains("bot-log-back"))await D();else if(F.classList.contains("bot-log-reload"))await I(
-!1);else if(F.classList.contains("bot-log-more"))await I(!0);else if(F.classList.contains("bot-log-f\
-ilter"))l.type=F.getAttribute("data-type")||"",l.selected.clear(),await I(!1);else if(F.classList.contains(
-"bot-log-delete-one")){const H=Number(F.getAttribute("data-log-id"));H&&await A({ids:[H]},"\u3053\u306E\u8A18\u9332\u3092\u524A\u9664\u3057\u307E\
-\u3059\u304B\uFF1F\u3053\u306E\u64CD\u4F5C\u306F\u53D6\u308A\u6D88\u305B\u307E\u305B\u3093\u3002")}else
-F.classList.contains("bot-log-delete-selected")?l.selected.size&&await A({ids:Array.from(l.selected)},
+return;try{const Z=await x("/api/bot/evidence/delete",{user_ids:D});showToast(`${Z.deleted||0}\u4EF6\u306E\u8A18\u9332\u3092\u524A\
+\u9664\u3057\u307E\u3057\u305F`,"success"),c.selected.clear(),await T()}catch{showToast("\u8A18\u9332\u3092\u524A\u9664\u3067\u304D\u307E\u305B\u3093\u3067\
+\u3057\u305F","error",!0)}}else if(F.classList.contains("bot-log-back"))await q();else if(F.classList.
+contains("bot-log-reload"))await $(!1);else if(F.classList.contains("bot-log-more"))await $(!0);else if(F.
+classList.contains("bot-log-filter"))l.type=F.getAttribute("data-type")||"",l.selected.clear(),await $(
+!1);else if(F.classList.contains("bot-log-delete-one")){const D=Number(F.getAttribute("data-log-id"));
+D&&await M({ids:[D]},"\u3053\u306E\u8A18\u9332\u3092\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F\u3053\u306E\u64CD\u4F5C\u306F\u53D6\u308A\u6D88\u305B\u307E\u305B\u3093\u3002")}else
+F.classList.contains("bot-log-delete-selected")?l.selected.size&&await M({ids:Array.from(l.selected)},
 `\u9078\u629E\u3057\u305F${l.selected.size}\u4EF6\u306E\u8A18\u9332\u3092\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F\u3053\u306E\u64CD\u4F5C\u306F\u53D6\u308A\u6D88\u305B\u307E\u305B\u3093\u3002`):
-F.classList.contains("bot-log-delete-all")?await A({all:!0},`${l.username||"\u3053\u306E\u30A2\u30AB\u30A6\u30F3\u30C8"}\
+F.classList.contains("bot-log-delete-all")?await M({all:!0},`${l.username||"\u3053\u306E\u30A2\u30AB\u30A6\u30F3\u30C8"}\
  \u306E\u30DC\u30C3\u30C8\u691C\u51FA\u306E\u8A18\u9332\u3092\u3059\u3079\u3066\uFF08${l.total}\u4EF6\uFF09\u524A\u9664\u3057\
 \u307E\u3059\u304B\uFF1F\u3053\u306E\u64CD\u4F5C\u306F\u53D6\u308A\u6D88\u305B\u307E\u305B\u3093\u3002`):
-F.classList.contains("bot-log-unlock")?await j("/api/bot/account/clear-lock",`${l.username||"\u3053\u306E\u30A2\u30AB\u30A6\u30F3\u30C8"}\
+F.classList.contains("bot-log-unlock")?await P("/api/bot/account/clear-lock",`${l.username||"\u3053\u306E\u30A2\u30AB\u30A6\u30F3\u30C8"}\
  \u306E\u30ED\u30C3\u30AF\u3092\u89E3\u9664\u3057\u307E\u3059\u304B\uFF1F
 \u3053\u306E\u30A2\u30AB\u30A6\u30F3\u30C8\u306EIP\u30A2\u30C9\u30EC\u30B9\u3068\u7AEF\u672B\u306B\u304B\u304B\u3063\u3066\u3044\u308B\u30ED\u30C3\u30AF\u3082\u89E3\u9664\u3057\u307E\u3059\u3002`,
 "\u30ED\u30C3\u30AF\u3092\u89E3\u9664\u3057\u307E\u3057\u305F"):F.classList.contains("bot-log-unbloc\
-k")&&await j("/api/bot/account/clear-identifiers",`${l.username||"\u3053\u306E\u30A2\u30AB\u30A6\u30F3\u30C8"}\
+k")&&await P("/api/bot/account/clear-identifiers",`${l.username||"\u3053\u306E\u30A2\u30AB\u30A6\u30F3\u30C8"}\
  \u304C\u8D77\u70B9\u306EIP\u30FB\u7AEF\u672B\u306EBAN\u3092\u89E3\u9664\u3057\u307E\u3059\u304B\uFF1F
 \u89E3\u9664\u3059\u308B\u3068\u3001\u305D\u306EIP\u30A2\u30C9\u30EC\u30B9\u3084\u7AEF\u672B\u304B\u3089\u65B0\u3057\u3044\u30A2\u30AB\u30A6\u30F3\u30C8\u3092\u4F5C\u308C\u308B\u3088\u3046\u306B\u306A\u308A\u307E\u3059\u3002`,
 "IP\u30FB\u7AEF\u672B\u306EBAN\u3092\u89E3\u9664\u3057\u307E\u3057\u305F")})},"bind")}})();window.BotAdminLog=
@@ -2680,9 +2678,9 @@ e,2,30,4);let a={columns:i,rows:1},o=1/0;for(let l=1;l<=i;l++){if(i%l)continue;c
 Math.log(Math.max(1,t)/l/(Math.max(1,n)/c)));(d<o-1e-9||Math.abs(d-o)<=1e-9&&(t>=n?l>a.columns:c>a.rows))&&
 (a={columns:l,rows:c},o=d)}return a}r(chooseSplitGrid,"chooseSplitGrid");function splitTiles(e,t,n,i){
 const a=splitClamp(i,0,50,10)/100,o=Math.round(e/n.columns*a/2),l=Math.round(t/n.rows*a/2),c=[];for(let d=0;d<
-n.rows;d++)for(let m=0;m<n.columns;m++){const g=Math.floor(m*e/n.columns),b=Math.floor((m+1)*e/n.columns),
-v=Math.floor(d*t/n.rows),w=Math.floor((d+1)*t/n.rows);c.push({index:c.length,row:d,column:m,cellLeft:g,
-cellTop:v,cellRight:b,cellBottom:w,left:Math.max(0,g-o),top:Math.max(0,v-l),right:Math.min(e,b+o),bottom:Math.
+n.rows;d++)for(let m=0;m<n.columns;m++){const g=Math.floor(m*e/n.columns),y=Math.floor((m+1)*e/n.columns),
+b=Math.floor(d*t/n.rows),w=Math.floor((d+1)*t/n.rows);c.push({index:c.length,row:d,column:m,cellLeft:g,
+cellTop:b,cellRight:y,cellBottom:w,left:Math.max(0,g-o),top:Math.max(0,b-l),right:Math.min(e,y+o),bottom:Math.
 min(t,w+l)})}return c}r(splitTiles,"splitTiles");function splitFits(e,t,n){return Math.floor(t/e.columns)>=
 16&&Math.floor(n/e.rows)>=16}r(splitFits,"splitFits");function splitTileCaption(e,t,n,i){return`Tile\
  ${e.index+1}/${t.columns*t.rows}  row ${e.row+1}/${t.rows}, col ${e.column+1}/${t.columns}  x ${e.left}\
@@ -2705,10 +2703,10 @@ n=new Image;try{return await new Promise((i,a)=>{n.onload=i,n.onerror=()=>a(new 
 name}`)),n.src=t}),{image:n,release:r(()=>{n.src="",URL.revokeObjectURL(t)},"release")}}catch(i){throw URL.
 revokeObjectURL(t),i}}r(loadSplitImage,"loadSplitImage");function drawSplitOverview(e,t,n,i,a,o){const l=e.
 getContext("2d"),c=e.width/n,d=e.height/i;l.drawImage(t,0,0,e.width,e.height);const m=o[0],g=m.right-
-m.cellRight,b=m.bottom-m.cellBottom;l.fillStyle="rgba(250,204,21,0.18)";const v=[];for(let x=1;x<a.columns;x++){
-const k=Math.floor(x*n/a.columns);l.fillRect((k-g)*c,0,2*g*c,e.height),v.push([k*c,0,k*c,e.height])}
-for(let x=1;x<a.rows;x++){const k=Math.floor(x*i/a.rows);l.fillRect(0,(k-b)*d,e.width,2*b*d),v.push(
-[0,k*d,e.width,k*d])}drawSplitLines(l,v,Math.max(2,Math.min(5,Math.max(e.width,e.height)/400)),!1);const w=Math.
+m.cellRight,y=m.bottom-m.cellBottom;l.fillStyle="rgba(250,204,21,0.18)";const b=[];for(let x=1;x<a.columns;x++){
+const k=Math.floor(x*n/a.columns);l.fillRect((k-g)*c,0,2*g*c,e.height),b.push([k*c,0,k*c,e.height])}
+for(let x=1;x<a.rows;x++){const k=Math.floor(x*i/a.rows);l.fillRect(0,(k-y)*d,e.width,2*y*d),b.push(
+[0,k*d,e.width,k*d])}drawSplitLines(l,b,Math.max(2,Math.min(5,Math.max(e.width,e.height)/400)),!1);const w=Math.
 max(14,Math.min(64,Math.min(e.width/a.columns,e.height/a.rows)*.18));l.font=`bold ${w}px monospace`,
 l.textAlign="center",l.textBaseline="middle";for(const x of o){const k=(x.cellLeft+x.cellRight)/2*c,
 C=(x.cellTop+x.cellBottom)/2*d;l.lineWidth=Math.max(2,w/10),l.strokeStyle="rgba(0,0,0,0.7)",l.strokeText(
@@ -2722,18 +2720,18 @@ return new File([n],t,{type:"image/png"})}finally{e.width=0,e.height=0}}r(splitC
 asFile");async function renderSplitFiles(e,t,n){const i=await loadSplitImage(e),a=i.image;try{const o=a.
 naturalWidth,l=a.naturalHeight,c=chooseSplitGrid(t.pieces,o,l);if(!splitFits(c,o,l))throw new Error(
 `\u753B\u50CF\u304C\u5C0F\u3055\u3059\u304E\u308B\u305F\u3081${t.pieces}\u679A\u306B\u5206\u5272\u3067\u304D\u307E\u305B\u3093: ${e.
-name}`);const d=splitTiles(o,l,c,t.overlap),m=splitBaseName(e.name),g=[],b=r(async v=>{g.push(await applyImageCompression(
-v,n))},"append");if(t.includeOriginal)if(t.markOriginal){const v=splitCanvas(o,l);drawSplitOverview(
-v,a,o,l,c,d),await b(await splitCanvasFile(v,`${m}_split_grid.png`))}else await b(e);for(const v of d){
-const w=v.right-v.left,x=v.bottom-v.top;let k=Math.max(12,Math.min(40,Math.max(w,x)/45)),C=0;const T=splitTileCaption(
-v,c,o,l);if(t.markPieces){const U=splitCanvas(1,1),L=U.getContext("2d");L.font=`bold ${k}px monospac\
-e`,k=Math.max(6,k*Math.min(1,w*.96/L.measureText(T).width)),C=Math.max(12,Math.floor(k*1.8)),U.width=
-0}const E=splitCanvas(w,x+C),N=E.getContext("2d");if(C&&(N.fillStyle="#111827",N.fillRect(0,0,w,C)),
-N.drawImage(a,v.left,v.top,w,x,0,C,w,x),t.markPieces){N.fillStyle="#fff",N.font=`bold ${k}px monospa\
-ce`,N.textBaseline="middle",N.fillText(T,w*.02,C/2);const U=[];for(const L of[v.cellLeft,v.cellRight])
-L>v.left&&L<v.right&&U.push([L-v.left,C,L-v.left,C+x]);for(const L of[v.cellTop,v.cellBottom])L>v.top&&
-L<v.bottom&&U.push([0,C+L-v.top,w,C+L-v.top]);drawSplitLines(N,U,Math.max(1.5,Math.min(4,Math.max(w,
-x)/500)),!0)}await b(await splitCanvasFile(E,splitTileName(m,v,c)))}return g}finally{i.release()}}r(
+name}`);const d=splitTiles(o,l,c,t.overlap),m=splitBaseName(e.name),g=[],y=r(async b=>{g.push(await applyImageCompression(
+b,n))},"append");if(t.includeOriginal)if(t.markOriginal){const b=splitCanvas(o,l);drawSplitOverview(
+b,a,o,l,c,d),await y(await splitCanvasFile(b,`${m}_split_grid.png`))}else await y(e);for(const b of d){
+const w=b.right-b.left,x=b.bottom-b.top;let k=Math.max(12,Math.min(40,Math.max(w,x)/45)),C=0;const T=splitTileCaption(
+b,c,o,l);if(t.markPieces){const H=splitCanvas(1,1),L=H.getContext("2d");L.font=`bold ${k}px monospac\
+e`,k=Math.max(6,k*Math.min(1,w*.96/L.measureText(T).width)),C=Math.max(12,Math.floor(k*1.8)),H.width=
+0}const A=splitCanvas(w,x+C),N=A.getContext("2d");if(C&&(N.fillStyle="#111827",N.fillRect(0,0,w,C)),
+N.drawImage(a,b.left,b.top,w,x,0,C,w,x),t.markPieces){N.fillStyle="#fff",N.font=`bold ${k}px monospa\
+ce`,N.textBaseline="middle",N.fillText(T,w*.02,C/2);const H=[];for(const L of[b.cellLeft,b.cellRight])
+L>b.left&&L<b.right&&H.push([L-b.left,C,L-b.left,C+x]);for(const L of[b.cellTop,b.cellBottom])L>b.top&&
+L<b.bottom&&H.push([0,C+L-b.top,w,C+L-b.top]);drawSplitLines(N,H,Math.max(1.5,Math.min(4,Math.max(w,
+x)/500)),!0)}await y(await splitCanvasFile(A,splitTileName(m,b,c)))}return g}finally{i.release()}}r(
 renderSplitFiles,"renderSplitFiles");function clearSplitDownloads(){splitState.urls.forEach(e=>URL.revokeObjectURL(
 e)),splitState.urls=[],get("image-split-downloads").replaceChildren()}r(clearSplitDownloads,"clearSp\
 litDownloads");function closeImageSplit(){!get("image-split-modal")||splitState.busy||(splitState.revision++,
@@ -2815,56 +2813,56 @@ l=Math.min(...o.map(N=>N.left)),c=Math.min(...o.map(N=>N.top)),d={left:l,top:c,w
 N=>N.right))-l,height:Math.max(...o.map(N=>N.bottom))-c},m=window.matchMedia("(prefers-reduced-motio\
 n: reduce)").matches,g={navigation:threadLoadSequence,text:t.value,images:currentImageUrls,mask:currentMaskImage,
 quote:currentQuote,quoteId:currentQuoteMessageId,rows:n?Array.from(n.childNodes):[],files:new Map(browserFastLocalFiles),
-markers:new Set(markerAppliedUploads),progress:uploadProgressState},b=document.createElement("div");
-b.hidden=!0,b.className="prompt-send-held-files",b.setAttribute("aria-hidden","true"),b.append(...g.
-rows),document.body.appendChild(b);let v=!1,w=!1,x=!1;const k=r(()=>{v=!0},"onInput");t.addEventListener(
-"input",k),t.value="",["file-input","photo-input","mask-input"].forEach(N=>{const U=get(N);U&&(U.value=
+markers:new Set(markerAppliedUploads),progress:uploadProgressState},y=document.createElement("div");
+y.hidden=!0,y.className="prompt-send-held-files",y.setAttribute("aria-hidden","true"),y.append(...g.
+rows),document.body.appendChild(y);let b=!1,w=!1,x=!1;const k=r(()=>{b=!0},"onInput");t.addEventListener(
+"input",k),t.value="",["file-input","photo-input","mask-input"].forEach(N=>{const H=get(N);H&&(H.value=
 "")}),t.style.height="auto",currentImageUrls=[],currentMaskImage=null,browserFastLocalFiles.clear(),
 markerAppliedUploads.clear(),uploadProgressState={total:0,completed:0,active:0,perFilePct:{}},n&&n.replaceChildren(),
 clearQuote(),updateFilePreview(),schedulePromptTokenEstimate(!0),updateMaskPreview();let C;i&&e&&!m&&
 i.animate&&(C=i.animate([{height:a+"px"},{height:i.getBoundingClientRect().height+"px"}],{duration:350,
-easing:"cubic-bezier(0.22, 1, 0.36, 1)"}));const T=r(()=>{!w||x||(g.files.forEach(N=>{var L,I;const U=(I=
-(L=N==null?void 0:N.rowObj)==null?void 0:L.row)==null?void 0:I.getAttribute("data-local-url");U&&URL.
-revokeObjectURL(U)}),b.remove())},"releaseFiles"),E=r((N,U=!0)=>{w||(w=!0,N=N&&g.navigation===threadLoadSequence,
-x=N,t.removeEventListener("input",k),N?(!v&&!t.value&&(t.value=g.text,t.style.height="auto",t.style.
+easing:"cubic-bezier(0.22, 1, 0.36, 1)"}));const T=r(()=>{!w||x||(g.files.forEach(N=>{var L,$;const H=($=
+(L=N==null?void 0:N.rowObj)==null?void 0:L.row)==null?void 0:$.getAttribute("data-local-url");H&&URL.
+revokeObjectURL(H)}),y.remove())},"releaseFiles"),A=r((N,H=!0)=>{w||(w=!0,N=N&&g.navigation===threadLoadSequence,
+x=N,t.removeEventListener("input",k),N?(!b&&!t.value&&(t.value=g.text,t.style.height="auto",t.style.
 height=Math.min(t.scrollHeight,150)+"px"),currentImageUrls=Array.from(new Set([...g.images,...currentImageUrls])),
-currentMaskImage||(currentMaskImage=g.mask),g.files.forEach((L,I)=>browserFastLocalFiles.set(I,L)),g.
-markers.forEach(L=>markerAppliedUploads.add(L)),n&&n.prepend(...g.rows),b.remove(),!currentQuote&&g.
+currentMaskImage||(currentMaskImage=g.mask),g.files.forEach((L,$)=>browserFastLocalFiles.set($,L)),g.
+markers.forEach(L=>markerAppliedUploads.add(L)),n&&n.prepend(...g.rows),y.remove(),!currentQuote&&g.
 quote&&(currentQuote=g.quote,currentQuoteMessageId=g.quoteId,renderQuoteBarContent(g.quote),get("quo\
 te-bar").classList.add("visible")),uploadProgressState.total||(uploadProgressState=g.progress),updateFilePreview(),
-updateMaskPreview(),schedulePromptTokenEstimate(!0)):U&&T())},"finish");return{source:d,canRetry:r(()=>!v&&
+updateMaskPreview(),schedulePromptTokenEstimate(!0)):H&&T())},"finish");return{source:d,canRetry:r(()=>!b&&
 g.navigation===threadLoadSequence,"canRetry"),stopDock:r(()=>C==null?void 0:C.cancel(),"stopDock"),files:g.
-files,releaseFiles:T,accept:r((N=!0)=>E(!1,N),"accept"),restore:r(()=>E(!0),"restore")}}r(takePromptForSend,
-"takePromptForSend");function animatePromptToMessage(e,t,n){var b;let i,a=0,o=!1;const l=[],c=get("c\
+files,releaseFiles:T,accept:r((N=!0)=>A(!1,N),"accept"),restore:r(()=>A(!0),"restore")}}r(takePromptForSend,
+"takePromptForSend");function animatePromptToMessage(e,t,n){var y;let i,a=0,o=!1;const l=[],c=get("c\
 hat-container"),d=get("prompt-input"),m=window.matchMedia("(prefers-reduced-motion: reduce)"),g=r(()=>{
-var v,w;o||(o=!0,(v=window.ActivityLog)==null||v.log("ui.hide"),t.stopDock(),cancelAnimationFrame(a),
+var b,w;o||(o=!0,(b=window.ActivityLog)==null||b.log("ui.hide"),t.stopDock(),cancelAnimationFrame(a),
 l.forEach(x=>x.cancel()),i==null||i.remove(),e==null||e.classList.remove("prompt-send-hidden"),window.
 removeEventListener("resize",g),window.removeEventListener("popstate",g),window.removeEventListener(
 "pagehide",g),document.removeEventListener("visibilitychange",g),c==null||c.removeEventListener("whe\
 el",g),c==null||c.removeEventListener("touchstart",g),d==null||d.removeEventListener("input",g),(w=window.
 visualViewport)==null||w.removeEventListener("resize",g),m.removeEventListener("change",g))},"stop");
 if(!n||m.matches||!e||!Element.prototype.animate)return g;try{e.classList.remove("fade-in"),e.classList.
-add("prompt-send-hidden"),a=requestAnimationFrame(()=>{var v;try{if(!e.isConnected)return g();const w=e.
+add("prompt-send-hidden"),a=requestAnimationFrame(()=>{var b;try{if(!e.isConnected)return g();const w=e.
 querySelector(".message-bubble"),x=w.getBoundingClientRect(),k=c.getBoundingClientRect();if(!x.width||
 !x.height||x.bottom<=k.top||x.top>=k.bottom)return g();const C=t.source;i=w.cloneNode(!0),i.removeAttribute(
-"id"),i.querySelectorAll("[id]").forEach(I=>I.removeAttribute("id")),i.querySelectorAll(".msg-contro\
-ls, video, audio").forEach(I=>I.remove()),i.classList.add("prompt-send-overlay"),i.setAttribute("ari\
+"id"),i.querySelectorAll("[id]").forEach($=>$.removeAttribute("id")),i.querySelectorAll(".msg-contro\
+ls, video, audio").forEach($=>$.remove()),i.classList.add("prompt-send-overlay"),i.setAttribute("ari\
 a-hidden","true"),i.inert=!0,Object.assign(i.style,{width:x.width+"px",height:x.height+"px",left:x.left+
-"px",top:x.top+"px"}),document.body.appendChild(i),(v=window.ActivityLog)==null||v.log("ui.show");const T=Math.
-min(C.width/x.width,Math.max(C.height,42)/x.height,1),E=C.left+(C.width-x.width*T)/2-x.left,N=C.top+
-(C.height-x.height*T)/2-x.top,U=i.animate([{transform:`translate(${E}px, ${N}px) scale(${T})`,borderRadius:"\
+"px",top:x.top+"px"}),document.body.appendChild(i),(b=window.ActivityLog)==null||b.log("ui.show");const T=Math.
+min(C.width/x.width,Math.max(C.height,42)/x.height,1),A=C.left+(C.width-x.width*T)/2-x.left,N=C.top+
+(C.height-x.height*T)/2-x.top,H=i.animate([{transform:`translate(${A}px, ${N}px) scale(${T})`,borderRadius:"\
 12px",backgroundColor:getComputedStyle(get("input-row")).backgroundColor},{transform:"translate(0, 0\
 ) scale(1)",borderRadius:getComputedStyle(w).borderRadius,backgroundColor:getComputedStyle(w).backgroundColor}],
-{duration:350,easing:"cubic-bezier(0.22, 1, 0.36, 1)",fill:"both"});l.push(U),l.push(i.animate([{opacity:1,
+{duration:350,easing:"cubic-bezier(0.22, 1, 0.36, 1)",fill:"both"});l.push(H),l.push(i.animate([{opacity:1,
 offset:0},{opacity:1,offset:.8},{opacity:0}],{duration:350,fill:"both"})),e.classList.remove("prompt\
 -send-hidden"),l.push(w.animate([{opacity:0,offset:0},{opacity:0,offset:.8},{opacity:1}],{duration:350,
-fill:"both"}));const L=r(()=>{if(!e.isConnected||!userAutoScroll||document.hidden)return g();const I=w.
-getBoundingClientRect();i.style.left=I.left+"px",i.style.top=I.top+"px",a=requestAnimationFrame(L)},
-"watch");a=requestAnimationFrame(L),U.finished.then(g,g)}catch{console.warn("Prompt send animation f\
+fill:"both"}));const L=r(()=>{if(!e.isConnected||!userAutoScroll||document.hidden)return g();const $=w.
+getBoundingClientRect();i.style.left=$.left+"px",i.style.top=$.top+"px",a=requestAnimationFrame(L)},
+"watch");a=requestAnimationFrame(L),H.finished.then(g,g)}catch{console.warn("Prompt send animation f\
 ailed"),g()}}),window.addEventListener("resize",g),window.addEventListener("popstate",g),window.addEventListener(
 "pagehide",g),document.addEventListener("visibilitychange",g),c.addEventListener("wheel",g,{passive:!0}),
-c.addEventListener("touchstart",g,{passive:!0}),d.addEventListener("input",g),(b=window.visualViewport)==
-null||b.addEventListener("resize",g),m.addEventListener("change",g)}catch{console.warn("Prompt send \
+c.addEventListener("touchstart",g,{passive:!0}),d.addEventListener("input",g),(y=window.visualViewport)==
+null||y.addEventListener("resize",g),m.addEventListener("change",g)}catch{console.warn("Prompt send \
 animation failed"),g()}return g}r(animatePromptToMessage,"animatePromptToMessage");let costPricing=null,
 costPricingFailed=!1,costBarPath=[],costBarReady=!1;const COST_ESTIMATE_NOTE="\u6709\u6599API\u306E\u901A\u5E38\u6599\u91D1\u306B\u3088\u308B\u6982\u7B97\uFF08USD\uFF09\u3002\u56DE\
 \u7B54\u3054\u3068\u306E\u4FDD\u5B58\u6E08\u307F\u30E2\u30C7\u30EB\u3067\u8A08\u7B97\u3057\u307E\u3059\u3002\u5165\u529B\u4F7F\u7528\u91CF\u304C\u306A\u3044\u56DE\u7B54\u306F\u4F1A\u8A71\u5C65\u6B74\u304B\u3089\u63A8\u5B9A\u3057\u307E\u3059\u3002\u30E2\u30C7\u30EBAPI\u306E\u547C\u3073\u51FA\u3057\u3054\u3068\u306B\u5165\u529B\u30FB\u51FA\u529B\uFF08Thinking\u3092\u542B\u3080\uFF09\u3092\u5408\u7B97\u3057\u307E\u3059\u3002Ideogram\u306F\u30E2\u30C7\u30EB\u30FB\u54C1\u8CEA\u30FB\u901F\u5EA6\u30FB\u51E6\
@@ -2876,90 +2874,98 @@ t)&&t>=0?t:null}r(costTokenNumber,"costTokenNumber");function costCacheUsage(e){
 "string"){if(!e.includes("cache_"))return null;try{t=JSON.parse(e)}catch{return null}}if(!t||typeof t!=
 "object"||!Array.isArray(t.pricing_calls))return null;let n=0,i=0,a=!1;const o={};for(const l of t.pricing_calls){
 if(!l||typeof l!="object")continue;const c=costTokenNumber(l.cache_read_tokens),d=costTokenNumber(l.
-cache_write_tokens);let m=0;for(const g of["5m","1h","30m","12h"]){const b=costTokenNumber(l[`cache_\
-write_${g}_tokens`]);b!==null&&(o[g]=(o[g]||0)+b,m+=b,a=!0)}(c!==null||d!==null)&&(a=!0),n+=c||0,i+=
+cache_write_tokens);let m=0;for(const g of["5m","1h","30m","12h"]){const y=costTokenNumber(l[`cache_\
+write_${g}_tokens`]);y!==null&&(o[g]=(o[g]||0)+y,m+=y,a=!0)}(c!==null||d!==null)&&(a=!0),n+=c||0,i+=
 Math.max(d||0,m)}return a?{read:n,write:i,ttls:o}:null}r(costCacheUsage,"costCacheUsage");function costRate(e,t,n){
 const i=e&&(e.aliases[t]||t),a=e&&e.models[i];if(!a)return null;const o={...a};for(const l of o.changes||
 [])n>=l.from&&Object.assign(o,l);return o}r(costRate,"costRate");function addRequestCost(e,t,n,i,a=!1,o=!1){
-var b,v;if(e.requests++,String(t.model).startsWith("grok-")&&Number.isSafeInteger(t.cost_in_usd_ticks)&&
-t.cost_in_usd_ticks>=0){e.low+=t.cost_in_usd_ticks/1e10,e.high+=t.cost_in_usd_ticks/1e10,e.priced++,
-t.complete===!1&&e.unpriced++;return}const l=costRate(n,t.model,i);if(!l){e.unpriced++;return}if(l.unit===
-"image"){const w=costTokenNumber(t.images),x=(b=l.image_rates)==null?void 0:b[t.operation],k=x==null?
-void 0:x[l.image_selector==="speed"?t.speed:t.quality],C=(v=k==null?void 0:k.minimum)!=null?v:x==null?
-void 0:x.minimum,T=typeof x=="number"?x:typeof k=="number"?k:C,E=Number.isFinite(T)&&typeof x!="numb\
-er"&&typeof k!="number";if(w===null||!Number.isFinite(T)){e.unpriced++;return}e.low+=w*T*(o?.5:1),e.
-high+=w*T*(o?.5:1),e.priced++,E&&(e.lowerBound=!0),(t.complete===!1||E)&&e.unpriced++;return}const c=costTokenNumber(
-t.input_tokens),d=costTokenNumber(t.output_tokens);if(c===null&&d===null){e.unpriced++;return}const m=l.
-threshold!=null&&(l.threshold_inclusive?(c||0)>=l.threshold:(c||0)>l.threshold);m&&e.long++;const g=requestTokenCost(
-t,l,m,a,o);e.low+=g.low,e.high+=g.high,g.lowerBound&&(e.lowerBound=!0),e.priced++,(c===null||d===null||
-t.complete===!1||g.incomplete)&&e.unpriced++}r(addRequestCost,"addRequestCost");function legacyImageRequest(e,t){
+if(e.requests++,String(t.model).startsWith("grok-")&&Number.isSafeInteger(t.cost_in_usd_ticks)&&t.cost_in_usd_ticks>=
+0){e.low+=t.cost_in_usd_ticks/1e10,e.high+=t.cost_in_usd_ticks/1e10,e.priced++,t.complete===!1&&e.unpriced++;
+return}const l=costRate(n,t.model,i);if(!l){e.unpriced++;return}if(l.unit&&l.unit!=="token"){requestUnitCost(
+e,t,l,a,o);return}const c=costTokenNumber(t.input_tokens),d=costTokenNumber(t.output_tokens),m=l.image_per_image&&
+t.images!=null||l.audio_tokens_per_second&&(t.audio_in_ms!=null||t.audio_out_ms!=null||t.duration_ms!=
+null);if(c===null&&d===null&&!m){e.unpriced++;return}const g=l.threshold!=null&&(l.threshold_inclusive?
+(c||0)>=l.threshold:(c||0)>l.threshold);g&&e.long++;const y=requestTokenCost(t,l,g,a,o);e.low+=y.low,
+e.high+=y.high,y.lowerBound&&(e.lowerBound=!0),e.priced++,((c===null||d===null)&&!y.derived||t.complete===
+!1||y.incomplete)&&e.unpriced++}r(addRequestCost,"addRequestCost");function legacyImageRequest(e,t){
 let n=e.image_url;try{typeof n=="string"&&(n=JSON.parse(n))}catch{n=n?[n]:[]}const i=Array.isArray(n)?
 n.length:0,a=t.get(String(e.parent_id)),o=(a==null?void 0:a.prompt_options)||{};let l=a==null?void 0:
 a.image_url,c=Array.isArray(l)?l.length>0:!!l&&l!=="[]"&&l!=="null",d=a;const m=new Set;for(;!c&&(d==
 null?void 0:d.parent_id)!=null&&!m.has(String(d.id));)m.add(String(d.id)),d=t.get(String(d.parent_id)),
 (d==null?void 0:d.role)==="assistant"&&d.image_url&&d.image_url!=="[]"&&d.image_url!=="null"&&(c=!0);
-const g=["remove_object","remove_background"].includes(o.ideogram_operation)?o.ideogram_operation:c&&
+const g=String(e.model||"");if(g.startsWith("gpt-image-"))return{model:e.model,images:i||1,operation:c?
+"edit":"generate",quality:o.gpt_image_quality||"auto",size:o.gpt_image_size||"auto",complete:!!a};if(g.
+startsWith("grok-imagine-image"))return{model:e.model,images:i||1,operation:c?"edit":"generate",quality:o.
+grok_image_quality||"medium",resolution:o.grok_image_resolution||"1k",input_images:c?1:0,complete:!!a};
+const y=["remove_object","remove_background"].includes(o.ideogram_operation)?o.ideogram_operation:c&&
 e.model==="ideogram-4.5"?"edit":"generate";let b=o.ideogram_quality;(!["very_low","low","medium","hi\
-gh"].includes(b)||b==="very_low"&&g==="generate")&&(b=g==="edit"?"medium":"high");const v=a?["turbo",
+gh"].includes(b)||b==="very_low"&&y==="generate")&&(b=y==="edit"?"medium":"high");const w=a?["turbo",
 "default","quality"].includes(o.ideogram_speed)?o.ideogram_speed:"default":null;return{model:e.model,
-images:i||null,operation:g,quality:b,speed:v,complete:!!a}}r(legacyImageRequest,"legacyImageRequest");
-function estimateConversationCost(e,t=costPricing,n=e){var c,d,m,g,b,v;const i={low:0,high:0,priced:0,
-unpriced:0,inferred:0,long:0,requests:0,items:[]},a=r((w,x,k,C,T)=>{const E={low:i.low,high:i.high,priced:i.
-priced,unpriced:i.unpriced,long:i.long};addRequestCost(i,w,t,x,C,T),i.items.push(describeRequestCost(
-i,E,w,x,t,!!C,!!T,!!k))},"capture"),o=new Map((n||[]).filter(Boolean).map(w=>[String(w.id),w])),l=new Set;
-for(const w of e||[]){if(!w||w.role!=="assistant"||l.has(String(w.id)))continue;l.add(String(w.id));
-let x=null;try{x=typeof w.thought_data=="string"?JSON.parse(w.thought_data):w.thought_data}catch{}!x&&
-Array.isArray(w.pricing_calls)&&(x={pricing_calls:w.pricing_calls});const k=((c=/^\d{4}-\d{2}-\d{2}/.
-exec(w.created_at||""))==null?void 0:c[0])||(t==null?void 0:t.checked_at),C=((d=w.batch_job)==null?void 0:
-d.state)==="JOB_STATE_SUCCEEDED"||w.batch===!0,T=(o.get(String(w.parent_id))||w).prompt_options||w.prompt_options||
-{},E=T&&T.gemini_flex===!0||w.flex===!0;if(Array.isArray(x==null?void 0:x.pricing_calls)){x.pricing_calls.
-length||i.priced++;for(const A of x.pricing_calls){if(!A||typeof A!="object"){i.unpriced++;continue}
-const j=((m=/^\d{4}-\d{2}-\d{2}/.exec(A.created_at||""))==null?void 0:m[0])||k,B=costRate(t,A.model,
-j),D=(B==null?void 0:B.image_selector)==="speed"&&!A.speed&&A.model===w.model?{...A,speed:legacyImageRequest(
-w,o).speed}:A;a(D,j,!1,C,E)}continue}if(((g=costRate(t,w.model,k))==null?void 0:g.unit)==="image"){a(
-legacyImageRequest(w,o),k,!1,!1,E);continue}const N=costTokenNumber(w.tokens_out);if(N===null&&!w.content&&
-!w.tokens)continue;if(N===null){i.unpriced++;continue}let U=(b=costTokenNumber(x==null?void 0:x.pricing_input_tokens))!=
-null?b:costTokenNumber(w.tokens_in),L=!1,I=!1;if(U===null){i.inferred++,I=!0,U=0;let A=w.parent_id;const j=new Set(
-[String(w.id)]);for(A==null&&(L=!0);A!=null;){const B=String(A);if(j.has(B)||!o.has(B)){L=!0;break}j.
-add(B);const D=o.get(B),V=D.role==="user"?costTokenNumber(D.tokens_in):(v=costTokenNumber(D.tokens_content))!=
-null?v:costTokenNumber(D.tokens_out)===null?null:Math.max(0,Number(D.tokens_out)-(costTokenNumber(D.
-tokens_thought)||0));V===null?L=!0:U+=V,A=D.parent_id}}a({model:w.model,input_tokens:U,output_tokens:N,
-complete:!L},k,I,C,E)}return i}r(estimateConversationCost,"estimateConversationCost");function costMoneyText(e){
-const t=Number(e||0);return t>0&&t<1e-6?"<$0.000001":`$${t.toFixed(6)}`}r(costMoneyText,"costMoneyTe\
-xt");function costAmountText(e){return!e||!e.priced?"\u7B97\u51FA\u4E0D\u53EF":e.lowerBound?`${costMoneyText(
-e.low)}\u4EE5\u4E0A`:e.high-e.low>1e-12?`${costMoneyText(e.low)}\u301C${costMoneyText(e.high)}`:costMoneyText(
-e.low)}r(costAmountText,"costAmountText");function describeRequestCost(e,t,n,i,a,o,l,c){const d=r(x=>costTokenNumber(
-x),"count");let m=d(n.cache_write_tokens)||0;for(const x of["5m","1h","30m","12h"])m=Math.max(m,d(n[`\
-cache_write_${x}_tokens`])||0);const g=["5m","1h","30m","12h"].reduce((x,k)=>x+(d(n[`cache_write_${k}\
-_tokens`])||0),0),b=["web_search_calls","file_search_calls","grounding_queries","code_execution_call\
-s"].reduce((x,k)=>x+(d(n[k])||0),0),v=e.priced>t.priced,w=v?e.unpriced>t.unpriced?"\u4E00\u90E8\u672A\u7B97\u5165":
-"":costRate(a,n.model,i)?"\u4F7F\u7528\u91CF\u672A\u53D6\u5F97":"\u5358\u4FA1\u672A\u767B\u9332";return{
-model:String(n.model||""),date:i,input:d(n.input_tokens),output:d(n.output_tokens),cache_read:d(n.cache_read_tokens),
-cache_write:Math.max(m,g)||null,images:d(n.images),tools:b,low:e.low-t.low,high:e.high-t.high,priced:v,
-reason:w,inferred:!!c,long:e.long>t.long,batch:!!o,flex:!!l,api_key_id:String(n.api_key_id||""),api_key_label:String(
-n.api_key_label||""),api_key_inferred:!!n.api_key_inferred}}r(describeRequestCost,"describeRequestCo\
-st");function costItemTokenText(e){var n,i;const t=[];return e.images!==null&&e.images!==void 0&&t.push(
-`${e.images}\u679A`),(e.input!==null||e.output!==null)&&t.push(`\u5165 ${(n=e.input)!=null?n:"-"} / \
-\u51FA ${(i=e.output)!=null?i:"-"}`),(e.cache_read||e.cache_write)&&t.push(`\u30AD\u30E3\u30C3\u30B7\u30E5 \u8AAD\u8FBC ${e.
-cache_read||0} / \u66F8\u8FBC ${e.cache_write||0}`),e.tools&&t.push(`\u30C4\u30FC\u30EB ${e.tools}\u56DE`),
-t.join(" \xB7 ")}r(costItemTokenText,"costItemTokenText");function costItemJpyText(e,t){if(!t||!e.priced)
-return"";const n=jpyMoneyText(e.low*t.rate);return e.high-e.low>1e-12?`\u7D04${n}\u301C${jpyMoneyText(
-e.high*t.rate)}`:`\u7D04${n}`}r(costItemJpyText,"costItemJpyText");function appendCostItemList(e,t){
-const n=document.createElement("div");n.className="text-[11px]",n.style.cssText="max-height:16rem;ov\
-erflow-y:auto;margin-top:0.5rem;",t.forEach((i,a)=>{const o=document.createElement("div");o.style.cssText=
-"border-top:1px solid rgba(107,114,128,0.4);padding:0.25rem 0;";const l=document.createElement("div");
-l.className="flex justify-between";const c=document.createElement("span");c.className="font-mono",c.
-textContent=`${a+1}. ${i.model||"\u30E2\u30C7\u30EB\u4E0D\u660E"}`;const d=document.createElement("s\
-pan");d.className="font-mono",d.textContent=costAmountText(i),l.append(c,d),o.appendChild(l);const m=document.
-createElement("div");m.className="text-gray-400";const g=[];i.inferred&&g.push("\u5C65\u6B74\u304B\u3089\u63A8\u5B9A"),
-i.long&&g.push("\u9577\u6587\u6599\u91D1"),i.batch&&g.push("Batch"),i.flex&&g.push("Flex"),i.reason&&
-g.push(i.reason);const b=costItemJpyText(i,costJpyRate),v=[costItemTokenText(i),i.date,g.join(" / "),
-b].filter(Boolean);v.length&&(m.textContent=v.join(" \xB7 ")),v.length&&o.appendChild(m),n.appendChild(
-o)}),e.appendChild(n)}r(appendCostItemList,"appendCostItemList");function costEstimateLabel(e,t="\u8CBB\u7528\u4E88\
-\u60F3"){return!e||!e.priced?`${t}: \u7B97\u51FA\u4E0D\u53EF`:`${t}: ${costAmountText(e)}${e.unpriced?
-"\uFF08\u4E00\u90E8\u672A\u7B97\u5165\uFF09":""}`}r(costEstimateLabel,"costEstimateLabel");const COST_JPY_RATE_STORAGE_KEY="\
-cost_jpy_rate_v1",COST_JPY_RATE_TTL_MS=720*60*1e3,COST_JPY_RATE_NOTE="\u7121\u6599\u306E\u516C\u958B\u70BA\u66FF\u30EC\u30FC\u30C8\uFF08\u6B27\u5DDE\u4E2D\u592E\u9280\u884C\u306E\u53C2\u8003\u30EC\u30FC\u30C8\u306A\u3069\uFF09\u3067\u30C9\u30EB\u304B\
-\u3089\u5186\u3078\u63DB\u7B97\u3057\u305F\u6982\u7B97\u3067\u3059\u3002\u5B9F\u969B\u306E\u8ACB\u6C42\u6642\u306E\u30EC\u30FC\u30C8\u3068\u306F\u7570\u306A\u308A\u307E\u3059\u3002",
+images:i||null,operation:y,quality:b,speed:w,complete:!!a}}r(legacyImageRequest,"legacyImageRequest");
+function estimateConversationCost(e,t=costPricing,n=e){var c,d,m,g,y;const i={low:0,high:0,priced:0,
+unpriced:0,inferred:0,long:0,requests:0,items:[]},a=r((b,w,x,k,C)=>{const T={low:i.low,high:i.high,priced:i.
+priced,unpriced:i.unpriced,long:i.long};addRequestCost(i,b,t,w,k,C),i.items.push(describeRequestCost(
+i,T,b,w,t,!!k,!!C,!!x))},"capture"),o=new Map((n||[]).filter(Boolean).map(b=>[String(b.id),b])),l=new Set;
+for(const b of e||[]){if(!b||b.role!=="assistant"||l.has(String(b.id)))continue;l.add(String(b.id));
+let w=null;try{w=typeof b.thought_data=="string"?JSON.parse(b.thought_data):b.thought_data}catch{}!w&&
+Array.isArray(b.pricing_calls)&&(w={pricing_calls:b.pricing_calls});const x=((c=/^\d{4}-\d{2}-\d{2}/.
+exec(b.created_at||""))==null?void 0:c[0])||(t==null?void 0:t.checked_at),k=((d=b.batch_job)==null?void 0:
+d.state)==="JOB_STATE_SUCCEEDED"||b.batch===!0,C=(o.get(String(b.parent_id))||b).prompt_options||b.prompt_options||
+{},T=C&&C.gemini_flex===!0||b.flex===!0;if(Array.isArray(w==null?void 0:w.pricing_calls)){w.pricing_calls.
+length||i.priced++;for(const P of w.pricing_calls){if(!P||typeof P!="object"){i.unpriced++;continue}
+const R=((m=/^\d{4}-\d{2}-\d{2}/.exec(P.created_at||""))==null?void 0:m[0])||x,q=costRate(t,P.model,
+R),G=(q==null?void 0:q.image_selector)==="speed"&&!P.speed&&P.model===b.model?{...P,speed:legacyImageRequest(
+b,o).speed}:P;a(G,R,!1,k,T)}continue}const A=costRate(t,b.model,x);if((A==null?void 0:A.unit)==="ima\
+ge"){a(legacyImageRequest(b,o),x,!1,!1,T);continue}if(A!=null&&A.unit&&A.unit!=="token"){a(legacyUnitRequest(
+b,o,A),x,!0,!1,T);continue}const N=costTokenNumber(b.tokens_out);if(N===null&&!b.content&&!b.tokens)
+continue;if(N===null){i.unpriced++;continue}let H=(g=costTokenNumber(w==null?void 0:w.pricing_input_tokens))!=
+null?g:costTokenNumber(b.tokens_in),L=!1,$=!1;if(H===null){i.inferred++,$=!0,H=0;let P=b.parent_id;const R=new Set(
+[String(b.id)]);for(P==null&&(L=!0);P!=null;){const q=String(P);if(R.has(q)||!o.has(q)){L=!0;break}R.
+add(q);const G=o.get(q),te=G.role==="user"?costTokenNumber(G.tokens_in):(y=costTokenNumber(G.tokens_content))!=
+null?y:costTokenNumber(G.tokens_out)===null?null:Math.max(0,Number(G.tokens_out)-(costTokenNumber(G.
+tokens_thought)||0));te===null?L=!0:H+=te,P=G.parent_id}}const M={model:b.model,input_tokens:H,output_tokens:N,
+complete:!L};if(A!=null&&A.image_per_image){let P=b.image_url;try{typeof P=="string"&&(P=JSON.parse(
+P))}catch{P=P?[P]:[]}const R=Array.isArray(P)&&P.length?P.length:/!\[Image\]\(/i.test(String(b.content||
+""))?1:0;R&&(M.images=R)}a(M,x,$,k,T)}return i}r(estimateConversationCost,"estimateConversationCost");
+function costMoneyText(e){const t=Number(e||0);return t>0&&t<1e-6?"<$0.000001":`$${t.toFixed(6)}`}r(
+costMoneyText,"costMoneyText");function costAmountText(e){return!e||!e.priced?"\u7B97\u51FA\u4E0D\u53EF":
+e.lowerBound?`${costMoneyText(e.low)}\u4EE5\u4E0A`:e.high-e.low>1e-12?`${costMoneyText(e.low)}\u301C${costMoneyText(
+e.high)}`:costMoneyText(e.low)}r(costAmountText,"costAmountText");function describeRequestCost(e,t,n,i,a,o,l,c){
+const d=r(x=>costTokenNumber(x),"count");let m=d(n.cache_write_tokens)||0;for(const x of["5m","1h","\
+30m","12h"])m=Math.max(m,d(n[`cache_write_${x}_tokens`])||0);const g=["5m","1h","30m","12h"].reduce(
+(x,k)=>x+(d(n[`cache_write_${k}_tokens`])||0),0),y=["web_search_calls","file_search_calls","groundin\
+g_queries","code_execution_calls"].reduce((x,k)=>x+(d(n[k])||0),0),b=e.priced>t.priced,w=b?e.unpriced>
+t.unpriced?"\u4E00\u90E8\u672A\u7B97\u5165":"":costRate(a,n.model,i)?"\u4F7F\u7528\u91CF\u672A\u53D6\u5F97":
+"\u5358\u4FA1\u672A\u767B\u9332";return{model:String(n.model||""),date:i,input:d(n.input_tokens),output:d(
+n.output_tokens),cache_read:d(n.cache_read_tokens),cache_write:Math.max(m,g)||null,images:d(n.images),
+pages:d(n.pages),characters:d(n.characters),songs:d(n.songs),duration_ms:d(n.duration_ms),tools:y,low:e.
+low-t.low,high:e.high-t.high,priced:b,reason:w,inferred:!!c,long:e.long>t.long,batch:!!o,flex:!!l,api_key_id:String(
+n.api_key_id||""),api_key_label:String(n.api_key_label||""),api_key_inferred:!!n.api_key_inferred}}r(
+describeRequestCost,"describeRequestCost");function costItemTokenText(e){var n,i;const t=[];return e.
+images!==null&&e.images!==void 0&&t.push(`${e.images}\u679A`),e.songs!==null&&e.songs!==void 0&&t.push(
+`${e.songs}\u66F2`),e.pages!==null&&e.pages!==void 0&&t.push(`${e.pages}\u30DA\u30FC\u30B8`),e.characters!==
+null&&e.characters!==void 0&&t.push(`${e.characters}\u6587\u5B57`),e.duration_ms!==null&&e.duration_ms!==
+void 0&&t.push(`${(e.duration_ms/1e3).toFixed(1)}\u79D2`),(e.input!==null||e.output!==null)&&t.push(
+`\u5165 ${(n=e.input)!=null?n:"-"} / \u51FA ${(i=e.output)!=null?i:"-"}`),(e.cache_read||e.cache_write)&&
+t.push(`\u30AD\u30E3\u30C3\u30B7\u30E5 \u8AAD\u8FBC ${e.cache_read||0} / \u66F8\u8FBC ${e.cache_write||
+0}`),e.tools&&t.push(`\u30C4\u30FC\u30EB ${e.tools}\u56DE`),t.join(" \xB7 ")}r(costItemTokenText,"co\
+stItemTokenText");function costItemJpyText(e,t){if(!t||!e.priced)return"";const n=jpyMoneyText(e.low*
+t.rate);return e.high-e.low>1e-12?`\u7D04${n}\u301C${jpyMoneyText(e.high*t.rate)}`:`\u7D04${n}`}r(costItemJpyText,
+"costItemJpyText");function appendCostItemList(e,t){const n=document.createElement("div");n.className=
+"text-[11px]",n.style.cssText="max-height:16rem;overflow-y:auto;margin-top:0.5rem;",t.forEach((i,a)=>{
+const o=document.createElement("div");o.style.cssText="border-top:1px solid rgba(107,114,128,0.4);pa\
+dding:0.25rem 0;";const l=document.createElement("div");l.className="flex justify-between";const c=document.
+createElement("span");c.className="font-mono",c.textContent=`${a+1}. ${i.model||"\u30E2\u30C7\u30EB\u4E0D\u660E"}`;
+const d=document.createElement("span");d.className="font-mono",d.textContent=costAmountText(i),l.append(
+c,d),o.appendChild(l);const m=document.createElement("div");m.className="text-gray-400";const g=[];i.
+inferred&&g.push("\u5C65\u6B74\u304B\u3089\u63A8\u5B9A"),i.long&&g.push("\u9577\u6587\u6599\u91D1"),
+i.batch&&g.push("Batch"),i.flex&&g.push("Flex"),i.reason&&g.push(i.reason);const y=costItemJpyText(i,
+costJpyRate),b=[costItemTokenText(i),i.date,g.join(" / "),y].filter(Boolean);b.length&&(m.textContent=
+b.join(" \xB7 ")),b.length&&o.appendChild(m),n.appendChild(o)}),e.appendChild(n)}r(appendCostItemList,
+"appendCostItemList");function costEstimateLabel(e,t="\u8CBB\u7528\u4E88\u60F3"){return!e||!e.priced?
+`${t}: \u7B97\u51FA\u4E0D\u53EF`:`${t}: ${costAmountText(e)}${e.unpriced?"\uFF08\u4E00\u90E8\u672A\u7B97\u5165\uFF09":
+""}`}r(costEstimateLabel,"costEstimateLabel");const COST_JPY_RATE_STORAGE_KEY="cost_jpy_rate_v1",COST_JPY_RATE_TTL_MS=720*
+60*1e3,COST_JPY_RATE_NOTE="\u7121\u6599\u306E\u516C\u958B\u70BA\u66FF\u30EC\u30FC\u30C8\uFF08\u6B27\u5DDE\u4E2D\u592E\u9280\u884C\u306E\u53C2\u8003\u30EC\u30FC\u30C8\u306A\u3069\uFF09\u3067\u30C9\u30EB\u304B\u3089\u5186\u3078\u63DB\u7B97\u3057\u305F\u6982\u7B97\u3067\u3059\u3002\u5B9F\u969B\u306E\u8ACB\u6C42\u6642\u306E\u30EC\u30FC\u30C8\u3068\u306F\u7570\u306A\u308A\u307E\u3059\u3002",
 COST_JPY_RATE_SOURCES=[{name:"ECB",url:"https://api.frankfurter.dev/v2/rates?base=USD&quotes=JPY",read:r(
 e=>{const t=Array.isArray(e)?e.find(n=>n&&n.quote==="JPY"):null;return{rate:Number(t==null?void 0:t.
 rate),date:t==null?void 0:t.date}},"read")},{name:"currency-api",url:"https://cdn.jsdelivr.net/npm/@\
@@ -3003,46 +3009,119 @@ String(o));if(!l)return;const c=costPricing?estimateConversationCost([l],costPri
 (messageMeta[o].cost_estimate=c),a.textContent=costPricing?costEstimateLabel(c,"\u8CBB\u7528\u4E88\u60F3"):
 `\u8CBB\u7528\u4E88\u60F3: ${costPricingFailed?"\u7B97\u51FA\u4E0D\u53EF":"\u6599\u91D1\u3092\u8AAD\u307F\u8FBC\u307F\u4E2D\u2026"}`,
 a.title=COST_ESTIMATE_NOTE})}r(refreshCostBar,"refreshCostBar"),fetch("/static/model_pricing.json?ch\
-ecked=2026-11-06",{credentials:"same-origin"}).then(e=>{if(!e.ok)throw new Error("pricing_unavailabl\
+ecked=2026-11-28",{credentials:"same-origin"}).then(e=>{if(!e.ok)throw new Error("pricing_unavailabl\
 e");return e.json()}).then(e=>{costPricing=e,costBarReady&&refreshCostBar(),usageCostPendingData&&renderUsageCostSummary(
 usageCostPendingData)}).catch(()=>{costPricingFailed=!0,costBarReady&&refreshCostBar(),usageCostPendingData&&
-setUsageCostStatus("\u8CBB\u7528\u4E88\u60F3: \u7B97\u51FA\u4E0D\u53EF")});function requestTokenCost(e,t,n,i,a=!1){
-var H,te,G,X,ce,de,Q,me,ne,ve;const o=costTokenNumber(e.input_tokens)||0,l=costTokenNumber(e.output_tokens)||
-0,c=costTokenNumber(e.cache_read_tokens)||0,d=costTokenNumber(e.cache_write_tokens)||0,m=["5m","1h",
-"30m","12h"],g=m.map(ue=>costTokenNumber(e[`cache_write_${ue}_tokens`])||0),b=Math.max(d,g.reduce((ue,ge)=>ue+
-ge,0)),v=Math.max(0,o-c-b),w=n?t.long_input:t.input,x=n?t.long_output:t.output,k=n&&(H=t.long_cached_input)!=
-null?H:t.cached_input,C=t.cache_write_multipliers||{},T=i&&(te=t.batch_multiplier)!=null?te:1,E=i?(G=
-t.batch_cached_multiplier)!=null?G:T:1,N=k!=null&&T>0?E/T:1,U=Math.max(0,b-g.reduce((ue,ge)=>ue+ge,0)),
-L=Object.values(C);let I=!!e.pricing_incomplete||c+b>o||!!e.explicit_cache;c&&k==null&&(I=!0);let A=v*
-w+c*(k!=null?k:w)*N,j=v*(n?w:(X=t.max_input)!=null?X:w)+c*(n?k!=null?k:w:(de=(ce=t.max_cached_input)!=
-null?ce:k)!=null?de:w)*N;for(let ue=0;ue<m.length;ue++){const ge=C[m[ue]];g[ue]&&ge==null&&(I=!0),A+=
-g[ue]*w*(ge!=null?ge:1),j+=g[ue]*(n?w:(Q=t.max_input)!=null?Q:w)*(ge!=null?ge:1)}U&&(I=!0,A+=U*w*(L.
-length?Math.min(...L):1),j+=U*(n?w:(me=t.max_input)!=null?me:w)*(L.length?Math.max(...L):1));let B=(A+
-l*x)*T*(a?.5:1)/1e6,D=(j+l*((ne=t.max_output)!=null?ne:x))*T*(a?.5:1)/1e6,V=!1;const ee=t.tool_rates||
-{},$=r((ue,ge)=>{if(ue){if(ee[ge]==null){I=!0;return}B+=ue*ee[ge],D+=ue*ee[ge]}},"add"),R=costTokenNumber(
-e.web_search_calls)||0;$(R,e.search_preview?"web_search_preview":"web_search"),R&&!e.search_preview&&
-t.search_content_tokens&&(B+=R*t.search_content_tokens*w/1e6,D+=R*t.search_content_tokens*w/1e6),$(costTokenNumber(
-e.file_search_calls),"file_search");const J=costTokenNumber(e.grounding_queries)||0;$(ee.grounding_prompt!=
-null?Math.min(1,J):J,ee.grounding_prompt!=null?"grounding_prompt":"grounding_query");const F=costTokenNumber(
-e.code_execution_calls)||0;return F&&!e.code_execution_free&&(t.provider==="openai"?($(((ve=costTokenNumber(
-e.container_sessions))!=null?ve:1)*(costTokenNumber(e.container_memory_gb)||1),"container_session"),
-I=!0):t.provider==="anthropic"?($(1,"code_execution_minimum"),I=!0,V=!0):$(F,"code_execution")),{low:B,
-high:D,incomplete:I,lowerBound:V}}r(requestTokenCost,"requestTokenCost");const USAGE_COST_PERIODS=[{
-id:"1d",label:"1\u65E5\u4EE5\u5185"},{id:"7d",label:"7\u65E5\u4EE5\u5185"},{id:"14d",label:"2\u9031\u9593\u4EE5\u5185"},
-{id:"1m",label:"1\u304B\u6708\u4EE5\u5185"},{id:"3m",label:"3\u304B\u6708\u4EE5\u5185"},{id:"1y",label:"\
-1\u5E74\u9593"}];let usageCostPeriod="1m",usageCostLoadedPeriod=null,usageCostRequest=0,usageCostPendingData=null;
-function usageCostElements(){return{panel:get("tab-usage"),status:get("usage-cost-status"),total:get(
-"usage-cost-total"),jpy:get("usage-cost-jpy"),meta:get("usage-cost-meta"),breakdown:get("usage-cost-\
-breakdown"),note:get("usage-cost-note")}}r(usageCostElements,"usageCostElements");function markUsageCostPeriod(e){
-document.querySelectorAll("#usage-period-buttons [data-period]").forEach(t=>{const n=t.dataset.period===
-e;t.classList.toggle("is-active",n),t.setAttribute("aria-pressed",n?"true":"false")})}r(markUsageCostPeriod,
-"markUsageCostPeriod");function setUsageCostStatus(e){const t=usageCostElements().status;t&&(t.textContent=
-e)}r(setUsageCostStatus,"setUsageCostStatus");function usageCostModelRows(e){const t=new Map;for(const n of e||
-[]){if(!n)continue;const i=n.model||"\u30E2\u30C7\u30EB\u4E0D\u660E";let a=t.get(i);a||(a={model:i,low:0,
-high:0,priced:0,unpriced:0,requests:0},t.set(i,a)),a.low+=Number(n.low)||0,a.high+=Number(n.high)||0,
-a.requests++,n.priced?a.priced++:a.unpriced++}return[...t.values()].sort((n,i)=>i.high-n.high||i.low-
-n.low)}r(usageCostModelRows,"usageCostModelRows");function usageCostKeyRows(e){const t=new Map;for(const n of e||
-[]){if(!n)continue;const i=n.api_key_id||"unknown",a=n.api_key_label||"\u672A\u8A18\u9332\uFF08\u30AD\u30FC\u672A\u8A2D\u5B9A\uFF09";
+setUsageCostStatus("\u8CBB\u7528\u4E88\u60F3: \u7B97\u51FA\u4E0D\u53EF")});function legacyUnitRequest(e,t,n){
+const i=t.get(String(e.parent_id));if(n.unit==="song")return{model:e.model,songs:1,complete:!0};if(n.
+unit==="page"){const a=/合計処理ページ数:\s*(\d+)/.exec(String(e.content||""));return{model:e.
+model,pages:a?Number(a[1]):1,complete:!!a}}if(n.unit==="character"){const a=i!=null&&i.content?String(
+i.content).length:null;return{model:e.model,characters:a,complete:a!==null}}if(n.unit==="video"){const a=(i==
+null?void 0:i.prompt_options)||{},o=String(e.model||"").startsWith("grok-")?a.grok_video_duration:a.
+gemini_video_duration,l=costTokenNumber(o),c=String((String(e.model||"").startsWith("grok-")?a.grok_video_resolution:
+a.gemini_video_resolution)||"").toLowerCase();return{model:e.model,duration_ms:l?l*1e3:null,resolution:c||
+null,complete:!1}}return{model:e.model,complete:!1}}r(legacyUnitRequest,"legacyUnitRequest");function requestImageUnitCost(e,t,n,i,a){
+var k,C,T,A,N,H,L;const o=a?.5:1,l=i&&(k=n.batch_multiplier)!=null?k:1,c=costTokenNumber(t.input_tokens),
+d=costTokenNumber(t.output_tokens);if((c!==null||d!==null)&&(n.image_output!=null||n.output!=null)){
+const $=requestTokenCost(t,n,!1,i,a);e.low+=$.low,e.high+=$.high,$.lowerBound&&(e.lowerBound=!0),e.priced++,
+(t.complete===!1||$.incomplete)&&e.unpriced++;return}const m=costTokenNumber(t.images);if(m===null){
+e.unpriced++;return}let g=null,y=null,b=!1,w=!1;if(n.per_image_rates){const $=n.per_image_rates,M=t.
+quality&&t.quality!=="auto"?$[t.quality]:null,P=t.size&&t.size!=="auto"?t.size:null,R=[];M?P&&M[P]!=
+null?R.push(M[P]):Object.values(M).forEach(q=>{typeof q=="number"&&R.push(q)}):Object.values($).forEach(
+q=>Object.entries(q).forEach(([G,te])=>{(!P||G===P)&&typeof te=="number"&&R.push(te)})),R.length&&(g=
+m*Math.min(...R)*l*o,y=m*Math.max(...R)*l*o,R.length>1&&(w=!0))}if(g===null&&n.resolution_rates&&t.resolution&&
+n.resolution_rates[t.resolution]!=null){const $=n.resolution_rates[t.resolution],M=typeof $=="number"?
+$:(T=(C=$[t.quality])!=null?C:$.low)!=null?T:Object.values($)[0];Number.isFinite(M)&&(g=m*M,y=m*M)}if(g===
+null){const $=(H=(A=n.image_rates)==null?void 0:A[t.operation])!=null?H:(N=n.image_rates)==null?void 0:
+N.generate,M=$==null?void 0:$[n.image_selector==="speed"?t.speed:t.quality],P=(L=M==null?void 0:M.minimum)!=
+null?L:$==null?void 0:$.minimum,R=typeof $=="number"?$:typeof M=="number"?M:P;if(b=Number.isFinite(R)&&
+typeof $!="number"&&typeof M!="number",!Number.isFinite(R)){e.unpriced++;return}g=m*R*o,y=m*R*o}const x=(costTokenNumber(
+t.input_images)||0)*(n.input_image_rate||0);e.low+=g+x,e.high+=y+x,e.priced++,b&&(e.lowerBound=!0),(t.
+complete===!1||b||w)&&e.unpriced++}r(requestImageUnitCost,"requestImageUnitCost");function requestUnitCost(e,t,n,i=!1,a=!1){
+var y,b,w,x;if(n.unit==="image"){requestImageUnitCost(e,t,n,i,a);return}const o=i&&(y=n.batch_multiplier)!=
+null?y:1,l=a?.5:1;let c=0,d=0,m=t.complete===!1,g=!1;if(n.unit==="song")c=d=((b=costTokenNumber(t.songs))!=
+null?b:1)*(n.song_rate||0);else if(n.unit==="page"){const k=costTokenNumber(t.pages);if(k===null){e.
+unpriced++;return}c=d=k*(n.page_rate||0)*o}else if(n.unit==="character"){const k=costTokenNumber(t.characters);
+if(k===null){e.unpriced++;return}c=d=k*(n.character_rate||0)/1e6}else if(n.unit==="duration"){const k=costTokenNumber(
+t.duration_ms),C=(costTokenNumber(t.audio_in_ms)||0)+(costTokenNumber(t.audio_out_ms)||0),T=k!==null?
+k/6e4:t.audio_in_ms!=null||t.audio_out_ms!=null?C/6e4:null;if(T===null&&n.duration_rate_per_minute>0)
+c=n.duration_rate_per_minute/60,d=n.duration_rate_per_minute,m=!0;else{const A=(T||0)*(n.duration_rate_per_minute||
+0),N=(costTokenNumber(t.standby_ms)||0)/6e4*(n.standby_rate_per_minute||0),H=(costTokenNumber(t.text_turns)||
+0)*(n.text_turn_rate||0);c=d=A+N+H}}else if(n.unit==="video"){const k=costTokenNumber(t.input_tokens),
+C=costTokenNumber(t.video_output_tokens);if(n.video_output!=null&&k!==null&&C!==null){const T=costTokenNumber(
+t.output_tokens)||C,A=Math.max(0,T-C);c=d=(k*(n.input||0)+A*(n.output||0)+C*n.video_output)/1e6}else{
+const T=t.duration_ms!=null?costTokenNumber(t.duration_ms)/1e3:costTokenNumber(t.duration_seconds),A=t.
+without_audio&&n.video_only_rates?n.video_only_rates:n.video_rates||{},N=String(t.resolution||"").toLowerCase(),
+H=N&&A[N]!=null?A[N]:null,L=Object.values(A).filter($=>typeof $=="number");if(T!==null){const $=(w=H!=
+null?H:A.default)!=null?w:L.length?Math.min(...L):0,M=(x=H!=null?H:A.default)!=null?x:L.length?Math.
+max(...L):0,P=(costTokenNumber(t.input_images)||0)*(n.input_image_rate||0);c=T*$+P,d=T*M+P,H==null&&
+L.length>1&&(m=!0)}else if(L.length){const $=String(t.model||"").startsWith("grok-")?5:8;c=$*Math.min(
+...L),d=$*Math.max(...L),m=!0}else{e.unpriced++;return}}}else{e.unpriced++;return}e.low+=c*l,e.high+=
+d*l,e.priced++,g&&(e.lowerBound=!0),m&&e.unpriced++}r(requestUnitCost,"requestUnitCost");function requestTokenCost(e,t,n,i,a=!1){
+var fe,be,ge,se,it,st,vt,Mt,He,at,Ke,Lt,Rt,At,qe,ut,Ve,wt,tt,pt,Gt,Bt,Et,Ut,Ot,jt,Ft,zt,Dt,Y,xe,Ne,Ge,
+et,mt,ft,ot;const o=costTokenNumber(e.input_tokens),l=costTokenNumber(e.output_tokens);let c=o||0,d=l||
+0,m=!1;const g=costTokenNumber(e.audio_input_tokens),y=costTokenNumber(e.text_input_tokens),b=costTokenNumber(
+e.image_input_tokens),w=costTokenNumber(e.audio_output_tokens),x=costTokenNumber(e.image_output_tokens);
+let k=null,C=null;t.audio_tokens_per_second&&(o===null&&(e.audio_in_ms!=null||e.duration_ms!=null)&&
+(k=(costTokenNumber((fe=e.audio_in_ms)!=null?fe:e.duration_ms)||0)/1e3*t.audio_tokens_per_second,m=!0),
+l===null&&e.audio_out_ms!=null&&t.audio_output!=null&&(C=(costTokenNumber(e.audio_out_ms)||0)/1e3*t.
+audio_tokens_per_second,m=!0));const T=costTokenNumber(e.cache_read_tokens)||0,A=costTokenNumber(e.cache_write_tokens)||
+0,N=["5m","1h","30m","12h"],H=N.map(Le=>costTokenNumber(e[`cache_write_${Le}_tokens`])||0),L=Math.max(
+A,H.reduce((Le,Ee)=>Le+Ee,0)),$=Math.max(0,c-T-L),M=n?t.long_input:(be=t.text_input)!=null?be:t.input,
+P=n?t.long_output:t.output,R=n&&(ge=t.long_cached_input)!=null?ge:t.cached_input,q=t.cache_write_multipliers||
+{},G=i&&(se=t.batch_multiplier)!=null?se:1,te=i?(it=t.batch_cached_multiplier)!=null?it:G:1,O=R!=null&&
+G>0?te/G:1,B=Math.max(0,L-H.reduce((Le,Ee)=>Le+Ee,0)),J=Object.values(q);let F=!!e.pricing_incomplete||
+!!t.pricing_unlisted||T+L>c||!!e.explicit_cache;T&&R==null&&(F=!0);let D=0,Z=0;if(g!==null||y!==null||
+b!==null){const Le=costTokenNumber(e.cached_text_tokens),Ee=costTokenNumber(e.cached_image_tokens),We=costTokenNumber(
+e.cached_audio_tokens),nt=Le!==null||Ee!==null||We!==null,Ct=Math.max(0,(y||0)-(Le||0)),$t=Math.max(
+0,(b||0)-(Ee||0)),Nt=Math.max(0,(g||0)-(We||0)),xt=Math.max(0,$-Ct-$t-Nt);D=Ct*M+$t*((st=t.image_input)!=
+null?st:M)+Nt*((vt=t.audio_input)!=null?vt:M)+xt*M,Z=Ct*((Mt=t.max_input)!=null?Mt:M)+$t*((He=t.image_input)!=
+null?He:M)+Nt*((at=t.audio_input)!=null?at:M)+xt*((Ke=t.max_input)!=null?Ke:M),nt?(D+=((Le||0)*(R!=null?
+R:M)+(Ee||0)*((At=(Rt=(Lt=t.cached_image_input)!=null?Lt:R)!=null?Rt:t.image_input)!=null?At:M)+(We||
+0)*((Ve=(ut=(qe=t.cached_audio_input)!=null?qe:R)!=null?ut:t.audio_input)!=null?Ve:M))*O,Z+=((Le||0)*
+(R!=null?R:M)+(Ee||0)*((pt=(tt=(wt=t.cached_image_input)!=null?wt:R)!=null?tt:t.image_input)!=null?pt:
+M)+(We||0)*((Et=(Bt=(Gt=t.cached_audio_input)!=null?Gt:R)!=null?Bt:t.audio_input)!=null?Et:M))*O):(D+=
+T*(R!=null?R:M)*O,Z+=T*((Ot=(Ut=t.max_cached_input)!=null?Ut:R)!=null?Ot:M)*O)}else if(k!==null)D=k*
+((jt=t.audio_input)!=null?jt:M),Z=D;else{const Le=Math.max((Ft=t.max_input)!=null?Ft:M,...t.unit==="\
+image"&&t.image_input!=null?[t.image_input]:[]);D=$*M+T*(R!=null?R:M)*O,Z=$*(n?M:Le)+T*(n?R!=null?R:
+M:(Dt=(zt=t.max_cached_input)!=null?zt:R)!=null?Dt:M)*O}for(let Le=0;Le<N.length;Le++){const Ee=q[N[Le]];
+H[Le]&&Ee==null&&(F=!0),D+=H[Le]*M*(Ee!=null?Ee:1),Z+=H[Le]*(n?M:(Y=t.max_input)!=null?Y:M)*(Ee!=null?
+Ee:1)}B&&(F=!0,D+=B*M*(J.length?Math.min(...J):1),Z+=B*(n?M:(xe=t.max_input)!=null?xe:M)*(J.length?Math.
+max(...J):1));let X=0,oe=0,de=0;if(x!==null&&t.image_output!=null){const Le=Math.max(0,d-x);X=Le*P+x*
+t.image_output,oe=Le*((Ne=t.max_output)!=null?Ne:P)+x*t.image_output}else if(w!==null&&t.audio_output!=
+null){const Le=Math.max(0,d-w);X=Le*P+w*t.audio_output,oe=Le*((Ge=t.max_output)!=null?Ge:P)+w*t.audio_output}else if(C!==
+null&&t.audio_output!=null)X=C*t.audio_output,oe=X;else if(t.image_per_image&&e.images!=null){const Le=costTokenNumber(
+e.images)||0,Ee=String(e.resolution||"").toLowerCase(),We=t.image_per_image,nt=(et=We[Ee])!=null?et:
+We.default,Ct=Object.values(We).filter(xt=>typeof xt=="number"),$t=nt!=null?nt:Ct.length?Math.min(...Ct):
+0,Nt=nt!=null?nt:Ct.length?Math.max(...Ct):0;if(Le>0){m=!0,de=Le*$t;const xt=x!==null?Math.max(0,d-x):
+l!==null&&t.image_output!=null?0:d;X=xt*P,oe=xt*((mt=t.max_output)!=null?mt:P)+Le*Math.max(0,Nt-$t)*
+1e6}}else t.image_output!=null&&d>0?(X=d*P,oe=d*t.image_output,F=!0):(X=d*P,oe=d*((ft=t.max_output)!=
+null?ft:P));const Q=G*(a?.5:1);let ue=((D+X)/1e6+de)*Q,ne=((Z+oe)/1e6+de)*Q,we=!1;const ye=t.tool_rates||
+{},ve=r((Le,Ee)=>{if(Le){if(ye[Ee]==null){F=!0;return}ue+=Le*ye[Ee],ne+=Le*ye[Ee]}},"add"),Ie=costTokenNumber(
+e.web_search_calls)||0;ve(Ie,e.search_preview?"web_search_preview":"web_search"),Ie&&!e.search_preview&&
+t.search_content_tokens&&(ue+=Ie*t.search_content_tokens*M/1e6,ne+=Ie*t.search_content_tokens*M/1e6),
+ve(costTokenNumber(e.file_search_calls),"file_search");const Se=costTokenNumber(e.grounding_queries)||
+0;ve(ye.grounding_prompt!=null?Math.min(1,Se):Se,ye.grounding_prompt!=null?"grounding_prompt":"groun\
+ding_query");const lt=costTokenNumber(e.code_execution_calls)||0;return lt&&!e.code_execution_free&&
+(t.provider==="openai"?(ve(((ot=costTokenNumber(e.container_sessions))!=null?ot:1)*(costTokenNumber(
+e.container_memory_gb)||1),"container_session"),F=!0):t.provider==="anthropic"?(ve(1,"code_execution\
+_minimum"),F=!0,we=!0):ve(lt,"code_execution")),{low:ue,high:ne,incomplete:F,lowerBound:we,derived:m}}
+r(requestTokenCost,"requestTokenCost");const USAGE_COST_PERIODS=[{id:"1d",label:"1\u65E5\u4EE5\u5185"},
+{id:"7d",label:"7\u65E5\u4EE5\u5185"},{id:"14d",label:"2\u9031\u9593\u4EE5\u5185"},{id:"1m",label:"1\
+\u304B\u6708\u4EE5\u5185"},{id:"3m",label:"3\u304B\u6708\u4EE5\u5185"},{id:"1y",label:"1\u5E74\u9593"}];
+let usageCostPeriod="1m",usageCostLoadedPeriod=null,usageCostRequest=0,usageCostPendingData=null;function usageCostElements(){
+return{panel:get("tab-usage"),status:get("usage-cost-status"),total:get("usage-cost-total"),jpy:get(
+"usage-cost-jpy"),meta:get("usage-cost-meta"),breakdown:get("usage-cost-breakdown"),note:get("usage-\
+cost-note")}}r(usageCostElements,"usageCostElements");function markUsageCostPeriod(e){document.querySelectorAll(
+"#usage-period-buttons [data-period]").forEach(t=>{const n=t.dataset.period===e;t.classList.toggle("\
+is-active",n),t.setAttribute("aria-pressed",n?"true":"false")})}r(markUsageCostPeriod,"markUsageCost\
+Period");function setUsageCostStatus(e){const t=usageCostElements().status;t&&(t.textContent=e)}r(setUsageCostStatus,
+"setUsageCostStatus");function usageCostModelRows(e){const t=new Map;for(const n of e||[]){if(!n)continue;
+const i=n.model||"\u30E2\u30C7\u30EB\u4E0D\u660E";let a=t.get(i);a||(a={model:i,low:0,high:0,priced:0,
+unpriced:0,requests:0},t.set(i,a)),a.low+=Number(n.low)||0,a.high+=Number(n.high)||0,a.requests++,n.
+priced?a.priced++:a.unpriced++}return[...t.values()].sort((n,i)=>i.high-n.high||i.low-n.low)}r(usageCostModelRows,
+"usageCostModelRows");function usageCostKeyRows(e){const t=new Map;for(const n of e||[]){if(!n)continue;
+const i=n.api_key_id||"unknown",a=n.api_key_label||"\u672A\u8A18\u9332\uFF08\u30AD\u30FC\u672A\u8A2D\u5B9A\uFF09";
 let o=t.get(i);o||(o={key:i,label:a,low:0,high:0,priced:0,unpriced:0,requests:0,inferred:0},t.set(i,
 o)),o.low+=Number(n.low)||0,o.high+=Number(n.high)||0,o.requests++,n.priced?o.priced++:o.unpriced++,
 n.api_key_inferred&&o.inferred++}return[...t.values()].sort((n,i)=>i.high-n.high||i.low-n.low)}r(usageCostKeyRows,
@@ -3052,8 +3131,8 @@ o),n.forEach(l=>{const c=document.createElement("div");c.className="border-t bor
 .5";const d=document.createElement("div");d.className="flex justify-between gap-3";const m=document.
 createElement("span");m.className="font-mono text-[11px] break-all",m.textContent=i(l);const g=document.
 createElement("span");g.className="font-mono text-[11px] shrink-0",g.textContent=costAmountText(l)+(l.
-unpriced?"\uFF08\u4E00\u90E8\u672A\u7B97\u5165\uFF09":""),d.append(m,g),c.appendChild(d);const b=document.
-createElement("div");b.className="text-[10px] text-gray-400",b.textContent=a(l),c.appendChild(b),e.appendChild(
+unpriced?"\uFF08\u4E00\u90E8\u672A\u7B97\u5165\uFF09":""),d.append(m,g),c.appendChild(d);const y=document.
+createElement("div");y.className="text-[10px] text-gray-400",y.textContent=a(l),c.appendChild(y),e.appendChild(
 c)})}r(appendUsageCostBreakdownSection,"appendUsageCostBreakdownSection");function renderUsageCostBreakdown(e,t=[]){
 const n=usageCostElements().breakdown;n&&(n.replaceChildren(),appendUsageCostBreakdownSection(n,"API\
 \u30AD\u30FC\u5225",t,i=>i.label,i=>`API ${i.requests}\u56DE \xB7 \u7B97\u5B9A ${i.priced}\u56DE`+(i.
@@ -3116,8 +3195,8 @@ n.length>MATH_STEPS_MAX_DISPLAY_STEPS&&(n.length=MATH_STEPS_MAX_DISPLAY_STEPS),n
 `),n=[],i=[];let a=null,o=null;const l=t.split(`
 `);for(const m of l){if(o){const g=m.trim();g.length>=o.length&&g[0]===o[0]&&/^(`+|~+)$/.test(g)&&(o=
 null)}else{const g=m.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/);if(g&&!(g[1][0]==="`"&&g[2].includes("`"))){
-o=g[1],(a?a.body:i).push(m);continue}const b=m.match(MATH_STEPS_HEADING_RE);if(b){a&&n.push(a),a={index:n.
-length,number:Number(b[1])||n.length+1,title:String(b[2]||"").trim(),body:[]};continue}}(a?a.body:i).
+o=g[1],(a?a.body:i).push(m);continue}const y=m.match(MATH_STEPS_HEADING_RE);if(y){a&&n.push(a),a={index:n.
+length,number:Number(y[1])||n.length+1,title:String(y[2]||"").trim(),body:[]};continue}}(a?a.body:i).
 push(m)}a&&n.push(a);const c=n.map((m,g)=>({index:g,number:m.number,title:m.title,body:m.body.join(`\
 
 `).replace(/^\s*\n+/,"").replace(/\n+\s*$/,"")})),d=i.join(`
@@ -3135,13 +3214,13 @@ e||"").trim();if(!t||t.length>MATH_STEPS_SVG_MAX_CHARS||!/^<svg[\s>]/i.test(t.re
 "").toLowerCase()!=="svg")return"";const a=mathStepsReducedMotion()||mathStepsUiState.config.animation===
 !1,o=new Set(["script","foreignobject","iframe","object","embed","image","video","audio"]),l=new Set(
 ["animate","animatetransform","animatemotion","set","discard"]),c=r(m=>{!m||!m.childNodes||Array.from(
-m.childNodes).forEach(g=>{if(g.nodeType===1){const b=String(g.nodeName||"").toLowerCase();if(o.has(b)||
-a&&l.has(b)){g.remove();return}if(b==="style"){const v=g.textContent||"";if(/@import|url\(\s*["']?\s*(?:https?:)?\/\//i.
-test(v)){g.remove();return}if(a&&/@keyframes|animation/i.test(v)){g.remove();return}}Array.from(g.attributes||
-[]).forEach(v=>{const w=String(v.name||"").toLowerCase(),x=String(v.value||"");if(w.startsWith("on")){
-g.removeAttribute(v.name);return}(w==="href"||w==="xlink:href")&&!/^#/.test(x.trim())&&g.removeAttribute(
-v.name),a&&/animation(-name|-duration|-iteration-count)?$/.test(w)&&g.removeAttribute(v.name),w==="s\
-tyle"&&/url\(\s*["']?\s*(?:https?:)?\/\//i.test(x)&&g.removeAttribute(v.name)}),c(g)}})},"walk");c(i);
+m.childNodes).forEach(g=>{if(g.nodeType===1){const y=String(g.nodeName||"").toLowerCase();if(o.has(y)||
+a&&l.has(y)){g.remove();return}if(y==="style"){const b=g.textContent||"";if(/@import|url\(\s*["']?\s*(?:https?:)?\/\//i.
+test(b)){g.remove();return}if(a&&/@keyframes|animation/i.test(b)){g.remove();return}}Array.from(g.attributes||
+[]).forEach(b=>{const w=String(b.name||"").toLowerCase(),x=String(b.value||"");if(w.startsWith("on")){
+g.removeAttribute(b.name);return}(w==="href"||w==="xlink:href")&&!/^#/.test(x.trim())&&g.removeAttribute(
+b.name),a&&/animation(-name|-duration|-iteration-count)?$/.test(w)&&g.removeAttribute(b.name),w==="s\
+tyle"&&/url\(\s*["']?\s*(?:https?:)?\/\//i.test(x)&&g.removeAttribute(b.name)}),c(g)}})},"walk");c(i);
 let d="";try{d=new XMLSerializer().serializeToString(i)}catch{return""}return/^<svg[\s>]/i.test(d)?d:
 ""}r(sanitizeMathSvgMarkup,"sanitizeMathSvgMarkup");function buildMathSvgRenderHtml(e){const t=sanitizeMathSvgMarkup(
 e);if(!t)return"";let n=t.replace(/<svg\b([^>]*)>/i,(o,l)=>{let c=l;return/\sxmlns\s*=/i.test(c)||(c=
@@ -3163,9 +3242,9 @@ e);if(!n.steps.length)return"";const i=normalizeMathStepsMessageState(t.state||{
 a,i.expanded),l={originalSteps:a,expanded:Object.assign({},i.expanded),steps:o,current:clampMathStepsIndex(
 t.current!==void 0?t.current:i.current,o.length-1),maxReached:Math.max(i.max_reached,i.current),simplified:Object.
 assign({},i.simplified),showOriginal:new Set,streaming:!!t.streaming},c=l.steps[l.current],d=mathStepsStepMarkdown(
-l,l.current),m=mathStepsCanRestore(l,l.current),g=mathStepsPendingNext(l),b=l.current>=l.steps.length-
-1,v=b&&!g?"\u5B8C\u4E86":g?"\u6B21\u306E\u30B9\u30C6\u30C3\u30D7\u3092\u6E96\u5099\u4E2D\u2026":"\u308F\u304B\u3063\
-\u305F\u3001\u6B21\u3078",w=g||b&&!g,x=t.messageId!==void 0&&t.messageId!==null?String(t.messageId):
+l,l.current),m=mathStepsCanRestore(l,l.current),g=mathStepsPendingNext(l),y=l.current>=l.steps.length-
+1,b=y&&!g?"\u5B8C\u4E86":g?"\u6B21\u306E\u30B9\u30C6\u30C3\u30D7\u3092\u6E96\u5099\u4E2D\u2026":"\u308F\u304B\u3063\
+\u305F\u3001\u6B21\u3078",w=g||y&&!g,x=t.messageId!==void 0&&t.messageId!==null?String(t.messageId):
 "",k=t.jobId!==void 0&&t.jobId!==null?String(t.jobId):"";return`<div class="math-steps content-area"\
  role="group" aria-label="\u6570\u5B66\u30B9\u30C6\u30C3\u30D7\u89E3\u8AAC" ${['data-math-steps-root\
 ="1"',`data-current="${l.current}"`,`data-max-reached="${l.maxReached}"`,`data-total="${l.steps.length}\
@@ -3178,7 +3257,7 @@ ps-body" data-step-index="${l.current}" aria-live="polite"><div class="prose pro
 eak-words math-steps-prose">${renderMathStepsBodyHtml(d)}</div>`+(m?'<button type="button" class="ma\
 th-steps-restore" data-math-steps-action="restore">\u5143\u306E\u8AAC\u660E\u306B\u623B\u3059</button>':
 "")+`</div><div class="math-steps-actions"><button type="button" class="math-steps-next" data-math-s\
-teps-action="next"${w?' disabled aria-disabled="true"':""}>${escapeHtml(v)}</button><div class="math\
+teps-action="next"${w?' disabled aria-disabled="true"':""}>${escapeHtml(b)}</button><div class="math\
 -steps-sub-actions"><button type="button" class="math-steps-prev" data-math-steps-action="prev"${l.current<=
 0?' disabled aria-disabled="true"':""}>\u524D\u3078</button><button type="button" class="math-steps-restart" d\
 ata-math-steps-action="restart"${l.current<=0?' disabled aria-disabled="true"':""}>\u6700\u521D\u304B\u3089</button><but\
@@ -3213,9 +3292,9 @@ ss="math-steps-restore" data-math-steps-action="restore">\u5143\u306E\u8AAC\u660
 ta-svg-key"));C&&k.replaceWith(C)});try{queueMessageDecorations(o,l)}catch{}}const d=mathStepsPendingNext(
 t),m=t.current>=t.steps.length-1,g=e.querySelector(".math-steps-next");if(g){g.textContent=m&&!d?"\u5B8C\u4E86":
 d?"\u6B21\u306E\u30B9\u30C6\u30C3\u30D7\u3092\u6E96\u5099\u4E2D\u2026":"\u308F\u304B\u3063\u305F\u3001\u6B21\u3078";
-const x=d||m&&!d;g.disabled=x,g.setAttribute("aria-disabled",x?"true":"false")}const b=e.querySelector(
-".math-steps-prev");if(b){const x=t.current<=0;b.disabled=x,b.setAttribute("aria-disabled",x?"true":
-"false")}const v=e.querySelector(".math-steps-restart");if(v){const x=t.current<=0;v.disabled=x,v.setAttribute(
+const x=d||m&&!d;g.disabled=x,g.setAttribute("aria-disabled",x?"true":"false")}const y=e.querySelector(
+".math-steps-prev");if(y){const x=t.current<=0;y.disabled=x,y.setAttribute("aria-disabled",x?"true":
+"false")}const b=e.querySelector(".math-steps-restart");if(b){const x=t.current<=0;b.disabled=x,b.setAttribute(
 "aria-disabled",x?"true":"false")}const w=e.querySelector(".math-steps-simplify");w&&!w.dataset.busy&&
 (w.disabled=!!t.streaming,w.setAttribute("aria-disabled",t.streaming?"true":"false")),e.setAttribute(
 "data-current",String(t.current)),e.setAttribute("data-max-reached",String(t.maxReached)),e.setAttribute(
@@ -3228,13 +3307,13 @@ current,maxReached:l.max_reached,simplified:Object.assign({},l.simplified),showO
 streaming};c.originalSteps=i.steps,c.expanded=c.expanded||{},c.steps=buildMathStepsDisplaySteps(c.originalSteps,
 c.expanded),c.streaming=n.streaming===!0,c.current=clampMathStepsIndex(c.current,c.steps.length-1),c.
 maxReached=Math.max(c.maxReached,c.current);const d=a&&o&&o.renderedStep===c.current?o.renderedMarkdown:
-null,m=mathStepsStepMarkdown(c,c.current),g=a?a.querySelector(".math-steps-body"):null,b=!!g&&d!==null&&
-d===m,v=buildMathStepsHtml(t,{state:{current:c.current,max_reached:c.maxReached,simplified:c.simplified,
+null,m=mathStepsStepMarkdown(c,c.current),g=a?a.querySelector(".math-steps-body"):null,y=!!g&&d!==null&&
+d===m,b=buildMathStepsHtml(t,{state:{current:c.current,max_reached:c.maxReached,simplified:c.simplified,
 expanded:c.expanded},messageId:n.mathSteps&&n.mathSteps.messageId!==void 0?n.mathSteps.messageId:void 0,
-jobId:n.mathSteps&&n.mathSteps.jobId!==void 0?n.mathSteps.jobId:void 0,streaming:c.streaming});if(!v)
-return!1;e.innerHTML=v;const w=e.querySelector(".math-steps");if(!w)return!1;mathStepsRootState.set(
+jobId:n.mathSteps&&n.mathSteps.jobId!==void 0?n.mathSteps.jobId:void 0,streaming:c.streaming});if(!b)
+return!1;e.innerHTML=b;const w=e.querySelector(".math-steps");if(!w)return!1;mathStepsRootState.set(
 w,c),mathStepsTextByRoot.set(w,String(t||"")),c.renderedStep=c.current,c.renderedMarkdown=m;const x=w.
-querySelector(".math-steps-body");if(b&&g&&x){const k=new Map;g.querySelectorAll(".mathsvg-render[da\
+querySelector(".math-steps-body");if(y&&g&&x){const k=new Map;g.querySelectorAll(".mathsvg-render[da\
 ta-svg-key]").forEach(C=>{const T=C.getAttribute("data-svg-key");T&&!k.has(T)&&k.set(T,C)}),x.querySelectorAll(
 ".mathsvg-render[data-svg-key]").forEach(C=>{const T=k.get(C.getAttribute("data-svg-key"));T&&C.replaceWith(
 T)}),x.replaceWith(g)}else if(x)try{queueMessageDecorations(x,m)}catch{}return!0}r(renderMathStepsInto,
@@ -3266,9 +3345,9 @@ sourceIndex};a.partIndex!==null&&a.partIndex!==void 0&&(o.part_index=a.partIndex
 apiFetch(MATH_STEPS_SIMPLIFY_ROUTE,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.
 stringify(o)}).then(async l=>{const c=await l.json().catch(()=>({}));let d=c&&Array.isArray(c.steps)?
 c.steps:[];if(!d.length&&c&&typeof c.text=="string"&&c.text.trim()&&(d=[{title:a.title,body:c.text}]),
-!l.ok||!c||c.status!=="ok"||!d.length){const b=l.status===409?"\u3053\u308C\u4EE5\u4E0A\u30B9\u30C6\u30C3\u30D7\u3092\u5897\u3084\u305B\u307E\u305B\u3093":
+!l.ok||!c||c.status!=="ok"||!d.length){const y=l.status===409?"\u3053\u308C\u4EE5\u4E0A\u30B9\u30C6\u30C3\u30D7\u3092\u5897\u3084\u305B\u307E\u305B\u3093":
 c&&c.error?c.error:"\u3084\u3055\u3057\u3044\u8AAC\u660E\u3092\u4F5C\u308C\u307E\u305B\u3093\u3067\u3057\u305F";
-throw new Error(b)}const m=normalizeMathStepsExpanded({[String(a.sourceIndex)]:d})[String(a.sourceIndex)];
+throw new Error(y)}const m=normalizeMathStepsExpanded({[String(a.sourceIndex)]:d})[String(a.sourceIndex)];
 if(!m||!m.length)throw new Error("\u3084\u3055\u3057\u3044\u8AAC\u660E\u3092\u4F5C\u308C\u307E\u305B\u3093\u3067\u3057\u305F");
 const g=normalizeMathStepsMessageState(c.math_steps_state||{});n.simplified=Object.assign({},g.simplified),
 n.expanded=Object.assign({},n.expanded,g.expanded,{[String(a.sourceIndex)]:m}),n.steps=buildMathStepsDisplaySteps(
@@ -3375,253 +3454,253 @@ r(initMathSteps,"initMathSteps"),window.initMathSteps=initMathSteps,document.add
 ntentLoaded",()=>{try{initMathSteps()}catch(e){console.error("math steps init failed",e)}},{once:!0}),
 r((function(){const t={projects:[],activeProjectUuid:null,activeProjectName:"",viewingProjectUuid:null,
 viewingProjectDetail:null,editingProjectUuid:null,movingThreadId:null,projectThreadsPage:1,projectThreadsHasNext:!1,
-projectThreadsQuery:"",searchTimer:null},n=r(L=>document.getElementById(L),"byId");function i(L,I){return String(
-L||"").replace("/0","/"+encodeURIComponent(String(I||"")))}r(i,"projectUrl");function a(L,I){return(window.
+projectThreadsQuery:"",searchTimer:null},n=r(L=>document.getElementById(L),"byId");function i(L,$){return String(
+L||"").replace("/0","/"+encodeURIComponent(String($||"")))}r(i,"projectUrl");function a(L,$){return(window.
 CHAT_CONFIG&&window.CHAT_CONFIG.urls&&window.CHAT_CONFIG.urls.handleProjectFileItem||"/api/projects/\
 0/files/0").replace("/projects/0/","/projects/"+encodeURIComponent(String(L||""))+"/").replace(/\/files\/0$/,
-"/files/"+encodeURIComponent(String(I||"")))}r(a,"projectFileItemUrl");function o(L){const I=Number(
-L||0);return I<1024?`${I} B`:I<1024*1024?`${(I/1024).toFixed(1)} KB`:`${(I/(1024*1024)).toFixed(1)} \
+"/files/"+encodeURIComponent(String($||"")))}r(a,"projectFileItemUrl");function o(L){const $=Number(
+L||0);return $<1024?`${$} B`:$<1024*1024?`${($/1024).toFixed(1)} KB`:`${($/(1024*1024)).toFixed(1)} \
 MB`}r(o,"formatBytes");function l(L){return typeof escapeHtml=="function"?escapeHtml(L==null?"":String(
 L)):String(L==null?"":L).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,
 "&quot;").replace(/'/g,"&#39;")}r(l,"esc");function c(){const L=[];try{typeof MODELS!="undefined"&&Array.
-isArray(MODELS)&&MODELS.forEach(I=>{(I.items||[]).forEach(A=>{const j=String(A.id||""),B=j.toLowerCase();
-j&&(/(image|video|tts|audio|live|embedding|ocr|transcribe|lyria|veo|sora|ideogram|dall-e|imagen|search)/.
-test(B)||(B.startsWith("gemini-")||B.startsWith("gpt-")||B.startsWith("o1-")||B.startsWith("o3-")||B.
-startsWith("claude-")||B.startsWith("grok-")||B.startsWith("glm-"))&&L.push({id:j,name:A.name||j,group:I.
-group||""}))})})}catch{}return L}r(c,"listVisionCapableModels");function d(L,I,A){if(!L)return;const j=String(
-I||"").trim(),B=A?`\u30E6\u30FC\u30B6\u30FC\u8A2D\u5B9A\u306E\u65E2\u5B9A\u5024\u3092\u4F7F\u3046 (${A}\
-)`:"\u30E6\u30FC\u30B6\u30FC\u8A2D\u5B9A\u306E\u65E2\u5B9A\u5024\u3092\u4F7F\u3046",D=c();let V=`<op\
-tion value="">${l(B)}</option>`,ee=!j;D.forEach($=>{$.id===j&&(ee=!0),V+=`<option value="${l($.id)}"\
->${l($.name)}</option>`}),j&&!ee&&(V+=`<option value="${l(j)}">${l(j)}</option>`),L.innerHTML=V,L.value=
-j}r(d,"populateVisionModelSelect");function m(){try{const L=n("set-default-vision-model");if(L&&L.value)
+isArray(MODELS)&&MODELS.forEach($=>{($.items||[]).forEach(M=>{const P=String(M.id||""),R=P.toLowerCase();
+P&&(/(image|video|tts|audio|live|embedding|ocr|transcribe|lyria|veo|sora|ideogram|dall-e|imagen|search)/.
+test(R)||(R.startsWith("gemini-")||R.startsWith("gpt-")||R.startsWith("o1-")||R.startsWith("o3-")||R.
+startsWith("claude-")||R.startsWith("grok-")||R.startsWith("glm-"))&&L.push({id:P,name:M.name||P,group:$.
+group||""}))})})}catch{}return L}r(c,"listVisionCapableModels");function d(L,$,M){if(!L)return;const P=String(
+$||"").trim(),R=M?`\u30E6\u30FC\u30B6\u30FC\u8A2D\u5B9A\u306E\u65E2\u5B9A\u5024\u3092\u4F7F\u3046 (${M}\
+)`:"\u30E6\u30FC\u30B6\u30FC\u8A2D\u5B9A\u306E\u65E2\u5B9A\u5024\u3092\u4F7F\u3046",q=c();let G=`<op\
+tion value="">${l(R)}</option>`,te=!P;q.forEach(O=>{O.id===P&&(te=!0),G+=`<option value="${l(O.id)}"\
+>${l(O.name)}</option>`}),P&&!te&&(G+=`<option value="${l(P)}">${l(P)}</option>`),L.innerHTML=G,L.value=
+P}r(d,"populateVisionModelSelect");function m(){try{const L=n("set-default-vision-model");if(L&&L.value)
 return L.value;if(typeof currentVisionModel=="string"&&currentVisionModel)return currentVisionModel}catch{}
 return"gemini-3-flash-preview"}r(m,"getDefaultVisionModelFromSettings");function g(){const L=n("proj\
-ect-chat-banner"),I=n("project-chat-banner-name"),A=n("project-chat-banner-meta");if(!L)return;const j=n(
-"project-view"),B=!!(j&&!j.classList.contains("hidden"));if(!t.activeProjectUuid||B){L.classList.add(
-"hidden");return}const D=t.projects.find(ee=>ee.uuid===t.activeProjectUuid),V=t.activeProjectName||D&&
-D.name||"Project";if(I&&(I.textContent=V),A){const ee=D?Number(D.file_count||0):0;A.textContent=ee>0?
-`\u5171\u6709\u30D5\u30A1\u30A4\u30EB ${ee}\u4EF6`:""}L.classList.remove("hidden")}r(g,"updateProjec\
-tChatBanner");function b(){const L=n("project-list");if(L){if(!t.projects.length){L.innerHTML='<div \
+ect-chat-banner"),$=n("project-chat-banner-name"),M=n("project-chat-banner-meta");if(!L)return;const P=n(
+"project-view"),R=!!(P&&!P.classList.contains("hidden"));if(!t.activeProjectUuid||R){L.classList.add(
+"hidden");return}const q=t.projects.find(te=>te.uuid===t.activeProjectUuid),G=t.activeProjectName||q&&
+q.name||"Project";if($&&($.textContent=G),M){const te=q?Number(q.file_count||0):0;M.textContent=te>0?
+`\u5171\u6709\u30D5\u30A1\u30A4\u30EB ${te}\u4EF6`:""}L.classList.remove("hidden")}r(g,"updateProjec\
+tChatBanner");function y(){const L=n("project-list");if(L){if(!t.projects.length){L.innerHTML='<div \
 class="px-2 py-1 text-[11px] text-gray-500">\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u306A\u3057</div>';
-return}L.innerHTML="",t.projects.forEach(I=>{const A=t.viewingProjectUuid===I.uuid||t.activeProjectUuid===
-I.uuid,j=document.createElement("div");j.className=`px-2 py-1.5 rounded hover:bg-gray-700 cursor-poi\
-nter text-xs text-gray-300 flex items-center justify-between gap-1 group ${A?"bg-gray-700/60 border-\
-l-2 border-amber-400":""}`,j.dataset.projectUuid=I.uuid;const B=Number(I.thread_count||0);j.innerHTML=
+return}L.innerHTML="",t.projects.forEach($=>{const M=t.viewingProjectUuid===$.uuid||t.activeProjectUuid===
+$.uuid,P=document.createElement("div");P.className=`px-2 py-1.5 rounded hover:bg-gray-700 cursor-poi\
+nter text-xs text-gray-300 flex items-center justify-between gap-1 group ${M?"bg-gray-700/60 border-\
+l-2 border-amber-400":""}`,P.dataset.projectUuid=$.uuid;const R=Number($.thread_count||0);P.innerHTML=
 `
                         <div class="flex items-center gap-1.5 min-w-0 flex-1">
                             <i class="fas fa-folder text-amber-300/90 text-[11px] shrink-0"></i>
-                            <span class="truncate">${l(I.name)}</span>
+                            <span class="truncate">${l($.name)}</span>
                         </div>
                         <div class="flex items-center gap-1 shrink-0">
-                            <span class="text-[10px] text-gray-500">${B}</span>
+                            <span class="text-[10px] text-gray-500">${R}</span>
                             <button type="button" class="text-gray-500 hover:text-white px-1 opacity\
--100 md:opacity-0 md:group-hover:opacity-100 transition" data-project-edit="${l(I.uuid)}" title="\u30D7\u30ED\u30B8\
+-100 md:opacity-0 md:group-hover:opacity-100 transition" data-project-edit="${l($.uuid)}" title="\u30D7\u30ED\u30B8\
 \u30A7\u30AF\u30C8\u3092\u7DE8\u96C6">
                                 <i class="fas fa-pen text-[10px]"></i>
                             </button>
                         </div>
-                    `,j.onclick=D=>{if(D.target&&D.target.closest?D.target.closest("[data-project-ed\
-it]"):null){D.stopPropagation(),window.openProjectModal(I.uuid);return}window.openProjectView(I.uuid)},
-L.appendChild(j)})}}r(b,"renderSidebarProjects");async function v(){try{const L=window.CHAT_CONFIG&&
-window.CHAT_CONFIG.urls&&window.CHAT_CONFIG.urls.handleProjects||"/api/projects",I=await apiFetch(L);
-if(!I.ok)return t.projects;const A=await I.json();Array.isArray(A)&&(t.projects=A,b(),g())}catch(L){
-console.error("Failed to load projects:",L)}return t.projects}r(v,"loadProjects");function w(L){const I=n(
-"project-view-file-list"),A=n("project-view-file-count");if(!I)return;const j=L&&Array.isArray(L.files)?
-L.files:[];if(A&&(A.textContent=`(${j.length})`),!j.length){I.innerHTML='<div class="text-xs text-gr\
+                    `,P.onclick=q=>{if(q.target&&q.target.closest?q.target.closest("[data-project-ed\
+it]"):null){q.stopPropagation(),window.openProjectModal($.uuid);return}window.openProjectView($.uuid)},
+L.appendChild(P)})}}r(y,"renderSidebarProjects");async function b(){try{const L=window.CHAT_CONFIG&&
+window.CHAT_CONFIG.urls&&window.CHAT_CONFIG.urls.handleProjects||"/api/projects",$=await apiFetch(L);
+if(!$.ok)return t.projects;const M=await $.json();Array.isArray(M)&&(t.projects=M,y(),g())}catch(L){
+console.error("Failed to load projects:",L)}return t.projects}r(b,"loadProjects");function w(L){const $=n(
+"project-view-file-list"),M=n("project-view-file-count");if(!$)return;const P=L&&Array.isArray(L.files)?
+L.files:[];if(M&&(M.textContent=`(${P.length})`),!P.length){$.innerHTML='<div class="text-xs text-gr\
 ay-500 py-3 text-center">\u5171\u6709\u30D5\u30A1\u30A4\u30EB\u306F\u307E\u3060\u3042\u308A\u307E\u305B\u3093\u3002\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u307E\u305F\u306F\u30E9\u30A4\u30D6\u30E9\u30EA\u304B\u3089\u8FFD\u52A0\u3067\u304D\u307E\u3059\u3002</div>';
-return}I.innerHTML="",j.forEach(B=>{const D=document.createElement("div");D.className="flex items-ce\
+return}$.innerHTML="",P.forEach(R=>{const q=document.createElement("div");q.className="flex items-ce\
 nter justify-between gap-2 rounded-lg border border-gray-700/70 bg-gray-900/70 px-2.5 py-2 text-xs";
-const V=B.is_image?"fa-image text-purple-300":"fa-file-lines text-blue-300",ee=B.note?`<div class="t\
-ext-[10px] text-gray-400 truncate">${l(B.note)}</div>`:"";D.innerHTML=`
+const G=R.is_image?"fa-image text-purple-300":"fa-file-lines text-blue-300",te=R.note?`<div class="t\
+ext-[10px] text-gray-400 truncate">${l(R.note)}</div>`:"";q.innerHTML=`
                         <div class="flex items-center gap-2 min-w-0 flex-1">
-                            <i class="fas ${V} shrink-0"></i>
+                            <i class="fas ${G} shrink-0"></i>
                             <div class="min-w-0 flex-1">
-                                <div class="text-gray-200 truncate" title="${l(B.filename)}">${l(B.filename)}\
+                                <div class="text-gray-200 truncate" title="${l(R.filename)}">${l(R.filename)}\
 </div>
-                                ${ee}
-                                <div class="text-[10px] text-gray-500">${l(o(B.size))}${B.is_image?"\
+                                ${te}
+                                <div class="text-[10px] text-gray-500">${l(o(R.size))}${R.is_image?"\
  \xB7 \u753B\u50CF":""}</div>
                             </div>
                         </div>
                         <div class="flex items-center gap-1 shrink-0">
                             <button type="button" class="text-gray-400 hover:text-blue-300 p-1" data\
--pf-note="${B.id}" title="\u30E1\u30E2\u3092\u7DE8\u96C6"><i class="fas fa-note-sticky text-[11px]"></i></button>
+-pf-note="${R.id}" title="\u30E1\u30E2\u3092\u7DE8\u96C6"><i class="fas fa-note-sticky text-[11px]"></i></button>
                             <button type="button" class="text-gray-400 hover:text-red-400 p-1" data-\
-pf-remove="${B.id}" title="\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u304B\u3089\u5916\u3059"><i class="fas fa-times text-[11px]"></i></button>
+pf-remove="${R.id}" title="\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u304B\u3089\u5916\u3059"><i class="fas fa-times text-[11px]"></i></button>
                         </div>
-                    `,D.onclick=async $=>{if($.target&&$.target.closest?$.target.closest("[data-pf-n\
-ote]"):null){$.stopPropagation();const F=prompt("\u3053\u306E\u30D5\u30A1\u30A4\u30EB\u306E\u77ED\u3044\u8AAC\u660E\u30FB\u30E1\u30E2\uFF08\u30E2\u30C7\u30EB\u304C\u53C2\u7167\u5224\u65AD\u306B\u4F7F\u3044\u307E\u3059\uFF09:",
-B.note||"");if(F===null)return;try{(await apiFetch(a(L.uuid,B.id),{method:"PUT",headers:{"Content-Ty\
+                    `,q.onclick=async O=>{if(O.target&&O.target.closest?O.target.closest("[data-pf-n\
+ote]"):null){O.stopPropagation();const F=prompt("\u3053\u306E\u30D5\u30A1\u30A4\u30EB\u306E\u77ED\u3044\u8AAC\u660E\u30FB\u30E1\u30E2\uFF08\u30E2\u30C7\u30EB\u304C\u53C2\u7167\u5224\u65AD\u306B\u4F7F\u3044\u307E\u3059\uFF09:",
+R.note||"");if(F===null)return;try{(await apiFetch(a(L.uuid,R.id),{method:"PUT",headers:{"Content-Ty\
 pe":"application/json"},body:JSON.stringify({note:F})})).ok?(await C(),showToast("\u30D5\u30A1\u30A4\u30EB\u306E\u30E1\u30E2\u3092\u66F4\u65B0\u3057\u307E\u3057\u305F",
 "success")):showToast("\u30E1\u30E2\u306E\u66F4\u65B0\u306B\u5931\u6557\u3057\u307E\u3057\u305F","er\
 ror",!0)}catch{showToast("\u30E1\u30E2\u306E\u66F4\u65B0\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
-"error",!0)}return}if($.target&&$.target.closest?$.target.closest("[data-pf-remove]"):null){if($.stopPropagation(),
-!confirm(`\u300C${B.filename}\u300D\u3092\u3053\u306E\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u304B\u3089\u5916\u3057\u307E\u3059\u304B\uFF1F
+"error",!0)}return}if(O.target&&O.target.closest?O.target.closest("[data-pf-remove]"):null){if(O.stopPropagation(),
+!confirm(`\u300C${R.filename}\u300D\u3092\u3053\u306E\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u304B\u3089\u5916\u3057\u307E\u3059\u304B\uFF1F
 \uFF08\u30D5\u30A1\u30A4\u30EB\u30E9\u30A4\u30D6\u30E9\u30EA\u306E\u5B9F\u4F53\u306F\u6B8B\u308A\u307E\u3059\uFF09`))
-return;try{(await apiFetch(a(L.uuid,B.id),{method:"DELETE"})).ok?(await C(),await v(),showToast("\u30D7\u30ED\u30B8\
+return;try{(await apiFetch(a(L.uuid,R.id),{method:"DELETE"})).ok?(await C(),await b(),showToast("\u30D7\u30ED\u30B8\
 \u30A7\u30AF\u30C8\u304B\u3089\u30D5\u30A1\u30A4\u30EB\u3092\u5916\u3057\u307E\u3057\u305F","success")):
 showToast("\u30D5\u30A1\u30A4\u30EB\u306E\u89E3\u9664\u306B\u5931\u6557\u3057\u307E\u3057\u305F","er\
 ror",!0)}catch{showToast("\u30D5\u30A1\u30A4\u30EB\u306E\u89E3\u9664\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
-"error",!0)}}},I.appendChild(D)})}r(w,"renderProjectFiles");function x(L){const I=n("project-view-vi\
-sion-toggle"),A=n("project-view-vision-model-wrap"),j=n("project-view-vision-model-select"),B=n("pro\
-ject-view-vision-hint");if(!I)return;const D=!!(L&&L.use_vision_for_images);I.checked=D,A&&A.classList.
-toggle("hidden",!D),j&&d(j,L?L.vision_model:"",m()),B&&(B.textContent=D?`ON: \u5171\u6709\u753B\u50CF\u304C\u53C2\u7167\u3055\u308C\u305F\u3068\u304D ${L.
+"error",!0)}}},$.appendChild(q)})}r(w,"renderProjectFiles");function x(L){const $=n("project-view-vi\
+sion-toggle"),M=n("project-view-vision-model-wrap"),P=n("project-view-vision-model-select"),R=n("pro\
+ject-view-vision-hint");if(!$)return;const q=!!(L&&L.use_vision_for_images);$.checked=q,M&&M.classList.
+toggle("hidden",!q),P&&d(P,L?L.vision_model:"",m()),R&&(R.textContent=q?`ON: \u5171\u6709\u753B\u50CF\u304C\u53C2\u7167\u3055\u308C\u305F\u3068\u304D ${L.
 effective_vision_model||m()} \u3067\u30C6\u30AD\u30B9\u30C8\u89E3\u6790\u3057\u307E\u3059\u3002`:"OF\
 F\u306E\u3068\u304D\u306F\u5171\u6709\u753B\u50CF\u306E\u4E2D\u8EAB\u3092\u8AAD\u307E\u305A\u3001\u30E1\u30BF\u60C5\u5831\u3068\u6848\u5185\u306E\u307F\u8FD4\u3057\u307E\u3059\u3002")}
-r(x,"renderProjectVisionBar");async function k(L,I=!1){var V,ee;const A=n("project-view-thread-list"),
-j=n("project-view-thread-more-btn");if(!A||!L)return;I||(t.projectThreadsPage=1,t.projectThreadsHasNext=
-!1);const D=`${i(((ee=(V=window.CHAT_CONFIG)==null?void 0:V.urls)==null?void 0:ee.handleProjectThreads)||
+r(x,"renderProjectVisionBar");async function k(L,$=!1){var G,te;const M=n("project-view-thread-list"),
+P=n("project-view-thread-more-btn");if(!M||!L)return;$||(t.projectThreadsPage=1,t.projectThreadsHasNext=
+!1);const q=`${i(((te=(G=window.CHAT_CONFIG)==null?void 0:G.urls)==null?void 0:te.handleProjectThreads)||
 "/api/projects/0/threads",L)}?q=${encodeURIComponent(t.projectThreadsQuery||"")}&page=${t.projectThreadsPage}`;
-try{const $=await apiFetch(D);if(!$.ok)return;const R=await $.json(),J=Array.isArray(R.threads)?R.threads:
-[];I||(A.innerHTML=""),!I&&!J.length?A.innerHTML='<div class="text-xs text-gray-500 py-4 text-center\
+try{const O=await apiFetch(q);if(!O.ok)return;const B=await O.json(),J=Array.isArray(B.threads)?B.threads:
+[];$||(M.innerHTML=""),!$&&!J.length?M.innerHTML='<div class="text-xs text-gray-500 py-4 text-center\
 ">\u3053\u306E\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u306B\u306F\u307E\u3060\u30C1\u30E3\u30C3\u30C8\u304C\u3042\u308A\u307E\u305B\u3093\u3002\u300C\u65B0\u898F\u30C1\u30E3\u30C3\u30C8\u300D\u304B\u3089\u59CB\u3081\u3089\u308C\u307E\u3059\u3002</div>':
-J.forEach(F=>{const H=String(F.id),te=document.createElement("div"),G=F.is_bookmarked?"text-yellow-4\
-00":"text-gray-500",X=F.is_temporary?'<span class="text-[9px] text-amber-300 border border-amber-500\
-/50 rounded px-1">\u4E00\u6642</span>':"";te.className="p-2 rounded-lg hover:bg-gray-700/70 cursor-p\
-ointer text-xs text-gray-200 flex items-center justify-between gap-2 group border border-transparent\
- hover:border-gray-700",te.innerHTML=`
+J.forEach(F=>{const D=String(F.id),Z=document.createElement("div"),V=F.is_bookmarked?"text-yellow-40\
+0":"text-gray-500",X=F.is_temporary?'<span class="text-[9px] text-amber-300 border border-amber-500/\
+50 rounded px-1">\u4E00\u6642</span>':"";Z.className="p-2 rounded-lg hover:bg-gray-700/70 cursor-poi\
+nter text-xs text-gray-200 flex items-center justify-between gap-2 group border border-transparent h\
+over:border-gray-700",Z.innerHTML=`
                                 <div class="flex items-center gap-1.5 min-w-0 flex-1">
-                                    <button type="button" class="${G} hover:text-yellow-400 px-1" da\
-ta-pt-star="${l(H)}"><i class="fas fa-star text-[10px]"></i></button>
+                                    <button type="button" class="${V} hover:text-yellow-400 px-1" da\
+ta-pt-star="${l(D)}"><i class="fas fa-star text-[10px]"></i></button>
                                     <span class="truncate">${l(F.title||"New Chat")}</span>
                                     ${X}
                                 </div>
                                 <div class="flex items-center gap-1 shrink-0 opacity-100 md:opacity-\
 0 md:group-hover:opacity-100 transition">
                                     <button type="button" class="text-gray-400 hover:text-amber-300 \
-px-1" data-pt-move="${l(H)}" title="\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u79FB\u52D5\u30FB\u89E3\u9664"><i class="fas fa-folder-open text-[11px]"></i></but\
+px-1" data-pt-move="${l(D)}" title="\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u79FB\u52D5\u30FB\u89E3\u9664"><i class="fas fa-folder-open text-[11px]"></i></but\
 ton>
                                     <button type="button" class="text-gray-400 hover:text-white px-1\
-" data-pt-rename="${l(H)}" title="\u540D\u524D\u5909\u66F4"><i class="fas fa-pen text-[11px]"></i></button>
+" data-pt-rename="${l(D)}" title="\u540D\u524D\u5909\u66F4"><i class="fas fa-pen text-[11px]"></i></button>
                                     <button type="button" class="text-gray-400 hover:text-red-400 px\
--1" data-pt-delete="${l(H)}" title="\u524A\u9664"><i class="fas fa-trash text-[11px]"></i></button>
+-1" data-pt-delete="${l(D)}" title="\u524A\u9664"><i class="fas fa-trash text-[11px]"></i></button>
                                 </div>
-                            `,te.onclick=async ce=>{var ve,ue,ge,je,Me,lt,he,we;if((ue=(ve=ce.target)==
-null?void 0:ve.closest)==null?void 0:ue.call(ve,"[data-pt-star]")){ce.stopPropagation(),typeof toggleBookmark==
-"function"&&await toggleBookmark(ce,H),await k(L,!1);return}if((je=(ge=ce.target)==null?void 0:ge.closest)==
-null?void 0:je.call(ge,"[data-pt-move]")){ce.stopPropagation(),window.openMoveThreadProjectModal(ce,
-H,F.title||"New Chat",L);return}if((lt=(Me=ce.target)==null?void 0:Me.closest)==null?void 0:lt.call(
-Me,"[data-pt-rename]")){ce.stopPropagation(),typeof renameThread=="function"&&await renameThread(ce,
-H),setTimeout(()=>k(L,!1),300);return}if((we=(he=ce.target)==null?void 0:he.closest)==null?void 0:we.
-call(he,"[data-pt-delete]")){ce.stopPropagation(),typeof deleteThread=="function"&&await deleteThread(
-ce,H),setTimeout(()=>{k(L,!1),v()},300);return}window.hideProjectViewForChat(),typeof loadMessages==
-"function"&&loadMessages(H)},A.appendChild(te)}),t.projectThreadsHasNext=!!R.has_next,t.projectThreadsHasNext&&
-t.projectThreadsPage++,j&&j.classList.toggle("hidden",!t.projectThreadsHasNext)}catch($){console.error(
-"Failed to load project threads:",$)}}r(k,"loadProjectThreads");async function C(){var D,V;if(!t.viewingProjectUuid)
-return null;const L=i(((V=(D=window.CHAT_CONFIG)==null?void 0:D.urls)==null?void 0:V.handleProjectItem)||
-"/api/projects/0",t.viewingProjectUuid),I=await apiFetch(L);if(!I.ok)return null;const A=await I.json();
-t.viewingProjectDetail=A,t.activeProjectUuid=A.uuid,t.activeProjectName=A.name,n("project-view-name")&&
-(n("project-view-name").textContent=A.name||"");const j=n("project-view-desc");j&&(j.textContent=A.description||
-"",j.classList.toggle("hidden",!A.description));const B=n("project-view-instruction-preview");return B&&
-(B.textContent=A.instruction&&String(A.instruction).trim()?A.instruction:"\uFF08\u672A\u8A2D\u5B9A\uFF09"),
-x(A),w(A),A}r(C,"refreshViewingProject"),window.openProjectView=async(L,I={})=>{if(!L)return;t.viewingProjectUuid=
-String(L),t.activeProjectUuid=String(L);const A=t.projects.find(B=>B.uuid===t.viewingProjectUuid);A&&
-(t.activeProjectName=A.name);const j=n("project-view");if(j&&j.classList.remove("hidden"),n("welcome\
--screen")&&n("welcome-screen").classList.add("hidden"),g(),b(),!I.skipHistory){const B="/p/"+encodeURIComponent(
-t.viewingProjectUuid);location.pathname!==B&&history.pushState({projectUuid:t.viewingProjectUuid},"",
-B)}if(window.innerWidth<768&&n("overlay"))try{n("overlay").click()}catch{}t.projectThreadsQuery="",n(
+                            `,Z.onclick=async oe=>{var we,ye,ve,Ie,Se,lt,fe,be;if((ye=(we=oe.target)==
+null?void 0:we.closest)==null?void 0:ye.call(we,"[data-pt-star]")){oe.stopPropagation(),typeof toggleBookmark==
+"function"&&await toggleBookmark(oe,D),await k(L,!1);return}if((Ie=(ve=oe.target)==null?void 0:ve.closest)==
+null?void 0:Ie.call(ve,"[data-pt-move]")){oe.stopPropagation(),window.openMoveThreadProjectModal(oe,
+D,F.title||"New Chat",L);return}if((lt=(Se=oe.target)==null?void 0:Se.closest)==null?void 0:lt.call(
+Se,"[data-pt-rename]")){oe.stopPropagation(),typeof renameThread=="function"&&await renameThread(oe,
+D),setTimeout(()=>k(L,!1),300);return}if((be=(fe=oe.target)==null?void 0:fe.closest)==null?void 0:be.
+call(fe,"[data-pt-delete]")){oe.stopPropagation(),typeof deleteThread=="function"&&await deleteThread(
+oe,D),setTimeout(()=>{k(L,!1),b()},300);return}window.hideProjectViewForChat(),typeof loadMessages==
+"function"&&loadMessages(D)},M.appendChild(Z)}),t.projectThreadsHasNext=!!B.has_next,t.projectThreadsHasNext&&
+t.projectThreadsPage++,P&&P.classList.toggle("hidden",!t.projectThreadsHasNext)}catch(O){console.error(
+"Failed to load project threads:",O)}}r(k,"loadProjectThreads");async function C(){var q,G;if(!t.viewingProjectUuid)
+return null;const L=i(((G=(q=window.CHAT_CONFIG)==null?void 0:q.urls)==null?void 0:G.handleProjectItem)||
+"/api/projects/0",t.viewingProjectUuid),$=await apiFetch(L);if(!$.ok)return null;const M=await $.json();
+t.viewingProjectDetail=M,t.activeProjectUuid=M.uuid,t.activeProjectName=M.name,n("project-view-name")&&
+(n("project-view-name").textContent=M.name||"");const P=n("project-view-desc");P&&(P.textContent=M.description||
+"",P.classList.toggle("hidden",!M.description));const R=n("project-view-instruction-preview");return R&&
+(R.textContent=M.instruction&&String(M.instruction).trim()?M.instruction:"\uFF08\u672A\u8A2D\u5B9A\uFF09"),
+x(M),w(M),M}r(C,"refreshViewingProject"),window.openProjectView=async(L,$={})=>{if(!L)return;t.viewingProjectUuid=
+String(L),t.activeProjectUuid=String(L);const M=t.projects.find(R=>R.uuid===t.viewingProjectUuid);M&&
+(t.activeProjectName=M.name);const P=n("project-view");if(P&&P.classList.remove("hidden"),n("welcome\
+-screen")&&n("welcome-screen").classList.add("hidden"),g(),y(),!$.skipHistory){const R="/p/"+encodeURIComponent(
+t.viewingProjectUuid);location.pathname!==R&&history.pushState({projectUuid:t.viewingProjectUuid},"",
+R)}if(window.innerWidth<768&&n("overlay"))try{n("overlay").click()}catch{}t.projectThreadsQuery="",n(
 "project-view-thread-search")&&(n("project-view-thread-search").value=""),await C(),await k(t.viewingProjectUuid,
 !1)},window.hideProjectViewForChat=()=>{const L=n("project-view");L&&L.classList.add("hidden"),t.viewingProjectUuid=
-null,g(),b()},window.closeProjectView=(L={})=>{const I=n("project-view");I&&I.classList.add("hidden"),
+null,g(),y()},window.closeProjectView=(L={})=>{const $=n("project-view");$&&$.classList.add("hidden"),
 t.viewingProjectUuid=null,t.viewingProjectDetail=null,L.keepContext||(t.activeProjectUuid=null,t.activeProjectName=
-""),g(),b(),!L.skipHistory&&location.pathname.startsWith("/p/")&&history.pushState({},"","/"),!L.keepWelcome&&
+""),g(),y(),!L.skipHistory&&location.pathname.startsWith("/p/")&&history.pushState({},"","/"),!L.keepWelcome&&
 !currentThreadId&&n("welcome-screen")&&n("welcome-screen").classList.remove("hidden")},window.setActiveProjectContext=
-(L,I)=>{t.activeProjectUuid=L?String(L):null,t.activeProjectName=I?String(I):"",g(),b()},window.getActiveProjectId=
+(L,$)=>{t.activeProjectUuid=L?String(L):null,t.activeProjectName=$?String($):"",g(),y()},window.getActiveProjectId=
 ()=>t.activeProjectUuid||null,window.openProjectModal=async(L=null)=>{var J,F;t.editingProjectUuid=L?
-String(L):null;const I=n("project-modal-title"),A=n("project-name-input"),j=n("project-desc-input"),
-B=n("project-inst-input"),D=n("project-use-vision-toggle"),V=n("project-vision-model-wrap"),ee=n("pr\
-oject-vision-model-select");let $=null;if(t.editingProjectUuid&&($=t.viewingProjectDetail&&t.viewingProjectDetail.
-uuid===t.editingProjectUuid?t.viewingProjectDetail:t.projects.find(H=>H.uuid===t.editingProjectUuid),
-!$))try{const H=await apiFetch(i(((F=(J=window.CHAT_CONFIG)==null?void 0:J.urls)==null?void 0:F.handleProjectItem)||
-"/api/projects/0",t.editingProjectUuid));H.ok&&($=await H.json())}catch{}I&&(I.textContent=$?"Edit P\
-roject":"Create New Project"),A&&(A.value=$&&$.name||""),j&&(j.value=$&&$.description||""),B&&(B.value=
-$&&$.instruction||"");const R=!!($&&$.use_vision_for_images);D&&(D.checked=R),V&&V.classList.toggle(
-"hidden",!R),ee&&d(ee,$?$.vision_model:"",m()),showModal("project-modal"),A&&setTimeout(()=>A.focus(),
+String(L):null;const $=n("project-modal-title"),M=n("project-name-input"),P=n("project-desc-input"),
+R=n("project-inst-input"),q=n("project-use-vision-toggle"),G=n("project-vision-model-wrap"),te=n("pr\
+oject-vision-model-select");let O=null;if(t.editingProjectUuid&&(O=t.viewingProjectDetail&&t.viewingProjectDetail.
+uuid===t.editingProjectUuid?t.viewingProjectDetail:t.projects.find(D=>D.uuid===t.editingProjectUuid),
+!O))try{const D=await apiFetch(i(((F=(J=window.CHAT_CONFIG)==null?void 0:J.urls)==null?void 0:F.handleProjectItem)||
+"/api/projects/0",t.editingProjectUuid));D.ok&&(O=await D.json())}catch{}$&&($.textContent=O?"Edit P\
+roject":"Create New Project"),M&&(M.value=O&&O.name||""),P&&(P.value=O&&O.description||""),R&&(R.value=
+O&&O.instruction||"");const B=!!(O&&O.use_vision_for_images);q&&(q.checked=B),G&&G.classList.toggle(
+"hidden",!B),te&&d(te,O?O.vision_model:"",m()),showModal("project-modal"),M&&setTimeout(()=>M.focus(),
 50)},window.closeProjectModal=(L=!1)=>{hideModal("project-modal"),t.editingProjectUuid=null,!L&&location.
-pathname==="/project"&&history.back()},window.openMoveThreadProjectModal=async(L,I,A,j=null)=>{L&&typeof L.
-stopPropagation=="function"&&L.stopPropagation(),t.movingThreadId=String(I||""),t.projects.length||await v();
-const B=n("move-thread-project-chat-name");B&&(B.textContent=A||"\u30C1\u30E3\u30C3\u30C8");const D=n(
-"move-thread-project-select");if(D){let V='<option value="">\uFF08\u672A\u6240\u5C5E / \u901A\u5E38\u306E\u5C65\u6B74\u3078\u623B\u3059\uFF09</option>';
-t.projects.forEach(ee=>{V+=`<option value="${l(ee.uuid)}">${l(ee.name)}</option>`}),D.innerHTML=V,D.
-value=j?String(j):""}showModal("move-thread-project-modal")},window.closeMoveThreadProjectModal=()=>{
+pathname==="/project"&&history.back()},window.openMoveThreadProjectModal=async(L,$,M,P=null)=>{L&&typeof L.
+stopPropagation=="function"&&L.stopPropagation(),t.movingThreadId=String($||""),t.projects.length||await b();
+const R=n("move-thread-project-chat-name");R&&(R.textContent=M||"\u30C1\u30E3\u30C3\u30C8");const q=n(
+"move-thread-project-select");if(q){let G='<option value="">\uFF08\u672A\u6240\u5C5E / \u901A\u5E38\u306E\u5C65\u6B74\u3078\u623B\u3059\uFF09</option>';
+t.projects.forEach(te=>{G+=`<option value="${l(te.uuid)}">${l(te.name)}</option>`}),q.innerHTML=G,q.
+value=P?String(P):""}showModal("move-thread-project-modal")},window.closeMoveThreadProjectModal=()=>{
 hideModal("move-thread-project-modal"),t.movingThreadId=null},window.syncThreadProjectSettingsModal=
-L=>{const I=n("thread-project-select"),A=n("thread-project-instruction-controls"),j=n("thread-includ\
-e-project-instruction"),B=n("thread-project-instruction-preview"),D=n("thread-open-project-btn");if(!I)
-return;let V='<option value="">\uFF08\u672A\u6240\u5C5E\uFF09</option>';t.projects.forEach(R=>{V+=`<\
-option value="${l(R.uuid)}">${l(R.name)}</option>`});const ee=L&&L.project_id?String(L.project_id):"";
-ee&&!t.projects.some(R=>R.uuid===ee)&&(V+=`<option value="${l(ee)}">${l(L.project_name||ee)}</option\
->`),I.innerHTML=V,I.value=ee,j&&(j.checked=L?L.include_project_instruction!==!1:!0);const $=r(()=>{const R=I.
-value||"";if(A&&A.classList.toggle("hidden",!R),B)if(R&&L&&R===String(L.project_id||""))B.value=L.project_instruction||
-"";else if(R){const J=t.projects.find(F=>F.uuid===R);B.value=J&&J.instruction||""}else B.value="";D&&
-(D.onclick=()=>{I.value&&(typeof window.closeThreadModal=="function"&&window.closeThreadModal(!0),window.
-openProjectView(I.value))})},"updateControls");I.onchange=$,$()};async function T(){var B,D;if(!t.viewingProjectUuid)
-return;const L=n("project-view-vision-toggle"),I=n("project-view-vision-model-select"),A=!!(L&&L.checked),
-j=I&&I.value||"";try{const V=i(((D=(B=window.CHAT_CONFIG)==null?void 0:B.urls)==null?void 0:D.handleProjectItem)||
-"/api/projects/0",t.viewingProjectUuid),ee=await apiFetch(V,{method:"PUT",headers:{"Content-Type":"a\
-pplication/json"},body:JSON.stringify({use_vision_for_images:A,vision_model:j})});if(ee.ok){const $=await ee.
-json();t.viewingProjectDetail=$,x($),await v(),showToast("\u753B\u50CF\u306EVision\u30E2\u30C7\u30EB\u8A2D\u5B9A\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F",
+L=>{const $=n("thread-project-select"),M=n("thread-project-instruction-controls"),P=n("thread-includ\
+e-project-instruction"),R=n("thread-project-instruction-preview"),q=n("thread-open-project-btn");if(!$)
+return;let G='<option value="">\uFF08\u672A\u6240\u5C5E\uFF09</option>';t.projects.forEach(B=>{G+=`<\
+option value="${l(B.uuid)}">${l(B.name)}</option>`});const te=L&&L.project_id?String(L.project_id):"";
+te&&!t.projects.some(B=>B.uuid===te)&&(G+=`<option value="${l(te)}">${l(L.project_name||te)}</option\
+>`),$.innerHTML=G,$.value=te,P&&(P.checked=L?L.include_project_instruction!==!1:!0);const O=r(()=>{const B=$.
+value||"";if(M&&M.classList.toggle("hidden",!B),R)if(B&&L&&B===String(L.project_id||""))R.value=L.project_instruction||
+"";else if(B){const J=t.projects.find(F=>F.uuid===B);R.value=J&&J.instruction||""}else R.value="";q&&
+(q.onclick=()=>{$.value&&(typeof window.closeThreadModal=="function"&&window.closeThreadModal(!0),window.
+openProjectView($.value))})},"updateControls");$.onchange=O,O()};async function T(){var R,q;if(!t.viewingProjectUuid)
+return;const L=n("project-view-vision-toggle"),$=n("project-view-vision-model-select"),M=!!(L&&L.checked),
+P=$&&$.value||"";try{const G=i(((q=(R=window.CHAT_CONFIG)==null?void 0:R.urls)==null?void 0:q.handleProjectItem)||
+"/api/projects/0",t.viewingProjectUuid),te=await apiFetch(G,{method:"PUT",headers:{"Content-Type":"a\
+pplication/json"},body:JSON.stringify({use_vision_for_images:M,vision_model:P})});if(te.ok){const O=await te.
+json();t.viewingProjectDetail=O,x(O),await b(),showToast("\u753B\u50CF\u306EVision\u30E2\u30C7\u30EB\u8A2D\u5B9A\u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F",
 "success")}else showToast("Vision\u30E2\u30C7\u30EB\u8A2D\u5B9A\u306E\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0)}catch{showToast("Vision\u30E2\u30C7\u30EB\u8A2D\u5B9A\u306E\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
-"error",!0)}}r(T,"saveProjectVisionInline");async function E(L){var A,j;if(!t.viewingProjectUuid||!Array.
-isArray(L)||!L.length)return;const I=i(((j=(A=window.CHAT_CONFIG)==null?void 0:A.urls)==null?void 0:
-j.handleProjectFiles)||"/api/projects/0/files",t.viewingProjectUuid);try{const B=await apiFetch(I,{method:"\
-POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filepaths:L})}),D=await B.json().
-catch(()=>({}));if(!B.ok){showToast(D.error==="project_file_limit_exceeded"?"\u5171\u6709\u30D5\u30A1\u30A4\u30EB\u306E\u4E0A\u9650\uFF0850\u4EF6\uFF09\u306B\u9054\u3057\u3066\u3044\u307E\u3059":
+"error",!0)}}r(T,"saveProjectVisionInline");async function A(L){var M,P;if(!t.viewingProjectUuid||!Array.
+isArray(L)||!L.length)return;const $=i(((P=(M=window.CHAT_CONFIG)==null?void 0:M.urls)==null?void 0:
+P.handleProjectFiles)||"/api/projects/0/files",t.viewingProjectUuid);try{const R=await apiFetch($,{method:"\
+POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({filepaths:L})}),q=await R.json().
+catch(()=>({}));if(!R.ok){showToast(q.error==="project_file_limit_exceeded"?"\u5171\u6709\u30D5\u30A1\u30A4\u30EB\u306E\u4E0A\u9650\uFF0850\u4EF6\uFF09\u306B\u9054\u3057\u3066\u3044\u307E\u3059":
 "\u30D5\u30A1\u30A4\u30EB\u306E\u8FFD\u52A0\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error",!0);return}
-const V=Array.isArray(D.added)?D.added.length:0;await C(),await v(),V>0?showToast(`\u5171\u6709\u30D5\u30A1\u30A4\u30EB\u3092 ${V}\
+const G=Array.isArray(q.added)?q.added.length:0;await C(),await b(),G>0?showToast(`\u5171\u6709\u30D5\u30A1\u30A4\u30EB\u3092 ${G}\
  \u4EF6\u8FFD\u52A0\u3057\u307E\u3057\u305F`,"success"):showToast("\u9078\u629E\u3057\u305F\u30D5\u30A1\u30A4\u30EB\u306F\u65E2\u306B\u8FFD\u52A0\u6E08\u307F\u3067\u3059",
 "info")}catch{showToast("\u30D5\u30A1\u30A4\u30EB\u306E\u8FFD\u52A0\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
-"error",!0)}}r(E,"attachFilepathsToViewingProject");async function N(L){if(!t.viewingProjectUuid||!L||
-!L.length)return;const I=window.CHAT_CONFIG&&window.CHAT_CONFIG.urls&&window.CHAT_CONFIG.urls.upload||
-"/upload",A=[];for(const j of Array.from(L)){const B=new FormData;B.append("file",j);try{const D=await apiFetch(
-I,{method:"POST",body:B}),V=await D.json().catch(()=>({})),ee=V.filepath||V.path||V.url;D.ok&&ee?A.push(
-ee):showToast(`\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u5931\u6557: ${j.name}`,"error",!0)}catch{showToast(
-`\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u5931\u6557: ${j.name}`,"error",!0)}}A.length&&await E(A)}r(N,
-"uploadFilesForViewingProject");function U(){n("add-project-btn")&&(n("add-project-btn").onclick=()=>window.
+"error",!0)}}r(A,"attachFilepathsToViewingProject");async function N(L){if(!t.viewingProjectUuid||!L||
+!L.length)return;const $=window.CHAT_CONFIG&&window.CHAT_CONFIG.urls&&window.CHAT_CONFIG.urls.upload||
+"/upload",M=[];for(const P of Array.from(L)){const R=new FormData;R.append("file",P);try{const q=await apiFetch(
+$,{method:"POST",body:R}),G=await q.json().catch(()=>({})),te=G.filepath||G.path||G.url;q.ok&&te?M.push(
+te):showToast(`\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u5931\u6557: ${P.name}`,"error",!0)}catch{showToast(
+`\u30A2\u30C3\u30D7\u30ED\u30FC\u30C9\u5931\u6557: ${P.name}`,"error",!0)}}M.length&&await A(M)}r(N,
+"uploadFilesForViewingProject");function H(){n("add-project-btn")&&(n("add-project-btn").onclick=()=>window.
 openProjectModal(null)),n("project-use-vision-toggle")&&(n("project-use-vision-toggle").onchange=()=>{
 const L=n("project-vision-model-wrap");L&&L.classList.toggle("hidden",!n("project-use-vision-toggle").
-checked)}),n("save-project-btn")&&(n("save-project-btn").onclick=async()=>{var ee,$,R,J,F,H,te,G,X;const L=(((ee=
-n("project-name-input"))==null?void 0:ee.value)||"").trim(),I=((($=n("project-desc-input"))==null?void 0:
-$.value)||"").trim(),A=((R=n("project-inst-input"))==null?void 0:R.value)||"",j=!!((J=n("project-use\
--vision-toggle"))!=null&&J.checked),B=((F=n("project-vision-model-select"))==null?void 0:F.value)||"";
+checked)}),n("save-project-btn")&&(n("save-project-btn").onclick=async()=>{var te,O,B,J,F,D,Z,V,X;const L=(((te=
+n("project-name-input"))==null?void 0:te.value)||"").trim(),$=(((O=n("project-desc-input"))==null?void 0:
+O.value)||"").trim(),M=((B=n("project-inst-input"))==null?void 0:B.value)||"",P=!!((J=n("project-use\
+-vision-toggle"))!=null&&J.checked),R=((F=n("project-vision-model-select"))==null?void 0:F.value)||"";
 if(!L){showToast("\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u540D\u3092\u5165\u529B\u3057\u3066\u304F\u3060\u3055\u3044",
-"error",!0);return}const D=!!t.editingProjectUuid,V=D?i(((te=(H=window.CHAT_CONFIG)==null?void 0:H.urls)==
-null?void 0:te.handleProjectItem)||"/api/projects/0",t.editingProjectUuid):((X=(G=window.CHAT_CONFIG)==
-null?void 0:G.urls)==null?void 0:X.handleProjects)||"/api/projects";try{const ce=await apiFetch(V,{method:D?
-"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:L,description:I,instruction:A,
-use_vision_for_images:j,vision_model:B})}),de=await ce.json().catch(()=>({}));if(!ce.ok){showToast(de.
+"error",!0);return}const q=!!t.editingProjectUuid,G=q?i(((Z=(D=window.CHAT_CONFIG)==null?void 0:D.urls)==
+null?void 0:Z.handleProjectItem)||"/api/projects/0",t.editingProjectUuid):((X=(V=window.CHAT_CONFIG)==
+null?void 0:V.urls)==null?void 0:X.handleProjects)||"/api/projects";try{const oe=await apiFetch(G,{method:q?
+"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:L,description:$,instruction:M,
+use_vision_for_images:P,vision_model:R})}),de=await oe.json().catch(()=>({}));if(!oe.ok){showToast(de.
 error==="name_taken"?"\u540C\u3058\u540D\u524D\u306E\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u304C\u65E2\u306B\u3042\u308A\u307E\u3059":
 "\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u306E\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F","\
-error",!0);return}window.closeProjectModal(!0),await v(),D&&t.viewingProjectUuid===de.uuid?await C():
-!D&&de.uuid&&await window.openProjectView(de.uuid),showToast(D?"\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u3092\u66F4\u65B0\u3057\u307E\u3057\u305F":
+error",!0);return}window.closeProjectModal(!0),await b(),q&&t.viewingProjectUuid===de.uuid?await C():
+!q&&de.uuid&&await window.openProjectView(de.uuid),showToast(q?"\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u3092\u66F4\u65B0\u3057\u307E\u3057\u305F":
 "\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u3092\u4F5C\u6210\u3057\u307E\u3057\u305F","success")}catch{showToast(
 "\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u306E\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F","\
 error",!0)}}),n("save-move-thread-project-btn")&&(n("save-move-thread-project-btn").onclick=async()=>{
-var I;if(!t.movingThreadId)return;const L=((I=n("move-thread-project-select"))==null?void 0:I.value)||
-null;try{const A=await apiFetch(`/api/threads/${encodeURIComponent(t.movingThreadId)}/settings`,{method:"\
-PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({project_id:L})});if(!A.ok){showToast(
+var $;if(!t.movingThreadId)return;const L=(($=n("move-thread-project-select"))==null?void 0:$.value)||
+null;try{const M=await apiFetch(`/api/threads/${encodeURIComponent(t.movingThreadId)}/settings`,{method:"\
+PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({project_id:L})});if(!M.ok){showToast(
 "\u30C1\u30E3\u30C3\u30C8\u306E\u79FB\u52D5\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error",!0);return}
-const j=await A.json().catch(()=>({}));String(currentThreadId||"")===t.movingThreadId&&window.setActiveProjectContext(
-j.project_id||null,j.project_name||""),window.closeMoveThreadProjectModal(),await v(),typeof loadThreads==
+const P=await M.json().catch(()=>({}));String(currentThreadId||"")===t.movingThreadId&&window.setActiveProjectContext(
+P.project_id||null,P.project_name||""),window.closeMoveThreadProjectModal(),await b(),typeof loadThreads==
 "function"&&loadThreads(),t.viewingProjectUuid&&await k(t.viewingProjectUuid,!1),showToast("\u30C1\u30E3\u30C3\u30C8\u306E\u6240\u5C5E\u30D7\
 \u30ED\u30B8\u30A7\u30AF\u30C8\u3092\u66F4\u65B0\u3057\u307E\u3057\u305F","success")}catch{showToast(
 "\u30C1\u30E3\u30C3\u30C8\u306E\u79FB\u52D5\u306B\u5931\u6557\u3057\u307E\u3057\u305F","error",!0)}}),
 n("project-chat-banner-open")&&(n("project-chat-banner-open").onclick=()=>{t.activeProjectUuid&&window.
 openProjectView(t.activeProjectUuid)}),n("project-view-back-btn")&&(n("project-view-back-btn").onclick=
 ()=>{window.closeProjectView(),typeof startNewChat=="function"&&startNewChat()}),n("project-view-new\
--chat-btn")&&(n("project-view-new-chat-btn").onclick=()=>{const L=t.viewingProjectUuid,I=t.viewingProjectDetail&&
+-chat-btn")&&(n("project-view-new-chat-btn").onclick=()=>{const L=t.viewingProjectUuid,$=t.viewingProjectDetail&&
 t.viewingProjectDetail.name||t.activeProjectName;window.hideProjectViewForChat(),typeof startNewChat==
-"function"&&startNewChat({preserveProject:!0,projectId:L,projectName:I}),window.setActiveProjectContext(
-L,I);const A=n("prompt-input");A&&A.focus()}),n("project-view-edit-btn")&&(n("project-view-edit-btn").
+"function"&&startNewChat({preserveProject:!0,projectId:L,projectName:$}),window.setActiveProjectContext(
+L,$);const M=n("prompt-input");M&&M.focus()}),n("project-view-edit-btn")&&(n("project-view-edit-btn").
 onclick=()=>{t.viewingProjectUuid&&window.openProjectModal(t.viewingProjectUuid)}),n("project-view-e\
 dit-inst-btn")&&(n("project-view-edit-inst-btn").onclick=()=>{t.viewingProjectUuid&&window.openProjectModal(
 t.viewingProjectUuid)}),n("project-view-delete-btn")&&(n("project-view-delete-btn").onclick=async()=>{
-var I,A;const L=t.viewingProjectDetail;if(L&&confirm(`\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u300C${L.
+var $,M;const L=t.viewingProjectDetail;if(L&&confirm(`\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u300C${L.
 name}\u300D\u3092\u524A\u9664\u3057\u307E\u3059\u304B\uFF1F
 \u6240\u5C5E\u3057\u3066\u3044\u305F\u30C1\u30E3\u30C3\u30C8\u306F\u524A\u9664\u3055\u308C\u305A\u3001\u901A\u5E38\u306E\u5C65\u6B74\uFF08\u672A\u6240\u5C5E\uFF09\u3078\u623B\u308A\u307E\u3059\u3002`))
-try{const j=i(((A=(I=window.CHAT_CONFIG)==null?void 0:I.urls)==null?void 0:A.handleProjectItem)||"/a\
-pi/projects/0",L.uuid);if(!(await apiFetch(j,{method:"DELETE"})).ok){showToast("\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u306E\u524A\u9664\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
-"error",!0);return}window.closeProjectView(),await v(),typeof loadThreads=="function"&&loadThreads(),
+try{const P=i(((M=($=window.CHAT_CONFIG)==null?void 0:$.urls)==null?void 0:M.handleProjectItem)||"/a\
+pi/projects/0",L.uuid);if(!(await apiFetch(P,{method:"DELETE"})).ok){showToast("\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u306E\u524A\u9664\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
+"error",!0);return}window.closeProjectView(),await b(),typeof loadThreads=="function"&&loadThreads(),
 showToast("\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u3092\u524A\u9664\u3057\u307E\u3057\u305F\uFF08\u6240\u5C5E\u30C1\u30E3\u30C3\u30C8\u306F\u672A\u6240\u5C5E\u3078\u79FB\u52D5\u3057\u307E\u3057\u305F\uFF09",
 "success")}catch{showToast("\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u306E\u524A\u9664\u306B\u5931\u6557\u3057\u307E\u3057\u305F",
 "error",!0)}}),n("project-view-vision-toggle")&&(n("project-view-vision-toggle").onchange=()=>{const L=n(
@@ -3629,15 +3708,15 @@ showToast("\u30D7\u30ED\u30B8\u30A7\u30AF\u30C8\u3092\u524A\u9664\u3057\u307E\u3
 T()}),n("project-view-vision-model-select")&&(n("project-view-vision-model-select").onchange=()=>T()),
 n("project-view-upload-file-btn")&&n("project-view-file-input")&&(n("project-view-upload-file-btn").
 onclick=()=>{const L=n("project-view-file-input");L&&(L.value="",L.click())},n("project-view-file-in\
-put").onchange=L=>{const I=L.target&&L.target.files;I&&I.length&&N(I)}),n("project-view-lib-file-btn")&&
+put").onchange=L=>{const $=L.target&&L.target.files;$&&$.length&&N($)}),n("project-view-lib-file-btn")&&
 (n("project-view-lib-file-btn").onclick=()=>{t.viewingProjectUuid&&(window.__libProjectAttachCallback=
 async L=>{window.__libProjectAttachCallback=null,typeof window.closeLibModal=="function"&&window.closeLibModal(
-!0),await E(L)},typeof openLibModal=="function"&&openLibModal(!0))}),n("project-view-thread-search")&&
+!0),await A(L)},typeof openLibModal=="function"&&openLibModal(!0))}),n("project-view-thread-search")&&
 (n("project-view-thread-search").oninput=L=>{t.projectThreadsQuery=(L.target&&L.target.value||"").trim(),
 t.searchTimer&&clearTimeout(t.searchTimer),t.searchTimer=setTimeout(()=>{t.viewingProjectUuid&&k(t.viewingProjectUuid,
 !1)},250)}),n("project-view-thread-more-btn")&&(n("project-view-thread-more-btn").onclick=()=>{t.viewingProjectUuid&&
-t.projectThreadsHasNext&&k(t.viewingProjectUuid,!0)})}r(U,"bindProjectsUi"),window.loadProjects=v,window.
+t.projectThreadsHasNext&&k(t.viewingProjectUuid,!0)})}r(H,"bindProjectsUi"),window.loadProjects=b,window.
 refreshViewingProjectIfOpen=()=>{t.viewingProjectUuid&&(C(),k(t.viewingProjectUuid,!1))},document.addEventListener(
-"DOMContentLoaded",()=>{try{U(),v().then(()=>{const L=window.CHAT_CONFIG&&window.CHAT_CONFIG.initialProjectId;
+"DOMContentLoaded",()=>{try{H(),b().then(()=>{const L=window.CHAT_CONFIG&&window.CHAT_CONFIG.initialProjectId;
 L&&window.openProjectView(L,{skipHistory:!0})})}catch(L){console.error("projects init failed",L)}},{
 once:!0})}),"initProjectsModule")();

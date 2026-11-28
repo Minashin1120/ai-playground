@@ -34,6 +34,7 @@ def background_stream_gemini_tts(local):
         audio_bytes = b""
         audio_mime = ""
         cand0 = None
+        tts_resp = None
         _mark_provider_request_started()
         if is_gemini_interactions_tts_model_key(model_key) and gemini_backend_mode != "vertex_ai":
             # Gemini 3.8 TTS: verbatim text, delivery style in
@@ -102,6 +103,29 @@ def background_stream_gemini_tts(local):
             full_res += audio_tag
             pub("content", audio_tag)
             generated_images.append(f"{user_id}/{speech_file_name}")
+            dur_ms = None
+            try:
+                with wave.open(BytesIO(wav_bytes), 'rb') as wf_dur:
+                    if wf_dur.getframerate() > 0:
+                        dur_ms = int(round(wf_dur.getnframes() / float(wf_dur.getframerate()) * 1000.0))
+            except Exception:
+                dur_ms = _probe_duration_ms(wav_bytes, "wav")
+            tts_call = _record_direct_usage(
+                model_key,
+                'google',
+                enrich_existing=True,
+                usage=getattr(tts_resp, 'usage_metadata', None) if tts_resp is not None else None,
+                duration_ms=dur_ms,
+                audio_out_ms=dur_ms,
+            )
+            if tts_call is not None:
+                if tts_call.record.get('input_tokens') is None:
+                    tts_call.record['input_tokens'] = count_tokens_for_display(final_message_text, model_key)
+                if tts_call.record.get('audio_output_tokens') is None and dur_ms:
+                    est_audio_tok = int(round((dur_ms / 1000.0) * 25))
+                    tts_call.record['audio_output_tokens'] = est_audio_tok
+                    if tts_call.record.get('output_tokens') is None:
+                        tts_call.record['output_tokens'] = est_audio_tok
     except Exception as e:
         logger.exception("Gemini TTS Error")
         pub("error", f"Gemini TTS Error: {str(e)}")

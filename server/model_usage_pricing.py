@@ -2,18 +2,36 @@
 
 _USAGE_PRICE_FIELDS = ('cache_read_tokens', 'cache_write_tokens', 'cache_write_5m_tokens', 'cache_write_1h_tokens',
                        'cache_write_30m_tokens', 'cache_write_12h_tokens', 'web_search_calls', 'file_search_calls',
-                       'code_execution_calls', 'container_sessions', 'grounding_queries')
+                       'code_execution_calls', 'container_sessions', 'grounding_queries',
+                       'image_output_tokens', 'image_input_tokens', 'text_input_tokens', 'text_output_tokens',
+                       'audio_input_tokens', 'audio_output_tokens', 'video_input_tokens', 'video_output_tokens',
+                       'cached_text_tokens', 'cached_image_tokens', 'cached_audio_tokens')
 
 
 def _usage_field(obj, key, fallback=None):
     return obj.get(key, fallback) if isinstance(obj, dict) else getattr(obj, key, fallback)
 
 
+def _usage_modality_breakdown(items, mapping):
+    totals = {}
+    if not isinstance(items, (list, tuple)):
+        return totals
+    for entry in items:
+        mod = str(_usage_field(entry, 'modality', '') or '').upper()
+        cnt = _usage_value(entry, 'tokenCount', 'token_count')
+        field = mapping.get(mod)
+        if field and cnt is not None:
+            totals[field] = totals.get(field, 0) + cnt
+    return totals
+
+
 def _usage_cache_counts(usage):
     details = _usage_field(usage, 'input_tokens_details') or _usage_field(usage, 'prompt_tokens_details') or {}
+    out_details = _usage_field(usage, 'output_tokens_details') or _usage_field(usage, 'completion_tokens_details') or {}
+    cached_details = _usage_field(details, 'cached_tokens_details') or {}
     creation = _usage_field(usage, 'cache_creation') or {}
     writes = _usage_field(details, 'cache_write_tokens_details') or {}
-    return {
+    counts = {
         'cache_read_tokens': _usage_value(details, 'cached_tokens') if _usage_value(details, 'cached_tokens') is not None else
             _usage_value(usage, 'cache_read_input_tokens', 'cachedContentTokenCount', 'cached_content_token_count', 'prompt_cache_hit_tokens', 'cached_prompt_tokens', 'total_cached_tokens'),
         'cache_write_tokens': _usage_value(details, 'cache_write_tokens') if _usage_value(details, 'cache_write_tokens') is not None else _usage_value(usage, 'cache_creation_input_tokens'),
@@ -21,7 +39,28 @@ def _usage_cache_counts(usage):
         'cache_write_1h_tokens': _usage_value(creation, 'ephemeral_1h_input_tokens'),
         'cache_write_30m_tokens': _usage_value(writes, 'ttl_30m_tokens'),
         'cache_write_12h_tokens': _usage_value(writes, 'ttl_12h_tokens'),
+        'text_input_tokens': _usage_value(details, 'text_tokens'),
+        'image_input_tokens': _usage_value(details, 'image_tokens'),
+        'audio_input_tokens': _usage_value(details, 'audio_tokens'),
+        'text_output_tokens': _usage_value(out_details, 'text_tokens'),
+        'image_output_tokens': _usage_value(out_details, 'image_tokens'),
+        'audio_output_tokens': _usage_value(out_details, 'audio_tokens'),
+        'cached_text_tokens': _usage_value(cached_details, 'text_tokens'),
+        'cached_image_tokens': _usage_value(cached_details, 'image_tokens'),
+        'cached_audio_tokens': _usage_value(cached_details, 'audio_tokens'),
     }
+    in_mod = _usage_modality_breakdown(
+        _usage_field(usage, 'promptTokensDetails') or _usage_field(usage, 'prompt_tokens_details'),
+        {'TEXT': 'text_input_tokens', 'IMAGE': 'image_input_tokens', 'AUDIO': 'audio_input_tokens', 'VIDEO': 'video_input_tokens'},
+    )
+    out_mod = _usage_modality_breakdown(
+        _usage_field(usage, 'candidatesTokensDetails') or _usage_field(usage, 'candidates_tokens_details'),
+        {'TEXT': 'text_output_tokens', 'IMAGE': 'image_output_tokens', 'AUDIO': 'audio_output_tokens', 'VIDEO': 'video_output_tokens'},
+    )
+    for key, val in {**in_mod, **out_mod}.items():
+        if counts.get(key) is None:
+            counts[key] = val
+    return counts
 
 
 def _observe_pricing_payload(call, payload, obj):

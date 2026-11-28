@@ -64,6 +64,8 @@ async def _rt_xai_stt_receive_loop(session, ws):
                 if msg.get("speech_final"):
                     _rt_push_event(session, {"type": "speech_stopped"})
             elif mtype == "transcript.done":
+                if isinstance(msg.get("usage"), dict):
+                    _rt_record_ws_usage(session, msg["usage"])
                 text = str(msg.get("text") or "").strip()
                 if text:
                     finalized = text

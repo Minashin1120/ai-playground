@@ -92,6 +92,8 @@
                     this.resumeHandle = null;
                     this.directResumes = 0;
                     this.goAwayNotified = false;
+                    this.usageMetadata = null;
+                    this.directStartedAt = Date.now();
                     try {
                         await this._connectDirect();
                         return true;
@@ -148,6 +150,10 @@
                         const ready = this.directReady;
                         this.directReady = null;
                         if (ready) ready();
+                    }
+                    const um = msg.usageMetadata || msg.usage_metadata;
+                    if (um && typeof um === 'object') {
+                        this.usageMetadata = um;
                     }
                     const sc = msg.serverContent;
                     if (sc) {

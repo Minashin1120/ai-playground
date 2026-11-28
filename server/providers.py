@@ -468,6 +468,8 @@ def _gemini_transcribe_rest(api_key, file_uri, mime_type, transcription_config, 
     mode = (transcription_config or {}).get("mode") or {}
     with_speaker = isinstance(mode, dict) and bool(mode.get("diarization_mode"))
     with_time = isinstance(mode, dict) and bool(mode.get("timestamp_granularities"))
+    if isinstance(data.get("usage"), dict):
+        _record_direct_usage("gemini-3.5-transcribe", "google", usage=data.get("usage"))
     if words and (with_speaker or with_time):
         # Speakers and timings are only returned as word_info annotations.
         formatted = _format_gemini_word_info(words, with_speaker, with_time)
@@ -541,6 +543,8 @@ def _gemini_tts_interactions_rest(api_key, model_key, text, voice, style=None, t
                     chunk = chunk[44:]
                 audio += chunk
                 mime = mime or str(c.get("mime_type") or "")
+    if isinstance(data.get("usage"), dict):
+        _record_direct_usage(model_key, "google", usage=data.get("usage"))
     return audio, mime
 
 

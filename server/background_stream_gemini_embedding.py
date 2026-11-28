@@ -40,6 +40,16 @@ def background_stream_gemini_embedding(local):
             )
             pub("content", out)
             full_res += out
+            stat = getattr(emb_list[0], 'statistics', None) if emb_list else None
+            toks = _usage_value(stat, 'token_count', 'tokenCount') if stat is not None else None
+            if toks is None:
+                toks = count_tokens_for_display(final_message_text, model_key)
+            _record_direct_usage(
+                model_key,
+                'google',
+                input_tokens=toks,
+                output_tokens=0,
+            )
     except Exception as e:
         logger.exception("Gemini Embedding Error")
         pub("error", f"Gemini Embedding Error: {str(e)}")

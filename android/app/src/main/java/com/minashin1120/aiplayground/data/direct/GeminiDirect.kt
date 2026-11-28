@@ -168,6 +168,12 @@ class GeminiDirect(
         if (emptyAnswer) throw DirectApiException(0, emptyAnswerMessage(finishReason ?: blockReason, hasAudio))
         val answer = grounding.finish(content.toString(), request.options, modelText.toString()) { emit(event("content", it)) }
         if (searching) emit(event("search_status", "done"))
+        if (isImageModel(request.model)) {
+            kotlin.coroutines.coroutineContext[UsageContext]?.ledger?.lastCall(request.model)?.let { call ->
+                val imgRes = request.options.optString("gemini_image_size").lowercase().takeIf { it in setOf("1k", "2k", "4k") } ?: "1k"
+                call.row.put("images", files.size + streamedImages).put("resolution", imgRes)
+            }
+        }
         val meta = usage
         return DirectResult(
             content = answer, thought = thought.toString(),
@@ -271,6 +277,10 @@ class GeminiDirect(
         if (request.options.flag("enable_search")) emit(event("search_status", "done"))
         onProgress(content.toString(), thought.toString())
         content.toString().takeIf { it.isNotEmpty() }?.let { emit(event("content", it)) }
+        kotlin.coroutines.coroutineContext[UsageContext]?.ledger?.lastCall(model)?.let { call ->
+            val imgRes = request.options.optString("gemini_image_size").lowercase().takeIf { it in setOf("1k", "2k", "4k") } ?: "1k"
+            call.row.put("images", files.size).put("resolution", imgRes)
+        }
         Diagnostics.log("gemini.image_end", "files" to files.size, "content_chars" to content.length,
             "ms" to System.currentTimeMillis() - started)
         val meta = usage

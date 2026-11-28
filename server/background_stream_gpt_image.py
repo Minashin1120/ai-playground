@@ -272,6 +272,21 @@ def background_stream_gpt_image(local):
             user_id, img_bytes, fn2, user_config.get('enable_e2ee')
         )
         generated_images.append(f"{user_id}/{fn2}")
+        usage_ledger_ctx = _MODEL_USAGE_CONTEXT.get()
+        if not is_gpt_image_26 and usage_ledger_ctx is not None:
+            for existing_call in usage_ledger_ctx.calls:
+                if existing_call.record.get('model') == 'gpt-4o-mini':
+                    existing_call.record.pop('pricing_incomplete', None)
+        _record_direct_usage(
+            model_key,
+            'openai',
+            usage=getattr(resp, 'usage', None) if is_gpt_image_26 else None,
+            images=1,
+            operation=('edit' if (mask_file or img_inputs) else 'generate'),
+            quality=(quality_opt or 'auto'),
+            size=(size_opt or 'auto'),
+            input_images=len(img_inputs),
+        )
         pub("status", "完了")
         pub("content", f"\n![Image](/files/{user_id}/{fn2})\n")
         full_res += f"Generated Image for: {final_message_text}\n"

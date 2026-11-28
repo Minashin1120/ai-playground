@@ -98,6 +98,12 @@ def background_stream_gemini_video(local):
         pub("content", video_tag)
         full_res += f"Generated Video for: {final_message_text}\n"
         generated_images.append(f"{user_id}/{fn2}")
+        _record_direct_usage(
+            model_key,
+            'google',
+            duration_ms=int(video_duration * 1000),
+            resolution=resolution.lower(),
+        )
     except Exception as e:
         logger.exception("Gemini Video Gen Error")
         pub("error", f"Gemini Video Gen Error: {str(e)}")

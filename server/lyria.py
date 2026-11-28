@@ -462,6 +462,13 @@ def _lyria_save_session(session, thread_id):
         db.session.add(user_msg)
         safe_db_commit()
 
+        dur_ms = _pcm_duration_ms(pcm_bytes, rate=48000, channels=2)
+        lyria_thought_data = _encode_usage_thought_data([{
+            'model': LYRIA_REALTIME_MODEL,
+            'duration_ms': dur_ms,
+            'complete': True,
+            'created_at': datetime.utcnow().isoformat() + 'Z',
+        }], session.e2ee)
         assistant_msg = Message(
             thread_id=thread_db_id,
             role='assistant',
@@ -469,6 +476,7 @@ def _lyria_save_session(session, thread_id):
             model=LYRIA_REALTIME_MODEL,
             is_encrypted=session.e2ee,
             parent_id=user_msg.id,
+            thought_data=lyria_thought_data,
             tokens_out=assistant_tokens_out,
             tokens=sum_token_counts(None, assistant_tokens_out),
         )

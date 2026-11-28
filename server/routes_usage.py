@@ -50,26 +50,33 @@ def _usage_iso(value):
     return value.isoformat() + 'Z' if value else None
 
 
+def _usage_pricing_table():
+    global _USAGE_IMAGE_MODELS
+    if isinstance(_USAGE_IMAGE_MODELS, dict) and 'models' in _USAGE_IMAGE_MODELS:
+        return _USAGE_IMAGE_MODELS
+    try:
+        pricing_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'model_pricing.json')
+        with open(pricing_path, encoding='utf-8') as pricing_file:
+            _USAGE_IMAGE_MODELS = json.load(pricing_file)
+    except (OSError, ValueError, TypeError) as exc:
+        log_force(f"usage cost pricing unavailable: {exc}")
+        _USAGE_IMAGE_MODELS = {'aliases': {}, 'models': {}}
+    return _USAGE_IMAGE_MODELS
+
+
+def _usage_model_rate(model):
+    if not model:
+        return None
+    pricing = _usage_pricing_table()
+    key = (pricing.get('aliases') or {}).get(model, model)
+    rate = (pricing.get('models') or {}).get(key)
+    return rate if isinstance(rate, dict) else None
+
+
 def _usage_is_image_model(model):
     """True when the official rate table bills this model per generated image."""
-    global _USAGE_IMAGE_MODELS
-    if _USAGE_IMAGE_MODELS is None:
-        image_models = set()
-        try:
-            pricing_path = os.path.join(os.path.dirname(__file__), '..', 'static', 'model_pricing.json')
-            with open(pricing_path, encoding='utf-8') as pricing_file:
-                pricing = json.load(pricing_file)
-            aliases = pricing.get('aliases') or {}
-            for key, rate in (pricing.get('models') or {}).items():
-                if isinstance(rate, dict) and rate.get('unit') == 'image':
-                    image_models.add(key)
-                    for alias, target in aliases.items():
-                        if target == key:
-                            image_models.add(alias)
-        except (OSError, ValueError, TypeError) as exc:
-            log_force(f"usage cost image pricing unavailable: {exc}")
-        _USAGE_IMAGE_MODELS = image_models
-    return bool(model) and (model in _USAGE_IMAGE_MODELS)
+    rate = _usage_model_rate(model)
+    return bool(rate and rate.get('unit') == 'image')
 
 
 def _usage_image_count(value):
@@ -169,10 +176,21 @@ def _usage_answer_calls(row, rows_by_id):
             if isinstance(call, dict) and not call.get('created_at'):
                 call['created_at'] = _usage_iso(row.timestamp)
         return calls
-    if _usage_is_image_model(row.model):
+    rate = _usage_model_rate(row.model)
+    unit = rate.get('unit') if isinstance(rate, dict) else None
+    if unit == 'image':
         return [_usage_legacy_image_request(row, rows_by_id)]
+    if unit == 'song':
+        return [{'model': row.model, 'songs': 1, 'complete': True, 'created_at': _usage_iso(row.timestamp)}]
+    if unit in ('video', 'page', 'character', 'duration'):
+        call = {'model': row.model, 'complete': False, 'created_at': _usage_iso(row.timestamp)}
+        if unit == 'character':
+            parent = rows_by_id.get(row.parent_id)
+            if parent and parent.content and not parent.is_encrypted:
+                call['characters'] = len(parent.content)
+        return [call]
     output = _usage_number(row.tokens_out)
-    if not output:
+    if output is None or (output == 0 and not (isinstance(rate, dict) and rate.get('output') == 0)):
         return None
     input_tokens = _usage_number(row.tokens_in)
     complete = True

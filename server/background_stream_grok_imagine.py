@@ -174,6 +174,19 @@ def background_stream_grok_imagine(local):
             saved_any = True
         if not saved_any:
             pub("error", "Grok Image Gen Error: No data returned.")
+        else:
+            saved_count = sum(1 for item in image_results[:image_count] if item.get("b64_json") or item.get("url"))
+            resp_usage = (resp_json.get("usage") if img_inputs and isinstance(resp_json, dict) else getattr(resp, "usage", None))
+            _record_direct_usage(
+                model_key,
+                'xai',
+                usage=resp_usage,
+                images=max(1, saved_count),
+                operation=('edit' if img_inputs else 'generate'),
+                quality=(quality if grok_supports_quality else None),
+                resolution=(resolution if grok_supports_resolution else None),
+                input_images=len(img_inputs) if img_inputs else 0,
+            )
     except Exception as e:
         logger.exception("Grok Imagine Error")
         err_body = ""

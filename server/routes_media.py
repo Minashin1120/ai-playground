@@ -291,6 +291,7 @@ def speech_to_speech():
             assistant_text = ""
             assistant_thought = ""
             input_text = ""
+            pcm_bytes = b""
             try:
                 # Yield a processing status immediately
                 yield json.dumps({'status': 'processing'}) + "\n"
@@ -400,13 +401,26 @@ def speech_to_speech():
                         db.session.add(user_msg)
                         safe_db_commit()
 
+                        in_ms = _pcm_duration_ms(pcm_bytes, rate=rate_in)
+                        out_ms = _pcm_duration_ms(bytes(assistant_audio), rate=rate_out)
+                        sts_thought = _encode_usage_thought_data([{
+                            'model': model_key,
+                            'input_tokens': user_tokens_in,
+                            'output_tokens': assistant_tokens_out,
+                            'audio_in_ms': in_ms,
+                            'audio_out_ms': out_ms,
+                            'duration_ms': in_ms + out_ms,
+                            'complete': True,
+                            'created_at': datetime.utcnow().isoformat() + 'Z',
+                        }], current_user.enable_e2ee)
                         assistant_msg = Message(
-                            thread_id=thread_id,
+                            thread_id=thread_db_id if 'thread_db_id' in locals() else thread_id,
                             role='assistant',
                             content=a_content,
                             model=model_key,
                             is_encrypted=current_user.enable_e2ee,
                             parent_id=user_msg.id,
+                            thought_data=sts_thought,
                             tokens_out=assistant_tokens_out,
                             tokens=sum_token_counts(None, assistant_tokens_out)
                         )
@@ -504,6 +518,14 @@ def speech_to_speech():
             db.session.add(user_msg)
             safe_db_commit()
 
+            stt_in_ms = _probe_duration_ms(audio_bytes, _audio_ffmpeg_demuxer(audio_bytes) or src_ext.lstrip('.')) or 0
+            stt_thought = _encode_usage_thought_data([{
+                'model': model_key,
+                'audio_in_ms': stt_in_ms,
+                'duration_ms': stt_in_ms,
+                'complete': bool(stt_in_ms),
+                'created_at': datetime.utcnow().isoformat() + 'Z',
+            }], current_user.enable_e2ee)
             assistant_msg = Message(
                 thread_id=thread_id,
                 role='assistant',
@@ -511,6 +533,7 @@ def speech_to_speech():
                 model=model_key,
                 is_encrypted=current_user.enable_e2ee,
                 parent_id=user_msg.id,
+                thought_data=stt_thought,
                 tokens_out=count_tokens_for_display(transcript, model_key),
             )
             assistant_msg.tokens = sum_token_counts(None, assistant_msg.tokens_out)
@@ -545,6 +568,7 @@ def speech_to_speech():
     assistant_text = ""
     assistant_thought = ""
     input_text = ""
+    ws_usage = {}
     try:
         if provider == "openai":
             key = model_specific_key or decrypt_val(current_user.openai_api_key)
@@ -554,7 +578,7 @@ def speech_to_speech():
                 return jsonify({'error': 'OpenAI API Key not configured'}), 400
             assistant_audio, assistant_text = asyncio.run(
                 _openai_sts_realtime(pcm_bytes, key, model_key, voice=sts_voice, speed=sts_speed, rate=rate_out,
-                                     reasoning_effort=sts_reasoning_effort)
+                                     reasoning_effort=sts_reasoning_effort, usage_out=ws_usage)
             )
         elif provider == "xai":
             key = model_specific_key or decrypt_val(current_user.xai_api_key)
@@ -563,7 +587,7 @@ def speech_to_speech():
             if not key:
                 return jsonify({'error': 'xAI API Key not configured'}), 400
             assistant_audio, assistant_text = asyncio.run(
-                _xai_sts_realtime(pcm_bytes, key, model_key=model_key, voice=sts_voice, rate_in=rate_in, rate_out=rate_out)
+                _xai_sts_realtime(pcm_bytes, key, model_key=model_key, voice=sts_voice, rate_in=rate_in, rate_out=rate_out, usage_out=ws_usage)
             )
         else:
             return jsonify({'error': 'Unsupported provider'}), 400
@@ -633,6 +657,16 @@ def speech_to_speech():
         db.session.add(user_msg)
         safe_db_commit()
 
+        sts_call = ModelUsageCall(model_key, provider)
+        if ws_usage:
+            sts_call.update_usage(ws_usage)
+        in_ms = _pcm_duration_ms(pcm_bytes, rate=rate_in)
+        out_ms = _pcm_duration_ms(assistant_audio, rate=rate_out)
+        sts_call.record['audio_in_ms'] = in_ms
+        sts_call.record['audio_out_ms'] = out_ms
+        sts_call.record['duration_ms'] = max(1000, in_ms + out_ms)
+        sts_call.finished = True
+        sts_thought = _encode_usage_thought_data([sts_call.snapshot()], current_user.enable_e2ee)
         assistant_msg = Message(
             thread_id=thread_id,
             role='assistant',
@@ -640,6 +674,7 @@ def speech_to_speech():
             model=model_key,
             is_encrypted=current_user.enable_e2ee,
             parent_id=user_msg.id,
+            thought_data=sts_thought,
             tokens_out=assistant_tokens_out,
             tokens=sum_token_counts(None, assistant_tokens_out)
         )

@@ -384,9 +384,11 @@ def save_sts_direct():
 
     # Save Assistant Audio (Gemini returns PCM 24kHz)
     audio_url = None
+    audio_out_ms = 0
     if audio_base64:
         try:
             audio_data = _decode_base64_limited(audio_base64, _AUDIO_INPUT_MAX_BYTES)
+            audio_out_ms = _pcm_duration_ms(audio_data, rate=24000)
             wav_bytes = _pcm_to_wav_bytes(audio_data, rate=24000)
             out_fname, _ = _save_user_audio(current_user.id, wav_bytes, ".wav", current_user.enable_e2ee)
             audio_url = f"/files/{current_user.id}/{out_fname}"
@@ -395,9 +397,12 @@ def save_sts_direct():
 
     # Save User Audio (Client sends WebM/Opus)
     in_fname = None
+    audio_in_ms = _usage_value(data, 'audio_in_ms') or 0
     if user_audio_base64:
         try:
             user_audio_data = _decode_base64_limited(user_audio_base64, _AUDIO_INPUT_MAX_BYTES)
+            if not audio_in_ms:
+                audio_in_ms = _probe_duration_ms(user_audio_data, "webm") or 0
             in_fname, _ = _save_user_audio(current_user.id, user_audio_data, ".webm", current_user.enable_e2ee)
         except Exception as e:
             logger.error(f"Failed to save user audio: {e}")
@@ -436,6 +441,19 @@ def save_sts_direct():
         db.session.add(user_msg)
         safe_db_commit()
 
+        direct_call = ModelUsageCall(model_key, 'google')
+        client_usage = data.get('usage_metadata') or data.get('usage')
+        if isinstance(client_usage, dict):
+            direct_call.update_usage(client_usage)
+        direct_dur_ms = _usage_value(data, 'duration_ms') or max(audio_in_ms + audio_out_ms, audio_out_ms)
+        if audio_in_ms:
+            direct_call.record['audio_in_ms'] = audio_in_ms
+        if audio_out_ms:
+            direct_call.record['audio_out_ms'] = audio_out_ms
+        if direct_dur_ms:
+            direct_call.record['duration_ms'] = direct_dur_ms
+        direct_call.finished = True
+        sts_thought_data = _encode_usage_thought_data([direct_call.snapshot()], current_user.enable_e2ee)
         assistant_msg = Message(
             thread_id=thread_db_id,
             role='assistant',
@@ -443,6 +461,7 @@ def save_sts_direct():
             model=model_key,
             is_encrypted=current_user.enable_e2ee,
             parent_id=user_msg.id,
+            thought_data=sts_thought_data,
             tokens_out=assistant_tokens_out,
             tokens=sum_token_counts(None, assistant_tokens_out)
         )

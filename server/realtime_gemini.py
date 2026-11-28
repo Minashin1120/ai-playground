@@ -63,6 +63,9 @@ async def _rt_gemini_receive_loop(session, ws):
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8", "replace")
             msg = json.loads(raw)
+            usage_meta = msg.get("usageMetadata") or msg.get("usage_metadata")
+            if isinstance(usage_meta, dict):
+                _rt_record_ws_usage(session, usage_meta, cumulative=True)
             interaction_status = (
                 msg.get("interactionStatus")
                 or msg.get("interaction_status")
@@ -210,6 +213,9 @@ async def _rt_gemini_session_async(session):
             if isinstance(raw, bytes):
                 raw = raw.decode("utf-8", "replace")
             msg = json.loads(raw)
+            usage_meta = msg.get("usageMetadata") or msg.get("usage_metadata")
+            if isinstance(usage_meta, dict):
+                _rt_record_ws_usage(session, usage_meta, cumulative=True)
             if msg.get("setupComplete") is not None:
                 session.status = "ready"
                 _rt_push_event(session, {"type": "status", "status": "ready"})

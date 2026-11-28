@@ -159,6 +159,22 @@ def background_stream_tts(local):
         full_res += audio_tag
         pub("content", audio_tag)
         generated_images.append(f"{user_id}/{speech_file_name}")
+        if 'google-tts' in model_key:
+            _record_direct_usage(model_key, 'google', characters=len(final_message_text or ''))
+        elif 'grok-tts' in model_key or 'xai-tts' in model_key:
+            _record_direct_usage(model_key, 'xai', characters=len(final_message_text or ''))
+        else:
+            dur_ms = _probe_duration_ms(audio_content, "mp3")
+            est_audio_tok = int(round((dur_ms / 1000.0) * 25)) if dur_ms else None
+            _record_direct_usage(
+                model_key,
+                'openai',
+                input_tokens=count_tokens_for_display(final_message_text, model_key),
+                output_tokens=est_audio_tok,
+                audio_output_tokens=est_audio_tok,
+                duration_ms=dur_ms,
+                audio_out_ms=dur_ms,
+            )
 
     except Exception as e:
         pub("error", f"TTS Error: {str(e)}")

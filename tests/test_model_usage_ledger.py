@@ -172,3 +172,43 @@ def test_interrupted_stream_keeps_reported_usage_as_incomplete():
         scope['_MODEL_USAGE_CONTEXT'].reset(token)
     assert ledger.token_totals()['thought_tokens'] == 10
     assert not ledger.snapshot()[0]['complete']
+
+
+def test_modality_tokens_search_api_and_direct_usage_recording():
+    scope = usage_scope()
+    gem_call = scope['ModelUsageCall']('gemini-nano-banana-2.1', 'google')
+    gem_call.observe({
+        'usageMetadata': {
+            'promptTokenCount': 500,
+            'candidatesTokenCount': 1220,
+            'thoughtsTokenCount': 50,
+            'candidatesTokensDetails': [
+                {'modality': 'TEXT', 'tokenCount': 100},
+                {'modality': 'IMAGE', 'tokenCount': 1120},
+            ],
+        }
+    })
+    gem_call.finished = True
+    snap = gem_call.snapshot()
+    assert snap['image_output_tokens'] == 1120
+    assert snap['text_output_tokens'] == 100
+    assert snap['output_tokens'] == 1270
+
+    search_call = scope['ModelUsageCall']('gpt-5-search-api', 'openai')
+    search_call.observe({'usage': {'input_tokens': 200, 'output_tokens': 50}})
+    search_call.finished = True
+    assert search_call.snapshot()['web_search_calls'] == 1
+
+    ledger = scope['ModelUsageLedger']()
+    token = scope['_MODEL_USAGE_CONTEXT'].set(ledger)
+    try:
+        scope['_record_direct_usage']('mistral-ocr-4-0', 'mistral', pages=7)
+        scope['_record_direct_usage']('lyria-3.5', 'google', songs=1)
+        scope['_record_direct_usage']('google-tts-studio', 'google', characters=420)
+        scope['_record_direct_usage']('veo-3.1-fast-generate-preview', 'google', duration_ms=8000, resolution='1080p')
+    finally:
+        scope['_MODEL_USAGE_CONTEXT'].reset(token)
+    rows = scope['_sanitize_pricing_calls'](ledger.snapshot())
+    assert len(rows) == 4
+    assert all(r['complete'] for r in rows)
+    assert [r['pages'] if 'pages' in r else r.get('songs') or r.get('characters') or r.get('duration_ms') for r in rows] == [7, 1, 420, 8000]

@@ -23,6 +23,7 @@ def background_stream_gemini_transcribe(local):
     job_id = local.get("job_id")
     key = local.get("key")
     loaded_files = local.get("loaded_files")
+    model_key = local.get("model_key")
     options = local.get("options")
     pub = local.get("pub")
 
@@ -143,6 +144,18 @@ def background_stream_gemini_transcribe(local):
         transcript = str(transcript).strip()
         full_res += transcript
         pub("content", transcript)
+        in_dur_ms = _probe_duration_ms(audio_data, _audio_ffmpeg_demuxer(audio_data) or os.path.splitext(audio_name)[1].lstrip('.'))
+        transcribe_call = _record_direct_usage(
+            model_key,
+            'google',
+            enrich_existing=True,
+            audio_in_ms=in_dur_ms,
+        )
+        if transcribe_call is not None:
+            if transcribe_call.record.get('input_tokens') is None and in_dur_ms:
+                transcribe_call.record['input_tokens'] = int(round((in_dur_ms / 1000.0) * 25))
+            if transcribe_call.record.get('output_tokens') is None:
+                transcribe_call.record['output_tokens'] = count_tokens_for_display(transcript, model_key)
         log_force(f"Gemini Transcribe completed for {job_id} chars={len(transcript)}")
     except Exception as e:
         logger.exception("Gemini Transcribe Error")

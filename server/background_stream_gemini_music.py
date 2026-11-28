@@ -71,6 +71,13 @@ def background_stream_gemini_music(local):
                 # Save the player as streamed (like TTS) so a reloaded answer keeps it.
                 full_res += audio_tag
                 generated_images.append(f"{user_id}/{fn2}")
+                _record_direct_usage(
+                    model_key,
+                    'google',
+                    enrich_existing=True,
+                    usage=getattr(m_resp, 'usage_metadata', None),
+                    songs=1,
+                )
             if not audio_data and not lyrics:
                 pub("error", "Lyria returned no output.")
     except Exception as e:

@@ -23,6 +23,7 @@ def background_stream_mistral_ocr(local):
     generated_images = local.get('generated_images')
     key = local.get('key')
     loaded_files = local.get('loaded_files')
+    model_key = local.get('model_key')
     options = local.get('options')
     pub = local.get('pub')
     user_config = local.get('user_config')
@@ -152,6 +153,7 @@ def background_stream_mistral_ocr(local):
             footer = f"\n\n— 合計処理ページ数: {pages_total}"
             full_res += footer
             pub("content", footer)
+        _record_direct_usage(model_key, 'mistral', pages=max(1, pages_total or len(jobs)))
     except Exception as e:
         logger.exception("Mistral OCR Error")
         pub("error", f"Mistral OCR Error: {str(e)}")

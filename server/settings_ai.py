@@ -518,7 +518,7 @@ def _transcribe_audio_with_llm(audio_content, fname, llm_model_key, user):
     return text_out
 
 async def _openai_sts_realtime(pcm_bytes, api_key, model_key, voice="alloy", speed=None, rate=24000,
-                               reasoning_effort=None):
+                               reasoning_effort=None, usage_out=None):
     """One committed turn through an OpenAI Realtime (GA) conversation session."""
     if model_key in OPENAI_TRANSLATE_MODELS:
         raise ValueError("gpt-realtime-translate はリアルタイム会話（マイクの連続入力）で利用してください。")
@@ -576,6 +576,8 @@ async def _openai_sts_realtime(pcm_bytes, api_key, model_key, voice="alloy", spe
                     transcript_out += delta
             elif mtype == "response.done":
                 response = msg.get("response") or {}
+                if isinstance(usage_out, dict) and isinstance(response.get("usage"), dict):
+                    usage_out.update(response["usage"])
                 if response.get("status") == "failed" and not audio_out:
                     details = (response.get("status_details") or {}).get("error") or {}
                     raise RuntimeError(details.get("message") if isinstance(details, dict) else "OpenAI Realtime response failed")
@@ -636,7 +638,7 @@ async def _openai_realtime_transcribe(pcm_bytes, api_key, model_key, rate=24000)
                 message = error.get("message") if isinstance(error, dict) else str(error)
                 raise RuntimeError(message or "OpenAI Realtime API error")
 
-async def _xai_sts_realtime(pcm_bytes, api_key, model_key="grok-voice-agent", voice="ara", rate_in=24000, rate_out=24000):
+async def _xai_sts_realtime(pcm_bytes, api_key, model_key="grok-voice-agent", voice="ara", rate_in=24000, rate_out=24000, usage_out=None):
     model_key = XAI_STS_MODEL_ALIASES.get(model_key, model_key)
     voice = str(voice or "ara").lower()
     url = f"wss://{_XAI_API_HOST}/v1/realtime?model={model_key}"

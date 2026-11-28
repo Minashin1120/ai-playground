@@ -122,4 +122,33 @@ class ModelCostEstimatorTest {
         assertEquals(200000, item.input)
         assertEquals("", item.reason)
     }
+
+    @Test fun allUnitAndModalityModelsEstimateCorrectly() {
+        fun callEst(callJson: String, date: String = "2026-11-28") = estimator.estimate(listOf(
+            ChatMessage("2", "assistant", "ok", model = "test", createdAt = "${date}T00:00:00Z", thought = """{"pricing_calls":[$callJson]}""")
+        ))
+        assertEquals((1000 * 1.5 + 100 * 7.5 + 1120 * 30.0) / 1e6,
+            callEst("""{"model":"gemini-nano-banana-2.1","input_tokens":1000,"output_tokens":1220,"image_output_tokens":1120,"images":1,"complete":true}""").low, 1e-12)
+        assertEquals(1000 * 0.3 / 1e6 + 0.039,
+            callEst("""{"model":"gemini-2.5-flash-image","input_tokens":1000,"output_tokens":1290,"image_output_tokens":1290,"images":1,"complete":true}""").low, 1e-12)
+        assertEquals(0.034,
+            callEst("""{"model":"gpt-image-1.5","images":1,"quality":"medium","size":"1024x1024","complete":true}""").low, 1e-12)
+        assertEquals(0.96,
+            callEst("""{"model":"veo-3.1-fast-generate-preview","duration_ms":8000,"resolution":"1080p","complete":true}""").low, 1e-12)
+        assertEquals(0.09,
+            callEst("""{"model":"grok-imagine-image-2.0","images":1,"resolution":"2k","quality":"medium","input_images":1,"complete":true}""").low, 1e-12)
+        assertEquals(1.26,
+            callEst("""{"model":"grok-imagine-video-1.5","duration_ms":5000,"resolution":"1080p","input_images":1,"complete":true}""").low, 1e-12)
+        assertEquals(0.08, callEst("""{"model":"lyria-3.5","songs":1,"complete":true}""").low, 1e-12)
+        assertEquals(0.04, callEst("""{"model":"mistral-ocr-4-0","pages":10,"complete":true}""").low, 1e-12)
+        assertEquals(0.16, callEst("""{"model":"google-tts-studio","characters":1000,"complete":true}""").low, 1e-12)
+        assertEquals(0.009, callEst("""{"model":"gpt-transcribe","duration_ms":120000,"complete":true}""").low, 1e-12)
+        assertEquals(0.088, callEst("""{"model":"grok-voice-3.0","duration_ms":60000,"text_turns":2,"complete":true}""").low, 1e-12)
+        val unlisted = callEst("""{"model":"gpt-5.5-mini","input_tokens":1000,"output_tokens":500,"complete":true}""")
+        assertEquals(1, unlisted.priced)
+        assertEquals(1, unlisted.unpriced)
+        assertTrue(unlisted.high > unlisted.low && unlisted.low > 0.0)
+        assertEquals(0.02, callEst("""{"model":"grok-4-1-fast-reasoning","input_tokens":100000,"output_tokens":0,"complete":true}""", "2026-05-14").low, 1e-12)
+        assertEquals(0.125, callEst("""{"model":"grok-4-1-fast-reasoning","input_tokens":100000,"output_tokens":0,"complete":true}""", "2026-05-15").low, 1e-12)
+    }
 }

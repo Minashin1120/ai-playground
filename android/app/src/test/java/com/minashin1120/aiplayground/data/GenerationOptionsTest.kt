@@ -87,6 +87,11 @@ class GenerationOptionsTest {
         assertFalse(fields("grok-imagine-image-2.0").getValue("grok_image_quality").hidden)
         assertFalse(fields("grok-4.20").getValue("xai_logprobs").enabled)
         assertEquals(false, generationOptionsPayload("grok-4.20", mapOf("xai_logprobs" to "true")).get("xai_logprobs"))
+        assertTrue(fields("ideogram-4.6").getValue("ideogram_resolution").disabledValues.isEmpty())
+        assertEquals(setOf("4k"), fields("ideogram-4.6", mapOf("ideogram_quality" to "very_low")).getValue("ideogram_resolution").disabledValues)
+        assertEquals("2k", generationOptionsPayload("ideogram-4.6", mapOf("ideogram_quality" to "very_low", "ideogram_resolution" to "4k")).getString("ideogram_resolution"))
+        assertEquals(setOf("4k"), fields("ideogram-4.5").getValue("ideogram_resolution").disabledValues)
+        assertEquals("4k", generationOptionsPayload("ideogram-4.6", mapOf("ideogram_resolution" to "4k")).getString("ideogram_resolution"))
     }
 
     @Test fun ttsVoicesAndSpeedFollowTheProvider() {

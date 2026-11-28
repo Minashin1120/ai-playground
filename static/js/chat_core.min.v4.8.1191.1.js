@@ -324,9 +324,9 @@ i,255,l*.22)):rgbToHex(mix(t,0,.32),mix(n,0,.32),mix(i,0,.32)),w=o?"#ffffff":"#0
 , 255, 255, 0.18)":`rgba(${t}, ${n}, ${i}, 0.28)`,k=o?"rgba(255, 255, 255, 0.28)":`rgba(${t}, ${n}, ${i}\
 , 0.4)`,C=o?rgbToHex(mix(t,255,l*.18),mix(n,255,l*.18),mix(i,255,l*.18)):e,T=o?rgbToHex(mix(t,255,l*
 .28),mix(n,255,l*.28),mix(n,255,l*.28)):y,A=`linear-gradient(135deg, ${C}, ${T})`,N=o?"rgba(255, 255\
-, 255, 0.09)":`rgba(${t}, ${n}, ${i}, 0.14)`,H=o?"rgba(255, 255, 255, 0.20)":`rgba(${t}, ${n}, ${i},\
+, 255, 0.09)":`rgba(${t}, ${n}, ${i}, 0.14)`,G=o?"rgba(255, 255, 255, 0.20)":`rgba(${t}, ${n}, ${i},\
  0.28)`;return{base:e,light:m,lighter:g,dark:y,darker:b,rgb:`${t}, ${n}, ${i}`,textInverse:w,bubbleBorder:x,
-btnBorder:k,btnBg:A,btnBgStart:C,btnBgEnd:T,tabActiveBg:N,tabActiveBorder:H}},"deriveTheme"),applyThemeColor=r(
+btnBorder:k,btnBg:A,btnBgStart:C,btnBgEnd:T,tabActiveBg:N,tabActiveBorder:G}},"deriveTheme"),applyThemeColor=r(
 (e,t=!1)=>{const n=normalizeHex(e)||THEME_DEFAULT,i=deriveTheme(n),a=document.documentElement;[["--t\
 heme-500",i.base],["--theme-600",i.dark],["--theme-700",i.darker],["--theme-300",i.light],["--theme-\
 200",i.lighter],["--theme-rgb",i.rgb],["--text-inverse",i.textInverse],["--theme-bubble-border",i.bubbleBorder],
@@ -553,7 +553,7 @@ from(a.querySelectorAll("*")).slice(0,5e3)],l=[],c=new Map;let d=0;const m=r(x=>
 []).reduce((k,C)=>C&&C.nodeType===Node.TEXT_NODE?k+String(C.textContent||"").replace(/\s+/g," ").trim().
 length:k,0),"directTextLength");o.forEach(x=>{if(!x||x===a||!x.style)return;const k=window.getComputedStyle(
 x),C=m(x);if(C>0){const A=parseRichPasteCssColor(k.color);if(A&&A.a>=.5){const N=richPasteColorCss(A),
-H=c.get(N)||{color:A,weight:0};H.weight+=C,c.set(N,H),d+=C}}if(!!(String(x.style.backgroundColor||"").
+G=c.get(N)||{color:A,weight:0};G.weight+=C,c.set(N,G),d+=C}}if(!!(String(x.style.backgroundColor||"").
 trim()||String(x.style.background||"").trim())){const A=parseRichPasteCssColor(k.backgroundColor);if(A&&
 A.a>=.72){const N=String(x.textContent||"").replace(/\s+/g," ").trim().length;l.push({color:A,weight:Math.
 max(1,N)})}}});const g=Array.from(c.values()).sort((x,k)=>k.weight-x.weight),y=g.length?g[0].color:null,
@@ -933,16 +933,16 @@ nd); font-weight: bold; }
                 </div>
             `,document.body.appendChild(y),await waitForRichPasteMedia(y,4e3),i(15);try{const b=new m(
 {unit:"mm",format:"a4",orientation:"portrait",compress:!0}),w=b.internal.pageSize.getWidth(),x=b.internal.
-pageSize.getHeight(),k=794,C=Math.floor(x/w*k),T=y.scrollHeight||y.offsetHeight;let A=0,N=!0;const H=Math.
+pageSize.getHeight(),k=794,C=Math.floor(x/w*k),T=y.scrollHeight||y.offsetHeight;let A=0,N=!0;const G=Math.
 ceil(T/C);let L=0;for(;A<T;){if(richPasteAbortController&&richPasteAbortController.signal.aborted)throw new DOMException(
 "Aborted","AbortError");const M=Math.min(C,T-A),R=(await new Promise((O,B)=>{const J=setTimeout(()=>B(
 new Error("PDF chunk rendering timed out")),12e4);g(y,{scale:1,useCORS:!0,allowTaint:!1,backgroundColor:c.
 background,logging:!1,imageTimeout:5e3,x:0,y:A,width:k,height:M,windowWidth:k,scrollX:0,scrollY:0,signal:richPasteAbortController?
-richPasteAbortController.signal:void 0,onclone:r(F=>{prepareRichPastePdfClone(F,c);const D=F.querySelector(
-".pdf-root-wrapper");D&&(D.style.position="relative",D.style.left="0",D.style.top="0")},"onclone")}).
-then(F=>{clearTimeout(J),O(F)}).catch(F=>{clearTimeout(J),B(F)})})).toDataURL("image/jpeg",.95),q=b.
-getImageProperties(R),G=Math.min(x,q.height*w/q.width);N||b.addPage(),b.addImage(R,"JPEG",0,0,w,G),N=
-!1,A+=M,L++;const te=Math.min(100,15+Math.round(L/H*85));i(te),await new Promise(O=>setTimeout(O,100))}
+richPasteAbortController.signal:void 0,onclone:r(F=>{prepareRichPastePdfClone(F,c);const q=F.querySelector(
+".pdf-root-wrapper");q&&(q.style.position="relative",q.style.left="0",q.style.top="0")},"onclone")}).
+then(F=>{clearTimeout(J),O(F)}).catch(F=>{clearTimeout(J),B(F)})})).toDataURL("image/jpeg",.95),D=b.
+getImageProperties(R),H=Math.min(x,D.height*w/D.width);N||b.addPage(),b.addImage(R,"JPEG",0,0,w,H),N=
+!1,A+=M,L++;const ee=Math.min(100,15+Math.round(L/G*85));i(ee),await new Promise(O=>setTimeout(O,100))}
 return i(100),{blob:b.output("blob"),fileName:buildRichPastePdfFilename()}}finally{e&&(e.classList.add(
 "hidden"),e.style.display="none"),y&&y.parentNode&&document.body.removeChild(y)}},"renderRichPastePd\
 fBlob"),createRichPastePdfBlob=r(async()=>await renderRichPastePdfBlob(),"createRichPastePdfBlob"),buildRichPasteServerPayload=r(
@@ -2071,8 +2071,8 @@ ordKey"),l=r(b=>{const w=performance.now();if(!(w-e.lastMoveSample<80)){if(e.las
 sqrt(x*x+k*k)/(C/1e3);e.speedMax=Math.max(e.speedMax,T),e.speedSum+=T,e.speedSamples+=1}}e.lastMove=
 {x:b.clientX,y:b.clientY,t:w}}},"recordMove"),c=r(()=>{const b=Math.max(1,performance.now()-e.windowStart),
 w=e.clickTimes.length,x=e.keyTimes.length,k=e.speedSamples?e.speedSum/e.speedSamples:0;let C=0,T=1;if(e.
-clickIntervals.length>=3){const A=e.clickIntervals.reduce((H,L)=>H+L,0)/e.clickIntervals.length,N=e.
-clickIntervals.reduce((H,L)=>H+Math.pow(L-A,2),0)/e.clickIntervals.length;C=A,T=A>0?Math.sqrt(N)/A:1}
+clickIntervals.length>=3){const A=e.clickIntervals.reduce((G,L)=>G+L,0)/e.clickIntervals.length,N=e.
+clickIntervals.reduce((G,L)=>G+Math.pow(L-A,2),0)/e.clickIntervals.length;C=A,T=A>0?Math.sqrt(N)/A:1}
 return{window_ms:Math.round(b),clicks:e.clicks,keys:e.keys,moves:e.moves,fast_clicks:e.fastClicks,fast_keys:e.
 fastKeys,untrusted_input:!!e.untrustedInput,click_burst:w,key_burst:x,avg_click_ms:C,click_cv:T,event_rate:(e.
 clicks+e.keys+e.moves)/(b/1e3),pointer_speed_max:e.speedMax,pointer_speed_avg:k}},"computeStats"),d=r(
@@ -2736,67 +2736,71 @@ mputer Use",desc:"Browser / desktop control agent model for UI automation.",pric
 k), Out $10.00/1M (\u2264200k)"},{id:"gemini-embedding-2",implementedAt:"2026-08-25",implementedRank:8510,
 name:"Gemini Embedding 2",desc:"Multimodal embedding model (text / image / audio / video / PDF).",price:"\
 Text In $0.20/1M, Image $0.45/1M"}]},{category:"Ideogram",icon:"fas fa-paint-brush text-pink-400",description:"\
-Ideogram image generation with strong text rendering. Ideogram 4.5 also supports multi-turn precise \
-editing.",items:[{id:"ideogram-4.5",implementedAt:"2026-10-03",implementedRank:10474,quickEmoji:"\u{1F5BC}\uFE0F",
-name:"Ideogram 4.5",desc:"Latest Ideogram model: native 2K generation and precise multi-turn editing\
- that keeps unedited pixels intact.",price:"from $0.008 / image (1K very low) to $0.22 / image (2K h\
-igh)"},{id:"ideogram-4.0",implementedAt:"2026-10-03",implementedRank:10473,name:"Ideogram 4.0",desc:"\
-Previous-generation Ideogram model with up to 2K output and structured prompts. Text-to-image only.",
-price:"Priced per image by rendering speed"},{id:"ideogram-3.0",implementedAt:"2026-10-03",implementedRank:10472,
-name:"Ideogram 3.0",desc:"Text-to-image with style types and negative prompts. Text-to-image only.",
-price:"Priced per image by rendering speed"},{id:"ideogram-2a",implementedAt:"2026-10-03",implementedRank:10471,
-name:"Ideogram 2a",desc:"Fast, lower-cost Ideogram 2 model. Text-to-image only.",price:"Priced per i\
-mage by rendering speed"},{id:"ideogram-2.0",implementedAt:"2026-10-03",implementedRank:10470,name:"\
-Ideogram 2.0",desc:"Ideogram 2.0 with style types and negative prompts. Text-to-image only.",price:"\
-Priced per image by rendering speed"}]},{category:"Grok Imagine",icon:"fas fa-magic text-blue-400",description:"\
-Grok generation models",items:[{id:"grok-imagine-image-2.0",implementedAt:"2026-08-22",implementedRank:8250,
-quickEmoji:"\u{1F3A8}",name:"Grok Imagine Image 2.0",desc:"Precise image generation and editing with\
- 1K/2K output and low/medium quality control.",price:"from $0.04 / image"},{id:"grok-imagine-image-q\
-uality",implementedAt:"2026-05-09",implementedRank:5020,name:"Grok Imagine Image Quality",desc:"Next\
--gen Grok image generation with 1K/2K support.",price:"$0.05 / image"},{id:"grok-imagine-image",implementedAt:"\
-2026-01-30",implementedRank:520,name:"Grok Imagine Image",desc:"Latest Grok image generation.",price:"\
-$0.02 / image"},{id:"grok-imagine-image-pro",implementedAt:"2026-02-01",implementedRank:530,name:"Gr\
-ok Imagine Image Pro",desc:"Discontinued by xAI. Retained for chat history compatibility.",price:"$0\
-.07 / image",deprecated:!0},{id:"grok-imagine-video-1.5-lite",implementedAt:"2026-10-20",implementedRank:11061,
-quickEmoji:"\u{1F3AC}",name:"Grok Imagine Video 1.5 Lite",desc:"Low-cost text/image-to-video with li\
-p-synced audio, 1\u201315 seconds. 1080p is upscaled from 720p. No reference images, voice references, or\
- keyframes.",price:"480p $0.02/s, 720p $0.03/s, 1080p $0.14/s; image input $0.01/image"},{id:"grok-i\
-magine-video-1.5",implementedAt:"2026-08-25",implementedRank:8501,quickEmoji:"\u{1F3AC}",name:"Grok \
-Imagine Video 1.5",desc:"Current xAI video generation model with 1080p text/image-to-video support.",
-price:"$0.080 / second"},{id:"grok-imagine-video",implementedAt:"2026-01-30",implementedRank:530,name:"\
-Grok Imagine Video",desc:"Legacy Grok video generation.",price:"$0.05 / second"}]},{category:"xAI Gr\
-ok",icon:"fas fa-rocket text-white",description:"Models by xAI",items:[{id:"grok-4.6",implementedAt:"\
-2026-08-19",implementedRank:8161,name:"Grok 4.6",desc:"Frontier model for coding, agentic tasks, and\
- knowledge work.",price:"In $2.00/1M, Out $6.00/1M"},{id:"grok-4.5",implementedAt:"2026-08-19",implementedRank:8160,
-name:"Grok 4.5",desc:"Intelligent coding model for agentic software and engineering tasks.",price:"I\
-n $2.00/1M, Out $6.00/1M"},{id:"grok-4.3",implementedAt:"2026-05-27",implementedRank:5530,name:"Grok\
- 4.3",desc:"Most intelligent and fastest flagship model.",price:"In $1.25/1M, Out $2.50/1M"},{id:"gr\
-ok-build-0.1",implementedAt:"2026-05-27",implementedRank:5520,quickEmoji:"\u{1F6E0}\uFE0F",name:"Gro\
-k Build 0.1 (Coding)",desc:"Fast agentic coding model with vision and reasoning support.",price:"In \
-$1.00/1M, Out $2.00/1M"},{id:"grok-4.20-0309-reasoning",implementedAt:"2026-08-25",implementedRank:8503,
-name:"Grok 4.20 (Reasoning, 0309)",desc:"Dated Grok 4.20 reasoning release.",price:"In $1.25/1M, Out\
- $2.50/1M"},{id:"grok-4.20-0309-non-reasoning",implementedAt:"2026-08-25",implementedRank:8504,name:"\
-Grok 4.20 (Non-Reasoning, 0309)",desc:"Dated Grok 4.20 standard release.",price:"In $1.25/1M, Out $2\
-.50/1M"},{id:"grok-4.20-multi-agent-0309",implementedAt:"2026-08-25",implementedRank:8505,name:"Grok\
- 4.20 Multi-Agent (0309)",desc:"Dated Grok 4.20 multi-agent release.",price:"In $1.25/1M, Out $2.50/\
-1M"},{id:"grok-4.20-reasoning",implementedAt:"2026-04-09",implementedRank:4e3,name:"Grok 4.20 (Reaso\
-ning)",desc:"Flagship reasoning model.",price:"In $1.25/1M, Out $2.50/1M"},{id:"grok-4.20-non-reason\
-ing",implementedAt:"2026-04-09",implementedRank:4001,name:"Grok 4.20 (Non-Reasoning)",desc:"Flagship\
- standard model.",price:"In $1.25/1M, Out $2.50/1M"},{id:"grok-4.20-multi-agent",implementedAt:"2026\
--04-09",implementedRank:4002,name:"Grok 4.20 Multi-Agent",desc:"Agentic flagship model.",price:"In $\
-1.25/1M, Out $2.50/1M"},{id:"grok-4-1-fast-reasoning",implementedAt:"2026-03-01",implementedRank:280,
-name:"Grok 4.1 Fast (Reasoning)",desc:"Fast with reasoning capabilities.",price:"In $0.20/1M, Out $0\
-.50/1M",deprecated:!0},{id:"grok-4-1-fast-non-reasoning",implementedAt:"2026-03-01",implementedRank:281,
-name:"Grok 4.1 Fast (Non-Reasoning)",desc:"Fast standard model.",price:"In $0.20/1M, Out $0.50/1M",deprecated:!0},
-{id:"grok-4-fast-reasoning",implementedAt:"2026-02-01",implementedRank:150,name:"Grok 4 Fast (Reason\
-ing)",desc:"Previous gen reasoning.",price:"In $0.20/1M, Out $0.50/1M",deprecated:!0},{id:"grok-4-fa\
-st-non-reasoning",implementedAt:"2026-02-01",implementedRank:151,name:"Grok 4 Fast (Non-Reasoning)",
-desc:"Previous gen standard.",price:"In $0.20/1M, Out $0.50/1M",deprecated:!0}]}],WELCOME_QUICK_START_LIMIT=5,
-listModelsFlat=r(()=>{const e=[];return MODELS.forEach(t=>{(t.items||[]).forEach(n=>{n&&n.id&&e.push(
-n)})}),e},"listModelsFlat"),compareModelsByImplementedAt=r((e,t)=>{const n=String(e&&e.implementedAt||
-""),i=String(t&&t.implementedAt||"");if(n!==i)return i.localeCompare(n);const a=Number(e&&e.implementedRank||
-0),o=Number(t&&t.implementedRank||0);return a!==o?o-a:String(e&&e.id||"").localeCompare(String(t&&t.
-id||""))},"compareModelsByImplementedAt"),getRecentModelsForQuickStart=r((e=WELCOME_QUICK_START_LIMIT)=>listModelsFlat().
+Ideogram image generation with strong text rendering. Ideogram 4.6 and 4.5 also support multi-turn p\
+recise editing.",items:[{id:"ideogram-4.6",implementedAt:"2026-11-28",implementedRank:11700,quickEmoji:"\
+\u{1F5BC}\uFE0F",name:"Ideogram 4.6",desc:"Newest Ideogram model: native up to 4K generation and mul\
+ti-step precise editing that keeps unedited pixels intact.",price:"from $0.008 / image (up to 2K ver\
+y low) to $0.60 / image (4K high edit)"},{id:"ideogram-4.5",implementedAt:"2026-10-03",implementedRank:10474,
+quickEmoji:"\u{1F5BC}\uFE0F",name:"Ideogram 4.5",desc:"Latest Ideogram model: native 2K generation a\
+nd precise multi-turn editing that keeps unedited pixels intact.",price:"from $0.008 / image (1K ver\
+y low) to $0.22 / image (2K high)"},{id:"ideogram-4.0",implementedAt:"2026-10-03",implementedRank:10473,
+name:"Ideogram 4.0",desc:"Previous-generation Ideogram model with up to 2K output and structured pro\
+mpts. Text-to-image only.",price:"Priced per image by rendering speed"},{id:"ideogram-3.0",implementedAt:"\
+2026-10-03",implementedRank:10472,name:"Ideogram 3.0",desc:"Text-to-image with style types and negat\
+ive prompts. Text-to-image only.",price:"Priced per image by rendering speed"},{id:"ideogram-2a",implementedAt:"\
+2026-10-03",implementedRank:10471,name:"Ideogram 2a",desc:"Fast, lower-cost Ideogram 2 model. Text-t\
+o-image only.",price:"Priced per image by rendering speed"},{id:"ideogram-2.0",implementedAt:"2026-1\
+0-03",implementedRank:10470,name:"Ideogram 2.0",desc:"Ideogram 2.0 with style types and negative pro\
+mpts. Text-to-image only.",price:"Priced per image by rendering speed"}]},{category:"Grok Imagine",icon:"\
+fas fa-magic text-blue-400",description:"Grok generation models",items:[{id:"grok-imagine-image-2.0",
+implementedAt:"2026-08-22",implementedRank:8250,quickEmoji:"\u{1F3A8}",name:"Grok Imagine Image 2.0",
+desc:"Precise image generation and editing with 1K/2K output and low/medium quality control.",price:"\
+from $0.04 / image"},{id:"grok-imagine-image-quality",implementedAt:"2026-05-09",implementedRank:5020,
+name:"Grok Imagine Image Quality",desc:"Next-gen Grok image generation with 1K/2K support.",price:"$\
+0.05 / image"},{id:"grok-imagine-image",implementedAt:"2026-01-30",implementedRank:520,name:"Grok Im\
+agine Image",desc:"Latest Grok image generation.",price:"$0.02 / image"},{id:"grok-imagine-image-pro",
+implementedAt:"2026-02-01",implementedRank:530,name:"Grok Imagine Image Pro",desc:"Discontinued by x\
+AI. Retained for chat history compatibility.",price:"$0.07 / image",deprecated:!0},{id:"grok-imagine\
+-video-1.5-lite",implementedAt:"2026-10-20",implementedRank:11061,quickEmoji:"\u{1F3AC}",name:"Grok \
+Imagine Video 1.5 Lite",desc:"Low-cost text/image-to-video with lip-synced audio, 1\u201315 seconds. 1080\
+p is upscaled from 720p. No reference images, voice references, or keyframes.",price:"480p $0.02/s, \
+720p $0.03/s, 1080p $0.14/s; image input $0.01/image"},{id:"grok-imagine-video-1.5",implementedAt:"2\
+026-08-25",implementedRank:8501,quickEmoji:"\u{1F3AC}",name:"Grok Imagine Video 1.5",desc:"Current x\
+AI video generation model with 1080p text/image-to-video support.",price:"$0.080 / second"},{id:"gro\
+k-imagine-video",implementedAt:"2026-01-30",implementedRank:530,name:"Grok Imagine Video",desc:"Lega\
+cy Grok video generation.",price:"$0.05 / second"}]},{category:"xAI Grok",icon:"fas fa-rocket text-w\
+hite",description:"Models by xAI",items:[{id:"grok-4.6",implementedAt:"2026-08-19",implementedRank:8161,
+name:"Grok 4.6",desc:"Frontier model for coding, agentic tasks, and knowledge work.",price:"In $2.00\
+/1M, Out $6.00/1M"},{id:"grok-4.5",implementedAt:"2026-08-19",implementedRank:8160,name:"Grok 4.5",desc:"\
+Intelligent coding model for agentic software and engineering tasks.",price:"In $2.00/1M, Out $6.00/\
+1M"},{id:"grok-4.3",implementedAt:"2026-05-27",implementedRank:5530,name:"Grok 4.3",desc:"Most intel\
+ligent and fastest flagship model.",price:"In $1.25/1M, Out $2.50/1M"},{id:"grok-build-0.1",implementedAt:"\
+2026-05-27",implementedRank:5520,quickEmoji:"\u{1F6E0}\uFE0F",name:"Grok Build 0.1 (Coding)",desc:"F\
+ast agentic coding model with vision and reasoning support.",price:"In $1.00/1M, Out $2.00/1M"},{id:"\
+grok-4.20-0309-reasoning",implementedAt:"2026-08-25",implementedRank:8503,name:"Grok 4.20 (Reasoning\
+, 0309)",desc:"Dated Grok 4.20 reasoning release.",price:"In $1.25/1M, Out $2.50/1M"},{id:"grok-4.20\
+-0309-non-reasoning",implementedAt:"2026-08-25",implementedRank:8504,name:"Grok 4.20 (Non-Reasoning,\
+ 0309)",desc:"Dated Grok 4.20 standard release.",price:"In $1.25/1M, Out $2.50/1M"},{id:"grok-4.20-m\
+ulti-agent-0309",implementedAt:"2026-08-25",implementedRank:8505,name:"Grok 4.20 Multi-Agent (0309)",
+desc:"Dated Grok 4.20 multi-agent release.",price:"In $1.25/1M, Out $2.50/1M"},{id:"grok-4.20-reason\
+ing",implementedAt:"2026-04-09",implementedRank:4e3,name:"Grok 4.20 (Reasoning)",desc:"Flagship reas\
+oning model.",price:"In $1.25/1M, Out $2.50/1M"},{id:"grok-4.20-non-reasoning",implementedAt:"2026-0\
+4-09",implementedRank:4001,name:"Grok 4.20 (Non-Reasoning)",desc:"Flagship standard model.",price:"I\
+n $1.25/1M, Out $2.50/1M"},{id:"grok-4.20-multi-agent",implementedAt:"2026-04-09",implementedRank:4002,
+name:"Grok 4.20 Multi-Agent",desc:"Agentic flagship model.",price:"In $1.25/1M, Out $2.50/1M"},{id:"\
+grok-4-1-fast-reasoning",implementedAt:"2026-03-01",implementedRank:280,name:"Grok 4.1 Fast (Reasoni\
+ng)",desc:"Fast with reasoning capabilities.",price:"In $0.20/1M, Out $0.50/1M",deprecated:!0},{id:"\
+grok-4-1-fast-non-reasoning",implementedAt:"2026-03-01",implementedRank:281,name:"Grok 4.1 Fast (Non\
+-Reasoning)",desc:"Fast standard model.",price:"In $0.20/1M, Out $0.50/1M",deprecated:!0},{id:"grok-\
+4-fast-reasoning",implementedAt:"2026-02-01",implementedRank:150,name:"Grok 4 Fast (Reasoning)",desc:"\
+Previous gen reasoning.",price:"In $0.20/1M, Out $0.50/1M",deprecated:!0},{id:"grok-4-fast-non-reaso\
+ning",implementedAt:"2026-02-01",implementedRank:151,name:"Grok 4 Fast (Non-Reasoning)",desc:"Previo\
+us gen standard.",price:"In $0.20/1M, Out $0.50/1M",deprecated:!0}]}],WELCOME_QUICK_START_LIMIT=5,listModelsFlat=r(
+()=>{const e=[];return MODELS.forEach(t=>{(t.items||[]).forEach(n=>{n&&n.id&&e.push(n)})}),e},"listM\
+odelsFlat"),compareModelsByImplementedAt=r((e,t)=>{const n=String(e&&e.implementedAt||""),i=String(t&&
+t.implementedAt||"");if(n!==i)return i.localeCompare(n);const a=Number(e&&e.implementedRank||0),o=Number(
+t&&t.implementedRank||0);return a!==o?o-a:String(e&&e.id||"").localeCompare(String(t&&t.id||""))},"c\
+ompareModelsByImplementedAt"),getRecentModelsForQuickStart=r((e=WELCOME_QUICK_START_LIMIT)=>listModelsFlat().
 filter(t=>t&&t.id&&!t.deprecated&&t.implementedAt).sort(compareModelsByImplementedAt).slice(0,Math.max(
 0,Number(e)||0)),"getRecentModelsForQuickStart"),renderWelcomeQuickStart=r(()=>{const e=get("welcome\
 -quick-start");if(!e)return;const t=getRecentModelsForQuickStart(WELCOME_QUICK_START_LIMIT),n=r(i=>{
@@ -3052,15 +3056,15 @@ isIdeogramObjectRemoval()?"Object Remover \u306F\u753B\u50CF\u3068\u30DE\u30B9\u
 "\u80CC\u666F\u524A\u9664\u306F\u6307\u793A\u6587\u4E0D\u8981\u3067\u3059\u3002\u9001\u4FE1\u30DC\u30BF\u30F3\u3067\u5B9F\u884C")}
 r(updateIdeogramPromptInputUi,"updateIdeogramPromptInputUi");const IDEOGRAM_IMAGE_FIELDS=["operation",
 "count","aspect","resolution","quality","speed","magic","style","negative","seed"],ideogramModelTraits=r(
-e=>{const t=String(e||"").toLowerCase();return{edit:t==="ideogram-4.5",quality:t==="ideogram-4.5",speed:t!==
-"ideogram-4.5",resolution:t==="ideogram-4.5"||t==="ideogram-4.0",style:t==="ideogram-3.0"||t==="ideo\
-gram-2a"||t==="ideogram-2.0",negative:t==="ideogram-3.0"||t==="ideogram-2.0",styleOptions:t==="ideog\
-ram-3.0"?["auto","general","realistic","design","fiction","stylized"]:["auto","general","realistic",
-"design","render_3d","anime"]}},"ideogramModelTraits"),isGrokVideoModel=r(()=>{const e=(get("model-s\
-elect").value||"").toLowerCase();return e.includes("grok")&&e.includes("video")},"isGrokVideoModel"),
-isGeminiVideoModelKey=r(e=>{const t=(e||"").toLowerCase();return t.startsWith("veo-")||t.includes("o\
-mni-flash")||t.includes("omni-1.1-flash")},"isGeminiVideoModelKey"),isGeminiVideoModel=r(()=>isGeminiVideoModelKey(
-get("model-select").value),"isGeminiVideoModel"),isGeminiMusicModelKey=r(e=>(e||"").toLowerCase().startsWith(
+e=>{const t=String(e||"").toLowerCase(),n=t==="ideogram-4.6",i=n||t==="ideogram-4.5";return{edit:i,quality:i,
+speed:!i,resolution:i||t==="ideogram-4.0",resolution4k:n,style:t==="ideogram-3.0"||t==="ideogram-2a"||
+t==="ideogram-2.0",negative:t==="ideogram-3.0"||t==="ideogram-2.0",styleOptions:t==="ideogram-3.0"?[
+"auto","general","realistic","design","fiction","stylized"]:["auto","general","realistic","design","\
+render_3d","anime"]}},"ideogramModelTraits"),isGrokVideoModel=r(()=>{const e=(get("model-select").value||
+"").toLowerCase();return e.includes("grok")&&e.includes("video")},"isGrokVideoModel"),isGeminiVideoModelKey=r(
+e=>{const t=(e||"").toLowerCase();return t.startsWith("veo-")||t.includes("omni-flash")||t.includes(
+"omni-1.1-flash")},"isGeminiVideoModelKey"),isGeminiVideoModel=r(()=>isGeminiVideoModelKey(get("mode\
+l-select").value),"isGeminiVideoModel"),isGeminiMusicModelKey=r(e=>(e||"").toLowerCase().startsWith(
 "lyria-"),"isGeminiMusicModelKey"),isGeminiMusicModel=r(()=>isGeminiMusicModelKey(get("model-select").
 value),"isGeminiMusicModel"),isGeminiEmbeddingModelKey=r(e=>(e||"").toLowerCase().includes("gemini-e\
 mbedding"),"isGeminiEmbeddingModelKey"),isGeminiEmbeddingModel=r(()=>isGeminiEmbeddingModelKey(get("\

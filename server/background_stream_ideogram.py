@@ -159,16 +159,24 @@ def background_stream_ideogram(local):
             else:
                 pub("error", "Ideogram Error: No data returned.")
         else:
-            op_name = 'remove_background' if remove_background else 'remove_object' if remove_object else _ideogram_edit_mode or ('edit' if ideogram_sources else 'generate')
+            op_name = (
+                'remove_background' if remove_background
+                else 'remove_object' if remove_object
+                else ('edit' if (_ideogram_edit_mode or ideogram_sources) else 'generate')
+            )
             speed_opt = str(options.get('ideogram_speed') or 'default').lower().strip()
-            qual_opt = str(options.get('ideogram_quality') or ('medium' if op_name == 'edit' else 'high')).lower().strip()
+            qual_opt = _ideogram_effective_quality(model_key_l, op_name, options.get('ideogram_quality'))
+            fallback_res = '2k' if op_name == 'edit' else _ideogram_resolution_name(model_key_l, options, qual_opt)
+            res_opt = _ideogram_output_resolution_tier(ideogram_items, fallback_res, qual_opt)
             _record_direct_usage(
                 model_key_l,
                 'ideogram',
+                enrich_existing=True,
                 images=sum(1 for it in ideogram_items if it.get("url") and it.get("is_image_safe") is not False),
                 operation=op_name,
                 speed=speed_opt if speed_opt in ('turbo', 'default', 'quality') else 'default',
-                quality=qual_opt if qual_opt in ('very_low', 'low', 'medium', 'high') else 'medium',
+                quality=qual_opt,
+                resolution=res_opt,
             )
     except Exception as e:
         logger.exception("Ideogram Error")

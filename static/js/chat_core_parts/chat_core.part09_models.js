@@ -261,8 +261,9 @@
             {
                 category: "Ideogram",
                 icon: "fas fa-paint-brush text-pink-400",
-                description: "Ideogram image generation with strong text rendering. Ideogram 4.5 also supports multi-turn precise editing.",
+                description: "Ideogram image generation with strong text rendering. Ideogram 4.6 and 4.5 also support multi-turn precise editing.",
                 items: [
+                    { id: "ideogram-4.6", implementedAt: "2026-11-28", implementedRank: 11700, quickEmoji: "🖼️", name: "Ideogram 4.6", desc: "Newest Ideogram model: native up to 4K generation and multi-step precise editing that keeps unedited pixels intact.", price: "from $0.008 / image (up to 2K very low) to $0.60 / image (4K high edit)" },
                     { id: "ideogram-4.5", implementedAt: "2026-10-03", implementedRank: 10474, quickEmoji: "🖼️", name: "Ideogram 4.5", desc: "Latest Ideogram model: native 2K generation and precise multi-turn editing that keeps unedited pixels intact.", price: "from $0.008 / image (1K very low) to $0.22 / image (2K high)" },
                     { id: "ideogram-4.0", implementedAt: "2026-10-03", implementedRank: 10473, name: "Ideogram 4.0", desc: "Previous-generation Ideogram model with up to 2K output and structured prompts. Text-to-image only.", price: "Priced per image by rendering speed" },
                     { id: "ideogram-3.0", implementedAt: "2026-10-03", implementedRank: 10472, name: "Ideogram 3.0", desc: "Text-to-image with style types and negative prompts. Text-to-image only.", price: "Priced per image by rendering speed" },
@@ -965,11 +966,14 @@
         const IDEOGRAM_IMAGE_FIELDS = ['operation', 'count', 'aspect', 'resolution', 'quality', 'speed', 'magic', 'style', 'negative', 'seed'];
         const ideogramModelTraits = (model) => {
             const m = String(model || '').toLowerCase();
+            const isV46 = m === 'ideogram-4.6';
+            const isEditModel = isV46 || m === 'ideogram-4.5';
             return {
-                edit: m === 'ideogram-4.5',
-                quality: m === 'ideogram-4.5',
-                speed: m !== 'ideogram-4.5',
-                resolution: m === 'ideogram-4.5' || m === 'ideogram-4.0',
+                edit: isEditModel,
+                quality: isEditModel,
+                speed: !isEditModel,
+                resolution: isEditModel || m === 'ideogram-4.0',
+                resolution4k: isV46,
                 style: m === 'ideogram-3.0' || m === 'ideogram-2a' || m === 'ideogram-2.0',
                 negative: m === 'ideogram-3.0' || m === 'ideogram-2.0',
                 styleOptions: m === 'ideogram-3.0'

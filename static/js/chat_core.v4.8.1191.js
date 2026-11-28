@@ -8259,8 +8259,9 @@
             {
                 category: "Ideogram",
                 icon: "fas fa-paint-brush text-pink-400",
-                description: "Ideogram image generation with strong text rendering. Ideogram 4.5 also supports multi-turn precise editing.",
+                description: "Ideogram image generation with strong text rendering. Ideogram 4.6 and 4.5 also support multi-turn precise editing.",
                 items: [
+                    { id: "ideogram-4.6", implementedAt: "2026-11-28", implementedRank: 11700, quickEmoji: "🖼️", name: "Ideogram 4.6", desc: "Newest Ideogram model: native up to 4K generation and multi-step precise editing that keeps unedited pixels intact.", price: "from $0.008 / image (up to 2K very low) to $0.60 / image (4K high edit)" },
                     { id: "ideogram-4.5", implementedAt: "2026-10-03", implementedRank: 10474, quickEmoji: "🖼️", name: "Ideogram 4.5", desc: "Latest Ideogram model: native 2K generation and precise multi-turn editing that keeps unedited pixels intact.", price: "from $0.008 / image (1K very low) to $0.22 / image (2K high)" },
                     { id: "ideogram-4.0", implementedAt: "2026-10-03", implementedRank: 10473, name: "Ideogram 4.0", desc: "Previous-generation Ideogram model with up to 2K output and structured prompts. Text-to-image only.", price: "Priced per image by rendering speed" },
                     { id: "ideogram-3.0", implementedAt: "2026-10-03", implementedRank: 10472, name: "Ideogram 3.0", desc: "Text-to-image with style types and negative prompts. Text-to-image only.", price: "Priced per image by rendering speed" },
@@ -8963,11 +8964,14 @@
         const IDEOGRAM_IMAGE_FIELDS = ['operation', 'count', 'aspect', 'resolution', 'quality', 'speed', 'magic', 'style', 'negative', 'seed'];
         const ideogramModelTraits = (model) => {
             const m = String(model || '').toLowerCase();
+            const isV46 = m === 'ideogram-4.6';
+            const isEditModel = isV46 || m === 'ideogram-4.5';
             return {
-                edit: m === 'ideogram-4.5',
-                quality: m === 'ideogram-4.5',
-                speed: m !== 'ideogram-4.5',
-                resolution: m === 'ideogram-4.5' || m === 'ideogram-4.0',
+                edit: isEditModel,
+                quality: isEditModel,
+                speed: !isEditModel,
+                resolution: isEditModel || m === 'ideogram-4.0',
+                resolution4k: isV46,
                 style: m === 'ideogram-3.0' || m === 'ideogram-2a' || m === 'ideogram-2.0',
                 negative: m === 'ideogram-3.0' || m === 'ideogram-2.0',
                 styleOptions: m === 'ideogram-3.0'
@@ -11017,23 +11021,35 @@
                     el.value = traits.styleOptions.includes(prev) ? prev : 'auto';
                 }
             });
+            const qualityVal = String(get('ideogram-image-quality')?.value || '').toLowerCase();
+            const allow4k = !!traits.resolution4k && qualityVal !== 'very_low';
+            ['ideogram-image-resolution', 'modal-ideogram-image-resolution'].forEach((id) => {
+                const el = get(id);
+                if (!el) return;
+                const opt4k = Array.from(el.options || []).find((opt) => opt.value === '4k');
+                if (opt4k) opt4k.disabled = !allow4k;
+                if (!allow4k && el.value === '4k') el.value = '2k';
+            });
             const note = get('ideogram-image-note');
             if (note) {
                 note.textContent = removeBackground
                     ? '※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は表示中のブランチの最後の画像。送信ボタンだけで実行し、透過PNGで出力'
                     : removeObject
                     ? '※ Object Remover: 画像1枚 + 同じサイズの白黒マスク画像が必要です。マスクの白い部分を削除します'
+                    : model.toLowerCase() === 'ideogram-4.6'
+                    ? '※ Ideogram 4.6: 4K出力対応（Very lowは2Kまで）。画像を添付（または直前の画像がある場合）は Precise Edit（元画像と同サイズ）'
                     : traits.edit
                     ? '※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ'
-                    : '※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）';
+                    : '※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.6 / 4.5 のみ）';
             }
         }
-        ['ideogram-image-operation', 'modal-ideogram-image-operation'].forEach((id) => {
+        ['ideogram-image-operation', 'modal-ideogram-image-operation', 'ideogram-image-quality', 'modal-ideogram-image-quality'].forEach((id) => {
             get(id)?.addEventListener('change', () => {
-                const other = get(id.startsWith('modal-') ? 'ideogram-image-operation' : 'modal-ideogram-image-operation');
+                const otherId = id.startsWith('modal-') ? id.slice('modal-'.length) : `modal-${id}`;
+                const other = get(otherId);
                 if (other) other.value = get(id).value;
                 updateIdeogramImageUi();
-                toggleOptions();
+                if (id.endsWith('operation')) toggleOptions();
             });
         });
         function updateGrokVideoUi() {
@@ -11187,13 +11203,14 @@
                 ].join('');
             } else if (isIdeogramModel(model)) {
                 show = true;
+                const title = model.toLowerCase() === 'ideogram-4.6' ? 'Ideogram 4.6 入力制限' : 'Ideogram 4.5 入力制限';
                 html = ideogramModelTraits(model).edit ? [
-                    '<div class="font-bold text-gray-300 mb-1">Ideogram 4.5 入力制限</div>',
+                    `<div class="font-bold text-gray-300 mb-1">${title}</div>`,
                     '<div>編集する画像1枚 + 参考画像は最大4枚 / 1枚あたり25MBまで / PNG・JPEG・WEBP</div>',
                     '<div>画像がない場合は直前の画像を編集します。背景削除と Object Remover も利用できます</div>'
                 ].join('') : [
                     '<div class="font-bold text-gray-300 mb-1">Ideogram 入力</div>',
-                    '<div>生成・編集では画像入力は Ideogram 4.5 のみ。背景削除と Object Remover は全モデルで利用できます</div>'
+                    '<div>生成・編集では画像入力は Ideogram 4.6 / 4.5 のみ。背景削除と Object Remover は全モデルで利用できます</div>'
                 ].join('');
             } else if (model.includes('grok') && model.includes('video')) {
                 show = true;
@@ -28518,14 +28535,24 @@
             if (modelStr.startsWith('grok-imagine-image')) {
                 return { model: message.model, images: count || 1, operation: hasSource ? 'edit' : 'generate', quality: options.grok_image_quality || 'medium', resolution: options.grok_image_resolution || '1k', input_images: hasSource ? 1 : 0, complete: !!parent };
             }
+            const is46 = message.model === 'ideogram-4.6';
             const operation = ['remove_object', 'remove_background'].includes(options.ideogram_operation)
-                ? options.ideogram_operation : hasSource && message.model === 'ideogram-4.5' ? 'edit' : 'generate';
+                ? options.ideogram_operation : hasSource && (is46 || message.model === 'ideogram-4.5') ? 'edit' : 'generate';
             let quality = options.ideogram_quality;
-            if (!['very_low', 'low', 'medium', 'high'].includes(quality) || (quality === 'very_low' && operation === 'generate')) {
-                quality = operation === 'edit' ? 'medium' : 'high';
+            if (!['very_low', 'low', 'medium', 'high'].includes(quality) || (quality === 'very_low' && operation === 'generate' && !is46)) {
+                quality = (operation === 'edit' || is46) ? 'medium' : 'high';
+            }
+            let resolution = null;
+            if (is46) {
+                const rawRes = String(options.ideogram_resolution || '').toLowerCase();
+                if (operation === 'generate') {
+                    resolution = (rawRes === '4k' && quality !== 'very_low') ? '4k' : (rawRes === '2k' || rawRes === '4k') ? '2k' : '1k';
+                } else if (quality === 'very_low') {
+                    resolution = '2k';
+                }
             }
             const speed = parent ? (['turbo', 'default', 'quality'].includes(options.ideogram_speed) ? options.ideogram_speed : 'default') : null;
-            return { model: message.model, images: count || null, operation, quality, speed, complete: !!parent };
+            return { model: message.model, images: count || null, operation, quality, speed, ...(resolution ? { resolution } : {}), complete: !!parent };
         }
 
         function estimateConversationCost(messages, pricing = costPricing, context = messages) {
@@ -28943,12 +28970,29 @@
             if (low === null) {
                 const prices = rate.image_rates?.[request.operation] ?? rate.image_rates?.generate;
                 const selected = prices?.[rate.image_selector === 'speed' ? request.speed : request.quality];
-                const minimum = selected?.minimum ?? prices?.minimum;
-                const unit = typeof prices === 'number' ? prices : typeof selected === 'number' ? selected : minimum;
-                lowerBound = Number.isFinite(unit) && typeof prices !== 'number' && typeof selected !== 'number';
-                if (!Number.isFinite(unit)) { result.unpriced++; return; }
-                low = count * unit * flexMul;
-                high = count * unit * flexMul;
+                const resKey = String(request.resolution || '').toLowerCase();
+                const resPrice = (selected && typeof selected === 'object' && resKey && typeof selected[resKey] === 'number')
+                    ? selected[resKey] : null;
+                if (typeof prices === 'number' || typeof selected === 'number' || typeof resPrice === 'number') {
+                    const unit = typeof prices === 'number' ? prices : typeof selected === 'number' ? selected : resPrice;
+                    low = count * unit * flexMul;
+                    high = count * unit * flexMul;
+                } else {
+                    const vals = (selected && typeof selected === 'object')
+                        ? Object.entries(selected).filter(([k, v]) => k !== 'minimum' && typeof v === 'number').map(([, v]) => v)
+                        : [];
+                    if (vals.length) {
+                        low = count * Math.min(...vals) * flexMul;
+                        high = count * Math.max(...vals) * flexMul;
+                        if (Math.min(...vals) !== Math.max(...vals)) incomplete = true;
+                    } else {
+                        const minimum = selected?.minimum ?? prices?.minimum;
+                        lowerBound = Number.isFinite(minimum);
+                        if (!Number.isFinite(minimum)) { result.unpriced++; return; }
+                        low = count * minimum * flexMul;
+                        high = count * minimum * flexMul;
+                    }
+                }
             }
             const extraIn = (costTokenNumber(request.input_images) || 0) * (rate.input_image_rate || 0);
             result.low += low + extraIn;

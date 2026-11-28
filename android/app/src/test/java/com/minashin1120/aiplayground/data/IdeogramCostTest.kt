@@ -25,13 +25,33 @@ class IdeogramCostTest {
     }
 
     @Test fun endpointPricesIgnoreSelectedGenerationModel() {
-        for (model in listOf("ideogram-4.5", "ideogram-4.0", "ideogram-3.0", "ideogram-2a", "ideogram-2.0")) {
+        for (model in listOf("ideogram-4.6", "ideogram-4.5", "ideogram-4.0", "ideogram-3.0", "ideogram-2a", "ideogram-2.0")) {
             assertEquals(.03, estimate(model, operation = "remove_background").low, 1e-12)
             val cost = estimate(model, operation = "remove_object")
             assertEquals(.09, cost.low, 1e-12)
             assertTrue(cost.lowerBound)
             assertTrue(cost.label().contains("以上"))
             assertTrue(cost.label().contains("一部未算入"))
+        }
+    }
+
+    @Test fun ideogram46RatesFollowQualityOperationAndResolution() {
+        val cases = listOf(
+            listOf("generate", "very_low", "1k", .008),
+            listOf("generate", "low", "4k", .06),
+            listOf("generate", "medium", "4k", .12),
+            listOf("generate", "high", "4k", .20),
+            listOf("edit", "medium", "4k", .20),
+            listOf("edit", "high", "2k", .22),
+            listOf("edit", "high", "4k", .60),
+        )
+        for (row in cases) {
+            val call = JSONObject().put("model", "ideogram-4.6").put("operation", row[0] as String)
+                .put("quality", row[1] as String).put("resolution", row[2] as String).put("images", 2).put("complete", true)
+            val metadata = JSONObject().put("pricing_calls", JSONArray().put(call)).toString()
+            val cost = estimator.estimate(listOf(ChatMessage("2", "assistant", "answer", model = "ideogram-4.6", thought = metadata)))
+            assertEquals(2.0 * (row[3] as Double), cost.low, 1e-12)
+            assertEquals(0, cost.unpriced)
         }
     }
 

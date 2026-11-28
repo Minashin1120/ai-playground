@@ -31,6 +31,32 @@ def test_unknown_retry_is_marked_and_does_not_hide_known_requests():
     assert cost['unpriced'] == 1 and cost['requests'] == 2
 
 
+@pytest.mark.parametrize('operation,quality,resolution,unit', [
+    ('generate', 'very_low', '1k', .008), ('generate', 'very_low', '2k', .008),
+    ('generate', 'low', '1k', .03), ('generate', 'low', '2k', .03), ('generate', 'low', '4k', .06),
+    ('generate', 'medium', '1k', .06), ('generate', 'medium', '2k', .06), ('generate', 'medium', '4k', .12),
+    ('generate', 'high', '1k', .10), ('generate', 'high', '2k', .10), ('generate', 'high', '4k', .20),
+    ('edit', 'very_low', '1k', .008), ('edit', 'very_low', '2k', .008),
+    ('edit', 'low', '1k', .03), ('edit', 'low', '2k', .03), ('edit', 'low', '4k', .06),
+    ('edit', 'medium', '1k', .06), ('edit', 'medium', '2k', .06), ('edit', 'medium', '4k', .20),
+    ('edit', 'high', '1k', .22), ('edit', 'high', '2k', .22), ('edit', 'high', '4k', .60),
+])
+def test_ideogram_46_charges_by_actual_image_count_quality_and_resolution(operation, quality, resolution, unit):
+    call = {'model': 'ideogram-4.6', 'images': 3, 'operation': operation, 'quality': quality, 'resolution': resolution, 'complete': True}
+    cost = estimate([with_calls([call])])
+    assert cost['low'] == pytest.approx(3 * unit) and cost['high'] == pytest.approx(3 * unit)
+    assert cost['unpriced'] == 0
+
+
+def test_ideogram_46_unknown_resolution_produces_range_and_legacy_defaults_to_medium():
+    range_cost = estimate([with_calls([{'model': 'ideogram-4.6', 'images': 2, 'operation': 'edit', 'quality': 'high', 'complete': True}])])
+    assert range_cost['low'] == pytest.approx(0.44) and range_cost['high'] == pytest.approx(1.20)
+    assert range_cost['unpriced'] == 1
+    parent = {'id': 1, 'role': 'user', 'tokens_in': 10, 'prompt_options': {'ideogram_resolution': '4k'}}
+    row = answer('ideogram-4.6', None, None, image_url='["one.png"]', parent_id=1)
+    assert estimate([parent, row])['low'] == pytest.approx(0.12)
+
+
 @pytest.mark.parametrize('operation,quality,unit', [('generate', 'low', .03), ('generate', 'medium', .06),
     ('generate', 'high', .10), ('edit', 'very_low', .008), ('edit', 'low', .03), ('edit', 'medium', .06), ('edit', 'high', .22)])
 @pytest.mark.parametrize('resolution', ['1k', '2k'])

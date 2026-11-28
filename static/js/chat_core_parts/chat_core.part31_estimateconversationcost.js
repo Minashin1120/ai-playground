@@ -414,12 +414,29 @@
             if (low === null) {
                 const prices = rate.image_rates?.[request.operation] ?? rate.image_rates?.generate;
                 const selected = prices?.[rate.image_selector === 'speed' ? request.speed : request.quality];
-                const minimum = selected?.minimum ?? prices?.minimum;
-                const unit = typeof prices === 'number' ? prices : typeof selected === 'number' ? selected : minimum;
-                lowerBound = Number.isFinite(unit) && typeof prices !== 'number' && typeof selected !== 'number';
-                if (!Number.isFinite(unit)) { result.unpriced++; return; }
-                low = count * unit * flexMul;
-                high = count * unit * flexMul;
+                const resKey = String(request.resolution || '').toLowerCase();
+                const resPrice = (selected && typeof selected === 'object' && resKey && typeof selected[resKey] === 'number')
+                    ? selected[resKey] : null;
+                if (typeof prices === 'number' || typeof selected === 'number' || typeof resPrice === 'number') {
+                    const unit = typeof prices === 'number' ? prices : typeof selected === 'number' ? selected : resPrice;
+                    low = count * unit * flexMul;
+                    high = count * unit * flexMul;
+                } else {
+                    const vals = (selected && typeof selected === 'object')
+                        ? Object.entries(selected).filter(([k, v]) => k !== 'minimum' && typeof v === 'number').map(([, v]) => v)
+                        : [];
+                    if (vals.length) {
+                        low = count * Math.min(...vals) * flexMul;
+                        high = count * Math.max(...vals) * flexMul;
+                        if (Math.min(...vals) !== Math.max(...vals)) incomplete = true;
+                    } else {
+                        const minimum = selected?.minimum ?? prices?.minimum;
+                        lowerBound = Number.isFinite(minimum);
+                        if (!Number.isFinite(minimum)) { result.unpriced++; return; }
+                        low = count * minimum * flexMul;
+                        high = count * minimum * flexMul;
+                    }
+                }
             }
             const extraIn = (costTokenNumber(request.input_images) || 0) * (rate.input_image_rate || 0);
             result.low += low + extraIn;

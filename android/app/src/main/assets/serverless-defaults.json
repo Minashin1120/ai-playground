@@ -2340,6 +2340,18 @@
   },
   {
    "capabilities": [
+    "image"
+   ],
+   "deprecated": false,
+   "id": "ideogram-4.6",
+   "mode": "image",
+   "name": "Ideogram 4.6",
+   "provider": "ideogram",
+   "provider_label": "Ideogram",
+   "selectable": true
+  },
+  {
+   "capabilities": [
     "chat",
     "attachments",
     "thinking",

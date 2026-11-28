@@ -242,7 +242,7 @@ class XaiImageDirect(private val http: DirectHttp, private val baseUrl: String =
 internal class IdeogramCall(val url: String, val body: RequestBody, val edit: Boolean)
 
 /**
- * Ideogram images from the device (server `server/ideogram.py`): Ideogram 4.5 generates, or runs Precise Edit
+ * Ideogram images from the device (server `server/ideogram.py`): Ideogram 4.6 / 4.5 generates, or runs Precise Edit
  * when an image is attached (or an earlier image is in the chat). All models offer background and object removal.
  */
 class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: String = "https://api.ideogram.ai") : DirectEngine {
@@ -254,11 +254,11 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
         val usage = kotlin.coroutines.coroutineContext[UsageContext]?.ledger?.begin(request.model, "ideogram")
         val action = request.options.optString("ideogram_operation")
         val operation = if (action in setOf("remove_object", "remove_background")) action else if (sources.isEmpty()) "generate" else "edit"
-        var quality = request.options.optString("ideogram_quality").trim().lowercase()
-        if (quality !in setOf("very_low", "low", "medium", "high") || (quality == "very_low" && operation == "generate")) quality = if (operation == "edit") "medium" else "high"
+        val quality = effectiveQuality(request.model, operation, request.options.optString("ideogram_quality"))
+        val fallbackRes = if (operation == "edit") "2k" else resolutionName(request.model, request.options, quality)
         usage?.row?.put("operation", operation)?.put("quality", quality)
             ?.put("speed", request.options.optString("ideogram_speed").trim().lowercase().takeIf { it in setOf("turbo", "default", "quality") } ?: "default")
-            ?.put("resolution", request.options.optString("ideogram_resolution"))
+            ?.put("resolution", fallbackRes)
         val headers = mapOf("Api-Key" to request.apiKey, "Accept" to "application/json")
         var reply = http.execute(http.request(call.url, headers).post(call.body).build()) { response ->
             val text = response.body.string()
@@ -290,6 +290,9 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
         if (reply.has("error")) throw ideogramError(reply.optInt("status_code", 500), reply.toString())
         val data = reply.optJSONArray("data") ?: JSONArray()
         usage?.row?.put("images", data.length())
+        if (operation in setOf("generate", "edit")) {
+            usage?.row?.put("resolution", outputResolutionTier(data, fallbackRes, quality))
+        }
         usage?.finished = true
         val files = mutableListOf<DirectOutputFile>()
         var blocked = 0
@@ -319,7 +322,7 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
         val removeObject = request.options.optString("ideogram_operation") == "remove_object"
         val chosen = if ((removeBackground || removeObject) && attached.isNotEmpty()) {
             attached
-        } else if (request.model.lowercase() == "ideogram-4.5" || removeBackground || removeObject) {
+        } else if (request.model.lowercase() in setOf("ideogram-4.6", "ideogram-4.5") || removeBackground || removeObject) {
             val generated = request.turns.asReversed().filter { it.role == "assistant" }
                 .flatMap { (it.attachments + it.generated).asReversed() }
                 .firstOrNull { it.bytes != null && it.mime.startsWith("image/") }
@@ -366,8 +369,8 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
             seed?.let { form.addFormDataPart("seed", it.toString()) }
             return IdeogramCall("$baseUrl/v2/image/remove-object/ideogram-1", form.build(), true)
         }
-        if (sources.isNotEmpty() && family != "v45") {
-            throw DirectApiException(0, "画像の編集に対応しているのは Ideogram 4.5 だけです。Ideogram 4.5 を選択するか、添付画像を外してください。")
+        if (sources.isNotEmpty() && family !in setOf("v46", "v45")) {
+            throw DirectApiException(0, "画像の編集に対応しているのは Ideogram 4.6 / 4.5 です。Ideogram 4.6 または 4.5 を選択するか、添付画像を外してください。")
         }
         val options = request.options
         fun pick(key: String, allowed: Collection<String>) = options.optString(key).trim().lowercase().takeIf { it in allowed }
@@ -376,7 +379,7 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
         val magic = pick("ideogram_magic_prompt", MAGIC_PROMPTS)
         val speed = pick("ideogram_speed", SPEEDS)
         val aspect = pick("ideogram_aspect", SIZE_PRESETS.keys) ?: "auto"
-        val tier = if (options.optString("ideogram_resolution").trim().lowercase() == "2k") 1 else 0
+        val tier = if (options.optString("ideogram_resolution").trim().lowercase() in setOf("2k", "4k")) 1 else 0
         val negative = options.optString("ideogram_negative_prompt").trim().takeIf { it != "null" }.orEmpty().take(2000)
         val prompt = request.prompt()
         val generateUrl = "$baseUrl/v2/image/generate/$path"
@@ -384,22 +387,36 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
         fun legacyAspect(): String = if (aspect in SIZE_PRESETS) aspect.replace(':', 'x') else "auto"
 
         return when (family) {
-            "v45" -> {
+            "v46", "v45" -> {
                 val form = MultipartBody.Builder().setType(MultipartBody.FORM)
                     .addFormDataPart("prompt", prompt).addFormDataPart("num_images", count.toString())
                 seed?.let { form.addFormDataPart("seed", it.toString()) }
                 val quality = pick("ideogram_quality", QUALITIES)
+                val resName = resolutionName(model, options, quality)
                 if (sources.isNotEmpty()) {
                     // Precise Edit keeps the source's own size, so no size or aspect is sent.
                     quality?.let { form.addFormDataPart("quality", it) }
                     sources.take(5).forEachIndexed { index, image ->
                         form.addFormDataPart(if (index == 0) "image" else "reference_images", image.name, image.bytes!!.toRequestBody(image.mime.toMediaType()))
                     }
-                    return IdeogramCall("$baseUrl/v2/image/precise-edit/ideogram-4-5", form.build(), true)
+                    return IdeogramCall("$baseUrl/v2/image/precise-edit/$path", form.build(), true)
                 }
                 magic?.let { form.addFormDataPart("magic_prompt", it) }
-                if (quality != null && quality != "very_low") form.addFormDataPart("quality", quality)
-                size()?.let { form.addFormDataPart("size", it) }
+                if (family == "v46") {
+                    quality?.let { form.addFormDataPart("quality", it) }
+                    if (aspect == "auto") {
+                        when (resName) {
+                            "4k" -> form.addFormDataPart("size", "auto_4k")
+                            "2k" -> form.addFormDataPart("size", "auto_2k")
+                        }
+                    } else {
+                        val resolvedSize = if (resName == "4k") SIZE_PRESETS_4K[aspect] else SIZE_PRESETS[aspect]?.let { if (resName == "2k") it.second else it.first }
+                        resolvedSize?.let { form.addFormDataPart("size", it) }
+                    }
+                } else {
+                    if (quality != null && quality != "very_low") form.addFormDataPart("quality", quality)
+                    size()?.let { form.addFormDataPart("size", it) }
+                }
                 IdeogramCall(generateUrl, form.build(), false)
             }
             "v4" -> {
@@ -436,6 +453,7 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
     private companion object {
         /** App model id -> (API path segment, request family). */
         val MODELS = mapOf(
+            "ideogram-4.6" to ("ideogram-4-6" to "v46"),
             "ideogram-4.5" to ("ideogram-4-5" to "v45"),
             "ideogram-4.0" to ("ideogram-4" to "v4"),
             "ideogram-3.0" to ("ideogram-3" to "v3"),
@@ -450,9 +468,52 @@ class IdeogramImageDirect(private val http: DirectHttp, private val baseUrl: Str
             "10:16" to ("800x1280" to "1600x2560"), "16:10" to ("1280x800" to "2560x1600"), "1:2" to ("720x1440" to "1440x2880"),
             "2:1" to ("1440x720" to "2880x1440"), "1:3" to ("512x1536" to "1024x3072"), "3:1" to ("1536x512" to "3072x1024"),
         )
+        val SIZE_PRESETS_4K = SIZE_PRESETS.mapValues { (_, pair) ->
+            val parts = pair.second.split("x", limit = 2)
+            "${parts[0].toInt() * 2}x${parts[1].toInt() * 2}"
+        }
         val QUALITIES = setOf("very_low", "low", "medium", "high")
         val SPEEDS = setOf("turbo", "default", "quality")
         val MAGIC_PROMPTS = setOf("auto", "on", "off")
+
+        fun resolutionName(model: String, options: JSONObject, quality: String?): String {
+            val res = options.optString("ideogram_resolution").trim().lowercase()
+            return if (model.lowercase() == "ideogram-4.6") {
+                when {
+                    res == "4k" && quality != "very_low" -> "4k"
+                    res == "2k" || res == "4k" -> "2k"
+                    else -> "1k"
+                }
+            } else if (res == "2k" || res == "4k") "2k" else "1k"
+        }
+
+        fun effectiveQuality(model: String, operation: String, rawQuality: String): String {
+            val q = rawQuality.trim().lowercase().takeIf { it in QUALITIES }
+            if (model.lowercase() == "ideogram-4.6") return q ?: "medium"
+            return if (q == null || (q == "very_low" && operation == "generate")) {
+                if (operation == "edit") "medium" else "high"
+            } else q
+        }
+
+        fun outputResolutionTier(data: JSONArray, fallbackTier: String, quality: String?): String {
+            for (i in 0 until data.length()) {
+                val res = data.optJSONObject(i)?.optString("resolution").orEmpty().trim().lowercase()
+                val parts = res.split("x", limit = 2)
+                if (parts.size == 2) {
+                    val w = parts[0].toLongOrNull() ?: continue
+                    val h = parts[1].toLongOrNull() ?: continue
+                    if (w > 0L && h > 0L) {
+                        val pixels = w * h
+                        return when {
+                            pixels > 2048L * 2048L && quality != "very_low" -> "4k"
+                            pixels > 1024L * 1024L -> "2k"
+                            else -> "1k"
+                        }
+                    }
+                }
+            }
+            return fallbackTier
+        }
         val STYLE_TYPES_V3 = setOf("auto", "general", "realistic", "design", "fiction", "stylized")
         val STYLE_TYPES_V2 = setOf("auto", "general", "realistic", "design", "render_3d", "anime")
         val SOURCE_MIMES = setOf("image/png", "image/jpeg", "image/webp")

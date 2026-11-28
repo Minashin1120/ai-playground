@@ -84,6 +84,7 @@
     "Grok 4.20 (Non-Reasoning)": "grok-4.20-non-reasoning",
     "Grok 4.20 Multi-Agent": "grok-4.20-multi-agent",
     "Kimi K3": "kimi-k3",
+    "Ideogram 4.6": "ideogram-4.6",
     "Ideogram 4.5": "ideogram-4.5",
     "Ideogram 4.0": "ideogram-4.0",
     "Ideogram 3.0": "ideogram-3.0",
@@ -1117,6 +1118,58 @@
       "cache_write_multipliers": {
         "5m": 1,
         "1h": 2
+      }
+    },
+    "ideogram-4.6": {
+      "provider": "ideogram",
+      "unit": "image",
+      "image_rates": {
+        "generate": {
+          "very_low": {
+            "1k": 0.008,
+            "2k": 0.008
+          },
+          "low": {
+            "1k": 0.03,
+            "2k": 0.03,
+            "4k": 0.06
+          },
+          "medium": {
+            "1k": 0.06,
+            "2k": 0.06,
+            "4k": 0.12
+          },
+          "high": {
+            "1k": 0.1,
+            "2k": 0.1,
+            "4k": 0.2
+          }
+        },
+        "edit": {
+          "very_low": {
+            "1k": 0.008,
+            "2k": 0.008
+          },
+          "low": {
+            "1k": 0.03,
+            "2k": 0.03,
+            "4k": 0.06
+          },
+          "medium": {
+            "1k": 0.06,
+            "2k": 0.06,
+            "4k": 0.2
+          },
+          "high": {
+            "1k": 0.22,
+            "2k": 0.22,
+            "4k": 0.6
+          }
+        },
+        "remove_background": 0.01,
+        "remove_object": {
+          "minimum": 0.03
+        }
       }
     },
     "ideogram-4.5": {

@@ -101,18 +101,25 @@ fun ideogramPromptForSend(model: String, values: Map<String, String>, draft: Str
 data class IdeogramTraits(
     val edit: Boolean, val quality: Boolean, val speed: Boolean, val resolution: Boolean,
     val style: Boolean, val negative: Boolean, val styleOptions: List<String>,
+    val resolution4k: Boolean = false,
 )
 
-fun ideogramTraits(m: String) = IdeogramTraits(
-    edit = m == "ideogram-4.5",
-    quality = m == "ideogram-4.5",
-    speed = m != "ideogram-4.5",
-    resolution = m == "ideogram-4.5" || m == "ideogram-4.0",
-    style = m == "ideogram-3.0" || m == "ideogram-2a" || m == "ideogram-2.0",
-    negative = m == "ideogram-3.0" || m == "ideogram-2.0",
-    styleOptions = if (m == "ideogram-3.0") listOf("auto", "general", "realistic", "design", "fiction", "stylized")
-    else listOf("auto", "general", "realistic", "design", "render_3d", "anime"),
-)
+fun ideogramTraits(m: String): IdeogramTraits {
+    val lower = m.lowercase(Locale.ROOT)
+    val is46 = lower == "ideogram-4.6"
+    val isEdit = is46 || lower == "ideogram-4.5"
+    return IdeogramTraits(
+        edit = isEdit,
+        quality = isEdit,
+        speed = !isEdit,
+        resolution = isEdit || lower == "ideogram-4.0",
+        style = lower == "ideogram-3.0" || lower == "ideogram-2a" || lower == "ideogram-2.0",
+        negative = lower == "ideogram-3.0" || lower == "ideogram-2.0",
+        styleOptions = if (lower == "ideogram-3.0") listOf("auto", "general", "realistic", "design", "fiction", "stylized")
+        else listOf("auto", "general", "realistic", "design", "render_3d", "anime"),
+        resolution4k = is46,
+    )
+}
 fun isGeminiVideoModel(m: String) = m.startsWith("veo-") || m.contains("omni-flash") || m.contains("omni-1.1-flash")
 fun isGeminiMusicModel(m: String) = m.startsWith("lyria-")
 fun isLyriaRealtimeModel(m: String) = m == "lyria-realtime-exp"
@@ -185,12 +192,14 @@ fun generationPanels(modelId: String, values: Map<String, String> = emptyMap()):
         val removeBackground = values["ideogram_operation"] == "remove_background"
         val removeObject = values["ideogram_operation"] == "remove_object"
         val removeAction = removeBackground || removeObject
+        val allow4k = traits.resolution4k && values["ideogram_quality"]?.lowercase(Locale.ROOT) != "very_low"
         add(GenPanel("ideogram-image", listOf(
             select("ideogram_operation", "操作", "generate", "generate" to "生成・編集", "remove_background" to "背景を削除", "remove_object" to "Object Remover"),
             number("ideogram_count", "Count", "1", 1.0, 8.0, width = 48, hidden = removeAction),
             select("ideogram_aspect", "Aspect", "auto", "auto" to "Auto", "1:1" to "1:1 (Square)", "4:5" to "4:5", "5:4" to "5:4", "3:4" to "3:4", "4:3" to "4:3",
                 "2:3" to "2:3", "3:2" to "3:2", "9:16" to "9:16 (Portrait)", "16:9" to "16:9 (Landscape)", *plain("10:16", "16:10", "1:2", "2:1", "1:3", "3:1"), hidden = removeAction),
-            select("ideogram_resolution", "Res", "1k", "1k" to "1K", "2k" to "2K", hidden = removeAction || !traits.resolution),
+            select("ideogram_resolution", "Res", "1k", "1k" to "1K", "2k" to "2K", "4k" to "4K", hidden = removeAction || !traits.resolution,
+                disabled = if (allow4k) emptySet() else setOf("4k")),
             select("ideogram_quality", "Quality", "", "" to "Auto", "very_low" to "Very low", "low" to "Low", "medium" to "Medium", "high" to "High", hidden = removeAction || !traits.quality),
             select("ideogram_speed", "Speed", "default", "default" to "Default", "turbo" to "Turbo", "quality" to "Quality", hidden = removeAction || !traits.speed),
             select("ideogram_magic_prompt", "Magic", "auto", "auto" to "Auto", "on" to "On", "off" to "Off", hidden = removeAction),
@@ -199,8 +208,9 @@ fun generationPanels(modelId: String, values: Map<String, String> = emptyMap()):
             number("ideogram_seed", "Seed", "", 0.0, 2147483647.0, placeholder = "auto", width = 96, hidden = removeBackground),
         ).map { if (removeAction && it.key != "ideogram_operation" && !(removeObject && it.key == "ideogram_seed")) it.copy(sent = false) else it }, if (removeBackground) "※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は表示中のブランチの最後の画像。送信ボタンだけで実行し、透過PNGで出力"
         else if (removeObject) "※ Object Remover: 画像1枚 + 同じサイズの白黒マスク画像が必要です。マスクの白い部分を削除します"
+        else if (m == "ideogram-4.6") "※ Ideogram 4.6: 4K出力対応（Very lowは2Kまで）。画像を添付（または直前の画像がある場合）は Precise Edit（元画像と同サイズ）"
         else if (traits.edit) "※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ"
-        else "※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）"))
+        else "※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.6 / 4.5 のみ）"))
     }
     if (m.startsWith("grok-") && !isGrokImageModel(m) && !isGrokVideoModel(m) && !m.contains("voice")) {
         val noLogprobs = m.contains("grok-4.20")
@@ -308,10 +318,10 @@ fun imageInputLimits(model: String): Pair<String, List<String>>? {
         isMistralOcrModel(m) -> "Mistral OCR 4 入力" to listOf(
             "PDF / PNG / JPEG / TIFF / BMP / GIF / WEBP / DOCX / PPTX、または公開URL",
             "最大 512MB / 会話履歴は送信しません / チャット補完・Search・Python・Canvas 非対応")
-        isIdeogramModel(m) -> if (ideogramTraits(m).edit) "Ideogram 4.5 入力制限" to listOf(
+        isIdeogramModel(m) -> if (ideogramTraits(m).edit) (if (m == "ideogram-4.6") "Ideogram 4.6 入力制限" else "Ideogram 4.5 入力制限") to listOf(
             "編集する画像1枚 + 参考画像は最大4枚 / 1枚あたり25MBまで / PNG・JPEG・WEBP",
             "画像がない場合は直前の画像を編集します。背景削除と Object Remover も利用できます")
-        else "Ideogram 入力" to listOf("生成・編集では画像入力は Ideogram 4.5 のみ。背景削除と Object Remover は全モデルで利用できます")
+        else "Ideogram 入力" to listOf("生成・編集では画像入力は Ideogram 4.6 / 4.5 のみ。背景削除と Object Remover は全モデルで利用できます")
         m.contains("grok") -> "Grok 画像入力制限" to listOf("最大 20MiB / PNG・JPG のみ / 枚数制限なし")
         else -> null
     }
@@ -330,6 +340,7 @@ fun genFieldValue(field: GenField, values: Map<String, String>): String {
         return when (field.key) {
             "gemini_video_resolution" -> "1080p"
             "grok_video_resolution" -> "720p"
+            "ideogram_resolution" -> "2k"
             else -> field.defaultValue
         }
     }

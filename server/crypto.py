@@ -241,7 +241,7 @@ ALL_VALID_MODEL_IDS = {
     # OpenAI Image Gen
     "gpt-image-2.6-sunburst", "gpt-image-2.6-flare", "gpt-image-2.5-sunburst", "gpt-image-2.5-flare", "gpt-image-2", "gpt-image-1.5", "gpt-image-1", "gpt-image-1-mini",
     # Ideogram
-    "ideogram-4.5", "ideogram-4.0", "ideogram-3.0", "ideogram-2a", "ideogram-2.0",
+    "ideogram-4.6", "ideogram-4.5", "ideogram-4.0", "ideogram-3.0", "ideogram-2a", "ideogram-2.0",
     # OpenAI GPT
     "gpt-4o", "gpt-4o-mini",
     "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna", "gpt-6-sol",

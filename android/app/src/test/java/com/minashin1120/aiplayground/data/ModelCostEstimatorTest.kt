@@ -21,6 +21,20 @@ class ModelCostEstimatorTest {
             assertEquals(3 * unit, estimator.estimate(listOf(row)).low, 1e-12)
         }
     }
+
+    @Test fun ideogram46UsesImageQuantityQualityOperationAndResolutionInsteadOfTokens() {
+        val cases = listOf(
+            listOf("generate", "very_low", "1k", .008),
+            listOf("generate", "high", "4k", .20),
+            listOf("edit", "medium", "4k", .20),
+            listOf("edit", "high", "4k", .60),
+        )
+        for (rowCase in cases) {
+            val metadata = """{"pricing_calls":[{"model":"ideogram-4.6","images":2,"operation":"${rowCase[0]}","quality":"${rowCase[1]}","resolution":"${rowCase[2]}","complete":true}]}"""
+            val row = ChatMessage("1", "assistant", "answer", model = "ideogram-4.6", thought = metadata)
+            assertEquals(2.0 * (rowCase[3] as Double), estimator.estimate(listOf(row)).low, 1e-12)
+        }
+    }
     private val estimator = ModelCostEstimator(File("src/main/assets/model-pricing.json").readText())
     private fun answer(model: String, input: Int?, output: Int = 1000) =
         ChatMessage("2", "assistant", "test", model = model, tokensIn = input, tokensOut = output)

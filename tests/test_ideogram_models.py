@@ -20,7 +20,7 @@ assert len(CHAT_JS_ASSETS) == 1, "Only the latest versioned chat core asset shou
 CHAT_JS = CHAT_JS_ASSETS[0].read_text(encoding="utf-8")
 CHAT_HTML = read_chat_markup()
 SETUP_HTML = (APP_ROOT / "templates" / "setup.html").read_text(encoding="utf-8")
-MODEL_IDS = ("ideogram-4.5", "ideogram-4.0", "ideogram-3.0", "ideogram-2a", "ideogram-2.0")
+MODEL_IDS = ("ideogram-4.6", "ideogram-4.5", "ideogram-4.0", "ideogram-3.0", "ideogram-2a", "ideogram-2.0")
 
 
 def _load_ideogram():
@@ -44,7 +44,8 @@ class IdeogramRegistrationTests(unittest.TestCase):
             self.assertIn(f'"{model_id}"', valid_ids)
             self.assertIn(f'id: "{model_id}"', CHAT_JS)
             start = CHAT_JS.index(f'id: "{model_id}"')
-            self.assertIn('implementedAt: "2026-10-03"', CHAT_JS[start:start + 160])
+            expected_date = "2026-11-28" if model_id == "ideogram-4.6" else "2026-10-03"
+            self.assertIn(f'implementedAt: "{expected_date}"', CHAT_JS[start:start + 160])
             self.assertIn(f'<option value="{model_id}"', SETUP_HTML)
 
     def test_provider_key_is_wired_end_to_end(self):
@@ -245,10 +246,53 @@ class IdeogramRequestTests(unittest.TestCase):
         self.assertEqual(["image"] + ["reference_images"] * 4, names)
         self.assertNotIn("size", kwargs["data"])
 
-    def test_only_ideogram_45_accepts_images(self):
-        for model in MODEL_IDS[1:]:
+    def test_only_ideogram_46_and_45_accept_images(self):
+        for model in MODEL_IDS[2:]:
             with self.assertRaises(ValueError):
                 self.build(model, images=[PNG])
+
+    def test_ideogram_46_generate_supports_4k_auto_tiers_and_very_low(self):
+        url, kwargs, count, edit = self.build("ideogram-4.6", {
+            "ideogram_aspect": "16:9", "ideogram_resolution": "4k", "ideogram_quality": "high",
+            "ideogram_count": "2", "ideogram_seed": "7", "ideogram_magic_prompt": "off"})
+        self.assertEqual("https://api.ideogram.ai/v2/image/generate/ideogram-4-6", url)
+        self.assertEqual((2, False), (count, edit))
+        self.assertEqual({"prompt": "a cat", "num_images": "2", "seed": "7", "magic_prompt": "off",
+                          "quality": "high", "size": "5120x2880"}, self.form(kwargs))
+
+        _, auto4k, _, _ = self.build("ideogram-4.6", {"ideogram_aspect": "auto", "ideogram_resolution": "4k", "ideogram_quality": "medium"})
+        self.assertEqual("auto_4k", self.form(auto4k)["size"])
+        _, auto2k, _, _ = self.build("ideogram-4.6", {"ideogram_aspect": "auto", "ideogram_resolution": "2k"})
+        self.assertEqual("auto_2k", self.form(auto2k)["size"])
+
+        # very_low is allowed on Ideogram 4.6 generate, but capped at 2K.
+        _, vlow_exact, _, _ = self.build("ideogram-4.6", {"ideogram_quality": "very_low", "ideogram_aspect": "16:9", "ideogram_resolution": "4k"})
+        self.assertEqual("very_low", self.form(vlow_exact)["quality"])
+        self.assertEqual("2560x1440", self.form(vlow_exact)["size"])
+        _, vlow_auto, _, _ = self.build("ideogram-4.6", {"ideogram_quality": "very_low", "ideogram_aspect": "auto", "ideogram_resolution": "4k"})
+        self.assertEqual("auto_2k", self.form(vlow_auto)["size"])
+
+    def test_ideogram_46_edit_and_usage_record_default_medium_and_4k_output(self):
+        url, kwargs, _, edit = self.build("ideogram-4.6", {"ideogram_aspect": "16:9"}, [PNG, PNG])
+        self.assertEqual("https://api.ideogram.ai/v2/image/precise-edit/ideogram-4-6", url)
+        self.assertTrue(edit)
+        self.assertEqual(["image", "reference_images"], [name for name, _ in kwargs["files"]])
+
+        original = httpx.post
+        httpx.post = lambda *args, **kwargs: httpx.Response(200, json={
+            "data": [{"url": "https://ideogram.ai/4k.png", "resolution": "4096x4096", "is_image_safe": True}]
+        })
+        ledger = IDEOGRAM.ModelUsageLedger()
+        token = IDEOGRAM._MODEL_USAGE_CONTEXT.set(ledger)
+        try:
+            IDEOGRAM.ideogram_request("key", "ideogram-4.6", "edit", {}, [PNG])
+            IDEOGRAM.ideogram_request("key", "ideogram-4.6", "gen", {"ideogram_quality": "very_low"}, None)
+        finally:
+            IDEOGRAM._MODEL_USAGE_CONTEXT.reset(token)
+            httpx.post = original
+        snap = ledger.snapshot()
+        self.assertEqual(("edit", "medium", "4k"), (snap[0]["operation"], snap[0]["quality"], snap[0]["resolution"]))
+        self.assertEqual(("generate", "very_low", "2k"), (snap[1]["operation"], snap[1]["quality"], snap[1]["resolution"]))
 
     def test_ideogram_4_uses_exact_resolutions_as_json(self):
         url, kwargs, count, _ = self.build("ideogram-4.0", {

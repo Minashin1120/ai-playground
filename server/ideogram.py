@@ -7,11 +7,13 @@ IDEOGRAM_MAX_OUTPUT_BYTES = 50 * 1024 * 1024
 IDEOGRAM_MAX_IMAGES = 8
 
 # App model id -> (API path segment, request family)
-#   v45: multipart, generate + precise edit, `quality` / `size`
+#   v46: multipart, generate (1K/2K/4K, very_low up to 2K) + precise edit, `quality` / `size`
+#   v45: multipart, generate (1K/2K) + precise edit, `quality` / `size`
 #   v4:  JSON, `resolution` / `rendering_speed`
 #   v3:  multipart, `aspect_ratio` / `rendering_speed` / style controls
 #   v2:  JSON, `aspect_ratio` / `rendering_speed` / `style_type`
 IDEOGRAM_MODELS = {
+    "ideogram-4.6": ("ideogram-4-6", "v46"),
     "ideogram-4.5": ("ideogram-4-5", "v45"),
     "ideogram-4.0": ("ideogram-4", "v4"),
     "ideogram-3.0": ("ideogram-3", "v3"),
@@ -38,6 +40,12 @@ IDEOGRAM_SIZE_PRESETS = {
     "2:1": ("1440x720", "2880x1440"),
     "1:3": ("512x1536", "1024x3072"),
     "3:1": ("1536x512", "3072x1024"),
+}
+# Aspect ratio -> 4K exact sizes accepted by Ideogram 4.6 (2x the 2K preset, <= 4096x4096 pixels).
+IDEOGRAM_SIZE_PRESETS_4K = {
+    aspect: f"{int(w) * 2}x{int(h) * 2}"
+    for aspect, (_s1k, s2k) in IDEOGRAM_SIZE_PRESETS.items()
+    for w, h in [s2k.split("x", 1)]
 }
 # Aspect ratios accepted as `aspect_ratio` by Ideogram 3.0 / 2a / 2.0.
 IDEOGRAM_LEGACY_ASPECTS = {
@@ -71,7 +79,7 @@ def ideogram_select_sources(current_sources, generated_sources):
 
 
 def ideogram_supports_edit(model_key):
-    return str(model_key or "").strip().lower() == "ideogram-4.5"
+    return str(model_key or "").strip().lower() in ("ideogram-4.6", "ideogram-4.5")
 
 
 def _ideogram_pick(value, allowed):
@@ -104,14 +112,55 @@ def _ideogram_aspect_value(options):
 
 
 def _ideogram_tier_index(options):
-    return 1 if str(options.get("ideogram_resolution") or "").strip().lower() == "2k" else 0
+    return 1 if str((options or {}).get("ideogram_resolution") or "").strip().lower() in ("2k", "4k") else 0
+
+
+def _ideogram_resolution_name(model_key, options, quality=None):
+    mk = str(model_key or "").strip().lower()
+    res = str((options or {}).get("ideogram_resolution") or "").strip().lower()
+    if mk == "ideogram-4.6":
+        if res == "4k" and quality != "very_low":
+            return "4k"
+        if res in ("2k", "4k"):
+            return "2k"
+        return "1k"
+    return "2k" if res in ("2k", "4k") else "1k"
+
+
+def _ideogram_effective_quality(model_key, operation, raw_quality):
+    mk = str(model_key or "").strip().lower()
+    quality = _ideogram_pick(raw_quality, IDEOGRAM_QUALITIES)
+    if mk == "ideogram-4.6":
+        return quality or "medium"
+    if not quality or (quality == "very_low" and operation == "generate"):
+        return "medium" if operation == "edit" else "high"
+    return quality
+
+
+def _ideogram_output_resolution_tier(items, fallback_tier, quality=None):
+    for item in items or ():
+        raw_res = str(item.get("resolution") or "").strip().lower() if isinstance(item, dict) else ""
+        if "x" in raw_res:
+            parts = raw_res.split("x", 1)
+            try:
+                w, h = int(parts[0]), int(parts[1])
+            except ValueError:
+                continue
+            if w > 0 and h > 0:
+                pixels = w * h
+                if pixels > 2048 * 2048 and quality != "very_low":
+                    return "4k"
+                if pixels > 1024 * 1024:
+                    return "2k"
+                return "1k"
+    return fallback_tier
 
 
 def ideogram_build_request(model_key, prompt, options, source_images=None):
     """Return (url, request kwargs for httpx.post, n_images, edit_mode).
 
     ``source_images`` is a list of (name, bytes, mime) already limited to PNG/JPEG/WEBP.
-    Precise Edit requires Ideogram 4.5; background and object removal accept one image with any model.
+    Precise Edit requires Ideogram 4.6 or 4.5; background and object removal accept one image with any model.
     """
     mk = str(model_key or "").strip().lower()
     spec = IDEOGRAM_MODELS.get(mk)
@@ -145,22 +194,23 @@ def ideogram_build_request(model_key, prompt, options, source_images=None):
             files.append(("seed", (None, str(seed))))
         return (f"{IDEOGRAM_API_BASE}/v2/image/remove-object/ideogram-1",
                 {"files": files}, 1, True)
-    if source_images and family != "v45":
-        raise ValueError("画像の編集に対応しているのは Ideogram 4.5 だけです。Ideogram 4.5 を選択するか、添付画像を外してください。")
+    if source_images and family not in ("v46", "v45"):
+        raise ValueError("画像の編集に対応しているのは Ideogram 4.6 / 4.5 です。Ideogram 4.6 または 4.5 を選択するか、添付画像を外してください。")
     n_images = _ideogram_int(options.get("ideogram_count"), 1, IDEOGRAM_MAX_IMAGES) or 1
     fields = _ideogram_common_fields(options, n_images)
     aspect = _ideogram_aspect_value(options)
     tier = _ideogram_tier_index(options)
 
-    if family == "v45":
+    if family in ("v46", "v45"):
         quality = _ideogram_pick(options.get("ideogram_quality"), IDEOGRAM_QUALITIES)
+        res_name = _ideogram_resolution_name(mk, options, quality)
         data = {"prompt": prompt, "num_images": str(n_images)}
         if "seed" in fields:
             data["seed"] = str(fields["seed"])
         files = []
         if source_images:
             # Precise Edit keeps the source's own size, so no size/aspect is sent.
-            url = f"{IDEOGRAM_API_BASE}/v2/image/precise-edit/{IDEOGRAM_PRECISE_EDIT_PATH}"
+            url = f"{IDEOGRAM_API_BASE}/v2/image/precise-edit/{path}"
             if quality:
                 data["quality"] = quality
             files.append(("image", (source_images[0][0], source_images[0][1], source_images[0][2])))
@@ -170,10 +220,21 @@ def ideogram_build_request(model_key, prompt, options, source_images=None):
         url = f"{IDEOGRAM_API_BASE}/v2/image/generate/{path}"
         if "magic_prompt" in fields:
             data["magic_prompt"] = fields["magic_prompt"]
-        if quality and quality != "very_low":
-            data["quality"] = quality
-        if aspect != "auto" and aspect in IDEOGRAM_SIZE_PRESETS:
-            data["size"] = IDEOGRAM_SIZE_PRESETS[aspect][tier]
+        if family == "v46":
+            if quality:
+                data["quality"] = quality
+            if aspect == "auto":
+                if res_name == "4k":
+                    data["size"] = "auto_4k"
+                elif res_name == "2k":
+                    data["size"] = "auto_2k"
+            elif aspect in IDEOGRAM_SIZE_PRESETS:
+                data["size"] = IDEOGRAM_SIZE_PRESETS_4K[aspect] if res_name == "4k" else IDEOGRAM_SIZE_PRESETS[aspect][1 if res_name == "2k" else 0]
+        else:
+            if quality and quality != "very_low":
+                data["quality"] = quality
+            if aspect != "auto" and aspect in IDEOGRAM_SIZE_PRESETS:
+                data["size"] = IDEOGRAM_SIZE_PRESETS[aspect][tier]
         # httpx only sends multipart when `files` is non-empty; a text-only multipart
         # body is expressed with (None, value) tuples.
         multipart = [(k, (None, str(v))) for k, v in data.items()]
@@ -246,12 +307,16 @@ def ideogram_request(api_key, model_key, prompt, options, source_images=None):
     ledger = _MODEL_USAGE_CONTEXT.get()
     call = ledger.begin(model_key, 'ideogram') if ledger is not None else None
     if call is not None:
-        operation = options.get('ideogram_operation')
+        operation = (options or {}).get('ideogram_operation')
         operation = operation if operation in ('remove_background', 'remove_object') else 'edit' if edit_mode else 'generate'
-        quality = _ideogram_pick(options.get('ideogram_quality'), IDEOGRAM_QUALITIES)
-        if not quality or (quality == 'very_low' and operation == 'generate'):
-            quality = 'medium' if operation == 'edit' else 'high'
-        call.record.update(operation=operation, quality=quality, speed=_ideogram_pick(options.get('ideogram_speed'), IDEOGRAM_SPEEDS) or 'default', resolution='2k' if _ideogram_tier_index(options) else '1k')
+        quality = _ideogram_effective_quality(model_key, operation, (options or {}).get('ideogram_quality'))
+        fallback_res = '2k' if operation == 'edit' else _ideogram_resolution_name(model_key, options, quality)
+        call.record.update(
+            operation=operation,
+            quality=quality,
+            speed=_ideogram_pick((options or {}).get('ideogram_speed'), IDEOGRAM_SPEEDS) or 'default',
+            resolution=fallback_res,
+        )
     headers = {"Api-Key": api_key, "Accept": "application/json"}
     resp = httpx.post(url, headers=headers, timeout=IDEOGRAM_TIMEOUT_SECONDS, **kwargs)
     if call is not None and 400 <= resp.status_code < 500:
@@ -289,5 +354,9 @@ def ideogram_request(api_key, model_key, prompt, options, source_images=None):
         raise RuntimeError("Ideogram から画像データが返されませんでした。")
     if call is not None:
         call.record['images'] = len(items)
+        if call.record.get('operation') in ('generate', 'edit'):
+            call.record['resolution'] = _ideogram_output_resolution_tier(
+                items, call.record.get('resolution') or '2k', call.record.get('quality')
+            )
         call.finished = True
     return [item for item in items if isinstance(item, dict)], edit_mode

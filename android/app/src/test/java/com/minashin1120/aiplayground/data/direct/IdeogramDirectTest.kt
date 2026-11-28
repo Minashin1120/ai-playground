@@ -17,7 +17,7 @@ class IdeogramDirectTest {
 
     @Test fun routerSelectsIdeogramForImageModels() {
         val router = DirectRouter(http)
-        listOf("ideogram-4.5", "ideogram-4.0", "ideogram-3.0", "ideogram-2a", "ideogram-2.0").forEach { id ->
+        listOf("ideogram-4.6", "ideogram-4.5", "ideogram-4.0", "ideogram-3.0", "ideogram-2a", "ideogram-2.0").forEach { id ->
             assertEquals("ideogram", router.route(id, "image")?.provider)
         }
     }
@@ -25,7 +25,7 @@ class IdeogramDirectTest {
     @Test fun backgroundRemovalUsesOneImageWithoutPromptOrGenerationSettingsForEveryModel() {
         val engine = IdeogramImageDirect(http)
         val options = JSONObject().put("ideogram_operation", "remove_background").put("ideogram_count", "8").put("ideogram_seed", "42")
-        listOf("ideogram-4.5", "ideogram-4.0", "ideogram-3.0", "ideogram-2a", "ideogram-2.0").forEach { model ->
+        listOf("ideogram-4.6", "ideogram-4.5", "ideogram-4.0", "ideogram-3.0", "ideogram-2a", "ideogram-2.0").forEach { model ->
             val call = engine.buildCall(request(model, "ignored", options), listOf(png))
             assertTrue(call.url.endsWith("/v2/image/remove-background/ideogram-1"))
             assertTrue(bodyText(call).contains("name=\"image\""))
@@ -83,6 +83,31 @@ class IdeogramDirectTest {
         assertTrue(bodyText(generate).contains("1024x1024"))
         assertFalse(bodyText(generate).contains("very_low"))
         assertTrue(runCatching { engine.buildCall(request("ideogram-4.0", "猫"), listOf(png)) }.exceptionOrNull() is DirectApiException)
+    }
+
+    @Test fun ideogram46Supports4kAutoTiersVeryLowAndPreciseEdit() {
+        val engine = IdeogramImageDirect(http)
+        val gen4k = engine.buildCall(
+            request("ideogram-4.6", "猫", JSONObject().put("ideogram_aspect", "16:9").put("ideogram_resolution", "4k").put("ideogram_quality", "high")),
+            emptyList(),
+        )
+        assertTrue(gen4k.url.endsWith("/v2/image/generate/ideogram-4-6"))
+        assertTrue(bodyText(gen4k).contains("5120x2880"))
+        assertTrue(bodyText(gen4k).contains("high"))
+
+        val auto4k = engine.buildCall(request("ideogram-4.6", "猫", JSONObject().put("ideogram_aspect", "auto").put("ideogram_resolution", "4k")), emptyList())
+        assertTrue(bodyText(auto4k).contains("auto_4k"))
+
+        val veryLow = engine.buildCall(
+            request("ideogram-4.6", "猫", JSONObject().put("ideogram_aspect", "auto").put("ideogram_resolution", "4k").put("ideogram_quality", "very_low")),
+            emptyList(),
+        )
+        assertTrue(bodyText(veryLow).contains("very_low"))
+        assertTrue(bodyText(veryLow).contains("auto_2k"))
+
+        val edit = engine.buildCall(request("ideogram-4.6", "青くして", attachments = listOf(png, png)), listOf(png, png))
+        assertTrue(edit.edit)
+        assertTrue(edit.url.endsWith("/v2/image/precise-edit/ideogram-4-6"))
     }
 
     @Test fun generatedImagesAreDownloadedAndSafetyBlockedOnesSkipped() {

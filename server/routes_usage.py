@@ -110,22 +110,36 @@ def _usage_legacy_image_request(row, rows_by_id):
         if node is not None and node.role == 'assistant' and node.image_url not in (None, '', '[]', 'null'):
             has_source = True
     operation = options.get('ideogram_operation')
+    is_46 = row.model == 'ideogram-4.6'
     if operation not in _USAGE_IDEOGRAM_OPERATIONS:
-        operation = 'edit' if has_source and row.model == 'ideogram-4.5' else 'generate'
+        operation = 'edit' if has_source and row.model in ('ideogram-4.6', 'ideogram-4.5') else 'generate'
     quality = options.get('ideogram_quality')
-    if quality not in _USAGE_TTL_QUALITIES or (quality == 'very_low' and operation == 'generate'):
-        quality = 'medium' if operation == 'edit' else 'high'
+    if quality not in _USAGE_TTL_QUALITIES or (quality == 'very_low' and operation == 'generate' and not is_46):
+        quality = 'medium' if (operation == 'edit' or is_46) else 'high'
     speed = options.get('ideogram_speed')
     if parent is not None:
         speed = speed if speed in _USAGE_IDEOGRAM_SPEEDS else 'default'
     else:
         speed = None
+    resolution = None
+    if is_46:
+        raw_res = str(options.get('ideogram_resolution') or '').strip().lower()
+        if operation == 'generate':
+            if raw_res == '4k' and quality != 'very_low':
+                resolution = '4k'
+            elif raw_res in ('2k', '4k'):
+                resolution = '2k'
+            elif raw_res == '1k':
+                resolution = '1k'
+        elif quality == 'very_low':
+            resolution = '2k'
     return {
         'model': row.model,
         'images': _usage_image_count(row.image_url) or None,
         'operation': operation,
         'quality': quality,
         'speed': speed,
+        **({'resolution': resolution} if resolution else {}),
         'complete': parent is not None,
         'created_at': _usage_iso(row.timestamp),
     }

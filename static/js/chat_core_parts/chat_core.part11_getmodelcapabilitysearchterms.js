@@ -939,23 +939,35 @@
                     el.value = traits.styleOptions.includes(prev) ? prev : 'auto';
                 }
             });
+            const qualityVal = String(get('ideogram-image-quality')?.value || '').toLowerCase();
+            const allow4k = !!traits.resolution4k && qualityVal !== 'very_low';
+            ['ideogram-image-resolution', 'modal-ideogram-image-resolution'].forEach((id) => {
+                const el = get(id);
+                if (!el) return;
+                const opt4k = Array.from(el.options || []).find((opt) => opt.value === '4k');
+                if (opt4k) opt4k.disabled = !allow4k;
+                if (!allow4k && el.value === '4k') el.value = '2k';
+            });
             const note = get('ideogram-image-note');
             if (note) {
                 note.textContent = removeBackground
                     ? '※ 背景を削除: 画像1枚 / 25MBまで / PNG・JPEG・WEBP。添付がない場合は表示中のブランチの最後の画像。送信ボタンだけで実行し、透過PNGで出力'
                     : removeObject
                     ? '※ Object Remover: 画像1枚 + 同じサイズの白黒マスク画像が必要です。マスクの白い部分を削除します'
+                    : model.toLowerCase() === 'ideogram-4.6'
+                    ? '※ Ideogram 4.6: 4K出力対応（Very lowは2Kまで）。画像を添付（または直前の画像がある場合）は Precise Edit（元画像と同サイズ）'
                     : traits.edit
                     ? '※ Ideogram 4.5: 画像を添付（または直前の画像がある場合）は Precise Edit。出力は元画像と同サイズ'
-                    : '※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.5 のみ）';
+                    : '※ Ideogram: テキストからの生成のみ（画像編集は Ideogram 4.6 / 4.5 のみ）';
             }
         }
-        ['ideogram-image-operation', 'modal-ideogram-image-operation'].forEach((id) => {
+        ['ideogram-image-operation', 'modal-ideogram-image-operation', 'ideogram-image-quality', 'modal-ideogram-image-quality'].forEach((id) => {
             get(id)?.addEventListener('change', () => {
-                const other = get(id.startsWith('modal-') ? 'ideogram-image-operation' : 'modal-ideogram-image-operation');
+                const otherId = id.startsWith('modal-') ? id.slice('modal-'.length) : `modal-${id}`;
+                const other = get(otherId);
                 if (other) other.value = get(id).value;
                 updateIdeogramImageUi();
-                toggleOptions();
+                if (id.endsWith('operation')) toggleOptions();
             });
         });
         function updateGrokVideoUi() {
@@ -1109,13 +1121,14 @@
                 ].join('');
             } else if (isIdeogramModel(model)) {
                 show = true;
+                const title = model.toLowerCase() === 'ideogram-4.6' ? 'Ideogram 4.6 入力制限' : 'Ideogram 4.5 入力制限';
                 html = ideogramModelTraits(model).edit ? [
-                    '<div class="font-bold text-gray-300 mb-1">Ideogram 4.5 入力制限</div>',
+                    `<div class="font-bold text-gray-300 mb-1">${title}</div>`,
                     '<div>編集する画像1枚 + 参考画像は最大4枚 / 1枚あたり25MBまで / PNG・JPEG・WEBP</div>',
                     '<div>画像がない場合は直前の画像を編集します。背景削除と Object Remover も利用できます</div>'
                 ].join('') : [
                     '<div class="font-bold text-gray-300 mb-1">Ideogram 入力</div>',
-                    '<div>生成・編集では画像入力は Ideogram 4.5 のみ。背景削除と Object Remover は全モデルで利用できます</div>'
+                    '<div>生成・編集では画像入力は Ideogram 4.6 / 4.5 のみ。背景削除と Object Remover は全モデルで利用できます</div>'
                 ].join('');
             } else if (model.includes('grok') && model.includes('video')) {
                 show = true;

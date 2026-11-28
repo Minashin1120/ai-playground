@@ -169,12 +169,29 @@ class ModelCostEstimator(json: String) {
             val ir = rate.optJSONObject("image_rates")
             val prices = ir?.opt(call.optString("operation")) ?: ir?.opt("generate")
             val selected = (prices as? JSONObject)?.opt(call.optString(if (rate.optString("image_selector") == "speed") "speed" else "quality"))
-            val minimum = (selected as? JSONObject)?.optDouble("minimum", Double.NaN)
-                ?: (prices as? JSONObject)?.optDouble("minimum", Double.NaN) ?: Double.NaN
-            val unitPrice = (prices as? Number)?.toDouble() ?: (selected as? Number)?.toDouble() ?: minimum
-            lowerBound = unitPrice.isFinite() && prices !is Number && selected !is Number
-            if (!unitPrice.isFinite()) { total.unpriced++; return }
-            low = count * unitPrice * flexMul; high = count * unitPrice * flexMul
+            val resKey = call.optString("resolution").lowercase()
+            val resPrice = (selected as? JSONObject)?.takeIf { resKey.isNotEmpty() && !it.isNull(resKey) }?.opt(resKey) as? Number
+            if (prices is Number || selected is Number || resPrice != null) {
+                val unitPrice = (prices as? Number)?.toDouble() ?: (selected as? Number)?.toDouble() ?: resPrice!!.toDouble()
+                low = count * unitPrice * flexMul; high = count * unitPrice * flexMul
+            } else {
+                val vals = (selected as? JSONObject)?.keys()?.asSequence()
+                    ?.filter { it != "minimum" }
+                    ?.mapNotNull { (selected.opt(it) as? Number)?.toDouble() }
+                    ?.toList().orEmpty()
+                if (vals.isNotEmpty()) {
+                    val minVal = vals.min()
+                    val maxVal = vals.max()
+                    low = count * minVal * flexMul; high = count * maxVal * flexMul
+                    if (minVal != maxVal) incomplete = true
+                } else {
+                    val minimum = (selected as? JSONObject)?.optDouble("minimum", Double.NaN)
+                        ?: (prices as? JSONObject)?.optDouble("minimum", Double.NaN) ?: Double.NaN
+                    lowerBound = minimum.isFinite()
+                    if (!minimum.isFinite()) { total.unpriced++; return }
+                    low = count * minimum * flexMul; high = count * minimum * flexMul
+                }
+            }
         }
         val extraIn = (call.nullableInt("input_images")?.takeIf { it >= 0 } ?: 0) * rate.optDouble("input_image_rate", 0.0)
         total.low += (low ?: 0.0) + extraIn; total.high += (high ?: 0.0) + extraIn
@@ -305,13 +322,29 @@ class ModelCostEstimator(json: String) {
                 .put("resolution", options.optString("grok_image_resolution").ifBlank { "1k" })
                 .put("input_images", if (source) 1 else 0).put("complete", parent != null)
         }
+        val is46 = m.model == "ideogram-4.6"
         val action = options.optString("ideogram_operation")
-        val operation = if (action in setOf("remove_object", "remove_background")) action else if (source && m.model == "ideogram-4.5") "edit" else "generate"
+        val operation = if (action in setOf("remove_object", "remove_background")) action else if (source && (is46 || m.model == "ideogram-4.5")) "edit" else "generate"
         var quality = options.optString("ideogram_quality")
-        if (quality !in setOf("very_low", "low", "medium", "high") || (quality == "very_low" && operation == "generate")) quality = if (operation == "edit") "medium" else "high"
+        if (quality !in setOf("very_low", "low", "medium", "high") || (quality == "very_low" && operation == "generate" && !is46)) {
+            quality = if (operation == "edit" || is46) "medium" else "high"
+        }
         val speed = if (parent == null) null else options.optString("ideogram_speed").takeIf { it in setOf("turbo", "default", "quality") } ?: "default"
+        val resolution = if (is46) {
+            val rawRes = options.optString("ideogram_resolution").lowercase()
+            if (operation == "generate") {
+                when {
+                    rawRes == "4k" && quality != "very_low" -> "4k"
+                    rawRes == "2k" || rawRes == "4k" -> "2k"
+                    rawRes == "1k" -> "1k"
+                    else -> null
+                }
+            } else if (quality == "very_low") "2k" else null
+        } else null
         return JSONObject().put("model", m.model).put("images", m.files.size.takeIf { it > 0 } ?: JSONObject.NULL)
-            .put("operation", operation).put("quality", quality).put("speed", speed ?: JSONObject.NULL).put("complete", parent != null)
+            .put("operation", operation).put("quality", quality).put("speed", speed ?: JSONObject.NULL)
+            .apply { if (resolution != null) put("resolution", resolution) }
+            .put("complete", parent != null)
     }
 
     private fun legacyUnitRequest(m: ChatMessage, rows: Map<String, ChatMessage>, rate: JSONObject): JSONObject {

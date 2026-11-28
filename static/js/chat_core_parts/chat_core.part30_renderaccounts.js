@@ -999,12 +999,22 @@
             if (modelStr.startsWith('grok-imagine-image')) {
                 return { model: message.model, images: count || 1, operation: hasSource ? 'edit' : 'generate', quality: options.grok_image_quality || 'medium', resolution: options.grok_image_resolution || '1k', input_images: hasSource ? 1 : 0, complete: !!parent };
             }
+            const is46 = message.model === 'ideogram-4.6';
             const operation = ['remove_object', 'remove_background'].includes(options.ideogram_operation)
-                ? options.ideogram_operation : hasSource && message.model === 'ideogram-4.5' ? 'edit' : 'generate';
+                ? options.ideogram_operation : hasSource && (is46 || message.model === 'ideogram-4.5') ? 'edit' : 'generate';
             let quality = options.ideogram_quality;
-            if (!['very_low', 'low', 'medium', 'high'].includes(quality) || (quality === 'very_low' && operation === 'generate')) {
-                quality = operation === 'edit' ? 'medium' : 'high';
+            if (!['very_low', 'low', 'medium', 'high'].includes(quality) || (quality === 'very_low' && operation === 'generate' && !is46)) {
+                quality = (operation === 'edit' || is46) ? 'medium' : 'high';
+            }
+            let resolution = null;
+            if (is46) {
+                const rawRes = String(options.ideogram_resolution || '').toLowerCase();
+                if (operation === 'generate') {
+                    resolution = (rawRes === '4k' && quality !== 'very_low') ? '4k' : (rawRes === '2k' || rawRes === '4k') ? '2k' : '1k';
+                } else if (quality === 'very_low') {
+                    resolution = '2k';
+                }
             }
             const speed = parent ? (['turbo', 'default', 'quality'].includes(options.ideogram_speed) ? options.ideogram_speed : 'default') : null;
-            return { model: message.model, images: count || null, operation, quality, speed, complete: !!parent };
+            return { model: message.model, images: count || null, operation, quality, speed, ...(resolution ? { resolution } : {}), complete: !!parent };
         }

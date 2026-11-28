@@ -32,7 +32,7 @@ class AttachmentExtractorTest {
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             bytes,
         )
-        assertEquals("[Slide 1]\nFirst\nLine\n\n[Slide 2]\nSecond", prepared.text)
-        assertTrue(prepared.bytes == null)
+        assertEquals("unexpected pptx extracted text: ${prepared.text}", "[Slide 1]\nFirst\nLine\n\n[Slide 2]\nSecond", prepared.text)
+        assertTrue("expected binary bytes to be omitted for pptx", prepared.bytes == null)
     }
 }

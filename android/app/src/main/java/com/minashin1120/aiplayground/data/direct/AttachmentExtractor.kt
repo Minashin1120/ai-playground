@@ -1,9 +1,11 @@
 package com.minashin1120.aiplayground.data.direct
 
+import org.w3c.dom.Node
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.ByteArrayInputStream
 import java.util.zip.ZipInputStream
+import javax.xml.parsers.DocumentBuilderFactory
 
 /**
  * Turns an attachment into what a provider accepts (server `storage.py` text extraction): images and
@@ -83,25 +85,23 @@ object AttachmentExtractor {
                 num to entry.value
             }
             .sortedBy { it.first }
+        val factory = DocumentBuilderFactory.newInstance().apply {
+            isNamespaceAware = false
+            isExpandEntityReferences = false
+            runCatching { setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
+        }
         val blocks = mutableListOf<String>()
         var totalChars = 0
         for ((slideNum, data) in slides) {
-            val xml = parser(data)
+            val doc = factory.newDocumentBuilder().parse(ByteArrayInputStream(data))
+            val paragraphs = doc.getElementsByTagName("a:p")
             val lines = mutableListOf<String>()
-            val current = StringBuilder()
-            while (xml.next() != XmlPullParser.END_DOCUMENT) {
-                when (xml.eventType) {
-                    XmlPullParser.START_TAG -> when (xml.name) {
-                        "a:p" -> current.clear()
-                        "a:br" -> current.append('\n')
-                    }
-                    XmlPullParser.TEXT -> if (xml.text != null) current.append(xml.text)
-                    XmlPullParser.END_TAG -> if (xml.name == "a:p") {
-                        val line = current.toString().trim()
-                        if (line.isNotEmpty()) lines += line
-                        current.clear()
-                    }
-                }
+            for (i in 0 until paragraphs.length) {
+                val pNode = paragraphs.item(i) ?: continue
+                val sb = StringBuilder()
+                collectSlideParagraphText(pNode, sb)
+                val line = sb.toString().trim()
+                if (line.isNotEmpty()) lines += line
             }
             if (lines.isEmpty()) continue
             val block = "[Slide $slideNum]\n" + lines.joinToString("\n")
@@ -112,6 +112,21 @@ object AttachmentExtractor {
             totalChars += clipped.length
         }
         return blocks.joinToString("\n\n").take(MAX_TEXT_CHARS)
+    }
+
+    private fun collectSlideParagraphText(node: Node, out: StringBuilder) {
+        val children = node.childNodes
+        for (i in 0 until children.length) {
+            val child = children.item(i) ?: continue
+            when (child.nodeType) {
+                Node.ELEMENT_NODE -> when (child.nodeName) {
+                    "a:br" -> out.append('\n')
+                    "a:t" -> out.append(child.textContent.orEmpty())
+                    else -> collectSlideParagraphText(child, out)
+                }
+                else -> collectSlideParagraphText(child, out)
+            }
+        }
     }
 
     /** Each sheet as tab-separated rows, like the server's XLSX → TSV conversion. */

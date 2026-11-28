@@ -53,7 +53,7 @@ _CREATE_FILE_FORMATS = ("text", "markdown", "code", "pdf", "docx", "xlsx", "csv"
 # be downloaded to the device and uploaded again later (e.g. to attach them in
 # another chat) without being rejected.
 _UPLOAD_ALLOWED_EXTENSIONS = frozenset({
-    '.txt', '.pdf', '.docx', '.png', '.jpg', '.jpeg', '.gif', '.webp',
+    '.txt', '.pdf', '.docx', '.pptx', '.png', '.jpg', '.jpeg', '.gif', '.webp',
     '.wav', '.mp3', '.m4a', '.ogg', '.flac', '.webm', '.mp4', '.mov', '.mkv',
     '.avi', '.m4v',
 }) | frozenset(_CREATE_FILE_TEXT_EXTS) | frozenset(_CREATE_FILE_CODE_EXTS) | frozenset(_CREATE_FILE_DOC_EXTS)

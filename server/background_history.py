@@ -293,7 +293,7 @@ def background_append_history_document_text(history, img_list):
             if not norm_h or norm_h in seen_refs:
                 continue
             ext_h = os.path.splitext(norm_h)[1].lower()
-            if ext_h not in ('.docx', '.pdf') and ext_h not in _TEXT_LIKE_UPLOAD_EXTS:
+            if ext_h not in ('.docx', '.pptx', '.pdf') and ext_h not in _TEXT_LIKE_UPLOAD_EXTS:
                 continue
             seen_refs.add(norm_h)
             try:
@@ -307,6 +307,8 @@ def background_append_history_document_text(history, img_list):
                     continue
                 if ext_h == '.docx':
                     text_h = _extract_docx_as_numbered(data_h)
+                elif ext_h == '.pptx':
+                    text_h = _extract_text_from_pptx(data_h)
                 elif ext_h == '.pdf':
                     text_h = _extract_text_from_pdf(data_h)
                 else:

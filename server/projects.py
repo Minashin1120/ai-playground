@@ -150,6 +150,8 @@ def _extract_project_file_text(rel_path, mime, data):
         return (_extract_text_from_pdf(data) or ""), "pdf"
     if lower_path.endswith(".docx"):
         return (_extract_docx_as_numbered(data) or ""), "docx"
+    if lower_path.endswith(".pptx"):
+        return (_extract_text_from_pptx(data) or ""), "pptx"
     if lower_path.endswith((".xlsx", ".xlsm")):
         return (_extract_xlsx_as_tsv(data, include_column_headers=True) or ""), "xlsx"
     if str(mime or "").startswith("text/") or ext in _TEXT_LIKE_UPLOAD_EXTS:

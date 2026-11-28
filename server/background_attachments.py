@@ -138,10 +138,11 @@ def background_load_attachments(img_list, options, user_id, is_llm_model, is_mis
                     'mtime': info.get("mtime")
                 })
             elif is_pptx:
+                extracted = None if is_mistral_ocr else _extract_text_from_pptx(data)
                 loaded_files.append({
                     'name': clean_fn,
                     'path': clean_fn,
-                    'text': None,
+                    'text': extracted if extracted else None,
                     'bytes': data,
                     'mime': mime,
                     'is_pdf': False,

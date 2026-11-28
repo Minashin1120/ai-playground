@@ -293,6 +293,54 @@ def _extract_docx_as_numbered(data, max_paragraphs=3000):
         lines.append(f"[{i}] {text}")
     return "\n".join(lines)
 
+
+def _extract_text_from_pptx(data, max_slides=500, max_chars=2_000_000):
+    """Extract slide text in slide order from a .pptx archive.
+
+    Returns ``None`` when the bytes cannot be parsed safely.
+    """
+    if not data or len(data) > 100 * 1024 * 1024:
+        return None
+    try:
+        slide_re = re.compile(r"^ppt/slides/slide(\d+)\.xml$")
+        with zipfile.ZipFile(BytesIO(data)) as zf:
+            slide_entries = []
+            for info in zf.infolist():
+                m = slide_re.match(info.filename)
+                if not m:
+                    continue
+                if info.file_size > 8 * 1024 * 1024:
+                    return None
+                if info.compress_size > 0 and info.file_size / info.compress_size > 100:
+                    return None
+                slide_entries.append((int(m.group(1)), info))
+            slide_entries.sort(key=lambda item: item[0])
+            namespace = {'a': 'http://schemas.openxmlformats.org/drawingml/2006/main'}
+            parts = []
+            total_chars = 0
+            for slide_num, info in slide_entries[:max_slides]:
+                xml_content = zf.read(info)
+                tree = ET.fromstring(xml_content)
+                slide_lines = []
+                for paragraph in tree.findall('.//a:p', namespace):
+                    texts = [node.text for node in paragraph.findall('.//a:t', namespace) if node.text]
+                    line = "".join(texts).strip()
+                    if line:
+                        slide_lines.append(line)
+                if not slide_lines:
+                    continue
+                block = f"[Slide {slide_num}]\n" + "\n".join(slide_lines)
+                remaining = max_chars - total_chars
+                if remaining <= 0:
+                    break
+                parts.append(block[:remaining])
+                total_chars += len(parts[-1])
+                if total_chars >= max_chars:
+                    break
+            return "\n\n".join(parts)
+    except Exception:
+        return None
+
 def _extract_text_from_pdf(data, max_pages=300, max_chars=2_000_000):
     if not data or len(data) > 100 * 1024 * 1024:
         return None
@@ -796,10 +844,11 @@ def _estimate_attachment_prompt_tokens(rel_path, model_key=None):
     mime = _normalize_media_mime(clean_fn, mime_guess)
     is_pdf = clean_fn.lower().endswith('.pdf')
     is_docx = clean_fn.lower().endswith('.docx')
+    is_pptx = clean_fn.lower().endswith('.pptx')
     clean_ext = os.path.splitext(clean_fn)[1].lower()
     is_text = (mime or '').startswith('text/') or clean_ext in _TEXT_LIKE_UPLOAD_EXTS
 
-    if media_profile and not is_docx and not is_text:
+    if media_profile and not is_docx and not is_pptx and not is_text:
         # Gemini receives images, PDFs, audio and video as media, not as text.
         media_result = _estimate_gemini_media_tokens(data, mime, is_pdf, media_profile)
         if media_result is not None:
@@ -811,12 +860,14 @@ def _estimate_attachment_prompt_tokens(rel_path, model_key=None):
         extracted = _extract_text_from_pdf(data)
     elif is_docx:
         extracted = _extract_text_from_docx(data)
+    elif is_pptx:
+        extracted = _extract_text_from_pptx(data)
     elif is_text:
         extracted = _decode_text_bytes_for_prompt(data)
 
     if extracted:
         result = {"tokens": count_tokens(extracted, model_key), "countable": True, "reason": "ok"}
-    elif is_pdf or is_docx or is_text:
+    elif is_pdf or is_docx or is_pptx or is_text:
         result = {"tokens": 0, "countable": False, "reason": "no_text"}
     else:
         result = {"tokens": 0, "countable": False, "reason": "non_text"}

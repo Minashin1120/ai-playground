@@ -24,6 +24,27 @@ os.environ.setdefault("VERBOSE_DEBUG_LOGS", "0")
 import app as target
 
 
+def _build_minimal_pptx_bytes(slides):
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for idx, paragraphs in enumerate(slides, start=1):
+            p_xml = "".join(
+                f"<a:p><a:r><a:t>{text}</a:t></a:r></a:p>"
+                for text in paragraphs
+            )
+            slide_xml = (
+                '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+                '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
+                'xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">'
+                f"<p:cSld><p:spTree><p:sp><p:txBody>{p_xml}</p:txBody></p:sp></p:spTree></p:cSld>"
+                "</p:sld>"
+            )
+            zf.writestr(f"ppt/slides/slide{idx}.xml", slide_xml.encode("utf-8"))
+    return buf.getvalue()
+
+
 class UploadFileTypesRegressionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -239,6 +260,64 @@ class UploadFileTypesRegressionTests(unittest.TestCase):
         resp = client.get(f"/files/{self.user_id}/clip.mp4", headers={"Range": "bytes=10-19"})
         self.assertEqual(resp.status_code, 206)
         self.assertEqual(resp.get_data(), payload[10:20])
+
+    def test_pptx_upload_init_and_text_extraction(self):
+        """PPTX must be uploadable at all times and readable by chat/token/project helpers."""
+        pptx_bytes = _build_minimal_pptx_bytes([
+            ["Title Slide", "Subtitle"],
+            ["Second Slide", "Bullet A"],
+        ])
+        client = self.client_for()
+        headers = {"X-CSRF-Token": "csrf-test-token"}
+
+        resp = client.post(
+            "/upload",
+            data={"file": (io.BytesIO(pptx_bytes), "企画書.pptx")},
+            content_type="multipart/form-data",
+            headers=headers,
+        )
+        self.assertEqual(resp.status_code, 200, resp.get_data(as_text=True))
+        rel_path = resp.get_json()["filename"]
+        self.assertTrue(rel_path.endswith(".pptx"), rel_path)
+
+        init_resp = client.post(
+            "/upload/init",
+            json={"filename": "slides.pptx", "size": len(pptx_bytes)},
+            headers=headers,
+        )
+        self.assertEqual(init_resp.status_code, 200, init_resp.get_data(as_text=True))
+        self.assertIn("upload_id", init_resp.get_json())
+
+        extracted = target._extract_text_from_pptx(pptx_bytes)
+        self.assertEqual(
+            extracted,
+            "[Slide 1]\nTitle Slide\nSubtitle\n\n[Slide 2]\nSecond Slide\nBullet A",
+        )
+
+        loaded, errors = target.background_load_attachments(
+            [rel_path], {}, self.user_id, is_llm_model=True, is_mistral_ocr=False
+        )
+        self.assertEqual(errors, [])
+        self.assertEqual(len(loaded), 1)
+        self.assertTrue(loaded[0]["is_pptx"])
+        self.assertIn("[Slide 1]", loaded[0]["text"])
+
+        ocr_loaded, ocr_errors = target.background_load_attachments(
+            [rel_path], {}, self.user_id, is_llm_model=True, is_mistral_ocr=True
+        )
+        self.assertEqual(ocr_errors, [])
+        self.assertIsNone(ocr_loaded[0]["text"])
+
+        tok = target._estimate_attachment_prompt_tokens(rel_path, "gpt-4o")
+        self.assertTrue(tok.get("countable"))
+
+        proj_text, proj_kind = target._extract_project_file_text(
+            rel_path,
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            pptx_bytes,
+        )
+        self.assertEqual(proj_kind, "pptx")
+        self.assertIn("Second Slide", proj_text)
 
 
 if __name__ == "__main__":

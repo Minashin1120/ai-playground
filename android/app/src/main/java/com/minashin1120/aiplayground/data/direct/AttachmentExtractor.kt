@@ -7,8 +7,8 @@ import java.util.zip.ZipInputStream
 
 /**
  * Turns an attachment into what a provider accepts (server `storage.py` text extraction): images and
- * PDFs stay binary, DOCX paragraphs and XLSX cells become text, plain text files are decoded, and
- * anything else is reported as not readable on the device.
+ * PDFs stay binary, DOCX paragraphs, PPTX slides, and XLSX cells become text, plain text files are
+ * decoded, and anything else is reported as not readable on the device.
  */
 object AttachmentExtractor {
     private const val MAX_TEXT_CHARS = 400_000
@@ -25,6 +25,7 @@ object AttachmentExtractor {
                 DirectAttachment(name, type, bytes = bytes)
             ext == "pdf" -> DirectAttachment(name, "application/pdf", bytes = bytes)
             ext == "docx" -> DirectAttachment(name, type, text = runCatching { docxText(bytes) }.getOrElse { "（DOCXを読み取れませんでした）" })
+            ext == "pptx" -> DirectAttachment(name, type, text = runCatching { pptxText(bytes) }.getOrElse { "（PPTXを読み取れませんでした）" })
             ext == "xlsx" -> DirectAttachment(name, type, text = runCatching { xlsxText(bytes) }.getOrElse { "（XLSXを読み取れませんでした）" })
             type.startsWith("text/") || ext in TEXT_EXTENSIONS -> DirectAttachment(name, type.ifBlank { "text/plain" },
                 text = String(bytes, Charsets.UTF_8).take(MAX_TEXT_CHARS))
@@ -70,6 +71,47 @@ object AttachmentExtractor {
             }
         }
         return paragraphs.mapIndexed { index, text -> "[${index + 1}] $text" }.joinToString("\n").take(MAX_TEXT_CHARS)
+    }
+
+    /** Slide text in slide order, like the server's PPTX extraction. */
+    fun pptxText(bytes: ByteArray): String {
+        val slideRegex = Regex("^ppt/slides/slide(\\d+)\\.xml$")
+        val slides = zipEntries(bytes) { slideRegex.matches(it) }
+            .entries
+            .mapNotNull { entry ->
+                val num = slideRegex.matchEntire(entry.key)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: return@mapNotNull null
+                num to entry.value
+            }
+            .sortedBy { it.first }
+        val blocks = mutableListOf<String>()
+        var totalChars = 0
+        for ((slideNum, data) in slides) {
+            val xml = parser(data)
+            val lines = mutableListOf<String>()
+            val current = StringBuilder()
+            while (xml.next() != XmlPullParser.END_DOCUMENT) {
+                when (xml.eventType) {
+                    XmlPullParser.START_TAG -> when (xml.name) {
+                        "a:p" -> current.clear()
+                        "a:br" -> current.append('\n')
+                    }
+                    XmlPullParser.TEXT -> if (xml.text != null) current.append(xml.text)
+                    XmlPullParser.END_TAG -> if (xml.name == "a:p") {
+                        val line = current.toString().trim()
+                        if (line.isNotEmpty()) lines += line
+                        current.clear()
+                    }
+                }
+            }
+            if (lines.isEmpty()) continue
+            val block = "[Slide $slideNum]\n" + lines.joinToString("\n")
+            val remaining = MAX_TEXT_CHARS - totalChars
+            if (remaining <= 0) break
+            val clipped = block.take(remaining)
+            blocks += clipped
+            totalChars += clipped.length
+        }
+        return blocks.joinToString("\n\n").take(MAX_TEXT_CHARS)
     }
 
     /** Each sheet as tab-separated rows, like the server's XLSX → TSV conversion. */

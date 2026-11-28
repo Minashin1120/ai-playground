@@ -139,6 +139,11 @@ def _provider_draft_estimate(user, model, text, references, message_text=None, q
                 f['text'] = '[File: ' + name + ']\n' + _decode_text_bytes_for_prompt(bits)
             elif ext == '.docx' and provider != 'openai':
                 f['text'] = '[File: ' + name + ']\n' + _extract_docx_as_numbered(bits)
+            elif ext == '.pptx':
+                pptx_text = _extract_text_from_pptx(bits)
+                if not pptx_text:
+                    return None
+                f['text'] = '[File: ' + name + ']\n' + pptx_text
             elif not (mime.startswith('image/') and provider in {'gemini', 'anthropic', 'openai'} or
                       mime == 'application/pdf' and provider in {'gemini', 'anthropic', 'openai'} or
                       provider == 'gemini' and mime.startswith(('audio/', 'video/')) or

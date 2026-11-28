@@ -81,6 +81,16 @@ def background_stream_claude(local):
                             "data": base64.b64encode(fi['bytes']).decode('utf-8')
                         }
                     })
+                elif fi.get('text'):
+                    curr_parts.append({
+                        "type": "text",
+                        "text": f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
+                    })
+            elif fi.get('text'):
+                curr_parts.append({
+                    "type": "text",
+                    "text": f"\n\n[File: {fi.get('send_name') or fi.get('name') or 'file'}]\n{fi['text']}"
+                })
         claude_messages.append({"role": "user", "content": curr_parts})
 
         # Claude Parameters

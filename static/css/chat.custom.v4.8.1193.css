@@ -826,13 +826,31 @@
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             z-index: 140; user-select: none;
             opacity: 0; visibility: hidden; pointer-events: none;
-            transition: opacity 0.28s var(--ease-out), visibility 0.28s var(--ease-standard);
+            transition: opacity 0.28s var(--ease-out), visibility 0.28s var(--ease-standard), background 0.26s var(--ease-out);
         }
         #image-viewer.visible {
             opacity: 1; visibility: visible; pointer-events: auto;
         }
         #image-viewer.visible .viewer-content {
             animation: viewerContentIn 0.36s var(--ease-out) both;
+        }
+        #image-viewer.viewer-shared-open .viewer-content {
+            animation: none;
+        }
+        #image-viewer.closing {
+            background: rgba(2,6,16,0);
+            pointer-events: none;
+            transition: background 0.24s var(--ease-out);
+        }
+        #image-viewer.closing .viewer-content {
+            animation: none;
+        }
+        #image-viewer.closing .viewer-toolbar,
+        #image-viewer.closing .viewer-nav,
+        #image-viewer.closing .viewer-meta {
+            opacity: 0 !important;
+            transition: opacity 0.16s var(--ease-out);
+            pointer-events: none;
         }
         #image-viewer.visible .viewer-toolbar {
             animation: viewerToolbarIn 0.34s var(--ease-out) both;

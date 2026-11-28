@@ -889,7 +889,7 @@
             }
             body.innerHTML = executions.map((ex, i) => buildPythonExecDetailBoxHtml(ex, i, executions.length)).join('');
             body.querySelectorAll('img').forEach(img => {
-                img.addEventListener('click', () => openImageViewer(img.dataset.viewerSrc || img.src, '#python-exec-modal-body img'));
+                img.addEventListener('click', () => openImageViewer(img.dataset.viewerSrc || img.src, '#python-exec-modal-body img', img));
             });
             if (codingModeEnabled) {
                 syncCodingTargetButtons(body);

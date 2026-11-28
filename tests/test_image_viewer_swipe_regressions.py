@@ -121,6 +121,20 @@ class ImageViewerSwipeRegressionTests(unittest.TestCase):
         self.assertIn('onclick="navImage(-1)"', template)
         self.assertIn('onclick="navImage(1)"', template)
 
+    def test_shared_origin_open_and_close_animation(self):
+        script = _current_asset("js", "chat_core.v4.8.*.js")
+        css = _current_asset("css", "chat.custom.v4.8.*.css")
+
+        self.assertIn("function getViewerSourceRect(el)", script)
+        self.assertIn("function computeViewerFlipTransform(sourceRect, targetRect)", script)
+        self.assertIn("function finalizeCloseViewer(token)", script)
+        self.assertIn("openImageViewer(viewerSrc, '.chat-image', img)", script)
+        self.assertIn("openImageViewer(this.dataset.viewerSrc, '.thumb-item', this)", script)
+        self.assertIn("viewer.classList.add('viewer-shared-open')", script)
+        self.assertIn("viewer.classList.add('closing')", script)
+        self.assertIn("#image-viewer.viewer-shared-open .viewer-content", css)
+        self.assertIn("#image-viewer.closing", css)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -10,6 +10,8 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.MediaController
 import android.widget.VideoView
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,12 +45,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -59,6 +65,7 @@ import com.minashin1120.aiplayground.data.ActivityLog
 import com.minashin1120.aiplayground.data.AttachmentKind
 import com.minashin1120.aiplayground.data.attachmentKind
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -185,6 +192,44 @@ internal fun FileViewerDialog(
     }
 }
 
+internal data class ImageViewerTransition(
+    val translationX: Float,
+    val translationY: Float,
+    val scale: Float,
+)
+
+/**
+ * Computes the transform that aligns the viewer's fitted image with [sourceBoundsInStage] so the
+ * image can expand from its on-screen origin when opening and return to it when closing.
+ */
+internal fun computeImageViewerTransition(
+    sourceBoundsInStage: Rect?,
+    stageSize: IntSize,
+    imageSize: IntSize?,
+): ImageViewerTransition? {
+    if (sourceBoundsInStage == null) return null
+    if (sourceBoundsInStage.width < 4f || sourceBoundsInStage.height < 4f) return null
+    if (stageSize.width <= 0 || stageSize.height <= 0) return null
+    if (sourceBoundsInStage.right <= 0f || sourceBoundsInStage.left >= stageSize.width.toFloat() ||
+        sourceBoundsInStage.bottom <= 0f || sourceBoundsInStage.top >= stageSize.height.toFloat()
+    ) return null
+    val natW = imageSize?.width?.takeIf { it > 0 }?.toFloat() ?: sourceBoundsInStage.width
+    val natH = imageSize?.height?.takeIf { it > 0 }?.toFloat() ?: sourceBoundsInStage.height
+    val fit = minOf(stageSize.width / natW, stageSize.height / natH)
+    val targetW = natW * fit
+    val targetH = natH * fit
+    if (targetW <= 0f || targetH <= 0f) return null
+    val targetCenterX = stageSize.width / 2f
+    val targetCenterY = stageSize.height / 2f
+    val scale = minOf(sourceBoundsInStage.width / targetW, sourceBoundsInStage.height / targetH)
+        .coerceIn(0.05f, 2f)
+    return ImageViewerTransition(
+        translationX = sourceBoundsInStage.center.x - targetCenterX,
+        translationY = sourceBoundsInStage.center.y - targetCenterY,
+        scale = scale,
+    )
+}
+
 /**
  * Web `#image-viewer`: the image on a dark backdrop with pinch zoom, "n / total • name" at the top, the
  * previous / next buttons for the chat's other images and the Download / Copy URL / Reuse / Close toolbar.
@@ -197,6 +242,15 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
     val index = pager.currentPage.coerceIn(items.indices)
     val current = items[index]
     val scope = rememberCoroutineScope()
+    val reduceMotion = LocalReduceMotion.current
+    val initialSourceScreenBounds = remember(request.reference) { ImageOriginRegistry.resolveForOpen(request.reference) }
+    val progress = remember(request.reference) { Animatable(if (reduceMotion) 1f else 0f) }
+    var closing by remember(request.reference) { mutableStateOf(false) }
+    var openStarted by remember(request.reference) { mutableStateOf(reduceMotion) }
+    var activeTransition by remember(request.reference) { mutableStateOf<ImageViewerTransition?>(null) }
+    var stageOriginOnScreen by remember { mutableStateOf<Offset?>(null) }
+    var stageSize by remember { mutableStateOf(IntSize.Zero) }
+    val pageImageSizes = remember(request.reference) { mutableStateMapOf<String, IntSize>() }
     // Web: while zoomed, one finger pans the image instead of swiping.
     var zoomed by remember { mutableStateOf(false) }
     LaunchedEffect(pager.settledPage) { zoomed = false }
@@ -213,52 +267,129 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
     }
     DisposableEffect(request.reference) {
         ActivityLog.log("ui.viewer", "state" to "open", "images" to items.size, "index" to (index + 1),
-            "reference" to request.reference)
+            "reference" to request.reference, "has_origin" to (initialSourceScreenBounds != null))
         onDispose { logClose("dispose") }
     }
-    val dismissOnce: () -> Unit = { logClose("dismiss"); onDismiss() }
+    LaunchedEffect(openStarted, stageOriginOnScreen, stageSize) {
+        if (openStarted || closing) return@LaunchedEffect
+        val origin = stageOriginOnScreen ?: return@LaunchedEffect
+        if (stageSize.width <= 0 || stageSize.height <= 0) return@LaunchedEffect
+        openStarted = true
+        val sourceInStage = initialSourceScreenBounds?.translate(-origin.x, -origin.y)
+        activeTransition = computeImageViewerTransition(sourceInStage, stageSize, pageImageSizes[request.reference])
+        progress.animateTo(1f, tween(300, easing = PlaygroundMotion.WebEaseOut))
+    }
+    LaunchedEffect(request.reference) {
+        if (reduceMotion) return@LaunchedEffect
+        delay(80)
+        if (!openStarted && !closing) {
+            openStarted = true
+            progress.animateTo(1f, tween(280, easing = PlaygroundMotion.WebEaseOut))
+        }
+    }
+    fun dismissAnimated(immediate: Boolean = false) {
+        if (closing) return
+        closing = true
+        logClose("dismiss")
+        if (immediate || reduceMotion) {
+            onDismiss()
+            return
+        }
+        val origin = stageOriginOnScreen
+        val closeScreenBounds = ImageOriginRegistry.resolveForClose(current, request.reference, initialSourceScreenBounds)
+        val closeInStage = if (origin != null && closeScreenBounds != null) {
+            closeScreenBounds.translate(-origin.x, -origin.y)
+        } else null
+        activeTransition = computeImageViewerTransition(closeInStage, stageSize, pageImageSizes[current])
+        scope.launch {
+            try {
+                progress.animateTo(0f, tween(260, easing = PlaygroundMotion.WebEaseOut))
+            } finally {
+                onDismiss()
+            }
+        }
+    }
+    val dismissOnce: () -> Unit = { dismissAnimated(immediate = false) }
     val glass = androidx.compose.ui.graphics.Color(13, 21, 40).copy(alpha = 0.45f)
     val edge = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f)
     Dialog(onDismissRequest = dismissOnce, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         WebModalWindow(0.dp)
+        val dialogView = LocalView.current
+        val p = progress.value
+        val chromeAlpha = ((p - 0.15f) / 0.85f).coerceIn(0f, 1f)
         // Web `#image-viewer` / `.viewer-content` click: a tap anywhere but the image or the controls closes.
         Box(
-            Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(2, 6, 16).copy(alpha = 0.96f))
+            Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(2, 6, 16).copy(alpha = 0.96f * p))
                 .pointerInput(Unit) { detectTapGestures { dismissOnce() } }.safeDrawingPadding(),
         ) {
             HorizontalPager(
-                pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed, key = { items[it] },
+                pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1, userScrollEnabled = !zoomed && !closing, key = { items[it] },
                 flingBehavior = PagerDefaults.flingBehavior(pager, snapPositionalThreshold = 0.22f),
             ) { page ->
+                val pageRef = items[page]
+                val measureStage = if (page == index) {
+                    Modifier.onGloballyPositioned { coords ->
+                        val win = coords.boundsInWindow()
+                        val loc = IntArray(2)
+                        dialogView.getLocationOnScreen(loc)
+                        stageOriginOnScreen = Offset(win.left + loc[0], win.top + loc[1])
+                        stageSize = coords.size
+                    }
+                } else Modifier
                 Box(
-                    Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 64.dp).graphicsLayer {
-                        // Web `onViewerTouchMove`: the image being left shrinks slightly and fades; the next one fades in at 97%.
-                        val drag = abs(pager.currentPage + pager.currentPageOffsetFraction - pager.settledPage)
-                        if (page == pager.settledPage) {
-                            val shrink = 1f - minOf(drag / 4f, 0.04f)
-                            scaleX = shrink; scaleY = shrink
-                            alpha = maxOf(1f - minOf(drag / 0.45f, 0.55f), 0.4f)
+                    Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 64.dp).then(measureStage).graphicsLayer {
+                        if (page == index && p < 0.999f) {
+                            val tr = activeTransition
+                            if (tr != null) {
+                                translationX = tr.translationX * (1f - p)
+                                translationY = tr.translationY * (1f - p)
+                                val s = tr.scale + (1f - tr.scale) * p
+                                scaleX = s
+                                scaleY = s
+                                alpha = if (closing) (p / 0.12f).coerceIn(0f, 1f) else 1f
+                            } else {
+                                val s = 0.96f + 0.04f * p
+                                scaleX = s
+                                scaleY = s
+                                alpha = p
+                            }
                         } else {
-                            scaleX = 0.97f; scaleY = 0.97f
-                            alpha = minOf(drag / 0.3f, 1f)
+                            // Web `onViewerTouchMove`: the image being left shrinks slightly and fades; the next one fades in at 97%.
+                            val drag = abs(pager.currentPage + pager.currentPageOffsetFraction - pager.settledPage)
+                            if (page == pager.settledPage) {
+                                val shrink = 1f - minOf(drag / 4f, 0.04f)
+                                scaleX = shrink; scaleY = shrink
+                                alpha = maxOf(1f - minOf(drag / 0.45f, 0.55f), 0.4f)
+                            } else {
+                                scaleX = 0.97f; scaleY = 0.97f
+                                alpha = minOf(drag / 0.3f, 1f)
+                            }
                         }
                     },
                 ) {
-                    ImagePreview(items[page], loader, dismissOnce, onZoomed = { if (page == pager.currentPage) zoomed = it })
+                    ImagePreview(
+                        pageRef,
+                        loader,
+                        dismissOnce,
+                        onZoomed = { if (page == pager.currentPage) zoomed = it },
+                        onMeasuredImageSize = { size -> pageImageSizes[pageRef] = size },
+                        closingProgress = if (closing && page == index) p else 1f,
+                    )
                 }
             }
             Text(
                 "${index + 1} / ${items.size} • ${fileViewerTitle(current, if (current == request.reference) request.displayName else "")}",
                 fontSize = 13.sp, color = androidx.compose.ui.graphics.Color(0xFFF8FAFC), maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp).fillMaxWidth(0.8f).wrapContentWidth()
+                    .graphicsLayer { alpha = chromeAlpha }
                     .clip(CircleShape).background(glass).border(1.dp, edge, CircleShape).padding(horizontal = 20.dp, vertical = 8.dp),
             )
             if (items.size > 1) {
                 listOf(-1 to R.drawable.fa_solid_chevron_left, 1 to R.drawable.fa_solid_chevron_right).forEach { (step, icon) ->
-                    val enabled = index + step in items.indices
+                    val enabled = index + step in items.indices && !closing
                     Box(
                         Modifier.align(if (step < 0) Alignment.CenterStart else Alignment.CenterEnd).padding(horizontal = 16.dp).size(48.dp)
-                            .graphicsLayer { alpha = if (enabled) 1f else 0.3f }.clip(CircleShape)
+                            .graphicsLayer { alpha = (if (index + step in items.indices) 1f else 0.3f) * chromeAlpha }.clip(CircleShape)
                             .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f))
                             .border(1.dp, androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f), CircleShape)
                             .clickable(enabled = enabled, role = Role.Button) { scope.launch { pager.animateScrollToPage(index + step) } },
@@ -267,13 +398,15 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
                 }
             }
             Row(
-                Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp).clip(CircleShape).background(glass).border(1.dp, edge, CircleShape)
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp)
+                    .graphicsLayer { alpha = chromeAlpha }
+                    .clip(CircleShape).background(glass).border(1.dp, edge, CircleShape)
                     .padding(horizontal = 20.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 (listOfNotNull<Triple<Int, String, () -> Unit>>(
                     actions.onEdit?.takeIf { request.editAttachment }?.let { edit ->
-                        Triple(R.drawable.fa_solid_pen, "画像編集", { dismissOnce(); edit(current) })
+                        Triple(R.drawable.fa_solid_pen, "画像編集", { dismissAnimated(immediate = true); edit(current) })
                     },
                 ) + listOf<Triple<Int, String, () -> Unit>>(
                     Triple(R.drawable.fa_solid_download, "Download", { actions.onDownload(current) }),
@@ -281,7 +414,7 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
                     Triple(R.drawable.fa_solid_reply, "Reuse as Attachment", { if (actions.onReuse(current)) dismissOnce() }),
                     Triple(R.drawable.fa_solid_times, "Close", dismissOnce),
                 )).forEach { (icon, label, action) ->
-                    Box(Modifier.size(40.dp).clip(CircleShape).clickable(role = Role.Button, onClickLabel = label, onClick = action),
+                    Box(Modifier.size(40.dp).clip(CircleShape).clickable(enabled = !closing, role = Role.Button, onClickLabel = label, onClick = action),
                         contentAlignment = Alignment.Center) { FaIcon(icon, label, size = 16.dp, tint = androidx.compose.ui.graphics.Color(0xFFF1F5F9)) }
                 }
             }
@@ -290,7 +423,14 @@ private fun ImageViewer(request: FileViewRequest, loader: FileBytesLoader, onDis
 }
 
 @Composable
-private fun ImagePreview(reference: String, loader: FileBytesLoader, onBackdropTap: () -> Unit, onZoomed: (Boolean) -> Unit = {}) {
+private fun ImagePreview(
+    reference: String,
+    loader: FileBytesLoader,
+    onBackdropTap: () -> Unit,
+    onZoomed: (Boolean) -> Unit = {},
+    onMeasuredImageSize: (IntSize) -> Unit = {},
+    closingProgress: Float = 1f,
+) {
     var scale by remember(reference) { mutableFloatStateOf(1f) }
     var offset by remember(reference) { mutableStateOf(Offset.Zero) }
     var viewport by remember(reference) { mutableStateOf(IntSize.Zero) }
@@ -299,6 +439,8 @@ private fun ImagePreview(reference: String, loader: FileBytesLoader, onBackdropT
     var imageFailed by remember(reference) { mutableStateOf(false) }
     val loadStartedAt = remember(reference) { SystemClock.elapsedRealtime() }
     LaunchedEffect(scale > 1f) { onZoomed(scale > 1f) }
+    val effectiveScale = 1f + (scale - 1f) * closingProgress
+    val effectiveOffset = offset * closingProgress
     Box(
         Modifier.fillMaxSize().onSizeChanged { viewport = it }.pointerInput(reference) {
             detectTapGestures { tap ->
@@ -348,21 +490,23 @@ private fun ImagePreview(reference: String, loader: FileBytesLoader, onBackdropT
         ProtectedImage(
             reference, loader, onOpen = null,
             modifier = Modifier.fillMaxSize().graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                translationX = offset.x
-                translationY = offset.y
+                scaleX = effectiveScale
+                scaleY = effectiveScale
+                translationX = effectiveOffset.x
+                translationY = effectiveOffset.y
             },
             thumbnail = false,
             compact = false,
             maxDecodeWidth = 2048,
             limitBytes = 24L * 1024 * 1024,
             contentDescription = "画像プレビュー",
+            registerOrigin = false,
             onImageSize = {
                 imageSize = it
                 imageReady = it.width > 0 && it.height > 0
-                // ログの収集を強化: the full image arrived (reference and size only, never its content).
                 if (imageReady) {
+                    onMeasuredImageSize(it)
+                    // ログの収集を強化: the full image arrived (reference and size only, never its content).
                     ActivityLog.log("ui.viewer.image", "state" to "loaded", "reference" to reference,
                         "w" to it.width, "h" to it.height,
                         "ms" to (SystemClock.elapsedRealtime() - loadStartedAt))
@@ -376,7 +520,7 @@ private fun ImagePreview(reference: String, loader: FileBytesLoader, onBackdropT
         )
         // The full image comes from the server and can take a moment; show that the viewer is working
         // instead of leaving only the shimmer, which reads as an image that failed to open.
-        if (!imageReady && !imageFailed) {
+        if (!imageReady && !imageFailed && closingProgress >= 0.999f) {
             CircularProgressIndicator(
                 Modifier.align(Alignment.Center).size(28.dp), strokeWidth = 2.dp,
                 color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.8f),

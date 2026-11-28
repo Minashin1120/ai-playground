@@ -7392,6 +7392,54 @@
         let vX = 0;
         let vY = 0;
         let suppressViewerCloseClick = false;
+        let viewerClosing = false, viewerAnimToken = 0, viewerHiddenSourceEl = null;
+
+        function isViewerReducedMotion() {
+            return Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        }
+
+        function setViewerHiddenSource(el) {
+            if (viewerHiddenSourceEl && viewerHiddenSourceEl !== el) {
+                try { viewerHiddenSourceEl.style.visibility = ''; } catch (_) {}
+                viewerHiddenSourceEl = null;
+            }
+            if (el && el.isConnected) {
+                try { el.style.visibility = 'hidden'; viewerHiddenSourceEl = el; } catch (_) {}
+            }
+        }
+
+        function getViewerSourceRect(el) {
+            if (!el || !el.isConnected) return null;
+            const rect = el.getBoundingClientRect();
+            if (!rect || rect.width < 4 || rect.height < 4 || rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) return null;
+            return rect;
+        }
+
+        function getViewerTargetRect(img, sourceEl) {
+            const content = document.querySelector('.viewer-content');
+            const stage = content ? content.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+            let width = img ? img.offsetWidth : 0, height = img ? img.offsetHeight : 0;
+            if (!(width > 0 && height > 0)) {
+                const natW = (img && img.naturalWidth) || (sourceEl && sourceEl.naturalWidth) || 0;
+                const natH = (img && img.naturalHeight) || (sourceEl && sourceEl.naturalHeight) || 0;
+                if (natW > 0 && natH > 0) {
+                    const maxW = Math.min(stage.width || window.innerWidth, window.innerWidth * 0.96);
+                    const maxH = Math.min(stage.height || window.innerHeight, window.innerHeight * 0.85);
+                    const fit = Math.min(maxW / natW, maxH / natH, 1);
+                    width = natW * fit; height = natH * fit;
+                }
+            }
+            if (!(width > 0 && height > 0)) return null;
+            return { left: (stage.left + stage.width / 2) - width / 2, top: (stage.top + stage.height / 2) - height / 2, width, height };
+        }
+
+        function computeViewerFlipTransform(sourceRect, targetRect) {
+            if (!sourceRect || !targetRect || targetRect.width <= 0 || targetRect.height <= 0) return null;
+            const srcCx = sourceRect.left + sourceRect.width / 2, srcCy = sourceRect.top + sourceRect.height / 2;
+            const dstCx = targetRect.left + targetRect.width / 2, dstCy = targetRect.top + targetRect.height / 2;
+            const scale = Math.max(0.05, Math.min(2, Math.min(sourceRect.width / targetRect.width, sourceRect.height / targetRect.height)));
+            return { dx: srcCx - dstCx, dy: srcCy - dstCy, scale };
+        }
 
         function applyViewerTransform() {
             const img = get('image-viewer-img');
@@ -7411,43 +7459,83 @@
             vX = vY = 0;
         }
 
-        function openImageViewer(startUrl, groupSelector = '.chat-image') {
+        function openImageViewer(startUrl, groupSelector = '.chat-image', sourceElement = null) {
             const allImgs = Array.from(document.querySelectorAll(groupSelector));
-            // Filter out duplicate sources if needed, but keep DOM order
             const items = allImgs.map(img => ({
                 url: img.dataset.viewerSrc || img.currentSrc || img.src,
                 filename: img.dataset.viewerFilename || img.title || (img.dataset.viewerSrc || img.currentSrc || img.src).split('/').pop(),
                 element: img
             }));
-
-            // Find index of startUrl
-            const foundIndex = items.findIndex(item => item.url === startUrl);
-            if (foundIndex === -1) {
-                // Fallback if not found in DOM list (single view)
-                openViewerWithItems([{ url: startUrl, filename: startUrl.split('/').pop(), element: null }], 0);
-                return;
-            }
-            openViewerWithItems(items, foundIndex);
+            let idx = sourceElement ? items.findIndex(item => item.element === sourceElement) : -1;
+            if (idx === -1) idx = items.findIndex(item => item.url === startUrl);
+            if (idx === -1) return openViewerWithItems([{ url: startUrl, filename: startUrl.split('/').pop(), element: sourceElement || null }], 0);
+            openViewerWithItems(items, idx);
         }
 
         function openViewerWithItems(items, index) {
+            const viewer = get('image-viewer');
+            if (!viewer) return;
+            viewerAnimToken += 1;
+            viewerClosing = false;
+            viewer.classList.remove('closing', 'viewer-shared-open');
+            setViewerHiddenSource(null);
             viewerImages = items;
             viewerIndex = (index >= 0 && index < items.length) ? index : 0;
             resetViewerTransform();
             clearViewerAdjacent();
-            updateViewerState();
-            get('image-viewer').classList.add('visible');
+            const item = viewerImages[viewerIndex], sourceEl = item && item.element ? item.element : null;
+            const sourceRect = isViewerReducedMotion() ? null : getViewerSourceRect(sourceEl);
+            if (sourceRect) viewer.classList.add('viewer-shared-open');
+            viewer.classList.add('visible');
+            sourceRect ? updateViewerState({ fade: false, sourceEl, sourceRect }) : updateViewerState();
             document.addEventListener('keydown', handleViewerKeydown);
         }
 
-        function closeImageViewer() {
-            get('image-viewer').classList.remove('visible');
+        function finalizeCloseViewer(token) {
+            if (token !== viewerAnimToken) return;
+            const viewer = get('image-viewer'), img = get('image-viewer-img');
+            viewerClosing = false;
+            if (viewer) viewer.classList.remove('visible', 'closing', 'viewer-shared-open');
             document.removeEventListener('keydown', handleViewerKeydown);
             clearViewerAdjacent();
-            viewerImages = [];
-            viewerIndex = 0;
-            s = null;
-            resetViewerTransform();
+            setViewerHiddenSource(null);
+            if (img) {
+                img.onload = img.onerror = null;
+                img.style.transition = img.style.transform = img.style.opacity = '';
+            }
+            viewerImages = []; viewerIndex = 0; s = null; resetViewerTransform();
+        }
+
+        function closeImageViewer(opts) {
+            const viewer = get('image-viewer');
+            if (!viewer || !viewer.classList.contains('visible')) return;
+            const immediate = Boolean(opts && opts.immediate) || isViewerReducedMotion();
+            if (viewerClosing && !immediate) return;
+
+            const item = viewerImages[viewerIndex], sourceEl = item && item.element ? item.element : null;
+            const sourceRect = immediate ? null : getViewerSourceRect(sourceEl);
+            const img = get('image-viewer-img');
+            const targetRect = (sourceRect && img) ? getViewerTargetRect(img, sourceEl) : null;
+            const flip = (sourceRect && targetRect) ? computeViewerFlipTransform(sourceRect, targetRect) : null;
+
+            const token = ++viewerAnimToken;
+            if (!immediate && flip && img) {
+                viewerClosing = true;
+                clearViewerAdjacent();
+                document.removeEventListener('keydown', handleViewerKeydown);
+                viewer.classList.remove('viewer-shared-open');
+                viewer.classList.add('closing');
+                img.style.transition = 'transform 0.26s var(--ease-out), opacity 0.24s var(--ease-out)';
+                img.style.transform = `translate(${flip.dx}px, ${flip.dy}px) scale(${flip.scale})`;
+                img.style.opacity = '1';
+                let doneCalled = false;
+                const done = () => { if (!doneCalled) { doneCalled = true; finalizeCloseViewer(token); } };
+                const onEnd = (e) => { if (!e || e.target === img) { img.removeEventListener('transitionend', onEnd); done(); } };
+                img.addEventListener('transitionend', onEnd);
+                setTimeout(done, 290);
+                return;
+            }
+            finalizeCloseViewer(token);
         }
 
         function clearViewerAdjacent() {
@@ -7488,7 +7576,7 @@
         function editCurrentAttachmentImage() {
             const row = getViewerAttachmentRow(viewerImages[viewerIndex]);
             if (!row) return;
-            closeImageViewer();
+            closeImageViewer({ immediate: true });
             openMarkerModalForRow(row);
         }
 
@@ -7498,16 +7586,68 @@
             if (!img) return;
             const item = viewerImages[viewerIndex];
             const fade = !opts || opts.fade !== false;
+            const sourceRect = opts && opts.sourceRect ? opts.sourceRect : null;
+            const sourceEl = (opts && opts.sourceEl) || (item && item.element) || null;
+            const token = viewerAnimToken;
 
             resetViewerTransform();
 
             renderViewerChrome();
+
+            if (sourceRect) {
+                const hasLoadedSource = Boolean(sourceEl && sourceEl.tagName === 'IMG' && sourceEl.complete && sourceEl.naturalWidth > 0);
+                const thumbSrc = hasLoadedSource ? (sourceEl.currentSrc || sourceEl.src) : '';
+                const useThumbFirst = Boolean(thumbSrc && thumbSrc !== item.url);
+                img.onload = img.onerror = null;
+                img.src = useThumbFirst ? thumbSrc : item.url;
+                const startOpenFlip = () => {
+                    if (token !== viewerAnimToken || viewerClosing) return;
+                    const targetRect = getViewerTargetRect(img, sourceEl);
+                    const flip = computeViewerFlipTransform(sourceRect, targetRect);
+                    if (!flip) {
+                        img.style.transition = 'transform 0.28s var(--ease-out), opacity 0.28s var(--ease-out)';
+                        img.style.opacity = '1'; img.style.transform = 'scale(1)';
+                        return;
+                    }
+                    setViewerHiddenSource(sourceEl);
+                    img.style.transition = 'none'; img.style.opacity = '1';
+                    img.style.transform = `translate(${flip.dx}px, ${flip.dy}px) scale(${flip.scale})`;
+                    void img.offsetWidth;
+                    requestAnimationFrame(() => {
+                        if (token !== viewerAnimToken || viewerClosing) return;
+                        img.style.transition = 'transform 0.3s var(--ease-out), opacity 0.24s var(--ease-out)';
+                        img.style.transform = 'translate(0px, 0px) scale(1)';
+                        setTimeout(() => {
+                            if (token !== viewerAnimToken || viewerClosing) return;
+                            const v = get('image-viewer'); if (v) v.classList.remove('viewer-shared-open');
+                            img.style.transition = '';
+                        }, 320);
+                    });
+                };
+                if ((img.complete && img.naturalWidth) || hasLoadedSource) {
+                    startOpenFlip();
+                } else {
+                    img.style.transition = 'none'; img.style.opacity = '0';
+                    img.onload = img.onerror = startOpenFlip;
+                }
+                if (useThumbFirst) {
+                    const full = new Image();
+                    full.onload = () => {
+                        if (token === viewerAnimToken && !viewerClosing && viewerImages[viewerIndex] === item) img.src = item.url;
+                    };
+                    full.src = item.url;
+                }
+                return;
+            }
+
+            if (viewerHiddenSourceEl) setViewerHiddenSource(sourceEl);
 
             img.style.transition = 'none';
             img.style.transform = fade ? 'scale(0.96)' : 'translate(0, 0) scale(1)';
             img.style.opacity = fade ? '0.35' : '0';
 
             const reveal = () => {
+                if (token !== viewerAnimToken || viewerClosing) return;
                 img.style.transition = fade ? 'transform 0.28s var(--ease-out), opacity 0.28s var(--ease-out)' : 'none';
                 img.style.opacity = '1';
                 img.style.transform = 'scale(1)';
@@ -7516,6 +7656,7 @@
 
             if (fade) {
                 setTimeout(() => {
+                    if (token !== viewerAnimToken || viewerClosing) return;
                     if (s && s.active) return;
                     img.src = item.url;
                     img.onload = reveal;
@@ -15221,7 +15362,7 @@
                 const viewerSrc = img ? (img.dataset.viewerSrc || img.currentSrc || img.src) : '';
                 if (img && viewerSrc) {
                     e.preventDefault();
-                    openImageViewer(viewerSrc);
+                    openImageViewer(viewerSrc, '.chat-image', img);
                 }
             });
             const viewerContentEl = document.querySelector('.viewer-content');
@@ -17605,7 +17746,7 @@
                             el.uploadRow = row;
                             el.onclick = function(e) {
                                 e.preventDefault();
-                                openImageViewer(this.dataset.viewerSrc, '.thumb-item');
+                                openImageViewer(this.dataset.viewerSrc, '.thumb-item', this);
                             };
                             el.onerror = function() {
                                 // Fallback if image fails to load (e.g. revoked URL)
@@ -21135,7 +21276,7 @@
             }
             body.innerHTML = executions.map((ex, i) => buildPythonExecDetailBoxHtml(ex, i, executions.length)).join('');
             body.querySelectorAll('img').forEach(img => {
-                img.addEventListener('click', () => openImageViewer(img.dataset.viewerSrc || img.src, '#python-exec-modal-body img'));
+                img.addEventListener('click', () => openImageViewer(img.dataset.viewerSrc || img.src, '#python-exec-modal-body img', img));
             });
             if (codingModeEnabled) {
                 syncCodingTargetButtons(body);
@@ -26422,10 +26563,19 @@
             const images = filtered.filter((x) => x.type === 'image');
             const visibleImages = lib.favoritesOnly ? images.filter((x) => x.is_favorite) : images;
             if (!visibleImages.length) return;
+            const cardMediaMap = new Map();
+            const libGrid = get('lib-grid');
+            if (libGrid) {
+                libGrid.querySelectorAll('.library-thumb-card').forEach((card) => {
+                    const fp = card.dataset && card.dataset.filepath;
+                    const mediaEl = card.querySelector('.library-thumb-media');
+                    if (fp && mediaEl) cardMediaMap.set(fp, mediaEl);
+                });
+            }
             const items = visibleImages.map((x) => ({
                 url: x.url,
                 filename: x.filename || x.original_filename || x.url.split('/').pop(),
-                element: null
+                element: cardMediaMap.get(x.filepath) || null
             }));
             let idx = items.findIndex((x) => x.url === f.url);
             if (idx === -1) idx = 0;

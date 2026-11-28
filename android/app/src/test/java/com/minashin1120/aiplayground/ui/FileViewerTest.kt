@@ -3,6 +3,7 @@ package com.minashin1120.aiplayground.ui
 import com.minashin1120.aiplayground.data.AttachmentKind
 import com.minashin1120.aiplayground.data.attachmentKind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntSize
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -63,5 +64,25 @@ class FileViewerTest {
         assertFalse(viewerTapCloses(Offset(500f, 1000f), viewport, image, 1f, Offset.Zero, ready = true, failed = false))
         // A failed load must not trap the user in the viewer.
         assertTrue(viewerTapCloses(Offset(500f, 300f), viewport, null, 1f, Offset.Zero, ready = false, failed = true))
+    }
+
+    @Test fun transitionAlignsViewerImageWithOnScreenOrigin() {
+        val stage = IntSize(1000, 2000)
+        // A 2:1 image fits to 1000×500 centered at (500, 1000).
+        // Thumbnail is 200×100 at top-left (100, 200) -> center (200, 250).
+        val source = Rect(left = 100f, top = 200f, right = 300f, bottom = 300f)
+        val tr = computeImageViewerTransition(source, stage, IntSize(800, 400))
+        assertTrue(tr != null)
+        assertEquals(-300f, tr!!.translationX, 0.01f)
+        assertEquals(-750f, tr.translationY, 0.01f)
+        assertEquals(0.2f, tr.scale, 0.001f)
+    }
+
+    @Test fun transitionFallsBackToNullWhenOriginIsOffScreenOrInvalid() {
+        val stage = IntSize(1000, 2000)
+        assertNull(computeImageViewerTransition(null, stage, IntSize(400, 200)))
+        assertNull(computeImageViewerTransition(Rect(-200f, 100f, -10f, 200f), stage, IntSize(400, 200)))
+        assertNull(computeImageViewerTransition(Rect(100f, 100f, 102f, 102f), stage, IntSize(400, 200)))
+        assertNull(computeImageViewerTransition(Rect(100f, 100f, 300f, 200f), IntSize.Zero, IntSize(400, 200)))
     }
 }

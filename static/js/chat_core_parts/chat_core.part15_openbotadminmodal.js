@@ -945,7 +945,7 @@
                 const viewerSrc = img ? (img.dataset.viewerSrc || img.currentSrc || img.src) : '';
                 if (img && viewerSrc) {
                     e.preventDefault();
-                    openImageViewer(viewerSrc);
+                    openImageViewer(viewerSrc, '.chat-image', img);
                 }
             });
             const viewerContentEl = document.querySelector('.viewer-content');

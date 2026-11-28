@@ -2,6 +2,7 @@ package com.minashin1120.aiplayground.ui
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.os.SystemClock
 import android.util.LruCache
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.LinearEasing
@@ -36,10 +37,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -61,6 +66,40 @@ internal object ProtectedImageCache {
 
     fun get(key: String): Bitmap? = cache.get(key)
     fun put(key: String, value: Bitmap) { cache.put(key, value) }
+}
+
+/** Tracks on-screen bounds of displayed images so the image viewer expands from and returns to their location. */
+internal object ImageOriginRegistry {
+    private val boundsByRef = HashMap<String, Rect>()
+    private var lastTappedRef: String? = null
+    private var lastTappedBounds: Rect? = null
+    private var lastTappedAtMs: Long = 0L
+
+    fun update(reference: String, boundsInScreen: Rect) {
+        if (reference.isBlank() || boundsInScreen.width < 4f || boundsInScreen.height < 4f) return
+        boundsByRef[reference] = boundsInScreen
+    }
+
+    fun recordTap(reference: String, boundsInScreen: Rect) {
+        if (reference.isBlank() || boundsInScreen.width < 4f || boundsInScreen.height < 4f) return
+        boundsByRef[reference] = boundsInScreen
+        lastTappedRef = reference
+        lastTappedBounds = boundsInScreen
+        lastTappedAtMs = SystemClock.elapsedRealtime()
+    }
+
+    fun resolveForOpen(reference: String): Rect? {
+        val now = SystemClock.elapsedRealtime()
+        if (lastTappedRef == reference && lastTappedBounds != null && now - lastTappedAtMs <= 1500L) {
+            return lastTappedBounds
+        }
+        return boundsByRef[reference]
+    }
+
+    fun resolveForClose(reference: String, initialReference: String, initialBounds: Rect?): Rect? {
+        if (reference == initialReference && initialBounds != null) return initialBounds
+        return boundsByRef[reference] ?: if (reference == initialReference) initialBounds else null
+    }
 }
 
 private fun decodeScaled(bytes: ByteArray, maxWidth: Int): Bitmap? {
@@ -106,6 +145,8 @@ fun ProtectedImage(
     fitMaxHeight: Dp = Dp.Infinity,
     /** Where the fitted frame sits in the available width (Web `object-fit: contain` centers it). */
     fitAlignment: Alignment = Alignment.TopStart,
+    /** Whether this image registers its screen bounds as an origin for image viewer open/close animations. */
+    registerOrigin: Boolean = true,
 ) {
     val identity = LocalImageCacheKey.current(reference)
     val key = "$identity|${if (thumbnail) "t" else "f"}|$maxDecodeWidth"
@@ -113,6 +154,8 @@ fun ProtectedImage(
     LaunchedEffect(bitmap) { bitmap?.let { onImageSize?.invoke(IntSize(it.width, it.height)) } }
     var failed by remember(key) { mutableStateOf(false) }
     val loadFailed = rememberUpdatedState(onLoadFailed)
+    val view = LocalView.current
+    var lastScreenBounds by remember(reference) { mutableStateOf<Rect?>(null) }
     LaunchedEffect(key) {
         if (bitmap != null) return@LaunchedEffect
         if (loader == null) {
@@ -132,7 +175,24 @@ fun ProtectedImage(
             loadFailed.value?.invoke()
         }
     }
-    val click = if (onOpen != null) Modifier.clickable { onOpen(reference) } else Modifier
+    val trackOrigin = if (registerOrigin) {
+        Modifier.onGloballyPositioned { coords ->
+            val win = coords.boundsInWindow()
+            if (win.width >= 4f && win.height >= 4f) {
+                val loc = IntArray(2)
+                view.getLocationOnScreen(loc)
+                val screenRect = win.translate(loc[0].toFloat(), loc[1].toFloat())
+                lastScreenBounds = screenRect
+                ImageOriginRegistry.update(reference, screenRect)
+            }
+        }
+    } else Modifier
+    val click = if (onOpen != null) {
+        Modifier.clickable {
+            lastScreenBounds?.let { ImageOriginRegistry.recordTap(reference, it) }
+            onOpen(reference)
+        }
+    } else Modifier
     if (fitToImage) {
         BoxWithConstraints(modifier, contentAlignment = fitAlignment) {
             val width = min(maxWidth, fitMaxWidth).takeIf { it != Dp.Infinity } ?: 320.dp
@@ -146,14 +206,14 @@ fun ProtectedImage(
                 Modifier.width(width).heightIn(min = 120.dp)
             }
             ImageFrame(
-                frame.clip(shape).then(click), shape, background, image, failed, contentDescription,
+                frame.clip(shape).then(trackOrigin).then(click), shape, background, image, failed, contentDescription,
                 inner = Modifier.fillMaxSize(), imageModifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
                 loadingModifier = Modifier.fillMaxWidth().height(120.dp),
             )
         }
     } else {
         ImageFrame(
-            modifier.clip(shape).then(click), shape, background, bitmap, failed, contentDescription,
+            modifier.clip(shape).then(trackOrigin).then(click), shape, background, bitmap, failed, contentDescription,
             inner = if (compact) Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 320.dp) else Modifier.fillMaxSize(),
             imageModifier = if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxSize(),
             contentScale = contentScale,

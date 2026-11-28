@@ -935,10 +935,19 @@
             const images = filtered.filter((x) => x.type === 'image');
             const visibleImages = lib.favoritesOnly ? images.filter((x) => x.is_favorite) : images;
             if (!visibleImages.length) return;
+            const cardMediaMap = new Map();
+            const libGrid = get('lib-grid');
+            if (libGrid) {
+                libGrid.querySelectorAll('.library-thumb-card').forEach((card) => {
+                    const fp = card.dataset && card.dataset.filepath;
+                    const mediaEl = card.querySelector('.library-thumb-media');
+                    if (fp && mediaEl) cardMediaMap.set(fp, mediaEl);
+                });
+            }
             const items = visibleImages.map((x) => ({
                 url: x.url,
                 filename: x.filename || x.original_filename || x.url.split('/').pop(),
-                element: null
+                element: cardMediaMap.get(x.filepath) || null
             }));
             let idx = items.findIndex((x) => x.url === f.url);
             if (idx === -1) idx = 0;
